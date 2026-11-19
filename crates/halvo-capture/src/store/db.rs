@@ -10,7 +10,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use halvo_sqlcipher::rusqlite::config::DbConfig;
-use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags};
+use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -25,13 +25,15 @@ use super::durable::{self, Dir, DurableFs, EntryKind, OsFs, Refused};
 use super::lock::DirLock;
 use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{
-    DeleteReport, Layout, Met, RootReading, SegmentStore, StoreError, StoreName, StoreResult,
+    DeleteReport, KindTotal, Layout, Met, Ordinal, Reconciled, Refusal, RootReading, SegmentStore,
+    SegmentWrite, StoreError, StoreName, StoreResult, UtcDay, WriteFault, Written, KINDS_MAX,
+    KIND_MAX_BYTES, PAYLOAD_MAX_BYTES,
 };
 
 const KEY_FILE_VERSION: u32 = 2;
 #[cfg(target_os = "macos")]
 const STATS_AFTER_THE_FIRST: u32 = 2;
-const DATABASE_VERSION: i64 = 1;
+const DATABASE_VERSION: i64 = 2;
 /// The name of the store directory in a data directory (C3.5).
 const STORE_DIR_NAME: &str = "store";
 const KEY_FILE: &str = "store.key";
@@ -1061,10 +1063,10 @@ pub(in crate::store) fn unix_secs_now() -> u64 {
         .unwrap_or(0)
 }
 
-fn unix_nanos(t: SystemTime) -> i64 {
-    t.duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos() as i64)
-        .unwrap_or(0)
+pub(in crate::store) fn random_segment_id() -> StoreResult<uuid::Uuid> {
+    let mut bytes = [0u8; 16];
+    getrandom::getrandom(&mut bytes).map_err(|_| StoreError::Seal)?;
+    Ok(uuid::Builder::from_random_bytes(bytes).into_uuid())
 }
 
 fn remove_in(store_dir: &Dir, name: &str) -> StoreResult<()> {
@@ -1212,6 +1214,7 @@ pub(in crate::store) struct Db {
     store_dir: Dir,
     log_name: std::ffi::OsString,
     named: Named,
+    log_written: std::cell::Cell<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1220,7 +1223,129 @@ enum Database {
     Existing,
 }
 
-const SCHEMA_TABLES: [&str; 3] = ["segment_keys", "events", "events_fts"];
+const SCHEMA_TABLES: [&str; 3] = ["segment_keys", "segment_totals", "daily_totals"];
+
+const SCHEMA: &str = "CREATE TABLE segment_keys (\n\
+       id INTEGER PRIMARY KEY AUTOINCREMENT,\n\
+       segment_id TEXT NOT NULL UNIQUE,\n\
+       wrapped_key BLOB,\n\
+       day INTEGER NOT NULL,\n\
+       first_capture INTEGER NOT NULL,\n\
+       last_capture INTEGER NOT NULL,\n\
+       logical_bytes INTEGER NOT NULL,\n\
+       disk_bytes INTEGER NOT NULL\n\
+     );\n\
+     CREATE INDEX segment_keys_live_by_first_capture ON segment_keys (first_capture)\n\
+       WHERE wrapped_key IS NOT NULL;\n\
+     CREATE TABLE segment_totals (\n\
+       segment INTEGER NOT NULL REFERENCES segment_keys (id),\n\
+       kind TEXT NOT NULL,\n\
+       events INTEGER NOT NULL,\n\
+       bytes INTEGER NOT NULL,\n\
+       PRIMARY KEY (segment, kind)\n\
+     ) WITHOUT ROWID;\n\
+     CREATE TABLE daily_totals (\n\
+       day INTEGER NOT NULL,\n\
+       kind TEXT NOT NULL,\n\
+       events INTEGER NOT NULL,\n\
+       bytes INTEGER NOT NULL,\n\
+       PRIMARY KEY (day, kind)\n\
+     ) WITHOUT ROWID;";
+
+/// The UTC day and the first and last capture instants of one segment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::store) struct Instants {
+    pub(in crate::store) day: UtcDay,
+    pub(in crate::store) first: i64,
+    pub(in crate::store) last: i64,
+}
+
+impl Instants {
+    fn at(nanos: i64) -> Instants {
+        Instants {
+            day: UtcDay::of_instant(nanos),
+            first: nanos,
+            last: nanos,
+        }
+    }
+}
+
+fn as_column(value: u64) -> StoreResult<i64> {
+    i64::try_from(value)
+        .map_err(|_| StoreError::Corrupt("a count above the column's range".to_string()))
+}
+
+/// Why `write` must be refused, before anything is written.
+pub(in crate::store) fn refusal_of(write: &SegmentWrite<'_>) -> Option<Refusal> {
+    let is_v4 = write.segment_id.get_version_num() == 4
+        && write.segment_id.get_variant() == uuid::Variant::RFC4122;
+    let kind_text = |kind: &str| {
+        (1..=KIND_MAX_BYTES).contains(&kind.len())
+            && kind.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+    };
+    let mut kinds: Vec<&str> = write.kinds.iter().map(|total| total.kind).collect();
+    kinds.sort_unstable();
+    let events = write
+        .kinds
+        .iter()
+        .try_fold(0u64, |sum, total| sum.checked_add(total.events));
+    if !is_v4 {
+        Some(Refusal::NotRandomId)
+    } else if write.payload.len() > PAYLOAD_MAX_BYTES {
+        Some(Refusal::PayloadOverCap)
+    } else if write.kinds.len() > KINDS_MAX {
+        Some(Refusal::TooManyKinds)
+    } else if !write.kinds.iter().all(|total| kind_text(total.kind)) {
+        Some(Refusal::KindNotText)
+    } else if kinds.windows(2).any(|pair| pair[0] == pair[1]) {
+        Some(Refusal::RepeatedKind)
+    } else if events.is_none_or(|events| events == 0 || events > i64::MAX as u64)
+        || write
+            .kinds
+            .iter()
+            .any(|total| total.bytes > i64::MAX as u64)
+    {
+        Some(Refusal::NoEvent)
+    } else if write.first_capture > write.last_capture {
+        Some(Refusal::InstantsOutOfOrder)
+    } else if UtcDay::of_instant(write.first_capture) != UtcDay::of_instant(write.last_capture) {
+        Some(Refusal::InstantsOnTwoDays)
+    } else if UtcDay::of_instant(write.first_capture) != write.day {
+        Some(Refusal::DayNotTheInstants)
+    } else {
+        None
+    }
+}
+
+const DATABASE_KEY_LABEL: [u8; 24] = *b"halvo-store-database-key";
+const WRAPPING_KEY_LABEL: [u8; 24] = *b"halvo-store-segment-wrap";
+
+/// A key derived from the store key under `label`: the first 32 bytes of the
+/// XChaCha20 stream of the store key at the label as nonce, so that keys of
+/// two labels are independent and the store key itself encrypts nothing.
+fn derived_key(store_key: &StoreKey, label: &[u8; 24]) -> StoreResult<Zeroizing<[u8; 32]>> {
+    use aead::{Aead, KeyInit};
+    let cipher = chacha20poly1305::XChaCha20Poly1305::new(store_key.expose().into());
+    let sealed = Zeroizing::new(
+        cipher
+            .encrypt(
+                &chacha20poly1305::XNonce::from(*label),
+                [0u8; 32].as_slice(),
+            )
+            .map_err(|_| StoreError::Seal)?,
+    );
+    let mut key = Zeroizing::new([0u8; 32]);
+    key.copy_from_slice(&sealed[..32]);
+    Ok(key)
+}
+
+pub(in crate::store) fn database_key(store_key: &StoreKey) -> StoreResult<Zeroizing<[u8; 32]>> {
+    derived_key(store_key, &DATABASE_KEY_LABEL)
+}
+
+pub(in crate::store) fn wrapping_key(store_key: &StoreKey) -> StoreResult<Zeroizing<[u8; 32]>> {
+    derived_key(store_key, &WRAPPING_KEY_LABEL)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::store) struct DatabaseRemoval {
@@ -1305,6 +1430,19 @@ impl Db {
         }
     }
 
+    /// `OlderStore` when the store key itself opens store.db read-only and
+    /// its user_version is below this build's: a store made before the
+    /// database key was derived. It reads that one value and writes nothing.
+    fn older_version_of(store_dir: &Dir, store_key: &StoreKey) -> Option<StoreError> {
+        let (probe, _) = open_connection(store_dir, PROBE_OPEN).ok()?;
+        probe.execute_batch(&key_pragma(store_key.expose())).ok()?;
+        let found = pragma_int(&probe, "user_version").ok()?;
+        (found < DATABASE_VERSION).then_some(StoreError::OlderStore {
+            found,
+            supported: DATABASE_VERSION,
+        })
+    }
+
     fn require_file(store_dir: &Dir) -> StoreResult<()> {
         match store_dir.entry(OsStr::new(DATABASE_FILE)) {
             Ok(entry) if entry.kind == EntryKind::Link => {
@@ -1346,6 +1484,7 @@ impl Db {
             store_dir: store_dir.try_clone().map_err(io_error)?,
             log_name: DATABASE_LOG.into(),
             named: (name_form, volume_ids),
+            log_written: std::cell::Cell::new(database == Database::New),
         };
         db.finish(database)
             .map_err(|e| Self::answered(store_dir, e))?;
@@ -1395,6 +1534,7 @@ impl Db {
         require_synchronous_full(conn)?;
         require_fullfsync(conn)?;
         require_checkpoint_fullfsync(conn)?;
+        require_foreign_keys(conn)?;
         require_cipher_log_level_none(conn)?;
         require_pinned_cipher(conn)
     }
@@ -1410,9 +1550,8 @@ impl Db {
             }
             Database::Existing => self.require_schema()?,
         }
-        self.enable_fts_secure_delete()?;
-        self.log_look()?;
         if database == Database::New {
+            self.log_look()?;
             self.checkpoint_truncate()?;
             #[cfg(test)]
             failpoint::seam(SEAM_BEFORE_THE_PAGE_LOOK);
@@ -1467,6 +1606,18 @@ impl Db {
         }
     }
 
+    /// The second instant of the log's check, at the first commit of a
+    /// handle whose open wrote nothing: the log in the store directory holds
+    /// the commit's frames, or the answer is the obstructed variant.
+    pub(in crate::store) fn look_after_the_first_commit(&self) -> StoreResult<()> {
+        if self.log_written.get() {
+            return Ok(());
+        }
+        self.log_look()?;
+        self.log_written.set(true);
+        Ok(())
+    }
+
     fn page_look(&self) -> StoreResult<()> {
         let page: u64 = self
             .conn
@@ -1499,31 +1650,7 @@ impl Db {
     }
 
     fn init_schema(&self) -> StoreResult<()> {
-        self.conn
-            .execute_batch(
-                "CREATE TABLE IF NOT EXISTS segment_keys (\n\
-                   id INTEGER PRIMARY KEY,\n\
-                   segment_id TEXT NOT NULL UNIQUE,\n\
-                   wrapped_key BLOB,\n\
-                   created_at INTEGER NOT NULL,\n\
-                   expires_at INTEGER NOT NULL\n\
-                 );\n\
-                 CREATE TABLE IF NOT EXISTS events (\n\
-                   event_id TEXT PRIMARY KEY,\n\
-                   wall_clock_nanos INTEGER NOT NULL,\n\
-                   sequence INTEGER NOT NULL,\n\
-                   modality TEXT NOT NULL,\n\
-                   foreground_app TEXT NOT NULL,\n\
-                   segment_id TEXT NOT NULL,\n\
-                   byte_offset INTEGER NOT NULL,\n\
-                   byte_len INTEGER NOT NULL,\n\
-                   segment_key_id INTEGER NOT NULL,\n\
-                   is_derived INTEGER NOT NULL,\n\
-                   retention_class TEXT NOT NULL\n\
-                 );\n\
-                 CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(foreground_app);",
-            )
-            .map_err(db_error)
+        self.conn.execute_batch(SCHEMA).map_err(db_error)
     }
 
     fn require_schema(&self) -> StoreResult<()> {
@@ -1548,102 +1675,71 @@ impl Db {
         Ok(())
     }
 
-    fn enable_fts_secure_delete(&self) -> StoreResult<()> {
-        self.conn
-            .execute_batch("INSERT INTO events_fts(events_fts, rank) VALUES('secure-delete', 1);")
-            .map_err(db_error)
-    }
-
     pub(crate) fn connection(&self) -> &Connection {
         &self.conn
     }
 
-    fn reserve_segment_key(
+    /// The ordinal of the key row of `segment_id`, live or shredded.
+    pub(in crate::store) fn ordinal_of(
         &self,
         segment_id: uuid::Uuid,
-        created_at: u64,
-        expires_at: u64,
-    ) -> StoreResult<SegmentKeyId> {
+    ) -> StoreResult<Option<Ordinal>> {
         self.conn
-            .execute(
-                "INSERT INTO segment_keys (segment_id, wrapped_key, created_at, expires_at) \
-                 VALUES (?1, NULL, ?2, ?3)",
-                rusqlite::params![
-                    segment_id.simple().to_string(),
-                    created_at as i64,
-                    expires_at as i64
-                ],
+            .query_row(
+                "SELECT id FROM segment_keys WHERE segment_id = ?1",
+                [segment_id.simple().to_string()],
+                |r| r.get::<_, i64>(0),
             )
-            .map_err(db_error)?;
-        Ok(SegmentKeyId(self.conn.last_insert_rowid()))
+            .optional()
+            .map(|id| id.map(Ordinal::of_row))
+            .map_err(db_error)
     }
 
-    fn commit_segment_key(&self, id: SegmentKeyId, wrapped: &[u8]) -> StoreResult<()> {
-        let changed = self
-            .conn
-            .execute(
-                "UPDATE segment_keys SET wrapped_key = ?1 WHERE id = ?2 AND wrapped_key IS NULL",
-                rusqlite::params![wrapped, id.0],
+    /// One transaction: the complete key row, the totals of each kind and the
+    /// rollup of the day. Nothing of it stays when it fails.
+    fn insert_segment(
+        &self,
+        segment_id: uuid::Uuid,
+        wrapped: &[u8],
+        instants: &Instants,
+        sizes: (u64, u64),
+        kinds: &[KindTotal<'_>],
+    ) -> StoreResult<Ordinal> {
+        let tx = self.conn.unchecked_transaction().map_err(db_error)?;
+        tx.execute(
+            "INSERT INTO segment_keys (segment_id, wrapped_key, day, first_capture, last_capture, \
+               logical_bytes, disk_bytes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                segment_id.simple().to_string(),
+                wrapped,
+                instants.day.days_since_epoch(),
+                instants.first,
+                instants.last,
+                as_column(sizes.0)?,
+                as_column(sizes.1)?
+            ],
+        )
+        .map_err(db_error)?;
+        let ordinal = tx.last_insert_rowid();
+        for total in kinds {
+            let (events, bytes) = (as_column(total.events)?, as_column(total.bytes)?);
+            tx.execute(
+                "INSERT INTO segment_totals (segment, kind, events, bytes) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![ordinal, total.kind, events, bytes],
             )
             .map_err(db_error)?;
-        if changed == 1 {
-            Ok(())
-        } else {
-            Err(StoreError::Corrupt(
-                "a segment key row was not reserved for this write".to_string(),
-            ))
+            tx.execute(
+                "INSERT INTO daily_totals (day, kind, events, bytes) VALUES (?1, ?2, ?3, ?4) \
+                 ON CONFLICT (day, kind) DO UPDATE SET events = events + excluded.events, \
+                 bytes = bytes + excluded.bytes",
+                rusqlite::params![instants.day.days_since_epoch(), total.kind, events, bytes],
+            )
+            .map_err(db_error)?;
         }
-    }
-
-    pub(crate) fn insert_event(&self, event: &CaptureStreamEvent) -> StoreResult<()> {
-        self.conn
-            .execute_batch("SAVEPOINT insert_event;")
-            .map_err(db_error)?;
-        match self.insert_event_rows(event) {
-            Ok(()) => self
-                .conn
-                .execute_batch("RELEASE insert_event;")
-                .map_err(db_error),
-            Err(cause) => match self
-                .conn
-                .execute_batch("ROLLBACK TO insert_event; RELEASE insert_event;")
-            {
-                Ok(()) => Err(cause),
-                Err(e) => Err(db_error(e)),
-            },
-        }
-    }
-
-    fn insert_event_rows(&self, event: &CaptureStreamEvent) -> StoreResult<()> {
-        self.conn
-            .execute(
-                "INSERT INTO events (event_id, wall_clock_nanos, sequence, modality, \
-                   foreground_app, segment_id, byte_offset, byte_len, segment_key_id, \
-                   is_derived, retention_class) \
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
-                rusqlite::params![
-                    event.event_id.simple().to_string(),
-                    unix_nanos(event.captured_at.wall_clock),
-                    event.captured_at.sequence.get() as i64,
-                    format!("{:?}", event.modality),
-                    event.foreground_app,
-                    event.segment_ref.segment_id.simple().to_string(),
-                    event.segment_ref.byte_offset as i64,
-                    event.segment_ref.byte_len as i64,
-                    event.segment_key_id.0,
-                    event.is_derived as i64,
-                    format!("{:?}", event.retention_class),
-                ],
-            )
-            .map_err(db_error)?;
-        let rowid = self.conn.last_insert_rowid();
-        self.conn
-            .execute(
-                "INSERT INTO events_fts (rowid, foreground_app) VALUES (?1, ?2)",
-                rusqlite::params![rowid, event.foreground_app],
-            )
-            .map_err(db_error)?;
-        Ok(())
+        failpoint::hit("batch_in_the_transaction")?;
+        tx.commit().map_err(db_error)?;
+        self.look_after_the_first_commit()?;
+        Ok(Ordinal::of_row(ordinal))
     }
 
     pub(crate) fn pragma_int(&self, name: &str) -> StoreResult<i64> {
@@ -1653,16 +1749,6 @@ impl Db {
     pub(crate) fn cipher_provider(&self) -> StoreResult<String> {
         self.conn
             .query_row("PRAGMA cipher_provider", [], |r| r.get::<_, String>(0))
-            .map_err(db_error)
-    }
-
-    pub(crate) fn fts_secure_delete(&self) -> StoreResult<i64> {
-        self.conn
-            .query_row(
-                "SELECT CAST(v AS INTEGER) FROM events_fts_config WHERE k='secure-delete'",
-                [],
-                |r| r.get::<_, i64>(0),
-            )
             .map_err(db_error)
     }
 
@@ -1803,6 +1889,13 @@ fn require_cipher_log_level_none(conn: &Connection) -> StoreResult<()> {
         Ok(())
     } else {
         Err(StoreError::SettingNotInEffect("cipher_log_level"))
+    }
+}
+
+fn require_foreign_keys(conn: &Connection) -> StoreResult<()> {
+    match pragma_int(conn, "foreign_keys")? {
+        1 => Ok(()),
+        _ => Err(StoreError::SettingNotInEffect("foreign_keys")),
     }
 }
 
@@ -1991,6 +2084,7 @@ pub struct EncryptedStore {
     /// destroyed; a later call reports from it and opens no roots path.
     root_destroyed_with: Option<RootsLeft>,
     roots: RootKeeping,
+    reconciled: Reconciled,
     _writer_lock: DirLock,
 }
 
@@ -2055,7 +2149,9 @@ impl EncryptedStore {
         let _ = segment::remove_segments_tree(dir);
         write_pending(dir, custody.as_ref(), PendingReading::Owed, None)?;
         let store_key = StoreKey::random()?;
-        let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
+        let db = database_key(&store_key)
+            .and_then(|key| Db::open(dir, &key))
+            .map_err(|e| Self::without_database(dir, e))?;
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
         let (wrapped, roots) = match Self::wrap_under_the_new_root(custody.as_ref(), &store_key) {
             Ok(wrapped) => wrapped,
@@ -2110,6 +2206,7 @@ impl EncryptedStore {
                 pending_left: false,
                 root_destroyed_with: None,
                 roots,
+                reconciled: Reconciled::default(),
                 _writer_lock,
             }),
             Err(e) => {
@@ -2271,7 +2368,13 @@ impl EncryptedStore {
             ),
         };
         let unwrap_time = started.elapsed();
-        let db = Db::open_existing(&store, store_key.expose())?;
+        let db = match Db::open_existing(&store, &*database_key(&store_key)?) {
+            Err(StoreError::DatabaseUnreadable) => {
+                return Err(Db::older_version_of(&store, &store_key)
+                    .unwrap_or(StoreError::DatabaseUnreadable))
+            }
+            opened => opened?,
+        };
         let cleanup_roots = match &kept {
             RootKeeping::Held {
                 roots: held,
@@ -2281,7 +2384,7 @@ impl EncryptedStore {
         };
         let pending_left =
             clear_pending(&store, cleanup_roots, KeyNames::Root(key_file.root_id)).is_err();
-        Ok(Self {
+        let mut opened = Self {
             dir: store,
             retention,
             custody,
@@ -2291,8 +2394,11 @@ impl EncryptedStore {
             pending_left,
             root_destroyed_with: None,
             roots: kept,
+            reconciled: Reconciled::default(),
             _writer_lock,
-        })
+        };
+        opened.reconciled = opened.reconcile();
+        Ok(opened)
     }
 
     fn keyed(&self) -> StoreResult<(&Db, &StoreKey)> {
@@ -2368,41 +2474,140 @@ impl EncryptedStore {
                 other => self.answer(db_error(other)),
             })?;
         let wrapped = wrapped.ok_or(StoreError::Sealed)?;
-        let seg_key = segment::unwrap_segment_key(store_key.expose(), &wrapped)?;
+        let seg_key =
+            segment::unwrap_segment_key(&*wrapping_key(store_key)?, segment_id, &wrapped)?;
         segment::read_segment_file(&self.dir, &seg_key, segment_id, out).map_err(|e| self.answer(e))
     }
 
+    /// Store one batch, all or nothing. A batch that this method refuses, or
+    /// whose segment id the store holds already, writes nothing. Otherwise it
+    /// writes the segment file under a fresh segment key and makes it durable,
+    /// then one transaction inserts the complete key row, the totals of each
+    /// kind and the per-day rollup; when any step fails, the transaction rolls
+    /// back and the file is removed, so no row and no file remain from the
+    /// call (a file whose removal fails is left for the open-time sweep, as a
+    /// file with no key row). Nothing that can fail follows the commit. The
+    /// caller keeps the batch on every answer.
+    pub fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        if let Some(refusal) = refusal_of(&write) {
+            self.keyed()?;
+            return Err(WriteFault::Refused(refusal));
+        }
+        let (db, _) = self.keyed()?;
+        if let Some(ordinal) = db
+            .ordinal_of(*write.segment_id)
+            .map_err(|e| self.answer(e))?
+        {
+            return Err(WriteFault::AlreadyWritten { ordinal });
+        }
+        let instants = Instants {
+            day: write.day,
+            first: write.first_capture,
+            last: write.last_capture,
+        };
+        let mut payload = write.payload;
+        self.store_segment(*write.segment_id, &instants, &mut payload, write.kinds)
+            .map_err(WriteFault::from)
+    }
+
+    fn store_segment(
+        &mut self,
+        segment_id: uuid::Uuid,
+        instants: &Instants,
+        bytes: &mut dyn Read,
+        kinds: &[KindTotal<'_>],
+    ) -> StoreResult<Written> {
+        let (db, store_key) = self.keyed()?;
+        let seg_key = SegmentKey::random()?;
+        let wrapped = segment::wrap_segment_key(&*wrapping_key(store_key)?, segment_id, &seg_key)?;
+        let header = SegmentHeader { segment_id };
+        let logical_bytes =
+            segment::write_segment_file(&self.dir, self.fs.as_ref(), &seg_key, &header, bytes)?;
+        let committed = failpoint::hit("batch_before_the_transaction")
+            .and_then(|()| segment::disk_bytes(&self.dir, segment_id))
+            .and_then(|disk_bytes| {
+                db.insert_segment(
+                    segment_id,
+                    &wrapped,
+                    instants,
+                    (logical_bytes, disk_bytes),
+                    kinds,
+                )
+                .map(|ordinal| Written {
+                    ordinal,
+                    logical_bytes,
+                    disk_bytes,
+                })
+            });
+        match committed {
+            Ok(written) => Ok(written),
+            Err(e) => {
+                segment::remove_written_segment(&self.dir, segment_id)?;
+                Err(self.answer(e))
+            }
+        }
+    }
+
+    /// The legacy write of [`SegmentStore::write_segment`]: a random id, no
+    /// totals, both instants the write instant.
+    fn write_untallied(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)> {
+        let segment_id = random_segment_id()?;
+        let instants = Instants::at(crate::event::unix_nanos(SystemTime::now()));
+        let written = self.store_segment(segment_id, &instants, bytes, &[])?;
+        Ok((
+            SegmentRef {
+                segment_id,
+                byte_offset: 0,
+                byte_len: written.logical_bytes,
+            },
+            SegmentKeyId(written.ordinal.get() as i64),
+        ))
+    }
+
+    /// A segment with no totals that falls due at `expires_at`, in whole Unix
+    /// seconds, under this handle's window: its first capture is that second
+    /// less the window. `created_at` is not stored.
+    #[cfg(test)]
     pub(in crate::store) fn write_segment_with_expiry(
         &mut self,
         bytes: &mut dyn Read,
         created_at: u64,
         expires_at: u64,
     ) -> StoreResult<(SegmentRef, SegmentKeyId)> {
-        let (db, store_key) = self.keyed()?;
-        let segment_id = uuid::Uuid::now_v7();
-        let seg_key = SegmentKey::random()?;
-        let wrapped = segment::wrap_segment_key(store_key.expose(), &seg_key)?;
-        let segment_key_id = db
-            .reserve_segment_key(segment_id, created_at, expires_at)
-            .map_err(|e| self.answer(e))?;
-        let header = SegmentHeader {
-            segment_id,
-            segment_key_id,
-        };
-        let byte_len =
-            segment::write_segment_file(&self.dir, self.fs.as_ref(), &seg_key, &header, bytes)?;
-        if let Err(e) = db.commit_segment_key(segment_key_id, &wrapped) {
-            segment::remove_written_segment(&self.dir, segment_id)?;
-            return Err(self.answer(e));
-        }
+        let _ = created_at;
+        let first = (i128::from(expires_at) - i128::from(self.retention.as_secs()))
+            .saturating_mul(1_000_000_000)
+            .clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64;
+        let segment_id = random_segment_id()?;
+        let written = self.store_segment(segment_id, &Instants::at(first), bytes, &[])?;
         Ok((
             SegmentRef {
                 segment_id,
                 byte_offset: 0,
-                byte_len,
+                byte_len: written.logical_bytes,
             },
-            segment_key_id,
+            SegmentKeyId(written.ordinal.get() as i64),
         ))
+    }
+
+    /// The window of this handle.
+    pub(in crate::store) fn retention(&self) -> std::time::Duration {
+        self.retention
+    }
+
+    /// What the reconcile of the open that made this handle did; zero for a
+    /// handle from `create`.
+    pub fn reconciled(&self) -> Reconciled {
+        self.reconciled
+    }
+
+    pub(in crate::store) fn wrapping_key(&self) -> StoreResult<Zeroizing<[u8; 32]>> {
+        wrapping_key(self.store_key()?)
+    }
+
+    #[cfg(test)]
+    pub(in crate::store) fn database_key(&self) -> StoreResult<Zeroizing<[u8; 32]>> {
+        database_key(self.store_key()?)
     }
 
     /// The root step of the handle. Once a call on this handle read its root
@@ -2815,13 +3020,12 @@ fn remove_the_store_files(
 
 impl SegmentStore for EncryptedStore {
     fn append_event(&mut self, event: &CaptureStreamEvent) -> StoreResult<()> {
-        self.db()?.insert_event(event).map_err(|e| self.answer(e))
+        let _ = event;
+        Err(StoreError::NotImplemented("append_event"))
     }
 
     fn write_segment(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)> {
-        let created = unix_secs_now();
-        let expires = created + self.retention.as_secs();
-        self.write_segment_with_expiry(bytes, created, expires)
+        self.write_untallied(bytes)
     }
 
     fn size_bytes(&self) -> StoreResult<u64> {
@@ -3045,18 +3249,18 @@ mod tests {
     }
 
     #[test]
-    fn an_event_whose_index_row_fails_leaves_no_event_row() {
+    fn append_event_is_refused_and_changes_no_byte_of_the_database() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = make_store(dir.path());
         let (seg_ref, key_id) = store
             .write_segment(&mut std::io::Cursor::new(b"segment"))
             .unwrap();
-        store
-            .db()
-            .unwrap()
-            .connection()
-            .execute_batch("DROP TABLE events_fts;")
-            .unwrap();
+        store.db().unwrap().checkpoint_truncate().unwrap();
+        let files = || {
+            ["store.db", "store.db-wal"]
+                .map(|name| std::fs::read(dir.path().join(name)).unwrap_or_default())
+        };
+        let before = files();
         let event = CaptureStreamEvent::new_raw(
             CapturedAt {
                 wall_clock: SystemTime::now(),
@@ -3068,17 +3272,11 @@ mod tests {
             key_id,
         );
         let appended = store.append_event(&event);
-        let rows: i64 = store
-            .db()
-            .unwrap()
-            .connection()
-            .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
-            .unwrap();
         assert!(
-            appended.is_err(),
-            "the append with no index table succeeded"
+            matches!(appended, Err(StoreError::NotImplemented("append_event"))),
+            "{appended:?}"
         );
-        assert_eq!(rows, 0, "a failed append left its event row");
+        assert!(files() == before, "append_event changed a database file");
     }
 
     #[cfg(unix)]
@@ -3125,17 +3323,6 @@ mod tests {
     }
 
     #[test]
-    fn a_key_row_that_holds_a_key_is_not_committed_again() {
-        let dir = tempfile::tempdir().unwrap();
-        let mut store = make_store(dir.path());
-        let (_, key_id) = store
-            .write_segment(&mut std::io::Cursor::new(b"segment"))
-            .unwrap();
-        let again = store.db().unwrap().commit_segment_key(key_id, &[1u8; 72]);
-        assert!(matches!(again, Err(StoreError::Corrupt(_))), "{again:?}");
-    }
-
-    #[test]
     fn a_wrapped_segment_key_that_does_not_open_under_the_store_key_reads_as_corrupt_not_sealed() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = make_store(dir.path());
@@ -3162,7 +3349,8 @@ mod tests {
         let db = store.db().unwrap();
         assert_eq!(db.pragma_int("secure_delete").unwrap(), 1);
         assert_eq!(db.pragma_int("temp_store").unwrap(), 2);
-        assert_eq!(db.fts_secure_delete().unwrap(), 1);
+        assert_eq!(db.pragma_int("foreign_keys").unwrap(), 1);
+        assert_eq!(db.pragma_int("user_version").unwrap(), DATABASE_VERSION);
         assert_eq!(db.pragma_int("checkpoint_fullfsync").unwrap(), 1);
         assert_eq!(db.pragma_int("synchronous").unwrap(), 2);
         assert_eq!(db.pragma_int("fullfsync").unwrap(), 1);
@@ -3351,23 +3539,12 @@ mod tests {
     }
 
     #[test]
-    fn writes_and_reads_a_segment_and_event() {
+    fn writes_and_reads_a_segment() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = make_store(dir.path());
         let (seg_ref, key_id) = store
             .write_segment(&mut std::io::Cursor::new(b"screen frame bytes"))
             .unwrap();
-        let event = CaptureStreamEvent::new_raw(
-            CapturedAt {
-                wall_clock: SystemTime::now(),
-                sequence: MonotonicSequence::new(1),
-            },
-            Modality::ScreenFrame,
-            "com.apple.Terminal".to_string(),
-            seg_ref.clone(),
-            key_id,
-        );
-        store.append_event(&event).unwrap();
         let wrapped: Vec<u8> = store
             .db()
             .unwrap()
@@ -3378,8 +3555,12 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        let seg_key =
-            segment::unwrap_segment_key(store.store_key().unwrap().expose(), &wrapped).unwrap();
+        let seg_key = segment::unwrap_segment_key(
+            &store.wrapping_key().unwrap(),
+            seg_ref.segment_id,
+            &wrapped,
+        )
+        .unwrap();
         let mut plain = Vec::new();
         segment::read_segment_file(store.handle(), &seg_key, seg_ref.segment_id, &mut plain)
             .unwrap();

@@ -2,9 +2,8 @@
 //! `--verify-deletion`.
 
 use std::fmt::{self, Write as _};
-use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE_NO_PAD};
 use base64::engine::GeneralPurpose;
@@ -18,11 +17,14 @@ use crate::custody::{
     custody_for, opens_under_an_all_zero_root, CustodyError, CustodyLocator, KeyCustody, KeyLabel,
     RootId, WrappedKey,
 };
-use crate::event::{CaptureStreamEvent, CapturedAt, Modality, MonotonicSequence};
+use crate::event::{unix_nanos, Modality};
 
-use super::db::{db_error, EncryptedStore, KeyFile};
+use super::db::{db_error, random_segment_id, EncryptedStore, KeyFile};
 use super::segment::{self, segment_path};
-use super::{SegmentExpiry, SegmentStore, StoreError, StoreResult, DEFAULT_RETENTION};
+use super::{
+    KindTotal, SegmentExpiry, SegmentWrite, StoreError, StoreResult, UtcDay, WriteFault,
+    DEFAULT_RETENTION,
+};
 
 pub const MARKER_ROWS: u64 = 2000;
 pub const DECRYPTABLE: &str = "decryptable";
@@ -88,21 +90,72 @@ fn scratch_store(dir: &Path) -> StoreResult<(EncryptedStore, DestroyRootOnDrop)>
     Ok((store, guard))
 }
 
-fn at(seq: u64) -> CapturedAt {
-    CapturedAt {
-        wall_clock: SystemTime::now(),
-        sequence: MonotonicSequence::new(seq),
-    }
+const NANOS_PER_DAY: i64 = 86_400_000_000_000;
+const NANOS_PER_MILLI: i64 = 1_000_000;
+
+fn written(write: Result<super::Written, WriteFault>) -> StoreResult<super::Written> {
+    write.map_err(|fault| StoreError::Corrupt(format!("the batch write answered {fault:?}")))
 }
 
-/// What `--verify-store` measured on a fresh store holding [`MARKER_ROWS`] marker
-/// rows and one marker segment, reopened through the owner's custody.
+/// One batch of `count` records of `kind`, all on the UTC day of `first`.
+fn batch_of(
+    store: &mut EncryptedStore,
+    kind: Modality,
+    count: u64,
+    first: i64,
+    payload: &[u8],
+) -> StoreResult<(uuid::Uuid, super::Written)> {
+    let segment_id = random_segment_id()?;
+    let kinds = [KindTotal {
+        kind: kind.as_str(),
+        events: count,
+        bytes: payload.len() as u64,
+    }];
+    let write = written(store.write_batch(SegmentWrite {
+        segment_id: &segment_id,
+        day: UtcDay::of_instant(first),
+        first_capture: first,
+        last_capture: first,
+        kinds: &kinds,
+        payload,
+    }))?;
+    Ok((segment_id, write))
+}
+
+/// [`MARKER_ROWS`] records of the encoder's form, each with `marker` as its
+/// app, one millisecond apart from an hour after the start of today's UTC day.
+fn marker_records(marker: &str) -> Vec<u8> {
+    let today = unix_nanos(SystemTime::now()).div_euclid(NANOS_PER_DAY) * NANOS_PER_DAY;
+    let start = today + 3_600_000 * NANOS_PER_MILLI;
+    let mut lines = String::new();
+    for seq in 0..MARKER_ROWS {
+        let _ = writeln!(
+            lines,
+            "{{\"v\":1,\"id\":\"{}\",\"at\":{},\"seq\":{seq},\"kind\":\"{}\",\"app\":\"{marker}\",\"p\":{{}}}}",
+            uuid::Uuid::now_v7().hyphenated(),
+            start + seq as i64 * NANOS_PER_MILLI,
+            Modality::ForegroundApp.as_str(),
+        );
+    }
+    lines.into_bytes()
+}
+
+fn first_of_records() -> i64 {
+    let today = unix_nanos(SystemTime::now()).div_euclid(NANOS_PER_DAY) * NANOS_PER_DAY;
+    today + 3_600_000 * NANOS_PER_MILLI
+}
+
+/// What `--verify-store` measured on a fresh store holding one batch of
+/// [`MARKER_ROWS`] marker records, reopened through the owner's custody.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoreCheck {
-    pub rows: i64,
+    /// The sum of the rollup's event counts.
+    pub events: i64,
+    /// The records that the strict decoder reads back from every live
+    /// segment.
+    pub records: u64,
     pub secure_delete: i64,
     pub temp_store: i64,
-    pub fts_secure_delete: i64,
     pub cipher_provider: String,
     pub segment_roundtrip: bool,
     /// Wall time of the store-key unwrap of the `open` that reopened the store.
@@ -113,12 +166,12 @@ impl fmt::Display for StoreCheck {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
-            "store rows={} secure_delete={} temp_store={} fts_secure_delete={} \
+            "store events={} records={} secure_delete={} temp_store={} \
              cipher_provider={} segment_roundtrip={} unwrap=ok unwrap_ms={} prompt=none",
-            self.rows,
+            self.events,
+            self.records,
             self.secure_delete,
             self.temp_store,
-            self.fts_secure_delete,
             self.cipher_provider,
             if self.segment_roundtrip { "ok" } else { "fail" },
             self.unwrap_ms,
@@ -147,44 +200,38 @@ pub(crate) fn check_store(
     let dir = store_dir.as_path();
 
     let segment_id = {
-        let seg_bytes = format!("{marker} embedded in captured segment bytes");
-        let (seg_ref, key_id) = store.write_segment(&mut Cursor::new(seg_bytes))?;
-
-        let tx = store
-            .db()?
-            .connection()
-            .unchecked_transaction()
-            .map_err(db_error)?;
-        for i in 0..MARKER_ROWS {
-            let event = CaptureStreamEvent::new_raw(
-                at(i),
-                Modality::ForegroundApp,
-                marker.to_string(),
-                seg_ref.clone(),
-                key_id,
-            );
-            store.db()?.insert_event(&event)?;
-        }
-        tx.commit().map_err(db_error)?;
+        let payload = marker_records(marker);
+        let (segment_id, _) = batch_of(
+            &mut store,
+            Modality::ForegroundApp,
+            MARKER_ROWS,
+            first_of_records(),
+            &payload,
+        )?;
         store.db()?.checkpoint_truncate()?;
-        seg_ref.segment_id
+        segment_id
     };
     drop(store);
 
     let reopened = EncryptedStore::open_with(dir, &dir.join(ROOTS), DEFAULT_RETENTION, rebuild)?;
     let unwrap_ms = reopened.unwrap_time().as_millis();
     let db = reopened.db()?;
-    let rows: i64 = db
+    let events: i64 = db
         .connection()
-        .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
+        .query_row(
+            "SELECT COALESCE(SUM(events), 0) FROM daily_totals",
+            [],
+            |r| r.get(0),
+        )
         .map_err(db_error)?;
+    let records = records_of_live_segments(&reopened)?;
     let mut seg_plain = Vec::new();
     reopened.read_segment(segment_id, &mut seg_plain)?;
     let check = StoreCheck {
-        rows,
+        events,
+        records,
         secure_delete: db.pragma_int("secure_delete")?,
         temp_store: db.pragma_int("temp_store")?,
-        fts_secure_delete: db.fts_secure_delete()?,
         cipher_provider: db.cipher_provider()?,
         segment_roundtrip: String::from_utf8_lossy(&seg_plain).contains(marker),
         unwrap_ms,
@@ -197,6 +244,35 @@ pub(crate) fn check_store(
         ));
     }
     Ok(check)
+}
+
+fn records_of_live_segments(store: &EncryptedStore) -> StoreResult<u64> {
+    let ids: Vec<String> = {
+        let conn = store.db()?.connection();
+        let mut live = conn
+            .prepare("SELECT segment_id FROM segment_keys WHERE wrapped_key IS NOT NULL")
+            .map_err(db_error)?;
+        let rows = live
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(db_error)?;
+        rows.collect::<Result<_, _>>().map_err(db_error)?
+    };
+    let mut records = 0u64;
+    for id in ids {
+        let id = uuid::Uuid::parse_str(&id)
+            .map_err(|_| StoreError::Corrupt("a segment id that does not parse".to_string()))?;
+        let mut plain = Vec::new();
+        store.read_segment(id, &mut plain)?;
+        let text = String::from_utf8(plain)
+            .map_err(|_| StoreError::Corrupt("a payload that is not text".to_string()))?;
+        for line in text.lines() {
+            crate::floor::record::decode(line).map_err(|_| {
+                StoreError::Corrupt("a record that the decoder refuses".to_string())
+            })?;
+            records += 1;
+        }
+    }
+    Ok(records)
 }
 
 fn hex_text(key: &[u8; 32], upper: bool, padded: bool) -> Zeroizing<Vec<u8>> {
@@ -333,6 +409,10 @@ pub struct DeletionCheck {
     pub remaining_keys: usize,
     /// Bytes left in the WAL after the shred pass.
     pub wal_bytes: u64,
+    /// The events that the rollup still lists for the day and kinds of the
+    /// shredded segment beyond what the live segments of that day and kind
+    /// hold.
+    pub expired_events_left: i64,
     pub delete_all_keys: u64,
     /// The custody answers RootMissing for the wrap retained from before
     /// delete-all, and that wrap does not open under an all-zero root.
@@ -346,13 +426,15 @@ impl fmt::Display for DeletionCheck {
         writeln!(
             f,
             "segment={} shred=ok file_gone={} {DECRYPTABLE}={} sibling_readable={} \
-             remaining_keys={} wal_bytes={} delete_all_keys={} root_destroyed={} store_sealed={}",
+             remaining_keys={} wal_bytes={} expired_events_left={} delete_all_keys={} \
+             root_destroyed={} store_sealed={}",
             self.segment_id.simple(),
             yes_no(self.file_gone),
             yes_no(self.decryptable_with_remaining_keys),
             yes_no(self.sibling_readable),
             self.remaining_keys,
             self.wal_bytes,
+            self.expired_events_left,
             self.delete_all_keys,
             yes_no(self.root_destroyed),
             yes_no(self.store_sealed),
@@ -372,10 +454,22 @@ pub(crate) fn check_deletion(
     let store_dir = store.dir().to_path_buf();
     let dir = store_dir.as_path();
 
-    let (expired, _) =
-        store.write_segment_with_expiry(&mut Cursor::new(b"PLAINTEXT-SECRET-TO-DESTROY"), 0, 1)?;
-    let (sibling, _) = store.write_segment(&mut Cursor::new(b"live sibling segment"))?;
-    let segment_id = expired.segment_id;
+    let now = unix_nanos(SystemTime::now());
+    let past = now - nanos_of(store.retention()) - NANOS_PER_DAY;
+    let (segment_id, _) = batch_of(
+        &mut store,
+        Modality::Keystroke,
+        3,
+        past,
+        b"PLAINTEXT-SECRET-TO-DESTROY",
+    )?;
+    let (sibling, sibling_written) = batch_of(
+        &mut store,
+        Modality::Pointer,
+        2,
+        now,
+        b"live sibling segment",
+    )?;
     let cipher =
         std::fs::read(segment_path(dir, segment_id)).map_err(|e| StoreError::Io(e.kind()))?;
 
@@ -390,10 +484,11 @@ pub(crate) fn check_deletion(
     let file_gone = !segment_path(dir, segment_id).exists();
     let wal_bytes = store.db()?.wal_bytes()?;
     let remaining_keys = remaining_wrapped_keys(&store)?.len();
-    let decryptable_with_remaining_keys = decryptable_with_remaining_keys(&store, &cipher)?;
-    let sibling_readable = store
-        .read_segment(sibling.segment_id, &mut Vec::new())
-        .is_ok();
+    let decryptable_with_remaining_keys =
+        decryptable_with_remaining_keys(&store, &cipher, segment_id)?;
+    let expired_events_left = events_left_for(&store, segment_id)?;
+    let sibling_readable = store.read_segment(sibling, &mut Vec::new()).is_ok()
+        && totals_of(&store, sibling_written.ordinal)? == 2;
 
     let roots = dir.join(ROOTS);
     let key_file = KeyFile::at(&dir.join("store.key"))?.read(KeyLabel::STORE)?;
@@ -420,28 +515,76 @@ pub(crate) fn check_deletion(
         sibling_readable,
         remaining_keys,
         wal_bytes,
+        expired_events_left,
         delete_all_keys: all.keys_destroyed,
         root_destroyed,
         store_sealed,
     })
 }
 
-fn remaining_wrapped_keys(store: &EncryptedStore) -> StoreResult<Vec<Vec<u8>>> {
-    let conn = store.db()?.connection();
-    let mut stmt = conn
-        .prepare("SELECT wrapped_key FROM segment_keys WHERE wrapped_key IS NOT NULL")
-        .map_err(db_error)?;
-    let rows = stmt
-        .query_map([], |r| r.get::<_, Vec<u8>>(0))
-        .map_err(db_error)?;
-    rows.map(|row| row.map_err(db_error)).collect()
+fn nanos_of(window: Duration) -> i64 {
+    i64::try_from(window.as_nanos()).unwrap_or(i64::MAX)
 }
 
-fn decryptable_with_remaining_keys(store: &EncryptedStore, cipher: &[u8]) -> StoreResult<bool> {
-    let store_key = store.store_key()?;
-    for wrapped in remaining_wrapped_keys(store)? {
-        let seg_key = segment::unwrap_segment_key(store_key.expose(), &wrapped)?;
-        if segment::decrypt_segment_bytes(cipher, &seg_key).is_ok() {
+fn totals_of(store: &EncryptedStore, ordinal: super::Ordinal) -> StoreResult<i64> {
+    store
+        .db()?
+        .connection()
+        .query_row(
+            "SELECT COALESCE(SUM(events), 0) FROM segment_totals WHERE segment = ?1",
+            [ordinal.get() as i64],
+            |r| r.get(0),
+        )
+        .map_err(db_error)
+}
+
+fn events_left_for(store: &EncryptedStore, segment_id: Uuid) -> StoreResult<i64> {
+    store
+        .db()?
+        .connection()
+        .query_row(
+            "SELECT COALESCE(SUM(MAX(d.events - COALESCE(( \
+                 SELECT SUM(t.events) FROM segment_totals AS t \
+                 JOIN segment_keys AS k ON k.id = t.segment \
+                 WHERE k.wrapped_key IS NOT NULL AND k.day = d.day AND t.kind = d.kind), 0), 0)), 0) \
+             FROM segment_keys AS s \
+             JOIN segment_totals AS st ON st.segment = s.id \
+             JOIN daily_totals AS d ON d.day = s.day AND d.kind = st.kind \
+             WHERE s.segment_id = ?1",
+            [segment_id.simple().to_string()],
+            |r| r.get(0),
+        )
+        .map_err(db_error)
+}
+
+fn remaining_wrapped_keys(store: &EncryptedStore) -> StoreResult<Vec<(Uuid, Vec<u8>)>> {
+    let conn = store.db()?.connection();
+    let mut stmt = conn
+        .prepare("SELECT segment_id, wrapped_key FROM segment_keys WHERE wrapped_key IS NOT NULL")
+        .map_err(db_error)?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, Vec<u8>>(1)?))
+        })
+        .map_err(db_error)?;
+    rows.map(|row| {
+        let (id, wrapped) = row.map_err(db_error)?;
+        let id = Uuid::parse_str(&id)
+            .map_err(|_| StoreError::Corrupt("a segment id that does not parse".to_string()))?;
+        Ok((id, wrapped))
+    })
+    .collect()
+}
+
+fn decryptable_with_remaining_keys(
+    store: &EncryptedStore,
+    cipher: &[u8],
+    segment_id: Uuid,
+) -> StoreResult<bool> {
+    let wrapping = store.wrapping_key()?;
+    for (id, wrapped) in remaining_wrapped_keys(store)? {
+        let seg_key = segment::unwrap_segment_key(&wrapping, id, &wrapped)?;
+        if segment::decrypt_segment_bytes(cipher, &seg_key, segment_id).is_ok() {
             return Ok(true);
         }
     }
@@ -455,7 +598,9 @@ mod tests {
     use crate::custody::file_root::FileRoots;
     use crate::custody::CustodyKind;
     use crate::store::db::test_support::make_store;
+    use crate::store::SegmentStore;
     use base64::engine::general_purpose::{STANDARD, URL_SAFE};
+    use std::io::Cursor;
 
     #[test]
     fn a_shredded_segment_is_not_decryptable_with_any_remaining_key_while_its_sibling_is() {
@@ -473,8 +618,10 @@ mod tests {
         assert_eq!(store.crypto_shred_expired().unwrap().segments_shredded, 1);
 
         assert_eq!(remaining_wrapped_keys(&store).unwrap().len(), 1);
-        assert!(!decryptable_with_remaining_keys(&store, &expired_cipher).unwrap());
-        assert!(decryptable_with_remaining_keys(&store, &live_cipher).unwrap());
+        assert!(
+            !decryptable_with_remaining_keys(&store, &expired_cipher, expired.segment_id).unwrap()
+        );
+        assert!(decryptable_with_remaining_keys(&store, &live_cipher, live.segment_id).unwrap());
     }
 
     struct Answers(fn() -> Result<crate::custody::StoreKey, CustodyError>);
@@ -1065,7 +1212,8 @@ mod tests {
     fn the_store_check_measures_the_roundtrip_and_the_unwrap() {
         let dir = tempfile::tempdir().unwrap();
         let check = run_store_check_in(dir.path(), "MARKER-FOR-THE-STORE-CHECK").unwrap();
-        assert_eq!(check.rows, MARKER_ROWS as i64);
+        assert_eq!(check.events, MARKER_ROWS as i64);
+        assert_eq!(check.records, MARKER_ROWS);
         assert!(check.segment_roundtrip);
         assert_eq!(check.cipher_provider, "libtomcrypt");
         let line = check.to_string();
@@ -1111,7 +1259,8 @@ mod tests {
             .collect();
         assert_eq!(measured.len(), 2, "{text}");
         assert!(
-            measured[0].starts_with("store rows=2000 ") && measured[0].contains(" unwrap=ok "),
+            measured[0].starts_with("store events=2000 records=2000 ")
+                && measured[0].contains(" unwrap=ok "),
             "{}",
             measured[0]
         );

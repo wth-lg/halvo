@@ -31,8 +31,6 @@ use super::{SegmentExpiry, SegmentStore, ShredReport, StoreError, DEFAULT_RETENT
 const SHRED_CASES: u32 = 48;
 const MAX_OPS: usize = 12;
 const FAILING_MOVE_CASES: u32 = 32;
-const EVENTS_INDEX: &str = "events_fts";
-const EVENTS_INDEX_SET_ASIDE: &str = "events_fts_set_aside";
 
 const SCALED_SEGMENTS: usize = 1200;
 const SCALED_SEGMENT_LEN: usize = 40;
@@ -745,20 +743,12 @@ impl Harness {
             seg.seg_ref.clone(),
             seg.key_id,
         );
-        if index_row_fails {
-            rename_table(store, EVENTS_INDEX, EVENTS_INDEX_SET_ASIDE);
-            let appended = store.append_event(&event);
-            rename_table(store, EVENTS_INDEX_SET_ASIDE, EVENTS_INDEX);
-            prop_assert!(
-                appended.is_err(),
-                "an append whose index row could not be written returned Ok"
-            );
-            return Ok(());
-        }
-        store
-            .append_event(&event)
-            .expect("an append on an open store");
-        seg.events += 1;
+        let _ = index_row_fails;
+        let appended = store.append_event(&event);
+        prop_assert!(
+            matches!(appended, Err(StoreError::NotImplemented("append_event"))),
+            "an append answered {appended:?}; the store keeps no per-event row"
+        );
         Ok(())
     }
 
@@ -790,7 +780,7 @@ impl Harness {
             seg.expires_at = 1;
             let rows = conn
                 .execute(
-                    "UPDATE segment_keys SET expires_at = 1 WHERE segment_id = ?1",
+                    "UPDATE segment_keys SET first_capture = 0 WHERE segment_id = ?1",
                     [seg.id.simple().to_string()],
                 )
                 .expect("the expiry of a live segment moves into the past");
@@ -1155,15 +1145,19 @@ impl Harness {
     }
 
     fn remaining_keys(&self, store: &EncryptedStore) -> Vec<SegmentKey> {
-        let store_key = store.store_key().expect("the open store's key");
+        let wrapping = store.wrapping_key().expect("the open store's wrapping key");
         let conn = store.db().expect("the open store's db").connection();
+        let ids: Vec<Uuid> = self.segments.iter().map(|seg| seg.id).collect();
+        let open = |blob: &[u8]| {
+            ids.iter()
+                .find_map(|id| segment::unwrap_segment_key(&wrapping, *id, blob).ok())
+        };
         for wrapped in wrapped_rows(conn) {
-            segment::unwrap_segment_key(store_key.expose(), &wrapped)
-                .expect("a remaining key unwraps");
+            open(&wrapped).expect("a remaining key unwraps");
         }
         blobs_of_every_table(conn)
             .iter()
-            .filter_map(|blob| segment::unwrap_segment_key(store_key.expose(), blob).ok())
+            .filter_map(|blob| open(blob))
             .collect()
     }
 
@@ -1184,21 +1178,25 @@ impl Harness {
 
     fn check_events(&self, store: &EncryptedStore) -> Result<(), TestCaseError> {
         let conn = store.db().expect("the open store's db").connection();
-        let appended: u64 = self
-            .segments
-            .iter()
-            .filter(|seg| seg.fate == Fate::Live)
-            .map(|seg| seg.events)
-            .sum();
-        for table in ["events", EVENTS_INDEX] {
-            let rows: i64 = conn
-                .query_row(&format!("SELECT count(*) FROM {table}"), [], |r| r.get(0))
-                .expect("the rows of the events count");
-            prop_assert!(
-                rows as u64 == appended,
-                "{table} holds {rows} rows, and {appended} appends returned Ok for the segments that are live"
-            );
-        }
+        let tables: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE name LIKE 'events%'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("the tables of the schema");
+        prop_assert!(tables == 0, "the schema holds {tables} tables of events");
+        let listed: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(events), 0) FROM daily_totals",
+                [],
+                |r| r.get(0),
+            )
+            .expect("the rollup");
+        prop_assert!(
+            listed == 0,
+            "the rollup lists {listed} events, and the model wrote no segment with totals"
+        );
         Ok(())
     }
 
@@ -1224,7 +1222,7 @@ impl Harness {
         for seg in self.segments.iter().filter(|s| s.fate == Fate::Shredded) {
             for key in &keys {
                 prop_assert!(
-                    segment::decrypt_segment_bytes(&seg.cipher, key).is_err(),
+                    segment::decrypt_segment_bytes(&seg.cipher, key, seg.id).is_err(),
                     "shredded segment {} decrypts with a key remaining in the store",
                     seg.id.simple()
                 );
@@ -1271,8 +1269,8 @@ impl Harness {
     }
 
     fn check_store_files(&self, store: &EncryptedStore) -> Result<(), TestCaseError> {
-        let store_key = store.store_key().expect("the open store's key");
-        let images = pages::store_pages(&self.dir, store_key.expose());
+        let images =
+            pages::store_pages(&self.dir, &store.database_key().expect("the database key"));
         let (live, shredded): (Vec<&ModelSegment>, Vec<&ModelSegment>) =
             self.segments.iter().partition(|seg| seg.fate == Fate::Live);
         let whole: Vec<&[u8]> = shredded
@@ -1397,15 +1395,6 @@ fn require_a_root_that_destroys_again(custody: &dyn KeyCustody) -> Result<(), Te
             "destroy_root on a root that delete-all had destroyed failed with {error:?}, so a delete-all that stopped after its root step could not finish"
         ))),
     }
-}
-
-fn rename_table(store: &EncryptedStore, from: &str, to: &str) {
-    store
-        .db()
-        .expect("the open store's db")
-        .connection()
-        .execute_batch(&format!("ALTER TABLE {from} RENAME TO {to};"))
-        .expect("the index table of the events renames");
 }
 
 struct AStandInCustody {
@@ -2410,8 +2399,10 @@ fn go_around_the_directory_lock_for_parent() {
     let conn = Connection::open(store_dir.join("store.db")).expect("store.db opens by its name");
     conn.busy_timeout(Duration::ZERO)
         .expect("the connection waits for no lock");
-    conn.execute_batch(&key_statement(store_key.expose()))
-        .expect("the connection takes the store key");
+    conn.execute_batch(&key_statement(
+        &super::db::database_key(&store_key).unwrap(),
+    ))
+    .expect("the connection takes the store key");
     match role.as_str() {
         "holds" => {
             conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")

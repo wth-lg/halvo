@@ -30,7 +30,7 @@ const DAEMON: &str = "crates/halvo-capture/src/daemon/";
 /// Every use of `#[path]` and of the include macros that the crate and the app
 /// may hold: the file from the root of the repository, the name, and the
 /// literal that it reads.
-const LISTED: [(&str, &str, &str); 10] = [
+const LISTED: [(&str, &str, &str); 11] = [
     (
         "crates/halvo-capture/src/secure_input.rs",
         "path",
@@ -65,6 +65,11 @@ const LISTED: [(&str, &str, &str); 10] = [
         "crates/halvo-capture/src/store/segment.rs",
         "include_bytes",
         "\"testdata/segment-v1.golden\"",
+    ),
+    (
+        "crates/halvo-capture/src/store/segment.rs",
+        "include_bytes",
+        "\"testdata/segment-v2.golden\"",
     ),
     ("src-tauri/build.rs", "path", "\"src/commands/names.rs\""),
     (
@@ -140,7 +145,7 @@ fn root() -> PathBuf {
 /// each by its path from the root, byte for byte. The rules read every other
 /// file there as Rust, whatever its name: the compiler opens a module file by
 /// a path, and a volume that folds case gives `x.RS` for `x.rs`.
-const DATA_FILES: [&str; 10] = [
+const DATA_FILES: [&str; 11] = [
     "crates/halvo-capture/Cargo.toml",
     "crates/halvo-capture/src/custody/mutants.rows",
     "crates/halvo-capture/src/daemon/mutants.rows",
@@ -149,6 +154,7 @@ const DATA_FILES: [&str; 10] = [
     "crates/halvo-capture/src/store/mutants.rows",
     "crates/halvo-capture/src/store/testdata/crashpoint.c",
     "crates/halvo-capture/src/store/testdata/segment-v1.golden",
+    "crates/halvo-capture/src/store/testdata/segment-v2.golden",
     "crates/halvo-capture/src/windows/mutants.rows",
     "src-tauri/src/engine-url-forms.txt",
 ];
