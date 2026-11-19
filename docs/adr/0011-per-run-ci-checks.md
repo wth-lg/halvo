@@ -42,7 +42,13 @@ structure over edits to shared files, and an earlier row keeps one workflow file
   `ci_job_timeout_min` of docs/baseline/r1-gate-bounds.txt.
 - Each job's limit is 180 minutes since citime-w1 (ruling WS-9), because main's
   push run 44373816491 at 68c80599 read 8,342 s in its windows job of 9,000 s.
-  It was 150 minutes from jobtime-11 (ruling JB-52), because the
+  The same unit runs the step `ci.d self-test` in two parts, which took about
+  390 s off that step of the windows job (verifier-1 of the CI-time run: 387 s
+  on the one pair of one processor model, across runs, once the runner's speed
+  on the untouched step `ci.d` is taken out, and 292 to 397 s over all pairs;
+  the raw fall on that pair is 476 s). That is one pair, across runs, on
+  processor models that GitHub draws by lot, and 600 s off the job is not
+  shown. It was 150 minutes from jobtime-11 (ruling JB-52), because the
   macos job stood within minutes of 7,200 s for five landings and one slow
   runner or one dropped and rerun job cost two hours each time. It was 120
   minutes from jobtime-9 (ruling PR-31 item 1), because a job that the limit
