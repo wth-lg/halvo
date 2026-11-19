@@ -71,6 +71,7 @@ a_recorded_key_in_a_round_not_driven_fails_its_phase twelve
 each_judge_reads_a_round_not_driven_by_its_rule_on_a_table twelve
 the_fixture_and_the_test_read_one_table_of_verbs_and_each_reply_time_names_its_clock twelve
 the_verdict_of_a_short_on_time_at_the_products_constants_holds_each_rule_on_a_table twelve
+a_round_lost_to_a_late_marker_reads_by_its_rule_on_a_table twelve
 EOF
 }
 
@@ -1124,6 +1125,7 @@ spec "waits-not-driven-$test" && {
 spec "control-not-driven-$test" && printf '%s control=0 bound_ms=1000 counted=0 landed_plain=0 landed_secure=0 plain_records=0 secure_records=0 after_records=0 rv=notdriven not_driven=output_ended_before_cleared phase_counted=0 phase_not_driven=1\n' "$test"
 spec "recorded-not-driven-$test" && printf '%s round=1 wait_ms=300 bound_ms=1000 counted=0 ahead=2 markers=0 plain=0 secure=8 rv=recorded not_driven=output_ended_before_left_secure phase_counted=1 phase_not_driven=1\n' "$test"
 spec "long-output-$test" && printf 'a line that the check does not print\n  and a second one\n'
+spec "late-rule-$test" && printf '%s rounds_lost_to_the_late_rule=1 by_wait=150:0,300:1\n' "$test"
 spec "prose-$test" && printf '%s the session was lost\n' "$test"
 spec "debug-word-$test" && printf '%s round=2 wait_ms=150 rv=notcounted("the markers were not recorded")\n' "$test"
 spec "panic-$test" && {
@@ -1305,6 +1307,8 @@ waits-not-driven-phase_one'
   check prose-under-the-test-name FAIL 'phase_one: line 3 of its output holds more than names and numbers under the name of the test (ruling MA-21)' 'prose-phase_one'
   check debug-text-under-the-test-name FAIL 'phase_two: line 3 of its output holds more than names and numbers under the name of the test (ruling MA-21)' 'debug-word-phase_two'
   check names-and-numbers-of-a-known-fault PASS 'MS known_one result=known-fault' ''
+  check rounds-lost-to-the-late-rule-on-the-ms-line PASS ' by_wait=150:1/0 rounds_lost_to_the_late_rule=1 lost_by_wait=150:0,300:1' 'late-rule-phase_one'
+  check rounds-lost-to-the-late-rule-in-the-total PASS 'phases_not_driven=0 rounds_lost_to_the_late_rule=1' 'late-rule-phase_one'
   printf '%s\n' 'phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE,HALVO_STALL_FORM,HALVO_STALL_GAP_MS,' \
     'phase_one round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0' \
     'a line that the check does not print' '  and a second one' 'test result: ok. 1 passed; 0 failed; 0 ignored' \
