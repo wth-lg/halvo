@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it (in the short form a phase passes with one held round and no failed round, and its rounds not driven are printed by wait; in the long form every wait of each mended phase needs a held round (the return phase keeps its three-way verdict of ruling MA-23), or that wait reads not driven and the ledger takes no record from the run; on the hosted runners a round is often not driven through no fault of the product, and a short form that failed on that turned two landing jobs red, so the long form holds the promise for every wait; a test that reads not driven is never a pass), the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the eight files of the hold and on the stall-seam lines of crates/halvo-capture/Cargo.toml, each with its table and with a features list read as its stall-seam alone, and not on that file's blob; for a test that exits 101 the check prints its panic line and the lines after it, it keeps each test's whole output under tests/ of its artifacts directory, which the job uploads, and it prints for each test its counted rounds and its rounds not driven (a round in which a reply of the fixture did not come or the fixture's output ended, never a pass) and their sums on the total line, fails a test in which a round not driven recorded a key and a test whose every round was not driven, and passes one round not driven beside a counted round (ruling PR-32); 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam, where a build without debug assertions has no DropCounts either (ruling MA-21); it runs the phase of a password typed whole ahead into a field that is secure for less than the spacing of two readings, which must read 0 recorded keys by the notice of the focus change, and the same at the product's constants, whose verdict is held, notkept or failed, and the lag phase, whose session reader the seam hands in with a delay (rulings MA-12 E, MA-20 Addition 1, MA-22 (d)); every line that a hosted test prints under its own name holds names and numbers alone (ruling MA-21); it runs the phase in which a focus notice into a plain field withholds no key, which prints the keys withheld by a notice, by a doubt and by the read at the start of a watch, and the phase of a program that comes to the front with its secure field focused, which must read 0 recorded keys (rulings MA-12 H5, MA-30 M3, M5); and three rules read the tree alone: EnableSecureEventInput, DisableSecureEventInput and every link_name that is no plain literal stand in crates/halvo-capture/src/secure_input_macos.rs alone, read over the files .rs .m .mm .c .cc .cpp .h .swift; a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands there alone too, but that crates/halvo-capture/src/store/hardening_tests/full_flush.rs may look a symbol up in its one fn symbol, whose two lines the check holds, called only with plain C string literals beginning r1_, while that file holds no word pub in its code, no mod item, no include!, no path attribute and no macro_rules! and every C string literal in it begins r1_, with two named limits, a macro of another file or crate that the file calls or puts on an item and that gives fn symbol a name written as no C string literal in the file, and a form of Rust text that the small reader of this check, of comments, strings, raw strings and character literals, reads otherwise than the compiler (rulings JB-56, JB-58); no field, payload, alias, renaming use, static or annotated let of crates/halvo-capture/src/macos/input.rs or crates/halvo-capture/src/secure_input_macos_hold.rs holds a reading of the secure-input state between two events, with one named limit, a cache whose type is inferred (rulings MA-14, MA-30 M6); and the fields of the clocks Monotonic and Uptime stay private (ruling MA-30 M10).
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it (in the short form a phase passes with one held round and no failed round, and its rounds not driven are printed by wait; in the long form every wait of each mended phase needs a held round (the return phase keeps its three-way verdict of ruling MA-23), or that wait reads not driven and the ledger takes no record from the run; on the hosted runners a round is often not driven through no fault of the product, and a short form that failed on that turned two landing jobs red, so the long form holds the promise for every wait; a test that reads not driven is never a pass), the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the eight files of the hold and on the stall-seam lines of crates/halvo-capture/Cargo.toml, each with its table and with a features list read as its stall-seam alone, and not on that file's blob; for a test that exits 101 the check prints its panic line and the lines after it, it keeps each test's whole output under tests/ of its artifacts directory, which the job uploads, and it prints for each test its counted rounds and its rounds not driven (a round in which a reply of the fixture did not come or the fixture's output ended, never a pass) and their sums on the total line, fails a test in which a round not driven recorded a key and a test whose every round was not driven, and passes one round not driven beside a counted round (ruling PR-32); 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam, where a build without debug assertions has no DropCounts either (ruling MA-21); it runs the phase of a password typed whole ahead into a field that is secure for less than the spacing of two readings, which must read 0 recorded keys by the notice of the focus change, and the same at the product's constants, whose verdict is held, notkept or failed, and the lag phase, whose session reader the seam hands in with a delay (rulings MA-12 E, MA-20 Addition 1, MA-22 (d)); every line that a hosted test prints under its own name holds names and numbers alone (ruling MA-21); it runs the phase in which a focus notice into a plain field withholds no key, which prints the keys withheld by a notice, by a doubt and by the read at the start of a watch, and the phase of a program that comes to the front with its secure field focused, which must read 0 recorded keys (rulings MA-12 H5, MA-30 M3, M5); and three rules read the tree alone: EnableSecureEventInput, DisableSecureEventInput and every link_name that is no plain literal stand in crates/halvo-capture/src/secure_input_macos.rs alone, read over the files .rs .m .mm .c .cc .cpp .h .swift; a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands there alone too, but that crates/halvo-capture/src/store/hardening_tests/full_flush.rs may look a symbol up in its one fn symbol, defined outside every brace of the code, whose two lines the check holds and whose calls in that file give it plain C string literals beginning r1_, while that file holds no word pub in its code, no mod item, no include!, no macro_rules!, no attribute but #[test] and no C string literal that does not begin r1_, and no other tracked Rust file names full_flush.rs, with these named limits: a macro of another file or crate that the file calls and that gives fn symbol a name written as no C string literal in the file, an attribute named test that a use of the file brings from another crate or file, an asm! or global_asm! of the file that gives fn symbol a symbol name, a path to the file joined at build time or a link to it under another name, a file of another extension that a Rust file includes and that names the file, and a form of Rust text that the small reader of this check, of comments, strings, raw strings and character literals, reads otherwise than the compiler (rulings JB-56, JB-58, JB-59, JB-60); no field, payload, alias, renaming use, static or annotated let of crates/halvo-capture/src/macos/input.rs or crates/halvo-capture/src/secure_input_macos_hold.rs holds a reading of the secure-input state between two events, with one named limit, a cache whose type is inferred (rulings MA-14, MA-30 M6); and the fields of the clocks Monotonic and Uptime stay private (ruling MA-30 M10).
 # lane: alone
 set -u
 name=51-macos-stall
@@ -133,7 +133,7 @@ carbon_calls() {
   [ -z "$other" ] ||
     fail "the name EnableSecureEventInput or DisableSecureEventInput (with or without leading underscores), a link_name whose name is no plain literal, or a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands outside $lock, whose one lock holds the three Carbon calls: ${other% } (rulings MA-14, MA-30 M6, MA-31 N6); call the hold of that file"
   held_lookups
-  printf 'carbon: in every tracked text file but %s, docs/research/researcher-4.md and this check, no name of the two Carbon calls (with or without leading underscores), no link_name whose name is no plain literal, and no lookup of a symbol by name (scripts/r4/ci.d/20-r4-core.sh and tools/r4-trials/app/system/macos.swift may look up others, and %s %s); limits: a name joined at build or run time, a lookup through a function or a crate that this check does not list, linker arguments from outside the tree, and in %s a macro of another file or crate that the file calls or puts on an item and that gives fn symbol a name written as no C string literal in the file, and a form of Rust text that the small reader of this check, of comments, strings, raw strings and character literals, reads otherwise than the compiler\n' "$lock" "$held" "$held_said" "$held"
+  printf 'carbon: in every tracked text file but %s, docs/research/researcher-4.md and this check, no name of the two Carbon calls (with or without leading underscores), no link_name whose name is no plain literal, and no lookup of a symbol by name (scripts/r4/ci.d/20-r4-core.sh and tools/r4-trials/app/system/macos.swift may look up others, and %s %s); limits: a name joined at build or run time, a lookup through a function or a crate that this check does not list, linker arguments from outside the tree, and in %s a macro of another file or crate that the file calls and that gives fn symbol a name written as no C string literal in the file, an attribute named test that a use of the file brings from another crate or file, an asm! or global_asm! of the file that gives fn symbol a symbol name, a path to the file joined at build time or a link to it under another name, a file of another extension that a Rust file includes and that names the file, and a form of Rust text that the small reader of this check, of comments, strings, raw strings and character literals, reads otherwise than the compiler\n' "$lock" "$held" "$held_said" "$held"
 }
 
 held_lookups() {
@@ -142,6 +142,11 @@ held_lookups() {
     return 0
   fi
   git show ":$held" >"$work/held" 2>/dev/null || fail "$held cannot be read from the index"
+  git grep --cached -I -l -i -F -e "${held##*/}" -- '*.rs' ":(exclude)$held" >"$work/held-named" 2>/dev/null
+  case $? in 0 | 1) ;; *) fail "git grep could not read the tree for the name ${held##*/}" ;; esac
+  named=$(tr '\n' ' ' <"$work/held-named")
+  [ -z "$named" ] ||
+    fail "a tracked Rust file other than $held names ${held##*/}, so that it can compile the text of $held again beside a call of fn symbol of its own (ruling JB-60): ${named% }"
   awk -v held="$held" -v q="'" '
     function bad(what) { print held ": " what " at line " NR > found_bad }
     function bad_at(what, at) { print held ": " what " at line " at > found_bad }
@@ -157,6 +162,7 @@ held_lookups() {
     {
       sub(/\r$/, "")
       gsub(/\r/, " ")
+      depth_at_start = depth
       line = $0
       len = length(line)
       i = 1
@@ -184,7 +190,7 @@ held_lookups() {
         }
         if (two == "//") { st = 1; break }
         if (two == "/*") { st = 2; cdepth = 1; i += 2; continue }
-        if (ch == "\"") { st = 3; pend = 0; i++; continue }
+        if (ch == "\"") { if (attr) atext = atext "\""; st = 3; pend = 0; i++; continue }
         if (ch == q) {
           pend = 0
           if (substr(line, i + 1, 1) == "\\") {
@@ -228,21 +234,34 @@ held_lookups() {
             continue
           }
           read_word(word)
+          if (attr) atext = atext word
           i = j
           continue
         }
         if (ch == "[") {
-          if (pend) { attr = 1; adepth = 1 } else if (attr) adepth++
+          if (pend) { attr = 1; adepth = 1; atext = ""; ainner = bang; aline = NR } else if (attr) { adepth++; atext = atext ch }
           pend = 0
         } else if (ch == "]") {
-          if (attr) { adepth--; if (adepth == 0) attr = 0 }
+          if (attr) {
+            adepth--
+            if (adepth == 0) {
+              attr = 0
+              if (ainner || atext != "test") bad_at("an attribute other than #[test]", aline)
+            } else atext = atext ch
+          }
           pend = 0
-        } else if (ch == "#") pend = 1
-        else if (ch != "!" && ch != " " && ch != "\t") pend = 0
+        } else if (ch == "#") { pend = 1; bang = 0 }
+        else if (ch == "!" && pend) bang = 1
+        else if (ch != " " && ch != "\t") {
+          pend = 0
+          if (ch == "{") depth++
+          else if (ch == "}") depth--
+          if (attr) atext = atext ch
+        }
         i++
       }
     }
-    /^fn symbol\(name: &CStr\) -> Option<\*mut libc::c_void> \{$/ { defined++; inside = 1; body = 0; next }
+    /^fn symbol\(name: &CStr\) -> Option<\*mut libc::c_void> \{$/ { if (depth_at_start != 0) bad("fn symbol defined inside a brace of the code,"); defined++; inside = 1; body = 0; next }
     inside {
       body++
       if (body == 1 && $0 != "    let found = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) };") bad("fn symbol is not the two lines that this check holds,")
@@ -270,13 +289,13 @@ held_lookups() {
     }' "$work/held" >"$work/held-names" 2>"$work/held-bad" || fail "$held cannot be read"
   if [ -s "$work/held-bad" ]; then
     detail=$(tr '\n' ';' <"$work/held-bad" | sed 's/;$//; s/;/; /g')
-    fail "the lookups of a symbol by name in $held are not held (rulings JB-56 and JB-58: that file may look a symbol up only in its fn symbol, whose two lines this check holds, called only with plain C string literals beginning r1_; it may hold no word pub in its code, no mod item, no include!, no path attribute and no macro_rules!, and every C string literal in it begins r1_): $detail"
+    fail "the lookups of a symbol by name in $held are not held (rulings JB-56, JB-58, JB-59 and JB-60: that file may look a symbol up only in its fn symbol, defined outside every brace of the code, whose two lines this check holds and whose calls in that file give it plain C string literals beginning r1_; it may hold no word pub in its code, no mod item, no include!, no macro_rules!, no attribute but #[test] and no C string literal that does not begin r1_): $detail"
   fi
   read -r count names <"$work/held-names" || fail "$held cannot be read"
   if [ "$count" = 0 ]; then
     held_said='looks no symbol up by name'
   else
-    held_said="looks a symbol up by name only in its fn symbol, by the plain literal names $names; the file holds no word pub in its code, no mod item, no include!, no path attribute and no macro_rules!, and every C string literal in it begins r1_"
+    held_said="looks a symbol up by name only in its fn symbol, by the plain literal names $names, and fn symbol is defined outside every brace; the file holds no word pub in its code, no mod item, no include!, no macro_rules!, no attribute but #[test] and no C string literal that does not begin r1_, and no other tracked Rust file names full_flush.rs"
   fi
 }
 
