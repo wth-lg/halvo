@@ -3,9 +3,10 @@ mod activation;
 #[path = "hosted/reading.rs"]
 mod reading;
 
-use activation::{wait, Waited};
+use activation::{begun, late, run_loop, wait, Begun, Waited, LATE, LATE_MOST, RUN_LOOP_BOUND};
 use std::cell::Cell;
-use std::time::Duration;
+use std::ffi::OsStr;
+use std::time::{Duration, Instant};
 
 const EVERY: Duration = Duration::from_secs(1);
 const LIMIT: Duration = Duration::from_secs(20);
@@ -69,6 +70,192 @@ fn activation_an_app_active_after_n_asks_is_asked_every_second_until_it_is() {
 #[test]
 fn activation_an_app_never_active_is_inactive_after_twenty_seconds_and_21_asks() {
     assert_eq!(run(None), (Waited::Inactive { asks: 21 }, 21, LIMIT));
+}
+
+#[test]
+fn late_unset_holds_nothing_back() {
+    assert_eq!(late(None), Ok(None));
+}
+
+#[test]
+fn late_a_whole_number_of_milliseconds_from_1_to_the_most_is_the_hold() {
+    for ms in [1, 2_000, 12_000, LATE_MOST] {
+        assert_eq!(
+            late(Some(OsStr::new(&ms.to_string()))),
+            Ok(Some(Duration::from_millis(ms))),
+            "{ms}"
+        );
+    }
+}
+
+#[test]
+fn late_every_other_value_is_refused_by_a_line_that_names_the_setting_and_runs_no_case() {
+    let most_and_one = (LATE_MOST + 1).to_string();
+    for value in [
+        "",
+        "0",
+        &most_and_one,
+        "18446744073709551616",
+        "-5",
+        "+5",
+        "1.5",
+        "2000ms",
+        " 2000",
+        "2000\n",
+        "abc",
+    ] {
+        let refused = late(Some(OsStr::new(value))).expect_err(value);
+        assert_eq!(
+            refused,
+            format!("start FAIL: {LATE} is set and is not a whole number of milliseconds from 1 to {LATE_MOST}; no case ran"),
+            "{value:?}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn late_a_value_that_is_no_text_is_refused() {
+    use std::os::unix::ffi::OsStrExt;
+    assert!(late(Some(OsStr::from_bytes(&[0x32, 0xff]))).is_err());
+}
+
+#[cfg(windows)]
+#[test]
+fn late_a_value_that_is_no_text_is_refused() {
+    use std::os::windows::ffi::OsStringExt;
+    let value = std::ffi::OsString::from_wide(&[0x32, 0xd800]);
+    assert!(late(Some(&value)).is_err());
+}
+
+#[test]
+fn late_the_setting_is_its_own_and_none_that_check_46_takes_out_or_a_target_sets() {
+    assert_eq!(LATE, "HALVO_HOSTED_LATE_RUN_MS");
+    for other in [
+        "GUARD_HOSTED_SCHEDULE",
+        "GUARD_HOSTED_TALLY",
+        "DIALOG_HOSTED_TEXT_SIZE",
+    ] {
+        assert_ne!(LATE, other);
+    }
+}
+
+#[test]
+fn run_loop_the_sign_is_waited_for_with_the_bound_and_the_time_waited_is_kept() {
+    let given = Cell::new(None);
+    let result = run_loop(
+        |limit| {
+            given.set(Some(limit));
+            true
+        },
+        || Duration::from_millis(2_003),
+        RUN_LOOP_BOUND,
+    );
+    assert_eq!(given.get(), Some(RUN_LOOP_BOUND));
+    assert_eq!(
+        result,
+        Begun::After {
+            waited: Duration::from_millis(2_003)
+        }
+    );
+}
+
+#[test]
+fn run_loop_with_no_sign_within_the_bound_has_not_begun() {
+    let given = Cell::new(None);
+    let result = run_loop(
+        |limit| {
+            given.set(Some(limit));
+            false
+        },
+        || Duration::from_secs(10),
+        RUN_LOOP_BOUND,
+    );
+    assert_eq!(given.get(), Some(RUN_LOOP_BOUND));
+    assert_eq!(
+        result,
+        Begun::Not {
+            bound: RUN_LOOP_BOUND
+        }
+    );
+}
+
+/// Waits as the hosted targets do, on a channel whose sign another thread sends after `after`,
+/// or never: the result and the time that the wait took.
+fn over_a_channel(after: Option<Duration>, bound: Duration) -> (Begun, Duration) {
+    let (ready, runs) = std::sync::mpsc::channel::<()>();
+    let sender = std::thread::spawn(move || {
+        if let Some(after) = after {
+            std::thread::sleep(after);
+            let _ = ready.send(());
+        } else {
+            std::thread::sleep(bound * 2);
+            drop(ready);
+        }
+    });
+    let start = Instant::now();
+    let result = run_loop(
+        |limit| runs.recv_timeout(limit).is_ok(),
+        || start.elapsed(),
+        bound,
+    );
+    let took = start.elapsed();
+    let _ = sender.join();
+    (result, took)
+}
+
+#[test]
+fn run_loop_over_a_channel_goes_on_at_the_sign_and_ends_at_the_bound_without_it() {
+    let bound = Duration::from_millis(400);
+    let (result, took) = over_a_channel(Some(Duration::from_millis(50)), bound);
+    match result {
+        Begun::After { waited } => {
+            assert!(waited >= Duration::from_millis(50), "{waited:?}");
+            assert!(took < bound, "{took:?}");
+        }
+        Begun::Not { .. } => panic!("the sign after 50 ms was not seen: {result:?}"),
+    }
+    let (result, took) = over_a_channel(None, bound);
+    assert_eq!(result, Begun::Not { bound });
+    assert!(took >= bound, "{took:?}");
+}
+
+#[test]
+fn begun_after_the_sign_the_cases_run_and_the_line_says_when_it_came() {
+    assert_eq!(
+        begun(
+            "guard_hosted",
+            Begun::After {
+                waited: Duration::from_millis(2_003)
+            }
+        ),
+        (
+            "guard_hosted start: the test runtime's run loop gave its sign after 2003 ms, and the first show goes out after it".to_string(),
+            true
+        )
+    );
+}
+
+#[test]
+fn begun_with_no_sign_no_case_runs_and_the_line_names_the_sign_and_the_bound() {
+    assert_eq!(
+        begun(
+            "dialog_hosted",
+            Begun::Not {
+                bound: RUN_LOOP_BOUND
+            }
+        ),
+        (
+            "dialog_hosted start FAIL: the test runtime's run loop gave no sign that it runs within 10 s, so a show would run off the main thread; no case ran".to_string(),
+            false
+        )
+    );
+}
+
+#[test]
+fn run_loop_the_bound_is_ten_seconds_and_the_longest_hold_a_minute() {
+    assert_eq!(RUN_LOOP_BOUND, Duration::from_secs(10));
+    assert_eq!(LATE_MOST, 60_000);
 }
 
 /// Runs the start over an app that reads active at its read number `after`, or never: the result
