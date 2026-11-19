@@ -545,6 +545,19 @@ twelve_test() {
   [ "$ignored" -gt 0 ] || fail "12-test listed no test of tests/macos_stall_fixture.rs as ignored"
 }
 
+rules() {
+  repo=${CI_D_REPO:-}
+  [ -n "$repo" ] || repo=$(git rev-parse --show-toplevel 2>/dev/null) || fail "no repository: run it inside a checkout or give CI_D_REPO"
+  cd "$repo" || exit 2
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name-rules.XXXXXX") || fail "mktemp failed"
+  seam_manifests
+  carbon_calls
+  reading_places
+  clock_fields
+  printf 'rules: only the parts of the check that read the index and the tree ran (seam, carbon, reading, clocks); no build, no test and no process of the product was started, and neither the ledger nor the list of 12-test was read\n'
+  printf 'PASS %s\n' "$name"
+}
+
 measure() {
   check_started=$(date +%s)
   cd "$CI_D_REPO" || exit 2
@@ -804,8 +817,12 @@ check() {
   want_text=$3
   spec_file=$work/spec-$case_name
   printf '%s\n' "$4" >"$spec_file"
+  : >"$work/rules-calls"
   out=$(
     PATH=$work/bin:$PATH
+    [ "${5:-}" != rules ] || PATH=$work/rules-bin:$PATH
+    RULES_CALLS=$work/rules-calls
+    export RULES_CALLS
     CI_D_REPO=$work/repo
     CI_D_ARTIFACTS=$work/artifacts-$case_name
     STUB_SPEC=$spec_file
@@ -816,7 +833,7 @@ check() {
     MS_TEST_LIMIT_S=${limit:-}
     MS_NOTES_FILE=$work/notes-small
     export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_EXE STUB_LIB STUB_CALLS MS_EXPECTED_FILE MS_TEST_LIMIT_S MS_NOTES_FILE
-    sh "$0" 2>&1
+    if [ "${5:-}" = rules ]; then sh "$0" --rules 2>&1; else sh "$0" 2>&1; fi
   )
   code=$?
   last=$(printf '%s\n' "$out" | tail -n 1)
@@ -829,6 +846,7 @@ check() {
     *"$want_text"*) ;;
     *) got=$got-without-the-text ;;
   esac
+  [ "${5:-}" != rules ] || [ ! -s "$work/rules-calls" ] || got=$got-with-a-start-of-$(head -n 1 "$work/rules-calls" | cut -d ' ' -f 1)
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case_name" "$want" "$got"
   if [ "$got" != "$want" ]; then
     printf '%s\n' "$out" | tail -n 3 | sed 's/^/    | /'
@@ -1327,40 +1345,16 @@ waits-not-driven-phase_one'
   printf 'none\n' >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
   mkdir -p "$work/rules-bin" || exit 2
-  for tool in cargo rustc clang swiftc xcrun; do
-    printf '#!/bin/sh\nprintf "%%s %%s\\n" "${0##*/}" "$*" >>"$RULES_CALLS"\nexit 99\n' >"$work/rules-bin/$tool" || exit 2
-    chmod +x "$work/rules-bin/$tool" || exit 2
+  cat >"$work/rules-bin/cargo" <<'EOF'
+#!/bin/sh
+printf '%s %s\n' "${0##*/}" "$*" >>"$RULES_CALLS"
+exit 99
+EOF
+  chmod +x "$work/rules-bin/cargo" || exit 2
+  for tool in rustc clang swiftc xcrun; do
+    cp "$work/rules-bin/cargo" "$work/rules-bin/$tool" || exit 2
   done
-  rules_case() {
-    : >"$work/rules-calls" || exit 2
-    out=$(
-      PATH=$work/rules-bin:$PATH
-      CI_D_REPO=$work/repo
-      RULES_CALLS=$work/rules-calls
-      export PATH CI_D_REPO RULES_CALLS
-      sh "$0" --rules 2>&1
-    )
-    code=$?
-    last=$(printf '%s\n' "$out" | tail -n 1)
-    case $code:$last in
-      "0:PASS $name") got=PASS ;;
-      "1:FAIL $name ("*")") got=FAIL ;;
-      *) got=exit-$code ;;
-    esac
-    case $out in
-      *"$3"*) ;;
-      *) got=$got-without-the-text ;;
-    esac
-    [ -s "$work/rules-calls" ] && got=$got-with-a-start-of-$(head -n 1 "$work/rules-calls" | cut -d ' ' -f 1)
-    printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
-    if [ "$got" != "$2" ]; then
-      printf '%s\n' "$out" | tail -n 3 | sed 's/^/    | /'
-      wrong="$wrong $1"
-    elif [ "$2" = FAIL ]; then
-      rejected=$((rejected + 1))
-    fi
-  }
-  rules_case rules-form-starts-no-build-and-no-test PASS 'rules: only the parts of the check that read the index and the tree ran'
+  check rules-form-starts-no-build-and-no-test PASS 'rules: only the parts of the check that read the index and the tree ran' '' rules
   twelve_aside=no
   if [ -f "$twelve" ]; then
     mv "$twelve" "$twelve.aside" || exit 2
@@ -1369,20 +1363,20 @@ waits-not-driven-phase_one'
   cp "$work/repo/docs/baseline/ledger.d/macos-2b.txt" "$work/ledger-aside" || exit 2
   printf 'measured run=1 form=short result=fail\n' >"$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
   git -C "$work/repo" add -A || exit 2
-  rules_case rules-form-reads-neither-the-ledger-nor-the-list-of-12-test PASS 'seam: the feature stall-seam stands in crates/halvo-capture/Cargo.toml alone'
+  check rules-form-reads-neither-the-ledger-nor-the-list-of-12-test PASS 'seam: the feature stall-seam stands in crates/halvo-capture/Cargo.toml alone' '' rules
   [ "$twelve_aside" = no ] || mv "$twelve.aside" "$twelve" || exit 2
   check the-measure-reads-the-stale-ledger FAIL 'names the measured run 1 without form=long and result=pass' ''
   cp "$work/ledger-aside" "$work/repo/docs/baseline/ledger.d/macos-2b.txt" || exit 2
   printf '%b' "$held_store3c" >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
-  rules_case rules-form-holds-the-file-as-store-3c-has-it PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes"
+  check rules-form-holds-the-file-as-store-3c-has-it PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes" '' rules
   printf '%b' "$held_head$held_symbol"'fn loaded() -> Option<()> {\n    let pid = symbol(c"getpid")?;\n    Some(())\n}\n' >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
-  rules_case rules-form-refuses-a-lookup-by-another-name FAIL "$held: fn symbol gets a name that is no plain literal beginning r1_, or is named other than in such a call, at line 14"
+  check rules-form-refuses-a-lookup-by-another-name FAIL "$held: fn symbol gets a name that is no plain literal beginning r1_, or is named other than in such a call, at line 14" '' rules
   printf '%b' "$held_store3c" >"$work/repo/$held" || exit 2
   printf 'fn total() -> *mut libc::c_void {\n    unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"r1_full_flushes".as_ptr()) }\n}\n' >"$work/repo/crates/halvo-capture/src/store/lookup.rs" || exit 2
   git -C "$work/repo" add -A || exit 2
-  rules_case rules-form-refuses-a-lookup-in-another-file-of-the-store FAIL "${carbon_text}crates/halvo-capture/src/store/lookup.rs ("
+  check rules-form-refuses-a-lookup-in-another-file-of-the-store FAIL "${carbon_text}crates/halvo-capture/src/store/lookup.rs (" '' rules
   printf 'none\n' >"$work/repo/crates/halvo-capture/src/store/lookup.rs" || exit 2
   printf 'none\n' >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
@@ -1510,19 +1504,6 @@ waits-not-driven-phase_one'
     exit 1
   fi
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
-}
-
-rules() {
-  repo=${CI_D_REPO:-}
-  [ -n "$repo" ] || repo=$(git rev-parse --show-toplevel 2>/dev/null) || fail "no repository: run it inside a checkout or give CI_D_REPO"
-  cd "$repo" || exit 2
-  work=$(mktemp -d "${TMPDIR:-/tmp}/$name-rules.XXXXXX") || fail "mktemp failed"
-  seam_manifests
-  carbon_calls
-  reading_places
-  clock_fields
-  printf 'rules: only the parts of the check that read the index and the tree ran (seam, carbon, reading, clocks); no build, no test and no process of the product was started, and neither the ledger nor the list of 12-test was read\n'
-  printf 'PASS %s\n' "$name"
 }
 
 case ${1:-} in
