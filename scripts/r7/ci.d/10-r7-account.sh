@@ -527,7 +527,10 @@ hex_of_either_case() {
 # directory below the target in one of cargo's two layouts: <profile>/build/<package>-<hash>/out,
 # or <profile>/build/<package>/<hash>/out where <hash> is 16 lower-case hex digits, as cargo
 # writes it, and <package> does not end in - and 16 hex digits of either case. In both, the
-# directory above build is one level below the target by test -ef.
+# directory above build is one level below the target by test -ef. Named limit: in the new
+# layout a package whose name ends in - and 16 hex digits is refused, though the old layout
+# admits it, because its directory cannot be told from an old-layout package directory with
+# its hash.
 out_dir_of() {
   cd -P "$1" 2>/dev/null || return 1
   out_real=$PWD
@@ -614,6 +617,7 @@ explain_outside() {
             *-*) answer=$(said hex_of_either_case "${package##*-}" 16) ;;
           esac
           say_outside "out_dir_of: the name two levels above it ends in - and 16 hex digits of either case: $answer (${package##*/})"
+          [ "$answer" = no ] || say_outside 'out_dir_of: a named limit: in the new layout a package whose name ends in - and 16 hex digits is refused, because its directory cannot be told from an old-layout package directory with its hash'
         else
           say_outside 'the out directory as the dep-info file names it: not a directory that cd -P enters'
           say_outside 'out_dir_of: cd -P into it: no'
@@ -1738,6 +1742,7 @@ read outside account/: the out directory as this shell holds it: $t_named/target
   if runs_here hash-named-directory-in-an-old-layout-package && make_fixture hash-named-directory-in-an-old-layout-package; then
     want_lines="read outside account/: out_dir_of: the name of the directory above it is a hash of 16 lower-case hex digits: yes (c999a60d9992a792)
 read outside account/: out_dir_of: the name two levels above it ends in - and 16 hex digits of either case: yes (halvo-wire-49f2e86ea4e02162)
+read outside account/: out_dir_of: a named limit: in the new layout a package whose name ends in - and 16 hex digits is refused, because its directory cannot be told from an old-layout package directory with its hash
 read outside account/: an out directory was found for this dep-info file: no"
     run_case hash-named-directory-in-an-old-layout-package "FAIL $name ($cause_source)" stub STUB_OUT_DIR=debug/build/halvo-wire-49f2e86ea4e02162/c999a60d9992a792/out
   fi
