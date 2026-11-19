@@ -79,7 +79,9 @@ pub const CRASH_MEANS: [&str; 2] = [
 
 /// The further candidates of the crash row (CP-167 E2), a closed list, each added after the
 /// product's means by `cdp::CrashMeans::Candidate`; each switch name stands in the browser's own
-/// binary, and what each does is what the row records.
+/// binary, and what each does is what the row records. Behind the fence: a build without the
+/// feature `test-fence`, which is no test build, has no candidate (CP-186 N8).
+#[cfg(any(test, feature = "test-fence"))]
 pub const CRASH_CANDIDATES: [(&str, &[&str]); 3] = [
     (
         "system_port",
@@ -88,6 +90,22 @@ pub const CRASH_CANDIDATES: [(&str, &[&str]); 3] = [
     ("dumps_dir", &["--crash-dumps-dir={profile}/Crashpad"]),
     ("no_reporter", &["--disable-crash-reporter"]),
 ];
+
+/// The fence's marker (CP-186 N8, in the form of the capture run's W3-8 (b) (3)): a byte string
+/// that stands in a build with the feature `test-fence` and in no build without it, so that a
+/// check can read a built file for it (`fence/shipped.mjs`). The feature stands behind the crash
+/// row's two means (`cdp::CrashMeans::Without`, `cdp::CrashMeans::Candidate`), `relay::Names::Fixture`,
+/// `CRASH_CANDIDATES` and the programs `web-probe` and `web-rows`; the crate's dev-dependency on
+/// itself turns it on for its own tests, and no other manifest names it. Every path that reaches
+/// one of those means reads the marker, so that a built file that links them holds it.
+#[cfg(feature = "test-fence")]
+pub static FENCE_MARKER: [u8; 39] = *b"halvo-web:test-fence:this-build-has-it!";
+
+/// Reads the fence's marker, so that a build that links the caller holds it.
+#[cfg(feature = "test-fence")]
+pub(crate) fn fence_marker() {
+    std::hint::black_box(&FENCE_MARKER);
+}
 
 /// The policy of A4.2 that the executor adds to every document and worker script.
 pub const WS_POLICY: &str = "connect-src http: https: data: blob:";
@@ -111,4 +129,169 @@ pub fn extract_amount(text: &str) -> Option<u64> {
     let whole: u64 = whole.parse().ok()?;
     let cents: u64 = cents.parse().ok()?;
     whole.checked_mul(100)?.checked_add(cents)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    const FENCE: &str = r#"#[cfg(any(test, feature = "test-fence"))]"#;
+
+    /// CP-186 N8: the fence is on in this test target from its start: the crate's dev-dependency
+    /// on itself gives its own tests the feature `test-fence`.
+    #[test]
+    fn the_fence_is_on_in_this_test_target() {
+        assert!(
+            std::hint::black_box(cfg!(feature = "test-fence")),
+            "the fence is off in the library's test target"
+        );
+    }
+
+    /// CP-186 N8: every test target of the crate other than the library's own (the programs of
+    /// src/bin and the files of tests) holds the test `the_fence_is_on_in_this_test_target`, each
+    /// program of src/bin needs the feature, and the manifest gives the crate's own tests the
+    /// feature through its dev-dependency on itself, so that no test target loses the fence's
+    /// means unseen.
+    #[test]
+    fn every_test_target_holds_the_test_that_its_fence_is_on() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let mut targets = Vec::new();
+        for dir in ["src/bin", "tests"] {
+            let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+                continue;
+            };
+            for entry in entries {
+                let path = entry.expect("an entry").path();
+                if path.extension().is_some_and(|e| e == "rs") {
+                    targets.push(path);
+                }
+            }
+        }
+        assert!(targets.len() >= 2, "{targets:?}");
+        let missing: Vec<&PathBuf> = targets
+            .iter()
+            .filter(|p| {
+                !std::fs::read_to_string(p)
+                    .unwrap_or_default()
+                    .contains("fn the_fence_is_on_in_this_test_target()")
+            })
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "test targets without the test: {missing:?}"
+        );
+        let manifest = std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest");
+        assert!(
+            manifest.contains(r#"halvo-web = { path = ".", features = ["test-fence"] }"#),
+            "the manifest does not give the crate's own tests the feature test-fence"
+        );
+        let bins = manifest.matches("[[bin]]").count();
+        let fenced = manifest
+            .matches(r#"required-features = ["test-fence"]"#)
+            .count();
+        assert_eq!(
+            (bins, fenced),
+            (2, 2),
+            "each program needs the feature test-fence"
+        );
+    }
+
+    /// Whether the line that stands directly above the first line of `text` that begins with
+    /// `item` (leading spaces aside) is the fence's attribute.
+    fn fenced(text: &str, item: &str) -> bool {
+        let lines: Vec<&str> = text.lines().map(str::trim).collect();
+        lines
+            .iter()
+            .position(|l| l.starts_with(item))
+            .is_some_and(|i| i > 0 && lines[i - 1] == FENCE)
+    }
+
+    /// CP-186 N8: the crash means' two row-only entries, `Names::Fixture` and the closed list of
+    /// the crash row's candidates stand behind the fence: in a build without the feature, which
+    /// is no test build, none of them exists.
+    #[test]
+    fn the_row_only_means_stand_behind_the_fence() {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let read = |f: &str| std::fs::read_to_string(src.join(f)).expect("a source file");
+        let (cdp, relay, lib) = (read("cdp.rs"), read("relay.rs"), read("lib.rs"));
+        for (text, item) in [
+            (&cdp, "Without,"),
+            (&cdp, "Candidate(usize),"),
+            (&relay, "Fixture,"),
+            (&lib, "pub const CRASH_CANDIDATES"),
+        ] {
+            assert!(fenced(text, item), "{item} stands outside the fence");
+        }
+        assert!(!fenced("#[test]\nWithout,", "Without,"));
+        assert!(fenced(&format!("x\n  {FENCE}\n  Without,"), "Without,"));
+    }
+
+    /// Whether a manifest's text names halvo-web and the feature `test-fence` together, as a
+    /// dependency on halvo-web with that feature would.
+    fn names_the_fence(manifest: &str) -> bool {
+        manifest.contains("halvo-web") && manifest.contains("test-fence")
+    }
+
+    /// The manifests under `dir`, at any depth, but in a directory whose name begins with a dot or
+    /// is `target` or `node_modules`.
+    fn manifests(dir: &Path, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if path.is_dir() {
+                if !(name.starts_with('.') || name == "target" || name == "node_modules") {
+                    manifests(&path, out);
+                }
+            } else if name == "Cargo.toml" {
+                out.push(path);
+            }
+        }
+    }
+
+    /// CP-186 N8, with the capture run's W3-8 (b) (2): no manifest of the repository but the
+    /// crate's own names halvo-web with the feature `test-fence`, so that no build for a person
+    /// turns the fence's means on through a dependency. Read lexically: a manifest that holds
+    /// both words is refused.
+    #[test]
+    fn no_other_manifest_names_the_fence() {
+        assert!(names_the_fence(
+            "[dependencies]\nhalvo-web = { path = \"../halvo-web\", features = [\"test-fence\"] }\n"
+        ));
+        assert!(names_the_fence(
+            "[dependencies.halvo-web]\npath = \"../halvo-web\"\nfeatures = [\"test-fence\"]\n"
+        ));
+        assert!(!names_the_fence(
+            "[dev-dependencies]\nr3-web = { path = \".\", features = [\"test-fence\"] }\n"
+        ));
+        assert!(!names_the_fence(
+            "[dependencies]\nhalvo-web = { path = \"../halvo-web\" }\n"
+        ));
+        let own = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = own.ancestors().nth(2).expect("the repository");
+        let mut found = Vec::new();
+        manifests(root, &mut found);
+        assert!(found.len() > 10, "{found:?}");
+        let naming: Vec<&PathBuf> = found
+            .iter()
+            .filter(|m| m.parent() != Some(own))
+            .filter(|m| names_the_fence(&std::fs::read_to_string(m).unwrap_or_default()))
+            .collect();
+        assert!(naming.is_empty(), "{naming:?}");
+    }
+
+    /// CP-186 N8, with W3-8 (b) (3): a build with the feature holds the fence's marker, the byte
+    /// string that the check of the shipped files reads for: this test's own program holds it.
+    #[cfg(feature = "test-fence")]
+    #[test]
+    fn the_test_build_holds_the_marker() {
+        let exe = std::fs::read(std::env::current_exe().expect("this program")).expect("read");
+        let marker = &super::FENCE_MARKER[..];
+        assert!(
+            exe.windows(marker.len()).any(|w| w == marker),
+            "the test build lacks the marker"
+        );
+    }
 }

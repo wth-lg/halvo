@@ -1875,3 +1875,16 @@ fn main() -> ExitCode {
         ExitCode::FAILURE
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// CP-186 N8: the fence is on in this test target from its start, so that the program's tests
+    /// reach the fence's means.
+    #[test]
+    fn the_fence_is_on_in_this_test_target() {
+        assert!(
+            std::hint::black_box(cfg!(feature = "test-fence")),
+            "the fence is off in this test target"
+        );
+    }
+}

@@ -119,12 +119,14 @@ pub struct StartOptions {
 /// the product's and one candidate of the closed list `crate::CRASH_CANDIDATES` (the crash row's
 /// readings). A caller names an entry of a list of the crate and adds no flag of its own. The two
 /// entries other than `Product` are the crash row's alone; a caller of the product names `Product`.
-/// Both are public in every build, as `relay::Names::Fixture` is, and no caller of the product
-/// exists yet (CP-186 S8, N8).
+/// Both stand behind the fence (`crate::FENCE_MARKER`): a build without the feature `test-fence`,
+/// which is no test build, has `Product` alone (CP-186 S8, N8).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CrashMeans {
     Product,
+    #[cfg(any(test, feature = "test-fence"))]
     Without,
+    #[cfg(any(test, feature = "test-fence"))]
     Candidate(usize),
 }
 
@@ -423,16 +425,25 @@ pub(crate) fn start_profile_form(given: &Path, made: &Path) -> PathBuf {
 pub fn launch_args(opts: &StartOptions) -> Vec<String> {
     let mut args: Vec<String> = crate::PRODUCT_FLAGS.iter().map(|f| f.to_string()).collect();
     let profile = opts.profile.display().to_string();
-    if opts.crash_means != CrashMeans::Without {
-        args.extend(
-            crate::CRASH_MEANS
-                .iter()
-                .map(|f| f.replace("{profile}", &profile)),
-        );
-    }
-    if let CrashMeans::Candidate(i) = opts.crash_means {
-        for f in crate::CRASH_CANDIDATES.get(i).map_or(&[][..], |c| c.1) {
-            args.push(f.replace("{profile}", &profile));
+    let product: Vec<String> = crate::CRASH_MEANS
+        .iter()
+        .map(|f| f.replace("{profile}", &profile))
+        .collect();
+    match opts.crash_means {
+        CrashMeans::Product => args.extend(product),
+        #[cfg(any(test, feature = "test-fence"))]
+        CrashMeans::Without => {
+            #[cfg(feature = "test-fence")]
+            crate::fence_marker();
+        }
+        #[cfg(any(test, feature = "test-fence"))]
+        CrashMeans::Candidate(i) => {
+            #[cfg(feature = "test-fence")]
+            crate::fence_marker();
+            args.extend(product);
+            for f in crate::CRASH_CANDIDATES.get(i).map_or(&[][..], |c| c.1) {
+                args.push(f.replace("{profile}", &profile));
+            }
         }
     }
     args.extend(crate::relay::relay_flags(opts.relay.port()));
