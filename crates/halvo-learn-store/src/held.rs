@@ -44,6 +44,27 @@ impl LearnHandlers {
         self.starts.remove(run);
     }
 
+    /// Makes the run of an accepted `start_run` a lost run that this value remembers, as a refused commit does: its
+    /// facts go and its start is remembered under the body's agent with no row; a run held under another agent stays
+    /// as it was.
+    pub(crate) fn lose_start(&mut self, b: &StartRun) {
+        let other = self.facts.get(&b.run).is_some_and(|f| f.agent != b.agent)
+            || self.starts.get(&b.run).is_some_and(|s| s.agent != b.agent);
+        if !other {
+            self.facts.remove(&b.run);
+            self.remember_start(b, false);
+        }
+    }
+
+    /// Drops the run where its facts or its remembered start are held under `agent`, and nothing under another agent.
+    pub(crate) fn drop_of_agent(&mut self, agent: &AgentId, run: &RunId) {
+        let of_agent = self.facts.get(run).is_some_and(|f| &f.agent == agent)
+            || self.starts.get(run).is_some_and(|s| &s.agent == agent);
+        if of_agent {
+            self.drop_run(run);
+        }
+    }
+
     /// The handlers' own `load` of a run, which stores nothing. A refusal with a name other than `store` and
     /// `internal` is the sign of a run that can store nothing more, and drops the run.
     pub(crate) fn load_of(
@@ -71,17 +92,22 @@ impl LearnHandlers {
             .and_then(|reply| reply.playbook.map(|p| p.number)))
     }
 
-    /// The handlers' own `load` of every run that has facts, which drops those that the agent store refuses.
+    /// The handlers' own `load` of every run that has facts, which drops those that the agent store refuses; a
+    /// `store` or `internal` fault of one `load` leaves that run as it was, the other loads are still sent, and the
+    /// first fault is returned.
     pub(crate) fn sweep(&mut self, host: &mut dyn LearnHost) -> Result<(), ErrorName> {
         let held: Vec<(RunId, AgentId)> = self
             .facts
             .iter()
             .map(|(run, facts)| (run.clone(), facts.agent.clone()))
             .collect();
+        let mut first = Ok(());
         for (run, agent) in held {
-            self.load_of(host, &agent, &run)?;
+            if let Err(name) = self.load_of(host, &agent, &run) {
+                first = first.and(Err(name));
+            }
         }
-        Ok(())
+        first
     }
 
     /// After the agent store refused a runner body of a run: a refused `load` under the run's own agent drops the
@@ -99,11 +125,7 @@ impl LearnHandlers {
             return;
         }
         if was_load {
-            let of_agent = self.facts.get(run).is_some_and(|f| &f.agent == agent)
-                || self.starts.get(run).is_some_and(|s| &s.agent == agent);
-            if of_agent {
-                self.drop_run(run);
-            }
+            self.drop_of_agent(agent, run);
             return;
         }
         if let Some(agent) = self.facts.get(run).map(|f| f.agent.clone()) {

@@ -134,7 +134,14 @@ impl LearnHandlers {
             self.facts.remove(&b.run);
             return Ok(RunnerReply::Steps(StepsReply { steps }));
         }
-        let newest = self.newest_of(host, &b.agent, &b.run)?;
+        let newest = match self.newest_of(host, &b.agent, &b.run) {
+            Ok(newest) => newest,
+            Err(name) => {
+                self.drop_run(&b.run);
+                self.leave(Err(name.into()));
+                return Ok(RunnerReply::Steps(StepsReply { steps }));
+            }
+        };
         let edits = match Edits::read(host, &workflow) {
             Read::Rows(edits) if newest == Some(b.number) => Some(edits),
             _ => None,

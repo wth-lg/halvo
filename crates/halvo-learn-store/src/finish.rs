@@ -11,6 +11,7 @@ use halvo_schema::executable::{ExecutableStep, RunId, RunnerReply};
 use halvo_schema::learning::record::{
     EditId, EditState, LearnEdit, LearnRun, LearnedTarget, RunStatus, Verdict,
 };
+use halvo_schema::ErrorName;
 
 use crate::agent;
 use crate::convert;
@@ -99,9 +100,13 @@ impl LearnHandlers {
         let mut compiled = Vec::new();
         if let Some(facts) = seen {
             let held = !facts.candidates.is_empty();
-            newest = self.newest_of(host, &b.agent, &b.run)?;
-            if let (true, Some(number)) = (held, newest) {
-                compiled = agent::compiled(host, &b.agent, &b.run, number)?;
+            match self.read_ended(host, b, held) {
+                Ok(read) => (newest, compiled) = read,
+                Err(name) => {
+                    self.drop_run(&b.run);
+                    self.leave(Err(name.into()));
+                    return Ok(agent::runner(host, body)?);
+                }
             }
         }
         let reply = agent::runner(host, body)?;
@@ -119,6 +124,20 @@ impl LearnHandlers {
         let outcome = self.commit_ended(host, &b.run, &facts, newest, &compiled, verdict);
         self.leave(outcome);
         Ok(reply)
+    }
+
+    fn read_ended(
+        &mut self,
+        host: &mut dyn LearnHost,
+        b: &Finish,
+        held: bool,
+    ) -> Result<(Option<NonZeroU32>, Vec<ExecutableStep>), ErrorName> {
+        let newest = self.newest_of(host, &b.agent, &b.run)?;
+        let compiled = match (held, newest) {
+            (true, Some(number)) => agent::compiled(host, &b.agent, &b.run, number)?,
+            _ => Vec::new(),
+        };
+        Ok((newest, compiled))
     }
 
     pub(crate) fn commit_ended(
