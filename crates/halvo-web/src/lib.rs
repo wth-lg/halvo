@@ -1,5 +1,14 @@
 //! The web executor of A11.1: the agent's browser driven over a pipe by the one process that
 //! started it, through a relay that reaches only the person's bound sites.
+//!
+//! A named limit, held by no row and no promise (CP-186 N9): what each start leaves outside the
+//! run's profile on macOS. In every reading of the crash row in run 43484944398, the start with no
+//! crash among them, a start of Chrome left four files of 4,196 bytes in all, two in the account's
+//! cache of `com.google.Chrome.helper` and two links in the system's temporary directory, and a
+//! start of Edge four files of 4,923 bytes; after a crash the singleton directory stays in the
+//! system's temporary directory. The stop removes the profile and the temporary directory
+//! that its start made and nothing else (A11.1), so nothing in this crate removes those files, and
+//! no text of this run says who does. On Windows the same readings left none.
 
 pub mod cdp;
 pub mod checks;
