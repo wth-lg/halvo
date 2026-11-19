@@ -219,114 +219,184 @@ fn bytes_under(dir: &Path) -> BTreeMap<PathBuf, Option<Vec<u8>>> {
 /// import the binary's items).
 const SEEDED_LABELS: [&str; 2] = ["Zq7-halvo-marker-learn-a", "Zq7-halvo-marker-learn-b"];
 
-/// A line of SQLCipher's own log as the library writes it to standard error on Windows when a key does not open a
-/// store: a date, a time with its fraction, ": ERROR CORE ", then the library's text in printable ASCII, and the line end.
-fn sqlcipher_log_line(line: &str) -> bool {
-    let Some(body) = line
-        .strip_suffix("\r\n")
-        .or_else(|| line.strip_suffix('\n'))
-    else {
-        return false;
-    };
-    let bytes = body.as_bytes();
-    let digits = |from: usize, to: usize| {
-        bytes
-            .get(from..to)
-            .is_some_and(|run| run.iter().all(u8::is_ascii_digit))
-    };
-    let stamp = bytes.len() > 20
-        && digits(0, 4)
-        && bytes[4] == b'-'
-        && digits(5, 7)
-        && bytes[7] == b'-'
-        && digits(8, 10)
-        && bytes[10] == b' '
-        && digits(11, 13)
-        && bytes[13] == b':'
-        && digits(14, 16)
-        && bytes[16] == b':'
-        && digits(17, 19)
-        && bytes[19] == b'.';
-    if !stamp {
-        return false;
-    }
-    let fraction = bytes[20..]
-        .iter()
-        .take_while(|b| b.is_ascii_digit())
-        .count();
-    fraction > 0
-        && body[20 + fraction..]
-            .strip_prefix(": ERROR CORE ")
-            .is_some_and(|text| {
-                !text.is_empty() && text.bytes().all(|b| (b' '..=b'~').contains(&b))
-            })
+/// The refusal of a command whose key does not open the derived store, as the gate writes it (src/main.rs).
+const KEY_REFUSAL: &str =
+    "REFUSED store: the derived store does not open: the key does not open the derived database\n";
+
+/// The closed list of SQLCipher's own log lines that stand before KEY_REFUSAL on Windows, each after the library's
+/// time stamp, as sqlcipher-src 419.0.6+sqlcipher-4.19.0 writes them for a key that does not open the store
+/// (sqlcipher/sqlcipher.c): the texts at lines 112591, 114343 and 112257, with page 1, SQLITE_ERROR (1) and lock 0;
+/// the words ERROR and CORE at line 113474; the stamp and the line end at lines 113510 and 113511, which the text
+/// mode of Windows's standard error writes as CRLF. The library's default target is standard error on Windows and the
+/// device log on Apple systems (lines 111284 to 111302), so no other system prints them. A line that is one of the
+/// forms has no free field.
+const SQLCIPHER_FORMS: [&str; 3] = [
+    ": ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1\r\n",
+    ": ERROR CORE sqlite3Codec: error decrypting page 1 data: 1\r\n",
+    ": ERROR CORE sqlcipher_codec_ctx_set_error: 1 lock=0\r\n",
+];
+
+/// The rest of LINE after a time stamp of the library's fixed form (strftime's "%Y-%m-%d %H:%M:%S", then a full stop
+/// and three digits of the millisecond), or None.
+fn after_stamp(line: &str) -> Option<&str> {
+    let form = b"dddd-dd-dd dd:dd:dd.ddd";
+    let stamp = line.as_bytes().get(..form.len())?;
+    let fits = stamp.iter().zip(form).all(|(byte, want)| {
+        if *want == b'd' {
+            byte.is_ascii_digit()
+        } else {
+            byte == want
+        }
+    });
+    fits.then_some(&line[form.len()..])
 }
 
-/// The longest run of hex digits in LINE: a key printed as hex would make one of 64.
-fn longest_hex_run(line: &str) -> usize {
-    line.split(|c: char| !c.is_ascii_hexdigit())
-        .map(str::len)
-        .max()
-        .unwrap_or(0)
+/// Reads the standard error ERR of a command that the key refused, on Windows when WINDOWS holds: the last line is
+/// exactly KEY_REFUSAL; on Windows every line before it is a time stamp and one form of SQLCIPHER_FORMS, and on every
+/// other system no line stands before it. The fault names a line by its place and its length alone, never by its text.
+fn read_key_refusal(err: &str, windows: bool) -> Result<(), String> {
+    let lines: Vec<&str> = err.split_inclusive('\n').collect();
+    let Some((last, before)) = lines.split_last() else {
+        return Err("standard error is empty".to_owned());
+    };
+    if *last != KEY_REFUSAL {
+        return Err(format!(
+            "line {} of {}, {} bytes, is not the refusal line",
+            lines.len(),
+            lines.len(),
+            last.len()
+        ));
+    }
+    if !windows && !before.is_empty() {
+        return Err(format!(
+            "lines before the refusal line: {}, where only Windows prints the library's log",
+            before.len()
+        ));
+    }
+    for (at, line) in before.iter().enumerate() {
+        if !after_stamp(line).is_some_and(|rest| SQLCIPHER_FORMS.contains(&rest)) {
+            return Err(format!(
+                "line {} of {}, {} bytes, is no form of the list",
+                at + 1,
+                lines.len(),
+                line.len()
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// BYTES in base64 with its padding.
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut text = String::new();
+    for chunk in bytes.chunks(3) {
+        let word = (u32::from(chunk[0]) << 16)
+            | (u32::from(*chunk.get(1).unwrap_or(&0)) << 8)
+            | u32::from(*chunk.get(2).unwrap_or(&0));
+        for at in 0..4 {
+            if at <= chunk.len() {
+                text.push(char::from(ALPHABET[(word >> (18 - 6 * at)) as usize & 63]));
+            } else {
+                text.push('=');
+            }
+        }
+    }
+    text
 }
 
 #[test]
 fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_own_key() {
-    let seen_on_windows = [
-        "2026-11-19 18:54:08.555: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1\r\n",
-        "2026-11-19 18:54:08.557: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1\r\n",
-        "2026-11-19 18:54:08.557: ERROR CORE sqlcipher_codec_ctx_set_error: 1 lock=0\r\n",
+    let stamp = |millis: u32| format!("2026-11-19 18:54:08.{millis:03}");
+    let windows_lines = [
+        format!("{}{}", stamp(555), SQLCIPHER_FORMS[0]),
+        format!("{}{}", stamp(557), SQLCIPHER_FORMS[1]),
+        format!("{}{}", stamp(557), SQLCIPHER_FORMS[2]),
     ];
-    for line in seen_on_windows {
-        assert!(sqlcipher_log_line(line), "{line:?}");
-    }
-    for line in [
-        "2026-11-19 18:54:08: ERROR CORE a time without its fraction\r\n",
-        "2026-11-19 18:54:08.555: ERROR codec: no CORE\r\n",
-        "2026-11-19 18:54:08.555: ERROR CORE \r\n",
-        "2026-11-19 18:54:08.555: ERROR CORE no line end",
-        "x2026-11-19 18:54:08.555: ERROR CORE a byte before the date\r\n",
-        "2026-11-19 18:54:08.555: ERROR CORE a\ttab\r\n",
-        "REFUSED store: the derived store does not open\n",
-    ] {
-        assert!(!sqlcipher_log_line(line), "{line:?}");
-    }
+    let with_first = |first: &str| {
+        format!(
+            "{first}{}{}{KEY_REFUSAL}",
+            windows_lines[1], windows_lines[2]
+        )
+    };
+    let seen_on_windows = with_first(&windows_lines[0]);
+    assert_eq!(read_key_refusal(&seen_on_windows, true), Ok(()));
+    assert_eq!(read_key_refusal(KEY_REFUSAL, false), Ok(()));
+
+    let key: [u8; 32] = std::array::from_fn(|at| (at as u8).wrapping_mul(37).wrapping_add(11));
+    let decimal: Vec<String> = key.iter().map(u8::to_string).collect();
+    let form = windows_lines[0].trim_end_matches("\r\n");
+    let added = |text: &str| format!("{form} {text}\r\n");
+    let stand_ins: Vec<(u32, String)> = [
+        (1, added("3f")),
+        (2, added(&base64(&key))),
+        (3, added(&decimal.join(" "))),
+        (4, added(&SEEDED_LABELS[0][4..18])),
+        (5, added(env!("CARGO_TARGET_TMPDIR"))),
+        (6, added("DERIVED.DB")),
+        (
+            7,
+            format!("{}: ERROR CORE a line of free text\r\n", stamp(555)),
+        ),
+        (8, added("REFUSED")),
+        (9, windows_lines[0].replace("pgno=1", "pgno=2")),
+        (10, format!("2026-11-19 18:54:08{}", SQLCIPHER_FORMS[0])),
+        (11, format!("{}: ERROR codec: no CORE\r\n", stamp(555))),
+        (12, format!("{}: ERROR CORE \r\n", stamp(555))),
+        (13, form.to_owned()),
+        (14, format!("x{}", windows_lines[0])),
+        (15, format!("{}: ERROR CORE a\ttab\r\n", stamp(555))),
+        (
+            16,
+            "REFUSED store: the derived store does not open\n".to_owned(),
+        ),
+    ]
+    .into_iter()
+    .map(|(number, first)| (number, with_first(&first)))
+    .collect();
+    let let_through: Vec<u32> = stand_ins
+        .iter()
+        .filter(|(_, err)| read_key_refusal(err, true).is_ok())
+        .map(|(number, _)| *number)
+        .collect();
+    assert!(
+        let_through.is_empty(),
+        "the reading lets these stand-ins through: {let_through:?}"
+    );
+    assert!(
+        read_key_refusal(&seen_on_windows, false).is_err(),
+        "on a system other than Windows no line may stand before the refusal line"
+    );
 
     let dir = fresh("delete-two-commands");
-    line_of(&derived_delete("workflow", &dir));
-    let second = derived_delete("workflow", &dir);
-    assert_eq!(second.status.code(), Some(2), "{second:?}");
-    assert!(second.stdout.is_empty(), "{second:?}");
-    let err = String::from_utf8(second.stderr).expect("UTF-8");
-    let lines: Vec<&str> = err.split_inclusive('\n').collect();
-    let (last, before) = lines.split_last().expect("a line on standard error");
+    let first = derived_delete("workflow", &dir);
     assert_eq!(
-        *last,
-        "REFUSED store: the derived store does not open: the key does not open the derived database\n",
-        "each command makes a key of its own, so the second does not open the first one's store: {err:?}"
+        first.status.code(),
+        Some(0),
+        "the first command's exit status"
     );
-    let path = dir.to_str().expect("a path");
-    let name = dir
-        .file_name()
-        .and_then(|name| name.to_str())
-        .expect("a name");
-    for line in before {
-        assert!(
-            sqlcipher_log_line(line),
-            "a line before the refusal that is not SQLCipher's own log: {line:?}"
-        );
-        assert!(!line.contains("REFUSED"), "{line:?}");
-        assert!(
-            !line.contains(path) && !line.contains(name) && !line.contains("derived.db"),
-            "a path in SQLCipher's log line: {line:?}"
-        );
-        assert!(
-            SEEDED_LABELS.iter().all(|label| !line.contains(label)),
-            "a seeded label in SQLCipher's log line: {line:?}"
-        );
-        assert!(
-            longest_hex_run(line) < 16,
-            "a run of hex digits as long as a key's in SQLCipher's log line: {line:?}"
+    assert!(
+        first.stderr.is_empty(),
+        "the first command's standard error holds {} bytes",
+        first.stderr.len()
+    );
+    let second = derived_delete("workflow", &dir);
+    assert_eq!(
+        second.status.code(),
+        Some(2),
+        "the second command's exit status"
+    );
+    assert!(
+        second.stdout.is_empty(),
+        "the second command's standard output holds {} bytes",
+        second.stdout.len()
+    );
+    let Ok(err) = String::from_utf8(second.stderr) else {
+        panic!("the second command's standard error is not UTF-8");
+    };
+    if let Err(fault) = read_key_refusal(&err, cfg!(windows)) {
+        panic!(
+            "each command makes a key of its own, so the second does not open the first one's store: {fault}"
         );
     }
 }
