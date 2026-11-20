@@ -629,12 +629,12 @@ fn u46b_a_run_that_outlived_quit_and_completed_reads_finished() {
         Limits::PRODUCT,
     );
     life.tick();
-    store_ends(&life, 0, &record(&runs[0], Outcome::Completed));
+    store_ends(&life, 0, &record(&runs[0], Outcome::Failed));
     tick_at(&life, 1);
     assert_eq!(
         row(&life, 0).line,
         text("line.all_set.stopped_early"),
-        "a run that reap answered gone reads as before"
+        "a record Failed of a run that reap answered gone reads as before"
     );
     assert_eq!(
         life.card(&agent(0)).expect("the card").runs[0].text,
@@ -731,5 +731,345 @@ fn u46b_a_later_record_of_another_writer_does_not_bring_the_line_back() {
         row(&life, 0).line,
         kill_stuck(),
         "a run that this life did not start, recorded after r1, brings no line back"
+    );
+}
+
+/// Pushes into the owner's ledger a run of agent `n` that this life did not start, started and
+/// ended `completed`, after the agent's last event, and gives the store its record.
+fn another_writers_run(c: &Coordinator<Both>, n: usize, run: &RunId) {
+    {
+        let mut events = c.ports().ports.events.borrow_mut();
+        let last = events
+            .iter()
+            .filter(|e| e.agent == agent(n))
+            .map(|e| e.seq.get())
+            .max()
+            .unwrap_or(0);
+        let event = |seq: u32, what: What| Event {
+            workflow: flow(n),
+            agent: agent(n),
+            seq: NonZeroU32::new(seq).unwrap(),
+            day: DAY,
+            at: 0,
+            what,
+        };
+        events.push(event(
+            last + 1,
+            What::RunStarted {
+                run: run.clone(),
+                trigger: Trigger::Person,
+                slot: None,
+            },
+        ));
+        events.push(event(
+            last + 2,
+            What::RunEnded {
+                run: run.clone(),
+                cause: RunEnd::Completed,
+                defers: None,
+            },
+        ));
+    }
+    c.ports()
+        .ports
+        .store_end(&agent(n), record(run, Outcome::Completed));
+}
+
+/// The controls of the row of a task that ended in the ordinary way.
+fn finished_controls() -> Vec<Control> {
+    let finished = coord::coordinator(&[MANUAL], Limits::PRODUCT);
+    assert_eq!(row(&finished, 0).line, text("line.all_set.done"));
+    controls(&row(&finished, 0))
+}
+
+#[test]
+fn u46b_a_gone_workflows_row_survives_a_history_read_that_fails_at_recover() {
+    for failure in [
+        PortError::Busy,
+        PortError::NoService,
+        PortError::Refused(Name::parse("store").unwrap()),
+    ] {
+        let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
+        let next = alive_next_life(&c, &runs[0]);
+        next.ports.workflows.borrow_mut().clear();
+        next.ports
+            .refuse_agent(Method::History, &agent(0), failure.clone());
+        let life = Coordinator::new(next, Limits::PRODUCT);
+        life.tick();
+        life.ports().ports.clear_refusals();
+        for k in 1..=3 {
+            tick_at(&life, k);
+        }
+        assert_eq!(
+            seen(&life, 0),
+            Some((Status::Working, kill_stuck(), Vec::new())),
+            "the first read of the history answered {failure:?}"
+        );
+        assert!(!end_runs(&life).contains(&runs[0]), "{failure:?}: end_run");
+    }
+}
+
+/// Recovery's `run_ended` of the run that reap answered alive never reached the ledger (refused
+/// `malformed` while the clock stood 3 days back), so the ledger's last end is an earlier run's.
+#[test]
+fn u46b_the_row_reads_the_end_of_that_run_where_recoverys_run_ended_never_landed() {
+    for (earlier, end, line, card) in [
+        (
+            Outcome::NothingToDo,
+            Outcome::Completed,
+            "line.all_set.done",
+            "line.run.completed",
+        ),
+        (
+            Outcome::Completed,
+            Outcome::Failed,
+            "line.problem.failed",
+            "line.run.failed",
+        ),
+        (
+            Outcome::Completed,
+            Outcome::NothingToDo,
+            "line.all_set.nothing",
+            "line.run.nothing_to_do",
+        ),
+    ] {
+        let owner = coord::owner(&[MANUAL], room());
+        for e in owner.ports.events.borrow_mut().iter_mut() {
+            if let What::RunEnded { cause, .. } = &mut e.what {
+                *cause = RunEnd::from(earlier);
+            }
+        }
+        if let Some(last) = owner.ports.agents.borrow_mut()[0].last.as_mut() {
+            last.outcome = earlier;
+        }
+        let (c, runs) = outlived_quit(owner);
+        let next = alive_next_life(&c, &runs[0]);
+        next.ports.refuse_record(
+            |e| matches!(e.what, What::RunEnded { .. }),
+            PortError::Refused(Name::parse("malformed").unwrap()),
+        );
+        let life = Coordinator::new(next, Limits::PRODUCT);
+        life.tick();
+        life.ports().ports.set_clock(T0 - 3 * DAY_MS, DAY - 3);
+        life.tick();
+        life.ports().ports.clear_refusals();
+        store_ends(&life, 0, &record(&runs[0], end));
+        life.ports().ports.set_clock(T0 + 1_000, DAY);
+        for k in 1..=3 {
+            tick_at(&life, k);
+        }
+        assert_eq!(
+            row(&life, 0).line,
+            text(line),
+            "an earlier {earlier:?}, the record {end:?}"
+        );
+        assert_eq!(
+            life.card(&agent(0)).expect("the card").runs[0].text,
+            text(card),
+            "an earlier {earlier:?}, the record {end:?}: the card"
+        );
+    }
+}
+
+#[test]
+fn u46b_the_line_does_not_come_back_once_a_record_named_the_run() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
+    let life = Coordinator::new(alive_next_life(&c, &runs[0]), Limits::PRODUCT);
+    life.tick();
+    store_ends(&life, 0, &record(&runs[0], Outcome::Completed));
+    tick_at(&life, 1);
+    assert_eq!(row(&life, 0).line, text("line.all_set.done"));
+    for k in 0..Limits::PRODUCT.history_runs {
+        let run = RunId::parse(&format!("{:032x}", 0x333 + k)).unwrap();
+        another_writers_run(&life, 0, &run);
+        tick_at(&life, 2 + u64::from(k));
+        assert_ne!(
+            row(&life, 0).line,
+            kill_stuck(),
+            "after {} more records of the store",
+            k + 1
+        );
+    }
+}
+
+#[test]
+fn u46b_a_later_life_reads_a_run_that_completed_after_reap_answered_it_alive_as_finished() {
+    let finished = finished_controls();
+    for third in [vec![Reaped::Gone], Vec::new()] {
+        let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
+        let life = Coordinator::new(
+            next_life(&c, &[(runs[0].clone(), Reaped::Alive)]),
+            Limits::PRODUCT,
+        );
+        life.tick();
+        store_ends(&life, 0, &record(&runs[0], Outcome::Completed));
+        tick_at(&life, 1);
+        assert_eq!(row(&life, 0).line, text("line.all_set.done"));
+        let marks: Vec<(RunId, Reaped)> = third.iter().map(|a| (runs[0].clone(), *a)).collect();
+        let owner = next_life(&life, &marks);
+        owner
+            .ports
+            .histories
+            .borrow_mut()
+            .clone_from(&life.ports().ports.histories.borrow());
+        let later = Coordinator::new(owner, Limits::PRODUCT);
+        later.tick();
+        let r = row(&later, 0);
+        assert_eq!(
+            (r.line.clone(), controls(&r)),
+            (text("line.all_set.done"), finished.clone()),
+            "the later life's reap answered {third:?}"
+        );
+        assert_eq!(
+            later.card(&agent(0)).expect("the card").runs[0].text,
+            text("line.run.completed"),
+            "the later life's reap answered {third:?}: the card"
+        );
+    }
+
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
+    let life = Coordinator::new(
+        next_life(&c, &[(runs[0].clone(), Reaped::Gone)]),
+        Limits::PRODUCT,
+    );
+    life.tick();
+    store_ends(&life, 0, &record(&runs[0], Outcome::Completed));
+    tick_at(&life, 1);
+    let r = row(&life, 0);
+    assert_eq!(
+        (r.line.clone(), controls(&r)),
+        (text("line.all_set.done"), finished),
+        "a run that this life's reap answered gone, which the record names completed"
+    );
+    assert_eq!(
+        life.card(&agent(0)).expect("the card").runs[0].text,
+        text("line.run.completed")
+    );
+}
+
+/// The narrow form of RD-151 (b) for later lives: a record Failed is not the runner's word that
+/// the task ended, so it reads as today in the life after.
+#[test]
+fn u46b_a_later_life_reads_a_run_that_the_record_names_failed_as_before() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
+    let life = Coordinator::new(
+        next_life(&c, &[(runs[0].clone(), Reaped::Alive)]),
+        Limits::PRODUCT,
+    );
+    life.tick();
+    store_ends(&life, 0, &record(&runs[0], Outcome::Failed));
+    tick_at(&life, 1);
+    assert_eq!(row(&life, 0).line, text("line.problem.failed"));
+    let owner = next_life(&life, &[(runs[0].clone(), Reaped::Gone)]);
+    owner
+        .ports
+        .histories
+        .borrow_mut()
+        .clone_from(&life.ports().ports.histories.borrow());
+    let later = Coordinator::new(owner, Limits::PRODUCT);
+    later.tick();
+    assert_eq!(
+        row(&later, 0).line,
+        text("line.all_set.stopped_early"),
+        "the life after reads a record Failed as today"
+    );
+    assert_eq!(
+        later.card(&agent(0)).expect("the card").runs[0].text,
+        text("line.run.interrupted")
+    );
+}
+
+#[test]
+fn u46b_a_newer_run_of_another_writer_does_not_end_the_line_of_a_run_that_reap_answered_alive() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
+    let life = Coordinator::new(alive_next_life(&c, &runs[0]), Limits::PRODUCT);
+    life.tick();
+    let r2 = RunId::parse("00000000000000000000000000009999").unwrap();
+    another_writers_run(&life, 0, &r2);
+    tick_at(&life, 1);
+    assert_eq!(life.control(&agent(0), Action::SwitchOff), Ok(()));
+    tick_at(&life, 2);
+    assert_eq!(life.control(&agent(0), Action::SwitchOn), Ok(()));
+    tick_at(&life, 3);
+    assert_eq!(
+        row(&life, 0).line,
+        kill_stuck(),
+        "r1 that reap answered alive has no record of the store"
+    );
+    assert_eq!(life.control(&agent(0), Action::RunNow), Err(Cause::State));
+    assert_eq!(coord::started(&life), Vec::<RunId>::new(), "a start");
+    assert!(!end_runs(&life).contains(&runs[0]), "end_run");
+}
+
+/// The rule of `Board::answered_alive` for every run that reap answered alive, the second of two
+/// among them, and where it counts: a refused Start now of the second sends no `end_run` for it.
+#[test]
+fn u46b_every_run_that_reap_answers_alive_is_kept_and_holds_off_its_end_run() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], room()));
+    let alive: Vec<(RunId, Reaped)> = runs.iter().map(|r| (r.clone(), Reaped::Alive)).collect();
+    let board = recover(&next_life(&c, &alive), &Limits::PRODUCT)
+        .expect("recovery")
+        .board;
+    for run in &runs {
+        assert!(board.answered_alive(run), "{run:?}");
+    }
+    let next = next_life(&c, &alive);
+    for _ in 0..16 {
+        let _ = next.ports.bytes16();
+    }
+    next.ports.refuse_record(
+        |e| matches!(e.what, What::RunEnded { .. }),
+        PortError::Refused(Name::parse("malformed").unwrap()),
+    );
+    let life = Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    life.ports().ports.set_clock(T0 - 3 * DAY_MS, DAY - 3);
+    life.tick();
+    let press = life.control(&agent(1), Action::RunNow);
+    life.ports().ports.clear_refusals();
+    life.ports().ports.set_clock(T0 + 1_000, DAY);
+    life.tick();
+    assert!(press.is_err(), "{press:?}");
+    assert!(
+        !end_runs(&life).contains(&runs[1]),
+        "no end_run for the second run"
+    );
+    assert_eq!(coord::started(&life), Vec::<RunId>::new());
+}
+
+#[test]
+fn u46b_two_gone_workflows_each_keep_their_row_while_reap_answers_both_alive() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], room()));
+    let alive: Vec<(RunId, Reaped)> = runs.iter().map(|r| (r.clone(), Reaped::Alive)).collect();
+    let next = next_life(&c, &alive);
+    next.ports.workflows.borrow_mut().clear();
+    let life = Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    for n in 0..2 {
+        assert_eq!(
+            seen(&life, n),
+            Some((Status::Working, kill_stuck(), Vec::new())),
+            "agent {n}"
+        );
+    }
+}
+
+#[test]
+fn u46b_the_second_of_two_runs_that_reap_answered_alive_reads_its_record() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], room()));
+    let alive: Vec<(RunId, Reaped)> = runs.iter().map(|r| (r.clone(), Reaped::Alive)).collect();
+    let life = Coordinator::new(next_life(&c, &alive), Limits::PRODUCT);
+    life.tick();
+    store_ends(&life, 1, &record(&runs[1], Outcome::Completed));
+    tick_at(&life, 1);
+    assert_eq!(row(&life, 1).line, text("line.all_set.done"));
+    assert_eq!(
+        life.card(&agent(1)).expect("the card").runs[0].text,
+        text("line.run.completed")
+    );
+    assert_eq!(
+        row(&life, 0).line,
+        kill_stuck(),
+        "the first run has no record"
     );
 }
