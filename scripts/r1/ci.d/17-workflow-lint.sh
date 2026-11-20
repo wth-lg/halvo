@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the bound ci_job_timeout_min, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag; pull_request and the pinned schedule are the other events. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the pinned cron line below it and no other line under it and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are plain words at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at six blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, and the letters rust-cache stand on no other line. The push filters are pin_branches and pin_tags. The schedule and cache lines are pin_cron, pin_uses, pin_with, pin_prefix and pin_save below; on the event schedule they make the step find no saved Rust build cache and save none.
+# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the bound ci_job_timeout_min, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag; pull_request and the pinned schedule are the other events. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the pinned cron line below it and no other line under it and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes and steps at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at six blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, and the letters rust-cache stand on no other line. A step condition must be always() and a step must have no continue-on-error key. Review each changed step command in the diff; this pin does not read what a step runs. The push filters are pin_branches and pin_tags. The schedule and cache lines are pin_cron, pin_uses, pin_with, pin_prefix and pin_save below; on the event schedule they make the step find no saved Rust build cache and save none.
 set -u
 name=17-workflow-lint
 pinned_version=1.7.12
@@ -466,6 +466,42 @@ EOF
 $pins
 EOF
 
+  if [ "$findings" -eq 0 ]; then
+    policy=$(ruby -rpsych -e '
+      def pairs(mapping)
+        mapping.children.each_slice(2)
+      end
+      workflow = Psych.parse_file(ARGV.fetch(0)).root
+      _, jobs = pairs(workflow).find { |key, _| key.value == "jobs" }
+      pairs(jobs).each do |job, mapping|
+        pairs(mapping).each do |key, value|
+          unless %w[runs-on timeout-minutes steps].include?(key.value)
+            puts "job #{job.value} has key #{key.value}; use only runs-on, timeout-minutes and steps"
+            next
+          end
+          next unless key.value == "steps"
+          value.children.each_with_index do |step, index|
+            pairs(step).each do |field, setting|
+              case field.value.downcase
+              when "if"
+                unless setting.is_a?(Psych::Nodes::Scalar) && setting.value == "always()"
+                  puts "job #{job.value} step #{index + 1}: use only always() as a step condition"
+                end
+              when "continue-on-error"
+                puts "job #{job.value} step #{index + 1}: take continue-on-error out of the step"
+              end
+            end
+          end
+        end
+      end
+    ' "$file") || fail "could not read the job and step keys of ci.yml with Ruby's YAML parser"
+    while IFS= read -r violation; do
+      [ -z "$violation" ] || finding "$violation"
+    done <<EOF
+$policy
+EOF
+  fi
+
   printf 'jobs: %s, uses keys: %s, findings: %s\n' "$jobs" "$uses" "$findings"
   [ "$findings" -le 1 ] || first="$first; and $((findings - 1)) more above"
   [ "$findings" -eq 0 ] || fail "$first"
@@ -484,7 +520,7 @@ check() {
   esac
   case $out in
     *"${3:-}"*) ;;
-    *) got=$got-without-the-text ;;
+    *) [ "$got" != "$2" ] || got=$got-without-the-text ;;
   esac
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
   if [ "$got" != "$2" ]; then
@@ -555,6 +591,54 @@ EOF
   STUB_BOUND=30
   path=$PATH
   ci=
+
+  lines job-if-pr-only 18 "  windows:${nl}    if: github.event_name == 'pull_request'" 9 "  macos:${nl}    if: github.event_name == 'pull_request'"
+  check job-if-pr-only FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-if-skip-tags 18 "  windows:${nl}    if: \"!startsWith(github.ref, 'refs/tags/')\"" 9 "  macos:${nl}    if: \"!startsWith(github.ref, 'refs/tags/')\""
+  check job-if-skip-tags FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-if-skip-main 18 "  windows:${nl}    if: github.ref != 'refs/heads/main'" 9 "  macos:${nl}    if: github.ref != 'refs/heads/main'"
+  check job-if-skip-main FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-if-skip-schedule 18 "  windows:${nl}    if: github.event_name != 'schedule'" 9 "  macos:${nl}    if: github.event_name != 'schedule'"
+  check job-if-skip-schedule FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-if-skip-scratch 18 "  windows:${nl}    if: github.event_name != 'push' || github.ref == 'refs/heads/main'" 9 "  macos:${nl}    if: github.event_name != 'push' || github.ref == 'refs/heads/main'"
+  check job-if-skip-scratch FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-if-push-only 9 "  macos:${nl}    if: github.event_name == 'push'"
+  check job-if-push-only FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-key-continue-on-error 9 "  macos:${nl}    continue-on-error: true"
+  check job-key-continue-on-error FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-key-strategy 9 "  macos:${nl}    strategy: {matrix: {build: [check]}}"
+  check job-key-strategy FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-key-needs 9 "  macos:${nl}    needs: windows"
+  check job-key-needs FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-key-name 9 "  macos:${nl}    name: test job"
+  check job-key-name FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-key-env 9 "  macos:${nl}    env: {BUILD: live}"
+  check job-key-env FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-key-environment 9 "  macos:${nl}    environment: testing"
+  check job-key-environment FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-key-defaults 9 "  macos:${nl}    defaults: {run: {shell: bash}}"
+  check job-key-defaults FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-key-concurrency 9 "  macos:${nl}    concurrency: group-a"
+  check job-key-concurrency FAIL 'use only runs-on, timeout-minutes and steps'
+  lines job-key-outputs 9 "  macos:${nl}    outputs: {result: ready}"
+  check job-key-outputs FAIL 'use only runs-on, timeout-minutes and steps'
+  step_event="if: github.event_name == 'pull_request'"
+  lines step-event-on-all-steps 17 "$pin_save${nl}        $step_event" 13 "$checkout${nl}        $step_event"
+  check step-event-on-all-steps FAIL 'four lines of the Rust cache step'
+  lines step-event-on-work-steps 13 "$checkout${nl}        $step_event${nl}      - name: ci.d${nl}        $step_event${nl}        run: echo check"
+  check step-event-on-work-steps FAIL 'use only always() as a step condition'
+  lines step-event-on-ci-d 22 "$checkout${nl}      - name: ci.d${nl}        $step_event${nl}        run: echo check"
+  check step-event-on-ci-d FAIL 'use only always() as a step condition'
+  lines step-if-ref 13 "$checkout${nl}        if: github.ref == 'refs/heads/main'"
+  check step-if-ref FAIL 'use only always() as a step condition'
+  lines step-if-actor 13 "$checkout${nl}      - if: github.actor == 'octocat'${nl}        run: echo check"
+  check step-if-actor FAIL 'use only always() as a step condition'
+  lines step-continue-on-error 22 "$checkout${nl}        continue-on-error: true"
+  check step-continue-on-error FAIL 'take continue-on-error out of the step'
+  lines step-flow-continue-on-error 13 "$checkout${nl}      - {run: echo, \"continue-on-error\": true}"
+  check step-flow-continue-on-error FAIL 'take continue-on-error out of the step'
+  lines step-always-and-input-named-if 13 "$checkout${nl}        if: always()${nl}        env:${nl}          if: local"
+  check step-always-and-input-named-if PASS 'jobs: 2, uses keys: 4, findings: 0'
 
   tree pinned-and-timed ''
   check pinned-and-timed PASS 'jobs: 2, uses keys: 4, findings: 0'
@@ -627,9 +711,9 @@ EOF
   tree job-permissions-contents-write "10s/\$/\\${nl}    permissions:\\${nl}      contents: write/"
   check job-permissions-contents-write FAIL 'a job of ci.yml sets permissions that grant more than contents: read'
   tree job-permissions-contents-read "10s/\$/\\${nl}    permissions:\\${nl}      contents: read/"
-  check job-permissions-contents-read PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check job-permissions-contents-read FAIL 'use only runs-on, timeout-minutes and steps'
   tree job-permissions-empty "10s/\$/\\${nl}    permissions: {}/"
-  check job-permissions-empty PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check job-permissions-empty FAIL 'use only runs-on, timeout-minutes and steps'
   tree explicit-uses-key "13s/.*/      - ? uses\\${nl}        : actions\/checkout@v4/"
   check explicit-uses-key FAIL 'ci.yml line 13 starts a key with ? and a blank, one of the keys in the explicit form of YAML'
   tree explicit-job-permissions "10s/\$/\\${nl}    ? permissions\\${nl}    : write-all/"
@@ -666,23 +750,23 @@ EOF
   check flow-list-over-lines-holds-the-limit FAIL 'ci.yml line 14 has a [ or { that this lint reads as running past the line'"'"'s end'
   tree quote-in-a-plain-continuation-hides-no-job "10s/\$/\\${nl}    env:\\${nl}      NOTE: a\\${nl}        \"b/;26s/\$/\\${nl}  extra:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 600\\${nl}    steps:\\${nl}      - run: echo \"hi\"/"
   check quote-in-a-plain-continuation-hides-no-job FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos windows extra'
-  tree closed-quotes-before-the-timeout "10s/\$/\\${nl}    name: \"macos \\\\\" # job\"/;19s/\$/\\${nl}    name: 'windows\\\\' # y/"
+  tree closed-quotes-before-the-timeout "13s/\$/\\${nl}        name: \"macos \\\\\" # job\"/;22s/\$/\\${nl}        name: 'windows\\\\' # y/"
   check closed-quotes-before-the-timeout PASS 'jobs: 2, uses keys: 4, findings: 0'
   tree comment-at-column-one-with-a-quote "10s/\$/\\${nl}# a: \"x/"
   check comment-at-column-one-with-a-quote PASS 'jobs: 2, uses keys: 4, findings: 0'
-  tree apostrophe-in-a-plain-value "10s/\$/\\${nl}    env:\\${nl}      F: it's/"
+  tree apostrophe-in-a-plain-value "13s/\$/\\${nl}        env:\\${nl}          F: it's/"
   check apostrophe-in-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
-  tree dash-before-a-quote-in-a-plain-value "10s/\$/\\${nl}    env:\\${nl}      A: -\"x/"
+  tree dash-before-a-quote-in-a-plain-value "13s/\$/\\${nl}        env:\\${nl}          A: -\"x/"
   check dash-before-a-quote-in-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
-  tree comma-and-comment-in-a-plain-value "10s/\$/\\${nl}    env:\\${nl}      B: a, \"y # c: 'z/"
+  tree comma-and-comment-in-a-plain-value "13s/\$/\\${nl}        env:\\${nl}          B: a, \"y # c: 'z/"
   check comma-and-comment-in-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
-  tree open-bracket-in-a-plain-value "10s/\$/\\${nl}    env:\\${nl}      C: a[b, \"y/"
+  tree open-bracket-in-a-plain-value "13s/\$/\\${nl}        env:\\${nl}          C: a[b, \"y/"
   check open-bracket-in-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
-  tree closing-bracket-in-a-plain-value "10s/\$/\\${nl}    env:\\${nl}      E: a], \"z/"
+  tree closing-bracket-in-a-plain-value "13s/\$/\\${nl}        env:\\${nl}          E: a], \"z/"
   check closing-bracket-in-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
-  tree comma-after-a-closed-flow-map "10s/\$/\\${nl}    permissions: {}\\${nl}    env:\\${nl}      B: a, \"y/"
+  lines comma-after-a-closed-flow-map 13 "$checkout${nl}        env: {A: b}${nl}        name: a, \"y"
   check comma-after-a-closed-flow-map PASS 'jobs: 2, uses keys: 4, findings: 0'
-  tree colon-in-a-plain-value-after-a-quoted-key "10s/\$/\\${nl}    env:\\${nl}      \"D\": a:\"b/"
+  tree colon-in-a-plain-value-after-a-quoted-key "13s/\$/\\${nl}        env:\\${nl}          \"D\": a:\"b/"
   check colon-in-a-plain-value-after-a-quoted-key PASS 'jobs: 2, uses keys: 4, findings: 0'
   tree quoted-names-over-two-lines-that-close-before-the-timeout "10s/\$/\\${nl}    name: \"macos\\${nl}      job\"/;19s/\$/\\${nl}    name: 'windows\\${nl}      job'/"
   check quoted-names-over-two-lines-that-close-before-the-timeout FAIL 'ci.yml line 11 has a quote that this lint reads as running past the line'"'"'s end'
@@ -694,7 +778,7 @@ EOF
   check block-scalar-under-a-tagged-key FAIL 'ci.yml line 14 starts a node with &, * or !'
   tree block-scalar-under-a-quoted-key "13s/\$/\\${nl}      - \"run\": |\\${nl}          printf '%s' \"x: 'y\"/"
   check block-scalar-under-a-quoted-key PASS 'jobs: 2, uses keys: 4, findings: 0'
-  tree block-scalar-item-of-a-list "10s/\$/\\${nl}    strategy:\\${nl}      matrix:\\${nl}        note:\\${nl}          - |\\${nl}            a: 'b/"
+  lines block-scalar-item-of-a-list 10 "    runs-on:${nl}      - |-${nl}        macos-15"
   check block-scalar-item-of-a-list PASS 'jobs: 2, uses keys: 4, findings: 0'
   tree cr-before-a-quoted-list-item "11s/.*/    strategy:\\${nl}      matrix:\\${nl}        os:\\${nl}          - a@CR@          - \"b\\${nl}    timeout-minutes: 30\\${nl}            c\"/"
   check cr-before-a-quoted-list-item FAIL 'ci.yml line 14 holds the byte 0x0D'
@@ -772,7 +856,7 @@ EOF
   tree if-that-begins-with-a-bang "13s/\$/\\${nl}      - if: !cancelled()\\${nl}        run: echo x/"
   check if-that-begins-with-a-bang FAIL 'ci.yml line 14 starts a node with &, * or !, which this lint reads as an anchor, an alias or a tag and does not read; take an anchor, an alias or a tag out and write the value itself, and put a value that begins with &, * or ! as text in quotes'
   tree if-that-begins-with-a-bang-in-quotes "13s/\$/\\${nl}      - if: '!cancelled()'\\${nl}        run: echo x/"
-  check if-that-begins-with-a-bang-in-quotes PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check if-that-begins-with-a-bang-in-quotes FAIL 'use only always() as a step condition'
   tree plain-continuation-that-starts-with-an-asterisk "10s/\$/\\${nl}    env:\\${nl}      CMD: a\\${nl}        * b/"
   check plain-continuation-that-starts-with-an-asterisk FAIL 'ci.yml line 13 starts a node with &, * or !'
   tree plain-continuation-that-starts-with-a-bang "10s/\$/\\${nl}    env:\\${nl}      CMD: a\\${nl}        ! b/"
@@ -783,9 +867,9 @@ EOF
   check open-flow-map-with-no-quote FAIL 'ci.yml line 11 has a [ or { that this lint reads as running past the line'"'"'s end'
   tree explicit-key-mark-at-the-line-end "10s/\$/\\${nl}    ?\\${nl}      name\\${nl}    : x/"
   check explicit-key-mark-at-the-line-end FAIL 'ci.yml line 11 starts a key with ? and a blank, one of the keys in the explicit form of YAML'
-  tree question-mark-inside-a-plain-value "10s/\$/\\${nl}    name: is it ? yes/"
+  tree question-mark-inside-a-plain-value "13s/\$/\\${nl}        name: is it ? yes/"
   check question-mark-inside-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
-  tree signs-inside-a-plain-value "10s/\$/\\${nl}    name: a \\&\\& b * c!/"
+  tree signs-inside-a-plain-value "13s/\$/\\${nl}        name: a \\&\\& b * c!/"
   check signs-inside-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
   base_save="          save-if: \${{ github.ref == 'refs/heads/main' }}"
   lines r1-v11-macos-save-if-of-the-base 17 "$base_save"
