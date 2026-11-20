@@ -93,10 +93,12 @@ impl AppIdentity {
 /// Halvo's own app, by one predicate for the screen filter and for the rule on
 /// the app in front: the bundle id [`HalvoApp::BUNDLE_ID`], or the executable
 /// `halvo` beside the daemon's own executable, which an unbundled build has in
-/// place of a bundle id.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// place of a bundle id. The whole path of a process in front is read through
+/// `path_of`, which is the system's read of a pid's executable path.
+#[derive(Debug, Clone)]
 pub struct HalvoApp {
     sibling: Option<String>,
+    path_of: fn(libc::pid_t) -> Option<String>,
 }
 
 impl HalvoApp {
@@ -123,13 +125,17 @@ impl HalvoApp {
                     .unwrap_or(path)
             })
             .and_then(|path| path.to_str().map(str::to_owned));
-        Self { sibling }
+        Self {
+            sibling,
+            path_of: executable_path,
+        }
     }
 
     /// The app whose executable is `sibling`.
     pub fn with_sibling(sibling: &str) -> Self {
         Self {
             sibling: Some(sibling.to_owned()),
+            path_of: executable_path,
         }
     }
 
@@ -141,20 +147,42 @@ impl HalvoApp {
     }
 
     /// Whether the app in front is Halvo's: its identity, else the path of its
-    /// process. A path identity is held to the sibling as the identity's cap
-    /// cuts it, so a sibling longer than the cap is still seen.
+    /// process. A path identity is Halvo's only when the whole path of the
+    /// front is the sibling.
     pub fn selects_front(&self, front: &Foreground) -> bool {
         match &front.identity {
             AppIdentity::BundleId(id) if id.as_str() == Self::BUNDLE_ID => true,
-            AppIdentity::ExecutablePath(path) => self
-                .sibling
-                .as_deref()
-                .and_then(CappedText::new)
-                .is_some_and(|sibling| sibling.as_str() == path.as_str()),
+            AppIdentity::ExecutablePath(path) => self.selects_path(path, front.pid),
             AppIdentity::BundleId(_) | AppIdentity::Unknown => {
-                self.selects("", executable_path(front.pid).as_deref())
+                self.selects("", (self.path_of)(front.pid).as_deref())
             }
         }
+    }
+
+    /// Whether the path identity `path` of the process `pid` is the sibling. An
+    /// identity shorter than the cap less three bytes was not cut, so it is the
+    /// whole path. A longer one may be a cut: when it equals the sibling as the
+    /// cap cuts it, the whole path of `pid` decides, and a whole path that
+    /// cannot be read counts as Halvo's own (ruling MA-37 C3).
+    fn selects_path(&self, path: &CappedText, pid: libc::pid_t) -> bool {
+        let Some(sibling) = self.sibling.as_deref() else {
+            return false;
+        };
+        if path.as_str().len() < IDENTITY_CAP_BYTES - 3 {
+            return path.as_str() == sibling;
+        }
+        if CappedText::new(sibling).is_none_or(|cut| cut.as_str() != path.as_str()) {
+            return false;
+        }
+        (self.path_of)(pid).is_none_or(|whole| whole == sibling)
+    }
+}
+
+#[cfg(test)]
+impl HalvoApp {
+    /// The same app, with `path_of` as the read of a process's whole path.
+    pub(crate) fn reading_paths_by(self, path_of: fn(libc::pid_t) -> Option<String>) -> Self {
+        Self { path_of, ..self }
     }
 }
 
@@ -1389,14 +1417,100 @@ mod tests {
 
     #[test]
     fn an_unbundled_front_whose_path_is_the_sibling_longer_than_the_cap_is_halvos() {
+        fn the_long_sibling(_pid: libc::pid_t) -> Option<String> {
+            Some(format!("/{}/halvo", "a".repeat(1040)))
+        }
         let long_sibling = format!("/{}/halvo", "a".repeat(1040));
-        let halvo = HalvoApp::with_sibling(&long_sibling);
+        let halvo = HalvoApp::with_sibling(&long_sibling).reading_paths_by(the_long_sibling);
         let front = unbundled(&long_sibling, 920).expect("a front");
         assert!(long_sibling.len() > IDENTITY_CAP_BYTES);
         assert!(front.identity.text().len() <= IDENTITY_CAP_BYTES);
         assert!(halvo.selects_front(&front), "the long sibling in front");
         let other = unbundled(&format!("/{}/other", "b".repeat(1040)), 921).expect("a front");
         assert!(!halvo.selects_front(&other), "another long path");
+    }
+
+    fn cut_pair() -> (String, String) {
+        let prefix = format!("/{}", "a".repeat(1023));
+        (format!("{prefix}/halvo"), format!("{prefix}/another"))
+    }
+
+    fn the_other_program(_pid: libc::pid_t) -> Option<String> {
+        Some(cut_pair().1)
+    }
+
+    fn the_sibling(_pid: libc::pid_t) -> Option<String> {
+        Some(cut_pair().0)
+    }
+
+    fn no_path(_pid: libc::pid_t) -> Option<String> {
+        None
+    }
+
+    #[test]
+    fn a_front_whose_path_shares_the_cut_of_the_sibling_is_halvos_only_when_its_whole_path_is_the_sibling(
+    ) {
+        let prefix = format!("/{}", "a".repeat(1023));
+        let (sibling, other) = (format!("{prefix}/halvo"), format!("{prefix}/another"));
+        let own = std::process::id() as libc::pid_t;
+        let front = unbundled(&other, own).expect("a front");
+        assert!(other.len() > IDENTITY_CAP_BYTES);
+        assert_eq!(
+            CappedText::new(&sibling),
+            CappedText::new(&other),
+            "the two paths share the cap's cut"
+        );
+        let halvo = HalvoApp::with_sibling(&sibling);
+        assert!(!halvo.selects("", Some(&other)), "the filter");
+        assert!(
+            !halvo.selects_front(&front),
+            "another program in front, whose whole path is this test's own"
+        );
+    }
+
+    #[test]
+    fn a_cut_path_that_equals_the_cut_sibling_is_decided_by_the_whole_path_and_is_halvos_when_unread(
+    ) {
+        let (sibling, other) = cut_pair();
+        let front = unbundled(&other, 72).expect("a front");
+        let halvo = HalvoApp::with_sibling(&sibling);
+        assert!(
+            !halvo
+                .clone()
+                .reading_paths_by(the_other_program)
+                .selects_front(&front),
+            "the other program's whole path"
+        );
+        assert!(
+            halvo
+                .clone()
+                .reading_paths_by(the_sibling)
+                .selects_front(&unbundled(&sibling, 73).expect("a front")),
+            "the sibling's whole path"
+        );
+        let unread = halvo.reading_paths_by(no_path);
+        assert!(
+            unread.selects_front(&front),
+            "a cut path that equals the cut sibling, whole path unread"
+        );
+        let elsewhere = format!("/{}/another", "b".repeat(1023));
+        assert!(
+            !unread.selects_front(&unbundled(&elsewhere, 74).expect("a front")),
+            "a cut path that is not the cut sibling"
+        );
+        assert!(
+            !unread.selects_front(
+                &unbundled("/Applications/Other.app/Contents/MacOS/other", 75).expect("a front")
+            ),
+            "a short path, not the sibling"
+        );
+        let short = "/Applications/Halvo/halvo";
+        assert!(
+            HalvoApp::with_sibling(short)
+                .reading_paths_by(the_other_program)
+                .selects_front(&unbundled(short, 76).expect("a front")),
+            "an identity that the cap did not cut is the whole path, read no more"
+        );
     }
 
     #[test]

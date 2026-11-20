@@ -2302,6 +2302,9 @@ mod tests {
 
     #[test]
     fn an_unbundled_halvo_in_front_whose_path_is_longer_than_the_cap_gives_no_record() {
+        fn the_long_sibling(_pid: libc::pid_t) -> Option<String> {
+            Some(format!("/{}/halvo", "a".repeat(1040)))
+        }
         let long_sibling = format!("/{}/halvo", "a".repeat(1040));
         let (handle, writer) = sink::channel(8);
         let (fg_writer, fg_reader) = foreground_state_for_test();
@@ -2314,7 +2317,7 @@ mod tests {
             rule: FrameRule {
                 foreground: fg_reader,
                 floor: floor_on(),
-                halvo: HalvoApp::with_sibling(&long_sibling),
+                halvo: HalvoApp::with_sibling(&long_sibling).reading_paths_by(the_long_sibling),
                 probe: inactive(),
             },
             facts: Arc::default(),
