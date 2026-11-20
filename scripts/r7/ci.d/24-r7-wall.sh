@@ -686,28 +686,61 @@ git_search() {
   return 0
 }
 
-search_lines() {
-  git_search -n -z "$@" >"$work/matches" || return
-  git_search -L "$@" >"$work/nonmatches" || return
-  while [ "$1" != -- ]; do shift; done
-  selected_index=$work/index
-  if [ "$#" -ne 2 ] || [ "$2" != . ]; then
-    selected_index=$work/selected
-    git -c core.quotepath=off ls-files -s "$@" >"$selected_index" || return 2
-  fi
+with_git_paths() {
   perl -e '
+    sub git_path {
+      my ($name) = @_;
+      return $name unless $name =~ /^"/;
+      my $path = substr($name, 1, -1);
+      my %escape = (a => "\a", b => "\b", t => "\t", n => "\n", v => "\x0b",
+                    f => "\f", r => "\r", q{"} => q{"}, "\\" => "\\");
+      $path =~ s/\\([0-7]{3}|[abtnvfr"\\])/length($1) == 3 ? chr(oct($1)) : $escape{$1}/ge;
+      return $path;
+    }
+  ' -e "$@"
+}
+
+literal_search_path() {
+  literal_path=$1
+  case $1 in
+    \"*\")
+      literal_path=$(with_git_paths 'print git_path($ARGV[0]), "." or die $!' "$1") || return 1
+      literal_path=${literal_path%.}
+      ;;
+  esac
+}
+
+search_scope() {
+  case $search in
+    backend) "$@" -- ':(icase)backend/' ;;
+    app) "$@" -- . ':(exclude,icase)backend/' ':(exclude,icase)formal/r7-ledger/' ;;
+    case-lines) "$@" -- '*.sh' '*.bash' '.githooks/' ;;
+    anchors|assignments) "$@" -- . ;;
+    hidden) "$@" -- ":(literal)$path" ;;
+    *) return 2 ;;
+  esac
+}
+
+search_records() {
+  with_git_paths '
     use strict;
     use warnings;
-    my ($work, $selected_index) = @ARGV;
+    my ($work, $selected_index, $only) = @ARGV;
     my (%selected, %seen);
     my $listed = 0;
-    open my $index, "<:raw", $selected_index or die $!;
-    while (<$index>) {
-      next if /^120000 /;
-      /\t(.*)\n\z/s or die "unreadable index entry\n";
-      $selected{$1} = 1;
-      ++$listed;
+    if (length $only) {
+      $selected{$only} = 1;
+      $listed = 1;
+    } else {
+      open my $index, "<:raw", $selected_index or die $!;
+      while (<$index>) {
+        next if /^120000 /;
+        /\t(.*)\n\z/s or die "unreadable index entry\n";
+        $selected{$1} = 1;
+        ++$listed;
+      }
     }
+    my %quoted = map { (git_path($_) => $_) } grep { /^"/ } keys %selected;
     open my $misses, "<:raw", "$work/nonmatches" or die $!;
     while (<$misses>) {
       chomp;
@@ -717,10 +750,11 @@ search_lines() {
     binmode STDOUT;
     while (<$hits>) {
       if (/^([^\0]*)\0(\d+)\0(.*)\z/s) {
-        $seen{$1} = 1 if exists $selected{$1};
+        my $path = $quoted{$1} // $1;
+        $seen{$path} = 1 if exists $selected{$path};
         print "$1:$2:$3" or die $!;
-      } elsif (/^Binary file (.*) matches\n\z/s && exists $selected{$1}) {
-        $seen{$1} = 1;
+      } elsif (/^Binary file (.*) matches\n\z/s && (exists $selected{$1} || exists $quoted{$1})) {
+        $seen{$quoted{$1} // $1} = 1;
       } else {
         print or die $!;
       }
@@ -730,16 +764,54 @@ search_lines() {
     open my $tally, ">", "$work/coverage" or die $!;
     print {$tally} "$read $listed\n" or die $!;
     close $tally or die $!;
-    if ($read != $listed) {
-      my ($missing) = sort grep { !exists $seen{$_} } keys %selected;
-      $missing //= "(unmerged index)";
-      my $why = $missing =~ /^"/ ? " (git quotes this tracked path)" : "";
-      open my $error, ">", "$work/search-error" or die $!;
-      print {$error} "git grep files-read=$read files-listed=$listed missing $missing$why\n" or die $!;
-      close $error or die $!;
+    open my $missing, ">", "$work/missing" or die $!;
+    for my $path (sort grep { !exists $seen{$_} } keys %selected) {
+      print {$missing} "$path\n" or die $!;
     }
-  ' "$work" "$selected_index" || return 2
-  if [ -s "$work/search-error" ]; then
+    close $missing or die $!;
+  ' "$@" || return 2
+}
+
+second_read() {
+  literal_search_path "$missing" || return 2
+  git_search -n -z "$@" -- ":(literal)$literal_path" >"$retry/matches" || return
+  git_search -L "$@" -- ":(literal)$literal_path" >"$retry/nonmatches" || return
+  search_records "$retry" "$selected_index" "$missing" || return
+  if [ ! -s "$retry/missing" ]; then
+    outcome="read"
+    files_read=$((files_read + 1))
+  fi
+}
+
+search_lines() {
+  search=$1
+  shift
+  search_scope git_search -n -z "$@" >"$work/matches" || return
+  search_scope git_search -L "$@" >"$work/nonmatches" || return
+  case $search in
+    anchors|assignments) selected_index=$work/index ;;
+    *) selected_index=$work/selected
+       search_scope git -c core.quotepath=off ls-files -s >"$selected_index" || return 2 ;;
+  esac
+  search_records "$work" "$selected_index" '' || return
+  read -r files_read files_listed <"$work/coverage" || return 2
+  [ "$files_read" -ne "$files_listed" ] || return 0
+  retry=$work/retry
+  mkdir -p "$retry" || return 2
+  first_unread=
+  while IFS= read -r missing; do
+    outcome=unread
+    result=0
+    reading_one=yes second_read "$@" || result=$?
+    printf 'wall second-read search=%s outcome=%s path=%s\n' "$search" "$outcome" "$missing" >>"$work/second-reads" || return 2
+    [ "$result" -eq 0 ] || return "$result"
+    if [ "$outcome" = unread ] && [ -z "$first_unread" ]; then first_unread=$missing; fi
+  done <"$work/missing"
+  printf '%s %s\n' "$files_read" "$files_listed" >"$work/coverage" || return 2
+  if [ "$files_read" -ne "$files_listed" ]; then
+    first_unread=${first_unread:-'(unmerged index)'}
+    case $first_unread in \"*) first_unread="$first_unread (git quotes this tracked path)" ;; esac
+    printf 'git grep files-read=%s files-listed=%s missing %s\n' "$files_read" "$files_listed" "$first_unread" >"$work/search-error" || return 2
     cat "$work/search-error" >>"$problems" || return 2
     return 1
   fi
@@ -750,6 +822,7 @@ check_in() {
   work=$2
   problems=$3
   : >"$problems" || return 2
+  : >"$work/second-reads" || return 2
   cd "$repo" || return 2
   git -c core.quotepath=off ls-files -s >"$work/index" || return 2
   : >"$work/facts"
@@ -802,11 +875,11 @@ check_in() {
   ' "$work/app-only" "$work/links" >"$work/patterns" || return 2
   { read -r names; read -r linked; } <"$work/patterns" || return 2
   anchors='|[$]|[A-Za-z0-9_~^@/-]:[^/ ]|show-toplevel|CARGO_MANIFEST_DIR|from[ \t]*["'"'"']|require[ \t]*[(]|import[ \t]*[(]'
-  search_lines -i -E -e "[.][.]$anchors$names$linked" -- ':(icase)backend/' >"$work/lines" || return
-  search_lines -i -E -e "ackend|[*?][^[:space:]]*/$linked" -- . ':(exclude,icase)backend/' ':(exclude,icase)formal/r7-ledger/' >>"$work/lines" || return
-  search_lines -E -e '(^|[;&|({[:space:]])(case[[:space:]].*[[:space:]]in|esac)([[:space:];&|)]|$)' -e '(;;&?|;&)[[:space:]]*(#.*)?$' -e '[|][[:space:]]*\\[[:space:]]*$' -- '*.sh' '*.bash' '.githooks/' >"$work/case-lines" || return
+  search_lines backend -i -E -e "[.][.]$anchors$names$linked" >"$work/lines" || return
+  search_lines app -i -E -e "ackend|[*?][^[:space:]]*/$linked" >>"$work/lines" || return
+  search_lines case-lines -E -e '(^|[;&|({[:space:]])(case[[:space:]].*[[:space:]]in|esac)([[:space:];&|)]|$)' -e '(;;&?|;&)[[:space:]]*(#.*)?$' -e '[|][[:space:]]*\\[[:space:]]*$' >"$work/case-lines" || return
   awk -v t="$tab" '{ print "caseline" t $0 }' "$work/case-lines" >>"$work/facts" || return 2
-  search_lines -E -e 'dirname[(]fileURLToPath[(]import[.]meta[.]url[)][)]|__dirname|import[.]meta[.]dirname|[$][(]dirname "[$]0"[)]' -- . >"$work/anchor-lines" || return
+  search_lines anchors -E -e 'dirname[(]fileURLToPath[(]import[.]meta[.]url[)][)]|__dirname|import[.]meta[.]dirname|[$][(]dirname "[$]0"[)]' >"$work/anchor-lines" || return
   read -r tree_read tree_listed <"$work/coverage" || return 2
   anchor_names=$(awk '
     match($0, /:[ \t]*(export[ \t]+|const[ \t]+|let[ \t]+|var[ \t]+|readonly[ \t]+|local[ \t]+)?[A-Za-z_][A-Za-z0-9_]*[ \t]*=/) {
@@ -819,7 +892,7 @@ check_in() {
   ' "$work/anchor-lines") || return 2
   : >"$work/assignments"
   if [ -n "$anchor_names" ]; then
-    search_lines -E -e "^[ $tab]*(export[ $tab]+|const[ $tab]+|let[ $tab]+|var[ $tab]+|readonly[ $tab]+|local[ $tab]+)?($anchor_names)[ $tab]*[+]?=([^=]|\$)" -- . >"$work/assignments" || return
+    search_lines assignments -E -e "^[ $tab]*(export[ $tab]+|const[ $tab]+|let[ $tab]+|var[ $tab]+|readonly[ $tab]+|local[ $tab]+)?($anchor_names)[ $tab]*[+]?=([^=]|\$)" >"$work/assignments" || return
   fi
   git -c core.quotepath=off check-attr --cached --stdin diff <"$work/paths" >"$work/attributes" || return 2
   awk '{ k = length($0) - length(": diff: unset"); if (k > 0 && substr($0, k + 1) == ": diff: unset") print substr($0, 1, k) }' "$work/attributes" >"$work/hidden" || return 2
@@ -829,7 +902,7 @@ check_in() {
     tr -d '\000' <"$work/blob" >"$work/blob-text" || return 2
     text=$(wc -c <"$work/blob-text") || return 2
     [ "$size" -eq "$((text))" ] || continue
-    search_lines -a -i -E -e "[.][.]|ackend|[*?][^[:space:]]*/$anchors$names$linked" -- ":(literal)$path" >>"$work/lines" || return
+    search_lines hidden -a -i -E -e "[.][.]|ackend|[*?][^[:space:]]*/$anchors$names$linked" >>"$work/lines" || return
   done <"$work/hidden"
   judge "$problems" "$work/tally" "$work/app-only" "$work/step" "$work/links" "$work/paths" "$work/facts" "$work/assignments" "$work/anchor-lines" "$work/lines" || return 2
   read -r counts <"$work/tally" || return 2
@@ -843,6 +916,7 @@ measure() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   check_in "$repo" "$work" "$artifacts/problems.txt"
   code=$?
+  cat "$work/second-reads" || exit 2
   found=$(awk 'END { print NR }' "$artifacts/problems.txt")
   printf '%s problems=%s\n' "${counts:-unmeasured}" "$found"
   case $code in
@@ -871,8 +945,11 @@ no script (a script has mode 100755 or the extension .sh, .bash, .mjs, .cjs,
 a tracked file whose name git quotes, a line of git grep that names no tracked
 path, and a step of scripts/prerequisites.sh that it cannot read. Each search
 accounts for its listed files by name from its matching lines, binary matches
-and files without a match. A missing file, an exit above 1 or a diagnostic
-on standard error fails the check. The tally includes the links read by id.
+and files without a match. If both outputs omit a listed path, it repeats the
+search on that path, reports the outcome and checks the recovered lines. A path
+that stays unread, an exit above 1 or a diagnostic on stderr fails the check.
+Coverage counts files. Another matching line from a file, or a report that the
+file has no matches, can conceal a missing line. The tally includes links read by id.
 
 How it places a path. A path is walked from where it starts, through the
 tracked links: from the file's own directory for a relative path, for
@@ -1203,6 +1280,30 @@ case $mode in
       *' grep '*|*' ls-files -s -- '*) exec "$real" "$@" ':(exclude,literal)backend/fixtures/f.json' ;;
     esac
     ;;
+  second-*)
+    for last do :; done
+    case ${3:-}:${9:-}:$last in
+      'grep:-n::(icase)backend/')
+        case $mode in
+          second-pair|second-partial)
+            exec "$real" "$@" ':(exclude,literal)backend/scripts/retry [x].sh' ':(exclude,literal)backend/scripts/retry again.sh' ;;
+          second-nonmatch) ;;
+          *) exec "$real" "$@" ':(exclude,literal)backend/scripts/retry [x].sh' ;;
+        esac ;;
+      'grep:-L::(icase)backend/')
+        if [ "$mode" = second-nonmatch ]; then
+          exec "$real" "$@" ':(exclude,literal)backend/scripts/retry [x].sh'
+        fi ;;
+      'grep:-n::(literal)backend/scripts/retry [x].sh')
+        case $mode in
+          second-dies) exit 73 ;;
+          second-other|second-partial)
+            exec "$real" "$@" ':(literal)backend/scripts/names-v0.sh' ':(exclude,literal)backend/scripts/retry [x].sh' ;;
+        esac ;;
+      'grep:-L::(literal)backend/scripts/retry [x].sh')
+        if [ "$mode" = second-stderr ]; then printf '%s\n' 'fixture second read warned' >&2; fi ;;
+    esac
+    ;;
   search-*)
     case " $* " in
       *' grep '*' -n '*)
@@ -1242,6 +1343,7 @@ EOF
 fixture_git() {
   command git "$@"
   fixture_status=$?
+  [ "${reading_one:-}" != yes ] || return "$fixture_status"
   case ${3:-}:${9:-} in
     grep:-n)
       fixture_search=$((fixture_search + 1))
@@ -1274,19 +1376,7 @@ fixture_read_receipt() {
   path=$2
   snapshot=$3
   receipt_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ') || return 1
-  literal_path=$path
-  case $path in
-    \"*\")
-      literal_path=$(perl -e '
-        my $path = substr($ARGV[0], 1, -1);
-        my %escape = (a => "\a", b => "\b", t => "\t", n => "\n", v => "\x0b",
-                      f => "\f", r => "\r", q{"} => q{"}, "\\" => "\\");
-        $path =~ s/\\([0-7]{3}|[abtnvfr"\\])/length($1) == 3 ? chr(oct($1)) : $escape{$1}/ge;
-        print $path, "." or die $!;
-      ' "$path") || return 1
-      literal_path=${literal_path%.}
-      ;;
-  esac
+  literal_search_path "$path" || return 1
   perl -e '
     use strict;
     use warnings;
@@ -1399,6 +1489,9 @@ keep_case() {
   mkdir -p "$CI_D_ARTIFACTS/case-$1" || exit 2
   cp "$work/problems" "$work/stderr" "$work/lines" "$work/index" "$CI_D_ARTIFACTS/case-$1/" || exit 2
   cp "$case_index" "$CI_D_ARTIFACTS/case-$1/git-index" || exit 2
+  if [ -s "$work/second-reads" ]; then
+    cp "$work/second-reads" "$CI_D_ARTIFACTS/case-$1/" || exit 2
+  fi
   if [ -s "$work/read-receipt" ]; then
     cp "$work/read-receipt" "$CI_D_ARTIFACTS/case-$1/" || exit 2
   fi
@@ -1409,6 +1502,7 @@ expect() {
   work=$scratch/work.$cases
   mkdir "$work" || exit 2
   : >"$work/lines" || exit 2
+  if [ -n "${4:-}" ]; then printf '%s\n' "$4" >"$work/want-second-read" || exit 2; fi
   printf '%s\t%s\t%s\t%s\t%s\n' "$cases" "$1" "$2" "$case_index" "${3:-}" >>"$scratch/pending" || exit 2
   (
     if [ "${R7_WALL_TRACE_READS:-}" = 1 ]; then
@@ -1481,6 +1575,18 @@ verdict_of() {
   case $case_name in
     known-limit-*) seen_limits="$seen_limits ${case_name#known-limit-}" ;;
   esac
+  if [ -s "$work/second-reads" ]; then
+    awk -v c="$case_name" '{ print $0 " case=" c }' "$work/second-reads" || exit 2
+  fi
+  if [ "$got" = "$want" ] && [ -s "$work/want-second-read" ]; then
+    while IFS= read -r needed; do
+      occurrences=0
+      if [ -s "$work/second-reads" ]; then
+        occurrences=$(grep -F -x -c -e "$needed" "$work/second-reads") || occurrences=0
+      fi
+      if [ "$occurrences" -ne 1 ]; then got=$want-without-expected-second-read; fi
+    done <"$work/want-second-read"
+  fi
   if [ -s "$work/read-receipt" ]; then cat "$work/read-receipt"; fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case_name" "$want" "$got"
   if [ "$got" != "$want" ]; then
@@ -1705,7 +1811,43 @@ cat "$server_dir/contract/routes/v1.json"' 'scripts/check-routes.sh:1: assigns t
       search-dies-quietly) detail='git grep exit 73' ;;
       search-skips-a-file) detail='missing backend/scripts/names-v0.sh' ;;
     esac
-    expect FAIL "$case_name" "$detail"
+    required=
+    if [ "$case_name" = search-skips-a-file ]; then
+      required='wall second-read search=backend outcome=unread path=backend/scripts/names-v0.sh'
+    fi
+    expect FAIL "$case_name" "$detail" "$required"
+  done
+
+  retry_file='backend/scripts/retry [x].sh'
+  for mode in match forbidden nonmatch dies stderr other pair partial; do
+    case_name=second-read-$mode
+    fixture "$case_name"
+    want=PASS
+    detail="read:$retry_file"
+    content='echo "$value"'
+    outcome="read"
+    case $mode in
+      other) want=FAIL; detail="files-read=15 files-listed=16 missing $retry_file"; outcome=unread ;;
+      partial) want=FAIL; detail="files-read=16 files-listed=17 missing $retry_file"; outcome=unread ;;
+      forbidden)
+        content='cat "$(dirname "$0")/../../src-tauri/tauri.conf.json"'
+        want=FAIL
+        detail="$retry_file:1: reads src-tauri/tauri.conf.json outside" ;;
+      nonmatch) content='echo quiet'; detail="unread:$retry_file" ;;
+      dies) want=FAIL; detail='git grep exit 73'; outcome=unread ;;
+      stderr) want=FAIL; detail='fixture second read warned'; outcome=unread ;;
+    esac
+    required="wall second-read search=backend outcome=$outcome path=$retry_file"
+    case $mode in
+      pair|partial)
+        put 'backend/scripts/retry again.sh' 'echo "$other"'
+        required="$required
+wall second-read search=backend outcome=read path=backend/scripts/retry again.sh" ;;
+    esac
+    put "$retry_file" "$content"
+    fake_git "second-$mode"
+    case_bin=$scratch/second-$mode
+    expect "$want" "$case_name" "$detail" "$required"
   done
 
   search_number=0
