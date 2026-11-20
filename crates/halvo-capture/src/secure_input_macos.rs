@@ -2451,6 +2451,26 @@ mod tests {
     }
 
     #[test]
+    fn the_wait_seam_notes_the_duration_that_each_call_hands_it() {
+        use super::notice::wait_seam::{CFRunLoop, HANDED};
+        for millis in [7, 13] {
+            let duration = std::time::Duration::from_millis(millis);
+            // SAFETY: `kCFRunLoopDefaultMode` is a constant CFString that
+            // CoreFoundation exports and never writes.
+            CFRunLoop::run_in_mode(
+                unsafe { core_foundation::runloop::kCFRunLoopDefaultMode },
+                duration,
+                true,
+            );
+            assert_eq!(
+                HANDED.with(std::cell::Cell::get),
+                Some(duration),
+                "the duration that the call of {millis} ms handed"
+            );
+        }
+    }
+
+    #[test]
     fn a_hold_test_may_skip_only_while_the_variable_of_the_hold_tests_is_not_one() {
         use super::test_support::{skip_allowed, HOLD_REQUIRED};
         use std::ffi::OsStr;
