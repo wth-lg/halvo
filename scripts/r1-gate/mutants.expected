@@ -491,3 +491,17 @@ durable-interrupted-flush-answers-ok
 durable-interrupted-flush-not-made-again
 synchronous-read-back-accepts-extra
 synchronous-read-back-accepts-off
+formal-totals-survive-shred
+formal-replay-stored-twice
+formal-failed-batch-keeps-its-key-row
+mend-gate-left-out-of-the-open
+mend-gate-left-out-of-the-create
+auto-vacuum-gate-left-out-of-the-open
+page-size-gate-left-out-of-the-open
+auto-vacuum-read-back-of-the-create-wants-1
+page-size-read-back-of-the-create-wants-8192
+checkpoint-failure-after-a-shred-not-kept
+open-refusals-read-after-the-drain
+held-look-before-the-drain-left-out
+auto-vacuum-read-back-left-out-of-the-create
+page-size-read-back-left-out-of-the-create
