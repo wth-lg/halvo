@@ -231,7 +231,11 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
   }
 
   function nextTry(interval: Interval, unansweredAt: Ms | null, now: Ms, delay: Ms): Ms {
-    const bounds = [interval.timestamp * 1000 + SEND_LIMIT_MS, ...(unansweredAt === null ? [] : [unansweredAt + lateReadSpan])];
+    const bounds = [
+      interval.timestamp * 1000 + SEND_LIMIT_MS,
+      ...(unansweredAt === null ? [] : [unansweredAt + lateReadSpan]),
+      ...(interval.unexplainedSince === null ? [] : [interval.unexplainedSince + LATE_READ_SPAN_MS]),
+    ];
     return Math.min(now + delay, ...bounds.filter((bound) => bound > now));
   }
 

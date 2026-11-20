@@ -9,7 +9,6 @@ const MINUTE = { readGranularitySeconds: 60 };
 const NONE = { kind: "none" } as const;
 const LOST = { kind: "request-lost" } as const;
 const UNKNOWN = { kind: "refuse", reason: "unknown_account" } as const;
-const CAPPED_CLOSE = 86_520_000;
 
 function state(row: Row | undefined): unknown[] {
   return [row?.outcome, row?.refusal, row?.refusals, row?.pending_refusal, row?.unanswered, row?.unexplained_since, row?.unexplained_total, row?.unexplained_neighbours];
@@ -31,13 +30,13 @@ describe("a run of unexplained totals is closed as not billable with the cause u
     const [row] = await w.intervals();
     expect(kinds(w.calls)).toEqual(["send failed after recorded", ...reads(29, 8)]);
     expect(state(row)).toEqual(["not-billable", "unexplained-total", 0, null, 1, since, 8, 0]);
-    expect(row?.closed_at).toBe(since + CAPPED_CLOSE);
+    expect(row?.closed_at).toBe(since + SPAN);
     expect(count(w.lines, NOT_BILLABLE)).toBe(1);
     expect(w.meter.recordedEvents(ACCOUNT).filter((each) => each.identifier === row?.identifier)).toHaveLength(1);
     w.close();
   });
 
-  test("with a margin of 3,900 s the run's bound stays LATE_READ_SPAN_MS and not the late point's span, the window less the margin: the read 82,920 s after the run's first closes nothing, and the read at 86,520 s closes", async () => {
+  test("with a margin of 3,900 s the run's bound stays LATE_READ_SPAN_MS and not the late point's span, the window less the margin: the read 82,920 s after the run's first closes nothing, and the try at 86,100 s closes", async () => {
     const w = await world({ meter: MINUTE, faults: [{ kind: "response-lost" }], config: { marginSeconds: 3_900 } });
     await w.use("r1", 30_000);
     foreign(w, 5);
@@ -51,7 +50,7 @@ describe("a run of unexplained totals is closed as not billable with the cause u
     });
     const [row] = await w.intervals();
     expect(at82920).toEqual([null, since]);
-    expect([row?.outcome, row?.refusal, row?.closed_at]).toEqual(["not-billable", "unexplained-total", since + CAPPED_CLOSE]);
+    expect([row?.outcome, row?.refusal, row?.closed_at]).toEqual(["not-billable", "unexplained-total", since + SPAN]);
     w.close();
   });
 
@@ -126,7 +125,7 @@ describe("a run of unexplained totals is closed as not billable with the cause u
       const [x, y] = await w.intervals();
       expect([x?.outcome, y?.outcome]).toEqual(outcomes);
       expect(state(x)).toEqual(["not-billable", "unexplained-total", 0, null, 1, sinceFirst, amount, 0]);
-      expect(x?.closed_at).toBe(sinceFirst + CAPPED_CLOSE);
+      expect(x?.closed_at).toBe(sinceFirst + SPAN);
       if (amount === 2) {
         expect(kinds(w.calls)).toEqual(["send failed", ...reads(29, 2), "send failed", "read total 2"]);
         expect(state(y)).toEqual(["acknowledged", null, 0, null, 1, null, null, null]);
@@ -134,7 +133,7 @@ describe("a run of unexplained totals is closed as not billable with the cause u
       } else {
         expect(kinds(w.calls)).toEqual(["send failed", ...reads(29, 5), "send failed", ...reads(29, 5)]);
         expect(state(y)).toEqual(["not-billable", "unexplained-total", 0, null, 1, sinceSecond, 5, 0]);
-        expect(y?.closed_at).toBe(sinceSecond + CAPPED_CLOSE);
+        expect(y?.closed_at).toBe(sinceSecond + SPAN);
         expect(count(w.lines, NOT_BILLABLE)).toBe(2);
       }
       w.close();
@@ -152,7 +151,7 @@ describe("a run of unexplained totals is closed as not billable with the cause u
     const [row] = await w.intervals();
     expect(kinds(w.calls)).toEqual(["send refused unknown_account", ...reads(29, 5)]);
     expect(state(row)).toEqual(["not-billable", "unexplained-total", 1, null, 0, since, 5, 0]);
-    expect(Number(row?.closed_at) - since).toBe(CAPPED_CLOSE);
+    expect(Number(row?.closed_at) - since).toBe(SPAN);
     expect(count(w.lines, NOT_BILLABLE)).toBe(1);
     w.close();
   });
@@ -174,7 +173,7 @@ describe("a run of unexplained totals is closed as not billable with the cause u
     const [row] = await w.intervals();
     expect(afterTheStop).toEqual([null, null, 0, null, 1, since, null, null]);
     expect(state(row)).toEqual(["not-billable", "unexplained-total", 0, null, 1, since, 8, 0]);
-    expect(row?.closed_at).toBe(since + CAPPED_CLOSE);
+    expect(row?.closed_at).toBe(since + SPAN);
     expect(kinds(w.calls)).toEqual(["send failed after recorded", ...reads(29, 8)]);
     expect(count(w.lines, NOT_BILLABLE)).toBe(1);
     w.close();
