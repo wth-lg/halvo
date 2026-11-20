@@ -387,6 +387,33 @@ impl<C> Board<C> {
         self.stuck_of(agent).gone = true;
     }
 
+    /// Takes a refusal of a write of the agent by its class, the same for every sender (I7.2,
+    /// rulings RD-64 2.5, RD-123, RD-125 (1), RD-126 item 9): class B counts nothing toward the
+    /// stuck line and marks nothing for the life, but for a body that holds the start's
+    /// `run_started` (`start`), which stops the tick's start for the life (`start_gone`); a
+    /// refusal that cannot pass in this life (`lasts_the_life`) counts and marks the agent for the
+    /// life (`refused_for_life`); class C and every other name of class D count (`refused`);
+    /// `seq` and a failure that is no refusal by name count nothing here. `dismissed` says
+    /// whether the owner's list, as the sender last read it, shows the agent's workflow
+    /// dismissed.
+    pub(crate) fn note_refusal(
+        &mut self,
+        agent: &AgentId,
+        error: &crate::ports::PortError,
+        dismissed: bool,
+        start: bool,
+    ) {
+        use crate::items::drive::{class_of, lasts_the_life, Class};
+        match class_of(error, dismissed) {
+            Some(Class::Gone) if start => self.start_gone(agent),
+            Some(Class::Gone | Class::Seq) | None => {}
+            Some(Class::One | Class::Whole) if lasts_the_life(error, dismissed) => {
+                self.refused_for_life(agent);
+            }
+            Some(Class::One | Class::Whole) => self.refused(agent),
+        }
+    }
+
     /// Whether a record or a body of the agent's items' list keeps its place under class D or as
     /// an early record, in which case no tick starts the agent or raises an item for it (I5.7,
     /// ruling RD-64 2.5).

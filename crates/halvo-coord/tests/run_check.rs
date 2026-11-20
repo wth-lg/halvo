@@ -3403,6 +3403,30 @@ fn u24s_seqs_of(w: &World, n: usize) -> Vec<u32> {
         .collect()
 }
 
+fn u24s_check_due(limits: halvo_coord::types::Limits) -> World {
+    let mut w = support::world_with(&[MANUAL], limits);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    w.forget();
+    w
+}
+
+fn u24s_one_tick() -> halvo_coord::types::Limits {
+    halvo_coord::types::Limits {
+        record_stuck_ticks: 1,
+        ..halvo_coord::types::Limits::PRODUCT
+    }
+}
+
+fn u24s_line(w: &World, n: usize) -> halvo_coord::types::StatusLine {
+    halvo_coord::roster::status_of(
+        w.facts(n),
+        &w.limits,
+        None,
+        w.board.record_stuck(&agent(n), &w.limits),
+    )
+}
+
 #[test]
 fn u24s_f3_01_a_check_raised_after_the_read_that_lowered_the_stored_last_numbers_from_it() {
     let mut w = world(&[MANUAL]);
@@ -3422,5 +3446,82 @@ fn u24s_f3_01_a_check_raised_after_the_read_that_lowered_the_stored_last_numbers
         u24s_seqs_of(&w, 0),
         vec![1],
         "the check takes the next seq after 0"
+    );
+}
+
+#[test]
+fn u24s_f3_02_a_check_raise_refused_with_store_at_each_tick_makes_the_record_stuck() {
+    let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refusal("store"));
+    let ticks = w.limits.record_stuck_ticks;
+    for _ in 0..=ticks {
+        w.act(Act::Tick);
+    }
+    let refused = w
+        .calls()
+        .iter()
+        .filter(|c| c.as_str() == "log item_raised check refused")
+        .count();
+    assert_eq!(
+        refused,
+        ticks as usize + 1,
+        "the check's body was sent and refused at each tick"
+    );
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "RD-64 2.5: record_stuck_ticks counted ticks with a refusal of class D make the record stuck"
+    );
+    assert_eq!(u24s_line(&w, 0), halvo_coord::types::StatusLine::Record);
+}
+
+#[test]
+fn u24s_f3_02_a_check_raise_counts_by_the_class_of_its_refusal() {
+    for (name, stuck, for_life) in [
+        ("no_workflow", false, false),
+        ("store", true, false),
+        ("malformed", true, false),
+        ("role", true, true),
+        ("seq", true, false),
+    ] {
+        let mut w = u24s_check_due(u24s_one_tick());
+        w.ports.refuse_agent(Method::Log, &agent(0), refusal(name));
+        w.act(Act::Tick);
+        w.act(Act::Tick);
+        assert!(
+            w.calls()
+                .contains(&"log item_raised check refused".to_string()),
+            "{name}: the check's body was sent and refused"
+        );
+        assert_eq!(
+            w.board.record_stuck(&agent(0), &w.limits),
+            stuck,
+            "{name}: class B counts nothing, a class that can pass and a second seq after the read count"
+        );
+        assert_eq!(
+            w.board.stuck_for_life(&agent(0), &w.limits),
+            for_life,
+            "{name}: only a refusal that cannot pass in this life marks the agent for the life"
+        );
+    }
+}
+
+#[test]
+fn u24s_f3_02_an_acknowledged_check_raise_ends_the_count() {
+    let mut w = u24s_check_due(u24s_one_tick());
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refusal("store"));
+    w.act(Act::Tick);
+    w.ports.clear_refusals();
+    w.act(Act::Tick);
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "the refused raise of the first tick counts"
+    );
+    assert!(holds_check_item(&w, 0), "the second tick's raise is stored");
+    w.act(Act::Tick);
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "a tick of which the check's store was acknowledged and nothing refused ends the count"
     );
 }

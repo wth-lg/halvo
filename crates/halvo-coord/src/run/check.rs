@@ -1,4 +1,4 @@
-use crate::ports::{Clock, Owner, Rng, Stamp};
+use crate::ports::{Clock, Owner, PortError, Rng, Stamp};
 use crate::schedule::{holds, owed_of_kind, owed_ready, read_back, seq_refusal, Board, Hold};
 use crate::types::{
     hex, AgentId, Category, Cleared, ConfigView, Doing, Event, Facts, ItemId, ItemKind, Lapsed,
@@ -73,6 +73,11 @@ where
 /// (`read_back`), and goes on from there, once: the agent holds an item `check` that those events
 /// raised and left open, or else the body is made again from the item that the agent holds after
 /// the read and logged once more while `check_due` holds (rulings XB-31, RD-34 (b), RD-5).
+/// The check is a sender of the agent's record as the other three are: the board takes each
+/// acknowledged body as a store of the agent and each refusal by its class, a second `seq` after
+/// the read among them (I5.7, I7.2, rulings RD-64 2.5, RD-126 item 9), so that a check that the
+/// owner keeps refusing shows the line of a stuck record. A refusal that comes after the count
+/// of a tick counts at the next tick's count, as a move of the person does.
 /// The agents that hold the item `check` so, in ascending agent id.
 pub(super) fn raise_checks<P, C>(
     ports: &P,
@@ -109,18 +114,16 @@ where
             &item,
             stamp,
         );
-        let logged = match ports.log(&events) {
-            Ok(()) => Retried::Logged(events),
+        let logged = match log_body(ports, board, i, events) {
+            Ok(()) => Retried::Logged,
             Err(e) if seq_refusal(&e) => {
                 retry_after_read_back(ports, limits, stamp, board, i, gone, &item)
             }
             Err(_) => Retried::Nothing,
         };
         match logged {
-            Retried::Logged(events) => {
-                let facts = &mut board.members[i].facts;
-                facts.events.extend(events);
-                facts.doing = Doing::Idle(Some(OwnItem {
+            Retried::Logged => {
+                board.members[i].facts.doing = Doing::Idle(Some(OwnItem {
                     item,
                     kind: OwnItemKind::Check,
                 }));
@@ -134,9 +137,32 @@ where
 }
 
 enum Retried {
-    Logged(Vec<Event>),
+    Logged,
     HeldAlready,
     Nothing,
+}
+
+/// Logs the check's body as every sender of the agent does (I7.2, rulings RD-64 2.5, 3.2): an
+/// acknowledged body joins the agent's events, its last `seq` becomes the stored last and the
+/// board takes the store (`Board::acknowledged`); a refusal goes to the board's count by its
+/// class (`Board::note_refusal`).
+fn log_body<P: Owner, C>(
+    ports: &P,
+    board: &mut Board<C>,
+    i: usize,
+    events: Vec<Event>,
+) -> Result<(), PortError> {
+    let agent = board.members[i].facts.agent.clone();
+    if let Err(e) = ports.log(&events) {
+        let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
+        board.note_refusal(&agent, &e, dismissed, false);
+        return Err(e);
+    }
+    let last = events.last().map_or(board.stored_last(i), |e| e.seq.get());
+    board.members[i].facts.events.extend(events);
+    board.set_last(i, last);
+    board.acknowledged(&agent);
+    Ok(())
 }
 
 fn check_raise_body<C>(
@@ -205,8 +231,14 @@ where
         item,
         stamp,
     );
-    match ports.log(&events) {
-        Ok(()) => Retried::Logged(events),
-        Err(_) => Retried::Nothing,
+    match log_body(ports, board, i, events) {
+        Ok(()) => Retried::Logged,
+        Err(e) => {
+            if seq_refusal(&e) {
+                let agent = board.members[i].facts.agent.clone();
+                board.refused(&agent);
+            }
+            Retried::Nothing
+        }
     }
 }
