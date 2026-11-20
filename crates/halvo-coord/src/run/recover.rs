@@ -249,6 +249,13 @@ impl<C> Found<C> {
 /// `alive` (`Board::alive_at_reap`; ruling RD-147 (5)(i)); then recovery raises the item `check` where
 /// `check_due` holds, since it read the store's records, and that raise lapses with the cause
 /// `check` each `ready` item whose `app_ended` lapse is owed (ruling RD-96).
+/// Where `reap` answered `alive` for a run, recovery also reads the history of each agent whose
+/// workflow the list lacks: `Busy` and `NoService` fail the recovery, as for a listed agent;
+/// `no_workflow` leaves the agent out; any other refusal keeps it aside for
+/// `Board::reread_gone`; and where its newest run is one that `reap` answered `alive` and that
+/// no record of the store names, the board keeps its row (`Board::keep_gone`; ruling RD-150).
+/// A runner that ended before this life's `reap`, as one does within `LINK_END` (20 s) of the
+/// link's close, is answered `gone`, and its run gets no line (a named limit, RD-150).
 pub fn recover<P>(ports: &P, limits: &Limits) -> Result<Life<P::Config>, Cause>
 where
     P: Owner + Runs + Analysis + Clock + Rng,

@@ -322,6 +322,8 @@ impl<C> Board<C> {
 
     /// Keeps the runs for which this life's `Runs::reap` answered `alive` (I5.8; ruling RD-147
     /// (5)(i)).
+    /// A runner that ended before this life's `reap`, as one does within `LINK_END` (20 s) of
+    /// the link's close, is answered `gone` and is not kept (a named limit, RD-150).
     pub(crate) fn keep_alive(&mut self, reaped: &[(RunId, Reaped)]) {
         self.alive = reaped
             .iter()
@@ -335,6 +337,8 @@ impl<C> Board<C> {
     /// `note_records` kept, whatever newer run another writer added: a
     /// run of an earlier life that outlived that life, whose task may still run (I5.8; rulings
     /// RD-147 (5)(i), RD-151 (b)). None for an agent that is no member.
+    /// A run whose runner ended before this life's `reap`, as one does within `LINK_END` (20 s)
+    /// of the link's close, was answered `gone` and is never named here (a named limit, RD-150).
     pub fn alive_at_reap(&self, agent: &AgentId) -> Option<&RunId> {
         let facts = &self.members[self.index(agent)?].facts;
         facts.events.iter().rev().find_map(|e| match &e.what {
