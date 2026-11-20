@@ -690,14 +690,18 @@ search_lines() {
   git_search -n -z "$@" >"$work/matches" || return
   git_search -L "$@" >"$work/nonmatches" || return
   while [ "$1" != -- ]; do shift; done
-  git -c core.quotepath=off ls-files -s "$@" >"$work/selected" || return 2
+  selected_index=$work/index
+  if [ "$#" -ne 2 ] || [ "$2" != . ]; then
+    selected_index=$work/selected
+    git -c core.quotepath=off ls-files -s "$@" >"$selected_index" || return 2
+  fi
   perl -e '
     use strict;
     use warnings;
-    my ($work) = @ARGV;
+    my ($work, $selected_index) = @ARGV;
     my (%selected, %seen);
     my $listed = 0;
-    open my $index, "<:raw", "$work/selected" or die $!;
+    open my $index, "<:raw", $selected_index or die $!;
     while (<$index>) {
       next if /^120000 /;
       /\t(.*)\n\z/s or die "unreadable index entry\n";
@@ -734,7 +738,7 @@ search_lines() {
       print {$error} "git grep files-read=$read files-listed=$listed missing $missing$why\n" or die $!;
       close $error or die $!;
     }
-  ' "$work" || return 2
+  ' "$work" "$selected_index" || return 2
   if [ -s "$work/search-error" ]; then
     cat "$work/search-error" >>"$problems" || return 2
     return 1
@@ -1194,6 +1198,11 @@ case $mode in
       exit 1
     fi
     ;;
+  incomplete-view)
+    case " $* " in
+      *' grep '*|*' ls-files -s -- '*) exec "$real" "$@" ':(exclude,literal)backend/fixtures/f.json' ;;
+    esac
+    ;;
   search-*)
     case " $* " in
       *' grep '*' -n '*)
@@ -1530,6 +1539,11 @@ cat "$server_dir/contract/routes/v1.json"' 'scripts/check-routes.sh:1: assigns t
     case_bin=$scratch/search-$search_number
     expect FAIL "$case_name" "fixture search $search_number could not finish reading"
   done
+
+  fixture search-misses-a-file-in-the-original-index
+  fake_git incomplete-view
+  case_bin=$scratch/incomplete-view
+  expect FAIL search-misses-a-file-in-the-original-index 'missing backend/fixtures/f.json'
 
   fixture a-grep-line-of-no-tracked-path
   fake_git bogus-grep
