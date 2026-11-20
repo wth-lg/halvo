@@ -17,7 +17,7 @@ use crate::types::{
     Status, System,
 };
 use crate::words;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 /// What the app's quit hook waits for after the first step of the quit (I5.7, ruling RD-8): the
@@ -56,6 +56,7 @@ pub struct Coordinator<P: Owner> {
     /// work read one (ruling RD-138 (2)).
     reads: AtomicU64,
     unstopped: Mutex<Vec<(AgentId, RunId)>>,
+    live_runs: AtomicUsize,
 }
 
 const NO_READ: u64 = 0;
@@ -378,6 +379,7 @@ where
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
             unstopped: Mutex::new(Vec::new()),
+            live_runs: AtomicUsize::new(0),
         }
     }
 
@@ -2458,21 +2460,26 @@ where
         self.publish(&mut st);
     }
 
-    /// The count of live runs, for which the app's quit hook waits.
+    /// The count of live runs as the last publish found them, for which the app's quit hook
+    /// waits; a dying tree is no live run. This read takes no lock, so it answers while a kill
+    /// holds the coordinator's lock.
     pub fn live(&self) -> usize {
-        self.lock().board.as_ref().map_or(0, |b| b.runs.len())
+        self.live_runs.load(Ordering::Relaxed)
     }
 
-    /// The live runs, each with its agent, in the order of their starts, as the last publish
-    /// found them (ruling RD-147 (5)(i)). Every move writes the list again at its end, before
-    /// the quit as after it, the first step, the end of a run and the second step among them,
-    /// and a move that a port's panic ended leaves the list of the move before it. So a run
-    /// whose kill was refused stays in the list, and while a kill of a tick or of the second
-    /// step holds the coordinator's lock the list is the one from before that move: a run whose
-    /// kill returned earlier in that move stays named until the move returns. A run that the
-    /// move holding the lock has started is not in the list until that move returns, and a
-    /// dying tree, whose run has ended, is never in it. This read takes no lock that a port call
-    /// holds, so it answers while a kill holds the coordinator's lock.
+    /// The runs whose processes the board does not know to be gone, each with its agent, in
+    /// the order of their starts, as the last publish found them (ruling RD-147 (5)(i), RD-151):
+    /// each live run, and each dying tree that the board still holds, a run that ended after
+    /// its stop and whose tree no kill has ended yet, named with the agent that the list gave
+    /// its run while it lived. Every move writes the list again at its end, before the quit as
+    /// after it, the first step, the end of a run and the second step among them, and a move
+    /// that a port's panic ended leaves the list of the move before it. So a run or a tree whose
+    /// kill was refused stays in the list, and a tree leaves it with the move whose kill of it
+    /// was answered Ok. While a kill of a tick or of the second step holds the coordinator's
+    /// lock the list is the one from before that move: a run whose kill returned earlier in
+    /// that move stays named until the move returns. A run that the move holding the lock has
+    /// started is not in the list until that move returns. This read takes no lock that a port
+    /// call holds, so it answers while a kill holds the coordinator's lock.
     pub fn not_stopped(&self) -> Vec<(AgentId, RunId)> {
         self.unstopped
             .lock()
@@ -2624,16 +2631,28 @@ where
                 }
             }
         }
-        let live = st.board.as_ref().map_or_else(Vec::new, |b| {
-            b.runs
+        if let Some(b) = st.board.as_ref() {
+            let mut listed = self
+                .unstopped
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let mut named: Vec<(u64, AgentId, RunId)> = b
+                .runs
                 .iter()
-                .map(|r| (r.agent.clone(), r.run.clone()))
-                .collect()
-        });
-        *self
-            .unstopped
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = live;
+                .map(|r| (r.rank, r.agent.clone(), r.run.clone()))
+                .collect();
+            for d in &b.dying {
+                if let Some((agent, _)) = listed.iter().find(|(_, run)| run == &d.run) {
+                    named.push((d.rank, agent.clone(), d.run.clone()));
+                }
+            }
+            named.sort_by_key(|(rank, _, _)| *rank);
+            *listed = named
+                .into_iter()
+                .map(|(_, agent, run)| (agent, run))
+                .collect();
+            self.live_runs.store(b.runs.len(), Ordering::Relaxed);
+        }
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
         let changed = if st.mark.unpublished {

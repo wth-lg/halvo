@@ -124,18 +124,19 @@ pub trait Core: Send + Sync {
     /// second step. The grace counts from the stop that the first step reads on the clock once
     /// it holds the coordinator's lock, and for a run stopped before the quit from its own stop;
     /// the budget counts from the hook's start. Each step runs on a thread of its own and the
-    /// hook waits for it at most `cancel_grace_s` after it called it, and the wait reads the
-    /// list of `Coordinator::not_stopped`, which takes no lock that a port call holds. So the
+    /// hook waits for it at most `cancel_grace_s` after it called it, and the wait reads
+    /// `Coordinator::live`, which takes no lock. So the
     /// hook stands behind the coordinator's lock nowhere, and a kill that holds or never
     /// returns, of a tick or of either step, does not hold Quit (ruling RD-147 (5)(i)): the hook
     /// returns at the latest `cancel_grace_s` after its call when its first step has not
     /// returned by then, and otherwise at the latest `cancel_grace_s` after the end of its wait,
     /// which ends at the latest `cancel_grace_s` after the first step returned. It returns the
-    /// live runs, each with its agent, in the order of their starts, as the last move that
-    /// returned left them (`Coordinator::not_stopped`): a run whose kill was refused, every run
-    /// that was live before a move whose kill has not returned, and, where the first step could
-    /// not take the lock in time, every run that was live when the move that holds the lock
-    /// began. A second call, during the wait or after a kill that holds, takes its own steps
+    /// live runs and the dying trees that the board still holds, each with its agent, in the
+    /// order of their starts, as the last move that returned left them
+    /// (`Coordinator::not_stopped`): a run or a tree whose kill was refused, every run and tree
+    /// that the board held before a move whose kill has not returned, and, where the first step
+    /// could not take the lock in time, every one that the board held when the move that holds
+    /// the lock began. A second call, during the wait or after a kill that holds, takes its own steps
     /// under the same bounds, returns at its own end and does not hold the first call. A step
     /// that has not returned goes on in its thread until the app's process ends, and closing the
     /// link ends the runner with the processes of its mark within the agent-setup run's
@@ -474,7 +475,7 @@ where
         });
         let end = budget.map_or(stopped + grace, |b| (start + b).min(stopped + grace));
         let mut seen = self.bell.mark();
-        while !self.coord.not_stopped().is_empty() {
+        while self.coord.live() > 0 {
             let now = Instant::now();
             if now >= end {
                 break;

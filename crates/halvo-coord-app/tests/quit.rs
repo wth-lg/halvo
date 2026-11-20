@@ -271,12 +271,13 @@ fn u46_a_kill_that_never_returns_does_not_hold_quit_past_its_bound_and_names_the
     let meanwhile = hub.coordinator().not_stopped();
     let probe = {
         let hub = hub.clone();
-        std::thread::spawn(move || hub.coordinator().live())
+        std::thread::spawn(move || hub.coordinator().snapshot())
     };
     sleep(ms(100));
     let lock_held = !probe.is_finished();
     ports.release_kills();
     let (took, named) = quitting.join().unwrap();
+    probe.join().unwrap();
     assert!(returned, "the hook returned while the kill still held");
     assert!(
         took >= ms(1_000) && took < ms(1_900),
@@ -290,7 +291,7 @@ fn u46_a_kill_that_never_returns_does_not_hold_quit_past_its_bound_and_names_the
         "the list answers while the kill holds the coordinator's lock"
     );
     assert_eq!(
-        probe.join().unwrap(),
+        hub.coordinator().live(),
         1,
         "the refused kill leaves the run live"
     );
@@ -385,7 +386,11 @@ fn u46_a_tick_whose_kill_holds_during_the_wait_does_not_hold_quit_past_its_bound
         holding, 1,
         "the tick's kill still held when the hook returned"
     );
-    assert_eq!(named, [(agent(1), b)]);
+    assert_eq!(
+        named,
+        [(agent(0), a), (agent(1), b)],
+        "A's dying tree, whose kill holds, and B"
+    );
 }
 
 #[test]

@@ -209,7 +209,8 @@ fn named(pairs: &[(usize, &RunId)]) -> Vec<(AgentId, RunId)> {
 }
 
 #[test]
-fn u46_the_quit_names_each_live_run_with_its_agent_and_drops_a_run_that_ends_in_the_wait() {
+fn u46_the_quit_names_each_live_run_with_its_agent_and_a_run_that_ends_in_the_wait_until_its_tree_is_killed(
+) {
     let (c, runs) = two_live();
     assert_eq!(
         c.not_stopped(),
@@ -228,7 +229,14 @@ fn u46_the_quit_names_each_live_run_with_its_agent_and_drops_a_run_that_ends_in_
         c.on_run(&runs[0], RunEvent::Ended(Some(Outcome::Completed))),
         Ok(())
     );
-    assert_eq!(c.not_stopped(), named(&[(1, &runs[1])]));
+    assert_eq!(c.live(), 1);
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &runs[0]), (1, &runs[1])]),
+        "a run that ended after its stop keeps its dying tree named (RD-151)"
+    );
+    c.quit_kill();
+    assert_eq!(c.not_stopped(), Vec::new());
 }
 
 #[test]
