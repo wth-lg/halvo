@@ -1,8 +1,9 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
+# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no system call that holds secure input in either built macOS executable as read by dyld_info regardless of build flags or the release profile environment (Windows has no import check), and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
 set -u
 name=62-build
+forbidden_import=_EnableSecureEventInput
 shipped_packages='halvo halvo-capture'
 scope_flags='--workspace --all --all-targets --tests --test --benches --bench --examples --example --lib'
 feature_flags='--features -F -f --all-features --no-default-features'
@@ -114,6 +115,23 @@ EOF
   done
 }
 
+release_imports() {
+  for binary in "$@"; do
+    executable=${binary##*/}
+    imports=$(xcrun dyld_info -imports "$binary") || fail "dyld_info could not read the imports of $executable"
+    row=$(printf '%s\n' "$imports" | awk -v symbol="$forbidden_import" '
+      $1 == "-imports:" { table = 1 }
+      table && $1 == symbol { print }
+      END { if (!table) exit 1 }
+    ') || fail "dyld_info returned no import table for $executable"
+    if [ -n "$row" ]; then
+      printf 'dyld_info -imports %s:\n%s\n' "$executable" "$row"
+      fail "$executable imports $forbidden_import"
+    fi
+    printf 'dyld_info -imports %s: absent %s\n' "$executable" "$forbidden_import"
+  done
+}
+
 tar_defect() {
   [ -s "$1" ] || { printf 'the listing of Halvo.app.tar is empty\n'; return 1; }
   outside=$(awk '{ path = $NF } path != "Halvo.app" && path != "Halvo.app/" && index(path, "Halvo.app/") != 1 { n++ } END { print n + 0 }' "$1")
@@ -221,6 +239,7 @@ EOF
       app=$target/release/bundle/macos/Halvo.app
       [ -d "$app" ] || fail "the build made no Halvo.app"
       set -- "$app/Contents/MacOS/halvo" "$target/release/halvo-capture"
+      release_imports "$@"
       ;;
     windows)
       set -- "$target/release/halvo.exe" "$target/release/halvo-capture.exe"
@@ -404,6 +423,38 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   got=FAIL
   cargo_config_defect 'src-tauri/.cargo/config' >/dev/null && got=PASS
   verdict untracked-cargo-configuration-below-the-root FAIL "$got"
+
+  imports_case() {
+    case_name=$1 want=$2 wanted_text=$3
+    shift 3
+    output=$(
+      xcrun() {
+        [ "$#" = 3 ] && [ "$1" = dyld_info ] && [ "$2" = -imports ] || return 2
+        cat "$3"
+      }
+      release_imports "$@"
+    )
+    code=$?
+    case $code:$output in
+      0:*"$wanted_text"*) got=PASS ;;
+      1:*"FAIL $name ($wanted_text)"*) got=FAIL ;;
+      *) got="unexpected-exit-$code" ;;
+    esac
+    verdict "$case_name" "$want" "$got"
+  }
+  clean='halvo [arm64]:
+    -imports:
+      _free  (from libSystem)'
+  printf '%s\n' "$clean" "      ${forbidden_import}Extra  (from Carbon)" >"$work/halvo"
+  printf '%s\n' "$clean" >"$work/halvo-capture"
+  imports_case clean-imports PASS 'dyld_info -imports halvo-capture: absent' "$work/halvo" "$work/halvo-capture"
+  printf '%s\n' 'halvo-capture [x86_64]:' '    -imports:' "      $forbidden_import  (from Carbon)" >>"$work/halvo-capture"
+  imports_case capture-imports-hold FAIL "halvo-capture imports $forbidden_import" "$work/halvo" "$work/halvo-capture"
+  printf '%s\n' "      $forbidden_import  (from Carbon)" >>"$work/halvo"
+  imports_case app-imports-hold FAIL "halvo imports $forbidden_import" "$work/halvo" "$work/halvo-capture"
+  printf '%s\n' 'unrecognized import listing' >"$work/halvo"
+  imports_case unreadable-import-list FAIL 'dyld_info returned no import table for halvo' "$work/halvo"
+  imports_case import-tool-failed FAIL 'dyld_info could not read the imports of missing' "$work/missing"
 
   for ref in tag:fresh branch:cached :cached; do
     got=$(build_root_for "${ref%:*}")
