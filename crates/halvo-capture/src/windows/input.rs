@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use crate::floor::payload::KeyClass;
+use crate::floor::payload::{Button, FoldClass, KeyClass};
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
@@ -71,6 +71,64 @@ impl PointerSample {
     pub const fn is_motion_only(self) -> bool {
         self.button_flags == 0
     }
+}
+
+/// What one raw mouse sample carries, read by content: a sample may carry
+/// movement, button presses and a wheel turn at once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct PointerParts {
+    /// The fold class of the sample's movement: drag while a button was held
+    /// before the sample, else move.
+    pub(crate) motion: Option<FoldClass>,
+    /// The buttons that went down, in the order of the raw flags.
+    pub(crate) presses: [Option<Button>; 5],
+    pub(crate) scroll: bool,
+}
+
+const BUTTON_FLAGS: [(u16, u16, Button); 5] = [
+    (
+        RI_MOUSE_LEFT_BUTTON_DOWN as u16,
+        RI_MOUSE_LEFT_BUTTON_UP as u16,
+        Button::Primary,
+    ),
+    (
+        RI_MOUSE_RIGHT_BUTTON_DOWN as u16,
+        RI_MOUSE_RIGHT_BUTTON_UP as u16,
+        Button::Secondary,
+    ),
+    (
+        RI_MOUSE_MIDDLE_BUTTON_DOWN as u16,
+        RI_MOUSE_MIDDLE_BUTTON_UP as u16,
+        Button::Other,
+    ),
+    (
+        RI_MOUSE_BUTTON_4_DOWN as u16,
+        RI_MOUSE_BUTTON_4_UP as u16,
+        Button::Other,
+    ),
+    (
+        RI_MOUSE_BUTTON_5_DOWN as u16,
+        RI_MOUSE_BUTTON_5_UP as u16,
+        Button::Other,
+    ),
+];
+
+const WHEEL_FLAGS: u16 = (RI_MOUSE_WHEEL | RI_MOUSE_HWHEEL) as u16;
+
+/// The parts of `sample`; `held` holds one bit for each button that is down,
+/// before the sample, and leaves with the buttons that are down after it.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn pointer_parts(held: &mut u8, moved: bool, button_flags: u16) -> PointerParts {
+    let _ = (BUTTON_FLAGS, WHEEL_FLAGS, *held);
+    let mut parts = PointerParts::default();
+    if button_flags == 0 {
+        parts.motion = moved.then_some(FoldClass::Move);
+    } else if button_went_down(button_flags) {
+        parts.presses[0] = Some(Button::Primary);
+    } else {
+        parts.scroll = true;
+    }
+    parts
 }
 
 #[derive(Debug)]
@@ -353,9 +411,11 @@ use windows::Win32::UI::Input::{
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, GetMessageTime, PostMessageW, PostQuitMessage,
-    RegisterClassW, HWND_MESSAGE, RI_KEY_BREAK, RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_5_DOWN,
-    RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_MIDDLE_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_DOWN,
-    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_DESTROY, WM_INPUT, WNDCLASSW,
+    RegisterClassW, HWND_MESSAGE, RI_KEY_BREAK, RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_4_UP,
+    RI_MOUSE_BUTTON_5_DOWN, RI_MOUSE_BUTTON_5_UP, RI_MOUSE_HWHEEL, RI_MOUSE_LEFT_BUTTON_DOWN,
+    RI_MOUSE_LEFT_BUTTON_UP, RI_MOUSE_MIDDLE_BUTTON_DOWN, RI_MOUSE_MIDDLE_BUTTON_UP,
+    RI_MOUSE_RIGHT_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_UP, RI_MOUSE_WHEEL, WINDOW_EX_STYLE,
+    WINDOW_STYLE, WM_APP, WM_DESTROY, WM_INPUT, WNDCLASSW,
 };
 
 #[cfg(target_os = "windows")]
@@ -3265,6 +3325,67 @@ mod tests {
             ..PointerSample::default()
         };
         assert!(!wheel.is_motion_only());
+    }
+
+    const LEFT_DOWN: u16 = RI_MOUSE_LEFT_BUTTON_DOWN as u16;
+    const LEFT_UP: u16 = RI_MOUSE_LEFT_BUTTON_UP as u16;
+    const WHEEL: u16 = RI_MOUSE_WHEEL as u16;
+
+    #[test]
+    fn one_raw_sample_with_movement_a_button_and_a_wheel_turn_gives_all_three() {
+        let mut held = 0;
+        let parts = pointer_parts(&mut held, true, LEFT_DOWN | WHEEL);
+        assert_eq!(parts.motion, Some(FoldClass::Move));
+        assert_eq!(parts.presses[0], Some(Button::Primary));
+        assert_eq!(parts.presses.iter().flatten().count(), 1);
+        assert!(parts.scroll);
+        assert_eq!(held, 1);
+        let right_and_middle = (RI_MOUSE_RIGHT_BUTTON_DOWN | RI_MOUSE_MIDDLE_BUTTON_DOWN) as u16;
+        let parts = pointer_parts(&mut 0, false, right_and_middle);
+        assert_eq!(
+            parts.presses,
+            [
+                None,
+                Some(Button::Secondary),
+                Some(Button::Other),
+                None,
+                None
+            ]
+        );
+        assert_eq!(parts.motion, None);
+        assert!(!parts.scroll);
+        let horizontal = pointer_parts(&mut 0, false, RI_MOUSE_HWHEEL as u16);
+        assert!(horizontal.scroll);
+        assert_eq!(horizontal.presses, [None; 5]);
+    }
+
+    #[test]
+    fn movement_while_a_button_is_held_is_a_drag_until_the_button_goes_up() {
+        let mut held = 0;
+        let steps = [
+            (true, 0, Some(FoldClass::Move)),
+            (false, LEFT_DOWN, None),
+            (true, 0, Some(FoldClass::Drag)),
+            (true, LEFT_UP, Some(FoldClass::Drag)),
+            (true, 0, Some(FoldClass::Move)),
+        ];
+        for (step, (moved, flags, motion)) in steps.into_iter().enumerate() {
+            assert_eq!(
+                pointer_parts(&mut held, moved, flags).motion,
+                motion,
+                "step {step}"
+            );
+        }
+        assert_eq!(held, 0);
+        let x2 = (RI_MOUSE_BUTTON_5_DOWN) as u16;
+        assert_eq!(
+            pointer_parts(&mut held, false, x2).presses[4],
+            Some(Button::Other)
+        );
+        assert_eq!(
+            pointer_parts(&mut held, true, 0).motion,
+            Some(FoldClass::Drag)
+        );
     }
 
     #[test]
