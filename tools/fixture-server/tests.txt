@@ -81,3 +81,8 @@ all sites.test.mjs checker: usage and parameters refusals
 all sites.test.mjs site data: every case of the shared list of crates/halvo-sample gets its verdict and its rule here
 all sites.test.mjs site data: every fixture of this file stands in the shared list with its verdict and rule
 all sites.test.mjs site data: this file reads site data only through its wrappers
+all check-sites.test.mjs checker: the password, card and missing lines name a site file, a page and a parameter by number, never by name
+all check-sites.test.mjs arguments: the checker and the server refuse an argument that is no UTF-8 with usage, before they read a file
+all check-sites.test.mjs checker: a site file of about 1,500,000 values is refused with too-large and no RangeError, and one under the bound is checked
+all check-sites.test.mjs checker: over site files whose names, ids and parameters hold the marker, every line it prints holds numbers, fixed words and arguments alone
+all check-sites.test.mjs checker: a site file that is no JSON, no UTF-8, a directory or unreadable, and a fault of its own, print no name and no text of the file
