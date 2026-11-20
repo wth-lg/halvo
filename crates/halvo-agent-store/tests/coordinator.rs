@@ -1002,6 +1002,18 @@ fn set_bindings_passes_where_no_live_agent_overlaps() {
         Ok(overlaps(&[], "no"))
     );
     assert_eq!(move_to(&mut store, 1, "active"), Ok(state_reply("active")));
+
+    let mut store = created(&[1, 2]);
+    assert_eq!(set_bindings(&mut store, 1, shared.clone()), Ok(rev(1)));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    assert_eq!(set_bindings(&mut store, 2, shared.clone()), Ok(rev(1)));
+    let cleared = json!([{"name": "reply_senders", "value": []}]);
+    assert_eq!(set_bindings(&mut store, 1, cleared), Ok(rev(2)));
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&[], "no"))
+    );
+    assert_eq!(move_to(&mut store, 1, "active"), Ok(state_reply("active")));
 }
 
 #[test]
