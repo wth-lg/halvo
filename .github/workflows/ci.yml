@@ -2,6 +2,8 @@ name: ci
 
 on:
   push:
+    branches-ignore: ['land-*', 'land-*/**']
+    tags: ['**']
   pull_request:
   schedule:
     - cron: '17 3 * * 0'
