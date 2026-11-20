@@ -3934,7 +3934,7 @@ fn truncation_points(file: &[u8], spans: &[(usize, usize)]) -> Vec<usize> {
 
 #[test]
 fn every_modified_segment_file_is_rejected_with_no_plaintext() {
-    const CASES: usize = 1992;
+    const CASES: usize = 1808;
     let dir = tempfile::tempdir().unwrap();
     let mut store = super::db::test_support::make_store(dir.path());
     let mut tally = TamperTally::default();

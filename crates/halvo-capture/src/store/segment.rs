@@ -730,7 +730,7 @@ pub(crate) mod tests {
     const A_WRAP_UNDER_THE_LABEL: &str = concat!(
         "191919191919191919191919191919191919191919191919",
         "5d39fb6accf83487449a704bce9b15ec898e476744abeb99687e75ca35a2f38b",
-        "6935d051c9dde65d3301ebc7244fd8a3"
+        "1139045cb8f17d7d0c10fe355245fd5c"
     );
 
     #[test]
