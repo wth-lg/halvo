@@ -472,3 +472,42 @@ fn a_switch_on_refused_with_overlap_whose_read_did_not_answer_holds_the_half_tha
         Some(Shared::Unread { again: true })
     );
 }
+
+#[test]
+fn a_switch_off_of_any_agent_while_the_sentence_names_nobody_sends_the_kept_body_once_more() {
+    let (c, item) = coordinator(ports(&[ANN, "zed@people.test"]));
+    c.ports().ports.refuse(Method::Overlaps, PortError::Busy);
+    answer(&c, &item, ANN).unwrap();
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.setup_overlap(&item), Some(Shared::Unread { again: true }));
+    let m = mark(&c);
+    assert_eq!(c.control(&other(1), Action::SwitchOff), Ok(()));
+    assert_eq!(
+        writes(&c, m),
+        [
+            "set_state b1 paused",
+            "set_bindings ann@people.test refused"
+        ],
+        "the kept body once more, refused again while b0 still shares ann"
+    );
+    assert_eq!(
+        c.setup_overlap(&item),
+        Some(named(&[(other(0), other_flow(0), ANN)], false)),
+        "the names of the read that followed the newest refusal"
+    );
+}
+
+#[test]
+fn a_switch_off_of_the_asking_agent_sends_no_kept_body() {
+    let (c, item) = coordinator(ports(&[ANN]));
+    c.ports().ports.refuse(Method::Overlaps, PortError::Busy);
+    answer(&c, &item, ANN).unwrap();
+    c.ports().ports.clear_refusals();
+    let m = mark(&c);
+    let _ = c.control(&asking(), Action::SwitchOff);
+    assert!(
+        !writes(&c, m).iter().any(|w| w.starts_with("set_bindings")),
+        "{:?}",
+        writes(&c, m)
+    );
+}
