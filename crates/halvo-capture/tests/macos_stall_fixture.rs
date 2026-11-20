@@ -6481,13 +6481,16 @@ fn the_late_reply_of_one_round_is_not_taken_as_the_reply_of_the_next() {
     );
 }
 
+/// What a fed fixture prints for a command line, in order.
+type FedAnswer = Box<dyn FnMut(&str) -> Vec<String> + Send>;
+
 /// The input of a fixture of the test's own for the reply logic of the
 /// driver: no process of the fixture, no window and no key. Each command line
 /// written to it goes to `answer`, which gives the lines that the fixture
 /// prints for it, in their order.
 struct FedInput {
     tx: std::sync::mpsc::Sender<String>,
-    answer: Box<dyn FnMut(&str) -> Vec<String> + Send>,
+    answer: FedAnswer,
     pending: Vec<u8>,
 }
 
