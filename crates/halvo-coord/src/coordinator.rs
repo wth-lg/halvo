@@ -2634,6 +2634,12 @@ where
             .iter()
             .map(|m| &m.facts)
             .filter(|f| board.gone.contains(&f.workflow.id) && matches!(f.doing, Doing::Live(_)))
+            .chain(board.members.iter().map(|m| &m.facts).filter(|f| {
+                board.gone.contains(&f.workflow.id)
+                    && !matches!(f.doing, Doing::Live(_))
+                    && board.alive_at_reap(&f.agent).is_some()
+            }))
+            .chain(board.kept_gone())
             .collect();
         shown.extend(still.iter().copied());
         shown.sort_by(|a, b| a.agent.cmp(&b.agent));
@@ -2651,7 +2657,9 @@ where
                 let stuck = board
                     .runs
                     .iter()
-                    .any(|r| r.agent == facts.agent && r.kill_refused);
+                    .any(|r| r.agent == facts.agent && r.kill_refused)
+                    || board.alive_at_reap(&facts.agent).is_some()
+                    || board.kept_gone().iter().any(|f| f.agent == facts.agent);
                 if let Ok(row) = roster::gone_row(*facts, stuck, System::HOST, name) {
                     placed.push((Placed { row, raised: None }, None));
                 }

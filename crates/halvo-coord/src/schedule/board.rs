@@ -147,6 +147,7 @@ pub struct Board<C> {
     listed: bool,
     aside: Vec<(AgentId, Vec<(RunId, Reaped)>)>,
     alive: Vec<RunId>,
+    kept: Vec<Facts<C>>,
     defer_held: Vec<AgentId>,
     dropped: Vec<(AgentId, Dropped)>,
     stuck: Vec<(AgentId, Stuck)>,
@@ -178,6 +179,7 @@ impl<C> Board<C> {
             listed: false,
             aside: Vec::new(),
             alive: Vec::new(),
+            kept: Vec::new(),
             defer_held: Vec::new(),
             dropped: Vec::new(),
             stuck: Vec::new(),
@@ -337,6 +339,22 @@ impl<C> Board<C> {
     /// owed in this life (I5.8; ruling RD-151).
     pub fn answered_alive(&self, run: &RunId) -> bool {
         self.alive.contains(run)
+    }
+
+    /// Keeps, for its row alone, the facts of an agent whose workflow the owner's list no longer
+    /// held at recovery while its newest run was one that this life's `Runs::reap` answered
+    /// `alive` and that no record of the store named. Such an agent is no member: no move
+    /// starts, raises, stores or sends anything for it (I5.8, ruling RD-150).
+    pub(crate) fn keep_gone(&mut self, mut facts: Facts<C>) {
+        facts.today = self.day;
+        self.kept.retain(|f| f.agent != facts.agent);
+        self.kept.push(facts);
+    }
+
+    /// The facts that `keep_gone` kept, each the row of a gone workflow whose task may still
+    /// run, in the order in which recovery kept them.
+    pub fn kept_gone(&self) -> &[Facts<C>] {
+        &self.kept
     }
 
     /// The agent's facts as its row and its card read them once a run that this life's
