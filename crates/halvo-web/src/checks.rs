@@ -1820,6 +1820,21 @@ mod tests {
                 r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad --d=C:\T\other\Crashpad"#,
                 false,
             ),
+            mac(
+                "mac_other_profile_after_a_leading_blank",
+                &[b, "--user-data-dir=/t/run/p", " --user-data-dir=/t/other"],
+                false,
+            ),
+            win(
+                "win_other_profile_after_a_leading_blank",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p " --user-data-dir=C:\T\other""#,
+                false,
+            ),
+            win(
+                "win_single_argument_after_a_leading_blank_before_the_profile",
+                r#""C:\P F\b.exe" " --single-argument" --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
         ]
     }
 
