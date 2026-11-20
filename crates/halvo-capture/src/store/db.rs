@@ -90,6 +90,8 @@ pub(in crate::store) const SEAM_AT_THE_LOG_CHECK: &str =
     "an open, at the first instant of the log's check";
 #[cfg(test)]
 pub(in crate::store) const SEAM_BEFORE_THE_PAGE_LOOK: &str = "a create, before its page look";
+#[cfg(test)]
+pub(in crate::store) const SEAM_BEFORE_THE_DRAIN: &str = "an open, before the drain of its log";
 
 fn obstructed(name: StoreName, met: Met) -> StoreError {
     StoreError::Obstructed { name, met }
@@ -1628,6 +1630,8 @@ impl Db {
     }
 
     fn finish(&self, database: Database) -> StoreResult<()> {
+        #[cfg(test)]
+        failpoint::seam(SEAM_BEFORE_THE_DRAIN);
         self.log_drained()?;
         match database {
             Database::New => {

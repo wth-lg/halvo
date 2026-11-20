@@ -6,7 +6,7 @@ use super::super::db::test_support::key_statement;
 use super::super::StoreError;
 use super::{file_root_store, open_over_file_root};
 
-fn tree(dir: &Path) -> Vec<(String, Option<Vec<u8>>)> {
+pub(super) fn tree(dir: &Path) -> Vec<(String, Option<Vec<u8>>)> {
     let mut listed = Vec::new();
     let mut stack = vec![dir.to_path_buf()];
     while let Some(at) = stack.pop() {
