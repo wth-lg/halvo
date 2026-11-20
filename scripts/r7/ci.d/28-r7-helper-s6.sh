@@ -55,13 +55,16 @@ def hosted(env, platform):
 
 
 def checked(command):
-    result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL)
+    action = next((str(arg).lstrip("-") for arg in command
+                   if str(arg).lstrip("-") in {"find-certificate", "add-trusted-cert",
+                                               "remove-trusted-cert", "delete-certificate",
+                                               "addstore", "delstore"}), "read-machine-root")
+    try:
+        result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, timeout=30)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"certificate-tool-{action}-timeout-30s") from exc
     if result.returncode:
-        action = next((str(arg).lstrip("-") for arg in command
-                       if str(arg).lstrip("-") in {"find-certificate", "add-trusted-cert",
-                                                   "remove-trusted-cert", "delete-certificate",
-                                                   "addstore", "delstore"}), "unknown")
         raise RuntimeError(f"certificate-tool-{action}-exit-{result.returncode}")
     return result.stdout
 
@@ -79,19 +82,24 @@ def present(fingerprint):
         pem = re.findall(rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", output, re.S)
         return any(der_fingerprint(ssl.PEM_cert_to_DER_cert(cert.decode("ascii"))) == fingerprint
                    for cert in pem)
-    return any(kind == "x509_asn" and der_fingerprint(cert) == fingerprint
-               for cert, kind, trust in ssl.enum_certificates("ROOT"))
+    query = (r"$ErrorActionPreference = 'Stop'; Get-ChildItem -LiteralPath Cert:\LocalMachine\Root | "
+             "ForEach-Object { $_.GetCertHashString([System.Security.Cryptography.HashAlgorithmName]::SHA256) }")
+    output = checked(["pwsh", "-NoProfile", "-NonInteractive", "-Command", query])
+    return fingerprint.encode("ascii") in output.splitlines()
 
 
 def certutil(*args):
     exe = Path(os.environ["SystemRoot"]) / "System32" / "certutil.exe"
-    return checked([str(exe), "-user", *args])
+    return checked([str(exe), *args])
 
 
 def admin_trust_remains(der):
     path = WORK / "admin-trust-after.plist"
-    result = subprocess.run(["security", "trust-settings-export", "-d", str(path)],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        result = subprocess.run(["security", "trust-settings-export", "-d", str(path)],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("admin-trust-readback-timeout-30s") from exc
     if result.returncode:
         if b"No Trust Settings were found" in result.stderr:
             return False
@@ -131,19 +139,19 @@ def undo():
     if sys.platform == "darwin":
         try:
             checked(["sudo", "-n", "security", "remove-trusted-cert", "-d", str(CA)])
-        except RuntimeError:
-            errors.append("trust-settings")
+        except RuntimeError as exc:
+            errors.append(str(exc))
         if present(fingerprint):
             try:
                 checked(["sudo", "-n", "security", "delete-certificate", "-Z", fingerprint,
                          SYSTEM_KEYCHAIN])
-            except RuntimeError:
-                errors.append("delete-certificate")
+            except RuntimeError as exc:
+                errors.append(str(exc))
     else:
         try:
             certutil("-delstore", "Root", hashlib.sha1(der).hexdigest())
-        except RuntimeError:
-            errors.append("delete-certificate")
+        except RuntimeError as exc:
+            errors.append(str(exc))
     remains = present(fingerprint)
     if sys.platform == "darwin":
         trust_setting = admin_trust_remains(der)
@@ -151,7 +159,7 @@ def undo():
         remains = remains or trust_setting
     print("S6 trust present-after-undo=" + str(remains).lower(), flush=True)
     if errors or remains:
-        raise RuntimeError("authority-undo")
+        raise RuntimeError("-".join(["authority-undo", *errors]))
     print("S6 trust undone=true", flush=True)
 
 
@@ -375,6 +383,32 @@ def self_test():
         tool.assert_called_once_with("-delstore", "Root", hashlib.sha1(b"fixture").hexdigest())
         read.assert_called_once_with(identity)
         refused += 1
+    with patch.dict(os.environ, {"SystemRoot": "system"}), patch("__main__.checked") as native:
+        for operation in ("-addstore", "-delstore"):
+            certutil(operation, "Root", "fixture")
+            if native.call_args.args[0][1:] != [operation, "Root", "fixture"]:
+                raise RuntimeError("windows-machine-store-fixture")
+    with patch("sys.platform", "win32"), patch("ssl.enum_certificates", create=True, return_value=[]), \
+         patch("__main__.checked", return_value=(identity + "\r\n").encode()) as native:
+        if not present(identity) or present(der_fingerprint(b"other")):
+            raise RuntimeError("windows-readback-fixture")
+        if r"Cert:\LocalMachine\Root" not in native.call_args.args[0][-1]:
+            raise RuntimeError("windows-readback-store-fixture")
+    for operation in ["-addstore", "-delstore", "add-trusted-cert", "remove-trusted-cert", "delete-certificate"]:
+        command = ["tool", operation]
+        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(command, 30)) as native:
+            try:
+                checked(command)
+            except RuntimeError as exc:
+                if str(exc) != "certificate-tool-" + operation.lstrip("-") + "-timeout-30s":
+                    raise RuntimeError("store-timeout-fixture") from exc
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError("store-timeout-fixture") from exc
+            else:
+                raise RuntimeError("store-timeout-fixture")
+            if native.call_args.kwargs.get("timeout") != 30:
+                raise RuntimeError("store-timeout-fixture")
+            refused += 1
     print(f"PASS self-test:{NAME} ({refused} failing fixtures rejected)")
 
 
