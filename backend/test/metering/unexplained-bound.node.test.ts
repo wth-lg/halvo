@@ -37,6 +37,24 @@ describe("a run of unexplained totals is closed as not billable with the cause u
     w.close();
   });
 
+  test("with a margin of 3,900 s the run's bound stays LATE_READ_SPAN_MS and not the late point's span, the window less the margin: the read 82,920 s after the run's first closes nothing, and the read at 86,520 s closes", async () => {
+    const w = await world({ meter: MINUTE, faults: [{ kind: "response-lost" }], config: { marginSeconds: 3_900 } });
+    await w.use("r1", 30_000);
+    foreign(w, 5);
+    await w.clock(END);
+    const since = END + DAY;
+    await w.clock(since);
+    let at82920: unknown = null;
+    await tries(w, (rows) => {
+      if (w.calls.at(-1)?.at === since + 82_920_000) at82920 = [rows[0]?.outcome, rows[0]?.unexplained_since];
+      return rows[0]?.outcome === null;
+    });
+    const [row] = await w.intervals();
+    expect(at82920).toEqual([null, since]);
+    expect([row?.outcome, row?.refusal, row?.closed_at]).toEqual(["not-billable", "unexplained-total", since + CAPPED_CLOSE]);
+    w.close();
+  });
+
   test("a send recorded with its answer lost four hours before the bound, in a run whose stored time is older (written into the row): the read at the bound is before the late point and closes nothing; the read at the late point closes", async () => {
     const w = await world({ meter: MINUTE, faults: [LOST, LOST] });
     await w.use("r1", 30_000);
