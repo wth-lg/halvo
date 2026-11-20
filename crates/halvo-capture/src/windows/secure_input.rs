@@ -1972,6 +1972,14 @@ mod detector {
         }
 
         #[test]
+        fn until_asks_its_fact_again_until_it_holds_and_then_no_more() {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            let asked = AtomicUsize::new(0);
+            until(|| asked.fetch_add(1, Ordering::SeqCst) + 1 == 3);
+            assert_eq!(asked.load(Ordering::SeqCst), 3);
+        }
+
+        #[test]
         fn after_attach_the_first_mark_is_the_start_and_attach_returns_after_the_detectors_own_read(
         ) {
             let _serial = crate::windows::tests::serial();
