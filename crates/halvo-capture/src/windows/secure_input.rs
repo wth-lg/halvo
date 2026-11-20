@@ -1017,6 +1017,8 @@ mod detector {
         pub(super) set_desktop_hook: fn() -> HWINEVENTHOOK,
         #[cfg(test)]
         pub(super) attach_deadline: Option<std::time::Duration>,
+        #[cfg(test)]
+        pub(super) at_receive: fn(),
     }
 
     fn remove_handler(
@@ -1046,6 +1048,8 @@ mod detector {
                 set_desktop_hook,
                 #[cfg(test)]
                 attach_deadline: None,
+                #[cfg(test)]
+                at_receive: || {},
             }
         }
     }
@@ -1113,6 +1117,8 @@ mod detector {
             let deadline = crate::windows::INPUT_STOP_DEADLINE;
             #[cfg(test)]
             let deadline = self.removals.attach_deadline.unwrap_or(deadline);
+            #[cfg(test)]
+            (self.removals.at_receive)();
             match started.recv_timeout(deadline) {
                 Ok(Ok(())) => {
                     *self
@@ -2518,21 +2524,38 @@ mod detector {
             }
         }
 
+        static HOLD_RECEIVE: std::sync::atomic::AtomicBool =
+            std::sync::atomic::AtomicBool::new(false);
+
+        static RECEIVES_MET: std::sync::atomic::AtomicUsize =
+            std::sync::atomic::AtomicUsize::new(0);
+
+        fn receive_met() {
+            RECEIVES_MET.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            while HOLD_RECEIVE.load(std::sync::atomic::Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        }
+
         #[test]
         fn an_attach_whose_first_read_does_not_answer_times_out_and_stops_that_detector() {
             use std::sync::atomic::Ordering;
             let _serial = crate::windows::tests::serial();
             let gate = Arc::new(PasswordGate::with_removals(Removals {
                 before_first_read: first_read_held,
+                at_receive: receive_met,
                 ..Removals::default()
             }));
             HOLD_FIRST_READ.store(true, Ordering::SeqCst);
+            HOLD_RECEIVE.store(true, Ordering::SeqCst);
+            RECEIVES_MET.store(0, Ordering::SeqCst);
             let waiting = {
                 let gate = Arc::clone(&gate);
                 std::thread::spawn(move || gate.attach())
             };
-            std::thread::sleep(Duration::from_millis(300));
+            until(|| RECEIVES_MET.load(Ordering::SeqCst) == 1);
             let free_during_the_wait = gate.detector.try_lock().is_ok();
+            HOLD_RECEIVE.store(false, Ordering::SeqCst);
             let first = waiting.join().expect("the attaching thread ends");
             let second = gate.attach();
             let mut gate = Arc::into_inner(gate).expect("the attaching thread let the gate go");
