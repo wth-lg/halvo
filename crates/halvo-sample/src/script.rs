@@ -129,7 +129,12 @@ pub struct Step {
     pub card_title: bool,
 }
 
-/// One stretch: an item of an episode or of a noise line.
+/// The least and the most `late` of an item, in milliseconds (rule S16).
+pub const LATE_MS: (u64, u64) = (1_000, 30_000);
+
+/// One stretch: an item of an episode or of a noise line. `late`, where given, asks `build` to write the item's
+/// last keystroke record after every record of its stream whose instant lies up to that many milliseconds
+/// above its own, as a Mac's store holds a late keystroke (contracts.md C4.7, C12.2).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Item {
     pub step: String,
@@ -139,6 +144,7 @@ pub struct Item {
     pub keys: u64,
     pub clicks: u64,
     pub scrolls: u64,
+    pub late: Option<u64>,
 }
 
 /// An episode line.
@@ -182,8 +188,9 @@ pub enum Line {
 }
 
 fn write_item(i: &Item) -> String {
+    let late = i.late.map_or(String::new(), |ms| format!(",\"late\":{ms}"));
     format!(
-        "{{\"step\":{},\"title\":{},\"start\":{},\"end\":{},\"keys\":{},\"clicks\":{},\"scrolls\":{}}}",
+        "{{\"step\":{},\"title\":{},\"start\":{},\"end\":{},\"keys\":{},\"clicks\":{},\"scrolls\":{}{late}}}",
         json_str(&i.step),
         i.title,
         i.start,
@@ -285,6 +292,7 @@ struct RawItem {
     keys: u64,
     clicks: u64,
     scrolls: u64,
+    late: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -328,12 +336,13 @@ fn item(r: RawItem) -> Option<Item> {
         keys: r.keys,
         clicks: r.clicks,
         scrolls: r.scrolls,
+        late: r.late,
     })
 }
 
 /// Reads one line of a script, without its LF, in the form of C12.2 (rule S15's form part): one of the six
-/// forms, compact, with exactly the keys shown in their order, and values of the right type. The value rules
-/// are checked by `Script::read`.
+/// forms, compact, with exactly the keys shown in their order, an item's `late` last where given, and values of
+/// the right type. The value rules are checked by `Script::read`.
 pub fn parse_line(bytes: &[u8]) -> Option<Line> {
     let prefix = |p: &str| bytes.starts_with(p.as_bytes());
     let line = if prefix("{\"line\":\"script\",") {
@@ -658,6 +667,12 @@ impl Script {
             }
             if !(0 <= i.start && i.start < i.end && i.end <= DAY) {
                 return Err(broken(at, "S4"));
+            }
+            if let Some(ms) = i.late {
+                let (least, most) = LATE_MS;
+                if !(least..=most).contains(&ms) || i.keys == 0 || step.password_input {
+                    return Err(broken(at, "S16"));
+                }
             }
             if step.password_input && i.keys != 0 {
                 return Err(broken(at, "S7"));
