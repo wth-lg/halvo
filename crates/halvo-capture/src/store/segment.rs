@@ -14,7 +14,6 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::custody::dev_fallback::{aead_open, aead_seal};
 use crate::custody::wiped_on_drop;
-use crate::event::SegmentKeyId;
 
 use super::durable::{self, Dir, DurableFs, EntryKind, Refused};
 use super::{Met, StoreError, StoreName, StoreResult};
@@ -24,8 +23,8 @@ const TAG: usize = <XChaCha20Poly1305 as AeadCore>::TagSize::USIZE;
 const CIPHER_CHUNK: usize = CHUNK + TAG;
 const STREAM_NONCE: usize = NonceSize::<XChaCha20Poly1305, StreamBE32<XChaCha20Poly1305>>::USIZE;
 const MAGIC: [u8; 7] = *b"HLVOSEG";
-const FORMAT_VERSION: u8 = 1;
-const HEADER_LEN: usize = MAGIC.len() + size_of::<u8>() + size_of::<Uuid>() + size_of::<i64>();
+const FORMAT_VERSION: u8 = 2;
+const HEADER_LEN: usize = MAGIC.len() + size_of::<u8>() + size_of::<Uuid>();
 const SEGMENT_KEY_AAD: &[u8] = b"halvo-segment-key";
 const SEGMENT_EXT: &str = "seg";
 const PARTIAL_EXT: &str = "seg.tmp";
@@ -53,12 +52,24 @@ impl SegmentKey {
     }
 }
 
-pub(crate) fn wrap_segment_key(store_key: &[u8; 32], seg_key: &SegmentKey) -> StoreResult<Vec<u8>> {
-    aead_seal(store_key, seg_key.expose(), SEGMENT_KEY_AAD).map_err(|_| StoreError::Seal)
+fn key_label(segment_id: Uuid) -> Vec<u8> {
+    [SEGMENT_KEY_AAD, segment_id.as_bytes().as_slice()].concat()
 }
 
-pub(crate) fn unwrap_segment_key(store_key: &[u8; 32], wrapped: &[u8]) -> StoreResult<SegmentKey> {
-    let plain = aead_open(store_key, wrapped, SEGMENT_KEY_AAD)
+pub(crate) fn wrap_segment_key(
+    wrapping_key: &[u8; 32],
+    segment_id: Uuid,
+    seg_key: &SegmentKey,
+) -> StoreResult<Vec<u8>> {
+    aead_seal(wrapping_key, seg_key.expose(), &key_label(segment_id)).map_err(|_| StoreError::Seal)
+}
+
+pub(crate) fn unwrap_segment_key(
+    wrapping_key: &[u8; 32],
+    segment_id: Uuid,
+    wrapped: &[u8],
+) -> StoreResult<SegmentKey> {
+    let plain = aead_open(wrapping_key, wrapped, &key_label(segment_id))
         .map_err(|_| StoreError::Corrupt("the segment key does not unwrap".to_string()))?;
     if plain.len() != 32 {
         return Err(StoreError::Corrupt(
@@ -274,7 +285,6 @@ pub(crate) fn sweep_segment_files(
 
 pub(crate) struct SegmentHeader {
     pub segment_id: Uuid,
-    pub segment_key_id: SegmentKeyId,
 }
 
 impl SegmentHeader {
@@ -282,16 +292,14 @@ impl SegmentHeader {
         let mut bytes = [0u8; HEADER_LEN];
         let (magic, rest) = bytes.split_at_mut(MAGIC.len());
         magic.copy_from_slice(&MAGIC);
-        let (version, rest) = rest.split_at_mut(size_of::<u8>());
+        let (version, segment_id) = rest.split_at_mut(size_of::<u8>());
         version[0] = FORMAT_VERSION;
-        let (segment_id, segment_key_id) = rest.split_at_mut(size_of::<Uuid>());
         segment_id.copy_from_slice(self.segment_id.as_bytes());
-        segment_key_id.copy_from_slice(&self.segment_key_id.0.to_le_bytes());
         bytes
     }
 }
 
-fn check_header(bytes: &[u8; HEADER_LEN]) -> StoreResult<()> {
+fn check_header(bytes: &[u8; HEADER_LEN], segment_id: Uuid) -> StoreResult<()> {
     let (magic, rest) = bytes.split_at(MAGIC.len());
     if magic != MAGIC {
         return Err(StoreError::Corrupt("bad segment magic".to_string()));
@@ -301,6 +309,11 @@ fn check_header(bytes: &[u8; HEADER_LEN]) -> StoreResult<()> {
             "unsupported segment format version {}",
             rest[0]
         )));
+    }
+    if rest[1..] != segment_id.as_bytes()[..] {
+        return Err(StoreError::Corrupt(
+            "the segment file holds another segment".to_string(),
+        ));
     }
     Ok(())
 }
@@ -400,7 +413,12 @@ fn emit_ciphertext(out: &mut dyn Write, sealed: Result<Vec<u8>, aead::Error>) ->
     out.write_all(&ciphertext).map_err(io_error)
 }
 
-fn decrypt_segment(file: &mut dyn Read, out: &mut dyn Write, key: &SegmentKey) -> StoreResult<u64> {
+fn decrypt_segment(
+    file: &mut dyn Read,
+    out: &mut dyn Write,
+    key: &SegmentKey,
+    segment_id: Uuid,
+) -> StoreResult<u64> {
     let mut head = [0u8; HEADER_LEN];
     let mut nonce_bytes = [0u8; STREAM_NONCE];
     file.read_exact(&mut head)
@@ -411,7 +429,7 @@ fn decrypt_segment(file: &mut dyn Read, out: &mut dyn Write, key: &SegmentKey) -
             }
             _ => io_error(e),
         })?;
-    check_header(&head)?;
+    check_header(&head, segment_id)?;
 
     let nonce = Array::try_from(&nonce_bytes[..])
         .map_err(|_| StoreError::Corrupt("bad stream nonce".to_string()))?;
@@ -515,9 +533,50 @@ pub(crate) fn read_segment_file(
         _ => refused_or_io(e, LINKED_SEGMENT_FILE),
     })?;
     let mut reader = io::BufReader::new(file);
-    decrypt_segment(&mut reader, &mut io::sink(), seg_key)?;
+    decrypt_segment(&mut reader, &mut io::sink(), seg_key, segment_id)?;
     reader.seek(SeekFrom::Start(0)).map_err(io_error)?;
-    decrypt_segment(&mut reader, out, seg_key)
+    decrypt_segment(&mut reader, out, seg_key, segment_id)
+}
+
+/// Whether nothing stands at the name of `segment_id`: the segments
+/// directory, the shard or the file is absent. An entry of any kind at the
+/// name, a link among them, is no absence.
+pub(crate) fn segment_file_absent(store_dir: &Dir, segment_id: Uuid) -> StoreResult<bool> {
+    let names = SegmentNames::of(segment_id);
+    let shard = match store_dir
+        .open_dir(OsStr::new(SEGMENTS))
+        .and_then(|segments| segments.open_dir(&names.shard))
+    {
+        Ok(shard) => shard,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(true),
+        Err(e) if durable::refusal(&e).is_some() => return Ok(false),
+        Err(e) => return Err(io_error(e)),
+    };
+    match shard.entry(&names.file) {
+        Ok(_) => Ok(false),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(true),
+        Err(e) => Err(io_error(e)),
+    }
+}
+
+/// The bytes that the file of `segment_id` takes on its volume: its blocks
+/// on Unix, its length rounded up to 4,096 bytes on Windows.
+pub(crate) fn disk_bytes(store_dir: &Dir, segment_id: Uuid) -> StoreResult<u64> {
+    let names = SegmentNames::of(segment_id);
+    let file = store_dir
+        .open_dir(OsStr::new(SEGMENTS))
+        .and_then(|segments| segments.open_dir(&names.shard))
+        .and_then(|shard| shard.open_file(&names.file))
+        .map_err(|e| refused_or_io(e, LINKED_SEGMENT_FILE))?;
+    let metadata = file.metadata().map_err(io_error)?;
+    #[cfg(unix)]
+    let taken = {
+        use std::os::unix::fs::MetadataExt;
+        metadata.blocks() * 512
+    };
+    #[cfg(windows)]
+    let taken = metadata.len().div_ceil(4096) * 4096;
+    Ok(taken)
 }
 
 pub(crate) fn remove_written_segment(store_dir: &Dir, segment_id: Uuid) -> StoreResult<()> {
@@ -536,9 +595,18 @@ pub(crate) fn remove_written_segment(store_dir: &Dir, segment_id: Uuid) -> Store
     }
 }
 
-pub(crate) fn decrypt_segment_bytes(file_bytes: &[u8], key: &SegmentKey) -> StoreResult<Vec<u8>> {
+pub(crate) fn decrypt_segment_bytes(
+    file_bytes: &[u8],
+    key: &SegmentKey,
+    segment_id: Uuid,
+) -> StoreResult<Vec<u8>> {
     let mut plaintext = Vec::new();
-    decrypt_segment(&mut io::Cursor::new(file_bytes), &mut plaintext, key)?;
+    decrypt_segment(
+        &mut io::Cursor::new(file_bytes),
+        &mut plaintext,
+        key,
+        segment_id,
+    )?;
     Ok(plaintext)
 }
 
@@ -560,8 +628,11 @@ pub(crate) mod tests {
     pub(crate) const TAG_LEN: usize = TAG;
     pub(crate) const CIPHER_CHUNK_LEN: usize = CIPHER_CHUNK;
 
-    const GOLDEN: &[u8] = include_bytes!("testdata/segment-v1.golden");
+    const GOLDEN_V1: &[u8] = include_bytes!("testdata/segment-v1.golden");
+    const GOLDEN: &[u8] = include_bytes!("testdata/segment-v2.golden");
     const GOLDEN_KEY: [u8; 32] = [0x5e; 32];
+    const GOLDEN_ID: Uuid = Uuid::from_bytes([0x11; 16]);
+    const LABEL_ID: Uuid = Uuid::from_bytes([0x33; 16]);
 
     fn golden_plaintext() -> Vec<u8> {
         (0..300u32).map(|i| (i * 7 % 251) as u8).collect()
@@ -580,7 +651,7 @@ pub(crate) mod tests {
             return;
         }
         let segment_key_wrap =
-            wrap_segment_key(&[0x42; 32], &SegmentKey::random().unwrap()).unwrap();
+            wrap_segment_key(&[0x42; 32], LABEL_ID, &SegmentKey::random().unwrap()).unwrap();
         println!("segment-key wrap nonce {}", nonce_hex(&segment_key_wrap));
         let roots_dir = tempfile::tempdir().unwrap();
         let roots = crate::custody::file_root::FileRoots::new(
@@ -659,27 +730,34 @@ pub(crate) mod tests {
     const A_WRAP_UNDER_THE_LABEL: &str = concat!(
         "191919191919191919191919191919191919191919191919",
         "5d39fb6accf83487449a704bce9b15ec898e476744abeb99687e75ca35a2f38b",
-        "6935d051c9dde65d3301ebc7244fd8a3"
+        "1139045cb8f17d7d0c10fe355245fd5c"
     );
 
     #[test]
     fn a_segment_key_wrap_opens_only_under_its_label() {
         let (store_key, seg_key) = ([0x6eu8; 32], [0x2du8; 32]);
-        let with_the_label = seal_a_segment_key(&store_key, &seg_key, b"halvo-segment-key");
+        let label = [b"halvo-segment-key".as_slice(), LABEL_ID.as_bytes()].concat();
+        let with_the_label = seal_a_segment_key(&store_key, &seg_key, &label);
         let hex: String = with_the_label.iter().map(|b| format!("{b:02x}")).collect();
         assert_eq!(hex, A_WRAP_UNDER_THE_LABEL, "the fixed wrap changed");
-        let opened = unwrap_segment_key(&store_key, &with_the_label);
+        let opened = unwrap_segment_key(&store_key, LABEL_ID, &with_the_label);
         assert!(
             opened.as_ref().is_ok_and(|key| key.expose() == &seg_key),
             "the fixed wrap under the label did not open: {:?}",
             opened.err()
         );
+        let of_another_id = [b"halvo-segment-key".as_slice(), &[0x34; 16]].concat();
         for (case, label) in [
             ("no label", b"".as_slice()),
             ("another label", b"halvo-segment-key-2".as_slice()),
+            (
+                "the label without the segment id",
+                b"halvo-segment-key".as_slice(),
+            ),
+            ("the label of another segment id", of_another_id.as_slice()),
         ] {
             let other = seal_a_segment_key(&store_key, &seg_key, label);
-            let opened = unwrap_segment_key(&store_key, &other);
+            let opened = unwrap_segment_key(&store_key, LABEL_ID, &other);
             assert!(
                 matches!(opened, Err(StoreError::Corrupt(_))),
                 "the key sealed under the store key with {case} opened as a segment key"
@@ -694,7 +772,8 @@ pub(crate) mod tests {
         let store_key = [0x42u8; 32];
         let nonces: Vec<Vec<u8>> = (0..WRAPS)
             .map(|_| {
-                wrap_segment_key(&store_key, &SegmentKey::random().unwrap()).unwrap()[..XNONCE]
+                wrap_segment_key(&store_key, LABEL_ID, &SegmentKey::random().unwrap()).unwrap()
+                    [..XNONCE]
                     .to_vec()
             })
             .collect();
@@ -717,16 +796,34 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_golden_segment_of_format_version_1_decrypts_to_its_plaintext() {
+    fn the_golden_segment_of_format_version_2_decrypts_to_its_plaintext() {
         let mut head = Vec::new();
         head.extend_from_slice(b"HLVOSEG");
-        head.push(1);
-        head.extend_from_slice(&[0x11; 16]);
-        head.extend_from_slice(&7i64.to_le_bytes());
+        head.push(2);
+        head.extend_from_slice(GOLDEN_ID.as_bytes());
         assert_eq!(&GOLDEN[..HEADER_LEN], head.as_slice());
         assert_eq!(GOLDEN.len(), BODY + 300 + TAG);
-        let plain = decrypt_segment_bytes(GOLDEN, &SegmentKey::from_bytes(GOLDEN_KEY)).unwrap();
+        let key = SegmentKey::from_bytes(GOLDEN_KEY);
+        let plain = decrypt_segment_bytes(GOLDEN, &key, GOLDEN_ID).unwrap();
         assert_eq!(plain, golden_plaintext());
+        let other = Uuid::from_bytes([0x12; 16]);
+        assert!(matches!(
+            decrypt_segment_bytes(GOLDEN, &key, other),
+            Err(StoreError::Corrupt(_))
+        ));
+    }
+
+    #[test]
+    fn a_segment_of_format_version_1_is_refused_with_its_version() {
+        let refused = decrypt_segment_bytes(
+            GOLDEN_V1,
+            &SegmentKey::from_bytes(GOLDEN_KEY),
+            Uuid::from_bytes([0x11; 16]),
+        );
+        assert!(
+            matches!(&refused, Err(StoreError::Corrupt(text)) if text == "unsupported segment format version 1"),
+            "{refused:?}"
+        );
     }
 
     fn roundtrip(len: usize) {
@@ -734,12 +831,11 @@ pub(crate) mod tests {
         let store_key = [3u8; 32];
         let seg_key = SegmentKey::random().unwrap();
         let seg_key_bytes = *seg_key.expose();
-        let wrapped = wrap_segment_key(&store_key, &seg_key).unwrap();
-        let plaintext: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
         let header = SegmentHeader {
-            segment_id: Uuid::now_v7(),
-            segment_key_id: SegmentKeyId(5),
+            segment_id: crate::store::db::random_segment_id().unwrap(),
         };
+        let wrapped = wrap_segment_key(&store_key, header.segment_id, &seg_key).unwrap();
+        let plaintext: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
         let store_dir = Dir::open(dir.path()).unwrap();
         let written = write_segment_file(
             &store_dir,
@@ -751,7 +847,7 @@ pub(crate) mod tests {
         .unwrap();
         assert_eq!(written, len as u64);
 
-        let seg_key = unwrap_segment_key(&store_key, &wrapped).unwrap();
+        let seg_key = unwrap_segment_key(&store_key, header.segment_id, &wrapped).unwrap();
         assert_eq!(seg_key.expose(), &seg_key_bytes);
         let mut got = Vec::new();
         let read = read_segment_file(&store_dir, &seg_key, header.segment_id, &mut got).unwrap();
@@ -774,8 +870,7 @@ pub(crate) mod tests {
         let dir = tempfile::tempdir().unwrap();
         let seg_key = SegmentKey::random().unwrap();
         let header = SegmentHeader {
-            segment_id: Uuid::now_v7(),
-            segment_key_id: SegmentKeyId(1),
+            segment_id: crate::store::db::random_segment_id().unwrap(),
         };
         write_segment_file(
             &Dir::open(dir.path()).unwrap(),
@@ -790,11 +885,15 @@ pub(crate) mod tests {
         assert_eq!(bytes[MAGIC.len()], FORMAT_VERSION);
         assert!(!bytes.windows(12).any(|w| w == b"secret bytes"));
         assert!(matches!(
-            decrypt_segment_bytes(&bytes, &SegmentKey::from_bytes([9u8; 32])),
+            decrypt_segment_bytes(
+                &bytes,
+                &SegmentKey::from_bytes([9u8; 32]),
+                header.segment_id
+            ),
             Err(StoreError::Corrupt(_))
         ));
         assert_eq!(
-            decrypt_segment_bytes(&bytes, &seg_key).unwrap(),
+            decrypt_segment_bytes(&bytes, &seg_key, header.segment_id).unwrap(),
             b"secret bytes"
         );
     }
@@ -860,8 +959,7 @@ pub(crate) mod tests {
         let plaintext: Vec<u8> = (0..CHUNK * 8 + 123).map(|i| (i % 251) as u8).collect();
         let key = SegmentKey::from_bytes([5u8; 32]);
         let header = SegmentHeader {
-            segment_id: Uuid::now_v7(),
-            segment_key_id: SegmentKeyId(9),
+            segment_id: crate::store::db::random_segment_id().unwrap(),
         };
 
         let (mut reader, mut writer, trace) = traced(plaintext.clone());
@@ -875,7 +973,7 @@ pub(crate) mod tests {
         let ciphertext = writer.inner;
 
         let (mut reader, mut writer, trace) = traced(ciphertext);
-        let read = decrypt_segment(&mut reader, &mut writer, &key).unwrap();
+        let read = decrypt_segment(&mut reader, &mut writer, &key, header.segment_id).unwrap();
         assert_eq!(read, plaintext.len() as u64);
         assert_eq!(writer.inner, plaintext);
         let outstanding = trace.borrow().max_outstanding;
@@ -883,5 +981,43 @@ pub(crate) mod tests {
             outstanding <= STREAMING_BOUND,
             "decrypt held {outstanding} unwritten ciphertext bytes, bound {STREAMING_BOUND}"
         );
+    }
+
+    #[test]
+    fn a_segment_file_renamed_to_the_name_of_another_segment_does_not_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let store_dir = Dir::open(dir.path()).unwrap();
+        let key = SegmentKey::random().unwrap();
+        let (a, b) = (
+            crate::store::db::random_segment_id().unwrap(),
+            crate::store::db::random_segment_id().unwrap(),
+        );
+        write_segment_file(
+            &store_dir,
+            &crate::store::durable::OsFs,
+            &key,
+            &SegmentHeader { segment_id: a },
+            &mut io::Cursor::new(b"plaintext of a"),
+        )
+        .unwrap();
+        std::fs::create_dir_all(segment_path(dir.path(), b).parent().unwrap()).unwrap();
+        std::fs::rename(segment_path(dir.path(), a), segment_path(dir.path(), b)).unwrap();
+        let mut out = Vec::new();
+        let read = read_segment_file(&store_dir, &key, b, &mut out);
+        assert!(
+            matches!(&read, Err(StoreError::Corrupt(text)) if text == "the segment file holds another segment"),
+            "{read:?}"
+        );
+        assert!(out.is_empty(), "the read handed on {} bytes", out.len());
+    }
+
+    #[test]
+    fn a_header_holds_the_magic_the_version_and_the_segment_id_alone() {
+        let id = crate::store::db::random_segment_id().unwrap();
+        let head = SegmentHeader { segment_id: id }.to_bytes();
+        assert_eq!(head.len(), 7 + 1 + 16);
+        assert_eq!(&head[..7], b"HLVOSEG");
+        assert_eq!(head[7], 2);
+        assert_eq!(&head[8..], id.as_bytes());
     }
 }
