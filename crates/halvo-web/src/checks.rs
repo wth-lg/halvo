@@ -208,6 +208,9 @@ pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
 }
 
 /// The arguments of a Windows command line by the rule of `CommandLineToArgvW` of shell32. The
+/// line ends at its first U+0000, as the system's function reads a string that ends there (U2.6b
+/// round 2, R5: the system can hold a line with a NUL in it, which the browser's own line ends at;
+/// the browser's end is recalled, not run). The
 /// program's name: when the line begins with a quote, up to the next quote, the quotes dropped;
 /// else up to the first character at or below U+0020 (a space, a tab or a control character),
 /// which is dropped, a quote kept as it stands (U2.6b: the system's own reading of control
@@ -223,6 +226,7 @@ pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
 /// `profile_of` for `tree_of`), and beside the mark only the row's report of the profile's forms
 /// (`profile_forms`); `command_args` and `command_line` stay as they are for the six rules.
 pub fn split_command_line(line: &str) -> Vec<String> {
+    let line = line.split('\0').next().unwrap_or_default();
     let c: Vec<char> = line.chars().collect();
     let space = |x: char| x == ' ' || x == '\t';
     let mut out = Vec::new();
@@ -1622,6 +1626,8 @@ mod tests {
             "b.exe\n\nx",
             "b.exe\r\n x",
             "b.exe\n",
+            "\"C:\\P F\\b.exe\"\u{0} --user-data-dir=C:\\P",
+            "b.exe --x=a\u{0} --user-data-dir=C:\\P",
         ];
         let mut differ = Vec::new();
         for line in lines {
