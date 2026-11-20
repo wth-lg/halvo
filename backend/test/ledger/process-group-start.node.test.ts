@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { afterAll, beforeEach, expect, test } from "vitest";
 import { endGroup, groupMembers, type Processes, startGroup, useProcesses } from "./process-group.ts";
 
-const { chmodSync } = fs as unknown as { chmodSync(path: string, mode: number): void };
+const { chmodSync, readFileSync, unlinkSync } = fs as unknown as {
+  chmodSync(path: string, mode: number): void;
+  readFileSync(path: string, encoding: "utf8"): string;
+  unlinkSync(path: string): void;
+};
 
 interface FRow {
   pid: number;
@@ -29,6 +33,7 @@ let nextPid = 200_000;
 let marks = "";
 let handlers = new Map<string, (() => void)[]>();
 let onPs: (() => void) | null = null;
+let spawnStarted = LATER;
 const dirs: string[] = [];
 
 const world: Processes = {
@@ -47,7 +52,7 @@ const world: Processes = {
   },
   spawn: () => {
     nextPid += 1;
-    rows.push({ pid: nextPid, pgid: leadsNot ? 1 : nextPid, stat: "S", started: LATER });
+    rows.push({ pid: nextPid, pgid: leadsNot ? 1 : nextPid, stat: "S", started: spawnStarted });
     events.push("spawn");
     return { pid: nextPid } as unknown as ReturnType<Processes["spawn"]>;
   },
@@ -78,7 +83,7 @@ const rowOf = (pid: number) => rows.find((row) => row.pid === pid) as FRow;
 
 const marksIn = () => readdirSync(marks).sort();
 
-beforeEach(() => {
+function fresh(): void {
   rows = [{ pid: process.pid, pgid: process.pid, stat: "S", started: OWNER }];
   events = [];
   failReads = 0;
@@ -91,8 +96,11 @@ beforeEach(() => {
   dirs.push(made);
   marks = join(made, "marks");
   process.env.HALVO_GROUP_MARKS = marks;
+  spawnStarted = LATER;
   useProcesses(world, 300);
-});
+}
+
+beforeEach(fresh);
 
 afterAll(() => {
   useProcesses(null);
@@ -206,16 +214,91 @@ function laterMark(pid: number): void {
 }
 
 test("endGroup and stopAll remove a mark only while it reads as they wrote it", async () => {
-  const a = startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+  const opts = { stdio: ["ignore", "ignore", "ignore"] as "ignore"[] };
+  const markOf = (pid: number) => join(marks, `group-${pid}.json`);
+  const textOf = (path: string) => {
+    try {
+      return readFileSync(path, "utf8");
+    } catch {
+      return null;
+    }
+  };
+  const kept = (path: string, wrote: string | null) => (textOf(path) === wrote ? "kept byte for byte" : textOf(path) === null ? "removed" : "changed");
+  const cases: Record<string, unknown> = {};
+
+  const a = startGroup("server", [], opts);
   laterMark(a.pid);
   await endGroup(a);
   const afterEndGroup = marksIn();
-  const b = startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+  const b = startGroup("server", [], opts);
   laterMark(b.pid);
   fire("exit");
-  expect({ afterEndGroup, afterExit: marksIn() }).toEqual({
-    afterEndGroup: [`group-${a.pid}.json`],
-    afterExit: [`group-${a.pid}.json`, `group-${b.pid}.json`],
+  cases["a later mark of another owner"] = { afterEndGroup, afterExit: marksIn() };
+
+  fresh();
+  const clock = Date.now;
+  Date.now = () => 3_599_999;
+  const first = startGroup("server", [], opts);
+  rows = rows.filter((row) => row.pgid !== first.pid);
+  nextPid = first.pid - 1;
+  Date.now = () => 3_600_050;
+  const second = startGroup("server", [], opts);
+  Date.now = clock;
+  const secondText = textOf(markOf(second.pid));
+  events = [];
+  await endGroup(first);
+  cases["the same owner, the same pid and start second, another spawn second"] = {
+    samePidAndStart: second.pid === first.pid && second.started === first.started,
+    signalsOfTheFirstEnding: groupSignals(first.pid),
+    laterMark: kept(markOf(second.pid), secondText),
+  };
+
+  for (const by of ["endGroup", "exit"]) {
+    fresh();
+    const c = startGroup("server", [], opts);
+    const other = JSON.parse(textOf(markOf(c.pid)) as string);
+    other.checkout = `${other.checkout}/another`;
+    const otherText = JSON.stringify(other);
+    writeFileSync(markOf(c.pid), otherText);
+    rows = rows.filter((row) => row.pgid !== c.pid);
+    events = [];
+    if (by === "endGroup") await endGroup(c);
+    else fire("exit");
+    cases[`a mark of another checkout at the path, then ${by}`] = { signals: groupSignals(c.pid), mark: kept(markOf(c.pid), otherText) };
+  }
+
+  fresh();
+  const d = startGroup("server", [], opts);
+  unlinkSync(markOf(d.pid));
+  events = [];
+  await endGroup(d);
+  cases["no mark at the path, then endGroup"] = { term: groupSignals(d.pid).includes(`SIGTERM -${d.pid}`) };
+
+  fresh();
+  const e = startGroup("server", [], opts);
+  rows = rows.filter((row) => row.pgid !== e.pid);
+  nextPid = e.pid - 1;
+  spawnStarted = OTHER;
+  const f = startGroup("server", [], opts);
+  const laterText = textOf(markOf(f.pid));
+  await endGroup(e);
+  const afterEndA = kept(markOf(f.pid), laterText);
+  events = [];
+  fire("exit");
+  cases["the same owner's later group of the pid with another start time"] = {
+    samePid: f.pid === e.pid,
+    afterEndA,
+    termToTheLaterGroupAtExit: groupSignals(f.pid).includes(`SIGTERM -${f.pid}`),
+    afterExit: kept(markOf(f.pid), laterText),
+  };
+
+  expect(cases).toEqual({
+    "a later mark of another owner": { afterEndGroup: [`group-${a.pid}.json`], afterExit: [`group-${a.pid}.json`, `group-${b.pid}.json`] },
+    "the same owner, the same pid and start second, another spawn second": { samePidAndStart: true, signalsOfTheFirstEnding: [], laterMark: "kept byte for byte" },
+    "a mark of another checkout at the path, then endGroup": { signals: [], mark: "kept byte for byte" },
+    "a mark of another checkout at the path, then exit": { signals: [], mark: "kept byte for byte" },
+    "no mark at the path, then endGroup": { term: true },
+    "the same owner's later group of the pid with another start time": { samePid: true, afterEndA: "kept byte for byte", termToTheLaterGroupAtExit: true, afterExit: "removed" },
   });
 });
 
@@ -244,4 +327,49 @@ test('startGroup of a missing command throws "<name> did not start" and leaves n
     process.removeListener("uncaughtException", listener);
   }
   expect(uncaught).toEqual([]);
+});
+
+test("endGroup: a stop inside an ending whose TERM took the leader sends KILL to the members that are left, and the mark goes", async () => {
+  const forms: Record<string, unknown> = {};
+  for (const event of ["SIGINT", "SIGTERM", "exit"]) {
+    const a = startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+    nextPid += 1;
+    const member = nextPid;
+    rows.push({ pid: member, pgid: a.pid, stat: "S", started: LATER, termProof: true });
+    events = [];
+    const ending = endGroup(a);
+    const leaderLeftOnTheEndingsTerm = !rows.some((row) => row.pid === a.pid);
+    fire(event);
+    forms[event] = {
+      leaderLeftOnTheEndingsTerm,
+      killToTheGroup: groupSignals(a.pid).includes(`SIGKILL -${a.pid}`),
+      memberLeft: rows.some((row) => row.pid === member),
+      marks: marksIn(),
+    };
+    await ending.catch(() => {});
+  }
+  const done = { leaderLeftOnTheEndingsTerm: true, killToTheGroup: true, memberLeft: false, marks: [] };
+  expect(forms).toEqual({ SIGINT: done, SIGTERM: done, exit: done });
+}, 30_000);
+
+test("startGroup's errors of a failed start name no directory of the checkout and keep node's code", () => {
+  const checkout = [ROOT, HERE];
+  const caught = (run: () => unknown) => {
+    try {
+      run();
+    } catch (error) {
+      const message = String((error as Error).message);
+      return { code: (error as { code?: string }).code, pathOfTheCheckout: checkout.some((path) => message.includes(path)) };
+    }
+    return { code: "no error", pathOfTheCheckout: false };
+  };
+  const cases: Record<string, unknown> = {};
+  mkdirSync(join(marks, `group-${nextPid + 1}.json`), { recursive: true });
+  cases["the mark's path is a directory"] = caught(() => startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] }));
+  useProcesses(null);
+  cases["the command holds a NUL byte"] = caught(() => startGroup(join(ROOT, "no\0command"), [], { stdio: ["ignore", "ignore", "ignore"] }));
+  expect(cases).toEqual({
+    "the mark's path is a directory": { code: "EISDIR", pathOfTheCheckout: false },
+    "the command holds a NUL byte": { code: "ERR_INVALID_ARG_VALUE", pathOfTheCheckout: false },
+  });
 });
