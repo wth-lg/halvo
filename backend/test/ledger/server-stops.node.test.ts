@@ -89,6 +89,13 @@ async function settle(ids: Id[], ms = SETTLE_MS): Promise<Id[]> {
 }
 
 async function endRecorded(id: Id): Promise<void> {
+  const found = groupMembers(id);
+  if (found.length === 0) return;
+  if (!found.some((each) => each.pid === id.pid && each.started === id.started)) {
+    const count = found.length === 1 ? "1 process has" : `${found.length} processes have`;
+    process.stderr.write(`server-stops: left group ${id.pid} (started ${id.started}): its leader is gone and ${count} its id as their group\n`);
+    return;
+  }
   for (const name of ["SIGTERM", "SIGKILL"]) {
     if (groupMembers(id).length === 0) return;
     try {
