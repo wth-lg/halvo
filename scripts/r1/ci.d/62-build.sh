@@ -515,6 +515,17 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   cargo_config_defect 'src-tauri/.cargo/config' >/dev/null && got=PASS
   verdict untracked-cargo-configuration-below-the-root FAIL "$got"
 
+  output_has_line() {
+    grep -Fx -- "$1" >/dev/null <<EOF
+$2
+EOF
+  }
+  got=FAIL
+  output_has_line 'partial' 'partial row' && got=PASS
+  verdict diagnostic-requires-whole-line FAIL "$got"
+  got=FAIL
+  output_has_line '-n' '-n' && got=PASS
+  verdict diagnostic-allows-leading-dash PASS "$got"
   imports_case() {
     case_name=$1 want=$2 wanted_text=$3
     shift 3
@@ -538,14 +549,10 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
     esac
     if [ -s "$work/imports.err" ]; then got=unexpected-stderr; fi
     if [ -n "${diagnostic_binary:-}" ]; then
-      grep -Fx -- "dyld_info -imports $diagnostic_binary:" >/dev/null <<EOF || got=missing-diagnostic-header
-$output
-EOF
+      output_has_line "dyld_info -imports $diagnostic_binary:" "$output" || got=missing-diagnostic-header
     fi
     if [ "$got" = "$want" ] && [ -n "${expect_row:-}" ]; then
-      grep -Fx -- "$expect_row" >/dev/null <<EOF || got=missing-row
-$output
-EOF
+      output_has_line "$expect_row" "$output" || got=missing-row
     fi
     verdict "$case_name" "$want" "$got"
   }
