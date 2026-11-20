@@ -5282,6 +5282,18 @@ fn x1_keystrokes_typed_into_a_password_field() {
     });
 }
 
+macro_rules! flipped {
+    ($id:literal, $wanted:expr, $evidence:expr) => {{
+        let evidence: String = $evidence;
+        println!("{evidence}");
+        assert!(
+            $wanted,
+            "{} is mended and its case fails again: {evidence}",
+            $id
+        );
+    }};
+}
+
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -5380,229 +5392,229 @@ mod known_defect {
             );
         });
     }
+}
 
-    use halvo_capture::windows::apps::{InstalledSoftwareWatcher, WatchOutcome};
+use halvo_capture::windows::apps::{InstalledSoftwareWatcher, WatchOutcome};
 
-    fn arm_watcher() -> mpsc::Receiver<Result<(), String>> {
-        let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move || {
-            let woke = InstalledSoftwareWatcher::new()
-                .map_err(|e| e.to_string())
-                .and_then(
-                    |mut watcher| match watcher.wait(Some(Duration::from_secs(20))) {
-                        Ok(WatchOutcome::Changed) => Ok(()),
-                        Ok(other) => Err(format!("the watch answered {other:?}")),
-                        Err(e) => Err(e.to_string()),
-                    },
-                );
-            let _ = tx.send(woke);
-        });
-        std::thread::sleep(Duration::from_millis(500));
-        rx
-    }
+fn arm_watcher() -> mpsc::Receiver<Result<(), String>> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let woke = InstalledSoftwareWatcher::new()
+            .map_err(|e| e.to_string())
+            .and_then(
+                |mut watcher| match watcher.wait(Some(Duration::from_secs(20))) {
+                    Ok(WatchOutcome::Changed) => Ok(()),
+                    Ok(other) => Err(format!("the watch answered {other:?}")),
+                    Err(e) => Err(e.to_string()),
+                },
+            );
+        let _ = tx.send(woke);
+    });
+    std::thread::sleep(Duration::from_millis(500));
+    rx
+}
 
-    fn answer<T>(rx: &mpsc::Receiver<T>, limit: Duration, what: &str) -> Option<T> {
-        match rx.recv_timeout(limit) {
-            Ok(value) => Some(value),
-            Err(RecvTimeoutError::Timeout) => None,
-            Err(RecvTimeoutError::Disconnected) => {
-                panic!("INCONCLUSIVE: {what} ended without an answer")
-            }
+fn answer<T>(rx: &mpsc::Receiver<T>, limit: Duration, what: &str) -> Option<T> {
+    match rx.recv_timeout(limit) {
+        Ok(value) => Some(value),
+        Err(RecvTimeoutError::Timeout) => None,
+        Err(RecvTimeoutError::Disconnected) => {
+            panic!("INCONCLUSIVE: {what} ended without an answer")
         }
     }
+}
 
-    fn watch_woke(rx: &mpsc::Receiver<Result<(), String>>, limit: Duration, what: &str) -> bool {
-        match answer(rx, limit, what) {
-            Some(Ok(())) => true,
-            Some(Err(e)) => panic!("INCONCLUSIVE: {what} returned an error: {e}"),
-            None => false,
-        }
+fn watch_woke(rx: &mpsc::Receiver<Result<(), String>>, limit: Duration, what: &str) -> bool {
+    match answer(rx, limit, what) {
+        Some(Ok(())) => true,
+        Some(Err(e)) => panic!("INCONCLUSIVE: {what} returned an error: {e}"),
+        None => false,
     }
+}
 
-    fn powershell_line(script: &str) -> String {
-        Command::new("powershell.exe")
-            .args(["-NoProfile", "-Command", script])
-            .output()
-            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
-            .unwrap_or_default()
-    }
+fn powershell_line(script: &str) -> String {
+    Command::new("powershell.exe")
+        .args(["-NoProfile", "-Command", script])
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .unwrap_or_default()
+}
 
-    #[test]
-    #[ignore = "known defect: reads and writes the Windows registry"]
-    fn c5_watch_armed_while_the_per_user_key_is_absent() {
-        with_deadline("c5-watch", Duration::from_secs(90), || {
-            use winreg::enums::HKEY_CURRENT_USER;
-            use winreg::RegKey;
+#[test]
+#[ignore = "functional: reads and writes the Windows registry"]
+fn c5_watch_armed_while_the_per_user_key_is_absent() {
+    with_deadline("c5-watch", Duration::from_secs(90), || {
+        use winreg::enums::HKEY_CURRENT_USER;
+        use winreg::RegKey;
 
-            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-            let key_absent = per_user_key_absent_or_removed("c5-watch", &hkcu);
-            assert!(
-                key_absent,
-                "INCONCLUSIVE: the per-user Uninstall key exists, so no watch can be armed while it is absent"
-            );
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let key_absent = per_user_key_absent_or_removed("c5-watch", &hkcu);
+        assert!(
+            key_absent,
+            "INCONCLUSIVE: the per-user Uninstall key exists, so no watch can be armed while it is absent"
+        );
 
-            let first = arm_watcher();
-            let spurious = watch_woke(&first, Duration::from_secs(1), "the first watch");
-            let probe_path = format!(r"{UNINSTALL}\{PROBE_KEY}");
-            let (probe, _) = hkcu
-                .create_subkey(&probe_path)
-                .expect("create the probe key");
-            probe
-                .set_value(
-                    "DisplayName",
-                    &format!("Halvo Verify Probe {}", std::process::id()),
-                )
-                .expect("probe name");
-            let first_woke = watch_woke(&first, Duration::from_secs(5), "the first watch");
-
-            let second = arm_watcher();
-            probe
-                .set_value("DisplayVersion", &"9.9.10")
-                .expect("probe version change");
-            let second_woke = watch_woke(&second, Duration::from_secs(5), "the second watch");
-
-            drop(probe);
-            hkcu.delete_subkey_all(&probe_path)
-                .expect("delete the probe key");
-            let _ = hkcu.delete_subkey(UNINSTALL);
-            say(
-                "c5-watch",
-                format!(
-                    "woke_before_any_change={spurious} \
-                     watch_armed_with_the_key_present_woke_within_5s_of_change={second_woke}"
-                ),
-            );
-            assert!(!spurious, "the watch woke before any change");
-            assert!(
-                second_woke,
-                "INCONCLUSIVE: a watch armed with the key present did not wake on a change"
-            );
-            defect!(
-                "RR-windows-12",
-                first_woke,
-                format!("TF c5-watch woke_within_5s_of_hkcu_install={first_woke}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: reads the Windows registry"]
-    fn x16_packaged_apps_and_the_inventory() {
-        with_deadline("x16", Duration::from_secs(120), || {
-            let scan = scan_installed().expect("scan the registry");
-            let packages: u32 = powershell_line("(Get-AppxPackage | Measure-Object).Count")
-                .parse()
-                .unwrap_or(0);
-            let terminal_packages: u32 = powershell_line(
-                "(Get-AppxPackage -Name Microsoft.WindowsTerminal | Measure-Object).Count",
+        let first = arm_watcher();
+        let spurious = watch_woke(&first, Duration::from_secs(1), "the first watch");
+        let probe_path = format!(r"{UNINSTALL}\{PROBE_KEY}");
+        let (probe, _) = hkcu
+            .create_subkey(&probe_path)
+            .expect("create the probe key");
+        probe
+            .set_value(
+                "DisplayName",
+                &format!("Halvo Verify Probe {}", std::process::id()),
             )
+            .expect("probe name");
+        let first_woke = watch_woke(&first, Duration::from_secs(5), "the first watch");
+
+        let second = arm_watcher();
+        probe
+            .set_value("DisplayVersion", &"9.9.10")
+            .expect("probe version change");
+        let second_woke = watch_woke(&second, Duration::from_secs(5), "the second watch");
+
+        drop(probe);
+        hkcu.delete_subkey_all(&probe_path)
+            .expect("delete the probe key");
+        let _ = hkcu.delete_subkey(UNINSTALL);
+        say(
+            "c5-watch",
+            format!(
+                "woke_before_any_change={spurious} \
+                 watch_armed_with_the_key_present_woke_within_5s_of_change={second_woke}"
+            ),
+        );
+        assert!(!spurious, "the watch woke before any change");
+        assert!(
+            second_woke,
+            "INCONCLUSIVE: a watch armed with the key present did not wake on a change"
+        );
+        flipped!(
+            "RR-windows-12",
+            first_woke,
+            format!("TF c5-watch woke_within_5s_of_hkcu_install={first_woke}")
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: reads the Windows registry"]
+fn x16_packaged_apps_and_the_inventory() {
+    with_deadline("x16", Duration::from_secs(120), || {
+        let scan = scan_installed().expect("scan the registry");
+        let packages: u32 = powershell_line("(Get-AppxPackage | Measure-Object).Count")
             .parse()
             .unwrap_or(0);
-            let terminal_in_inventory = scan
-                .apps()
-                .iter()
-                .any(|app| app.name.to_ascii_lowercase().contains("terminal"));
-            say(
-                "x16",
-                format!(
-                    "inventory_entries={} packaged_apps_registered_for_this_user={packages} \
-                     windows_terminal_packages={terminal_packages}",
-                    scan.len(),
-                ),
-            );
-            assert!(
-                !scan.is_empty(),
-                "INCONCLUSIVE: the registry scan returned no entries"
-            );
-            assert!(
-                packages >= 1 && terminal_packages >= 1,
-                "INCONCLUSIVE: no packaged Windows Terminal is registered for this user"
-            );
-            defect!(
-                "RR-windows-12",
-                terminal_in_inventory,
-                format!("TF x16 inventory_has_an_entry_naming_terminal={terminal_in_inventory}")
-            );
-        });
-    }
+        let terminal_packages: u32 = powershell_line(
+            "(Get-AppxPackage -Name Microsoft.WindowsTerminal | Measure-Object).Count",
+        )
+        .parse()
+        .unwrap_or(0);
+        let terminal_in_inventory = scan
+            .apps()
+            .iter()
+            .any(|app| app.name.to_ascii_lowercase().contains("terminal"));
+        say(
+            "x16",
+            format!(
+                "inventory_entries={} packaged_apps_registered_for_this_user={packages} \
+                 windows_terminal_packages={terminal_packages}",
+                scan.len(),
+            ),
+        );
+        assert!(
+            !scan.is_empty(),
+            "INCONCLUSIVE: the registry scan returned no entries"
+        );
+        assert!(
+            packages >= 1 && terminal_packages >= 1,
+            "INCONCLUSIVE: no packaged Windows Terminal is registered for this user"
+        );
+        flipped!(
+            "RR-windows-12",
+            terminal_in_inventory,
+            format!("TF x16 inventory_has_an_entry_naming_terminal={terminal_in_inventory}")
+        );
+    });
+}
 
-    #[test]
-    #[ignore = "known defect: reads and writes the Windows registry"]
-    fn c5_three_probe_entries_against_what_windows_lists() {
-        with_deadline("c5-three", Duration::from_secs(90), || {
-            use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
-            use winreg::RegKey;
+#[test]
+#[ignore = "functional: reads and writes the Windows registry"]
+fn c5_three_probe_entries_against_what_windows_lists() {
+    with_deadline("c5-three", Duration::from_secs(90), || {
+        use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
+        use winreg::RegKey;
 
-            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-            let key_existed = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_ok();
-            let id = std::process::id();
-            let probes = [
-                (
-                    "HalvoVerifyProbeListed",
-                    format!("Halvo Verify Listed {id}"),
-                    None,
-                    false,
-                ),
-                (
-                    "HalvoVerifyProbeSystem",
-                    format!("Halvo Verify System {id}"),
-                    None,
-                    true,
-                ),
-                (
-                    "HalvoVerifyProbeChild",
-                    format!("Halvo Verify Child {id}"),
-                    Some("HalvoVerifyProbeListed"),
-                    false,
-                ),
-            ];
-            for (key, name, parent, system) in &probes {
-                let (probe, _) = hkcu
-                    .create_subkey(format!(r"{UNINSTALL}\{key}"))
-                    .expect("create a probe key");
-                probe.set_value("DisplayName", name).expect("probe name");
-                if let Some(parent) = parent {
-                    probe
-                        .set_value("ParentKeyName", &parent.to_string())
-                        .expect("probe parent");
-                }
-                if *system {
-                    probe
-                        .set_value("SystemComponent", &1u32)
-                        .expect("probe system component");
-                }
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let key_existed = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_ok();
+        let id = std::process::id();
+        let probes = [
+            (
+                "HalvoVerifyProbeListed",
+                format!("Halvo Verify Listed {id}"),
+                None,
+                false,
+            ),
+            (
+                "HalvoVerifyProbeSystem",
+                format!("Halvo Verify System {id}"),
+                None,
+                true,
+            ),
+            (
+                "HalvoVerifyProbeChild",
+                format!("Halvo Verify Child {id}"),
+                Some("HalvoVerifyProbeListed"),
+                false,
+            ),
+        ];
+        for (key, name, parent, system) in &probes {
+            let (probe, _) = hkcu
+                .create_subkey(format!(r"{UNINSTALL}\{key}"))
+                .expect("create a probe key");
+            probe.set_value("DisplayName", name).expect("probe name");
+            if let Some(parent) = parent {
+                probe
+                    .set_value("ParentKeyName", &parent.to_string())
+                    .expect("probe parent");
             }
-            let scan = scan_installed();
-            for (key, ..) in &probes {
-                let _ = hkcu.delete_subkey_all(format!(r"{UNINSTALL}\{key}"));
+            if *system {
+                probe
+                    .set_value("SystemComponent", &1u32)
+                    .expect("probe system component");
             }
-            if !key_existed {
-                let _ = hkcu.delete_subkey(UNINSTALL);
-            }
-            let scan = scan.expect("scan with the three probes");
-            let listed = probes
-                .each_ref()
-                .map(|(_, name, ..)| scan.apps().iter().any(|app| &app.name == name));
-            let windows_lists = [true, false, false];
-            say(
-                "c5-three",
-                format!(
-                    "probe_listed={} probe_system_component_listed={} probe_with_parent_listed={}",
-                    listed[0], listed[1], listed[2]
-                ),
-            );
-            assert!(
-                listed[0],
-                "INCONCLUSIVE: the plain probe entry is not in the scan"
-            );
-            defect!(
-                "RR-windows-25",
-                listed == windows_lists,
-                format!(
-                    "TF c5-three scan_lists_what_windows_lists={}",
-                    listed == windows_lists
-                )
-            );
-        });
-    }
+        }
+        let scan = scan_installed();
+        for (key, ..) in &probes {
+            let _ = hkcu.delete_subkey_all(format!(r"{UNINSTALL}\{key}"));
+        }
+        if !key_existed {
+            let _ = hkcu.delete_subkey(UNINSTALL);
+        }
+        let scan = scan.expect("scan with the three probes");
+        let listed = probes
+            .each_ref()
+            .map(|(_, name, ..)| scan.apps().iter().any(|app| &app.name == name));
+        let windows_lists = [true, false, false];
+        say(
+            "c5-three",
+            format!(
+                "probe_listed={} probe_system_component_listed={} probe_with_parent_listed={}",
+                listed[0], listed[1], listed[2]
+            ),
+        );
+        assert!(
+            listed[0],
+            "INCONCLUSIVE: the plain probe entry is not in the scan"
+        );
+        flipped!(
+            "RR-windows-25",
+            listed == windows_lists,
+            format!(
+                "TF c5-three scan_lists_what_windows_lists={}",
+                listed == windows_lists
+            )
+        );
+    });
 }

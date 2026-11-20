@@ -70,6 +70,8 @@ c2_screen_source_delivers_a_frame group=native
 c3_foreground_source_reports_an_activated_window group=native
 c4_window_title_source_reports_a_title_change group=native
 c5_installed_software_returns_registry_entries group=native
+c5_three_probe_entries_against_what_windows_lists group=native
+c5_watch_armed_while_the_per_user_key_is_absent group=native
 c5_watch_precondition_removes_an_empty_per_user_key_and_goes_on group=native
 c8_display_affinity_exclude_from_capture_is_set_and_read_back group=native
 c8b_window_destroyed_after_the_last_capture_session group=native
@@ -82,11 +84,8 @@ known_defect::browser_self_move_after_a_held_main_thread_in_chrome W3-5-A2 group
 known_defect::browser_self_move_after_a_held_main_thread_in_edge W3-5-A2 group=browser
 known_defect::browser_swaps_on_a_held_main_thread_in_chrome W3-7-Q2i group=browser scope=long-only
 known_defect::browser_swaps_on_a_held_main_thread_in_edge W3-7-Q2i group=browser scope=long-only
-known_defect::c5_three_probe_entries_against_what_windows_lists RR-windows-25 group=native
-known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12 group=native
 known_defect::stall_no_focus_key_and_the_program_moves_the_focus_itself W3-5-A2 group=browser scope=long-only
 known_defect::style_masked_input_in_chrome_and_edge W3-20-style-mask group=browser
-known_defect::x16_packaged_apps_and_the_inventory RR-windows-12 group=native
 password_field_fixture_chrome group=browser
 password_field_fixture_edge group=browser
 password_field_fixture_firefox group=browser
@@ -129,6 +128,7 @@ x12_screen_source_fifteen_start_stop_cycles group=native
 x13_frames_on_a_static_screen group=native
 x14_foreground_app_of_a_hosted_app group=native
 x15_a_held_key group=native
+x16_packaged_apps_and_the_inventory group=native
 x1_keystrokes_typed_into_a_password_field group=native
 x2_window_title_events_for_other_windows_and_controls group=native
 x3_attribution_before_the_first_foreground_change group=native
@@ -1479,7 +1479,7 @@ fixtures() {
   real_known=$(expected_tests | awk '/ group=native$/ && $2 !~ /^group=/' | grep -c '')
   expected=real
   check every-test-of-the-real-list-right PASS "$real" \
-    "${nl}WF c1_raw_input_delivers_keystrokes_and_pointer_events result=pass${nl}" "${nl}WF known_defect::c5_watch_armed_while_the_per_user_key_is_absent result=known-defect id=RR-windows-12${nl}" "!${nl}WF browser::" \
+    "${nl}WF c1_raw_input_delivers_keystrokes_and_pointer_events result=pass${nl}" "${nl}WF c5_watch_armed_while_the_per_user_key_is_absent result=pass${nl}" "!${nl}WF browser::" \
     "${nl}shutdown_not_ok source=keyboard count=0${nl}" \
     "${nl}WF form=short counted_rounds_at_each_wait_ms=150:20,200:5${nl}" \
     "${nl}WF left out: 15 of the 20 counted rounds at the wait of 200 ms${nl}" \

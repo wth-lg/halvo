@@ -33,7 +33,7 @@ pub struct RawUninstallEntry {
 /// flagged a system component, or when it names a parent entry, so the inventory
 /// lists user-facing applications only.
 pub fn parse_entry(raw: &RawUninstallEntry) -> Option<InstalledApp> {
-    if raw.is_system_component {
+    if raw.is_system_component || raw.has_parent {
         return None;
     }
     let name = raw.display_name.as_ref()?.trim();
@@ -119,11 +119,10 @@ const UNINSTALL_WOW: &str = "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentV
 /// The keys that the scan reads and the watcher watches: the 32-bit mirror
 /// exists under the machine's hive alone.
 #[cfg(target_os = "windows")]
-const SCAN_TARGETS: [(UninstallRoot, &str); 4] = [
+const SCAN_TARGETS: [(UninstallRoot, &str); 3] = [
     (UninstallRoot::LocalMachine, UNINSTALL),
     (UninstallRoot::LocalMachine, UNINSTALL_WOW),
     (UninstallRoot::CurrentUser, UNINSTALL),
-    (UninstallRoot::CurrentUser, UNINSTALL_WOW),
 ];
 
 #[cfg(target_os = "windows")]
@@ -168,8 +167,7 @@ impl Drop for OpenKey {
 /// fails.
 #[cfg(target_os = "windows")]
 pub fn scan_installed() -> io::Result<InstalledSoftwareSnapshot> {
-    let _ = packaged_apps;
-    let packaged = Vec::new();
+    let packaged = packaged_apps()?;
     scan_targets(&SCAN_TARGETS, packaged)
 }
 
@@ -187,13 +185,12 @@ fn scan_targets(
         let hive = RegKey::predef(root.hkey());
         let uninstall = match OpenKey::open(&hive, path, KEY_READ) {
             Ok(key) => key,
-            Err(_) => continue,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
         };
         opened += 1;
         for name in uninstall.0.enum_keys() {
-            let Ok(name) = name else {
-                continue;
-            };
+            let name = name?;
             if let Ok(sub) = OpenKey::open(&uninstall.0, &name, KEY_READ) {
                 entries.push(read_entry(&sub));
                 drop(sub);
@@ -201,7 +198,12 @@ fn scan_targets(
         }
         drop(uninstall);
     }
-    let _ = opened;
+    if opened == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "no Uninstall key of the inventory could be opened",
+        ));
+    }
     Ok(InstalledSoftwareSnapshot::from_parts(entries, packaged))
 }
 
@@ -332,11 +334,20 @@ impl Watched {
         use winreg::RegKey;
 
         let hive = RegKey::predef(root.hkey());
-        let at_parent = false;
-        let key = match OpenKey::open(&hive, path, KEY_NOTIFY) {
-            Ok(key) => key,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error),
+        let mut at = path;
+        let mut at_parent = false;
+        let key = loop {
+            match OpenKey::open(&hive, at, KEY_NOTIFY) {
+                Ok(key) => break key,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    let Some((parent, _)) = at.rsplit_once('\\') else {
+                        return Ok(None);
+                    };
+                    at = parent;
+                    at_parent = true;
+                }
+                Err(error) => return Err(error),
+            }
         };
         let watched = Watched {
             target,
@@ -452,9 +463,6 @@ impl InstalledSoftwareWatcher {
         };
         use windows_sys::Win32::System::Threading::{WaitForMultipleObjects, INFINITE};
 
-        for index in 0..self.targets.len() {
-            self.arm(index)?;
-        }
         if self.watched.is_empty() {
             return Ok(WatchOutcome::NothingToWatch);
         }
@@ -483,7 +491,9 @@ impl InstalledSoftwareWatcher {
             .filter(|watched| is_set(&watched.event))
             .map(|watched| watched.target)
             .collect();
-        let _ = signalled;
+        for target in signalled {
+            self.arm(target)?;
+        }
         Ok(WatchOutcome::Changed)
     }
 }
