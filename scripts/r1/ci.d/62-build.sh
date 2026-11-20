@@ -684,6 +684,11 @@ SH
   PATH="$standins:$PATH" rules_case reader-extra-stderr FAIL 'unexpected Cargo.toml reader output: profile-ok extra'
   stand_in python3.11 <<'SH'
 if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
+printf 'profile-ok\000'
+SH
+  PATH="$standins:$PATH" rules_case reader-extra-nul FAIL 'unexpected Cargo.toml reader output: profile-ok?'
+  stand_in python3.11 <<'SH'
+if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
 printf 'profile-ok'
 exit 1
 SH
