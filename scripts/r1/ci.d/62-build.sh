@@ -582,8 +582,9 @@ EOF
   rules_repo=$work/rules
   mkdir -p "$rules_repo/crates/member" "$rules_repo/crates/member/.cargo" || exit 2
   git init -q "$rules_repo" || exit 2
+  case $0 in /*) check_script=$0 ;; *) check_script=$PWD/$0 ;; esac
   rules_case() {
-    answer=$(CI_D_REPO="$rules_repo" CI_D_JOB=rules sh "$0" --rules 2>"$work/rules.err")
+    answer=$(cd "${rules_directory:-$rules_repo}" && CI_D_REPO=. CI_D_JOB=rules sh "$check_script" --rules 2>"$work/rules.err")
     code=$?
     case $answer in
       'rules: workspace manifest and Cargo configuration paths only (binary imports require the macOS build)
@@ -607,6 +608,8 @@ EOF
   profile_off='[profile.release]
 debug-assertions = false'
   need_profile='Cargo.toml must set profile.release.debug-assertions to false'
+  printf '%s\n' "$profile_off" >"$root_manifest"
+  rules_case untracked-workspace-manifest FAIL 'the workspace Cargo.toml must be tracked'
   printf '%s\n' '[workspace]' 'members = ["crates/*"]' >"$root_manifest"
   printf '%s\n' "$profile_off" >"$member_manifest"
   git -C "$rules_repo" add -- Cargo.toml crates/member/Cargo.toml || exit 2
@@ -648,6 +651,22 @@ printf "%s\n" "reader notice"'
   stand_in python3.11 'if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
 exit 0'
   PATH="$standins:$PATH" rules_case reader-silent-with-success FAIL 'unexpected Cargo.toml reader output: '
+  for program in python3.11 python3 python; do stand_in "$program" 'exit 1'; done
+  PATH="$standins:$PATH" rules_case no-working-interpreter FAIL "$no_python"
+  stand_in python 'exec "$fixture_python" "$@"'
+  expect_third="manifest reader: python $fixture_version"
+  PATH="$standins:$PATH" expect_reader="$expect_third" rules_case third-interpreter-bad-profile FAIL "$need_profile"
+  printf '%s\n' "$profile_off" >"$root_manifest"
+  PATH="$standins:$PATH" expect_reader="$expect_third" rules_case third-interpreter-good-profile PASS ''
+  mkdir "$rules_repo/below" || exit 2
+  rules_directory="$rules_repo/below" rules_case good-root-from-subdirectory PASS ''
+  printf '%s\n' '[profile.release]' 'debug-assertions = true' >"$root_manifest"
+  rules_directory="$rules_repo/below" rules_case bad-root-from-subdirectory FAIL "$need_profile"
+  read_error='could not read the release profile in Cargo.toml'
+  printf '%s\n' '[profile.release' >"$root_manifest"
+  rules_case malformed-release-toml FAIL "$read_error"
+  printf '%s\n' "$profile_off" '[profile.release.package]' 'foo = "bar"' >"$root_manifest"
+  rules_case malformed-package-table FAIL "$read_error"
   printf '%s\n' '[profile.dev]' 'debug-assertions = false' >"$root_manifest"
   rules_case other-profile-off FAIL "$need_profile"
   printf '%s\n' '[workspace.metadata]' 'example = """' "$profile_off" '"""' >"$root_manifest"
@@ -660,6 +679,18 @@ exit 0'
   rules_case wildcard-assertions-on FAIL 'Cargo.toml enables release debug assertions for package *'
   printf '%s\n' "$profile_off" '[profile.release.package.member]' 'debug-assertions = false' >"$root_manifest"
   rules_case release-assertions-off PASS ''
+  mkdir "$rules_repo/.cargo" || exit 2
+  : >"$rules_repo/.cargo/config"
+  rules_case root-config-in-rules FAIL 'the cargo configuration .cargo/config is no tracked file'
+  mv "$rules_repo/.cargo/config" "$rules_repo/.cargo/config.toml" || exit 2
+  root_config_error='the cargo configuration .cargo/config.toml is no tracked file'
+  rules_case root-config-toml-in-rules FAIL "$root_config_error"
+  printf '%s\n' '.cargo/' >"$rules_repo/.gitignore"
+  git -C "$rules_repo" check-ignore -q -- .cargo/config.toml || exit 2
+  rules_case ignored-root-config-in-rules FAIL "$root_config_error"
+  mv "$rules_repo/.cargo/config.toml" "$rules_repo/crates/member/.cargo/config.toml" || exit 2
+  rules_case nested-config-toml-in-rules FAIL 'the cargo configuration crates/member/.cargo/config.toml is no tracked file'
+  mv "$rules_repo/crates/member/.cargo/config.toml" "$work/used-config" || exit 2
   printf '%s\n' '[profile.release]' 'debug-assertions = true' >"$rules_repo/crates/member/.cargo/config"
   rules_case untracked-configuration-in-rules FAIL 'the cargo configuration crates/member/.cargo/config is no tracked file'
   git -C "$rules_repo" add -f -- crates/member/.cargo/config || exit 2
