@@ -61,6 +61,7 @@ interface Row {
 interface Live {
   processes: Processes;
   groups: Map<Group, string>;
+  ending: Map<Group, Promise<void>>;
   owner: Id | null;
   signals: boolean;
   installed: boolean;
@@ -95,7 +96,7 @@ function live(): Live {
   const shared = globalThis as unknown as Record<symbol, Live | undefined>;
   const found = shared[LIVE];
   if (found !== undefined) return found;
-  const made: Live = { processes: SYSTEM, groups: new Map(), owner: null, signals: false, installed: false, grace: GRACE_MS };
+  const made: Live = { processes: SYSTEM, groups: new Map(), ending: new Map(), owner: null, signals: false, installed: false, grace: GRACE_MS };
   shared[LIVE] = made;
   return made;
 }
@@ -106,7 +107,7 @@ function live(): Live {
  */
 export function useProcesses(processes: Processes | null, graceMs = GRACE_MS): void {
   const shared = globalThis as unknown as Record<symbol, Live | undefined>;
-  shared[LIVE] = { processes: processes ?? SYSTEM, groups: new Map(), owner: null, signals: false, installed: false, grace: graceMs };
+  shared[LIVE] = { processes: processes ?? SYSTEM, groups: new Map(), ending: new Map(), owner: null, signals: false, installed: false, grace: graceMs };
 }
 
 function table(zombies = false): Row[] {
@@ -285,17 +286,27 @@ export function startGroup(command: string, args: string[], options: Options): G
 
 /**
  * Ends the group while its leader has the recorded pid and start time: TERM, and KILL to the members that are left
- * after 5 s (also when the leader itself left on TERM); throws if a member is left 5 s after KILL. A group whose
+ * after 5 s (also when the leader itself left on TERM); throws if a member is left 5 s after KILL. The group stays
+ * known to the owner's handlers until endGroup has ended it, so that a stop or a failed read of ps while endGroup
+ * runs still leaves the group to the handlers; a second endGroup of the same group waits for the first. A group whose
  * leader is gone when it is called gets no signal: endGroup prints one line, keeps its mark for the sweep and does not
  * throw, since nothing tells those processes from another program's group that took the id.
  */
 export async function endGroup(group: Group | null): Promise<void> {
   if (group === null) return;
   const state = live();
+  const running = state.ending.get(group);
+  if (running !== undefined) return running;
+  const ending = endKnown(state, group).finally(() => state.ending.delete(group));
+  state.ending.set(group, ending);
+  return ending;
+}
+
+async function endKnown(state: Live, group: Group): Promise<void> {
   const mark = state.groups.get(group);
-  state.groups.delete(group);
   const rows = table();
   if (!leads(group, rows)) {
+    state.groups.delete(group);
     const count = members(group, rows).length;
     if (count === 0) {
       if (mark !== undefined) unmark(mark);
@@ -310,9 +321,9 @@ export async function endGroup(group: Group | null): Promise<void> {
     await gone(group, state.grace);
   }
   if (members(group).length > 0) {
-    if (mark !== undefined) state.groups.set(group, mark);
     throw new Error(`process group ${group.pid} (started ${group.started}) still has members ${members(group).join(" ")}`);
   }
+  state.groups.delete(group);
   if (mark !== undefined) unmark(mark);
 }
 
