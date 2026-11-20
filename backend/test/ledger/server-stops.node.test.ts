@@ -37,7 +37,7 @@ function made(): string {
 
 function startRun(dir: string, mode: string): Group {
   const log = openSync(join(dir, `${mode}-run.log`), "a");
-  return startGroup(join(ROOT, "node_modules/.bin/vitest"), ["run", "--project", "node", SELF], {
+  return startGroup(join(ROOT, "node_modules/.bin/vitest"), ["run", "--project", "node", "--hookTimeout", "60000", SELF], {
     stdio: ["ignore", log, log],
     env: { ...process.env, HALVO_SERVER_STOP_MODE: mode, HALVO_SERVER_STOP_DIR: dir, HALVO_GROUP_MARKS: join(dir, "marks") },
   });
@@ -139,8 +139,8 @@ function ready(): void {
 
 const hold = () => new Promise<never>(() => {});
 
-const SLEEPER = "setInterval(() => {}, 1 << 30)";
-const STUBBORN = 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1 << 30)';
+const SLEEPER = 'setInterval(() => {}, 1 << 30); console.log("held");';
+const STUBBORN = 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1 << 30); console.log("held");';
 
 function exitOf(run: Group, ms: number): Promise<number | null | "still running"> {
   return Promise.race([new Promise<number | null>((resolve) => run.child.on("exit", (code) => resolve(code))), pause(ms).then(() => "still running" as const)]);
@@ -153,9 +153,21 @@ async function oneGroup(dir: string, mode: string, run: Group): Promise<Id> {
   return groups[0] as Id;
 }
 
-function holdGroup(code: string): Promise<never> {
-  startGroup(process.execPath, ["-e", code], { stdio: ["ignore", "ignore", "ignore"] });
+async function startHeld(code: string): Promise<void> {
+  const group = startGroup(process.execPath, ["-e", code], { stdio: ["ignore", "pipe", "ignore"] });
+  await new Promise<void>((resolve, reject) => {
+    let text = "";
+    group.child.stdout.on("data", (part) => {
+      text += String(part);
+      if (text.includes("held\n")) resolve();
+    });
+    group.child.on("exit", () => reject(new Error("the held node exited before it said that it was held")));
+  });
   ready();
+}
+
+async function holdGroup(code: string): Promise<never> {
+  await startHeld(code);
   return hold();
 }
 
@@ -197,10 +209,7 @@ if (MODE !== undefined) {
   } else if (MODE === "stubborn") {
     test("holds a group of a node that outlives TERM up until the run is stopped", () => holdGroup(STUBBORN), 300_000);
   } else if (MODE === "stubborn-end") {
-    test("starts a group of a node that outlives TERM and ends, so that vitest stops the fork", () => {
-      startGroup(process.execPath, ["-e", STUBBORN], { stdio: ["ignore", "ignore", "ignore"] });
-      ready();
-    });
+    test("starts a group of a node that outlives TERM and ends, so that vitest stops the fork", () => startHeld(STUBBORN), 60_000);
   } else if (MODE === "sweep") {
     test("starts nothing, after the run's set-up", () => {});
   } else throw new Error(`no mode ${MODE}`);
@@ -214,7 +223,7 @@ if (MODE !== undefined) {
         const where = groups.some((id) => groupMembers(id).length > 0) ? "in a group that the run marked" : "in the run's own process group, which no mark names";
         signal(run, "SIGINT");
         expect({ where, left: described(await settle([run, ...groups], STOP_MS)) }).toEqual({ where: "in a group that the run marked", left: [] });
-      }), 120_000);
+      }), 180_000);
   }
 
   test("stop kind INT to vitest's main process alone: a run whose main process alone gets INT leaves no process of the run's group or of the group that it started", () =>
@@ -223,7 +232,7 @@ if (MODE !== undefined) {
       watched.push(group);
       signal(run, "SIGINT");
       expect(described(await settle([run, group], STOP_MS))).toEqual([]);
-    }), 120_000);
+    }), 180_000);
 
   test("stop kind TERM by pid to every process of the run: when each process of the run's group and of the group that it started gets TERM by its pid, and that group's leader outlives TERM, none is left, since the kit sends KILL after its grace", () =>
     withRun("stubborn", async (dir, run, watched) => {
@@ -233,7 +242,7 @@ if (MODE !== undefined) {
       expect(every.filter((id) => id.pid === group.pid)).toHaveLength(1);
       for (const id of every) signal(id, "SIGTERM");
       expect(described(await settle([run, group]))).toEqual([]);
-    }), 120_000);
+    }), 180_000);
 
   test("stop kind the close of the channel by itself: a run whose main process alone gets KILL, so that its fork gets no signal and sees only its channel to vitest close, leaves no process of the run's group or of the group that it started", () =>
     withRun("sleeper", async (dir, run, watched) => {
@@ -241,7 +250,7 @@ if (MODE !== undefined) {
       watched.push(group);
       signal(run, "SIGKILL");
       expect(described(await settle([run, group], STOP_MS))).toEqual([]);
-    }), 120_000);
+    }), 180_000);
 
   test("stop kind vitest's KILL of a fork: when vitest stops a fork whose group outlives TERM, its KILL 500 ms after TERM comes before the kit's, the group keeps its mark, and the next run of the same checkout ends that group by its mark, so that none is left", () =>
     withRun("stubborn-end", async (dir, run, watched, runs) => {
@@ -254,5 +263,5 @@ if (MODE !== undefined) {
       expect(await exitOf(next, 90_000), logOf(dir, "sweep")).toBe(0);
       expect(described(await settle([group]))).toEqual([]);
       expect(logOf(dir, "sweep")).toContain(`process-group: ended group ${group.pid} (started ${group.started}), which a run of this checkout left: 1 process`);
-    }), 180_000);
+    }), 240_000);
 }
