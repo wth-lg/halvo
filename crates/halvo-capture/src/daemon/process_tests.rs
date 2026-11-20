@@ -525,3 +525,49 @@ fn a_service_run_on_a_data_directory_reached_through_a_link_writes_its_state_fil
     assert_eq!((status, err.as_str()), (0, ""));
     assert_eq!(names(&real), vec!["daemon-state.json".to_owned()]);
 }
+
+struct ModeBack(PathBuf);
+
+impl Drop for ModeBack {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o700));
+    }
+}
+
+fn shut_folder(root: &Path, mode: u32) -> (PathBuf, ModeBack) {
+    use std::os::unix::fs::PermissionsExt;
+    let shut = root.join("shut");
+    std::fs::create_dir(&shut).unwrap();
+    let back = ModeBack(shut.clone());
+    std::fs::set_permissions(&shut, std::fs::Permissions::from_mode(mode)).unwrap();
+    (shut, back)
+}
+
+#[test]
+fn a_data_directory_that_cannot_be_made_ends_the_run_with_1_and_the_line_of_its_kind() {
+    let root = kept_dir("service-tests-");
+    let (shut, back) = shut_folder(&root, 0o500);
+    let missing = shut.join("data");
+    let (status, err) = serve_here(&missing);
+    let line = format!(
+        "halvo-capture: the data directory could not be made: {}\n",
+        std::io::ErrorKind::PermissionDenied
+    );
+    assert_eq!((status, err.as_str()), (1, line.as_str()));
+    drop(back);
+    assert!(!missing.exists());
+}
+
+#[test]
+fn a_data_directory_that_cannot_be_opened_ends_the_run_with_1_and_one_line_that_holds_no_path() {
+    let root = kept_dir("service-tests-");
+    let (shut, back) = shut_folder(&root, 0o000);
+    let (status, err) = serve_here(&shut);
+    assert_eq!(status, 1, "{err}");
+    assert_eq!(err.lines().count(), 1, "{err}");
+    assert!(err.starts_with("halvo-capture: "), "{err}");
+    assert!(!err.contains(root.to_str().unwrap()), "{err}");
+    drop(back);
+    assert!(names(&shut).is_empty(), "{:?}", names(&shut));
+}
