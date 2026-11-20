@@ -2529,6 +2529,8 @@ where
     /// `records_dropped` where the board took off a record of the agent in this life. An agent
     /// that has no row, whose workflow a tick saw gone or whose setup body the owner ended, is
     /// `unknown_agent`, as for every control.
+    /// A run that this life's `Runs::reap` answered `alive` and that a record of the store names
+    /// takes its line from that record's end, as its row does (`Board::ended_after_reap`).
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
         let st = self.lock();
         let board = st
@@ -2547,7 +2549,14 @@ where
             .ports
             .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
             .map_err(|e| cause_of(&e))?;
-        let mut card = roster::card(facts, &name, &history, &self.limits)?;
+        let records: Vec<_> = history.iter().map(|h| h.run.clone()).collect();
+        let after = board.ended_after_reap(facts, &records);
+        let mut card = roster::card(
+            after.as_ref().unwrap_or(facts),
+            &name,
+            &history,
+            &self.limits,
+        )?;
         let count = board.dropped(agent).map_or(0, |(n, _, _)| n);
         if let Some(line) = roster::dropped_line(count)? {
             card.lines.insert(0, line);
@@ -2652,8 +2661,9 @@ where
             let held = open
                 .as_ref()
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
+            let after = board.ended_after_reap(facts, &facts.runs);
             let line = match roster::status_of(
-                *facts,
+                after.as_ref().unwrap_or(*facts),
                 &self.limits,
                 held.map(|h| h.confirmation().state()),
                 board.record_stuck(&facts.agent, &self.limits),

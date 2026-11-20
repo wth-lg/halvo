@@ -339,6 +339,45 @@ impl<C> Board<C> {
         self.alive.contains(run)
     }
 
+    /// The agent's facts as its row and its card read them once a run that this life's
+    /// `Runs::reap` answered `alive` has ended in the agent store: a copy in which each
+    /// `run_ended` row with `interrupted` of such a run that a record of `records` names holds
+    /// the end of that record, so that the `interrupted` that recovery stored does not win over
+    /// the store's outcome (I5.8; ruling RD-151). None where no such row stands.
+    pub fn ended_after_reap(
+        &self,
+        facts: &Facts<C>,
+        records: &[crate::types::PastRun],
+    ) -> Option<Facts<C>>
+    where
+        C: Clone,
+    {
+        let end_of = |run: &RunId| {
+            records
+                .iter()
+                .find(|r| &r.run == run && self.alive.contains(run))
+                .map(|r| RunEnd::from(r.outcome))
+        };
+        let stands = |what: &crate::types::What| {
+            matches!(what, crate::types::What::RunEnded { run, cause: RunEnd::Interrupted, .. }
+                if end_of(run).is_some())
+        };
+        if !facts.events.iter().any(|e| stands(&e.what)) {
+            return None;
+        }
+        let mut read = facts.clone();
+        for e in &mut read.events {
+            if let crate::types::What::RunEnded { run, cause, .. } = &mut e.what {
+                if *cause == RunEnd::Interrupted {
+                    if let Some(end) = end_of(run) {
+                        *cause = end;
+                    }
+                }
+            }
+        }
+        Some(read)
+    }
+
     /// Whether the agent's start sends its request to defer only after its `run_started` is
     /// acknowledged: a `run_started` of it was refused with a name other than `seq`, and no store
     /// of it has been acknowledged since (I5.5, ruling RD-64 1.8).
