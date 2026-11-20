@@ -12,7 +12,6 @@ pub mod children;
 pub mod counters;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod discard_port;
-#[cfg(any(target_os = "macos", all(windows, test)))]
 pub mod instance;
 pub mod main_loop;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
@@ -26,7 +25,7 @@ mod owner_props;
 pub mod permissions;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod port;
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(test)]
 mod process_tests;
 #[rustfmt::skip]
 #[cfg(feature = "r2")] mod r2;
@@ -1677,20 +1676,20 @@ impl main_loop::MainLoop for ServiceLoop {
     }
 }
 
-#[cfg(all(target_os = "macos", any(test, debug_assertions)))]
+#[cfg(all(target_os = "macos", debug_assertions))]
 struct NoSources;
 
-#[cfg(all(target_os = "macos", any(test, debug_assertions)))]
+#[cfg(all(target_os = "macos", debug_assertions))]
 impl sources::SourceFactory for NoSources {
     fn make(&mut self, _name: SourceName) -> Option<Box<dyn crate::source::CaptureSource>> {
         None
     }
 }
 
-#[cfg(all(target_os = "macos", any(test, debug_assertions)))]
+#[cfg(all(target_os = "macos", debug_assertions))]
 impl supervisor::SystemSources for NoSources {}
 
-#[cfg(all(target_os = "macos", any(test, debug_assertions)))]
+#[cfg(all(target_os = "macos", debug_assertions))]
 const SERVICE_WAIT: Duration = Duration::from_secs(60);
 
 /// The service run of contracts.md C3.2 up to its wait, on the data directory
@@ -1705,7 +1704,7 @@ const SERVICE_WAIT: Duration = Duration::from_secs(60);
 /// descriptor, whose failure is a line. Then the supervisor holds the state
 /// and waits, paused and with no source, until `stop` reads true; the shutdown
 /// entry, with no owner, gives the status.
-#[cfg(all(target_os = "macos", any(test, debug_assertions)))]
+#[cfg(all(target_os = "macos", debug_assertions))]
 pub(crate) fn serve<L: main_loop::MainLoop>(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
@@ -1762,7 +1761,7 @@ pub(crate) fn serve<L: main_loop::MainLoop>(
     status
 }
 
-#[cfg(all(target_os = "macos", any(test, debug_assertions)))]
+#[cfg(all(target_os = "macos", debug_assertions))]
 fn take_the_data_dir(
     dir: &halvo_control::paths::DataDir,
     err: &mut dyn std::io::Write,
@@ -1806,7 +1805,7 @@ fn take_the_data_dir(
     })
 }
 
-#[cfg(all(target_os = "macos", any(test, debug_assertions)))]
+#[cfg(all(target_os = "macos", debug_assertions))]
 fn obstructed_line(fault: halvo_control::paths::DataDirFault) -> String {
     use halvo_control::paths::{DataDirFault, EntryAtDataDir};
     let cause = match fault {
@@ -1827,7 +1826,7 @@ fn obstructed_line(fault: halvo_control::paths::DataDirFault) -> String {
     format!("halvo-capture: data_dir=obstructed cause={cause}")
 }
 
-#[cfg(all(target_os = "macos", any(test, debug_assertions)))]
+#[cfg(all(target_os = "macos", debug_assertions))]
 fn state_line(health: state::StateHealth) -> Option<String> {
     use state::StateHealth;
     match health {

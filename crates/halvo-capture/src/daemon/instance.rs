@@ -2,12 +2,11 @@
 //! On macOS it is halvo-control's flock on the directory's own descriptor,
 //! held for the life of the process and unlocked on drop, so no file in the
 //! directory can be unlinked to free it. On Windows it is the lock file
-//! daemon.lock, opened without delete sharing; that form is built in test
-//! builds until win-5.
+//! daemon.lock, opened without delete sharing; win-5's service run takes it.
 
 #[cfg(target_os = "macos")]
 pub use macos::{InstanceLock, BACKUP_EXCLUSION_ATTRIBUTE};
-#[cfg(all(windows, test))]
+#[cfg(windows)]
 pub use windows::InstanceLock;
 
 #[cfg(target_os = "macos")]
@@ -97,7 +96,7 @@ mod macos {
     }
 }
 
-#[cfg(all(windows, test))]
+#[cfg(windows)]
 mod windows {
     use std::io;
     use std::os::windows::fs::OpenOptionsExt;
@@ -111,7 +110,9 @@ mod windows {
     /// The lock file DIR/daemon.lock, open with no write and no delete
     /// sharing while the value lives.
     #[derive(Debug)]
-    pub struct InstanceLock(#[allow(dead_code)] std::fs::File);
+    pub struct InstanceLock {
+        _held: std::fs::File,
+    }
 
     impl InstanceLock {
         /// Opens DIR/daemon.lock with read sharing alone, tried again every
@@ -128,7 +129,7 @@ mod windows {
                     .share_mode(FILE_SHARE_READ)
                     .open(dir.instance_lock_file())
                 {
-                    Ok(file) => return Ok(Some(InstanceLock(file))),
+                    Ok(file) => return Ok(Some(InstanceLock { _held: file })),
                     Err(error) if error.raw_os_error() == Some(ERROR_SHARING_VIOLATION) => {}
                     Err(error) => return Err(error),
                 }
@@ -142,272 +143,278 @@ mod windows {
     }
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(test)]
 pub(crate) mod tests {
-    use std::io::{BufRead, BufReader, Read, Write};
-    use std::os::unix::ffi::OsStrExt;
-    use std::path::{Path, PathBuf};
-    use std::process::{Child, Command, Stdio};
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
-    use std::time::{Duration, Instant};
+    #[cfg(target_os = "macos")]
+    pub(crate) use on_macos::{backup_mark, kept_dir};
 
-    use halvo_control::instance_lock::{self, LockRead};
-    use halvo_control::paths::DataDir;
+    #[cfg(target_os = "macos")]
+    mod on_macos {
+        use std::io::{BufRead, BufReader, Read, Write};
+        use std::os::unix::ffi::OsStrExt;
+        use std::path::{Path, PathBuf};
+        use std::process::{Child, Command, Stdio};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        use std::time::{Duration, Instant};
 
-    use super::*;
+        use halvo_control::instance_lock::{self, LockRead};
+        use halvo_control::paths::DataDir;
 
-    const HOLD: &str = "HALVO_DAEMON_INSTANCE_HOLD";
-    const HOLDER: &str = "daemon::instance::tests::hold_for_parent";
+        use super::super::*;
 
-    pub(crate) fn kept_dir(prefix: &str) -> PathBuf {
-        let target = std::env::current_exe()
-            .unwrap()
-            .ancestors()
-            .nth(3)
-            .unwrap()
-            .join("tmp");
-        std::fs::create_dir_all(&target).unwrap();
-        tempfile::Builder::new()
-            .prefix(prefix)
-            .tempdir_in(target)
-            .unwrap()
-            .keep()
-    }
+        const HOLD: &str = "HALVO_DAEMON_INSTANCE_HOLD";
+        const HOLDER: &str = "daemon::instance::tests::on_macos::hold_for_parent";
 
-    fn data_dir(path: &Path) -> DataDir {
-        DataDir::from_flag(path.to_str().unwrap()).unwrap()
-    }
-
-    fn flock_file(path: &Path) -> Option<std::fs::File> {
-        let file = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(path)
-            .unwrap();
-        let held = unsafe {
-            libc::flock(
-                std::os::unix::io::AsRawFd::as_raw_fd(&file),
-                libc::LOCK_EX | libc::LOCK_NB,
-            )
-        };
-        (held == 0).then_some(file)
-    }
-
-    #[test]
-    fn hold_for_parent() {
-        let Some(dir) = std::env::var_os(HOLD) else {
-            return;
-        };
-        let dir = PathBuf::from(dir);
-        let lock = InstanceLock::take(&data_dir(&dir)).unwrap().unwrap();
-        let file = flock_file(&dir.join("daemon.lock")).unwrap();
-        let mut out = std::io::stdout().lock();
-        writeln!(out, "instance-holder: held").unwrap();
-        out.flush().unwrap();
-        let mut rest = Vec::new();
-        let _ = std::io::stdin().read_to_end(&mut rest);
-        drop((lock, file));
-    }
-
-    struct Holder {
-        child: Child,
-        out: std::io::Lines<BufReader<std::process::ChildStdout>>,
-    }
-
-    fn holder(dir: &Path) -> Holder {
-        let mut child = Command::new(std::env::current_exe().unwrap())
-            .args(["--exact", HOLDER, "--nocapture", "--test-threads=1"])
-            .env(HOLD, dir)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()
-            .unwrap();
-        let mut out = BufReader::new(child.stdout.take().unwrap()).lines();
-        let started = Instant::now();
-        loop {
-            let line = out.next().expect("the holder ended early").unwrap();
-            if line.contains("instance-holder: held") {
-                break;
-            }
-            assert!(started.elapsed() < Duration::from_secs(60));
+        pub(crate) fn kept_dir(prefix: &str) -> PathBuf {
+            let target = std::env::current_exe()
+                .unwrap()
+                .ancestors()
+                .nth(3)
+                .unwrap()
+                .join("tmp");
+            std::fs::create_dir_all(&target).unwrap();
+            tempfile::Builder::new()
+                .prefix(prefix)
+                .tempdir_in(target)
+                .unwrap()
+                .keep()
         }
-        Holder { child, out }
-    }
 
-    fn release(mut holder: Holder) {
-        drop(holder.child.stdin.take());
-        for line in holder.out.by_ref() {
-            line.unwrap();
+        fn data_dir(path: &Path) -> DataDir {
+            DataDir::from_flag(path.to_str().unwrap()).unwrap()
         }
-        assert!(holder.child.wait().unwrap().success(), "the holder failed");
-    }
 
-    #[test]
-    fn a_second_holder_is_refused_while_files_in_the_directory_are_unlinked() {
-        let dir = kept_dir("instance-tests-");
-        let child = holder(&dir);
-        let lock_file = dir.join("daemon.lock");
-        std::fs::remove_file(&lock_file).unwrap();
-        let by_a_lock_file = flock_file(&lock_file);
-        assert!(
-            by_a_lock_file.is_some(),
-            "a lock file freed by its unlink was not taken again"
-        );
-        drop(by_a_lock_file);
-        let named = data_dir(&dir);
-        for _ in 0..50 {
-            std::fs::write(&lock_file, b"").unwrap();
-            std::fs::remove_file(&lock_file).unwrap();
-            assert!(
-                instance_lock::InstanceLock::try_take(&named)
-                    .unwrap()
-                    .is_none(),
-                "a second holder took the directory's lock"
-            );
+        fn flock_file(path: &Path) -> Option<std::fs::File> {
+            let file = std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(path)
+                .unwrap();
+            let held = unsafe {
+                libc::flock(
+                    std::os::unix::io::AsRawFd::as_raw_fd(&file),
+                    libc::LOCK_EX | libc::LOCK_NB,
+                )
+            };
+            (held == 0).then_some(file)
         }
-        assert!(InstanceLock::take(&named).unwrap().is_none());
-        assert_eq!(instance_lock::read(&named).unwrap(), LockRead::Held);
-        release(child);
-        assert!(InstanceLock::take(&named).unwrap().is_some());
-    }
 
-    #[test]
-    fn a_loop_of_lock_reads_never_makes_a_take_answer_held() {
-        let dir = kept_dir("instance-tests-");
-        let named = data_dir(&dir);
-        let done = Arc::new(AtomicBool::new(false));
-        let reads = {
-            let done = done.clone();
-            let named = named.clone();
-            std::thread::spawn(move || {
-                let mut count = 0u64;
-                while !done.load(Ordering::SeqCst) {
-                    let _ = instance_lock::read(&named).unwrap();
-                    count += 1;
+        #[test]
+        fn hold_for_parent() {
+            let Some(dir) = std::env::var_os(HOLD) else {
+                return;
+            };
+            let dir = PathBuf::from(dir);
+            let lock = InstanceLock::take(&data_dir(&dir)).unwrap().unwrap();
+            let file = flock_file(&dir.join("daemon.lock")).unwrap();
+            let mut out = std::io::stdout().lock();
+            writeln!(out, "instance-holder: held").unwrap();
+            out.flush().unwrap();
+            let mut rest = Vec::new();
+            let _ = std::io::stdin().read_to_end(&mut rest);
+            drop((lock, file));
+        }
+
+        struct Holder {
+            child: Child,
+            out: std::io::Lines<BufReader<std::process::ChildStdout>>,
+        }
+
+        fn holder(dir: &Path) -> Holder {
+            let mut child = Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", HOLDER, "--nocapture", "--test-threads=1"])
+                .env(HOLD, dir)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .unwrap();
+            let mut out = BufReader::new(child.stdout.take().unwrap()).lines();
+            let started = Instant::now();
+            loop {
+                let line = out.next().expect("the holder ended early").unwrap();
+                if line.contains("instance-holder: held") {
+                    break;
                 }
-                count
-            })
-        };
-        for round in 0..300 {
+                assert!(started.elapsed() < Duration::from_secs(60));
+            }
+            Holder { child, out }
+        }
+
+        fn release(mut holder: Holder) {
+            drop(holder.child.stdin.take());
+            for line in holder.out.by_ref() {
+                line.unwrap();
+            }
+            assert!(holder.child.wait().unwrap().success(), "the holder failed");
+        }
+
+        #[test]
+        fn a_second_holder_is_refused_while_files_in_the_directory_are_unlinked() {
+            let dir = kept_dir("instance-tests-");
+            let child = holder(&dir);
+            let lock_file = dir.join("daemon.lock");
+            std::fs::remove_file(&lock_file).unwrap();
+            let by_a_lock_file = flock_file(&lock_file);
             assert!(
-                InstanceLock::take(&named).unwrap().is_some(),
-                "take {round} answered held while only reads ran"
+                by_a_lock_file.is_some(),
+                "a lock file freed by its unlink was not taken again"
+            );
+            drop(by_a_lock_file);
+            let named = data_dir(&dir);
+            for _ in 0..50 {
+                std::fs::write(&lock_file, b"").unwrap();
+                std::fs::remove_file(&lock_file).unwrap();
+                assert!(
+                    instance_lock::InstanceLock::try_take(&named)
+                        .unwrap()
+                        .is_none(),
+                    "a second holder took the directory's lock"
+                );
+            }
+            assert!(InstanceLock::take(&named).unwrap().is_none());
+            assert_eq!(instance_lock::read(&named).unwrap(), LockRead::Held);
+            release(child);
+            assert!(InstanceLock::take(&named).unwrap().is_some());
+        }
+
+        #[test]
+        fn a_loop_of_lock_reads_never_makes_a_take_answer_held() {
+            let dir = kept_dir("instance-tests-");
+            let named = data_dir(&dir);
+            let done = Arc::new(AtomicBool::new(false));
+            let reads = {
+                let done = done.clone();
+                let named = named.clone();
+                std::thread::spawn(move || {
+                    let mut count = 0u64;
+                    while !done.load(Ordering::SeqCst) {
+                        let _ = instance_lock::read(&named).unwrap();
+                        count += 1;
+                    }
+                    count
+                })
+            };
+            for round in 0..300 {
+                assert!(
+                    InstanceLock::take(&named).unwrap().is_some(),
+                    "take {round} answered held while only reads ran"
+                );
+            }
+            done.store(true, Ordering::SeqCst);
+            assert!(reads.join().unwrap() > 0);
+        }
+
+        #[test]
+        fn the_lock_descriptor_is_closed_on_exec() {
+            let dir = kept_dir("instance-tests-");
+            let lock = InstanceLock::take(&data_dir(&dir)).unwrap().unwrap();
+            let flags = unsafe { libc::fcntl(lock.raw_fd(), libc::F_GETFD) };
+            assert!(flags >= 0);
+            assert_ne!(flags & libc::FD_CLOEXEC, 0);
+        }
+
+        #[test]
+        fn the_check_reads_the_lock_descriptor_and_not_the_name() {
+            let root = kept_dir("instance-tests-");
+            let dir = root.join("data");
+            std::fs::create_dir(&dir).unwrap();
+            let named = data_dir(&dir);
+            let lock = InstanceLock::take(&named).unwrap().unwrap();
+            std::fs::rename(&dir, root.join("moved")).unwrap();
+            assert!(
+                matches!(
+                    lock.check(&named),
+                    Ok(halvo_control::paths::DataDirCheck::Own { .. })
+                ),
+                "{:?}",
+                lock.check(&named)
+            );
+            assert_eq!(
+                halvo_control::paths::check_data_dir(&named, None),
+                Ok(halvo_control::paths::DataDirCheck::Missing)
+            );
+            assert_eq!(
+                lock.folder().unwrap(),
+                root.join("moved").canonicalize().unwrap()
             );
         }
-        done.store(true, Ordering::SeqCst);
-        assert!(reads.join().unwrap() > 0);
-    }
 
-    #[test]
-    fn the_lock_descriptor_is_closed_on_exec() {
-        let dir = kept_dir("instance-tests-");
-        let lock = InstanceLock::take(&data_dir(&dir)).unwrap().unwrap();
-        let flags = unsafe { libc::fcntl(lock.raw_fd(), libc::F_GETFD) };
-        assert!(flags >= 0);
-        assert_ne!(flags & libc::FD_CLOEXEC, 0);
-    }
-
-    #[test]
-    fn the_check_reads_the_lock_descriptor_and_not_the_name() {
-        let root = kept_dir("instance-tests-");
-        let dir = root.join("data");
-        std::fs::create_dir(&dir).unwrap();
-        let named = data_dir(&dir);
-        let lock = InstanceLock::take(&named).unwrap().unwrap();
-        std::fs::rename(&dir, root.join("moved")).unwrap();
-        assert!(
-            matches!(
-                lock.check(&named),
-                Ok(halvo_control::paths::DataDirCheck::Own { .. })
-            ),
-            "{:?}",
-            lock.check(&named)
-        );
-        assert_eq!(
-            halvo_control::paths::check_data_dir(&named, None),
-            Ok(halvo_control::paths::DataDirCheck::Missing)
-        );
-        assert_eq!(
-            lock.folder().unwrap(),
-            root.join("moved").canonicalize().unwrap()
-        );
-    }
-
-    pub(crate) fn backup_mark(path: &Path, follow: bool) -> Option<Vec<u8>> {
-        let name = std::ffi::CString::new(BACKUP_EXCLUSION_ATTRIBUTE).unwrap();
-        let path = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
-        let options = if follow { 0 } else { libc::XATTR_NOFOLLOW };
-        let mut value = vec![0u8; 256];
-        let read = unsafe {
-            libc::getxattr(
-                path.as_ptr(),
-                name.as_ptr(),
-                value.as_mut_ptr().cast(),
-                value.len(),
-                0,
-                options,
-            )
-        };
-        if read < 0 {
-            return None;
+        pub(crate) fn backup_mark(path: &Path, follow: bool) -> Option<Vec<u8>> {
+            let name = std::ffi::CString::new(BACKUP_EXCLUSION_ATTRIBUTE).unwrap();
+            let path = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+            let options = if follow { 0 } else { libc::XATTR_NOFOLLOW };
+            let mut value = vec![0u8; 256];
+            let read = unsafe {
+                libc::getxattr(
+                    path.as_ptr(),
+                    name.as_ptr(),
+                    value.as_mut_ptr().cast(),
+                    value.len(),
+                    0,
+                    options,
+                )
+            };
+            if read < 0 {
+                return None;
+            }
+            value.truncate(read as usize);
+            Some(value)
         }
-        value.truncate(read as usize);
-        Some(value)
-    }
 
-    #[test]
-    fn the_backup_mark_lands_on_the_folder_that_the_lock_holds() {
-        let root = kept_dir("instance-tests-");
-        let own = root.join("own");
-        std::fs::create_dir(&own).unwrap();
-        let target = root.join("target");
-        std::fs::create_dir(&target).unwrap();
-        let link = root.join("link");
-        std::os::unix::fs::symlink(&target, &link).unwrap();
-        for dir in [&own, &link] {
-            let lock = InstanceLock::take(&data_dir(dir)).unwrap().unwrap();
-            lock.exclude_from_backup().unwrap();
+        #[test]
+        fn the_backup_mark_lands_on_the_folder_that_the_lock_holds() {
+            let root = kept_dir("instance-tests-");
+            let own = root.join("own");
+            std::fs::create_dir(&own).unwrap();
+            let target = root.join("target");
+            std::fs::create_dir(&target).unwrap();
+            let link = root.join("link");
+            std::os::unix::fs::symlink(&target, &link).unwrap();
+            for dir in [&own, &link] {
+                let lock = InstanceLock::take(&data_dir(dir)).unwrap().unwrap();
+                lock.exclude_from_backup().unwrap();
+            }
+            let tmutil = b"bplist00_\x10\x11com.apple.backupd";
+            let own_mark = backup_mark(&own, false).unwrap();
+            assert!(own_mark.starts_with(tmutil));
+            assert_eq!(backup_mark(&target, false), Some(own_mark));
+            assert_eq!(backup_mark(&link, false), None);
+            let held = InstanceLock::take(&data_dir(&link)).unwrap().unwrap();
+            assert_eq!(
+                held.folder().unwrap(),
+                target.canonicalize().unwrap(),
+                "the folder was not read on the descriptor"
+            );
         }
-        let tmutil = b"bplist00_\x10\x11com.apple.backupd";
-        let own_mark = backup_mark(&own, false).unwrap();
-        assert!(own_mark.starts_with(tmutil));
-        assert_eq!(backup_mark(&target, false), Some(own_mark));
-        assert_eq!(backup_mark(&link, false), None);
-        let held = InstanceLock::take(&data_dir(&link)).unwrap().unwrap();
-        assert_eq!(
-            held.folder().unwrap(),
-            target.canonicalize().unwrap(),
-            "the folder was not read on the descriptor"
-        );
     }
-}
 
-#[cfg(all(test, windows))]
-mod tests {
-    use std::time::{Duration, Instant};
+    #[cfg(windows)]
+    mod on_windows {
+        use std::time::{Duration, Instant};
 
-    use halvo_control::paths::DataDir;
+        use halvo_control::paths::DataDir;
 
-    use super::*;
+        use super::super::*;
 
-    #[test]
-    fn a_second_holder_is_refused_while_the_lock_file_is_held() {
-        let dir = tempfile::tempdir().unwrap();
-        let named = DataDir::from_flag(dir.path().to_str().unwrap()).unwrap();
-        let held = InstanceLock::take(&named).unwrap().unwrap();
-        let started = Instant::now();
-        assert!(InstanceLock::take(&named).unwrap().is_none());
-        assert!(started.elapsed() >= Duration::from_millis(900));
-        assert!(std::fs::remove_file(named.instance_lock_file()).is_err());
-        assert!(std::fs::OpenOptions::new()
-            .write(true)
-            .open(named.instance_lock_file())
-            .is_err());
-        drop(held);
-        assert!(InstanceLock::take(&named).unwrap().is_some());
+        #[test]
+        fn a_second_holder_is_refused_while_the_lock_file_is_held() {
+            let dir = tempfile::tempdir().unwrap();
+            let named = DataDir::from_flag(dir.path().to_str().unwrap()).unwrap();
+            let held = InstanceLock::take(&named).unwrap().unwrap();
+            let started = Instant::now();
+            assert!(InstanceLock::take(&named).unwrap().is_none());
+            assert!(started.elapsed() >= Duration::from_millis(900));
+            assert!(std::fs::remove_file(named.instance_lock_file()).is_err());
+            assert!(std::fs::OpenOptions::new()
+                .write(true)
+                .open(named.instance_lock_file())
+                .is_err());
+            drop(held);
+            assert!(InstanceLock::take(&named).unwrap().is_some());
+        }
     }
 }

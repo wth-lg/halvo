@@ -110,10 +110,10 @@ pub enum StateHealth {
 /// Why a change of the state was not taken. The text names the file.
 #[derive(Debug, thiserror::Error)]
 pub enum StateError {
-    #[error("the state file {} does not load ({health:?}), so it is left as it is", .path.display())]
-    LeftAsItIs { path: PathBuf, health: StateHealth },
-    #[error("the state file {} was not written: {kind}", .path.display())]
-    NotWritten { path: PathBuf, kind: io::ErrorKind },
+    #[error("the state file {} does not load ({health:?}), so it is left as it is", .file.display())]
+    LeftAsItIs { file: PathBuf, health: StateHealth },
+    #[error("the state file {} was not written: {kind}", .file.display())]
+    NotWritten { file: PathBuf, kind: io::ErrorKind },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,7 +190,7 @@ impl StateFile {
     pub fn update(&mut self, change: impl FnOnce(&mut DaemonState)) -> Result<(), StateError> {
         if self.loaded != Loaded::Readable {
             return Err(StateError::LeftAsItIs {
-                path: self.dir.join(STATE_FILE),
+                file: self.dir.join(STATE_FILE),
                 health: self.health(),
             });
         }
@@ -205,7 +205,7 @@ impl StateFile {
             Err(error) => {
                 self.last_write = Some(error.kind());
                 Err(StateError::NotWritten {
-                    path: self.dir.join(STATE_FILE),
+                    file: self.dir.join(STATE_FILE),
                     kind: error.kind(),
                 })
             }

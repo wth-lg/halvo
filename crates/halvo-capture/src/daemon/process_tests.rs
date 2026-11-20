@@ -1,3 +1,5 @@
+#![cfg(all(target_os = "macos", debug_assertions))]
+
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
