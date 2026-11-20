@@ -119,24 +119,30 @@ pub trait Core: Send + Sync {
     /// RD-8): the first step of the coordinator's quit, then a wait in which no move of the
     /// coordinator is held open, until no run is live, at most until `cancel_grace_s` after the
     /// stop of each live run, counted from its stop for a run that was stopped before the quit,
-    /// and at most `budget`, the time that the system gives the quit at a logout or a shutdown;
-    /// then the second step. The grace counts from the stop that the first step reads on the
-    /// clock once it holds the coordinator's lock, and for a run stopped before the quit from
-    /// its own stop, so that the wait for the lock is no part of it and the first step's own
-    /// work after that read is; the budget counts from the hook's start. The hook waits in real time for a span that it computes once; a
-    /// second call during the wait returns at the same end. The second step runs on a thread of
-    /// its own, and the hook waits for it at most `cancel_grace_s` after it called it, so that
-    /// a kill that holds or never returns does not hold Quit (ruling RD-147 (5)(i)): the hook
-    /// returns at the latest `cancel_grace_s` after the end of its wait. It returns the runs
-    /// that the quit has not ended, each with its agent, in the order of their starts
-    /// (`Coordinator::not_stopped`): a run whose kill was refused, and, while a kill has not
-    /// returned, every run that was live before the second step. A kill that has not returned
-    /// goes on in its thread until the app's process ends, and closing the link ends the runner
-    /// with the processes of its mark within the agent-setup run's `LINK_END` of 20 s; neither
-    /// the second step nor a kill starts that clock. A panic of a port in the first step
-    /// unwinds through the hook with runs alive, and a panic in the second step ends that
-    /// step's thread, after which the hook returns at once; the next life's reap is then the
-    /// kill (RD-34 (e)).
+    /// never longer than `cancel_grace_s` whatever the clock reads (RD-28 (e)), and at most
+    /// `budget`, the time that the system gives the quit at a logout or a shutdown; then the
+    /// second step. The grace counts from the stop that the first step reads on the clock once
+    /// it holds the coordinator's lock, and for a run stopped before the quit from its own stop;
+    /// the budget counts from the hook's start. Each step runs on a thread of its own and the
+    /// hook waits for it at most `cancel_grace_s` after it called it, and the wait reads the
+    /// list of `Coordinator::not_stopped`, which takes no lock that a port call holds. So the
+    /// hook stands behind the coordinator's lock nowhere, and a kill that holds or never
+    /// returns, of a tick or of either step, does not hold Quit (ruling RD-147 (5)(i)): the hook
+    /// returns at the latest `cancel_grace_s` after its call when its first step has not
+    /// returned by then, and otherwise at the latest `cancel_grace_s` after the end of its wait,
+    /// which ends at the latest `cancel_grace_s` after the first step returned. It returns the
+    /// live runs, each with its agent, in the order of their starts, as the last move that
+    /// returned left them (`Coordinator::not_stopped`): a run whose kill was refused, every run
+    /// that was live before a move whose kill has not returned, and, where the first step could
+    /// not take the lock in time, every run that was live when the move that holds the lock
+    /// began. A second call, during the wait or after a kill that holds, takes its own steps
+    /// under the same bounds, returns at its own end and does not hold the first call. A step
+    /// that has not returned goes on in its thread until the app's process ends, and closing the
+    /// link ends the runner with the processes of its mark within the agent-setup run's
+    /// `LINK_END` of 20 s; neither a step nor a kill starts that clock. A port's panic in a step
+    /// ends that step's thread, and the hook then returns at once; where no thread can be
+    /// started for a step, the hook takes that step no further and returns. The next life's
+    /// reap is then the kill (RD-34 (e)).
     fn quit(&self, budget: Option<Duration>) -> Vec<(AgentId, RunId)>;
 
     /// The native dialog's report that the item is on screen (I4.2).
@@ -211,7 +217,7 @@ pub(crate) fn stand_in() -> Snapshot {
 /// The coordinator of the app over its ports `P`, the bell of its page and tray, and the waits
 /// of the waiting call.
 pub struct Hub<P: Owner> {
-    coord: Coordinator<Wired<P>>,
+    coord: Arc<Coordinator<Wired<P>>>,
     bell: Arc<Bell>,
     waits: Waits,
     replied: Mutex<Option<Instant>>,
@@ -255,7 +261,7 @@ where
     ) -> Arc<Hub<P>> {
         let bell = Arc::new(Bell::new(tray));
         Arc::new_cyclic(|me| Hub {
-            coord: Coordinator::new(Wired::new(ports, bell.clone()), limits),
+            coord: Arc::new(Coordinator::new(Wired::new(ports, bell.clone()), limits)),
             bell,
             waits,
             replied: Mutex::new(None),
@@ -271,6 +277,17 @@ where
     /// ticked through `Core::tick` answers the stand-in for good.
     pub fn coordinator(&self) -> &Coordinator<Wired<P>> {
         &self.coord
+    }
+
+    fn step<T: Send + 'static>(&self, step: fn(&Coordinator<Wired<P>>) -> T) -> Option<T> {
+        let (done, answer) = mpsc::channel();
+        let coord = Arc::clone(&self.coord);
+        std::thread::Builder::new()
+            .spawn(move || {
+                let _ = done.send(step(&coord));
+            })
+            .ok()?;
+        answer.recv_timeout(self.grace).ok()
     }
 
     fn run(&self, command: &str, args: &Args<'_>) -> Option<Reply> {
@@ -448,33 +465,23 @@ where
 
     fn quit(&self, budget: Option<Duration>) -> Vec<(AgentId, RunId)> {
         let start = Instant::now();
-        let wait = self.coord.quit_stop();
+        let Some(wait) = self.step(Coordinator::quit_stop) else {
+            return self.coord.not_stopped();
+        };
         let stopped = Instant::now();
         let grace = self.coord.ports().now().map_or(self.grace, |now| {
-            Duration::from_millis(wait.until.saturating_sub(now))
+            Duration::from_millis(wait.until.saturating_sub(now)).min(self.grace)
         });
         let end = budget.map_or(stopped + grace, |b| (start + b).min(stopped + grace));
         let mut seen = self.bell.mark();
-        while self.coord.live() > 0 {
+        while !self.coord.not_stopped().is_empty() {
             let now = Instant::now();
             if now >= end {
                 break;
             }
             seen = self.bell.wait(seen, end.min(now + LOOK));
         }
-        let (done, second) = mpsc::channel();
-        let spawned = self.me.upgrade().map(|hub| {
-            std::thread::Builder::new().spawn(move || {
-                hub.coord.quit_kill();
-                let _ = done.send(());
-            })
-        });
-        match spawned {
-            Some(Ok(_)) => {
-                let _ = second.recv_timeout(self.grace);
-            }
-            _ => self.coord.quit_kill(),
-        }
+        let _ = self.step(Coordinator::quit_kill);
         self.coord.not_stopped()
     }
 
