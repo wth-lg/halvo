@@ -1134,6 +1134,10 @@ mod tests {
         let args = guard_args(&guard, &proc(9, 7), &proc(5, 50), p, p, p).unwrap();
         assert_eq!(args[3], "5");
         assert_eq!(args[4], "50");
+        assert_eq!(
+            guard_args(&guard, &proc(9, 0), &proc(5, 50), p, p, p),
+            Err("first_row")
+        );
     }
 
     #[test]

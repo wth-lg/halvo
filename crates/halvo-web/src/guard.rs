@@ -1500,6 +1500,9 @@ mod tests {
             (got.pid, got.started_us, got.epid, got.estart),
             (9, 7, 5, 50)
         );
+        let mut untimed_first = full("50");
+        untimed_first[1] = "0".to_string();
+        assert_eq!(parse_args(&untimed_first), None);
     }
 
     /// CP-185 (9), first case: a child of the browser's first process whose program lies outside

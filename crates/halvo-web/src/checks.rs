@@ -1123,6 +1123,22 @@ mod tests {
         assert_eq!(profile_forms(&v(&["h"]), "/p", false), ("absent", "absent"));
         assert_eq!(
             profile_forms(
+                &v(&["h", "--", "--database=/p/Crashpad", "--user-data-dir=/p"]),
+                "/p",
+                false
+            ),
+            ("absent", "absent")
+        );
+        assert_eq!(
+            profile_forms(
+                &v(&[r"h.exe --single-argument x --database=C:\p\Crashpad"]),
+                "C:/p",
+                true
+            ),
+            ("absent", "absent")
+        );
+        assert_eq!(
+            profile_forms(
                 &v(&[r#""C:\B.exe" --database="C:\P\Crashpad" --user-data-dir=C:\Q"#]),
                 "C:/p",
                 true
@@ -1172,6 +1188,143 @@ mod tests {
             r"C:\a b\p"
         ));
         assert!(!win(r"chrome.exe C:\a\p\Downloads\x.pdf", r"C:\a\p"));
+        let mut wrong = Vec::new();
+        for row in terminator_table() {
+            let read = bears_profile_on(&row.args, row.profile, row.windows);
+            let system = if row.windows { "windows" } else { "macos" };
+            println!("u26b mark case={} system={system} bears={read}", row.name);
+            if read != row.bears {
+                wrong.push((row.name, "bears_profile_on", read));
+            }
+            if row.windows == cfg!(windows) && bears_profile(&row.args, row.profile) != row.bears {
+                wrong.push((row.name, "bears_profile", !row.bears));
+            }
+        }
+        assert!(wrong.is_empty(), "rows read otherwise: {wrong:?}");
+    }
+
+    struct Line {
+        name: &'static str,
+        windows: bool,
+        args: Vec<String>,
+        profile: &'static str,
+        bears: bool,
+    }
+
+    fn terminator_table() -> Vec<Line> {
+        let mac = |name, args: &[&str], bears| Line {
+            name,
+            windows: false,
+            args: strings(args),
+            profile: "/t/run/p",
+            bears,
+        };
+        let win = |name, line: &str, bears| Line {
+            name,
+            windows: true,
+            args: strings(&[line]),
+            profile: r"C:\T\run\p",
+            bears,
+        };
+        let b = "/B.app/Contents/MacOS/b";
+        vec![
+            mac("mac_plain", &[b, "--user-data-dir=/t/run/p"], true),
+            mac(
+                "mac_after_double_dash",
+                &[b, "--", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            mac(
+                "mac_database_after_double_dash",
+                &[b, "--", "--database=/t/run/p/Crashpad"],
+                false,
+            ),
+            mac(
+                "mac_after_double_dash_with_spaces",
+                &[b, " -- ", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            mac(
+                "mac_before_double_dash",
+                &[b, "--user-data-dir=/t/run/p", "--", "x"],
+                true,
+            ),
+            mac(
+                "mac_after_three_dashes",
+                &[b, "---", "--user-data-dir=/t/run/p"],
+                true,
+            ),
+            mac(
+                "mac_after_double_dash_and_a_word",
+                &[b, "-- x", "--user-data-dir=/t/run/p"],
+                true,
+            ),
+            mac(
+                "mac_after_single_argument",
+                &[b, "--single-argument", "--user-data-dir=/t/run/p"],
+                true,
+            ),
+            mac(
+                "mac_inside_one_argument",
+                &[b, "--app=x --user-data-dir=/t/run/p"],
+                false,
+            ),
+            win(
+                "win_plain",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p"#,
+                true,
+            ),
+            win(
+                "win_after_single_argument",
+                r#""C:\P F\b.exe" --single-argument https://example.test/ --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_after_double_dash",
+                r#""C:\P F\b.exe" -- --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_database_after_single_argument",
+                r#""C:\P F\crashpad_handler.exe" --single-argument x --database=C:\T\run\p\Crashpad"#,
+                false,
+            ),
+            win(
+                "win_after_quoted_double_dash",
+                r#""C:\P F\b.exe" "--" --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_single_argument_inside_quotes",
+                r#""C:\P F\b.exe" "--app=x --single-argument" --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_single_argument_in_capitals",
+                r#""C:\P F\b.exe" --SINGLE-ARGUMENT --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_before_single_argument",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p --single-argument https://example.test/"#,
+                true,
+            ),
+            win(
+                "win_before_double_dash",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p -- x"#,
+                true,
+            ),
+            win(
+                "win_after_double_dash_and_a_word",
+                r#""C:\P F\b.exe" "-- x" --user-data-dir=C:\T\run\p"#,
+                true,
+            ),
+            win(
+                "win_inside_quotes",
+                r#""C:\P F\b.exe" "--app=x --user-data-dir=C:\T\run\p""#,
+                false,
+            ),
+        ]
     }
 
     /// CP-189 G1: the Windows command line is split by the system's rule.
@@ -1261,7 +1414,19 @@ mod tests {
             r#"b.exe a\ "x y""#,
             r#""""#,
             "b.exe",
+            "b.exe\n\" --user-data-dir=C:\\P",
+            "b.exe\r x",
+            "b.exe\u{b} x",
+            "b.exe\u{c} x",
+            "b.exe\u{1} x",
+            "b.exe\u{1f} x",
+            "b.exe\u{7f} x",
+            "b.exe\u{a0} x",
+            "\nb.exe x",
+            "b.exe a\nb c",
+            "b.exe a\u{b}b c",
         ];
+        let mut differ = Vec::new();
         for line in lines {
             let wide: Vec<u16> = line.encode_utf16().chain([0]).collect();
             let mut n = 0i32;
@@ -1285,8 +1450,12 @@ mod tests {
             }
             // SAFETY: `argv` was given by CommandLineToArgvW, is freed once and not used after.
             unsafe { LocalFree(argv.cast()) };
-            assert_eq!(split_command_line(line), system, "{line}");
+            let ours = split_command_line(line);
+            if ours != system {
+                differ.push((line, ours, system));
+            }
         }
+        assert!(differ.is_empty(), "lines split otherwise: {differ:?}");
     }
 
     /// U2.6 (12), failing first, from the web trial's hosted run 43741794346 (windows): `tree_of`
@@ -1305,6 +1474,11 @@ mod tests {
         );
         assert_eq!(win(r"b.exe --user-data-dir= --x"), None);
         assert_eq!(win(r#"b.exe "x --user-data-dir=C:\t\p""#), None);
+        assert_eq!(win(r"b.exe -- --user-data-dir=C:\t\p"), None);
+        assert_eq!(
+            win(r"b.exe --single-argument x --user-data-dir=C:\t\p"),
+            None
+        );
         let mac = |args: &[&str]| profile_of_on(&strings(args), false);
         assert_eq!(mac(&["b", "--user-data-dir=/t/p"]).as_deref(), Some("/t/p"));
         assert_eq!(
@@ -1312,6 +1486,11 @@ mod tests {
             Some("/t/p")
         );
         assert_eq!(mac(&["b --user-data-dir=/t/p"]), None);
+        assert_eq!(mac(&["b", "--", "--user-data-dir=/t/p"]), None);
+        assert_eq!(
+            mac(&["b", "--user-data-dir=/t/p", "--", "x"]).as_deref(),
+            Some("/t/p")
+        );
     }
 
     /// U2.6 (12), failing first on Windows: with the one command line that Windows gives for each
@@ -2278,6 +2457,10 @@ mod tests {
             &|_| Some(args.clone()),
             &|_| !gone.get(),
             &|p| {
+                println!(
+                    "recorder would_end pid={} started_us={}",
+                    p.pid, p.started_us
+                );
                 killed.borrow_mut().push(p.pid);
                 gone.set(true);
                 true
@@ -2289,8 +2472,9 @@ mod tests {
     /// CP-189 G1: a process bears the run's mark by its profile only through `--user-data-dir=`
     /// with the profile, or `--database=` with the profile's Crashpad directory, each as the whole
     /// value. The end of a run's own processes hands none of these to its kill: the profile with a
-    /// word after it, a profile that ends with the run's (`/q/p` for `/p`), and a file below the
-    /// profile with no profile argument.
+    /// word after it, a profile that ends with the run's (`/q/p` for `/p`), a file below the
+    /// profile with no profile argument, and, by the table of U2.6b, a profile after a switch
+    /// terminator; it hands the table's rows that bear the mark to its recorder.
     #[test]
     fn g1_a_process_that_names_the_profile_otherwise_is_not_the_run_s() {
         // On Windows the system gives a process's command line as one argument, with the quotes
@@ -2322,6 +2506,18 @@ mod tests {
         // after it is another profile.
         let line = vec![r#"chrome.exe "--user-data-dir=C:\a b\p 2" --type=gpu"#.to_string()];
         assert_eq!(g1_kills(r"C:\a b\p", line), Vec::<u32>::new());
+        let mut wrong = Vec::new();
+        for row in terminator_table()
+            .into_iter()
+            .filter(|r| r.windows == cfg!(windows))
+        {
+            let ended = g1_kills(row.profile, row.args);
+            println!("u26b end case={} ended={ended:?}", row.name);
+            if ended != if row.bears { vec![40] } else { Vec::new() } {
+                wrong.push((row.name, ended));
+            }
+        }
+        assert!(wrong.is_empty(), "rows ended otherwise: {wrong:?}");
     }
 
     /// CP-189 G1, the control of the Windows line: the run's own process, whose command line is
