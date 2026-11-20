@@ -330,11 +330,16 @@ before its TERM takes longer than those 500 ms; a group whose owner gets KILL, u
 of the same checkout, and for good if none follows; one unmarked group when a KILL comes between
 the spawn and the first write of its mark; a group whose leader is gone while other processes
 keep its id, which the sweep and `endGroup` leave with a line (a group whose leader died before a
-test calls `endGroup` is left to the sweep); and a group marked under a test's own
+test calls `endGroup` is left to the sweep; a group whose leader left on the TERM of an `endGroup`
+that is still waiting gets KILL from the kit's handlers for its members after the grace); and a
+group marked under a test's own
 `HALVO_GROUP_MARKS` directory, which no sweep reads. The kit signals a group only after it has
 read the pid and start time of the group's leader, with one exception: when `startGroup` cannot
 read ps after a start fails, it sends KILL to the group of the child that it has just spawned and
 still holds, before node can reap that child, so that no other process can have its pid.
+`endGroup` and the kit's handlers remove a mark only while it reads as the text that the kit wrote
+for the group; where a mark of another text stands at the group's path, `endGroup` sends no
+signal, forgets the group and prints one line.
 The sweep ends a group only by a mark of this checkout whose leader started at or after the mark's
 owner; a mark that a person writes by hand in the checkout's own marks directory, naming a leader
 that started after a dead owner, is trusted. Nothing empties `backend/.tmp/`: each run of the node
