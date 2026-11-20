@@ -159,3 +159,30 @@ fn a_pass_whose_shred_commits_and_whose_checkpoint_then_fails_answers_its_error_
         "the next open answered Ok with the wrapped key in {places:?}"
     );
 }
+
+#[test]
+fn a_pass_with_nothing_due_whose_checkpoint_fails_keeps_nothing_so_a_later_write_and_pass_answer_ok(
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    code_seams::force_at(code_seams::CHECKPOINT_QUERY, Some(IO_ERROR));
+    let pass = store.crypto_shred_expired();
+    code_seams::force_at(code_seams::CHECKPOINT_QUERY, None);
+    let id = random_segment_id().unwrap();
+    let write_after = write(&mut store, &id, noon_today());
+    let pass_after = store.crypto_shred_expired();
+    println!("S10 pass={pass:?} write_after={write_after:?} pass_after={pass_after:?}");
+    assert!(
+        matches!(&pass, Err(e) if the_checkpoint_failed(e)),
+        "the seam did not reach the empty pass's checkpoint: the pass answered {pass:?}"
+    );
+    assert!(
+        write_after.is_ok(),
+        "a write after an empty pass whose checkpoint failed answered {write_after:?}"
+    );
+    assert!(
+        pass_after.is_ok(),
+        "a pass after an empty pass whose checkpoint failed answered {pass_after:?}"
+    );
+}

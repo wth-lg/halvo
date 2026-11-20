@@ -2614,8 +2614,9 @@ impl EncryptedStore {
     /// when the reconcile's shred, as the handle's first commit, finds its log
     /// gone from its name (nothing then reports that shred, and `store.db`
     /// and every entry of the directory keep their names, lengths and bytes,
-    /// so the next open shreds the row whole), the checkpoint's own error
-    /// (`Db`, `Io` or `CheckpointIncomplete`) when the reconcile's shred
+    /// so the next open shreds the row whole), the checkpoint's own error when
+    /// it is `Db`, `Io` or `CheckpointIncomplete`, and `Corrupt` for any other
+    /// error of the checkpoint, when the reconcile's shred
     /// committed and its checkpoint then failed (nothing then reports that
     /// shred, the close does not checkpoint, and the next open's drain brings
     /// the shred into `store.db` before it answers), and [`StoreError::Custody`] with the
