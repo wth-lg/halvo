@@ -796,7 +796,13 @@ launch() {
     fi
     if [ -n "$rules_knob" ]; then
       PATH=$work/rules-bin:$PATH
-      sh "$0" --rules >"$work/out-$1" 2>&1
+      if [ -n "$rules_cwd_knob" ]; then
+        unset CI_D_REPO
+        cd "$work/repo/$rules_cwd_knob" || exit 2
+      fi
+      sh "${rules_script_knob:-$self_script}" --rules >"$work/out-$1" 2>&1
+    elif [ -n "$args_knob" ]; then
+      sh "$self_script" "$args_knob" >"$work/out-$1" 2>&1
     else
       sh "$0" >"$work/out-$1" 2>&1
     fi
@@ -870,6 +876,9 @@ reset_knobs() {
   STUB_LIB_EXE=one
   STUB_LIB_FAIL=
   rules_knob=
+  rules_cwd_knob=
+  rules_script_knob=
+  args_knob=
 }
 
 write_stubs() {
@@ -1278,6 +1287,7 @@ EOF
 }
 
 self_test() {
+  self_script=$(cd "$(dirname "$0")" && pwd)/${0##*/}
   test_file=$(cd "$(dirname "$0")/../../.." && pwd)/crates/halvo-capture/tests/windows_functional.rs
   prints_rule_file=$(cd "$(dirname "$0")/.." && pwd)/windows-prints-rule.sh
   test_file_shutdown_line=$(sed -n 's/^const SHUTDOWN_LINE: &str = "\(.*\)";$/\1/p' "$test_file")
@@ -1555,6 +1565,21 @@ fixtures() {
   check rules-form-refuses-a-ledger-of-another-tree FAIL "$right" \
     "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's (0000000000000000000000000000000000000000 against " \
     "!the --rules form called"
+  ledger_knob=$right_ledger
+  rules_knob=yes
+  rules_cwd_knob=crates/halvo-capture
+  check rules-form-finds-the-repository-from-a-directory-below-its-root PASS "$right" \
+    "ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
+    "${nl}rules: the ledger check alone ran" "!the --rules form called"
+  ledger_knob=$right_ledger
+  rules_knob=yes
+  rules_script_knob=$(dirname "$self_script")/52-windows-browser.sh
+  check rules-form-runs-through-52-for-the-browser-group exit-0 "$right" \
+    "ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
+    "${nl}rules: the ledger check alone ran" "${nl}PASS 52-windows-browser" "!the --rules form called"
+  args_knob=--no-such-form
+  check an-unknown-argument-prints-the-usage-and-exits-64 exit-64 "$right" \
+    "usage: sh " "--rules runs the ledger check alone" "!PASS " "!FAIL "
   ledger_knob=$work/ledger-source-changed
   check a-changed-source-rs-is-refused FAIL "$right" "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's"
   ledger_knob=$work/ledger-macos-changed
