@@ -124,4 +124,23 @@ describe("check 55's model with a foreign event at the meter in an interval's mi
       scripted.closesAnAcknowledgedRead = false;
     }
   });
+
+  test("a foreign event that reaches the meter after the close cannot make the close lawful: the scripted close of the test above, then a foreign event put in the same interval's minute", async () => {
+    const kept = behindAForeignEvent({ kind: "response-lost" }, false);
+    const after: Scenario = {
+      ...kept,
+      commands: [...kept.commands.filter((command) => command.kind !== "foreign-event"), { kind: "foreign-event", account: 0, amountMinor: 5 }, { kind: "advance", seconds: HOUR }],
+    };
+    scripted.closesAnAcknowledgedRead = true;
+    try {
+      const report = await runScenario(after, { downtimeBudgetSeconds: RULE_DOWNTIME_BUDGET, onFailedCheck: "list" });
+      const checks = report.findings.map((finding) => finding.check);
+      expect({ disagrees: checks.includes("the record disagrees with the provider"), facts: [report.facts["foreign-events"], report.facts["not-billable-unexplained-total"]] }).toEqual({
+        disagrees: true,
+        facts: [1, 0],
+      });
+    } finally {
+      scripted.closesAnAcknowledgedRead = false;
+    }
+  });
 });
