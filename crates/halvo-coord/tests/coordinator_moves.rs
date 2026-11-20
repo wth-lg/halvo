@@ -8296,6 +8296,145 @@ fn u24r_the_card_shows_the_boards_dropped_count_first_and_nothing_without_one() 
     assert!(dropped_lines(&c, 1).is_empty(), "an agent with none");
 }
 
+/// The words key of `working.kill_stuck` on the system that runs the test.
+const HOST_KILL_STUCK: &str = if cfg!(windows) {
+    "line.working.kill_stuck_windows"
+} else {
+    "line.working.kill_stuck_mac"
+};
+
+fn row_of(c: &Coordinator<Both>, n: usize) -> halvo_coord::types::Row {
+    c.snapshot()
+        .rows
+        .into_iter()
+        .find(|r| r.agent == agent(n))
+        .unwrap()
+}
+
+fn row_controls(row: &halvo_coord::types::Row) -> Vec<halvo_coord::types::Control> {
+    row.controls.iter().map(|c| c.control).collect()
+}
+
+#[test]
+fn u24r_b1_the_card_shows_the_boards_count_of_two_dropped_records() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("too_large"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    c.ports().ports.set_clock(T0 + 3 * 86_400_000, DAY + 3);
+    c.tick();
+    assert_eq!(c.records_dropped(&agent(0)).map(|(n, _, _)| n), Some(1));
+    c.ports().ports.clear_refusals();
+    c.ports()
+        .ports
+        .refuse_record(is_run_end, refused_name("too_large"));
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports()
+        .ports
+        .set_clock(T0 + 3 * 86_400_000 + 1_000, DAY + 3);
+    c.tick();
+    c.ports().ports.set_clock(T0 + 99 * 86_400_000, DAY + 99);
+    c.tick();
+    assert_eq!(
+        c.records_dropped(&agent(0)).map(|(n, _, _)| n),
+        Some(2),
+        "a raise and an end taken off"
+    );
+    let card = c.card(&agent(0)).unwrap();
+    assert_eq!(
+        card.lines[0].key,
+        halvo_coord::types::LineKey::RecordsDropped
+    );
+    assert_eq!(
+        card.lines[0].text,
+        words::text("card.records_dropped", &[("count", "2")]).unwrap()
+    );
+}
+
+#[test]
+fn u24r_b2_one_agents_stuck_record_leaves_the_other_agents_row_as_it_was() {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let before = row_of(&c, 1);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("store"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    for k in 1..=3u64 {
+        c.ports().ports.set_clock(T0 + k * 1_000, DAY);
+        c.tick();
+    }
+    assert!(c.record_stuck(&agent(0)));
+    assert!(!c.record_stuck(&agent(1)));
+    assert_eq!(row_of(&c, 0).line, text("line.problem.record"));
+    let after = row_of(&c, 1);
+    assert_ne!(
+        after.line,
+        text("line.problem.record"),
+        "a healthy agent's row does not take another agent's stuck line"
+    );
+    assert_eq!(after.line, before.line);
+    assert_eq!(row_controls(&after), row_controls(&before));
+}
+
+#[test]
+fn u24r_b3_an_agent_set_aside_at_recovery_shows_the_record_line_with_delete_alone() {
+    let o = owner(&[MANUAL, MANUAL], Limits::PRODUCT);
+    o.ports
+        .refuse_agent(Method::History, &agent(0), refused_name("store"));
+    let c = Coordinator::new(o, Limits::PRODUCT);
+    c.tick();
+    assert!(c.record_stuck(&agent(0)), "recovery set agent 0 aside");
+    let row = row_of(&c, 0);
+    assert_eq!(row.line, text("line.problem.record"));
+    assert_eq!(
+        row_controls(&row),
+        [halvo_coord::types::Control::Delete],
+        "the delete alone"
+    );
+    assert!(!c.record_stuck(&agent(1)));
+    assert_ne!(row_of(&c, 1).line, text("line.problem.record"));
+}
+
+#[test]
+fn u24r_b4_a_gone_workflows_live_run_keeps_its_gone_row_while_its_record_is_stuck() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("store"));
+    let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+    for k in 1..=3u64 {
+        c.ports().ports.set_clock(T0 + k * 1_000, DAY);
+        c.tick();
+    }
+    assert!(c.record_stuck(&agent(0)));
+    c.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &support::flow(0));
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert_eq!(c.live(), 1, "the run lives on after its workflow went");
+    assert!(c.record_stuck(&agent(0)), "the record is still stuck");
+    let row = row_of(&c, 0);
+    assert_eq!(row.line, text("line.working.stopping"));
+    assert!(row.controls.is_empty(), "{:?}", row.controls);
+    c.ports().ports.refuse(Method::Kill, PortError::Busy);
+    c.ports()
+        .ports
+        .set_clock(T0 + 4_000 + Limits::PRODUCT.cancel_grace_s * 1000, DAY);
+    c.tick();
+    assert_eq!(c.live(), 1, "the kill did not end the run");
+    assert!(c.record_stuck(&agent(0)));
+    let row = row_of(&c, 0);
+    assert_eq!(row.line, text(HOST_KILL_STUCK));
+    assert!(row.controls.is_empty(), "{:?}", row.controls);
+}
+
 #[test]
 fn rd122_the_board_counts_a_record_that_the_items_list_took_off_by_its_event_and_refusal() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);

@@ -389,3 +389,91 @@ fn u24r_kill_stuck_has_a_line_per_system_and_the_gone_row_takes_the_line_of_its_
         }
     );
 }
+
+#[test]
+fn u24r_b5_a_stuck_record_gives_the_record_line_before_every_bucket_of_i1_3() {
+    use halvo_coord::roster::status_of;
+    let limits = Limits::PRODUCT;
+    let mut buckets: Vec<(&str, Facts<Config>, StatusLine)> = Vec::new();
+    let mut f = utility();
+    f.doing = Doing::Idle(Some(OwnItem {
+        item: item(7),
+        kind: OwnItemKind::Ready,
+    }));
+    buckets.push(("needs_you", f, StatusLine::NeedsYou(ItemKind::Ready)));
+    buckets.push((
+        "hold not_yet",
+        facts(State::Ten).remove(1),
+        StatusLine::NotYet,
+    ));
+    let mut f = utility();
+    push(
+        &mut f,
+        TODAY,
+        What::HoldSet {
+            cause: HoldSetCause::Person,
+        },
+    );
+    buckets.push(("hold off", f, StatusLine::Off));
+    let mut f = utility();
+    push(
+        &mut f,
+        TODAY,
+        What::HoldSet {
+            cause: HoldSetCause::Failures,
+        },
+    );
+    buckets.push(("hold failures", f, StatusLine::Failures));
+    for (name, live, want) in [
+        ("live starting", Live::Starting, StatusLine::Starting),
+        ("live working", Live::Working, StatusLine::Working),
+        (
+            "live waiting",
+            Live::Waiting(RunItem {
+                item: item(8),
+                kind: RunItemKind::Confirm,
+            }),
+            StatusLine::NeedsYou(ItemKind::Confirm),
+        ),
+        ("live stopping", Live::Stopping, StatusLine::Stopping),
+    ] {
+        let mut f = utility();
+        f.store_ended = false;
+        f.doing = Doing::Live(live);
+        buckets.push((name, f, want));
+    }
+    let mut f = utility();
+    f.doing = Doing::Queued(None);
+    buckets.push(("queued", f, StatusLine::Queued));
+    let mut f = utility();
+    f.store_ended = false;
+    buckets.push(("store not ended", f, StatusLine::Store));
+    let mut f = utility();
+    ended(&mut f, 1, TODAY, RunEnd::from(Failure::ALL[0]));
+    buckets.push(("failure", f, StatusLine::Problem(Failure::ALL[0])));
+    let mut f = utility();
+    for n in 0..limits.starts_per_day {
+        ended(&mut f, n as u8, TODAY, RunEnd::Completed);
+    }
+    buckets.push(("tried_today", f, StatusLine::TriedToday));
+    let idle = utility();
+    let idle_line = status_of(&idle, &limits, None, false);
+    buckets.push(("idle", idle, idle_line));
+    for (name, f, want) in &buckets {
+        assert_eq!(
+            status_of(f, &limits, None, false),
+            *want,
+            "{name}: the bucket's own line"
+        );
+    }
+    let wrong: Vec<&str> = buckets
+        .iter()
+        .filter(|(_, f, _)| status_of(f, &limits, None, true) != StatusLine::Record)
+        .map(|(name, _, _)| *name)
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "buckets whose stuck record does not give the record line: {wrong:?}"
+    );
+    assert_eq!(buckets.len(), 13);
+}
