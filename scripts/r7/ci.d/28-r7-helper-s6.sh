@@ -23,6 +23,7 @@ import plistlib
 import re
 import ssl
 import statistics
+import struct
 import subprocess
 import sys
 import time
@@ -166,6 +167,73 @@ def undo():
     return all(answers), remains
 
 
+CTL_KERN, KERN_PROC, KERN_PROC_PID = 1, 14, 1
+KINFO_PID_AT, KINFO_STAT_AT, SZOMB = 40, 36, 5
+QUERY_AND_WAIT, ERROR_INVALID_PARAMETER, WAIT_OBJECT_0, WAIT_TIMEOUT = 0x101000, 87, 0, 0x102
+
+
+def process_start(pid):
+    if sys.platform == "darwin":
+        libc = ctypes.CDLL(None, use_errno=True)
+        mib = (ctypes.c_int * 4)(CTL_KERN, KERN_PROC, KERN_PROC_PID, pid)
+        info = ctypes.create_string_buffer(1024)
+        size = ctypes.c_size_t(len(info))
+        if libc.sysctl(mib, 4, info, ctypes.byref(size), None, 0) != 0:
+            raise RuntimeError("stub-process-read")
+        if size.value == 0:
+            return None
+        if size.value <= KINFO_PID_AT + 4 or struct.unpack_from("=i", info.raw, KINFO_PID_AT)[0] != pid:
+            raise RuntimeError("stub-process-read")
+        if info.raw[KINFO_STAT_AT] == SZOMB:
+            return None
+        seconds, micros = struct.unpack_from("=qi", info.raw, 0)
+        return f"{seconds}.{micros:06d}"
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+    kernel.OpenProcess.restype = ctypes.c_void_p
+    kernel.GetProcessTimes.argtypes = [ctypes.c_void_p] + [ctypes.POINTER(ctypes.c_uint64)] * 4
+    kernel.GetProcessTimes.restype = ctypes.c_int
+    kernel.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    kernel.WaitForSingleObject.restype = ctypes.c_uint32
+    kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+    handle = kernel.OpenProcess(QUERY_AND_WAIT, 0, pid)
+    if not handle:
+        if ctypes.get_last_error() == ERROR_INVALID_PARAMETER:
+            return None
+        raise RuntimeError("stub-process-read")
+    try:
+        times = [ctypes.c_uint64() for _ in range(4)]
+        if not kernel.GetProcessTimes(handle, *(ctypes.byref(value) for value in times)):
+            raise RuntimeError("stub-process-read")
+        state = kernel.WaitForSingleObject(handle, 0)
+        if state == WAIT_OBJECT_0:
+            return None
+        if state != WAIT_TIMEOUT:
+            raise RuntimeError("stub-process-read")
+        return str(times[0].value)
+    finally:
+        kernel.CloseHandle(handle)
+
+
+def stub_record(pid, born, status):
+    try:
+        gone = born is not None and process_start(pid) != born
+    except RuntimeError:
+        gone = False
+    return json.dumps({"exit": status, "gone": gone, "pid": pid, "start": born}, sort_keys=True)
+
+
+def key_record():
+    try:
+        record = json.loads(KEY_EXIT.read_text("ascii")) if KEY_EXIT.is_file() else None
+    except (OSError, ValueError):
+        record = None
+    if (not isinstance(record, dict) or type(record.get("exit")) is not int
+            or type(record.get("gone")) is not bool):
+        return "unknown", False
+    return str(record["exit"]), record["gone"]
+
+
 STUB = """
 import { startStub } from './account/stub/src/stub.mjs';
 const [record, tlsCa] = process.argv.slice(1);
@@ -187,7 +255,10 @@ def stub(record, tls):
         args.append(str(CA))
     proc = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL)
+    born = None
     try:
+        if tls:
+            born = process_start(proc.pid)
         ready = json.loads(proc.stdout.readline())
         for key, scheme in [("app", "https" if tls else "http"), ("control", "http")]:
             url = urlsplit(ready[key])
@@ -200,7 +271,7 @@ def stub(record, tls):
         finally:
             status = proc.wait()
             if tls:
-                KEY_EXIT.write_text(str(status), encoding="ascii")
+                KEY_EXIT.write_text(stub_record(proc.pid, born, status), encoding="ascii")
         if status != 0:
             raise RuntimeError("stub-stop")
 
@@ -407,6 +478,7 @@ def self_test():
     with patch("__main__.hosted", return_value=True), patch("subprocess.Popen") as start, \
          patch("__main__.KEY_EXIT") as witness:
         proc = start.return_value
+        proc.pid = os.getpid()
         proc.stdout.readline.return_value = b'{"app":"https://127.0.0.1:1","control":"http://127.0.0.1:2"}'
         def waited():
             witness.write_text.assert_not_called()
@@ -417,17 +489,24 @@ def self_test():
         proc.wait.assert_called_once_with()
         if witness.write_text.call_args is None:
             raise RuntimeError("key-wait-fixture")
-        witness.write_text.assert_called_once_with("0", encoding="ascii")
+        witness.write_text.assert_called_once_with(witness.write_text.call_args.args[0], encoding="ascii")
+        if json.loads(witness.write_text.call_args.args[0])["exit"] != 0:
+            raise RuntimeError("key-wait-fixture")
+    gone = json.dumps({"exit": 0, "gone": True, "pid": 7, "start": "1.000000"})
+    running = json.dumps({"exit": 0, "gone": False, "pid": 7, "start": "1.000000"})
     for evidence, initial, reasons, cleanup, code, expected in [
         (None, 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
         ("invalid", 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
-        ("0", 0, "", (True, False), 0, "MET"),
-        ("0", 0, "", (True, True), 0, "MET trust-left=true, key-gone=true, hosted"),
-        ("0", 0, "", (False, True), 0, "MET trust-left=true, key-gone=true, hosted"),
-        ("0", 1, "tls/status", (False, True), 1, "MISSED tls/status trust-left=true, key-gone=true, hosted"),
-        ("0", 0, "", (False, False), 0, "MET trust-left=false, key-gone=true, hosted"),
+        (gone, 0, "", (True, False), 0, "MET"),
+        (gone, 0, "", (True, True), 0, "MET trust-left=true, key-gone=true, hosted"),
+        (gone, 0, "", (False, True), 0, "MET trust-left=true, key-gone=true, hosted"),
+        (gone, 1, "tls/status", (False, True), 1, "MISSED tls/status trust-left=true, key-gone=true, hosted"),
+        (gone, 0, "", (False, False), 0, "MET trust-left=false, key-gone=true, hosted"),
         (None, 0, "", (False, True), 1, "MISSED setup-or-cleanup"),
         ("invalid", 0, "", (False, True), 1, "MISSED setup-or-cleanup"),
+        ("0", 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
+        (running, 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
+        (running, 0, "", (False, True), 1, "MISSED setup-or-cleanup"),
     ]:
         captured = io.StringIO()
         with patch("__main__.hosted", return_value=True), patch("__main__.KEY_EXIT") as witness, \
@@ -445,7 +524,9 @@ def self_test():
         if (any(line.startswith("S6 TLS stub-exit=") and line.endswith(" key-gone=false") for line in lines)
                 and any("key-gone=true" in line for line in lines)):
             raise RuntimeError("key-verdict-fixture")
-        if evidence == "0" and "S6 TLS stub-exit=0 key-gone=true" not in captured.getvalue().splitlines():
+        if evidence == gone and "S6 TLS stub-exit=0 key-gone=true" not in lines:
+            raise RuntimeError("key-exit-line-fixture")
+        if evidence == running and "S6 TLS stub-exit=0 key-gone=false" not in lines:
             raise RuntimeError("key-exit-line-fixture")
         refused += int(code != 0)
     with patch("__main__.hosted", return_value=False), patch("__main__.KEY_EXIT") as witness, \
@@ -459,7 +540,7 @@ def self_test():
     with patch("__main__.hosted", return_value=True), patch("__main__.KEY_EXIT") as witness, \
          patch("__main__.REASONS") as faults, patch("__main__.undo", side_effect=RuntimeError("authority-identity")), \
          redirect_stdout(captured):
-        witness.read_text.return_value = "0"
+        witness.read_text.return_value = gone
         faults.exists.return_value = False
         if finish(0) != 1 or "S6 real-helper: MISSED setup-or-cleanup" not in captured.getvalue().splitlines():
             raise RuntimeError("cleanup-identity-fixture")
@@ -577,6 +658,12 @@ def self_test():
             or "S6 real-helper: MISSED setup-or-cleanup" not in lines):
         raise RuntimeError("key-alive-fixture")
     refused += 1
+    own = process_start(os.getpid())
+    if (own is None or process_start(os.getpid()) != own
+            or json.loads(stub_record(os.getpid(), own, 0))["gone"] is not False
+            or json.loads(stub_record(os.getpid(), own + "1", 0))["gone"] is not True
+            or json.loads(stub_record(os.getpid(), None, 0))["gone"] is not False):
+        raise RuntimeError("process-read-fixture")
     print(f"PASS self-test:{NAME} ({refused} failing fixtures rejected)")
 
 
@@ -585,13 +672,7 @@ def finish(code):
     limit = ""
     on_runner = hosted(os.environ, sys.platform)
     if on_runner:
-        status = "unknown"
-        try:
-            if KEY_EXIT.is_file():
-                status = str(int(KEY_EXIT.read_text("ascii")))
-        except (OSError, ValueError):
-            pass
-        key_gone = status != "unknown"
+        status, key_gone = key_record()
         print(f"S6 TLS stub-exit={status} key-gone={str(key_gone).lower()}", flush=True)
         cleanup_failed = not key_gone
         try:
