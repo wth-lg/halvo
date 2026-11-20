@@ -1380,4 +1380,17 @@ fn u24q_an_unknown_entry_shows_only_the_fields_that_the_reader_took_whole_whatev
     );
     assert!(e.fields().is_empty());
     assert!(!serde_json::to_string(&c).unwrap().contains(&long()));
+    let mut twice = unknown(Class::Payment, payment().kept);
+    twice.kept.insert(1, one_kept("payee", "Zq7 payee"));
+    twice.kept.swap(2, 3);
+    let c = beside_a_good_run(twice);
+    let e = &c.runs[0].effects[1];
+    assert_eq!(e.key(), "run.effect.payment.unknown");
+    assert_eq!(
+        shown(e),
+        paid_fields()[1..],
+        "neither payee of two, the rest in the table's order"
+    );
+    assert!(!serde_json::to_string(e).unwrap().contains("City Power"));
+    assert!(!serde_json::to_string(&c).unwrap().contains("Zq7"));
 }
