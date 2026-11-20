@@ -623,10 +623,14 @@ debug-assertions = false'
   }
   fixture_python=
   for program in python3.11 python3 python; do
-    if fixture_version=$("$program" -I -c 'import sys, tomllib; assert tomllib.loads("flag = false")["flag"] is False; sys.stdout.write(".".join(map(str, sys.version_info[:3])))' </dev/null 2>/dev/null); then
-      fixture_python=$(command -v "$program") || exit 2
-      break
-    fi
+    fixture_probe=$("$program" -I -c '
+import sys, tomllib
+assert sys.version_info >= (3, 11)
+value = tomllib.loads("value = 6")["value"] ** 2
+sys.stdout.write("%d:%d.%d.%d" % (value, *sys.version_info[:3]))' </dev/null 2>/dev/null) || continue
+    fixture_version=$(expr "$fixture_probe" : '36:\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$') || continue
+    fixture_python=$(command -v "$program") || exit 2
+    break
   done
   [ -n "$fixture_python" ] || exit 2
   export fixture_python
