@@ -94,20 +94,27 @@ pub fn bears_profile(args: &[String], profile: &str) -> bool {
 /// read these alone.
 fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     let split: Vec<String> = if windows {
-        args.iter()
-            .flat_map(|a| split_command_line(before_single_argument(a)))
-            .collect()
+        args.iter().flat_map(|a| split_command_line(a)).collect()
     } else {
         args.to_vec()
     };
-    split.into_iter().take_while(|a| a.trim() != "--").collect()
+    let ends = |a: &str| {
+        a.trim() == "--" || windows && switch_of(a).is_some_and(|(key, _)| key == "single-argument")
+    };
+    split.into_iter().take_while(|a| !ends(a)).collect()
 }
 
-/// A Windows command line up to the first `--single-argument`, in any letter case, or whole.
-fn before_single_argument(line: &str) -> &str {
-    line.to_ascii_lowercase()
-        .find("--single-argument")
-        .map_or(line, |at| &line[..at])
+/// An argument as the browser may read it as a switch: white space at its ends set aside, a
+/// prefix `--`, `-` or `/`, then the key up to the first `=`, in lower case, and the value after
+/// it (empty when there is no `=`); none for an argument with no such prefix.
+fn switch_of(arg: &str) -> Option<(String, &str)> {
+    let a = arg.trim();
+    let rest = a
+        .strip_prefix("--")
+        .or_else(|| a.strip_prefix('-'))
+        .or_else(|| a.strip_prefix('/'))?;
+    let (key, value) = rest.split_once('=').unwrap_or((rest, ""));
+    Some((key.to_ascii_lowercase(), value))
 }
 
 /// The profile that the browser's first process names: the value of its first switch
@@ -1314,7 +1321,7 @@ mod tests {
             win(
                 "win_single_argument_inside_quotes",
                 r#""C:\P F\b.exe" "--app=x --single-argument" --user-data-dir=C:\T\run\p"#,
-                false,
+                true,
             ),
             win(
                 "win_between_two_single_arguments",
