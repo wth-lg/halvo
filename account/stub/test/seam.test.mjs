@@ -63,6 +63,11 @@ test("L4 after its idle close, with an answer still unflushed, the stand-in read
   assert.ok(socket.writableLength > 0, "the answer still has bytes waiting to be flushed");
   const checkout = request("POST", "/v1/checkout", [...appHeaders(), ...json], CAP);
   await pushAndRead(checkout);
+  t.mock.timers.tick(idleMs * 4);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(socket.destroyed, false, "the unflushed connection stayed open");
+  assert.equal(socket.writableFinished, false, "the answer is still unfinished");
+  assert.ok(socket.writableLength > 0, "the answer stayed buffered until flush");
   assert.deepEqual(kinds(dir), [200, "idle-close"], "no line for the request after the end");
   assert.equal(subscription(app), "no-such-account", "the checkout changed no state");
   assert.deepEqual(readFileSync(join(dir, "connection-000001.raw")), Buffer.concat([first, checkout]));
@@ -71,6 +76,8 @@ test("L4 after its idle close, with an answer still unflushed, the stand-in read
   await finished;
   t.mock.timers.tick(idleMs);
   assert.equal(socket.destroyed, true);
+  assert.deepEqual(kinds(dir), [200, "idle-close"], "no further record at close");
+  assert.equal(subscription(app), "no-such-account", "the checkout still changed no state at close");
 });
 
 test("L7 (b) at the stop, a peer that has ended its side with answers unwritten gets forced-close", async () => {
