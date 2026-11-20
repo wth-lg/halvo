@@ -10824,6 +10824,16 @@ mod batch_write {
         }];
         let nil = Uuid::nil();
         let v7 = Uuid::now_v7();
+        let v4_of_another_variant = {
+            let mut bytes = *id.as_bytes();
+            bytes[8] = (bytes[8] & 0x1f) | 0xc0;
+            Uuid::from_bytes(bytes)
+        };
+        assert_eq!(v4_of_another_variant.get_version_num(), 4);
+        assert_eq!(
+            v4_of_another_variant.get_variant(),
+            uuid::Variant::Microsoft
+        );
         let midnight = noon.div_euclid(NANOS_PER_DAY) * NANOS_PER_DAY + NANOS_PER_DAY;
         let was = before(&store, dir.path());
         let mut cases: Vec<(String, SegmentWrite<'_>, Refusal)> = Vec::new();
@@ -10847,6 +10857,14 @@ mod batch_write {
             "v7 id".into(),
             SegmentWrite {
                 segment_id: &v7,
+                ..base
+            },
+            Refusal::NotRandomId,
+        ));
+        cases.push((
+            "v4 id of the Microsoft variant".into(),
+            SegmentWrite {
+                segment_id: &v4_of_another_variant,
                 ..base
             },
             Refusal::NotRandomId,
