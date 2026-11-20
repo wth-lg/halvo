@@ -883,3 +883,26 @@ fn c_an_active_refused_by_another_name_leaves_no_mark_and_goes_again_at_the_next
     go(&p, &mut board, tick());
     assert_eq!(states(&p), ["set_state a0 active"]);
 }
+
+#[test]
+fn d_a_raise_whose_read_brings_a_lost_switch_off_sends_paused_in_that_tick() {
+    let p = ports(&[(ACTIVE, ACCOUNT, &["ann@people.test"], &[])]);
+    let mut board = life(&p);
+    p.log(&[Event {
+        workflow: flow(0),
+        agent: agent(0),
+        seq: NonZeroU32::new(1).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::HoldSet {
+            cause: HoldSetCause::Person,
+        },
+    }])
+    .unwrap();
+    fresh(&p);
+    let r = go(&p, &mut board, tick());
+    assert_eq!(r.raised, Vec::<AgentId>::new(), "the raise meets the hold");
+    assert_eq!(states(&p), ["set_state a0 paused"]);
+    assert_eq!(holds_of(&board, 0), vec![OFF]);
+    assert_eq!(listed(&p, 0), PAUSED);
+}

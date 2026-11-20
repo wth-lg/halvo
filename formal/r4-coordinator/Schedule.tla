@@ -263,7 +263,7 @@ TickAgent(s, a, port) ==
     THEN [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF a \in NeedsPerson \/ a \notin s.fin
     THEN IF (Open(s, a) \/ a \notin s.clean) /\ a \notin s.ready
-         THEN IF Lag(s, a) THEN [st |-> Learn(s, a), raised |-> <<>>, started |-> <<>>, out |-> <<>>]
+         THEN IF Lag(s, a) THEN [st |-> Learn(s, a), raised |-> <<>>, started |-> <<>>, out |-> Paused(s, a)]
               ELSE [st |-> [s EXCEPT !.ready = @ \cup {a}], raised |-> <<a>>, started |-> <<>>, out |-> <<>>]
          ELSE [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF SlotDue(s, a)

@@ -845,7 +845,7 @@ where
 /// hold `failures`, and after a store of its path whose refusal `seq` caused a read, it decides
 /// steps 0 to 4 again. Where its read brought a `hold_set` with the cause `person` that the
 /// board's events did not hold, it sends `set_state` `paused` once, after its answer is decided;
-/// a send that fails is not made again.
+/// a send that fails goes again by the tick's rule over the facts (ruling RD-67 1.3 (b)).
 fn start<P, C>(
     cx: &MoveContext<'_, P>,
     board: &mut Board<C>,
@@ -1541,6 +1541,7 @@ where
             && !board.dismissed_unread(&agent);
         match tick_step(facts, on_list, cx.limits) {
             Ask::Ready if starts => {
+                let off = holds(&board.members[i].facts).contains(&Hold::Off);
                 let still = |f: &Facts<C>| {
                     (tick_step(f, on_list, cx.limits) != Ask::Ready).then_some(Cause::Hold)
                 };
@@ -1553,6 +1554,9 @@ where
                     Some(&still),
                 ) {
                     report.raised.push(agent);
+                }
+                if !off && holds(&board.members[i].facts).contains(&Hold::Off) {
+                    let _ = send_state(cx, &mut board.members[i].facts, AgentState::Paused);
                 }
             }
             Ask::Ready => {}
@@ -2055,8 +2059,13 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
 /// unless its workflow is gone, with `hold_set` of `failures` and `set_state` `paused` when the
 /// last `fails_to_pause` ends each have a cause of the failure class, which no end can find
 /// while that hold stands, and then takes one start from the queue; a failed start takes none. After what is owed
-/// and before any start, a tick sends `set_state` `active` for each agent that `wants_active`
-/// names (ruling IG-6a), again at each tick until the owner's list shows it `active`. Once a
+/// and before any start, a tick sends `set_state` `paused` for each agent of a listed workflow
+/// that the board owes it (`owes_paused`: the rule over the facts of ruling RD-67 1.3 (b), or the
+/// mark of an `active` refused with `overlap`, RD-67 4.3), writing each acknowledged state into
+/// the facts, and `set_state` `active` for each other agent that `wants_active` names and no mark
+/// holds back (ruling IG-6a), again at each tick until the owner's list shows it `active`; an
+/// `active` refused with `overlap` is followed by `refused_active`. A raise of a `ready` item whose
+/// read brought the hold `off` sends `paused` once, as a start does. Once a
 /// start has stored `run_started`, every later step reads the agent's newest run as not ended
 /// by the agent store until the agent's entry of `Owner::agents` is read again (ruling XB-24).
 /// What is owed is sent at each tick until the owner acknowledges it, also for a workflow that
@@ -2080,7 +2089,12 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
 /// where one stands it reads the owner's events first and goes on with no second `hold_set`
 /// while the hold stands, stores `hold_set` as a new press where the hold has ended, and answers
 /// the read's cause where the read fails. The switch-on takes a read that shows its holds ended
-/// as its store in the same way.
+/// as its store in the same way. It sends `set_state` first (`switch_on_state`) and stores a
+/// `hold_cleared` for each hold by the events only after the acknowledgement, which it writes
+/// into the facts; a refusal or no answer stores nothing and answers the cause, and after
+/// `overlap` the read `Owner::overlaps` follows, whose answer `Report::shared` carries (rulings
+/// RD-67 1.3 (a), 3.2 (f)). A start by the person that ends the hold `failures` with no hold `off`
+/// reads the owner's events and then sends its state first in the same way.
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,
