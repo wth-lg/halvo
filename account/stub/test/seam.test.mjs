@@ -74,6 +74,7 @@ test("L4 after its idle close, with an answer still unflushed, the stand-in read
   const finished = once(socket, "finish");
   flush();
   await finished;
+  assert.equal(socket.destroyed, false, "the connection waits after the answer finishes");
   t.mock.timers.tick(idleMs);
   assert.equal(socket.destroyed, true);
   assert.deepEqual(kinds(dir), [200, "idle-close"], "no further record at close");
