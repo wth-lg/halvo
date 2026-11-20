@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: S6 measures wall time and peak RSS for 30 calls of each real account helper command on loopback and over TLS with a test authority that the hosted runner trusts for the length of the check, requires every TLS call to succeed in the stub's final record within 1,000 ms, confirms the TLS stub exited with its in-memory key, and reports native trust left after undo.
+# rule: S6 measures wall time and peak RSS for 30 calls of each real account helper command on loopback and over TLS with a test authority that the hosted runner trusts while the check runs; its key ends with the check, and a trust setting that the system keeps afterwards is named in the rule line. Before the authority is trusted, one control call over TLS must be refused for the certificate, as the stub's record of the client's TLS alert shows, or the check fails and nothing is trusted. S6 requires every TLS call to succeed in the stub's final record within 1,000 ms, confirms by a read of the process table that the TLS stub's process with its in-memory key has ended, and reports native trust left after undo.
 # lane: alone
 set -u
 name=28-r7-helper-s6
