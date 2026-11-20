@@ -10304,6 +10304,9 @@ mod pass_two;
 #[cfg(unix)]
 mod held_roots;
 
+#[cfg(unix)]
+mod look_after_the_first_commit;
+
 #[cfg(target_os = "macos")]
 mod full_flush;
 
