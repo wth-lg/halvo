@@ -489,6 +489,25 @@ mod tests {
         );
     }
 
+    /// CP-176 (e): a watch opened with another creation time than its executor's reads the
+    /// executor gone from the start, and with its own creation time running. The executor here is
+    /// this process's parent, which runs for the whole test; nothing is started or ended.
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn e4_a_watch_of_an_executor_with_another_creation_time_reads_it_gone() {
+        let table = table().unwrap();
+        let me = table
+            .iter()
+            .find(|p| p.pid == std::process::id())
+            .expect("this process's row");
+        let parent = table
+            .iter()
+            .find(|p| p.pid == me.ppid && p.started_us != 0)
+            .expect("the parent's row");
+        assert!(ExecutorWatch::open(parent.pid, parent.started_us).runs());
+        assert!(!ExecutorWatch::open(parent.pid, parent.started_us + 1).runs());
+    }
+
     /// CP-176 (e), failing first: the guard's watch reads its executor's end from the system. A
     /// stand-in executor, a child of this test, starts a watcher (`child::watch_entry`), which
     /// reads it running; once the test has ended the stand-in, the watcher reads it gone. The
