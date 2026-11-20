@@ -159,17 +159,16 @@ impl EncryptedStore {
         Ok(ids.len() as u64)
     }
 
-    /// The open-time reconcile: the sweep of the segment files that have no
-    /// live key, then the shred in place, as an expiry shreds, of every live
-    /// key row whose file is missing, with its totals taken out of the
-    /// rollup. It deletes no row, and it writes nothing when it finds no work.
-    /// A step that fails leaves its work for the next open or expiry pass.
+    /// The open-time reconcile: the shred in place, as an expiry shreds, of
+    /// every live key row whose file is missing, with its totals taken out of
+    /// the rollup, then the sweep of the segment files that have no live key.
+    /// The shred comes first, so that a shred whose look after its commit
+    /// fails leaves the sweep undone and the open, which then answers that
+    /// look's answer, has removed no file. It deletes no row, and it writes
+    /// nothing when it finds no work. A step that fails leaves its work for
+    /// the next open or expiry pass.
     pub(in crate::store) fn reconcile(&self) -> Reconciled {
         let mut reconciled = Reconciled::default();
-        match self.remove_keyless_files() {
-            Ok(swept) => reconciled.files_removed = swept.removed,
-            Err(_) => reconciled.owed = true,
-        }
         let missing: StoreResult<Vec<Uuid>> = self.live_segments().and_then(|live| {
             let mut missing = Vec::new();
             for (id, _) in live {
@@ -185,6 +184,10 @@ impl EncryptedStore {
                 Ok(shredded) => reconciled.rows_shredded = shredded,
                 Err(_) => reconciled.owed = true,
             },
+            Err(_) => reconciled.owed = true,
+        }
+        match self.remove_keyless_files() {
+            Ok(swept) => reconciled.files_removed = swept.removed,
             Err(_) => reconciled.owed = true,
         }
         reconciled

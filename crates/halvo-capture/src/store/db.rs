@@ -1215,6 +1215,30 @@ pub(in crate::store) struct Db {
     log_name: std::ffi::OsString,
     named: Named,
     log_written: std::cell::Cell<bool>,
+    look_failed: std::cell::Cell<Option<LookFailure>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LookFailure {
+    Obstructed(Met),
+    Unread(ErrorKind),
+}
+
+impl LookFailure {
+    fn of(e: &StoreError) -> Self {
+        match e {
+            StoreError::Obstructed { met, .. } => LookFailure::Obstructed(*met),
+            StoreError::Io(kind) => LookFailure::Unread(*kind),
+            _ => LookFailure::Unread(ErrorKind::Other),
+        }
+    }
+
+    fn answer(self) -> StoreError {
+        match self {
+            LookFailure::Obstructed(met) => obstructed(StoreName::Log, met),
+            LookFailure::Unread(kind) => StoreError::Io(kind),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1492,6 +1516,7 @@ impl Db {
             log_name: DATABASE_LOG.into(),
             named: (name_form, volume_ids),
             log_written: std::cell::Cell::new(database == Database::New),
+            look_failed: std::cell::Cell::new(None),
         };
         db.finish(database)
             .map_err(|e| Self::answered(store_dir, e))?;
@@ -1618,7 +1643,13 @@ impl Db {
     /// the log in the store directory holds the commit's frames, or the
     /// answer is the obstructed variant. `changes_before` is the connection's
     /// count of changed rows before that commit's transaction began, so that
-    /// rows of a transaction that rolled back do not count.
+    /// rows of a transaction that rolled back do not count. The look comes
+    /// after the commit, so a failed look leaves a commit whose frames are in
+    /// no file at the store's names: from then on the handle answers the
+    /// look's own answer to every call that reads or writes the database
+    /// ([`Db::look_failure`]), and its close does not checkpoint, so nothing
+    /// of that log reaches `store.db`, which stays as it was before the
+    /// commit.
     pub(in crate::store) fn look_after_the_first_commit(
         &self,
         changes_before: u64,
@@ -1626,9 +1657,29 @@ impl Db {
         if self.log_written.get() || self.conn.total_changes() == changes_before {
             return Ok(());
         }
-        self.log_look()?;
+        if let Err(e) = self.log_look() {
+            self.look_failed.set(Some(LookFailure::of(&e)));
+            self.conn
+                .set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)
+                .map_err(db_error)?;
+            return Err(e);
+        }
         self.log_written.set(true);
         Ok(())
+    }
+
+    /// The answer of a failed look after this handle's first commit, which
+    /// the handle gives to every later call that reads or writes the
+    /// database; `None` while no look failed.
+    pub(in crate::store) fn look_failure(&self) -> Option<StoreError> {
+        self.look_failed.get().map(LookFailure::answer)
+    }
+
+    /// Whether this handle's look after its first commit failed because it
+    /// could not read the log's entry, so that the log may stand at its
+    /// name with the commit's frames.
+    pub(in crate::store) fn look_unread(&self) -> bool {
+        matches!(self.look_failed.get(), Some(LookFailure::Unread(_)))
     }
 
     fn page_look(&self) -> StoreResult<()> {
@@ -2333,7 +2384,11 @@ impl EncryptedStore {
     /// [`StoreError::KeyFileOfAnotherLabel`] for a key file of another label,
     /// [`StoreError::OlderStore`] for a key file of version 1, the obstructed
     /// variant when a link or an entry of another kind stands at a store name
-    /// or the directory leaves its name, and [`StoreError::Custody`] with the
+    /// or the directory leaves its name, the obstructed variant for the log
+    /// when the reconcile's shred, as the handle's first commit, finds its log
+    /// gone from its name (nothing then reports that shred, and `store.db`
+    /// and every entry of the directory keep their names, lengths and bytes,
+    /// so the next open shreds the row whole), and [`StoreError::Custody`] with the
     /// custody's own variant when the custody kind is not in this build or the
     /// unwrap fails: [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`]
     /// and [`CustodyError::WrapAuthFailed`] mean that the key cannot come back,
@@ -2412,12 +2467,20 @@ impl EncryptedStore {
             _writer_lock,
         };
         opened.reconciled = opened.reconcile();
+        if let Keyed::Open { db, .. } = &opened.keyed {
+            if let Some(failure) = db.look_failure() {
+                return Err(failure);
+            }
+        }
         Ok(opened)
     }
 
     fn keyed(&self) -> StoreResult<(&Db, &StoreKey)> {
         match &self.keyed {
-            Keyed::Open { db, store_key } => Ok((db, store_key)),
+            Keyed::Open { db, store_key } => match db.look_failure() {
+                Some(failure) => Err(failure),
+                None => Ok((db, store_key)),
+            },
             Keyed::Deleting(_) | Keyed::Deleted(_) => Err(StoreError::Sealed),
         }
     }
@@ -2500,8 +2563,17 @@ impl EncryptedStore {
     /// kind and the per-day rollup; when any step fails, the transaction rolls
     /// back and the file is removed, so no row and no file remain from the
     /// call (a file whose removal fails is left for the open-time sweep, as a
-    /// file with no key row). Nothing that can fail follows the commit. The
-    /// caller keeps the batch on every answer.
+    /// file with no key row). One step follows the commit: at a handle's
+    /// first commit, the look that the log in the store directory holds the
+    /// commit's frames. When it fails the call answers the obstructed variant
+    /// for the log (in the `Io` class), the handle answers that variant to
+    /// every later call, and its close does not checkpoint, so the row of
+    /// that commit reaches no file at the store's names and `store.db` stays
+    /// as it was; the file is removed, so no row and no file remain. When the
+    /// look could not read the log's entry, the log may stand at its name
+    /// with the row, so the file stays: the next open keeps it with its row,
+    /// or sweeps it as a file with no key row. The caller keeps the batch on
+    /// every answer.
     pub fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
         if let Some(refusal) = refusal_of(&write) {
             self.keyed()?;
@@ -2556,7 +2628,9 @@ impl EncryptedStore {
         match committed {
             Ok(written) => Ok(written),
             Err(e) => {
-                segment::remove_written_segment(&self.dir, segment_id)?;
+                if !db.look_unread() {
+                    segment::remove_written_segment(&self.dir, segment_id)?;
+                }
                 Err(self.answer(e))
             }
         }
