@@ -30,7 +30,10 @@
 //!   is trimmed and ends at its first NUL, the switches end at an argument `--` and, on Windows, at
 //!   the single-argument switch in the spellings `--`, `-` and `/` and any letter case, and a
 //!   switch of the profile's or the database's key that names another place takes the mark away,
-//!   whichever value of a repeated switch the browser takes. Where the browser's own parser reads
+//!   whichever value of a repeated switch the browser takes. The mark finds the run's exact place
+//!   only before the end of its switches and reads a switch that names another place over every
+//!   argument after argument 0, so an end of its switches that the browser does not share can lose
+//!   a witness and cannot hide another place. Where the browser's own parser reads
 //!   more of a line as switches than these clauses do, or takes the run's place where another
 //!   place is named too, the mark bears less than the browser reads and errs toward leaving a
 //!   process. One case errs toward ending: if the browser ends its switches at the text

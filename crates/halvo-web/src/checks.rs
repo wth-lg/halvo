@@ -72,8 +72,9 @@ pub fn tree_of_with(
 }
 
 /// Whether a process with the arguments `args` bears the run's `profile` (CP-189 G1, CP-239): one
-/// of its switches (`switch_args`) is one of two exact forms, and no switch that the browser may
-/// read under the key of either form names another place. The exact forms: `--user-data-dir=`
+/// of its switches (`switch_args`) is one of two exact forms, and no argument after the program's
+/// name that the browser may read as a switch under the key of either form names another place,
+/// before the end of the switches or after it. The exact forms: `--user-data-dir=`
 /// followed by the profile and nothing more (the value after the first `=`), or `--database=`
 /// followed by the profile's own Crashpad directory and nothing more, the place that the
 /// executor's flag `--breakpad-dump-location` names, so that the run's crash handler stays the
@@ -82,12 +83,14 @@ pub fn tree_of_with(
 /// `=`) whose value is not the run's place takes the mark away, whichever value of a repeated
 /// switch the browser takes; such a switch that names the run's place bears no mark by itself. No
 /// bare argument bears it, no occurrence inside an argument does, the program's name (argument 0)
-/// does not, and no argument after the switch terminator does (U2.6b). The value and the profile
+/// does not, and no argument after the end of the switches does (U2.6b), though such an argument
+/// that names another place takes the mark away (U2.6b round 3, R2). The value and the profile
 /// are compared as paths (`same_path_on`). On Windows the system gives a process's command line as
 /// one argument (`command_args`), which `switch_args`, and no other reader of the arguments,
 /// splits by the system's rule (`split_command_line`). The browser's own reading of a repeated
-/// switch, of the spellings of a switch and of argument 0 is recalled and not run; against it each
-/// of these clauses errs toward leaving a process.
+/// switch, of the spellings of a switch, of argument 0 and of the end of its switches is recalled
+/// and not run; against it each of these clauses errs toward leaving a process: an end of the
+/// switches that the browser does not share can lose a witness and cannot hide another place.
 pub fn bears_profile(args: &[String], profile: &str) -> bool {
     bears_profile_on(args, profile, cfg!(windows))
 }
@@ -101,12 +104,16 @@ pub fn bears_profile(args: &[String], profile: &str) -> bool {
 /// aside, and on Windows the switch with the key `single-argument` in any spelling that `switch_of`
 /// reads (a prefix `--`, `-` or `/`, any letter case), after which the browser takes the rest of
 /// the line as one argument. A text such as `--single-argument` inside an argument ends nothing.
-/// The mark (`bears_profile`), `profile_of` and `profile_forms` read these alone. The browser's
-/// own skip of argument 0, its trim of the line, its end of the line at a NUL and its spellings of
-/// the single-argument switch are recalled and not run: where the mark ends its switches at an
-/// argument that the browser does not end at, it reads fewer switches and errs toward leaving a
-/// process; where the browser would end at a text inside an argument, the mark reads switches that
-/// the browser does not, the one case on the ending side, which the crate's doc names.
+/// The mark's witness (`bears_profile`), `profile_of` and `profile_forms` read these alone; the
+/// mark reads a switch that names another place over every argument after argument 0, wherever
+/// the switches end (`bears_profile_on`). The browser's own skip of argument 0, its trim of the
+/// line, its end of the line at a NUL and its spellings of the single-argument switch are recalled
+/// and not run: where the mark ends its switches at an argument that the browser does not end at,
+/// it reads fewer witnesses and errs toward leaving a process, and it still reads each switch
+/// behind that argument that names another place, so that an earlier end can lose a witness and
+/// cannot hide another place; where the browser would end at a text inside an argument, the mark
+/// reads as witnesses switches that the browser does not, the one case on the ending side, which
+/// the crate's doc names.
 fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     let split: Vec<String> = if windows {
         args.iter()
@@ -166,7 +173,15 @@ pub fn bears_profile_on(args: &[String], profile: &str, windows: bool) -> bool {
     }
     let crashpad = format!("{profile}/Crashpad");
     let switches = switch_args(args, windows);
-    let elsewhere = switches
+    let every: Vec<String> = if windows {
+        args.iter()
+            .flat_map(|a| split_command_line(a.trim_start()))
+            .skip(1)
+            .collect()
+    } else {
+        args.iter().skip(1).cloned().collect()
+    };
+    let elsewhere = every
         .iter()
         .filter_map(|a| switch_of(a))
         .any(|(key, value)| match key.as_str() {
