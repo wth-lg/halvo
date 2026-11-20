@@ -12265,3 +12265,25 @@ fn u24e_r2_a_take_back_keeps_the_open_card_of_a_start_whose_answer_failed_to_sto
     );
     assert_eq!(c.queued(), vec![(agent(1), false)]);
 }
+
+/// R3 (the verifier's m11; the review's F2): the row that `compose` makes reads the trigger of
+/// the agent's own queue entry. A start that the schedule queued keeps waiting after its slot
+/// stopped being due, here by a tick a day back, and its row still offers Switch off and Delete
+/// and no take-back.
+#[test]
+fn u24e_r3_a_schedule_start_that_outlives_its_due_slot_offers_switch_off_and_delete_alone() {
+    use halvo_coord::types::Control::{Delete, SwitchOff};
+    let c = the_day_before(&[MANUAL, ON_ITS_OWN]);
+    start(&c, 0);
+    c.ports().ports.set_clock(T0, DAY);
+    c.tick();
+    assert_eq!(
+        c.queued(),
+        vec![(agent(1), false)],
+        "the schedule queued it"
+    );
+    c.ports().ports.set_clock(T0 - 86_400_000, DAY - 1);
+    c.tick();
+    assert_eq!(c.queued(), vec![(agent(1), false)], "it still waits");
+    assert_eq!(controls_of(&c, 1), [SwitchOff, Delete]);
+}
