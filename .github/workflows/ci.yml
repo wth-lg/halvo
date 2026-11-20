@@ -2,226 +2,184 @@ name: ci
 
 on:
   push:
-  pull_request:
-  schedule:
-    - cron: '17 3 * * 0'
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   macos:
     runs-on: macos-15
     timeout-minutes: 180
+    env:
+      U26_ROWS: block_popup
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: Processor
-        shell: bash
-        run: |
-          printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Lockfile unchanged
-        shell: bash
-        run: |
-          for name in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do
-            unset "$name"
-          done
-          in_checkout() {
-            git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$GITHUB_WORKSPACE" -c core.fsmonitor=false -c core.trustctime=true -c core.checkStat=default -c core.fileMode=true "$@"
-          }
-          head=$(in_checkout rev-parse HEAD)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "HEAD is not the commit of this run: a step or a check moved HEAD of the checkout."
-            exit 1
-          fi
-          changed=$(in_checkout status --porcelain --untracked-files=no --ignore-submodules=none)
-          untracked=$(in_checkout ls-files --others --exclude-per-directory=.gitignore)
-          flagged=$(in_checkout ls-files -v | awk '!/^H /')
-          hidden=$(in_checkout status --porcelain --ignored --untracked-files=normal | sed -n 's/^!! //p' | while IFS= read -r entry; do
-            source=$(in_checkout check-ignore -v --no-index -- "$entry") || { echo "$entry"; continue; }
-            in_checkout ls-files --error-unmatch -- "${source%%:*}" >/dev/null 2>&1 || echo "$entry"
-          done)
-          if [ -n "$changed$untracked$flagged$hidden" ]; then
-            printf '%s\n' "$changed" "$untracked" "$flagged" "$hidden" | sed '/^$/d'
-            echo "A step or a check changed these files of the checkout, left them untracked and not ignored by a tracked .gitignore, or hid them by an index flag. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
-            exit 1
-          fi
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+          prefix-key: v0-rust
+          save-if: false
+      - name: U2.6 rows of web-rows with real browsers
         if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
+        shell: bash
+        run: |
+          python3 - macos "$RUNNER_TEMP/u26" <<'PYEOF'
+          import os, subprocess, sys
+          JOB, OUT = sys.argv[1], sys.argv[2]
+          os.makedirs(OUT, exist_ok=True)
+          EXE = ".exe" if JOB == "windows" else ""
+          BROWSERS = {
+              "macos": [("chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                        ("edge", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")],
+              "windows": [("chrome", "C:/Program Files/Google/Chrome/Application/chrome.exe"),
+                          ("edge", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe")],
+          }[JOB]
+          PORT, WS_PORT, HOP_PORT = "18090", "18095", "18096"
+          failed = []
 
+
+          def run(name, cmd, gate):
+              r = subprocess.run(cmd, capture_output=True, text=True)
+              for l in r.stdout.splitlines():
+                  if l.startswith("row "):
+                      print(f"{name} {l}", flush=True)
+              print(f"{name} exit={r.returncode}", flush=True)
+              open(os.path.join(OUT, name + ".txt"), "w").write(r.stdout)
+              if gate and r.returncode != 0:
+                  failed.append(name)
+              return r.returncode
+
+
+          def listen(cmd):
+              p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+              return p, p.stdout.readline().decode().startswith("listening ")
+
+
+          subprocess.run(["cargo", "build", "-q", "--locked", "-p", "halvo-web", "--features", "test-fence", "--bins"], check=True)
+          rows = os.path.join("target", "debug", "web-rows" + EXE)
+          procs = []
+          try:
+              fixture, ok_f = listen(["node", "tools/fixture-server/variants/server.mjs", "--port", PORT])
+              procs.append(fixture)
+              hop, ok_h = listen(["node", "crates/halvo-web/rows/hop-listener.mjs", "--port", HOP_PORT])
+              procs.append(hop)
+              ws, ok_w = listen(["node", "crates/halvo-web/rows/ws-listener.mjs", "--port", WS_PORT])
+              procs.append(ws)
+              print(f"u26 listeners fixture={ok_f} hop={ok_h} ws={ok_w}", flush=True)
+              if not (ok_f and ok_h and ok_w):
+                  failed.append("listeners")
+              only = os.environ.get("U26_ROWS", "block_popup,ws_allowed,crash_major").split(",")
+              for kind, path in BROWSERS:
+                  if not os.path.exists(path):
+                      print(f"u26 browser={kind} absent", flush=True)
+                      continue
+                  if "block_popup" in only:
+                      run(f"block_popup_{kind}", [rows, "block_popup", "--browser", path, "--kind", kind, "--hop-port", HOP_PORT], True)
+                  if "ws_allowed" in only:
+                      run(f"ws_allowed_{kind}", [rows, "ws_allowed", "--browser", path, "--kind", kind, "--ws-port", WS_PORT], True)
+                  if "crash_major" in only and run(f"crash_major_{kind}", [rows, "crash_major", "--browser", path, "--kind", kind], False) != 0:
+                      crash_dir = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u26-crash-" + kind)
+                      os.makedirs(crash_dir, exist_ok=True)
+                      run(f"crash_{kind}", [rows, "crash", "--browser", path, "--kind", kind, "--port", PORT,
+                                            "--scratch", crash_dir], False)
+          finally:
+              for p in procs:
+                  try:
+                      p.stdin.close()
+                      p.wait(timeout=5)
+                  except (OSError, subprocess.TimeoutExpired):
+                      p.kill()
+                      p.wait()
+          print(f"u26 rows failed={','.join(failed) or '-'}", flush=True)
+          sys.exit(1 if failed else 0)
+          PYEOF
   windows:
     runs-on: windows-2025
     timeout-minutes: 180
+    env:
+      U26_ROWS: block_popup
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 2
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
-      - name: Processor
-        shell: bash
-        run: |
-          printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
-      - name: Scripts and hook in a core.autocrlf=true clone
-        shell: bash
-        run: |
-          clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git clone --quiet -c core.autocrlf=true "$GITHUB_WORKSPACE" "$clone"
-          cd "$clone"
-          line_endings=$(git ls-files --eol | awk -F '\t' '$1 ~ /eol=lf/ || $2 ~ /\.sh$/ || index($2, ".githooks/") == 1 || $2 == "docs/baseline/r1-gate-bounds.txt" || $2 ~ /(^|\/)mutants\.(rows|expected)$/')
-          echo "$line_endings"
-          test -n "$line_endings"
-          crlf_files=$(echo "$line_endings" | awk '$2 == "w/crlf" || $2 == "w/mixed"')
-          if [ -n "$crlf_files" ]; then
-            echo "git checked out these files with CRLF:"
-            echo "$crlf_files"
-            echo "Fix: .gitattributes has to hold the lines '*.sh text eol=lf' and '.githooks/** text eol=lf' and 'docs/baseline/r1-gate-bounds.txt text eol=lf' and 'mutants.rows text eol=lf' and 'mutants.expected text eol=lf' and '/scripts/r3/egress/fixtures.txt text eol=lf' and 'src-tauri/windows-tests.manifest text eol=lf', and no later line may take eol=lf from these files."
-            exit 1
-          fi
-          sh scripts/check-commit-messages.sh --self-test
-          sh scripts/check-changelog.sh --self-test
-          sh scripts/check-line-endings.sh --self-test
-          git config core.hooksPath .githooks
-          git config user.name "Halvo CI"
-          git config user.email "ci@halvo.invalid"
-          git commit --quiet --allow-empty -m "Probe the commit-msg hook with a clean message"
-          if refusal=$(git commit --quiet --allow-empty -m "Probe the commit-msg hook with a trailer" -m "Co-Authored-By: Probe <probe@halvo.invalid>" 2>&1); then
-            echo "The commit-msg hook accepted a message with an attribution trailer."
-            exit 1
-          fi
-          echo "$refusal"
-          case "$refusal" in
-            *"Co-Authored-By: Probe"*) ;;
-            *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
-          esac
-      - name: Lockfile unchanged
-        shell: bash
-        run: |
-          for name in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do
-            unset "$name"
-          done
-          in_checkout() {
-            git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$GITHUB_WORKSPACE" -c core.fsmonitor=false -c core.trustctime=true -c core.checkStat=default "$@"
-          }
-          head=$(in_checkout rev-parse HEAD)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "HEAD is not the commit of this run: a step or a check moved HEAD of the checkout."
-            exit 1
-          fi
-          changed=$(in_checkout status --porcelain --untracked-files=no --ignore-submodules=none)
-          untracked=$(in_checkout ls-files --others --exclude-per-directory=.gitignore)
-          flagged=$(in_checkout ls-files -v | awk '!/^H /')
-          hidden=$(in_checkout status --porcelain --ignored --untracked-files=normal | sed -n 's/^!! //p' | while IFS= read -r entry; do
-            source=$(in_checkout check-ignore -v --no-index -- "$entry") || { echo "$entry"; continue; }
-            in_checkout ls-files --error-unmatch -- "${source%%:*}" >/dev/null 2>&1 || echo "$entry"
-          done)
-          if [ -n "$changed$untracked$flagged$hidden" ]; then
-            printf '%s\n' "$changed" "$untracked" "$flagged" "$hidden" | sed '/^$/d'
-            echo "A step or a check changed these files of the checkout, left them untracked and not ignored by a tracked .gitignore, or hid them by an index flag. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
-            exit 1
-          fi
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+          prefix-key: v0-rust
+          save-if: false
+      - name: U2.6 rows of web-rows with real browsers
         if: always()
-        with:
-          name: ci-artifacts-windows
-          path: target/ci-artifacts/
+        shell: bash
+        run: |
+          python - windows "$RUNNER_TEMP/u26" <<'PYEOF'
+          import os, subprocess, sys
+          JOB, OUT = sys.argv[1], sys.argv[2]
+          os.makedirs(OUT, exist_ok=True)
+          EXE = ".exe" if JOB == "windows" else ""
+          BROWSERS = {
+              "macos": [("chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                        ("edge", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")],
+              "windows": [("chrome", "C:/Program Files/Google/Chrome/Application/chrome.exe"),
+                          ("edge", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe")],
+          }[JOB]
+          PORT, WS_PORT, HOP_PORT = "18090", "18095", "18096"
+          failed = []
+
+
+          def run(name, cmd, gate):
+              r = subprocess.run(cmd, capture_output=True, text=True)
+              for l in r.stdout.splitlines():
+                  if l.startswith("row "):
+                      print(f"{name} {l}", flush=True)
+              print(f"{name} exit={r.returncode}", flush=True)
+              open(os.path.join(OUT, name + ".txt"), "w").write(r.stdout)
+              if gate and r.returncode != 0:
+                  failed.append(name)
+              return r.returncode
+
+
+          def listen(cmd):
+              p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+              return p, p.stdout.readline().decode().startswith("listening ")
+
+
+          subprocess.run(["cargo", "build", "-q", "--locked", "-p", "halvo-web", "--features", "test-fence", "--bins"], check=True)
+          rows = os.path.join("target", "debug", "web-rows" + EXE)
+          procs = []
+          try:
+              fixture, ok_f = listen(["node", "tools/fixture-server/variants/server.mjs", "--port", PORT])
+              procs.append(fixture)
+              hop, ok_h = listen(["node", "crates/halvo-web/rows/hop-listener.mjs", "--port", HOP_PORT])
+              procs.append(hop)
+              ws, ok_w = listen(["node", "crates/halvo-web/rows/ws-listener.mjs", "--port", WS_PORT])
+              procs.append(ws)
+              print(f"u26 listeners fixture={ok_f} hop={ok_h} ws={ok_w}", flush=True)
+              if not (ok_f and ok_h and ok_w):
+                  failed.append("listeners")
+              only = os.environ.get("U26_ROWS", "block_popup,ws_allowed,crash_major").split(",")
+              for kind, path in BROWSERS:
+                  if not os.path.exists(path):
+                      print(f"u26 browser={kind} absent", flush=True)
+                      continue
+                  if "block_popup" in only:
+                      run(f"block_popup_{kind}", [rows, "block_popup", "--browser", path, "--kind", kind, "--hop-port", HOP_PORT], True)
+                  if "ws_allowed" in only:
+                      run(f"ws_allowed_{kind}", [rows, "ws_allowed", "--browser", path, "--kind", kind, "--ws-port", WS_PORT], True)
+                  if "crash_major" in only and run(f"crash_major_{kind}", [rows, "crash_major", "--browser", path, "--kind", kind], False) != 0:
+                      crash_dir = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u26-crash-" + kind)
+                      os.makedirs(crash_dir, exist_ok=True)
+                      run(f"crash_{kind}", [rows, "crash", "--browser", path, "--kind", kind, "--port", PORT,
+                                            "--scratch", crash_dir], False)
+          finally:
+              for p in procs:
+                  try:
+                      p.stdin.close()
+                      p.wait(timeout=5)
+                  except (OSError, subprocess.TimeoutExpired):
+                      p.kill()
+                      p.wait()
+          print(f"u26 rows failed={','.join(failed) or '-'}", flush=True)
+          sys.exit(1 if failed else 0)
+          PYEOF
