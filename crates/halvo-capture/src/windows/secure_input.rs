@@ -2569,11 +2569,35 @@ mod detector {
         static RECEIVES_MET: std::sync::atomic::AtomicUsize =
             std::sync::atomic::AtomicUsize::new(0);
 
+        static RECEIVE_TURNS: std::sync::atomic::AtomicUsize =
+            std::sync::atomic::AtomicUsize::new(0);
+
         fn receive_met() {
             RECEIVES_MET.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             while HOLD_RECEIVE.load(std::sync::atomic::Ordering::SeqCst) {
+                RECEIVE_TURNS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 std::thread::sleep(Duration::from_millis(10));
             }
+        }
+
+        #[test]
+        fn receive_met_keeps_its_caller_while_the_receive_is_held() {
+            use std::sync::atomic::Ordering;
+            let _serial = crate::windows::tests::serial();
+            HOLD_RECEIVE.store(false, Ordering::SeqCst);
+            RECEIVES_MET.store(0, Ordering::SeqCst);
+            RECEIVE_TURNS.store(0, Ordering::SeqCst);
+            let receive = Hold::on(&HOLD_RECEIVE);
+            let caller = std::thread::spawn(receive_met);
+            until(|| RECEIVE_TURNS.load(Ordering::SeqCst) >= 2);
+            let ended_under_the_hold = caller.is_finished();
+            drop(receive);
+            caller.join().expect("the caller of receive_met ends");
+            assert_eq!(RECEIVES_MET.load(Ordering::SeqCst), 1);
+            assert!(
+                !ended_under_the_hold,
+                "receive_met let its caller go while the receive was held"
+            );
         }
 
         #[test]
