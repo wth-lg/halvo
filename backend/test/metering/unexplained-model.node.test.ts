@@ -56,4 +56,32 @@ describe("check 55's model with a foreign event at the meter in an interval's mi
       [false, [], 1],
     ]);
   });
+
+  test("a cut pair behind a foreign event, the first held at the meter: both close with the cause and no finding, with the account kept and with it deleted", async () => {
+    const seen = [];
+    for (const deleted of [false, true]) {
+      const pair: Scenario = {
+        ...behindAForeignEvent({ kind: "response-lost" }, deleted),
+        commands: [
+          { kind: "advance-to-period-end", account: 0, secondsBeforePeriodEnd: 30 },
+          { kind: "reserve", account: 0, amountMicro: 30_000, dispatch: true },
+          { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+          { kind: "advance", seconds: 31 },
+          { kind: "foreign-event", account: 0, amountMinor: 5 },
+          { kind: "reserve", account: 0, amountMicro: 20_000, dispatch: true },
+          { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+          { kind: "cancel", account: 0, form: "stated", lagSeconds: 0 },
+          { kind: "advance", seconds: 5 * DAY },
+          ...(deleted ? DELETE : []),
+        ],
+        faultsByProviderCall: [{ kind: "response-lost" }, DOWN_PAST_THE_WINDOW, ...Array.from({ length: 28 }, (): Fault => ({ kind: "none" })), { kind: "request-lost" }, DOWN_PAST_THE_WINDOW],
+      };
+      const report = await runScenario(pair, { downtimeBudgetSeconds: RULE_DOWNTIME_BUDGET, onFailedCheck: "list" });
+      seen.push([deleted, report.findings.length, report.facts["not-billable-unexplained-total"], report.facts["not-billable-unexplained-total-held-by-the-meter"]]);
+    }
+    expect(seen).toEqual([
+      [false, 0, 2, 1],
+      [true, 0, 2, 1],
+    ]);
+  });
 });
