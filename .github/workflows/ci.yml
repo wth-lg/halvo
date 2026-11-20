@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,59 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 24-r7-wall
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 24-r7-wall
+      - name: Wall self-test rounds
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          WALL_ROUNDS: '30'
+        run: |
+          set +e
+          job=${WALL_JOB:-${GITHUB_JOB:?}}
+          total=${WALL_ROUNDS:-30}
+          source=target/ci-artifacts/24-r7-wall
+          root=target/ci-artifacts/wall-rounds
+          mkdir -p "$root" || exit 2
+          batch=$(mktemp -d "$root/attempt.XXXXXX") || exit 2
+          mkdir "$batch/prior" || exit 2
+          for files in "$source"/case-*; do
+            [[ ! -d "$files" ]] || mv "$files" "$batch/prior/" || exit 2
+          done
+          passed=0
+          for ((round=1; round<=total; round++)); do
+            output=$(sh scripts/ci/run-ci-d.sh "$job" --self-test 24-r7-wall 2>&1)
+            code=$?
+            counts=$(awk '
+              /^case 24-r7-wall\// {
+                n++
+                if (seen[$2]++ || NF != 4 || $3 !~ /^want=(FAIL|SETUP|PASS)$/ || substr($4,1,4) != "got=" || substr($3,6) != substr($4,5)) bad++
+              }
+              /^PASS self-test:24-r7-wall \([1-9][0-9]* failing fixtures rejected\)$/ { pass++ }
+              /^seconds 24-r7-wall [0-9]+$/ { seconds=$3 }
+              END {print n+0,bad+0,pass+0,(seconds == "" ? -1 : seconds)}
+            ' <<< "$output") || exit 2
+            read -r cases wrong summaries seconds <<< "$counts" || exit 2
+            if ((code == 0 && cases == 273 && wrong == 0 && summaries >= 1 && seconds >= 0)); then
+              passed=$((passed+1))
+            else
+              dest="$batch/round-$round"
+              mkdir "$dest" || exit 2
+              printf '%s\n' "$output" >"$dest/driver.log" || exit 2
+              for files in "$source"/case-*; do
+                [[ ! -d "$files" ]] || mv "$files" "$dest/" || exit 2
+              done
+            fi
+            printf 'wall round=%d cases=%d wrong=%d pass-lines=%d seconds=%d exit=%d\n' "$round" "$cases" "$wrong" "$summaries" "$seconds" "$code"
+          done
+          printf 'wall loop passed %d of %d\n' "$passed" "$total"
+          ((passed == total))
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -154,14 +189,59 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 24-r7-wall
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 24-r7-wall
+      - name: Wall self-test rounds
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          WALL_ROUNDS: '30'
+        run: |
+          set +e
+          job=${WALL_JOB:-${GITHUB_JOB:?}}
+          total=${WALL_ROUNDS:-30}
+          source=target/ci-artifacts/24-r7-wall
+          root=target/ci-artifacts/wall-rounds
+          mkdir -p "$root" || exit 2
+          batch=$(mktemp -d "$root/attempt.XXXXXX") || exit 2
+          mkdir "$batch/prior" || exit 2
+          for files in "$source"/case-*; do
+            [[ ! -d "$files" ]] || mv "$files" "$batch/prior/" || exit 2
+          done
+          passed=0
+          for ((round=1; round<=total; round++)); do
+            output=$(sh scripts/ci/run-ci-d.sh "$job" --self-test 24-r7-wall 2>&1)
+            code=$?
+            counts=$(awk '
+              /^case 24-r7-wall\// {
+                n++
+                if (seen[$2]++ || NF != 4 || $3 !~ /^want=(FAIL|SETUP|PASS)$/ || substr($4,1,4) != "got=" || substr($3,6) != substr($4,5)) bad++
+              }
+              /^PASS self-test:24-r7-wall \([1-9][0-9]* failing fixtures rejected\)$/ { pass++ }
+              /^seconds 24-r7-wall [0-9]+$/ { seconds=$3 }
+              END {print n+0,bad+0,pass+0,(seconds == "" ? -1 : seconds)}
+            ' <<< "$output") || exit 2
+            read -r cases wrong summaries seconds <<< "$counts" || exit 2
+            if ((code == 0 && cases == 273 && wrong == 0 && summaries >= 1 && seconds >= 0)); then
+              passed=$((passed+1))
+            else
+              dest="$batch/round-$round"
+              mkdir "$dest" || exit 2
+              printf '%s\n' "$output" >"$dest/driver.log" || exit 2
+              for files in "$source"/case-*; do
+                [[ ! -d "$files" ]] || mv "$files" "$dest/" || exit 2
+              done
+            fi
+            printf 'wall round=%d cases=%d wrong=%d pass-lines=%d seconds=%d exit=%d\n' "$round" "$cases" "$wrong" "$summaries" "$seconds" "$code"
+          done
+          printf 'wall loop passed %d of %d\n' "$passed" "$total"
+          ((passed == total))
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
