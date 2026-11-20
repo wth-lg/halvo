@@ -617,14 +617,15 @@ fn list_overlaps_stores_nothing_and_changes_no_state() {
             Ok(overlaps(&[(2, 2, &[sender])], "no"))
         );
     }
-    for (w, a, refusal) in [(9, 1, ErrorName::NoWorkflow), (1, 2, declared("binding"))] {
-        let body =
-            json!({"op": "list_overlaps", "workflow": wf(w), "agent": agent(a), "slots": null});
-        assert_eq!(
-            coordinator(&mut store, body),
-            Err(refusal),
-            "workflow {w}, agent {a}"
-        );
+    for slots in [json!(null), reply_slots(Some(ME), Some("ann@people.test"))] {
+        for (w, a, refusal) in [(9, 1, ErrorName::NoWorkflow), (1, 2, declared("binding"))] {
+            let body = json!({"op": "list_overlaps", "workflow": wf(w), "agent": agent(a), "slots": slots});
+            assert_eq!(
+                coordinator(&mut store, body),
+                Err(refusal),
+                "workflow {w}, agent {a}, slots {slots}"
+            );
+        }
     }
     assert_eq!(held(&store), before);
 }
