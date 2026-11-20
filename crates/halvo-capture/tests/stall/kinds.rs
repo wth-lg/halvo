@@ -1939,7 +1939,7 @@ fn a_fault_of_the_first_batch_of_a_click_phase_still_fails_after_a_clean_second_
     }
     assert!(
         missed.is_empty(),
-        "a sum lost what the first batch carried after a clean second batch: {missed:?}"
+        "a sum lost a fault of the first batch after a clean second batch: {missed:?}"
     );
 }
 
