@@ -1749,10 +1749,23 @@ fn judge_mended_in(
     count: usize,
     short: bool,
 ) {
+    judge_mended_telling(name, rounds, waits, count, short, &mut |line| {
+        println!("{line}");
+    });
+}
+
+fn judge_mended_telling(
+    name: &str,
+    rounds: &[Round],
+    waits: &[(u64, Duration)],
+    count: usize,
+    short: bool,
+    tell: &mut dyn FnMut(&str),
+) {
     assert!(!rounds.is_empty(), "{name}: the phase ran no round");
     println!("{}", by_wait_line(name, rounds, waits));
     let wait_list: Vec<u64> = waits.iter().map(|&(wait_ms, _)| wait_ms).collect();
-    println!("{}", late_rule_line(name, rounds, &wait_list));
+    tell(&late_rule_line(name, rounds, &wait_list));
     let of = |want: fn(Verdict) -> bool| -> Vec<String> {
         rounds
             .iter()
@@ -1947,8 +1960,12 @@ fn judge(name: &str, rounds: &[Round]) {
 }
 
 fn judge_in(name: &str, rounds: &[Round], short: bool) {
+    judge_telling(name, rounds, short, &mut |line| println!("{line}"));
+}
+
+fn judge_telling(name: &str, rounds: &[Round], short: bool, tell: &mut dyn FnMut(&str)) {
     let waits = waits_in_order(rounds);
-    println!("{}", late_rule_line(name, rounds, &waits));
+    tell(&late_rule_line(name, rounds, &waits));
     let leaked: Vec<String> = rounds
         .iter()
         .filter(|round| {
@@ -7237,6 +7254,69 @@ fn a_round_lost_to_a_late_marker_reads_by_its_rule_on_a_table() {
             Some(text) => got.is_some_and(|got| got.contains(text)),
         };
         if !right {
+            wrong.push(what);
+        }
+    }
+    let mended_told = |rounds: &[Round]| {
+        let mut told: Vec<String> = Vec::new();
+        let found = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || {
+                judge_mended_telling("stand-in", rounds, &stall_waits(), 1, true, &mut |line| {
+                    told.push(line.to_owned());
+                });
+            },
+        )));
+        (found.is_some(), told)
+    };
+    let as_is_told = |rounds: &[Round]| {
+        let mut told: Vec<String> = Vec::new();
+        let found = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || {
+                judge_telling("stand-in", rounds, true, &mut |line| {
+                    told.push(line.to_owned())
+                })
+            },
+        )));
+        (found.is_some(), told)
+    };
+    let mut recorded_at_300 = held_at_each_wait();
+    recorded_at_300.push(Round {
+        verdict: Some(Verdict::Recorded),
+        ..stand_in_round(false, 1)
+    });
+    for (what, got, want) in [
+        (
+            "L5 the mended reader tells one count line of a phase that passes",
+            mended_told(&beside_a_counted_retry(lost_to_a_late_marker(2_000))),
+            (false, one_at_2000),
+        ),
+        (
+            "L5 the mended reader tells its count line before an assertion stops the phase",
+            mended_told(&recorded_at_300),
+            (
+                true,
+                "stand-in rounds_lost_to_the_late_rule=0 by_wait=150:0,300:0,600:0,850:0,2000:0",
+            ),
+        ),
+        (
+            "L5 the as-is reader tells one count line of a phase that passes",
+            as_is_told(&[counted_at(1_500), lost_as_is(1_500)]),
+            (false, "stand-in rounds_lost_to_the_late_rule=1 by_wait=1500:1"),
+        ),
+        (
+            "L5 the as-is reader tells its count line before the recorded keys of a listed fault stop it",
+            as_is_told(&[
+                Round {
+                    wait_ms: 1_500,
+                    ..stand_in_round(true, 3)
+                },
+                lost_as_is(1_500),
+            ]),
+            (true, "stand-in rounds_lost_to_the_late_rule=1 by_wait=1500:1"),
+        ),
+    ] {
+        println!("late row: {what}: want={want:?} got={got:?}");
+        if got.0 != want.0 || got.1 != [want.1] {
             wrong.push(what);
         }
     }
