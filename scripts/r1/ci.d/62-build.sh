@@ -519,6 +519,10 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
     case_name=$1 want=$2 wanted_text=$3
     shift 3
     output=$(
+      awk() {
+        if [ "${verify_import_locale:-}" = yes ] && [ "${LC_ALL:-}" != C ]; then return 2; fi
+        command awk "$@"
+      }
       xcrun() {
         [ "$#" = 3 ] && [ "$1" = dyld_info ] && [ "$2" = -imports ] || return 2
         cat "$3" 2>/dev/null || return 1
@@ -533,6 +537,11 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
       *) got="unexpected-exit-$code" ;;
     esac
     if [ -s "$work/imports.err" ]; then got=unexpected-stderr; fi
+    if [ -n "${diagnostic_binary:-}" ]; then
+      grep -Fx -- "dyld_info -imports $diagnostic_binary:" >/dev/null <<EOF || got=missing-diagnostic-header
+$output
+EOF
+    fi
     if [ "$got" = "$want" ] && [ -n "${expect_row:-}" ]; then
       grep -Fx -- "$expect_row" >/dev/null <<EOF || got=missing-row
 $output
@@ -548,14 +557,14 @@ EOF
   imports_case clean-imports PASS 'dyld_info -imports halvo-capture: absent' "$work/halvo" "$work/halvo-capture"
   printf '%s\n' 'halvo-capture [x86_64]:' '    -imports:' "      $forbidden_import  (from Carbon)" >>"$work/halvo-capture"
   hold_row="      $forbidden_import  (from Carbon)"
-  expect_row="$hold_row" imports_case capture-imports-hold FAIL "halvo-capture imports $forbidden_import" "$work/halvo" "$work/halvo-capture"
+  diagnostic_binary=halvo-capture expect_row="$hold_row" imports_case capture-imports-hold FAIL "halvo-capture imports $forbidden_import" "$work/halvo" "$work/halvo-capture"
   printf '%s\n' "      $forbidden_import  (from Carbon)" >>"$work/halvo"
   expect_row="$hold_row" imports_case app-imports-hold FAIL "halvo imports $forbidden_import" "$work/halvo" "$work/halvo-capture"
   printf '%s\n' 'unrecognized import listing' >"$work/halvo"
-  imports_case unreadable-import-list FAIL 'dyld_info returned no import table for halvo' "$work/halvo"
+  diagnostic_binary=halvo imports_case unreadable-import-list FAIL 'dyld_info returned no import table for halvo' "$work/halvo"
   imports_case import-tool-failed FAIL 'dyld_info could not read the imports of missing' "$work/missing"
   printf '%s\n' 'incomplete tool output' >"$work/halvo"
-  tool_status=7 expect_row='incomplete tool output' imports_case import-tool-failure-shows-stdout FAIL 'dyld_info could not read the imports of halvo' "$work/halvo"
+  tool_status=7 diagnostic_binary=halvo expect_row='incomplete tool output' imports_case import-tool-failure-shows-stdout FAIL 'dyld_info could not read the imports of halvo' "$work/halvo"
   import_row_case() {
     printf '%s\n' "$clean" "$2" >"$work/halvo"
     expect_row="$2" imports_case "$1" FAIL "halvo imports $forbidden_import" "$work/halvo"
@@ -596,11 +605,15 @@ EOF
   bad_row_case import-row-library-close-paren '      _free  (from lib)System)'
   bad_row_case import-row-library-open-paren '      _free  (from lib(System)'
   bad_row_case import-row-library-only-blanks '      _free  (from   )'
+  bad_row_case import-row-embedded-cr "      _fr${cr}ee  (from libSystem)"
+  vertical_tab=$(printf '\013')
+  bad_row_case vertical-tab-is-not-a-blank-row "$vertical_tab"
   bad_row_case import-row-trailing-text '      _free  (from libSystem) extra'
   table_case indented-slice-header FAIL "$bad_layout" "  $slice" "$clean" "  $slice" "$header" "$clean_row"
   table_case slice-with-trailing-text FAIL "$bad_layout" "$slice extra" "$clean" "$slice extra" "$header" "$clean_row"
   table_case slice-with-empty-arch FAIL "$bad_layout" 'halvo []:' "$clean" 'halvo []:' "$header" "$clean_row"
   table_case slice-without-path-separator FAIL "$bad_layout" 'halvo[arm64]:' "$clean" 'halvo[arm64]:' "$header" "$clean_row"
+  table_case slice-without-colon FAIL "$bad_layout" 'halvo [arm64]' "$clean" 'halvo [arm64]' "$header" "$clean_row"
   table_case slice-with-invalid-arch FAIL "$bad_layout" 'halvo [arm/64]:' "$clean" 'halvo [arm/64]:' "$header" "$clean_row"
   table_case header-with-surrounding-text FAIL "$no_table" 'prefix -imports: suffix' "$slice" 'prefix -imports: suffix' "$clean_row"
   table_case header-with-prefix FAIL "$no_table" 'prefix -imports:' "$slice" 'prefix -imports:' "$clean_row"
@@ -610,6 +623,9 @@ EOF
   table_case underscored-architecture PASS "$clean_result" '' 'halvo [x86_64]:' "$header" "$clean_row"
   table_case unindented-import-header PASS "$clean_result" '' "$slice" '-imports:' "$clean_row"
   table_case padded-import-header PASS "$clean_result" '' "$slice" ' -imports:  ' "$clean_row"
+  LC_ALL=POSIX verify_import_locale=yes table_case imports-use-c-locale PASS "$clean_result" '' 'x [a]:' "$header" "$clean_row"
+  tab=$(printf '\t')
+  table_case tab-separated-import PASS "$clean_result" '' "$slice" "${tab}-imports:$tab" "$tab" "${tab}_free${tab}(from libSystem)"
   table_case supported-symbol-characters PASS "$clean_result" '' "$slice" "$header" \
     "      \$x7  (from libSystem)" '      .  (from libSystem)' '      A1_b.2  (from libSystem)'
   table_case longer-import-names PASS "$clean_result" '' "$slice" "$header" \
@@ -892,9 +908,12 @@ SH
     measure_case "guard-measure-fixture-${input##*/}" 2 "unsafe measure fixture: $input"
     mv "$measure_repo/$input" "$work/used-measure-input" || exit 2
   done
-  MSYS="${MSYS:+$MSYS }winsymlinks:nativestrict" ln -s missing-input "$measure_repo/node_modules" || exit 2
-  [ -L "$measure_repo/node_modules" ] && [ ! -e "$measure_repo/node_modules" ] || exit 2
-  measure_case guard-dangling-node-modules 2 'unsafe measure fixture: node_modules'
+  if MSYS="${MSYS:+$MSYS }winsymlinks:nativestrict" ln -s missing-input "$measure_repo/node_modules" &&
+     [ -L "$measure_repo/node_modules" ] && [ ! -e "$measure_repo/node_modules" ]; then
+    measure_case guard-dangling-node-modules 2 'unsafe measure fixture: node_modules'
+  else
+    verdict guard-dangling-node-modules FAIL missing-dangling-symlink
+  fi
 
   for ref in tag:fresh branch:cached :cached; do
     got=$(build_root_for "${ref%:*}")
