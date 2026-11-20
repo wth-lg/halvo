@@ -1,7 +1,10 @@
-import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import * as fs from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeEach, expect, test } from "vitest";
 import { endGroup, groupMembers, type Processes, startGroup, useProcesses } from "./process-group.ts";
+
+const { chmodSync } = fs as unknown as { chmodSync(path: string, mode: number): void };
 
 interface FRow {
   pid: number;
@@ -14,6 +17,8 @@ interface FRow {
 const ROOT = process.cwd();
 const OWNER = "Thu Jan 1 00:00:10 1970";
 const LATER = "Thu Jan 1 01:00:00 1970";
+const OTHER = "Thu Jan 1 02:00:00 1970";
+const HERE = realpathSync(ROOT);
 
 let rows: FRow[] = [];
 let events: string[] = [];
@@ -23,10 +28,14 @@ let goneAtRead = false;
 let nextPid = 200_000;
 let marks = "";
 let handlers = new Map<string, (() => void)[]>();
+let onPs: (() => void) | null = null;
 const dirs: string[] = [];
 
 const world: Processes = {
   ps: () => {
+    const hook = onPs;
+    onPs = null;
+    if (hook !== null) hook();
     if (events.includes("spawn") && failReads > 0) {
       failReads -= 1;
       events.push("ps failed");
@@ -76,6 +85,7 @@ beforeEach(() => {
   leadsNot = false;
   goneAtRead = false;
   handlers = new Map();
+  onPs = null;
   mkdirSync(join(ROOT, ".tmp"), { recursive: true });
   const made = mkdtempSync(join(ROOT, ".tmp", "process-group-start."));
   dirs.push(made);
@@ -187,3 +197,33 @@ test("endGroup: a second endGroup of the same group resolves only after the firs
   await first;
   expect(marksIn()).toEqual([]);
 }, 20_000);
+
+function laterMark(pid: number): void {
+  rows = rows.filter((row) => row.pgid !== pid);
+  rows.push({ pid, pgid: pid, stat: "S", started: OTHER });
+  writeFileSync(join(marks, `group-${pid}.json`), JSON.stringify({ pid, started: OTHER, spawned: 7200, owner: { pid: 299_999, started: OTHER }, checkout: HERE }));
+}
+
+test("endGroup and stopAll remove a mark only while it reads as they wrote it", async () => {
+  const a = startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+  laterMark(a.pid);
+  await endGroup(a);
+  const afterEndGroup = marksIn();
+  const b = startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+  laterMark(b.pid);
+  fire("exit");
+  expect({ afterEndGroup, afterExit: marksIn() }).toEqual({
+    afterEndGroup: [`group-${a.pid}.json`],
+    afterExit: [`group-${a.pid}.json`, `group-${b.pid}.json`],
+  });
+});
+
+test("a failed second write of startGroup leaves no group in the kit's list, so a later mark of the same pid stays at the owner's exit", () => {
+  startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+  onPs = () => chmodSync(join(marks, `group-${nextPid}.json`), 0o444);
+  expect(() => startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] })).toThrow("EACCES");
+  const failed = nextPid;
+  laterMark(failed);
+  fire("exit");
+  expect(marksIn()).toEqual([`group-${failed}.json`]);
+});
