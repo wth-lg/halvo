@@ -482,12 +482,13 @@ fn u24r_the_three_texts_stand_word_for_word() {
     }
 }
 
-/// The control that takes a queued start back says that the start comes later, and it shares
-/// no text with another control or with a choice of an item (U2.4e; rulings RD-54 (h), RD-55 (b)).
+/// The control that takes a queued start back says that this one start is gone and promises no
+/// later start, and it shares no text with another control or with a choice of an item (U2.4e;
+/// rulings RD-54 (h), RD-55 (b), and RD-149's note of 2026-11-20T20:02:32Z).
 #[test]
 fn u24e_the_take_back_stands_word_for_word_and_apart_from_every_other_control_and_choice() {
     let take_back = words::text("control.take_back", &[]).unwrap();
-    assert_eq!(take_back, "Don't start yet");
+    assert_eq!(take_back, "Cancel this start");
     let others: Vec<&str> = KEYS
         .iter()
         .filter(|(k, _)| {
