@@ -1672,7 +1672,15 @@ impl Db {
     /// The second instant of the log's check, at the first commit of a
     /// handle whose open wrote nothing and whose statements changed a row:
     /// the log in the store directory holds the commit's frames, or the
-    /// answer is the obstructed variant. `changes_before` is the connection's
+    /// answer is the obstructed variant, except against a program of the same
+    /// user that changes the entries of the store's directory or writes its
+    /// files (a rename of another file into the directory is such a change).
+    /// When such a program puts another file of more than 0 bytes at the
+    /// log's name while SQLite writes its log elsewhere, the look passes: a
+    /// batch answered `Ok` is then lost when the process ends without a clean
+    /// close (shown at a kill, reasoned for a crash or a loss of power), and an
+    /// ordinal can be issued twice. A log unlinked or moved from its name, with
+    /// nothing or an empty file left there, fails the look. `changes_before` is the connection's
     /// count of changed rows before that commit's transaction began, so that
     /// rows of a transaction that rolled back do not count. The look comes
     /// after the commit, so a failed look leaves a commit whose frames are in
@@ -2690,6 +2698,16 @@ impl EncryptedStore {
     /// with the row, so the file stays: the next open keeps it with its row,
     /// or sweeps it as a file with no key row. The caller keeps the batch on
     /// every answer.
+    ///
+    /// Two named limits of the refusal, which bounds each batch and not the
+    /// day: (a) the events or the bytes of one day and kind, summed over its
+    /// batches, past the 64-bit range: the rollup then stores that sum as a
+    /// real number and [`EncryptedStore::inventory`] answers
+    /// [`StoreError::Corrupt`]; no real input reaches it, since no capture
+    /// makes 9.2e18 events; (b) a kind with 0 events and some bytes beside a
+    /// kind with events: the batch is stored, its rollup row holds those
+    /// bytes, and the inventory does not list a kind with 0 events; such a
+    /// summary is the caller's fault, a malformed summary.
     pub fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
         if let Some(refusal) = refusal_of(&write) {
             self.keyed()?;

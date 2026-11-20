@@ -58,9 +58,10 @@ of check 1 link come from it. A change elsewhere in the workspace does not need 
    root files of other roots that its root step left once the store's own
    root read destroyed: that handle does not list or change the roots
    directory again,
-   and the delete tail finishes them (ruling ST-45 H3). An append whose
-   index row fails leaves no event
-   row, and a shred removes the event rows of its segment.
+   and the delete tail finishes them (ruling ST-45 H3). The store keeps no
+   per-event row: `append_event` is refused and writes nothing, and a
+   shred takes its segment's totals out of the day's rollup and keeps the
+   segment's own rows of totals.
    On macOS every file that the store made has mode 0600 and every
    directory that it made has mode 0700, after every operation, as long as
    no other process widens a mode: the store makes each file at 0600 and
@@ -1572,8 +1573,24 @@ set, and the root's own volume name answers the root.
   UNKNOWN) the store does not open, and the answer reads as a directory
   that left its name, `Obstructed { StoreDirectory, DirectoryNotAtItsName }`,
   although the directory still stands at its name (ruling ST-46 K5 N3). A
-  program of the same user that writes into the store directory can make
-  both instants of the log's check read as it likes. L3: a directory that is removed, or moved to
+  program of the same user that changes the entries of the store's
+  directory or writes its files (a rename of another file into the
+  directory is such a change) can make both instants of the log's check
+  read as it likes. In the case that was run, such a program puts another
+  file of more than 0 bytes at the log's name while SQLite writes its log
+  elsewhere, and the look passes. Then (a) a batch that the store answered
+  `Ok` is lost when the process ends without a clean close: at a kill, which
+  a run showed, and by the same reasoning at a crash or a loss of power,
+  which no run showed; the person loses the activity of that batch, with no
+  error at the write and none at the next open. And (b) an ordinal can be
+  issued twice, so the unit's sentence "every committed segment gets an
+  ordinal greater than every ordinal issued before" does not hold in that
+  case. The look does hold against a log that is unlinked or moved from its
+  name with nothing or an empty file left there: that fails the second
+  instant (ruling ST-39 (3)(a)). The two instants are sound against a move
+  or an exchange by a program that is no such writer, one that neither
+  changes the entries of the store's directory nor writes its files.
+  L3: a directory that is removed, or moved to
   another volume, while a connection is open answers `Obstructed` for the
   store directory; a move to another volume is a copy and a removal, by
   reasoning and not by a run. L4: on Windows every call is by name under a
