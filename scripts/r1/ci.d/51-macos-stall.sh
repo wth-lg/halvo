@@ -100,6 +100,8 @@ hold_bound_in_a_release_build E0599
 held_key_printed E0277
 tap_event_printed E0277
 seam_in_a_release_build E0599
+hold_plan_after_in_a_release_build E0599
+take_in_a_release_build E0425
 EOF
 }
 
@@ -977,16 +979,16 @@ write_stubs() {
 #!/bin/sh
 spec() { grep -q "^$1\$" "$STUB_SPEC"; }
 case $* in
-  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build_twin" --cfg halvo_proof="held_key_printed_twin" --cfg halvo_proof="tap_event_printed_twin" --cfg halvo_proof="seam_in_a_release_build_twin"')
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build_twin" --cfg halvo_proof="held_key_printed_twin" --cfg halvo_proof="tap_event_printed_twin" --cfg halvo_proof="seam_in_a_release_build_twin" --cfg halvo_proof="hold_plan_after_in_a_release_build_twin" --cfg halvo_proof="take_in_a_release_build_twin"')
     spec twins-fail && exit 101
     exit 0
     ;;
-  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build" --cfg halvo_proof="held_key_printed" --cfg halvo_proof="tap_event_printed" --cfg halvo_proof="seam_in_a_release_build"')
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build" --cfg halvo_proof="held_key_printed" --cfg halvo_proof="tap_event_printed" --cfg halvo_proof="seam_in_a_release_build" --cfg halvo_proof="hold_plan_after_in_a_release_build" --cfg halvo_proof="take_in_a_release_build"')
     spec proofs-build && exit 0
     spec proof-other-code && { printf 'error[E0308]: mismatched types\nerror[E0277]: no Debug\n'; exit 101; }
-    spec proof-one-e0277 && { printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\n'; exit 101; }
+    spec proof-one-e0277 && { printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\nerror[E0599]: no variant named `After`\nerror[E0425]: cannot find function `hold_secure_input`\n'; exit 101; }
     spec proof-one-e0599 && { printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\n'; exit 101; }
-    printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0277]: `TapEvent` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\n'
+    printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0277]: `TapEvent` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\nerror[E0599]: no variant named `After`\nerror[E0425]: cannot find function `hold_secure_input`\n'
     exit 101
     ;;
   'rustc --locked -p halvo-capture --lib --profile check --message-format short --features stall-seam -- -C debug-assertions=off --cfg halvo_proof="seam_in_a_release_build_twin" --cfg halvo_proof="drop_counts_in_a_release_build_twin"')
@@ -1329,7 +1331,7 @@ waits-not-driven-phase_one'
   check twins-fail FAIL 'the twins of the proofs did not build' 'twins-fail'
   check proofs-build FAIL 'the proofs built' 'proofs-build'
   check proof-fails-with-another-code FAIL 'did not fail with E0599' 'proof-other-code'
-  check one-error-for-two-proofs FAIL '(1 errors E0599 for 2 proofs)' 'proof-one-e0599'
+  check one-error-for-two-proofs FAIL '(1 errors E0599 for 3 proofs)' 'proof-one-e0599'
   check one-debug-error-for-two-proofs FAIL '(1 errors E0277 for 2 proofs)' 'proof-one-e0277'
   check seam-twin-fails FAIL 'the twin of the seam proof did not build with the feature stall-seam' 'seam-twin-fails'
   check seam-proof-builds FAIL 'the seam proof built with the feature stall-seam' 'seam-proof-builds'
