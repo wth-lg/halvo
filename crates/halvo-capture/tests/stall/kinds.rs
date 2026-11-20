@@ -1089,12 +1089,9 @@ fn a_phase_whose_control_recorded_fewer_than_five_letters_fails() {
     }
 }
 
-#[test]
-#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
-fn each_check_of_a_phase_fails_its_own_fault_in_each_family() {
-    let pair = controls(control(OWN, 0), control(OWN, 2));
+fn family_faults() -> [(Checks, Totals, &'static str); 18] {
     let good = passing();
-    let faults = [
+    [
         (
             Checks::Stall,
             Totals {
@@ -1227,7 +1224,15 @@ fn each_check_of_a_phase_fails_its_own_fault_in_each_family() {
             },
             "the sink held",
         ),
-    ];
+    ]
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn each_check_of_a_phase_fails_its_own_fault_in_each_family() {
+    let pair = controls(control(OWN, 0), control(OWN, 2));
+    let good = passing();
+    let faults = family_faults();
     for checks in [
         Checks::Stall,
         Checks::Enter,
@@ -1404,4 +1409,51 @@ fn the_count_of_open_latches_is_read_from_the_text_of_the_gate() {
     assert_eq!(latches_of(None), u32::MAX);
     assert_eq!(latches_of(Some("open=1")), u32::MAX);
     assert_eq!(latches_of(Some("count=one")), u32::MAX);
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn each_fault_of_a_family_still_fails_after_the_sum_that_a_live_phase_goes_through() {
+    let pair = controls(control(OWN, 0), control(OWN, 2));
+    for checks in [
+        Checks::Stall,
+        Checks::Enter,
+        Checks::TabOut,
+        Checks::ControlsAndSink,
+    ] {
+        let mut summed = Totals::default();
+        summed.add(passing());
+        let clean = run(
+            OWN,
+            1,
+            Outcome::Rounds {
+                totals: summed,
+                checks,
+            },
+        );
+        assert_eq!(verdict(&clean, &pair), Ok(()), "{checks:?} after the sum");
+    }
+    let mut missed = Vec::new();
+    for (index, (checks, totals, why)) in family_faults().into_iter().enumerate() {
+        let mut summed = Totals::default();
+        summed.add(totals);
+        let got = verdict(
+            &run(
+                OWN,
+                1,
+                Outcome::Rounds {
+                    totals: summed,
+                    checks,
+                },
+            ),
+            &pair,
+        );
+        if !got.as_ref().is_err_and(|got| got.contains(why)) {
+            missed.push(index);
+        }
+    }
+    assert!(
+        missed.is_empty(),
+        "faults that passed after the sum, by their index: {missed:?}"
+    );
 }
