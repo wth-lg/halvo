@@ -502,7 +502,7 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   mkdir -p "$rules_repo/crates/member" "$rules_repo/crates/member/.cargo" || exit 2
   git init -q "$rules_repo" || exit 2
   rules_case() {
-    answer=$(CI_D_REPO="$rules_repo" CI_D_JOB=rules sh "$0" --rules)
+    answer=$(CI_D_REPO="$rules_repo" CI_D_JOB=rules sh "$0" --rules 2>"$work/rules.err")
     code=$?
     case $answer in
       'rules: workspace manifest and Cargo configuration paths only (binary imports require the macOS build)
@@ -514,6 +514,11 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
         esac ;;
       *) got="unexpected-rules-output-$code" ;;
     esac
+    if [ "$got" = "$2" ] && [ -n "${expect_reader:-}" ]; then
+      reader_line=$(cat "$work/rules.err") || exit 2
+      [ "$reader_line" = "$expect_reader" ] || got=unexpected-reader
+    fi
+    if [ -s "$work/probe-input" ]; then got=unexpected-stdin; fi
     verdict "$1" "$2" "$got"
   }
   root_manifest=$rules_repo/Cargo.toml
@@ -527,6 +532,41 @@ debug-assertions = false'
   rules_case member-pin-without-root-pin FAIL "$need_profile"
   printf '%s\n' '[profile.release]' 'debug-assertions = true' >"$root_manifest"
   rules_case release-assertions-on FAIL "$need_profile"
+  standins=$work/standins
+  mkdir "$standins" || exit 2
+  stand_in() {
+    printf '%s\n' '#!/bin/sh' "$2" >"$standins/$1" && chmod +x "$standins/$1" || exit 2
+  }
+  fixture_python=
+  for program in python3.11 python3 python; do
+    if fixture_version=$("$program" -I -c 'import sys, tomllib; assert tomllib.loads("flag = false")["flag"] is False; sys.stdout.write(".".join(map(str, sys.version_info[:3])))' </dev/null 2>/dev/null); then
+      fixture_python=$(command -v "$program") || exit 2
+      break
+    fi
+  done
+  [ -n "$fixture_python" ] || exit 2
+  export fixture_python
+  no_python='reading Cargo.toml requires Python 3.11 or later'
+  notice='printf "%s\n" "interpreter unavailable"'
+  for program in python3.11 python3 python; do stand_in "$program" "$notice"; done
+  PATH="$standins:$PATH" rules_case no-interpreter-behind-names FAIL "$no_python"
+  stand_in python3 'exec "$fixture_python" "$@"'
+  expect_second="manifest reader: python3 $fixture_version"
+  PATH="$standins:$PATH" expect_reader="$expect_second" rules_case skip-notice-interpreter FAIL "$need_profile"
+  probe_input=$work/probe-input
+  export probe_input
+  stand_in python3.11 'IFS= read -r line && printf "%s\n" "$line" >"$probe_input"
+exit 0'
+  PATH="$standins:$PATH" expect_reader="$expect_second" rules_case probe-leaves-stdin-alone FAIL "$need_profile" <<'EOF'
+a line belonging to the caller
+EOF
+  : >"$probe_input"
+  stand_in python3.11 'if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
+printf "%s\n" "reader notice"'
+  PATH="$standins:$PATH" rules_case reader-notice-with-success FAIL 'unexpected Cargo.toml reader output: reader notice'
+  stand_in python3.11 'if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
+exit 0'
+  PATH="$standins:$PATH" rules_case reader-silent-with-success FAIL 'unexpected Cargo.toml reader output: '
   printf '%s\n' '[profile.dev]' 'debug-assertions = false' >"$root_manifest"
   rules_case other-profile-off FAIL "$need_profile"
   printf '%s\n' '[workspace.metadata]' 'example = """' "$profile_off" '"""' >"$root_manifest"
