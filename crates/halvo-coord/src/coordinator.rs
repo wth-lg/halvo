@@ -55,6 +55,7 @@ pub struct Coordinator<P: Owner> {
     /// How many reads of the clock answered in this life, so that a tick knows whether its own
     /// work read one (ruling RD-138 (2)).
     reads: AtomicU64,
+    unstopped: Mutex<Vec<(AgentId, RunId)>>,
 }
 
 const NO_READ: u64 = 0;
@@ -376,6 +377,7 @@ where
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
+            unstopped: Mutex::new(Vec::new()),
         }
     }
 
@@ -2450,6 +2452,22 @@ where
         self.lock().board.as_ref().map_or(0, |b| b.runs.len())
     }
 
+    /// The runs that the quit has not ended, each with its agent, in the order of their starts
+    /// (ruling RD-147 (5)(i)): none before the first step of the quit; from then on the live
+    /// runs as the last publish found them, which each move writes again at its end, the first
+    /// step, the end of a run and the second step among them. So a run whose kill was refused
+    /// stays in the list, and while a kill of the second step has not returned the list is the
+    /// one from before the second step: a run whose kill returned before that kill stays named
+    /// until the second step returns. A dying tree, whose run has ended, is not in the list.
+    /// This read takes no lock that a port call holds, so it answers while a kill holds the
+    /// coordinator's lock.
+    pub fn not_stopped(&self) -> Vec<(AgentId, RunId)> {
+        self.unstopped
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
     /// The agents whose hold `off` stands in the owner's events as the coordinator has read
     /// them beside a live run that no stop has reached: none after any move (I5.7, ruling RD-52
     /// (b)).
@@ -2593,6 +2611,23 @@ where
                     board.acknowledged(agent);
                 }
             }
+        }
+        if st.quitting {
+            let mut live: Vec<(u64, AgentId, RunId)> =
+                st.board.as_ref().map_or_else(Vec::new, |b| {
+                    b.runs
+                        .iter()
+                        .map(|r| (r.rank, r.agent.clone(), r.run.clone()))
+                        .collect()
+                });
+            live.sort();
+            *self
+                .unstopped
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = live
+                .into_iter()
+                .map(|(_, agent, run)| (agent, run))
+                .collect();
         }
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();

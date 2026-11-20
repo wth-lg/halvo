@@ -1,11 +1,18 @@
 #[path = "run_support.rs"]
 mod support;
 
+#[allow(clippy::duplicate_mod)]
+#[path = "coordinator_support.rs"]
+mod coord;
+
 use halvo_coord::mem::{Call, Method};
-use halvo_coord::ports::PortError;
+use halvo_coord::ports::{PortError, Reaped};
 use halvo_coord::run::{Act, StopBy};
 use halvo_coord::schedule::{Answer, Stop};
-use halvo_coord::types::{Body, Doing, Limits, Live, Outcome, RunEnd, RunId, What};
+use halvo_coord::types::{
+    Action, AgentId, Body, Doing, Limits, Live, Outcome, RunEnd, RunEvent, RunId, What,
+};
+use halvo_coord::{words, Coordinator};
 use support::{agent, world_with, World, MANUAL, T0};
 
 fn four() -> (World, Vec<RunId>) {
@@ -173,4 +180,107 @@ fn a_kill_that_fails_at_the_second_step_leaves_its_run_live() {
     assert!(done.killed.is_empty());
     assert_eq!(w.board.runs.len(), 3);
     assert_eq!(killed(&w), runs);
+}
+
+fn run_now(c: &Coordinator<coord::Both>, n: usize) -> RunId {
+    assert_eq!(c.control(&agent(n), Action::RunNow), Ok(()));
+    let run = coord::started(c).last().cloned().unwrap();
+    assert_eq!(c.on_run(&run, RunEvent::Hello), Ok(()));
+    run
+}
+
+fn two_live() -> (Coordinator<coord::Both>, [RunId; 2]) {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coord::coordinator(&[coord::MANUAL, coord::MANUAL], limits);
+    let runs = [run_now(&c, 0), run_now(&c, 1)];
+    (c, runs)
+}
+
+fn named(pairs: &[(usize, &RunId)]) -> Vec<(AgentId, RunId)> {
+    pairs
+        .iter()
+        .map(|(n, run)| (agent(*n), (*run).clone()))
+        .collect()
+}
+
+#[test]
+fn u46_the_quit_names_each_live_run_with_its_agent_and_drops_a_run_that_ends_in_the_wait() {
+    let (c, runs) = two_live();
+    assert!(
+        c.not_stopped().is_empty(),
+        "nothing is named before the quit"
+    );
+    c.quit_stop();
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &runs[0]), (1, &runs[1])]),
+        "after the first step every live run, in the order of the starts"
+    );
+    c.ports().ports.end_runner(&runs[0]);
+    assert_eq!(
+        c.on_run(&runs[0], RunEvent::Ended(Some(Outcome::Completed))),
+        Ok(())
+    );
+    assert_eq!(c.not_stopped(), named(&[(1, &runs[1])]));
+}
+
+#[test]
+fn u46_a_refused_kill_leaves_its_run_named_and_kills_that_succeed_name_none() {
+    let (c, runs) = two_live();
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    assert_eq!(c.live(), 2);
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &runs[0]), (1, &runs[1])]),
+        "both kills were refused"
+    );
+    let (c, _) = two_live();
+    c.quit_stop();
+    c.quit_kill();
+    assert_eq!(c.live(), 0);
+    assert!(c.not_stopped().is_empty(), "{:?}", c.not_stopped());
+}
+
+#[test]
+fn u46_limit_the_next_life_shows_a_run_that_outlived_quit_as_if_nothing_ran() {
+    let c = coord::coordinator(&[coord::MANUAL], Limits::PRODUCT);
+    let run = run_now(&c, 0);
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    assert_eq!(c.not_stopped(), named(&[(0, &run)]));
+    let next = coord::owner(&[], Limits::PRODUCT);
+    *next.ports.workflows.borrow_mut() = c.ports().ports.workflows.borrow().clone();
+    *next.ports.agents.borrow_mut() = c.ports().ports.agents.borrow().clone();
+    *next.ports.events.borrow_mut() = c.ports().ports.events.borrow().clone();
+    next.ports.leave_marks(&[(run.clone(), Reaped::Alive)]);
+    let life = Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    let row = life.snapshot().rows[0].clone();
+    println!("NEXT LIFE ROW {:?}: {}", row.status, row.line);
+    let ended: Vec<RunEnd> = life
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::RunEnded { run: r, cause, .. } if r == &run => Some(*cause),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ended, [RunEnd::Interrupted]);
+    assert_eq!(
+        row.line,
+        words::text("line.waiting_turn.store", &[]).unwrap(),
+        "a named limit of U4.6: the next life ends the run that outlived Quit as interrupted, \
+         keeps reap's answer alive for an agent set aside alone (run/recover.rs, recover; \
+         schedule/board.rs, set_aside) and its row says that Halvo wraps up the task and the \
+         person needs to do nothing, with no word that the task may have run on after Quit"
+    );
 }
