@@ -544,5 +544,14 @@ fn list_overlaps_is_answered_malformed_and_stores_nothing_and_changes_no_state()
             json!({"op": "list_overlaps", "workflow": wf(1), "agent": agent(1), "slots": slots});
         assert_eq!(coordinator(&mut store, body), Err(ErrorName::Malformed));
     }
+    for (w, a) in [(9, 1), (1, 2)] {
+        let body =
+            json!({"op": "list_overlaps", "workflow": wf(w), "agent": agent(a), "slots": null});
+        assert_eq!(
+            coordinator(&mut store, body),
+            Err(ErrorName::Malformed),
+            "workflow {w}, agent {a}"
+        );
+    }
     assert_eq!(held(&store), before);
 }
