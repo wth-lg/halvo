@@ -9,7 +9,7 @@ export const UNIQUENESS_WINDOW_MS = 86_400_000;
 
 type Row = Record<string, string | number | null>;
 type Outcome = "acknowledged" | "no-call" | "written-off" | "not-billable";
-type Closing = UsageRefusal | "send_limit" | "delete-bound";
+type Closing = UsageRefusal | "send_limit" | "delete-bound" | "unexplained-total";
 type CutKind = "cancel" | "delete";
 
 const OUTCOMES: readonly Outcome[] = ["acknowledged", "no-call", "written-off", "not-billable"];
@@ -42,6 +42,7 @@ interface Interval {
   answerDueFor: Ms | null;
   pendingRefusal: UsageRefusal | null;
   outcome: Outcome | null;
+  unexplainedSince: Ms | null;
 }
 
 function broken(what: string): never {
@@ -87,7 +88,7 @@ function wholeSecond(at: Ms): Ms {
 
 const ACCOUNT_COLUMNS = "account_id, origin, period_start, period_end, carry, written_off, cut_kind, cut_at";
 const INTERVAL_COLUMNS =
-  "start, end_at, sealed_at, amount, identifier, timestamp, first_attempt, next_attempt, delay, refusals, unanswered, unanswered_at, answer_due, sent_at, pending_refusal, outcome";
+  "start, end_at, sealed_at, amount, identifier, timestamp, first_attempt, next_attempt, delay, refusals, unanswered, unanswered_at, answer_due, sent_at, pending_refusal, outcome, unexplained_since";
 
 function accountOf(row: Row): Account {
   const start = wholeOrNull(row, "period_start");
@@ -121,6 +122,7 @@ function intervalOf(row: Row): Interval {
     answerDueFor: timeWhileSet(row, "answer_due", "sent_at"),
     pendingRefusal: oneOfOrNull(row, "pending_refusal", REFUSALS),
     outcome: oneOfOrNull(row, "outcome", OUTCOMES),
+    unexplainedSince: wholeOrNull(row, "unexplained_since"),
   };
 }
 
@@ -215,6 +217,10 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
     return interval.unansweredAt !== null && now < interval.unansweredAt + lateReadSpan;
   }
 
+  function closesTheRun(interval: Interval, now: Ms): boolean {
+    return interval.unexplainedSince !== null && now - interval.unexplainedSince >= LATE_READ_SPAN_MS && !beforeTheLatePoint(interval, now);
+  }
+
   function nextTry(interval: Interval, unansweredAt: Ms | null, now: Ms, delay: Ms): Ms {
     const bounds = [interval.timestamp * 1000 + SEND_LIMIT_MS, ...(unansweredAt === null ? [] : [unansweredAt + lateReadSpan])];
     return Math.min(now + delay, ...bounds.filter((bound) => bound > now));
@@ -297,7 +303,7 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
         "CREATE TABLE metering_account (account_id TEXT NOT NULL, origin INTEGER NOT NULL, period_start INTEGER, period_end INTEGER, carry INTEGER NOT NULL, written_off INTEGER, cut_kind TEXT CHECK (cut_kind IN ('cancel', 'delete')), cut_at INTEGER)",
       );
       sql.exec(
-        "CREATE TABLE metering_interval (start INTEGER PRIMARY KEY, end_at INTEGER NOT NULL, sealed_at INTEGER, reported INTEGER, carry_in INTEGER, amount INTEGER, carry_out INTEGER, identifier TEXT, timestamp INTEGER, first_attempt INTEGER, next_attempt INTEGER, delay INTEGER, attempts INTEGER NOT NULL, refusals INTEGER NOT NULL, unanswered INTEGER NOT NULL CHECK (unanswered IN (0, 1)), unanswered_at INTEGER, answer_due INTEGER NOT NULL CHECK (answer_due IN (0, 1)), sent_at INTEGER, pending_refusal TEXT, outcome TEXT CHECK (outcome IN ('acknowledged', 'no-call', 'written-off', 'not-billable')), refusal TEXT, closed_at INTEGER)",
+        "CREATE TABLE metering_interval (start INTEGER PRIMARY KEY, end_at INTEGER NOT NULL, sealed_at INTEGER, reported INTEGER, carry_in INTEGER, amount INTEGER, carry_out INTEGER, identifier TEXT, timestamp INTEGER, first_attempt INTEGER, next_attempt INTEGER, delay INTEGER, attempts INTEGER NOT NULL, refusals INTEGER NOT NULL, unanswered INTEGER NOT NULL CHECK (unanswered IN (0, 1)), unanswered_at INTEGER, answer_due INTEGER NOT NULL CHECK (answer_due IN (0, 1)), sent_at INTEGER, pending_refusal TEXT, outcome TEXT CHECK (outcome IN ('acknowledged', 'no-call', 'written-off', 'not-billable')), refusal TEXT, closed_at INTEGER, unexplained_since INTEGER, unexplained_total INTEGER, unexplained_neighbours INTEGER)",
       );
     },
 
@@ -429,9 +435,16 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
       }
       if (answer.kind !== "total") return { call: null, notBillable: 0 };
       const others = othersIn(sql, interval, answer.from, answer.to);
+      const unexplained = answer.totalMinor !== others && answer.totalMinor !== others + interval.amount;
+      sql.exec("UPDATE metering_interval SET unexplained_since = ? WHERE start = ?", unexplained ? (interval.unexplainedSince ?? now) : null, interval.start);
       if (answer.totalMinor === others + interval.amount) {
         close(sql, interval, "acknowledged", null, now);
         return plan(sql, now, 0, null);
+      }
+      if (unexplained && closesTheRun(interval, now)) {
+        close(sql, interval, "not-billable", "unexplained-total", now);
+        sql.exec("UPDATE metering_interval SET unexplained_total = ?, unexplained_neighbours = ? WHERE start = ?", answer.totalMinor, others, interval.start);
+        return plan(sql, now, 1, null);
       }
       if (answer.totalMinor !== others) return { call: null, notBillable: 0 };
       if (beforeTheLatePoint(interval, now)) {

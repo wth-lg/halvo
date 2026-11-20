@@ -240,7 +240,7 @@ describe("what the late read leaves as it was (unit 5.4, ruling P7-77, part 7)",
     [5, null, "read total 5"],
     [3, "acknowledged", null],
   ] as const) {
-    test(`case 14: an event at the meter that no interval of the module owns, of ${amount} minor units in the interval's minute, ${outcome === null ? "leaves the total unexplained, so the interval is read again and never sent" : "with the interval's own amount, acknowledges the interval with no send"}`, async () => {
+    test(`case 14: an event at the meter that no interval of the module owns, of ${amount} minor units in the interval's minute, ${outcome === null ? "leaves the total unexplained, so the interval is read again and never sent, and the first read one span after the first unexplained total closes it as not billable with the cause unexplained-total, after which the account delete finishes" : "with the interval's own amount, acknowledges the interval with no send"}`, async () => {
       const w = await world({ meter: { readGranularitySeconds: 60 }, faults: [{ kind: "request-lost" }] });
       await w.use("r1", 30_000);
       w.meter.send({ account: ACCOUNT, identifier: `${ACCOUNT}:foreign`, amountMinor: amount, timestamp: TIMESTAMP - 10 }, END / 1000);
@@ -249,6 +249,17 @@ describe("what the late read leaves as it was (unit 5.4, ruling P7-77, part 7)",
       await w.clock(END + UNIQUENESS_WINDOW_MS + HOUR);
       expect(kinds(w.calls)).toEqual(["send failed", `read total ${amount}`, ...(last === null ? [] : [last])]);
       expect((await w.intervals())[0]?.outcome).toBe(outcome);
+      if (outcome === null) {
+        for (let tries = 0; tries < 100 && (await w.intervals())[0]?.outcome === null; tries += 1) await w.clock(Number((await w.intervals())[0]?.next_attempt));
+        const [row] = await w.intervals();
+        const first = END + UNIQUENESS_WINDOW_MS;
+        expect([row?.outcome, row?.refusal, row?.unexplained_since, row?.unexplained_total, row?.unexplained_neighbours]).toEqual(["not-billable", "unexplained-total", first, 5, 0]);
+        expect(Number(row?.closed_at)).toBeGreaterThanOrEqual(first + metering.LATE_READ_SPAN_MS);
+        expect(Number(row?.closed_at)).toBeLessThan(first + metering.LATE_READ_SPAN_MS + metering.RETRY_DELAY_CAP_MS);
+        expect(new Set(kinds(w.calls).slice(1))).toEqual(new Set(["read total 5"]));
+        expect(w.lines.filter((line) => line === NOT_BILLABLE)).toEqual([NOT_BILLABLE]);
+        expect(await w.entries().destroy(HASH)).toEqual({ result: "deleted" });
+      }
       w.close();
     });
   }
