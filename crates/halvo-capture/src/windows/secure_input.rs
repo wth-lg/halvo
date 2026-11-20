@@ -1015,6 +1015,8 @@ mod detector {
         pub(super) before_first_read: fn(),
         #[cfg(test)]
         pub(super) set_desktop_hook: fn() -> HWINEVENTHOOK,
+        #[cfg(test)]
+        pub(super) attach_deadline: Option<std::time::Duration>,
     }
 
     fn remove_handler(
@@ -1042,6 +1044,8 @@ mod detector {
                 before_first_read: || {},
                 #[cfg(test)]
                 set_desktop_hook,
+                #[cfg(test)]
+                attach_deadline: None,
             }
         }
     }
@@ -1107,6 +1111,8 @@ mod detector {
                     code: i64::from(e.raw_os_error().unwrap_or(0)),
                 })?;
             let deadline = crate::windows::INPUT_STOP_DEADLINE;
+            #[cfg(test)]
+            let deadline = self.removals.attach_deadline.unwrap_or(deadline);
             match started.recv_timeout(deadline) {
                 Ok(Ok(())) => {
                     *self
@@ -1150,6 +1156,8 @@ mod detector {
                 return Ok(());
             };
             let deadline = crate::windows::INPUT_STOP_DEADLINE;
+            #[cfg(test)]
+            let deadline = self.removals.attach_deadline.unwrap_or(deadline);
             let began = std::time::Instant::now();
             while !old.is_finished() && began.elapsed() < deadline {
                 std::thread::sleep(std::time::Duration::from_millis(5));
@@ -1925,11 +1933,16 @@ mod detector {
             Err(refused())
         }
 
-        fn handler_slow(
+        static HOLD_REMOVAL: std::sync::atomic::AtomicBool =
+            std::sync::atomic::AtomicBool::new(false);
+
+        fn handler_held(
             automation: &IUIAutomation,
             handler: &IUIAutomationFocusChangedEventHandler,
         ) -> windows::core::Result<()> {
-            std::thread::sleep(Duration::from_millis(1_500));
+            while HOLD_REMOVAL.load(std::sync::atomic::Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
             remove_handler(automation, handler)
         }
 
@@ -1937,11 +1950,26 @@ mod detector {
             os(stage, &refused())
         }
 
+        const UNTIMED: Duration = Duration::MAX;
+
+        fn untimed() -> Removals {
+            Removals {
+                attach_deadline: Some(UNTIMED),
+                ..Removals::default()
+            }
+        }
+
+        fn until(fact: impl Fn() -> bool) {
+            while !fact() {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+
         #[test]
         fn after_attach_the_first_mark_is_the_start_and_attach_returns_after_the_detectors_own_read(
         ) {
             let _serial = crate::windows::tests::serial();
-            let gate = PasswordGate::new();
+            let gate = PasswordGate::with_removals(untimed());
             gate.attach().expect("the detector starts");
             let (first, own_read, at) = {
                 let marks = gate.shared.lock();
@@ -1964,7 +1992,7 @@ mod detector {
                 front: 0,
             };
             let judged = super::super::judge(&gate.shared.lock(), &before, at, 0, false);
-            let detached = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
+            let detached = gate.detach(UNTIMED);
             assert_eq!(first, Some(Mark::Started));
             assert!(own_read, "attach returned before the detector's own read");
             assert!(
@@ -2276,16 +2304,16 @@ mod detector {
         #[test]
         fn detach_ends_the_detectors_thread_and_a_new_attach_starts_one() {
             let _serial = crate::windows::tests::serial();
-            let gate = PasswordGate::new();
+            let gate = PasswordGate::with_removals(untimed());
             gate.attach().expect("the detector starts");
-            let first = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
+            let first = gate.detach(UNTIMED);
             let running = gate
                 .detector
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .is_some();
             gate.attach().expect("the detector starts again");
-            let second = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
+            let second = gate.detach(UNTIMED);
             assert_eq!(first, Ok(()));
             assert!(!running, "a detached gate still holds its detector");
             assert_eq!(second, Ok(()));
@@ -2297,16 +2325,16 @@ mod detector {
             let both = PasswordGate::with_removals(Removals {
                 handler: handler_refused,
                 desktop_hook: desktop_refused,
-                ..Removals::default()
+                ..untimed()
             });
             both.attach().expect("the detector starts");
-            let both = both.detach(crate::windows::INPUT_STOP_DEADLINE);
+            let both = both.detach(UNTIMED);
             let hook = PasswordGate::with_removals(Removals {
                 desktop_hook: desktop_refused,
-                ..Removals::default()
+                ..untimed()
             });
             hook.attach().expect("the detector starts");
-            let hook = hook.detach(crate::windows::INPUT_STOP_DEADLINE);
+            let hook = hook.detach(UNTIMED);
             assert_eq!(both, Err(refused_at("RemoveFocusChangedEventHandler")));
             assert_eq!(hook, Err(refused_at("UnhookWinEvent")));
         }
@@ -2314,8 +2342,11 @@ mod detector {
         static HOLD_READS: std::sync::atomic::AtomicBool =
             std::sync::atomic::AtomicBool::new(false);
 
+        static READ_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
         fn read_held() {
             while HOLD_READS.load(std::sync::atomic::Ordering::SeqCst) {
+                READ_HELD.store(true, std::sync::atomic::Ordering::SeqCst);
                 std::thread::sleep(Duration::from_millis(10));
             }
         }
@@ -2324,26 +2355,28 @@ mod detector {
         fn an_attach_after_a_timed_out_detach_is_refused_while_the_old_detector_runs() {
             use std::sync::atomic::Ordering;
             let _serial = crate::windows::tests::serial();
-            let gate = PasswordGate::with_removals(Removals {
+            let mut gate = PasswordGate::with_removals(Removals {
                 before_read: read_held,
-                ..Removals::default()
+                ..untimed()
             });
+            READ_HELD.store(false, Ordering::SeqCst);
             gate.attach().expect("the detector starts");
             HOLD_READS.store(true, Ordering::SeqCst);
             gate.shared.lock().ask_read(tick());
             gate.wake_detector();
-            std::thread::sleep(Duration::from_millis(300));
+            until(|| READ_HELD.load(Ordering::SeqCst));
             let stopped = gate.detach(Duration::from_millis(200));
+            gate.removals.attach_deadline = None;
             let second = gate.attach();
             let running_after_the_second = gate
                 .detector
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .is_some();
+            gate.removals.attach_deadline = Some(UNTIMED);
             HOLD_READS.store(false, Ordering::SeqCst);
-            std::thread::sleep(Duration::from_millis(300));
             let third = gate.attach();
-            let detached = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
+            let detached = gate.detach(UNTIMED);
             assert!(
                 matches!(stopped, Err(CaptureError::Timeout { .. })),
                 "{stopped:?}"
@@ -2365,14 +2398,25 @@ mod detector {
 
         #[test]
         fn detach_answers_timeout_when_the_detector_does_not_end_in_time() {
+            use std::sync::atomic::Ordering;
             let _serial = crate::windows::tests::serial();
             let gate = PasswordGate::with_removals(Removals {
-                handler: handler_slow,
-                ..Removals::default()
+                handler: handler_held,
+                ..untimed()
             });
             gate.attach().expect("the detector starts");
+            HOLD_REMOVAL.store(true, Ordering::SeqCst);
             let deadline = Duration::from_millis(200);
             let stopped = gate.detach(deadline);
+            HOLD_REMOVAL.store(false, Ordering::SeqCst);
+            let stale = gate
+                .stale
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take();
+            if let Some(stale) = stale {
+                let _ = stale.join();
+            }
             assert_eq!(
                 stopped,
                 Err(CaptureError::Timeout {
@@ -2380,7 +2424,6 @@ mod detector {
                     ms: 200,
                 })
             );
-            std::thread::sleep(Duration::from_millis(1_800));
         }
 
         static HANDLERS_REMOVED: std::sync::atomic::AtomicUsize =
@@ -2418,16 +2461,16 @@ mod detector {
             HANDLERS_REMOVED.store(0, Ordering::SeqCst);
             let control = PasswordGate::with_removals(Removals {
                 handler: handler_counted,
-                ..Removals::default()
+                ..untimed()
             });
             let control_attached = control.attach();
             let removed_by_the_control = HANDLERS_REMOVED.load(Ordering::SeqCst);
-            let control_detached = control.detach(crate::windows::INPUT_STOP_DEADLINE);
+            let control_detached = control.detach(UNTIMED);
             HANDLERS_REMOVED.store(0, Ordering::SeqCst);
             let gate = PasswordGate::with_removals(Removals {
                 handler: handler_counted,
                 set_desktop_hook: no_desktop_hook,
-                ..Removals::default()
+                ..untimed()
             });
             let attached = gate.attach();
             let running = gate
@@ -2492,9 +2535,11 @@ mod detector {
             let free_during_the_wait = gate.detector.try_lock().is_ok();
             let first = waiting.join().expect("the attaching thread ends");
             let second = gate.attach();
+            let mut gate = Arc::into_inner(gate).expect("the attaching thread let the gate go");
+            gate.removals.attach_deadline = Some(UNTIMED);
             HOLD_FIRST_READ.store(false, Ordering::SeqCst);
             let third = gate.attach();
-            let detached = gate.detach(crate::windows::INPUT_STOP_DEADLINE);
+            let detached = gate.detach(UNTIMED);
             assert_eq!(
                 first,
                 Err(CaptureError::Timeout {
