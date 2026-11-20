@@ -857,7 +857,11 @@ impl PasswordGate {
     }
 
     pub(crate) fn content_probe(&self) -> PasswordFieldProbe {
-        PasswordFieldProbe::default()
+        PasswordFieldProbe(match self.field_now() {
+            FieldState::Password => SecureInputReading::Active,
+            FieldState::Clear => SecureInputReading::Inactive,
+            FieldState::Unknown => SecureInputReading::Unknown,
+        })
     }
 
     #[cfg(test)]

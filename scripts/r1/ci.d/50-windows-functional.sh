@@ -36,6 +36,7 @@ expected_tests() {
   cat <<'EOF'
 a_dropped_keyboard_source_stops_capturing group=native
 a_timed_out_stop_reads_no_input_posted_after_its_answer group=native
+a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event group=native
 a_window_under_the_exclusion_root_gives_no_event_and_another_window_does group=native
 browser::a_burst_whose_first_letter_swaps_records_nothing_in_chrome group=browser
 browser::a_burst_whose_first_letter_swaps_records_nothing_in_edge group=browser
@@ -81,7 +82,6 @@ capture_times_follow_the_input_order group=native
 helper_child_window group=native
 helper_limited_listener group=native
 keys_queued_before_a_stop_are_delivered_or_counted group=native
-known_defect::a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event E4 group=native
 known_defect::browser_self_move_after_a_held_main_thread_in_chrome W3-5-A2 group=browser
 known_defect::browser_self_move_after_a_held_main_thread_in_edge W3-5-A2 group=browser
 known_defect::browser_swaps_on_a_held_main_thread_in_chrome W3-7-Q2i group=browser scope=long-only

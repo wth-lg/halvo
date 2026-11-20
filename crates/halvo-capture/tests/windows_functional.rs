@@ -5454,65 +5454,6 @@ mod known_defect {
             );
         });
     }
-
-    fn titles_with(events: &[Seen], prefix: &str) -> usize {
-        payloads(events)
-            .iter()
-            .filter(|payload| {
-                matches!(payload, DecodedPayload::WindowTitle { text, .. } if text.as_str().starts_with(prefix))
-            })
-            .count()
-    }
-
-    #[test]
-    #[ignore = "known defect: E4, a title leaves while the keyboard source's gate reads Password"]
-    fn a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event() {
-        with_deadline("password-title", Duration::from_secs(90), || {
-            env_report("password-title");
-            source_built_by_test("password-title", "keyboard");
-            source_built_by_test("password-title", "window_title");
-            let (sink, events) = capture(4096);
-            let mut keyboard =
-                RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
-            let gate = keyboard
-                .password_gate()
-                .expect("the keyboard source's gate");
-            let mut title = WindowTitleSource::new().with_password_gate(gate);
-            let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
-            let title_start = title.begin(SourceContext::new(sink.clone()));
-            let mut child = spawn_child("password-title", 0);
-            let mut seen = Vec::new();
-            while child.try_wait().is_none() {
-                seen.extend(events.drain_for(Duration::from_millis(200)));
-            }
-            seen.extend(events.drain_for(Duration::from_millis(800)));
-            let _ = stop_counted(&mut title, "window_title");
-            let _ = stop_counted(&mut keyboard, "keyboard");
-            child.print_output();
-            let secret = titles_with(&seen, SECRET_TITLE);
-            let plain = titles_with(&seen, PLAIN_TITLE);
-            let drops = title.drops();
-            say(
-                "password-title",
-                format!(
-                    "keyboard_start={} title_start={} title_events_with_the_password_edit_focused={secret} \
-                     title_events_with_the_plain_edit_focused={plain} secure_input_drops={}",
-                    show(&keyboard_start),
-                    show(&title_start),
-                    drops.secure_input
-                ),
-            );
-            assert!(
-                keyboard_start.is_ok() && title_start.is_ok(),
-                "the sources must start"
-            );
-            defect!(
-                "E4",
-                secret == 0 && plain >= 1,
-                format!("TF password-title secret={secret} plain={plain}")
-            );
-        });
-    }
 }
 
 use halvo_capture::windows::apps::{InstalledSoftwareWatcher, WatchOutcome};
@@ -6030,4 +5971,63 @@ fn clicks(events: &[Seen]) -> Vec<Button> {
             _ => None,
         })
         .collect()
+}
+
+fn titles_with(events: &[Seen], prefix: &str) -> usize {
+    payloads(events)
+        .iter()
+        .filter(|payload| {
+            matches!(payload, DecodedPayload::WindowTitle { text, .. } if text.as_str().starts_with(prefix))
+        })
+        .count()
+}
+
+#[test]
+#[ignore = "functional: was a known defect: E4, a title leaves while the keyboard source's gate reads Password"]
+fn a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event() {
+    with_deadline("password-title", Duration::from_secs(90), || {
+        env_report("password-title");
+        source_built_by_test("password-title", "keyboard");
+        source_built_by_test("password-title", "window_title");
+        let (sink, events) = capture(4096);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let gate = keyboard
+            .password_gate()
+            .expect("the keyboard source's gate");
+        let mut title = WindowTitleSource::new().with_password_gate(gate);
+        let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
+        let title_start = title.begin(SourceContext::new(sink.clone()));
+        let mut child = spawn_child("password-title", 0);
+        let mut seen = Vec::new();
+        while child.try_wait().is_none() {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+        }
+        seen.extend(events.drain_for(Duration::from_millis(800)));
+        let _ = stop_counted(&mut title, "window_title");
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        child.print_output();
+        let secret = titles_with(&seen, SECRET_TITLE);
+        let plain = titles_with(&seen, PLAIN_TITLE);
+        let drops = title.drops();
+        say(
+            "password-title",
+            format!(
+                "keyboard_start={} title_start={} title_events_with_the_password_edit_focused={secret} \
+                 title_events_with_the_plain_edit_focused={plain} secure_input_drops={}",
+                show(&keyboard_start),
+                show(&title_start),
+                drops.secure_input
+            ),
+        );
+        assert!(
+            keyboard_start.is_ok() && title_start.is_ok(),
+            "the sources must start"
+        );
+        flipped!(
+            "E4",
+            secret == 0 && plain >= 1,
+            format!("TF password-title secret={secret} plain={plain}")
+        );
+    });
 }
