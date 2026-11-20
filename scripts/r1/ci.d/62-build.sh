@@ -118,16 +118,45 @@ EOF
 release_imports() {
   for binary in "$@"; do
     executable=${binary##*/}
-    imports=$(xcrun dyld_info -imports "$binary") || fail "dyld_info could not read the imports of $executable"
-    row=$(printf '%s\n' "$imports" | awk -v symbol="$forbidden_import" '
-      $1 == "-imports:" { table = 1 }
-      table && $1 == symbol { print }
-      END { if (!table) exit 1 }
-    ') || fail "dyld_info returned no import table for $executable"
-    if [ -n "$row" ]; then
-      printf 'dyld_info -imports %s:\n%s\n' "$executable" "$row"
-      fail "$executable imports $forbidden_import"
+    if ! imports=$(xcrun dyld_info -imports "$binary"); then
+      printf 'dyld_info -imports %s:\n%s\n' "$executable" "$imports"
+      fail "dyld_info could not read the imports of $executable"
     fi
+    result=$(LC_ALL=C awk -v symbol="$forbidden_import" '
+      function unfinished() {
+        if (state == "rows") return ""
+        if (state == "table") return "an empty import table"
+        return "no import table"
+      }
+      BEGIN { needle = "(^|[^[:alnum:]_])" symbol "([^[:alnum:]_]|$)" }
+      { raw = $0; sub(/\r$/, "") }
+      /^[[:blank:]]*$/ { next }
+      /^[^[:space:]].* \[[[:alnum:]_.-]+\]:$/ {
+        if (state && (reason = unfinished()) != "") exit
+        state = "slice"
+        next
+      }
+      state == "slice" && /^[[:blank:]]*-imports:[[:blank:]]*$/ { state = "table"; next }
+      !state || state == "slice" { reason = "no import table"; exit }
+      $0 ~ needle { print raw; matched = 1; exit }
+      /^[[:blank:]]+[[:alpha:]_.$][[:alnum:]_.$]*[[:blank:]]+\(from [^()[:space:]]+\)$/ { state = "rows"; next }
+      { reason = "an unrecognized import listing"; exit }
+      END {
+        if (matched) exit 3
+        if (!reason) reason = unfinished()
+        if (reason) { print reason; exit 1 }
+      }
+    ' <<EOF
+$imports
+EOF
+    )
+    case $? in
+      0) ;;
+      3) printf 'dyld_info -imports %s:\n%s\n' "$executable" "$result"
+         fail "$executable imports $forbidden_import" ;;
+      *) printf 'dyld_info -imports %s:\n%s\n' "$executable" "$imports"
+         fail "dyld_info returned $result for $executable" ;;
+    esac
     printf 'dyld_info -imports %s: absent %s\n' "$executable" "$forbidden_import"
   done
 }
