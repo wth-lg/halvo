@@ -231,4 +231,51 @@ describe("a run of unexplained totals is closed as not billable with the cause u
     expect(own.map((each) => each.amountMinor)).toEqual([3, 500]);
     w.close();
   });
+
+  test("an explained read one span after the run's first unexplained read resends the interval and does not close it", async () => {
+    const w = await world({ meter: { ...MINUTE, readLagSeconds: 170_000 }, faults: [NONE, LOST] });
+    await cutPair(w);
+    await w.clock(END + 40_000);
+    const since = END + 40_000 + SPAN;
+    await w.clock(since);
+    await tries(w, open(1));
+    const [, row] = await w.intervals();
+    expect([row?.outcome, row?.refusal, row?.unexplained_since, row?.unexplained_total, Number(row?.closed_at) - since]).toEqual(["acknowledged", null, null, null, SPAN]);
+    expect(kinds(w.calls).slice(-3)).toEqual(["read total 0", "read total 3", "send recorded"]);
+    expect(count(w.lines, NOT_BILLABLE)).toBe(0);
+    w.close();
+  });
+
+  test("a failed read inside a run keeps the stored time of its first unexplained total", async () => {
+    const w = await world({ meter: MINUTE, faults: [{ kind: "response-lost" }, ...Array.from({ length: 8 }, () => NONE), LOST, LOST] });
+    await w.use("r1", 30_000);
+    foreign(w, 5);
+    await w.clock(END);
+    const since = END + DAY;
+    await w.clock(since);
+    let afterTheFailedReads: unknown = null;
+    await tries(w, (rows) => {
+      if (afterTheFailedReads === null && kinds(w.calls).filter((each) => each === "read failed").length === 2) afterTheFailedReads = rows[0]?.unexplained_since;
+      return rows[0]?.outcome === null;
+    });
+    const [row] = await w.intervals();
+    expect(afterTheFailedReads).toBe(since);
+    expect(kinds(w.calls).filter((each) => each === "read failed")).toHaveLength(2);
+    expect([row?.outcome, row?.refusal, row?.unexplained_since, Number(row?.closed_at) - since]).toEqual(["not-billable", "unexplained-total", since, SPAN]);
+    w.close();
+  });
+
+  test("the close keeps a non-zero neighbours' sum", async () => {
+    const w = await world({ meter: MINUTE, faults: [NONE, { kind: "response-lost" }] });
+    await cutPair(w);
+    foreign(w, 5);
+    await w.clock(END + 40_000);
+    const since = END + 40_000 + DAY;
+    await w.clock(since);
+    await tries(w, open(1));
+    const [x, y] = await w.intervals();
+    expect(x?.outcome).toBe("acknowledged");
+    expect(state(y)).toEqual(["not-billable", "unexplained-total", 0, null, 1, since, 10, 3]);
+    w.close();
+  });
 });
