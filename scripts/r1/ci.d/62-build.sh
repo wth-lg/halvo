@@ -556,7 +556,13 @@ EOF
       1:*"FAIL $name ($wanted_text)"*) got=FAIL ;;
       *) got="unexpected-exit-$code" ;;
     esac
-    if [ -s "$work/imports.err" ]; then got=unexpected-stderr; fi
+    if grep -Ev '^dyld_info -imports [^[:space:]]+ \[[[:alnum:]_.-]+\]: rows=[0-9]+ ordinal=[0-9]+ addend=[0-9]+ weak-import=[0-9]+$' "$work/imports.err" >/dev/null; then
+      got=unexpected-stderr
+    fi
+    if [ "${expect_counts+x}" = x ]; then
+      observed_counts=$(cat "$work/imports.err") || exit 2
+      [ "$observed_counts" = "$expect_counts" ] || got=unexpected-table-counts
+    fi
     if [ -n "${diagnostic_binary:-}" ]; then
       output_has_line "dyld_info -imports $diagnostic_binary:" "$output" || got=missing-diagnostic-header
     fi
@@ -678,11 +684,11 @@ EOF
   import_row_case standalone-import-at-line-boundaries "$forbidden_import"
   import_row_case following-punctuation-import "      _other,$forbidden_import  (from Carbon)"
   printf '%s\n' "$header" '      _free  (from libSystem)' >"$work/halvo"
-  expect_row="$header" imports_case import-table-without-slice FAIL "$no_table" "$work/halvo"
+  expect_counts='' expect_row="$header" imports_case import-table-without-slice FAIL "$no_table" "$work/halvo"
   printf '%s\n' "$slice" "$hold_row" "$header" '      _free  (from libSystem)' >"$work/halvo"
   expect_row="$hold_row" imports_case import-before-header FAIL "$no_table" "$work/halvo"
   printf '%s\n' "$slice" "$header" >"$work/halvo"
-  expect_row="$header" imports_case empty-import-table FAIL "$empty_table" "$work/halvo"
+  expect_counts='dyld_info -imports halvo [arm64]: rows=0 ordinal=0 addend=0 weak-import=0' expect_row="$header" imports_case empty-import-table FAIL "$empty_table" "$work/halvo"
   printf '%s\n' "$clean" "$other_slice" >"$work/halvo"
   expect_row="$other_slice" imports_case last-slice-without-header FAIL "$no_table" "$work/halvo"
   printf '%s\n' "$slice" "$header" "$clean" >"$work/halvo"
@@ -698,6 +704,19 @@ EOF
   imports_case clean-imports-both-slices PASS 'dyld_info -imports halvo: absent' "$work/halvo"
   printf '%s\r\n' "$slice" '' "$header" "      .\$entry  (from libSystem)" "      ${forbidden_import}_2  (from Carbon)" >"$work/halvo"
   imports_case clean-imports-crlf PASS 'dyld_info -imports halvo: absent' "$work/halvo"
+  printf '%s\n' "$slice" "$header" '      _free  (from Text [weak-import]+0x8)' \
+    '      0x0039  ____chkstk_darwin [weak-import] (from libSystem)' '      _open+0x8  (from Foundation)' \
+    '      0x0001  _another+0x10 [weak-import] (from Two Words)' "$other_slice" "$header" "$clean_row" >"$work/halvo"
+  printf '%s\n' 'halvo-capture [arm64]:' "$header" "$clean_row" >"$work/halvo-capture"
+  expect_counts='dyld_info -imports halvo [arm64]: rows=4 ordinal=2 addend=2 weak-import=2
+dyld_info -imports halvo [x86_64]: rows=1 ordinal=0 addend=0 weak-import=0
+dyld_info -imports halvo-capture [arm64]: rows=1 ordinal=0 addend=0 weak-import=0' \
+    imports_case shape-counts-by-binary-and-slice PASS 'dyld_info -imports halvo-capture: absent' "$work/halvo" "$work/halvo-capture"
+  first_hold="      $forbidden_import [weak-import] (from Carbon)"
+  printf '%s\n' "$slice" "$header" "$first_hold" '      0x0001  _other+0xA  (from Core)' "$other_slice" "$header" "$hold_row" >"$work/halvo"
+  expect_counts='dyld_info -imports halvo [arm64]: rows=2 ordinal=1 addend=1 weak-import=1
+dyld_info -imports halvo [x86_64]: rows=1 ordinal=0 addend=0 weak-import=0' expect_row="$first_hold" \
+    imports_case shape-counts-include-rows-after-hold FAIL "halvo imports $forbidden_import" "$work/halvo"
 
   rules_repo=$work/rules
   mkdir -p "$rules_repo/crates/member" "$rules_repo/crates/member/.cargo" || exit 2
