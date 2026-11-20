@@ -83,31 +83,92 @@ pub fn run(data_dir: PathBuf, within: Duration) -> i32 {
     };
     #[cfg(target_os = "macos")]
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+    eprintln!(
+        "halvo: --check-page: at {} ms: the app is built",
+        started.elapsed().as_millis()
+    );
     let handle = app.handle().clone();
     std::thread::spawn(move || watch(handle, started));
-    app.run_return(|_, _| {})
+    app.run_return(move |_, event| {
+        if let tauri::RunEvent::Ready = event {
+            eprintln!(
+                "halvo: --check-page: at {} ms: the event loop is ready",
+                started.elapsed().as_millis()
+            );
+        }
+    })
+}
+
+fn tell(last: &mut String, turn: u32, started: Instant, place: String) {
+    if *last != place || turn.is_multiple_of(50) {
+        eprintln!(
+            "halvo: --check-page: at {} ms, turn {}: {}",
+            started.elapsed().as_millis(),
+            turn,
+            place
+        );
+        *last = place;
+    }
 }
 
 fn watch<R: Runtime>(app: AppHandle<R>, started: Instant) {
     let version = app.package_info().version.to_string();
+    eprintln!(
+        "halvo: --check-page: at {} ms: the watch starts; version {}; reads {}",
+        started.elapsed().as_millis(),
+        version,
+        reads().join(",")
+    );
+    let mut last = String::new();
+    let mut turn = 0u32;
     loop {
         std::thread::sleep(POLL);
+        turn += 1;
+        let loads = match app.try_state::<PageLoads>() {
+            Some(l) => l.count().to_string(),
+            None => "none".to_string(),
+        };
+        let present = app.get_webview_window("main").is_some();
+        let installed = app.try_state::<GuardInstalled>().is_some();
+        let seen_state =
+            format!("loads {loads}, window main present {present}, guard installed {installed}");
         let loaded = app.try_state::<PageLoads>().is_some_and(|l| l.count() > 0);
         let Some(window) = app.get_webview_window("main").filter(|_| loaded) else {
+            tell(
+                &mut last,
+                turn,
+                started,
+                format!("place 1, no page loaded or no window main: {seen_state}"),
+            );
             continue;
         };
         let (tx, rx) = mpsc::channel();
-        if window
-            .eval_with_callback(PROBE, move |seen| {
-                let _ = tx.send(seen);
-            })
-            .is_err()
-        {
+        if let Err(e) = window.eval_with_callback(PROBE, move |seen| {
+            let _ = tx.send(seen);
+        }) {
+            tell(
+                &mut last,
+                turn,
+                started,
+                format!("place 2, the probe was not sent: {e}: {seen_state}"),
+            );
             continue;
         }
         let Ok(seen) = rx.recv_timeout(Duration::from_secs(2)) else {
+            tell(
+                &mut last,
+                turn,
+                started,
+                format!("place 3, no answer of the probe within 2 s: {seen_state}"),
+            );
             continue;
         };
+        tell(
+            &mut last,
+            turn,
+            started,
+            format!("place 4, an answer: {seen}: {seen_state}"),
+        );
         let guard = app.try_state::<GuardInstalled>();
         if let Some(line) = line(&seen, &version, guard.as_deref()) {
             let mut out = std::io::stdout().lock();
