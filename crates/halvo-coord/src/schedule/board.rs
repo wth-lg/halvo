@@ -364,7 +364,11 @@ impl<C> Board<C> {
     /// the store's outcome (I5.8; ruling RD-151). Where no `run_ended` row of such a run stands,
     /// because recovery's row never reached the ledger, the copy holds one of that end after
     /// its `run_started`, so that the row reads the end of that run and not of an earlier one
-    /// (RD-151 (b)). None where neither stands.
+    /// (RD-151 (b)). The same `interrupted` row of any run, in any life and whatever reap
+    /// answered, holds the end of a record that names that run `completed` or `nothing_to_do`:
+    /// the runner's own word that its task ended wins over what recovery concluded without it,
+    /// while a record `failed` or no record leaves `interrupted` standing (the coordinator's word
+    /// on RD-151 (b) of 2026-11-20). None where neither stands.
     pub fn ended_after_reap(
         &self,
         facts: &Facts<C>,
@@ -374,10 +378,11 @@ impl<C> Board<C> {
         C: Clone,
     {
         let end_of = |run: &RunId| {
-            records
-                .iter()
-                .find(|r| &r.run == run && self.alive.contains(run))
-                .map(|r| RunEnd::from(r.outcome))
+            records.iter().find(|r| &r.run == run).and_then(|r| {
+                let end = RunEnd::from(r.outcome);
+                (self.alive.contains(run) || matches!(end, RunEnd::Completed | RunEnd::NothingToDo))
+                    .then_some(end)
+            })
         };
         let stands = |what: &crate::types::What| {
             matches!(what, crate::types::What::RunEnded { run, cause: RunEnd::Interrupted, .. }
