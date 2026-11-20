@@ -99,6 +99,7 @@ stall::enter_a_tab_out_and_a_focus_move_in_two_steps_record_no_letter group=nati
 stall::five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorded group=native
 stall::helper_stall_fixture group=native
 stall::kinds::a_control_that_recorded_more_than_five_letters_fails group=native
+stall::kinds::a_fault_of_the_first_batch_of_a_click_phase_still_fails_after_a_clean_second_batch group=native
 stall::kinds::a_kind_with_no_phase_to_run_is_refused group=native
 stall::kinds::a_native_phase_fails_each_of_its_own_faults group=native
 stall::kinds::a_one_round_enter_phase_that_set_no_withheld_flag_fails group=native

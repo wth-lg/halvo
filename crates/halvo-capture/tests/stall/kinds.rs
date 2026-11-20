@@ -1826,3 +1826,114 @@ fn the_loop_over_the_phases_of_a_kind_prints_each_phase_and_keeps_each_failure()
         );
     }
 }
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn a_fault_of_the_first_batch_of_a_click_phase_still_fails_after_a_clean_second_batch() {
+    let pair = controls(control(OWN, 0), control(OWN, 2));
+    let good = passing();
+    let two_batches = |first: Totals, second: Totals| {
+        let mut summed = Totals::default();
+        summed.add(first);
+        summed.add(second);
+        summed
+    };
+    let judged = |checks: Checks, totals: Totals| {
+        verdict(&run(OWN, 1, Outcome::Rounds { totals, checks }), &pair)
+    };
+    for checks in [
+        Checks::Stall,
+        Checks::Enter,
+        Checks::TabOut,
+        Checks::ControlsAndSink,
+    ] {
+        assert_eq!(
+            judged(checks, two_batches(good, good)),
+            Ok(()),
+            "{checks:?} after a clean first and a clean second batch"
+        );
+    }
+    let first_batch_faults = [
+        (
+            "rounds",
+            Checks::Stall,
+            Totals { counted: 0, ..good },
+            "not every round counted",
+        ),
+        (
+            "counted",
+            Checks::Stall,
+            Totals {
+                rounds: 0,
+                counted: 1,
+                ..good
+            },
+            "not every round counted",
+        ),
+        (
+            "letters_recorded",
+            Checks::Stall,
+            Totals {
+                letters_recorded: 1,
+                ..good
+            },
+            "a letter typed ahead",
+        ),
+        (
+            "tabs_recorded",
+            Checks::TabOut,
+            Totals {
+                tabs_recorded: 1,
+                ..good
+            },
+            "the Tab out of the password field was recorded",
+        ),
+        (
+            "other_recorded",
+            Checks::Stall,
+            Totals {
+                other_recorded: 1,
+                ..good
+            },
+            "another class than Tab",
+        ),
+        (
+            "late_moved",
+            Checks::Stall,
+            Totals {
+                late_moved: 1,
+                ..good
+            },
+            "moved during the phase",
+        ),
+        (
+            "sink_differs",
+            Checks::Stall,
+            Totals {
+                sink_differs: 1,
+                ..good
+            },
+            "the sink held",
+        ),
+    ];
+    let mut missed = Vec::new();
+    for (sum, checks, first, why) in first_batch_faults {
+        if !judged(checks, two_batches(first, good)).is_err_and(|got| got.contains(why)) {
+            missed.push(sum);
+        }
+    }
+    let flag_of_the_first_batch_alone = two_batches(
+        good,
+        Totals {
+            withheld_set: 0,
+            ..good
+        },
+    );
+    if judged(Checks::Enter, flag_of_the_first_batch_alone) != Ok(()) {
+        missed.push("withheld_set");
+    }
+    assert!(
+        missed.is_empty(),
+        "a sum lost what the first batch carried after a clean second batch: {missed:?}"
+    );
+}
