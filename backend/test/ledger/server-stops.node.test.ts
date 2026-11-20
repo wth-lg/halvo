@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, vi } from "vitest";
-import { endGroup, type Group, groupMembers, startGroup } from "./process-group.ts";
+import { endGroup, type Group, groupMembers, startGroup, useProcesses } from "./process-group.ts";
 
 const ROOT = process.cwd();
 const SELF = "test/ledger/server-stops.node.test.ts";
@@ -214,6 +214,47 @@ if (MODE !== undefined) {
     test("starts nothing, after the run's set-up", () => {});
   } else throw new Error(`no mode ${MODE}`);
 } else {
+  test("the stop case's cleanup sends nothing to a group whose leader is gone", async () => {
+    const leader = 300_100;
+    const later = "Thu Jan 1 01:00:00 1970";
+    const other = "Thu Jan 1 02:00:00 1970";
+    let rows = [`${process.pid} ${process.pid} S Thu Jan 1 00:00:10 1970`, `300101 ${leader} S ${other}`, `300102 ${leader} S ${other}`];
+    const sent: string[] = [];
+    const written: string[] = [];
+    const kill = process.kill;
+    const write = process.stderr.write;
+    useProcesses({
+      ps: () => rows.join("\n"),
+      spawn: () => {
+        throw new Error("the recorded table starts nothing");
+      },
+      kill: () => {},
+      exit: () => {},
+      on: () => {},
+      off: () => {},
+    });
+    process.kill = ((pid: number, name: string) => {
+      sent.push(`${name} ${pid}`);
+      rows = rows.filter((row) => !row.includes(` ${-pid} S `));
+      return true;
+    }) as typeof process.kill;
+    process.stderr.write = ((line: string) => {
+      written.push(String(line));
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      await endRecorded({ pid: leader, started: later });
+    } finally {
+      process.kill = kill;
+      process.stderr.write = write;
+      useProcesses(null);
+    }
+    expect({ sent, written }).toEqual({
+      sent: [],
+      written: [`server-stops: left group ${leader} (started ${later}): its leader is gone and 2 processes have its id as their group\n`],
+    });
+  });
+
   for (const [mode, server] of STARTS) {
     test(`${server}: a run whose main process alone gets INT while it is up leaves no process of the run's group or of a group that the run marked, and it runs in a group that the run marked`, () =>
       withRun(mode, async (dir, run, watched) => {
