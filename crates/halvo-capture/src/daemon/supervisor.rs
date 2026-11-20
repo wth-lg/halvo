@@ -2401,7 +2401,7 @@ mod tests {
         let dir = crate::daemon::state::tests::test_dir();
         let writer = crate::daemon::state::tests::TestWrite::default();
         let state = crate::daemon::state::StateFile::open(
-            dir.path().to_path_buf(),
+            crate::daemon::state::StateDir::open(dir.path()).unwrap(),
             Box::new(writer.clone()),
         );
         let mut f = f;
@@ -2411,7 +2411,7 @@ mod tests {
 
     fn once_granted(dir: &std::path::Path) -> Vec<Permission> {
         crate::daemon::state::StateFile::open(
-            dir.to_path_buf(),
+            crate::daemon::state::StateDir::open(dir).unwrap(),
             Box::new(crate::daemon::state::tests::TestWrite::default()),
         )
         .state()

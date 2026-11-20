@@ -4,10 +4,9 @@
 
 use std::ffi::OsStr;
 use std::io;
-use std::path::Path;
 
 use super::durable::{self, Dir, DurableFs, OsFs};
-use crate::daemon::state::StateWrite;
+use crate::daemon::state::{StateDir, StateWrite};
 
 /// The daemon's state-file write through the store's durable-write helper: a
 /// temporary name beside the file, a full flush that reaches the drive and
@@ -30,8 +29,8 @@ impl Default for DurableStateWrite {
 }
 
 impl StateWrite for DurableStateWrite {
-    fn write_whole(&self, dir: &Path, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
-        let held = Dir::open(dir)?;
+    fn write_whole(&self, dir: &StateDir, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+        let held = held_dir(dir)?;
         let mut temp = name.to_os_string();
         temp.push(".new");
         let discard = |dir: &Dir, temp: &OsStr| match self.fs.remove_file(dir, temp) {
@@ -52,11 +51,21 @@ impl StateWrite for DurableStateWrite {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn held_dir(dir: &StateDir) -> io::Result<Dir> {
+    Dir::from_fd(dir.descriptor().try_clone_to_owned()?)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn held_dir(dir: &StateDir) -> io::Result<Dir> {
+    Dir::open(dir.path())
+}
+
 #[cfg(test)]
 mod tests {
     use std::ffi::OsString;
     use std::fs::File;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
     use super::super::durable::test_support::{Call, Kind, RecordingFs};
@@ -107,7 +116,7 @@ mod tests {
         let writer = DurableStateWrite {
             fs: Box::new(Shared(fs.clone())),
         };
-        let mut file = StateFile::open(dir.path().to_path_buf(), Box::new(writer));
+        let mut file = StateFile::open(StateDir::open(dir.path()).unwrap(), Box::new(writer));
         let at = real(dir.path());
         let temp = at.join("daemon-state.json.new");
         let target = at.join("daemon-state.json");
@@ -148,13 +157,66 @@ mod tests {
     fn a_temporary_name_that_an_earlier_life_left_does_not_block_the_write() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("daemon-state.json.new"), b"left").unwrap();
-        let mut file =
-            StateFile::open(dir.path().to_path_buf(), Box::new(DurableStateWrite::new()));
+        let mut file = StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(DurableStateWrite::new()),
+        );
         assert_eq!(file.health(), StateHealth::Ok);
         file.update(|state| state.desired = Desired::Running)
             .unwrap();
-        let reread = StateFile::open(dir.path().to_path_buf(), Box::new(DurableStateWrite::new()));
+        let reread = StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(DurableStateWrite::new()),
+        );
         assert_eq!(reread.state().desired, Desired::Running);
         assert!(std::fs::symlink_metadata(dir.path().join("daemon-state.json.new")).is_err());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_write_after_the_folder_moved_lands_in_the_held_folder_and_leaves_the_second_holders_file_as_it_was(
+    ) {
+        use crate::daemon::instance::InstanceLock;
+        use halvo_control::paths::DataDir;
+
+        let reads_running = |dir: &Path| {
+            std::fs::read_to_string(dir.join("daemon-state.json"))
+                .ok()
+                .map(|text| text.contains("\"desired\":\"running\""))
+        };
+        let root = crate::daemon::state::tests::test_dir();
+        let root_path = root.path().canonicalize().unwrap();
+        let (data, moved) = (root_path.join("data"), root_path.join("moved"));
+        std::fs::create_dir(&data).unwrap();
+        let named = DataDir::from_flag(data.to_str().unwrap()).unwrap();
+        let first_lock = InstanceLock::take(&named).unwrap().unwrap();
+        let mut first = StateFile::open(
+            first_lock.state_dir().unwrap(),
+            Box::new(DurableStateWrite::new()),
+        );
+        assert_eq!(first.health(), StateHealth::Ok);
+        std::fs::rename(&data, &moved).unwrap();
+        assert_eq!(first_lock.folder().unwrap(), moved);
+        std::fs::create_dir(&data).unwrap();
+        let second_lock = InstanceLock::take(&named).unwrap().unwrap();
+        let second = StateFile::open(
+            second_lock.state_dir().unwrap(),
+            Box::new(DurableStateWrite::new()),
+        );
+        assert_eq!(second.state().desired, Desired::Paused);
+        let written_by_the_second = std::fs::read(data.join("daemon-state.json")).unwrap();
+        first
+            .update(|state| state.desired = Desired::Running)
+            .unwrap();
+        assert_eq!(
+            (reads_running(&moved), reads_running(&data)),
+            (Some(true), Some(false)),
+            "the first holder's write did not land in the folder that its lock holds"
+        );
+        assert_eq!(
+            std::fs::read(data.join("daemon-state.json")).unwrap(),
+            written_by_the_second
+        );
+        drop((first_lock, second_lock));
     }
 }

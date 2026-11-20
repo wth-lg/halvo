@@ -24,13 +24,98 @@ pub const STATE_VERSION: u64 = 1;
 /// The largest state file that a load reads; a larger one does not load.
 pub const STATE_FILE_MAX_BYTES: u64 = 65_536;
 
-/// The durable write of the whole file `name` in the directory `dir`: a
+/// The durable write of the whole file `name` in the folder `dir`: a
 /// temporary name beside it, a flush that reaches the drive, a rename over
-/// `name` and a flush of the directory, so that `name` holds the bytes from
+/// `name` and a flush of the folder, so that `name` holds the bytes from
 /// before the write or `bytes`, never a part of them. The store's
 /// durable-write helper implements it (contracts.md C3.7).
 pub trait StateWrite: Send {
-    fn write_whole(&self, dir: &Path, name: &OsStr, bytes: &[u8]) -> io::Result<()>;
+    fn write_whole(&self, dir: &StateDir, name: &OsStr, bytes: &[u8]) -> io::Result<()>;
+}
+
+/// The folder that holds the state file. On macOS it is a descriptor of the
+/// folder of its own, so that every read and write of the state file reaches
+/// that folder wherever it is moved and no name of it is read again; the
+/// service run opens it through the instance lock's descriptor. On Windows it
+/// is the folder's path.
+pub struct StateDir {
+    #[cfg(target_os = "macos")]
+    fd: std::os::fd::OwnedFd,
+    #[cfg(not(target_os = "macos"))]
+    path: PathBuf,
+}
+
+impl StateDir {
+    /// The folder at `path`, opened as it stands now and following no link
+    /// at its last part, as the store's directory handle opens a folder.
+    #[cfg(target_os = "macos")]
+    pub fn open(path: &Path) -> io::Result<StateDir> {
+        use std::os::unix::fs::OpenOptionsExt;
+        let folder = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(path)?;
+        Ok(StateDir { fd: folder.into() })
+    }
+
+    /// The folder at `path`.
+    #[cfg(not(target_os = "macos"))]
+    pub fn open(path: &Path) -> io::Result<StateDir> {
+        Ok(StateDir {
+            path: path.to_path_buf(),
+        })
+    }
+
+    /// The folder that the descriptor `held` holds, opened anew through it:
+    /// the same folder wherever it stands, on a descriptor of its own that
+    /// shares no lock that `held` takes.
+    #[cfg(target_os = "macos")]
+    pub fn of_folder(held: std::os::fd::BorrowedFd<'_>) -> io::Result<StateDir> {
+        use std::os::fd::{AsRawFd, FromRawFd};
+        let fd = unsafe {
+            libc::openat(
+                held.as_raw_fd(),
+                c".".as_ptr(),
+                libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC,
+            )
+        };
+        if fd == -1 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(StateDir {
+            fd: unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) },
+        })
+    }
+
+    /// The folder's descriptor, for the port's write.
+    #[cfg(target_os = "macos")]
+    pub fn descriptor(&self) -> std::os::fd::BorrowedFd<'_> {
+        use std::os::fd::AsFd;
+        self.fd.as_fd()
+    }
+
+    /// The folder's path, for the port's write.
+    #[cfg(not(target_os = "macos"))]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    #[cfg(target_os = "macos")]
+    fn file_for_words(&self) -> PathBuf {
+        use std::os::fd::AsRawFd;
+        use std::os::unix::ffi::OsStrExt;
+        let mut buf = vec![0u8; libc::PATH_MAX as usize];
+        if unsafe { libc::fcntl(self.fd.as_raw_fd(), libc::F_GETPATH, buf.as_mut_ptr()) } == -1 {
+            return PathBuf::from(STATE_FILE);
+        }
+        let len = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+        Path::new(OsStr::from_bytes(&buf[..len])).join(STATE_FILE)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn file_for_words(&self) -> PathBuf {
+        self.path.join(STATE_FILE)
+    }
 }
 
 /// Whether the person wants capture running or paused.
@@ -129,7 +214,7 @@ enum Loaded {
 /// file did not load and memory holds the defaults, desired paused among
 /// them.
 pub struct StateFile {
-    dir: PathBuf,
+    dir: StateDir,
     state: DaemonState,
     loaded: Loaded,
     last_write: Option<io::ErrorKind>,
@@ -137,15 +222,15 @@ pub struct StateFile {
 }
 
 impl StateFile {
-    /// Loads the state file of `dir`, a data directory that the caller holds by
-    /// its instance lock. A file that loads gives its state, and a missing
+    /// Loads the state file of `dir`, the folder of a data directory that the
+    /// caller holds by its instance lock. A file that loads gives its state, and a missing
     /// field or switch its default. When no entry stands at the name the
     /// defaults are written through `writer`, the one write of a load; an
     /// entry that stands is never written by a load. An entry that does not
     /// load is left as it is, and the state is the defaults, with desired
     /// paused.
-    pub fn open(dir: PathBuf, writer: Box<dyn StateWrite>) -> StateFile {
-        let (state, loaded, missing) = match read(&dir.join(STATE_FILE)) {
+    pub fn open(dir: StateDir, writer: Box<dyn StateWrite>) -> StateFile {
+        let (state, loaded, missing) = match read(&dir) {
             Found::Missing => (DaemonState::default(), Loaded::Readable, true),
             Found::Unloadable => (DaemonState::default(), Loaded::Corrupt, false),
             Found::Bytes(bytes) => match parse(&bytes) {
@@ -190,7 +275,7 @@ impl StateFile {
     pub fn update(&mut self, change: impl FnOnce(&mut DaemonState)) -> Result<(), StateError> {
         if self.loaded != Loaded::Readable {
             return Err(StateError::LeftAsItIs {
-                file: self.dir.join(STATE_FILE),
+                file: self.dir.file_for_words(),
                 health: self.health(),
             });
         }
@@ -205,7 +290,7 @@ impl StateFile {
             Err(error) => {
                 self.last_write = Some(error.kind());
                 Err(StateError::NotWritten {
-                    file: self.dir.join(STATE_FILE),
+                    file: self.dir.file_for_words(),
                     kind: error.kind(),
                 })
             }
@@ -246,8 +331,8 @@ enum Found {
     Bytes(Vec<u8>),
 }
 
-fn read(path: &Path) -> Found {
-    let file = match open_without_following(path) {
+fn read(dir: &StateDir) -> Found {
+    let file = match open_without_following(dir) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Found::Missing,
         Err(_) => return Found::Unloadable,
@@ -263,21 +348,30 @@ fn read(path: &Path) -> Found {
 }
 
 #[cfg(target_os = "macos")]
-fn open_without_following(path: &Path) -> io::Result<std::fs::File> {
-    use std::os::unix::fs::OpenOptionsExt;
-    std::fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
-        .open(path)
+fn open_without_following(dir: &StateDir) -> io::Result<std::fs::File> {
+    use std::os::fd::{AsRawFd, FromRawFd};
+    let name = std::ffi::CString::new(STATE_FILE)?;
+    let fd = unsafe {
+        libc::openat(
+            dir.fd.as_raw_fd(),
+            name.as_ptr(),
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC,
+        )
+    };
+    if fd == -1 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(unsafe { std::fs::File::from_raw_fd(fd) })
 }
 
 #[cfg(not(target_os = "macos"))]
-fn open_without_following(path: &Path) -> io::Result<std::fs::File> {
-    let meta = std::fs::symlink_metadata(path)?;
+fn open_without_following(dir: &StateDir) -> io::Result<std::fs::File> {
+    let path = dir.path.join(STATE_FILE);
+    let meta = std::fs::symlink_metadata(&path)?;
     if meta.file_type().is_symlink() {
         return Err(io::Error::from(io::ErrorKind::InvalidInput));
     }
-    std::fs::File::open(path)
+    std::fs::File::open(&path)
 }
 
 fn version_default() -> u64 {
@@ -411,16 +505,47 @@ pub(crate) mod tests {
     }
 
     impl StateWrite for TestWrite {
-        fn write_whole(&self, dir: &Path, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+        fn write_whole(&self, dir: &StateDir, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             if self.failing.load(Ordering::SeqCst) {
                 return Err(io::Error::from(io::ErrorKind::StorageFull));
             }
             let mut temp = name.to_os_string();
             temp.push(".test-new");
-            std::fs::write(dir.join(&temp), bytes)?;
-            std::fs::rename(dir.join(&temp), dir.join(name))
+            put(dir, &temp, name, bytes)
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn put(dir: &StateDir, temp: &OsStr, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+        use std::io::Write;
+        use std::os::fd::{AsRawFd, FromRawFd};
+        use std::os::unix::ffi::OsStrExt;
+        let at = dir.descriptor().as_raw_fd();
+        let temp = std::ffi::CString::new(temp.as_bytes())?;
+        let name = std::ffi::CString::new(name.as_bytes())?;
+        let fd = unsafe {
+            libc::openat(
+                at,
+                temp.as_ptr(),
+                libc::O_WRONLY | libc::O_CREAT | libc::O_TRUNC | libc::O_CLOEXEC,
+                0o600 as libc::c_uint,
+            )
+        };
+        if fd == -1 {
+            return Err(io::Error::last_os_error());
+        }
+        unsafe { std::fs::File::from_raw_fd(fd) }.write_all(bytes)?;
+        if unsafe { libc::renameat(at, temp.as_ptr(), at, name.as_ptr()) } == -1 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn put(dir: &StateDir, temp: &OsStr, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+        std::fs::write(dir.path().join(temp), bytes)?;
+        std::fs::rename(dir.path().join(temp), dir.path().join(name))
     }
 
     pub(crate) fn test_dir() -> tempfile::TempDir {
@@ -438,7 +563,7 @@ pub(crate) mod tests {
     }
 
     fn open(dir: &Path, writer: &TestWrite) -> StateFile {
-        StateFile::open(dir.to_path_buf(), Box::new(writer.clone()))
+        StateFile::open(StateDir::open(dir).unwrap(), Box::new(writer.clone()))
     }
 
     fn file_of(dir: &Path) -> PathBuf {

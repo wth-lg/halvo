@@ -19,6 +19,8 @@ mod macos {
     use halvo_control::instance_lock;
     use halvo_control::paths::{check_data_dir, DataDir, DataDirCheck, DataDirFault};
 
+    use crate::daemon::state::StateDir;
+
     /// The extended attribute that tells Time Machine to copy nothing of a
     /// directory.
     pub const BACKUP_EXCLUSION_ATTRIBUTE: &str = "com.apple.metadata:com_apple_backup_excludeItem";
@@ -51,9 +53,11 @@ mod macos {
             check_data_dir(dir, Some(&self.0))
         }
 
-        /// The folder that the lock's descriptor holds, as the system names it
-        /// now: the folder that a link at the data directory's name leads to,
-        /// read on the descriptor and never by the name again.
+        /// The name that the system gives now to the folder that the lock's
+        /// descriptor holds: the folder that a link at the data directory's
+        /// name leads to, read on the descriptor. The name holds only while
+        /// the folder stays where it is; the state file goes through
+        /// [`InstanceLock::state_dir`] and never by a name.
         pub fn folder(&self) -> io::Result<PathBuf> {
             let mut buf = vec![0u8; libc::PATH_MAX as usize];
             if unsafe { libc::fcntl(self.0.as_raw_fd(), libc::F_GETPATH, buf.as_mut_ptr()) } == -1 {
@@ -62,6 +66,13 @@ mod macos {
             let text = std::ffi::CStr::from_bytes_until_nul(&buf)
                 .map_err(|_| io::Error::from(io::ErrorKind::InvalidData))?;
             Ok(PathBuf::from(std::ffi::OsStr::from_bytes(text.to_bytes())))
+        }
+
+        /// The folder that the lock holds, opened anew through the lock's
+        /// descriptor for the state file, so that every read and write of the
+        /// state file reaches this folder wherever it is moved.
+        pub fn state_dir(&self) -> io::Result<StateDir> {
+            StateDir::of_folder(unsafe { std::os::fd::BorrowedFd::borrow_raw(self.0.as_raw_fd()) })
         }
 
         /// Sets [`BACKUP_EXCLUSION_ATTRIBUTE`] on the directory through the

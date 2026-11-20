@@ -13,7 +13,7 @@ use super::instance::tests::{backup_mark, kept_dir};
 use super::instance::InstanceLock;
 use super::main_loop::{self, MainLoop};
 use super::state::tests::TestWrite;
-use super::state::{DaemonState, StateFile};
+use super::state::{DaemonState, StateDir, StateFile, StateWrite};
 use super::{serve, signal};
 
 const SERVE: &str = "HALVO_DAEMON_SERVE_DIR";
@@ -197,7 +197,10 @@ fn a_service_run_without_a_state_file_writes_the_defaults_after_the_lock() {
     drop(held);
     let mut run = service(&dir);
     ready(&dir, &mut run);
-    let loaded = StateFile::open(dir.clone(), Box::new(TestWrite::default()));
+    let loaded = StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    );
     assert_eq!(loaded.state(), &DaemonState::default());
     assert_eq!(terminate(run), Some(0));
     assert_eq!(names(&dir), vec!["daemon-state.json".to_owned()]);
@@ -261,11 +264,15 @@ impl main_loop::EndCall for Recorded {
 }
 
 fn serve_here(dir: &Path) -> (i32, String) {
+    serve_with(dir, Box::new(TestWrite::default()))
+}
+
+fn serve_with(dir: &Path, writer: Box<dyn StateWrite>) -> (i32, String) {
     let stop = AtomicBool::new(true);
     let mut err = Vec::new();
     let status = serve(
         &data_dir(dir),
-        Box::new(TestWrite::default()),
+        writer,
         SleepLoop(Instant::now()),
         &stop,
         Arc::new(Recorded),
@@ -401,4 +408,105 @@ fn the_wait_goes_on_past_its_slices_until_the_stop_flag() {
         "the wait ended at {:?}, before the stop flag",
         now.lock().unwrap()
     );
+}
+
+fn durable_writer() -> Box<dyn StateWrite> {
+    Box::new(crate::store::state_file::DurableStateWrite::new())
+}
+
+fn moved_folder(root: &Path) -> (PathBuf, PathBuf) {
+    let data = root.join("data");
+    std::fs::create_dir(&data).unwrap();
+    (data, root.join("moved"))
+}
+
+fn file_text(dir: &Path) -> String {
+    String::from_utf8(std::fs::read(dir.join("daemon-state.json")).unwrap()).unwrap()
+}
+
+#[test]
+fn a_grant_recorded_after_the_held_folder_moved_lands_in_the_held_folder_and_not_at_its_old_name() {
+    use halvo_control::onboarding::Permission;
+    let root = kept_dir("service-tests-");
+    let (data, moved) = moved_folder(&root);
+    let named = data_dir(&data);
+    let lock = InstanceLock::take(&named).unwrap().unwrap();
+    let mut state = StateFile::open(lock.state_dir().unwrap(), durable_writer());
+    assert_eq!(state.health(), super::state::StateHealth::Ok);
+    std::fs::rename(&data, &moved).unwrap();
+    std::fs::create_dir(&data).unwrap();
+    let second = InstanceLock::take(&named).unwrap();
+    assert!(second.is_some(), "a second take of the name answered held");
+    state
+        .record_granted(&[Permission::InputMonitoring])
+        .unwrap();
+    assert!(
+        file_text(&moved).contains("input_monitoring"),
+        "the grant is not in the folder that the lock holds: {}",
+        file_text(&moved)
+    );
+    assert!(names(&data).is_empty(), "{:?}", names(&data));
+    drop((second, lock));
+}
+
+struct MoveThenWrite {
+    held: PathBuf,
+    moved: PathBuf,
+    inner: Box<dyn StateWrite>,
+}
+
+impl StateWrite for MoveThenWrite {
+    fn write_whole(
+        &self,
+        dir: &StateDir,
+        name: &std::ffi::OsStr,
+        bytes: &[u8],
+    ) -> std::io::Result<()> {
+        if !self.moved.exists() {
+            std::fs::rename(&self.held, &self.moved)?;
+            std::fs::create_dir(&self.held)?;
+        }
+        self.inner.write_whole(dir, name, bytes)
+    }
+}
+
+#[test]
+fn the_first_state_write_of_a_service_run_lands_in_the_held_folder_when_the_folder_moves_before_it()
+{
+    let root = kept_dir("service-tests-");
+    let (data, moved) = moved_folder(&root);
+    let writer = MoveThenWrite {
+        held: data.clone(),
+        moved: moved.clone(),
+        inner: durable_writer(),
+    };
+    let (status, err) = serve_with(&data, Box::new(writer));
+    assert_eq!((status, err.as_str()), (0, ""));
+    assert_eq!(names(&moved), vec!["daemon-state.json".to_owned()]);
+    assert!(backup_mark(&moved, false).is_some());
+    assert!(names(&data).is_empty(), "{:?}", names(&data));
+    assert!(backup_mark(&data, false).is_none());
+}
+
+#[test]
+fn a_later_state_write_lands_in_the_held_folder_after_a_move_and_the_folder_at_the_name_gets_nothing(
+) {
+    let root = kept_dir("service-tests-");
+    let (data, moved) = moved_folder(&root);
+    let lock = InstanceLock::take(&data_dir(&data)).unwrap().unwrap();
+    let mut state = StateFile::open(lock.state_dir().unwrap(), durable_writer());
+    std::fs::rename(&data, &moved).unwrap();
+    std::fs::create_dir(&data).unwrap();
+    state
+        .update(|state| state.desired = super::state::Desired::Running)
+        .unwrap();
+    let second = InstanceLock::take(&data_dir(&data)).unwrap();
+    assert!(second.is_some(), "a second take of the name answered held");
+    assert!(
+        file_text(&moved).contains("\"desired\":\"running\""),
+        "{}",
+        file_text(&moved)
+    );
+    assert!(names(&data).is_empty(), "{:?}", names(&data));
+    drop((second, lock));
 }

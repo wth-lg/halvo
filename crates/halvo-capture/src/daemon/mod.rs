@@ -1721,7 +1721,7 @@ pub(crate) fn serve<L: main_loop::MainLoop>(
     if let Err(fault) = lock.check(dir) {
         let _ = writeln!(err, "{}", obstructed_line(fault));
     }
-    let folder = match lock.folder() {
+    let folder = match lock.state_dir() {
         Ok(folder) => folder,
         Err(error) => {
             let _ = writeln!(
