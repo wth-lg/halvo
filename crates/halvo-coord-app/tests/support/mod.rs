@@ -12,9 +12,10 @@ use halvo_coord::types::{
 };
 use halvo_coord_app::{handler, Agents, Hub, Native, Present};
 use std::num::NonZeroU32;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::ThreadId;
+use std::time::{Duration, Instant};
 use tauri::ipc::{CallbackFn, InvokeBody};
 use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime, INVOKE_KEY};
 use tauri::webview::InvokeRequest;
@@ -33,6 +34,50 @@ pub struct Shared {
     policy: Policy<Config>,
     clock_fails_at_cancel: AtomicBool,
     clock_failing: AtomicBool,
+    recorder: Recorder,
+}
+
+/// How long the recorder holds a kill before it answers `no_service`.
+#[derive(Clone, Copy, Debug)]
+pub enum Hold {
+    /// For this time.
+    For(Duration),
+    /// Until `Shared::release_kills`.
+    Released,
+}
+
+#[derive(Default)]
+struct Recorder {
+    hold: Mutex<Option<Hold>>,
+    calls: Mutex<Vec<(RunId, Instant)>>,
+    holding: AtomicUsize,
+    released: Mutex<bool>,
+    free: Condvar,
+}
+
+impl Recorder {
+    fn take(&self, run: &RunId) -> Option<Result<(), PortError>> {
+        let hold = (*self.hold.lock().unwrap_or_else(PoisonError::into_inner))?;
+        self.calls
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((run.clone(), Instant::now()));
+        self.holding.fetch_add(1, Ordering::SeqCst);
+        match hold {
+            Hold::For(time) => std::thread::sleep(time),
+            Hold::Released => {
+                let mut released = self.released.lock().unwrap_or_else(PoisonError::into_inner);
+                while !*released {
+                    released = self
+                        .free
+                        .wait(released)
+                        .unwrap_or_else(PoisonError::into_inner);
+                }
+            }
+        }
+        self.holding.fetch_sub(1, Ordering::SeqCst);
+        Some(Err(PortError::NoService))
+    }
 }
 
 // SAFETY: `ports` and `policy` are read only inside `enter`, which lets one thread in at a time.
@@ -72,6 +117,43 @@ impl Shared {
     pub fn with<T>(&self, f: impl FnOnce(&Ports<Config>) -> T) -> T {
         let _turn = self.enter();
         f(&self.ports)
+    }
+
+    /// From the next `Runs::kill` on, the kill is replaced by a recorder (the never-here rule of
+    /// a line that ends a process): it writes the run that it would have ended and the time of
+    /// the call, ends nothing, holds by `hold` and answers `no_service`. It holds outside the
+    /// turn of `Shared`, so that the other ports answer while it holds.
+    pub fn hold_kills(&self, hold: Hold) {
+        *self
+            .recorder
+            .hold
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(hold);
+    }
+
+    /// Ends every hold `Hold::Released`, now and later.
+    pub fn release_kills(&self) {
+        *self
+            .recorder
+            .released
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = true;
+        self.recorder.free.notify_all();
+    }
+
+    /// The kills that the recorder took: the run that each would have ended, with the time of
+    /// its call.
+    pub fn recorded_kills(&self) -> Vec<(RunId, Instant)> {
+        self.recorder
+            .calls
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// The kills that the recorder holds now.
+    pub fn kills_holding(&self) -> usize {
+        self.recorder.holding.load(Ordering::SeqCst)
     }
 }
 
@@ -165,6 +247,7 @@ pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
         policy: Policy::new(&[]),
         clock_fails_at_cancel: AtomicBool::new(false),
         clock_failing: AtomicBool::new(false),
+        recorder: Recorder::default(),
     }
 }
 
@@ -445,6 +528,9 @@ impl Runs for Shared {
     }
 
     fn kill(&self, run: &RunId) -> Result<(), PortError> {
+        if let Some(answer) = self.recorder.take(run) {
+            return answer;
+        }
         let _turn = self.enter();
         self.ports.kill(run)
     }

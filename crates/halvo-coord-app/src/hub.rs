@@ -8,13 +8,13 @@ use halvo_coord::sync::Next;
 use halvo_coord::types::commands::LIST;
 use halvo_coord::types::{
     Action, AgentId, Card, Cause, Choice, ClosedReply, ConfigView, ErrorReply, ItemId, Limits,
-    OkReply, Param, Snapshot, YesNo,
+    OkReply, Param, RunId, Snapshot, YesNo,
 };
 use halvo_coord::{words, Coordinator};
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, PoisonError, Weak};
+use std::sync::{mpsc, Arc, Mutex, PoisonError, Weak};
 use std::time::{Duration, Instant};
 
 /// A reply of a command (I8.1), written as the page's fixtures write it (I8.3).
@@ -124,9 +124,20 @@ pub trait Core: Send + Sync {
     /// clock once it holds the coordinator's lock, and for a run stopped before the quit from
     /// its own stop, so that the wait for the lock is no part of it and the first step's own
     /// work after that read is; the budget counts from the hook's start. The hook waits in real time for a span that it computes once; a
-    /// second call during the wait returns at the same end. A panic of a port unwinds through
-    /// it with runs alive, and the next life's reap is then the kill (RD-34 (e)).
-    fn quit(&self, budget: Option<Duration>);
+    /// second call during the wait returns at the same end. The second step runs on a thread of
+    /// its own, and the hook waits for it at most `cancel_grace_s` after it called it, so that
+    /// a kill that holds or never returns does not hold Quit (ruling RD-147 (5)(i)): the hook
+    /// returns at the latest `cancel_grace_s` after the end of its wait. It returns the runs
+    /// that the quit has not ended, each with its agent, in the order of their starts
+    /// (`Coordinator::not_stopped`): a run whose kill was refused, and, while a kill has not
+    /// returned, every run that was live before the second step. A kill that has not returned
+    /// goes on in its thread until the app's process ends, and closing the link ends the runner
+    /// with the processes of its mark within the agent-setup run's `LINK_END` of 20 s; neither
+    /// the second step nor a kill starts that clock. A panic of a port in the first step
+    /// unwinds through the hook with runs alive, and a panic in the second step ends that
+    /// step's thread, after which the hook returns at once; the next life's reap is then the
+    /// kill (RD-34 (e)).
+    fn quit(&self, budget: Option<Duration>) -> Vec<(AgentId, RunId)>;
 
     /// The native dialog's report that the item is on screen (I4.2).
     fn on_screen(&self, item: &ItemId);
@@ -435,7 +446,7 @@ where
         }
     }
 
-    fn quit(&self, budget: Option<Duration>) {
+    fn quit(&self, budget: Option<Duration>) -> Vec<(AgentId, RunId)> {
         let start = Instant::now();
         let wait = self.coord.quit_stop();
         let stopped = Instant::now();
@@ -451,7 +462,20 @@ where
             }
             seen = self.bell.wait(seen, end.min(now + LOOK));
         }
-        self.coord.quit_kill();
+        let (done, second) = mpsc::channel();
+        let spawned = self.me.upgrade().map(|hub| {
+            std::thread::Builder::new().spawn(move || {
+                hub.coord.quit_kill();
+                let _ = done.send(());
+            })
+        });
+        match spawned {
+            Some(Ok(_)) => {
+                let _ = second.recv_timeout(self.grace);
+            }
+            _ => self.coord.quit_kill(),
+        }
+        self.coord.not_stopped()
     }
 
     fn on_screen(&self, item: &ItemId) {

@@ -1,12 +1,14 @@
 mod support;
 
 use halvo_coord::mem::Call;
-use halvo_coord::types::{Action, Cause, Limits, Outcome, RunEvent, RunId, What};
+use halvo_coord::types::{Action, AgentId, Cause, Limits, Outcome, RunEvent, RunId, What};
 use halvo_coord_app::{Core, Hub};
 use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
-use support::{agent, calls_since, events, mark, started, world, Counts, Dialogs, Shared, T0};
+use support::{
+    agent, calls_since, events, mark, started, world, Counts, Dialogs, Hold, Shared, T0,
+};
 
 fn ms(n: u64) -> Duration {
     Duration::from_millis(n)
@@ -41,6 +43,17 @@ fn quit(hub: &Arc<Hub<Shared>>, budget: Option<Duration>) -> JoinHandle<Duration
         let start = Instant::now();
         hub.quit(budget);
         start.elapsed()
+    })
+}
+
+type Named = Vec<(AgentId, RunId)>;
+
+fn quit_named(hub: &Arc<Hub<Shared>>, budget: Option<Duration>) -> JoinHandle<(Duration, Named)> {
+    let hub = hub.clone();
+    std::thread::spawn(move || {
+        let start = Instant::now();
+        let named = hub.quit(budget);
+        (start.elapsed(), named)
     })
 }
 
@@ -215,4 +228,83 @@ fn the_budget_counts_from_the_hooks_start_through_a_slow_first_step() {
          {took:?}"
     );
     assert_eq!(kills(&hub, m), [run]);
+}
+
+#[test]
+fn u46_a_kill_held_26_s_and_refused_no_longer_holds_quit_and_its_run_is_named() {
+    let hub = hub(1);
+    let run = live_run(&hub);
+    let ports = hub.coordinator().ports().inner();
+    ports.hold_kills(Hold::For(ms(26_000)));
+    let (took, named) = quit_named(&hub, None).join().unwrap();
+    assert!(
+        took >= ms(1_900) && took < ms(2_900),
+        "cancel_grace_s = 1 s of wait for the run, then at most 1 s for the second step: {took:?}"
+    );
+    assert_eq!(
+        named,
+        [(agent(0), run.clone())],
+        "the run that did not stop, with its agent"
+    );
+    let recorded: Vec<RunId> = ports.recorded_kills().into_iter().map(|(r, _)| r).collect();
+    assert_eq!(
+        recorded,
+        [run],
+        "the recorder took the kill and ended nothing"
+    );
+}
+
+#[test]
+fn u46_a_kill_that_never_returns_does_not_hold_quit_past_its_bound_and_names_the_run_meanwhile() {
+    let hub = hub(1);
+    let run = live_run(&hub);
+    let ports = hub.coordinator().ports().inner();
+    ports.hold_kills(Hold::Released);
+    let quitting = quit_named(&hub, Some(ms(100)));
+    let t0 = Instant::now();
+    while !quitting.is_finished() && t0.elapsed() < ms(6_000) {
+        sleep(ms(10));
+    }
+    let returned = quitting.is_finished();
+    let holding = ports.kills_holding();
+    let meanwhile = hub.coordinator().not_stopped();
+    let probe = {
+        let hub = hub.clone();
+        std::thread::spawn(move || hub.coordinator().live())
+    };
+    sleep(ms(100));
+    let lock_held = !probe.is_finished();
+    ports.release_kills();
+    let (took, named) = quitting.join().unwrap();
+    assert!(returned, "the hook returned while the kill still held");
+    assert!(
+        took >= ms(1_000) && took < ms(1_900),
+        "a budget of 100 ms, then at most cancel_grace_s = 1 s for the second step: {took:?}"
+    );
+    assert_eq!(holding, 1, "the kill still held when the hook returned");
+    assert!(lock_held, "the held kill holds the coordinator's lock");
+    assert_eq!(named, [(agent(0), run.clone())]);
+    assert_eq!(
+        meanwhile, named,
+        "the list answers while the kill holds the coordinator's lock"
+    );
+    assert_eq!(
+        probe.join().unwrap(),
+        1,
+        "the refused kill leaves the run live"
+    );
+}
+
+#[test]
+fn u46_a_quit_whose_kill_succeeds_names_no_run_and_waits_out_no_bound() {
+    let hub = hub(1);
+    let run = live_run(&hub);
+    let m = mark(&hub);
+    let (took, named) = quit_named(&hub, Some(ms(100))).join().unwrap();
+    assert!(
+        took < ms(900),
+        "the hook returns once the second step has returned: {took:?}"
+    );
+    assert_eq!(kills(&hub, m), [run]);
+    assert!(named.is_empty(), "{named:?}");
 }
