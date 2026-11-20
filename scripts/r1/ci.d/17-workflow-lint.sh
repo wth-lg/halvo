@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the bound ci_job_timeout_min, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag; pull_request and the pinned schedule are the other events. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the two pinned cron lines below it, the Sunday line and then the Wednesday line of the long forms, and no other line under them and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes and steps at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at six blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, and the letters rust-cache stand on no other line. A step condition must be always(), or github.event.schedule != '17 3 * * 3' on a step that is not a Long forms step; the steps Long forms build and Long forms carry github.event.schedule == '17 3 * * 3', as plain YAML, and no other step does; the step Long forms sets in its env HALVO_STALL_FORM: long in the job macos or HALVO_WF_FORM: long in the job windows, then CI_D_SCRIPT_LIMIT_S: 3600, and nothing else; a step must have no continue-on-error key. Review each changed step command in the diff; this pin does not read what a step runs. The push filters are pin_branches and pin_tags. The schedule and cache lines are pin_cron, pin_cron_long, pin_uses, pin_with, pin_prefix and pin_save below; on the event schedule they make the step find no saved Rust build cache and save none.
+# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the bound ci_job_timeout_min, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag; pull_request and the pinned schedule are the other events. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the two pinned cron lines below it, the Sunday line and then the Wednesday line of the long forms, and no other line under them and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes and steps at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at six blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, and the letters rust-cache stand on no other line. A step condition must be always(), or github.event.schedule != '17 3 * * 3' on a step that is not a Long forms step; the steps Long forms build and Long forms carry github.event.schedule == '17 3 * * 3' and no other step does; the step Long forms sets in its env HALVO_STALL_FORM: long in the job macos or HALVO_WF_FORM: long in the job windows, then CI_D_SCRIPT_LIMIT_S: 3600, and nothing else; a step must have no continue-on-error key. The lint reads a condition by the value that YAML decodes from a plain scalar, so lines folded into one, a comment behind it and blanks around it change nothing, refuses a condition in quotes or in a block, and reads a step's name by its value in any style. Review each changed step command in the diff; this pin does not read what a step runs. The push filters are pin_branches and pin_tags. The schedule and cache lines are pin_cron, pin_cron_long, pin_uses, pin_with, pin_prefix and pin_save below; on the event schedule they make the step find no saved Rust build cache and save none.
 set -u
 name=17-workflow-lint
 pinned_version=1.7.12
@@ -488,6 +488,7 @@ EOF
       other_days = "github.event.schedule != \x2717 3 * * 3\x27"
       long_env = { "macos" => [["HALVO_STALL_FORM", "long"], ["CI_D_SCRIPT_LIMIT_S", "3600"]], "windows" => [["HALVO_WF_FORM", "long"], ["CI_D_SCRIPT_LIMIT_S", "3600"]] }
       plain = lambda { |node| node.is_a?(Psych::Nodes::Scalar) && node.plain ? node.value : nil }
+      text = lambda { |node| node.is_a?(Psych::Nodes::Scalar) ? node.value : nil }
       _, jobs = pairs(workflow).find { |key, _| key.value == "jobs" }
       pairs(jobs).each do |job, mapping|
         pairs(mapping).each do |key, value|
@@ -498,7 +499,7 @@ EOF
           next unless key.value == "steps"
           value.children.each_with_index do |step, index|
             named = pairs(step).find { |field, _| field.value == "name" }
-            long = named && ["Long forms build", "Long forms"].include?(plain.call(named[1]))
+            long = named && ["Long forms build", "Long forms"].include?(text.call(named[1]))
             condition = pairs(step).find { |field, _| field.value.downcase == "if" }
             written = condition && plain.call(condition[1])
             if long
@@ -506,7 +507,7 @@ EOF
             elsif written == wednesday
               puts "job #{job.value} step #{index + 1}: the condition #{wednesday} belongs to the steps Long forms build and Long forms alone"
             end
-            if named && plain.call(named[1]) == "Long forms"
+            if named && text.call(named[1]) == "Long forms"
               env = pairs(step).find { |field, _| field.value == "env" }
               got = env && env[1].is_a?(Psych::Nodes::Mapping) ? pairs(env[1]).map { |key, setting| [plain.call(key), plain.call(setting)] } : nil
               want = long_env[job.value]
@@ -516,6 +517,7 @@ EOF
               case field.value.downcase
               when "if"
                 next if long || [wednesday, other_days].include?(plain.call(setting))
+                puts "job #{job.value} step #{index + 1}: write the condition as a plain YAML scalar, with no quotes and no block; this lint reads a condition by its plain value alone" unless setting.is_a?(Psych::Nodes::Scalar) && setting.plain
                 unless setting.is_a?(Psych::Nodes::Scalar) && setting.value == "always()"
                   puts "job #{job.value} step #{index + 1}: use only always() as a step condition"
                 end
@@ -716,6 +718,18 @@ EOF
   check w17-variables-in-the-other-order FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
   lines w18-wednesday-condition-on-a-step-named-otherwise 17 "$pin_save${nl}      - name: long forms${nl}$wed${nl}$run_l"
   check w18-wednesday-condition-on-a-step-named-otherwise FAIL "job macos step 3: the condition github.event.schedule == '17 3 * * 3' belongs to the steps Long forms build and Long forms alone"
+  lines w19-long-forms-build-named-in-quotes-on-the-other-days 17 "$pin_save${nl}      - name: 'Long forms build'${nl}$neg${nl}$run_b${nl}$long${nl}$wed${nl}$mac_env${nl}$run_l"
+  check w19-long-forms-build-named-in-quotes-on-the-other-days FAIL "job macos step 3: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w20-long-forms-build-named-in-a-block-without-a-condition 17 "$pin_save${nl}      - name: |-${nl}          Long forms build${nl}$run_b${nl}$long${nl}$wed${nl}$mac_env${nl}$run_l"
+  check w20-long-forms-build-named-in-a-block-without-a-condition FAIL "job macos step 3: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w21-long-forms-named-in-quotes-on-every-run-with-a-short-form 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}      - name: \"Long forms\"${nl}        if: always()${nl}        env:${nl}          HALVO_STALL_FORM: short${nl}          CI_D_SCRIPT_LIMIT_S: 3600${nl}$run_l"
+  check w21-long-forms-named-in-quotes-on-every-run-with-a-short-form FAIL "job macos step 4: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w22-long-forms-named-in-quotes-with-a-limit-of-1200 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}      - name: 'Long forms'${nl}$wed${nl}        env:${nl}          HALVO_STALL_FORM: long${nl}          CI_D_SCRIPT_LIMIT_S: 1200${nl}$run_l"
+  check w22-long-forms-named-in-quotes-with-a-limit-of-1200 FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w23-long-forms-named-in-a-block-on-the-other-days-without-env 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}      - name: |-${nl}          Long forms${nl}$neg${nl}$run_l"
+  check w23-long-forms-named-in-a-block-on-the-other-days-without-env FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w24-always-in-quotes 13 "$checkout${nl}        if: 'always()'"
+  check w24-always-in-quotes FAIL 'job macos step 1: write the condition as a plain YAML scalar, with no quotes and no block; this lint reads a condition by its plain value alone'
 
   tree pinned-and-timed ''
   check pinned-and-timed PASS 'jobs: 2, uses keys: 4, findings: 0'
