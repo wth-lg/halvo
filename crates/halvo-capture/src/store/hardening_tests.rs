@@ -10314,6 +10314,9 @@ mod kept_segment_arms;
 
 mod wrapping_keys;
 
+#[cfg(unix)]
+mod refused_versions;
+
 #[cfg(target_os = "macos")]
 mod full_flush;
 
