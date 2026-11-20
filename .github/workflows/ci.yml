@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,39 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 45-r4-words
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 45-r4-words
+      - name: Loop over the tests of U2.4r
+        shell: bash
+        run: |
+          set +e
+          names="u24r_all_lists_the_record_line_once_and_first_in_the_order_of_i1_3 u24r_the_record_row_offers_stop_where_a_run_is_live_the_delete_and_no_other_control u24r_kill_stuck_has_a_line_per_system_and_the_gone_row_takes_the_line_of_its_system u24r_a_stuck_record_shows_the_record_line_on_its_row_with_stop_and_delete_alone u24r_g_after_an_acknowledged_stop_the_record_stays_stuck_until_the_next_tick_ends u24r_g_a_persons_run_now_is_not_held_by_the_stuck_count u24r_each_record_that_the_board_counts_as_dropped_is_of_a_move_already_made u24r_the_card_shows_the_boards_dropped_count_first_and_nothing_without_one u24r_the_dropped_line_says_its_count_and_no_record_taken_off_gives_no_line u24r_the_three_texts_stand_word_for_word rd54g_a_gone_workflows_run_whose_kill_does_not_end_it_shows_kill_stuck rd116_kill_stuck_after_a_refused_kill_when_the_clock_stepped_back rd116_r4_a_refused_kill_of_one_gone_agent_shows_kill_stuck_on_its_row_alone rd116_r4_a_kill_refused_at_the_quit_shows_kill_stuck_on_the_gone_row"
+          want=14
+          rounds=${U24R_ROUNDS:-200}
+          start=$(date +%s)
+          cargo test -p halvo-coord --locked --no-run --test roster_status --test coordinator_moves --test roster_card --test words_same --test roster_moves >/dev/null 2>&1
+          ok=0
+          i=0
+          while [ "$i" -lt "$rounds" ]; do
+            i=$((i + 1))
+            out=$(cargo test -p halvo-coord --locked --test roster_status --test coordinator_moves --test roster_card --test words_same --test roster_moves -- --exact $names 2>&1)
+            passed=$(grep -o '^test result: ok\. [0-9]* passed' <<<"$out" | awk '{s += $4} END {print s + 0}')
+            bad=$(grep -c '^test result: FAILED' <<<"$out")
+            if [ "$passed" = "$want" ] && [ "$bad" = 0 ]; then
+              ok=$((ok + 1))
+            else
+              echo "round $i: passed=$passed failed_result_lines=$bad"
+            fi
+          done
+          echo "loop u24r: passed $ok of $rounds, each round $want tests counted by the result lines"
+          echo "seconds loop-u24r $(( $(date +%s) - start ))"
+          test "$ok" = "$rounds"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -154,14 +169,63 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 45-r4-words
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 45-r4-words
+      - name: Page harness fetch
+        shell: bash
+        run: sh tools/r4-page/fetch.sh "$RUNNER_TEMP/r4-page-browsers"
+      - name: Agents view over every state
+        shell: bash
+        run: |
+          export R4_PAGE_BROWSERS="$RUNNER_TEMP/r4-page-browsers"
+          start=$(date +%s)
+          code=0
+          node ui/tests/r4/agents/test.mjs || code=$?
+          echo "seconds agents-view $(( $(date +%s) - start ))"
+          exit $code
+      - name: Needs view over every state
+        shell: bash
+        run: |
+          export R4_PAGE_BROWSERS="$RUNNER_TEMP/r4-page-browsers"
+          start=$(date +%s)
+          code=0
+          node ui/tests/r4/needs/needs.test.mjs || code=$?
+          echo "seconds needs-view $(( $(date +%s) - start ))"
+          exit $code
+      - name: Tree unchanged after the page suites
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+      - name: Loop over the tests of U2.4r
+        shell: bash
+        run: |
+          set +e
+          names="u24r_all_lists_the_record_line_once_and_first_in_the_order_of_i1_3 u24r_the_record_row_offers_stop_where_a_run_is_live_the_delete_and_no_other_control u24r_kill_stuck_has_a_line_per_system_and_the_gone_row_takes_the_line_of_its_system u24r_a_stuck_record_shows_the_record_line_on_its_row_with_stop_and_delete_alone u24r_g_after_an_acknowledged_stop_the_record_stays_stuck_until_the_next_tick_ends u24r_g_a_persons_run_now_is_not_held_by_the_stuck_count u24r_each_record_that_the_board_counts_as_dropped_is_of_a_move_already_made u24r_the_card_shows_the_boards_dropped_count_first_and_nothing_without_one u24r_the_dropped_line_says_its_count_and_no_record_taken_off_gives_no_line u24r_the_three_texts_stand_word_for_word rd54g_a_gone_workflows_run_whose_kill_does_not_end_it_shows_kill_stuck rd116_kill_stuck_after_a_refused_kill_when_the_clock_stepped_back rd116_r4_a_refused_kill_of_one_gone_agent_shows_kill_stuck_on_its_row_alone rd116_r4_a_kill_refused_at_the_quit_shows_kill_stuck_on_the_gone_row"
+          want=14
+          rounds=${U24R_ROUNDS:-200}
+          start=$(date +%s)
+          cargo test -p halvo-coord --locked --no-run --test roster_status --test coordinator_moves --test roster_card --test words_same --test roster_moves >/dev/null 2>&1
+          ok=0
+          i=0
+          while [ "$i" -lt "$rounds" ]; do
+            i=$((i + 1))
+            out=$(cargo test -p halvo-coord --locked --test roster_status --test coordinator_moves --test roster_card --test words_same --test roster_moves -- --exact $names 2>&1)
+            passed=$(grep -o '^test result: ok\. [0-9]* passed' <<<"$out" | awk '{s += $4} END {print s + 0}')
+            bad=$(grep -c '^test result: FAILED' <<<"$out")
+            if [ "$passed" = "$want" ] && [ "$bad" = 0 ]; then
+              ok=$((ok + 1))
+            else
+              echo "round $i: passed=$passed failed_result_lines=$bad"
+            fi
+          done
+          echo "loop u24r: passed $ok of $rounds, each round $want tests counted by the result lines"
+          echo "seconds loop-u24r $(( $(date +%s) - start ))"
+          test "$ok" = "$rounds"
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
