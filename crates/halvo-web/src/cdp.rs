@@ -749,8 +749,13 @@ impl Executor {
 
     /// The crash row's forced crash (CP-165 (2) (c)): the driver's own command `Browser.crash` on
     /// the pipe, which crashes the browser's first process on its main thread, with no input and
-    /// no window. The browser's crash handler takes it as a crash; the row's control shows it.
+    /// no window. The browser's crash handler takes it as a crash; the row's control shows it. It
+    /// stands behind the fence (`crate::FENCE_MARKER`) and reads the marker: a build without the
+    /// feature `test-fence`, which is no test build, has no means that crashes the browser.
+    #[cfg(any(test, feature = "test-fence"))]
     pub async fn crash(&self) {
+        #[cfg(feature = "test-fence")]
+        crate::fence_marker();
         let _ = self
             .wire
             .call_within(

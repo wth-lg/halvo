@@ -104,8 +104,9 @@ pub const CRASH_CANDIDATES: [(&str, &[&str]); 3] = [
 /// The fence's marker (CP-186 N8, in the form of the capture run's W3-8 (b) (3)): a byte string
 /// that stands in a build with the feature `test-fence` and in no build without it, so that a
 /// check can read a built file for it (`fence/shipped.mjs`). The feature stands behind the crash
-/// row's two means (`cdp::CrashMeans::Without`, `cdp::CrashMeans::Candidate`), `relay::Names::Fixture`,
-/// `CRASH_CANDIDATES` and the programs `web-probe` and `web-rows`; the crate's dev-dependency on
+/// row's two means (`cdp::CrashMeans::Without`, `cdp::CrashMeans::Candidate`), its forced crash
+/// (`cdp::Executor::crash`), `relay::Names::Fixture`, `CRASH_CANDIDATES` and the programs
+/// `web-probe` and `web-rows`; the crate's dev-dependency on
 /// itself turns it on for its own tests, and no other manifest names it. Every path that reaches
 /// one of those means reads the marker, so that a built file that links them holds it.
 #[cfg(feature = "test-fence")]
@@ -229,6 +230,7 @@ mod tests {
             (&cdp, "Candidate(usize),"),
             (&relay, "Fixture,"),
             (&lib, "pub const CRASH_CANDIDATES"),
+            (&cdp, "pub async fn crash("),
         ] {
             assert!(fenced(text, item), "{item} stands outside the fence");
         }
