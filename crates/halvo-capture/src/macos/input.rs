@@ -53,7 +53,22 @@ extern "C" {
     fn CGPreflightListenEventAccess() -> bool;
     fn CGEventGetTimestamp(event: *const c_void) -> u64;
     fn CGGetEventTapList(max: u32, list: *mut TapInformation, count: *mut u32) -> i32;
+    #[cfg(any(test, debug_assertions))]
+    fn CGEventSourceCounterForEventType(state: i32, event_type: u32) -> u32;
 }
+
+#[cfg(any(test, debug_assertions))]
+const HID_SYSTEM_STATE: i32 = 1;
+
+#[cfg(any(test, debug_assertions))]
+fn hid_key_downs() -> u32 {
+    // SAFETY: a counter query of the system that takes two values and touches no
+    // memory of the caller.
+    unsafe { CGEventSourceCounterForEventType(HID_SYSTEM_STATE, CGEventType::KeyDown as u32) }
+}
+
+/// The step of the samples of the secure-input state in the held phase.
+pub const HELD_SAMPLE_STEP: Duration = Duration::from_millis(250);
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -236,6 +251,44 @@ impl InputCounters {
     fn note_lag(&self, lag: Duration) {
         let ms = u64::try_from(lag.as_millis()).unwrap_or(u64::MAX);
         self.0.max_lag_ms.fetch_max(ms, Ordering::Relaxed);
+    }
+
+    fn count_recorded_key(&self, held_phase: bool) {
+        let counter = if held_phase {
+            &self.0.secure_held_keystrokes
+        } else {
+            &self.0.secure_released_keystrokes
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn count_held_suppressed(&self, etype: CGEventType) {
+        let counter = match etype {
+            CGEventType::KeyDown => &self.0.secure_held_suppressed_down,
+            CGEventType::KeyUp => &self.0.secure_held_suppressed_up,
+            CGEventType::FlagsChanged => &self.0.secure_held_suppressed_modifier,
+            _ => return,
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn count_window_pointer(&self) {
+        self.0.secure_window_pointer.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[cfg(any(test, debug_assertions))]
+    fn sample(&self, held: bool) {
+        self.0.secure_input_samples.fetch_add(1, Ordering::Relaxed);
+        if held {
+            self.0.secure_input_held.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    #[cfg(any(test, debug_assertions))]
+    fn keys_typed(&self, typed: bool) {
+        self.0
+            .secure_window_keys_typed
+            .store(typed, Ordering::Relaxed);
     }
 
     fn count_pointer_coalesced(&self) {
@@ -674,6 +727,7 @@ fn tap_refusal(denied: bool) -> CaptureError {
 struct HeldKey {
     class: KeyClass,
     front: Option<Foreground>,
+    held_phase: bool,
 }
 
 struct ReadingTimer(CFRunLoopTimer);
@@ -826,6 +880,7 @@ struct TapContext {
     clock: &'static EventClock,
     folds: Mutex<Folds>,
     fold_timer: Mutex<Option<ReadingTimer>>,
+    held_phase: Arc<AtomicBool>,
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
     drops: Option<DropCounts>,
 }
@@ -1375,6 +1430,7 @@ impl TapContext {
                     self.dropped(keys, Cause::Refused);
                     return;
                 }
+                self.counters.count_recorded_key(key.held_phase);
             }
             #[cfg(all(debug_assertions, feature = "stall-seam"))]
             if let Some(drops) = &self.drops {
@@ -1443,6 +1499,10 @@ impl TapContext {
         }
     }
 
+    fn in_held_phase(&self) -> bool {
+        self.held_phase.load(Ordering::SeqCst)
+    }
+
     fn folds(&self) -> MutexGuard<'_, Folds> {
         self.folds.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -1468,6 +1528,9 @@ fn on_pointer(ctx: &TapContext, kind: Kind, event: &TapEvent) {
     if ctx.stop.load(Ordering::SeqCst) {
         ctx.counters.count_pointer_dropped_at_stop();
         return;
+    }
+    if ctx.in_held_phase() && matches!(kind, Kind::Click(_) | Kind::Fold(_)) {
+        ctx.counters.count_window_pointer();
     }
     match kind {
         Kind::Click(button) => {
@@ -1565,6 +1628,9 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             }
             return;
         }
+        if reading == Reading::On && ctx.in_held_phase() {
+            ctx.counters.count_held_suppressed(event.etype);
+        }
         let arrival = at.before;
         let lag_bound = state.keys.bounds().lag;
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -1613,6 +1679,7 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             let key = HeldKey {
                 class,
                 front: ctx.foreground.get(),
+                held_phase: ctx.in_held_phase(),
             };
             let admitted = state.keys.admit(reading, at_reading, arrival, age, key);
             ctx.admitted(admitted.admission, admitted.late);
@@ -1687,6 +1754,7 @@ fn tap_context(
         clock: EventClock::system(),
         folds: Mutex::new(Folds::default()),
         fold_timer: Mutex::new(None),
+        held_phase: Arc::new(AtomicBool::new(false)),
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
         drops: None,
     }
@@ -1773,6 +1841,63 @@ struct HoldSlot {
     held: Option<SecureInputHold>,
     refusal: Arc<Mutex<Option<SecureInputRefused>>>,
     own_take: Option<OwnTake>,
+    phase: Option<HeldPhase>,
+}
+
+#[cfg(any(test, debug_assertions))]
+struct HeldPhase {
+    held: Arc<AtomicBool>,
+    counters: InputCounters,
+    secure: fn(Session) -> Reading,
+    session: fn() -> Session,
+    typed: fn() -> u32,
+    typed_at_take: Option<u32>,
+    sampler: Option<ReadingTimer>,
+}
+
+#[cfg(any(test, debug_assertions))]
+impl HeldPhase {
+    fn enter(&mut self) {
+        self.held.store(true, Ordering::SeqCst);
+        self.typed_at_take = Some((self.typed)());
+        let info = std::ptr::from_mut(self).cast::<c_void>();
+        self.sampler = Some(ReadingTimer(repeating_timer(
+            info,
+            HELD_SAMPLE_STEP,
+            held_sample_fired,
+        )));
+    }
+
+    fn sample(&self) {
+        let held = (self.secure)((self.session)()) == Reading::On;
+        self.counters.sample(held);
+    }
+
+    fn end(&mut self) {
+        if let Some(ReadingTimer(timer)) = self.sampler.take() {
+            invalidate(&timer);
+        }
+        if let Some(start) = self.typed_at_take.take() {
+            self.held.store(false, Ordering::SeqCst);
+            self.counters.keys_typed((self.typed)() > start);
+        }
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+impl Drop for HeldPhase {
+    fn drop(&mut self) {
+        self.end();
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+extern "C" fn held_sample_fired(_timer: CFRunLoopTimerRef, info: *mut c_void) {
+    // SAFETY: `info` is the HeldPhase that armed this timer, in the boxed slot of
+    // a TimedHold; the phase invalidates the timer when it ends and in its Drop,
+    // and the timer fires on the tap thread alone, which owns the slot.
+    let phase = unsafe { &*info.cast::<HeldPhase>() };
+    phase.sample();
 }
 
 #[cfg(any(test, debug_assertions))]
@@ -1783,6 +1908,9 @@ impl HoldSlot {
                 self.held = Some(held);
                 if let Some(own_take) = &self.own_take {
                     own_take.taken();
+                }
+                if let Some(phase) = &mut self.phase {
+                    phase.enter();
                 }
             }
             Err(refused) => {
@@ -1824,6 +1952,9 @@ impl TimedHold {
 
     fn give_back(mut self) -> Result<(), SecureInputReleaseRefused> {
         let held = self.slot.held.take();
+        if let Some(phase) = &mut self.slot.phase {
+            phase.end();
+        }
         drop(self);
         held.map_or(Ok(()), SecureInputHold::release)
     }
@@ -1904,6 +2035,8 @@ struct TapPlan {
     released: Arc<Mutex<Option<SecureInputReleaseRefused>>>,
     #[cfg(any(test, debug_assertions))]
     own_take: Option<OwnTake>,
+    #[cfg(any(test, debug_assertions))]
+    phase: Option<HeldPhase>,
 }
 
 impl TapThread {
@@ -1928,6 +2061,8 @@ impl TapThread {
                         released,
                         #[cfg(any(test, debug_assertions))]
                         own_take,
+                        #[cfg(any(test, debug_assertions))]
+                        phase,
                     } = tap_plan;
                     #[cfg(not(any(test, debug_assertions)))]
                     let _ = (plan, refusal);
@@ -1937,6 +2072,7 @@ impl TapThread {
                         held: None,
                         refusal,
                         own_take,
+                        phase,
                     });
                     #[cfg(any(test, debug_assertions))]
                     if plan == HoldPlan::After(Duration::ZERO) {
@@ -2060,6 +2196,8 @@ pub struct InputSource {
     floor: FloorHandle,
     off: bool,
     keys_missing: Arc<AtomicBool>,
+    #[cfg(any(test, debug_assertions))]
+    typed: fn() -> u32,
     counters: InputCounters,
     plan: HoldPlan,
     #[cfg(any(test, debug_assertions))]
@@ -2145,6 +2283,8 @@ impl InputSource {
             floor: FloorHandle::default(),
             off: false,
             keys_missing: Arc::new(AtomicBool::new(false)),
+            #[cfg(any(test, debug_assertions))]
+            typed: hid_key_downs,
             counters,
             plan,
             #[cfg(any(test, debug_assertions))]
@@ -2245,6 +2385,16 @@ impl InputSource {
             #[cfg(all(debug_assertions, feature = "stall-seam"))]
             clock: ctx.clocks.stamps,
         };
+        #[cfg(any(test, debug_assertions))]
+        let phase = HeldPhase {
+            held: ctx.held_phase.clone(),
+            counters: self.counters.clone(),
+            secure: settings.secure,
+            session: settings.session,
+            typed: self.typed,
+            typed_at_take: None,
+            sampler: None,
+        };
         let keys_missing = self.keys_missing.clone();
         let started = TapThread::spawn(
             move || install_tap(ctx, settings, maker, keys_missing),
@@ -2256,6 +2406,8 @@ impl InputSource {
                 released: self.released.clone(),
                 #[cfg(any(test, debug_assertions))]
                 own_take: Some(own_take),
+                #[cfg(any(test, debug_assertions))]
+                phase: Some(phase),
             },
             stop,
             port,
@@ -3369,6 +3521,7 @@ mod tests {
                 drops: held.ctx.drops.clone(),
                 clock: held.ctx.clocks.stamps,
             }),
+            phase: None,
         };
         slot.take();
         assert_eq!(held_now(&held.ctx), 0);
@@ -5308,6 +5461,7 @@ mod tests {
                 drops: held.ctx.drops.clone(),
                 clock: held.ctx.clocks.stamps,
             }),
+            phase: None,
         };
         slot.take();
         assert_eq!(held_now(&held.ctx), 0);
@@ -5510,6 +5664,7 @@ mod tests {
     fn a_held_key_holds_its_class_and_app_alone() {
         struct Mirror {
             _class: KeyClass,
+            _held_phase: bool,
             _app: Option<Foreground>,
         }
         assert_eq!(
@@ -7010,6 +7165,7 @@ mod tests {
             held: None,
             refusal: Arc::new(Mutex::new(None)),
             own_take: None,
+            phase: None,
         }
     }
 
@@ -7045,6 +7201,7 @@ mod tests {
             refusal: Arc::new(Mutex::new(None)),
             released: Arc::new(Mutex::new(None)),
             own_take: None,
+            phase: None,
         }
     }
 
@@ -7878,6 +8035,171 @@ mod tests {
             ),
             (2, 1)
         );
+    }
+
+    thread_local! {
+        static TYPED: RefCell<Vec<u32>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn stand_in_typed() -> u32 {
+        TYPED.with(|typed| typed.borrow_mut().remove(0))
+    }
+
+    fn phase_of(counters: &InputCounters, held: Arc<AtomicBool>) -> HeldPhase {
+        HeldPhase {
+            held,
+            counters: counters.clone(),
+            secure: stand_in_reader,
+            session: stand_in_session,
+            typed: stand_in_typed,
+            typed_at_take: None,
+            sampler: None,
+        }
+    }
+
+    #[test]
+    fn the_held_phase_samples_every_250_ms() {
+        assert_eq!(HELD_SAMPLE_STEP, Duration::from_millis(250));
+    }
+
+    #[test]
+    fn eight_samples_under_a_held_reading_give_8_of_8_and_under_off_0_of_8() {
+        for (reading, held) in [(Reading::On, 8), (Reading::Off, 0)] {
+            reset_stand_ins();
+            answer(reading);
+            let counters = InputCounters::new();
+            let phase = phase_of(&counters, Arc::new(AtomicBool::new(true)));
+            for _ in 0..8 {
+                phase.sample();
+            }
+            assert_eq!(
+                counters.figures().secure_input_held,
+                HeldSamples { held, taken: 8 },
+                "{reading:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn hid_counts_of_10_then_12_read_keys_typed_and_10_then_10_read_none() {
+        for (end, typed) in [(12, true), (10, false)] {
+            reset_stand_ins();
+            TYPED.with(|counts| *counts.borrow_mut() = vec![10, end]);
+            let counters = InputCounters::new();
+            let flag = Arc::new(AtomicBool::new(false));
+            let mut phase = phase_of(&counters, flag.clone());
+            phase.enter();
+            assert!(flag.load(Ordering::SeqCst), "the held phase began");
+            phase.end();
+            assert!(!flag.load(Ordering::SeqCst), "the held phase ended");
+            assert_eq!(
+                counters.figures().secure_window_keys_typed,
+                typed,
+                "10 then {end}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_taken_hold_begins_the_held_phase_and_its_give_back_ends_it() {
+        reset_stand_ins();
+        TYPED.with(|counts| *counts.borrow_mut() = vec![3, 4]);
+        let counters = InputCounters::new();
+        let flag = Arc::new(AtomicBool::new(false));
+        let mut slot = TimedHold::new(HoldSlot {
+            hold: stand_in_hold,
+            held: None,
+            refusal: Arc::new(Mutex::new(None)),
+            own_take: None,
+            phase: Some(phase_of(&counters, flag.clone())),
+        });
+        slot.take_now();
+        assert!(flag.load(Ordering::SeqCst));
+        assert_eq!(slot.give_back(), Ok(()));
+        assert!(!flag.load(Ordering::SeqCst));
+        assert!(counters.figures().secure_window_keys_typed);
+    }
+
+    #[test]
+    fn a_key_counts_in_the_phase_of_its_arrival() {
+        let held = held(100);
+        key_down(&held.ctx);
+        held.ctx.held_phase.store(true, Ordering::SeqCst);
+        key_down(&held.ctx);
+        held.ctx.held_phase.store(false, Ordering::SeqCst);
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 2);
+        let figures = held.counters.figures();
+        assert_eq!(
+            (
+                figures.secure_released_keystrokes,
+                figures.secure_held_keystrokes
+            ),
+            (1, 1)
+        );
+    }
+
+    #[test]
+    fn a_key_recorded_in_the_released_phase_raises_the_released_count_alone() {
+        let held = held(100);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 200);
+        let figures = held.counters.figures();
+        assert_eq!(
+            (
+                figures.secure_released_keystrokes,
+                figures.secure_held_keystrokes,
+                figures.secure_window_pointer
+            ),
+            (1, 0, 0)
+        );
+    }
+
+    #[test]
+    fn the_key_events_suppressed_in_the_held_phase_are_counted_by_type() {
+        let held = held(100);
+        held.ctx.held_phase.store(true, Ordering::SeqCst);
+        answer(Reading::On);
+        key_with_code(&held.ctx, CGEventType::KeyDown, 0x00, 0);
+        let mut repeat = with_key(CGEventType::KeyDown, 0x00, 0);
+        repeat.autorepeat = true;
+        advance(1);
+        on_tap_event(&held.ctx, repeat);
+        key_with_code(&held.ctx, CGEventType::KeyUp, 0x00, 0);
+        key_with_code(
+            &held.ctx,
+            CGEventType::FlagsChanged,
+            LEFT_SHIFT,
+            0x2_0000 | LEFT_SHIFT_BIT,
+        );
+        key_with_code(&held.ctx, CGEventType::FlagsChanged, LEFT_SHIFT, 0);
+        held.ctx.held_phase.store(false, Ordering::SeqCst);
+        key_with_code(&held.ctx, CGEventType::KeyDown, 0x00, 0);
+        let figures = held.counters.figures();
+        assert_eq!(
+            figures.secure_held_suppressed,
+            SuppressedKeys {
+                down: 2,
+                up: 1,
+                modifier: 2
+            }
+        );
+    }
+
+    #[test]
+    fn a_pointer_action_in_the_held_phase_raises_the_pointer_counter_and_no_suppression() {
+        let held = held(100);
+        held.ctx.held_phase.store(true, Ordering::SeqCst);
+        answer(Reading::On);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::LeftMouseUp, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 2);
+        held.ctx.held_phase.store(false, Ordering::SeqCst);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        let figures = held.counters.figures();
+        assert_eq!(figures.secure_window_pointer, 3);
+        assert_eq!(figures.secure_input_keystrokes, 0);
+        assert_eq!(figures.secure_held_suppressed, SuppressedKeys::default());
     }
 
     #[test]
@@ -8932,6 +9254,7 @@ mod granted_tests {
                 refusal: Arc::new(Mutex::new(None)),
                 released: Arc::new(Mutex::new(None)),
                 own_take: None,
+                phase: None,
             },
             stop,
             port.clone(),
