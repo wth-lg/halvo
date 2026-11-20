@@ -15,11 +15,12 @@ one line per file, "shipped file=<name> bytes=<n> program=<yes|no> marker=<yes|n
 is a file that the call reports as an executable), and the verdict,
 "shipped files=<n> with_marker=<n> programs_without_marker=<n> result=<PASS|FAIL>": PASS when it
 read at least one file and none holds the marker. With --control the call names the feature as
-well ("--features test-fence"), and the verdict is PASS when a file holds the marker and every
-program holds it: a program that is built only with the feature (web-probe, web-rows,
-web-standin) and lacks the marker fails the control. --self-test reads files that it writes
-itself, rows of the verdict and lines in the form of cargo's messages, from which it wants the
-files and the programs named above, and runs no cargo. Exit 0 for PASS, 1 for FAIL, 2 for a refusal: one line
+well ("--features test-fence"), and the verdict is PASS when the call reported at least one
+program and every program holds the marker: a call that reported no program, and a program that
+is built only with the feature (web-probe, web-rows, web-standin) and lacks the marker, fail the
+control. --self-test reads files that it writes itself, rows of the verdict and lines in the
+form of cargo's messages, from which it wants the files and the programs named above, and runs
+no cargo. Exit 0 for PASS, 1 for FAIL, 2 for a refusal: one line
 REFUSED <usage|cargo>: <detail> on standard error. It prints file names, sizes and words alone.
 `);
 }
@@ -37,8 +38,9 @@ function holds(bytes) {
 
 function verdict(read, control) {
   const withMarker = read.filter((r) => r.marker).length;
+  const programs = read.filter((r) => r.program).length;
   const programsWithout = read.filter((r) => r.program && !r.marker).length;
-  const pass = read.length > 0 && (control ? withMarker > 0 && programsWithout === 0 : withMarker === 0);
+  const pass = read.length > 0 && (control ? programs > 0 && programsWithout === 0 : withMarker === 0);
   return { withMarker, programsWithout, pass };
 }
 
@@ -108,7 +110,9 @@ function selfTest() {
     [[row(false)], false, true],
     [[row(false), row(true)], false, false],
     [[], false, false],
-    [[row(true)], true, true],
+    [[row(true)], true, false],
+    [[row(true), row(true)], true, false],
+    [[prog(true)], true, true],
     [[row(false)], true, false],
     [[], true, false],
   ];
