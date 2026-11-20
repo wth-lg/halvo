@@ -1,6 +1,10 @@
 import { type Child, execFileSync, spawn } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+
+declare module "node:path" {
+  export function basename(path: string): string;
+}
 
 declare module "node:child_process" {
   export function spawn(
@@ -105,11 +109,11 @@ export function useProcesses(processes: Processes | null, graceMs = GRACE_MS): v
   shared[LIVE] = { processes: processes ?? SYSTEM, groups: new Map(), owner: null, signals: false, installed: false, grace: graceMs };
 }
 
-function table(): Row[] {
+function table(zombies = false): Row[] {
   const rows: Row[] = [];
   for (const line of live().processes.ps().split("\n")) {
     const match = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(\S.*\S)\s*$/.exec(line);
-    if (match === null || (match[3] as string).startsWith("Z")) continue;
+    if (match === null || (!zombies && (match[3] as string).startsWith("Z"))) continue;
     rows.push({ pid: Number(match[1]), pgid: Number(match[2]), started: (match[4] as string).replace(/\s+/g, " ") });
   }
   return rows;
@@ -220,8 +224,11 @@ export function marksDir(): string {
  * own process. Right after the spawn it writes the mark group-<pid>.json into marksDir() with the pid, the second
  * before the spawn, the pid and start time of the process that started it (the owner) and the real path of the
  * working directory (the checkout); after its read of ps it adds the leader's start time; it removes the mark once
- * the group has no member left. If that read fails or the child does not lead a group of its own, it sends KILL to the
- * group id, removes the mark and throws. Until endGroup ends it, the owner ends the group when it gets TERM, INT or
+ * the group has no member left. If that read fails or the child does not lead a group of its own, it reads ps again,
+ * zombies included, and sends KILL to the group id when that read shows the child's pid with a start time, or when ps
+ * cannot be read: the one signal of the kit with no start time, sent while startGroup still runs, before node can reap
+ * the child, so that no other process can have its pid. Then it removes the mark and throws; its errors name the
+ * command by its file name. Until endGroup ends it, the owner ends the group when it gets TERM, INT or
  * HUP (and then dies by that signal), when its IPC channel to vitest's main process closes (and then exits with 1),
  * and when it exits: TERM to a group whose leader has the recorded pid and start time, and KILL after the grace to
  * the members that are left, also when the leader itself left on TERM. When vitest stops a fork it sends KILL 500 ms
@@ -242,19 +249,25 @@ export function startGroup(command: string, args: string[], options: Options): G
   const checkout = realpathSync(process.cwd());
   const spawned = Math.floor(Date.now() / 1000);
   const child = state.processes.spawn(command, args, options);
-  if (child.pid === undefined) throw new Error(`${command} did not start`);
+  const name = basename(command);
+  if (child.pid === undefined) throw new Error(`${name} did not start`);
   const mark = join(dir, `group-${child.pid}.json`);
   const record: Mark = { pid: child.pid, started: null, spawned, owner, checkout };
   try {
     writeFileSync(mark, JSON.stringify(record));
     const own = table().find((row) => row.pid === child.pid);
-    if (own === undefined || own.pgid !== child.pid) throw new Error(`${command} (pid ${child.pid}) does not lead its own process group`);
+    if (own === undefined || own.pgid !== child.pid) throw new Error(`${name} (pid ${child.pid}) does not lead its own process group`);
     const group = { pid: child.pid, started: own.started, child };
     state.groups.set(group, mark);
     writeFileSync(mark, JSON.stringify({ ...record, started: own.started }));
     return group;
   } catch (error) {
-    send({ pid: child.pid, started: "" }, "SIGKILL");
+    let rows: Row[] | null = null;
+    try {
+      rows = table(true);
+    } catch {}
+    const leader = rows?.find((row) => row.pid === child.pid);
+    if (rows === null || leader !== undefined) send({ pid: child.pid, started: leader?.started ?? "" }, "SIGKILL");
     unmark(mark);
     throw error;
   }
