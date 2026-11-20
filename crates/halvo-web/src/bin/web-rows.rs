@@ -53,10 +53,10 @@
 //!   cause `new_major` when it was not, after which the row `crash` runs again.
 //! - `block_popup --browser PATH --kind chrome|edge --hop-port N`: the row of A13.7 through the
 //!   product's executor (CP-186 N2), against `rows/hop-listener.mjs` on port N: with the rule armed
-//!   in the mode that holds before the page opens, a click of `Save preferences` on `/popup`, whose
-//!   form has the target `_blank`, sends its POST from a new window; the executor returns it held,
-//!   from a frame other than the page's own, and fails it, and the listener counts no arrival of
-//!   it, while the row's own POST outside the browser is counted (the control).
+//!   in the mode that fails before the page opens, a click of `Save preferences` on `/popup`, whose
+//!   form has the target `_blank`, sends its POST from a new window; the executor pauses and fails
+//!   it, from a frame other than the page's own, and the listener counts no arrival of it, while
+//!   the row's own POST outside the browser is counted (the control).
 //!
 //! - `crash_one --browser PATH --port N --relay-port P`: one crash reading with the product's means
 //!   on a relay at port P, for the egress check of A13.3's third item to wrap (hosted runners
@@ -1039,21 +1039,29 @@ fn prefs_arrivals(port: u16) -> Option<i64> {
     fixture_json(port, "GET", "/count")?["prefs"].as_i64()
 }
 
-/// What the row `block_popup` read: whether the window's POST was held, from another frame than
-/// the page's, and failed; the listener's count of it; and the count after the row's own POST.
+/// What the row `block_popup` read: the executor's record of the window's POST (whether it was
+/// paused and failed, and from a frame other than the page's), how many records the executor
+/// holds and how many of them are POST /prefs, the listener's count of POST /prefs before the
+/// row's own one, and the count after it (the control).
 struct PopupRead {
-    held: bool,
-    other_window: bool,
+    seen: bool,
     failed: bool,
+    other_window: bool,
+    records: usize,
+    posts: usize,
     arrivals: i64,
     control: i64,
 }
 
+/// The steps of `block_popup`, as A13.7 arms its `block_` rows: the rule armed with the
+/// listener's origin allowed and state-changing requests failed, before the page opens; then a
+/// click of `Paperless billing` and of `Save preferences`, whose form has the target `_blank`.
+/// Every count is read on every way out of the steps after the click.
 async fn popup_steps(ex: &mut Executor, port: u16) -> Result<PopupRead, &'static str> {
     use halvo_web::cdp::{Locator, Outcome};
     fixture_json(port, "GET", "/reset").ok_or("listener")?;
     let origin = format!("http://utility.agent.test:{port}");
-    ex.arm_rule(vec![origin.clone()], Mode::Hold)
+    ex.arm_rule(vec![origin.clone()], Mode::Fail)
         .await
         .map_err(|f| f.0)?;
     ex.open(&format!("{origin}/popup")).await.map_err(|f| f.0)?;
@@ -1071,33 +1079,33 @@ async fn popup_steps(ex: &mut Executor, port: u16) -> Result<PopupRead, &'static
         .await
         .map_err(|f| f.0)?;
     ex.click(&save).await.map_err(|f| f.0)?;
-    let id = held(ex, "POST", "/prefs").await?;
-    let other_window = ex
-        .paused()
-        .iter()
-        .any(|h| h.id == id && h.origin == origin && h.frame != *page.inner());
-    ex.fail(id).await.map_err(|f| f.0)?;
+    let is_post = |r: &halvo_web::cdp::PausedRequest| r.method == "POST" && r.path == "/prefs";
+    let deadline = Instant::now() + halvo_web::cdp::STEP_TIMEOUT;
+    while Instant::now() < deadline && !ex.requests().iter().any(is_post) {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
     tokio::time::sleep(Duration::from_millis(2_000)).await;
-    let failed = ex
-        .requests()
-        .iter()
-        .any(|r| r.id == Some(id) && r.outcome == Outcome::Failed);
+    let records = ex.requests();
+    let post = records.iter().find(|r| is_post(r));
     let arrivals = prefs_arrivals(port).ok_or("count")?;
     let _ = plain_post(port, "/prefs");
     let control = prefs_arrivals(port).ok_or("count")?;
     Ok(PopupRead {
-        held: true,
-        other_window,
-        failed,
+        seen: post.is_some(),
+        failed: post.is_some_and(|r| !r.let_through && r.outcome == Outcome::Failed),
+        other_window: post.is_some_and(|r| r.origin == origin && r.frame != *page.inner()),
+        records: records.len(),
+        posts: records.iter().filter(|r| is_post(r)).count(),
         arrivals,
         control,
     })
 }
 
-/// The row `block_popup` of A13.7 through the product's executor (CP-186 N2): the rule, armed
-/// before the page opens, holds a POST that leaves from a window that the page opened. ok when the
-/// executor returned it held from a frame other than the page's, failed it, the listener counted
-/// no arrival of it and counted the row's own POST, and the stop removed both directories.
+/// The row `block_popup` of A13.7 through the product's executor (CP-186 N2): the rule, armed in
+/// the mode that fails before the page opens, pauses and fails a POST that leaves from a window
+/// that the page opened. ok when the executor's record holds that POST, failed and not let
+/// through, from a frame other than the page's, the listener counted no arrival of it and counted
+/// the row's own POST, and the stop removed both directories.
 async fn block_popup(argv: &[String]) -> (usize, usize) {
     let (Some(browser), Some(kind), Some(port), Some(dir)) = (
         arg(argv, "--browser"),
@@ -1140,17 +1148,19 @@ async fn block_popup(argv: &[String]) -> (usize, usize) {
     let (line, fine) = match steps {
         Ok(r) => (
             format!(
-                "held={} other_window={} failed={} arrivals={} control_arrivals={} removed={}",
-                yes(r.held),
-                yes(r.other_window),
+                "seen={} failed={} other_window={} records={} posts={} arrivals={} control_arrivals={} removed={}",
+                yes(r.seen),
                 yes(r.failed),
+                yes(r.other_window),
+                r.records,
+                r.posts,
                 r.arrivals,
                 r.control,
                 yes(stopped.removed)
             ),
-            r.held
-                && r.other_window
+            r.seen
                 && r.failed
+                && r.other_window
                 && r.arrivals == 0
                 && r.control == 1
                 && stopped.removed,
