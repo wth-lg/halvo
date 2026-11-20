@@ -254,6 +254,7 @@ fn a_missing_data_directory_is_made_with_mode_0700_and_an_open_one_is_set_to_070
     assert_eq!(serve_here(&missing), (0, String::new()));
     let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode(&missing), 0o700);
+    assert_eq!(mode(&root.join("below")), 0o700);
     assert_eq!(names(&missing), vec!["daemon-state.json".to_owned()]);
     let open = root.join("open");
     std::fs::create_dir(&open).unwrap();
@@ -326,4 +327,50 @@ fn each_fault_of_the_data_directory_check_has_a_line_of_its_own() {
     lines.sort();
     lines.dedup();
     assert_eq!(lines.len(), 9);
+}
+
+struct LongLoop {
+    now: Arc<std::sync::Mutex<Duration>>,
+    stop: Arc<AtomicBool>,
+}
+
+const STOP_AT: Duration = Duration::from_secs(1_000);
+
+impl MainLoop for LongLoop {
+    fn turn(&mut self, wait: Duration) {
+        let mut now = self.now.lock().unwrap();
+        *now += wait;
+        if *now >= STOP_AT {
+            self.stop.store(true, Ordering::SeqCst);
+        }
+    }
+
+    fn now(&self) -> Duration {
+        *self.now.lock().unwrap()
+    }
+}
+
+#[test]
+fn the_wait_goes_on_past_its_slices_until_the_stop_flag() {
+    let dir = kept_dir("service-tests-");
+    let stop = Arc::new(AtomicBool::new(false));
+    let now = Arc::new(std::sync::Mutex::new(Duration::ZERO));
+    let mut err = Vec::new();
+    let status = serve(
+        &data_dir(&dir),
+        Box::new(TestWrite::default()),
+        LongLoop {
+            now: now.clone(),
+            stop: stop.clone(),
+        },
+        &stop,
+        Arc::new(Recorded),
+        &mut err,
+    );
+    assert_eq!(status, 0, "{}", String::from_utf8_lossy(&err));
+    assert!(
+        *now.lock().unwrap() >= STOP_AT,
+        "the wait ended at {:?}, before the stop flag",
+        now.lock().unwrap()
+    );
 }

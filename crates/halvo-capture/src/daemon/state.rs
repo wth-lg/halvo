@@ -523,8 +523,9 @@ pub(crate) mod tests {
 
     #[test]
     fn a_file_that_does_not_load_starts_paused_and_is_left_untouched() {
-        let cases: [&[u8]; 9] = [
+        let cases: [&[u8]; 10] = [
             b"",
+            b"{\"switches\":{\"title_text\":true,\"title_text\":false}}",
             b"{\"desired\":",
             b"[1]",
             b"{\"version\":0,\"desired\":\"running\"}",

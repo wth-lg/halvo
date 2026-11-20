@@ -311,6 +311,32 @@ pub(crate) mod tests {
         assert_ne!(flags & libc::FD_CLOEXEC, 0);
     }
 
+    #[test]
+    fn the_check_reads_the_lock_descriptor_and_not_the_name() {
+        let root = kept_dir("instance-tests-");
+        let dir = root.join("data");
+        std::fs::create_dir(&dir).unwrap();
+        let named = data_dir(&dir);
+        let lock = InstanceLock::take(&named).unwrap().unwrap();
+        std::fs::rename(&dir, root.join("moved")).unwrap();
+        assert!(
+            matches!(
+                lock.check(&named),
+                Ok(halvo_control::paths::DataDirCheck::Own { .. })
+            ),
+            "{:?}",
+            lock.check(&named)
+        );
+        assert_eq!(
+            halvo_control::paths::check_data_dir(&named, None),
+            Ok(halvo_control::paths::DataDirCheck::Missing)
+        );
+        assert_eq!(
+            lock.folder().unwrap(),
+            root.join("moved").canonicalize().unwrap()
+        );
+    }
+
     pub(crate) fn backup_mark(path: &Path, follow: bool) -> Option<Vec<u8>> {
         let name = std::ffi::CString::new(BACKUP_EXCLUSION_ATTRIBUTE).unwrap();
         let path = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
