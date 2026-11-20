@@ -2549,7 +2549,7 @@ EOF
   case_job=windows
   case_self=$work/norun.sh
   STUB_COMMANDS=import
-  case_run job-with-no-run FAIL check 'egress checks=0: no command of the first list ran'
+  case_run job-with-no-run FAIL check 'egress checks=0: no command of the first list ran' 'egress no-command='
   case_job=windows
   case_run forbid-list-of-the-windows-job PASS - 'egress forbid profile=dev findings=0 exit=0'
   STUB_CLIPPY_JSON=$work/clippy-finding.json
