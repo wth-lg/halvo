@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,40 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 15-r3-test-dirs 18-hook-scan 19-home-paths 30-store-ignore-reason 54-tag-needs-store4 30-core-boundary-proofs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 15-r3-test-dirs 18-hook-scan 19-home-paths 30-store-ignore-reason 54-tag-needs-store4 30-core-boundary-proofs
+      - name: Loop (macos-3b, 20 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 20 ]; do
+            n=$((n + 1))
+            if ( for _ in 1 2 3 4 5 6 7 8 9 10; do out=$(cargo test -p halvo-capture --lib --locked -- --exact macos::screen::tests::the_stream_and_its_filter_are_made_on_the_readers_queue_and_only_data_and_the_stream_cross macos::screen::tests::on_the_new_path_a_failed_add_of_the_output_answers_its_stage_and_lets_the_output_and_the_queue_go macos::screen::tests::on_the_new_path_a_start_error_answers_its_stage_and_lets_the_output_and_the_queue_go macos::screen::tests::on_the_new_path_a_start_with_no_answer_waits_its_wait_from_the_ask_asks_a_stop_and_keeps_the_output_and_the_queue macos::screen::tests::a_refused_read_or_no_display_answers_its_error_makes_no_stream_and_gives_back_the_sink macos::screen::tests::a_handler_that_runs_after_the_read_gave_up_makes_no_stream_and_asks_no_new_filter macos::screen::tests::a_handler_that_began_inside_the_reads_wait_is_waited_for_and_its_stream_is_started macos::screen::tests::a_rebuild_makes_its_filter_on_the_readers_queue_for_the_stored_display_while_it_is_listed_else_the_chosen_one 2>&1); grep -q 'test result: ok. 8 passed; 0 failed' <<<"$out" || exit 1; done ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop macos-3b: passed $pass of 20"
+          [ "$pass" -eq 20 ]
+      - name: Live start of the screen source
+        if: always()
+        shell: bash
+        env:
+          HALVO_SCREEN_LIVE_START: '1'
+        run: |
+          set +e
+          cargo test --locked -p halvo-capture --lib -- --ignored --exact macos::screen::tests::a_live_start_through_the_handler_reads_frames_and_stops --nocapture > "$RUNNER_TEMP/live.log" 2>&1
+          code=$?
+          grep -o 'screen-live-start started=[a-z]* frames=[0-9]* stopped=[a-z]*' "$RUNNER_TEMP/live.log"
+          grep -E '^test .* (ok|FAILED)$|^test result:' "$RUNNER_TEMP/live.log"
+          if [ "$code" -ne 0 ]; then grep -E "^error|panicked|assertion" "$RUNNER_TEMP/live.log" | head -n 20; fi
+          echo "live exit $code"
+          exit "$code"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -134,14 +150,14 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 15-r3-test-dirs 19-home-paths 30-store-ignore-reason 54-tag-needs-store4 30-core-boundary-proofs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 15-r3-test-dirs 19-home-paths 30-store-ignore-reason 54-tag-needs-store4 30-core-boundary-proofs
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
