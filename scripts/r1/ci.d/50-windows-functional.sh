@@ -1727,7 +1727,10 @@ case ${1:-} in
   --rules) rules ;;
   '') measure ;;
   *)
-    printf 'usage: sh %s [--self-test | --rules]\n  --rules runs the ledger check alone: it reads docs/baseline/ledger.d/win-3.txt as HEAD holds it (or the file that WF_LEDGER_FILE names, as that file stands) against the tree at HEAD, builds nothing, runs no test and starts no process of the product\n' "$0" >&2
+    cat >&2 <<EOF
+usage: sh $0 [--self-test | --rules]
+  --rules runs the ledger check alone: it reads docs/baseline/ledger.d/win-3.txt as HEAD holds it (or the file that WF_LEDGER_FILE names, as that file stands; a relative name is read from the root of the repository) against the tree at HEAD, builds nothing, runs no test and starts no process of the product
+EOF
     exit 64
     ;;
 esac
