@@ -641,13 +641,18 @@ impl StartStream for ScreenStream {
         // SAFETY: the stream, `output` (which `proto` borrows) and the serial
         // dispatch queue `queue` are live for the call. SCStream.h says that the
         // start and the stop completions each carry an error that tells whether
-        // the start or the stop failed. The source releases `output` and `queue`
-        // only when the stream cannot run: after this call fails, after the
-        // start completion reports an error, or after the stop completion
-        // reports none. A start or a stop whose completion does not arrive in
-        // time, or a stop that reports an error, keeps both, and the output
-        // gives back its sink handle first. A second start answers
-        // AlreadyStarted, and dropping a started source stops it first.
+        // the start or the stop failed. The source releases `output` and `queue`,
+        // the output's sink given back first, only when the stream cannot run:
+        // after this call fails, after the start completion reports an error,
+        // after a stop completion that reports none, and after the delegate
+        // reports the stream's stop; the last two also release what an earlier
+        // failed stop of the same stream kept. A start whose completion does not
+        // arrive in time keeps both for the life of the process. A stop that
+        // reports an error, or whose completion does not arrive in time, holds
+        // both with the sink given back until one of those two lets them go, and
+        // they are kept for the life of the process when the source drops
+        // first. A second start answers AlreadyStarted, and dropping a started
+        // source shuts it down first unless a stop of it has failed.
         unsafe {
             self.0.addStreamOutput_type_sampleHandlerQueue_error(
                 proto,
