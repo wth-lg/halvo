@@ -606,6 +606,7 @@ async fn probe(args: Args) -> usize {
 }
 
 fn main() -> ExitCode {
+    halvo_web::fence_marker();
     let argv: Vec<String> = std::env::args().collect();
     if let Some(code) = halvo_web::guard::run_if_guard(&argv) {
         return ExitCode::from(code.clamp(0, 255) as u8);

@@ -273,6 +273,7 @@ fn guard(args: &[String]) -> i32 {
 }
 
 fn main() -> ExitCode {
+    halvo_web::fence_marker();
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == halvo_web::guard::GUARD_FLAG) {
         return ExitCode::from(guard(&args).clamp(0, 255) as u8);

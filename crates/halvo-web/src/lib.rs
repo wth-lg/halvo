@@ -106,15 +106,18 @@ pub const CRASH_CANDIDATES: [(&str, &[&str]); 3] = [
 /// check can read a built file for it (`fence/shipped.mjs`). The feature stands behind the crash
 /// row's two means (`cdp::CrashMeans::Without`, `cdp::CrashMeans::Candidate`), its forced crash
 /// (`cdp::Executor::crash`), `relay::Names::Fixture`, `CRASH_CANDIDATES` and the programs
-/// `web-probe` and `web-rows`; the crate's dev-dependency on
-/// itself turns it on for its own tests, and no other manifest names it. Every path that reaches
-/// one of those means reads the marker, so that a built file that links them holds it.
+/// `web-probe`, `web-rows` and `web-standin`; the crate's dev-dependency on itself turns it on for
+/// its own tests, and no other manifest names it. Every path that reaches one of those means
+/// reads the marker, and each of the three programs reads it at its start, so that a built file
+/// that links them holds it; `CRASH_CANDIDATES` is a constant and reads none: a program that
+/// names it alone holds its flags and no marker.
 #[cfg(feature = "test-fence")]
 pub static FENCE_MARKER: [u8; 39] = *b"halvo-web:test-fence:this-build-has-it!";
 
-/// Reads the fence's marker, so that a build that links the caller holds it.
+/// Reads the fence's marker, so that a build that links the caller holds it; each program behind
+/// the fence calls it at its start.
 #[cfg(feature = "test-fence")]
-pub(crate) fn fence_marker() {
+pub fn fence_marker() {
     std::hint::black_box(&FENCE_MARKER);
 }
 

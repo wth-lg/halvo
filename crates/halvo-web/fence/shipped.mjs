@@ -11,11 +11,13 @@ what ships of the crate by one cargo call that makes no test target,
 "cargo build --locked --release -p halvo-web", from the root of the checkout, and reads every
 file that the call reports as an artifact of crates/halvo-web for the fence's marker, the byte
 string that stands in a build with the feature test-fence and in no build without it. It prints
-one line per file, "shipped file=<name> bytes=<n> marker=<yes|no>", and the verdict,
-"shipped files=<n> with_marker=<n> result=<PASS|FAIL>": PASS when it read at least one file and
-none holds the marker. With --control the call names the feature as well
-("--features test-fence"), and the verdict is PASS when a file holds the marker: it shows that the
-check sees the marker where the fence's means are built. --self-test reads files that it writes
+one line per file, "shipped file=<name> bytes=<n> program=<yes|no> marker=<yes|no>" (a program
+is a file that the call reports as an executable), and the verdict,
+"shipped files=<n> with_marker=<n> programs_without_marker=<n> result=<PASS|FAIL>": PASS when it
+read at least one file and none holds the marker. With --control the call names the feature as
+well ("--features test-fence"), and the verdict is PASS when a file holds the marker and every
+program holds it: a program that is built only with the feature (web-probe, web-rows,
+web-standin) and lacks the marker fails the control. --self-test reads files that it writes
 itself and runs no cargo. Exit 0 for PASS, 1 for FAIL, 2 for a refusal: one line
 REFUSED <usage|cargo>: <detail> on standard error. It prints file names, sizes and words alone.
 `);
@@ -34,27 +36,32 @@ function holds(bytes) {
 
 function verdict(read, control) {
   const withMarker = read.filter((r) => r.marker).length;
-  const pass = read.length > 0 && (control ? withMarker > 0 : withMarker === 0);
-  return { withMarker, pass };
+  const programsWithout = read.filter((r) => r.program && !r.marker).length;
+  const pass = read.length > 0 && (control ? withMarker > 0 && programsWithout === 0 : withMarker === 0);
+  return { withMarker, programsWithout, pass };
 }
 
 function report(read, control) {
   for (const r of read) {
-    process.stdout.write(`shipped file=${r.name} bytes=${r.bytes} marker=${r.marker ? 'yes' : 'no'}\n`);
+    process.stdout.write(
+      `shipped file=${r.name} bytes=${r.bytes} program=${r.program ? 'yes' : 'no'} marker=${r.marker ? 'yes' : 'no'}\n`,
+    );
   }
-  const { withMarker, pass } = verdict(read, control);
+  const { withMarker, programsWithout, pass } = verdict(read, control);
   const kind = control ? 'shipped control' : 'shipped';
-  process.stdout.write(`${kind} files=${read.length} with_marker=${withMarker} result=${pass ? 'PASS' : 'FAIL'}\n`);
+  process.stdout.write(
+    `${kind} files=${read.length} with_marker=${withMarker} programs_without_marker=${programsWithout} result=${pass ? 'PASS' : 'FAIL'}\n`,
+  );
   return pass;
 }
 
-function readFile(path) {
+function readFile(path, program = false) {
   const bytes = readFileSync(path);
-  return { name: basename(path), bytes: bytes.length, marker: holds(bytes) };
+  return { name: basename(path), bytes: bytes.length, program, marker: holds(bytes) };
 }
 
 function artifacts(stdout) {
-  const files = new Set();
+  const files = new Map();
   for (const line of stdout.split('\n')) {
     if (!line.startsWith('{')) continue;
     let m;
@@ -66,10 +73,10 @@ function artifacts(stdout) {
     if (m.reason !== 'compiler-artifact') continue;
     const manifest = String(m.manifest_path || '').replaceAll('\\', '/');
     if (!manifest.endsWith('/crates/halvo-web/Cargo.toml')) continue;
-    for (const f of m.filenames || []) files.add(f);
-    if (m.executable) files.add(m.executable);
+    for (const f of m.filenames || []) if (!files.has(f)) files.set(f, false);
+    if (m.executable) files.set(m.executable, true);
   }
-  return [...files].sort();
+  return [...files.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 }
 
 function selfTest() {
@@ -91,7 +98,12 @@ function selfTest() {
     }
   }
   const row = (marker) => ({ name: 'f', bytes: 1, marker });
+  const prog = (marker) => ({ name: 'p', bytes: 1, marker, program: true });
   const verdicts = [
+    [[prog(true), prog(false)], true, false],
+    [[row(true), prog(true), prog(false)], true, false],
+    [[row(true), prog(true), row(false)], true, true],
+    [[row(false), prog(true)], true, true],
     [[row(false)], false, true],
     [[row(false), row(true)], false, false],
     [[], false, false],
@@ -125,5 +137,5 @@ if (control) args.push('--features', 'test-fence');
 const built = spawnSync('cargo', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'inherit'] });
 if (built.error) refuse('cargo', `the call did not run (${built.error.code || built.error.name})`);
 if (built.status !== 0) refuse('cargo', `the build exited ${built.status}`);
-const read = artifacts(built.stdout).map(readFile);
+const read = artifacts(built.stdout).map(([path, program]) => readFile(path, program));
 process.exit(report(read, control) ? 0 : 1);
