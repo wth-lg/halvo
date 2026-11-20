@@ -558,6 +558,25 @@ def self_test():
             install()
         if native.call_args_list != [call(expected + [str(authority)])]:
             raise RuntimeError(case)
+    alive = WORK / "key-alive-fixture"
+    alive.mkdir()
+    captured = io.StringIO()
+    with patch("__main__.hosted", return_value=True), patch("subprocess.Popen") as start, \
+         patch("__main__.KEY_EXIT", alive / "exit"), patch("__main__.REASONS") as faults, \
+         patch("__main__.undo", return_value=(True, False)), redirect_stdout(captured):
+        proc = start.return_value
+        proc.pid = os.getpid()
+        proc.wait.return_value = 0
+        proc.stdout.readline.return_value = b'{"app":"https://127.0.0.1:1","control":"http://127.0.0.1:2"}'
+        with stub(alive / "record", True):
+            pass
+        faults.exists.return_value = False
+        result = finish(0)
+    lines = captured.getvalue().splitlines()
+    if (result != 1 or "S6 TLS stub-exit=0 key-gone=false" not in lines
+            or "S6 real-helper: MISSED setup-or-cleanup" not in lines):
+        raise RuntimeError("key-alive-fixture")
+    refused += 1
     print(f"PASS self-test:{NAME} ({refused} failing fixtures rejected)")
 
 
