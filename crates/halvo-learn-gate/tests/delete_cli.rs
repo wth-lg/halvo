@@ -231,7 +231,7 @@ const KEY_REFUSAL: &str =
 /// standard error on every other platform (lines 111284 to 111302). What varies in a line of the list is its time
 /// stamp alone, in its fixed form: seventeen digits, each any digit (a month 99 passes), between separators that stand
 /// fixed. The reading takes form lines in any number and in any order before the refusal line; on Windows the test
-/// holds that the second command printed three of them, as every key case of the hosted runs 3 and 5 printed three.
+/// holds three lines from the second command, each one of the forms (a form may repeat), as in all 200 rounds of run 6.
 const SQLCIPHER_FORMS: [&str; 3] = [
     ": ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1\r\n",
     ": ERROR CORE sqlite3Codec: error decrypting page 1 data: 1\r\n",
@@ -468,7 +468,7 @@ fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_o
         assert_eq!(
             err.split_inclusive('\n').count() - 1,
             3,
-            "the form lines before the refusal line, where every key case of the hosted runs 3 and 5 printed 3"
+            "the lines before the refusal line, each one of the forms (a form may repeat), which were 3 in all 200 rounds of hosted run 6"
         );
     }
 }
