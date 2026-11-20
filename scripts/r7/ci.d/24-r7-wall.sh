@@ -1247,7 +1247,7 @@ fixture_git() {
       fixture_search=$((fixture_search + 1))
       fixture_matches_status=$fixture_status
       fixture_nonmatches_status=not-run
-      printf '%s\000' "$@" >"$work/read-argv"
+      printf '%s\000' "$@" >"$work/read-argv" || fixture_trace_error=1
       ;;
     grep:-L)
       fixture_nonmatches_status=$fixture_status
@@ -1262,11 +1262,11 @@ fixture_git() {
         if [ -n "$watch" ]; then
           mkdir -p "$watch" &&
             cp "$work/matches" "$work/nonmatches" "$work/read-argv" "$work/search-stderr" "$watch/" &&
-            printf '%s %s\n' "$fixture_matches_status" "$fixture_nonmatches_status" >"$watch/statuses"
+            printf '%s %s\n' "$fixture_matches_status" "$fixture_nonmatches_status" >"$watch/statuses" || fixture_trace_error=1
         fi
       fi
       ;;
-  esac
+  esac 2>/dev/null
   return "$fixture_status"
 }
 
@@ -1274,11 +1274,24 @@ fixture_read_receipt() {
   path=$2
   snapshot=$3
   receipt_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ') || return 1
+  literal_path=$path
+  case $path in
+    \"*\")
+      literal_path=$(perl -e '
+        my $path = substr($ARGV[0], 1, -1);
+        my %escape = (a => "\a", b => "\b", t => "\t", n => "\n", v => "\x0b",
+                      f => "\f", r => "\r", q{"} => q{"}, "\\" => "\\");
+        $path =~ s/\\([0-7]{3}|[abtnvfr"\\])/length($1) == 3 ? chr(oct($1)) : $escape{$1}/ge;
+        print $path, "." or die $!;
+      ' "$path") || return 1
+      literal_path=${literal_path%.}
+      ;;
+  esac
   perl -e '
     use strict;
     use warnings;
     use Time::HiRes qw(stat);
-    my ($work, $case, $path, $time) = @ARGV;
+    my ($work, $case, $path, $time, $literal_path) = @ARGV;
     sub emit { print "wall-read case=$case $_[0]=$_[1]\n" or die $! }
     sub disk {
       my ($key, $file) = @_;
@@ -1291,7 +1304,7 @@ fixture_read_receipt() {
     my ($entry) = grep { /\t\Q$path\E\n\z/ } <$index>;
     chomp $entry if defined $entry;
     emit("index-entry", $entry // "absent");
-    disk("worktree-stat", $path);
+    disk("worktree-stat", $literal_path);
     disk("index-stat", $ENV{GIT_INDEX_FILE});
     if (defined $entry && $entry =~ /^\d+ ([0-9a-f]{2})([0-9a-f]+) /) {
       disk("object-stat", "$ENV{GIT_OBJECT_DIRECTORY}/$1/$2");
@@ -1303,7 +1316,7 @@ fixture_read_receipt() {
     } else {
       emit("object-stat", "no listed object");
     }
-  ' "$work" "$1" "$path" "$receipt_time" || return 1
+  ' "$work" "$1" "$path" "$receipt_time" "$literal_path" || return 1
   reread_status=0
   LC_ALL=C perl -e '
     local $/;
@@ -1313,9 +1326,9 @@ fixture_read_receipt() {
     die "missing pathspec separator" unless @args;
     exec {$git} $git, @args, ":(literal)$path";
     die "cannot execute git: $!";
-  ' "$fixture_real_git" "$path" <"$snapshot/read-argv" >"$work/reread" 2>"$work/reread-stderr" || reread_status=$?
+  ' "$fixture_real_git" "$literal_path" <"$snapshot/read-argv" >"$work/reread" 2>"$work/reread-stderr" || reread_status=$?
   blob_status=0
-  "$fixture_real_git" cat-file blob ":$path" >"$work/reread-blob" 2>"$work/blob-stderr" || blob_status=$?
+  "$fixture_real_git" cat-file blob ":$literal_path" >"$work/reread-blob" 2>"$work/blob-stderr" || blob_status=$?
   perl -e '
     use strict;
     use warnings;
@@ -1401,6 +1414,7 @@ expect() {
     if [ "${R7_WALL_TRACE_READS:-}" = 1 ]; then
       fixture_real_git=$(command -v git) || exit 2
       fixture_search=0
+      fixture_trace_error=0
       fixture_expected_path=
       case ${3:-} in read:*) fixture_expected_path=${3#read:} ;; esac
       case $fixture_expected_path in
@@ -1420,7 +1434,10 @@ expect() {
     check_in "$case_repo" "$work" "$work/problems" >/dev/null 2>"$work/stderr"
     check_status=$?
     if [ "${R7_WALL_TRACE_READS:-}" = 1 ]; then
-      fixture_missed_reads "$2" >"$work/read-receipt" || printf 'wall-read case=%s capture-error=1\n' "$2" >>"$work/read-receipt"
+      fixture_missed_reads "$2" >"$work/read-receipt" 2>/dev/null || fixture_trace_error=1
+      if [ "$fixture_trace_error" = 1 ]; then
+        printf 'wall-read case=%s capture-error=1\n' "$2" >>"$work/read-receipt"
+      fi
     fi
     printf '%s\n' "$check_status" >"$work/code"
   ) &
