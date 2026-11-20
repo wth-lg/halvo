@@ -1984,7 +1984,7 @@ pkill_fallback_real() {
   fallback_start=$(date +%s)
   stop_children
   fallback_end=$(date +%s)
-  fallback_rest=$(pgrep -P "$fallback_wrapper" | wc -l | tr -d ' ')
+  fallback_rest=$(ps -o pid= -p "$fallback_child" | wc -l | tr -d ' ')
   [ "$((fallback_end - fallback_start))" -lt 30 ] && [ "$fallback_rest" -eq 0 ] && return 0
   printf 'stop_children took %s s and left %s children of the wrapper\n' "$((fallback_end - fallback_start))" "$fallback_rest"
   return 1
