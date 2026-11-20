@@ -187,9 +187,9 @@ impl Flushes {
     fn plain_since(&self, from: usize) -> Vec<(i32, i64, i64)> {
         (from..self.plain())
             .map(|at| {
-                let (mut dev, mut ino): (libc::c_long, libc::c_long) = (0, 0);
+                let (mut dev, mut ino): (i64, i64) = (0, 0);
                 let kind = unsafe { (self.plain_on)(at as libc::c_long, &mut dev, &mut ino) };
-                (kind, i64::from(dev), i64::from(ino))
+                (kind, dev, ino)
             })
             .collect()
     }

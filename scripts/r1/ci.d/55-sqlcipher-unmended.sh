@@ -56,7 +56,8 @@ measure() {
     printf 'applied the statement of the row %s\n' "$row"
   done
   if [ -n "$given" ]; then
-    cp "$given/mended.out" "$work/mended.out" && cp "$given/unmended.out" "$work/unmended.out" || fail "the case gives no probe output"
+    cp "$given/mended.out" "$work/mended.out" || fail "the case gives no probe output"
+    cp "$given/unmended.out" "$work/unmended.out" || fail "the case gives no probe output"
   else
     run_probe "$root" "${CARGO_TARGET_DIR:-$root/target}" "$work/mended.out" || fail "the probe failed on the build of the tree"
     run_probe "$work/copy" "$work/target" "$work/unmended.out" || fail "the probe failed on the copy without the statements"
@@ -128,8 +129,8 @@ probe_text() {
 
 outputs() {
   mkdir -p "$work/$1.probe" || exit 2
-  probe_text $2 >"$work/$1.probe/mended.out" || exit 2
-  probe_text $3 >"$work/$1.probe/unmended.out" || exit 2
+  probe_text "$2" "$3" "$4" >"$work/$1.probe/mended.out" || exit 2
+  probe_text "$5" "$6" "$7" >"$work/$1.probe/unmended.out" || exit 2
 }
 
 self_test() {
@@ -138,23 +139,23 @@ self_test() {
   wrong=
 
   repo equal-with-lines "$good_rows" "$good_build" sqlcipher
-  outputs equal-with-lines '5 ok 0' '5 ok 7'
+  outputs equal-with-lines 5 ok 0 5 ok 7
   check equal-with-lines PASS 'workloads 2 rows_equal yes search_lines_of_the_tree 0 search_lines_of_the_copy 14'
 
   repo no-line-of-the-copy "$good_rows" "$good_build" sqlcipher
-  outputs no-line-of-the-copy '5 ok 0' '5 ok 0'
+  outputs no-line-of-the-copy 5 ok 0 5 ok 0
   check no-line-of-the-copy FAIL 'the copy without the statements gives no line of the search'
 
   repo rows-differ "$good_rows" "$good_build" sqlcipher
-  outputs rows-differ '5 ok 0' '4 ok 7'
+  outputs rows-differ 5 ok 0 4 ok 7
   check rows-differ FAIL 'the rows by table and by index or the integrity answer differ'
 
   repo integrity-differs "$good_rows" "$good_build" sqlcipher
-  outputs integrity-differs '5 ok 0' '5 malformed 7'
+  outputs integrity-differs 5 ok 0 5 malformed 7
   check integrity-differs FAIL 'the rows by table and by index or the integrity answer differ'
 
   repo lines-of-the-tree "$good_rows" "$good_build" sqlcipher
-  outputs lines-of-the-tree '5 ok 3' '5 ok 7'
+  outputs lines-of-the-tree 5 ok 3 5 ok 7
   check lines-of-the-tree FAIL 'the build of the tree gives 6 lines of the search'
 
   repo no-workload "$good_rows" "$good_build" sqlcipher
@@ -170,21 +171,21 @@ self_test() {
   check no-parent FAIL 'HEAD has no first parent in this checkout'
 
   repo row-missing "$(printf '%s\n' "$good_rows" | head -n 1)" "$good_build" sqlcipher
-  outputs row-missing '5 ok 0' '5 ok 7'
+  outputs row-missing 5 ok 0 5 ok 7
   check row-missing FAIL 'the row edited-page-gap-not-zeroed does not stand once on build.rs'
 
   repo row-twice "$good_rows
 $good_rows" "$good_build" sqlcipher
-  outputs row-twice '5 ok 0' '5 ok 7'
+  outputs row-twice 5 ok 0 5 ok 7
   check row-twice FAIL 'the row rebuilt-page-gap-not-zeroed does not stand once on build.rs'
 
   repo statement-not-applying "$good_rows" 'const A: &str = "nothing to take out";' sqlcipher
-  outputs statement-not-applying '5 ok 0' '5 ok 7'
+  outputs statement-not-applying 5 ok 0 5 ok 7
   check statement-not-applying FAIL 'the statement of the row rebuilt-page-gap-not-zeroed does not apply'
 
   repo dirty "$good_rows" "$good_build" sqlcipher
   printf 'changed\n' >"$work/dirty/src/other.txt" || exit 2
-  outputs dirty '5 ok 0' '5 ok 7'
+  outputs dirty 5 ok 0 5 ok 7
   check dirty FAIL 'the checkout differs from HEAD before the run'
 
   if [ -n "$wrong" ]; then
