@@ -968,4 +968,75 @@ pub(crate) mod tests {
         );
         assert_eq!(writer.calls.load(Ordering::SeqCst), 0);
     }
+
+    struct WritesThenFails(Vec<u8>);
+
+    impl StateWrite for WritesThenFails {
+        fn write_whole(&self, dir: &StateDir, name: &OsStr, _bytes: &[u8]) -> io::Result<()> {
+            let mut temp = name.to_os_string();
+            temp.push(".test-new");
+            put(dir, &temp, name, &self.0)?;
+            Err(io::Error::from(io::ErrorKind::StorageFull))
+        }
+    }
+
+    fn failing_after(dir: &Path, left: &[u8]) -> StateFile {
+        StateFile::open(
+            StateDir::open(dir).unwrap(),
+            Box::new(WritesThenFails(left.to_vec())),
+        )
+    }
+
+    #[test]
+    fn a_failed_write_that_leaves_another_state_in_the_file_leaves_memory_holding_that_state() {
+        let dir = test_dir();
+        drop(open(dir.path(), &TestWrite::default()));
+        let mut file = failing_after(
+            dir.path(),
+            b"{\"version\":1,\"desired\":\"paused\",\"store_made\":true}",
+        );
+        let answer = file.update(|state| state.desired = Desired::Running);
+        assert!(
+            matches!(
+                answer,
+                Err(StateError::NotWritten {
+                    kind: io::ErrorKind::StorageFull,
+                    ..
+                })
+            ),
+            "{answer:?}"
+        );
+        let next = open(dir.path(), &TestWrite::default());
+        assert_eq!(file.state(), next.state());
+        assert!(file.state().store_made);
+        assert_eq!(
+            file.health(),
+            StateHealth::WriteFailed(io::ErrorKind::StorageFull)
+        );
+    }
+
+    #[test]
+    fn a_failed_write_that_leaves_a_file_that_does_not_load_leaves_memory_paused() {
+        let dir = test_dir();
+        let writer = TestWrite::default();
+        let mut first = open(dir.path(), &writer);
+        first
+            .update(|state| state.desired = Desired::Running)
+            .unwrap();
+        drop(first);
+        let mut file = failing_after(dir.path(), b"not a state");
+        assert_eq!(file.state().desired, Desired::Running);
+        let answer = file.update(|state| state.store_made = true);
+        assert!(
+            matches!(answer, Err(StateError::NotWritten { .. })),
+            "{answer:?}"
+        );
+        assert_eq!(file.state().desired, Desired::Paused);
+        assert!(!file.state().store_made);
+        let next = open(dir.path(), &writer);
+        assert_eq!(
+            (next.health(), next.state().desired),
+            (StateHealth::Corrupt, Desired::Paused)
+        );
+    }
 }
