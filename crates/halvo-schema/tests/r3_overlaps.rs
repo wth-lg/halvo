@@ -277,6 +277,15 @@ fn a_reply_whose_entries_are_out_of_workflow_id_order_or_name_a_workflow_twice_i
             "overlaps",
         );
     }
+    let first_pair_out_of_order = [(1, 1), (0, 0), (2, 2)];
+    let first_pair_one_workflow = [(1, 1), (1, 5), (2, 2)];
+    for pairs in [first_pair_out_of_order, first_pair_one_workflow] {
+        let entries: Vec<(String, String, Vec<&str>)> = pairs
+            .iter()
+            .map(|&(w, a)| (other_workflow(w), other_agent(a), vec!["ann@people.test"]))
+            .collect();
+        refused_whole(&entries, "OverlapsReply", "workflow_order", "overlaps");
+    }
 }
 
 #[test]
