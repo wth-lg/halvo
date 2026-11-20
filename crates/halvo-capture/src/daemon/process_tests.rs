@@ -584,3 +584,21 @@ fn a_start_on_a_held_directory_answers_0_prints_nothing_and_changes_nothing() {
     assert!(backup_mark(&dir, false).is_none());
     drop(held);
 }
+
+#[test]
+fn a_missing_data_directory_below_a_link_that_leads_nowhere_ends_the_run_with_the_line_of_that_link(
+) {
+    let root = kept_dir("service-tests-");
+    let away = root.join("away");
+    std::os::unix::fs::symlink(root.join("gone"), &away).unwrap();
+    let missing = away.join("data");
+    let (status, err) = serve_here(&missing);
+    assert_eq!(
+        (status, err.as_str()),
+        (
+            1,
+            "halvo-capture: the data directory's path meets a link that leads nowhere\n"
+        )
+    );
+    assert!(!root.join("gone").exists());
+}
