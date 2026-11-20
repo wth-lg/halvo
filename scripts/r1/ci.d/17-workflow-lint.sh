@@ -270,14 +270,6 @@ EOF
           return
         }
       }
-      if (i == 2) {
-        event = line
-        if (event == "  push:") pushes++
-        else if (event == "  pull_request:") pull_requests++
-        else if (event != "  schedule:") other_event = 1
-      } else if (event == "  push:" && line == ENVIRON["PIN_BRANCHES"]) branch_filters++
-      else if (event == "  push:" && line == ENVIRON["PIN_TAGS"]) tag_filters++
-      else if (event != "  schedule:") other_event = 1
       if (aftercron) {
         aftercron = 0
         if (i > 2) {
@@ -403,6 +395,12 @@ EOF
       want[3] = ENVIRON["PIN_PREFIX"]; var[3] = "pin_prefix"
       want[4] = ENVIRON["PIN_SAVE"]; var[4] = "pin_save"
       PIN_CRON = ENVIRON["PIN_CRON"]
+      on_line[++on_count] = "  push:"
+      on_line[++on_count] = ENVIRON["PIN_BRANCHES"]
+      on_line[++on_count] = ENVIRON["PIN_TAGS"]
+      on_line[++on_count] = "  pull_request:"
+      on_line[++on_count] = "  schedule:"
+      on_line[++on_count] = PIN_CRON
       pinned["pin_cron"] = "cron line"
       pinned["pin_uses"] = "uses line of the Rust cache step"
       pinned["pin_with"] = "with line of the Rust cache step"
@@ -417,6 +415,13 @@ EOF
       blank = (line ~ /^ *$/)
       comment = (line ~ /^ *#/)
       firstofstep = 0
+      if (sec == "on" && (i || blank || comment)) {
+        row = NR - onstart
+        if (row in on_line) {
+          onread = row
+          if (line != on_line[row] && !onchange) onchange = NR
+        } else if (line != "" && i && !onchange) onchange = NR
+      }
       if (cstate == 1) {
         k = NR - cstart + 1
         if (line == want[k]) {
@@ -451,8 +456,8 @@ EOF
       endjob()
       endon()
       if (!ons && !onother) add(0, "no line of the file is " shown("on:") " alone in column 1; this lint reads the events under that line, with the line " shown("  schedule:") " and under it the line " shown(PIN_CRON) "; write them" held("pin_cron"))
-      if (!nf && (pushes != 1 || pull_requests != 1 || branch_filters != 1 || tag_filters != 1 || other_event))
-        add(onstart, "write the push filters and the pull_request and schedule events under " shown("on:") ": under " shown("  push:") " write " shown(ENVIRON["PIN_BRANCHES"]) " and " shown(ENVIRON["PIN_TAGS"]) "; write " shown("  pull_request:") " without filters and keep the weekly schedule")
+      if (!nf && (onchange || onread != on_count))
+        add(onchange ? onchange : onstart, "write the push filters and the pull_request and schedule events exactly as pinned, in order, under " shown("on:") ": under " shown("  push:") " write " shown(ENVIRON["PIN_BRANCHES"]) " and " shown(ENVIRON["PIN_TAGS"]) "; write " shown("  pull_request:") " without filters and keep the weekly schedule")
       for (a = 2; a <= nf; a++)
         for (b = a; b > 1 && at[b - 1] > at[b]; b--) {
           t = at[b]; at[b] = at[b - 1]; at[b - 1] = t
@@ -755,6 +760,24 @@ EOF
   check signs-in-command PASS 'jobs: 2, uses keys: 8, findings: 0'
   full flow-env-and-comma-in-command windows "env:${nl}          GIT_AUTHOR_NAME: Halvo CI${nl}          GIT_AUTHOR_EMAIL: ci@halvo.invalid${nl}          GIT_COMMITTER_NAME: Halvo CI${nl}          GIT_COMMITTER_EMAIL: ci@halvo.invalid${nl}        run: sh scripts/ci/run-ci-d.sh windows --self-test" "env: {GIT_AUTHOR_NAME: Halvo CI, GIT_AUTHOR_EMAIL: ci@halvo.invalid, GIT_COMMITTER_NAME: Halvo CI, GIT_COMMITTER_EMAIL: ci@halvo.invalid}${nl}        run: echo a, b"
   check flow-env-and-comma-in-command PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full on-add-workflow-dispatch workflow '  pull_request:' "  pull_request:${nl}  workflow_dispatch:"
+  check on-add-workflow-dispatch FAIL 'write the push filters and the pull_request and schedule events'
+  full on-comment-naming-dispatch workflow '  pull_request:' "  # workflow_dispatch${nl}  pull_request:"
+  check on-comment-naming-dispatch FAIL 'write the push filters and the pull_request and schedule events'
+  full on-push-filters-reversed workflow "$pin_branches${nl}$pin_tags" "$pin_tags${nl}$pin_branches"
+  check on-push-filters-reversed FAIL 'write the push filters and the pull_request and schedule events'
+  full on-extra-blank-line workflow '  pull_request:' "${nl}  pull_request:"
+  check on-extra-blank-line FAIL 'write the push filters and the pull_request and schedule events'
+  full on-comment-after-cron workflow "$pin_cron" "$pin_cron${nl}    # weekly"
+  check on-comment-after-cron FAIL 'write the push filters and the pull_request and schedule events'
+  for minutes in 90 5 expression; do
+    value=$minutes
+    [ "$minutes" != expression ] || value='${{ 90 }}'
+    full "step-timeout-$minutes" macos "      - name: ci.d${nl}        shell: bash" \
+      "      - name: ci.d${nl}        shell: bash${nl}        timeout-minutes: $value"
+    check "step-timeout-$minutes" FAIL 'step 12.timeout-minutes'
+  done
+
   full runner-expression-macos macos '    runs-on: macos-15' "    runs-on: \${{ github.event_name == 'push' && 'macos-15' || 'macos-15' }}"
   check runner-expression-macos FAIL 'job macos runs-on'
   full runner-other-macos macos '    runs-on: macos-15' '    runs-on: ubuntu-24.04'
