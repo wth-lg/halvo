@@ -571,3 +571,16 @@ fn a_data_directory_that_cannot_be_opened_ends_the_run_with_1_and_one_line_that_
     drop(back);
     assert!(names(&shut).is_empty(), "{:?}", names(&shut));
 }
+
+#[test]
+fn a_start_on_a_held_directory_answers_0_prints_nothing_and_changes_nothing() {
+    let dir = kept_dir("service-tests-");
+    let held = InstanceLock::take(&data_dir(&dir)).unwrap().unwrap();
+    let before = listing(&dir);
+    let (status, err) = serve_here(&dir);
+    assert_eq!((status, err.as_str()), (0, ""));
+    assert_eq!(listing(&dir), before);
+    assert!(names(&dir).is_empty(), "{:?}", names(&dir));
+    assert!(backup_mark(&dir, false).is_none());
+    drop(held);
+}
