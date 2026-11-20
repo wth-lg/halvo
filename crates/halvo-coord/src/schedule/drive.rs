@@ -236,6 +236,7 @@ fn fresh<P: Owner<Config = C>, C: ConfigView + Clone>(
             crate::run::read_replies(cx.ports, &mut m.facts);
         }
     }
+    board.note_records();
     Ok(())
 }
 

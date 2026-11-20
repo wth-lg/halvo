@@ -148,6 +148,7 @@ pub struct Board<C> {
     aside: Vec<(AgentId, Vec<(RunId, Reaped)>)>,
     alive: Vec<RunId>,
     kept: Vec<Facts<C>>,
+    noted: Vec<crate::types::PastRun>,
     defer_held: Vec<AgentId>,
     dropped: Vec<(AgentId, Dropped)>,
     stuck: Vec<(AgentId, Stuck)>,
@@ -180,6 +181,7 @@ impl<C> Board<C> {
             aside: Vec::new(),
             alive: Vec::new(),
             kept: Vec::new(),
+            noted: Vec::new(),
             defer_held: Vec::new(),
             dropped: Vec::new(),
             stuck: Vec::new(),
@@ -323,14 +325,16 @@ impl<C> Board<C> {
     }
 
     /// The agent's newest run among those for which this life's `Runs::reap` answered `alive`
-    /// and that no record of the agent store names, whatever newer run another writer added: a
+    /// and that no record of the agent store names, in the facts or among the records that
+    /// `note_records` kept, whatever newer run another writer added: a
     /// run of an earlier life that outlived that life, whose task may still run (I5.8; rulings
     /// RD-147 (5)(i), RD-151 (b)). None for an agent that is no member.
     pub fn alive_at_reap(&self, agent: &AgentId) -> Option<&RunId> {
         let facts = &self.members[self.index(agent)?].facts;
         facts.events.iter().rev().find_map(|e| match &e.what {
             crate::types::What::RunStarted { run, .. }
-                if self.alive.contains(run) && !facts.runs.iter().any(|r| &r.run == run) =>
+                if self.alive.contains(run)
+                    && !facts.runs.iter().chain(&self.noted).any(|r| &r.run == run) =>
             {
                 Some(run)
             }
@@ -342,6 +346,20 @@ impl<C> Board<C> {
     /// owed in this life (I5.8; ruling RD-151).
     pub fn answered_alive(&self, run: &RunId) -> bool {
         self.alive.contains(run)
+    }
+
+    /// Keeps each record of the store that a member's facts hold for a run that this life's
+    /// `Runs::reap` answered `alive`, so that the board knows the run ended also once later
+    /// records have pushed that record out of the facts (`history_runs`; RD-151 (b)). Called
+    /// where records reach the facts: at recovery and after the refresh of a move.
+    pub(crate) fn note_records(&mut self) {
+        for m in &self.members {
+            for r in &m.facts.runs {
+                if self.alive.contains(&r.run) && !self.noted.iter().any(|n| n.run == r.run) {
+                    self.noted.push(r.clone());
+                }
+            }
+        }
     }
 
     /// Keeps, for its row alone, the facts of an agent whose workflow the owner's list no longer
@@ -381,11 +399,16 @@ impl<C> Board<C> {
         C: Clone,
     {
         let end_of = |run: &RunId| {
-            records.iter().find(|r| &r.run == run).and_then(|r| {
-                let end = RunEnd::from(r.outcome);
-                (self.alive.contains(run) || matches!(end, RunEnd::Completed | RunEnd::NothingToDo))
+            records
+                .iter()
+                .chain(&self.noted)
+                .find(|r| &r.run == run)
+                .and_then(|r| {
+                    let end = RunEnd::from(r.outcome);
+                    (self.alive.contains(run)
+                        || matches!(end, RunEnd::Completed | RunEnd::NothingToDo))
                     .then_some(end)
-            })
+                })
         };
         let stands = |what: &crate::types::What| {
             matches!(what, crate::types::What::RunEnded { run, cause: RunEnd::Interrupted, .. }

@@ -472,6 +472,7 @@ where
     }
     board.owed = owed;
     board.keep_alive(&reaped);
+    board.note_records();
     for facts in kept {
         board.keep_gone(facts);
     }
