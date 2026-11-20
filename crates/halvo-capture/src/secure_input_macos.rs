@@ -38,7 +38,7 @@ mod carbon {
         static SYSTEM_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, debug_assertions))]
     pub(super) fn system_reads_on_this_thread() -> u64 {
         SYSTEM_READS.with(std::cell::Cell::get)
     }
@@ -83,7 +83,7 @@ mod carbon {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, debug_assertions))]
 pub(crate) fn system_reads_on_this_thread() -> u64 {
     carbon::system_reads_on_this_thread()
 }
@@ -140,6 +140,661 @@ pub fn reading_under(session: Session, secure: impl FnOnce() -> bool) -> Reading
 
 pub fn secure_input_reading(session: Session) -> Reading {
     reading_under(session, secure_input_active)
+}
+
+/// The queued notices of a focus change into a secure field of the program in
+/// front (rulings MA-12 E and MA-20 (7)(c)): a thread of its own follows the
+/// program in front with an Accessibility observer and, for every notice whose
+/// element is a secure text field or cannot be read within its deadline, moves
+/// the notice mark to the uptime of that notice. A page sets no Accessibility
+/// attribute here, so a browser's page gives no notice (ruling PR-30 PR15).
+pub mod notice {
+    use std::ffi::c_void;
+    use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+    use std::sync::Arc;
+    use std::thread::JoinHandle;
+    use std::time::{Duration, Instant};
+
+    use core_foundation::base::{CFType, CFTypeRef, TCFType};
+    use core_foundation::date::CFDate;
+    use core_foundation::runloop::{
+        kCFRunLoopDefaultMode, CFRunLoop, CFRunLoopSource, CFRunLoopSourceInvalidate,
+        CFRunLoopSourceRef, CFRunLoopTimer, CFRunLoopTimerContext, CFRunLoopTimerInvalidate,
+        CFRunLoopTimerRef,
+    };
+    use core_foundation::string::{CFString, CFStringRef};
+
+    use super::hold::Uptime;
+
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXUIElementCreateApplication(pid: libc::pid_t) -> CFTypeRef;
+        fn AXUIElementCopyAttributeValue(
+            element: CFTypeRef,
+            attribute: CFStringRef,
+            value: *mut CFTypeRef,
+        ) -> i32;
+        fn AXUIElementSetMessagingTimeout(element: CFTypeRef, seconds: f32) -> i32;
+        fn AXObserverCreate(
+            pid: libc::pid_t,
+            callback: ObserverCallback,
+            observer: *mut CFTypeRef,
+        ) -> i32;
+        fn AXObserverAddNotification(
+            observer: CFTypeRef,
+            element: CFTypeRef,
+            notification: CFStringRef,
+            refcon: *mut c_void,
+        ) -> i32;
+        fn AXObserverGetRunLoopSource(observer: CFTypeRef) -> CFRunLoopSourceRef;
+    }
+
+    type ObserverCallback = unsafe extern "C" fn(CFTypeRef, CFTypeRef, CFStringRef, *mut c_void);
+
+    const AX_ERROR_SUCCESS: i32 = 0;
+    const AX_ERROR_FAILURE: i32 = -25200;
+    const AX_ERROR_CANNOT_COMPLETE: i32 = -25204;
+    const AX_ERROR_ATTRIBUTE_UNSUPPORTED: i32 = -25205;
+    const AX_ERROR_API_DISABLED: i32 = -25211;
+    const AX_ERROR_NO_VALUE: i32 = -25212;
+
+    /// The step of the thread: it reads which program is in front, and tries a
+    /// registration, at most once in each step, and waits on a timer of its run
+    /// loop between two steps.
+    pub const NOTICE_FRONT_STEP: Duration = Duration::from_millis(50);
+
+    /// The deadline of one question to the program in front: a read of an
+    /// element's subrole, of its focused element, or the registration.
+    pub const NOTICE_READ_DEADLINE: Duration = Duration::from_millis(250);
+
+    /// How long a program in front whose registration was refused for lack of
+    /// the Accessibility grant waits before it is tried again, unless another
+    /// program comes in front first.
+    pub const NO_GRANT_RETRY: Duration = Duration::from_secs(1);
+
+    /// The subrole of a secure text field.
+    pub const SECURE_SUBROLE: &str = "AXSecureTextField";
+
+    /// What a notice, or the read at the start of a watch, says of the element
+    /// that has the focus.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Focus {
+        /// A secure text field.
+        Secure,
+        /// An element that answered and is no secure text field.
+        Other,
+        /// An element that did not answer within the deadline, or answered
+        /// with an error: a reason to drop, as a secure field is.
+        Doubt,
+    }
+
+    impl Focus {
+        /// Whether this focus moves the notice mark.
+        pub fn marks(self) -> bool {
+            self != Self::Other
+        }
+    }
+
+    /// The focus from the read of an element's subrole: its text, or the
+    /// Accessibility error of the read. No value and an unsupported attribute
+    /// are an element that is no secure field; every other error is a doubt.
+    pub fn focus_of(subrole: Result<Option<&str>, i32>) -> Focus {
+        match subrole {
+            Ok(Some(SECURE_SUBROLE)) => Focus::Secure,
+            Ok(_) => Focus::Other,
+            Err(AX_ERROR_NO_VALUE | AX_ERROR_ATTRIBUTE_UNSUPPORTED) => Focus::Other,
+            Err(_) => Focus::Doubt,
+        }
+    }
+
+    /// Where a notice came from.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Seen {
+        /// A notice of a focus change.
+        Notice,
+        /// The read of the focused element when the watch of a program began.
+        Start,
+        /// A registration that the program in front did not answer in time.
+        Unanswered,
+    }
+
+    /// What moved the notice mark last: a notice of a focus change into a
+    /// secure field, a doubt (a notice or a registration that did not answer),
+    /// or the read at the start of a watch.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum MarkKind {
+        Notice,
+        Doubt,
+        Start,
+    }
+
+    impl MarkKind {
+        /// The kind of a mark by where it came from and what it said.
+        pub fn of(seen: Seen, focus: Focus) -> Self {
+            match (seen, focus) {
+                (Seen::Start, _) => Self::Start,
+                (Seen::Unanswered, _) | (Seen::Notice, Focus::Doubt) => Self::Doubt,
+                (Seen::Notice, _) => Self::Notice,
+            }
+        }
+
+        fn code(self) -> u8 {
+            match self {
+                Self::Notice => 0,
+                Self::Doubt => 1,
+                Self::Start => 2,
+            }
+        }
+
+        fn from_code(code: u8) -> Self {
+            match code {
+                1 => Self::Doubt,
+                2 => Self::Start,
+                _ => Self::Notice,
+            }
+        }
+    }
+
+    #[derive(Default)]
+    struct MarkState {
+        at: AtomicU64,
+        kind: AtomicU8,
+        doubt: AtomicBool,
+    }
+
+    /// The uptime of the newest notice that marks, with its kind, and whether
+    /// a doubt stands over the program in front. The uptime only moves forward,
+    /// and every end of a doubt moves it to the time at which the doubt ended.
+    #[derive(Clone, Default)]
+    pub struct NoticeMark(Arc<MarkState>);
+
+    impl NoticeMark {
+        pub fn new() -> Self {
+            Self::default()
+        }
+
+        /// Moves the mark to `at` unless it already stands later. The kind is
+        /// that of the call that moved the mark last: a mark older than the
+        /// newest leaves both.
+        pub fn mark(&self, at: Uptime, kind: MarkKind) {
+            if self.0.at.fetch_max(at.nanos(), Ordering::SeqCst) <= at.nanos() {
+                self.0.kind.store(kind.code(), Ordering::SeqCst);
+            }
+        }
+
+        /// The newest mark, none before the first.
+        pub fn get(&self) -> Option<Uptime> {
+            match self.0.at.load(Ordering::SeqCst) {
+                0 => None,
+                at => Some(Uptime::from_nanos(at)),
+            }
+        }
+
+        /// The kind of the newest mark.
+        pub fn kind(&self) -> MarkKind {
+            MarkKind::from_code(self.0.kind.load(Ordering::SeqCst))
+        }
+
+        /// Whether a doubt stands: the program in front refused its
+        /// registration by not answering, and no registration of it has
+        /// succeeded since, nor has another program come in front. Nothing in
+        /// front ends no doubt. A doubt ends only by such a registration, by
+        /// another program in front, or by the end of the thread, and each end
+        /// first moves the mark to the time at which the doubt ended. So a key
+        /// that arrives while a doubt stands is dropped at its own reading,
+        /// and a key whose OS time is not after the end is dropped at the
+        /// first reading after it: neither is ever released.
+        pub fn doubt(&self) -> bool {
+            self.0.doubt.load(Ordering::SeqCst)
+        }
+
+        pub(crate) fn set_doubt(&self, standing: bool) {
+            self.0.doubt.store(standing, Ordering::SeqCst);
+        }
+
+        /// Ends a doubt at `at`: the mark moves to `at` before the flag is
+        /// cleared, so a reading that finds no doubt finds the mark.
+        pub(crate) fn end_doubt(&self, at: Uptime) {
+            self.mark(at, MarkKind::Doubt);
+            self.set_doubt(false);
+        }
+    }
+
+    /// What the thread hands to its caller for each notice: where it came
+    /// from and its focus; the caller may log it.
+    pub type OnNotice = Box<dyn Fn(Seen, Focus) + Send + Sync>;
+
+    /// An observer of a program's focus changes: its run loop source, which
+    /// the thread adds to its run loop, and the observer that it keeps.
+    pub(crate) struct Observed {
+        pub(crate) source: Option<CFRunLoopSource>,
+        pub(crate) observer: Option<CFType>,
+    }
+
+    /// The Accessibility calls of the thread. The product uses `SYSTEM`; a
+    /// build with debug assertions and the feature stall-seam may hand in
+    /// others.
+    #[derive(Clone, Copy)]
+    pub(crate) struct AxCalls {
+        pub(crate) app: fn(libc::pid_t) -> Option<CFType>,
+        pub(crate) set_deadline: fn(&CFType, Duration),
+        pub(crate) observe: fn(libc::pid_t, &CFType, *mut c_void) -> Result<Observed, i32>,
+        pub(crate) focused: fn(&CFType) -> Result<CFType, i32>,
+        pub(crate) subrole: fn(&CFType) -> Result<Option<String>, i32>,
+    }
+
+    pub(crate) const SYSTEM: AxCalls = AxCalls {
+        app: system_app,
+        set_deadline: system_set_deadline,
+        observe: system_observe,
+        focused: system_focused,
+        subrole: system_subrole,
+    };
+
+    pub(crate) struct Context {
+        pub(crate) mark: NoticeMark,
+        pub(crate) uptime: fn() -> Uptime,
+        pub(crate) on_notice: OnNotice,
+        pub(crate) calls: AxCalls,
+    }
+
+    impl Context {
+        pub(crate) fn seen(&self, seen: Seen, focus: Focus) {
+            (self.on_notice)(seen, focus);
+            if focus.marks() {
+                self.mark.mark((self.uptime)(), MarkKind::of(seen, focus));
+            }
+        }
+
+        fn focus_of_element(&self, element: &CFType) -> Focus {
+            (self.calls.set_deadline)(element, NOTICE_READ_DEADLINE);
+            match (self.calls.subrole)(element) {
+                Ok(subrole) => focus_of(Ok(subrole.as_deref())),
+                Err(code) => focus_of(Err(code)),
+            }
+        }
+    }
+
+    fn system_app(pid: libc::pid_t) -> Option<CFType> {
+        // SAFETY: AXUIElementCreateApplication takes a pid by value and returns
+        // a +1 reference or null.
+        let app = unsafe { AXUIElementCreateApplication(pid) };
+        if app.is_null() {
+            return None;
+        }
+        // SAFETY: a +1 reference that this wrapper now owns and releases.
+        Some(unsafe { CFType::wrap_under_create_rule(app) })
+    }
+
+    fn system_set_deadline(element: &CFType, deadline: Duration) {
+        // SAFETY: `element` is a live AXUIElement for the call; the call only
+        // sets the deadline of the questions that this process asks it.
+        unsafe { AXUIElementSetMessagingTimeout(element.as_CFTypeRef(), deadline.as_secs_f32()) };
+    }
+
+    fn copy_attribute(element: &CFType, name: &'static str) -> Result<Option<CFType>, i32> {
+        let attribute = CFString::from_static_string(name);
+        let mut value: CFTypeRef = std::ptr::null();
+        // SAFETY: `element` is a live AXUIElement, `attribute` a live CFString
+        // and `value` a writable pointer that the call sets to a +1 reference
+        // on success.
+        let code = unsafe {
+            AXUIElementCopyAttributeValue(
+                element.as_CFTypeRef(),
+                attribute.as_concrete_TypeRef(),
+                &mut value,
+            )
+        };
+        if code != AX_ERROR_SUCCESS {
+            return Err(code);
+        }
+        if value.is_null() {
+            return Ok(None);
+        }
+        // SAFETY: the call succeeded and gave a +1 reference that this wrapper
+        // now owns and releases.
+        Ok(Some(unsafe { CFType::wrap_under_create_rule(value) }))
+    }
+
+    fn system_subrole(element: &CFType) -> Result<Option<String>, i32> {
+        Ok(copy_attribute(element, "AXSubrole")?
+            .and_then(|value| value.downcast::<CFString>().map(|text| text.to_string())))
+    }
+
+    fn system_focused(app: &CFType) -> Result<CFType, i32> {
+        copy_attribute(app, "AXFocusedUIElement")?.ok_or(AX_ERROR_NO_VALUE)
+    }
+
+    fn system_observe(
+        pid: libc::pid_t,
+        app: &CFType,
+        refcon: *mut c_void,
+    ) -> Result<Observed, i32> {
+        let mut observer: CFTypeRef = std::ptr::null();
+        // SAFETY: `notice_came` has the signature of an AXObserverCallback and
+        // `observer` is a writable pointer that the call sets to a +1 reference
+        // on success.
+        let code = unsafe { AXObserverCreate(pid, notice_came, &mut observer) };
+        if code != AX_ERROR_SUCCESS {
+            return Err(code);
+        }
+        if observer.is_null() {
+            return Err(AX_ERROR_FAILURE);
+        }
+        // SAFETY: a +1 reference that this wrapper now owns and releases.
+        let observer = unsafe { CFType::wrap_under_create_rule(observer) };
+        let notification = CFString::from_static_string("AXFocusedUIElementChanged");
+        // SAFETY: `observer` and `app` are live; `refcon` is the thread's
+        // Context, which outlives the observer: the thread releases the
+        // observer before it drops the context.
+        let code = unsafe {
+            AXObserverAddNotification(
+                observer.as_CFTypeRef(),
+                app.as_CFTypeRef(),
+                notification.as_concrete_TypeRef(),
+                refcon,
+            )
+        };
+        if code != AX_ERROR_SUCCESS {
+            return Err(code);
+        }
+        // SAFETY: `observer` is a live AXObserver; the call returns its run
+        // loop source under the get rule, which the wrapper retains.
+        let source = unsafe {
+            CFRunLoopSource::wrap_under_get_rule(AXObserverGetRunLoopSource(
+                observer.as_CFTypeRef(),
+            ))
+        };
+        Ok(Observed {
+            source: Some(source),
+            observer: Some(observer),
+        })
+    }
+
+    pub(crate) unsafe extern "C" fn notice_came(
+        _observer: CFTypeRef,
+        element: CFTypeRef,
+        _notification: CFStringRef,
+        refcon: *mut c_void,
+    ) {
+        if refcon.is_null() || element.is_null() {
+            return;
+        }
+        // SAFETY: `refcon` is the Context that the watch registered, which the
+        // thread keeps alive in a box until after the observer is released.
+        let context = unsafe { &*refcon.cast::<Context>() };
+        // SAFETY: `element` is the live AXUIElement that the observer hands to
+        // its callback; retaining it under the get rule keeps it for the read.
+        let element = unsafe { CFType::wrap_under_get_rule(element) };
+        let focus = context.focus_of_element(&element);
+        context.seen(Seen::Notice, focus);
+    }
+
+    struct Watch {
+        pid: libc::pid_t,
+        source: Option<CFRunLoopSource>,
+        _observer: Option<CFType>,
+    }
+
+    fn watch(pid: libc::pid_t, context: &Context) -> Result<Watch, i32> {
+        let calls = context.calls;
+        let app = (calls.app)(pid).ok_or(AX_ERROR_FAILURE)?;
+        (calls.set_deadline)(&app, NOTICE_READ_DEADLINE);
+        let refcon = std::ptr::from_ref(context).cast_mut().cast();
+        let observed = match (calls.observe)(pid, &app, refcon) {
+            Ok(observed) => observed,
+            Err(code) => {
+                if code == AX_ERROR_CANNOT_COMPLETE {
+                    context.seen(Seen::Unanswered, Focus::Doubt);
+                }
+                return Err(code);
+            }
+        };
+        if let Some(source) = &observed.source {
+            // SAFETY: kCFRunLoopDefaultMode is a constant CFString that
+            // CoreFoundation exports and never writes.
+            CFRunLoop::get_current().add_source(source, unsafe { kCFRunLoopDefaultMode });
+        }
+        let focus = match (calls.focused)(&app) {
+            Ok(element) => context.focus_of_element(&element),
+            Err(code) => focus_of(Err(code)),
+        };
+        context.seen(Seen::Start, focus);
+        Ok(Watch {
+            pid,
+            source: observed.source,
+            _observer: observed.observer,
+        })
+    }
+
+    fn unwatch(watched: &mut Option<Watch>) {
+        if let Some(watch) = watched.take() {
+            if let Some(source) = &watch.source {
+                // SAFETY: kCFRunLoopDefaultMode is a constant CFString that
+                // CoreFoundation exports and never writes.
+                CFRunLoop::get_current().remove_source(source, unsafe { kCFRunLoopDefaultMode });
+                // SAFETY: `source` is a live run loop source that this wrapper
+                // retains; invalidating it stops its callbacks.
+                unsafe { CFRunLoopSourceInvalidate(source.as_concrete_TypeRef()) };
+            }
+        }
+    }
+
+    extern "C" fn step_fired(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
+
+    fn step_timer() -> CFRunLoopTimer {
+        let mut context = CFRunLoopTimerContext {
+            version: 0,
+            info: std::ptr::null_mut(),
+            retain: None,
+            release: None,
+            copyDescription: None,
+        };
+        let step = NOTICE_FRONT_STEP.as_secs_f64();
+        let timer = CFRunLoopTimer::new(
+            CFDate::now().abs_time() + step,
+            step,
+            0,
+            0,
+            step_fired,
+            &mut context,
+        );
+        // SAFETY: kCFRunLoopDefaultMode is a constant CFString that
+        // CoreFoundation exports and never writes.
+        CFRunLoop::get_current().add_timer(&timer, unsafe { kCFRunLoopDefaultMode });
+        timer
+    }
+
+    /// What the thread did with the program in front, for a test build.
+    #[cfg(test)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub(crate) struct Steps {
+        pub(crate) front_reads: u64,
+        pub(crate) tries: u64,
+    }
+
+    /// Ends a standing doubt when the thread ends, by its stop or by a panic.
+    struct DoubtEndsWithTheThread<'a>(&'a Context);
+
+    impl Drop for DoubtEndsWithTheThread<'_> {
+        fn drop(&mut self) {
+            if self.0.mark.doubt() {
+                self.0.mark.end_doubt((self.0.uptime)());
+            }
+        }
+    }
+
+    fn run(
+        front: &(dyn Fn() -> Option<libc::pid_t> + Send),
+        context: &Context,
+        stop: &AtomicBool,
+        steps: &StepCounts,
+    ) {
+        let _doubt_ends = DoubtEndsWithTheThread(context);
+        let timer = step_timer();
+        let mut watched: Option<Watch> = None;
+        let mut doubt_of: Option<libc::pid_t> = None;
+        let mut no_grant: Option<(libc::pid_t, Instant)> = None;
+        while !stop.load(Ordering::SeqCst) {
+            steps.front_reads.fetch_add(1, Ordering::SeqCst);
+            let pid = front();
+            if doubt_of.is_some() && pid.is_some() && doubt_of != pid {
+                doubt_of = None;
+                context.mark.end_doubt((context.uptime)());
+            }
+            if watched.as_ref().map(|watch| watch.pid) != pid {
+                unwatch(&mut watched);
+                let waits_for_the_grant = no_grant.is_some_and(|(refused, at)| {
+                    Some(refused) == pid && at.elapsed() < NO_GRANT_RETRY
+                });
+                if let (Some(pid), false) = (pid, waits_for_the_grant) {
+                    steps.tries.fetch_add(1, Ordering::SeqCst);
+                    match watch(pid, context) {
+                        Ok(watch) => {
+                            watched = Some(watch);
+                            no_grant = None;
+                            if doubt_of.take().is_some() {
+                                context.mark.end_doubt((context.uptime)());
+                            }
+                        }
+                        Err(AX_ERROR_CANNOT_COMPLETE) => {
+                            doubt_of = Some(pid);
+                            context.mark.set_doubt(true);
+                        }
+                        Err(AX_ERROR_API_DISABLED) => no_grant = Some((pid, Instant::now())),
+                        Err(_) => {}
+                    }
+                }
+            }
+            // SAFETY: kCFRunLoopDefaultMode is a constant CFString that
+            // CoreFoundation exports and never writes.
+            CFRunLoop::run_in_mode(unsafe { kCFRunLoopDefaultMode }, NOTICE_FRONT_STEP, false);
+        }
+        unwatch(&mut watched);
+        // SAFETY: `timer` is a live timer of this thread's run loop; the call
+        // removes it from every mode.
+        unsafe { CFRunLoopTimerInvalidate(timer.as_concrete_TypeRef()) };
+    }
+
+    #[derive(Default)]
+    struct StepCounts {
+        front_reads: AtomicU64,
+        tries: AtomicU64,
+    }
+
+    /// The thread that follows the program in front and moves the notice mark.
+    pub struct NoticeThread {
+        run_loop: CFRunLoop,
+        stop: Arc<AtomicBool>,
+        #[cfg(test)]
+        steps: Arc<StepCounts>,
+        thread: Option<JoinHandle<()>>,
+    }
+
+    impl NoticeThread {
+        /// Starts the thread. `front` names the process in front, `uptime`
+        /// reads CLOCK_UPTIME_RAW, the clock of an event's OS time (the source
+        /// hands in its own reader), and `on_notice` sees every notice before
+        /// the mark moves.
+        pub fn spawn(
+            front: Box<dyn Fn() -> Option<libc::pid_t> + Send>,
+            mark: NoticeMark,
+            uptime: fn() -> Uptime,
+            on_notice: OnNotice,
+        ) -> std::io::Result<Self> {
+            Self::spawn_calling(front, mark, uptime, on_notice, SYSTEM)
+        }
+
+        /// The thread with Accessibility calls of a test's own, in a build
+        /// with debug assertions and the feature stall-seam.
+        #[cfg(all(test, debug_assertions, feature = "stall-seam"))]
+        pub(crate) fn spawn_with(
+            front: Box<dyn Fn() -> Option<libc::pid_t> + Send>,
+            mark: NoticeMark,
+            uptime: fn() -> Uptime,
+            on_notice: OnNotice,
+            calls: AxCalls,
+        ) -> std::io::Result<Self> {
+            Self::spawn_calling(front, mark, uptime, on_notice, calls)
+        }
+
+        fn spawn_calling(
+            front: Box<dyn Fn() -> Option<libc::pid_t> + Send>,
+            mark: NoticeMark,
+            uptime: fn() -> Uptime,
+            on_notice: OnNotice,
+            calls: AxCalls,
+        ) -> std::io::Result<Self> {
+            let stop = Arc::new(AtomicBool::new(false));
+            let steps = Arc::new(StepCounts::default());
+            let (loop_tx, loop_rx) = std::sync::mpsc::channel();
+            let thread = {
+                let stop = stop.clone();
+                let steps = steps.clone();
+                std::thread::Builder::new()
+                    .name("halvo-input-notice".into())
+                    .spawn(move || {
+                        let context = Box::new(Context {
+                            mark,
+                            uptime,
+                            on_notice,
+                            calls,
+                        });
+                        let _ = loop_tx.send(CFRunLoop::get_current());
+                        run(front.as_ref(), &context, &stop, &steps);
+                        drop(context);
+                    })?
+            };
+            let run_loop = loop_rx
+                .recv()
+                .map_err(|_| std::io::Error::other("the notice thread ended at its start"))?;
+            Ok(Self {
+                run_loop,
+                stop,
+                #[cfg(test)]
+                steps,
+                thread: Some(thread),
+            })
+        }
+
+        #[cfg(test)]
+        pub(crate) fn steps(&self) -> Steps {
+            Steps {
+                front_reads: self.steps.front_reads.load(Ordering::SeqCst),
+                tries: self.steps.tries.load(Ordering::SeqCst),
+            }
+        }
+
+        /// Asks the thread to stop and waits for its end until `deadline`:
+        /// false when it did not end in time.
+        pub fn stop_within(&mut self, deadline: Duration) -> bool {
+            self.stop.store(true, Ordering::SeqCst);
+            self.run_loop.stop();
+            let called = Instant::now();
+            while self
+                .thread
+                .as_ref()
+                .is_some_and(|thread| !thread.is_finished())
+            {
+                if called.elapsed() >= deadline {
+                    return false;
+                }
+                std::thread::sleep(Duration::from_millis(2));
+                self.run_loop.stop();
+            }
+            if let Some(thread) = self.thread.take() {
+                let _ = thread.join();
+            }
+            true
+        }
+    }
+
+    impl Drop for NoticeThread {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::SeqCst);
+            self.run_loop.stop();
+        }
+    }
 }
 
 mod session {
@@ -330,6 +985,7 @@ pub(crate) mod test_support {
         }
     }
 
+    #[cfg(debug_assertions)]
     pub(crate) fn reads_on_within(reader: impl Fn() -> bool, limit: Duration) -> bool {
         let started = Instant::now();
         loop {
@@ -391,6 +1047,742 @@ mod tests {
             1,
             "calls that were inside at the same time"
         );
+    }
+
+    #[test]
+    fn a_notice_marks_for_a_secure_field_and_a_doubt_and_not_for_another_element() {
+        use super::notice::{focus_of, Focus};
+        let cases = [
+            (Ok(Some("AXSecureTextField")), Focus::Secure),
+            (Ok(Some("AXTextField")), Focus::Other),
+            (Ok(Some("AXSearchField")), Focus::Other),
+            (Ok(None), Focus::Other),
+            (Err(-25212), Focus::Other),
+            (Err(-25205), Focus::Other),
+            (Err(-25204), Focus::Doubt),
+            (Err(-25202), Focus::Doubt),
+            (Err(-25211), Focus::Doubt),
+            (Err(-25200), Focus::Doubt),
+        ];
+        for (subrole, want) in cases {
+            assert_eq!(focus_of(subrole), want, "{subrole:?}");
+        }
+        assert!(Focus::Secure.marks());
+        assert!(Focus::Doubt.marks());
+        assert!(!Focus::Other.marks());
+    }
+
+    #[test]
+    fn the_notice_constants_are_their_first_values() {
+        use super::notice::{NOTICE_FRONT_STEP, NOTICE_READ_DEADLINE, NO_GRANT_RETRY};
+        use std::time::Duration;
+        assert_eq!(NOTICE_FRONT_STEP, Duration::from_millis(50));
+        assert_eq!(NOTICE_READ_DEADLINE, Duration::from_millis(250));
+        assert_eq!(NO_GRANT_RETRY, Duration::from_secs(1));
+    }
+
+    #[test]
+    fn an_older_mark_leaves_the_kind_of_the_newest_mark() {
+        use super::hold::Uptime;
+        use super::notice::{MarkKind, NoticeMark};
+        let mark = NoticeMark::new();
+        mark.mark(Uptime::from_nanos(20), MarkKind::Start);
+        mark.mark(Uptime::from_nanos(10), MarkKind::Notice);
+        assert_eq!(
+            (mark.get(), mark.kind()),
+            (Some(Uptime::from_nanos(20)), MarkKind::Start)
+        );
+        mark.mark(Uptime::from_nanos(20), MarkKind::Doubt);
+        assert_eq!(
+            mark.kind(),
+            MarkKind::Doubt,
+            "a mark at the same time moves the kind"
+        );
+    }
+
+    #[test]
+    fn the_notice_mark_only_moves_forward() {
+        use super::hold::Uptime;
+        use super::notice::{MarkKind, NoticeMark};
+        let mark = NoticeMark::new();
+        assert_eq!(mark.get(), None);
+        mark.mark(Uptime::from_nanos(10), MarkKind::Notice);
+        mark.mark(Uptime::from_nanos(5), MarkKind::Start);
+        assert_eq!(mark.get(), Some(Uptime::from_nanos(10)));
+        mark.clone().mark(Uptime::from_nanos(20), MarkKind::Doubt);
+        assert_eq!(
+            mark.get(),
+            Some(Uptime::from_nanos(20)),
+            "a clone moves the same mark"
+        );
+        assert_eq!(mark.kind(), MarkKind::Doubt);
+    }
+
+    #[cfg(all(debug_assertions, feature = "stall-seam"))]
+    mod notice_thread {
+        use super::super::hold::Uptime;
+        use super::super::notice::{
+            notice_came, AxCalls, Context, Focus, MarkKind, NoticeMark, NoticeThread, Observed,
+            NOTICE_FRONT_STEP, NOTICE_READ_DEADLINE, NO_GRANT_RETRY,
+        };
+        use core_foundation::base::{kCFAllocatorDefault, CFType, TCFType};
+        use core_foundation::runloop::{
+            CFRunLoopSource, CFRunLoopSourceContext, CFRunLoopSourceCreate, CFRunLoopSourceIsValid,
+            CFRunLoopSourceRef,
+        };
+        use core_foundation::string::CFString;
+        use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
+        use std::sync::{Mutex, MutexGuard, PoisonError};
+        use std::time::{Duration, Instant};
+
+        static SERIAL: Mutex<()> = Mutex::new(());
+        static FRONT: AtomicI32 = AtomicI32::new(0);
+        static PANIC_FRONT: AtomicBool = AtomicBool::new(false);
+        static OBSERVE: AtomicI32 = AtomicI32::new(0);
+        static OBSERVE_PID: AtomicI32 = AtomicI32::new(0);
+        static DELAY_MS: AtomicU64 = AtomicU64::new(0);
+        static DELAY_PID: AtomicI32 = AtomicI32::new(0);
+        static REAL_SOURCE: AtomicBool = AtomicBool::new(false);
+        static SOURCES: Mutex<Vec<(i32, usize)>> = Mutex::new(Vec::new());
+        static SUBROLE: AtomicI32 = AtomicI32::new(0);
+        static FOCUSED: AtomicI32 = AtomicI32::new(0);
+        static NOW: AtomicU64 = AtomicU64::new(0);
+        static DEADLINES: Mutex<Vec<Duration>> = Mutex::new(Vec::new());
+        static OBSERVED: Mutex<Vec<(i32, Instant)>> = Mutex::new(Vec::new());
+
+        const TEN_S: u64 = 10_000_000_000;
+
+        fn serial() -> MutexGuard<'static, ()> {
+            let guard = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
+            FRONT.store(0, Ordering::SeqCst);
+            PANIC_FRONT.store(false, Ordering::SeqCst);
+            OBSERVE.store(0, Ordering::SeqCst);
+            OBSERVE_PID.store(0, Ordering::SeqCst);
+            DELAY_MS.store(0, Ordering::SeqCst);
+            DELAY_PID.store(0, Ordering::SeqCst);
+            REAL_SOURCE.store(false, Ordering::SeqCst);
+            SOURCES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+            SUBROLE.store(0, Ordering::SeqCst);
+            FOCUSED.store(0, Ordering::SeqCst);
+            NOW.store(TEN_S, Ordering::SeqCst);
+            DEADLINES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+            OBSERVED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+            guard
+        }
+
+        fn element(name: &'static str) -> CFType {
+            CFString::from_static_string(name).as_CFType()
+        }
+
+        fn app(_pid: libc::pid_t) -> Option<CFType> {
+            Some(element("app"))
+        }
+
+        fn set_deadline(_element: &CFType, deadline: Duration) {
+            DEADLINES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(deadline);
+        }
+
+        extern "C" fn performs_nothing(_info: *const std::ffi::c_void) {}
+
+        fn source_of(pid: libc::pid_t) -> Option<CFRunLoopSource> {
+            if !REAL_SOURCE.load(Ordering::SeqCst) {
+                return None;
+            }
+            let mut context = CFRunLoopSourceContext {
+                version: 0,
+                info: std::ptr::null_mut(),
+                retain: None,
+                release: None,
+                copyDescription: None,
+                equal: None,
+                hash: None,
+                schedule: None,
+                cancel: None,
+                perform: performs_nothing,
+            };
+            // SAFETY: `context` is a valid version 0 context that the call
+            // copies; the call returns a +1 reference.
+            let source = unsafe { CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &mut context) };
+            // SAFETY: a +1 reference that this wrapper now owns and releases.
+            let source = unsafe { CFRunLoopSource::wrap_under_create_rule(source) };
+            let kept = source.clone();
+            SOURCES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push((pid, kept.as_concrete_TypeRef() as usize));
+            std::mem::forget(kept);
+            Some(source)
+        }
+
+        fn source_valid(source: usize) -> bool {
+            // SAFETY: `source` is a run loop source that `source_of` retained
+            // once more and never released, so it is live for the call.
+            unsafe { CFRunLoopSourceIsValid(source as CFRunLoopSourceRef) != 0 }
+        }
+
+        fn observe(
+            pid: libc::pid_t,
+            _app: &CFType,
+            _refcon: *mut std::ffi::c_void,
+        ) -> Result<Observed, i32> {
+            OBSERVED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push((pid, Instant::now()));
+            let delayed = DELAY_PID.load(Ordering::SeqCst);
+            if delayed == 0 || delayed == pid {
+                std::thread::sleep(Duration::from_millis(DELAY_MS.load(Ordering::SeqCst)));
+            }
+            let refused = OBSERVE_PID.load(Ordering::SeqCst);
+            match OBSERVE.load(Ordering::SeqCst) {
+                code if code != 0 && (refused == 0 || refused == pid) => Err(code),
+                _ => Ok(Observed {
+                    source: source_of(pid),
+                    observer: None,
+                }),
+            }
+        }
+
+        fn focused(_app: &CFType) -> Result<CFType, i32> {
+            match FOCUSED.load(Ordering::SeqCst) {
+                0 => Ok(element("focused")),
+                code => Err(code),
+            }
+        }
+
+        fn subrole(_element: &CFType) -> Result<Option<String>, i32> {
+            match SUBROLE.load(Ordering::SeqCst) {
+                0 => Ok(Some(String::from("AXSecureTextField"))),
+                1 => Ok(Some(String::from("AXTextField"))),
+                code => Err(code),
+            }
+        }
+
+        fn front() -> Option<libc::pid_t> {
+            assert!(
+                !PANIC_FRONT.load(Ordering::SeqCst),
+                "the stand-in front reader panics"
+            );
+            match FRONT.load(Ordering::SeqCst) {
+                0 => None,
+                pid => Some(pid),
+            }
+        }
+
+        fn now() -> Uptime {
+            Uptime::from_nanos(NOW.load(Ordering::SeqCst))
+        }
+
+        const STAND_IN: AxCalls = AxCalls {
+            app,
+            set_deadline,
+            observe,
+            focused,
+            subrole,
+        };
+
+        fn started(mark: &NoticeMark) -> NoticeThread {
+            NoticeThread::spawn_with(
+                Box::new(front),
+                mark.clone(),
+                now,
+                Box::new(|_, _| {}),
+                STAND_IN,
+            )
+            .expect("the notice thread starts")
+        }
+
+        fn observed_of(pid: i32) -> Vec<Instant> {
+            OBSERVED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .iter()
+                .filter(|(of, _)| *of == pid)
+                .map(|(_, at)| *at)
+                .collect()
+        }
+
+        fn until(within: Duration, done: impl Fn() -> bool) -> bool {
+            let deadline = Instant::now() + within;
+            while Instant::now() < deadline {
+                if done() {
+                    return true;
+                }
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            done()
+        }
+
+        fn in_doubt_of_1(mark: &NoticeMark) -> NoticeThread {
+            FRONT.store(1, Ordering::SeqCst);
+            OBSERVE.store(-25204, Ordering::SeqCst);
+            let thread = started(mark);
+            assert!(
+                until(Duration::from_millis(500), || mark.doubt()),
+                "a doubt stands over program 1"
+            );
+            assert_eq!(mark.get(), Some(Uptime::from_nanos(TEN_S)));
+            NOW.store(2 * TEN_S, Ordering::SeqCst);
+            thread
+        }
+
+        #[test]
+        fn a_doubt_ended_by_a_registration_of_its_program_moves_the_mark_to_its_end() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            SUBROLE.store(1, Ordering::SeqCst);
+            OBSERVE.store(0, Ordering::SeqCst);
+            let ended = until(Duration::from_millis(500), || !mark.doubt());
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(ended, "a registration of that program ends the doubt");
+            assert_eq!(
+                (mark.get(), mark.kind()),
+                (Some(Uptime::from_nanos(2 * TEN_S)), MarkKind::Doubt),
+                "the end of the doubt moves the mark, although the Start read found another element"
+            );
+        }
+
+        #[test]
+        fn a_doubt_ended_by_another_program_in_front_moves_the_mark_before_that_program_is_tried() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            DELAY_PID.store(2, Ordering::SeqCst);
+            DELAY_MS.store(NOTICE_READ_DEADLINE.as_millis() as u64, Ordering::SeqCst);
+            FRONT.store(2, Ordering::SeqCst);
+            let tried = until(Duration::from_millis(500), || !observed_of(2).is_empty());
+            let during = (mark.doubt(), mark.get());
+            NOW.store(3 * TEN_S, Ordering::SeqCst);
+            let refused = until(Duration::from_millis(600), || mark.doubt());
+            let after = (mark.doubt(), mark.get());
+            assert!(thread.stop_within(
+                NOTICE_READ_DEADLINE + NOTICE_FRONT_STEP + Duration::from_millis(100)
+            ));
+            assert!(tried && refused);
+            assert_eq!(
+                during,
+                (false, Some(Uptime::from_nanos(2 * TEN_S))),
+                "while program 2 is asked: the doubt over 1 has ended at the front read, with a mark"
+            );
+            assert_eq!(
+                after,
+                (true, Some(Uptime::from_nanos(3 * TEN_S))),
+                "program 2 did not answer: its Unanswered mark and a doubt of its own"
+            );
+        }
+
+        #[test]
+        fn a_doubt_ended_by_the_threads_stop_moves_the_mark_to_its_end() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert_eq!(
+                (mark.doubt(), mark.get()),
+                (false, Some(Uptime::from_nanos(2 * TEN_S)))
+            );
+        }
+
+        #[test]
+        fn a_doubt_ended_by_the_threads_end_moves_the_mark_to_its_end() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            PANIC_FRONT.store(true, Ordering::SeqCst);
+            let ended = until(Duration::from_millis(500), || !mark.doubt());
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(ended, "a thread that ends ends its doubt");
+            assert_eq!(mark.get(), Some(Uptime::from_nanos(2 * TEN_S)));
+        }
+
+        #[test]
+        fn a_doubt_stands_while_nothing_is_in_front() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            FRONT.store(0, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(200));
+            let standing = (mark.doubt(), mark.get());
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert_eq!(
+                standing,
+                (true, Some(Uptime::from_nanos(TEN_S))),
+                "nothing in front is no other program and no registration that succeeded"
+            );
+        }
+
+        #[test]
+        fn a_doubt_stands_through_each_retry_of_its_program() {
+            let _serial = serial();
+            DELAY_MS.store(200, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = in_doubt_of_1(&mark);
+            let mut gaps = 0;
+            let started = Instant::now();
+            while started.elapsed() < Duration::from_millis(800) {
+                if !mark.doubt() {
+                    gaps += 1;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            let tries = observed_of(1).len();
+            assert!(thread.stop_within(
+                NOTICE_READ_DEADLINE + NOTICE_FRONT_STEP + Duration::from_millis(100)
+            ));
+            assert!(tries >= 3, "the program was tried again: {tries}");
+            assert_eq!(
+                gaps, 0,
+                "reads of the doubt that found none while program 1 was retried"
+            );
+        }
+
+        #[test]
+        fn a_program_refused_for_lack_of_the_grant_is_tried_at_once_when_it_comes_back_in_front() {
+            let _serial = serial();
+            SUBROLE.store(1, Ordering::SeqCst);
+            OBSERVE.store(-25211, Ordering::SeqCst);
+            OBSERVE_PID.store(1, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            assert!(until(Duration::from_millis(300), || observed_of(1).len() == 1));
+            let refused = observed_of(1)[0];
+            FRONT.store(2, Ordering::SeqCst);
+            assert!(until(Duration::from_millis(500), || observed_of(2).len() == 1));
+            OBSERVE.store(0, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let tried = until(NO_GRANT_RETRY + Duration::from_millis(500), || {
+                observed_of(1).len() == 2
+            });
+            let again = observed_of(1).get(1).map(|at| at.duration_since(refused));
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(tried, "tried again when it came back");
+            assert!(
+                again.is_some_and(|again| again < NO_GRANT_RETRY),
+                "tried again {again:?} after its refusal: another program in front ended the wait of {NO_GRANT_RETRY:?}"
+            );
+        }
+
+        #[test]
+        fn another_program_in_front_after_a_refused_grant_is_tried_before_the_wait_of_the_grant_ends(
+        ) {
+            let _serial = serial();
+            SUBROLE.store(1, Ordering::SeqCst);
+            OBSERVE.store(-25211, Ordering::SeqCst);
+            OBSERVE_PID.store(1, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            assert!(until(Duration::from_millis(300), || observed_of(1).len() == 1));
+            let refused = observed_of(1)[0];
+            FRONT.store(2, Ordering::SeqCst);
+            let tried = until(NO_GRANT_RETRY + Duration::from_millis(500), || {
+                observed_of(2).len() == 1
+            });
+            let after = observed_of(2).first().map(|at| at.duration_since(refused));
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(tried);
+            assert!(
+                after.is_some_and(|after| after < NO_GRANT_RETRY),
+                "program 2 tried {after:?} after the refusal of program 1: the wait of {NO_GRANT_RETRY:?} is program 1's alone"
+            );
+        }
+
+        #[test]
+        fn only_a_registration_that_does_not_answer_makes_a_doubt() {
+            let _serial = serial();
+            for code in [-25200, -25205, -25207, -25208, -25211, -25212] {
+                FRONT.store(1, Ordering::SeqCst);
+                OBSERVE.store(code, Ordering::SeqCst);
+                let mark = NoticeMark::new();
+                let mut thread = started(&mark);
+                std::thread::sleep(Duration::from_millis(150));
+                let seen = (mark.doubt(), mark.get());
+                assert!(thread.stop_within(Duration::from_millis(100)));
+                assert_eq!(seen, (false, None), "{code}");
+            }
+        }
+
+        #[test]
+        fn a_start_read_whose_focused_element_has_no_value_or_no_such_attribute_moves_no_mark() {
+            let _serial = serial();
+            for code in [-25212, -25205] {
+                FOCUSED.store(code, Ordering::SeqCst);
+                FRONT.store(1, Ordering::SeqCst);
+                let mark = NoticeMark::new();
+                let mut thread = started(&mark);
+                let registered = until(Duration::from_millis(300), || !observed_of(1).is_empty());
+                std::thread::sleep(Duration::from_millis(50));
+                assert!(thread.stop_within(Duration::from_millis(100)));
+                assert!(registered);
+                assert_eq!(mark.get(), None, "{code}");
+                OBSERVED
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clear();
+            }
+        }
+
+        #[test]
+        fn a_start_read_of_another_element_moves_no_mark() {
+            let _serial = serial();
+            SUBROLE.store(1, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            let registered = until(Duration::from_millis(300), || !observed_of(1).is_empty());
+            std::thread::sleep(Duration::from_millis(50));
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(registered);
+            assert_eq!(mark.get(), None);
+        }
+
+        #[test]
+        fn the_thread_reads_the_front_at_least_ten_times_in_a_second() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            std::thread::sleep(Duration::from_secs(1));
+            let steps = thread.steps();
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(
+                steps.front_reads >= 10,
+                "one read in each step of {NOTICE_FRONT_STEP:?}, with room: {steps:?}"
+            );
+        }
+
+        #[test]
+        fn a_front_change_takes_the_old_programs_source_off_its_run_loop() {
+            let _serial = serial();
+            REAL_SOURCE.store(true, Ordering::SeqCst);
+            SUBROLE.store(1, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            assert!(until(Duration::from_millis(300), || !observed_of(1).is_empty()));
+            FRONT.store(2, Ordering::SeqCst);
+            assert!(until(Duration::from_millis(300), || !observed_of(2).is_empty()));
+            std::thread::sleep(Duration::from_millis(20));
+            let sources = SOURCES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            let valid: Vec<(i32, bool)> = sources
+                .iter()
+                .map(|&(pid, source)| (pid, source_valid(source)))
+                .collect();
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert_eq!(
+                valid,
+                [(1, false), (2, true)],
+                "the source of the program no longer in front is taken off; the new one is live"
+            );
+        }
+
+        #[test]
+        fn the_thread_waits_a_step_when_nothing_is_in_front() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            std::thread::sleep(Duration::from_secs(1));
+            let steps = thread.steps();
+            assert!(
+                thread.stop_within(Duration::from_millis(100)),
+                "it stops at once"
+            );
+            assert!(steps.front_reads <= 22, "front reads in 1 s: {steps:?}");
+            assert_eq!(steps.tries, 0);
+            assert_eq!(mark.get(), None);
+        }
+
+        #[test]
+        fn the_thread_waits_a_step_after_each_refused_registration() {
+            let _serial = serial();
+            for code in [-25211, -25208, -25207, -25204] {
+                FRONT.store(4242, Ordering::SeqCst);
+                OBSERVE.store(code, Ordering::SeqCst);
+                let mark = NoticeMark::new();
+                let mut thread = started(&mark);
+                std::thread::sleep(Duration::from_secs(1));
+                let steps = thread.steps();
+                assert!(
+                    thread.stop_within(Duration::from_millis(100)),
+                    "{code}: it stops at once"
+                );
+                assert!(steps.front_reads <= 22, "{code}: {steps:?}");
+                assert!(steps.tries <= 22, "{code}: {steps:?}");
+                if code == -25211 {
+                    assert!(
+                        steps.tries <= 2,
+                        "a refusal for lack of the grant is tried again at most once a second: {steps:?}"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn a_registration_that_does_not_answer_leaves_a_standing_doubt_until_one_answers_or_another_program_comes_in_front(
+        ) {
+            let _serial = serial();
+            FRONT.store(1, Ordering::SeqCst);
+            OBSERVE.store(-25204, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            std::thread::sleep(Duration::from_millis(200));
+            assert!(
+                mark.doubt(),
+                "a doubt stands while the program does not answer"
+            );
+            assert_eq!(
+                mark.get(),
+                Some(Uptime::from_nanos(TEN_S)),
+                "the Unanswered mark"
+            );
+            assert_eq!(mark.kind(), MarkKind::Doubt);
+            OBSERVE.store(0, Ordering::SeqCst);
+            SUBROLE.store(1, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(200));
+            assert!(
+                !mark.doubt(),
+                "a registration of that program that succeeds ends it"
+            );
+            FRONT.store(2, Ordering::SeqCst);
+            OBSERVE.store(-25204, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(200));
+            assert!(mark.doubt());
+            FRONT.store(3, Ordering::SeqCst);
+            OBSERVE.store(-25208, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(200));
+            assert!(!mark.doubt(), "another program in front ends it");
+            assert!(thread.stop_within(Duration::from_millis(100)));
+        }
+
+        #[test]
+        fn a_registration_whose_focused_element_does_not_answer_marks_a_doubt_at_the_start() {
+            let _serial = serial();
+            FOCUSED.store(-25204, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            std::thread::sleep(Duration::from_millis(200));
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert_eq!(
+                mark.get(),
+                Some(Uptime::from_nanos(TEN_S)),
+                "a focused element that does not answer is a doubt, and the Start read marks it"
+            );
+            assert_eq!(mark.kind(), MarkKind::Start);
+        }
+
+        #[test]
+        fn every_registration_makes_the_start_read_on_the_clock_that_it_is_handed() {
+            let _serial = serial();
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            std::thread::sleep(Duration::from_millis(200));
+            assert_eq!(mark.get(), Some(Uptime::from_nanos(TEN_S)));
+            assert_eq!(mark.kind(), MarkKind::Start);
+            NOW.store(2 * TEN_S, Ordering::SeqCst);
+            FRONT.store(2, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(200));
+            assert_eq!(
+                mark.get(),
+                Some(Uptime::from_nanos(2 * TEN_S)),
+                "the watch of the next program in front makes its Start read too"
+            );
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            let deadlines = DEADLINES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            assert!(
+                deadlines.len() >= 4,
+                "the app and its focused element, twice: {deadlines:?}"
+            );
+            assert!(deadlines
+                .iter()
+                .all(|&deadline| deadline == NOTICE_READ_DEADLINE));
+        }
+
+        #[test]
+        fn the_thread_registers_a_new_program_in_front_within_one_step() {
+            let _serial = serial();
+            SUBROLE.store(1, Ordering::SeqCst);
+            FRONT.store(1, Ordering::SeqCst);
+            let mark = NoticeMark::new();
+            let mut thread = started(&mark);
+            std::thread::sleep(Duration::from_millis(200));
+            let changed = Instant::now();
+            FRONT.store(2, Ordering::SeqCst);
+            std::thread::sleep(Duration::from_millis(300));
+            assert!(thread.stop_within(Duration::from_millis(100)));
+            let of_2 = observed_of(2);
+            assert_eq!(of_2.len(), 1, "one registration of the new program");
+            let after = of_2[0].duration_since(changed);
+            assert!(
+                after <= NOTICE_FRONT_STEP + Duration::from_millis(40),
+                "registered {after:?} after the change"
+            );
+        }
+
+        #[test]
+        fn a_notice_whose_element_does_not_answer_is_a_doubt_and_each_element_gets_the_deadline() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let context = Context {
+                mark: mark.clone(),
+                uptime: now,
+                on_notice: Box::new(|_, _| {}),
+                calls: STAND_IN,
+            };
+            let refcon = std::ptr::from_ref(&context).cast_mut().cast();
+            let focused = element("focused");
+            SUBROLE.store(1, Ordering::SeqCst);
+            // SAFETY: `refcon` is a live Context and `focused` a live CF value
+            // for the call; the stand-in calls read no Accessibility element.
+            unsafe {
+                notice_came(
+                    std::ptr::null(),
+                    focused.as_CFTypeRef(),
+                    std::ptr::null(),
+                    refcon,
+                )
+            };
+            assert_eq!(mark.get(), None, "another element moves nothing");
+            SUBROLE.store(-25204, Ordering::SeqCst);
+            // SAFETY: as above.
+            unsafe {
+                notice_came(
+                    std::ptr::null(),
+                    focused.as_CFTypeRef(),
+                    std::ptr::null(),
+                    refcon,
+                )
+            };
+            assert_eq!(mark.get(), Some(Uptime::from_nanos(TEN_S)));
+            assert_eq!(mark.kind(), MarkKind::Doubt);
+            context.seen(super::super::notice::Seen::Notice, Focus::Secure);
+            assert_eq!(mark.kind(), MarkKind::Notice);
+            let deadlines = DEADLINES
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            assert_eq!(deadlines, [NOTICE_READ_DEADLINE, NOTICE_READ_DEADLINE]);
+        }
     }
 
     use super::test_support::{agreed_reading, one_hold_at_a_time};
