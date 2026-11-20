@@ -148,7 +148,7 @@ carbon_calls() {
   case $? in 0 | 1) ;; *) fail "git grep could not read the tree for a lookup by name" ;; esac
   other=$(cut -d : -f 1 "$work/carbon" | sort -u | tr '\n' ' ')
   [ -z "$other" ] ||
-    fail "the name EnableSecureEventInput or DisableSecureEventInput (with or without leading underscores), a link_name whose name is no plain literal, or a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands outside $lock, whose one lock holds the three Carbon calls: ${other% } (rulings MA-14, MA-30 M6, MA-31 N6); call the hold of that file"
+    fail "the name EnableSecureEventInput or DisableSecureEventInput (with or without leading underscores), a link_name whose name is no plain literal, or a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands outside $lock, whose one lock holds the three Carbon calls: ${other% } (rulings MA-14, MA-30 M6, MA-31 N6); call the hold of that file; a file that is no source and holds one of these names by chance (an image, a font, an archive) is refused all the same, because the three searches read every tracked file as text: take those bytes out of it, or keep the file out of the tree, or ask for a ruling that names its path among the exclusions of this check"
   held_lookups
   printf 'carbon: in every tracked text file but %s, docs/research/researcher-4.md and this check, no name of the two Carbon calls (with or without leading underscores), no link_name whose name is no plain literal, and no lookup of a symbol by name (scripts/r4/ci.d/20-r4-core.sh and tools/r4-trials/app/system/macos.swift may look up others, and %s %s); the searches read every tracked file as text, also one that git takes as no text file; limits: a name joined at build or run time, a lookup through a function or a crate that this check does not list, linker arguments from outside the tree, and in %s a macro of another file or crate that the file calls and that gives fn symbol a name written as no C string literal in the file, a visibility, an attribute or a place inside an item of its own, an attribute named test that a use of the file brings from another crate or file, an attribute of the file that holds the tokens of another attribute inside its own brackets, an asm! or global_asm! of the file that gives fn symbol a symbol name, a path to the file joined at build time or a link to it under another name, the name of the file written with an escape in a string of another Rust file, a file whose name does not end in .rs in small letters, which a Rust file includes or takes as a module and which names the file, and a form of Rust text that the small reader of this check, of comments, strings, raw strings and character literals, reads otherwise than the compiler\n' "$lock" "$held" "$held_said" "$held"
 }
@@ -159,6 +159,7 @@ held_lookups() {
     return 0
   fi
   git show ":$held" >"$work/held" 2>/dev/null || fail "$held cannot be read from the index"
+  tr '\000' ' ' <"$work/held" >"$work/held-lines" || fail "$held cannot be read"
   git grep --cached -a -l -i -F -e "${held##*/}" -- '*.rs' ":(exclude)$held" >"$work/held-named" 2>/dev/null
   case $? in 0 | 1) ;; *) fail "git grep could not read the tree for the name ${held##*/}" ;; esac
   named=$(tr '\n' ' ' <"$work/held-named")
@@ -303,7 +304,7 @@ held_lookups() {
       printf "%d", n
       for (i = 1; i <= n; i++) printf " %s", order[i]
       printf "\n"
-    }' "$work/held" >"$work/held-names" 2>"$work/held-bad" || fail "$held cannot be read"
+    }' "$work/held-lines" >"$work/held-names" 2>"$work/held-bad" || fail "$held cannot be read"
   if [ -s "$work/held-bad" ]; then
     detail=$(tr '\n' ';' <"$work/held-bad" | sed 's/;$//; s/;/; /g')
     fail "the lookups of a symbol by name in $held are not held (rulings JB-56, JB-58, JB-59 and JB-60: that file may look a symbol up only in its fn symbol, defined outside every brace of the code, whose two lines this check holds and whose calls in that file give it plain C string literals beginning r1_; it may hold no word pub in its code, no mod item, no include!, no macro_rules!, no attribute but #[test], an attribute being read from its #[ to its matching ] and a #[ inside it beginning another in its place and no C string literal that does not begin r1_): $detail"
@@ -318,7 +319,8 @@ held_lookups() {
 
 reading_places_of() {
   git show ":$1" >"$work/reading-source" 2>/dev/null || fail "$1 cannot be read from the index"
-  tr -d '\r' <"$work/reading-source" | awk -v seam='#[cfg(all(debug_assertions, feature = "stall-seam"))]' '
+  tr '\000' ' ' <"$work/reading-source" >"$work/reading-lines" || fail "$1 cannot be read"
+  tr -d '\r' <"$work/reading-lines" | awk -v seam='#[cfg(all(debug_assertions, feature = "stall-seam"))]' '
     function count(text, pattern) { return gsub(pattern, "", text) }
     function braces(text) { return count(text, "[{]") - count(text, "[}]") }
     function nests(text) { return count(text, "[{(]") - count(text, "[})]") }
