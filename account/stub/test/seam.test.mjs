@@ -60,6 +60,7 @@ test("L4 after its idle close, with an answer still unflushed, the stand-in read
   assert.deepEqual(kinds(dir), [200, "idle-close"], "the idle close came");
   assert.equal(socket.destroyed, false, "the connection is still open with its answer unflushed");
   assert.equal(socket.writableFinished, false);
+  assert.ok(socket.writableLength > 0, "the answer still has bytes waiting to be flushed");
   const checkout = request("POST", "/v1/checkout", [...appHeaders(), ...json], CAP);
   await pushAndRead(checkout);
   assert.deepEqual(kinds(dir), [200, "idle-close"], "no line for the request after the end");
