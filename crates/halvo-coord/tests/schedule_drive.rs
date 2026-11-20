@@ -3718,3 +3718,32 @@ fn u24s_g3_an_acknowledged_store_of_the_agent_ends_the_stop_for_the_life_of_a_st
     assert_eq!(tick.started[0].answer, Ok(Answer::Ok));
     assert!(!w.board.stuck_for_life(&agent(0), &w.limits));
 }
+
+#[test]
+fn u24s_a_first_seq_refusal_whose_log_is_stored_after_the_read_counts_nothing() {
+    let mut w = world_with(&[manual()], u24s_one_tick());
+    let seq = w.facts(0).events.len() as u32 + 1;
+    w.ports.events.borrow_mut().push(Event {
+        workflow: flow(0),
+        agent: agent(0),
+        seq: NonZeroU32::new(seq).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::SlotSkipped { slot: None },
+    });
+    let from = w.ports.tried.borrow().len();
+    assert_eq!(
+        w.go(Move::SwitchOff { agent: agent(0) }).answer,
+        Ok(Answer::Ok)
+    );
+    assert_eq!(
+        u24s_refused_since(&w, from),
+        vec!["log hold_set person".to_string()],
+        "the first log meets seq once, the read brings the other writer's row and the log is stored"
+    );
+    w.tick();
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "RD-64 2.5: only a second seq for one log after its read counts"
+    );
+}
