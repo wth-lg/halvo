@@ -412,8 +412,11 @@ fn place(name: &'static str, root: PathBuf, inside_profile: bool, system: bool) 
 /// The major versions of each browser (`chrome`, `edge`) at which the crash row was last read: the
 /// four cells of run 43484944398 with their controls, which stand in the place of a text of the
 /// browser for `--breakpad-dump-location` for these versions and no other (CP-165 (2) (d),
-/// CP-186 N3). A browser at another major version is read by the row again (`read_at`, the row
-/// `crash_major` of web-rows), and the list gains a version only with the run that read it there.
+/// CP-186 N3). The row `crash_major` of web-rows, when someone runs it, reads `miss` with
+/// `cause=new_major` at a major that this list does not hold (`read_at`); it runs in no job of
+/// main's workflow. Running the crash row again at a new major is the rule of CP-165 (2) (d), and
+/// who runs it is the planner's line of CP-186 N3; the list gains a version only with the run that
+/// read it there.
 pub const LAST_READ: [(&str, &[u32]); 2] = [("chrome", &[156, 157]), ("edge", &[156])];
 
 /// The major version in a browser's product text as `Browser.getVersion` gives it
@@ -429,8 +432,10 @@ pub fn major_of(product: &str) -> Option<u32> {
 }
 
 /// Whether the crash row was last read for a browser of `kind` at the major version `major`
-/// (`LAST_READ`): no for a new major and for a kind that the list does not hold, which the row
-/// reads again before a build reaches a person (CP-186 N3).
+/// (`LAST_READ`): no for a new major and for a kind that the list does not hold. On a no the row
+/// `crash_major` of web-rows, when someone runs it, reads `miss` with `cause=new_major` and runs no
+/// other row; it runs in no job of main's workflow. Running the crash row again at a new major is
+/// the rule of CP-165 (2) (d), and who runs it is the planner's line of CP-186 N3.
 pub fn read_at(kind: &str, major: u32) -> bool {
     LAST_READ
         .iter()

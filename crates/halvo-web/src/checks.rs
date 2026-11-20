@@ -194,7 +194,9 @@ pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
 /// the quote opens or closes a quoted part, 2n+1 give n backslashes and a quote; backslashes before
 /// any other character stand as they are; in a run of quotes each third one counted from the
 /// opening quote gives a quote, and a count that ends at two leaves the part closed (the review of
-/// U0.7d, its cases 01 to 04). The mark calls it (`bears_profile`, and `profile_of` for
+/// U0.7d, its cases 01 to 04). One bound: an empty line gives no argument, where the system's
+/// function gives the path of the calling program; the split before U2.6 had the same rule, and
+/// for the mark both mean no profile. The mark calls it (`bears_profile`, and `profile_of` for
 /// `tree_of`), and beside the mark only the row's report of the profile's forms (`profile_forms`);
 /// `command_args` and `command_line` stay as they are for the six rules.
 pub fn split_command_line(line: &str) -> Vec<String> {

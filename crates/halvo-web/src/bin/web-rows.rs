@@ -50,7 +50,9 @@
 //! - `crash_major --browser PATH --kind chrome|edge`: the check of CP-186 N3: the browser's major
 //!   version, read by the product's executor, against the versions of the crash row's last
 //!   readings (`crash_row::LAST_READ`); ok when the row was read at that version, miss with the
-//!   cause `new_major` when it was not, after which the row `crash` runs again.
+//!   cause `new_major` when it was not. It runs no other row and runs in no job of main's
+//!   workflow; running the row `crash` again at a new major is the rule of CP-165 (2) (d), and who
+//!   runs it is the planner's line of CP-186 N3.
 //! - `block_popup --browser PATH --kind chrome|edge --hop-port N`: the row of A13.7 through the
 //!   product's executor (CP-186 N2), against `rows/hop-listener.mjs` on port N: with the rule armed
 //!   in the mode that fails before the page opens, a click of `Save preferences` on `/popup`, whose

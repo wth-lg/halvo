@@ -79,9 +79,11 @@ pub const PRODUCT_FLAGS: [&str; 16] = [
 ///   the product's earlier means alone wrote its dump to the account's Crashpad directory. No place
 ///   in the browser's source or documentation is named for it: the four cells of run 43484944398,
 ///   with their controls, stand in that place's stead for Chrome 156 and 157 and Edge 156 and for
-///   no other version (`crash_row::LAST_READ`), and the crash row is run again when a browser's
-///   major version changes: the row `crash_major` of web-rows reads the runner's major against
-///   them (`crash_row::read_at`; CP-165 (2) (d), CP-186 N3).
+///   no other version (`crash_row::LAST_READ`). Running the crash row again when a browser's
+///   major version changes is the rule of CP-165 (2) (d), and who runs it is the planner's line of
+///   CP-186 N3: the row `crash_major` of web-rows, when someone runs it, reads `miss` with
+///   `cause=new_major` at a major that `LAST_READ` does not hold (`crash_row::read_at`), and it
+///   runs in no job of main's workflow.
 ///
 /// The crash row's control starts without them (`cdp::CrashMeans::Without`).
 pub const CRASH_MEANS: [&str; 2] = [
