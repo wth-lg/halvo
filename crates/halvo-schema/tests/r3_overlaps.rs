@@ -504,6 +504,22 @@ fn the_reply_answers_list_overlaps_alone_and_never_names_the_asking_workflow_or_
         let reply = reads(&reply_of(entries, "no"));
         assert!(calls.iter().all(|call| !reply.answers(call)));
     }
+    for call in &calls {
+        let CoordinatorCall::ListOverlaps(asked) = call else {
+            panic!("{}", call.op())
+        };
+        for entries in [&own_agent[..], &own_workflow[..]] {
+            let reply = OverlapsReply::parse(reply_of(entries, "no").as_bytes()).unwrap();
+            expect(
+                reply.answers(asked),
+                "OverlapsReply",
+                "own_agent",
+                "overlaps",
+            );
+        }
+        let other = OverlapsReply::parse(reply(2, "no").as_bytes()).unwrap();
+        assert_eq!(other.answers(asked), Ok(()));
+    }
 }
 
 const LONG_PAD: usize = 280;
