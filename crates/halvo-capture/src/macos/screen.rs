@@ -2,7 +2,7 @@
 
 use std::ffi::c_void;
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
@@ -174,13 +174,17 @@ fn has_image(sample: &CMSampleBuffer) -> bool {
 /// the last impairment of the frames, the stop that the delegate reported, and
 /// whether the current filter lists Halvo's app. The report is held under the
 /// lock `stop`, which the delegate writes under and under which `shutdown`
-/// reads it before it would ask the stream to stop.
+/// reads it before it would ask the stream to stop. The stream's stop flag,
+/// which `shutdown` sets at its start, and the count of the frames that the
+/// flag dropped belong to the stream too.
 #[derive(Default)]
 struct StreamFacts {
     condition: AtomicU8,
     stop: Mutex<i64>,
     lists_app: AtomicU8,
     listed: Mutex<Vec<libc::pid_t>>,
+    stop_asked: AtomicBool,
+    dropped_at_stop: AtomicU64,
 }
 
 const DELIVERING: u8 = 0;
@@ -203,6 +207,20 @@ impl StreamFacts {
 
     fn stopped_with(&self, code: i64) {
         *self.stop.lock().unwrap_or_else(PoisonError::into_inner) = code;
+    }
+
+    fn mark_stop_asked(&self) {
+        self.stop_asked.store(true, Ordering::SeqCst);
+    }
+
+    /// Whether the stop was asked; a frame that every other rule let through
+    /// is dropped and counted then.
+    fn drops_at_stop(&self) -> bool {
+        if !self.stop_asked.load(Ordering::SeqCst) {
+            return false;
+        }
+        self.dropped_at_stop.fetch_add(1, Ordering::Relaxed);
+        true
     }
 
     /// The code of the stop that the delegate reported, read under the lock
@@ -349,9 +367,13 @@ fn record_frame(ivars: &ScreenIvars) {
         return;
     };
     let sink = ivars.sink.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some(sink) = sink.as_ref() {
-        sink.emit_event(FloorEvent::screen_frame(keep, None, EventClock::system()));
+    let Some(sink) = sink.as_ref() else {
+        return;
+    };
+    if ivars.facts.drops_at_stop() {
+        return;
     }
+    sink.emit_event(FloorEvent::screen_frame(keep, None, EventClock::system()));
 }
 
 /// What a stream's output takes at its start.
@@ -1122,6 +1144,7 @@ impl CaptureSource for ScreenSource {
     }
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.facts.mark_stop_asked();
         self.rebuild = None;
         if self.stream.is_none() {
             return self.unstopped.clone().map_or(Ok(()), Err);
@@ -1798,6 +1821,71 @@ mod tests {
 
     mod adversary1 {
         use super::*;
+
+        /// A stand-in stream that hands its output one complete frame after
+        /// the stop was asked and before it answers the stop.
+        struct FrameAfterTheAsk {
+            output: Rc<RefCell<Option<Retained<ScreenOutput>>>>,
+            delivered: Rc<Cell<u32>>,
+        }
+
+        impl StopStream for FrameAfterTheAsk {
+            fn ask_stop(&self, reply: Sender<StopReply>) {
+                if let Some(output) = self.output.borrow().as_ref() {
+                    deliver(output, complete().sample());
+                    self.delivered.set(self.delivered.get() + 1);
+                }
+                reply.send(StopReply::Stopped).ok();
+            }
+        }
+
+        #[test]
+        fn adv1_a_frame_that_arrives_after_the_stop_was_asked_becomes_no_record() {
+            let (handle, writer) = sink::channel(8);
+            let (fg_writer, reader) = foreground_state_for_test();
+            fg_writer.set_for_test(Some(front("com.example.editor", 72)));
+            let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+            source.probe = inactive();
+            let slot: Rc<RefCell<Option<Retained<ScreenOutput>>>> = Rc::default();
+            let delivered = Rc::new(Cell::new(0));
+            let stream = FrameAfterTheAsk {
+                output: slot.clone(),
+                delivered: delivered.clone(),
+            };
+            let opener: Opener = {
+                let slot = slot.clone();
+                Box::new(move |frames: FrameContext, _selection, _cap| {
+                    frames.facts.filter(Vec::new(), false);
+                    let output = ScreenOutput::new(frames);
+                    *slot.borrow_mut() = Some(output.clone());
+                    Ok((
+                        Box::new(stream) as Box<dyn StopStream>,
+                        output,
+                        DispatchQueue::new("adversary1", None),
+                        None,
+                    ))
+                })
+            };
+            let begun = source.begin_with(&context_on(handle.clone()), opener);
+            assert_eq!(begun, Ok(Started::Running));
+            let before_the_ask = writer.try_recv().is_ok();
+            let shut = source.shutdown();
+            *slot.borrow_mut() = None;
+            drop(source);
+            drop(handle);
+            let records = kinds_until_closed(&writer);
+            println!(
+                "adversary1 stop-gate: shutdown={shut:?} record_before_the_ask={before_the_ask} \
+                 frames_delivered_after_the_ask={} records_after_the_ask={records:?}",
+                delivered.get()
+            );
+            drop(fg_writer);
+            assert_eq!(
+                records,
+                [],
+                "a frame delivered after the stop was asked became a record"
+            );
+        }
 
         #[test]
         fn adv1_a_frame_after_the_front_became_a_password_manager_gives_no_record() {
@@ -2970,6 +3058,119 @@ mod tests {
             source.health().state,
             SourceState::Stopped(StopCause::Request)
         );
+    }
+
+    #[test]
+    fn a_frame_after_the_stop_was_asked_is_dropped_and_counted_once_when_every_other_rule_let_it_through(
+    ) {
+        let (ivars, writer, fg_writer) = screen_ivars(inactive());
+        let frame = complete();
+        on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+        assert!(writer.try_recv().is_ok(), "a record before the stop");
+        ivars.facts.mark_stop_asked();
+        on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+        fg_writer.set_for_test(Some(front(HalvoApp::BUNDLE_ID, 70)));
+        on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+        on_sample(&ivars, complete().sample(), SCStreamOutputType::Audio);
+        let counted = ivars.facts.dropped_at_stop.load(Ordering::SeqCst);
+        assert_eq!(
+            records(ivars, &writer),
+            0,
+            "a record after the stop was asked"
+        );
+        assert_eq!(
+            counted, 1,
+            "the frame that every other rule let through, and no frame that another rule dropped"
+        );
+    }
+
+    /// A source with an editor in front that was begun, stopped cleanly and
+    /// begun again: the source, the output of its stopped stream, the sink's
+    /// handle and writer, and the writer of the front.
+    fn stopped_and_begun_again() -> (
+        ScreenSource,
+        Retained<ScreenOutput>,
+        SinkHandle,
+        SinkWriter,
+        crate::macos::foreground::ForegroundWriter,
+    ) {
+        let (handle, writer) = sink::channel(8);
+        let (fg_writer, reader) = in_front_for_test();
+        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+        source.probe = inactive();
+        let asks = Rc::new(Cell::new(0));
+        let first = source.begin_with(
+            &context_on(handle.clone()),
+            scripted(&[Some(StopReply::Stopped)], &asks),
+        );
+        assert_eq!(first, Ok(Started::Running));
+        let old = source
+            .output
+            .clone()
+            .expect("a started source holds its output");
+        assert_eq!(source.shutdown(), Ok(()));
+        let again = source.begin_with(
+            &context_on(handle.clone()),
+            scripted(&[Some(StopReply::Stopped)], &asks),
+        );
+        assert_eq!(again, Ok(Started::Running));
+        (source, old, handle, writer, fg_writer)
+    }
+
+    #[test]
+    fn the_stop_flag_drops_no_frame_of_a_new_stream_after_a_begin() {
+        let (source, old, handle, writer, _fg_writer) = stopped_and_begun_again();
+        assert!(old.ivars().facts.stop_asked.load(Ordering::SeqCst));
+        deliver(
+            source.output.as_ref().expect("the new stream's output"),
+            complete().sample(),
+        );
+        drop(source);
+        drop(old);
+        drop(handle);
+        assert_eq!(kinds_until_closed(&writer), [Modality::ScreenFrame]);
+    }
+
+    #[test]
+    fn a_late_callback_of_the_stopped_stream_after_a_new_begin_makes_no_record() {
+        let (source, old, handle, writer, _fg_writer) = stopped_and_begun_again();
+        deliver(&old, complete().sample());
+        drop(source);
+        drop(old);
+        drop(handle);
+        assert_eq!(kinds_until_closed(&writer), []);
+    }
+
+    #[test]
+    fn a_report_that_comes_between_the_call_of_shutdown_and_its_ask_stands_and_no_ask_is_made() {
+        let (mut source, handle, writer, asks, _weak) =
+            started(&[Some(StopReply::Failed { code: -3808 })]);
+        let facts = source.facts.clone();
+        let (held, holds) = channel();
+        let delegate = std::thread::spawn(move || {
+            let mut report = facts.stop.lock().unwrap_or_else(PoisonError::into_inner);
+            held.send(()).ok();
+            let waited = Instant::now();
+            while !facts.stop_asked.load(Ordering::SeqCst) {
+                if waited.elapsed() > Duration::from_secs(5) {
+                    return false;
+                }
+                std::thread::yield_now();
+            }
+            *report = USER_STOPPED;
+            true
+        });
+        holds.recv().expect("the stand-in delegate holds the lock");
+        let shut = source.shutdown();
+        let reported_after_the_call = delegate.join().expect("the stand-in delegate ends");
+        assert!(
+            reported_after_the_call,
+            "shutdown set no stop flag before its read"
+        );
+        assert_eq!(shut, Ok(()));
+        assert_eq!(asks.get(), 0, "the stream was asked to stop");
+        assert_eq!(source.health().state, SourceState::Stopped(StopCause::User));
+        assert!(sink_closed(handle, &writer));
     }
 
     #[test]
