@@ -134,6 +134,16 @@ function members(group: Id, rows = table()): number[] {
   return inGroup.map((row) => row.pid);
 }
 
+/**
+ * The processes that are not zombies and have the group's pid as their group id, each with its pid and start time, as
+ * the kit reads ps; none when a process with that pid has another start time. It sends nothing.
+ */
+export function groupMembers(group: Id): Id[] {
+  const rows = table();
+  const ids = new Set(members(group, rows));
+  return rows.filter((row) => ids.has(row.pid)).map((row) => ({ pid: row.pid, started: row.started }));
+}
+
 function leads(group: Id, rows: Row[]): boolean {
   return rows.some((row) => row.pid === group.pid && row.pgid === group.pid && row.started === group.started);
 }
