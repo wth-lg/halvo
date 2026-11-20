@@ -624,12 +624,44 @@ pub mod notice {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) mod wait_seam {
+        use std::cell::Cell;
+        use std::time::Duration;
+
+        use core_foundation::runloop::CFRunLoopRunResult;
+        use core_foundation::string::CFStringRef;
+
+        thread_local! {
+            pub(crate) static HANDED: Cell<Option<Duration>> = const { Cell::new(None) };
+        }
+
+        pub(crate) struct CFRunLoop;
+
+        impl CFRunLoop {
+            pub(crate) fn run_in_mode(
+                mode: CFStringRef,
+                duration: Duration,
+                return_after_source_handled: bool,
+            ) -> CFRunLoopRunResult {
+                HANDED.with(|handed| handed.set(Some(duration)));
+                core_foundation::runloop::CFRunLoop::run_in_mode(
+                    mode,
+                    duration,
+                    return_after_source_handled,
+                )
+            }
+        }
+    }
+
     fn run(
         front: &(dyn Fn() -> Option<libc::pid_t> + Send),
         context: &Context,
         stop: &AtomicBool,
         steps: &StepCounts,
     ) {
+        #[cfg(test)]
+        use self::wait_seam::CFRunLoop;
         let _doubt_ends = DoubtEndsWithTheThread(context);
         let timer = step_timer();
         let mut watched: Option<Watch> = None;
@@ -1122,16 +1154,18 @@ mod tests {
     mod notice_thread {
         use super::super::hold::Uptime;
         use super::super::notice::{
-            notice_came, AxCalls, Context, Focus, MarkKind, NoticeMark, NoticeThread, Observed,
-            NOTICE_FRONT_STEP, NOTICE_READ_DEADLINE, NO_GRANT_RETRY,
+            notice_came, wait_seam, AxCalls, Context, Focus, MarkKind, NoticeMark, NoticeThread,
+            Observed, NOTICE_FRONT_STEP, NOTICE_READ_DEADLINE, NO_GRANT_RETRY,
         };
         use core_foundation::base::{kCFAllocatorDefault, CFType, TCFType};
         use core_foundation::runloop::{
-            CFRunLoopSource, CFRunLoopSourceContext, CFRunLoopSourceCreate, CFRunLoopSourceIsValid,
-            CFRunLoopSourceRef,
+            kCFRunLoopDefaultMode, kCFRunLoopEntry, CFRunLoop, CFRunLoopActivity,
+            CFRunLoopObserver, CFRunLoopObserverContext, CFRunLoopObserverCreate,
+            CFRunLoopObserverRef, CFRunLoopSource, CFRunLoopSourceContext, CFRunLoopSourceCreate,
+            CFRunLoopSourceIsValid, CFRunLoopSourceRef,
         };
         use core_foundation::string::CFString;
-        use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
+        use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicUsize, Ordering};
         use std::sync::{Mutex, MutexGuard, PoisonError};
         use std::time::{Duration, Instant};
 
@@ -1302,6 +1336,118 @@ mod tests {
                 STAND_IN,
             )
             .expect("the notice thread starts")
+        }
+
+        static WAITS: AtomicUsize = AtomicUsize::new(0);
+        static READS: Mutex<Vec<usize>> = Mutex::new(Vec::new());
+        static SWITCH_AT: AtomicUsize = AtomicUsize::new(0);
+        static SWITCH_TO: AtomicI32 = AtomicI32::new(0);
+        static REGISTERED: Mutex<Vec<(i32, usize, usize)>> = Mutex::new(Vec::new());
+        static WAITS_HANDED: Mutex<Vec<Option<Duration>>> = Mutex::new(Vec::new());
+
+        const GIVE_UP: Duration = Duration::from_secs(20);
+
+        extern "C" fn a_wait_begins(
+            _observer: CFRunLoopObserverRef,
+            _activity: CFRunLoopActivity,
+            _info: *mut std::ffi::c_void,
+        ) {
+            WAITS.fetch_add(1, Ordering::SeqCst);
+        }
+
+        fn count_the_waits_of_this_thread() {
+            let mut context = CFRunLoopObserverContext {
+                version: 0,
+                info: std::ptr::null_mut(),
+                retain: None,
+                release: None,
+                copyDescription: None,
+            };
+            // SAFETY: `context` is a valid version 0 context that the call
+            // copies; the call returns a +1 reference that the wrapper owns.
+            let observer = unsafe {
+                CFRunLoopObserver::wrap_under_create_rule(CFRunLoopObserverCreate(
+                    kCFAllocatorDefault,
+                    kCFRunLoopEntry,
+                    1,
+                    0,
+                    a_wait_begins,
+                    &mut context,
+                ))
+            };
+            // SAFETY: kCFRunLoopDefaultMode is a constant CFString that
+            // CoreFoundation exports and never writes.
+            CFRunLoop::get_current().add_observer(&observer, unsafe { kCFRunLoopDefaultMode });
+        }
+
+        fn counted_front() -> Option<libc::pid_t> {
+            let read = {
+                let mut reads = READS.lock().unwrap_or_else(PoisonError::into_inner);
+                reads.push(WAITS.load(Ordering::SeqCst));
+                reads.len()
+            };
+            WAITS_HANDED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(wait_seam::HANDED.with(std::cell::Cell::get));
+            if read == 1 {
+                count_the_waits_of_this_thread();
+            }
+            if read == SWITCH_AT.load(Ordering::SeqCst) {
+                FRONT.store(SWITCH_TO.load(Ordering::SeqCst), Ordering::SeqCst);
+            }
+            front()
+        }
+
+        fn counted_observe(
+            pid: libc::pid_t,
+            app: &CFType,
+            refcon: *mut std::ffi::c_void,
+        ) -> Result<Observed, i32> {
+            let reads = READS.lock().unwrap_or_else(PoisonError::into_inner).len();
+            REGISTERED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push((pid, reads, WAITS.load(Ordering::SeqCst)));
+            observe(pid, app, refcon)
+        }
+
+        const COUNTED: AxCalls = AxCalls {
+            observe: counted_observe,
+            ..STAND_IN
+        };
+
+        fn counted(mark: &NoticeMark, switch: Option<(usize, i32)>) -> NoticeThread {
+            WAITS.store(0, Ordering::SeqCst);
+            READS.lock().unwrap_or_else(PoisonError::into_inner).clear();
+            REGISTERED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+            WAITS_HANDED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+            let (at, to) = switch.unwrap_or((0, 0));
+            SWITCH_AT.store(at, Ordering::SeqCst);
+            SWITCH_TO.store(to, Ordering::SeqCst);
+            NoticeThread::spawn_with(
+                Box::new(counted_front),
+                mark.clone(),
+                now,
+                Box::new(|_, _| {}),
+                COUNTED,
+            )
+            .expect("the notice thread starts")
+        }
+
+        fn steps_in(span: Duration) -> usize {
+            usize::try_from(span.as_nanos() / NOTICE_FRONT_STEP.as_nanos())
+                .expect("a count of steps")
+        }
+
+        fn after_waits(count: usize) {
+            until(GIVE_UP, || WAITS.load(Ordering::SeqCst) >= count);
         }
 
         fn observed_of(pid: i32) -> Vec<Instant> {
@@ -1550,17 +1696,48 @@ mod tests {
             assert_eq!(mark.get(), None);
         }
 
+        /// It reads a prefix of 20 counted steps, one second of steps, and asks one read of the
+        /// front in each, which is what a test that counts the thread's steps can hold.
         #[test]
         fn the_thread_reads_the_front_at_least_ten_times_in_a_second() {
             let _serial = serial();
             let mark = NoticeMark::new();
-            let mut thread = started(&mark);
-            std::thread::sleep(Duration::from_secs(1));
+            let mut thread = counted(&mark, None);
+            let second = steps_in(Duration::from_secs(1));
+            after_waits(second);
+            let reads = READS.lock().unwrap_or_else(PoisonError::into_inner).clone();
             let steps = thread.steps();
-            assert!(thread.stop_within(Duration::from_millis(100)));
+            assert!(thread.stop_within(GIVE_UP), "the thread ends when asked");
+            let in_the_second: Vec<usize> = reads.into_iter().take(second).collect();
             assert!(
-                steps.front_reads >= 10,
+                in_the_second.len() >= 10,
                 "one read in each step of {NOTICE_FRONT_STEP:?}, with room: {steps:?}"
+            );
+            assert_eq!(
+                in_the_second,
+                (0..second).collect::<Vec<usize>>(),
+                "the waits of the thread before each read of the front, one read in each step: {steps:?}"
+            );
+        }
+
+        #[test]
+        fn the_thread_hands_each_of_its_waits_one_step() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = counted(&mark, None);
+            let second = steps_in(Duration::from_secs(1));
+            after_waits(second + 1);
+            let handed = WAITS_HANDED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            assert!(thread.stop_within(GIVE_UP), "the thread ends when asked");
+            let after_each_wait: Vec<Option<Duration>> =
+                handed.into_iter().skip(1).take(second).collect();
+            assert_eq!(
+                after_each_wait,
+                vec![Some(NOTICE_FRONT_STEP); second],
+                "the time that the thread handed to each of its waits, read at the read after it"
             );
         }
 
@@ -1723,19 +1900,31 @@ mod tests {
             let _serial = serial();
             SUBROLE.store(1, Ordering::SeqCst);
             FRONT.store(1, Ordering::SeqCst);
+            let change = steps_in(Duration::from_millis(200)) + 1;
             let mark = NoticeMark::new();
-            let mut thread = started(&mark);
-            std::thread::sleep(Duration::from_millis(200));
-            let changed = Instant::now();
-            FRONT.store(2, Ordering::SeqCst);
-            std::thread::sleep(Duration::from_millis(300));
-            assert!(thread.stop_within(Duration::from_millis(100)));
-            let of_2 = observed_of(2);
-            assert_eq!(of_2.len(), 1, "one registration of the new program");
-            let after = of_2[0].duration_since(changed);
-            assert!(
-                after <= NOTICE_FRONT_STEP + Duration::from_millis(40),
-                "registered {after:?} after the change"
+            let mut thread = counted(&mark, Some((change, 2)));
+            after_waits(change - 1 + steps_in(Duration::from_millis(300)));
+            let registered = REGISTERED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            assert!(thread.stop_within(GIVE_UP), "the thread ends when asked");
+            let of_2: Vec<(usize, usize)> = registered
+                .iter()
+                .filter(|&&(pid, _, _)| pid == 2)
+                .map(|&(_, read, waits)| (read, waits))
+                .collect();
+            assert_eq!(
+                of_2.len(),
+                1,
+                "one registration of the new program: {registered:?}"
+            );
+            let within = (change, change - 1);
+            assert_eq!(
+                of_2[0],
+                within,
+                "registered at (front read, waits) {:?} after the change at front read {change}; within one step is {within:?}",
+                of_2[0]
             );
         }
 
