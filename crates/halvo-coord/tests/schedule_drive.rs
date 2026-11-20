@@ -2583,6 +2583,7 @@ fn a_lost_acknowledgement_of_active_is_followed_by_a_second_send_at_the_next_tic
     w.forget();
     w.tick();
     assert_eq!(set_states(&w), ["set_state active"]);
+    approved_listed(&w, 0);
     w.forget();
     w.tick();
     assert_eq!(
@@ -2858,6 +2859,7 @@ fn refusal_active_tick() {
         "none at the end of a run"
     );
     for _ in 0..2 {
+        approved_listed(&w, 3);
         w.forget();
         w.tick();
         let sent: Vec<_> = w
