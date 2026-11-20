@@ -110,7 +110,7 @@ pub fn bears_profile(args: &[String], profile: &str) -> bool {
 fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     let split: Vec<String> = if windows {
         args.iter()
-            .flat_map(|a| split_command_line(a.trim()))
+            .flat_map(|a| split_command_line(a.trim_start()))
             .skip(1)
             .collect()
     } else {
@@ -128,12 +128,12 @@ fn switch_args(args: &[String], windows: bool) -> Vec<String> {
 /// takes more spellings than the browser of one system reads (a slash and other letter case on
 /// macOS), so that the mark reads more switches as naming another place and errs toward leaving.
 fn switch_of(arg: &str) -> Option<(String, &str)> {
-    let a = arg.trim();
+    let a = arg.trim_start();
     let rest = a
         .strip_prefix("--")
         .or_else(|| a.strip_prefix('-'))
         .or_else(|| a.strip_prefix('/'))?;
-    let (key, value) = rest.split_once('=').unwrap_or((rest, ""));
+    let (key, value) = rest.split_once('=').unwrap_or((rest.trim_end(), ""));
     Some((key.to_ascii_lowercase(), value))
 }
 
