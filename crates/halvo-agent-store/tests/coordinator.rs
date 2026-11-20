@@ -965,6 +965,17 @@ fn set_bindings_that_would_overlap_a_live_agent_is_refused_with_overlap_and_stor
     assert_eq!(move_to(&mut store, 1, "active"), Ok(state_reply("active")));
     refused(&mut store, 2, reply_slots(Some(ME), None));
     assert_eq!(bindings(&store).len(), 3);
+    let with_book = json!([
+        slot("account_address", ME),
+        slot("reply_senders", "ann@people.test"),
+        slot("workbook", "Book.xlsx"),
+    ]);
+    let before = every_row(&store);
+    assert_eq!(
+        set_bindings(&mut store, 2, with_book),
+        Err(declared("binding"))
+    );
+    assert_eq!(every_row(&store), before);
 
     let mut store = ten_revisions();
     refused(&mut store, 1, json!([slot("signature", "Ann")]));
@@ -1119,6 +1130,28 @@ fn set_state_to_approved_or_active_of_an_agent_that_overlaps_a_live_agent_is_ref
         assert_eq!(
             move_to(&mut store, 1, target),
             Err(declared("overlap")),
+            "{target}"
+        );
+        assert_eq!(
+            state_of(&store, 1),
+            (WorkflowState::Paused, Some(agent(1))),
+            "{target}"
+        );
+    }
+
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), "utility_bill_payment", "approved", None));
+    assert_eq!(create(&mut store, 1, 1), Ok(rev(1)));
+    store.put_workflow(workflow(&wf(2), "email", "approved", None));
+    assert_eq!(create(&mut store, 2, 2), Ok(rev(1)));
+    let shared = reply_slots(Some(ME), Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, shared.clone()), Ok(rev(1)));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    assert_eq!(set_bindings(&mut store, 2, shared), Ok(rev(1)));
+    for (target, refusal) in [("active", "playbook"), ("approved", "overlap")] {
+        assert_eq!(
+            move_to(&mut store, 1, target),
+            Err(declared(refusal)),
             "{target}"
         );
         assert_eq!(
