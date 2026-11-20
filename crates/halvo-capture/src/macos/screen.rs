@@ -4919,4 +4919,35 @@ mod tests {
         };
         println!("screen-start-probe started={started} code={code} frames={frames}");
     }
+
+    #[test]
+    #[ignore = "a hosted test: it starts a real screen stream"]
+    fn a_live_start_through_the_handler_reads_frames_and_stops() {
+        if std::env::var("HALVO_SCREEN_LIVE_START").as_deref() != Ok("1") {
+            return;
+        }
+        let (handle, writer) = sink::channel(64);
+        let (_front, foreground) = in_front_for_test();
+        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, foreground);
+        let begun = source.begin_with(&context_on(handle), open_stream);
+        let mut frames = 0;
+        if begun == Ok(Started::Running) {
+            let until = Instant::now() + Duration::from_secs(4);
+            while writer
+                .recv_timeout(until.saturating_duration_since(Instant::now()))
+                .is_ok()
+            {
+                frames += 1;
+            }
+        }
+        let stopped = source.shutdown();
+        println!(
+            "screen-live-start started={} frames={frames} stopped={}",
+            begun == Ok(Started::Running),
+            stopped.is_ok()
+        );
+        assert_eq!(begun, Ok(Started::Running), "the start's answer");
+        assert!(frames > 0, "no frame record in four seconds");
+        assert_eq!(stopped, Ok(()), "the stop's answer");
+    }
 }
