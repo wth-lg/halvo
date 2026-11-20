@@ -95,7 +95,7 @@ under `/tmp` when that is not set, and leaves that directory in place.
 
 ## The check in CI
 
-`scripts/r3/ci.d/30-r3-formal.sh` runs in both jobs of CI on every push: the workflow calls
+`scripts/r3/ci.d/30-r3-formal.sh` runs in both jobs of each CI run: the workflow calls
 the driver as `sh scripts/ci/run-ci-d.sh macos` and `sh scripts/ci/run-ci-d.sh windows`, which
 runs every script of its job, and `sh scripts/ci/run-ci-d.sh <job> 30-r3-formal` runs this one
 alone. In the windows job, where the driver sets `CI_D_JOB=windows`, it leaves the runs of
@@ -528,7 +528,7 @@ is stored before the request is let through; one request leaves per effect, and 
 the run's end; `commit` is stored after the reply; `used` is read in the step that stores
 the approve; `lose` comes at the run's end and at no other time; no row is ever removed). A
 change of one of them, or of A5.1 to A5.3, is a change of the model. The model was written
-before the code. The crate halvo-policy compares the code with the two files on every push:
+before the code. The crate halvo-policy compares the code with the two files in every CI run:
 its test `policy_table` compares `decide_row` with each row of `policy-table.tsv`, and its
 test `formal_traces` follows each trace of `traces.jsonl` with `effect_step`, which must
 accept and refuse each move as the model does and reach the same next state, with each of
