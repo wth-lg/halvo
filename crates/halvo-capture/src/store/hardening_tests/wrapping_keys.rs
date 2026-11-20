@@ -1,3 +1,4 @@
+use super::super::db::{database_key, wrapping_key};
 use super::super::segment::unwrap_segment_key;
 use super::{file_root_store, open_over_file_root};
 
@@ -40,5 +41,41 @@ fn two_stores_derive_two_wrapping_keys_and_a_key_that_one_wrapped_does_not_unwra
     assert!(
         !under_the_other,
         "a segment key that one store wrapped unwrapped under the other store's wrapping key"
+    );
+}
+
+/// The database key of the store key whose bytes are 0 to 31: the
+/// XChaCha20-Poly1305 ciphertext of 32 zero bytes under that key with the
+/// nonce `halvo-store-database-key`, computed by an XChaCha20 that shares no
+/// code with the store.
+const DATABASE_KEY_OF_0_TO_31: [u8; 32] = [
+    0xf9, 0x9e, 0xcb, 0xcc, 0x16, 0x00, 0x45, 0x14, 0x7d, 0xd0, 0x34, 0x15, 0xf7, 0xc4, 0xee, 0x79,
+    0xa3, 0x7d, 0x72, 0xc1, 0xc9, 0xec, 0x26, 0x62, 0x5d, 0xb7, 0x0d, 0xae, 0x94, 0xe9, 0xe3, 0xa8,
+];
+
+/// The wrapping key of the same store key, under the nonce
+/// `halvo-store-segment-wrap`.
+const WRAPPING_KEY_OF_0_TO_31: [u8; 32] = [
+    0xb7, 0xd5, 0x2e, 0x55, 0x2d, 0x5e, 0x3e, 0x59, 0x38, 0xc9, 0x51, 0xf0, 0x21, 0xfa, 0x55, 0x99,
+    0x79, 0x43, 0x87, 0xec, 0xcc, 0xab, 0x77, 0xda, 0x43, 0x97, 0xc0, 0x91, 0x25, 0xb8, 0x38, 0xb3,
+];
+
+#[test]
+fn a_fixed_store_key_derives_a_database_key_and_a_wrapping_key_of_fixed_bytes() {
+    let store_key = crate::custody::StoreKey::from_bytes(std::array::from_fn(|i| i as u8));
+    let database = database_key(&store_key).unwrap();
+    let wrapping = wrapping_key(&store_key).unwrap();
+    println!(
+        "S5 database={:02x?} wrapping={:02x?}",
+        &database[..],
+        &wrapping[..]
+    );
+    assert_eq!(
+        *database, DATABASE_KEY_OF_0_TO_31,
+        "the database key of the fixed store key"
+    );
+    assert_eq!(
+        *wrapping, WRAPPING_KEY_OF_0_TO_31,
+        "the wrapping key of the fixed store key"
     );
 }
