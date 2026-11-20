@@ -72,7 +72,6 @@ plain() {
 }
 
 show_err() {
-  [ -r "$1" ] || fail "the error output of halvo --check-page cannot be read"
   plain <"$1" | awk -v keep="$shown_lines" -v width="$shown_width" '
     { line = substr($0, 1, width) }
     NR <= keep { first[NR] = line; next }
@@ -90,7 +89,6 @@ show_err() {
 }
 
 show_data() {
-  [ -d "$1" ] || fail "the data directory of halvo --check-page is gone"
   files=$(find "$1" -type f 2>/dev/null | wc -l | tr -d ' ') || fail "the data directory cannot be read"
   directories=$(find "$1" -mindepth 1 -type d 2>/dev/null | wc -l | tr -d ' ') || fail "the data directory cannot be read"
   dumps=$(find "$1" -type f -name '*.dmp' 2>/dev/null | wc -l | tr -d ' ') || fail "the data directory cannot be read"
@@ -184,7 +182,7 @@ check() {
   fi
   turns=$(printf '%s\n' "$out" | sed -n 's/^check-page seconds: \([0-9][0-9]*\), bound: 2$/\1/p')
   clock=$(printf '%s\n' "$out" | sed -n 's/^check-page clock seconds: \([0-9][0-9]*\)$/\1/p')
-  if [ -z "$turns" ] || [ -z "$clock" ] || [ "$clock" -lt $((turns - 1)) ]; then
+  if [ -z "$turns" ] || [ -z "$clock" ] || [ "$clock" -lt $((turns - 1)) ] || [ "$clock" -gt $((turns + 30)) ]; then
     got=$got-without-the-seconds
   fi
   shift 4
@@ -239,7 +237,7 @@ case $STUB_MODE in
     exit 1
     ;;
   odd-err)
-    printf 'halvo: \033[31mred\r\na\000b\n%0300d\nno end' 0 >&2
+    printf 'halvo: \033[31mred\351\r\na\000b\n%0300d\nno end' 0 >&2
     exit 1
     ;;
   many-err)
@@ -253,6 +251,15 @@ case $STUB_MODE in
   many-entries)
     i=10
     while [ "$i" -le 54 ]; do
+      : >"$STUB_DATA/f$i"
+      i=$((i + 1))
+    done
+    printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
+    ;;
+  edge)
+    i=10
+    while [ "$i" -le 49 ]; do
+      printf 'halvo: line %s\n' $((i - 9)) >&2
       : >"$STUB_DATA/f$i"
       i=$((i + 1))
     done
@@ -315,7 +322,7 @@ check-page exit: 1, lines: 0, line matched: false, first line: (none)
 '
   check odd-err FAIL 'halvo --check-page exited 1)' '(none)
 ' "check-page err lines: 4
-check-page err: halvo: ?[31mred?
+check-page err: halvo: ?[31mred??
 check-page err: a?b
 check-page err: $zeros
 check-page err: no end
@@ -333,6 +340,16 @@ check-page data: '
 check-page data entry: f10
 ' 'check-page data entry: f49
 check-page data: (5 entries not shown)
+check-page exit: 0'
+  check edge PASS 'check-page exit: 0, lines: 1, line matched: true' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
+' 'check-page err lines: 40
+check-page err: halvo: line 1
+' 'check-page err: halvo: line 20
+check-page err: halvo: line 21
+' 'check-page err: halvo: line 40
+check-page data: 40 files, 0 directories, 0 bytes, 0 dump files
+check-page data entry: f10
+' 'check-page data entry: f49
 check-page exit: 0'
   check setup-fails FAIL 'halvo --check-page exited 101)' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
 '
