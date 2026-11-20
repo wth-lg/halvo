@@ -14,7 +14,7 @@ use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-use crate::custody::file_root::{self, NamedRoot, RootStepForm, RootsLeft};
+use crate::custody::file_root::{self, NamedBy, NamedRoot, RootStepForm, RootsLeft};
 use crate::custody::{
     custody_for, is_label, CustodyError, CustodyKind, CustodyLocator, FileIdentity, KeyCustody,
     KeyLabel, RootId, RootsHandle, StoreKey, WrappedKey,
@@ -946,6 +946,43 @@ pub(in crate::store) mod code_seams {
     }
 }
 
+#[cfg(test)]
+pub(in crate::store) mod read_back_seam {
+    use std::cell::RefCell;
+
+    use halvo_sqlcipher::rusqlite::Connection;
+
+    type Act = Box<dyn Fn(&Connection)>;
+
+    thread_local! {
+        static ACT: RefCell<Option<Act>> = const { RefCell::new(None) };
+    }
+
+    /// Runs `act` on the connection of each open and create of this thread,
+    /// after the settings are set and before they are read back, until the
+    /// guard is dropped.
+    pub(in crate::store) fn before_the_read_backs(act: impl Fn(&Connection) + 'static) -> Guard {
+        ACT.with(|slot| *slot.borrow_mut() = Some(Box::new(act)));
+        Guard
+    }
+
+    pub(in crate::store) struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            ACT.with(|slot| *slot.borrow_mut() = None);
+        }
+    }
+
+    pub(super) fn run(conn: &Connection) {
+        ACT.with(|slot| {
+            if let Some(act) = slot.borrow().as_ref() {
+                act(conn);
+            }
+        });
+    }
+}
+
 fn after_a_code(store_dir: &Dir, e: &rusqlite::Error) -> StoreError {
     let code = match e {
         rusqlite::Error::SqliteFailure(failure, _) => Some(failure.extended_code),
@@ -1071,6 +1108,7 @@ impl Pending {
         match (self.reading, self.root_file) {
             (PendingReading::Made, Some(file)) => Some(NamedRoot {
                 id: self.root_id,
+                by: NamedBy::AMark,
                 file: Some(file),
             }),
             _ => None,
@@ -1343,13 +1381,19 @@ impl Db {
             "PRAGMA secure_delete = ON;\n\
              PRAGMA temp_store = MEMORY;\n\
              PRAGMA foreign_keys = ON;\n\
+             PRAGMA synchronous = FULL;\n\
+             PRAGMA fullfsync = ON;\n\
              PRAGMA checkpoint_fullfsync = ON;\n\
              PRAGMA cipher_log_level = NONE;",
         )
         .map_err(db_error)?;
+        #[cfg(test)]
+        read_back_seam::run(conn);
         require_write_ahead_log(conn)?;
         require_secure_delete(conn)?;
         require_exclusive_locking(conn)?;
+        require_synchronous_full(conn)?;
+        require_fullfsync(conn)?;
         require_checkpoint_fullfsync(conn)?;
         require_cipher_log_level_none(conn)?;
         require_pinned_cipher(conn)
@@ -1645,6 +1689,14 @@ impl Db {
         }
     }
 
+    /// The truncating checkpoint: the log copied into store.db, the
+    /// full-flush call asked for on store.db on a Mac (fullfsync, read back
+    /// at the open) and the log emptied; `CheckpointIncomplete` when a reader
+    /// held it back or the log still holds bytes. Where that call fails the
+    /// library makes a plain fsync in its place and answers Ok, a named limit
+    /// (ruling ST-50). After a shred's key clear, with its full flush
+    /// answered, it is the step that makes the shred last through a loss of
+    /// power, before any file of the shred is removed (ruling PR-30 PR9 (2)).
     pub(crate) fn checkpoint_truncate(&self) -> StoreResult<Checkpoint> {
         let busy: i64 = self
             .conn
@@ -1751,6 +1803,20 @@ fn require_cipher_log_level_none(conn: &Connection) -> StoreResult<()> {
         Ok(())
     } else {
         Err(StoreError::SettingNotInEffect("cipher_log_level"))
+    }
+}
+
+fn require_synchronous_full(conn: &Connection) -> StoreResult<()> {
+    match pragma_int(conn, "synchronous")? {
+        2 => Ok(()),
+        _ => Err(StoreError::SettingNotInEffect("synchronous")),
+    }
+}
+
+fn require_fullfsync(conn: &Connection) -> StoreResult<()> {
+    match pragma_int(conn, "fullfsync")? {
+        1 => Ok(()),
+        _ => Err(StoreError::SettingNotInEffect("fullfsync")),
     }
 }
 
@@ -1896,6 +1962,7 @@ impl RootKeeping {
         match self {
             RootKeeping::Held { root_file, .. } => NamedRoot {
                 id,
+                by: NamedBy::TheStore,
                 file: Some(*root_file),
             },
             RootKeeping::NoRootFile => NamedRoot::by_id(id),
@@ -3097,6 +3164,8 @@ mod tests {
         assert_eq!(db.pragma_int("temp_store").unwrap(), 2);
         assert_eq!(db.fts_secure_delete().unwrap(), 1);
         assert_eq!(db.pragma_int("checkpoint_fullfsync").unwrap(), 1);
+        assert_eq!(db.pragma_int("synchronous").unwrap(), 2);
+        assert_eq!(db.pragma_int("fullfsync").unwrap(), 1);
         let text = |pragma: &str| -> String {
             db.connection().query_row(pragma, [], |r| r.get(0)).unwrap()
         };

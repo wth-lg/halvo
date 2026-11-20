@@ -147,13 +147,15 @@ pub enum Layout {
 
 /// What a delete says of the store's root. `Destroyed`: this call, or an
 /// earlier call on the same handle, destroyed that root's file, and the last
-/// reading of the roots directory shows no root file of it. With the identity
+/// reading of the roots directory shows no root file of it. A root file is
+/// destroyed only when its zero-fill went through its kept handle with the
+/// zero-fill's full flush answered (ruling ST-50 Addition 1), and the root
+/// reads destroyed only when the flush of the roots directory after the
+/// step's removals answered too (ruling PR-30 PR9 (3)). With the identity
 /// of the root file that the open or the create read, the file of that
-/// identity wherever it lies in the roots directory, zero-filled through its
-/// kept handle or with its count read 0 through that handle after its last
-/// name was removed; a name removed with no write through it, because the
-/// name at which the file stood lets no write, is no destruction (ruling
-/// ST-48 U2). By name alone, the file at the root's own name (a regular file
+/// identity wherever it lies in the roots directory; a name removed with no
+/// write through it, because the name at which the file stood lets no write,
+/// is no destruction (ruling ST-48 U2). By name alone, the file at the root's own name (a regular file
 /// that is not empty and, off Windows, of the root file's length; an all-zero
 /// file of that length counts; ruling ST-45 H4). `Left`: a root may stand,
 /// the one named when the call knows its id. `Unnamed`: nothing that the call

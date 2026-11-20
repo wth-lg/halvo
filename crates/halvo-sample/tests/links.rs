@@ -23,8 +23,8 @@ fn a_stream_directory_that_is_a_link_fails_with_its_line_first() {
         assert_eq!(o.code, 1, "{rule}: {}{}", o.stdout, o.stderr);
         let lines: Vec<&str> = o.stdout.lines().collect();
         assert_eq!(lines[0], format!("rule {rule}"));
-        assert_eq!(lines[1], "FAIL link golden-a", "{}", o.stdout);
-        assert_eq!(lines[2], "FAIL link golden-b", "{}", o.stdout);
+        assert_eq!(lines[1], "FAIL link s2", "{}", o.stdout);
+        assert_eq!(lines[2], "FAIL link s3", "{}", o.stdout);
         assert_eq!(
             o.stdout.lines().filter(|l| l.starts_with("FAIL")).count(),
             2,
@@ -57,7 +57,7 @@ fn a_streams_directory_with_links_alone_fails_and_is_not_refused() {
     link_dir(&elsewhere, &dir.join("streams/golden"));
     let o = run(&["check-labels", &s(&dir)]);
     assert_eq!(o.code, 1, "{}{}", o.stdout, o.stderr);
-    assert!(o.stdout.contains("FAIL link golden\n"), "{}", o.stdout);
+    assert!(o.stdout.contains("FAIL link s1\n"), "{}", o.stdout);
     assert!(
         o.stdout
             .contains("checked streams=0 episodes=0 ranges=0 title_events=0 failures=1\n"),
@@ -378,8 +378,9 @@ fn the_link_lines_stand_in_byte_order_of_the_stream_id() {
         .lines()
         .filter(|l| l.starts_with("FAIL link"))
         .collect();
-    let mut want: Vec<String> = names.iter().map(|n| format!("FAIL link {n}")).collect();
-    want.sort();
+    let want: Vec<String> = (2..=names.len() + 1)
+        .map(|n| format!("FAIL link s{n}"))
+        .collect();
     assert_eq!(links, want, "{}", o.stdout);
 }
 

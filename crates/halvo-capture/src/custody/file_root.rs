@@ -9,17 +9,34 @@ use super::{associated_data, CustodyError, FileIdentity, KeyLabel, RootId, Store
 use crate::store::durable::{self, Dir, EntryKind};
 use crate::store::RootReading;
 
-/// The root that a root step names: its id and, when the store read it, the
-/// identity of its root file.
+/// The root that a root step names: its id, the identity of its root file
+/// when one was read, and what named it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct NamedRoot {
     pub(crate) id: RootId,
+    pub(crate) by: NamedBy,
     pub(crate) file: Option<FileIdentity>,
+}
+
+/// What named the root of a root step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NamedBy {
+    /// The store: its key file, its open, its create or its custody.
+    TheStore,
+    /// A made mark of create.pending, which another program can write by
+    /// hand; on the walk by identity that a made mark names (not the sweep),
+    /// the step writes through at a partial name of the mark's own id alone
+    /// (ruling ST-49).
+    AMark,
 }
 
 impl NamedRoot {
     pub(crate) fn by_id(id: RootId) -> Self {
-        Self { id, file: None }
+        Self {
+            id,
+            by: NamedBy::TheStore,
+            file: None,
+        }
     }
 }
 
@@ -41,7 +58,6 @@ const PARTIAL_EXT: &str = "root.tmp";
 /// look at a name (ruling ST-46 K1).
 #[cfg(test)]
 pub(crate) const SEAM_AFTER_THE_LISTING: &str = "the root step, after its listing";
-
 /// The length of a root, from which the code writes a root file.
 const ROOT_LEN: usize = 32;
 
@@ -167,7 +183,7 @@ fn zero_fill(dir: &Dir, name: &OsStr) -> std::io::Result<()> {
     let mut file = dir.open_file_for_write(name)?;
     let len = file.metadata()?.len();
     write_zeros(&mut file, len)?;
-    file.sync_all()
+    durable::full_flush(&file)
 }
 
 fn seal(
@@ -186,7 +202,10 @@ fn seal(
 /// they stand (a root name or a partial name, which holds a root id alone: a
 /// root-file path under C0.3), the entries that stay at any other name,
 /// counted by kind and never named (ruling ST-48 U3), and whether the
-/// directory could be listed. `at_its_path` is false when the roots directory
+/// directory could be listed. `listed` is also false when the flush of the
+/// directory after the step's removals failed, so that no removal that the
+/// listing shows is known to be on the drive (ruling PR-30 PR9 (3)).
+/// `at_its_path` is false when the roots directory
 /// that the step went through no longer stood at the path that it was opened
 /// by.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -321,8 +340,15 @@ pub(crate) fn destroy_roots_below(
 /// be read (ruling ST-45 Addition 2 (b)); a partial name is zero-filled. A
 /// directory that cannot be listed reads not listed. The result says whether
 /// the directory still stood at the path that it was opened by after the
-/// step. A later call on a handle whose root read destroyed does not come
-/// here (ruling ST-45 H3).
+/// step. Each zero-fill ends with the full-flush call on its file, and a
+/// file whose zero-fill or its flush fails keeps its name and reads left
+/// (ruling ST-50 Addition 1); after the removals the directory is flushed
+/// with the full-flush call, and when that flush fails a named root reads
+/// left (with no root named the reading stays unnamed and only `listed`
+/// turns false) and the result reads not listed, so the delete answers that
+/// it is not finished (ruling PR-30 PR9 (3)). A later
+/// call on a handle whose root read destroyed does not come here (ruling
+/// ST-45 H3).
 pub(crate) fn destroy_roots_through(
     dir: &Dir,
     named: Option<NamedRoot>,
@@ -385,8 +411,13 @@ pub(crate) fn destroy_roots_through(
     let mut own_root_file_removed = false;
     let mut every_named_entry_destroyed = true;
     let mut handled: Vec<OsString> = Vec::new();
-    if let (Some(own), Some(id)) = (own_file, named_id) {
-        let mut destroy_at = |name: &OsStr| match destroy_identified(dir, name, own, id) {
+    if let Some(NamedRoot {
+        id,
+        by,
+        file: Some(own),
+    }) = named
+    {
+        let mut destroy_at = |name: &OsStr| match destroy_identified(dir, name, own, id, by) {
             EntryFate::Absent => false,
             fate => {
                 handled.push(name.to_os_string());
@@ -433,15 +464,19 @@ pub(crate) fn destroy_roots_through(
             let _ = destroy_root_entry(dir, &entry.name, EntryName::OtherName);
         }
     }
-    let _ = dir.sync();
+    let flushed = dir.sync().is_ok();
     match dir.entries() {
         Ok(entries) => {
-            let stands = roots_that_stand(&entries, at_its_path());
+            let stands = RootsLeft {
+                listed: flushed,
+                ..roots_that_stand(&entries, at_its_path())
+            };
             let reading = match named_id {
                 None => RootReading::Unnamed,
                 Some(named)
                     if own_root_file_removed
                         && every_named_entry_destroyed
+                        && flushed
                         && !stands.left.contains(&named) =>
                 {
                     RootReading::Destroyed
@@ -501,22 +536,27 @@ fn files_of(dir: &Dir, entries: &[durable::Entry], own: FileIdentity) -> Vec<OsS
         .collect()
 }
 
-/// The kind of the name `name` for the root `id`, as the destroy step reads
-/// it.
-fn entry_name_for(name: &OsStr, id: RootId) -> EntryName {
+/// The kind of the name `name` for the root `id` that `by` named, as the
+/// destroy step reads it.
+fn entry_name_for(name: &OsStr, id: RootId, by: NamedBy) -> EntryName {
     match RootFile::named_in_any_case(name) {
         Some(RootFile::Root(of)) if of == id => EntryName::OwnRoot,
         Some(RootFile::Root(_)) => EntryName::OtherRoot,
+        Some(RootFile::Partial(of)) if of != id && by == NamedBy::AMark => {
+            EntryName::PartialOfAnotherIdThanTheMarks
+        }
         Some(RootFile::Partial(_)) => EntryName::Partial,
         None => EntryName::OtherName,
     }
 }
 
 /// Destroys the root file of identity `own` at `name`, wherever in the
-/// directory it lies; `id` is the root that the identity is of. The identity
-/// decides only which file is looked at. Whether it is written through is
-/// decided by the name at which it stands, as `destroy_root_entry` decides it
-/// for that name ([`written_through`], ruling ST-48 U2): the count of names
+/// directory it lies; `id` is the root that the identity is of, which `by`
+/// named. The identity decides only which file is looked at. Whether it is
+/// written through is decided by the name at which it stands, as
+/// `destroy_root_entry` decides it for that name ([`written_through`], ruling
+/// ST-48 U2), except that on the walk that a made mark names a partial name of
+/// another id than the mark's lets no write (ruling ST-49): the count of names
 /// and the length are first read by the name, with no open and no mode
 /// change, and a file that may not be written there has that name removed
 /// with no write through it while the name still leads to that file, which
@@ -524,11 +564,17 @@ fn entry_name_for(name: &OsStr, id: RootId) -> EntryName {
 /// unless the handle kept at this call's own look holds a file of that
 /// identity and shows again what the read by name showed; then the file is
 /// zero-filled through that handle, which reaches every name of it, and the
-/// name is removed while it still leads to that file. `Gone` when the
-/// zero-fill went through, or when the count read through the kept handle
-/// after the removal of its one name is 0; `Absent` when no file of that
-/// identity stood at the name at the look.
-fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity, id: RootId) -> EntryFate {
+/// name is removed while it still leads to that file. `Gone` only when the
+/// zero-fill went through with its full flush answered; when it did not, the
+/// name is kept and a key may stay (ruling ST-50 Addition 1); `Absent` when
+/// no file of that identity stood at the name at the look.
+fn destroy_identified(
+    dir: &Dir,
+    name: &OsStr,
+    own: FileIdentity,
+    id: RootId,
+    by: NamedBy,
+) -> EntryFate {
     match dir.entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
@@ -543,7 +589,7 @@ fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity, id: RootId) ->
         }
         Err(e) => return EntryFate::KeyMayStay(Some(e)),
     };
-    let at = entry_name_for(name, id);
+    let at = entry_name_for(name, id, by);
     let removed_unwritten = || match dir.file_identity_at(name) {
         Ok(identity) if identity == own => match dir.remove_entry(name) {
             Err(e) if e.kind() != ErrorKind::NotFound => EntryFate::KeyMayStay(Some(e)),
@@ -554,6 +600,8 @@ fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity, id: RootId) ->
     if !written_through(at, shape.names == 1, can_be_the_root_len(shape.len)) {
         return removed_unwritten();
     }
+    #[cfg(test)]
+    kept_open_seam::run(name);
     #[cfg(unix)]
     let _ = dir.set_file_mode(name, 0o600);
     let kept = match dir
@@ -592,14 +640,7 @@ fn destroy_identified(dir: &Dir, name: &OsStr, own: FileIdentity, id: RootId) ->
             Err(_) => EntryFate::ZeroedAndNamed,
         };
     }
-    match durable::file_link_count(&kept) {
-        Ok(1) if matches!(dir.names_file(name, &kept), Ok(true)) => match remove() {
-            Ok(()) if matches!(durable::file_link_count(&kept), Ok(0)) => EntryFate::Gone,
-            Ok(()) => EntryFate::KeyMayStay(None),
-            Err(e) => EntryFate::KeyMayStay(Some(e)),
-        },
-        _ => EntryFate::KeyMayStay(None),
-    }
+    EntryFate::KeyMayStay(None)
 }
 
 /// Which name of a roots directory an entry stands at, for its destruction.
@@ -611,6 +652,9 @@ enum EntryName {
     OtherRoot,
     /// A partial name.
     Partial,
+    /// On the walk by identity that a made mark names, a partial name of another id than the
+    /// mark's (ruling ST-49).
+    PartialOfAnotherIdThanTheMarks,
     /// A name that is no root name and no partial name (ruling ST-47 T1).
     OtherName,
 }
@@ -618,8 +662,8 @@ enum EntryName {
 /// What the destruction of one entry of a roots directory met and left.
 #[derive(Debug)]
 enum EntryFate {
-    /// This call met a file that can be the root's, zero-filled it through
-    /// its kept handle or read its count 0 after its own removal: the name is
+    /// This call met a file that can be the root's and zero-filled it through
+    /// its kept handle with the zero-fill's full flush answered: the name is
     /// gone, and no name of the file keeps the key.
     Gone,
     /// Nothing stood at the name at this call's own look (ruling ST-46 K1).
@@ -644,14 +688,16 @@ impl PartialEq for EntryFate {
 
 /// Whether the destroy step may write through a regular file that stands at a
 /// name of kind `at`, by its count of names and its length: at a partial name
-/// always; at the named root's own name only with a root file's length
-/// (ruling ST-45 H4); at another id's root name with a root file's length or
-/// with one name (ruling ST-45 Addition 2 (b)); at any other name only with
-/// one name and a root file's length (ruling ST-48 U1). Any other file has its
-/// name removed with no write through it.
+/// always, but on the walk that a made mark names never at a partial name of another
+/// id than the mark's (ruling ST-49); at the named root's own name only with a
+/// root file's length (ruling ST-45 H4); at another id's root name with a root
+/// file's length or with one name (ruling ST-45 Addition 2 (b)); at any other
+/// name only with one name and a root file's length (ruling ST-48 U1). Any
+/// other file has its name removed with no write through it.
 fn written_through(at: EntryName, one_name: bool, root_len: bool) -> bool {
     match at {
         EntryName::Partial => true,
+        EntryName::PartialOfAnotherIdThanTheMarks => false,
         EntryName::OwnRoot => root_len,
         EntryName::OtherRoot => root_len || one_name,
         EntryName::OtherName => one_name && root_len,
@@ -659,12 +705,15 @@ fn written_through(at: EntryName, one_name: bool, root_len: bool) -> bool {
 }
 
 /// Destroys one entry of a roots directory. An entry that is no regular file
-/// is removed as the entry that it is. At a name that is no root name and no
-/// partial name the step first reads the file's count of names and its length
-/// by its name through the directory's handle, following no link and opening
-/// nothing; a file whose read shows more than one name, a count that cannot be
-/// read or no root file's length has its name removed with no open, no mode
-/// change and no write (ruling ST-48 U1). For a regular file that may be
+/// is removed as the entry that it is. At every name the step first reads the
+/// file's count of names and its length by its name through the directory's
+/// handle, following no link and opening nothing; a file whose read shows a
+/// count and a length that the name's rule does not write through
+/// ([`written_through`]) has its name removed with no open, no mode change and
+/// no write (ruling ST-48 U1, and at a root name and a partial name the inbox
+/// entry of 2026-11-17T02:59:55Z (1)); at any other name so does a file whose
+/// count cannot be read, and at a root name or a partial name such a file keeps
+/// its name and a key may stay (ruling ST-45 H2). For a regular file that may be
 /// written the step then sets its mode to 0600 by its name through the
 /// directory's handle, following no link (on Windows it clears the read-only
 /// attribute after the open and the test), then keeps one handle: the open for update, or the read open, or the write open
@@ -672,11 +721,9 @@ fn written_through(at: EntryName, one_name: bool, root_len: bool) -> bool {
 /// still leads to that file and the zero-fill go through the kept handle; a
 /// kept handle that cannot write zero-fills through a write open of the name
 /// that still leads to the same file. The zero-fill reaches every name of the
-/// file, and the name is removed. If the zero-fill still fails: with one name
-/// (the count read through the kept handle) the name is removed, and the
-/// entry is gone only when the count read through that handle after the
-/// removal is 0; with more than one name, or a count that cannot be read, the
-/// name is kept and a key may stay. When no open succeeds the name is kept
+/// file, and the name is removed. If the zero-fill or its full flush still
+/// fails, the name is kept and a key may stay, whatever the count of names
+/// (ruling ST-50 Addition 1). When no open succeeds the name is kept
 /// and a key may stay, and every later tail tries it and names it again
 /// (ruling ST-45 H2). Everything rests on what this call met at its own look,
 /// never on a listing (ruling ST-46 K1): a name that is absent at the look is
@@ -685,10 +732,10 @@ fn written_through(at: EntryName, one_name: bool, root_len: bool) -> bool {
 /// removed as the entry that it is with no write through it and is
 /// `NotTheRootFile`; at another root's name such a file with more than one
 /// name, or a count that cannot be read, is removed with no write through it
-/// (ruling ST-45 Addition 2 (b)); at any other name the kept handle shows again
-/// the identity, the one name and the root file's length that the read by
-/// name showed before any write, or the name is removed with no write through
-/// it ([`written_through`]).
+/// (ruling ST-45 Addition 2 (b)); at every name the kept handle shows again the
+/// identity that the read by name showed, and a count and a length that the
+/// name's rule writes through, before any write, or the name is removed with
+/// no write through it ([`written_through`]).
 fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
     let remove = |dir: &Dir| match dir.remove_entry(name) {
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
@@ -705,17 +752,18 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
         Ok(entry) if entry.kind != EntryKind::File => return removed_unwritten(dir),
         Ok(_) => {}
     }
-    let by_name = if at == EntryName::OtherName {
-        match dir.file_shape_at(name) {
-            Ok(shape) if written_through(at, shape.names == 1, can_be_the_root_len(shape.len)) => {
-                Some(shape.identity)
-            }
-            Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
-            _ => return removed_unwritten(dir),
+    let by_name = match dir.file_shape_at(name) {
+        Ok(shape) if written_through(at, shape.names == 1, can_be_the_root_len(shape.len)) => {
+            shape.identity
         }
-    } else {
-        None
+        Err(e) if e.kind() == ErrorKind::NotFound => return EntryFate::Absent,
+        Err(e) if at != EntryName::OtherName && durable::refusal(&e).is_none() => {
+            return EntryFate::KeyMayStay(Some(e))
+        }
+        _ => return removed_unwritten(dir),
     };
+    #[cfg(test)]
+    kept_open_seam::run(name);
     #[cfg(unix)]
     let _ = dir.set_file_mode(name, 0o600);
     let kept = match dir
@@ -732,8 +780,7 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
         .metadata()
         .is_ok_and(|meta| meta.is_file() && can_be_the_root_len(meta.len()));
     let one_name = matches!(durable::file_link_count(&kept), Ok(1));
-    let same_file = by_name
-        .is_none_or(|identity| matches!(durable::identity_of(&kept), Ok(held) if held == identity));
+    let same_file = matches!(durable::identity_of(&kept), Ok(held) if held == by_name);
     if !(same_file && written_through(at, one_name, root_len)) {
         return removed_unwritten(dir);
     }
@@ -747,14 +794,7 @@ fn destroy_root_entry(dir: &Dir, name: &OsStr, at: EntryName) -> EntryFate {
             Err(_) => EntryFate::ZeroedAndNamed,
         };
     }
-    match durable::file_link_count(&kept) {
-        Ok(1) => match remove(dir) {
-            Ok(()) if matches!(durable::file_link_count(&kept), Ok(0)) => EntryFate::Gone,
-            Ok(()) => EntryFate::KeyMayStay(None),
-            Err(e) => EntryFate::KeyMayStay(Some(e)),
-        },
-        _ => EntryFate::KeyMayStay(None),
-    }
+    EntryFate::KeyMayStay(None)
 }
 
 /// Zero-fills the file of the kept handle: through that handle, or, when it
@@ -777,7 +817,7 @@ fn zero_through(file: &std::fs::File) -> std::io::Result<()> {
     let mut writer = file;
     writer.seek(SeekFrom::Start(0))?;
     write_zeros(&mut writer, len)?;
-    file.sync_all()
+    durable::full_flush(file)
 }
 
 /// The size of one write of zeros of the root step: its zero-fill writes a
@@ -844,14 +884,16 @@ pub(crate) fn destroy_named_root_at(roots: &Path, root: NamedRoot) -> Result<(),
 /// is taken as done (ruling ST-48 U2); without it, every entry of the id at its root name in any
 /// letter case and at its partial names, each partial counted as the root
 /// file is (the review's N7). Answers Ok when no entry of the root stands at
-/// its look, so that a cleanup that runs again ends.
+/// its look, so that a cleanup that runs again ends, and the error of the
+/// flush of the directory after the removals when that flush fails (ruling
+/// PR-30 PR9 (3)).
 pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), CustodyError> {
     let mut fates = Vec::new();
     match root.file {
         Some(own) => {
             let entries = dir.entries().map_err(root_io)?;
             for name in files_of(dir, &entries, own) {
-                fates.push(destroy_identified(dir, &name, own, root.id));
+                fates.push(destroy_identified(dir, &name, own, root.id, root.by));
             }
         }
         None => {
@@ -877,7 +919,7 @@ pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), Cus
             ));
         }
     }
-    let _ = dir.sync();
+    let flushed = dir.sync();
     for fate in fates {
         match fate {
             EntryFate::Gone
@@ -888,7 +930,7 @@ pub(crate) fn destroy_root_through(dir: &Dir, root: NamedRoot) -> Result<(), Cus
             EntryFate::KeyMayStay(None) => return Err(CustodyError::RootDenied),
         }
     }
-    Ok(())
+    flushed.map_err(root_io)
 }
 
 impl<P: Protector> FileRoots<P> {
@@ -1139,6 +1181,45 @@ pub(crate) mod partial_tag_seam {
     }
 }
 
+/// A place where a test acts in the destroy step of one entry, with the
+/// entry's name, after the read by that name allowed a write and before the
+/// mode change and the open of the kept handle, whose own test then decides
+/// (the inbox entry of 2026-11-17T02:59:55Z (2)).
+#[cfg(test)]
+pub(crate) mod kept_open_seam {
+    use std::cell::RefCell;
+    use std::ffi::OsStr;
+
+    type Act = Box<dyn FnMut(&OsStr)>;
+
+    thread_local! {
+        static ACT: RefCell<Option<Act>> = const { RefCell::new(None) };
+    }
+
+    /// Runs `act` with the entry's name at each destroy step of this thread
+    /// until the guard is dropped.
+    pub(crate) fn at(act: impl FnMut(&OsStr) + 'static) -> Guard {
+        ACT.with(|slot| *slot.borrow_mut() = Some(Box::new(act)));
+        Guard
+    }
+
+    pub(crate) struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            ACT.with(|slot| *slot.borrow_mut() = None);
+        }
+    }
+
+    pub(super) fn run(name: &OsStr) {
+        ACT.with(|slot| {
+            if let Some(act) = slot.borrow_mut().as_mut() {
+                act(name);
+            }
+        });
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod make_root_seams {
     use std::cell::Cell;
@@ -1300,6 +1381,60 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Rulings ST-45 H4 and Addition 2 (b), ST-48 U1, ST-49 and ST-50 (the
+    /// review's B2): the write rule of each name for every count of names
+    /// and length, and the name that the step reads for a partial name on a
+    /// mark's walk and on the store's own; a partial name of another id than
+    /// the mark's lets no write whatever the file is.
+    #[test]
+    fn the_write_rule_of_each_name_for_every_count_of_names_and_length() {
+        let shapes = [(true, true), (true, false), (false, true), (false, false)];
+        let rules = [
+            (EntryName::Partial, [true, true, true, true]),
+            (
+                EntryName::PartialOfAnotherIdThanTheMarks,
+                [false, false, false, false],
+            ),
+            (EntryName::OwnRoot, [true, false, true, false]),
+            (EntryName::OtherRoot, [true, true, true, false]),
+            (EntryName::OtherName, [true, false, false, false]),
+        ];
+        let mut wrong = Vec::new();
+        for (at, want) in rules {
+            for ((one_name, root_len), want) in shapes.into_iter().zip(want) {
+                if written_through(at, one_name, root_len) != want {
+                    wrong.push(format!("{at:?} one_name={one_name} root_len={root_len}"));
+                }
+            }
+        }
+        let (mark, other) = (RootId::fresh().unwrap(), RootId::fresh().unwrap());
+        let partial_of = |id: RootId| OsString::from(format!("{id}.0123456789abcdef.root.tmp"));
+        let upper =
+            OsString::from(format!("{other}.0123456789ABCDEF.root.tmp").to_ascii_uppercase());
+        let names = [
+            (
+                partial_of(other),
+                NamedBy::AMark,
+                EntryName::PartialOfAnotherIdThanTheMarks,
+            ),
+            (
+                upper,
+                NamedBy::AMark,
+                EntryName::PartialOfAnotherIdThanTheMarks,
+            ),
+            (partial_of(mark), NamedBy::AMark, EntryName::Partial),
+            (partial_of(other), NamedBy::TheStore, EntryName::Partial),
+            (partial_of(mark), NamedBy::TheStore, EntryName::Partial),
+        ];
+        for (name, by, want) in names {
+            let read = entry_name_for(&name, mark, by);
+            if read != want {
+                wrong.push(format!("{name:?} by {by:?} reads {read:?}"));
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
 
     struct XorProtector(u8);
 

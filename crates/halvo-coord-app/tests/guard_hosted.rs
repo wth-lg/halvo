@@ -11,7 +11,10 @@
 //! press fails, and is then pressed once so that its lines go on. The end line counts the uses of
 //! the front before a report, the reports made at a press and the retries of a last press; the
 //! first two must be 0. The target makes its app finish launching and become the active app at
-//! its start, as the app is when a person asks for the dialog. On macOS the target's own
+//! its start, as the app is when a person asks for the dialog, and on macOS its first show waits
+//! for the sign that the test runtime's run loop runs, so that it runs on the main thread as the
+//! later shows do (ruling RD-146 (3)); with no sign in 10 s the target prints its line, runs no
+//! case and fails. On macOS the target's own
 //! observers print the pair (the app active, the alert's window key) at each of the four notices,
 //! each press prints the pair and the modal fact, and each show prints which reading made its
 //! report. On macOS a press is the button's `performClick:`, the
@@ -1196,14 +1199,40 @@ mod cases {
         }
     }
 
+    /// Runs the cases on a thread of their own while the test runtime's run loop runs on the main
+    /// thread (ruling RD-146 (3)). The thread waits for the sign that the run loop runs, which the
+    /// loop gives at its start, before its first show, because the test runtime runs a task of
+    /// `run_on_main_thread` at once on the calling thread until its run loop has begun; with no
+    /// sign within `RUN_LOOP_BOUND` it prints its line, runs no case and ends as failed. The setting
+    /// `LATE` holds the run call back after the thread has started: the forced form of the race.
     pub fn run(card: Card) {
         activate();
         if let Some(mtm) = MainThreadMarker::new() {
             watch(mtm);
         }
+        let late =
+            match super::activation::late(std::env::var_os(super::activation::LATE).as_deref()) {
+                Ok(late) => late,
+                Err(line) => {
+                    println!("guard_hosted {line}");
+                    std::process::exit(1);
+                }
+            };
         let app = tauri::test::mock_app();
         let handle = app.handle().clone();
+        let (ready, runs) = mpsc::channel::<()>();
         std::thread::spawn(move || {
+            let start = Instant::now();
+            let begun = super::activation::run_loop(
+                |bound| runs.recv_timeout(bound).is_ok(),
+                || start.elapsed(),
+                super::activation::RUN_LOOP_BOUND,
+            );
+            let (line, go) = super::activation::begun("guard_hosted", begun);
+            println!("{line}");
+            if !go {
+                std::process::exit(1);
+            }
             let dialog = System::new(handle);
             let mut verdicts = Vec::new();
             let mut not_active = 0;
@@ -1228,7 +1257,18 @@ mod cases {
             );
             end(&verdicts, CASES.len());
         });
-        app.run(|_, _| {});
+        if let Some(late) = late {
+            println!(
+                "guard_hosted forced form: the main thread holds its run call back {} ms",
+                late.as_millis()
+            );
+            std::thread::sleep(late);
+        }
+        app.run(move |_, event| {
+            if let tauri::RunEvent::Ready = event {
+                let _ = ready.send(());
+            }
+        });
     }
 }
 

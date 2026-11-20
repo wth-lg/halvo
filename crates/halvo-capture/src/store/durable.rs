@@ -33,7 +33,7 @@ impl DurableFs for OsFs {
     }
 
     fn sync_file(&self, file: &File, _dir: &Dir, _name: &OsStr) -> io::Result<()> {
-        file.sync_all()
+        full_flush(file)
     }
 
     fn rename(&self, dir: &Dir, from: &OsStr, to: &OsStr) -> io::Result<()> {
@@ -169,6 +169,17 @@ impl Dir {
 #[cfg(target_os = "macos")]
 pub(crate) use unix_dir::{volume_of, EntryIdentity};
 
+/// Flushes `file` to the drive. On macOS it makes the full-flush call itself,
+/// `fcntl(F_FULLFSYNC)`, which asks the drive to write its own cache, and
+/// answers that call's error when it fails, with no plain fsync in its place
+/// (ruling PR-30 PR9); on Windows it is the standard library's sync_all.
+pub(crate) fn full_flush(file: &File) -> io::Result<()> {
+    #[cfg(target_os = "macos")]
+    return unix_dir::full_flush_of(std::os::fd::AsRawFd::as_raw_fd(file));
+    #[cfg(windows)]
+    return file.sync_all();
+}
+
 #[cfg(target_os = "macos")]
 mod unix_dir {
     use std::ffi::{CStr, CString, OsStr, OsString};
@@ -231,6 +242,18 @@ mod unix_dir {
         // SAFETY: c is NUL-terminated and st is a stat; both outlive the call.
         checked(unsafe { libc::fstatat(fd, c.as_ptr(), &mut st, libc::AT_SYMLINK_NOFOLLOW) })?;
         Ok(st)
+    }
+
+    /// The full-flush call on `fd`, `fcntl(F_FULLFSYNC)`, which asks the
+    /// drive to write its own cache: its error when it fails, with no plain
+    /// fsync in its place; an interrupted call is made again.
+    pub(crate) fn full_flush_of(fd: RawFd) -> io::Result<()> {
+        loop {
+            match checked(unsafe { libc::fcntl(fd, libc::F_FULLFSYNC) }) {
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+                flushed => return flushed,
+            }
+        }
     }
 
     fn stat_of(fd: RawFd) -> io::Result<libc::stat> {
@@ -618,7 +641,7 @@ mod unix_dir {
         }
 
         pub(crate) fn sync(&self) -> io::Result<()> {
-            File::from(self.fd.try_clone()?).sync_all()
+            full_flush_of(self.fd.as_raw_fd())
         }
 
         pub(crate) fn names_file(&self, name: &OsStr, file: &File) -> io::Result<bool> {

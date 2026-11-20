@@ -16,6 +16,7 @@ fn list(stand_in: &StandIn, limit: Duration) -> (Result<usize, CallError>, Durat
     let rule = ReplyRule::new(
         "me@home.test".to_owned(),
         reply_senders("ann@people.test").expect("a sender"),
+        halvo_schema::record::Instant(0),
     );
     let began = Instant::now();
     let result = graph
