@@ -467,54 +467,133 @@ $pins
 EOF
 
   if [ "$findings" -eq 0 ]; then
-    policy=$(ruby -rpsych - "$file" <<'RUBY'
-      def pairs(mapping)
-        mapping.children.each_slice(2)
+    cache_action=${pin_uses#*uses: }
+    policy=$(ruby -rpsych - "$file" "$bound" "${cache_action%% *}" "${pin_prefix#*: }" "${pin_save#*: }" <<'RUBY'
+      def decode(node)
+        case node
+        when Psych::Nodes::Scalar
+          node.value
+        when Psych::Nodes::Sequence
+          node.children.map { |child| decode(child) }
+        when Psych::Nodes::Mapping
+          node.children.each_slice(2).each_with_object({}) do |(key, value), fields|
+            abort "workflow mapping key must be scalar" unless key.is_a?(Psych::Nodes::Scalar)
+            abort "duplicate workflow key #{key.value.inspect}" if fields.key?(key.value)
+            fields[key.value] = decode(value)
+          end
+        else
+          abort "unsupported workflow YAML node #{node.class}"
+        end
       end
-      workflow = Psych.parse_file(ARGV.fetch(0)).root
+
+      def display(value)
+        case value
+        when :command then "a run command"
+        when :absent then "absent"
+        else value.inspect
+        end
+      end
+
+      def compare(path, actual, expected)
+        return if expected == :command && actual.is_a?(String)
+        return if actual == expected
+        if actual.is_a?(Hash) && (expected.is_a?(Hash) || expected == :absent)
+          fields = expected == :absent ? {} : expected
+          puts "#{path} must be absent, read {}" if actual.empty? && expected == :absent
+          (actual.keys | fields.keys).each do |key|
+            compare("#{path}.#{key}", actual.fetch(key, :absent), fields.fetch(key, :absent))
+          end
+        else
+          puts "#{path} must be #{display(expected)}, read #{display(actual)}"
+        end
+      end
+
+      workflow = decode(Psych.parse_file(ARGV.fetch(0)).root)
       workflow_keys = %w[name on permissions concurrency jobs]
-      unless pairs(workflow).map { |key, _| key.value }.sort == workflow_keys.sort
+      unless workflow.keys.sort == workflow_keys.sort
         puts "workflow keys must be exactly #{workflow_keys.join(", ")}"
       end
-      name = pairs(workflow).find { |key, _| key.value == "name" }
-      unless name && name.last.is_a?(Psych::Nodes::Scalar) && name.last.value == "ci"
-        puts "workflow name must be ci"
-      end
+      puts "workflow name must be ci" unless workflow["name"] == "ci"
       concurrency = {
         "group" => "ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}",
         "cancel-in-progress" => "${{ github.event_name == 'pull_request' }}"
       }
-      field = pairs(workflow).find { |key, _| key.value == "concurrency" }
-      settings = field && field.last
-      unless settings.is_a?(Psych::Nodes::Mapping) &&
-          pairs(settings).map { |key, _| key.value }.sort == concurrency.keys.sort &&
-          pairs(settings).all? { |key, value| value.is_a?(Psych::Nodes::Scalar) && value.value == concurrency.fetch(key.value) }
-        puts "workflow concurrency must use the pinned group and cancel-in-progress expressions"
-      end
-      _, jobs = pairs(workflow).find { |key, _| key.value == "jobs" }
-      pairs(jobs).each do |job, mapping|
-        pairs(mapping).each do |key, value|
-          unless %w[runs-on timeout-minutes steps].include?(key.value)
-            puts "job #{job.value} has key #{key.value}; use only runs-on, timeout-minutes and steps"
-            next
+      compare("workflow concurrency", workflow.fetch("concurrency", :absent), concurrency)
+      compare("workflow permissions", workflow.fetch("permissions", :absent), {"contents" => "read"})
+
+      runners = {"macos" => "macos-15", "windows" => "windows-2025"}
+      checkout = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+      node = "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1"
+      cache = ARGV.fetch(2)
+      upload = "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9"
+      steps = {
+        "macos" => [
+          checkout, "Commit messages", "Self-tests that commit in throwaway repositories", node,
+          "Prerequisites", "Changelog", "Line endings", "Own-source reads", cache, "ci.d self-test",
+          "Processor", "ci.d", "Lockfile unchanged", upload
+        ],
+        "windows" => [
+          checkout, node, "Prerequisites", cache, "ci.d self-test", "Processor", "ci.d",
+          "Scripts and hook in a core.autocrlf=true clone", "Lockfile unchanged", upload
+        ]
+      }
+      conditions = {upload => "always()"}
+      identity = {
+        "GIT_AUTHOR_NAME" => "Halvo CI", "GIT_AUTHOR_EMAIL" => "ci@halvo.invalid",
+        "GIT_COMMITTER_NAME" => "Halvo CI", "GIT_COMMITTER_EMAIL" => "ci@halvo.invalid"
+      }
+      environments = {
+        "Commit messages" => {
+          "DEFAULT_BRANCH" => "${{ github.event.repository.default_branch }}",
+          "BEFORE" => "${{ github.event.before }}",
+          "AFTER" => "${{ github.event.pull_request.head.sha || github.sha }}",
+          "PR_TITLE" => "${{ github.event.pull_request.title }}",
+          "PR_BODY" => "${{ github.event.pull_request.body }}"
+        },
+        "Self-tests that commit in throwaway repositories" => identity,
+        "ci.d self-test" => identity
+      }
+
+      workflow.fetch("jobs").each do |job, fields|
+        allowed = %w[runs-on timeout-minutes steps]
+        unless fields.keys.sort == allowed.sort
+          puts "job #{job} keys: use only runs-on, timeout-minutes and steps"
+        end
+        compare("job #{job} runs-on", fields.fetch("runs-on", :absent), runners.fetch(job))
+        compare("job #{job} timeout-minutes", fields.fetch("timeout-minutes", :absent), ARGV.fetch(1))
+        inputs = {
+          checkout => {"fetch-depth" => job == "macos" ? "0" : "2"},
+          node => {"node-version" => "26", "cache" => "npm"},
+          cache => {"prefix-key" => ARGV.fetch(3), "save-if" => ARGV.fetch(4)},
+          upload => {"name" => "ci-artifacts-#{job}", "path" => "target/ci-artifacts/"}
+        }
+        roster = steps.fetch(job)
+        actual = fields.fetch("steps")
+        unless actual.map { |step| step["uses"] || step["name"] } == roster
+          puts "job #{job} steps must list the pinned actions and named commands in order"
+        end
+        actual.each_with_index do |step, index|
+          id = roster[index]
+          expected = if inputs.key?(id)
+            {"uses" => id, "with" => inputs.fetch(id)}
+          elsif id
+            {"name" => id, "shell" => "bash", "run" => :command}
+          else
+            {}
           end
-          next unless key.value == "steps"
-          value.children.each_with_index do |step, index|
-            pairs(step).each do |field, setting|
-              case field.value.downcase
-              when "if"
-                unless setting.is_a?(Psych::Nodes::Scalar) && setting.value == "always()"
-                  puts "job #{job.value} step #{index + 1}: use only always() as a step condition"
-                end
-              when "continue-on-error"
-                puts "job #{job.value} step #{index + 1}: take continue-on-error out of the step"
-              end
-            end
+          expected["env"] = environments.fetch(id) if environments.key?(id)
+          expected["if"] = conditions.fetch(id) if conditions.key?(id)
+          if step.key?("if") && step["if"] != expected["if"]
+            puts "job #{job} step #{index + 1}: use only #{conditions.values.uniq.join(" or ")} as a step condition on its listed steps"
           end
+          if step.key?("continue-on-error")
+            puts "job #{job} step #{index + 1}: take continue-on-error out of the step"
+          end
+          compare("job #{job} step #{index + 1}", step, expected)
         end
       end
 RUBY
-    ) || fail "could not read the workflow, job and step keys of ci.yml with Ruby's YAML parser"
+    ) || fail "could not read the workflow policy with Ruby's YAML parser"
     while IFS= read -r violation; do
       [ -z "$violation" ] || finding "$violation"
     done <<EOF
@@ -575,6 +654,25 @@ lines() {
   cp "$work/lib.sh" "$repo/scripts/r1-gate/lib.sh"
 }
 
+full() {
+  repo=$work/$1
+  mkdir -p "$repo/.github/workflows" "$repo/scripts/r1-gate" || exit 2
+  ruby - "$work/full.yml" "$2" "${3:-}" "${4:-}" >"$repo/.github/workflows/ci.yml" <<'RUBY' || exit 2
+source, job, before, after = ARGV
+parts = File.read(source).split(/^(?=  (?:macos|windows):$)/)
+part = job == "workflow" ? parts.first : parts.find { |text| text.start_with?("  #{job}:\n") }
+abort "missing fixture job #{job}" unless part
+unless before.empty?
+  abort "expected one occurrence in #{job}: #{before.inspect}" unless part.scan(before).size == 1
+  part.sub!(before) { after }
+end
+print parts.join
+RUBY
+  cp "$work/lib.sh" "$repo/scripts/r1-gate/lib.sh" || exit 2
+  STUB_BOUND=$full_bound
+}
+
+
 self_test() {
   if ! have_actionlint; then
     printf 'FAIL self-test:%s (actionlint is not installed)\n' "$name"
@@ -605,36 +703,146 @@ EOF
     '  macos:' '    runs-on: macos-15' '    timeout-minutes: 30' '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
     '  windows:' '    runs-on: windows-2025' '    timeout-minutes: 30' '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
     'permissions:' '  contents: read' 'name: ci' \
-    'concurrency:' \
-    "  group: ci-\${{ github.event_name }}-\${{ github.event_name == 'pull_request' && github.ref || github.sha }}" \
-    "  cancel-in-progress: \${{ github.event_name == 'pull_request' }}" \
     >"$work/ci.yml"
+  cp "$CI_D_REPO/.github/workflows/ci.yml" "$work/full.yml" || exit 2
+  full_bound=$(
+    GATE_ROOT=$CI_D_REPO
+    . "$CI_D_REPO/scripts/r1-gate/lib.sh"
+    gate_bound ci_job_timeout_min
+  ) || exit 2
   rejected=0
   wrong=
   STUB_BOUND=30
   path=$PATH
   ci=
 
-  lines top-display-name 29 'name: CI checks'
+  full top-display-name workflow 'name: ci' 'name: CI checks'
   check top-display-name FAIL 'workflow name'
-  lines top-name-absent 29 -
+  full top-name-absent workflow "name: ci${nl}" ''
   check top-name-absent FAIL 'workflow keys'
-  lines top-run-name 29 "name: ci${nl}run-name: checks"
+  full top-run-name workflow 'name: ci' "name: ci${nl}run-name: checks"
   check top-run-name FAIL 'workflow keys'
-  lines top-default-shell 29 "name: ci${nl}defaults: {run: {shell: bash}}"
+  full top-default-shell workflow 'name: ci' "name: ci${nl}defaults: {run: {shell: bash}}"
   check top-default-shell FAIL 'workflow keys'
-  lines top-env 29 "name: ci${nl}env: {TEST_LABEL: plain}"
+  full top-env workflow 'name: ci' "name: ci${nl}env: {TEST_LABEL: plain}"
   check top-env FAIL 'workflow keys'
-  lines top-concurrency-absent 32 - 31 - 30 -
+  full top-concurrency-absent workflow "concurrency:${nl}  group: ci-\${{ github.event_name }}-\${{ github.event_name == 'pull_request' && github.ref || github.sha }}${nl}  cancel-in-progress: \${{ github.event_name == 'pull_request' }}${nl}" ''
   check top-concurrency-absent FAIL 'workflow keys'
-  lines concurrency-other-group 31 '  group: ci-fixture'
+  full concurrency-other-group workflow "  group: ci-\${{ github.event_name }}-\${{ github.event_name == 'pull_request' && github.ref || github.sha }}" '  group: ci-fixture'
   check concurrency-other-group FAIL 'workflow concurrency'
-  lines concurrency-cancel-false 32 '  cancel-in-progress: false'
+  full concurrency-cancel-false workflow "  cancel-in-progress: \${{ github.event_name == 'pull_request' }}" '  cancel-in-progress: false'
   check concurrency-cancel-false FAIL 'workflow concurrency'
-  lines concurrency-no-cancel 32 -
+  full concurrency-no-cancel workflow "  cancel-in-progress: \${{ github.event_name == 'pull_request' }}" ''
   check concurrency-no-cancel FAIL 'workflow concurrency'
-  lines concurrency-scalar 32 - 31 - 30 'concurrency: ci-fixture'
+  full concurrency-scalar workflow "concurrency:${nl}  group: ci-\${{ github.event_name }}-\${{ github.event_name == 'pull_request' && github.ref || github.sha }}${nl}  cancel-in-progress: \${{ github.event_name == 'pull_request' }}${nl}" "concurrency: ci-fixture${nl}"
   check concurrency-scalar FAIL 'workflow concurrency'
+
+  full quoted-step-command macos 'run: sh scripts/prerequisites.sh' 'run: "sh scripts/prerequisites.sh"'
+  check quoted-step-command PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full apostrophe-in-command macos 'run: sh scripts/prerequisites.sh' "run: echo \"it's\""
+  check apostrophe-in-command PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full dash-in-command macos 'run: sh scripts/prerequisites.sh' "run: echo '-\"x'"
+  check dash-in-command PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full comma-and-comment-in-command macos 'run: sh scripts/prerequisites.sh' "run: echo 'a, \"y' # c: 'z"
+  check comma-and-comment-in-command PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full open-bracket-in-command macos 'run: sh scripts/prerequisites.sh' "run: echo 'a[b, \"y'"
+  check open-bracket-in-command PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full closing-bracket-in-command macos 'run: sh scripts/prerequisites.sh' "run: echo 'a], \"z'"
+  check closing-bracket-in-command PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full quoted-run-key-and-colon macos 'run: sh scripts/prerequisites.sh' "\"run\": echo 'a:\"b'"
+  check quoted-run-key-and-colon PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full folded-command-with-an-open-quote macos 'run: sh scripts/prerequisites.sh' "run: >-${nl}          printf '%s' \"step: 'one\""
+  check folded-command-with-an-open-quote PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full question-mark-in-command macos 'run: sh scripts/prerequisites.sh' 'run: echo is it ? yes'
+  check question-mark-in-command PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full signs-in-command macos 'run: sh scripts/prerequisites.sh' "run: echo 'a && b * c!'"
+  check signs-in-command PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full flow-env-and-comma-in-command windows "env:${nl}          GIT_AUTHOR_NAME: Halvo CI${nl}          GIT_AUTHOR_EMAIL: ci@halvo.invalid${nl}          GIT_COMMITTER_NAME: Halvo CI${nl}          GIT_COMMITTER_EMAIL: ci@halvo.invalid${nl}        run: sh scripts/ci/run-ci-d.sh windows --self-test" "env: {GIT_AUTHOR_NAME: Halvo CI, GIT_AUTHOR_EMAIL: ci@halvo.invalid, GIT_COMMITTER_NAME: Halvo CI, GIT_COMMITTER_EMAIL: ci@halvo.invalid}${nl}        run: echo a, b"
+  check flow-env-and-comma-in-command PASS 'jobs: 2, uses keys: 8, findings: 0'
+  full runner-expression-macos macos '    runs-on: macos-15' "    runs-on: \${{ github.event_name == 'push' && 'macos-15' || 'macos-15' }}"
+  check runner-expression-macos FAIL 'job macos runs-on'
+  full runner-other-macos macos '    runs-on: macos-15' '    runs-on: ubuntu-24.04'
+  check runner-other-macos FAIL 'job macos runs-on'
+  full runner-expression-windows windows '    runs-on: windows-2025' "    runs-on: \${{ github.event_name == 'push' && 'windows-2025' || 'windows-2025' }}"
+  check runner-expression-windows FAIL 'job windows runs-on'
+  full runner-other-windows windows '    runs-on: windows-2025' '    runs-on: ubuntu-24.04'
+  check runner-other-windows FAIL 'job windows runs-on'
+  full step-shell-template macos "      - name: ci.d${nl}        shell: bash" "      - name: ci.d${nl}        shell: bash -e {0}"
+  check step-shell-template FAIL 'step 12.shell'
+  full step-shell-missing macos "      - name: ci.d${nl}        shell: bash" '      - name: ci.d'
+  check step-shell-missing FAIL 'step 12.shell'
+  full step-env-ci-d macos "      - name: ci.d${nl}        shell: bash" "      - name: ci.d${nl}        shell: bash${nl}        env: {FIXTURE_LABEL: plain}"
+  check step-env-ci-d FAIL 'step 12.env.FIXTURE_LABEL'
+  full step-quoted-working-directory macos "      - name: ci.d${nl}        shell: bash" "      - name: ci.d${nl}        shell: bash${nl}        \"working-directory\": ."
+  check step-quoted-working-directory FAIL 'step 12.working-directory'
+  full step-escaped-working-directory macos "      - name: ci.d${nl}        shell: bash" "      - name: ci.d${nl}        shell: bash${nl}        \"working-\\u0064irectory\": ."
+  check step-escaped-working-directory FAIL 'step 12.working-directory'
+  full step-unknown-id macos "      - name: ci.d${nl}        shell: bash" "      - name: ci.d${nl}        shell: bash${nl}        id: build_checks"
+  check step-unknown-id FAIL 'step 12.id'
+  full step-timeout macos "      - name: ci.d${nl}        shell: bash" "      - name: ci.d${nl}        shell: bash${nl}        timeout-minutes: 120"
+  check step-timeout FAIL 'step 12.timeout-minutes'
+  full step-condition-misplaced macos "      - name: ci.d${nl}        shell: bash" "      - name: ci.d${nl}        shell: bash${nl}        if: always()"
+  check step-condition-misplaced FAIL 'step 12.if'
+  full step-continue-false macos "      - name: ci.d${nl}        shell: bash" "      - name: ci.d${nl}        shell: bash${nl}        continue-on-error: false"
+  check step-continue-false FAIL 'take continue-on-error out of the step'
+  full step-anchored-directory macos "      - name: ci.d${nl}        shell: bash" "      - name: ci.d${nl}        shell: bash${nl}        working-directory: &directory ."
+  check step-anchored-directory FAIL 'starts a node with &, * or !'
+  full step-merged-env macos "      - name: ci.d${nl}        shell: bash" "      - name: ci.d${nl}        shell: bash${nl}        env: {<<: {FIXTURE_LABEL: plain}}"
+  check step-merged-env FAIL
+  full flow-step-extra-key windows "      - name: Prerequisites${nl}        shell: bash${nl}        run: sh scripts/prerequisites.sh" '      - {name: Prerequisites, shell: bash, id: verify, run: sh scripts/prerequisites.sh}'
+  check flow-step-extra-key FAIL 'step 3.id'
+  full job-disallows-container macos '    runs-on: macos-15' "    runs-on: macos-15${nl}    container: alpine"
+  check job-disallows-container FAIL
+  full job-disallows-services macos '    runs-on: macos-15' "    runs-on: macos-15${nl}    services: {data: {image: redis}}"
+  check job-disallows-services FAIL
+  full job-disallows-strategy macos '    runs-on: macos-15' "    runs-on: macos-15${nl}    strategy: {max-parallel: 1}"
+  check job-disallows-strategy FAIL
+  full job-disallows-env macos '    runs-on: macos-15' "    runs-on: macos-15${nl}    env: {FIXTURE_LABEL: plain}"
+  check job-disallows-env FAIL
+  full job-disallows-permissions macos '    runs-on: macos-15' "    runs-on: macos-15${nl}    permissions: {contents: read}"
+  check job-disallows-permissions FAIL
+  full job-disallows-defaults macos '    runs-on: macos-15' "    runs-on: macos-15${nl}    defaults: {run: {shell: bash}}"
+  check job-disallows-defaults FAIL
+  full action-other-checkout-sha macos 3d3c42e5aac5ba805825da76410c181273ba90b1 3d3c42e5aac5ba805825da76410c181273ba90b2
+  check action-other-checkout-sha FAIL 'step 1.uses'
+  full action-other-setup-sha windows 949feb2413d6458794dcd2491c4babbbce0c15c1 949feb2413d6458794dcd2491c4babbbce0c15c2
+  check action-other-setup-sha FAIL 'step 2.uses'
+  full action-other-artifact-sha windows cf430e030ddbb5b0abf93d22962f4752f3646cd9 cf430e030ddbb5b0abf93d22962f4752f3646cd8
+  check action-other-artifact-sha FAIL 'step 10.uses'
+  full action-other-checkout-depth windows 'fetch-depth: 2' 'fetch-depth: 3'
+  check action-other-checkout-depth FAIL 'step 1.with.fetch-depth'
+  full action-checkout-depth-missing macos "        with:${nl}          fetch-depth: 0${nl}" ''
+  check action-checkout-depth-missing FAIL 'step 1.with'
+  full action-extra-checkout-input macos "          fetch-depth: 0${nl}" "          fetch-depth: 0${nl}          fetch-tags: true${nl}"
+  check action-extra-checkout-input FAIL 'step 1.with.fetch-tags'
+  full action-other-node-version windows 'node-version: 26' 'node-version: 25'
+  check action-other-node-version FAIL 'step 2.with.node-version'
+  full action-other-node-cache windows 'cache: npm' 'cache: yarn'
+  check action-other-node-cache FAIL 'step 2.with.cache'
+  full action-other-artifact-name windows 'name: ci-artifacts-windows' 'name: ci-artifacts-other'
+  check action-other-artifact-name FAIL 'step 10.with.name'
+  full action-other-artifact-path windows 'path: target/ci-artifacts/' 'path: target/reports/'
+  check action-other-artifact-path FAIL 'step 10.with.path'
+  full action-upload-if-missing windows "        if: always()${nl}" ''
+  check action-upload-if-missing FAIL 'step 10.if'
+  full env-commit-before-value macos "BEFORE: \${{ github.event.before }}" 'BEFORE: sample'
+  check env-commit-before-value FAIL 'step 2.env.BEFORE'
+  full env-commit-title-missing macos "          PR_TITLE: \${{ github.event.pull_request.title }}${nl}" ''
+  check env-commit-title-missing FAIL 'step 2.env.PR_TITLE'
+  full env-ci-author-value windows 'GIT_AUTHOR_NAME: Halvo CI' 'GIT_AUTHOR_NAME: Fixture CI'
+  check env-ci-author-value FAIL 'step 5.env.GIT_AUTHOR_NAME'
+  full env-ci-email-value windows 'GIT_COMMITTER_EMAIL: ci@halvo.invalid' 'GIT_COMMITTER_EMAIL: fixture@example.invalid'
+  check env-ci-email-value FAIL 'step 5.env.GIT_COMMITTER_EMAIL'
+  full roster-drop-step windows "      - name: Prerequisites${nl}        shell: bash${nl}        run: sh scripts/prerequisites.sh${nl}" ''
+  check roster-drop-step FAIL 'steps must list'
+  full roster-repeat-step windows "      - name: Prerequisites${nl}        shell: bash${nl}        run: sh scripts/prerequisites.sh" "      - name: Prerequisites${nl}        shell: bash${nl}        run: sh scripts/prerequisites.sh${nl}      - name: Prerequisites${nl}        shell: bash${nl}        run: sh scripts/prerequisites.sh${nl}"
+  check roster-repeat-step FAIL 'steps must list'
+  full name-of-step windows '      - name: Processor' '      - name: Processor information'
+  check name-of-step FAIL 'step 6.name'
+  full runner-block-literal macos '    runs-on: macos-15' "    runs-on:${nl}      |-${nl}        macos-15"
+  check runner-block-literal PASS
+  full env-and-upload-condition macos '          PR_TITLE:' '          "PR_TITLE":'
+  check env-and-upload-condition PASS
 
   lines job-if-pr-only 18 "  windows:${nl}    if: github.event_name == 'pull_request'" 9 "  macos:${nl}    if: github.event_name == 'pull_request'"
   check job-if-pr-only FAIL 'use only runs-on, timeout-minutes and steps'
@@ -682,10 +890,10 @@ EOF
   lines step-flow-continue-on-error 13 "$checkout${nl}      - {run: echo, \"continue-on-error\": true}"
   check step-flow-continue-on-error FAIL 'take continue-on-error out of the step'
   lines step-always-and-input-named-if 13 "$checkout${nl}        if: always()${nl}        env:${nl}          if: local"
-  check step-always-and-input-named-if PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check step-always-and-input-named-if FAIL 'step 1.env.if must be absent, read "local"'
 
-  tree pinned-and-timed ''
-  check pinned-and-timed PASS 'jobs: 2, uses keys: 4, findings: 0'
+  full pinned-and-timed macos '' ''
+  check pinned-and-timed PASS 'jobs: 2, uses keys: 8, findings: 0'
   tree action-on-a-tag '13s/@[0-9a-f]* # v7.0.1/@v7/'
   check action-on-a-tag FAIL '1 of 4 uses keys of ci.yml take no 40-hex commit'
   tree action-on-a-short-commit '22s/@[0-9a-f]\{33\}/@/'
@@ -795,35 +1003,35 @@ EOF
   tree quote-in-a-plain-continuation-hides-no-job "10s/\$/\\${nl}    env:\\${nl}      NOTE: a\\${nl}        \"b/;26s/\$/\\${nl}  extra:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 600\\${nl}    steps:\\${nl}      - run: echo \"hi\"/"
   check quote-in-a-plain-continuation-hides-no-job FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos windows extra'
   tree closed-quotes-before-the-timeout "13s/\$/\\${nl}        name: \"macos \\\\\" # job\"/;22s/\$/\\${nl}        name: 'windows\\\\' # y/"
-  check closed-quotes-before-the-timeout PASS 'jobs: 2, uses keys: 4, findings: 0'
-  tree comment-at-column-one-with-a-quote "10s/\$/\\${nl}# a: \"x/"
-  check comment-at-column-one-with-a-quote PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check closed-quotes-before-the-timeout FAIL 'step 1.name must be absent'
+  full comment-at-column-one-with-a-quote macos '    runs-on: macos-15' "    runs-on: macos-15${nl}# a: \"x"
+  check comment-at-column-one-with-a-quote PASS 'jobs: 2, uses keys: 8, findings: 0'
   tree apostrophe-in-a-plain-value "13s/\$/\\${nl}        env:\\${nl}          F: it's/"
-  check apostrophe-in-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check apostrophe-in-a-plain-value FAIL 'step 1.env.F'
   tree dash-before-a-quote-in-a-plain-value "13s/\$/\\${nl}        env:\\${nl}          A: -\"x/"
-  check dash-before-a-quote-in-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check dash-before-a-quote-in-a-plain-value FAIL 'step 1.env.A'
   tree comma-and-comment-in-a-plain-value "13s/\$/\\${nl}        env:\\${nl}          B: a, \"y # c: 'z/"
-  check comma-and-comment-in-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check comma-and-comment-in-a-plain-value FAIL 'step 1.env.B'
   tree open-bracket-in-a-plain-value "13s/\$/\\${nl}        env:\\${nl}          C: a[b, \"y/"
-  check open-bracket-in-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check open-bracket-in-a-plain-value FAIL 'step 1.env.C'
   tree closing-bracket-in-a-plain-value "13s/\$/\\${nl}        env:\\${nl}          E: a], \"z/"
-  check closing-bracket-in-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check closing-bracket-in-a-plain-value FAIL 'step 1.env.E'
   lines comma-after-a-closed-flow-map 13 "$checkout${nl}        env: {A: b}${nl}        name: a, \"y"
-  check comma-after-a-closed-flow-map PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check comma-after-a-closed-flow-map FAIL 'step 1.env.A'
   tree colon-in-a-plain-value-after-a-quoted-key "13s/\$/\\${nl}        env:\\${nl}          \"D\": a:\"b/"
-  check colon-in-a-plain-value-after-a-quoted-key PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check colon-in-a-plain-value-after-a-quoted-key FAIL 'step 1.env.D'
   tree quoted-names-over-two-lines-that-close-before-the-timeout "10s/\$/\\${nl}    name: \"macos\\${nl}      job\"/;19s/\$/\\${nl}    name: 'windows\\${nl}      job'/"
   check quoted-names-over-two-lines-that-close-before-the-timeout FAIL 'ci.yml line 11 has a quote that this lint reads as running past the line'"'"'s end'
-  tree run-block-with-a-blank-line-and-an-open-quote "13s/\$/\\${nl}      - run: |\\${nl}\\${nl}          printf '%s' \"x: 'y\"/"
-  check run-block-with-a-blank-line-and-an-open-quote PASS 'jobs: 2, uses keys: 4, findings: 0'
+  full run-block-with-a-blank-line-and-an-open-quote macos 'run: sh scripts/prerequisites.sh' "run: |${nl}${nl}          printf '%s' \"x: 'y\""
+  check run-block-with-a-blank-line-and-an-open-quote PASS 'jobs: 2, uses keys: 8, findings: 0'
   tree folded-block-with-an-open-quote "13s/\$/\\${nl}      - name: >-\\${nl}          step: 'one\\${nl}        run: echo/"
-  check folded-block-with-an-open-quote PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check folded-block-with-an-open-quote FAIL 'step 2.name'
   tree block-scalar-under-a-tagged-key "13s/\$/\\${nl}      - !!str run: |\\${nl}          printf '%s' \"x: 'y\"/"
   check block-scalar-under-a-tagged-key FAIL 'ci.yml line 14 starts a node with &, * or !'
-  tree block-scalar-under-a-quoted-key "13s/\$/\\${nl}      - \"run\": |\\${nl}          printf '%s' \"x: 'y\"/"
-  check block-scalar-under-a-quoted-key PASS 'jobs: 2, uses keys: 4, findings: 0'
+  full block-scalar-under-a-quoted-key macos 'run: sh scripts/prerequisites.sh' "\"run\": |${nl}          printf '%s' \"x: 'y\""
+  check block-scalar-under-a-quoted-key PASS 'jobs: 2, uses keys: 8, findings: 0'
   lines block-scalar-item-of-a-list 10 "    runs-on:${nl}      - |-${nl}        macos-15"
-  check block-scalar-item-of-a-list PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check block-scalar-item-of-a-list FAIL 'job macos runs-on must be "macos-15", read ["macos-15"]'
   tree cr-before-a-quoted-list-item "11s/.*/    strategy:\\${nl}      matrix:\\${nl}        os:\\${nl}          - a@CR@          - \"b\\${nl}    timeout-minutes: 30\\${nl}            c\"/"
   check cr-before-a-quoted-list-item FAIL 'ci.yml line 14 holds the byte 0x0D'
   tree ls-before-a-quoted-list-item "11s/.*/    strategy:\\${nl}      matrix:\\${nl}        os:\\${nl}          - a@LS@          - \"b\\${nl}    timeout-minutes: 30\\${nl}            c\"/"
@@ -874,13 +1082,13 @@ EOF
   tree explicit-key-hides-a-later-job "22s/.*/      - uses: foo\\/bar@3d3c42e5aac5ba805825da76410c181273ba90b1\\${nl}        with: { ? \"a}\\${nl}x\\${nl}        y\" : b }\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 600\\${nl}    steps:\\${nl}      - run: echo x/"
   check explicit-key-hides-a-later-job FAIL 'ci.yml line 23 starts a key with ? and a blank, one of the keys in the explicit form of YAML'
   tree second-document-holds-the-permissions "27,28d;\$s/\$/\\${nl}---\\${nl}permissions:\\${nl}  contents: read/"
-  check second-document-holds-the-permissions FAIL 'ci.yml line 31 begins a YAML document or a directive'
+  check second-document-holds-the-permissions FAIL 'ci.yml line 28 begins a YAML document or a directive'
   tree end-marker-then-a-document "27,28d;\$s/\$/\\${nl}...\\${nl}---\\${nl}permissions:\\${nl}  contents: read/"
-  check end-marker-then-a-document FAIL 'ci.yml line 31 begins a YAML document or a directive'
+  check end-marker-then-a-document FAIL 'ci.yml line 28 begins a YAML document or a directive'
   tree tagged-jobs-key-and-a-second-document "1s/^/permissions:\\${nl}  contents: read\\${nl}/;27,29d;8s/.*/!!str jobs:/;11d;26s/\$/\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 600\\${nl}    steps:\\${nl}      - run: echo x\\${nl}---\\${nl}jobs:\\${nl}  macos:\\${nl}    runs-on: macos-15\\${nl}    timeout-minutes: 30\\${nl}  windows:\\${nl}    runs-on: windows-2025\\${nl}    timeout-minutes: 30/"
   check tagged-jobs-key-and-a-second-document FAIL 'ci.yml line 33 begins a YAML document or a directive'
   tree quote-starts-a-second-document "27,28d;\$s/\$/\\${nl}--- \"x\\${nl}permissions:\\${nl}  contents: read\\${nl}\"/"
-  check quote-starts-a-second-document FAIL 'ci.yml line 31 begins a YAML document or a directive'
+  check quote-starts-a-second-document FAIL 'ci.yml line 28 begins a YAML document or a directive'
   tree directive-line "1s/^/%YAML 1.2\\${nl}---\\${nl}/"
   check directive-line FAIL 'ci.yml line 1 begins a YAML document or a directive'
   tree anchor-and-alias-as-a-uses-key "11s/\$/\\${nl}    env:\\${nl}      K: \\&k uses/;13s/\$/\\${nl}      - *k : actions\/setup-node@v4/"
@@ -912,9 +1120,9 @@ EOF
   tree explicit-key-mark-at-the-line-end "10s/\$/\\${nl}    ?\\${nl}      name\\${nl}    : x/"
   check explicit-key-mark-at-the-line-end FAIL 'ci.yml line 11 starts a key with ? and a blank, one of the keys in the explicit form of YAML'
   tree question-mark-inside-a-plain-value "13s/\$/\\${nl}        name: is it ? yes/"
-  check question-mark-inside-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check question-mark-inside-a-plain-value FAIL 'step 1.name must be absent'
   tree signs-inside-a-plain-value "13s/\$/\\${nl}        name: a \\&\\& b * c!/"
-  check signs-inside-a-plain-value PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check signs-inside-a-plain-value FAIL 'step 1.name must be absent'
   base_save="          save-if: \${{ github.ref == 'refs/heads/main' }}"
   lines r1-v11-macos-save-if-of-the-base 17 "$base_save"
   check r1-v11-macos-save-if-of-the-base FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 17: '          save-if: \${{ github.ref == 'refs/heads/main' }}' stands where this lint reads line 4 of the Rust cache step of the job macos, '${pin_save}'; it differs from the line to write first at column 56, which holds the sign } where the line to write holds the sign &; write '${pin_save}'; the pin holds the save-if line in the variable pin_save at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
@@ -966,8 +1174,8 @@ EOF
   check h16-comment-on-the-macos-job-key FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 9: '  macos: # the macOS job' stands at two blanks under 'jobs:', where this lint reads a job's key; it reads that key as the line '  macos:' or '  windows:' alone, with no comment, no quotes and no blank before the colon; write one of those lines)"
   lines h17-quoted-on-key 1 '"on":'
   check h17-quoted-on-key FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 1: '\"on\":' holds the key on in another form; this lint reads the key on as the line 'on:' alone in column 1, with no quotes, capital letters, escapes, blank before the colon, value or comment; write 'on:')"
-  lines h18-escape-x0a-in-a-run-block-above-the-cache-step 13 "$checkout${nl}      - run: |${nl}          printf 'done\\x0a'"
-  check h18-escape-x0a-in-a-run-block-above-the-cache-step PASS "jobs: 2, uses keys: 4, findings: 0"
+  full h18-escape-x0a-in-a-run-block-above-the-cache-step macos 'run: sh scripts/prerequisites.sh' "run: |${nl}          printf 'done\\x0a'"
+  check h18-escape-x0a-in-a-run-block-above-the-cache-step PASS 'jobs: 2, uses keys: 8, findings: 0'
   lines h22-trailing-blank-after-with 15 "$pin_with "
   check h22-trailing-blank-after-with FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 15: '        with: ' stands where this lint reads line 2 of the Rust cache step of the job macos, '${pin_with}'; it differs from the line to write first at column 14, which holds a blank where the line to write holds the line's end; write '${pin_with}'; the pin holds the with line of the Rust cache step in the variable pin_with at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
   lines pr-x03-timezone-under-the-cron-item 7 "$pin_cron${nl}      timezone: Asia/Tokyo"
@@ -1043,9 +1251,9 @@ EOF
   check line-at-six-blanks-that-is-no-step FAIL ".github/workflows/ci.yml line 14: '      name: x' stands at six blanks in the steps of the job macos and is no step's first line; this lint reads a line at six blanks there as the first line of a step, with a dash and a blank; write it so"
   lines job-key-where-the-with-line-stands 17 - 16 - 15 "    continue-on-error: true"
   check job-key-where-the-with-line-stands FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 15: '    continue-on-error: true' stands where this lint reads line 2 of the Rust cache step of the job macos, '${pin_with}'; it differs from the line to write first at column 5, which holds the sign c where the line to write holds a blank; write '${pin_with}'; the pin holds the with line of the Rust cache step in the variable pin_with at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines cache-step-cut-by-the-end-of-the-file 32 - 31 - 30 - 29 - 28 - 27 - 26 - 25 - 1 "permissions:${nl}  contents: read${nl}on:"
+  lines cache-step-cut-by-the-end-of-the-file 29 - 28 - 27 - 26 - 25 - 1 "permissions:${nl}  contents: read${nl}on:"
   check cache-step-cut-by-the-end-of-the-file FAIL ".github/workflows/ci.yml line 25: the Rust cache step of the job windows ends with the file before its line 3; write after its last line the line '${pin_prefix}'; the pin holds the prefix-key line in the variable pin_prefix at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
-  lines schedule-line-at-the-end-of-the-file 32 - 31 - 30 - 29 "name: ci${nl}on:${nl}  push:${nl}  schedule:" 7 - 6 - 5 - 4 - 3 - 2 - 1 -
+  lines schedule-line-at-the-end-of-the-file 29 "name: ci${nl}on:${nl}  push:${nl}  schedule:" 7 - 6 - 5 - 4 - 3 - 2 - 1 -
   check schedule-line-at-the-end-of-the-file FAIL ".github/workflows/ci.yml line 25: the file ends where this lint reads the cron line under '  schedule:'; write '${pin_cron}'; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
   lines first-step-at-eight-blanks 13 "        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
   check first-step-at-eight-blanks FAIL ".github/workflows/ci.yml line 13: '        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' is the first line in the steps of the job macos and stands at 8 blanks; this lint reads a step as beginning at six blanks, a dash and a blank; write the step so"
@@ -1085,10 +1293,10 @@ EOF
   tree actionlint-missing ''
   path=$work/no-tools
   check actionlint-missing SKIP 'SKIP 17-workflow-lint (actionlint is not installed)'
-  tree actionlint-installed-in-ci ''
+  full actionlint-installed-in-ci macos
   path=$work/tools:/usr/bin:/bin
   ci=true
-  check actionlint-installed-in-ci PASS 'jobs: 2, uses keys: 4, findings: 0'
+  check actionlint-installed-in-ci PASS 'jobs: 2, uses keys: 8, findings: 0'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
