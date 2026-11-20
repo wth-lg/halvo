@@ -769,6 +769,24 @@ fn list_overlaps_names_each_other_live_agent_with_the_senders_that_it_shares_in_
             "no"
         ))
     );
+
+    let mut store = MemoryStore::new();
+    let zed = reply_slots(Some(ME), Some("zed@other.test"));
+    other_agent(&mut store, 1, "paused", zed);
+    let three = Some("ann@people.test, bob@people.test, carl@people.test");
+    other_agent(&mut store, 2, "active", reply_slots(Some(ME), three));
+    let asking = "carl@people.test, Bob@People.test, ann@people.test";
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!([slot("reply_senders", asking)])),
+        Ok(overlaps(
+            &[(
+                2,
+                2,
+                &["carl@people.test", "Bob@People.test", "ann@people.test"]
+            )],
+            "no"
+        ))
+    );
 }
 
 #[test]
