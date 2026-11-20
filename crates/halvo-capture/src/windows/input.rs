@@ -1729,6 +1729,48 @@ mod tests {
     }
 
     #[test]
+    fn one_key_of_each_class_maps_to_each_class_once() {
+        let mut state = KeyState::default();
+        let mut classes = Vec::new();
+        let presses: [&[u16]; 6] = [&[0x41], &[0x08], &[0x25], &[0x0D], &[0x09], &[0x11, 0x41]];
+        for keys in presses {
+            for &vkey in keys {
+                let down = KeyStroke {
+                    vkey,
+                    released: false,
+                };
+                classes.extend(map_keystroke(&mut state, down));
+            }
+            for &vkey in keys.iter().rev() {
+                let up = KeyStroke {
+                    vkey,
+                    released: true,
+                };
+                classes.extend(map_keystroke(&mut state, up));
+            }
+        }
+        assert_eq!(
+            classes,
+            [
+                KeyClass::Printable,
+                KeyClass::Editing,
+                KeyClass::Navigation,
+                KeyClass::Enter,
+                KeyClass::Tab,
+                KeyClass::Other,
+                KeyClass::Shortcut,
+            ]
+        );
+        for class in KeyClass::ALL {
+            assert_eq!(
+                classes.iter().filter(|seen| **seen == class).count(),
+                1,
+                "{class:?}"
+            );
+        }
+    }
+
+    #[test]
     fn a_key_up_is_not_recorded() {
         let key = KeyStroke {
             vkey: 0x41,

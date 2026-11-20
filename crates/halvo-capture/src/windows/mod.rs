@@ -1354,6 +1354,31 @@ pub(crate) mod tests {
         assert_eq!(handoff.counts().lost, 3, "the three queued events");
     }
 
+    #[test]
+    fn a_push_does_not_wait_for_a_full_sink() {
+        let (sink, writer) = crate::sink::channel(1);
+        assert_eq!(forward_one(&sink, pointer("filler")), Emitted::Queued);
+        let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
+        let producer = handoff.producer();
+        let (pushed, all_pushed) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            for index in 0..3 {
+                producer.push(pointer(&format!("button-{index}")));
+            }
+            let _ = pushed.send(());
+        });
+        assert!(
+            all_pushed.recv_timeout(Duration::from_secs(2)).is_ok(),
+            "a push waited for the full sink"
+        );
+        let mut apps = Vec::new();
+        while let Ok(received) = writer.recv_timeout(Duration::from_secs(1)) {
+            apps.push(tag(received));
+        }
+        assert_eq!(apps, ["filler", "button-0", "button-1", "button-2"]);
+        assert_eq!(handoff.counts().lost, 0);
+    }
+
     fn stuck_source(sink: SinkHandle) -> Lifecycle {
         let mut life = Lifecycle::default();
         let started = life.begin(&SourceContext::new(sink), "halvo-test-forward", |_| {
