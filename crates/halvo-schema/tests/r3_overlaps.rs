@@ -380,6 +380,12 @@ fn an_entry_is_refused_with_no_sender_with_a_text_that_is_no_sender_and_with_one
         vec!["ann@people.test", "bob@people.test", "ANN@people.TEST"],
     )];
     refused_whole(&apart, "Overlap", "sender_twice", "senders");
+    let no_sender_first = [(
+        other_workflow(1),
+        other_agent(1),
+        vec!["Ann Berg", "bob@people.test"],
+    )];
+    refused_whole(&no_sender_first, "Overlap", "not_a_sender", "senders");
     let at_most = format!("{}@people.test", "a".repeat(308));
     assert!(CoordinatorReply::parse(one(&[at_most.as_str()]).as_bytes()).is_ok());
 }
