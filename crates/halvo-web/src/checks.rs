@@ -1498,6 +1498,16 @@ mod tests {
                 "\"C:\\P F\\b.exe\"\u{0} --user-data-dir=C:\\T\\run\\p",
                 false,
             ),
+            mac(
+                "mac_after_tab_double_dash",
+                &[b, "\t--", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            win(
+                "win_after_spaced_double_dash",
+                r#""C:\P F\b.exe" " -- " --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
             win(
                 "win_nul_inside_an_argument",
                 "\"C:\\P F\\b.exe\" --x=a\u{0} --user-data-dir=C:\\T\\run\\p",
