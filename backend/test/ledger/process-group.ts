@@ -61,9 +61,14 @@ interface Row {
   started: string;
 }
 
+interface Entry {
+  path: string;
+  text: string;
+}
+
 interface Live {
   processes: Processes;
-  groups: Map<Group, string>;
+  groups: Map<Group, Entry>;
   ending: Map<Group, Promise<void>>;
   confirmed: Set<Group>;
   owner: Id | null;
@@ -180,32 +185,36 @@ function unmark(path: string): void {
   } catch {}
 }
 
-function release(path: string, text: string): void {
+function release(path: string, text: string): boolean {
   let now: string;
   try {
     now = readFileSync(path, "utf8");
   } catch {
-    return;
+    return true;
   }
-  if (now === text) unmark(path);
+  if (now !== text) return false;
+  unmark(path);
+  return true;
 }
 
-function releaseOwn(path: string, group: Id, owner: Id | null): void {
-  let mark: Mark | null;
+function foreign(entry: Entry): boolean {
   try {
-    mark = readMark(readFileSync(path, "utf8"));
+    return readFileSync(entry.path, "utf8") !== entry.text;
   } catch {
-    return;
+    return false;
   }
-  if (mark === null || owner === null || mark.pid !== group.pid || mark.started !== group.started) return;
-  if (mark.owner.pid === owner.pid && mark.owner.started === owner.started) unmark(path);
+}
+
+function leftForTheMark(group: Id, entry: Entry): void {
+  process.stderr.write(`process-group: left group ${group.pid} (started ${group.started}): the mark ${basename(entry.path)} is not the text that this run wrote for it\n`);
 }
 
 function stopAll(state: Live): void {
   const groups = [...state.groups.keys()];
   const left = stopNow(groups, state.confirmed);
   for (const group of groups) {
-    if (!left.includes(group)) releaseOwn(state.groups.get(group) as string, group, state.owner);
+    const entry = state.groups.get(group) as Entry;
+    if (!left.includes(group)) release(entry.path, entry.text);
   }
   state.groups.clear();
   state.confirmed.clear();
@@ -291,8 +300,9 @@ export function startGroup(command: string, args: string[], options: Options): G
     const own = table().find((row) => row.pid === child.pid);
     if (own === undefined || own.pgid !== child.pid) throw new Error(`${name} (pid ${child.pid}) does not lead its own process group`);
     const group = { pid: child.pid, started: own.started, child };
-    writeFileSync(mark, JSON.stringify({ ...record, started: own.started }));
-    state.groups.set(group, mark);
+    const text = JSON.stringify({ ...record, started: own.started });
+    writeFileSync(mark, text);
+    state.groups.set(group, { path: mark, text });
     return group;
   } catch (error) {
     let rows: Row[] | null = null;
@@ -311,7 +321,10 @@ export function startGroup(command: string, args: string[], options: Options): G
  * after 5 s (also when the leader itself left on TERM); throws if a member is left 5 s after KILL. The group stays
  * known to the owner's handlers until endGroup has ended it, so that a stop or a failed read of ps while endGroup
  * runs still leaves the group to the handlers, which send KILL after the grace to the members that are left also when
- * the leader has left on endGroup's own TERM; a second endGroup of the same group waits for the first. A group whose
+ * the leader has left on endGroup's own TERM; a second endGroup of the same group waits for the first. endGroup and
+ * the handlers remove a mark only while it reads as the text that startGroup wrote for the group; where a mark of
+ * another text stands at the group's path, endGroup sends no signal, forgets the group and prints one line, and
+ * where no mark stands there it ends the group as above. A group whose
  * leader is gone when it is called gets no signal: endGroup prints one line, keeps its mark for the sweep and does not
  * throw, since nothing tells those processes from another program's group that took the id.
  */
@@ -326,16 +339,21 @@ export async function endGroup(group: Group | null): Promise<void> {
 }
 
 async function endKnown(state: Live, group: Group): Promise<void> {
-  const mark = state.groups.get(group);
+  const entry = state.groups.get(group);
   const rows = table();
   if (!leads(group, rows)) {
     state.groups.delete(group);
     const count = members(group, rows).length;
     if (count === 0) {
-      if (mark !== undefined) releaseOwn(mark, group, state.owner);
+      if (entry !== undefined && !release(entry.path, entry.text)) leftForTheMark(group, entry);
     } else {
       process.stderr.write(`process-group: left group ${group.pid} (started ${group.started}): its leader was gone when endGroup was called and ${processes(count)} its id as their group\n`);
     }
+    return;
+  }
+  if (entry !== undefined && foreign(entry)) {
+    state.groups.delete(group);
+    leftForTheMark(group, entry);
     return;
   }
   state.confirmed.add(group);
@@ -349,7 +367,7 @@ async function endKnown(state: Live, group: Group): Promise<void> {
   }
   state.groups.delete(group);
   state.confirmed.delete(group);
-  if (mark !== undefined) releaseOwn(mark, group, state.owner);
+  if (entry !== undefined) release(entry.path, entry.text);
 }
 
 async function gone(group: Id, ms: number): Promise<boolean> {
