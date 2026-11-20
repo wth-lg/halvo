@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it (in the short form a phase passes with one held round and no failed round, and its rounds not driven are printed by wait; in the long form every wait of each mended phase needs a held round (the return phase keeps its three-way verdict of ruling MA-23), or that wait reads not driven and the ledger takes no record from the run; on the hosted runners a round is often not driven through no fault of the product, and a short form that failed on that turned two landing jobs red, so the long form holds the promise for every wait; a test that reads not driven is never a pass), the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the eight files of the hold and on the stall-seam lines of crates/halvo-capture/Cargo.toml, each with its table and with a features list read as its stall-seam alone, and not on that file's blob; for a test that exits 101 the check prints its panic line and the lines after it, it keeps each test's whole output under tests/ of its artifacts directory, which the job uploads, and it prints for each test its counted rounds and its rounds not driven (a round in which a reply of the fixture did not come or the fixture's output ended, never a pass) and their sums on the total line, fails a test in which a round not driven recorded a key and a test whose every round was not driven, and passes one round not driven beside a counted round (ruling PR-32); 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam, where a build without debug assertions has no DropCounts either (ruling MA-21); it runs the phase of a password typed whole ahead into a field that is secure for less than the spacing of two readings, which must read 0 recorded keys by the notice of the focus change, and the same at the product's constants, whose verdict is held, notkept or failed, and the lag phase, whose session reader the seam hands in with a delay (rulings MA-12 E, MA-20 Addition 1, MA-22 (d)); every line that a hosted test prints under its own name holds names and numbers alone (ruling MA-21); it runs the phase in which a focus notice into a plain field withholds no key, which prints the keys withheld by a notice, by a doubt and by the read at the start of a watch, and the phase of a program that comes to the front with its secure field focused, which must read 0 recorded keys (rulings MA-12 H5, MA-30 M3, M5); and three rules read the tree alone: EnableSecureEventInput, DisableSecureEventInput and every link_name that is no plain literal stand in crates/halvo-capture/src/secure_input_macos.rs alone, read over the files .rs .m .mm .c .cc .cpp .h .swift; a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands there alone too, but that crates/halvo-capture/src/store/hardening_tests/full_flush.rs may look a symbol up in its one fn symbol, defined outside every brace of the code, whose two lines the check holds and whose calls in that file give it plain C string literals beginning r1_, while that file holds no word pub in its code, no mod item, no include!, no macro_rules!, no attribute but #[test], an attribute being read from its #[ to its matching ] and a #[ inside it beginning another in its place and no C string literal that does not begin r1_, and no other tracked text file whose name ends in .rs holds the letters full_flush.rs, in any letter case, with these named limits: a macro of another file or crate that the file calls and that gives fn symbol a name written as no C string literal in the file, a visibility, an attribute or a place inside an item of its own, an attribute named test that a use of the file brings from another crate or file, an attribute of the file that holds the tokens of another attribute inside its own brackets, an asm! or global_asm! of the file that gives fn symbol a symbol name, a path to the file joined at build time or a link to it under another name, the name of the file written with an escape in a string of another Rust file, a file whose name does not end in .rs in small letters, which a Rust file includes or takes as a module and which names the file, and a form of Rust text that the small reader of this check, of comments, strings, raw strings and character literals, reads otherwise than the compiler; and of these three rules alike, a tracked file that git takes as no text file, by a NUL byte in it or by an attribute of .gitattributes, which no search of this check reads (rulings JB-56, JB-58, JB-59, JB-60, JB-61); no field, payload, alias, renaming use, static or annotated let of crates/halvo-capture/src/macos/input.rs or crates/halvo-capture/src/secure_input_macos_hold.rs holds a reading of the secure-input state between two events, with one named limit, a cache whose type is inferred (rulings MA-14, MA-30 M6); and the fields of the clocks Monotonic and Uptime stay private (ruling MA-30 M10).
+# rule: Every stall phase of tests/macos_stall_fixture.rs runs in its own process against the fixture and passes, each listed known fault fails by its own assertion of a recorded key, the phases run at the gap of the test's own, which input.rs decides (from HALVO_STALL_GAP_MS, or from measure_the_readings_of_the_hold when it is unset, measured once more above its cap) and which fails the check by name when it cannot be taken, in the form that HALVO_STALL_FORM names, a closed word that the check hands on alone: short (or unset) in the every-push job, which runs every wait of each mended phase with the rounds that tests/macos_stall_fixture.rs gives it (in the short form a phase passes with one held round and no failed round, and its rounds not driven are printed by wait; in the long form every wait of each mended phase needs a held round (the return phase keeps its three-way verdict of ruling MA-23), or that wait reads not driven and the ledger takes no record from the run; on the hosted runners a round is often not driven through no fault of the product, and a short form that failed on that turned two landing jobs red, so the long form holds the promise for every wait; a test that reads not driven is never a pass; a round lost to a late marker is no failed round of a phase that the two readers of the file read, the four mended phases and the known fault D1 (five of the fourteen tests of the short form; with the loop of 62 rounds, six of the twenty of the long form): such a round's markers were not recorded, no key was ahead, the time that its markers were posted is known, it released no key that arrived before that time or whose arrival is unread, and the late-key rule dropped or withheld a key that arrived at or after that time, which is the late drop attributable to a missing marker; a late drop that lies before the markers' time, a drop entry of the late cause with zero keys and a round with no markers' time do not qualify; a wait with a round lost to the late rule passes only on held, counted rounds (as many as the form asks in a mended phase, one counted round in D1), and a round not driven adds nothing to that wait's quota; the long form fails above one such round at a wait; each such phase prints one count line of them by wait, which the check refuses when it is missing, doubled or malformed, carries onto the test's MS line and sums on the total line; a named limit: the raw entries hold no key code, so a key that the late rule dropped is taken for a marker by its arrival alone, at or after the time the markers were posted, when the fixture posts no other key; and a named limit: the two readers read a round's fields as the producer writes them together (a counted round carries no verdict or reason of a round not driven, a round with the held verdict is counted, and a drop is stamped at or after the arrival of its key), and a made-up record whose fields contradict each other is outside the rule (ruling MA-32)), the return phase, the control, the two-sided gap rule, both listed known faults and the proofs, and prints a line for each thing that it leaves out; and long, which the ledger owes for a change of the hold's nine files and which also runs the line at the product's constants, short_window form (a), the loop and the whole-password lines; a measured line asserts nothing and holds no promise, D2 is held by a stand-in at the product's gap listed as a known fault, the count of the cause unclocked is printed by name, and the measured run of the long form that passed and that docs/baseline/ledger.d/macos-2b.txt records ran on the blobs that the head has of the eight files of the hold and on the stall-seam lines of crates/halvo-capture/Cargo.toml, each with its table and with a features list read as its stall-seam alone, and not on that file's blob; for a test that exits 101 the check prints its panic line and the lines after it, it keeps each test's whole output under tests/ of its artifacts directory, which the job uploads, and it prints for each test its counted rounds and its rounds not driven (a round in which a reply of the fixture did not come or the fixture's output ended, never a pass) and their sums on the total line, fails a test in which a round not driven recorded a key and a test whose every round was not driven, and passes one round not driven beside a counted round (ruling PR-32); 12-test ran the tests of the file that drive stand-ins or tables (the launch path, one fixture for the line at the product's constants, the stamps command, the verdict and case tables and the on-time with the keys' fates) and passed them and ran no other test of the file, which the short form reads from 12-test's list and fails without it (a list that names no test is none), while the long form, run by name, runs without 12-test, and a check build of the library without debug assertions has no InputSource::with_hold_bound, no Debug for a held key or for a tap event and no InputSource::with_seam, the last also with the feature stall-seam, where a build without debug assertions has no DropCounts either (ruling MA-21); it runs the phase of a password typed whole ahead into a field that is secure for less than the spacing of two readings, which must read 0 recorded keys by the notice of the focus change, and the same at the product's constants, whose verdict is held, notkept or failed, and the lag phase, whose session reader the seam hands in with a delay (rulings MA-12 E, MA-20 Addition 1, MA-22 (d)); every line that a hosted test prints under its own name holds names and numbers alone (ruling MA-21); it runs the phase in which a focus notice into a plain field withholds no key, which prints the keys withheld by a notice, by a doubt and by the read at the start of a watch, and the phase of a program that comes to the front with its secure field focused, which must read 0 recorded keys (rulings MA-12 H5, MA-30 M3, M5); and three rules read the tree alone: EnableSecureEventInput, DisableSecureEventInput and every link_name that is no plain literal stand in crates/halvo-capture/src/secure_input_macos.rs alone, but one named line of one named file for the check that refuses the import, the whole line forbidden_import=_EnableSecureEventInput standing once in scripts/r1/ci.d/62-build.sh with no other line of that file naming a Carbon call, read over the files .rs .m .mm .c .cc .cpp .h .swift; a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands there alone too, but that crates/halvo-capture/src/store/hardening_tests/full_flush.rs may look a symbol up in its one fn symbol, defined outside every brace of the code, whose two lines the check holds and whose calls in that file give it plain C string literals beginning r1_, while that file holds no word pub in its code, no mod item, no include!, no macro_rules!, no attribute but #[test], an attribute being read from its #[ to its matching ] and a #[ inside it beginning another in its place and no C string literal that does not begin r1_, and no other tracked file whose path ends in .rs, in small letters, holds the letters full_flush.rs, in any letter case, with these named limits: a macro of another file or crate that the file calls and that gives fn symbol a name written as no C string literal in the file, a visibility, an attribute or a place inside an item of its own, an attribute named test that a use of the file brings from another crate or file, an attribute of the file that holds the tokens of another attribute inside its own brackets, an asm! or global_asm! of the file that gives fn symbol a symbol name, a path to the file joined at build time or a link to it under another name, the name of the file written with an escape in a string of another Rust file, a file whose name does not end in .rs in small letters, which a Rust file includes or takes as a module and which names the file, and a form of Rust text that the small reader of this check, of comments, strings, raw strings and character literals, reads otherwise than the compiler; the three searches over the tree (the two Carbon names, the link_name lines and the lookups by name) read every tracked file but the ones that they exclude, and the name search of the held-file rule every tracked path that ends in .rs in small letters, each as text, also a file that git takes as no text file, by a NUL byte in it or by an attribute of .gitattributes; the held file and the two files of the reading rule are read with each NUL byte as a blank; and a named limit of these three rules: a tracked symbolic link, which no search reads (rulings JB-56, JB-58, JB-59, JB-60, JB-61); no field, payload, alias, renaming use, static or annotated let of crates/halvo-capture/src/macos/input.rs or crates/halvo-capture/src/secure_input_macos_hold.rs holds a reading of the secure-input state between two events, with one named limit, a cache whose type is inferred (rulings MA-14, MA-30 M6); and the fields of the clocks Monotonic and Uptime stay private (ruling MA-30 M10).
 # lane: alone
 set -u
 name=51-macos-stall
@@ -9,6 +9,8 @@ budget_s=${MS_BUDGET_S:-240}
 form_test=the_form_of_the_hosted_phases
 fixture_source=crates/halvo-capture/tests/macos_stall_fixture/fixture.m
 held=crates/halvo-capture/src/store/hardening_tests/full_flush.rs
+import_check=scripts/r1/ci.d/62-build.sh
+import_line=forbidden_import=_EnableSecureEventInput
 leak='recorded keys beside the markers in rounds that counted'
 LC_ALL=C
 export LC_ALL
@@ -71,6 +73,22 @@ a_recorded_key_in_a_round_not_driven_fails_its_phase twelve
 each_judge_reads_a_round_not_driven_by_its_rule_on_a_table twelve
 the_fixture_and_the_test_read_one_table_of_verbs_and_each_reply_time_names_its_clock twelve
 the_verdict_of_a_short_on_time_at_the_products_constants_holds_each_rule_on_a_table twelve
+a_round_lost_to_a_late_marker_reads_by_its_rule_on_a_table twelve
+EOF
+}
+
+count_line_tests() {
+  if [ -n "${MS_COUNT_FILE:-}" ]; then
+    tr -d '\r' <"$MS_COUNT_FILE"
+    return
+  fi
+  cat <<'EOF'
+a_key_typed_ahead_into_a_secure_field_is_not_recorded
+a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded
+a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded
+the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded
+known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorded
+the_mended_click_phase_counts_62_rounds_at_wait_2000_ms
 EOF
 }
 
@@ -119,26 +137,36 @@ seam_manifests() {
 
 carbon_calls() {
   lock=crates/halvo-capture/src/secure_input_macos.rs
-  git grep --cached -I -n -E -e '(^|[^A-Za-z0-9_])_*(Enable|Disable)SecureEventInput([^A-Za-z0-9_]|$)' \
+  git grep --cached -a -n -E -e '(^|[^A-Za-z0-9_])_*(Enable|Disable)SecureEventInput([^A-Za-z0-9_]|$)' \
     -- . ":(exclude)$lock" ':(exclude)docs/research/researcher-4.md' ":(exclude)scripts/r1/ci.d/$name.sh" \
-    >"$work/carbon" 2>/dev/null
+    >"$work/carbon-names" 2>/dev/null
   case $? in 0 | 1) ;; *) fail "git grep could not read the tree for the Carbon calls" ;; esac
-  git grep --cached -I -n -E -e 'link_name[[:space:]]*=' -- . ":(exclude)$lock" ":(exclude)scripts/r1/ci.d/$name.sh" \
+  tr '\000' ' ' <"$work/carbon-names" >"$work/carbon-name-lines" || fail "the lines of the Carbon names cannot be read"
+  awk -v path="$import_check" -v line="$import_line" '
+    { all[NR] = $0 }
+    match($0, /^[^:]*:[0-9]+:/) && substr($0, 1, index($0, ":") - 1) == path {
+      ours++
+      if (substr($0, RLENGTH + 1) == line) exact[NR] = 1
+    }
+    END { for (i = 1; i <= NR; i++) if (!(ours == 1 && (i in exact))) print all[i] }
+  ' "$work/carbon-name-lines" >"$work/carbon" || fail "the lines of the Carbon names cannot be read"
+  git grep --cached -a -n -E -e 'link_name[[:space:]]*=' -- . ":(exclude)$lock" ":(exclude)scripts/r1/ci.d/$name.sh" \
     >"$work/link-names" 2>/dev/null
   case $? in 0 | 1) ;; *) fail "git grep could not read the tree for link_name" ;; esac
+  tr '\000' ' ' <"$work/link-names" >"$work/link-lines" || fail "the link_name lines cannot be read"
   awk '{
     n = split($0, part, /link_name[[:space:]]*=/)
     for (i = 2; i <= n; i++) if (part[i] !~ /^[[:space:]]*"[A-Za-z0-9_$]+"/) { print; next }
-  }' "$work/link-names" >>"$work/carbon" || fail "the link_name lines cannot be read"
-  git grep --cached -I -n -E -e '(^|[^A-Za-z0-9_])(dlsym|dlopen|CFBundleGetFunctionPointerForName)([^A-Za-z0-9_]|$)' \
+  }' "$work/link-lines" >>"$work/carbon" || fail "the link_name lines cannot be read"
+  git grep --cached -a -n -E -e '(^|[^A-Za-z0-9_])(dlsym|dlopen|CFBundleGetFunctionPointerForName)([^A-Za-z0-9_]|$)' \
     -- . ":(exclude)$lock" ":(exclude)scripts/r1/ci.d/$name.sh" ':(exclude)scripts/r4/ci.d/20-r4-core.sh' \
     ':(exclude)tools/r4-trials/app/system/macos.swift' ":(exclude)$held" >>"$work/carbon" 2>/dev/null
   case $? in 0 | 1) ;; *) fail "git grep could not read the tree for a lookup by name" ;; esac
   other=$(cut -d : -f 1 "$work/carbon" | sort -u | tr '\n' ' ')
   [ -z "$other" ] ||
-    fail "the name EnableSecureEventInput or DisableSecureEventInput (with or without leading underscores), a link_name whose name is no plain literal, or a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands outside $lock, whose one lock holds the three Carbon calls: ${other% } (rulings MA-14, MA-30 M6, MA-31 N6); call the hold of that file"
+    fail "the name EnableSecureEventInput or DisableSecureEventInput (with or without leading underscores), a link_name whose name is no plain literal, or a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands outside $lock, whose one lock holds the three Carbon calls: ${other% } (rulings MA-14, MA-30 M6, MA-31 N6); call the hold of that file; a file that is no source and holds one of these names by chance (an image, a font, an archive) is refused all the same, because the three searches read every tracked file as text: take those bytes out of it, or keep the file out of the tree, or ask for a ruling that names its path among the exclusions of this check"
   held_lookups
-  printf 'carbon: in every tracked text file but %s, docs/research/researcher-4.md and this check, no name of the two Carbon calls (with or without leading underscores), no link_name whose name is no plain literal, and no lookup of a symbol by name (scripts/r4/ci.d/20-r4-core.sh and tools/r4-trials/app/system/macos.swift may look up others, and %s %s); limits: a name joined at build or run time, a lookup through a function or a crate that this check does not list, linker arguments from outside the tree, a tracked file that git takes as no text file, by a NUL byte in it or by an attribute of .gitattributes, which no search of this check reads, and in %s a macro of another file or crate that the file calls and that gives fn symbol a name written as no C string literal in the file, a visibility, an attribute or a place inside an item of its own, an attribute named test that a use of the file brings from another crate or file, an attribute of the file that holds the tokens of another attribute inside its own brackets, an asm! or global_asm! of the file that gives fn symbol a symbol name, a path to the file joined at build time or a link to it under another name, the name of the file written with an escape in a string of another Rust file, a file whose name does not end in .rs in small letters, which a Rust file includes or takes as a module and which names the file, and a form of Rust text that the small reader of this check, of comments, strings, raw strings and character literals, reads otherwise than the compiler\n' "$lock" "$held" "$held_said" "$held"
+  printf 'carbon: in every tracked file but %s, docs/research/researcher-4.md and this check, no name of the two Carbon calls (with or without leading underscores) but the one whole line forbidden_import=_EnableSecureEventInput of scripts/r1/ci.d/62-build.sh, one named line of one named file for the check that refuses the import, no link_name whose name is no plain literal, and no lookup of a symbol by name (scripts/r4/ci.d/20-r4-core.sh and tools/r4-trials/app/system/macos.swift may look up others, and %s %s); the three searches read each tracked file as text, also one that git takes as no text file, the name search of the held-file rule reads each tracked path that ends in .rs in small letters, and the held file is read with each NUL byte as a blank; limits: a name joined at build or run time, a lookup through a function or a crate that this check does not list, linker arguments from outside the tree, a tracked symbolic link, which no search reads, and in %s a macro of another file or crate that the file calls and that gives fn symbol a name written as no C string literal in the file, a visibility, an attribute or a place inside an item of its own, an attribute named test that a use of the file brings from another crate or file, an attribute of the file that holds the tokens of another attribute inside its own brackets, an asm! or global_asm! of the file that gives fn symbol a symbol name, a path to the file joined at build time or a link to it under another name, the name of the file written with an escape in a string of another Rust file, a file whose name does not end in .rs in small letters, which a Rust file includes or takes as a module and which names the file, and a form of Rust text that the small reader of this check, of comments, strings, raw strings and character literals, reads otherwise than the compiler\n' "$lock" "$held" "$held_said" "$held"
 }
 
 held_lookups() {
@@ -147,11 +175,12 @@ held_lookups() {
     return 0
   fi
   git show ":$held" >"$work/held" 2>/dev/null || fail "$held cannot be read from the index"
-  git grep --cached -I -l -i -F -e "${held##*/}" -- '*.rs' ":(exclude)$held" >"$work/held-named" 2>/dev/null
+  tr '\000' ' ' <"$work/held" >"$work/held-lines" || fail "$held cannot be read"
+  git grep --cached -a -l -i -F -e "${held##*/}" -- '*.rs' ":(exclude)$held" >"$work/held-named" 2>/dev/null
   case $? in 0 | 1) ;; *) fail "git grep could not read the tree for the name ${held##*/}" ;; esac
   named=$(tr '\n' ' ' <"$work/held-named")
   [ -z "$named" ] ||
-    fail "a tracked text file other than $held whose name ends in .rs holds the letters ${held##*/} in some letter case, so that it could compile the text of $held again beside a call of fn symbol of its own (ruling JB-60): ${named% }"
+    fail "a tracked file other than $held whose path ends in .rs, in small letters, holds the letters ${held##*/} in some letter case, so that it could compile the text of $held again beside a call of fn symbol of its own (ruling JB-60): ${named% }"
   awk -v held="$held" -v q="'" '
     function bad(what) { print held ": " what " at line " NR > found_bad }
     function bad_at(what, at) { print held ": " what " at line " at > found_bad }
@@ -291,7 +320,7 @@ held_lookups() {
       printf "%d", n
       for (i = 1; i <= n; i++) printf " %s", order[i]
       printf "\n"
-    }' "$work/held" >"$work/held-names" 2>"$work/held-bad" || fail "$held cannot be read"
+    }' "$work/held-lines" >"$work/held-names" 2>"$work/held-bad" || fail "$held cannot be read"
   if [ -s "$work/held-bad" ]; then
     detail=$(tr '\n' ';' <"$work/held-bad" | sed 's/;$//; s/;/; /g')
     fail "the lookups of a symbol by name in $held are not held (rulings JB-56, JB-58, JB-59 and JB-60: that file may look a symbol up only in its fn symbol, defined outside every brace of the code, whose two lines this check holds and whose calls in that file give it plain C string literals beginning r1_; it may hold no word pub in its code, no mod item, no include!, no macro_rules!, no attribute but #[test], an attribute being read from its #[ to its matching ] and a #[ inside it beginning another in its place and no C string literal that does not begin r1_): $detail"
@@ -300,13 +329,14 @@ held_lookups() {
   if [ "$count" = 0 ]; then
     held_said='looks no symbol up by name'
   else
-    held_said="looks a symbol up by name only in its fn symbol, by the plain literal names $names, and fn symbol is defined outside every brace; the file holds no word pub in its code, no mod item, no include!, no macro_rules!, no attribute but #[test], an attribute being read from its #[ to its matching ] and a #[ inside it beginning another in its place and no C string literal that does not begin r1_, and no other tracked text file whose name ends in .rs holds the letters full_flush.rs, in any letter case"
+    held_said="looks a symbol up by name only in its fn symbol, by the plain literal names $names, and fn symbol is defined outside every brace; the file holds no word pub in its code, no mod item, no include!, no macro_rules!, no attribute but #[test], an attribute being read from its #[ to its matching ] and a #[ inside it beginning another in its place and no C string literal that does not begin r1_, and no other tracked file whose path ends in .rs, in small letters, holds the letters full_flush.rs, in any letter case"
   fi
 }
 
 reading_places_of() {
   git show ":$1" >"$work/reading-source" 2>/dev/null || fail "$1 cannot be read from the index"
-  tr -d '\r' <"$work/reading-source" | awk -v seam='#[cfg(all(debug_assertions, feature = "stall-seam"))]' '
+  tr '\000' ' ' <"$work/reading-source" >"$work/reading-lines" || fail "$1 cannot be read"
+  tr -d '\r' <"$work/reading-lines" | awk -v seam='#[cfg(all(debug_assertions, feature = "stall-seam"))]' '
     function count(text, pattern) { return gsub(pattern, "", text) }
     function braces(text) { return count(text, "[{]") - count(text, "[}]") }
     function nests(text) { return count(text, "[{(]") - count(text, "[})]") }
@@ -690,6 +720,7 @@ measure() {
     expected_tests >"$work/expected"
   fi
   proof_lines >"$work/proofs"
+  count_line_tests >"$work/count-tests" || fail "the list of the phases that print the count line cannot be read"
   before=$(tracked_changes) || fail "git status failed before the run"
 
   twelve_test
@@ -788,6 +819,7 @@ measure() {
   not_kept=0
   rounds_counted=0
   rounds_not_driven=0
+  rounds_lost=0
   phases_not_driven=0
   index=0
   while read -r test kind only; do
@@ -822,7 +854,7 @@ measure() {
       panics && !after && /thread .* panicked at / { after = 1 }
       after { print "    | " $0; next }
       index($0, test ": ") == 1 { print "    | " $0; next }
-      index($0, test " ") == 1 && substr($0, length(test) + 2) ~ /^(session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |late_click |entries |drops |side=|by_wait |not_driven_waits=|short_on_time )/ { print "    | " $0 }
+      index($0, test " ") == 1 && substr($0, length(test) + 2) ~ /^(session_reader=|gap_ms=|fixture=|round=|control=|verdict=|notdriven |notcounted |late_click |entries |drops |side=|by_wait |not_driven_waits=|short_on_time |rounds_lost_to_the_late_rule=)/ { print "    | " $0 }
     ' "$work/lines-$index" || fail "the output of $test cannot be read"
     awk -v test="$test" '
       index($0, test " round=") == 1 || index($0, test " control=") == 1 {
@@ -847,6 +879,10 @@ measure() {
     read -r round_lines control_lines counted_here not_driven_rounds not_driven_controls recorded_here by_wait \
       <"$work/rounds-$index" || fail "the round lines of $test cannot be read"
     waits_not_driven=$(sed -n "s/^$test not_driven_waits=//p" "$work/lines-$index" | tail -n 1)
+    lost_lines=$(grep -c "^$test rounds_lost_to_the_late_rule=" "$work/lines-$index")
+    lost_line=
+    [ "$lost_lines" != 1 ] ||
+      lost_line=$(sed -n -E "s/^$test rounds_lost_to_the_late_rule=([0-9]+) by_wait=([0-9]+:[0-9]+(,[0-9]+:[0-9]+)*)\$/\1 \2/p" "$work/lines-$index")
     not_driven_here=$((not_driven_rounds + not_driven_controls))
     rounds_counted=$((rounds_counted + counted_here))
     rounds_not_driven=$((rounds_not_driven + not_driven_here))
@@ -890,6 +926,15 @@ measure() {
           ;;
       esac
     fi
+    if [ "$verdict" != FAIL ] && grep -q -x -F -e "$test" "$work/count-tests"; then
+      if [ "$lost_lines" != 1 ]; then
+        verdict=FAIL
+        cause="printed $lost_lines lines of its count of rounds lost to the late rule, not one (ruling MA-32)"
+      elif [ -z "$lost_line" ]; then
+        verdict=FAIL
+        cause="its count line of rounds lost to the late rule does not read rounds_lost_to_the_late_rule=<n> by_wait=<wait>:<n>,... (ruling MA-32)"
+      fi
+    fi
     case $verdict in
       pass) passed=$((passed + 1)) ;;
       not-driven) phases_not_driven=$((phases_not_driven + 1)) ;;
@@ -901,6 +946,10 @@ measure() {
     line="MS $test result=$verdict${three:+ verdict=$three} counted=$counted_here not_driven=$not_driven_here seconds=$seconds limit=$limit"
     [ "$kind" != measured ] || line="$line asserts=nothing"
     [ "$by_wait" = - ] || line="$line by_wait=$by_wait"
+    if [ -n "$lost_line" ]; then
+      rounds_lost=$((rounds_lost + ${lost_line%% *}))
+      line="$line rounds_lost_to_the_late_rule=${lost_line%% *} lost_by_wait=${lost_line#* }"
+    fi
     printf '%s\n' "$line"
     printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
     note=$(notes | sed -n "s/^$test //p")
@@ -910,7 +959,7 @@ measure() {
   after=$(tracked_changes) || fail "git status failed after the run"
   [ "$after" = "$before" ] || fail "a tracked file differs from HEAD after the run"
   history_note | tee -a "$artifacts/ms.txt" || fail "ms.txt cannot be written"
-  line="MS total=$index pass=$passed known_fault=$known notdriven=$not_driven notkept=$not_kept fail=$((failed + fixed)) rounds_counted=$rounds_counted rounds_not_driven=$rounds_not_driven phases_not_driven=$phases_not_driven"
+  line="MS total=$index pass=$passed known_fault=$known notdriven=$not_driven notkept=$not_kept fail=$((failed + fixed)) rounds_counted=$rounds_counted rounds_not_driven=$rounds_not_driven phases_not_driven=$phases_not_driven rounds_lost_to_the_late_rule=$rounds_lost"
   printf '%s\n' "$line"
   printf '%s\n' "$line" >>"$artifacts/ms.txt" || fail "ms.txt cannot be written"
   seconds=$(($(date +%s) - check_started))
@@ -952,7 +1001,8 @@ check() {
     MS_EXPECTED_FILE=$work/expected-small
     MS_TEST_LIMIT_S=${limit:-}
     MS_NOTES_FILE=$work/notes-small
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_EXE STUB_LIB STUB_CALLS MS_EXPECTED_FILE MS_TEST_LIMIT_S MS_NOTES_FILE
+    MS_COUNT_FILE=$work/count-small
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_EXE STUB_LIB STUB_CALLS MS_EXPECTED_FILE MS_TEST_LIMIT_S MS_NOTES_FILE MS_COUNT_FILE
     if [ "${5:-}" = rules ]; then sh "$0" --rules 2>&1; else sh "$0" 2>&1; fi
   )
   code=$?
@@ -1130,6 +1180,9 @@ spec "waits-not-driven-$test" && {
 spec "control-not-driven-$test" && printf '%s control=0 bound_ms=1000 counted=0 landed_plain=0 landed_secure=0 plain_records=0 secure_records=0 after_records=0 rv=notdriven not_driven=output_ended_before_cleared phase_counted=0 phase_not_driven=1\n' "$test"
 spec "recorded-not-driven-$test" && printf '%s round=1 wait_ms=300 bound_ms=1000 counted=0 ahead=2 markers=0 plain=0 secure=8 rv=recorded not_driven=output_ended_before_left_secure phase_counted=1 phase_not_driven=1\n' "$test"
 spec "long-output-$test" && printf 'a line that the check does not print\n  and a second one\n'
+spec "late-rule-$test" && printf '%s rounds_lost_to_the_late_rule=1 by_wait=150:0,300:1\n' "$test"
+spec "late-rule-twice-$test" && printf '%s rounds_lost_to_the_late_rule=1 by_wait=150:1\n%s rounds_lost_to_the_late_rule=0 by_wait=150:0\n' "$test" "$test"
+spec "late-rule-empty-$test" && printf '%s rounds_lost_to_the_late_rule=1 by_wait=\n' "$test"
 spec "prose-$test" && printf '%s the session was lost\n' "$test"
 spec "debug-word-$test" && printf '%s round=2 wait_ms=150 rv=notcounted("the markers were not recorded")\n' "$test"
 spec "panic-$test" && {
@@ -1200,6 +1253,7 @@ self_test() {
   write_stubs
   printf 'the_probe not-run\nthe_form_of_the_hosted_phases not-run\nphase_one phase\nphase_two phase\nknown_one known-fault\nthree_one three-way\nthree_long three-way long\nlaunch_one twelve\nmeasured_one measured\nloop_one loop\n' >"$work/expected-small"
   printf 'phase_two shows what it shows; it does not show the rest\n' >"$work/notes-small"
+  : >"$work/count-small" || exit 2
   git -C "$work/repo" init -q || exit 2
   printf 'tracked\n' >"$work/repo/tracked.txt" || exit 2
   mkdir -p "$work/repo/crates/halvo-capture" "$work/repo/crates/other" || exit 2
@@ -1311,6 +1365,18 @@ waits-not-driven-phase_one'
   check prose-under-the-test-name FAIL 'phase_one: line 3 of its output holds more than names and numbers under the name of the test (ruling MA-21)' 'prose-phase_one'
   check debug-text-under-the-test-name FAIL 'phase_two: line 3 of its output holds more than names and numbers under the name of the test (ruling MA-21)' 'debug-word-phase_two'
   check names-and-numbers-of-a-known-fault PASS 'MS known_one result=known-fault' ''
+  check rounds-lost-to-the-late-rule-on-the-ms-line PASS ' by_wait=150:1/0 rounds_lost_to_the_late_rule=1 lost_by_wait=150:0,300:1' 'late-rule-phase_one'
+  check rounds-lost-to-the-late-rule-in-the-total PASS 'phases_not_driven=0 rounds_lost_to_the_late_rule=1' 'late-rule-phase_one'
+  check rounds-lost-to-the-late-rule-in-the-log PASS '    | phase_one rounds_lost_to_the_late_rule=1 by_wait=150:0,300:1' 'late-rule-phase_one'
+  check count-lines-of-two-phases-sum PASS 'phases_not_driven=0 rounds_lost_to_the_late_rule=2' 'late-rule-phase_one
+late-rule-phase_two'
+  printf 'phase_one\n' >"$work/count-small" || exit 2
+  check count-line-held-once PASS 'MS phase_one result=pass' 'late-rule-phase_one'
+  check count-line-missing FAIL 'phase_one: printed 0 lines of its count of rounds lost to the late rule, not one' ''
+  check count-line-twice FAIL 'phase_one: printed 2 lines of its count of rounds lost to the late rule, not one' 'late-rule-twice-phase_one'
+  check count-line-malformed FAIL 'phase_one: its count line of rounds lost to the late rule does not read' 'late-rule-empty-phase_one'
+  check count-line-missing-in-a-failed-phase-keeps-its-cause FAIL 'phase_one: exit 101' 'fail-phase_one'
+  : >"$work/count-small" || exit 2
   printf '%s\n' 'phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE,HALVO_STALL_FORM,HALVO_STALL_GAP_MS,' \
     'phase_one round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0' \
     'a line that the check does not print' '  and a second one' 'test result: ok. 1 passed; 0 failed; 0 ignored' \
@@ -1391,7 +1457,7 @@ waits-not-driven-phase_one'
   printf 'BEGIN { link_name["a"] = 1 }\n' >"$work/repo/crates/other/names.awk" || exit 2
   git -C "$work/repo" add -A || exit 2
   write_measured_ledger
-  check carbon-calls-and-a-plain-link-name PASS 'carbon: in every tracked text file but crates/halvo-capture/src/secure_input_macos.rs' ''
+  check carbon-calls-and-a-plain-link-name PASS 'carbon: in every tracked file but crates/halvo-capture/src/secure_input_macos.rs' ''
   printf 'paste::paste! {\n    extern "C" {\n        fn [<Enable SecureEventInput>]() -> i32;\n    }\n}\n' >"$work/repo/crates/other/src/lib.rs" || exit 2
   git -C "$work/repo" add -A || exit 2
   check carbon-limit-a-name-joined-at-build-time PASS 'limits: a name joined at build or run time' ''
@@ -1529,7 +1595,7 @@ waits-not-driven-phase_one'
     "$held_store3c"'\n#\r[path = "full_flush_more.rs"]\nfn nothing() {}\n' "$held"
   held_case carbon-held-file-the-spellings-of-test-that-pass PASS "$held_store3c_text" \
     "$held_store3c"'\n#[test]\nfn a() {}\n# [ test ]\nfn b() {}\n#[\ntest\n]\nfn c() {}\n#[test /* a comment */]\nfn d() {}\n' "$held"
-  held_named_text="a tracked text file other than $held whose name ends in .rs holds the letters full_flush.rs"
+  held_named_text="a tracked file other than $held whose path ends in .rs, in small letters, holds the letters full_flush.rs"
   printf 'mod full_flush_again {\n    include!("hardening_tests/full_flush.rs");\n    fn other() -> Option<*mut libc::c_void> {\n        symbol(c"getpid")\n    }\n}\n' >"$work/repo/$held_parent" || exit 2
   held_case carbon-held-file-x03-the-parent-file-includes-the-held-file FAIL "$held_named_text" "$held_store3c" "$held"
   printf 'none\n' >"$work/repo/$held_parent" || exit 2
@@ -1582,6 +1648,98 @@ EOF
   printf '%b' "$held_store3c" >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
   check rules-form-holds-the-file-as-store-3c-has-it PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes" '' rules
+  zz=crates/halvo-capture/src/zz_carbon.rs
+  zz_body='extern "C" {\n    fn EnableSecureEventInput() -> i32;\n    #[link_name = concat!("Disable", "SecureEventInput")]\n    fn off() -> i32;\n}\nfn look() -> *mut libc::c_void {\n    unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"getpid".as_ptr()) }\n}\n'
+  x03_parent='mod full_flush_again {\n    include!("hardening_tests/full_flush.rs");\n    pub(super) fn other() -> Option<*mut libc::c_void> {\n        symbol(c"getpid")\n    }\n}\n'
+  rules_case() {
+    printf '%b' "$4" >"$work/repo/$5" || exit 2
+    git -C "$work/repo" add -A || exit 2
+    check "$1" "$2" "$3" '' rules
+    printf 'none\n' >"$work/repo/$5" || exit 2
+    git -C "$work/repo" add -A || exit 2
+  }
+  attribute_case() {
+    printf '%b' "$4" >"$work/repo/.gitattributes" || exit 2
+    rules_case "$1" "$2" "$3" "$6" "$5"
+    : >"$work/repo/.gitattributes" || exit 2
+    git -C "$work/repo" add -A || exit 2
+  }
+  rules_case carbon-u01-a-rust-file-with-a-nul-byte-that-holds-a-carbon-name-and-a-lookup FAIL "$carbon_text$zz (" \
+    '// \0000 one NUL byte in this comment\n'"$zz_body" "$zz"
+  rules_case carbon-u02-the-same-rust-file-without-the-nul-byte FAIL "$carbon_text$zz (" \
+    '// no NUL byte in this comment\n'"$zz_body" "$zz"
+  rules_case carbon-held-file-s06-a-nul-byte-in-a-comment-of-the-parent-file FAIL "$held_named_text" \
+    '// \0000 one NUL byte in this comment\n'"$x03_parent" "$held_parent"
+  attribute_case carbon-held-file-s07-a-diff-attribute-that-makes-the-parent-file-binary FAIL "$held_named_text" \
+    "/$held_parent -diff\n" "$held_parent" "$x03_parent"
+  attribute_case carbon-attribute-binary-makes-a-rust-file-no-text FAIL "$carbon_text$zz (" "/$zz binary\n" "$zz" "$zz_body"
+  attribute_case carbon-attribute-minus-diff-makes-a-rust-file-no-text FAIL "$carbon_text$zz (" "/$zz -diff\n" "$zz" "$zz_body"
+  attribute_case carbon-attribute-a-macro-that-unsets-diff-makes-a-rust-file-no-text FAIL "$carbon_text$zz (" \
+    "[attr]nodiff -diff\n/$zz nodiff\n" "$zz" "$zz_body"
+  git -C "$work/repo" config diff.bindriver.binary true || exit 2
+  attribute_case carbon-attribute-a-diff-driver-that-the-config-makes-binary FAIL "$carbon_text$zz (" \
+    "/$zz diff=bindriver\n" "$zz" "$zz_body"
+  git -C "$work/repo" config --unset diff.bindriver.binary || exit 2
+  filler=$(awk 'BEGIN { for (i = 0; i < 199; i++) printf "// %s\\n", "ffffffffffffffffffffffffffffffffffff" }') || exit 2
+  rules_case carbon-a-nul-byte-in-the-last-of-the-first-8000-bytes FAIL "$carbon_text$zz (" \
+    "$filler"'// ffffffffffffffffffffffffffffffffffff\0000\n'"$zz_body" "$zz"
+  rules_case carbon-a-nul-byte-after-the-first-8000-bytes FAIL "$carbon_text$zz (" \
+    "$filler"'// fffffffffffffffffffffffffffffffffffff\0000\n'"$zz_body" "$zz"
+  rules_case carbon-a-binary-file-of-another-name-that-a-rust-file-takes-as-a-module FAIL "${carbon_text}crates/halvo-capture/src/hold.bin (" \
+    '// \0000 a module that a Rust file names by #[path = "hold.bin"]\n'"$zz_body" crates/halvo-capture/src/hold.bin
+  rules_case carbon-a-binary-rust-file-with-a-lookup-alone FAIL "$carbon_text$zz (" \
+    '// \0000 a lookup alone\nfn look() -> *mut libc::c_void {\n    unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"getpid".as_ptr()) }\n}\n' "$zz"
+  rules_case carbon-a-binary-objective-c-file FAIL "${carbon_text}crates/other/src/hold.m (" \
+    'void hold(void) { /* \0000 */ EnableSecureEventInput(); }\n' crates/other/src/hold.m
+  rules_case carbon-a-nul-byte-before-a-link-name-on-its-line FAIL "$carbon_text$zz (" \
+    'extern "C" { /* \0000 */ #[link_name = concat!("Enable", "SecureEventInput")] fn hold() -> i32; }\n' "$zz"
+  rules_case carbon-a-binary-file-that-holds-none-of-the-names PASS 'carbon: in every tracked file but' \
+    '\0000\0001\0002 an image with link name and dl sym in it\n' crates/other/icon.png
+  check carbon-printed-limits-without-the-way-that-closed PASS "linker arguments from outside the tree, a tracked symbolic link, which no search reads, and in $held a macro" '' rules
+  check carbon-held-file-said-of-the-other-rust-paths PASS "and no other tracked file whose path ends in .rs, in small letters, holds the letters full_flush.rs, in any letter case" '' rules
+  rules_case carbon-held-file-limit-s02-a-module-file-whose-extension-is-RS PASS "$held_store3c_text" \
+    'include!("full_flush.rs");\npub(super) fn other() -> Option<*mut libc::c_void> {\n    symbol(c"getpid")\n}\n' \
+    crates/halvo-capture/src/store/hardening_tests/full_flush_again.RS
+  for pair in "pub=the word pub in the code, at line 21=/* \0000 */ pub fn leak() {}" \
+    "lookup=a lookup by name outside fn symbol at line 21=/* \0000 */ fn leak() -> *mut libc::c_void { unsafe { libc::dlsym(libc::RTLD_DEFAULT, c\"r1_leak\".as_ptr()) } }" \
+    "symbol-of-getpid=a C string literal that does not begin r1_ at line 21=/* \0000 */ fn other() -> Option<*mut libc::c_void> { symbol(c\"getpid\") }" \
+    "no-mangle=an attribute other than #[test] at line 21=/* \0000 */ #[no_mangle] fn nothing() {}" \
+    "include=an include!, the word include in the code, at line 21=/* \0000 */ include!(\"full_flush_more.rs\");"; do
+    kind=${pair%%=*}
+    rest=${pair#*=}
+    rules_case "carbon-held-file-l4-a-nul-byte-before-$kind-on-its-line" FAIL "$held: ${rest%%=*}" \
+      "$held_store3c"'\n'"${rest#*=}"'\n' "$held"
+  done
+  rules_case reading-l4-a-nul-byte-before-a-field-of-reading-on-its-line FAIL "crates/halvo-capture/src/macos/input.rs can keep a reading of the secure-input state between two events" \
+    'struct HoldState {\n    /* \0000 */ kept: Option<Reading>,\n}\n' crates/halvo-capture/src/macos/input.rs
+  rules_case carbon-n4-a-binary-file-that-is-no-source-and-holds-a-name-by-chance FAIL \
+    'a file that is no source and holds one of these names by chance' '\0000\0001 dlsym \0002\n' crates/other/icon-two.png
+  build62=scripts/r1/ci.d/62-build.sh
+  allowed='forbidden_import=_EnableSecureEventInput'
+  mkdir -p "$work/repo/scripts/r2/ci.d" || exit 2
+  rules_case carbon-s1-the-one-line-of-62-build-passes PASS "but the one whole line $allowed of $build62" \
+    '#!/bin/sh\n# jobs: macos windows\n'"$allowed"'\necho the import that the check refuses\n' "$build62"
+  for pair in "a-leading-blank| $allowed" "a-leading-tab|\t$allowed" "a-blank-after-it|$allowed " \
+    "a-comment-after-it|$allowed # the import" "another-byte-after-it|$allowed;" \
+    'quotes-round-the-value|forbidden_import="_EnableSecureEventInput"' "export-before-it|export $allowed" \
+    "a-carriage-return-before-its-end|$allowed\r" 'another-name-on-the-left|allowed_import=_EnableSecureEventInput' \
+    "the-line-twice|$allowed\n$allowed" "the-name-in-a-comment-on-a-second-line|$allowed\n# the import is _EnableSecureEventInput" \
+    "the-name-in-a-here-document-on-a-second-line|$allowed\ncat <<EOF\n_EnableSecureEventInput\nEOF" \
+    "the-name-in-a-printf-on-a-second-line|$allowed\nprintf '%s\\\\n' _EnableSecureEventInput" \
+    'the-other-carbon-name-as-such-an-assignment|forbidden_import=_DisableSecureEventInput' \
+    "the-other-carbon-name-on-a-second-line|$allowed\ngiven=_DisableSecureEventInput" \
+    "a-nul-byte-after-the-name|$allowed\0000" "a-nul-byte-before-the-line|\0000$allowed"; do
+    rules_case "carbon-s1-refused-${pair%%|*}" FAIL "$carbon_text$build62 (" "${pair#*|}"'\n' "$build62"
+  done
+  rules_case carbon-s1-the-line-in-another-file-is-refused FAIL "${carbon_text}scripts/r1/ci.d/63-prerequisites.sh (" \
+    "$allowed"'\n' scripts/r1/ci.d/63-prerequisites.sh
+  rules_case carbon-s1-the-line-in-a-62-build-of-another-directory-is-refused FAIL "${carbon_text}scripts/r2/ci.d/62-build.sh (" \
+    "$allowed"'\n' scripts/r2/ci.d/62-build.sh
+  capital=scripts/r1/ci.d/62-Build.sh
+  blob=$(printf '%s\n' "$allowed" | git -C "$work/repo" hash-object -w --stdin) || exit 2
+  git -C "$work/repo" update-index --add --cacheinfo "100644,$blob,$capital" || exit 2
+  check carbon-s1-the-line-in-a-path-that-differs-by-a-capital-letter-is-refused FAIL "$carbon_text$capital (" '' rules
+  git -C "$work/repo" update-index --force-remove "$capital" || exit 2
   printf '%b' "$held_head$held_symbol"'fn loaded() -> Option<()> {\n    let pid = symbol(c"getpid")?;\n    Some(())\n}\n' >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
   check rules-form-refuses-a-lookup-by-another-name FAIL "$held: fn symbol gets a name that is no plain literal beginning r1_, or is named other than in such a call, at line 14" '' rules
