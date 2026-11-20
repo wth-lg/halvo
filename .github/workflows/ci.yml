@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,71 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 10-r7-layout 20-r7-backend-static 21-r7-backend-test 22-r7-backend-records 23-r7-machine-paths 24-r7-wall 27-r7-metering-self
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 10-r7-layout 20-r7-backend-static 21-r7-backend-test 22-r7-backend-records 23-r7-machine-paths 24-r7-wall 27-r7-metering-self
+      - name: Base row of unit 4.13 (scratch), the stop cases over the three starts as 87cad277 holds them
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cd backend || exit 1
+          start=$SECONDS
+          files="test/ledger/gateway-chat.node.test.ts test/billing/servers.ts test/metering/stripe-meter-load.node.test.ts"
+          for f in $files; do
+            git show "87cad277:backend/$f" >"$f" || echo "base row: could not read $f at 87cad277"
+          done
+          echo "base row: the three start files differ from 87cad277 in $(git diff --name-only 87cad277 -- $files | grep -c .) of 3"
+          out="$RUNNER_TEMP/base-row.json"
+          text="$RUNNER_TEMP/base-row.txt"
+          sh scripts/with-env.sh node_modules/.bin/vitest run --project node test/ledger/server-stops.node.test.ts -t "while it is up" --reporter=default --reporter=json "--outputFile.json=$out" >"$text" 2>&1
+          code=$?
+          git checkout -- $files
+          echo "base row: vitest exit=$code; tracked files changed after the restore: $(git status --porcelain --untracked-files=no | grep -c .)"
+          node -e '
+          const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+          for (const file of r.testResults) for (const t of file.assertionResults) if (t.status !== "skipped") console.log(`base row: ${t.title.split(":")[0]}: ${t.status}`);' "$out" || echo "base row: no report"
+          unmarked=$(grep -c "^+ *\"where\": \"in the run's own process group, which no mark names\"" "$text")
+          named=$(grep -c '^+ *"pid [0-9]*: ' "$text")
+          failed=$(node -e 'const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(r.numFailedTests)' "$out" 2>/dev/null)
+          left=$(pgrep -f -- "$PWD/" | grep -c .)
+          echo "base row: failed cases: ${failed:-none read} of 3; diffs that show the server in the run's own process group: $unmarked of 3; processes named as left after the stop: $named; processes naming the checkout after the run: $left; seconds=$((SECONDS - start))"
+          if [ "${failed:-0}" != 3 ] || [ "$unmarked" != 3 ]; then tail -n 80 "$text"; fi
+          [ "${failed:-0}" = 3 ] && [ "$unmarked" = 3 ] && [ "$left" = 0 ]
+      - name: Loop of unit 4.13's tests (scratch)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cd backend || exit 1
+          rounds=20
+          start=$SECONDS
+          files="test/ledger/server-stops.node.test.ts test/ledger/process-group-start.node.test.ts"
+          passed=0
+          left_total=0
+          for round in $(seq 1 "$rounds"); do
+            out="$RUNNER_TEMP/loop-413-$round.json"
+            t0=$SECONDS
+            sh scripts/with-env.sh node_modules/.bin/vitest run --project node $files --reporter=json "--outputFile.json=$out" >"$RUNNER_TEMP/loop-413-$round.txt" 2>&1
+            code=$?
+            got=$(node -e 'const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); console.log(r.numTotalTests + " " + r.numPassedTests + " " + r.numFailedTests)' "$out" 2>/dev/null || echo no-report)
+            left=$(pgrep -f -- "$PWD/" | grep -c .)
+            echo "loop 4.13 round $round: exit=$code total-passed-failed=$got left=$left seconds=$((SECONDS - t0))"
+            if [ "$code" = 0 ] && [ "$got" = "12 12 0" ]; then
+              passed=$((passed + 1))
+            else
+              node -e 'const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); for (const f of r.testResults) for (const t of f.assertionResults) if (t.status !== "passed") console.log("loop 4.13 round failed test: " + t.title)' "$out" 2>/dev/null
+              tail -n 40 "$RUNNER_TEMP/loop-413-$round.txt"
+            fi
+            left_total=$((left_total + left))
+          done
+          echo "loop 4.13: server-stops.node.test.ts and process-group-start.node.test.ts passed 12 of 12 in $passed of $rounds rounds; processes naming the checkout after the rounds: $left_total; seconds=$((SECONDS - start))"
+          [ "$passed" = "$rounds" ] && [ "$left_total" = 0 ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -154,14 +201,14 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 10-r7-layout 20-r7-backend-static 22-r7-backend-records 23-r7-machine-paths 24-r7-wall 27-r7-metering-self
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 10-r7-layout 20-r7-backend-static 22-r7-backend-records 23-r7-machine-paths 24-r7-wall 27-r7-metering-self
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
