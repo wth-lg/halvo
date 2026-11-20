@@ -1678,6 +1678,20 @@ EOF
   rules_case carbon-held-file-limit-s02-a-module-file-whose-extension-is-RS PASS "$held_store3c_text" \
     'include!("full_flush.rs");\npub(super) fn other() -> Option<*mut libc::c_void> {\n    symbol(c"getpid")\n}\n' \
     crates/halvo-capture/src/store/hardening_tests/full_flush_again.RS
+  for pair in "pub=the word pub in the code, at line 21=/* \0000 */ pub fn leak() {}" \
+    "lookup=a lookup by name outside fn symbol at line 21=/* \0000 */ fn leak() -> *mut libc::c_void { unsafe { libc::dlsym(libc::RTLD_DEFAULT, c\"r1_leak\".as_ptr()) } }" \
+    "symbol-of-getpid=a C string literal that does not begin r1_ at line 21=/* \0000 */ fn other() -> Option<*mut libc::c_void> { symbol(c\"getpid\") }" \
+    "no-mangle=an attribute other than #[test] at line 21=/* \0000 */ #[no_mangle] fn nothing() {}" \
+    "include=an include!, the word include in the code, at line 21=/* \0000 */ include!(\"full_flush_more.rs\");"; do
+    kind=${pair%%=*}
+    rest=${pair#*=}
+    rules_case "carbon-held-file-l4-a-nul-byte-before-$kind-on-its-line" FAIL "$held: ${rest%%=*}" \
+      "$held_store3c"'\n'"${rest#*=}"'\n' "$held"
+  done
+  rules_case reading-l4-a-nul-byte-before-a-field-of-reading-on-its-line FAIL "crates/halvo-capture/src/macos/input.rs can keep a reading of the secure-input state between two events" \
+    'struct HoldState {\n    /* \0000 */ kept: Option<Reading>,\n}\n' crates/halvo-capture/src/macos/input.rs
+  rules_case carbon-n4-a-binary-file-that-is-no-source-and-holds-a-name-by-chance FAIL \
+    'a file that is no source and holds one of these names by chance' '\0000\0001 dlsym \0002\n' crates/other/icon-two.png
   printf '%b' "$held_head$held_symbol"'fn loaded() -> Option<()> {\n    let pid = symbol(c"getpid")?;\n    Some(())\n}\n' >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
   check rules-form-refuses-a-lookup-by-another-name FAIL "$held: fn symbol gets a name that is no plain literal beginning r1_, or is named other than in such a call, at line 14" '' rules
