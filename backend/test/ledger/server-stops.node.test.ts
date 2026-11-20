@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { endGroup, type Group, groupMembers, startGroup } from "./process-group.ts";
 
 const ROOT = process.cwd();
@@ -9,6 +9,7 @@ const SELF = "test/ledger/server-stops.node.test.ts";
 const MODE: string | undefined = process.env.HALVO_SERVER_STOP_MODE;
 const HERE: string | undefined = process.env.HALVO_SERVER_STOP_DIR;
 const SETTLE_MS = 20_000;
+const STOP_MS = 10_000;
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 interface Id {
@@ -78,8 +79,8 @@ function described(ids: Id[]): string[] {
   });
 }
 
-async function settle(ids: Id[]): Promise<Id[]> {
-  const until = Date.now() + SETTLE_MS;
+async function settle(ids: Id[], ms = SETTLE_MS): Promise<Id[]> {
+  const until = Date.now() + ms;
   for (;;) {
     const left = membersOf(ids);
     if (left.length === 0 || Date.now() >= until) return left;
@@ -138,6 +139,7 @@ const hold = () => new Promise<never>(() => {});
 const STARTS: [string, string][] = [
   ["gateway-chat", "the mock upstream of test/ledger/gateway-chat.node.test.ts"],
   ["stripe-mock", "stripe-mock, which startStripeMock of test/billing/servers.ts starts"],
+  ["stripe-meter-load", "the node child of test/metering/stripe-meter-load.node.test.ts"],
 ];
 
 if (MODE !== undefined) {
@@ -155,6 +157,18 @@ if (MODE !== undefined) {
       ready();
       return hold();
     }, 300_000);
+  } else if (MODE === "stripe-meter-load") {
+    vi.doMock("../billing/servers.ts", async (importOriginal) => {
+      const real = await importOriginal<typeof import("../billing/servers.ts")>();
+      const startRecorder: typeof real.startRecorder = (answer) =>
+        real.startRecorder((request) => {
+          if (answer(request) === "hang") return "hang";
+          ready();
+          return "hang";
+        });
+      return { ...real, startRecorder };
+    });
+    await import("../metering/stripe-meter-load.node.test.ts");
   } else throw new Error(`no mode ${MODE}`);
 } else {
   for (const [mode, server] of STARTS) {
@@ -165,7 +179,7 @@ if (MODE !== undefined) {
         watched.push(...groups);
         const where = groups.some((id) => groupMembers(id).length > 0) ? "in a group that the run marked" : "in the run's own process group, which no mark names";
         signal(run, "SIGINT");
-        expect({ where, left: described(await settle([run, ...groups])) }).toEqual({ where: "in a group that the run marked", left: [] });
+        expect({ where, left: described(await settle([run, ...groups], STOP_MS)) }).toEqual({ where: "in a group that the run marked", left: [] });
       }), 120_000);
   }
 }
