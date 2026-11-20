@@ -883,6 +883,7 @@ pub struct ScreenSource {
     stream: Option<Box<dyn StopStream>>,
     output: Option<Retained<ScreenOutput>>,
     queue: Option<DispatchRetained<DispatchQueue>>,
+    kept: Kept,
     rebuild: Option<Rebuild>,
     failure: Option<CaptureError>,
     unstopped: Option<CaptureError>,
@@ -905,6 +906,7 @@ impl ScreenSource {
             stream: None,
             output: None,
             queue: None,
+            kept: Kept::default(),
             rebuild: None,
             failure: None,
             unstopped: None,
@@ -1169,6 +1171,7 @@ impl CaptureSource for ScreenSource {
             self.stream = None;
             self.reported = Some(code);
             release(self.output.take(), self.queue.take());
+            self.kept.let_go();
             return self.answered(Ok(()));
         }
         let answer = self.stop_stream();
@@ -1218,7 +1221,7 @@ impl ScreenSource {
             release(self.output.take(), self.queue.take());
             return Ok(());
         }
-        keep_for_the_life_of_the_process(self.output.take(), self.queue.take());
+        self.kept.hold(self.output.take(), self.queue.take());
         Err(match completion {
             Ok(StopReply::Failed { code }) => CaptureError::Os {
                 stage: "stop_capture",
@@ -1262,6 +1265,42 @@ fn release(output: Option<Retained<ScreenOutput>>, queue: Option<DispatchRetaine
         give_back_the_sink(output);
     }
     drop((output, queue));
+}
+
+/// The output and the queue of a stream that did not answer its stop, their
+/// sink given back: held until the stream's delegate reports the stop, which
+/// lets them go, and kept for the life of the process when the source drops
+/// before that.
+#[derive(Default)]
+struct Kept {
+    output: Option<Retained<ScreenOutput>>,
+    queue: Option<DispatchRetained<DispatchQueue>>,
+}
+
+impl Kept {
+    fn hold(
+        &mut self,
+        output: Option<Retained<ScreenOutput>>,
+        queue: Option<DispatchRetained<DispatchQueue>>,
+    ) {
+        if output.is_none() && queue.is_none() {
+            return;
+        }
+        if let Some(kept) = &output {
+            give_back_the_sink(kept);
+        }
+        drop(std::mem::replace(self, Kept { output, queue }));
+    }
+
+    fn let_go(&mut self) {
+        release(self.output.take(), self.queue.take());
+    }
+}
+
+impl Drop for Kept {
+    fn drop(&mut self) {
+        keep_for_the_life_of_the_process(self.output.take(), self.queue.take());
+    }
 }
 
 fn keep_for_the_life_of_the_process(
@@ -3517,6 +3556,90 @@ mod tests {
             released,
             [(true, true), (false, false)],
             "a clean stop releases the queue; a failed stop keeps it"
+        );
+    }
+
+    #[test]
+    fn a_report_after_a_failed_stop_stands_at_a_second_shutdown_and_lets_go_of_what_the_stop_kept()
+    {
+        for (first, code) in [
+            (Some(StopReply::Failed { code: -3808 }), USER_STOPPED),
+            (Some(StopReply::Failed { code: -3808 }), -3821),
+            (None, USER_STOPPED),
+            (None, -3821),
+        ] {
+            let what = format!("{first:?} then the report {code}");
+            let (handle, writer) = sink::channel(8);
+            let (_fg_writer, reader) = in_front_for_test();
+            let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+            source.probe = inactive();
+            let asks = Rc::new(Cell::new(0));
+            let begun = source.begin_with(&context_on(handle.clone()), scripted(&[first], &asks));
+            assert_eq!(begun, Ok(Started::Running), "{what}");
+            let old = source
+                .output
+                .clone()
+                .expect("a started source holds its output");
+            let weak = Weak::from_retained(&old);
+            assert!(source.shutdown().is_err(), "{what}: the first stop");
+            deliver_stop(&old, code as NSInteger);
+            assert_eq!(source.shutdown(), Ok(()), "{what}: the second shutdown");
+            assert_eq!(asks.get(), 1, "{what}: the stream was asked again");
+            assert_eq!(source.health().state, stopped_by(code), "{what}");
+            assert!(
+                old.ivars()
+                    .sink
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .is_none(),
+                "{what}: the old output holds its sink"
+            );
+            let (new_handle, _new_writer) = sink::channel(8);
+            let new_asks = Rc::new(Cell::new(0));
+            let again = source.begin_with(
+                &context_on(new_handle),
+                scripted(&[Some(StopReply::Stopped)], &new_asks),
+            );
+            assert_eq!(
+                again,
+                Ok(Started::Running),
+                "{what}: a begin that the caller makes"
+            );
+            deliver(&old, complete().sample());
+            drop(handle);
+            assert_eq!(
+                kinds_until_closed(&writer),
+                [],
+                "{what}: a record through the old stream after the later begin"
+            );
+            drop(old);
+            assert!(
+                weak.load().is_none(),
+                "{what}: the output that the failed stop kept was not let go"
+            );
+            assert_eq!(source.shutdown(), Ok(()), "{what}: the new stream's stop");
+        }
+    }
+
+    #[test]
+    fn with_no_report_after_a_failed_stop_a_second_shutdown_asks_again_and_takes_its_answer() {
+        let (mut source, _handle, _writer, asks, weak) = started(&[
+            Some(StopReply::Failed { code: -3808 }),
+            Some(StopReply::Failed { code: -3810 }),
+        ]);
+        assert!(source.shutdown().is_err(), "the first stop");
+        let second = source.shutdown();
+        let error = CaptureError::Os {
+            stage: "stop_capture",
+            domain: "ScreenCaptureKit",
+            code: -3810,
+        };
+        assert_eq!(asks.get(), 2, "the second shutdown did not ask again");
+        assert_eq!(second, Err(error.clone()));
+        assert_eq!(source.health().state, source_failure(error));
+        assert!(
+            weak.load().is_some(),
+            "the output of the failed stop was let go with no report"
         );
     }
 
