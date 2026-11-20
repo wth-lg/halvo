@@ -65,6 +65,7 @@ interface Live {
   processes: Processes;
   groups: Map<Group, string>;
   ending: Map<Group, Promise<void>>;
+  confirmed: Set<Group>;
   owner: Id | null;
   signals: boolean;
   installed: boolean;
@@ -99,7 +100,7 @@ function live(): Live {
   const shared = globalThis as unknown as Record<symbol, Live | undefined>;
   const found = shared[LIVE];
   if (found !== undefined) return found;
-  const made: Live = { processes: SYSTEM, groups: new Map(), ending: new Map(), owner: null, signals: false, installed: false, grace: GRACE_MS };
+  const made: Live = { processes: SYSTEM, groups: new Map(), ending: new Map(), confirmed: new Set(), owner: null, signals: false, installed: false, grace: GRACE_MS };
   shared[LIVE] = made;
   return made;
 }
@@ -110,7 +111,7 @@ function live(): Live {
  */
 export function useProcesses(processes: Processes | null, graceMs = GRACE_MS): void {
   const shared = globalThis as unknown as Record<symbol, Live | undefined>;
-  shared[LIVE] = { processes: processes ?? SYSTEM, groups: new Map(), ending: new Map(), owner: null, signals: false, installed: false, grace: graceMs };
+  shared[LIVE] = { processes: processes ?? SYSTEM, groups: new Map(), ending: new Map(), confirmed: new Set(), owner: null, signals: false, installed: false, grace: graceMs };
 }
 
 function table(zombies = false): Row[] {
@@ -158,9 +159,9 @@ function send(group: Id, name: "SIGTERM" | "SIGKILL"): void {
   } catch {}
 }
 
-function stopNow(groups: Id[]): Id[] {
+function stopNow(groups: Id[], ended: Set<Id> = new Set()): Id[] {
   const rows = table();
-  const confirmed = groups.filter((group) => leads(group, rows));
+  const confirmed = groups.filter((group) => leads(group, rows) || (ended.has(group) && members(group, rows).length > 0));
   const left = groups.filter((group) => !confirmed.includes(group) && members(group, rows).length > 0);
   let going = confirmed;
   for (const name of ["SIGTERM", "SIGKILL"] as const) {
@@ -202,11 +203,12 @@ function releaseOwn(path: string, group: Id, owner: Id | null): void {
 
 function stopAll(state: Live): void {
   const groups = [...state.groups.keys()];
-  const left = stopNow(groups);
+  const left = stopNow(groups, state.confirmed);
   for (const group of groups) {
     if (!left.includes(group)) releaseOwn(state.groups.get(group) as string, group, state.owner);
   }
   state.groups.clear();
+  state.confirmed.clear();
 }
 
 function install(state: Live): void {
@@ -257,7 +259,8 @@ export function marksDir(): string {
  * of the child caught. Until endGroup ends it, the owner ends the group when it gets TERM, INT or
  * HUP (and then dies by that signal), when its IPC channel to vitest's main process closes (and then exits with 1),
  * and when it exits: TERM to a group whose leader has the recorded pid and start time, and KILL after the grace to
- * the members that are left, also when the leader itself left on TERM. When vitest stops a fork it sends KILL 500 ms
+ * the members that are left, also when the leader itself left on TERM, that TERM or the TERM of an endGroup that had
+ * read the leader and was still waiting. When vitest stops a fork it sends KILL 500 ms
  * after its TERM, so a group that outlives TERM by more than that keeps its mark, as does a group that ends on TERM
  * when the kit's own read of ps before its TERM takes longer than those 500 ms. A KILL of the owner runs none of
  * these: the group and its mark stay until sweepMarks.
@@ -307,7 +310,8 @@ export function startGroup(command: string, args: string[], options: Options): G
  * Ends the group while its leader has the recorded pid and start time: TERM, and KILL to the members that are left
  * after 5 s (also when the leader itself left on TERM); throws if a member is left 5 s after KILL. The group stays
  * known to the owner's handlers until endGroup has ended it, so that a stop or a failed read of ps while endGroup
- * runs still leaves the group to the handlers; a second endGroup of the same group waits for the first. A group whose
+ * runs still leaves the group to the handlers, which send KILL after the grace to the members that are left also when
+ * the leader has left on endGroup's own TERM; a second endGroup of the same group waits for the first. A group whose
  * leader is gone when it is called gets no signal: endGroup prints one line, keeps its mark for the sweep and does not
  * throw, since nothing tells those processes from another program's group that took the id.
  */
@@ -334,6 +338,7 @@ async function endKnown(state: Live, group: Group): Promise<void> {
     }
     return;
   }
+  state.confirmed.add(group);
   send(group, "SIGTERM");
   if (!(await gone(group, state.grace))) {
     send(group, "SIGKILL");
@@ -343,6 +348,7 @@ async function endKnown(state: Live, group: Group): Promise<void> {
     throw new Error(`process group ${group.pid} (started ${group.started}) still has members ${members(group).join(" ")}`);
   }
   state.groups.delete(group);
+  state.confirmed.delete(group);
   if (mark !== undefined) releaseOwn(mark, group, state.owner);
 }
 
