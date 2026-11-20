@@ -1662,9 +1662,10 @@ fn verdicts(runs: &[PhaseRun], controls: &Controls) -> Vec<String> {
 }
 
 fn run_kind(kind: Kind) -> Vec<PhaseRun> {
+    let phases = kinds::refuse_an_empty_kind(kind.test(), kind.phases())
+        .unwrap_or_else(|why| panic!("{why}"));
     let mut session = Session::open(kind.test());
-    let runs: Vec<PhaseRun> = kind
-        .phases()
+    let runs: Vec<PhaseRun> = phases
         .into_iter()
         .map(|phase| session.rounds(phase))
         .collect();

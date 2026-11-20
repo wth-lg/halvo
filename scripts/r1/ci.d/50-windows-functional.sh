@@ -98,6 +98,7 @@ stall::click_then_letters_while_the_program_sleeps_at_each_wait group=native
 stall::enter_a_tab_out_and_a_focus_move_in_two_steps_record_no_letter group=native
 stall::five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorded group=native
 stall::helper_stall_fixture group=native
+stall::kinds::a_kind_with_no_phase_to_run_is_refused group=native
 stall::kinds::a_native_phase_fails_each_of_its_own_faults group=native
 stall::kinds::a_phase_before_the_before_control_or_after_the_after_control_fails group=native
 stall::kinds::a_phase_between_the_two_controls_of_its_own_session_passes group=native
@@ -107,6 +108,7 @@ stall::kinds::a_phase_whose_control_recorded_fewer_than_five_letters_fails group
 stall::kinds::a_phase_whose_two_controls_come_from_two_sessions_fails group=native
 stall::kinds::each_check_of_a_phase_fails_its_own_fault_in_each_family group=native
 stall::kinds::each_fault_of_a_family_still_fails_after_the_sum_that_a_live_phase_goes_through group=native
+stall::kinds::each_kind_holds_its_own_phases_in_their_order group=native
 stall::kinds::the_count_of_open_latches_is_read_from_the_text_of_the_gate group=native
 stall::kinds::the_kinds_hold_one_phase_for_each_test_and_sub_case_that_they_replace group=native
 stall::tab_then_letters_while_the_program_serves_sent_messages_at_each_wait group=native

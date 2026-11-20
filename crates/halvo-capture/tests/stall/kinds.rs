@@ -424,6 +424,13 @@ fn of_native(rounds: u32, counted: u32, recorded: u32, late: u64) -> Result<(), 
     Ok(())
 }
 
+pub(super) fn refuse_an_empty_kind(test: &str, phases: Vec<Phase>) -> Result<Vec<Phase>, String> {
+    if phases.is_empty() {
+        return Err(format!("{test} has no phase to run"));
+    }
+    Ok(phases)
+}
+
 pub(super) fn verdict(run: &PhaseRun, controls: &Controls) -> Result<(), String> {
     bracketed(run.step, controls)
         .and_then(|()| began_with_no_open_latch(run.open_latches_at_the_start))
@@ -440,9 +447,10 @@ pub(super) fn verdict(run: &PhaseRun, controls: &Controls) -> Result<(), String>
         .map_err(|why| format!("{} {} {:?}: {why}", run.test, run.name, run.wait))
 }
 
-pub(super) const REPLACED: [(&str, Phase); 27] = [
+pub(super) const REPLACED: [(&str, Kind, Phase); 27] = [
     (
         "stall::tab_then_letters_while_the_program_sleeps_150_ms",
+        Kind::TabSleeps,
         Phase {
             test: "stall-tab-sleeps-150",
             name: "tab_sleeps_150ms",
@@ -462,6 +470,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_then_letters_while_the_program_sleeps_200_ms",
+        Kind::TabSleeps,
         Phase {
             test: "stall-tab-sleeps-200",
             name: "tab_sleeps_200ms",
@@ -481,6 +490,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_then_letters_while_the_program_sleeps_300_ms",
+        Kind::TabSleeps,
         Phase {
             test: "stall-tab-sleeps-300",
             name: "tab_sleeps_300ms",
@@ -500,6 +510,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_then_letters_while_the_program_sleeps_600_ms",
+        Kind::TabSleeps,
         Phase {
             test: "stall-tab-sleeps-600",
             name: "tab_sleeps_600ms",
@@ -519,6 +530,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_then_letters_while_the_program_sleeps_2000_ms",
+        Kind::TabSleeps,
         Phase {
             test: "stall-tab-sleeps-2000",
             name: "tab_sleeps_2000ms",
@@ -538,6 +550,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_then_letters_while_the_program_serves_sent_messages_150_ms",
+        Kind::TabServes,
         Phase {
             test: "stall-tab-serves-150",
             name: "tab_serves_150ms",
@@ -557,6 +570,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_then_letters_while_the_program_serves_sent_messages_200_ms",
+        Kind::TabServes,
         Phase {
             test: "stall-tab-serves-200",
             name: "tab_serves_200ms",
@@ -576,6 +590,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_then_letters_while_the_program_serves_sent_messages_300_ms",
+        Kind::TabServes,
         Phase {
             test: "stall-tab-serves-300",
             name: "tab_serves_300ms",
@@ -595,6 +610,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_then_letters_while_the_program_serves_sent_messages_600_ms",
+        Kind::TabServes,
         Phase {
             test: "stall-tab-serves-600",
             name: "tab_serves_600ms",
@@ -614,6 +630,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_then_letters_while_the_program_serves_sent_messages_2000_ms",
+        Kind::TabServes,
         Phase {
             test: "stall-tab-serves-2000",
             name: "tab_serves_2000ms",
@@ -633,6 +650,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::click_then_letters_while_the_program_sleeps_150_ms",
+        Kind::ClickSleeps,
         Phase {
             test: "stall-click-sleeps-150",
             name: "click_sleeps_150ms",
@@ -652,6 +670,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::click_then_letters_while_the_program_sleeps_200_ms",
+        Kind::ClickSleeps,
         Phase {
             test: "stall-click-sleeps-200",
             name: "click_sleeps_200ms",
@@ -671,6 +690,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::click_then_letters_while_the_program_sleeps_300_ms",
+        Kind::ClickSleeps,
         Phase {
             test: "stall-click-sleeps-300",
             name: "click_sleeps_300ms",
@@ -690,6 +710,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::click_then_letters_while_the_program_sleeps_600_ms",
+        Kind::ClickSleeps,
         Phase {
             test: "stall-click-sleeps-600",
             name: "click_sleeps_600ms",
@@ -709,6 +730,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::click_then_letters_while_the_program_sleeps_2000_ms",
+        Kind::ClickSleeps,
         Phase {
             test: "stall-click-sleeps-2000",
             name: "click_sleeps_2000ms",
@@ -728,6 +750,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::click_then_letters_while_the_program_serves_sent_messages_150_ms",
+        Kind::ClickServes,
         Phase {
             test: "stall-click-serves-150",
             name: "click_serves_150ms",
@@ -747,6 +770,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::click_then_letters_while_the_program_serves_sent_messages_200_ms",
+        Kind::ClickServes,
         Phase {
             test: "stall-click-serves-200",
             name: "click_serves_200ms",
@@ -766,6 +790,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::click_then_letters_while_the_program_serves_sent_messages_300_ms",
+        Kind::ClickServes,
         Phase {
             test: "stall-click-serves-300",
             name: "click_serves_300ms",
@@ -785,6 +810,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::click_then_letters_while_the_program_serves_sent_messages_600_ms",
+        Kind::ClickServes,
         Phase {
             test: "stall-click-serves-600",
             name: "click_serves_600ms",
@@ -804,6 +830,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::click_then_letters_while_the_program_serves_sent_messages_2000_ms",
+        Kind::ClickServes,
         Phase {
             test: "stall-click-serves-2000",
             name: "click_serves_2000ms",
@@ -823,6 +850,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_tab_and_a_letter_across_a_second_field_while_the_program_waits_after_the_first_tab",
+        Kind::SecondFieldAndOtherFront,
         Phase {
             test: "stall-tab-tab",
             name: "tab_tab_300ms",
@@ -842,6 +870,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_tab_and_a_letter_across_a_second_field_while_the_program_waits_after_the_first_tab",
+        Kind::SecondFieldAndOtherFront,
         Phase {
             test: "stall-tab-tab",
             name: "tab_tab_300ms",
@@ -861,6 +890,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_and_letters_while_a_window_of_another_thread_comes_to_the_front",
+        Kind::SecondFieldAndOtherFront,
         Phase {
             test: "stall-other-front",
             name: "other_front_300ms",
@@ -880,6 +910,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::tab_and_letters_while_a_window_of_another_thread_comes_to_the_front",
+        Kind::SecondFieldAndOtherFront,
         Phase {
             test: "stall-other-front",
             name: "other_front_300ms",
@@ -899,6 +930,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::enter_with_no_focus_move_then_five_letters_records_no_letter",
+        Kind::EnterTabOutAndTwoStep,
         Phase {
             test: "stall-enter",
             name: "enter_then_five_letters",
@@ -918,6 +950,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::a_second_tab_out_of_the_password_field_then_a_letter_records_nothing",
+        Kind::EnterTabOutAndTwoStep,
         Phase {
             test: "stall-tab-out",
             name: "tab_out_then_a_letter",
@@ -937,6 +970,7 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
     ),
     (
         "stall::the_program_moves_the_focus_in_two_steps_and_no_letter_is_recorded",
+        Kind::EnterTabOutAndTwoStep,
         Phase {
             test: "stall-two-step",
             name: "two_step",
@@ -954,6 +988,73 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
             checks: Checks::Stall,
         },
     ),
+];
+
+pub(super) const SELF_FOCUS: [Phase; 4] = [
+    Phase {
+        test: "stall-self-focus",
+        name: "self_focus",
+        lead: Lead::Nothing,
+        wait: Wait::ServesSent,
+        stall_ms: 150,
+        rounds: 20,
+        letters_through_the_wait: false,
+        letters_after: 0,
+        start_in_password: false,
+        self_focus: true,
+        two_step: false,
+        other_front: false,
+        landing: Landing::Password,
+        checks: Checks::ControlsAndSink,
+    },
+    Phase {
+        test: "stall-self-focus",
+        name: "self_focus",
+        lead: Lead::Nothing,
+        wait: Wait::ServesSent,
+        stall_ms: 300,
+        rounds: 20,
+        letters_through_the_wait: false,
+        letters_after: 0,
+        start_in_password: false,
+        self_focus: true,
+        two_step: false,
+        other_front: false,
+        landing: Landing::Password,
+        checks: Checks::ControlsAndSink,
+    },
+    Phase {
+        test: "stall-self-focus",
+        name: "self_focus",
+        lead: Lead::Nothing,
+        wait: Wait::ServesSent,
+        stall_ms: 600,
+        rounds: 20,
+        letters_through_the_wait: false,
+        letters_after: 0,
+        start_in_password: false,
+        self_focus: true,
+        two_step: false,
+        other_front: false,
+        landing: Landing::Password,
+        checks: Checks::ControlsAndSink,
+    },
+    Phase {
+        test: "stall-self-focus",
+        name: "self_focus",
+        lead: Lead::Nothing,
+        wait: Wait::Sleeps,
+        stall_ms: 300,
+        rounds: 20,
+        letters_through_the_wait: false,
+        letters_after: 0,
+        start_in_password: false,
+        self_focus: true,
+        two_step: false,
+        other_front: false,
+        landing: Landing::Password,
+        checks: Checks::ControlsAndSink,
+    },
 ];
 
 pub(super) const REPLACED_NATIVE: [(&str, (&str, &str)); 2] = [
@@ -1322,10 +1423,10 @@ fn the_kinds_hold_one_phase_for_each_test_and_sub_case_that_they_replace() {
     .into_iter()
     .flat_map(Kind::phases)
     .collect();
-    let replaced: Vec<Phase> = REPLACED.iter().map(|(_, phase)| *phase).collect();
+    let replaced: Vec<Phase> = REPLACED.iter().map(|(_, _, phase)| *phase).collect();
     let tests: std::collections::BTreeSet<&str> = REPLACED
         .iter()
-        .map(|(test, _)| *test)
+        .map(|(test, _, _)| *test)
         .chain(REPLACED_NATIVE.iter().map(|(test, _)| *test))
         .collect();
     assert_eq!(
@@ -1455,5 +1556,52 @@ fn each_fault_of_a_family_still_fails_after_the_sum_that_a_live_phase_goes_throu
     assert!(
         missed.is_empty(),
         "faults that passed after the sum, by their index: {missed:?}"
+    );
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn each_kind_holds_its_own_phases_in_their_order() {
+    let mut wrong = Vec::new();
+    for kind in [
+        Kind::TabSleeps,
+        Kind::TabServes,
+        Kind::ClickSleeps,
+        Kind::ClickServes,
+        Kind::SecondFieldAndOtherFront,
+        Kind::EnterTabOutAndTwoStep,
+        Kind::SelfFocus,
+    ] {
+        let own: Vec<Phase> = if kind == Kind::SelfFocus {
+            SELF_FOCUS.to_vec()
+        } else {
+            REPLACED
+                .iter()
+                .filter(|(_, of, _)| *of == kind)
+                .map(|(_, _, phase)| *phase)
+                .collect()
+        };
+        if own.is_empty() || kind.phases() != own {
+            wrong.push(kind.test());
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "kinds whose phases are not their own, by their label: {wrong:?}"
+    );
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn a_kind_with_no_phase_to_run_is_refused() {
+    assert!(
+        refuse_an_empty_kind("stall-click-sleeps", Vec::new())
+            .is_err_and(|why| why == "stall-click-sleeps has no phase to run"),
+        "a kind with no phase was not refused"
+    );
+    let one = Kind::TabSleeps.phases()[..1].to_vec();
+    assert_eq!(
+        refuse_an_empty_kind("stall-tab-sleeps", one.clone()),
+        Ok(one)
     );
 }
