@@ -2299,7 +2299,7 @@ fn held_look(_conn: &Connection, store_dir: &Dir, _form: NameForm) -> StoreResul
 }
 
 enum Keyed {
-    Open { db: Db, store_key: StoreKey },
+    Open { db: Box<Db>, store_key: StoreKey },
     Deleting(Option<Box<DeleteReport>>),
     Deleted(Box<DeleteReport>),
 }
@@ -2478,7 +2478,10 @@ impl EncryptedStore {
                 dir: store,
                 retention,
                 custody,
-                keyed: Keyed::Open { db, store_key },
+                keyed: Keyed::Open {
+                    db: Box::new(db),
+                    store_key,
+                },
                 fs: Arc::new(OsFs),
                 unwrap_time: Duration::ZERO,
                 pending_left: false,
@@ -2700,7 +2703,10 @@ impl EncryptedStore {
             dir: store,
             retention,
             custody,
-            keyed: Keyed::Open { db, store_key },
+            keyed: Keyed::Open {
+                db: Box::new(db),
+                store_key,
+            },
             fs: Arc::new(OsFs),
             unwrap_time,
             pending_left,
