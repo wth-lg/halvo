@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=70
+failing_fixtures=71
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 prints_rule=scripts/r1/windows-prints-rule.sh
@@ -1301,6 +1301,15 @@ EOF
       -c commit.gpgsign=false commit -q -m "a stale ledger committed" || exit 2
     cp "$right_ledger" docs/baseline/ledger.d/win-3.txt || exit 2
   ) || exit 2
+  git clone -q "$repo" "$work/repo-right-ledger-committed" || exit 2
+  (
+    cd "$work/repo-right-ledger-committed" || exit 2
+    mkdir -p docs/baseline/ledger.d || exit 2
+    cp "$right_ledger" docs/baseline/ledger.d/win-3.txt || exit 2
+    git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
+      -c commit.gpgsign=false commit -q -m "the right ledger committed" || exit 2
+    cp "$work/ledger-stale" docs/baseline/ledger.d/win-3.txt || exit 2
+  ) || exit 2
 }
 
 self_test() {
@@ -1598,6 +1607,15 @@ fixtures() {
   rules_knob=yes
   check rules-form-reads-the-ledger-that-head-holds FAIL "$right" \
     "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's (0000000000000000000000000000000000000000 against " \
+    "!the --rules form called"
+  repo_knob=$work/repo-right-ledger-committed
+  rules_knob=yes
+  check rules-form-passes-on-the-ledger-that-head-holds-beside-a-stale-one-in-the-work-tree PASS "$right" \
+    "ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
+    "${nl}rules: the ledger check alone ran" "!the --rules form called"
+  rules_knob=yes
+  check rules-form-refuses-a-head-that-holds-no-ledger FAIL "$right" \
+    "FAIL $name (HEAD holds no docs/baseline/ledger.d/win-3.txt: commit the ledger, and the form reads it as HEAD holds it)" \
     "!the --rules form called"
   args_knob=--no-such-form
   check an-unknown-argument-prints-the-usage-and-exits-64 exit-64 "$right" \
