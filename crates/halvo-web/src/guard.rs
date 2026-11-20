@@ -1926,8 +1926,10 @@ mod tests {
     /// nothing: the last line counts no ask and one forced end. 4: a first process without the
     /// mark: nothing is asked or ended, the first line names the member left with `ended_by=none`,
     /// and the guard leaves at the cap. `guard_main` runs on `SYSTEM`, whose parts are the
-    /// functions of `procs`, `checks` and this module by name, and whose sleep of `POLL` is at
-    /// least `POLL` and, the least of five, under ten times `POLL`.
+    /// functions of `procs`, `checks` and this module by name, whose sleep of `POLL` is at least
+    /// `POLL` and, the least of five, under ten times `POLL`, and whose sleep of `UNREAD_PAUSE` is
+    /// at least `UNREAD_PAUSE` and, the least of ten, under `POLL` (U2.6b round 3, R4: a sleep that
+    /// ignores its argument and sleeps `POLL` fails here).
     #[test]
     fn rc_run_guard_opens_the_watch_of_its_executor_and_reads_its_end_from_it() {
         let argv: Vec<String> = [
@@ -2079,6 +2081,16 @@ mod tests {
         let least = samples.iter().min().copied().expect("five samples");
         println!("rc system_sleep_poll={samples:?}");
         assert!(least >= POLL && least < POLL * 10, "{samples:?}");
+        let unread: Vec<Duration> = (0..10)
+            .map(|_| {
+                let before = (SYSTEM.now)();
+                (SYSTEM.sleep)(UNREAD_PAUSE);
+                (SYSTEM.now)().duration_since(before)
+            })
+            .collect();
+        let least = unread.iter().min().copied().expect("ten samples");
+        println!("rc system_sleep_unread_pause={unread:?}");
+        assert!(least >= UNREAD_PAUSE && least < POLL, "{unread:?}");
     }
 
     #[test]
