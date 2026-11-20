@@ -1,8 +1,31 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+import type { Metering } from "../../src/metering/index.ts";
 import { RULE_DOWNTIME_BUDGET } from "../../test-kit/fake-meter/rerun/property.ts";
 import { type Command, DAY, type Fault, HOUR, runScenario, type Scenario } from "../../test-kit/fake-meter/rerun/world.ts";
 
 const DOWN_PAST_THE_WINDOW: Fault = { kind: "crash-before-call", downSeconds: 86_101 };
+const scripted = vi.hoisted(() => ({ closesAnAcknowledgedRead: false }));
+
+vi.mock("../../src/metering/index.ts", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../../src/metering/index.ts")>();
+  return {
+    ...real,
+    makeMetering(config: Parameters<typeof real.makeMetering>[0]): Metering {
+      const metering = real.makeMetering(config);
+      return {
+        ...metering,
+        record(sql, made, answer, now) {
+          const outcome = () => sql.exec("SELECT outcome FROM metering_interval WHERE start = ?", made.interval)[0]?.outcome ?? null;
+          const before = outcome();
+          const next = metering.record(sql, made, answer, now);
+          if (!scripted.closesAnAcknowledgedRead || made.kind !== "read" || before !== null || outcome() !== "acknowledged") return next;
+          sql.exec("UPDATE metering_interval SET outcome = ?, refusal = ? WHERE start = ?", "not-billable", "unexplained-total", made.interval);
+          return { ...next, notBillable: next.notBillable + 1 };
+        },
+      };
+    },
+  };
+});
 const DELETE: Command[] = [
   { kind: "delete", account: 0 },
   { kind: "advance", seconds: 2 * DAY },
@@ -83,5 +106,22 @@ describe("check 55's model with a foreign event at the meter in an interval's mi
       [false, 0, 2, 1],
       [true, 0, 2, 1],
     ]);
+  });
+
+  test("a close with the cause where no foreign event and no lag can leave a read unexplained is a finding: a scripted module closes with the cause at a read that shows the amount", async () => {
+    const kept = behindAForeignEvent({ kind: "response-lost" }, false);
+    const lawless: Scenario = { ...kept, commands: kept.commands.filter((command) => command.kind !== "foreign-event") };
+    scripted.closesAnAcknowledgedRead = true;
+    try {
+      const report = await runScenario(lawless, { downtimeBudgetSeconds: RULE_DOWNTIME_BUDGET, onFailedCheck: "list" });
+      const checks = report.findings.map((finding) => finding.check);
+      expect({ findings: checks.length, disagrees: checks.includes("the record disagrees with the provider"), facts: [report.facts["foreign-events"], report.facts["not-billable-unexplained-total"]] }).toEqual({
+        findings: checks.length > 0 ? checks.length : "one or more",
+        disagrees: true,
+        facts: [0, 0],
+      });
+    } finally {
+      scripted.closesAnAcknowledgedRead = false;
+    }
   });
 });
