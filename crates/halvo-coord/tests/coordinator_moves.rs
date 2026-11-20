@@ -12287,3 +12287,36 @@ fn u24e_r3_a_schedule_start_that_outlives_its_due_slot_offers_switch_off_and_del
     assert_eq!(c.queued(), vec![(agent(1), false)], "it still waits");
     assert_eq!(controls_of(&c, 1), [SwitchOff, Delete]);
 }
+
+/// R4 (the verifier's m27): with no board a take-back is `no_service` and reads no clock;
+/// after the first step of the quit, which empties the queue, a take-back answers ok, calls no
+/// port and reads no clock.
+#[test]
+fn u24e_r4_a_take_back_is_no_service_with_no_board_and_ok_with_no_call_after_the_quit() {
+    let c = Coordinator::new(owner(&[MANUAL, MANUAL], one_at_a_time()), one_at_a_time());
+    c.ports().fail_reads_after.set(Some(7));
+    assert_eq!(
+        c.control(&agent(1), Action::TakeBack),
+        Err(Cause::NoService)
+    );
+    assert_eq!(
+        c.ports().fail_reads_after.get(),
+        Some(7),
+        "no read of the clock"
+    );
+    c.ports().fail_reads_after.set(None);
+    c.tick();
+    start(&c, 0);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    let _ = c.quit_stop();
+    assert_eq!(c.queued(), vec![]);
+    c.ports().fail_reads_after.set(Some(7));
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::TakeBack), Ok(()));
+    assert_eq!(calls_since(&c, m), [], "no port is called");
+    assert_eq!(
+        c.ports().fail_reads_after.get(),
+        Some(7),
+        "no read of the clock"
+    );
+}
