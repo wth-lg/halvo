@@ -189,8 +189,8 @@ Pressed(s, a, port) ==
         s1 == IF a \in s.gone THEN s
               ELSE [s EXCEPT !.paused = @ \ {a}, !.shown = IF on THEN @ \ {a} ELSE @]
         x == Start(IF ends THEN Learn(s1, a) ELSE s1, a, "person", port)
-    IN [x EXCEPT !.out = (IF ends THEN <<[k |-> "hold_cleared", agent |-> a, cause |-> "failures"]>> ELSE <<>>)
-                         \o (IF on THEN <<State(a, "active")>> ELSE <<>>)
+    IN [x EXCEPT !.out = (IF on THEN <<State(a, "active")>> ELSE <<>>)
+                         \o (IF ends THEN <<[k |-> "hold_cleared", agent |-> a, cause |-> "failures"]>> ELSE <<>>)
                          \o @
                          \o (IF ends THEN Paused(s, a) ELSE <<>>)]
 

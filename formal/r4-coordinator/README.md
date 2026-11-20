@@ -119,10 +119,10 @@ What the check asks of the table and of the files, each with the cause that ends
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
 | `Schedule` | `full` | `Schedule.cfg` | no | five agents, three days, a queue of two, one restart, one deleted workflow; the store records a run at a move of its own, and a start may fail at step 6, 7 or 8. No request has left and `reap` answers `gone`: `store` holds those two. A run stops with `cancelled`, `lapsed` or `answer_lost` (ruling RD-84) | 2,884,911 | 105,751,493 | 17 |
-| `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 265,562 | 6,450,629 | 12 |
+| `Schedule` | `days` | `Schedule-days.cfg` | yes | the full one without `a5` and with a queue of one; the store records a run in the move that ends its runner or fails its start, and a start fails at step 6 or 8 | 309,722 | 7,429,075 | 13 |
 | `Schedule` | `queue` | `Schedule-queue.cfg` | yes | five agents and a queue of two on one day: no restart, no deleted workflow, no switch-off, no stop, no failed frame | 817 | 18,247 | 8 |
 | `Schedule` | `store` | `Schedule-store.cfg` | yes | `a1` and `a2` on two days with one restart and the three stops, `cancelled`, `lapsed` and `answer_lost` (ruling RD-84): the store records a run at a move of its own, a start may fail at step 6, 7 or 8, a request may have left, and `reap` may answer `alive` for one run | 20,426 | 392,913 | 14 |
-| `Schedule` | `holds` | `Schedule-holds.cfg` | yes | five agents on three days with the store's own move and a start that may fail at step 7 or 8; a run ends with the frame `effect_unknown` alone; no stop, no restart, no deleted workflow. It holds the moves of the directed trace `hold_start` | 27,234 | 647,916 | 11 |
+| `Schedule` | `holds` | `Schedule-holds.cfg` | yes | five agents on three days with the store's own move and a start that may fail at step 7 or 8; a run ends with the frame `effect_unknown` alone; no stop, no restart, no deleted workflow. It holds the moves of the directed trace `hold_start` | 30,603 | 724,648 | 11 |
 | `Schedule` | `left` | `Schedule-left.cfg` | yes | five agents on one day with the person's stop, the store's own move and a request that may have left; no restart. It holds the moves of the directed trace `store_not_ended` | 8,986 | 157,768 | 14 |
 | `Schedule` | `reap` | `Schedule-reap.cfg` | yes | five agents on one day with two restarts, a `reap` that may answer `alive` for one run, and a request that may have left. It holds the moves of the directed trace `reap_alive` | 5,960 | 52,125 | 10 |
 | `Confirm4` | `full` | `Confirm4.cfg` | yes | one run with two requests in all, each a confirmation or a second step of a sign-in (the orders CC, CB, BC and BB); two effects. A configuration that CI runs, not the model's own bound | 35,856 | 5,063,579 | 25 |
@@ -347,6 +347,7 @@ of the model is one call of the coordinator.
 | `queue` | the starts that wait, a person's before a scheduler's | I5.5 |
 | `ready` | the agents with an open `ready` item | I5.3 |
 | `off`, `paused` | the holds `off` and `failures` as the coordinator holds them. A `hold_set` whose acknowledgement was lost joins `off` at the agent's next store, which meets `seq` and reads, or at a restart | I5.4, I7.2 |
+| `shown` | the agents whose workflow the owner's list shows `paused`: `Step` takes each agent's last `set_state` of the move's port calls, which the memory owner acknowledges and keeps, so `paused` adds the agent and `active` takes it out, and a restart keeps the set, as the owner's list outlives the app. `Held` holds an agent of `shown`, the derived hold `off` of ruling RD-67 1.2; in every state that the model reaches such an agent also stands in `off` or `paused` or is gone, because only a `paused` of a hold adds it and only the `active` of a start that ends `failures` with no `off` takes it out, so the widened `Held` changes no trace, and the one test that reads the state of a workflow is held by the code's tests. A tick sends `paused` for each agent of `off` or `paused` that `shown` does not hold and that is neither gone nor of a deleted workflow, after the calls of the tick that come before it (ruling RD-67 1.3 (b)) | I5.4, I5.9 |
 | `cleared` | the runs whose `check` the person answered: the `hold_cleared` events with the cause `check` | I5.4 |
 | `owing` | the runs for which the coordinator sent `end_run`, at a start whose step 7 or 8 failed or in this life's recovery, and of which the store has not shown the record at a tick yet | I5.5, I5.8 |
 | `f` | the owner's answers during one step, as the head of this section says; it is empty between steps | I5.5 step 3, I5.4 |
@@ -1115,7 +1116,7 @@ An entry of `p` is `{"call":"<name>"}` with the keys of the table after it.
 | `kill` | `run` | `Runs::kill` | a `tick` with `grace` `yes`, for each run that was `stopping` before it and for each stopped run whose runner ended before it |
 | `reap` | none | `Runs::reap` | `restart`; its answers are the key `alive` of the line |
 | `end_run` | `run` | `Owner::send` with the body `end_run` | a start under `no_store` or `no_run`, after its `run_ended` event; `restart`, for each run of a listed workflow that the store has not ended and that `reap` answered `gone`; a `tick`, again, for each run that is owed after its kills until the store has ended it, and once more for a run whose workflow is gone |
-| `set_state` | `agent`, `state` | `Owner::send` with the body `set_state` | `paused` with every `hold_set` event but one under `port` `lost`, at a switch-off whose read already brought the hold, and once at a start whose read brought a `hold_set` of the cause `person` that the coordinator did not hold; `active` with a `hold_cleared` event of the cause `failures` when the hold `off` does not stand, and none with one of the cause `check` |
+| `set_state` | `agent`, `state` | `Owner::send` with the body `set_state` | `paused` with every `hold_set` event but one under `port` `lost`, at a switch-off whose read already brought the hold, once at a start whose read brought a `hold_set` of the cause `person` that the coordinator did not hold, and at a `tick` for each agent whose hold `off` or `failures` the coordinator holds while the owner's list does not show it `paused` (ruling RD-67 1.3 (b)); `active` with a `hold_cleared` event of the cause `failures` when the hold `off` does not stand, and none with one of the cause `check` |
 | `answer_confirm` | `item`, `answer` (`allow`, `reject`) | `Runs::answer_confirm` | an `answer` with `ok`; with `reject`, a `lapse` from `shown` or `armed` of a run that still lives and an `issue` with `digest_ok` `no` |
 | `answer_bind` | `item`, `answer` (`allow`, `decline`) | `Runs::answer_bind` | a `press` whose row is acknowledged or already stored, whatever the port answers; with `decline`, a `bind_lapse` with `wait_limit` or `cancelled` |
 
@@ -1135,13 +1136,14 @@ makes them in this order, and `formal_traces` holds the code to it on the memory
 - one start: `defer`; `run_started`; `start_run`; `start`, but for `no_store`; under
   `no_store` and `no_run` then `run_ended` with `failed`, `hold_set` with `set_state` when
   the streak is complete, and `end_run`;
-- a `start` line: `hold_cleared` and `set_state` `active` first, then the start;
+- a `start` line that ends the hold `failures`: `set_state` `active` first where the hold
+  `off` does not stand, then `hold_cleared` (ruling RD-67 1.3 (a)), then the start;
 - one end: `run_ended`; `hold_set` with `set_state`; then the start that the end takes from
   the queue;
 - a `tick`: `defer` when a run is live; `cancel` for the runs of gone workflows, by run
   number; by run number, `kill` and, for a run that was live, its end; `end_run` for the
-  owed runs, by run number; the start from the queue; then the agents from `a1` to `a5`,
-  each with its start;
+  owed runs, by run number; `set_state` `paused` for each agent that it owes, from `a1` to
+  `a5`; the start from the queue; then the agents from `a1` to `a5`, each with its start;
 - a `restart`: `reap`, then the ends by run number, then `end_run` by run number;
 - a `check`: `hold_cleared`;
 - `off`: `hold_set`, `cancel`, `set_state`;
