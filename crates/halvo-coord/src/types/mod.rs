@@ -45,7 +45,7 @@ pub use run::{
     Answer, AskedEffect, BindAsk, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk,
     Progress, RunEvent, RunSpec,
 };
-pub use status::StatusLine;
+pub use status::{StatusLine, System};
 pub use workflow::{
     Agent, DismissedWorkflow, FullWorkflow, Kept, PastEffect, PastRun, RunHistory, Unknown,
     Workflow,
