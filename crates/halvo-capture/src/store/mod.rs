@@ -73,7 +73,10 @@ impl UtcDay {
 }
 
 /// The store-wide ordinal of a segment: its key row's id, which the store
-/// never gives twice, also after a shred of the newest segments and a reopen.
+/// never gives twice, also after a shred of the newest segments and a reopen,
+/// except in the case of ruling ST-39 (4): a program of the same user that
+/// puts another file of more than 0 bytes at the log's name while SQLite
+/// writes its log elsewhere can make the store give an ordinal twice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ordinal(u64);
 
@@ -140,7 +143,10 @@ pub struct Written {
     pub disk_bytes: u64,
 }
 
-/// Why a batch write stored nothing: no row and no file remain from it.
+/// Why a batch write did not answer `Written`. No row and no file remain
+/// from it, except after an `Io` answer when the look after the commit could
+/// not read the log's entry: then the row and the file may both stand, and a
+/// retry after the next open answers `AlreadyWritten`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WriteFault {
     /// The segment id was stored before, under this ordinal.
@@ -213,7 +219,11 @@ pub trait SegmentStore {
 /// Window-expiry crypto-shred: destroy the per-segment key for every segment past
 /// its retention bound, so its ciphertext becomes unrecoverable.
 pub trait SegmentExpiry {
-    /// Crypto-shred every segment past its retention bound.
+    /// Crypto-shred every segment past its retention bound. When a shred's
+    /// commit changed a row and the look after the commit or the checkpoint
+    /// after it then fails, the pass answers that failure and reports no
+    /// shred, the handle answers the same to every later call that reads or
+    /// writes the database, and a later open or pass finishes the shred.
     fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport>;
 
     /// Crypto-shred everything and destroy the store key (delete-all), in the

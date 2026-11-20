@@ -1403,9 +1403,11 @@ pub(in crate::store) fn refusal_of(write: &SegmentWrite<'_>) -> Option<Refusal> 
 const DATABASE_KEY_LABEL: [u8; 24] = *b"halvo-store-database-key";
 const WRAPPING_KEY_LABEL: [u8; 24] = *b"halvo-store-segment-wrap";
 
-/// A key derived from the store key under `label`: the first 32 bytes of the
-/// XChaCha20 stream of the store key at the label as nonce, so that keys of
-/// two labels are independent and the store key itself encrypts nothing.
+/// A key derived from the store key under `label`: the XChaCha20-Poly1305
+/// ciphertext of 32 zero bytes under the store key with the label as nonce,
+/// without its tag, which is the XChaCha20 stream from its second block (the
+/// first block keys Poly1305), so that keys of two labels are independent
+/// and the store key itself encrypts nothing.
 fn derived_key(store_key: &StoreKey, label: &[u8; 24]) -> StoreResult<Zeroizing<[u8; 32]>> {
     use aead::{Aead, KeyInit};
     let cipher = chacha20poly1305::XChaCha20Poly1305::new(store_key.expose().into());
@@ -1513,10 +1515,15 @@ impl Db {
         }
     }
 
-    /// `OlderStore` when no log with frames stands beside store.db, the
-    /// store key itself opens store.db read-only and its user_version is
-    /// below this build's: a store made before the database key was derived.
-    /// It reads that one value.
+    /// `OlderStore` or `NewerStore` when no log with frames stands beside
+    /// store.db and the database key, or else the store key itself, opens
+    /// store.db: a read-write connection under exclusive locking, which does
+    /// not checkpoint at its close when a log stood. A version is believed
+    /// only from a store.db that is a whole number of its pages long; a
+    /// version above this build's answers `NewerStore`, and one below answers
+    /// `OlderStore` when store.db holds the table `segment_keys`. It reads
+    /// user_version, the page size and sqlite_master, and answers `None` for
+    /// every other reading.
     fn another_version_of(store_dir: &Dir, store_key: &StoreKey) -> Option<StoreError> {
         let log_was_there = match store_dir.entry(OsStr::new(DATABASE_LOG)) {
             Ok(entry) if entry.len > 0 => return None,
@@ -1739,7 +1746,8 @@ impl Db {
     /// The second instant of the log's check, at the first commit of a
     /// handle whose open wrote nothing and whose statements changed a row:
     /// the log in the store directory holds the commit's frames, or the
-    /// answer is the obstructed variant, except against a program of the same
+    /// answer is the obstructed variant, or `Io` when the look cannot read
+    /// the log's entry (the `Unread` arm), except against a program of the same
     /// user that changes the entries of the store's directory or writes its
     /// files (a rename of another file into the directory is such a change).
     /// When such a program puts another file of more than 0 bytes at the
@@ -1750,12 +1758,14 @@ impl Db {
     /// nothing or an empty file left there, fails the look. `changes_before` is the connection's
     /// count of changed rows before that commit's transaction began, so that
     /// rows of a transaction that rolled back do not count. The look comes
-    /// after the commit, so a failed look leaves a commit whose frames are in
-    /// no file at the store's names: from then on the handle answers the
-    /// look's own answer to every call that reads or writes the database
-    /// ([`Db::look_failure`]), and its close does not checkpoint, so nothing
-    /// of that log reaches `store.db`, which stays as it was before the
-    /// commit.
+    /// after the commit, so an obstructed look leaves a commit whose frames
+    /// are in no file at the store's names, and a look that could not read the
+    /// log's entry leaves a commit whose frames may lie in the log at its
+    /// name, which the next open's drain brings into `store.db`. From then on
+    /// the handle answers the look's own answer to every call that reads or
+    /// writes the database ([`Db::look_failure`]), and its close does not
+    /// checkpoint, so nothing of that log reaches `store.db` through this
+    /// handle, which stays as it was before the commit.
     pub(in crate::store) fn look_after_the_first_commit(
         &self,
         changes_before: u64,
@@ -2601,7 +2611,11 @@ impl EncryptedStore {
     /// when the reconcile's shred, as the handle's first commit, finds its log
     /// gone from its name (nothing then reports that shred, and `store.db`
     /// and every entry of the directory keep their names, lengths and bytes,
-    /// so the next open shreds the row whole), and [`StoreError::Custody`] with the
+    /// so the next open shreds the row whole), the checkpoint's own error
+    /// (`Db`, `Io` or `CheckpointIncomplete`) when the reconcile's shred
+    /// committed and its checkpoint then failed (nothing then reports that
+    /// shred, the close does not checkpoint, and the next open's drain brings
+    /// the shred into `store.db` before it answers), and [`StoreError::Custody`] with the
     /// custody's own variant when the custody kind is not in this build or the
     /// unwrap fails: [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`]
     /// and [`CustodyError::WrapAuthFailed`] mean that the key cannot come back,
@@ -3071,7 +3085,8 @@ impl EncryptedStore {
     /// bytes kept. And a file of another program that a process of the same
     /// user hard-links at a root file's name is zeroed through every name
     /// when it has a root file's length at a root name (any length above 0 on
-    /// Windows).
+    /// Windows) or stands at a partial name (on the walk that a made mark
+    /// names, a partial name of the mark's own id; ruling ST-49).
     pub fn delete_data_dir(dir: &Path, layout: Layout) -> StoreResult<DeleteReport> {
         #[cfg(windows)]
         if durable::has_a_part_that_windows_trims(dir) {

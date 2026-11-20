@@ -164,8 +164,9 @@ impl EncryptedStore {
     /// every live key row whose file is missing, with its totals taken out of
     /// the rollup, then the sweep of the segment files that have no live key.
     /// The shred comes first, so that a shred whose look after its commit
-    /// fails leaves the sweep undone and the open, which then answers that
-    /// look's answer, has removed no file. It deletes no row, and it writes
+    /// fails, or whose checkpoint fails after its commit changed a row, leaves
+    /// the sweep undone and the open, which then answers that look's answer
+    /// or that checkpoint's error, has removed no file. It deletes no row, and it writes
     /// nothing when it finds no work. A step that fails leaves its work for
     /// the next open or expiry pass.
     pub(in crate::store) fn reconcile(&self) -> Reconciled {

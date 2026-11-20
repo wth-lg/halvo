@@ -1587,7 +1587,11 @@ set, and the root's own volume name answers the root.
   ordinal greater than every ordinal issued before" does not hold in that
   case. The look does hold against a log that is unlinked or moved from its
   name with nothing or an empty file left there: that fails the second
-  instant (ruling ST-39 (3)(a)). The two instants are sound against a move
+  instant (ruling ST-39 (3)(a)). A second instant that cannot read the
+  log's entry answers `Io`, and the commit's frames may then lie in the log
+  at its name: a write keeps its file, every later call of the handle
+  answers the same, and the next open's drain brings the commit into
+  `store.db` (`store::hardening_tests::unread_look`). The two instants are sound against a move
   or an exchange by a program that is no such writer, one that neither
   changes the entries of the store's directory nor writes its files.
   L3: a directory that is removed, or moved to
@@ -2082,15 +2086,23 @@ set, and the root's own volume name answers the root.
   neither checkpoints nor truncates, so a frame that the log held before
   the call is in it after. Nor does an `open` that the look at the tables,
   the auto_vacuum or page-size setting or the held look before its drain
-  refuses (`store::hardening_tests::refusals_before_the_drain` reads it
-  over a log with frames); the one refusal that can follow the drain is
-  that of a `store.db` that another program moves or exchanges at its name
-  during the drain (the named limit of T5), which the last look answers
-  with the obstructed variant and never with `Ok`. A shred that returned
-  `Ok` has left a log of 0
-  bytes, so a log that holds a frame of a shredded key's page is the log
+  refuses. `store::hardening_tests::refusals_before_the_drain` reads that
+  over a log with frames for the look at the tables, the auto_vacuum
+  setting and the held look; no store file reaches the page-size setting
+  of an open, which the open reads at the same point, because a file of
+  another page size answers `DatabaseUnreadable` at the key's first read.
+  The one refusal that can follow the drain is that of a `store.db` that
+  another program moves or exchanges at its name during the drain (the
+  named limit of T5), which the last look answers with the obstructed
+  variant and never with `Ok`. A shred that returned `Ok` has left a log of
+  0 bytes, so a log that holds a frame of a shredded key's page is the log
   of a shred that stopped between its commit and its checkpoint (the entry
-  above on a process crash) or a file that was put there, and property 1
+  above on a process crash), the log of a shred whose checkpoint failed
+  after its commit changed a row (the open or the pass then answers the
+  checkpoint's error, the handle answers it to every later call, its close
+  does not checkpoint, and the next open's drain brings the shred into
+  `store.db`; `store::hardening_tests::checkpoint_after_the_shred`), or a
+  file that was put there, and property 1
   says nothing of that directory, before the refused `open` or after it.
   Tests of `store::hardening_tests`
   read these, among them
