@@ -8206,6 +8206,62 @@ mod tests {
         assert_eq!(figures.secure_held_suppressed, SuppressedKeys::default());
     }
 
+    fn record_lines(writer: &sink::SinkWriter) -> Vec<serde_json::Value> {
+        received(writer)
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .map(|floor| {
+                let record = crate::floor::record::encode(&floor, &cases::IdentityPoint)
+                    .expect("the encoder writes the record");
+                let line = record.as_str();
+                crate::floor::record::decode(line).expect("the decoder reads the record");
+                serde_json::from_str(line).expect("a record is a JSON object")
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_records_of_a_key_a_click_and_a_fold_hold_a_class_a_button_and_a_count_and_nothing_else()
+    {
+        let held = held(100);
+        key_with_code(&held.ctx, CGEventType::KeyDown, 0x00, 0x2_0000);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 3);
+        ticks(&held.ctx, 200);
+        close_interval(&held.ctx);
+        let records = record_lines(&held.writer);
+        let shapes: Vec<(String, String)> = records
+            .iter()
+            .map(|record| {
+                let keys: Vec<&str> = record
+                    .as_object()
+                    .expect("an object")
+                    .keys()
+                    .map(String::as_str)
+                    .collect();
+                assert_eq!(keys, ["app", "at", "id", "kind", "p", "seq", "v"]);
+                (record["kind"].to_string(), record["p"].to_string())
+            })
+            .collect();
+        assert_eq!(
+            shapes,
+            [
+                (
+                    "\"pointer\"".to_string(),
+                    r#"{"button":"primary","class":"click"}"#.to_string()
+                ),
+                (
+                    "\"keystroke\"".to_string(),
+                    r#"{"class":"printable"}"#.to_string()
+                ),
+                (
+                    "\"pointer\"".to_string(),
+                    r#"{"class":"move","count":3}"#.to_string()
+                ),
+            ]
+        );
+    }
+
     #[test]
     fn each_type_of_the_table_has_its_class() {
         use TapClass::{

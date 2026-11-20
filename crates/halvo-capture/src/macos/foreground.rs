@@ -1145,6 +1145,51 @@ mod tests {
     }
 
     #[test]
+    fn a_title_record_holds_its_text_its_cut_and_why_and_no_length() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let front = app("com.example.a", 10);
+        poller.step(front.clone(), Vec::new(), &handle);
+        poller.step(front, answer(1, read("Quarterly plan")), &handle);
+        let records: Vec<serde_json::Value> = floor_events(&writer)
+            .into_iter()
+            .map(|floor| {
+                let record =
+                    crate::floor::record::encode(&floor, &crate::floor::cases::IdentityPoint)
+                        .expect("the encoder writes the record");
+                crate::floor::record::decode(record.as_str())
+                    .expect("the decoder reads the record");
+                serde_json::from_str(record.as_str()).expect("a record is a JSON object")
+            })
+            .collect();
+        let shapes: Vec<(String, String, String)> = records
+            .iter()
+            .map(|record| {
+                (
+                    record["kind"].to_string(),
+                    record["app"].to_string(),
+                    record["p"].to_string(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            shapes,
+            [
+                (
+                    "\"foreground_app\"".to_string(),
+                    "\"com.example.a\"".to_string(),
+                    "{}".to_string()
+                ),
+                (
+                    "\"window_title\"".to_string(),
+                    "\"com.example.a\"".to_string(),
+                    r#"{"cut":false,"text":"Quarterly plan","why":"app_change"}"#.to_string()
+                ),
+            ]
+        );
+        drop(poller);
+    }
+
+    #[test]
     fn readings_a_a_b_of_one_app_give_two_title_events_with_a_and_b() {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
         let front = app("com.example.a", 10);
