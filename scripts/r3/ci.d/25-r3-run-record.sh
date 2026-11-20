@@ -20,14 +20,13 @@ known() {
 crates/halvo-learn-gate/src/stub.rs 1 learning run, until its unit calls the maker
 crates/halvo-learn-store/src/tests/host.rs 1 learning run, until its unit calls the maker
 crates/halvo-learn-store/src/tests/pass.rs 1 learning run, until its unit calls the maker
-crates/halvo-learn-store/src/tests/ruled.rs 1 learning run, until its unit calls the maker
 crates/halvo-schema/tests/later_kinds.rs 2 workflow run, its frozen entry of agent_run checked against itself
 EOF
 }
 
-pinned_rows=5
-pinned_places=6
-pinned_paths=489507615
+pinned_rows=4
+pinned_places=5
+pinned_paths=1946205897
 
 program='
 function keys(text, k,    n, re) {

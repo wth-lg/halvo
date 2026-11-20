@@ -18,6 +18,18 @@ fn main() -> ExitCode {
         Ok(Mode::Version) => {
             print_or_exit_error(&mut std::io::stdout().lock(), &format!("{VERSION}\n"))
         }
+        Ok(Mode::ProbePermissions(permissions)) => status(daemon::probe_answer(
+            &permissions,
+            &mut std::io::stdout().lock(),
+        )),
+        Ok(Mode::RequestPermission(permission)) => status(daemon::request_answer(
+            permission,
+            &mut std::io::stdout().lock(),
+        )),
+        #[cfg(debug_assertions)]
+        Ok(Mode::SelfCheckRunLoop) => {
+            status(daemon::self_check_run_loop(&mut std::io::stdout().lock()))
+        }
         #[cfg(debug_assertions)]
         Ok(Mode::TimedRun(run)) => match daemon::timed_run(&run) {
             Ok(outcome) => status(daemon::outcome_answer(
