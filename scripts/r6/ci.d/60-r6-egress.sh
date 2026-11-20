@@ -112,6 +112,9 @@ The limits that stay:
 7. the check and the egress check find their own programs through PATH, whose first directory a
    wrapped program can write; a program planted there runs in the check after the next call; a diff
    shows it and the landing's readers hold it.
+8. the forbid list and its canary come from one table of this script: a commit that changes
+   60-r6-egress.sh can take an entry out of the list and its canary line together, and only the
+   readers of that guarded script see it.
 With --self-test, R6_EGRESS_CASES, a list of case names, runs those cases alone, for a mutant runner;
 a list that names no case fails the self-test. On a Windows host the self-test runs the cases of its
 Windows list alone: one case for each rule of the generic code, by the table rule_cases, and every
@@ -2756,6 +2759,7 @@ help_sentences() {
     'what the system does with a path that it opens over a network' \
     'what a process did after the command ended, in the egress check' \
     'the egress check'"'"'s writes under target/egress/' \
+    'the forbid list and its canary come from one table of this script: a commit that changes 60-r6-egress.sh can take an entry out of the list and its canary line together, and only the readers of that guarded script see it' \
     'which prints the names of its commands from the one table that dispatches them, one per line in the table'"'"'s order, so that a name that it does not print is a command that route-gate does not dispatch' \
     'the control holds against an egress check that wraps nothing; an egress check changed in the same commit can pass it, and scripts/egress/ is held by its own run'"'"'s checks and by the landing'"'"'s readers'; do
     if ! grep -q -i -F -e "$sentence" "$work/help-line.txt"; then
