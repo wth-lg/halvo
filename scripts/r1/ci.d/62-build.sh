@@ -700,6 +700,47 @@ exit 0'
   git -C "$rules_repo" add -f -- crates/member/.cargo/config || exit 2
   rules_case tracked-configuration-in-rules FAIL 'the cargo configuration crates/member/.cargo/config is tracked'
 
+  measure_repo=$work/measure
+  git init -q "$measure_repo" || exit 2
+  measure_manifest=$measure_repo/Cargo.toml
+  printf '%s\n' '[profile.release]' 'debug-assertions = true' >"$measure_manifest"
+  git -C "$measure_repo" add -- Cargo.toml || exit 2
+  standins=$work/measure-tools
+  mkdir "$standins" || exit 2
+  measure_trace=$work/measure-started
+  export measure_trace
+  for program in mktemp cargo npm rustc; do
+    stand_in "$program" 'printf "%s\n" "${0##*/}" >>"$measure_trace"
+exit 1'
+  done
+  measure_fixture() (
+    for input in node_modules scripts/r1/ci.d/61-version.sh src-tauri; do
+      if [ -e "$measure_repo/$input" ] || [ -L "$measure_repo/$input" ]; then
+        printf 'unsafe measure fixture: %s\n' "$input"
+        exit 2
+      fi
+    done
+    unset TAURI_CONFIG
+    for variable in $signing_names; do unset "$variable"; done
+    CI=true CI_D_JOB=macos CI_D_REPO="$measure_repo" TMPDIR="$measure_manifest" PATH="$standins:$PATH" sh "$check_script"
+  )
+  measure_case() {
+    output=$(measure_fixture 2>"$work/measure.err")
+    code=$?
+    got=unexpected-exit-$code
+    if [ "$code" = "$2" ] && [ "$output" = "$3" ] && [ ! -e "$measure_trace" ]; then got=FAIL; fi
+    verdict "$1" FAIL "$got"
+  }
+  measure_case plain-refuses-bad-profile 1 "FAIL $name ($need_profile)"
+  printf '%s\n' "$profile_off" >"$measure_manifest"
+  measure_case plain-stops-before-build 1 "FAIL $name (node_modules holds no @tauri-apps/cli; the Prerequisites step runs npm ci)"
+  mkdir -p "$measure_repo/scripts/r1/ci.d" || exit 2
+  for input in node_modules scripts/r1/ci.d/61-version.sh src-tauri; do
+    : >"$measure_repo/$input"
+    measure_case "guard-measure-fixture-${input##*/}" 2 "unsafe measure fixture: $input"
+    mv "$measure_repo/$input" "$work/used-measure-input" || exit 2
+  done
+
   for ref in tag:fresh branch:cached :cached; do
     got=$(build_root_for "${ref%:*}")
     if [ "$got" = "${ref#*:}" ]; then got=PASS; else got=FAIL; fi
