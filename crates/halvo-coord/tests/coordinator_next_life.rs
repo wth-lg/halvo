@@ -890,6 +890,11 @@ fn u46b_the_line_does_not_come_back_once_a_record_named_the_run() {
             k + 1
         );
     }
+    assert_ne!(
+        row(&life, 0).line,
+        text("line.all_set.stopped_early"),
+        "the run that the record named completed never reads as cut short"
+    );
 }
 
 #[test]
