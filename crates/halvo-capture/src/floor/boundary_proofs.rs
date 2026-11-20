@@ -486,6 +486,25 @@ mod store_database_re_exported_under_a_new_name_twin {
     pub(crate) use crate::store::ShredReport as Backing;
 }
 
+#[cfg(halvo_proof = "keystroke_release_made_without_the_queue")]
+fn keystroke_release_made_without_the_queue(
+    probe: &dyn crate::secure_input::SecureInputProbe,
+) -> Option<crate::secure_input_macos::Released<u8>> {
+    let clearance = crate::secure_input::check(probe, None).ok()?;
+    Some(crate::secure_input_macos::Released { clearance, key: 0 })
+}
+
+#[cfg(halvo_proof = "keystroke_release_made_without_the_queue_twin")]
+fn keystroke_release_made_without_the_queue_twin(
+    queue: &mut crate::secure_input_macos::KeyQueue<u8>,
+    at: crate::secure_input_macos::hold::Stamps,
+) -> Option<crate::secure_input_macos::Released<u8>> {
+    match queue.reading(crate::secure_input_macos::Reading::Off, at) {
+        crate::secure_input_macos::hold::Step::Released(released) => Some(released),
+        _ => None,
+    }
+}
+
 #[cfg(halvo_proof = "synthetic_clearance_in_a_release_build")]
 fn synthetic_clearance_in_a_release_build() -> crate::secure_input::KeystrokeClearance {
     crate::secure_input::synthetic_clearance(None)

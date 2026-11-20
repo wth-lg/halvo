@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use core_foundation::base::TCFType;
 use core_foundation::date::CFDate;
@@ -18,15 +18,17 @@ use core_graphics::event::{
 
 use crate::event::Modality;
 use crate::event::{EventClock, FloorEvent, FoldEvent};
-use crate::floor::exclude::{FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict};
+use crate::floor::exclude::{
+    DropReason, FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict,
+};
 use crate::floor::kind::{self as floor_kind, Recorded};
 use crate::floor::payload::{Button, FoldClass, FoldCount, KeyClass, PointerFold};
-use crate::floor::POINTER_FOLD_INTERVAL;
-use crate::macos::foreground::{emit_metadata_only, Foreground, ForegroundReader, Unpersisted};
+use crate::floor::{Switch, POINTER_FOLD_INTERVAL};
+use crate::macos::foreground::{Foreground, ForegroundReader};
 use crate::macos::source_failure;
 use crate::secure_input_macos::hold::{
-    timing, timing_at_reading, Admission, Bounds, Cause, Entry, HeldKeys, Marks, Monotonic, Stamps,
-    Step, Timing, Uptime, PAIR_TRIES, PAIR_WIDTH, READING_STEP, SESSION_STEP, WAKE_MARGIN,
+    timing, timing_at_reading, Admission, Bounds, Cause, Entry, Marks, Monotonic, Stamps, Step,
+    Timing, Uptime, PAIR_TRIES, PAIR_WIDTH, READING_STEP, SESSION_STEP, WAKE_MARGIN,
 };
 #[cfg(all(debug_assertions, feature = "stall-seam"))]
 use crate::secure_input_macos::notice::MarkKind;
@@ -36,10 +38,10 @@ use crate::secure_input_macos::notice::{NoticeMark, NoticeThread};
 #[cfg(any(test, debug_assertions))]
 use crate::secure_input_macos::{hold_secure_input, SecureInputHold};
 use crate::secure_input_macos::{
-    read_session, secure_input_reading, Reading, SecureInputRefused, SecureInputReleaseRefused,
-    Session, SystemProbe,
+    read_session, secure_input_reading, KeyQueue, Reading, Released, SecureInputRefused,
+    SecureInputReleaseRefused, Session, SystemProbe,
 };
-use crate::sink::{FoldEmitted, SinkHandle};
+use crate::sink::{Emitted, FoldEmitted, SinkHandle};
 use crate::source::{
     CaptureError, CaptureSource, HealthReason, HeldSamples, SourceContext, SourceCounters,
     SourceHealth, SourceState, Started, StopCause, SuppressedKeys,
@@ -171,6 +173,11 @@ impl InputCounters {
 
     fn count_late_key(&self) {
         self.0.late_events.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn note_lag(&self, lag: Duration) {
+        let ms = u64::try_from(lag.as_millis()).unwrap_or(u64::MAX);
+        self.0.max_lag_ms.fetch_max(ms, Ordering::Relaxed);
     }
 
     fn count_pointer_coalesced(&self) {
@@ -331,7 +338,6 @@ fn modifier_pressed(key_code: Option<i64>, flags: u64) -> bool {
     }
 }
 
-/// The device-independent masks of control, option and command.
 const CHORD_MASKS: u64 = 0x001C_0000;
 
 fn key_class(key_code: Option<i64>, flags: u64) -> KeyClass {
@@ -393,7 +399,6 @@ fn kind_of(etype: CGEventType, key_code: Option<i64>, flags: u64, autorepeat: bo
     }
 }
 
-/// The pointer events of one fold interval, counted by class.
 #[derive(Default)]
 struct Folds([Option<FoldCount>; 3]);
 
@@ -572,8 +577,8 @@ fn tap_refusal(denied: bool) -> CaptureError {
 }
 
 struct HeldKey {
-    instant: SystemTime,
-    app: Option<Foreground>,
+    class: KeyClass,
+    front: Option<Foreground>,
 }
 
 struct ReadingTimer(CFRunLoopTimer);
@@ -585,7 +590,7 @@ struct ReadingTimer(CFRunLoopTimer);
 unsafe impl Send for ReadingTimer {}
 
 struct HoldState {
-    keys: HeldKeys<HeldKey>,
+    keys: KeyQueue<HeldKey>,
     session: Session,
     session_at: Option<Monotonic>,
     timer: Option<ReadingTimer>,
@@ -1108,7 +1113,30 @@ impl TapContext {
                 self.dropped(keys, cause);
             }
         }
+        if !state.keys.is_empty() && self.front_excluded() {
+            state.keys.drop_all();
+        }
         (reading, Stamps { before, after })
+    }
+
+    fn front_excluded(&self) -> bool {
+        let Some(front) = self.foreground.get() else {
+            return false;
+        };
+        let Ok(pid) = u32::try_from(front.pid) else {
+            return true;
+        };
+        let subject = Subject::new(front.identity.to_event(), ProcessId::new(pid));
+        matches!(
+            self.floor.decide::<floor_kind::Keystroke>(
+                subject,
+                PrivateWindow::Unknown,
+                &self.probe
+            ),
+            Verdict::Drop(
+                DropReason::ListedApp | DropReason::ExclusionTree | DropReason::UnknownLineage
+            )
+        )
     }
 
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -1202,7 +1230,7 @@ impl TapContext {
         }
     }
 
-    fn admitted(&self, admission: Admission, timing: Timing) {
+    fn admitted(&self, admission: Admission, late: bool) {
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
         if let Some(drops) = &self.drops {
             drops.arrival(admission);
@@ -1227,14 +1255,12 @@ impl TapContext {
                 }
             }
         }
-        if let Timing::Late { lag } = timing {
-            if lag > crate::secure_input_macos::hold::LATE_BOUND {
-                self.counters.count_late_key();
-            }
+        if late {
+            self.counters.count_late_key();
         }
     }
 
-    fn release(&self, state: &mut HoldState, mut step: Step<HeldKey>) {
+    fn release(&self, state: &mut HoldState, mut step: Step<Released<HeldKey>>) {
         loop {
             let key = match step {
                 Step::Waiting => return,
@@ -1246,17 +1272,14 @@ impl TapContext {
                 self.dropped(keys, Cause::Stop);
                 return;
             }
-            let emitted = emit_metadata_only(
-                &self.sink,
-                Modality::Keystroke,
-                key.app,
-                Unpersisted::EMPTY,
-                key.instant,
-            );
-            if emitted.is_err() {
-                let keys = state.keys.drop_all() + 1;
-                self.dropped(keys, Cause::Refused);
-                return;
+            let (clearance, key) = key.into_parts();
+            if let Some(keep) = self.keep::<floor_kind::Keystroke>(key.front.as_ref()) {
+                let event = FloorEvent::keystroke(keep, clearance, key.class, self.clock);
+                if self.sink.emit_event(event) == Emitted::Refused {
+                    let keys = state.keys.drop_all() + 1;
+                    self.dropped(keys, Cause::Refused);
+                    return;
+                }
             }
             #[cfg(all(debug_assertions, feature = "stall-seam"))]
             if let Some(drops) = &self.drops {
@@ -1312,8 +1335,6 @@ impl Drop for TapContext {
 }
 
 impl TapContext {
-    /// The keep verdict of kind `K` for the app in front, which an event without
-    /// a known app in front never gets.
     fn keep<K: Recorded>(&self, front: Option<&Foreground>) -> Option<Keep<K>> {
         let front = front?;
         let pid = ProcessId::new(u32::try_from(front.pid).ok()?);
@@ -1341,8 +1362,6 @@ impl TapContext {
     }
 }
 
-/// The age of an event at the callback's entry, from its OS time; none for an
-/// event whose OS time is 0 or after the entry.
 fn event_age(event: &TapEvent) -> Option<Duration> {
     match timing(event.entry.uptime, event.os_time, Duration::MAX) {
         Timing::InTime { lag } | Timing::Late { lag } => Some(lag),
@@ -1373,9 +1392,6 @@ fn on_pointer(ctx: &TapContext, kind: Kind, event: &TapEvent) {
     }
 }
 
-/// Ends one fold interval: one record for each class that had activity, sent
-/// by the emit that never blocks. A record that a full queue hands back adds
-/// its count to the next interval.
 fn close_interval(ctx: &TapContext) {
     let folds = ctx.folds().take();
     if folds.is_empty() || ctx.stop.load(Ordering::SeqCst) {
@@ -1425,7 +1441,10 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
         }
         return;
     }
-    let kind = kind_of(event.etype, key_code, event.flags, autorepeat);
+    let kind = match kind_of(event.etype, key_code, event.flags, autorepeat) {
+        Kind::Key(_) if !ctx.floor.switches().is_on(Switch::KeyClass) => Kind::Reading,
+        kind => kind,
+    };
     if kind == Kind::Ignore {
         return;
     }
@@ -1452,6 +1471,7 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
         }
         let arrival = at.before;
         let lag_bound = state.keys.bounds().lag;
+        #[cfg(all(debug_assertions, feature = "stall-seam"))]
         let at_entry = timing(event.entry.uptime, event.os_time, lag_bound);
         let at_reading = timing_at_reading(
             event.entry,
@@ -1489,19 +1509,17 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             }
             other => other,
         };
-        if kind.is_key() {
-            let lag = match at_reading {
-                Timing::InTime { lag } => lag,
-                _ => Duration::ZERO,
-            };
+        if let Kind::Key(class) = kind {
+            let age = event_age(&event);
+            if let Some(lag) = age {
+                ctx.counters.note_lag(lag);
+            }
             let key = HeldKey {
-                instant: SystemTime::now()
-                    .checked_sub(lag)
-                    .unwrap_or(SystemTime::UNIX_EPOCH),
-                app: ctx.foreground.get(),
+                class,
+                front: ctx.foreground.get(),
             };
-            let admission = state.keys.admit(reading, at_reading, arrival, key);
-            ctx.admitted(admission, at_entry);
+            let admitted = state.keys.admit(reading, at_reading, arrival, age, key);
+            ctx.admitted(admitted.admission, admitted.late);
         }
         ctx.release(&mut state, step);
     }
@@ -1557,7 +1575,7 @@ fn tap_context(
         timers: TIMER_CALLS,
         step: READING_STEP,
         hold: Arc::new(Mutex::new(HoldState {
-            keys: HeldKeys::new(bounds),
+            keys: KeyQueue::new(bounds),
             session: Session::NoDictionary,
             session_at: None,
             timer: None,
@@ -3658,13 +3676,14 @@ mod tests {
         SLOW_SESSION_NS.with(|ns| ns.set(20 * MS));
         SLOW_READ_NS.with(|ns| ns.set(0));
         key_at(&held.ctx, CGEventType::KeyDown, os_time);
-        let after_call = SystemTime::now();
+        let after_call = std::time::SystemTime::now();
         SLOW_SESSION_NS.with(|ns| ns.set(0));
         ticks(&held.ctx, 300);
-        let instants: Vec<SystemTime> = received(&held.writer)
-            .iter()
-            .filter(|received| received.event().modality == Modality::Keystroke)
-            .map(|received| received.event().captured_at.wall_clock)
+        let instants: Vec<i64> = received(&held.writer)
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .filter(|floor| floor.event().kind() == Modality::Keystroke)
+            .map(|floor| floor.event().at())
             .collect();
         assert_eq!(
             instants.len(),
@@ -3672,7 +3691,7 @@ mod tests {
             "a read of 20 ms keeps the key under a lag bound of 30 ms"
         );
         assert!(
-            instants[0] <= after_call - Duration::from_millis(20),
+            instants[0] <= crate::event::unix_nanos(after_call - Duration::from_millis(20)),
             "the instant is the key's time, 20 ms before the end of its reading, which came before the \
              wall time read after the call"
         );
@@ -3855,7 +3874,7 @@ mod tests {
     #[test]
     fn a_late_key_at_a_stop_between_the_lag_and_the_gap_bound_counts_as_late() {
         let held = slow_held(1_000);
-        lock(&held.ctx.hold).keys = HeldKeys::new(Bounds {
+        lock(&held.ctx.hold).keys = KeyQueue::new(Bounds {
             hold: Duration::from_millis(1_000),
             gap: Duration::from_millis(1_000),
             lag: Duration::from_millis(30),
@@ -5314,7 +5333,7 @@ mod tests {
                 "com.example.editor",
                 41,
             )));
-        let before_arrival = SystemTime::now();
+        let before_arrival = std::time::SystemTime::now();
         advance(1);
         on_tap_event(
             &held.ctx,
@@ -5334,51 +5353,36 @@ mod tests {
         on_tap_event(&held.ctx, event(CGEventType::LeftMouseDown));
         ticks(&held.ctx, 1_010);
         let all = received(&held.writer);
-        let records: Vec<(
-            Modality,
-            String,
-            SystemTime,
-            crate::event::MonotonicSequence,
-        )> = all
-            .iter()
-            .map(|r| {
-                let e = r.event();
-                (
-                    e.modality,
-                    e.foreground_app.clone(),
-                    e.captured_at.wall_clock,
-                    e.captured_at.sequence,
-                )
-            })
-            .collect();
-        assert_eq!(records.len(), 2);
-        let numbers: Vec<_> = all.iter().map(crate::sink::Received::number).collect();
-        let (pointer, key) = (&records[0], &records[1]);
-        assert_eq!(pointer.0, Modality::Pointer);
-        let pointer_pid = all
-            .into_iter()
-            .next()
-            .and_then(|received| received.into_floor().ok())
-            .map(|floor| floor.event().pid());
-        assert_eq!(pointer_pid, Some(ProcessId::new(42)), "the click's app");
-        assert_eq!(
-            (key.0, key.1.as_str()),
-            (Modality::Keystroke, "com.example.editor")
-        );
+        assert_eq!(all.len(), 2);
         assert!(
-            key.2 <= before_arrival - Duration::from_millis(19),
-            "the key's instant is its own time, its arrival less its lag"
-        );
-        assert!(
-            numbers[0] < numbers[1],
+            all[0].number() < all[1].number(),
             "the key takes its number at its release"
+        );
+        let floor: Vec<_> = all
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .collect();
+        let (pointer, key) = (floor[0].event(), floor[1].event());
+        assert_eq!(
+            (pointer.kind(), pointer.pid()),
+            (Modality::Pointer, ProcessId::new(42)),
+            "the click's app"
+        );
+        assert_eq!(
+            (key.kind(), key.pid()),
+            (Modality::Keystroke, ProcessId::new(41)),
+            "the app of the key's arrival"
+        );
+        assert!(
+            key.at() <= crate::event::unix_nanos(before_arrival - Duration::from_millis(19)),
+            "the key's instant is its own time, its arrival less its lag"
         );
     }
 
     #[test]
-    fn a_held_key_holds_its_time_and_app_alone() {
+    fn a_held_key_holds_its_class_and_app_alone() {
         struct Mirror {
-            _instant: SystemTime,
+            _class: KeyClass,
             _app: Option<Foreground>,
         }
         assert_eq!(
@@ -5391,7 +5395,7 @@ mod tests {
     fn the_held_keys_at_their_cap_stay_under_the_bytes_of_the_ledger() {
         const LEDGER_BYTES: usize = 4_718_592;
         const SLOT_ALLOWANCE: usize = 128;
-        let slot = crate::secure_input_macos::hold::slot_bytes::<HeldKey>();
+        let slot = KeyQueue::<HeldKey>::slot_bytes();
         assert!(slot <= SLOT_ALLOWANCE, "a slot of {slot} bytes");
         let bytes = crate::secure_input_macos::hold::QUEUE_CAP
             * (SLOT_ALLOWANCE + crate::floor::text::TEXT_MAX_BYTES);
@@ -5741,7 +5745,7 @@ mod tests {
     #[test]
     fn a_key_is_judged_late_by_the_lag_bound_and_not_by_the_gap_bound() {
         let held = held(1_000);
-        lock(&held.ctx.hold).keys = HeldKeys::new(Bounds {
+        lock(&held.ctx.hold).keys = KeyQueue::new(Bounds {
             hold: Duration::from_millis(1_000),
             gap: Duration::from_millis(60),
             lag: Duration::from_millis(30),
@@ -6425,21 +6429,22 @@ mod tests {
         );
         source.hold = stand_in_hold;
         let blocked = handle.clone();
-        let (in_emit_tx, in_emit_rx) = channel::<()>();
+        let (reached_tx, reached_rx) = channel::<()>();
         let (ended_tx, _ended_rx) = channel();
         source
             .begin_with(handle, FakeMaker(ended_tx), move || {
-                let _ = in_emit_tx.send(());
-                let _ = emit_metadata_only(
-                    &blocked,
-                    Modality::Keystroke,
+                reached_tx
+                    .send(())
+                    .expect("the test waits for the tap thread");
+                blocked.emit_event(FloorEvent::click(
+                    crate::floor::cases::keep(crate::event::AppIdentity::unknown(), 1),
+                    Button::Primary,
                     None,
-                    Unpersisted::EMPTY,
-                    SystemTime::now(),
-                );
+                    EventClock::system(),
+                ));
             })
             .expect("the source starts with a stand-in tap");
-        in_emit_rx
+        reached_rx
             .recv_timeout(Duration::from_secs(5))
             .expect("the tap thread reached its emit");
         let shut = source.shutdown();
@@ -7320,21 +7325,240 @@ mod tests {
     }
 
     #[test]
-    fn the_figure_max_lag_ms_has_no_writer_on_a_mac_and_reads_zero_after_a_late_key() {
+    fn max_lag_ms_is_the_largest_lag_of_a_key_at_its_arrival() {
         let held = held(1_000);
+        for lag in [5, 300, 20] {
+            advance(1);
+            on_tap_event(
+                &held.ctx,
+                timed(
+                    CGEventType::KeyDown,
+                    Timing::InTime {
+                        lag: Duration::from_millis(lag),
+                    },
+                ),
+            );
+        }
+        let figures = held.counters.figures();
+        assert_eq!(figures.max_lag_ms, 300);
+        assert_eq!(figures.late_events, 1, "only the key above 250 ms is late");
+    }
+
+    fn keystroke_classes(writer: &sink::SinkWriter) -> Vec<KeyClass> {
+        received(writer)
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .filter_map(|floor| match floor.event().observation() {
+                crate::floor::payload::Observation::Keystroke(class) => Some(*class),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn key_with_code(ctx: &TapContext, etype: CGEventType, code: i64, flags: u64) {
+        advance(1);
+        on_tap_event(ctx, with_key(etype, code, flags));
+    }
+
+    #[test]
+    fn a_released_key_is_one_keystroke_record_that_holds_its_class_and_nothing_else() {
+        let held = held(100);
+        key_with_code(&held.ctx, CGEventType::KeyDown, 0x24, 0);
+        key_with_code(&held.ctx, CGEventType::KeyUp, 0x24, 0);
+        key_with_code(&held.ctx, CGEventType::KeyDown, 0x00, 0x10_0000);
+        let mut repeat = with_key(CGEventType::KeyDown, 0x00, 0x10_0000);
+        repeat.autorepeat = true;
+        advance(1);
+        on_tap_event(&held.ctx, repeat);
+        key_with_code(
+            &held.ctx,
+            CGEventType::FlagsChanged,
+            LEFT_SHIFT,
+            0x2_0000 | LEFT_SHIFT_BIT,
+        );
+        key_with_code(&held.ctx, CGEventType::FlagsChanged, LEFT_SHIFT, 0);
+        ticks(&held.ctx, 200);
+        assert_eq!(
+            keystroke_classes(&held.writer),
+            [KeyClass::Enter, KeyClass::Shortcut, KeyClass::Other],
+            "a key up, a repeat and a released modifier are no record"
+        );
+    }
+
+    #[test]
+    fn a_key_older_than_the_late_bound_raises_late_events_only_and_leaves_no_record() {
+        let held = held(100);
         advance(1);
         on_tap_event(
             &held.ctx,
             timed(
                 CGEventType::KeyDown,
                 Timing::Late {
-                    lag: Duration::from_millis(400),
+                    lag: Duration::from_millis(300),
                 },
             ),
         );
+        ticks(&held.ctx, 200);
         let figures = held.counters.figures();
-        assert_eq!(figures.late_events, 1, "the key was not judged late");
-        assert_eq!(figures.max_lag_ms, 0);
+        assert_eq!(figures.late_events, 1);
+        assert_eq!(figures.secure_input_keystrokes, 0);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn a_key_late_for_the_hold_but_not_for_the_check_is_withheld_and_not_counted_late() {
+        let held = held(100);
+        advance(1);
+        on_tap_event(
+            &held.ctx,
+            timed(
+                CGEventType::KeyDown,
+                Timing::Late {
+                    lag: Duration::from_millis(100),
+                },
+            ),
+        );
+        ticks(&held.ctx, 200);
+        let figures = held.counters.figures();
+        assert_eq!((figures.late_events, figures.keys_withheld), (0, true));
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    fn fixed_time() -> std::time::SystemTime {
+        std::time::UNIX_EPOCH + Duration::from_millis(101_010)
+    }
+
+    static FIXED_CLOCK: EventClock = EventClock::new(fixed_time);
+
+    #[test]
+    fn a_released_key_is_stamped_with_its_age_at_the_arrival_and_the_hold() {
+        let mut held = held(1_000);
+        held.ctx.clock = &FIXED_CLOCK;
+        advance(1);
+        on_tap_event(
+            &held.ctx,
+            timed(
+                CGEventType::KeyDown,
+                Timing::InTime {
+                    lag: Duration::from_millis(20),
+                },
+            ),
+        );
+        ticks(&held.ctx, 1_100);
+        let stamps: Vec<i64> = received(&held.writer)
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .map(|floor| floor.event().at())
+            .collect();
+        assert_eq!(
+            stamps,
+            [99_000_000_000],
+            "101.010 s less 20 ms of age at the arrival and 1,000 ms held, at the resolution of 1 s"
+        );
+    }
+
+    #[test]
+    fn no_key_record_leaves_for_a_listed_app_in_front_at_the_arrival_or_during_the_hold() {
+        let held = held(100);
+        held.fg_writer.set_for_test(Some(LISTED.front()));
+        key_down(&held.ctx);
+        held.fg_writer.set_for_test(Some(APP.front()));
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 0, "listed at the arrival");
+
+        key_down(&held.ctx);
+        tick(&held.ctx);
+        held.fg_writer.set_for_test(Some(LISTED.front()));
+        tick(&held.ctx);
+        held.fg_writer.set_for_test(Some(APP.front()));
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 0, "listed during the hold");
+
+        key_down(&held.ctx);
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 1, "any other app in front");
+    }
+
+    struct UnderRoot;
+
+    impl crate::floor::exclude::Lineage for UnderRoot {
+        fn parent_of(&self, pid: ProcessId) -> crate::floor::exclude::Parent {
+            match pid.get() {
+                4242 => crate::floor::exclude::Parent::Of(ProcessId::new(500)),
+                _ => crate::floor::exclude::Parent::None,
+            }
+        }
+    }
+
+    #[test]
+    fn no_key_or_pointer_record_leaves_for_a_process_under_the_exclusion_root() {
+        let mut held = held(100);
+        held.ctx.floor = FloorHandle::new(
+            Some(ProcessId::new(500)),
+            Arc::new(UnderRoot),
+            crate::floor::Switches::default(),
+        );
+        key_down(&held.ctx);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 3);
+        ticks(&held.ctx, 200);
+        close_interval(&held.ctx);
+        assert_eq!(received(&held.writer).len(), 0);
+
+        held.fg_writer
+            .set_for_test(Some(TestApp("com.example.other", 4444).front()));
+        key_down(&held.ctx);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        ticks(&held.ctx, 200);
+        assert_eq!(
+            received(&held.writer).len(),
+            2,
+            "a process outside the tree"
+        );
+    }
+
+    #[test]
+    fn with_the_key_switch_off_a_key_down_holds_nothing_and_gives_no_record() {
+        let mut held = held(100);
+        let mut switches = crate::floor::Switches::default();
+        switches.set(crate::floor::Switch::KeyClass, false);
+        held.ctx.floor =
+            FloorHandle::new(None, Arc::new(crate::floor::exclude::NoLineage), switches);
+        key_down(&held.ctx);
+        assert_eq!(held_now(&held.ctx), 0);
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 0);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        assert_eq!(pointer_records(&held.writer), [("primary", 1)]);
+    }
+
+    #[test]
+    fn with_the_pointer_switch_off_no_pointer_record_leaves() {
+        let mut held = held(100);
+        let mut switches = crate::floor::Switches::default();
+        switches.set(crate::floor::Switch::PointerClass, false);
+        held.ctx.floor =
+            FloorHandle::new(None, Arc::new(crate::floor::exclude::NoLineage), switches);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::ScrollWheel, 4);
+        close_interval(&held.ctx);
+        assert_eq!(pointer_records(&held.writer), []);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 1);
+    }
+
+    #[test]
+    fn a_reading_of_unknown_withholds_the_key_and_records_nothing() {
+        let held = held(100);
+        answer(Reading::Unknown);
+        key_down(&held.ctx);
+        answer(Reading::Off);
+        ticks(&held.ctx, 200);
+        let figures = held.counters.figures();
+        assert_eq!(keystroke_classes(&held.writer), []);
+        assert!(figures.keys_withheld);
+        assert_eq!(figures.secure_input_keystrokes, 0);
     }
 
     #[test]

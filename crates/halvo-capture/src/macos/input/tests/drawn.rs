@@ -109,6 +109,10 @@ fn rig(no_close_at_the_start: bool) -> (Held, DropCounts) {
     reset_drawn();
     let (handle, writer) = sink::channel(64);
     let (fg_writer, reader) = foreground_state_for_test();
+    fg_writer.set_for_test(Some(crate::macos::foreground::tests_support::front(
+        "com.example.editor",
+        4242,
+    )));
     let counters = InputCounters::new();
     let settings = TapSettings {
         secure: drawn_reader,

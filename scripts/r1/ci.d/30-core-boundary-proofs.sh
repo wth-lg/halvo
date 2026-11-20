@@ -44,6 +44,7 @@ site_from_a_string E0308 debug
 event_id_made_outside_its_maker E0603 debug
 segment_write_filled_outside_the_daemon E0451 daemon
 batch_filled_outside_the_daemon E0624 daemon
+keystroke_release_made_without_the_queue E0451 daemon
 store_database_named_by_its_path E0603 debug
 store_key_file_named_by_its_path E0603 debug
 store_segment_files_named_by_their_module E0603 debug
