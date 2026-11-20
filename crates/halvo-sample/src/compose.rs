@@ -12,7 +12,9 @@ use crate::form::{
     DAY, LAST_DAY, MILLI, SECOND,
 };
 use crate::rng::Draw;
-use crate::script::{Edge, Episode, Header, Item, Line, Mark, Noise, Sites, Step, TaskKind};
+use crate::script::{
+    Edge, Episode, Header, Item, Line, Mark, Noise, Sites, Step, TaskKind, LATE_MS,
+};
 use crate::site_data::{encode_value, fill, parse_service, Role, Service};
 use crate::text::site_masked;
 
@@ -182,6 +184,29 @@ pub struct ComposeArgs {
     pub rates: PathBuf,
     pub out: PathBuf,
     pub sites: Vec<PathBuf>,
+    /// `--late N`: the place of a stream in byte order of the stream ids, from 1, each of whose items with
+    /// keystrokes gets `late` 30,000 (contracts.md C12.10).
+    pub late: Option<usize>,
+}
+
+/// Sets `late` to the most that rule S16 allows on every item with keystrokes of the lines.
+fn with_late(lines: Vec<(u32, i64, Line)>) -> Vec<(u32, i64, Line)> {
+    let set = |i: &mut Item| {
+        if i.keys > 0 {
+            i.late = Some(LATE_MS.1);
+        }
+    };
+    lines
+        .into_iter()
+        .map(|(d, t, mut l)| {
+            match &mut l {
+                Line::Episode(e) => e.ranges.iter_mut().for_each(set),
+                Line::Noise(n) => set(&mut n.item),
+                _ => {}
+            }
+            (d, t, l)
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug)]
@@ -206,16 +231,12 @@ fn short(detail: &str) -> Refusal {
     Refusal::new("short", detail.to_owned())
 }
 
-/// The number of the path at `index` among `paths` in byte order, from 1; equal paths keep the order in which
-/// they are given (contracts.md C11.1).
+/// The number of the path at `index` among `paths` in byte order of the paths as UTF-8 text, from 1; equal paths
+/// keep the order in which they are given (contracts.md C11.1). The binary refuses an argument that is no UTF-8.
 pub fn file_number(paths: &[PathBuf], index: usize) -> usize {
+    let text: Vec<_> = paths.iter().map(|p| p.to_string_lossy()).collect();
     let mut order: Vec<usize> = (0..paths.len()).collect();
-    order.sort_by(|a, b| {
-        paths[*a]
-            .as_os_str()
-            .as_encoded_bytes()
-            .cmp(paths[*b].as_os_str().as_encoded_bytes())
-    });
+    order.sort_by(|a, b| text[*a].as_bytes().cmp(text[*b].as_bytes()));
     order.iter().position(|k| *k == index).map_or(0, |n| n + 1)
 }
 
@@ -766,6 +787,7 @@ impl Composer<'_> {
                             keys,
                             clicks,
                             scrolls,
+                            late: None,
                         };
                         out.stretch_ms.push(len);
                         out.steps.insert(st.step.clone(), st);
@@ -842,6 +864,7 @@ impl Composer<'_> {
                     keys,
                     clicks,
                     scrolls,
+                    late: None,
                 });
                 out.stretch_ms.push(len);
                 out.steps.insert(st.step.clone(), st.clone());
@@ -938,6 +961,12 @@ pub fn compose(args: &ComposeArgs) -> Result<Vec<String>, Refusal> {
         .map_err(|_| Refusal::new("rates", args.rates.display().to_string()))?;
     let rates = Rates::parse(&bytes)
         .ok_or_else(|| Refusal::new("rates", args.rates.display().to_string()))?;
+    if args
+        .late
+        .is_some_and(|n| n == 0 || n as u64 > rates.streams)
+    {
+        return Err(Refusal::new("usage", "--late"));
+    }
     let services = read_services(&args.sites)?;
     let plan = plan_services(&rates, services)?;
     let half_size = (rates.streams / 2) as usize;
@@ -964,8 +993,18 @@ pub fn compose(args: &ComposeArgs) -> Result<Vec<String>, Refusal> {
     })
     .write();
     let mut files: Vec<(String, String)> = Vec::new();
+    let mut ids: Vec<String> = (0..half_size * 2).map(|k| c.stream_id(k)).collect();
+    ids.sort();
+    let late_id = args.late.and_then(|n| ids.get(n - 1)).cloned();
     for stream in 0..half_size * 2 {
         let sid = c.stream_id(stream);
+        let late = |lines| {
+            if late_id.as_ref() == Some(&sid) {
+                with_late(lines)
+            } else {
+                lines
+            }
+        };
         let stream_line = Line::Stream {
             stream: sid.clone(),
             sites: rates.sides.0,
@@ -982,12 +1021,12 @@ pub fn compose(args: &ComposeArgs) -> Result<Vec<String>, Refusal> {
             v.sort_by_key(|(d, t, _)| (*d, *t));
             v
         };
-        let main = order(composed.lines.get(&stream));
+        let main = late(order(composed.lines.get(&stream)));
         files.push((
             format!("{sid}.jsonl"),
             file_text(&header, &stream_line, &main, &composed.steps),
         ));
-        let marked = order(composed.marked.get(&stream));
+        let marked = late(order(composed.marked.get(&stream)));
         if !marked.is_empty() {
             files.push((
                 format!("{sid}.marked.jsonl"),

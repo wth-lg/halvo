@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Before its first cargo command the check refuses each tracked file that differs from HEAD, changed or staged (the check's own file with the cause own), with one line that counts them and names none, the entries going to its artifacts directory, and each index flag, and allows a file that git does not track; it removes the built learn-gate at its two names under the build directory, builds it with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, takes the one of the two names that then exists (none or both is the cause build) and runs that file directly; it plays learn-gate drift --gate dev, and --gate heldout once the held-out cases are in the work tree, printing one line set=dev or set=heldout before the lines of that set, so that every line up to the next set= line belongs to that set, twice through one function, the first play without --restart-all and the second with it, on the derived store or, only when the derived call ends with status 2, nothing on standard output and exactly the one line REFUSED store: the derived store is not in this build on standard error, byte for byte with its final LF, on the memory store, every other status 2 of the derived call failing the check with the cause refused and no memory play following; each play exits 0 with drift result=ok, and a play that ended with status 0 or 1 and wrote on standard error fails the check with the cause stderr; no admit line of either play holds expired_runs=0, and in the development set an admit line of the second play holds a higher expired_runs than the same line of the first (the restart is one between occurrences, and the held-out set is asked for no difference in expired_runs); the second play gives every other integer of the first; the trial harness's arms none and plain give, for every case file, the occurrences, drifts, assisted, failed and harm of the gate host's lines of those arms; the held-out spread lines are those of docs/r5/heldout.txt at HEAD; and no cargo command or binary of the check changes the tree.
+# rule: Before its first cargo command the check refuses each tracked file that differs from HEAD, changed or staged (the check's own file with the cause own), with one line that counts them and names none, the entries going to its artifacts directory, and each index flag, and allows a file that git does not track; it removes the built learn-gate at its two names under the build directory, builds it with cargo build --locked -p halvo-learn-gate --bin learn-gate, first and apart, takes the one of the two names that then exists (none or both is the cause build) and runs that file directly; it plays learn-gate drift --gate dev, and --gate heldout once the held-out cases are in the work tree, printing one line set=dev or set=heldout before the lines of that set, so that every line up to the next set= line belongs to that set, twice through one function, the first play without --restart-all and the second with it, on the derived store or, only when the derived call ends with status 2, nothing on standard output and exactly the one line REFUSED store: the derived store is not in this build on standard error, byte for byte with its final LF, on the memory store, every other status 2 of the derived call failing the check with the cause refused and no memory play following; every case line of a play names the store of its call and no other store (a store= word other than the call's anywhere on the line) and every play of the run is on the store of the first, else the check fails with the cause store, tested after stderr and before result; each play exits 0 with drift result=ok, and a play that ended with status 0 or 1 and wrote on standard error fails the check with the cause stderr; no admit line of either play holds expired_runs=0, and in the development set an admit line of the second play holds a higher expired_runs than the same line of the first (the restart is one between occurrences, and the held-out set is asked for no difference in expired_runs); the second play gives every other integer of the first; the trial harness's arms none and plain give, for every case file, the occurrences, drifts, assisted, failed and harm of the gate host's lines of those arms; the held-out spread lines are those of docs/r5/heldout.txt at HEAD; and no cargo command or binary of the check changes the tree.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -117,7 +117,8 @@ not_built_refusal() {
 # gate_play SET DIR OUT [--restart-all]: runs the gate host on the set on the derived store and, only when the call
 # gives the build's own refusal (status 2, nothing on standard output and the one line not_built on standard error),
 # on the memory store, with the same further arguments; ends the check with refused at any other status 2 of the
-# derived call; sets played (the exit status) and store.
+# derived call; sets played (the exit status) and store; sets store_fault to yes when a case line of the play names
+# another store than its call or when the play is on another store than the first play of the run (run_store).
 gate_play() {
   set_name=$1
   set_dir=$2
@@ -132,6 +133,24 @@ gate_play() {
     run_gate drift --gate "$set_name" --cases "$set_dir" --store memory "$@" >"$out" 2>"$out.err" </dev/null
     played=$?
   fi
+  lines_name_store "$out" "$store" || store_fault=yes
+  if [ -z "$run_store" ]; then
+    run_store=$store
+  elif [ "$run_store" != "$store" ]; then
+    store_fault=yes
+  fi
+}
+
+# lines_name_store OUT STORE: every case line of OUT names the store STORE in its sixth field and no other store: a
+# store= word other than store=STORE anywhere on the line fails it.
+lines_name_store() {
+  awk -v want="store=$2" '
+    $1 == "case" {
+      if ($6 != want) bad = 1
+      for (i = 2; i <= NF; i++) if ($i ~ /^store=/ && i != 6) bad = 1
+    }
+    END { exit bad }
+  ' "$1"
 }
 
 # play_set SET DIR: the two plays of a set, the first without --restart-all and the second with it; sets first_out
@@ -229,7 +248,7 @@ readers() {
 }
 
 # judge SET: prints the lines of one set from its two plays and the readers' counts, and sets cause to the first
-# FAIL cause that holds, in the order stderr, result, expired, restart, readers, spread, or to nothing.
+# FAIL cause that holds, in the order stderr, store, result, expired, restart, readers, spread, or to nothing.
 judge() {
   cause=
   grep -E '^(improve|rollback|drift result)' "$first_out" || true
@@ -254,6 +273,8 @@ judge() {
   second_cause=$(play_cause "$second" "$second_out") || second_cause=result
   if wrote_at_0_or_1 "$first" "$first_out.err" || wrote_at_0_or_1 "$second" "$second_out.err"; then
     cause=stderr
+  elif [ "$store_fault" = yes ]; then
+    cause=store
   elif [ -n "$first_cause$second_cause" ]; then
     cause=result
   elif [ "$zero" != 0 ]; then
@@ -298,6 +319,8 @@ measure() {
   build_gate
   trial_script=tools/r5-trials/drift/run.sh
   status=pass
+  run_store=
+  store_fault=no
   for set_name in $sets; do
     printf 'set=%s\n' "$set_name"
     play_set "$set_name" "fixtures/r5/cases/$set_name"
@@ -378,7 +401,7 @@ for arg in "$@"; do
   [ "$arg" = --restart-all ] && play=second
   previous=$arg
 done
-if [ "$store" = derived ] && [ ! -e "$FX/derived" ]; then
+if [ "$store" = derived ] && [ ! -e "$FX/derived" ] && [ ! -e "$FX/derived-$set_name-$play" ]; then
   if [ -e "$FX/derived-$play.code" ]; then
     cat "$FX/derived-$play.out"
     cat "$FX/derived-$play.err" >&2
@@ -390,7 +413,25 @@ fi
 if [ -e "$FX/change-at-$set_name-$play" ]; then
   cat "$FX/change-at-$set_name-$play" >>"$FX/$(cat "$FX/change-file")"
 fi
-sed "s/store=memory/store=$store/" "$FX/$set_name-$play.out"
+word=$store
+if [ -e "$FX/lines-store" ]; then
+  word=$(cat "$FX/lines-store")
+fi
+if [ "$play" = second ] && [ -e "$FX/second-play-store" ]; then
+  word=$(cat "$FX/second-play-store")
+fi
+if [ "$set_name" = heldout ] && [ -e "$FX/heldout-lines-store" ]; then
+  word=$(cat "$FX/heldout-lines-store")
+fi
+if [ -e "$FX/first-line-store" ]; then
+  sed "s/store=memory/store=$word/" "$FX/$set_name-$play.out" |
+    awk -v first="store=$(cat "$FX/first-line-store")" '$1 == "case" && !done { $6 = first; done = 1 } { print }'
+elif [ -e "$FX/second-line-store" ]; then
+  sed "s/store=memory/store=$word/" "$FX/$set_name-$play.out" |
+    awk -v second="store=$(cat "$FX/second-line-store")" '$1 == "case" { n++ } $1 == "case" && n == 2 { $6 = second } { print }'
+else
+  sed "s/store=memory/store=$word/" "$FX/$set_name-$play.out"
+fi
 if [ -e "$FX/$set_name-$play.err" ]; then
   cat "$FX/$set_name-$play.err" >&2
 fi
@@ -705,6 +746,78 @@ self_test() {
   check PASS 'spread=same'
   calls_are "$build" "gate $dev --store derived" "gate $dev --store derived --restart-all" \
     "gate $held --store derived" "gate $held --store derived --restart-all"
+
+  fixture derived-lines-name-the-memory-store
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/lines-store" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture memory-lines-name-the-derived-store
+  printf 'derived\n' >"$FX/lines-store" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture derived-first-case-line-names-the-memory-store
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/first-line-store" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture derived-lines-name-the-memory-store-beside-a-miss
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/lines-store" || broken
+  play_lines dev memory 2 "" miss >"$FX/dev-first.out" || broken
+  printf '1\n' >"$FX/dev-first.code" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture derived-second-case-line-names-the-memory-store
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/second-line-store" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture derived-second-play-lines-name-the-memory-store
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/second-play-store" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture derived-later-set-lines-name-the-memory-store heldout
+  : >"$FX/derived"
+  printf 'memory\n' >"$FX/heldout-lines-store" || broken
+  check FAIL-store "FAIL $name (store)"
+
+  fixture duplicate-store-token
+  : >"$FX/derived"
+  for play in first second; do
+    sed 's/ occurrences=/ store=memory occurrences=/' "$FX/dev-$play.out" >"$FX/input" || broken
+    cp "$FX/input" "$FX/dev-$play.out" || broken
+  done
+  check FAIL-store "FAIL $name (store)"
+
+  fixture same-store-token-twice
+  : >"$FX/derived"
+  for play in first second; do
+    sed 's/ occurrences=/ store=derived occurrences=/' "$FX/dev-$play.out" >"$FX/input" || broken
+    cp "$FX/input" "$FX/dev-$play.out" || broken
+  done
+  check FAIL-store "FAIL $name (store)"
+
+  fixture derived-first-play-alone
+  : >"$FX/derived-dev-first"
+  check FAIL-store "FAIL $name (store)"
+  calls_are "$build" "gate $dev --store derived" "gate $dev --store derived --restart-all" \
+    "gate $dev --store memory --restart-all"
+
+  fixture derived-second-play-alone
+  : >"$FX/derived-dev-second"
+  check FAIL-store "FAIL $name (store)"
+  calls_are "$build" "gate $dev --store derived" "gate $dev --store memory" \
+    "gate $dev --store derived --restart-all"
+
+  fixture derived-development-set-alone heldout
+  : >"$FX/derived-dev-first"
+  : >"$FX/derived-dev-second"
+  check FAIL-store "FAIL $name (store)"
+  calls_are "$build" "gate $dev --store derived" "gate $dev --store derived --restart-all" \
+    "gate $held --store derived" "gate $held --store memory" \
+    "gate $held --store derived --restart-all" "gate $held --store memory --restart-all"
 
   for at in first second; do
     for form in other-detail second-line blank-line-after longer-line nul-in-line no-final-lf beside-output blank-output status-1 status-3; do

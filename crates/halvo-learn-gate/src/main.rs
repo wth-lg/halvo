@@ -9,6 +9,7 @@
 mod case;
 mod cli;
 mod delete;
+mod derived;
 mod drift;
 mod forms;
 mod host;

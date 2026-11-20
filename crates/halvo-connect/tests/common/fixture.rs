@@ -16,8 +16,6 @@ pub fn repo() -> PathBuf {
         .join("..")
 }
 
-const END_WITH_INPUT: &str = "data:text/javascript,const e=()=>process.exit(0);process.stdin.on('end',e).on('error',e).resume();";
-
 pub struct Server(Child);
 
 impl Drop for Server {
@@ -44,7 +42,6 @@ impl Fixture {
             .join("variants")
             .join("server.mjs");
         let child = Command::new("node")
-            .args(["--import", END_WITH_INPUT])
             .arg(server)
             .args(["--port", "0"])
             .stdin(Stdio::piped())
@@ -102,6 +99,10 @@ impl Fixture {
 
     pub fn advance(&self) {
         self.control("POST", "/advance");
+    }
+
+    pub fn throttle(&self, seconds: u32) {
+        self.control("POST", &format!("/throttle?seconds={seconds}"));
     }
 
     pub fn state(&self) -> Value {

@@ -25,8 +25,6 @@ account/crates/halvo-secrets/tests/hosted.rs 1 account run
 account/crates/halvo-secrets/tests/walk.rs 1 account run
 account/crates/halvo-secrets/tests/wipe.rs 1 account run
 crates/halvo-agent-client/src/marks.rs 1 agent-setup run, U4.3
-crates/halvo-cap/src/lock.rs 1 workflow run
-crates/halvo-cap/tests/model_lock.rs 1 workflow run
 crates/halvo-capture/tests/source_rules.rs 1 capture run, store-4
 crates/halvo-coord/tests/fixtures_same.rs 1 interface run
 crates/halvo-route-gate/tests/cli_commands.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
@@ -57,9 +55,9 @@ tools/r4-trials/app/tests/pages.rs 1 interface run
 EOF
 }
 
-pinned_rows=39
-pinned_places=52
-pinned_paths=3988852588
+pinned_rows=37
+pinned_places=50
+pinned_paths=2781855249
 
 program='
 function code(s) {

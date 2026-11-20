@@ -1,0 +1,1 @@
+ledger process=daemon name=board bytes=262144 kind=by-construction source=board::tests::the_board_holds_no_unbounded_text
