@@ -2742,7 +2742,16 @@ impl EncryptedStore {
     /// directory was listed after the step and nothing stays in it at any name,
     /// or nothing stands at the roots path, and [`StoreError::Locked`] while
     /// another process holds the store directory (ruling ST-45 H1; store-3b;
-    /// ruling ST-47 T1 to T3).
+    /// ruling ST-47 T1 to T3). Two named limits of the root step stand. A
+    /// mode change that a program racing the step causes between the read of
+    /// a file's count of names and length by its name and the open of its
+    /// kept handle: the mode is set by the name, so a file of another party
+    /// put at the name in that window gets mode 0600, and the kept handle then
+    /// shows another identity and the name is removed with no write, its
+    /// bytes kept. And a file of another program that a process of the same
+    /// user hard-links at a root file's name is zeroed through every name
+    /// when it has a root file's length at a root name (any length above 0 on
+    /// Windows).
     pub fn delete_data_dir(dir: &Path, layout: Layout) -> StoreResult<DeleteReport> {
         #[cfg(windows)]
         if durable::has_a_part_that_windows_trims(dir) {
