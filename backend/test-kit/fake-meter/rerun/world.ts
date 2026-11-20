@@ -2,7 +2,7 @@ import { makeAccounts } from "../../../src/accounts/index.ts";
 import type { ProviderEvent, ProviderPort, StoredIdState } from "../../../src/billing/port.ts";
 import { CALL_IN_FLIGHT_MS, type Entries, makeEntries, ownTables } from "../../../src/do/entries.ts";
 import { makeLedger } from "../../../src/ledger/index.ts";
-import { makeMetering } from "../../../src/metering/index.ts";
+import { LATE_READ_SPAN_MS, makeMetering } from "../../../src/metering/index.ts";
 import { makeTestHost } from "../../sql/node.ts";
 import { FakeMeter, type FakeMeterConfig, type MeterEvent, type RecordedEvent, type SendResult } from "../fake-meter.ts";
 
@@ -533,6 +533,12 @@ class World {
     return this.now * 1000 >= firstAttempt + 86_400_000 - WINDOW_MARGIN * 1000 ? "send.resend-after-the-window" : "send.retry-inside-the-window";
   }
 
+  private lawfulRun(account: Account, timestamp: number): boolean {
+    if (this.scenario.meter.readLagSeconds * 1000 >= LATE_READ_SPAN_MS) return true;
+    const minute = Math.floor(timestamp / READ_WIDTH_SECONDS);
+    return this.meter.recordedEvents(account.id).some((e) => account.foreign.has(e.identifier) && Math.floor(e.timestamp / READ_WIDTH_SECONDS) === minute);
+  }
+
   private ownTotal(account: Account, from: number, to: number): number {
     let foreign = 0;
     for (const e of this.meter.recordedEvents(account.id)) {
@@ -984,7 +990,7 @@ class World {
         account.deleteBound.set(identifier, { amountMinor: int(interval, "amount"), timestamp: int(interval, "timestamp") });
         continue;
       }
-      if (interval.outcome === "not-billable" && interval.refusal === "unexplained-total") {
+      if (interval.outcome === "not-billable" && interval.refusal === "unexplained-total" && this.lawfulRun(account, int(interval, "timestamp"))) {
         const identifier = String(interval.identifier);
         if (!account.unexplainedClosed.has(identifier)) this.count(held.has(identifier) ? "unexplained-total.closed-held-by-the-meter" : "unexplained-total.closed-not-at-the-meter");
         account.unexplainedClosed.set(identifier, { amountMinor: int(interval, "amount"), timestamp: int(interval, "timestamp") });
@@ -1176,7 +1182,7 @@ class World {
       if (intervals.some((i) => i.outcome === null)) this.fail("an ended interval is not acknowledged", account.id);
       this.readRecordAgainstTheProvider(account, intervals);
       const refusedByAFault = (i: Row) => i.outcome === "not-billable" && i.refusal === "unknown_account" && account.refused.has(String(i.identifier));
-      const closedByARun = (i: Row) => i.outcome === "not-billable" && i.refusal === "unexplained-total";
+      const closedByARun = (i: Row) => i.outcome === "not-billable" && i.refusal === "unexplained-total" && this.lawfulRun(account, int(i, "timestamp"));
       if (intervals.some((i) => i.outcome === "not-billable" && !refusedByAFault(i) && !closedByARun(i))) this.fail("an interval the provider refused", account.id);
       this.count("interval.not-billable-after-refusals", intervals.filter(refusedByAFault).length);
       this.count("interval.not-billable-after-an-unexplained-run", intervals.filter(closedByARun).length);
@@ -1186,7 +1192,7 @@ class World {
       for (const interval of intervals) {
         if (interval.sealed_at === null) continue;
         const held = events.filter((e) => e.timestamp === interval.timestamp);
-        const expected = interval.outcome === "acknowledged" ? [1] : interval.outcome === "not-billable" && interval.refusal === "unexplained-total" ? [0, 1] : [0];
+        const expected = interval.outcome === "acknowledged" ? [1] : closedByARun(interval) ? [0, 1] : [0];
         if (!expected.includes(held.length) || held.some((e) => e.amountMinor !== interval.amount)) {
           this.fail("one event for each acknowledged interval", `${account.id} interval ${interval.start}: ${held.length} events, outcome ${interval.outcome}`);
         }
