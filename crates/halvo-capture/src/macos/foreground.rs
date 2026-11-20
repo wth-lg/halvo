@@ -1514,6 +1514,27 @@ mod tests {
     }
 
     #[test]
+    fn a_sibling_that_is_itself_a_link_is_read_through_the_link() {
+        let root = tempfile::tempdir().expect("a temporary directory");
+        let dir = root.path().join("dir");
+        std::fs::create_dir(&dir).expect("the directory");
+        std::fs::write(dir.join("halvo-real"), b"").expect("the file that the link names");
+        std::os::unix::fs::symlink(dir.join("halvo-real"), dir.join("halvo"))
+            .expect("halvo as a link");
+        let halvo = HalvoApp::beside(Some(&dir.join("halvo-capture")));
+        let canonical = std::fs::canonicalize(dir.join("halvo-real")).expect("the canonical path");
+        assert!(
+            halvo.selects("", canonical.to_str()),
+            "{:?} against {canonical:?}",
+            halvo.sibling
+        );
+        assert!(
+            !halvo.selects("", dir.join("halvo").to_str()),
+            "the path of the link itself"
+        );
+    }
+
+    #[test]
     fn a_sibling_beside_an_executable_in_a_linked_directory_is_the_canonical_path_once_it_exists() {
         let root = tempfile::tempdir().expect("a temporary directory");
         let real = root.path().join("real");
