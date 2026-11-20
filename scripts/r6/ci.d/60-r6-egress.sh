@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that a job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run in the dev and in the release profile whose list the script writes and whose canary proves it in the run, over a closed graph of packages; a cfg predicate may name test, unix, windows, any, all and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its parenthesis, in the tracked files of the three crate directories and in every file that a forbid run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro variable named like an allowed word or one split by a comment; for those spellings the dev and the release forbid runs hold what they compile, and the rule on the word clippy holds the one value that no forbid run has in common with a build; no attribute path comes from a macro variable and no flags or wrapper variable lifts a lint; once one of these holds has refused, the check builds and runs nothing of route-gate; and every command of the first list is run, and a run that is missing fails the check; each, run with its arguments under scripts/egress/check.sh with the commit's list behind a control of the wrap, exits 0 with denied=0, the commands come from route-gate's printing of the one table that dispatches them, in both jobs, and a printed command on neither list fails, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed; it holds no more than --help says.
+# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that a job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run in the dev and in the release profile whose list the script writes and whose canary proves it in the run, over a closed graph of packages; a cfg predicate may name test, unix, windows, any, all and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its parenthesis, in the tracked files of the three crate directories and in every file that a forbid run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro variable named like an allowed word or one split by a comment; for those spellings the dev and the release forbid runs hold what they compile, and the rule on the word clippy holds the one value that no forbid run has in common with a build; no attribute path comes from a macro variable and no flags or wrapper variable lifts a lint; once one of these holds has refused, the check builds and runs nothing of route-gate; and every command of the first list is run, and a run that is missing fails the check; each, run with its arguments under scripts/egress/check.sh with the commit's list behind a control of the wrap, exits 0 with denied=0, the commands come from route-gate's printing of the one table that dispatches them, in both jobs, and a printed command on neither list fails, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed and no untracked path outside target/ new or gone; it holds no more than --help says.
 # lane: alone
 set -u
 name=60-r6-egress
@@ -41,8 +41,14 @@ no cargo configuration file: the compiler flags keys of its build and target tab
 keys reach the forbid runs and the build alike.
 From the first wrapped call on, the check decides nothing from a file that a wrapped program can
 write: the run list with its arguments, the printed names of the commands, the list's blob id, the
-hashes of the tracked files and git's configuration are read into the shell before the control; the
-egress check's last line comes through a pipe; and a command's --out directory is one of its own.
+hashes of the tracked files, git's configuration and the untracked paths of the checkout are read into
+the shell before the control; the egress check's last line comes through a pipe; and a command's --out
+directory is one of its own, outside the checkout. After every wrapped call the check reads the
+tracked files, git's configuration and the untracked paths outside target/ again (git ls-files --others
+--directory, which names a directory that holds no tracked file by its name alone) and fails on any
+difference: an untracked path that is new by "a wrapped run left a new path: <path>", and one that is
+gone by "a wrapped run took away a path: <path>". A file written under target/, or inside a directory
+that held no tracked file before the first call, is not seen there.
 Every command of the first list is run, and a run that is missing fails the check: checks must equal
 the number of entries of the first list that the printing names, and each command whose run was not
 made and read is named by "egress run-missing=<word>".
@@ -79,8 +85,11 @@ the names of its commands from the one table that dispatches them, one per line 
 order, so that a name that it does not print is a command that route-gate does not dispatch; a
 printing that does not exit 0 fails the check by "egress printing exit=<n>".
 The two lists: the commands that the check runs under the egress check, each with its arguments,
-and the commands that it cannot run on files of the repository alone, each with its reason. A printed
-command on neither list fails the check, and so does a list entry that the printing does not name.
+and the commands that it cannot run on files of the repository alone, each with its reason. At this
+commit every command stands on the first list, import among them on the repository's two trial files
+of docs/r3/trials/ with its --out in the check's own directory, and the second list has no entry; the
+count line prints cannot=0. A printed command on neither list fails the check, and so does a list
+entry that the printing does not name.
 The control: before the first wrapped run, a listener on 127.0.0.1:47201 and one wrapped run of the
 egress run's loopback probe; a status of 0 with denied=0 is "the egress check let the control
 through". The control holds against an egress check that wraps nothing; an egress check changed in
@@ -129,6 +138,7 @@ EOF
 run_list() {
   cat <<'EOF'
 generate --seed 1 --out @/table.tsv
+import --driver docs/r3/trials/driver.md --cells docs/r3/trials/model-cells.md --date s1=2026-11-10 --date s2=2026-11-10 --out @/
 derive --table @/table.tsv --out @/policy.tsv
 score --table @/table.tsv --router product --policy @/policy.tsv
 self-test --tables 20 --seed 1
@@ -140,7 +150,6 @@ EOF
 
 cannot_list() {
   cat <<'EOF'
-import its inputs are the agent-setup run's trial files, which reach the repository with U3.1
 EOF
 }
 
@@ -869,6 +878,29 @@ tree_after() {
     printf "egress %s: a wrapped run changed git's configuration\n" "$1"
     changed=yes
   fi
+  untracked_now=$(untracked_view) || untracked_now=-
+  if [ "$untracked_now" != "$untracked_reference" ]; then
+    changed=yes
+    {
+      printf '%s\n' "$untracked_reference"
+      printf '%s\n' '--now--'
+      printf '%s\n' "$untracked_now"
+    } | awk -v who="$1" '
+      $0 == "--now--" { part = 1; next }
+      $0 == "" { next }
+      part == 0 { before[$0] = 1; next }
+      {
+        now[$0] = 1
+        if (!($0 in before) && shown++ < 5) printf "egress %s: a wrapped run left a new path: %s\n", who, $0
+      }
+      END { for (p in before) if (!(p in now) && gone++ < 5) printf "egress %s: a wrapped run took away a path: %s\n", who, p }
+    '
+  fi
+}
+
+untracked_view() {
+  git -c core.fsmonitor=false -c core.untrackedCache=false -c core.quotePath=false \
+    ls-files --others --directory --exclude=/target/
 }
 
 wrapped_call() {
@@ -1033,6 +1065,7 @@ state_before_calls() {
   tracked_hashes=$(tree_hashes) || fail setup
   git_reference=$(git_view) || fail setup
   out_dir=$(mktemp -d "${TMPDIR:-/tmp}/$name-out.XXXXXX") || fail setup
+  untracked_reference=$(untracked_view) || fail setup
 }
 
 compare_lists() {
@@ -1434,6 +1467,7 @@ if [ "$#" -eq 1 ] && [ "$1" = commands ]; then
 fi
 for known in $STUB_COMMANDS; do
   if [ "$1" = "$known" ]; then
+    [ "$1" != "$STUB_LEAVE" ] || printf 'x\n' >left-behind.txt
     exit "$STUB_RUN_EXIT"
   fi
 done
@@ -1638,6 +1672,7 @@ case_reset() {
   STUB_BUILD_TOUCH=
   STUB_CONTROL=
   STUB_HELD_PORT=
+  STUB_LEAVE=
   STUB_CHECK=pass
   STUB_TOUCH=
   STUB_FRESH=true
@@ -1698,6 +1733,7 @@ windows-imports import-listing-printed
 printing-names printed-command-on-neither-list
 printing-entries entry-that-is-no-command
 printing-exit printing-that-does-not-exit-0
+tree-new-path import-leaves-a-file-in-the-checkout
 checks-count job-with-no-run
 windows-sentence sentence-on-a-hosted-runner
 forbid-exit-status forbid-exit-without-a-finding
@@ -1762,6 +1798,7 @@ import-listing-printed
 printed-command-on-neither-list
 entry-that-is-no-command
 printing-that-does-not-exit-0
+import-leaves-a-file-in-the-checkout
 job-with-no-run
 sentence-on-a-hosted-runner
 forbid-exit-without-a-finding
@@ -1889,7 +1926,7 @@ case_run() {
   fi
   case_started=$(date +%s)
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
@@ -2189,10 +2226,11 @@ self_test() {
   features_tree=$(write_repo "$work/repo-features" '' '' '[features]\nnet = []\n') || self_failed "setup at line $LINENO"
   link_tree=$(odd_repo "$work/repo-link" link) || self_failed "setup at line $LINENO"
   gitlink_tree=$(odd_repo "$work/repo-gitlink" gitlink) || self_failed "setup at line $LINENO"
+  leave_tree=$(write_repo "$work/repo-leave" '') || self_failed "setup at line $LINENO"
   awk '/^run_list\(\) \{/ { skip = 1 } skip && /^EOF$/ { skip = 0 } skip && /^[a-z-]+( |$)/ { next } { print }' "$self" \
     >"$work/norun.sh" || self_failed "setup at line $LINENO"
   awk '/^spend-sim --seed 1$/ { print "spend-sim"; next } { print }' "$self" >"$work/bare.sh" || self_failed "setup at line $LINENO"
-  awk '{ print } /^import its inputs/ { print "probe a second entry of the same name" }' "$self" >"$work/twice.sh" ||
+  awk '{ print } /^cannot_list\(\) \{$/ { getline; print; print "probe a second entry of the same name" }' "$self" >"$work/twice.sh" ||
     self_failed "setup at line $LINENO"
   cfg_tree=$(write_repo "$work/repo-cfg" '' '' '' crates/halvo-route-gate/src/net.rs \
     '#[cfg(target_os = "linux")]') || self_failed "setup at line $LINENO"
@@ -2315,6 +2353,7 @@ windows-imports import-listing-printed
 printing-names printed-command-on-neither-list
 printing-entries entry-that-is-no-command
 printing-exit printing-that-does-not-exit-0
+tree-new-path import-leaves-a-file-in-the-checkout
 checks-count job-with-no-run
 windows-sentence sentence-on-a-hosted-runner
 forbid-exit-status forbid-exit-without-a-finding
@@ -2391,13 +2430,13 @@ EOF
     fi
   fi
 
-  case_run pass PASS - "egress checks=7 denied=0 entries=0${nl}denied=0 proves that no process"
+  case_run pass PASS - "egress checks=8 denied=0 entries=0${nl}denied=0 proves that no process"
   part_seconds
   case_run import-listing-printed PASS - 'egress imports binary=dev reader=' 
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=8 run=7 cannot=1 crates=3'
+  case_run commands PASS - 'egress commands=8 run=8 cannot=0 crates=3'
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid profile=dev findings=0 exit=0'
   case_run control-denied PASS - 'egress control denied=1 log=target/egress/'
@@ -2413,11 +2452,15 @@ EOF
   case_run log-with-another-count FAIL check 'log=not-new-or-not-its-own'
   STUB_HELD_PORT=47202
   case_job=macos
-  case_run port-47202-held-by-another-process PASS - 'egress checks=7 denied=0 entries=0' 'egress asking'
+  case_run port-47202-held-by-another-process PASS - 'egress checks=8 denied=0 entries=0' 'egress asking'
   STUB_COMMANDS="$STUB_COMMANDS export"
   case_run printed-command-on-neither-list FAIL check 'egress on-neither-list=export'
   STUB_PRINT_EXIT=2
   case_run printing-that-does-not-exit-0 FAIL check 'egress printing exit=2 (route-gate commands printed no names)' 'egress control'
+  case_repo=$work/repo-leave
+  case_tree=$leave_tree
+  STUB_LEAVE=import
+  case_run import-leaves-a-file-in-the-checkout FAIL check 'egress run=import: a wrapped run left a new path: left-behind.txt'
   case_run graph-closed PASS - 'egress graph paths=3 linked=6 build=5 holds=yes'
   case_run rules-allowed-forms PASS - 'egress rules files='
   case_env="$v_flags=-Dwarnings"
@@ -2545,10 +2588,10 @@ EOF
   STUB_CANARY_DROP=m22
   case_run canary-requires-a-windows-entry-in-the-windows-job FAIL check 'egress canary profile=dev missing=clippy::disallowed_methods:51'
   case_job=windows
-  case_run windows-job-runs-every-command PASS - 'egress checks=7 denied=0 entries=0'
+  case_run windows-job-runs-every-command PASS - 'egress checks=8 denied=0 entries=0'
   case_job=windows
   case_self=$work/norun.sh
-  STUB_COMMANDS=import
+  STUB_COMMANDS=
   case_run job-with-no-run FAIL check 'egress checks=0: no command of the first list ran' 'egress no-command='
   case_job=windows
   case_run forbid-list-of-the-windows-job PASS - 'egress forbid profile=dev findings=0 exit=0'
@@ -2571,7 +2614,7 @@ EOF
   case_run forbid-list-entry-refers-to-nothing FAIL check 'egress forbid list-entry=refers-to-nothing'
   case_repo=$work/repo-entry
   case_tree=$entry_tree
-  case_run list-file-with-one-entry FAIL entries 'egress checks=7 denied=0 entries=1'
+  case_run list-file-with-one-entry FAIL entries 'egress checks=8 denied=0 entries=1'
   case_self=$work/bare.sh
   case_run entry-with-no-arguments PASS - 'egress run=spend-sim mode=sandbox command=0 denied=0 exit=0'
   case_self=$work/twice.sh
@@ -2582,18 +2625,18 @@ EOF
   case_run line-of-another-list FAIL check 'egress run=probe line=missing'
   case_repo=$work/repo-link
   case_tree=$link_tree
-  case_run list-directory-holds-a-link FAIL entries 'egress checks=7 denied=0 entries=1'
+  case_run list-directory-holds-a-link FAIL entries 'egress checks=8 denied=0 entries=1'
   case_repo=$work/repo-gitlink
   case_tree=$gitlink_tree
-  case_run list-directory-holds-a-submodule FAIL entries 'egress checks=7 denied=0 entries=1'
+  case_run list-directory-holds-a-submodule FAIL entries 'egress checks=8 denied=0 entries=1'
   STUB_CANARY=refer
   case_run canary-list-entry-refers-to-nothing FAIL check 'egress canary: the forbid run let the canary through'
   STUB_CHECK=reuse-log-run
   case_run log-of-another-run-of-the-gate-tool FAIL check 'egress run=generate log=not-new-or-not-its-own'
   STUB_CHECK=rewrite-record
-  case_run run-rewrites-the-record-of-found-commands PASS - 'egress checks=7 denied=0 entries=0'
+  case_run run-rewrites-the-record-of-found-commands PASS - 'egress checks=8 denied=0 entries=0'
   STUB_CHECK=cut-run-list
-  case_run run-cuts-the-run-list PASS - 'egress checks=7 denied=0 entries=0'
+  case_run run-cuts-the-run-list PASS - 'egress checks=8 denied=0 entries=0'
   STUB_CHECK=widen
   case_run run-widens-the-list-and-a-later-run-restores-it FAIL check 'egress run=generate: a wrapped run changed the list'
   STUB_CHECK=change-copy
@@ -2603,7 +2646,7 @@ EOF
   STUB_COMMANDS='generate import derive score self-test spend-sim commands'
   case_run entry-that-is-no-command FAIL check 'egress no-command=probe'
   STUB_CHECK=denied
-  case_run denied-in-each-run FAIL denied 'egress checks=7 denied=7 entries=0' 'denied=0 proves'
+  case_run denied-in-each-run FAIL denied 'egress checks=8 denied=8 entries=0' 'denied=0 proves'
   STUB_CHECK=denied0
   case_run check-exits-0-with-a-denial FAIL check 'egress run=probe mode=sandbox command=0 denied=1 exit=0'
   STUB_CHECK=denied
@@ -2650,7 +2693,7 @@ EOF
   fi
   STUB_CHECK=replace-list
   STUB_MARKER=$work/marker-replace
-  case_run run-plants-a-replace-ref-for-the-list PASS - 'egress checks=7 denied=0 entries=0'
+  case_run run-plants-a-replace-ref-for-the-list PASS - 'egress checks=8 denied=0 entries=0'
   marker_absent run-plants-a-replace-ref-for-the-list "$work/marker-replace.widened"
   listed=$(git -C "$work/repo" rev-parse "$good_tree:scripts/r6/egress/gate.txt") || self_failed "setup at line $LINENO"
   git -C "$work/repo" replace -d "$listed" >/dev/null 2>&1
@@ -2761,6 +2804,8 @@ help_sentences() {
     'the egress check'"'"'s writes under target/egress/' \
     'the forbid list and its canary come from one table of this script: a commit that changes 60-r6-egress.sh can take an entry out of the list and its canary line together, and only the readers of that guarded script see it' \
     'which prints the names of its commands from the one table that dispatches them, one per line in the table'"'"'s order, so that a name that it does not print is a command that route-gate does not dispatch' \
+    'and the second list has no entry; the count line prints cannot=0' \
+    'A file written under target/, or inside a directory that held no tracked file before the first call, is not seen there' \
     'the control holds against an egress check that wraps nothing; an egress check changed in the same commit can pass it, and scripts/egress/ is held by its own run'"'"'s checks and by the landing'"'"'s readers'; do
     if ! grep -q -i -F -e "$sentence" "$work/help-line.txt"; then
       printf 'case %s/help want=PASS got=without-a-sentence\n' "$name"
