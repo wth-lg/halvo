@@ -624,12 +624,44 @@ pub mod notice {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) mod wait_seam {
+        use std::cell::Cell;
+        use std::time::Duration;
+
+        use core_foundation::runloop::CFRunLoopRunResult;
+        use core_foundation::string::CFStringRef;
+
+        thread_local! {
+            pub(crate) static HANDED: Cell<Option<Duration>> = const { Cell::new(None) };
+        }
+
+        pub(crate) struct CFRunLoop;
+
+        impl CFRunLoop {
+            pub(crate) fn run_in_mode(
+                mode: CFStringRef,
+                duration: Duration,
+                return_after_source_handled: bool,
+            ) -> CFRunLoopRunResult {
+                HANDED.with(|handed| handed.set(Some(duration)));
+                core_foundation::runloop::CFRunLoop::run_in_mode(
+                    mode,
+                    duration,
+                    return_after_source_handled,
+                )
+            }
+        }
+    }
+
     fn run(
         front: &(dyn Fn() -> Option<libc::pid_t> + Send),
         context: &Context,
         stop: &AtomicBool,
         steps: &StepCounts,
     ) {
+        #[cfg(test)]
+        use self::wait_seam::CFRunLoop;
         let _doubt_ends = DoubtEndsWithTheThread(context);
         let timer = step_timer();
         let mut watched: Option<Watch> = None;
@@ -1122,8 +1154,8 @@ mod tests {
     mod notice_thread {
         use super::super::hold::Uptime;
         use super::super::notice::{
-            notice_came, AxCalls, Context, Focus, MarkKind, NoticeMark, NoticeThread, Observed,
-            NOTICE_FRONT_STEP, NOTICE_READ_DEADLINE, NO_GRANT_RETRY,
+            notice_came, wait_seam, AxCalls, Context, Focus, MarkKind, NoticeMark, NoticeThread,
+            Observed, NOTICE_FRONT_STEP, NOTICE_READ_DEADLINE, NO_GRANT_RETRY,
         };
         use core_foundation::base::{kCFAllocatorDefault, CFType, TCFType};
         use core_foundation::runloop::{
@@ -1311,6 +1343,7 @@ mod tests {
         static SWITCH_AT: AtomicUsize = AtomicUsize::new(0);
         static SWITCH_TO: AtomicI32 = AtomicI32::new(0);
         static REGISTERED: Mutex<Vec<(i32, usize, usize)>> = Mutex::new(Vec::new());
+        static WAITS_HANDED: Mutex<Vec<Option<Duration>>> = Mutex::new(Vec::new());
 
         const GIVE_UP: Duration = Duration::from_secs(20);
 
@@ -1353,6 +1386,10 @@ mod tests {
                 reads.push(WAITS.load(Ordering::SeqCst));
                 reads.len()
             };
+            WAITS_HANDED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(wait_seam::HANDED.with(std::cell::Cell::get));
             if read == 1 {
                 count_the_waits_of_this_thread();
             }
@@ -1384,6 +1421,10 @@ mod tests {
             WAITS.store(0, Ordering::SeqCst);
             READS.lock().unwrap_or_else(PoisonError::into_inner).clear();
             REGISTERED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
+            WAITS_HANDED
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .clear();
@@ -1655,6 +1696,8 @@ mod tests {
             assert_eq!(mark.get(), None);
         }
 
+        /// It reads a prefix of 20 counted steps, one second of steps, and asks one read of the
+        /// front in each, which is what a test that counts the thread's steps can hold.
         #[test]
         fn the_thread_reads_the_front_at_least_ten_times_in_a_second() {
             let _serial = serial();
@@ -1674,6 +1717,27 @@ mod tests {
                 in_the_second,
                 (0..second).collect::<Vec<usize>>(),
                 "the waits of the thread before each read of the front, one read in each step: {steps:?}"
+            );
+        }
+
+        #[test]
+        fn the_thread_hands_each_of_its_waits_one_step() {
+            let _serial = serial();
+            let mark = NoticeMark::new();
+            let mut thread = counted(&mark, None);
+            let second = steps_in(Duration::from_secs(1));
+            after_waits(second + 1);
+            let handed = WAITS_HANDED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone();
+            assert!(thread.stop_within(GIVE_UP), "the thread ends when asked");
+            let after_each_wait: Vec<Option<Duration>> =
+                handed.into_iter().skip(1).take(second).collect();
+            assert_eq!(
+                after_each_wait,
+                vec![Some(NOTICE_FRONT_STEP); second],
+                "the time that the thread handed to each of its waits, read at the read after it"
             );
         }
 
