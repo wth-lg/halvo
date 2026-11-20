@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,443 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 15-r3-test-dirs 10-r3-layout
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 15-r3-test-dirs 10-r3-layout
+      - name: U2.6 rows of web-rows with real browsers
+        if: always()
+        shell: bash
+        run: |
+          python3 - macos "$RUNNER_TEMP/u26" <<'PYEOF'
+          import os, subprocess, sys
+          JOB, OUT = sys.argv[1], sys.argv[2]
+          os.makedirs(OUT, exist_ok=True)
+          EXE = ".exe" if JOB == "windows" else ""
+          BROWSERS = {
+              "macos": [("chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                        ("edge", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")],
+              "windows": [("chrome", "C:/Program Files/Google/Chrome/Application/chrome.exe"),
+                          ("edge", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe")],
+          }[JOB]
+          PORT, WS_PORT, HOP_PORT = "18090", "18095", "18096"
+          failed = []
+
+
+          def run(name, cmd, gate):
+              r = subprocess.run(cmd, capture_output=True, text=True)
+              for l in r.stdout.splitlines():
+                  if l.startswith("row "):
+                      print(f"{name} {l}", flush=True)
+              print(f"{name} exit={r.returncode}", flush=True)
+              open(os.path.join(OUT, name + ".txt"), "w").write(r.stdout)
+              if gate and r.returncode != 0:
+                  failed.append(name)
+              return r.returncode
+
+
+          def listen(cmd):
+              p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+              return p, p.stdout.readline().decode().startswith("listening ")
+
+
+          subprocess.run(["cargo", "build", "-q", "--locked", "-p", "halvo-web", "--features", "test-fence", "--bins"], check=True)
+          rows = os.path.join("target", "debug", "web-rows" + EXE)
+          procs = []
+          try:
+              fixture, ok_f = listen(["node", "tools/fixture-server/variants/server.mjs", "--port", PORT])
+              procs.append(fixture)
+              hop, ok_h = listen(["node", "crates/halvo-web/rows/hop-listener.mjs", "--port", HOP_PORT])
+              procs.append(hop)
+              ws, ok_w = listen(["node", "crates/halvo-web/rows/ws-listener.mjs", "--port", WS_PORT])
+              procs.append(ws)
+              print(f"u26 listeners fixture={ok_f} hop={ok_h} ws={ok_w}", flush=True)
+              if not (ok_f and ok_h and ok_w):
+                  failed.append("listeners")
+              for kind, path in BROWSERS:
+                  if not os.path.exists(path):
+                      print(f"u26 browser={kind} absent", flush=True)
+                      continue
+                  run(f"block_popup_{kind}", [rows, "block_popup", "--browser", path, "--kind", kind, "--hop-port", HOP_PORT], True)
+                  run(f"ws_allowed_{kind}", [rows, "ws_allowed", "--browser", path, "--kind", kind, "--ws-port", WS_PORT], True)
+                  if run(f"crash_major_{kind}", [rows, "crash_major", "--browser", path, "--kind", kind], False) != 0:
+                      crash_dir = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u26-crash-" + kind)
+                      os.makedirs(crash_dir, exist_ok=True)
+                      run(f"crash_{kind}", [rows, "crash", "--browser", path, "--kind", kind, "--port", PORT,
+                                            "--scratch", crash_dir], False)
+          finally:
+              for p in procs:
+                  try:
+                      p.stdin.close()
+                      p.wait(timeout=5)
+                  except (OSError, subprocess.TimeoutExpired):
+                      p.kill()
+                      p.wait()
+          print(f"u26 rows failed={','.join(failed) or '-'}", flush=True)
+          sys.exit(1 if failed else 0)
+          PYEOF
+      - name: U2.6 one-rule copies on the hosted runner, the fence-off row of CP-220 among them
+        if: always()
+        shell: bash
+        run: |
+          python3 - hosted crates/halvo-web macos <<'PYEOF'
+          """mutants.py: the one-rule changes of unit U2.6 (builder-66) over the lines that the unit wrote.
+
+            python3 -I mutants.py local CRATE [ID ...]     runs the rows marked local, one after another, in
+                                                            CRATE (crates/halvo-web of the one scratch clone)
+            python3 -I mutants.py hosted CRATE JOB [ID ...] runs the rows marked for JOB on a hosted runner
+            python3 -I mutants.py list                      prints the rows
+
+          Each row is applied as one exact replacement (the text must stand once), the named test runs by
+          its exact name with cargo, and the crate's files are restored with `git checkout` after each row.
+          A row is caught when the run printed no result line with one passed test (the test failed, or the
+          copy did not compile). On this Mac a row with `recorder` first replaces the bodies of procs::kill
+          and procs::ask_end of macOS by a recorder that writes the number and the creation time that they
+          would have ended into a file and sends nothing (the coordinator's ruling CP-214); a copy that
+          weakens or removes the fence runs on a hosted runner only (CP-220) and is marked hosted.
+          """
+          import os
+          import subprocess
+          import sys
+
+          LIB = ["--lib"]
+          FS = ["--test", "failed_start"]
+
+          KILL_MAC = '''#[cfg(target_os = "macos")]
+          pub fn kill(p: &Proc) -> bool {
+              if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
+                  return false;
+              }
+              unsafe { libc::kill(p.pid as libc::c_int, libc::SIGKILL) == 0 }
+          }'''
+          ASK_MAC = '''#[cfg(target_os = "macos")]
+          pub fn ask_end(p: &Proc) -> bool {
+              if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
+                  return false;
+              }
+              // SAFETY: kill with a pid and a signal number has no memory effect on this process; the pid was
+              // read back just above with the creation time of `p`.
+              unsafe { libc::kill(p.pid as libc::c_int, libc::SIGTERM) == 0 }
+          }'''
+          RECORDER = '''fn recorded(p: &Proc, how: &str) -> bool {
+              use std::io::Write;
+              if let Ok(mut f) = std::fs::OpenOptions::new()
+                  .create(true)
+                  .append(true)
+                  .open("/private/tmp/r3-builder-66-scratch/kill-recorder.txt")
+              {
+                  let _ = writeln!(f, "{how} pid={} started_us={}", p.pid, p.started_us);
+              }
+              false
+          }
+
+          #[cfg(target_os = "macos")]
+          pub fn kill(p: &Proc) -> bool {
+              recorded(p, "kill")
+          }'''
+          ASK_RECORDER = '''#[cfg(target_os = "macos")]
+          pub fn ask_end(p: &Proc) -> bool {
+              recorded(p, "ask_end")
+          }'''
+
+          # (id, where, recorder, path, old, new, cargo args, exact test name)
+          ROWS = [
+              # (2) the guard's read of its executor and a member's untimed row
+              ("G1-executor-never-gone", "local", True, "src/guard.rs",
+               "            } => !executor(epid, estart),\n",
+               "            } => !executor(epid, estart) && false,\n",
+               LIB, "guard::tests::e1_the_guard_reads_its_executor_s_end_from_the_system_and_not_from_the_table"),
+              ("G2-untimed-member-runs", "local", True, "src/guard.rs",
+               "        .filter_map(|k| table.iter().find(|t| timed_same(t, k)).cloned())\n",
+               "        .filter_map(|k| table.iter().find(|t| procs::same(t, k)).cloned())\n",
+               LIB, "guard::tests::e2_a_member_s_row_with_no_creation_time_is_that_member_gone"),
+              ("G3-untimed-row-blocks-orphan", "local", True, "src/guard.rs",
+               "                    .any(|o| o.pid == k.pid && o.started_us != 0 && o.started_us <= t.started_us)\n",
+               "                    .any(|o| o.pid == k.pid && o.started_us <= t.started_us)\n",
+               LIB, "guard::tests::e2_a_member_s_row_with_no_creation_time_is_that_member_gone"),
+              ("G4-watch-never-reads-the-end", "local", True, "src/procs.rs",
+               "        self.parent\n            .is_some_and(|p| unsafe { libc::getppid() } as u32 == p)\n",
+               "        self.parent.is_some()\n",
+               LIB, "procs::tests::e3_a_watch_reads_its_executor_s_end_from_the_system"),
+              ("G5-watch-ignores-the-creation-time", "local", True, "src/procs.rs",
+               "            parent: (parent == pid && running(&executor)).then_some(pid),\n",
+               "            parent: (parent == pid || running(&executor)).then_some(pid),\n",
+               LIB, "procs::tests::e4_a_watch_of_an_executor_with_another_creation_time_reads_it_gone"),
+              # (3) the stand-in of the four tests
+              ("S1-hang-helper-bears-the-mark", "local", False, "src/bin/web-standin.rs",
+               "                run(&me, \"long_helper\", &[]);\n",
+               "                run(&me, \"long_helper\", &args);\n",
+               FS, "a_start_with_no_first_reply_ends_its_tree_and_is_no_channel"),
+              ("S2-no-probe", "local", False, "src/bin/web-standin.rs",
+               "                if url.contains(halvo_web::cdp::PROBE_HOST) {\n",
+               "                if url.contains(\"no-such-probe\") {\n",
+               FS, "a_normal_stop_ends_a_process_that_appears_after_the_browser_ended"),
+              ("S3-late-starts-no-helper", "local", False, "src/bin/web-standin.rs",
+               "            run(&me, \"helper\", &args);\n        }\n        \"leave\" => {\n",
+               "        }\n        \"leave\" => {\n",
+               FS, "a_normal_stop_ends_a_process_that_appears_after_the_browser_ended"),
+              ("S4-leave-keeps-the-pipe-in-the-helper", "local", False, "src/bin/web-standin.rs",
+               "            if ends(&args).is_some() {\n                run(&me, \"helper\", &args);\n            }\n",
+               "            run(&me, \"helper\", &args);\n",
+               FS, "a_failed_start_ends_a_process_that_the_browser_left_with_its_profile"),
+              # (5) the crash row's last readings
+              ("C1-chrome-157-dropped", "local", False, "src/crash_row.rs",
+               "pub const LAST_READ: [(&str, &[u32]); 2] = [(\"chrome\", &[156, 157]), (\"edge\", &[156])];\n",
+               "pub const LAST_READ: [(&str, &[u32]); 2] = [(\"chrome\", &[156]), (\"edge\", &[156])];\n",
+               LIB, "crash_row::tests::n3_a_major_version_that_the_crash_row_did_not_read_is_no"),
+              ("C2-major-with-a-sign", "local", False, "src/crash_row.rs",
+               "    if !major.bytes().all(|b| b.is_ascii_digit()) {\n",
+               "    if major.is_empty() {\n",
+               LIB, "crash_row::tests::n3_a_major_version_that_the_crash_row_did_not_read_is_no"),
+              ("C3-read-at-any-kind", "local", False, "src/crash_row.rs",
+               "        .any(|(k, majors)| *k == kind && majors.contains(&major))\n",
+               "        .any(|(_, majors)| majors.contains(&major))\n",
+               LIB, "crash_row::tests::n3_a_major_version_that_the_crash_row_did_not_read_is_no"),
+              # (11) the split and the path rule
+              ("K1-program-name-to-the-space", "local", False, "src/checks.rs",
+               "    if c[0] == '\"' {\n",
+               "    if c[0] == '\"' && false {\n",
+               LIB, "checks::tests::n11_the_split_follows_the_system_on_the_review_s_cases"),
+              ("K2-third-quote", "local", False, "src/checks.rs",
+               "                if quotes == 3 {\n",
+               "                if quotes == 2 {\n",
+               LIB, "checks::tests::n11_the_split_follows_the_system_on_the_review_s_cases"),
+              ("K3-share-is-rooted", "local", False, "src/checks.rs",
+               "        let lead = p.chars().take_while(|c| *c == '/').count().min(2);\n",
+               "        let lead = p.chars().take_while(|c| *c == '/').count().min(1);\n",
+               LIB, "checks::tests::a_share_is_no_rooted_path_and_the_case_of_ascii_letters_alone_is_ignored"),
+              ("K4-every-letter-folded", "local", False, "src/checks.rs",
+               "            p.replace('\\\\', \"/\").to_ascii_lowercase()\n",
+               "            p.replace('\\\\', \"/\").to_lowercase()\n",
+               LIB, "checks::tests::a_share_is_no_rooted_path_and_the_case_of_ascii_letters_alone_is_ignored"),
+              # (12) tree_of's profile
+              ("R1-profile-by-prefix", "local", False, "src/checks.rs",
+               "    let split: Vec<String> = if windows {\n        args.iter().flat_map(|a| split_command_line(a)).collect()\n    } else {\n        args.to_vec()\n    };\n    split\n        .iter()\n        .find_map(|a| a.strip_prefix(\"--user-data-dir=\"))\n",
+               "    let _ = windows;\n    args.iter()\n        .find_map(|a| a.strip_prefix(\"--user-data-dir=\"))\n",
+               LIB, "checks::tests::the_first_process_s_profile_is_read_from_the_split_arguments"),
+              # CP-226 item 4: the routine test's own number
+              ("T1-a-stand-in-takes-the-test-s-number", "local", False, "src/checks.rs",
+               "        let (a, b) = (own.wrapping_add(1), own.wrapping_add(2));\n",
+               "        let (a, b) = (own.wrapping_add(1), own);\n",
+               LIB, "checks::tests::the_routine_ends_on_an_empty_pass_and_counts_an_unread_table"),
+              # (1) the fence: hosted runners alone (CP-220)
+              ("F1-dev-dependency-without-the-feature", "hosted-both", False, "Cargo.toml",
+               'halvo-web = { path = ".", features = ["test-fence"] }\n',
+               'halvo-web = { path = "." }\n',
+               LIB, "tests::the_fence_is_on_in_this_test_target"),
+              ("F2-candidates-in-every-build", "hosted-both", False, "src/lib.rs",
+               '#[cfg(any(test, feature = "test-fence"))]\npub const CRASH_CANDIDATES',
+               'pub const CRASH_CANDIDATES',
+               LIB, "tests::the_row_only_means_stand_behind_the_fence"),
+              ("F3-fixture-names-in-every-build", "hosted-both", False, "src/relay.rs",
+               '    #[cfg(any(test, feature = "test-fence"))]\n    Fixture,\n',
+               '    Fixture,\n',
+               LIB, "tests::the_row_only_means_stand_behind_the_fence"),
+              ("F4-rows-program-without-the-feature", "hosted-both", False, "Cargo.toml",
+               'path = "src/bin/web-rows.rs"\nrequired-features = ["test-fence"]\n',
+               'path = "src/bin/web-rows.rs"\n',
+               LIB, "tests::every_test_target_holds_the_test_that_its_fence_is_on"),
+              ("F5-another-manifest-names-the-fence", "hosted-both", False, "../halvo-test-dir/Cargo.toml",
+               '[package]\n',
+               '# halvo-web test-fence\n[package]\n',
+               LIB, "tests::no_other_manifest_names_the_fence"),
+              # (2), (8), (9), (10) on Windows
+              ("H2-windows-watch-never-reads-the-end", "hosted-windows", False, "src/procs.rs",
+               "            .is_some_and(|h| unsafe { WaitForSingleObject(h, 0) } == WAIT_TIMEOUT)\n",
+               "            .is_some_and(|h| unsafe { WaitForSingleObject(h, 0) } != u32::MAX)\n",
+               LIB, "procs::tests::e3_a_watch_reads_its_executor_s_end_from_the_system"),
+              ("H8-windows-holders-none", "hosted-windows", False, "src/peer.rs",
+               "    pub fn pipe_holders(pid: u32, values: &[usize], ours: &[usize]) -> Option<Vec<usize>> {\n",
+               "    pub fn pipe_holders(pid: u32, values: &[usize], ours: &[usize]) -> Option<Vec<usize>> {\n        if pid != 0 {\n            return Some(Vec::new());\n        }\n",
+               LIB, "peer::tests::pipe_holders_answers_while_the_pipe_has_a_pending_read_in_the_holder"),
+              ("H9-windows-ask-ends", "hosted-windows", False, "src/procs.rs",
+               "pub fn ask_end(_p: &Proc) -> bool {\n    false\n}\n",
+               "pub fn ask_end(p: &Proc) -> bool {\n    kill(p)\n}\n",
+               LIB, "procs::tests::on_windows_the_ask_sends_nothing_and_says_so"),
+              ("H10a-windows-kept-copies-inheritable", "hosted-windows", False, "src/start.rs",
+               "                    0,\n                    0,\n                    DUPLICATE_SAME_ACCESS,\n",
+               "                    0,\n                    1,\n                    DUPLICATE_SAME_ACCESS,\n",
+               LIB, "start::tests::the_ends_that_this_process_keeps_are_not_inheritable_after_a_start"),
+              ("H10b-windows-null-device-left-open", "hosted-windows", False, "src/start.rs",
+               "        close_all(&[stdin, stdout, stderr]);\n        result\n",
+               "        close_all(&[stdin, stdout]);\n        result\n",
+               LIB, "start::tests::a_start_leaves_no_handle_of_its_own_open"),
+              ("H10c-windows-browser-ends-left-open", "hosted-windows", False, "src/start.rs",
+               "        let started = spawn(&with_pipes, &[browser_reads, browser_writes]);\n        close_all(&[browser_reads, browser_writes]);\n",
+               "        let started = spawn(&with_pipes, &[browser_reads, browser_writes]);\n",
+               LIB, "start::tests::a_start_leaves_no_handle_of_its_own_open"),
+          ]
+
+
+          def restore(crate):
+              subprocess.run(["git", "checkout", "--", "."], cwd=crate, check=True)
+              subprocess.run(["git", "checkout", "--", "../halvo-test-dir/Cargo.toml"], cwd=crate, check=True)
+
+
+          def replace(crate, path, old, new):
+              full = os.path.join(crate, path)
+              text = open(full, encoding="utf-8").read()
+              n = text.count(old)
+              if n != 1:
+                  return f"text found {n} times"
+              open(full, "w", encoding="utf-8").write(text.replace(old, new))
+              return None
+
+
+          def run_row(crate, row):
+              rid, _, recorder, path, old, new, cargo, test = row
+              if recorder:
+                  for o, n in [(KILL_MAC, RECORDER), (ASK_MAC, ASK_RECORDER)]:
+                      fault = replace(crate, "src/procs.rs", o, n)
+                      if fault:
+                          restore(crate)
+                          return f"row {rid} result=fault cause=recorder ({fault})"
+              fault = replace(crate, path, old, new)
+              if fault:
+                  restore(crate)
+                  return f"row {rid} result=fault cause=apply ({fault})"
+              r = subprocess.run(["cargo", "test", "-p", "halvo-web", "--locked", *cargo, "--", "--exact", test],
+                                 cwd=crate, capture_output=True, text=True)
+              restore(crate)
+              out = r.stdout + r.stderr
+              keep = os.environ.get("MUTANT_LOG_DIR")
+              if keep:
+                  open(os.path.join(keep, rid + ".log"), "w", encoding="utf-8").write(out)
+              passed = "test result: ok. 1 passed;" in out
+              built = "error[" not in out and "could not compile" not in out
+              word = "survived" if passed else ("caught_build" if not built else "caught")
+              return f"row {rid} test={test} exit={r.returncode} result={word}"
+
+
+          def main():
+              a = sys.argv[1:]
+              if not a or a[0] == "list":
+                  for row in ROWS:
+                      print(f"{row[0]} {row[1]} {row[3]} {row[7]}")
+                  return 0
+              mode, crate = a[0], a[1]
+              if mode == "local":
+                  only = set(a[2:])
+                  rows = [r for r in ROWS if r[1] == "local" and (not only or r[0] in only)]
+              else:
+                  job, only = a[2], set(a[3:])
+                  rows = [r for r in ROWS if r[1] in (f"hosted-{job}", "hosted-both") and (not only or r[0] in only)]
+              status = subprocess.run(["git", "status", "--porcelain", "--", "."], cwd=crate, capture_output=True, text=True)
+              if status.stdout.strip():
+                  print("the crate's files differ from HEAD; nothing was run")
+                  return 2
+              bad = 0
+              for row in rows:
+                  line = run_row(crate, row)
+                  print(line, flush=True)
+                  if "result=caught" not in line:
+                      bad += 1
+              print(f"mutants mode={mode} rows={len(rows)} not_caught={bad}")
+              return 0
+
+
+          sys.exit(main())
+          PYEOF
+      - name: U2.6 shipped files read for the fence's marker, and the control
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          node crates/halvo-web/fence/shipped.mjs --self-test
+          a=$?
+          node crates/halvo-web/fence/shipped.mjs
+          b=$?
+          node crates/halvo-web/fence/shipped.mjs --control
+          c=$?
+          echo "shipped self_test=$a check=$b control=$c"
+          [ "$a" -eq 0 ] && [ "$b" -eq 0 ] && [ "$c" -eq 0 ]
+      - name: U2.6 loop of the new tests
+        if: always()
+        shell: bash
+        run: |
+          python3 - macos <<'PYEOF'
+          import json, os, subprocess, sys
+          job = sys.argv[1]
+          spec = """halvo_web tests::the_fence_is_on_in_this_test_target 200
+          halvo_web tests::every_test_target_holds_the_test_that_its_fence_is_on 200
+          halvo_web tests::the_row_only_means_stand_behind_the_fence 200
+          halvo_web tests::no_other_manifest_names_the_fence 200
+          halvo_web tests::the_test_build_holds_the_marker 200
+          web-probe tests::the_fence_is_on_in_this_test_target 200
+          web-rows tests::the_fence_is_on_in_this_test_target 200
+          web-standin tests::the_fence_is_on_in_this_test_target 200
+          failed_start the_fence_is_on_in_this_test_target 200
+          halvo_web guard::tests::e1_the_guard_reads_its_executor_s_end_from_the_system_and_not_from_the_table 200
+          halvo_web guard::tests::e2_a_member_s_row_with_no_creation_time_is_that_member_gone 200
+          halvo_web procs::tests::e3_a_watch_reads_its_executor_s_end_from_the_system 200
+          halvo_web procs::tests::e4_a_watch_of_an_executor_with_another_creation_time_reads_it_gone 200
+          failed_start a_start_with_no_guard_fails_and_leaves_no_browser 200
+          failed_start a_normal_stop_ends_a_process_that_appears_after_the_browser_ended 200
+          failed_start a_failed_start_ends_a_process_that_the_browser_left_with_its_profile 20
+          failed_start a_start_with_no_first_reply_ends_its_tree_and_is_no_channel 20
+          halvo_web crash_row::tests::n3_a_major_version_that_the_crash_row_did_not_read_is_no 200
+          halvo_web checks::tests::n11_the_split_follows_the_system_on_the_review_s_cases 200
+          halvo_web checks::tests::a_share_is_no_rooted_path_and_the_case_of_ascii_letters_alone_is_ignored 200
+          halvo_web checks::tests::the_first_process_s_profile_is_read_from_the_split_arguments 200
+          halvo_web checks::tests::the_routine_ends_on_an_empty_pass_and_counts_an_unread_table 200"""
+          built = subprocess.run(["cargo", "test", "-p", "halvo-web", "--locked", "--no-run", "--message-format=json"],
+                                 capture_output=True, text=True)
+          if built.returncode != 0:
+              print(f"loop build exit={built.returncode}")
+              sys.exit(1)
+          exes = {}
+          for line in built.stdout.splitlines():
+              try:
+                  m = json.loads(line)
+              except ValueError:
+                  continue
+              if m.get("reason") != "compiler-artifact" or not m.get("executable"):
+                  continue
+              if not m.get("profile", {}).get("test"):
+                  continue
+              if not m.get("manifest_path", "").replace("\\", "/").endswith("crates/halvo-web/Cargo.toml"):
+                  continue
+              exes[m["target"]["name"]] = m["executable"]
+          import concurrent.futures
+
+
+          def loop(row):
+              target, name, runs = row.split()
+              runs = int(runs)
+              exe = exes.get(target)
+              if exe is None:
+                  return [f"loop target={target} name={name} runs=0 ok=0 expected=1 cause=no_target"], False
+              ok, lines, shown = 0, [], False
+              for i in range(runs):
+                  try:
+                      r = subprocess.run([exe, "--exact", name, "--test-threads=1"], capture_output=True, text=True,
+                                         timeout=600)
+                      out = r.stdout
+                  except subprocess.TimeoutExpired:
+                      out = ""
+                  if "test result: ok. 1 passed;" in out:
+                      ok += 1
+                  elif not shown:
+                      shown = True
+                      lines.append(f"loop target={target} name={name} first_miss_run={i + 1}")
+                      lines.extend(out.splitlines()[-30:])
+              lines.append(f"loop target={target} name={name} runs={runs} ok={ok} expected=1")
+              return lines, ok == runs
+
+
+          rows = spec.strip().splitlines()
+          bad = 0
+          with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+              for lines, fine in pool.map(loop, rows):
+                  print("\n".join(lines), flush=True)
+                  bad += 0 if fine else 1
+          print(f"loop job={job} tests={len(spec.strip().splitlines())} bad={bad}")
+          sys.exit(1 if bad else 0)
+          PYEOF
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -154,14 +573,434 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 15-r3-test-dirs 10-r3-layout
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 15-r3-test-dirs 10-r3-layout
+      - name: U2.6 rows of web-rows with real browsers
+        if: always()
+        shell: bash
+        run: |
+          python - windows "$RUNNER_TEMP/u26" <<'PYEOF'
+          import os, subprocess, sys
+          JOB, OUT = sys.argv[1], sys.argv[2]
+          os.makedirs(OUT, exist_ok=True)
+          EXE = ".exe" if JOB == "windows" else ""
+          BROWSERS = {
+              "macos": [("chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+                        ("edge", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge")],
+              "windows": [("chrome", "C:/Program Files/Google/Chrome/Application/chrome.exe"),
+                          ("edge", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe")],
+          }[JOB]
+          PORT, WS_PORT, HOP_PORT = "18090", "18095", "18096"
+          failed = []
+
+
+          def run(name, cmd, gate):
+              r = subprocess.run(cmd, capture_output=True, text=True)
+              for l in r.stdout.splitlines():
+                  if l.startswith("row "):
+                      print(f"{name} {l}", flush=True)
+              print(f"{name} exit={r.returncode}", flush=True)
+              open(os.path.join(OUT, name + ".txt"), "w").write(r.stdout)
+              if gate and r.returncode != 0:
+                  failed.append(name)
+              return r.returncode
+
+
+          def listen(cmd):
+              p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+              return p, p.stdout.readline().decode().startswith("listening ")
+
+
+          subprocess.run(["cargo", "build", "-q", "--locked", "-p", "halvo-web", "--features", "test-fence", "--bins"], check=True)
+          rows = os.path.join("target", "debug", "web-rows" + EXE)
+          procs = []
+          try:
+              fixture, ok_f = listen(["node", "tools/fixture-server/variants/server.mjs", "--port", PORT])
+              procs.append(fixture)
+              hop, ok_h = listen(["node", "crates/halvo-web/rows/hop-listener.mjs", "--port", HOP_PORT])
+              procs.append(hop)
+              ws, ok_w = listen(["node", "crates/halvo-web/rows/ws-listener.mjs", "--port", WS_PORT])
+              procs.append(ws)
+              print(f"u26 listeners fixture={ok_f} hop={ok_h} ws={ok_w}", flush=True)
+              if not (ok_f and ok_h and ok_w):
+                  failed.append("listeners")
+              for kind, path in BROWSERS:
+                  if not os.path.exists(path):
+                      print(f"u26 browser={kind} absent", flush=True)
+                      continue
+                  run(f"block_popup_{kind}", [rows, "block_popup", "--browser", path, "--kind", kind, "--hop-port", HOP_PORT], True)
+                  run(f"ws_allowed_{kind}", [rows, "ws_allowed", "--browser", path, "--kind", kind, "--ws-port", WS_PORT], True)
+                  if run(f"crash_major_{kind}", [rows, "crash_major", "--browser", path, "--kind", kind], False) != 0:
+                      crash_dir = os.path.join(os.environ.get("RUNNER_TEMP", "."), "u26-crash-" + kind)
+                      os.makedirs(crash_dir, exist_ok=True)
+                      run(f"crash_{kind}", [rows, "crash", "--browser", path, "--kind", kind, "--port", PORT,
+                                            "--scratch", crash_dir], False)
+          finally:
+              for p in procs:
+                  try:
+                      p.stdin.close()
+                      p.wait(timeout=5)
+                  except (OSError, subprocess.TimeoutExpired):
+                      p.kill()
+                      p.wait()
+          print(f"u26 rows failed={','.join(failed) or '-'}", flush=True)
+          sys.exit(1 if failed else 0)
+          PYEOF
+      - name: U2.6 one-rule copies on the hosted runner, the fence-off row of CP-220 among them
+        if: always()
+        shell: bash
+        run: |
+          python - hosted crates/halvo-web windows <<'PYEOF'
+          """mutants.py: the one-rule changes of unit U2.6 (builder-66) over the lines that the unit wrote.
+
+            python3 -I mutants.py local CRATE [ID ...]     runs the rows marked local, one after another, in
+                                                            CRATE (crates/halvo-web of the one scratch clone)
+            python3 -I mutants.py hosted CRATE JOB [ID ...] runs the rows marked for JOB on a hosted runner
+            python3 -I mutants.py list                      prints the rows
+
+          Each row is applied as one exact replacement (the text must stand once), the named test runs by
+          its exact name with cargo, and the crate's files are restored with `git checkout` after each row.
+          A row is caught when the run printed no result line with one passed test (the test failed, or the
+          copy did not compile). On this Mac a row with `recorder` first replaces the bodies of procs::kill
+          and procs::ask_end of macOS by a recorder that writes the number and the creation time that they
+          would have ended into a file and sends nothing (the coordinator's ruling CP-214); a copy that
+          weakens or removes the fence runs on a hosted runner only (CP-220) and is marked hosted.
+          """
+          import os
+          import subprocess
+          import sys
+
+          LIB = ["--lib"]
+          FS = ["--test", "failed_start"]
+
+          KILL_MAC = '''#[cfg(target_os = "macos")]
+          pub fn kill(p: &Proc) -> bool {
+              if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
+                  return false;
+              }
+              unsafe { libc::kill(p.pid as libc::c_int, libc::SIGKILL) == 0 }
+          }'''
+          ASK_MAC = '''#[cfg(target_os = "macos")]
+          pub fn ask_end(p: &Proc) -> bool {
+              if !bsd_info(p.pid).is_some_and(|i| started_of(&i) == p.started_us) {
+                  return false;
+              }
+              // SAFETY: kill with a pid and a signal number has no memory effect on this process; the pid was
+              // read back just above with the creation time of `p`.
+              unsafe { libc::kill(p.pid as libc::c_int, libc::SIGTERM) == 0 }
+          }'''
+          RECORDER = '''fn recorded(p: &Proc, how: &str) -> bool {
+              use std::io::Write;
+              if let Ok(mut f) = std::fs::OpenOptions::new()
+                  .create(true)
+                  .append(true)
+                  .open("/private/tmp/r3-builder-66-scratch/kill-recorder.txt")
+              {
+                  let _ = writeln!(f, "{how} pid={} started_us={}", p.pid, p.started_us);
+              }
+              false
+          }
+
+          #[cfg(target_os = "macos")]
+          pub fn kill(p: &Proc) -> bool {
+              recorded(p, "kill")
+          }'''
+          ASK_RECORDER = '''#[cfg(target_os = "macos")]
+          pub fn ask_end(p: &Proc) -> bool {
+              recorded(p, "ask_end")
+          }'''
+
+          # (id, where, recorder, path, old, new, cargo args, exact test name)
+          ROWS = [
+              # (2) the guard's read of its executor and a member's untimed row
+              ("G1-executor-never-gone", "local", True, "src/guard.rs",
+               "            } => !executor(epid, estart),\n",
+               "            } => !executor(epid, estart) && false,\n",
+               LIB, "guard::tests::e1_the_guard_reads_its_executor_s_end_from_the_system_and_not_from_the_table"),
+              ("G2-untimed-member-runs", "local", True, "src/guard.rs",
+               "        .filter_map(|k| table.iter().find(|t| timed_same(t, k)).cloned())\n",
+               "        .filter_map(|k| table.iter().find(|t| procs::same(t, k)).cloned())\n",
+               LIB, "guard::tests::e2_a_member_s_row_with_no_creation_time_is_that_member_gone"),
+              ("G3-untimed-row-blocks-orphan", "local", True, "src/guard.rs",
+               "                    .any(|o| o.pid == k.pid && o.started_us != 0 && o.started_us <= t.started_us)\n",
+               "                    .any(|o| o.pid == k.pid && o.started_us <= t.started_us)\n",
+               LIB, "guard::tests::e2_a_member_s_row_with_no_creation_time_is_that_member_gone"),
+              ("G4-watch-never-reads-the-end", "local", True, "src/procs.rs",
+               "        self.parent\n            .is_some_and(|p| unsafe { libc::getppid() } as u32 == p)\n",
+               "        self.parent.is_some()\n",
+               LIB, "procs::tests::e3_a_watch_reads_its_executor_s_end_from_the_system"),
+              ("G5-watch-ignores-the-creation-time", "local", True, "src/procs.rs",
+               "            parent: (parent == pid && running(&executor)).then_some(pid),\n",
+               "            parent: (parent == pid || running(&executor)).then_some(pid),\n",
+               LIB, "procs::tests::e4_a_watch_of_an_executor_with_another_creation_time_reads_it_gone"),
+              # (3) the stand-in of the four tests
+              ("S1-hang-helper-bears-the-mark", "local", False, "src/bin/web-standin.rs",
+               "                run(&me, \"long_helper\", &[]);\n",
+               "                run(&me, \"long_helper\", &args);\n",
+               FS, "a_start_with_no_first_reply_ends_its_tree_and_is_no_channel"),
+              ("S2-no-probe", "local", False, "src/bin/web-standin.rs",
+               "                if url.contains(halvo_web::cdp::PROBE_HOST) {\n",
+               "                if url.contains(\"no-such-probe\") {\n",
+               FS, "a_normal_stop_ends_a_process_that_appears_after_the_browser_ended"),
+              ("S3-late-starts-no-helper", "local", False, "src/bin/web-standin.rs",
+               "            run(&me, \"helper\", &args);\n        }\n        \"leave\" => {\n",
+               "        }\n        \"leave\" => {\n",
+               FS, "a_normal_stop_ends_a_process_that_appears_after_the_browser_ended"),
+              ("S4-leave-keeps-the-pipe-in-the-helper", "local", False, "src/bin/web-standin.rs",
+               "            if ends(&args).is_some() {\n                run(&me, \"helper\", &args);\n            }\n",
+               "            run(&me, \"helper\", &args);\n",
+               FS, "a_failed_start_ends_a_process_that_the_browser_left_with_its_profile"),
+              # (5) the crash row's last readings
+              ("C1-chrome-157-dropped", "local", False, "src/crash_row.rs",
+               "pub const LAST_READ: [(&str, &[u32]); 2] = [(\"chrome\", &[156, 157]), (\"edge\", &[156])];\n",
+               "pub const LAST_READ: [(&str, &[u32]); 2] = [(\"chrome\", &[156]), (\"edge\", &[156])];\n",
+               LIB, "crash_row::tests::n3_a_major_version_that_the_crash_row_did_not_read_is_no"),
+              ("C2-major-with-a-sign", "local", False, "src/crash_row.rs",
+               "    if !major.bytes().all(|b| b.is_ascii_digit()) {\n",
+               "    if major.is_empty() {\n",
+               LIB, "crash_row::tests::n3_a_major_version_that_the_crash_row_did_not_read_is_no"),
+              ("C3-read-at-any-kind", "local", False, "src/crash_row.rs",
+               "        .any(|(k, majors)| *k == kind && majors.contains(&major))\n",
+               "        .any(|(_, majors)| majors.contains(&major))\n",
+               LIB, "crash_row::tests::n3_a_major_version_that_the_crash_row_did_not_read_is_no"),
+              # (11) the split and the path rule
+              ("K1-program-name-to-the-space", "local", False, "src/checks.rs",
+               "    if c[0] == '\"' {\n",
+               "    if c[0] == '\"' && false {\n",
+               LIB, "checks::tests::n11_the_split_follows_the_system_on_the_review_s_cases"),
+              ("K2-third-quote", "local", False, "src/checks.rs",
+               "                if quotes == 3 {\n",
+               "                if quotes == 2 {\n",
+               LIB, "checks::tests::n11_the_split_follows_the_system_on_the_review_s_cases"),
+              ("K3-share-is-rooted", "local", False, "src/checks.rs",
+               "        let lead = p.chars().take_while(|c| *c == '/').count().min(2);\n",
+               "        let lead = p.chars().take_while(|c| *c == '/').count().min(1);\n",
+               LIB, "checks::tests::a_share_is_no_rooted_path_and_the_case_of_ascii_letters_alone_is_ignored"),
+              ("K4-every-letter-folded", "local", False, "src/checks.rs",
+               "            p.replace('\\\\', \"/\").to_ascii_lowercase()\n",
+               "            p.replace('\\\\', \"/\").to_lowercase()\n",
+               LIB, "checks::tests::a_share_is_no_rooted_path_and_the_case_of_ascii_letters_alone_is_ignored"),
+              # (12) tree_of's profile
+              ("R1-profile-by-prefix", "local", False, "src/checks.rs",
+               "    let split: Vec<String> = if windows {\n        args.iter().flat_map(|a| split_command_line(a)).collect()\n    } else {\n        args.to_vec()\n    };\n    split\n        .iter()\n        .find_map(|a| a.strip_prefix(\"--user-data-dir=\"))\n",
+               "    let _ = windows;\n    args.iter()\n        .find_map(|a| a.strip_prefix(\"--user-data-dir=\"))\n",
+               LIB, "checks::tests::the_first_process_s_profile_is_read_from_the_split_arguments"),
+              # CP-226 item 4: the routine test's own number
+              ("T1-a-stand-in-takes-the-test-s-number", "local", False, "src/checks.rs",
+               "        let (a, b) = (own.wrapping_add(1), own.wrapping_add(2));\n",
+               "        let (a, b) = (own.wrapping_add(1), own);\n",
+               LIB, "checks::tests::the_routine_ends_on_an_empty_pass_and_counts_an_unread_table"),
+              # (1) the fence: hosted runners alone (CP-220)
+              ("F1-dev-dependency-without-the-feature", "hosted-both", False, "Cargo.toml",
+               'halvo-web = { path = ".", features = ["test-fence"] }\n',
+               'halvo-web = { path = "." }\n',
+               LIB, "tests::the_fence_is_on_in_this_test_target"),
+              ("F2-candidates-in-every-build", "hosted-both", False, "src/lib.rs",
+               '#[cfg(any(test, feature = "test-fence"))]\npub const CRASH_CANDIDATES',
+               'pub const CRASH_CANDIDATES',
+               LIB, "tests::the_row_only_means_stand_behind_the_fence"),
+              ("F3-fixture-names-in-every-build", "hosted-both", False, "src/relay.rs",
+               '    #[cfg(any(test, feature = "test-fence"))]\n    Fixture,\n',
+               '    Fixture,\n',
+               LIB, "tests::the_row_only_means_stand_behind_the_fence"),
+              ("F4-rows-program-without-the-feature", "hosted-both", False, "Cargo.toml",
+               'path = "src/bin/web-rows.rs"\nrequired-features = ["test-fence"]\n',
+               'path = "src/bin/web-rows.rs"\n',
+               LIB, "tests::every_test_target_holds_the_test_that_its_fence_is_on"),
+              ("F5-another-manifest-names-the-fence", "hosted-both", False, "../halvo-test-dir/Cargo.toml",
+               '[package]\n',
+               '# halvo-web test-fence\n[package]\n',
+               LIB, "tests::no_other_manifest_names_the_fence"),
+              # (2), (8), (9), (10) on Windows
+              ("H2-windows-watch-never-reads-the-end", "hosted-windows", False, "src/procs.rs",
+               "            .is_some_and(|h| unsafe { WaitForSingleObject(h, 0) } == WAIT_TIMEOUT)\n",
+               "            .is_some_and(|h| unsafe { WaitForSingleObject(h, 0) } != u32::MAX)\n",
+               LIB, "procs::tests::e3_a_watch_reads_its_executor_s_end_from_the_system"),
+              ("H8-windows-holders-none", "hosted-windows", False, "src/peer.rs",
+               "    pub fn pipe_holders(pid: u32, values: &[usize], ours: &[usize]) -> Option<Vec<usize>> {\n",
+               "    pub fn pipe_holders(pid: u32, values: &[usize], ours: &[usize]) -> Option<Vec<usize>> {\n        if pid != 0 {\n            return Some(Vec::new());\n        }\n",
+               LIB, "peer::tests::pipe_holders_answers_while_the_pipe_has_a_pending_read_in_the_holder"),
+              ("H9-windows-ask-ends", "hosted-windows", False, "src/procs.rs",
+               "pub fn ask_end(_p: &Proc) -> bool {\n    false\n}\n",
+               "pub fn ask_end(p: &Proc) -> bool {\n    kill(p)\n}\n",
+               LIB, "procs::tests::on_windows_the_ask_sends_nothing_and_says_so"),
+              ("H10a-windows-kept-copies-inheritable", "hosted-windows", False, "src/start.rs",
+               "                    0,\n                    0,\n                    DUPLICATE_SAME_ACCESS,\n",
+               "                    0,\n                    1,\n                    DUPLICATE_SAME_ACCESS,\n",
+               LIB, "start::tests::the_ends_that_this_process_keeps_are_not_inheritable_after_a_start"),
+              ("H10b-windows-null-device-left-open", "hosted-windows", False, "src/start.rs",
+               "        close_all(&[stdin, stdout, stderr]);\n        result\n",
+               "        close_all(&[stdin, stdout]);\n        result\n",
+               LIB, "start::tests::a_start_leaves_no_handle_of_its_own_open"),
+              ("H10c-windows-browser-ends-left-open", "hosted-windows", False, "src/start.rs",
+               "        let started = spawn(&with_pipes, &[browser_reads, browser_writes]);\n        close_all(&[browser_reads, browser_writes]);\n",
+               "        let started = spawn(&with_pipes, &[browser_reads, browser_writes]);\n",
+               LIB, "start::tests::a_start_leaves_no_handle_of_its_own_open"),
+          ]
+
+
+          def restore(crate):
+              subprocess.run(["git", "checkout", "--", "."], cwd=crate, check=True)
+              subprocess.run(["git", "checkout", "--", "../halvo-test-dir/Cargo.toml"], cwd=crate, check=True)
+
+
+          def replace(crate, path, old, new):
+              full = os.path.join(crate, path)
+              text = open(full, encoding="utf-8").read()
+              n = text.count(old)
+              if n != 1:
+                  return f"text found {n} times"
+              open(full, "w", encoding="utf-8").write(text.replace(old, new))
+              return None
+
+
+          def run_row(crate, row):
+              rid, _, recorder, path, old, new, cargo, test = row
+              if recorder:
+                  for o, n in [(KILL_MAC, RECORDER), (ASK_MAC, ASK_RECORDER)]:
+                      fault = replace(crate, "src/procs.rs", o, n)
+                      if fault:
+                          restore(crate)
+                          return f"row {rid} result=fault cause=recorder ({fault})"
+              fault = replace(crate, path, old, new)
+              if fault:
+                  restore(crate)
+                  return f"row {rid} result=fault cause=apply ({fault})"
+              r = subprocess.run(["cargo", "test", "-p", "halvo-web", "--locked", *cargo, "--", "--exact", test],
+                                 cwd=crate, capture_output=True, text=True)
+              restore(crate)
+              out = r.stdout + r.stderr
+              keep = os.environ.get("MUTANT_LOG_DIR")
+              if keep:
+                  open(os.path.join(keep, rid + ".log"), "w", encoding="utf-8").write(out)
+              passed = "test result: ok. 1 passed;" in out
+              built = "error[" not in out and "could not compile" not in out
+              word = "survived" if passed else ("caught_build" if not built else "caught")
+              return f"row {rid} test={test} exit={r.returncode} result={word}"
+
+
+          def main():
+              a = sys.argv[1:]
+              if not a or a[0] == "list":
+                  for row in ROWS:
+                      print(f"{row[0]} {row[1]} {row[3]} {row[7]}")
+                  return 0
+              mode, crate = a[0], a[1]
+              if mode == "local":
+                  only = set(a[2:])
+                  rows = [r for r in ROWS if r[1] == "local" and (not only or r[0] in only)]
+              else:
+                  job, only = a[2], set(a[3:])
+                  rows = [r for r in ROWS if r[1] in (f"hosted-{job}", "hosted-both") and (not only or r[0] in only)]
+              status = subprocess.run(["git", "status", "--porcelain", "--", "."], cwd=crate, capture_output=True, text=True)
+              if status.stdout.strip():
+                  print("the crate's files differ from HEAD; nothing was run")
+                  return 2
+              bad = 0
+              for row in rows:
+                  line = run_row(crate, row)
+                  print(line, flush=True)
+                  if "result=caught" not in line:
+                      bad += 1
+              print(f"mutants mode={mode} rows={len(rows)} not_caught={bad}")
+              return 0
+
+
+          sys.exit(main())
+          PYEOF
+      - name: U2.6 shipped files read for the fence's marker, and the control
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          node crates/halvo-web/fence/shipped.mjs --self-test
+          a=$?
+          node crates/halvo-web/fence/shipped.mjs
+          b=$?
+          node crates/halvo-web/fence/shipped.mjs --control
+          c=$?
+          echo "shipped self_test=$a check=$b control=$c"
+          [ "$a" -eq 0 ] && [ "$b" -eq 0 ] && [ "$c" -eq 0 ]
+      - name: U2.6 loop of the new tests
+        if: always()
+        shell: bash
+        run: |
+          python - windows <<'PYEOF'
+          import json, os, subprocess, sys
+          job = sys.argv[1]
+          spec = """halvo_web guard::tests::e1_the_guard_reads_its_executor_s_end_from_the_system_and_not_from_the_table 200
+          halvo_web guard::tests::e2_a_member_s_row_with_no_creation_time_is_that_member_gone 200
+          halvo_web procs::tests::e4_a_watch_of_an_executor_with_another_creation_time_reads_it_gone 200
+          halvo_web crash_row::tests::n3_a_major_version_that_the_crash_row_did_not_read_is_no 200
+          halvo_web checks::tests::n11_the_split_follows_the_system_on_the_review_s_cases 200
+          halvo_web checks::tests::a_share_is_no_rooted_path_and_the_case_of_ascii_letters_alone_is_ignored 200
+          halvo_web checks::tests::the_first_process_s_profile_is_read_from_the_split_arguments 200
+          halvo_web checks::tests::the_split_is_the_system_s_own_on_a_table_of_lines 200
+          halvo_web checks::tests::n12_on_windows_tree_of_reads_the_profile_from_the_one_command_line 200
+          halvo_web peer::tests::pipe_holders_answers_while_the_pipe_has_a_pending_read_in_the_holder 200
+          halvo_web procs::tests::on_windows_the_ask_sends_nothing_and_says_so 200
+          halvo_web start::tests::the_ends_that_this_process_keeps_are_not_inheritable_after_a_start 200
+          halvo_web start::tests::a_start_leaves_no_handle_of_its_own_open 200"""
+          built = subprocess.run(["cargo", "test", "-p", "halvo-web", "--locked", "--no-run", "--message-format=json"],
+                                 capture_output=True, text=True)
+          if built.returncode != 0:
+              print(f"loop build exit={built.returncode}")
+              sys.exit(1)
+          exes = {}
+          for line in built.stdout.splitlines():
+              try:
+                  m = json.loads(line)
+              except ValueError:
+                  continue
+              if m.get("reason") != "compiler-artifact" or not m.get("executable"):
+                  continue
+              if not m.get("profile", {}).get("test"):
+                  continue
+              if not m.get("manifest_path", "").replace("\\", "/").endswith("crates/halvo-web/Cargo.toml"):
+                  continue
+              exes[m["target"]["name"]] = m["executable"]
+          import concurrent.futures
+
+
+          def loop(row):
+              target, name, runs = row.split()
+              runs = int(runs)
+              exe = exes.get(target)
+              if exe is None:
+                  return [f"loop target={target} name={name} runs=0 ok=0 expected=1 cause=no_target"], False
+              ok, lines, shown = 0, [], False
+              for i in range(runs):
+                  try:
+                      r = subprocess.run([exe, "--exact", name, "--test-threads=1"], capture_output=True, text=True,
+                                         timeout=600)
+                      out = r.stdout
+                  except subprocess.TimeoutExpired:
+                      out = ""
+                  if "test result: ok. 1 passed;" in out:
+                      ok += 1
+                  elif not shown:
+                      shown = True
+                      lines.append(f"loop target={target} name={name} first_miss_run={i + 1}")
+                      lines.extend(out.splitlines()[-30:])
+              lines.append(f"loop target={target} name={name} runs={runs} ok={ok} expected=1")
+              return lines, ok == runs
+
+
+          rows = spec.strip().splitlines()
+          bad = 0
+          with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+              for lines, fine in pool.map(loop, rows):
+                  print("\n".join(lines), flush=True)
+                  bad += 0 if fine else 1
+          print(f"loop job={job} tests={len(spec.strip().splitlines())} bad={bad}")
+          sys.exit(1 if bad else 0)
+          PYEOF
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
