@@ -932,24 +932,37 @@ fn u46b_a_later_life_reads_a_run_that_completed_after_reap_answered_it_alive_as_
         );
     }
 
-    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
-    let life = Coordinator::new(
-        next_life(&c, &[(runs[0].clone(), Reaped::Gone)]),
-        Limits::PRODUCT,
-    );
-    life.tick();
-    store_ends(&life, 0, &record(&runs[0], Outcome::Completed));
-    tick_at(&life, 1);
-    let r = row(&life, 0);
-    assert_eq!(
-        (r.line.clone(), controls(&r)),
-        (text("line.all_set.done"), finished),
-        "a run that this life's reap answered gone, which the record names completed"
-    );
-    assert_eq!(
-        life.card(&agent(0)).expect("the card").runs[0].text,
-        text("line.run.completed")
-    );
+    for (end, line, card) in [
+        (
+            Outcome::Completed,
+            "line.all_set.done",
+            "line.run.completed",
+        ),
+        (
+            Outcome::NothingToDo,
+            "line.all_set.nothing",
+            "line.run.nothing_to_do",
+        ),
+    ] {
+        let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
+        let life = Coordinator::new(
+            next_life(&c, &[(runs[0].clone(), Reaped::Gone)]),
+            Limits::PRODUCT,
+        );
+        life.tick();
+        store_ends(&life, 0, &record(&runs[0], end));
+        tick_at(&life, 1);
+        let r = row(&life, 0);
+        assert_eq!(
+            (r.line.clone(), controls(&r)),
+            (text(line), finished.clone()),
+            "a run that this life's reap answered gone, which the record names {end:?}"
+        );
+        assert_eq!(
+            life.card(&agent(0)).expect("the card").runs[0].text,
+            text(card)
+        );
+    }
 }
 
 /// The narrow form of RD-151 (b) for later lives: a record Failed is not the runner's word that
@@ -1076,5 +1089,21 @@ fn u46b_the_second_of_two_runs_that_reap_answered_alive_reads_its_record() {
         row(&life, 0).line,
         kill_stuck(),
         "the first run has no record"
+    );
+
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], room()));
+    let alive: Vec<(RunId, Reaped)> = runs.iter().map(|r| (r.clone(), Reaped::Alive)).collect();
+    let life = Coordinator::new(next_life(&c, &alive), Limits::PRODUCT);
+    life.tick();
+    store_ends(&life, 1, &record(&runs[1], Outcome::Failed));
+    tick_at(&life, 1);
+    assert_eq!(
+        row(&life, 1).line,
+        text("line.problem.failed"),
+        "a record Failed of the second run that reap answered alive"
+    );
+    assert_eq!(
+        life.card(&agent(1)).expect("the card").runs[0].text,
+        text("line.run.failed")
     );
 }
