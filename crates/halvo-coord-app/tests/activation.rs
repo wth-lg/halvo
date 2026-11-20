@@ -4,9 +4,9 @@ mod activation;
 mod reading;
 
 use activation::{begun, late, run_loop, wait, Begun, Waited, LATE, LATE_MOST, RUN_LOOP_BOUND};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ffi::OsStr;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const EVERY: Duration = Duration::from_secs(1);
 const LIMIT: Duration = Duration::from_secs(20);
@@ -140,116 +140,184 @@ fn late_the_setting_is_its_own_and_none_that_check_46_takes_out_or_a_target_sets
     }
 }
 
+/// The bounds that the plain tests of `run_loop` hand in: the targets' own and one that is not it.
+const BOUNDS: [Duration; 2] = [RUN_LOOP_BOUND, Duration::from_millis(7_001)];
+
 #[test]
 fn run_loop_the_sign_is_waited_for_with_the_bound_and_the_time_waited_is_kept() {
-    let given = Cell::new(None);
-    let result = run_loop(
-        |limit| {
-            given.set(Some(limit));
-            true
-        },
-        || Duration::from_millis(2_003),
-        RUN_LOOP_BOUND,
-    );
-    assert_eq!(given.get(), Some(RUN_LOOP_BOUND));
-    assert_eq!(
-        result,
-        Begun::After {
-            waited: Duration::from_millis(2_003)
-        }
-    );
+    for bound in BOUNDS {
+        let given = RefCell::new(Vec::new());
+        let result = run_loop(
+            |limit| {
+                given.borrow_mut().push(limit);
+                true
+            },
+            || Duration::from_millis(2_003),
+            bound,
+        );
+        assert_eq!(given.into_inner(), vec![bound], "{bound:?}");
+        assert_eq!(
+            result,
+            Begun::After {
+                waited: Duration::from_millis(2_003)
+            },
+            "{bound:?}"
+        );
+    }
 }
 
 #[test]
 fn run_loop_with_no_sign_within_the_bound_has_not_begun() {
-    let given = Cell::new(None);
-    let result = run_loop(
-        |limit| {
-            given.set(Some(limit));
-            false
-        },
-        || Duration::from_secs(10),
-        RUN_LOOP_BOUND,
-    );
-    assert_eq!(given.get(), Some(RUN_LOOP_BOUND));
-    assert_eq!(
-        result,
-        Begun::Not {
-            bound: RUN_LOOP_BOUND
-        }
-    );
+    for bound in BOUNDS {
+        let given = RefCell::new(Vec::new());
+        let result = run_loop(
+            |limit| {
+                given.borrow_mut().push(limit);
+                false
+            },
+            || bound,
+            bound,
+        );
+        assert_eq!(given.into_inner(), vec![bound], "{bound:?}");
+        assert_eq!(result, Begun::Not { bound }, "{bound:?}");
+    }
 }
 
-/// Waits as the hosted targets do, on a channel whose sign another thread sends after `after`,
-/// or never: the result and the time that the wait took.
-fn over_a_channel(after: Option<Duration>, bound: Duration) -> (Begun, Duration) {
+/// The time that the test's own clock gives the wait at every read.
+const CLOCK: Duration = Duration::from_millis(2_003);
+
+/// How the sign reaches the wait over a real channel.
+#[derive(Clone, Copy)]
+enum Sign {
+    /// Another thread sends it and has ended before the wait begins.
+    Sent,
+    /// No sign comes, and the sender lives until the wait has ended.
+    Never,
+    /// The sender is dropped before the wait begins.
+    Dropped,
+}
+
+/// Waits as the hosted targets do, on a real channel whose sign comes as `sign` says, with
+/// `bound` and the test's clock `CLOCK`: the result, each limit that the wait was given, and the
+/// waits and clock reads in their order.
+fn over_a_channel(sign: Sign, bound: Duration) -> (Begun, Vec<Duration>, Vec<&'static str>) {
     let (ready, runs) = std::sync::mpsc::channel::<()>();
-    let sender = std::thread::spawn(move || {
-        if let Some(after) = after {
-            std::thread::sleep(after);
-            let _ = ready.send(());
-        } else {
-            std::thread::sleep(bound * 2);
-            drop(ready);
+    let kept = match sign {
+        Sign::Sent => {
+            let sent = std::thread::spawn(move || ready.send(()).is_ok())
+                .join()
+                .expect("the sending thread ended");
+            assert!(sent, "the sign was sent");
+            None
         }
-    });
-    let start = Instant::now();
+        Sign::Never => Some(ready),
+        Sign::Dropped => {
+            drop(ready);
+            None
+        }
+    };
+    let limits = RefCell::new(Vec::new());
+    let steps = RefCell::new(Vec::new());
     let result = run_loop(
-        |limit| runs.recv_timeout(limit).is_ok(),
-        || start.elapsed(),
+        |limit| {
+            limits.borrow_mut().push(limit);
+            steps.borrow_mut().push("wait");
+            runs.recv_timeout(limit).is_ok()
+        },
+        || {
+            steps.borrow_mut().push("clock");
+            CLOCK
+        },
         bound,
     );
-    let took = start.elapsed();
-    let _ = sender.join();
-    (result, took)
+    drop(kept);
+    (result, limits.into_inner(), steps.into_inner())
 }
 
 #[test]
 fn run_loop_over_a_channel_goes_on_at_the_sign_and_ends_at_the_bound_without_it() {
-    let bound = Duration::from_millis(400);
-    let (result, took) = over_a_channel(Some(Duration::from_millis(50)), bound);
-    match result {
-        Begun::After { waited } => {
-            assert!(waited >= Duration::from_millis(50), "{waited:?}");
-            assert!(took < bound, "{took:?}");
-        }
-        Begun::Not { .. } => panic!("the sign after 50 ms was not seen: {result:?}"),
-    }
-    let (result, took) = over_a_channel(None, bound);
-    assert_eq!(result, Begun::Not { bound });
-    assert!(took >= bound, "{took:?}");
+    assert_eq!(
+        over_a_channel(Sign::Sent, RUN_LOOP_BOUND),
+        (
+            Begun::After { waited: CLOCK },
+            vec![RUN_LOOP_BOUND],
+            vec!["wait", "clock"]
+        )
+    );
+    let short = Duration::from_millis(5);
+    assert_eq!(
+        over_a_channel(Sign::Never, short),
+        (Begun::Not { bound: short }, vec![short], vec!["wait"])
+    );
+    assert_eq!(
+        over_a_channel(Sign::Dropped, RUN_LOOP_BOUND),
+        (
+            Begun::Not {
+                bound: RUN_LOOP_BOUND
+            },
+            vec![RUN_LOOP_BOUND],
+            vec!["wait"]
+        )
+    );
 }
 
 #[test]
 fn begun_after_the_sign_the_cases_run_and_the_line_says_when_it_came() {
-    assert_eq!(
-        begun(
+    for (target, waited, line) in [
+        (
             "guard_hosted",
-            Begun::After {
-                waited: Duration::from_millis(2_003)
-            }
+            2_003,
+            "guard_hosted start: the test runtime's run loop gave its sign after 2003 ms, and the first show goes out after it",
         ),
         (
-            "guard_hosted start: the test runtime's run loop gave its sign after 2003 ms, and the first show goes out after it".to_string(),
-            true
-        )
-    );
+            "dialog_hosted",
+            2_003,
+            "dialog_hosted start: the test runtime's run loop gave its sign after 2003 ms, and the first show goes out after it",
+        ),
+        (
+            "guard_hosted",
+            0,
+            "guard_hosted start: the test runtime's run loop gave its sign after 0 ms, and the first show goes out after it",
+        ),
+    ] {
+        assert_eq!(
+            begun(
+                target,
+                Begun::After {
+                    waited: Duration::from_millis(waited)
+                }
+            ),
+            (line.to_string(), true),
+            "{target} {waited}"
+        );
+    }
 }
 
 #[test]
 fn begun_with_no_sign_no_case_runs_and_the_line_names_the_sign_and_the_bound() {
-    assert_eq!(
-        begun(
+    for (target, bound, line) in [
+        (
             "dialog_hosted",
-            Begun::Not {
-                bound: RUN_LOOP_BOUND
-            }
+            RUN_LOOP_BOUND,
+            "dialog_hosted start FAIL: the test runtime's run loop gave no sign that it runs within 10 s, so a show would run off the main thread; no case ran",
         ),
         (
-            "dialog_hosted start FAIL: the test runtime's run loop gave no sign that it runs within 10 s, so a show would run off the main thread; no case ran".to_string(),
-            false
-        )
-    );
+            "guard_hosted",
+            RUN_LOOP_BOUND,
+            "guard_hosted start FAIL: the test runtime's run loop gave no sign that it runs within 10 s, so a show would run off the main thread; no case ran",
+        ),
+        (
+            "guard_hosted",
+            Duration::from_secs(7),
+            "guard_hosted start FAIL: the test runtime's run loop gave no sign that it runs within 7 s, so a show would run off the main thread; no case ran",
+        ),
+    ] {
+        assert_eq!(
+            begun(target, Begun::Not { bound }),
+            (line.to_string(), false),
+            "{target} {bound:?}"
+        );
+    }
 }
 
 #[test]
