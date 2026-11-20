@@ -31,6 +31,12 @@ fn main() -> ExitCode {
             status(daemon::self_check_run_loop(&mut std::io::stdout().lock()))
         }
         #[cfg(debug_assertions)]
+        Ok(Mode::SelfCheckServiceRun { data_dir }) => status(daemon::self_check_service_run(
+            &data_dir,
+            Box::new(halvo_capture::store::state_file::DurableStateWrite::new()),
+            &mut std::io::stdout().lock(),
+        )),
+        #[cfg(debug_assertions)]
         Ok(Mode::TimedRun(run)) => match daemon::timed_run(&run) {
             Ok(outcome) => status(daemon::outcome_answer(
                 &outcome,

@@ -125,6 +125,12 @@ pub enum Mode {
     /// while a second thread queues a block on the main run loop.
     #[cfg(debug_assertions)]
     SelfCheckRunLoop,
+    /// `--self-check service-run --data-dir DIR`: the service run on DIR in
+    /// its wait, while a second thread queues a block on the main run loop.
+    #[cfg(debug_assertions)]
+    SelfCheckServiceRun {
+        data_dir: halvo_control::paths::DataDir,
+    },
     #[cfg(debug_assertions)]
     TimedRun(TimedRun),
     #[cfg(debug_assertions)]
@@ -606,6 +612,15 @@ pub fn parse(
         },
         #[cfg(debug_assertions)]
         Some("--self-check") if args[1..] == ["run-loop"] => Ok(Mode::SelfCheckRunLoop),
+        #[cfg(debug_assertions)]
+        Some("--self-check") if args.get(1).is_some_and(|form| form == "service-run") => {
+            match &args[2..] {
+                [flag, _] if flag == "--data-dir" => Ok(Mode::SelfCheckServiceRun {
+                    data_dir: service_dir(&args[2..], account)?,
+                }),
+                _ => Err(Usage("--self-check service-run takes --data-dir DIR").into()),
+            }
+        }
         #[cfg(debug_assertions)]
         Some("--timed-run") => gate::timed_run(&args[1..], account),
         #[cfg(debug_assertions)]
@@ -1475,6 +1490,113 @@ pub fn self_check_run_loop(out: &mut dyn std::io::Write) -> i32 {
     }
 }
 
+/// Runs the service form of the run-loop self-check on `dir`: the service run
+/// of [`service_run`], writing its state file through `writer`, in its wait
+/// on the main run loop, while a second thread, once the state file stands,
+/// queues a block on the main run loop and ends the wait when the block ran or
+/// after [`main_loop::SELF_CHECK_WINDOW`]. It prints the self-check's line on
+/// `out` and answers the service run's status when that is not 0, else the
+/// self-check's.
+#[cfg(debug_assertions)]
+pub fn self_check_service_run(
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+    out: &mut dyn std::io::Write,
+) -> i32 {
+    #[cfg(target_os = "macos")]
+    {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::{Arc, Mutex, PoisonError};
+        use std::time::Instant;
+
+        let main_loop = match crate::macos::run_loop::MainRunLoop::claim() {
+            Ok(run_loop) => ServiceLoop {
+                run_loop,
+                started: Instant::now(),
+            },
+            Err(_) => return halvo_control::exit::ERROR,
+        };
+        let stop = Arc::new(AtomicBool::new(false));
+        let ran_after: Arc<Mutex<Option<Duration>>> = Arc::default();
+        let queue = {
+            let stop = stop.clone();
+            let ran_after = ran_after.clone();
+            let state_file = dir.state_file();
+            std::thread::spawn(move || {
+                let waiting = Instant::now();
+                while !state_file.exists() && waiting.elapsed() < main_loop::SELF_CHECK_WINDOW {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                std::thread::sleep(Duration::from_millis(100));
+                let queued = Instant::now();
+                let ran = ran_after.clone();
+                let ended = stop.clone();
+                on_the_main_run_loop(move || {
+                    *ran.lock().unwrap_or_else(PoisonError::into_inner) = Some(queued.elapsed());
+                    ended.store(true, Ordering::SeqCst);
+                });
+                while !stop.load(Ordering::SeqCst)
+                    && queued.elapsed() < main_loop::SELF_CHECK_WINDOW
+                {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                stop.store(true, Ordering::SeqCst);
+            })
+        };
+        let status = serve(
+            dir,
+            writer,
+            main_loop,
+            &stop,
+            Arc::new(main_loop::ExitNow),
+            &mut std::io::stderr(),
+        );
+        let _ = queue.join();
+        let ran_after = *ran_after.lock().unwrap_or_else(PoisonError::into_inner);
+        let (line, checked) = main_loop::self_check_answer(ran_after);
+        if writeln!(out, "{line}").is_err() {
+            return halvo_control::exit::ERROR;
+        }
+        if status == halvo_control::exit::CLEAN {
+            checked
+        } else {
+            status
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (dir, writer, out);
+        halvo_control::exit::ERROR
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn on_the_main_run_loop(work: impl Fn() + 'static) {
+    use core_foundation::base::TCFType;
+    use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop, CFRunLoopRef};
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
+        fn CFRunLoopPerformBlock(
+            run_loop: CFRunLoopRef,
+            mode: *const std::ffi::c_void,
+            block: &block2::Block<dyn Fn()>,
+        );
+        fn CFRunLoopWakeUp(run_loop: CFRunLoopRef);
+    }
+
+    let block = block2::RcBlock::new(work);
+    let main = CFRunLoop::get_main();
+    unsafe {
+        CFRunLoopPerformBlock(
+            main.as_concrete_TypeRef(),
+            kCFRunLoopCommonModes.cast(),
+            &block,
+        );
+        CFRunLoopWakeUp(main.as_concrete_TypeRef());
+    }
+}
+
 /// Runs the gate's timed run on this system.
 #[cfg(debug_assertions)]
 pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
@@ -1935,6 +2057,34 @@ mod tests {
         assert_eq!(usage_answer(&refusal, &mut Vec::new()), 1);
         let mode = parsed(&["--service-run", "--data-dir", "/a"]).unwrap();
         assert!(mode.reads_the_signal_flag());
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_service_form_of_the_self_check_takes_its_data_dir_alone() {
+        let dirs = dirs();
+        let parsed = |line: &[&str]| parse(args(line), &dirs.account);
+        assert_eq!(
+            parsed(&["--self-check", "service-run", "--data-dir", "/a"]),
+            Ok(Mode::SelfCheckServiceRun {
+                data_dir: DataDir::from_flag("/a").unwrap()
+            })
+        );
+        for line in [
+            &["--self-check", "service-run"][..],
+            &["--self-check", "service-run", "--data-dir"][..],
+            &["--self-check", "service-run", "--data-dir", "relative"][..],
+            &["--self-check", "service-run", "--data-dir", "/a", "x"][..],
+            &["--self-check", "service-run", "--store-dir", "/a"][..],
+        ] {
+            assert!(
+                matches!(parsed(line), Err(Refusal::Usage(_))),
+                "{line:?} gave {:?}",
+                parsed(line)
+            );
+        }
+        let mode = parsed(&["--self-check", "service-run", "--data-dir", "/a"]).unwrap();
+        assert!(!mode.reads_the_signal_flag());
     }
 
     #[cfg(all(target_os = "macos", debug_assertions))]
