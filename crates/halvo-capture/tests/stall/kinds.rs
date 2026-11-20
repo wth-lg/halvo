@@ -339,7 +339,7 @@ pub(super) fn bracketed(step: Step, controls: &Controls) -> Result<(), String> {
     }
     if before.recorded != CONTROL_LETTERS || after.recorded != CONTROL_LETTERS {
         return Err(format!(
-            "a control recorded fewer than {CONTROL_LETTERS} letters of the plain field: control_before={} control_after={}",
+            "a control recorded another number of letters than {CONTROL_LETTERS} in the plain field: control_before={} control_after={}",
             before.recorded, after.recorded
         ));
     }
@@ -1603,5 +1603,100 @@ fn a_kind_with_no_phase_to_run_is_refused() {
     assert_eq!(
         refuse_an_empty_kind("stall-tab-sleeps", one.clone()),
         Ok(one)
+    );
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn a_one_round_enter_phase_that_set_no_withheld_flag_fails() {
+    let pair = controls(control(OWN, 0), control(OWN, 2));
+    let one = Totals {
+        rounds: 1,
+        counted: 1,
+        withheld_set: 0,
+        ..Totals::default()
+    };
+    let enter = |totals| {
+        run(
+            OWN,
+            1,
+            Outcome::Rounds {
+                totals,
+                checks: Checks::Enter,
+            },
+        )
+    };
+    assert!(
+        verdict(&enter(one), &pair)
+            .is_err_and(|why| why.contains("keys_withheld did not read yes")),
+        "a one-round Enter phase passed with no round that set keys_withheld"
+    );
+    let set = Totals {
+        withheld_set: 1,
+        ..one
+    };
+    assert_eq!(verdict(&enter(set), &pair), Ok(()));
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn a_control_that_recorded_more_than_five_letters_fails() {
+    let mut missed = Vec::new();
+    for (before, after) in [(6, 5), (5, 6), (10, 10)] {
+        let pair = controls(
+            ControlRead {
+                recorded: before,
+                ..control(OWN, 0)
+            },
+            ControlRead {
+                recorded: after,
+                ..control(OWN, 3)
+            },
+        );
+        let got = verdict(&rounds(OWN, 1), &pair);
+        if !got.as_ref().is_err_and(|why| {
+            why.contains(&format!("control_before={before} control_after={after}"))
+        }) {
+            missed.push((before, after));
+        }
+    }
+    assert!(
+        missed.is_empty(),
+        "controls of more than five letters that passed: {missed:?}"
+    );
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn a_phase_that_counted_more_rounds_than_it_ran_fails() {
+    let pair = controls(control(OWN, 0), control(OWN, 2));
+    let mut missed = Vec::new();
+    for checks in [Checks::Stall, Checks::Enter, Checks::TabOut] {
+        let over = Totals {
+            rounds: 1,
+            counted: 2,
+            ..passing()
+        };
+        let got = verdict(
+            &run(
+                OWN,
+                1,
+                Outcome::Rounds {
+                    totals: over,
+                    checks,
+                },
+            ),
+            &pair,
+        );
+        if !got
+            .as_ref()
+            .is_err_and(|why| why.contains("not every round counted"))
+        {
+            missed.push(checks);
+        }
+    }
+    assert!(
+        missed.is_empty(),
+        "a family passed more counted rounds than rounds: {missed:?}"
     );
 }
