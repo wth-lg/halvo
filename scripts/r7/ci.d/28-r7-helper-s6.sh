@@ -19,6 +19,7 @@ import http.client
 import json
 import os
 from pathlib import Path
+import plistlib
 import re
 import ssl
 import statistics
@@ -57,7 +58,11 @@ def checked(command):
     result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.DEVNULL)
     if result.returncode:
-        raise RuntimeError("certificate-tool")
+        action = next((str(arg).lstrip("-") for arg in command
+                       if str(arg).lstrip("-") in {"find-certificate", "add-trusted-cert",
+                                                   "remove-trusted-cert", "delete-certificate",
+                                                   "addstore", "delstore"}), "unknown")
+        raise RuntimeError(f"certificate-tool-{action}-exit-{result.returncode}")
     return result.stdout
 
 
@@ -81,6 +86,18 @@ def present(fingerprint):
 def certutil(*args):
     exe = Path(os.environ["SystemRoot"]) / "System32" / "certutil.exe"
     return checked([str(exe), "-user", *args])
+
+
+def admin_trust_remains(der):
+    path = WORK / "admin-trust-after.plist"
+    result = subprocess.run(["security", "trust-settings-export", "-d", str(path)],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode:
+        if b"No Trust Settings were found" in result.stderr:
+            return False
+        raise RuntimeError("admin-trust-readback")
+    trust = plistlib.loads(path.read_bytes())["trustList"]
+    return hashlib.sha1(der).hexdigest().upper() in {key.upper() for key in trust}
 
 
 def install():
@@ -128,9 +145,14 @@ def undo():
         except RuntimeError:
             errors.append("delete-certificate")
     remains = present(fingerprint)
+    if sys.platform == "darwin":
+        trust_setting = admin_trust_remains(der)
+        print("S6 trust admin-setting-after-undo=" + str(trust_setting).lower(), flush=True)
+        remains = remains or trust_setting
     print("S6 trust present-after-undo=" + str(remains).lower(), flush=True)
     if errors or remains:
         raise RuntimeError("authority-undo")
+    print("S6 trust undone=true", flush=True)
 
 
 STUB = """
@@ -227,18 +249,22 @@ def summary(command, samples, record, forced, tls, report=True):
     wall = []
     peaks = []
     successes = 0
-    for elapsed, peak, ok, first, last in samples:
+    mode = "TLS" if tls else "loopback"
+    for number, (elapsed, peak, ok, first, last) in enumerate(samples, 1):
         rows = [json.loads(line) for line in record[first:last].splitlines()]
-        successes += bool(ok and answered(rows, forced, command))
+        success = ok and answered(rows, forced, command)
+        successes += success
         wall.append(elapsed)
         peaks.append(peak)
+        if report:
+            print(f"S6 sample {mode} {command} call={number} wall_ns={elapsed} "
+                  f"peak_rss_bytes={peak} success={str(success).lower()}")
     if report:
-        print(f"S6 {'TLS' if tls else 'loopback'} {command} calls={len(wall)} successes={successes} "
+        print(f"S6 {mode} {command} calls={len(wall)} successes={successes} "
               f"median_ms={statistics.median(wall) / 1e6:.6f} worst_ms={max(wall) / 1e6:.6f} "
               f"peak_rss_bytes={max(peaks)}", flush=True)
-    return (len(wall) == COUNT and successes == COUNT and min(wall) > 0
-            and min(peaks) > 0
-            and (not tls or max(wall) <= LIMIT_NS))
+    return (len(wall) == COUNT and min(wall) > 0 and min(peaks) > 0
+            and (not tls or (successes == COUNT and max(wall) <= LIMIT_NS)))
 
 
 def forced_connections(record):
@@ -276,6 +302,10 @@ def measure(tls):
 
 
 def self_test():
+    import io
+    from contextlib import redirect_stdout
+    from unittest.mock import patch
+
     env = {"RUNNER_ENVIRONMENT": "github-hosted", "GITHUB_ACTIONS": "true",
            "RUNNER_OS": "macOS", "CI_D_JOB": "macos"}
     if not hosted(env, "darwin") or not hosted(dict(env, RUNNER_OS="Windows", CI_D_JOB="windows"), "win32"):
@@ -294,6 +324,7 @@ def self_test():
         return summary("status", samples, final, forced_connections(final), tls, False)
 
     if not (check([row]) and check([row], elapsed=LIMIT_NS + 1, tls=False)
+            and check([], ok=False, tls=False)
             and check([row], late={"connection": 8, "error": "forced-close"})):
         raise RuntimeError("sample-control")
     bad = {"no-record": check([]), "two-records": check([row, row]),
@@ -307,7 +338,44 @@ def self_test():
     for case, accepted in bad.items():
         if accepted:
             raise RuntimeError(case)
-    print(f"PASS self-test:{NAME} ({refused + len(bad)} failing fixtures rejected)")
+    refused += len(bad)
+    for remains, settings, failed_tool, want_failure in [
+        (False, False, False, False), (True, False, False, True),
+        (False, True, False, True), (False, False, True, True)
+    ]:
+        identity = der_fingerprint(b"fixture")
+        with patch("sys.platform", "darwin"), patch.dict(os.environ, env), \
+             patch("__main__.ARMED") as armed, patch("__main__.CA"), \
+             patch("ssl.PEM_cert_to_DER_cert", return_value=b"fixture"), \
+             patch("__main__.checked") as tool, patch("__main__.present", side_effect=[True, remains]) as read, \
+             patch("__main__.admin_trust_remains", return_value=settings) as trust, redirect_stdout(io.StringIO()):
+            armed.read_text.return_value = identity
+            tool.side_effect = [RuntimeError("fixture") if failed_tool else b"", b""]
+            try:
+                undo()
+                failed = False
+            except RuntimeError:
+                failed = True
+            if (failed != want_failure or read.call_count != 2 or trust.call_count != 1
+                    or [call.args[0][3] for call in tool.call_args_list] != ["remove-trusted-cert", "delete-certificate"]):
+                raise RuntimeError("macos-undo-fixture")
+        refused += want_failure
+    with patch("sys.platform", "win32"), patch.dict(os.environ, dict(env, CI_D_JOB="windows", RUNNER_OS="Windows")), \
+         patch("__main__.ARMED") as armed, patch("__main__.CA"), \
+         patch("ssl.PEM_cert_to_DER_cert", return_value=b"fixture"), patch("__main__.certutil") as tool, \
+         patch("__main__.present", return_value=True) as read, redirect_stdout(io.StringIO()):
+        armed.read_text.return_value = identity
+        try:
+            undo()
+        except RuntimeError as exc:
+            if str(exc) != "authority-undo":
+                raise
+        else:
+            raise RuntimeError("windows-undo-fixture")
+        tool.assert_called_once_with("-delstore", "Root", hashlib.sha1(b"fixture").hexdigest())
+        read.assert_called_once_with(identity)
+        refused += 1
+    print(f"PASS self-test:{NAME} ({refused} failing fixtures rejected)")
 
 
 def finish(code):
