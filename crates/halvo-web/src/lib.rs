@@ -9,6 +9,36 @@
 //! system's temporary directory. The stop removes the profile and the temporary directory
 //! that its start made and nothing else (A11.1), so nothing in this crate removes those files, and
 //! no text of this run says who does. On Windows the same readings left none.
+//!
+//! The named limits of the mark and the guard that U2.6b leaves (the coordinator's rulings CP-231
+//! (5) and CP-233, the planner's object of U2.6b), each held by reading and by no test:
+//!
+//! - M5: `checks::same_path_on` counts up to two leading separators on both systems, while macOS
+//!   reads two or three leading slashes as one; a process that names the run's profile with two
+//!   or three leading slashes bears no mark and is left. It errs toward leaving a process, and
+//!   the executor writes the profile in its resolved form with one.
+//! - M7: `procs::adopted` takes only rows whose parent number is 1, which Windows does not give,
+//!   so on Windows `checks::tree_of` takes no adopted process into the tree.
+//! - N9: the hosted row `killed_start` of web-rows does not say whether the guard or the close of
+//!   the pipe ended the browser; in the draws of U2.6 the browser was gone before the guard could
+//!   end anything. The reading of its draws comes from the rows step of the built-head run of
+//!   landing-68.
+//! - The mark reads a switch only in the exact forms of CP-189 G1 and only before a switch
+//!   terminator (`checks::switch_args`). On Windows it reads nothing after a `--single-argument`
+//!   in any letter case, which may stand where the browser still reads switches; and an argument in
+//!   any other spelling than the exact one bears no mark, also where the browser may read it as
+//!   the profile's switch. Each errs toward leaving a process.
+//! - Which value of the system's parts `guard::guard_main` hands `guard::run_guard`: a test reads
+//!   what `run_guard` does with each part and which function each part of `guard::SYSTEM` is, and
+//!   no test reads that `guard_main` hands `SYSTEM`.
+//! - Below the base of U2.6 (adversary 3 of its stress step, confirmed by the verify step): after
+//!   one read in which a timed member's row has no creation time, the executor's end of a start
+//!   with no first reply (`guard::Trigger::Now`) reads that member as gone and returns with the
+//!   cause `tree_gone` at 20 ms with no forced end, or `now_left` at 2,020 ms; and on Windows
+//!   `checks::inside` folds the letter case of a program's path with Unicode's rule, where the
+//!   mark's path rule folds A to Z alone. Its third note, a browser left without a guard when the
+//!   first process has no creation time at the start, no longer holds: such a start starts no
+//!   guard and ends its own new child (M8).
 
 pub mod cdp;
 pub mod checks;
