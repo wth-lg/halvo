@@ -728,7 +728,11 @@ exit 1'
     output=$(measure_fixture 2>"$work/measure.err")
     code=$?
     got=unexpected-exit-$code
-    if [ "$code" = "$2" ] && [ "$output" = "$3" ] && [ ! -e "$measure_trace" ]; then got=FAIL; fi
+    if [ "$code" = "$2" ] && [ "$output" = "$3" ] && [ ! -e "$measure_trace" ]; then
+      got=FAIL
+    else
+      printf 'measure fixture %s exited %s with %s\n' "$1" "$code" "$output"
+    fi
     verdict "$1" FAIL "$got"
   }
   measure_case plain-refuses-bad-profile 1 "FAIL $name ($need_profile)"
