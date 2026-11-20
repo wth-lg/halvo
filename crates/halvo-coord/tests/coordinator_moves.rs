@@ -11853,3 +11853,118 @@ fn rd140_r1_c08_a_switch_off_beside_another_agents_waiting_row_that_panics() {
         "(the press, cancels in the move, hold_set rows, Run now)"
     );
 }
+
+fn u24s_setup_raises_tried(c: &Coordinator<Both>, from: usize, made: &AgentId) -> usize {
+    c.ports().ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| {
+            matches!(&t.call, Call::Log(rows) if rows.iter().any(|e| &e.agent == made
+                && matches!(e.what, What::ItemRaised { raised: halvo_coord::types::Raised::Setup, .. })))
+        })
+        .count()
+}
+
+/// A next life after a crash of the life of `setup_agent`, whose setup item stays open in the
+/// owner's events, in which the owner refuses the history of the agent so that recovery sets it
+/// aside.
+fn u24s_aside_with_setup() -> (Coordinator<Both>, AgentId, ItemId, WorkflowId) {
+    let (c, made, old) = setup_agent();
+    let flow = workflow_of(&c, &made);
+    let aside = made.clone();
+    let life = next_life(&c, move |o| {
+        o.ports
+            .refuse_agent(Method::History, &aside, refused_name("store"))
+    });
+    assert!(
+        life.record_stuck(&made),
+        "set aside: its row shows the stuck record"
+    );
+    assert_eq!(
+        setups_raised(&life),
+        1,
+        "the first creation move raises no setup for an agent set aside"
+    );
+    life.ports().ports.clear_refusals();
+    (life, made, old, flow)
+}
+
+#[test]
+fn u24s_i58_the_tick_that_makes_a_set_aside_agents_recovery_raises_its_setup_again_in_that_life() {
+    let (life, made, old) = {
+        let (life, made, old, _) = u24s_aside_with_setup();
+        (life, made, old)
+    };
+    life.tick();
+    assert!(
+        !life.record_stuck(&made),
+        "the read answers and the tick makes its recovery"
+    );
+    let rows = events(&life);
+    let lapse = rows
+        .iter()
+        .position(|w| {
+            *w == What::ItemLapsed {
+                item: old.clone(),
+                lapsed: Lapsed::Setup(OtherLapse::AppEnded),
+            }
+        })
+        .expect("the earlier life's setup item lapses with app_ended");
+    assert!(
+        matches!(rows.get(lapse + 1), Some(What::ItemRaised { item, raised: halvo_coord::types::Raised::Setup }) if *item != old),
+        "the raise follows the owed lapse in its body (RD-96 item 5 (b)): {rows:?}"
+    );
+    let s = life.snapshot();
+    let setups: Vec<_> = s
+        .items
+        .iter()
+        .filter(|i| i.kind() == ItemKind::Setup)
+        .collect();
+    assert_eq!(setups.len(), 1, "{s:?}");
+    assert_ne!(setups[0].item(), &old, "a new item");
+    assert_eq!(setups[0].params().len(), 3, "it asks every parameter");
+    let row = s.rows.iter().find(|r| r.agent == made).unwrap();
+    assert_eq!(row.status, Status::NeedsYou);
+    assert_eq!(setups_raised(&life), 2, "one raise in each life");
+    life.tick();
+    assert_eq!(setups_raised(&life), 2, "raised once in this life");
+}
+
+#[test]
+fn u24s_i58_no_setup_is_raised_at_the_recovery_of_an_agent_whose_workflow_has_left_the_list() {
+    let (life, made, _, flow) = u24s_aside_with_setup();
+    life.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &flow);
+    let from = life.ports().ports.tried.borrow().len();
+    life.tick();
+    assert_eq!(
+        u24s_setup_raises_tried(&life, from, &made),
+        0,
+        "no event is sent for an agent whose workflow is gone (I5.7)"
+    );
+}
+
+#[test]
+fn u24s_i58_no_setup_is_raised_at_the_recovery_of_an_agent_whose_workflow_the_list_shows_dismissed()
+{
+    let (life, made, _, flow) = u24s_aside_with_setup();
+    for w in life.ports().ports.workflows.borrow_mut().iter_mut() {
+        if w.id() == &flow {
+            *w = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                id: flow.clone(),
+                category: Category::UtilityBillPayment,
+                site: Some("site1.example".into()),
+            });
+        }
+    }
+    let from = life.ports().ports.tried.borrow().len();
+    life.tick();
+    assert!(!life.record_stuck(&made), "its recovery is made");
+    assert_eq!(
+        u24s_setup_raises_tried(&life, from, &made),
+        0,
+        "as the first creation move, no setup for an agent of a dismissed workflow"
+    );
+}

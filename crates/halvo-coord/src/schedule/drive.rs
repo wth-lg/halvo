@@ -1228,8 +1228,16 @@ fn store_record_shows_ended<C>(board: &Board<C>, agent: &AgentId, run: &RunId) -
 /// history answers, before any start of it (I5.8, ruling RD-64 1.4): the agent takes the events
 /// so read, and what `recover_step` gives with this life's answers of `Runs::reap` becomes owed
 /// on the board, its `run_ended` with `interrupted` and its `item_lapsed` with `app_ended` at the
-/// tick's day and instant and its `end_run`, which the tick's payment then sends.
-fn recover_aside<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut Board<C>) {
+/// tick's day and instant and its `end_run`, which the tick's payment then sends. The same tick
+/// then raises the agent's `setup` again as the life's first creation move does (`setup_again`,
+/// I5.8): where its workflow is in the list of the tick, `listed`, and not dismissed, its hold
+/// `setup` stands and it holds no open item, the raise lapsing an earlier life's `setup` item that
+/// recovery owes in its own body (ruling RD-122; the inbox of 2026-11-17T08:19:17Z (f)).
+fn recover_aside<P: Owner + Rng, C: ConfigView>(
+    cx: &MoveContext<'_, P>,
+    board: &mut Board<C>,
+    listed: &[WorkflowId],
+) {
     for (agent, reaped) in board.aside_agents() {
         let Some(i) = board.index(&agent) else {
             board.take_aside(&agent);
@@ -1290,6 +1298,8 @@ fn recover_aside<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut B
                 what,
             });
         }
+        let full = listed.contains(&workflow) && !board.workflow_dismissed(&workflow);
+        setup_again(cx, board, i, full);
     }
 }
 
@@ -1425,7 +1435,7 @@ where
     let Some(listed) = listed else {
         return report;
     };
-    recover_aside(cx, board);
+    recover_aside(cx, board, &listed);
     pay_owed(cx, board);
     for m in &board.members {
         if starts && wants_active(&m.facts) {
@@ -1486,13 +1496,26 @@ where
         let listed = list
             .iter()
             .any(|w| matches!(w, Workflow::Full(f) if f.id == facts.workflow.id));
-        if listed
-            && !board.aside(&facts.agent)
-            && facts.doing == Doing::Idle(None)
-            && holds(facts).contains(&Hold::Setup)
-        {
-            let _ = raise_own_item(cx, board, i, Raised::Setup, OwnItemKind::Setup, None);
-        }
+        setup_again(cx, board, i, listed);
+    }
+}
+
+/// Raises `setup` again for the agent of member `i`, as the new life's first creation move does
+/// (I5.8, K7): where its workflow is in the owner's list and not dismissed (`listed`), it is not
+/// set aside, holds no open item and its hold `setup` stands; the raise writes the owed lapse of
+/// an earlier life's `setup` item first, in its body (ruling RD-96 item 5 (b)).
+fn setup_again<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>, i: usize, listed: bool)
+where
+    P: Owner + Rng,
+    C: ConfigView,
+{
+    let facts = &board.members[i].facts;
+    if listed
+        && !board.aside(&facts.agent)
+        && facts.doing == Doing::Idle(None)
+        && holds(facts).contains(&Hold::Setup)
+    {
+        let _ = raise_own_item(cx, board, i, Raised::Setup, OwnItemKind::Setup, None);
     }
 }
 
