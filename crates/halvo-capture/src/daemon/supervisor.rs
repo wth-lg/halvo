@@ -763,11 +763,20 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             }
         }
         if let Some(state) = self.state.as_mut() {
-            if let Err(StateError::NotWritten { kind, .. }) = state.record_granted(&granted) {
-                let _ = writeln!(
-                    self.err,
-                    "halvo-capture: the state file was not written: {kind}"
-                );
+            match state.record_granted(&granted) {
+                Err(StateError::NotWritten { kind, .. }) => {
+                    let _ = writeln!(
+                        self.err,
+                        "halvo-capture: the state file was not written: {kind}"
+                    );
+                }
+                Err(StateError::NotFlushed { kind, .. }) => {
+                    let _ = writeln!(
+                        self.err,
+                        "halvo-capture: the state file holds the grant, but the flush of its folder failed: {kind}"
+                    );
+                }
+                Ok(()) | Err(StateError::LeftAsItIs { .. }) => {}
             }
         }
         if let Some(ending) = self.stop_without_permission(owner) {
@@ -2435,7 +2444,7 @@ mod tests {
         assert_eq!(f.later(PROBE_INTERVAL), None);
         assert_eq!(writer.calls.load(Ordering::SeqCst), 2);
         let (g, answers, _) = probed(fixture(Factory::new()));
-        let (mut g, _dir, failing) = with_state_file(g);
+        let (mut g, g_dir, failing) = with_state_file(g);
         failing.failing.store(true, Ordering::SeqCst);
         answers
             .borrow_mut()
@@ -2443,8 +2452,69 @@ mod tests {
         g.start(&two());
         assert_eq!(g.tick(), None);
         assert_eq!(g.state(SourceName::Input), SourceState::Running);
+        let line = format!(
+            "halvo-capture: the state file was not written: {}",
+            std::io::ErrorKind::StorageFull
+        );
         assert!(
-            g.out.text().contains("the state file was not written"),
+            g.out.text().lines().any(|said| said == line),
+            "{}",
+            g.out.text()
+        );
+        assert!(
+            !g.out.text().contains(g_dir.path().to_str().unwrap()),
+            "{}",
+            g.out.text()
+        );
+    }
+
+    struct WrittenNotFlushed(crate::daemon::state::tests::TestWrite);
+
+    impl crate::daemon::state::StateWrite for WrittenNotFlushed {
+        fn write_whole(
+            &self,
+            dir: &crate::daemon::state::StateDir,
+            name: &std::ffi::OsStr,
+            bytes: &[u8],
+        ) -> std::io::Result<()> {
+            self.0.write_whole(dir, name, bytes)?;
+            Err(std::io::Error::from(std::io::ErrorKind::StorageFull))
+        }
+    }
+
+    #[test]
+    fn a_grant_whose_record_holds_in_the_file_but_whose_folder_flush_failed_is_named_by_a_line_with_its_kind(
+    ) {
+        use crate::daemon::state::{tests::TestWrite, StateDir, StateFile};
+        let (g, answers, _) = probed(fixture(Factory::new()));
+        let dir = crate::daemon::state::tests::test_dir();
+        drop(StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(TestWrite::default()),
+        ));
+        let state = StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(WrittenNotFlushed(TestWrite::default())),
+        );
+        let mut g = g;
+        g.supervisor = g.supervisor.with_state(state);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        g.start(&two());
+        assert_eq!(g.tick(), None);
+        assert_eq!(once_granted(dir.path()), vec![Permission::InputMonitoring]);
+        let line = format!(
+            "halvo-capture: the state file holds the grant, but the flush of its folder failed: {}",
+            std::io::ErrorKind::StorageFull
+        );
+        assert!(
+            g.out.text().lines().any(|said| said == line),
+            "{}",
+            g.out.text()
+        );
+        assert!(
+            !g.out.text().contains(dir.path().to_str().unwrap()),
             "{}",
             g.out.text()
         );
