@@ -201,62 +201,6 @@ fn dismissed_in(list: &[Workflow], id: &crate::types::WorkflowId) -> bool {
         .any(|w| matches!(w, Workflow::Dismissed(d) if &d.id == id))
 }
 
-/// The facts that a new life keeps for the row of an agent whose workflow the owner's list no
-/// longer holds, where the owner still answers its history and its newest run is one that
-/// `reap` answered `alive` and that no record of the store names: its events, and a workflow that
-/// stands for the gone one, `paused` and `manual` with no period and no site, of the agent's
-/// category. The agent stays no member, and nothing is stored or sent for it (ruling RD-150).
-fn kept_gone<P>(
-    ports: &P,
-    agent: Agent<P::Config>,
-    reaped: &[(RunId, Reaped)],
-    day: u32,
-) -> Option<Facts<P::Config>>
-where
-    P: Owner,
-    P::Config: ConfigView,
-{
-    if !reaped.iter().any(|(_, answer)| *answer == Reaped::Alive) {
-        return None;
-    }
-    let (events, _) = history(ports, &agent.agent).ok()?;
-    let newest = events.iter().rev().find_map(|e| match &e.what {
-        What::RunStarted { run, .. } => Some(run),
-        _ => None,
-    })?;
-    let alive = reaped
-        .iter()
-        .any(|(run, answer)| run == newest && *answer == Reaped::Alive);
-    if !alive || agent.last.as_ref().is_some_and(|l| &l.run == newest) {
-        return None;
-    }
-    let workflow = FullWorkflow {
-        id: agent.workflow.clone(),
-        state: WorkflowState::Paused,
-        category: agent.config.category(),
-        site: None,
-        trigger: WorkflowTrigger::Manual,
-        period: None,
-        last: day,
-        agent: Some(agent.agent.clone()),
-    };
-    let mut facts = Facts {
-        agent: agent.agent.clone(),
-        workflow,
-        config: agent.config,
-        slots: agent.slots,
-        runs: agent.last.into_iter().collect(),
-        unknown: Vec::new(),
-        events,
-        store_ended: false,
-        replies: crate::types::Replies::NotAsked,
-        today: day,
-        doing: Doing::Idle(None),
-    };
-    facts.take_unknown(&agent.unknown);
-    Some(facts)
-}
-
 fn started_at(events: &[Event], run: &RunId) -> i64 {
     events
         .iter()
@@ -319,9 +263,15 @@ where
     let mut aside: Vec<AgentId> = Vec::new();
     let mut unread: Vec<AgentId> = Vec::new();
     let mut kept: Vec<Facts<P::Config>> = Vec::new();
+    let mut gone_aside: Vec<Agent<P::Config>> = Vec::new();
     for agent in agents {
         let Some(listed) = workflows.iter().find(|w| w.id() == &agent.workflow) else {
-            kept.extend(kept_gone(ports, agent, &reaped, day));
+            match Board::gone_facts(ports, agent.clone(), &reaped, day) {
+                Ok(read) => kept.extend(read),
+                Err(PortError::Refused(name)) if name.as_str() == "no_workflow" => {}
+                Err(PortError::Refused(_)) => gone_aside.push(agent),
+                Err(e) => return Err(cause(&e)),
+            }
             continue;
         };
         let workflow = full_or_paused_manual(listed, &agent.agent, day);
@@ -475,6 +425,9 @@ where
     board.note_records();
     for facts in kept {
         board.keep_gone(facts);
+    }
+    for agent in gone_aside {
+        board.set_gone_aside(agent, reaped.clone());
     }
     for agent in &aside {
         board.set_aside(agent, reaped.clone());

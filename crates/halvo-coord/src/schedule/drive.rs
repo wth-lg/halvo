@@ -1443,6 +1443,7 @@ where
         return report;
     };
     recover_aside(cx, board);
+    board.reread_gone(cx.ports, cx.move_stamp.day());
     pay_owed(cx, board);
     for m in &board.members {
         if starts && wants_active(&m.facts) {

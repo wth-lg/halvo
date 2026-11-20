@@ -2,6 +2,10 @@ use super::Queue;
 use crate::ports::Reaped;
 use crate::types::{AgentId, Defers, Facts, ItemId, Lapsed, RunEnd, RunId, WorkflowId};
 
+/// An agent of a gone workflow whose history recovery could not read, with this life's
+/// answers of `Runs::reap`.
+type GoneAside<C> = (crate::types::Agent<C>, Vec<(RunId, Reaped)>);
+
 /// What the coordinator owes the owner for an agent, sent again at each tick until the owner
 /// acknowledges it (I5.8, I5.9, rulings XB-14, XB-17 and XB-32).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -149,6 +153,7 @@ pub struct Board<C> {
     alive: Vec<RunId>,
     kept: Vec<Facts<C>>,
     noted: Vec<crate::types::PastRun>,
+    gone_aside: Vec<GoneAside<C>>,
     defer_held: Vec<AgentId>,
     dropped: Vec<(AgentId, Dropped)>,
     stuck: Vec<(AgentId, Stuck)>,
@@ -182,6 +187,7 @@ impl<C> Board<C> {
             alive: Vec::new(),
             kept: Vec::new(),
             noted: Vec::new(),
+            gone_aside: Vec::new(),
             defer_held: Vec::new(),
             dropped: Vec::new(),
             stuck: Vec::new(),
@@ -346,6 +352,97 @@ impl<C> Board<C> {
     /// owed in this life (I5.8; ruling RD-151).
     pub fn answered_alive(&self, run: &RunId) -> bool {
         self.alive.contains(run)
+    }
+
+    /// The facts that a new life keeps for the row of an agent whose workflow the owner's list no
+    /// longer holds, where the owner answers its history and its newest run is one that `reap`
+    /// answered `alive` and that no record of the store names: its events, and a workflow that
+    /// stands for the gone one, `paused` and `manual` with no period and no site, of the agent's
+    /// category; none where that does not hold. The read's failure is the caller's to answer
+    /// (ruling RD-150).
+    pub(crate) fn gone_facts<P>(
+        ports: &P,
+        agent: crate::types::Agent<C>,
+        reaped: &[(RunId, Reaped)],
+        day: u32,
+    ) -> Result<Option<Facts<C>>, crate::ports::PortError>
+    where
+        P: crate::ports::Owner<Config = C>,
+        C: crate::types::ConfigView,
+    {
+        if !reaped.iter().any(|(_, answer)| *answer == Reaped::Alive) {
+            return Ok(None);
+        }
+        let mut events = Vec::new();
+        super::resync(ports, &agent.agent, &mut events)?;
+        let Some(newest) = events.iter().rev().find_map(|e| match &e.what {
+            crate::types::What::RunStarted { run, .. } => Some(run),
+            _ => None,
+        }) else {
+            return Ok(None);
+        };
+        let alive = reaped
+            .iter()
+            .any(|(run, answer)| run == newest && *answer == Reaped::Alive);
+        if !alive || agent.last.as_ref().is_some_and(|l| &l.run == newest) {
+            return Ok(None);
+        }
+        let workflow = crate::types::FullWorkflow {
+            id: agent.workflow.clone(),
+            state: crate::types::WorkflowState::Paused,
+            category: agent.config.category(),
+            site: None,
+            trigger: crate::types::WorkflowTrigger::Manual,
+            period: None,
+            last: day,
+            agent: Some(agent.agent.clone()),
+        };
+        let mut facts = Facts {
+            agent: agent.agent.clone(),
+            workflow,
+            config: agent.config,
+            slots: agent.slots,
+            runs: agent.last.into_iter().collect(),
+            unknown: Vec::new(),
+            events,
+            store_ended: false,
+            replies: crate::types::Replies::NotAsked,
+            today: day,
+            doing: crate::types::Doing::Idle(None),
+        };
+        facts.take_unknown(&agent.unknown);
+        Ok(Some(facts))
+    }
+
+    /// Keeps aside, with this life's answers of `Runs::reap`, an agent whose workflow the owner's
+    /// list no longer holds and whose history the owner refused with a name other than
+    /// `no_workflow`, so that `reread_gone` reads it again, as recovery reads a listed agent that
+    /// it set aside (I5.8; ruling RD-150).
+    pub(crate) fn set_gone_aside(
+        &mut self,
+        agent: crate::types::Agent<C>,
+        reaped: Vec<(RunId, Reaped)>,
+    ) {
+        self.gone_aside.retain(|(a, _)| a.agent != agent.agent);
+        self.gone_aside.push((agent, reaped));
+    }
+
+    /// Reads again, at a tick, the history of each agent that `set_gone_aside` kept: one whose
+    /// read answers keeps the row of `gone_facts`, one refused with `no_workflow` or that keeps no
+    /// row is let go, and any other failure keeps it aside for the next tick.
+    pub(crate) fn reread_gone<P>(&mut self, ports: &P, day: u32)
+    where
+        P: crate::ports::Owner<Config = C>,
+        C: crate::types::ConfigView + Clone,
+    {
+        for (agent, reaped) in std::mem::take(&mut self.gone_aside) {
+            match Self::gone_facts(ports, agent.clone(), &reaped, day) {
+                Ok(Some(facts)) => self.keep_gone(facts),
+                Ok(None) => {}
+                Err(crate::ports::PortError::Refused(name)) if name.as_str() == "no_workflow" => {}
+                Err(_) => self.set_gone_aside(agent, reaped),
+            }
+        }
     }
 
     /// Keeps each record of the store that a member's facts hold for a run that this life's
