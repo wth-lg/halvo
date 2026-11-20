@@ -1,5 +1,28 @@
 use super::{Failure, ItemKind, Status};
 
+/// The system that Halvo runs on, which chooses the words of `working.kill_stuck`, because the
+/// way to quit Halvo differs on each (I5.7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum System {
+    /// macOS.
+    Mac,
+    /// Windows.
+    Windows,
+}
+
+impl System {
+    /// Every system, in this order.
+    pub const ALL: [System; 2] = [System::Mac, System::Windows];
+
+    /// The system of this build: Windows where it is built for Windows, and macOS otherwise,
+    /// since Halvo is built for those two alone.
+    pub const HOST: System = if cfg!(windows) {
+        System::Windows
+    } else {
+        System::Mac
+    };
+}
+
 /// The status of an agent with the case of its line (I1.3), each with its words key
 /// `line.<status key>.<case>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -18,9 +41,10 @@ pub enum StatusLine {
     Working,
     /// `working.stopping`: a live run in the phase `stopping`.
     Stopping,
-    /// `working.kill_stuck`: the live run of an agent whose workflow a tick saw gone, whose kill
-    /// was refused, so that the run outlived it (I5.7, ruling RD-54 (g)).
-    KillStuck,
+    /// `working.kill_stuck_<system>`: the live run of an agent whose workflow a tick saw gone,
+    /// whose kill was refused, so that the run outlived it (I5.7, ruling RD-54 (g)); its words
+    /// say how to quit Halvo on that system.
+    KillStuck(System),
     /// `waiting_turn.queued`: a queued start.
     Queued,
     /// `waiting_turn.store`: the agent store has not ended the agent's newest run (ruling
@@ -39,17 +63,15 @@ pub enum StatusLine {
     /// `all_set.stopped_early`: the last run had any other end.
     StoppedEarly,
     /// `problem.record`: the agent's record cannot be read or saved right now (I5.7, I5.8;
-    /// ruling RD-64 1.5, 2.5). Its words are U2.4d's, and `all` lists it once they stand.
+    /// ruling RD-64 1.5, 2.5), first of every row (I1.3).
     Record,
 }
 
 impl StatusLine {
     /// Every status line, in the order of I1.3.
     pub fn all() -> Vec<StatusLine> {
-        let mut all: Vec<StatusLine> = ItemKind::ALL
-            .iter()
-            .map(|k| StatusLine::NeedsYou(*k))
-            .collect();
+        let mut all = vec![StatusLine::Record];
+        all.extend(ItemKind::ALL.iter().map(|k| StatusLine::NeedsYou(*k)));
         all.extend([
             StatusLine::NotYet,
             StatusLine::Off,
@@ -57,7 +79,8 @@ impl StatusLine {
             StatusLine::Starting,
             StatusLine::Working,
             StatusLine::Stopping,
-            StatusLine::KillStuck,
+            StatusLine::KillStuck(System::Mac),
+            StatusLine::KillStuck(System::Windows),
             StatusLine::Queued,
             StatusLine::Store,
         ]);
@@ -82,7 +105,7 @@ impl StatusLine {
             StatusLine::Starting
             | StatusLine::Working
             | StatusLine::Stopping
-            | StatusLine::KillStuck => Status::Working,
+            | StatusLine::KillStuck(_) => Status::Working,
             StatusLine::Queued | StatusLine::Store => Status::WaitingTurn,
             StatusLine::TriedToday
             | StatusLine::New
@@ -102,7 +125,8 @@ impl StatusLine {
             StatusLine::Starting => "starting",
             StatusLine::Working => "working",
             StatusLine::Stopping => "stopping",
-            StatusLine::KillStuck => "kill_stuck",
+            StatusLine::KillStuck(System::Mac) => "kill_stuck_mac",
+            StatusLine::KillStuck(System::Windows) => "kill_stuck_windows",
             StatusLine::Queued => "queued",
             StatusLine::Store => "store",
             StatusLine::Problem(f) => f.name(),

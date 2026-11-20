@@ -958,3 +958,23 @@ fn rd116_r4_the_piece_bound_is_per_piece_and_takes_1024_bytes() {
     );
     assert_eq!(c.runs[0].effects[1].fields()[0].value.len(), 2);
 }
+
+#[test]
+fn u24r_the_dropped_line_says_its_count_and_no_record_taken_off_gives_no_line() {
+    use halvo_coord::roster::dropped_line;
+    use halvo_coord::types::{CardLine, LineKey};
+    assert_eq!(dropped_line(0), Ok(None));
+    for count in [1u32, 3, u32::MAX] {
+        let text =
+            halvo_coord::words::text("card.records_dropped", &[("count", &count.to_string())])
+                .unwrap();
+        assert_eq!(
+            dropped_line(count),
+            Ok(Some(CardLine {
+                key: LineKey::RecordsDropped,
+                text
+            })),
+            "{count}"
+        );
+    }
+}
