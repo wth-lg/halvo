@@ -2022,11 +2022,12 @@ mod tests {
     #[test]
     fn the_service_run_takes_an_absolute_data_dir_or_the_accounts_own() {
         let dirs = dirs();
+        let absolute = dirs.data.to_str().unwrap();
         let parsed = |line: &[&str]| parse(args(line), &dirs.account);
         assert_eq!(
-            parsed(&["--service-run", "--data-dir", "/a/data/dir"]),
+            parsed(&["--service-run", "--data-dir", absolute]),
             Ok(Mode::ServiceRun {
-                data_dir: DataDir::from_flag("/a/data/dir").unwrap()
+                data_dir: DataDir::from_flag(absolute).unwrap()
             })
         );
         assert_eq!(
@@ -2054,7 +2055,7 @@ mod tests {
             panic!("{without:?}");
         };
         assert_eq!(usage_answer(&refusal, &mut Vec::new()), 1);
-        let mode = parsed(&["--service-run", "--data-dir", "/a"]).unwrap();
+        let mode = parsed(&["--service-run", "--data-dir", absolute]).unwrap();
         assert!(mode.reads_the_signal_flag());
     }
 
@@ -2062,11 +2063,12 @@ mod tests {
     #[test]
     fn the_service_form_of_the_self_check_takes_its_data_dir_alone() {
         let dirs = dirs();
+        let absolute = dirs.data.to_str().unwrap();
         let parsed = |line: &[&str]| parse(args(line), &dirs.account);
         assert_eq!(
-            parsed(&["--self-check", "service-run", "--data-dir", "/a"]),
+            parsed(&["--self-check", "service-run", "--data-dir", absolute]),
             Ok(Mode::SelfCheckServiceRun {
-                data_dir: DataDir::from_flag("/a").unwrap()
+                data_dir: DataDir::from_flag(absolute).unwrap()
             })
         );
         for line in [
@@ -2082,7 +2084,7 @@ mod tests {
                 parsed(line)
             );
         }
-        let mode = parsed(&["--self-check", "service-run", "--data-dir", "/a"]).unwrap();
+        let mode = parsed(&["--self-check", "service-run", "--data-dir", absolute]).unwrap();
         assert!(!mode.reads_the_signal_flag());
     }
 
