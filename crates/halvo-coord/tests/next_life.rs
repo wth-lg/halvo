@@ -6,7 +6,8 @@ use halvo_coord::mem::Method;
 use halvo_coord::ports::{PortError, Reaped};
 use halvo_coord::run::recover;
 use halvo_coord::types::{
-    Action, Limits, Name, Outcome, PastRun, Row, RunEnd, RunEvent, RunId, Status, What,
+    Action, Category, Limits, Name, Outcome, PastRun, Row, RunEnd, RunEvent, RunId, Status, What,
+    Workflow,
 };
 use halvo_coord::{words, Coordinator};
 
@@ -24,9 +25,9 @@ fn text(key: &str) -> String {
     words::text(key, &[]).unwrap()
 }
 
-fn two_live() -> Limits {
+fn room() -> Limits {
     Limits {
-        max_live_runs: 2,
+        max_live_runs: 3,
         ..Limits::PRODUCT
     }
 }
@@ -35,7 +36,7 @@ fn two_live() -> Limits {
 /// Quit whose kill the recorder refuses, so that every run outlives Quit: no real kill runs.
 fn outlived_quit(owner: Both) -> (Coordinator<Both>, Vec<RunId>) {
     let n = owner.ports.agents.borrow().len();
-    let c = Coordinator::new(owner, two_live());
+    let c = Coordinator::new(owner, room());
     c.tick();
     let runs: Vec<RunId> = (0..n)
         .map(|i| {
@@ -88,7 +89,7 @@ fn tick_at(c: &Coordinator<Both>, k: u64) {
 
 #[test]
 fn u46b_recover_keeps_on_the_board_the_run_that_reap_answers_alive() {
-    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], two_live()));
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], room()));
     let next = next_life(
         &c,
         &[
@@ -124,7 +125,7 @@ fn u46b_recover_keeps_on_the_board_the_run_that_reap_answers_alive() {
 
 #[test]
 fn u46b_the_first_row_of_that_agent_in_the_next_life_reads_that_its_task_may_still_run() {
-    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], two_live()));
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], room()));
     let life = Coordinator::new(
         next_life(
             &c,
@@ -152,7 +153,7 @@ fn u46b_the_first_row_of_that_agent_in_the_next_life_reads_that_its_task_may_sti
 
 #[test]
 fn u46b_a_switch_off_keeps_the_line_and_a_record_of_the_store_that_names_the_run_ends_it() {
-    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], two_live()));
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
     let life = Coordinator::new(
         next_life(&c, &[(runs[0].clone(), Reaped::Alive)]),
         Limits::PRODUCT,
@@ -182,7 +183,7 @@ fn u46b_a_switch_off_keeps_the_line_and_a_record_of_the_store_that_names_the_run
 
 #[test]
 fn u46b_an_agent_with_no_clean_run_shows_no_ready_card_while_its_run_may_still_run() {
-    let owner = coord::owner(&[MANUAL], two_live());
+    let owner = coord::owner(&[MANUAL], room());
     for e in owner.ports.events.borrow_mut().iter_mut() {
         if let What::RunEnded { cause, .. } = &mut e.what {
             *cause = RunEnd::Failed;
@@ -221,7 +222,7 @@ fn u46b_an_agent_with_no_clean_run_shows_no_ready_card_while_its_run_may_still_r
 
 #[test]
 fn u46b_a_stuck_record_keeps_its_line_before_the_line_of_a_run_that_may_still_run() {
-    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], two_live()));
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
     let next = next_life(&c, &[(runs[0].clone(), Reaped::Alive)]);
     next.ports.refuse_agent(
         Method::Log,
@@ -243,7 +244,7 @@ fn u46b_a_stuck_record_keeps_its_line_before_the_line_of_a_run_that_may_still_ru
 
 #[test]
 fn u46b_an_agent_set_aside_at_recover_reads_so_once_its_history_answers() {
-    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], two_live()));
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
     let next = next_life(&c, &[(runs[0].clone(), Reaped::Alive)]);
     next.ports.refuse_agent(
         Method::History,
@@ -260,5 +261,64 @@ fn u46b_an_agent_set_aside_at_recover_reads_so_once_its_history_answers() {
         (first.status, first.line),
         (Status::Working, kill_stuck()),
         "the tick that makes the agent's recovery reads the run that reap answered alive"
+    );
+}
+
+#[test]
+fn u46b_the_board_keeps_every_run_that_reap_answers_alive_whatever_its_place_among_the_answers() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL, MANUAL], room()));
+    let next = next_life(
+        &c,
+        &[
+            (runs[1].clone(), Reaped::Gone),
+            (runs[0].clone(), Reaped::Alive),
+            (runs[2].clone(), Reaped::Alive),
+        ],
+    );
+    let life = recover(&next, &Limits::PRODUCT).expect("recovery");
+    let kept: Vec<Option<&RunId>> = (0..3)
+        .map(|n| life.board.alive_at_reap(&agent(n)))
+        .collect();
+    assert_eq!(kept, [Some(&runs[0]), None, Some(&runs[2])]);
+}
+
+#[test]
+fn u46b_the_line_stands_while_the_rows_of_recovery_are_owed() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
+    let next = next_life(&c, &[(runs[0].clone(), Reaped::Alive)]);
+    next.ports.refuse(Method::Log, PortError::NoService);
+    let life = Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    assert!(
+        !life.ports().ports.events.borrow().iter().any(|e| matches!(
+            &e.what,
+            What::RunEnded { run, .. } if *run == runs[0]
+        )),
+        "the owner took no run_ended of the run"
+    );
+    let first = row(&life, 0);
+    assert_eq!((first.status, first.line), (Status::Working, kill_stuck()));
+}
+
+#[test]
+fn u46b_a_record_of_the_store_that_names_the_run_ends_the_line_while_mail_replies_go_unread() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
+    let next = next_life(&c, &[(runs[0].clone(), Reaped::Alive)]);
+    if let Workflow::Full(w) = &mut next.ports.workflows.borrow_mut()[0] {
+        w.category = Category::Email;
+    }
+    next.ports.agents.borrow_mut()[0].last = Some(PastRun {
+        run: runs[0].clone(),
+        day: coord::DAY,
+        outcome: Outcome::Failed,
+        unknown: 0,
+    });
+    next.ports.refuse(Method::Replies, PortError::NoService);
+    let life = Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    assert_eq!(
+        row(&life, 0).line,
+        text("line.needs_you.setup"),
+        "the store has ended the run, so the row reads its own line, unread replies or not"
     );
 }
