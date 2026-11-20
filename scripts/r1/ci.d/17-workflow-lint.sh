@@ -668,8 +668,9 @@ unless before.empty?
 end
 print parts.join
 RUBY
-  cp "$work/lib.sh" "$repo/scripts/r1-gate/lib.sh" || exit 2
-  STUB_BOUND=$full_bound
+  mkdir -p "$repo/docs/baseline" || exit 2
+  cp "$CI_D_REPO/scripts/r1-gate/lib.sh" "$repo/scripts/r1-gate/lib.sh" || exit 2
+  cp "$CI_D_REPO/docs/baseline/r1-gate-bounds.txt" "$repo/docs/baseline/" || exit 2
 }
 
 
@@ -705,11 +706,6 @@ EOF
     'permissions:' '  contents: read' 'name: ci' \
     >"$work/ci.yml"
   cp "$CI_D_REPO/.github/workflows/ci.yml" "$work/full.yml" || exit 2
-  full_bound=$(
-    GATE_ROOT=$CI_D_REPO
-    . "$CI_D_REPO/scripts/r1-gate/lib.sh"
-    gate_bound ci_job_timeout_min
-  ) || exit 2
   rejected=0
   wrong=
   STUB_BOUND=30
