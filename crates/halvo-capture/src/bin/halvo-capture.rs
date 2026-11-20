@@ -51,6 +51,11 @@ fn main() -> ExitCode {
             &mut std::io::stdout().lock(),
             &mut std::io::stderr(),
         )),
+        #[cfg(debug_assertions)]
+        Ok(Mode::ServiceRun { data_dir }) => status(daemon::service_run(
+            &data_dir,
+            Box::new(halvo_capture::store::state_file::DurableStateWrite::new()),
+        )),
         Err(usage) => status(daemon::usage_answer(&usage, &mut std::io::stderr())),
     }
 }

@@ -1184,7 +1184,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// status is 1 when the drain still fails at the last settle, when the
     /// last settle gets no answer or when the life lost events between the
     /// two settles, else `status`.
-    pub fn shutdown_entry(&mut self, owner: &dyn OwnerLink, status: i32) -> Option<EntryOutcome> {
+    pub fn shutdown_entry(
+        &mut self,
+        owner: Option<&dyn OwnerLink>,
+        status: i32,
+    ) -> Option<EntryOutcome> {
         if self.entered {
             return None;
         }
@@ -1193,9 +1197,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         let in_play = self.held(stop_order(self.platform));
         self.arm_entry(&in_play, status);
         self.entry_status = Some(status);
-        let first = owner.ask(Command::Settle).ok().and_then(|pending| {
-            self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE))
-        });
+        let first = owner
+            .and_then(|owner| owner.ask(Command::Settle).ok())
+            .and_then(|pending| {
+                self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE))
+            });
         let before = match first {
             Some(Answer::Settled(snapshot)) => Some(snapshot),
             _ => None,
@@ -1203,35 +1209,42 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         let stops = self.stop_every_source();
         let unstopped = stops.iter().any(|(_, answer)| !is_a_stop(answer));
         if unstopped {
-            if let Ok(pending) = owner.ask(Command::Settle) {
+            if let Some(Ok(pending)) = owner.map(|owner| owner.ask(Command::Settle)) {
                 let _ = self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE));
             }
             let _ = self.stop_sources(true);
         }
-        let last = owner.ask(Command::Settle).ok().and_then(|pending| {
-            self.answer_within(&pending, self.before_the_deadline(FINAL_SETTLE))
-        });
+        let last = owner
+            .and_then(|owner| owner.ask(Command::Settle).ok())
+            .and_then(|pending| {
+                self.answer_within(&pending, self.before_the_deadline(FINAL_SETTLE))
+            });
         let settled = match last {
             Some(Answer::Settled(snapshot)) => Some(snapshot),
             _ => None,
         };
-        let failing = owner.reports().read() || settled.is_some_and(|after| after.drain_hold);
+        let failing = owner.is_some_and(|owner| owner.reports().read())
+            || settled.is_some_and(|after| after.drain_hold);
+        let unanswered = owner.is_some() && settled.is_none();
         let lost_more = match (before, settled) {
             (Some(before), Some(after)) => after.events_lost > before.events_lost,
             _ => false,
         };
         let status = if unstopped {
             exit::SOURCE_NOT_STOPPED
-        } else if settled.is_none() || failing || lost_more {
+        } else if unanswered || failing || lost_more {
             exit::ERROR
         } else {
             status
         };
-        let last = settled.unwrap_or_else(|| owner.snapshot());
-        if status == exit::ERROR || last.events_lost + last.events_pending > 0 {
-            let reports: Vec<Report> = owner.reports().try_iter().collect();
-            let line = super::loss_line(&last, last.events_lost + last.events_pending, &reports);
-            let _ = writeln!(self.err, "{line}");
+        if let Some(owner) = owner {
+            let last = settled.unwrap_or_else(|| owner.snapshot());
+            if status == exit::ERROR || last.events_lost + last.events_pending > 0 {
+                let reports: Vec<Report> = owner.reports().try_iter().collect();
+                let line =
+                    super::loss_line(&last, last.events_lost + last.events_pending, &reports);
+                let _ = writeln!(self.err, "{line}");
+            }
         }
         self.entry_status = None;
         if unstopped {
@@ -2013,7 +2026,10 @@ mod tests {
             "the batch was written before the entry"
         );
         let link = f.link.take().unwrap();
-        let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+        let outcome = f
+            .supervisor
+            .shutdown_entry(Some(&link), exit::CLEAN)
+            .unwrap();
         assert_eq!(
             at_stop.get(),
             Some(1),
@@ -2037,15 +2053,41 @@ mod tests {
     }
 
     #[test]
+    fn an_entry_with_no_owner_asks_no_settle_and_answers_its_own_status() {
+        let mut f = fixture(Factory::new());
+        f.start(&two());
+        let outcome = f.supervisor.shutdown_entry(None, exit::CLEAN).unwrap();
+        assert_eq!(outcome.status, exit::CLEAN);
+        assert_eq!(outcome.settled, None);
+        assert_eq!(outcome.stops.len(), 2);
+        assert!(outcome.stops.iter().all(|(_, answer)| answer.is_ok()));
+        assert_eq!(f.supervisor.watchdog_armed(), None);
+        assert!(f.out.text().is_empty(), "{}", f.out.text());
+        let mut g = fixture(Factory::new());
+        let restart = g.supervisor.shutdown_entry(None, exit::RESTART).unwrap();
+        assert_eq!(restart.status, exit::RESTART);
+        assert!(restart.stops.is_empty());
+    }
+
+    #[test]
     fn a_second_trigger_does_not_run_the_entry_again() {
         let mut f = fixture_on_owner(Factory::new(), ModelStore::new());
         f.start(&two());
         let link = f.link.take().unwrap();
-        assert!(f.supervisor.shutdown_entry(&link, exit::CLEAN).is_some());
+        assert!(f
+            .supervisor
+            .shutdown_entry(Some(&link), exit::CLEAN)
+            .is_some());
         let stops = f.supervisor.factory().calls.of("stop ").len();
         assert_eq!(stops, 2);
-        assert!(f.supervisor.shutdown_entry(&link, exit::RESTART).is_none());
-        assert!(f.supervisor.shutdown_entry(&link, exit::CLEAN).is_none());
+        assert!(f
+            .supervisor
+            .shutdown_entry(Some(&link), exit::RESTART)
+            .is_none());
+        assert!(f
+            .supervisor
+            .shutdown_entry(Some(&link), exit::CLEAN)
+            .is_none());
         assert_eq!(f.supervisor.factory().calls.of("stop ").len(), stops);
     }
 
@@ -2056,7 +2098,10 @@ mod tests {
         f.start(&two());
         drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
         let link = f.link.take().unwrap();
-        let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+        let outcome = f
+            .supervisor
+            .shutdown_entry(Some(&link), exit::CLEAN)
+            .unwrap();
         assert_eq!(outcome.status, exit::ERROR);
     }
 
@@ -2621,7 +2666,10 @@ mod tests {
         );
         f.start(&two());
         let link = f.link.take().unwrap();
-        let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+        let outcome = f
+            .supervisor
+            .shutdown_entry(Some(&link), exit::CLEAN)
+            .unwrap();
         assert_eq!(outcome.settled.map(|s| s.events_lost), Some(1));
         assert_eq!(outcome.status, exit::ERROR);
     }
@@ -3994,7 +4042,10 @@ mod tests {
                     "{answer:?}: no hold before the entry"
                 );
                 let link = f.link.take().unwrap();
-                let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+                let outcome = f
+                    .supervisor
+                    .shutdown_entry(Some(&link), exit::CLEAN)
+                    .unwrap();
                 assert_eq!(
                     outcome.settled.as_ref().map(|s| s.drain_hold),
                     Some(true),
@@ -4019,7 +4070,10 @@ mod tests {
             into_the_hold(&f, &store);
             f.tick();
             let link = f.link.take().unwrap();
-            let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+            let outcome = f
+                .supervisor
+                .shutdown_entry(Some(&link), exit::CLEAN)
+                .unwrap();
             assert_eq!(outcome.status, exit::ERROR);
         }
 
@@ -4035,7 +4089,10 @@ mod tests {
             f.start(&two());
             drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
             let link = f.link.take().unwrap();
-            let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+            let outcome = f
+                .supervisor
+                .shutdown_entry(Some(&link), exit::CLEAN)
+                .unwrap();
             assert_eq!(outcome.status, exit::ERROR);
             let text = f.out.text();
             let lines: Vec<&str> = text
@@ -4074,7 +4131,9 @@ mod tests {
             .unwrap();
             assert_eq!(outcome.status, exit::CLEAN);
             assert!(
-                supervisor.shutdown_entry(&link, exit::CLEAN).is_none(),
+                supervisor
+                    .shutdown_entry(Some(&link), exit::CLEAN)
+                    .is_none(),
                 "the end of the timed run did not go through the shutdown entry"
             );
         }
@@ -4096,7 +4155,9 @@ mod tests {
             )
             .unwrap();
             assert!(
-                supervisor.shutdown_entry(&link, exit::CLEAN).is_none(),
+                supervisor
+                    .shutdown_entry(Some(&link), exit::CLEAN)
+                    .is_none(),
                 "the signalled timed run did not go through the shutdown entry"
             );
         }
@@ -4629,7 +4690,10 @@ mod tests {
             f.start(&two());
             f.tick();
             let link = f.link.take().unwrap();
-            let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+            let outcome = f
+                .supervisor
+                .shutdown_entry(Some(&link), exit::CLEAN)
+                .unwrap();
             let seen = seen.borrow().clone();
             println!(
                 "dm25 n1 entry status={} seen={seen:?} armed={:?} endings={:?}",
@@ -4682,7 +4746,10 @@ mod tests {
             f.start(&two());
             f.tick();
             let link = f.link.take().unwrap();
-            let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+            let outcome = f
+                .supervisor
+                .shutdown_entry(Some(&link), exit::CLEAN)
+                .unwrap();
             println!(
                 "dm25 n1 entry-overrun took_ms={} status={} endings={:?}",
                 outcome.took.as_millis(),
@@ -6126,7 +6193,7 @@ mod tests {
             f.tick();
             let link = f.link.take().unwrap();
             let began = Instant::now();
-            let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN);
+            let outcome = f.supervisor.shutdown_entry(Some(&link), exit::CLEAN);
             let endings = ending.since(began);
             let seen = seen.borrow().clone();
             println!(
@@ -6166,7 +6233,10 @@ mod tests {
             let turns = read_the_arm_at_each_turn(&mut f);
             let link = f.link.take().unwrap();
             let began = Instant::now();
-            let outcome = f.supervisor.shutdown_entry(&link, exit::RESTART).unwrap();
+            let outcome = f
+                .supervisor
+                .shutdown_entry(Some(&link), exit::RESTART)
+                .unwrap();
             let seen = seen.borrow().clone();
             let turns = turns.borrow().clone();
             println!(
@@ -6217,7 +6287,10 @@ mod tests {
                 .on_second_stop(SourceName::Input, Ok(()));
             let turns = read_the_arm_at_each_turn(&mut f);
             let link = f.link.take().unwrap();
-            let outcome = f.supervisor.shutdown_entry(&link, exit::CLEAN).unwrap();
+            let outcome = f
+                .supervisor
+                .shutdown_entry(Some(&link), exit::CLEAN)
+                .unwrap();
             let stops = f.supervisor.factory().calls.of("stop ");
             let turns = turns.borrow().clone();
             println!(
