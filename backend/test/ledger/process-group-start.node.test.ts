@@ -1,13 +1,14 @@
 import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeEach, expect, test } from "vitest";
-import { groupMembers, type Processes, startGroup, useProcesses } from "./process-group.ts";
+import { endGroup, groupMembers, type Processes, startGroup, useProcesses } from "./process-group.ts";
 
 interface FRow {
   pid: number;
   pgid: number;
   stat: string;
   started: string;
+  termProof?: boolean;
 }
 
 const ROOT = process.cwd();
@@ -21,6 +22,7 @@ let leadsNot = false;
 let goneAtRead = false;
 let nextPid = 200_000;
 let marks = "";
+let handlers = new Map<string, (() => void)[]>();
 const dirs: string[] = [];
 
 const world: Processes = {
@@ -43,12 +45,27 @@ const world: Processes = {
   kill: (pid, signal) => {
     events.push(`${signal} ${pid}`);
     if (pid < 0 && !rows.some((row) => row.pgid === -pid)) throw new Error("ESRCH");
-    rows = rows.filter((row) => row.pgid !== -pid);
+    rows = rows.filter((row) => row.pgid !== -pid || (signal === "SIGTERM" && row.termProof === true));
   },
   exit: () => {},
-  on: () => {},
-  off: () => {},
+  on: (event, listener) => {
+    handlers.set(event, [...(handlers.get(event) ?? []), listener]);
+  },
+  off: (event, listener) => {
+    handlers.set(
+      event,
+      (handlers.get(event) ?? []).filter((each) => each !== listener),
+    );
+  },
 };
+
+function fire(event: string): void {
+  for (const listener of [...(handlers.get(event) ?? [])]) listener();
+}
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const groupSignals = (pid: number) => events.filter((event) => event.startsWith("SIG") && event.endsWith(` -${pid}`));
+const rowOf = (pid: number) => rows.find((row) => row.pid === pid) as FRow;
 
 const marksIn = () => readdirSync(marks).sort();
 
@@ -58,6 +75,7 @@ beforeEach(() => {
   failReads = 0;
   leadsNot = false;
   goneAtRead = false;
+  handlers = new Map();
   mkdirSync(join(ROOT, ".tmp"), { recursive: true });
   const made = mkdtempSync(join(ROOT, ".tmp", "process-group-start."));
   dirs.push(made);
@@ -130,3 +148,42 @@ test("startGroup's errors name the command by its file name and not by the path 
     world.spawn = spawnOf;
   }
 });
+
+test("endGroup: a stop that lands while endGroup reads ps or waits still ends the group, and its mark goes", async () => {
+  const a = startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+  failReads = 1;
+  await expect(endGroup(a)).rejects.toThrow("ps was stopped");
+  fire("SIGINT");
+  fire("exit");
+  expect({ case: "the first read of endGroup fails", signals: groupSignals(a.pid), marks: marksIn() }).toEqual({
+    case: "the first read of endGroup fails",
+    signals: [`SIGTERM -${a.pid}`],
+    marks: [],
+  });
+  const b = startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+  rowOf(b.pid).termProof = true;
+  const ending = endGroup(b);
+  await pause(150);
+  fire("SIGINT");
+  fire("exit");
+  const signals = groupSignals(b.pid);
+  expect({ case: "INT during the wait", term: signals.includes(`SIGTERM -${b.pid}`), last: signals.at(-1), marks: marksIn() }).toEqual({
+    case: "INT during the wait",
+    term: true,
+    last: `SIGKILL -${b.pid}`,
+    marks: [],
+  });
+  await ending;
+}, 20_000);
+
+test("endGroup: a second endGroup of the same group resolves only after the first has sent its KILL to a member that the leader left", async () => {
+  const a = startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+  nextPid += 1;
+  rows.push({ pid: nextPid, pgid: a.pid, stat: "S", started: LATER, termProof: true });
+  const first = endGroup(a);
+  await pause(150);
+  await endGroup(a);
+  expect(groupSignals(a.pid)).toEqual([`SIGTERM -${a.pid}`, `SIGKILL -${a.pid}`]);
+  await first;
+  expect(marksIn()).toEqual([]);
+}, 20_000);
