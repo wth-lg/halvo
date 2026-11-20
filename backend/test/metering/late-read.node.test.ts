@@ -255,7 +255,7 @@ describe("what the late read leaves as it was (unit 5.4, ruling P7-77, part 7)",
         const first = END + UNIQUENESS_WINDOW_MS;
         expect([row?.outcome, row?.refusal, row?.unexplained_since, row?.unexplained_total, row?.unexplained_neighbours]).toEqual(["not-billable", "unexplained-total", first, 5, 0]);
         expect(Number(row?.closed_at)).toBeGreaterThanOrEqual(first + metering.LATE_READ_SPAN_MS);
-        expect(Number(row?.closed_at)).toBeLessThan(first + metering.LATE_READ_SPAN_MS + metering.RETRY_DELAY_CAP_MS);
+        expect(Number(row?.closed_at)).toBe(first + metering.LATE_READ_SPAN_MS);
         expect(new Set(kinds(w.calls).slice(1))).toEqual(new Set(["read total 5"]));
         expect(w.lines.filter((line) => line === NOT_BILLABLE)).toEqual([NOT_BILLABLE]);
         expect(await w.entries().destroy(HASH)).toEqual({ result: "deleted" });
