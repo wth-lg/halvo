@@ -3,6 +3,7 @@
 
 pub mod apps;
 pub mod audio;
+pub mod exclusion;
 pub mod foreground;
 pub mod input;
 pub mod screen;
