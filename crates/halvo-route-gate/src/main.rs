@@ -36,67 +36,104 @@ enum Done {
     Fail(Vec<String>),
 }
 
+type Run = fn(&[String], &mut dyn Write, &mut dyn Write) -> u8;
+
+struct Command {
+    name: &'static str,
+    run: Run,
+}
+
+const COMMANDS: &[Command] = &[
+    Command {
+        name: "generate",
+        run: |args, out, err| finish(generate_command(args), out, err),
+    },
+    Command {
+        name: "import",
+        run: halvo_route_gate::import::command,
+    },
+    Command {
+        name: "derive",
+        run: |args, out, err| finish(derive_command(args), out, err),
+    },
+    Command {
+        name: "score",
+        run: |args, out, err| finish(score_command(args), out, err),
+    },
+    Command {
+        name: "self-test",
+        run: |args, out, err| finish(self_test_command(args), out, err),
+    },
+    Command {
+        name: "spend-sim",
+        run: halvo_route_gate::spendsim::command,
+    },
+    Command {
+        name: "probe",
+        run: halvo_route_gate::probe::command,
+    },
+    Command {
+        name: "commands",
+        run: |args, out, err| finish(commands_command(args), out, err),
+    },
+];
+
 fn main() -> ExitCode {
+    let mut out = std::io::stdout();
+    let mut err = std::io::stderr();
     let mut args = Vec::new();
     for arg in std::env::args_os().skip(1) {
         match arg.into_string() {
             Ok(arg) => args.push(arg),
-            Err(_) => return finish(refuse("usage", "an argument is not UTF-8")),
+            Err(_) => {
+                return ExitCode::from(finish(
+                    refuse("usage", "an argument is not UTF-8"),
+                    &mut out,
+                    &mut err,
+                ))
+            }
         }
     }
-    let rest = args.get(1..).unwrap_or_default();
-    let done = match args.first().map(String::as_str) {
-        Some("generate") => generate_command(rest),
-        Some("import") => return import_command(rest),
-        Some("derive") => derive_command(rest),
-        Some("score") => score_command(rest),
-        Some("self-test") => self_test_command(rest),
-        Some("spend-sim") => {
-            return ExitCode::from(halvo_route_gate::spendsim::command(
-                rest,
-                &mut std::io::stdout().lock(),
-                &mut std::io::stderr().lock(),
-            ))
-        }
-        Some("probe") => {
-            return ExitCode::from(halvo_route_gate::probe::command(
-                rest,
-                &mut std::io::stdout().lock(),
-                &mut std::io::stderr().lock(),
-            ))
-        }
-        Some(_) => refuse("usage", "unknown command"),
-        None => refuse("usage", "no command"),
-    };
-    finish(done)
+    ExitCode::from(dispatch(&args, &mut out, &mut err))
 }
 
-fn finish(done: Result<Done, Refusal>) -> ExitCode {
+fn dispatch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> u8 {
+    let Some((word, rest)) = args.split_first() else {
+        return finish(refuse("usage", "no command"), out, err);
+    };
+    match COMMANDS.iter().find(|command| command.name == word) {
+        Some(command) => (command.run)(rest, out, err),
+        None => finish(refuse("usage", "unknown command"), out, err),
+    }
+}
+
+fn finish(done: Result<Done, Refusal>, out: &mut dyn Write, err: &mut dyn Write) -> u8 {
     let (lines, code) = match done {
         Ok(Done::Pass(lines)) => (lines, 0),
         Ok(Done::Fail(lines)) => (lines, 1),
         Err(refusal) => {
-            eprintln!("REFUSED {}: {}", refusal.cause, refusal.detail);
-            return ExitCode::from(2);
+            let _ = writeln!(err, "REFUSED {}: {}", refusal.cause, refusal.detail);
+            return 2;
         }
     };
     let mut text = lines.join("\n");
     if !text.is_empty() {
         text.push('\n');
     }
-    match std::io::stdout().lock().write_all(text.as_bytes()) {
-        Ok(()) => ExitCode::from(code),
-        Err(_) => ExitCode::from(1),
+    match out.write_all(text.as_bytes()) {
+        Ok(()) => code,
+        Err(_) => 1,
     }
 }
 
-fn import_command(args: &[String]) -> ExitCode {
-    let code = halvo_route_gate::import::command(
-        args,
-        &mut std::io::stdout().lock(),
-        &mut std::io::stderr().lock(),
-    );
-    ExitCode::from(code)
+fn commands_command(args: &[String]) -> Result<Done, Refusal> {
+    options(args, &[])?;
+    Ok(Done::Pass(
+        COMMANDS
+            .iter()
+            .map(|command| command.name.to_owned())
+            .collect(),
+    ))
 }
 
 fn options<'a>(args: &'a [String], known: &[&str]) -> Result<BTreeMap<String, &'a str>, Refusal> {
@@ -293,5 +330,84 @@ fn self_test_command(args: &[String]) -> Result<Done, Refusal> {
         Ok(Done::Pass(result.lines()))
     } else {
         Ok(Done::Fail(result.lines()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use super::dispatch;
+
+    const UNKNOWN: (u8, &str, &str) = (2, "", "REFUSED usage: unknown command\n");
+
+    fn answer(words: &[&str]) -> (u8, String, String) {
+        let args: Vec<String> = words.iter().map(|word| (*word).to_owned()).collect();
+        let mut out = Vec::new();
+        let mut err = Vec::new();
+        let code = dispatch(&args, &mut out, &mut err);
+        let text = |bytes: Vec<u8>| String::from_utf8(bytes).expect("route-gate writes UTF-8");
+        (code, text(out), text(err))
+    }
+
+    fn printed() -> Vec<String> {
+        let (code, out, err) = answer(&["commands"]);
+        assert_eq!((code, err.as_str()), (0, ""));
+        assert!(out.ends_with('\n'));
+        out.lines().map(str::to_owned).collect()
+    }
+
+    #[test]
+    fn the_printing_names_exactly_the_commands_that_the_dispatch_runs() {
+        let names = printed();
+        assert_eq!(
+            names,
+            [
+                "generate",
+                "import",
+                "derive",
+                "score",
+                "self-test",
+                "spend-sim",
+                "probe",
+                "commands"
+            ]
+        );
+        assert_eq!(
+            names.iter().collect::<BTreeSet<_>>().len(),
+            names.len(),
+            "a name printed twice"
+        );
+        for name in &names {
+            let (code, out, err) = answer(&[name]);
+            assert_ne!((code, out.as_str(), err.as_str()), UNKNOWN, "{name}");
+        }
+        for word in [
+            "fetch",
+            "Generate",
+            "generate ",
+            "self_test",
+            "probe2",
+            "--commands",
+            "",
+        ] {
+            assert!(!names.iter().any(|name| name == word), "{word}");
+            let (code, out, err) = answer(&[word]);
+            assert_eq!((code, out.as_str(), err.as_str()), UNKNOWN, "{word:?}");
+        }
+    }
+
+    #[test]
+    fn the_printing_takes_no_argument_and_no_command_is_refused() {
+        let (code, out, err) = answer(&["commands", "--all"]);
+        assert_eq!(
+            (code, out.as_str(), err.as_str()),
+            (2, "", "REFUSED usage: unknown argument --all\n")
+        );
+        let (code, out, err) = answer(&[]);
+        assert_eq!(
+            (code, out.as_str(), err.as_str()),
+            (2, "", "REFUSED usage: no command\n")
+        );
     }
 }
