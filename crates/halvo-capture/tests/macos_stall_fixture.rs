@@ -1946,6 +1946,8 @@ fn judge(name: &str, rounds: &[Round]) {
 }
 
 fn judge_in(name: &str, rounds: &[Round], short: bool) {
+    let waits = waits_in_order(rounds);
+    println!("{}", late_rule_line(name, rounds, &waits));
     let leaked: Vec<String> = rounds
         .iter()
         .filter(|round| {
@@ -1966,8 +1968,6 @@ fn judge_in(name: &str, rounds: &[Round], short: bool) {
         leaked.join(", ")
     );
     assert_some_round_driven(name, rounds);
-    let waits = waits_in_order(rounds);
-    println!("{}", late_rule_line(name, rounds, &waits));
     let not_counted: Vec<String> = rounds
         .iter()
         .filter(|round| {
