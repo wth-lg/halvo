@@ -1537,6 +1537,60 @@ mod tests {
     }
 
     #[test]
+    fn a_front_read_while_the_stop_is_asked_makes_no_record_and_is_counted() {
+        let (handle, writer) = sink::channel(64);
+        let (reading, reads) = channel::<()>();
+        let (open, gate) = channel::<()>();
+        let calls = Arc::new(AtomicU64::new(0));
+        let read_front: FrontReader = {
+            let calls = calls.clone();
+            Box::new(move || {
+                if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                    return app("a", 1);
+                }
+                reading.send(()).ok();
+                gate.recv().ok();
+                app("b", 2)
+            })
+        };
+        let (mut source, _reader) = source_with(
+            Duration::from_millis(1),
+            fresh_turns(),
+            read_front,
+            Box::new(|_| Ok(None)),
+        );
+        source
+            .begin(SourceContext::new(handle.clone()))
+            .expect("the source starts without a grant");
+        let first = take(&writer, 1);
+        reads
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the second reading began");
+        let health = source.health.clone();
+        let opener = std::thread::spawn(move || {
+            let waited = Instant::now();
+            while !health.stop_asked.load(Ordering::SeqCst)
+                && waited.elapsed() < Duration::from_millis(500)
+            {
+                std::thread::yield_now();
+            }
+            open.send(()).ok();
+        });
+        let shut = source.shutdown();
+        opener.join().expect("the opener ends");
+        let dropped = source.health.dropped_at_stop.load(Ordering::SeqCst);
+        drop(source);
+        assert_eq!(shut, Ok(()));
+        assert_eq!(first, [fg("a")]);
+        assert_eq!(
+            events(handle, &writer),
+            [],
+            "a record of the front read while the stop was asked"
+        );
+        assert_eq!(dropped, 1);
+    }
+
+    #[test]
     fn a_started_source_emits_on_each_change_of_the_front_app() {
         let (handle, writer) = sink::channel(64);
         let script: Script = Arc::new(Mutex::new(vec![

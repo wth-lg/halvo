@@ -147,7 +147,7 @@ fn frame_status(sample: &CMSampleBuffer) -> Option<NSInteger> {
         return None;
     }
     // SAFETY: `value` is a live CF object that the dictionary owns.
-    if unsafe { CFGetTypeID(value) } != unsafe { CFNumberGetTypeID() } {
+    if !unsafe { is_number(value) } {
         return None;
     }
     let mut raw: i64 = 0;
@@ -161,6 +161,17 @@ fn frame_status(sample: &CMSampleBuffer) -> Option<NSInteger> {
         )
     };
     read.then_some(raw as NSInteger)
+}
+
+/// Whether `value` is a CFNumber, the one type whose value the status read
+/// takes.
+///
+/// # Safety
+///
+/// `value` is a live CF object.
+unsafe fn is_number(value: *const c_void) -> bool {
+    // SAFETY: `value` is a live CF object, as the caller promises.
+    unsafe { CFGetTypeID(value) == CFNumberGetTypeID() }
 }
 
 /// Whether `sample` carries an image buffer. No byte of the image is read.
@@ -1828,6 +1839,58 @@ mod tests {
     mod adversary1 {
         use super::*;
 
+        #[test]
+        fn adv1_a_begin_after_a_user_stop_and_a_clean_stop_reads_running() {
+            let (mut source, handle, _writer, _asks, _weak) = started(&[Some(StopReply::Stopped)]);
+            deliver_stop(
+                source
+                    .output
+                    .as_ref()
+                    .expect("a started source holds its output"),
+                USER_STOPPED as NSInteger,
+            );
+            assert_eq!(source.health().state, SourceState::Stopped(StopCause::User));
+            assert_eq!(source.shutdown(), Ok(()));
+            let asks = Rc::new(Cell::new(0));
+            let again = source.begin_with(
+                &context_on(handle),
+                scripted(&[Some(StopReply::Stopped)], &asks),
+            );
+            assert_eq!(again, Ok(Started::Running));
+            assert_eq!(
+                source.health().state,
+                SourceState::Running,
+                "a source begun again after a user stop"
+            );
+        }
+
+        #[test]
+        fn adv1_a_complete_sample_of_another_output_type_gives_no_record() {
+            for ty in [SCStreamOutputType::Audio, SCStreamOutputType::Microphone] {
+                let (ivars, writer, _front) = screen_ivars(inactive());
+                on_sample(&ivars, complete().sample(), ty);
+                assert_eq!(records(ivars, &writer), 0, "{ty:?}");
+            }
+        }
+
+        #[test]
+        fn adv1_a_front_whose_pid_is_negative_gives_no_record() {
+            let (handle, writer) = sink::channel(8);
+            let (fg_writer, reader) = foreground_state_for_test();
+            fg_writer.set_for_test(Some(front("com.example.editor", -1)));
+            let ivars = ScreenIvars {
+                sink: Mutex::new(Some(handle)),
+                rule: rule(reader, floor_on(), inactive()),
+                facts: Arc::default(),
+            };
+            on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+            assert_eq!(
+                records(ivars, &writer),
+                0,
+                "a record for a front with pid -1"
+            );
+        }
+
         /// A stand-in stream that hands its output one complete frame after
         /// the stop was asked and before it answers the stop.
         struct FrameAfterTheAsk {
@@ -3348,6 +3411,82 @@ mod tests {
         );
         assert!(ran >= REBUILD_TICK * 2, "the run loop ran {ran:?}");
         assert_eq!(TICKS.with(Cell::get), before, "a callout after the drop");
+    }
+
+    #[test]
+    fn the_status_read_takes_a_number_and_no_other_type() {
+        let text = core_foundation::string::CFString::new("0");
+        let number = CFNumber::from(0i64);
+        // SAFETY: both are live CF objects that the test holds.
+        let read = unsafe {
+            (
+                is_number(text.as_CFTypeRef()),
+                is_number(number.as_CFTypeRef()),
+            )
+        };
+        assert_eq!(read, (false, true), "a string, then a number");
+    }
+
+    #[test]
+    fn a_rebuild_that_lists_the_app_clears_its_wait_so_a_relaunch_is_due_at_once() {
+        let floor = FloorHandle::default();
+        let probe = inactive();
+        let tree = RootTree {
+            floor: &floor,
+            probe: &probe,
+        };
+        let start = Instant::now();
+        let at = |ms: u64| start + Duration::from_millis(ms);
+        let mut plan = RebuildPlan::new();
+        assert!(plan.due(&[], &[42], false, &[], &tree, at(0)));
+        plan.tried(at(0), false);
+        assert!(
+            plan.due(&[], &[42], true, &[], &tree, at(500)),
+            "the app comes in front inside the wait"
+        );
+        plan.tried(at(500), true);
+        assert!(
+            plan.due(&[42], &[42, 43], true, &[], &tree, at(600)),
+            "a relaunch under a new pid while the app stays in front, inside the old wait"
+        );
+    }
+
+    #[test]
+    fn the_queue_of_a_failed_stop_is_kept_and_the_queue_of_a_clean_stop_is_released() {
+        use dispatch2::DispatchObject;
+        let mut released = Vec::new();
+        for answer in [StopReply::Stopped, StopReply::Failed { code: -3808 }] {
+            let (handle, _writer) = sink::channel(8);
+            let mut source = source();
+            let asks = Rc::new(Cell::new(0));
+            let inner = scripted(&[Some(answer)], &asks);
+            let (gone, freed) = channel::<()>();
+            let opener: Opener = Box::new(move |frames, selection, cap| {
+                let opened = inner(frames, selection, cap)?;
+                opened.2.set_finalizer(move || {
+                    gone.send(()).ok();
+                });
+                Ok(opened)
+            });
+            assert_eq!(
+                source.begin_with(&context_on(handle), opener),
+                Ok(Started::Running)
+            );
+            let shut = source.shutdown();
+            assert!(
+                source.queue.is_none(),
+                "{answer:?}: the source holds the queue"
+            );
+            released.push((
+                shut.is_ok(),
+                freed.recv_timeout(Duration::from_millis(1000)).is_ok(),
+            ));
+        }
+        assert_eq!(
+            released,
+            [(true, true), (false, false)],
+            "a clean stop releases the queue; a failed stop keeps it"
+        );
     }
 
     #[test]
