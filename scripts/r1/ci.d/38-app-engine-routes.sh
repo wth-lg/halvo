@@ -57,7 +57,7 @@ told() {
   [ -f "$work/ready-$1" ] || return 0
   tr -d '\r' < "$work/ready-$1" > "$work/ready-$1.lf"
   asked=$(sed -n 's/^asked //p' "$work/ready-$1.lf")
-  refused=$(grep -c -v -e '^asked ' -e '^interface ' -e '^$' "$work/ready-$1.lf")
+  refused=$(grep -c -v -e '^asked ' -e '^interface ' "$work/ready-$1.lf")
   echo "$name listeners $1: asked ${asked:-no address}, $refused refused"
   sed -n "s/^interface /$name interface at a refused bind of $1: /p" "$work/ready-$1.lf"
 }
@@ -125,8 +125,10 @@ told_cases() {
   printf '%s\n' "$name listeners refused-steps: asked 203.0.113.9, 2 refused" "$name interface at a refused bind of refused-steps: lo0 8049<UP,LOOPBACK,RUNNING,MULTICAST> inet 127.0.0.1" "$name interface at a refused bind of refused-steps: en0 8863<UP,BROADCAST> inet 10.0.0.5 status: active" > "$work/told-refused.want"
   printf 'asked 10.0.0.5\n' > "$work/ready-taken-steps"
   printf '%s\n' "$name listeners taken-steps: asked 10.0.0.5, 0 refused" > "$work/told-taken.want"
+  printf 'resolver port 5354: [Errno 48] Address already in use\n' > "$work/ready-unasked-steps"
+  printf '%s\n' "$name listeners unasked-steps: asked no address, 1 refused" > "$work/told-unasked.want"
   : > "$work/told-unwritten.want"
-  for label in refused taken unwritten; do
+  for label in refused taken unasked unwritten; do
     told "$label-steps" > "$work/told-$label.got" 2>&1
     got=mis-told
     cmp -s "$work/told-$label.want" "$work/told-$label.got" && got=told
@@ -302,14 +304,18 @@ def an_unread_list_is_told():
     def broken():
         raise OSError("no reader")
 
+    def late():
+        raise measure.subprocess.TimeoutExpired("ifconfig", 30)
+
     told = []
-    for reader in (broken, lambda: ""):
+    for reader in (broken, late, lambda: "", lambda: "\tinet 10.9.9.9 netmask 0xff000000\n"):
         measure.interface_text = reader
         try:
             told.append(measure.interfaces())
         finally:
             measure.interface_text = text_of_the_minute
-    return "told" if told == [["not read: no reader"], ["none read"]] else "untold"
+    late_line = "not read: Command 'ifconfig' timed out after 30 seconds"
+    return "told" if told == [["not read: no reader"], [late_line], ["none read"], ["none read"]] else "untold"
 
 
 def an_unbound_listener_reads_not_measured():
@@ -416,6 +422,7 @@ case "$tool:$*" in
     ;;
   python*:*measure.py\ plan*)
     if [ "${FIXTURE_PLAN:-}" = fail ]; then exit 1; fi
+    if [ "${FIXTURE_LAUNCH:-}" = run ]; then printf 's03-ip\tplan %s\n' "$(grep -c 'measure\.py plan ' "$FIXTURE_CALLS")" > "$3/steps.tsv"; fi
     ;;
   python*:*measure.py\ listen*)
     if [ "${FIXTURE_LAUNCH:-}" = stop ]; then
@@ -558,16 +565,20 @@ run_cases() {
   is "$n" 0 left
   report macos-asks-no-s20 "$got"
   printf "s03-ip port 47030: [Errno 49] Can't assign requested address\r\nasked 203.0.113.9\r\ninterface en0 8863<UP,BROADCAST> inet 10.0.0.5\r\n" > "$work/ready-made-up"
-  run_fixture address-read-after-each-build true macos FIXTURE_LAUNCH=run FIXTURE_READY="$work/ready-made-up" FIXTURE_JUDGED="$work/judged-good.txt"
+  mkdir -p "$work/after-each-build" || exit 2
+  run_fixture address-read-after-each-build true macos FIXTURE_LAUNCH=run FIXTURE_READY="$work/ready-made-up" FIXTURE_JUDGED="$work/judged-good.txt" RUNNER_TEMP="$work/after-each-build"
   got=refused
   code=$(cat "$work/address-read-after-each-build.code")
   is "$code" 0 left
   order=$(sed -n -e 's/^cargo .*/build/p' -e 's/^python[0-9]* .*measure\.py plan .*/plan/p' -e 's/^python[0-9]* .*measure\.py listen .*/listen/p' "$work/address-read-after-each-build.calls" | paste -s -d ' ' -)
   is "$order" "build plan listen build plan listen" left
-  for phase in engine-alone-steps no-layer-steps; do
-    n=$(grep -c -x -F -e "$name listeners $phase: asked 203.0.113.9, 1 refused" -e "$name interface at a refused bind of $phase: en0 8863<UP,BROADCAST> inet 10.0.0.5" "$work/address-read-after-each-build.out")
-    is "$n" 2 left
+  for phase in engine-alone no-layer; do
+    n=$(grep -c -x -F -e "$name steps of $phase: s03-ip" -e "$name listeners $phase-steps: asked 203.0.113.9, 1 refused" -e "$name interface at a refused bind of $phase-steps: en0 8863<UP,BROADCAST> inet 10.0.0.5" "$work/address-read-after-each-build.out")
+    is "$n" 3 left
   done
+  routes=$(cat "$work/after-each-build/$name".*/routes.tsv)
+  tab=$(printf '\t')
+  is "$routes" "s03-ip${tab}plan 2" left
   report address-read-after-each-build "$got"
   run_fixture a-failed-plan-fails-the-check true macos FIXTURE_LAUNCH=run FIXTURE_PLAN=fail
   got=refused
@@ -1172,10 +1183,10 @@ def interfaces():
             continue
         words = line.split()
         key, _, value = line.partition(" : ")
-        if words[0] in ("inet", "inet6", "status:") and len(words) > 1:
+        if words[0] in ("inet", "inet6", "status:"):
             rows[-1].append(" ".join(words[:2]))
-        elif value.strip() and ("Address" in key or "Media State" in key):
-            rows[-1].append(value.strip())
+        elif "Address" in key or "Media State" in key:
+            rows[-1].append(value)
     return [" ".join(row) for row in rows] or ["none read"]
 
 
