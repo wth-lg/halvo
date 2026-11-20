@@ -361,11 +361,7 @@ macro_rules! flipped {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
         println!("{evidence}");
-        assert!(
-            $wanted,
-            "{} is mended and its case fails again: {evidence}",
-            $id
-        );
+        assert!($wanted, "{} failed: {evidence}", $id);
     }};
 }
 
