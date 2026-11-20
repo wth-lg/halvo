@@ -1,4 +1,7 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -14,121 +17,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 180
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: Processor
-        shell: bash
-        run: |
-          printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Lockfile unchanged
-        shell: bash
-        run: |
-          for name in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do
-            unset "$name"
-          done
-          in_checkout() {
-            git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$GITHUB_WORKSPACE" -c core.fsmonitor=false -c core.trustctime=true -c core.checkStat=default -c core.fileMode=true "$@"
-          }
-          head=$(in_checkout rev-parse HEAD)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "HEAD is not the commit of this run: a step or a check moved HEAD of the checkout."
-            exit 1
-          fi
-          changed=$(in_checkout status --porcelain --untracked-files=no --ignore-submodules=none)
-          untracked=$(in_checkout ls-files --others --exclude-per-directory=.gitignore)
-          flagged=$(in_checkout ls-files -v | awk '!/^H /')
-          hidden=$(in_checkout status --porcelain --ignored --untracked-files=normal | sed -n 's/^!! //p' | while IFS= read -r entry; do
-            source=$(in_checkout check-ignore -v --no-index -- "$entry") || { echo "$entry"; continue; }
-            in_checkout ls-files --error-unmatch -- "${source%%:*}" >/dev/null 2>&1 || echo "$entry"
-          done)
-          if [ -n "$changed$untracked$flagged$hidden" ]; then
-            printf '%s\n' "$changed" "$untracked" "$flagged" "$hidden" | sed '/^$/d'
-            echo "A step or a check changed these files of the checkout, left them untracked and not ignored by a tracked .gitignore, or hid them by an index flag. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
-            exit 1
-          fi
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
     timeout-minutes: 180
@@ -154,14 +42,105 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-windows-functional
+      - name: win-3e adversary 3 probes (scratch, never merged)
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          HALVO_WF_FORM: short
+        run: |
+          set +e
+          cat >"$RUNNER_TEMP/a3-apply.pl" <<'A3_PL'
+          use strict;
+          use warnings;
+          my ($file) = @ARGV;
+          open(my $in, '<', $file) or exit 4;
+          binmode $in;
+          local $/;
+          my $text = <$in>;
+          close $in;
+          my $old = $ENV{A3_OLD};
+          my $new = $ENV{A3_NEW};
+          my $count = () = $text =~ /^\Q$old\E(?=\r?\n)/mg;
+          exit 3 if $count != 1;
+          $text =~ s/^\Q$old\E(?=\r?\n)/$new/m;
+          open(my $out, '>', $file) or exit 5;
+          binmode $out;
+          print $out $text;
+          close $out;
+          exit 0;
+          A3_PL
+          . ./scripts/r1/windows-prints-rule.sh
+          (wpr_vocabulary "$RUNNER_TEMP/a3-vocab")
+          printf 'a3 vocabulary_exit=%s words=%s\n' "$?" "$(grep -c '' "$RUNNER_TEMP/a3-vocab")"
+          kind=stall::tab_then_letters_while_the_program_sleeps_at_each_wait
+          stall=crates/halvo-capture/tests/stall/mod.rs
+          kinds=crates/halvo-capture/tests/stall/kinds.rs
+          inject_old='            totals.letters_recorded += decided.letters_recorded;'
+          inject_new='            totals.letters_recorded += decided.letters_recorded + 1;'
+          k1_old='        checks: Checks::Stall,'
+          k1_new='        checks: Checks::ControlsAndSink,'
+          k2_old='        letters_through_the_wait: true,'
+          k2_new='        letters_through_the_wait: false,'
+          k9_old='        self.letters_recorded += other.letters_recorded;'
+          k9_new=''
+          values() {
+            tr -d '\r' <"$1" | sed -n "s/.* summary phase=.* $2=\([0-9]*\) .*/\1/p" | tr '\n' ',' | sed 's/,$//'
+          }
+          probe() {
+            name=$1
+            limit=$2
+            shift 2
+            refused=0
+            while [ "$#" -ge 3 ]; do
+              A3_OLD=$2 A3_NEW=$3 perl "$RUNNER_TEMP/a3-apply.pl" "$1" || refused=$((refused + 1))
+              shift 3
+            done
+            cargo test --locked -p halvo-capture --test windows_functional --no-run --message-format json >"$RUNNER_TEMP/a3.json" 2>"$RUNNER_TEMP/a3.err"
+            built=$?
+            errors=$(grep -c '^error' "$RUNNER_TEMP/a3.err")
+            exe=$(sed -n 's/.*"name":"windows_functional".*"executable":"\([^"]*\)".*/\1/p' "$RUNNER_TEMP/a3.json" | sed 's/\\\\/\//g')
+            code=none
+            log=$RUNNER_TEMP/a3-$name.log
+            : >"$log"
+            if [ "$refused" -eq 0 ] && [ "$built" -eq 0 ] && [ -f "$exe" ]; then
+              timeout "$limit" "$exe" --ignored --exact --nocapture "$kind" </dev/null >"$log" 2>&1
+              code=$?
+            fi
+            changed=$(git status --porcelain --untracked-files=no | grep -c '')
+            git checkout -- "$stall" "$kinds"
+            clean=$(tr -d '\r' <"$log")
+            one_passed=$(printf '%s\n' "$clean" | grep -c '^test result: ok\. 1 passed; 0 failed;')
+            verdict_pass=$(printf '%s\n' "$clean" | grep -c -E ' phase=[a-z0-9_]+ session=[0-9]+ step=[0-9]+ passed=1$')
+            verdict_fail=$(printf '%s\n' "$clean" | grep -c -E ' phase=[a-z0-9_]+ session=[0-9]+ step=[0-9]+ passed=0$')
+            started=$(printf '%s\n' "$clean" | grep -c -E ' session=[0-9]+ step=[0-9]+ phase=[a-z0-9_]+$')
+            reason=$(printf '%s\n' "$clean" | grep -c -F 'a letter typed ahead of the program was recorded in a counted round')
+            timeouts=$(printf '%s\n' "$clean" | grep -c 'result=TIMEOUT')
+            panics=$(printf '%s\n' "$clean" | grep -c ' panicked at ')
+            wpr_check_log "$kind" "$log" "$RUNNER_TEMP/a3-vocab" >"$RUNNER_TEMP/a3-rule.out" 2>&1
+            rule=$?
+            broken=$(grep -c '^prints-rule ' "$RUNNER_TEMP/a3-rule.out")
+            printf 'a3 probe %s refused_changes=%s files_changed=%s build_exit=%s build_error_lines=%s test_exit=%s one_passed=%s phases_started=%s verdicts_passed=%s verdicts_failed=%s reason_lines=%s timeout_lines=%s panic_lines=%s prints_rule_exit=%s prints_rule_lines=%s\n' \
+              "$name" "$refused" "$changed" "$built" "$errors" "$code" "$one_passed" "$started" "$verdict_pass" "$verdict_fail" "$reason" "$timeouts" "$panics" "$rule" "$broken"
+            printf 'a3 counts %s counted=%s letters_sent=%s letters_recorded=%s\n' \
+              "$name" "$(values "$log" counted_rounds)" "$(values "$log" letters_sent)" "$(values "$log" letters_recorded)"
+          }
+          probe P0-the-head 360
+          probe P1a-one-recorded-letter-per-counted-round 360 "$stall" "$inject_old" "$inject_new"
+          probe P1b-the-letter-and-totals-add-without-letters 360 "$stall" "$inject_old" "$inject_new" "$kinds" "$k9_old" "$k9_new"
+          probe P1c-the-letter-and-phase-default-checks-controls-and-sink 360 "$stall" "$inject_old" "$inject_new" "$kinds" "$k1_old" "$k1_new"
+          probe P1d-phase-default-no-letters-through-the-wait 360 "$kinds" "$k2_old" "$k2_new"
+          probe P4-the-head-under-a-limit-of-10-s 10
+          cargo test --locked -p halvo-capture --test windows_functional --no-run >"$RUNNER_TEMP/a3-back.log" 2>&1
+          printf 'a3 rebuilt_at_the_head_exit=%s status_lines_after=%s\n' "$?" "$(git status --porcelain --untracked-files=no | grep -c '')"
+          exit 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
