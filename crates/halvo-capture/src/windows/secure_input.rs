@@ -1979,6 +1979,35 @@ mod detector {
             assert_eq!(asked.load(Ordering::SeqCst), 3);
         }
 
+        struct Hold(&'static std::sync::atomic::AtomicBool);
+
+        impl Hold {
+            fn on(flag: &'static std::sync::atomic::AtomicBool) -> Hold {
+                flag.store(true, std::sync::atomic::Ordering::SeqCst);
+                Hold(flag)
+            }
+        }
+
+        impl Drop for Hold {
+            fn drop(&mut self) {
+                self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+
+        #[test]
+        fn a_hold_is_let_go_when_its_test_unwinds() {
+            static HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+            let unwound = std::panic::catch_unwind(|| {
+                let _hold = Hold::on(&HELD);
+                panic!("an unwind inside the hold");
+            });
+            assert!(unwound.is_err(), "the closure did not unwind");
+            assert!(
+                !HELD.load(std::sync::atomic::Ordering::SeqCst),
+                "the hold outlived the unwind of its test"
+            );
+        }
+
         #[test]
         fn after_attach_the_first_mark_is_the_start_and_attach_returns_after_the_detectors_own_read(
         ) {
@@ -2369,13 +2398,14 @@ mod detector {
         fn an_attach_after_a_timed_out_detach_is_refused_while_the_old_detector_runs() {
             use std::sync::atomic::Ordering;
             let _serial = crate::windows::tests::serial();
+            HOLD_READS.store(false, Ordering::SeqCst);
             let mut gate = PasswordGate::with_removals(Removals {
                 before_read: read_held,
                 ..untimed()
             });
             READ_HELD.store(false, Ordering::SeqCst);
             gate.attach().expect("the detector starts");
-            HOLD_READS.store(true, Ordering::SeqCst);
+            let reads = Hold::on(&HOLD_READS);
             gate.shared.lock().ask_read(tick());
             gate.wake_detector();
             until(|| READ_HELD.load(Ordering::SeqCst));
@@ -2388,7 +2418,7 @@ mod detector {
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .is_some();
             gate.removals.attach_deadline = Some(UNTIMED);
-            HOLD_READS.store(false, Ordering::SeqCst);
+            drop(reads);
             let third = gate.attach();
             let detached = gate.detach(UNTIMED);
             assert!(
@@ -2414,15 +2444,16 @@ mod detector {
         fn detach_answers_timeout_when_the_detector_does_not_end_in_time() {
             use std::sync::atomic::Ordering;
             let _serial = crate::windows::tests::serial();
+            HOLD_REMOVAL.store(false, Ordering::SeqCst);
             let gate = PasswordGate::with_removals(Removals {
                 handler: handler_held,
                 ..untimed()
             });
             gate.attach().expect("the detector starts");
-            HOLD_REMOVAL.store(true, Ordering::SeqCst);
+            let removal = Hold::on(&HOLD_REMOVAL);
             let deadline = Duration::from_millis(200);
             let stopped = gate.detach(deadline);
-            HOLD_REMOVAL.store(false, Ordering::SeqCst);
+            drop(removal);
             let stale = gate
                 .stale
                 .lock()
@@ -2549,13 +2580,15 @@ mod detector {
         fn an_attach_whose_first_read_does_not_answer_times_out_and_stops_that_detector() {
             use std::sync::atomic::Ordering;
             let _serial = crate::windows::tests::serial();
+            HOLD_FIRST_READ.store(false, Ordering::SeqCst);
+            HOLD_RECEIVE.store(false, Ordering::SeqCst);
             let gate = Arc::new(PasswordGate::with_removals(Removals {
                 before_first_read: first_read_held,
                 at_receive: receive_met,
                 ..Removals::default()
             }));
-            HOLD_FIRST_READ.store(true, Ordering::SeqCst);
-            HOLD_RECEIVE.store(true, Ordering::SeqCst);
+            let first_read = Hold::on(&HOLD_FIRST_READ);
+            let receive = Hold::on(&HOLD_RECEIVE);
             RECEIVES_MET.store(0, Ordering::SeqCst);
             let waiting = {
                 let gate = Arc::clone(&gate);
@@ -2563,12 +2596,12 @@ mod detector {
             };
             until(|| RECEIVES_MET.load(Ordering::SeqCst) == 1);
             let free_during_the_wait = gate.detector.try_lock().is_ok();
-            HOLD_RECEIVE.store(false, Ordering::SeqCst);
+            drop(receive);
             let first = waiting.join().expect("the attaching thread ends");
             let second = gate.attach();
             let mut gate = Arc::into_inner(gate).expect("the attaching thread let the gate go");
             gate.removals.attach_deadline = Some(UNTIMED);
-            HOLD_FIRST_READ.store(false, Ordering::SeqCst);
+            drop(first_read);
             let third = gate.attach();
             let detached = gate.detach(UNTIMED);
             assert_eq!(
