@@ -1,5 +1,8 @@
+use std::path::PathBuf;
+
 use crate::case::{read_dir, Case};
-use crate::drift::{verdict, Gate};
+use crate::derived::{process_key, Scratch};
+use crate::drift::{verdict, Gate, Plays};
 use crate::stub::{play_case, Arm, Tally};
 use crate::tests::admission::{admission, Line};
 use crate::tests::reader::{calendar_days_min, repo};
@@ -9,6 +12,17 @@ const TARGETS: &str = include_str!("../../../../docs/r5/targets.toml");
 fn dev_cases() -> Vec<Case> {
     read_dir(&repo().join("fixtures/r5/cases/dev"), calendar_days_min())
         .expect("the development cases")
+}
+
+fn scratch(name: &str) -> PathBuf {
+    let exe = std::env::current_exe().expect("the test binary");
+    let root = exe
+        .ancestors()
+        .nth(3)
+        .expect("the target directory")
+        .join("tmp")
+        .join("r5-derived-drift");
+    halvo_test_dir::make(&root, name).expect("a test directory")
 }
 
 fn line(case: &Case, arm: Arm, tally: &Tally) -> Line {
@@ -101,5 +115,30 @@ fn drift_gate_of_the_development_cases_is_ok() {
         lines[1].starts_with("rollback cases=8 wins=8 losses=0 critical=7 cost=0 budget=1"),
         "{}",
         lines[1]
+    );
+}
+
+#[test]
+fn drift_derived_plays_a_case_on_a_store_file_in_the_play_s_own_directory() {
+    let case = dev_cases().remove(0);
+    let scratch =
+        Scratch::make_in(&scratch("one-play")).expect("the command's temporary directory");
+    let store = scratch
+        .path()
+        .join("play-1")
+        .join("derived")
+        .join("derived.db");
+    let plays = Plays::Derived {
+        scratch,
+        key: process_key(),
+    };
+    assert!(!store.exists(), "no play has run yet");
+    plays
+        .play(&case, Arm::Admit, false)
+        .expect("every occurrence completes");
+    assert!(
+        store.is_file(),
+        "the play of {} in the arm admit left no file derived/derived.db in its directory play-1",
+        case.name
     );
 }
