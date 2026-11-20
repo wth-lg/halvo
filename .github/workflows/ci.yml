@@ -1,4 +1,6 @@
 name: ci
+# scratch: main's own form with added steps; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -97,6 +99,49 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Rows of daemon-3a by name
+        if: always()
+        shell: bash
+        run: sh scripts/r1-gate/mutation-test.sh --only state-save-without-temp-and-rename --only state-version-default-zero
+      - name: Loop (daemon-3a tests, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=${LOOP_ROUNDS:-200}
+          logs=${RUNNER_TEMP:-$TMPDIR}/daemon-3a-loop
+          mkdir -p "$logs"
+          lib_filters="daemon::state:: daemon::instance:: daemon::process_tests:: store::state_file:: daemon::main_loop::tests::a_disarm_that_meets_the_ending_call_returns_after_it daemon::supervisor::tests::a_permission_granted_at_the_first_answer_is_written_once_in_the_state_file daemon::supervisor::tests::a_grant_that_restarts_the_run_leaves_the_state_file_as_it_is daemon::supervisor::tests::an_entry_with_no_owner_asks_no_settle_and_answers_its_own_status daemon::supervisor::tests::stress_cases::the_owner_gone_pass_runs_its_stops_armed_with_5_and_takes_its_arm_back daemon::supervisor::tests::stress_cases::the_drain_stop_pass_runs_its_stops_armed_with_5_and_takes_its_arm_back daemon::supervisor::tests::stress_cases::an_entry_whose_stops_answer_puts_back_the_arm_that_it_found daemon::supervisor::tests::stress_cases::a_stop_for_capture_off_whose_sources_stop_puts_back_the_arm_that_it_found daemon::supervisor::tests::stress_cases::a_stop_after_the_entry_leaves_the_arm_of_another_site_as_it_stands daemon::tests::the_service_run_takes_an_absolute_data_dir_or_the_accounts_own daemon::tests::the_service_form_of_the_self_check_takes_its_data_dir_alone"
+          cargo test -p halvo-capture --lib --locked --no-run >"$logs/build-lib.txt" 2>&1
+          lib=$(sed -n 's/.*Executable unittests src[\\/]lib.rs (\(.*\))$/\1/p' "$logs/build-lib.txt" | tr '\\' '/')
+          if [ -z "$lib" ]; then echo "loop daemon-3a: no lib test executable"; tail -n 20 "$logs/build-lib.txt"; exit 1; fi
+          # shellcheck disable=SC2086
+          "$lib" --list $lib_filters >"$logs/list-lib.txt" 2>&1
+          lib_count=$(grep -c ': test$' "$logs/list-lib.txt")
+          echo "loop daemon-3a lib: $lib_count tests a round"
+          lib_pass=0
+          for n in $(seq 1 "$rounds"); do
+            # shellcheck disable=SC2086
+            "$lib" --test-threads=4 $lib_filters >"$logs/lib-$n.txt" 2>&1
+            if grep -q "^test result: ok. $lib_count passed" "$logs/lib-$n.txt"; then lib_pass=$((lib_pass + 1)); else echo "round $n failed:"; tail -n 40 "$logs/lib-$n.txt"; fi
+          done
+          echo "loop daemon-3a lib: passed $lib_pass of $rounds with $lib_count tests a round"
+          run_pass=$rounds
+          run_count=0
+          if [ "$(uname -s)" = Darwin ]; then
+            cargo test -p halvo-capture --locked --test main_run_loop --no-run >"$logs/build-run-loop.txt" 2>&1
+            run_loop=$(sed -n 's/.*Executable tests[\\/]main_run_loop.rs (\(.*\))$/\1/p' "$logs/build-run-loop.txt")
+            if [ -z "$run_loop" ]; then echo "loop daemon-3a: no main_run_loop executable"; tail -n 20 "$logs/build-run-loop.txt"; exit 1; fi
+            "$run_loop" --list the_service_run_waits_on_the_main_run_loop >"$logs/list-run-loop.txt" 2>&1
+            run_count=$(grep -c ': test$' "$logs/list-run-loop.txt")
+            run_pass=0
+            for n in $(seq 1 "$rounds"); do
+              "$run_loop" the_service_run_waits_on_the_main_run_loop >"$logs/run-loop-$n.txt" 2>&1
+              if grep -q "^test result: ok. $run_count passed" "$logs/run-loop-$n.txt"; then run_pass=$((run_pass + 1)); else echo "round $n failed:"; tail -n 40 "$logs/run-loop-$n.txt"; fi
+            done
+            echo "loop daemon-3a main_run_loop: passed $run_pass of $rounds with $run_count tests a round"
+          fi
+          [ "$lib_count" -gt 0 ] && [ "$lib_pass" -eq "$rounds" ] && [ "$run_pass" -eq "$rounds" ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -142,6 +187,45 @@ jobs:
       - name: ci.d
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: Loop (daemon-3a tests, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=${LOOP_ROUNDS:-200}
+          logs=${RUNNER_TEMP:-$TMPDIR}/daemon-3a-loop
+          mkdir -p "$logs"
+          lib_filters="daemon::state:: daemon::instance:: daemon::process_tests:: store::state_file:: daemon::main_loop::tests::a_disarm_that_meets_the_ending_call_returns_after_it daemon::supervisor::tests::a_permission_granted_at_the_first_answer_is_written_once_in_the_state_file daemon::supervisor::tests::a_grant_that_restarts_the_run_leaves_the_state_file_as_it_is daemon::supervisor::tests::an_entry_with_no_owner_asks_no_settle_and_answers_its_own_status daemon::supervisor::tests::stress_cases::the_owner_gone_pass_runs_its_stops_armed_with_5_and_takes_its_arm_back daemon::supervisor::tests::stress_cases::the_drain_stop_pass_runs_its_stops_armed_with_5_and_takes_its_arm_back daemon::supervisor::tests::stress_cases::an_entry_whose_stops_answer_puts_back_the_arm_that_it_found daemon::supervisor::tests::stress_cases::a_stop_for_capture_off_whose_sources_stop_puts_back_the_arm_that_it_found daemon::supervisor::tests::stress_cases::a_stop_after_the_entry_leaves_the_arm_of_another_site_as_it_stands daemon::tests::the_service_run_takes_an_absolute_data_dir_or_the_accounts_own daemon::tests::the_service_form_of_the_self_check_takes_its_data_dir_alone"
+          cargo test -p halvo-capture --lib --locked --no-run >"$logs/build-lib.txt" 2>&1
+          lib=$(sed -n 's/.*Executable unittests src[\\/]lib.rs (\(.*\))$/\1/p' "$logs/build-lib.txt" | tr '\\' '/')
+          if [ -z "$lib" ]; then echo "loop daemon-3a: no lib test executable"; tail -n 20 "$logs/build-lib.txt"; exit 1; fi
+          # shellcheck disable=SC2086
+          "$lib" --list $lib_filters >"$logs/list-lib.txt" 2>&1
+          lib_count=$(grep -c ': test$' "$logs/list-lib.txt")
+          echo "loop daemon-3a lib: $lib_count tests a round"
+          lib_pass=0
+          for n in $(seq 1 "$rounds"); do
+            # shellcheck disable=SC2086
+            "$lib" --test-threads=4 $lib_filters >"$logs/lib-$n.txt" 2>&1
+            if grep -q "^test result: ok. $lib_count passed" "$logs/lib-$n.txt"; then lib_pass=$((lib_pass + 1)); else echo "round $n failed:"; tail -n 40 "$logs/lib-$n.txt"; fi
+          done
+          echo "loop daemon-3a lib: passed $lib_pass of $rounds with $lib_count tests a round"
+          run_pass=$rounds
+          run_count=0
+          if [ "$(uname -s)" = Darwin ]; then
+            cargo test -p halvo-capture --locked --test main_run_loop --no-run >"$logs/build-run-loop.txt" 2>&1
+            run_loop=$(sed -n 's/.*Executable tests[\\/]main_run_loop.rs (\(.*\))$/\1/p' "$logs/build-run-loop.txt")
+            if [ -z "$run_loop" ]; then echo "loop daemon-3a: no main_run_loop executable"; tail -n 20 "$logs/build-run-loop.txt"; exit 1; fi
+            "$run_loop" --list the_service_run_waits_on_the_main_run_loop >"$logs/list-run-loop.txt" 2>&1
+            run_count=$(grep -c ': test$' "$logs/list-run-loop.txt")
+            run_pass=0
+            for n in $(seq 1 "$rounds"); do
+              "$run_loop" the_service_run_waits_on_the_main_run_loop >"$logs/run-loop-$n.txt" 2>&1
+              if grep -q "^test result: ok. $run_count passed" "$logs/run-loop-$n.txt"; then run_pass=$((run_pass + 1)); else echo "round $n failed:"; tail -n 40 "$logs/run-loop-$n.txt"; fi
+            done
+            echo "loop daemon-3a main_run_loop: passed $run_pass of $rounds with $run_count tests a round"
+          fi
+          [ "$lib_count" -gt 0 ] && [ "$lib_pass" -eq "$rounds" ] && [ "$run_pass" -eq "$rounds" ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
