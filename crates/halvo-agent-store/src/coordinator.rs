@@ -25,10 +25,14 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   it stores the preset of the workflow's category as revision 1 unless the agent's configuration is stored, and
 ///   the agent's start row (`agent_start`) with the request's instant and day unless one of the agent is stored; a
 ///   later configuration never moves that row (CP-143 (2)). Then it makes the state call (`approved`, the agent)
-///   unless the workflow's agent is this agent, and answers `{"rev":1}`.
+///   unless the workflow's agent is this agent, and answers `{"rev":1}`. Its state call goes through the function
+///   of the overlap, as that of `set_state` does: `overlap` where the agent's stored bindings overlap another agent
+///   that is live, as `list_overlaps` reads them (CP-150 (1) (b)).
 /// - `set_state`: `no_workflow`; `binding` unless the workflow's agent is the body's, and for `active` where no
 ///   configuration of the agent is stored; `playbook` for `active` while
-///   the agent's runtime is `web` and no playbook step of the agent is stored; then the state call and its own
+///   the agent's runtime is `web` and no playbook step of the agent is stored; `overlap` for `approved` and
+///   `active`, never for `paused`, where the agent's stored bindings overlap another agent that is live, as
+///   `list_overlaps` reads them, and then no state changes (CP-150 (1) (b)); then the state call and its own
 ///   refusal.
 /// - `start_run`: `no_workflow`; `binding`; `state` unless the workflow is `approved` or `active` for `compile`
 ///   and `active` for `replay`; `binding` for a run of which a stored effect row, log line or `agent_run` record
@@ -136,7 +140,7 @@ fn create_agent(
         day::commit(host, now, records)?;
     }
     if w.agent.is_none() {
-        host.set_state(&b.workflow, AgentState::Approved, Some(&b.agent))?;
+        bindings::state_call(host, &b.workflow, AgentState::Approved, &b.agent)?;
     }
     Ok(CoordinatorReply::Rev(RevReply {
         rev: NonZeroU32::MIN,
@@ -154,7 +158,7 @@ fn set_state(host: &mut dyn Host, b: &SetState) -> Result<CoordinatorReply, Erro
             return Err(Own::Playbook.into());
         }
     }
-    host.set_state(&b.workflow, b.state, Some(&b.agent))?;
+    bindings::state_call(host, &b.workflow, b.state, &b.agent)?;
     Ok(CoordinatorReply::State(StateReply { state: b.state }))
 }
 

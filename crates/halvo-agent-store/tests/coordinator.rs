@@ -882,3 +882,170 @@ fn set_bindings_passes_where_no_live_agent_overlaps() {
         passes(&mut store, shared.clone());
     }
 }
+
+#[test]
+fn set_state_to_approved_or_active_of_an_agent_that_overlaps_a_live_agent_is_refused_and_changes_no_state(
+) {
+    let mut store = created(&[1, 2]);
+    let shared = reply_slots(Some(ME), Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, shared), Ok(rev(1)));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    let other = reply_slots(Some(ME), Some("carl@people.test, ANN@people.test"));
+    assert_eq!(set_bindings(&mut store, 2, other), Ok(rev(1)));
+    for target in ["active", "approved"] {
+        assert_eq!(
+            move_to(&mut store, 1, target),
+            Err(declared("overlap")),
+            "{target}"
+        );
+        assert_eq!(
+            state_of(&store, 1),
+            (WorkflowState::Paused, Some(agent(1))),
+            "{target}"
+        );
+    }
+    store.put_workflow(workflow(&wf(1), "email", "active", Some(&agent(1))));
+    for target in ["active", "approved"] {
+        assert_eq!(
+            move_to(&mut store, 2, target),
+            Err(declared("overlap")),
+            "{target}"
+        );
+        assert_eq!(
+            state_of(&store, 2),
+            (WorkflowState::Approved, Some(agent(2))),
+            "{target}"
+        );
+    }
+    assert_eq!(move_to(&mut store, 2, "paused"), Ok(state_reply("paused")));
+    assert_eq!(state_of(&store, 2), (WorkflowState::Paused, Some(agent(2))));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    for target in ["approved", "active"] {
+        assert_eq!(
+            move_to(&mut store, 1, target),
+            Ok(state_reply(target)),
+            "{target}"
+        );
+    }
+    assert_eq!(move_to(&mut store, 2, "active"), Err(declared("overlap")));
+    assert_eq!(state_of(&store, 2), (WorkflowState::Paused, Some(agent(2))));
+}
+
+#[test]
+fn the_state_call_of_create_agent_goes_through_the_function_of_the_overlap() {
+    let mut store = MemoryStore::new();
+    other_agent(
+        &mut store,
+        1,
+        "active",
+        reply_slots(Some(ME), Some("ann@people.test")),
+    );
+    store.put_workflow(workflow(&wf(2), "email", "approved", None));
+    put_bindings(
+        &mut store,
+        2,
+        2,
+        1,
+        reply_slots(Some(ME), Some("Ann@People.test")),
+    );
+    assert_eq!(create(&mut store, 2, 2), Err(declared("overlap")));
+    assert_eq!(state_of(&store, 2), (WorkflowState::Approved, None));
+    assert_eq!(configs(&store).len(), 1);
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    assert_eq!(create(&mut store, 2, 2), Ok(rev(1)));
+    assert_eq!(
+        state_of(&store, 2),
+        (WorkflowState::Approved, Some(agent(2)))
+    );
+    assert_eq!(configs(&store).len(), 1);
+}
+
+fn named(store: &mut MemoryStore, slots: Value, why: &str) -> usize {
+    match list_overlaps(store, 1, slots) {
+        Ok(CoordinatorReply::Overlaps(reply)) => reply.overlaps.len(),
+        other => panic!("{why}: {other:?}"),
+    }
+}
+
+#[test]
+fn the_read_and_the_keeper_agree_on_drawn_pairs_of_slot_sets() {
+    let accounts = [
+        Some(ME),
+        Some(ME),
+        Some("ME@Mail.Test"),
+        Some("you@mail.test"),
+        None,
+    ];
+    let lists = [
+        Some("ann@people.test"),
+        Some("ann@people.test"),
+        Some("ANN@people.test, bob@people.test"),
+        Some("dora@people.test, Bob@People.Test"),
+        Some("carl@people.test"),
+        Some("Ann Berg, ann@people.test"),
+        Some("bob@people.test, BOB@people.test"),
+        None,
+    ];
+    let states = [
+        "approved",
+        "active",
+        "approved",
+        "active",
+        "paused",
+        "not stored",
+    ];
+    let mut seed: u64 = 0x0035_b220_2611_2001;
+    let mut draw = move |n: usize| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed % n as u64) as usize
+    };
+    let (mut kept_out, mut let_in, mut held_off, mut switched_on) = (0, 0, 0, 0);
+    for case in 0..1000 {
+        let mut slots = || reply_slots(accounts[draw(5)], lists[draw(8)]);
+        let (other, stored, body) = (slots(), slots(), slots());
+        let state = states[draw(6)];
+        let why = format!("case {case}: stored {stored}, body {body}, other {other} {state}");
+        let mut store = created(&[1]);
+        put_bindings(&mut store, 1, 1, 1, stored);
+        let live = if state == "not stored" {
+            "active"
+        } else {
+            state
+        };
+        other_agent(&mut store, 2, live, other);
+        if state == "not stored" {
+            gone(&mut store, 2);
+        }
+
+        let read = named(&mut store, json!(null), &why);
+        let switched = move_to(&mut store, 1, "active");
+        if read == 0 {
+            assert_eq!(switched, Ok(state_reply("active")), "{why}");
+            switched_on += 1;
+        } else {
+            assert_eq!(switched, Err(declared("overlap")), "{why}");
+            assert_eq!(state_of(&store, 1).0, WorkflowState::Approved, "{why}");
+            held_off += 1;
+        }
+
+        let read = named(&mut store, body.clone(), &why);
+        let before = every_row(&store);
+        let kept = set_bindings(&mut store, 1, body);
+        if read == 0 {
+            assert_eq!(kept, Ok(rev(2)), "{why}");
+            let_in += 1;
+        } else {
+            assert_eq!(kept, Err(declared("overlap")), "{why}");
+            assert_eq!(every_row(&store), before, "{why}");
+            kept_out += 1;
+        }
+    }
+    assert!(
+        [kept_out, let_in, held_off, switched_on]
+            .iter()
+            .all(|&n| n >= 30),
+        "{kept_out} kept out, {let_in} let in, {held_off} held off, {switched_on} switched on"
+    );
+}

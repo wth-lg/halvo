@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 use halvo_schema::executable::body::{
     AddOrigin, ListOverlaps, Overlap, OverlapsReply, RevReply, SetBindings, OVERLAPS_MAX,
 };
-use halvo_schema::executable::names::YesNo;
+use halvo_schema::executable::names::{AgentState, YesNo};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{OwnText, V1};
 use halvo_schema::executable::{
@@ -57,6 +57,21 @@ pub(crate) fn add_origin(
     let (rev, mut origins, slots) = next(newest)?;
     origins.push(b.origin.clone());
     store(host, &b.workflow, &b.agent, (rev, origins, slots))
+}
+
+pub(crate) fn state_call(
+    host: &mut dyn Host,
+    workflow: &WorkflowId,
+    state: AgentState,
+    agent: &AgentId,
+) -> Result<(), ErrorName> {
+    if state != AgentState::Paused {
+        let slots = newest(&*host, workflow, agent)?.map_or_else(Vec::new, |n| n.slots);
+        if !overlaps(&*host, agent, &slots)?.is_empty() {
+            return Err(overlap());
+        }
+    }
+    host.set_state(workflow, state, Some(agent))
 }
 
 pub(crate) fn list_overlaps(
