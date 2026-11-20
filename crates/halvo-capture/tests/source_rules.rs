@@ -30,7 +30,7 @@ const DAEMON: &str = "crates/halvo-capture/src/daemon/";
 /// Every use of `#[path]` and of the include macros that the crate and the app
 /// may hold: the file from the root of the repository, the name, and the
 /// literal that it reads.
-const LISTED: [(&str, &str, &str); 11] = [
+const LISTED: [(&str, &str, &str); 12] = [
     (
         "crates/halvo-capture/src/secure_input.rs",
         "path",
@@ -55,6 +55,11 @@ const LISTED: [(&str, &str, &str); 11] = [
         "crates/halvo-capture/src/store/mod.rs",
         "path",
         "\"test_support/roots.rs\"",
+    ),
+    (
+        "crates/halvo-capture/src/store/mod.rs",
+        "path",
+        "\"../../../halvo-sqlcipher/tests/page_gap/rules.rs\"",
     ),
     (
         "crates/halvo-capture/src/sink.rs",
@@ -87,6 +92,10 @@ const LISTED: [(&str, &str, &str); 11] = [
 /// The roots whose files the tests of this file read.
 const ROOTS: [&str; 2] = ["crates/halvo-capture/", "src-tauri/src/"];
 
+/// The files of other crates that a listed use may reach, which these rules
+/// read as Rust beside the files under [`ROOTS`] (ruling PR-30 PR7).
+const READ_BESIDE_THE_ROOTS: [&str; 1] = ["crates/halvo-sqlcipher/tests/page_gap/rules.rs"];
+
 /// The names of LISTED that bring code to the compiler; `include_str` and
 /// `include_bytes` bring a text or bytes.
 const CODE: [&str; 2] = ["path", "include"];
@@ -95,12 +104,17 @@ const CODE: [&str; 2] = ["path", "include"];
 /// with each `.` segment taken out.
 fn reached(file: &str, literal: &str) -> String {
     let dir = file.rsplit_once('/').map_or("", |(dir, _)| dir);
-    let parts: Vec<&str> = literal
-        .trim_matches('"')
-        .split('/')
-        .filter(|part| *part != ".")
-        .collect();
-    format!("{dir}/{}", parts.join("/"))
+    let mut parts: Vec<&str> = dir.split('/').filter(|part| !part.is_empty()).collect();
+    for part in literal.trim_matches('"').split('/') {
+        match part {
+            "." => {}
+            ".." if parts.last().is_some_and(|last| *last != "..") => {
+                parts.pop();
+            }
+            other => parts.push(other),
+        }
+    }
+    parts.join("/")
 }
 
 /// Each use of `listed` that brings code and reaches a file that these rules
@@ -115,11 +129,14 @@ fn code_reach_faults(listed: &[(&str, &str, &str)]) -> Vec<String> {
             let text = literal.trim_matches('"');
             let target = reached(file, literal);
             let drive = text.as_bytes().get(1) == Some(&b':');
+            let beside = READ_BESIDE_THE_ROOTS.contains(&target.as_str());
+            let climbs = text.split('/').any(|part| part == "..");
             let ok = !text.starts_with('/')
                 && !text.contains('\\')
                 && !drive
+                && (!climbs || beside)
                 && !target.split('/').any(|part| part == "..")
-                && ROOTS.iter().any(|root| target.starts_with(root))
+                && (ROOTS.iter().any(|root| target.starts_with(root)) || beside)
                 && !DATA_FILES.contains(&target.as_str());
             (!ok).then(|| {
                 format!("{file}: the listed {name} reaches {target}, a file that these rules do not read as Rust")
@@ -260,6 +277,12 @@ fn reach_uses(base: &Path) -> (Vec<Use>, Vec<String>) {
     files_under(base, "crates/halvo-capture", &mut files, &mut faults);
     files_under(base, "src-tauri/src", &mut files, &mut faults);
     files.push("src-tauri/build.rs".to_owned());
+    files.extend(
+        READ_BESIDE_THE_ROOTS
+            .iter()
+            .filter(|file| base.join(file).is_file())
+            .map(|file| (*file).to_owned()),
+    );
     let mut uses = Vec::new();
     for file in &files {
         match read_tokens_at(base, file) {

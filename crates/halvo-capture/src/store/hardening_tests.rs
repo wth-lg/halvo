@@ -11724,3 +11724,183 @@ mod batch_write {
         assert!(write(&mut store, &id, noon_of(now()), &kinds_of_512(), b"p").is_ok());
     }
 }
+
+mod page_gap_probe {
+    use std::time::SystemTime;
+
+    use super::super::db::random_segment_id;
+    use super::super::db::test_support::make_store;
+    use super::super::page_gap_rules as rules;
+    use super::super::{KindTotal, SegmentWrite, UtcDay, DEFAULT_RETENTION};
+    use super::pages;
+    use super::EncryptedStore;
+
+    const NANOS_PER_DAY: i64 = 86_400_000_000_000;
+    const SEGMENTS: usize = 120;
+    const SINGLE_SHREDS: usize = 60;
+
+    struct Draw(u64);
+
+    impl Draw {
+        fn below(&mut self, n: u64) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0 % n
+        }
+    }
+
+    fn kind_text(draw: &mut Draw) -> String {
+        let len = 1 + draw.below(31);
+        (0..len)
+            .map(|_| char::from(b'a' + draw.below(26) as u8))
+            .collect()
+    }
+
+    fn write_one(store: &mut EncryptedStore, draw: &mut Draw) -> uuid::Uuid {
+        let now = crate::event::unix_nanos(SystemTime::now());
+        let first = if draw.below(2) == 0 {
+            now - DEFAULT_RETENTION.as_nanos() as i64 - NANOS_PER_DAY
+        } else {
+            now
+        };
+        let names: Vec<String> = (0..1 + draw.below(8))
+            .map(|i| format!("{}{}", kind_text(draw), char::from(b'a' + i as u8)))
+            .collect();
+        let mut names = names;
+        names.sort();
+        names.dedup();
+        let kinds: Vec<KindTotal<'_>> = names
+            .iter()
+            .map(|kind| KindTotal {
+                kind,
+                events: 1 + draw.below(1000),
+                bytes: draw.below(100_000),
+            })
+            .collect();
+        let id = random_segment_id().unwrap();
+        let payload = vec![0x42u8; draw.below(2048) as usize];
+        store
+            .write_batch(SegmentWrite {
+                segment_id: &id,
+                day: UtcDay::of_instant(first),
+                first_capture: first,
+                last_capture: first,
+                kinds: &kinds,
+                payload: &payload,
+            })
+            .unwrap();
+        id
+    }
+
+    fn image(store: &EncryptedStore) -> Vec<u8> {
+        store.db().unwrap().checkpoint_truncate().unwrap();
+        let key = store.database_key().unwrap();
+        let file = std::fs::read(store.dir().join("store.db")).unwrap();
+        pages::database_pages(&file, &key)
+            .iter()
+            .flat_map(|page| page.plain.clone())
+            .collect()
+    }
+
+    fn checked(store: &EncryptedStore, when: &str) -> Vec<String> {
+        let image = image(store);
+        let found = rules::check(store.db().unwrap().connection(), &image);
+        let kinds = found.btree + found.overflow + found.trunks + found.leaves;
+        let mut lines: Vec<String> = found
+            .problems
+            .iter()
+            .map(|line| format!("{when}: {line}"))
+            .collect();
+        if found.pages != image.len() / pages::PAGE || kinds != found.pages {
+            lines.push(format!(
+                "{when}: the check read {} pages ({} b-tree, {} overflow with {} tails, {} trunks, {} leaves) of an image of {}",
+                found.pages,
+                found.btree,
+                found.overflow,
+                found.overflow_tails,
+                found.trunks,
+                found.leaves,
+                image.len() / pages::PAGE
+            ));
+        }
+        lines
+    }
+
+    fn the_draw(secure_delete: bool, seed: u64) -> Vec<String> {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        if !secure_delete {
+            store
+                .db()
+                .unwrap()
+                .connection()
+                .execute_batch("PRAGMA secure_delete = OFF;")
+                .unwrap();
+        }
+        let mut draw = Draw(0x9e37_79b9_7f4a_7c15 ^ seed);
+        let mut live: Vec<uuid::Uuid> = (0..SEGMENTS)
+            .map(|_| write_one(&mut store, &mut draw))
+            .collect();
+        let mut lines = checked(&store, "after the writes");
+        for step in 0..SINGLE_SHREDS {
+            let id = live.remove(draw.below(live.len() as u64) as usize);
+            store.destroy_segment_keys(&[id]).unwrap();
+            lines.extend(checked(&store, &format!("seed {seed} shred {step}")));
+            if step % 3 == 2 {
+                live.push(write_one(&mut store, &mut draw));
+            }
+        }
+        lines
+    }
+
+    #[test]
+    fn the_rules_see_every_plant_on_the_decrypted_images_of_store_db() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let mut draw = Draw(7);
+        for _ in 0..40 {
+            write_one(&mut store, &mut draw);
+        }
+        store
+            .db()
+            .unwrap()
+            .connection()
+            .execute_batch(
+                "CREATE TABLE probe_shapes(id INTEGER PRIMARY KEY, body BLOB);
+                 INSERT INTO probe_shapes(body) VALUES (randomblob(8100));
+                 INSERT INTO probe_shapes(body) SELECT randomblob(3000) FROM segment_keys LIMIT 30;
+                 DELETE FROM probe_shapes WHERE id > 1;
+                 CREATE TABLE probe_small(id INTEGER PRIMARY KEY, t TEXT);
+                 INSERT INTO probe_small(t) SELECT hex(randomblob(10)) FROM segment_keys LIMIT 40;
+                 DELETE FROM probe_small WHERE id % 3 = 0;",
+            )
+            .unwrap();
+        let image = image(&store);
+        let conn = store.db().unwrap().connection();
+        assert_eq!(rules::check(conn, &image).problems, Vec::<String>::new());
+        let missed = rules::plants(conn, &image);
+        assert!(
+            missed.is_empty(),
+            "plants that the check does not name: {missed:?}"
+        );
+    }
+
+    #[test]
+    fn single_shreds_of_keys_with_writes_between_leave_no_line_of_the_structural_check() {
+        for seed in [1, 2] {
+            let lines = the_draw(true, seed);
+            assert!(lines.is_empty(), "{}", lines.join("\n"));
+        }
+    }
+
+    #[test]
+    fn with_secure_delete_off_the_draw_of_the_store_gives_lines() {
+        let lines = the_draw(false, 1);
+        println!("PAGE-GAP-STORE secure_delete=off lines={}", lines.len());
+        assert!(
+            !lines.is_empty(),
+            "with secure delete off the draw of the store gave no line, so the draw shows nothing"
+        );
+    }
+}

@@ -26,6 +26,11 @@ pub(in crate::store) mod pages;
 #[cfg(test)]
 #[path = "test_support/roots.rs"]
 pub(crate) mod roots;
+#[cfg(test)]
+use halvo_sqlcipher::rusqlite::Connection;
+#[cfg(test)]
+#[path = "../../../halvo-sqlcipher/tests/page_gap/rules.rs"]
+mod page_gap_rules;
 
 use std::fmt;
 use std::io::Read;
