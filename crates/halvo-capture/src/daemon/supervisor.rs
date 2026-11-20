@@ -975,9 +975,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// and the owner-gone pass.
     fn armed_for<T>(&mut self, stops: impl FnOnce(&mut Self) -> T) -> T {
         let found = self.arm_found();
-        let in_play = self.held(stop_order(self.platform));
-        if !in_play.is_empty() {
-            self.arm_entry(&in_play, exit::SOURCE_NOT_STOPPED);
+        let held = self.held(stop_order(self.platform));
+        if !held.is_empty() {
+            self.arm_entry(&held, exit::SOURCE_NOT_STOPPED);
         }
         let answers = stops(self);
         self.put_back(found);
