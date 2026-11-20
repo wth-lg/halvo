@@ -705,8 +705,12 @@ fn a_refusal_that_the_sources_learn_at_their_stop_ends_the_run() {
         &stop,
         Duration::from_secs(2),
     );
+    // Ruling DM-25 N4: the refusal reaches the binary's answer in the
+    // outcome, with status 1, where run_timed returned it as its error.
+    let refused = DaemonError::SecureInputRefused(-25_293).to_string();
     assert!(
-        matches!(answer, Err(DaemonError::SecureInputRefused(-25_293))),
+        matches!(&answer, Ok(outcome) if outcome.refusal.as_deref() == Some(refused.as_str())
+            && outcome.status == halvo_control::exit::ERROR),
         "{answer:?}"
     );
 }
@@ -1187,10 +1191,11 @@ fn refused_hold(scripted: &mut ScriptedRun, store: ModelStore) -> Vec<String> {
         &stop,
         Duration::from_secs(2),
     );
-    let Err(error) = ended else {
-        panic!("a refused hold gave a report: {ended:?}");
+    // Ruling DM-25 N4: the refusal's text is carried in the outcome.
+    let Some(refusal) = ended.ok().and_then(|outcome| outcome.refusal) else {
+        panic!("a refused hold gave no refusal");
     };
-    error.to_string().lines().map(str::to_owned).collect()
+    refusal.lines().map(str::to_owned).collect()
 }
 
 #[test]
