@@ -422,7 +422,7 @@ pub const LAST_READ: [(&str, &[u32]); 2] = [("chrome", &[156, 157]), ("edge", &[
 pub fn major_of(product: &str) -> Option<u32> {
     let (_, version) = product.rsplit_once('/')?;
     let (major, _) = version.split_once('.')?;
-    if major.is_empty() || !major.bytes().all(|b| b.is_ascii_digit()) {
+    if !major.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
     major.parse().ok()
@@ -658,6 +658,7 @@ mod tests {
             "Chrome/157",
             "Chrome/x7.0",
             "Chrome/.1",
+            "Chrome/+157.0",
             "",
         ] {
             assert_eq!(super::major_of(text), None, "{text}");
