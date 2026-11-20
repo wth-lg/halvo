@@ -26,7 +26,13 @@ use super::db::test_support::{key_statement, pages};
 use super::db::{failpoint, unix_secs_now, EncryptedStore, KeyFile};
 use super::segment::{self, segment_path, SegmentKey, CHUNK};
 use super::verify::{raw_key_at_rest, root_state, RootState};
-use super::{SegmentExpiry, SegmentStore, ShredReport, StoreError, DEFAULT_RETENTION};
+use super::{
+    InventoryRow, KindTotal, SegmentExpiry, SegmentStore, SegmentWrite, ShredReport, StoreError,
+    UtcDay, WriteFault, DEFAULT_RETENTION,
+};
+
+const MARKER: &str = "halvoformalmarkerinthepayload";
+const NANOS_PER_SECOND: i64 = 1_000_000_000;
 
 const SHRED_CASES: u32 = 48;
 const MAX_OPS: usize = 12;
@@ -130,6 +136,8 @@ enum Op {
     DestroyTheRootAgain,
     Append { index_row_fails: bool },
     CreateWhoseRootStepFails,
+    FailedWrite,
+    Replay,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -201,6 +209,8 @@ fn op() -> impl Strategy<Value = Op> {
         1 => Just(Op::Reopen),
         1 => Just(Op::ReopenUnderAnotherRoot),
         1 => Just(Op::Recreate),
+        1 => Just(Op::FailedWrite),
+        1 => Just(Op::Replay),
     ]
 }
 
@@ -219,6 +229,8 @@ fn op_with_failures() -> impl Strategy<Value = Op> {
         1 => Just(Op::DestroyTheRootAgain),
         3 => any::<bool>().prop_map(|index_row_fails| Op::Append { index_row_fails }),
         2 => Just(Op::CreateWhoseRootStepFails),
+        1 => Just(Op::FailedWrite),
+        1 => Just(Op::Replay),
     ]
 }
 
@@ -238,6 +250,9 @@ struct ModelSegment {
     expires_at: u64,
     events: u64,
     fate: Fate,
+    generation: u32,
+    first_capture: i64,
+    kinds: Vec<(String, u64, u64)>,
 }
 
 struct ASourceThatDies {
@@ -268,6 +283,7 @@ struct Harness {
     outside: Option<Outside>,
     segments: Vec<ModelSegment>,
     moves_that_did_not_apply: usize,
+    generation: u32,
 }
 
 impl Drop for Harness {
@@ -295,12 +311,14 @@ impl Harness {
             outside: None,
             segments: Vec::new(),
             moves_that_did_not_apply: 0,
+            generation: 0,
         };
         harness.create_store();
         harness
     }
 
     fn create_store(&mut self) {
+        self.generation += 1;
         let root = RootId::fresh().unwrap();
         self.roots.push(root);
         let modes_inside: Rc<RefCell<Option<Result<(), String>>>> = Rc::new(RefCell::new(None));
@@ -683,41 +701,140 @@ impl Harness {
             Op::DestroyTheRootAgain => self.destroy_the_root_again(),
             Op::Append { index_row_fails } => self.append(*index_row_fails),
             Op::CreateWhoseRootStepFails => self.create_whose_root_step_fails(),
+            Op::FailedWrite => self.failed_write(),
+            Op::Replay => self.replay(),
         }
     }
 
     fn write(&mut self, len: usize, expiry: Expiry) -> Result<(), TestCaseError> {
+        let generation = self.generation;
+        let last_ordinal = self
+            .segments
+            .iter()
+            .filter(|seg| seg.generation == generation)
+            .map(|seg| seg.key_id.0)
+            .max()
+            .unwrap_or(0);
         let Some(store) = self.store.as_mut() else {
             return self.does_not_apply();
         };
-        let plaintext: Vec<u8> = (0..len).map(|i| (i % 251) as u8).collect();
+        let payload = marker_payload(len);
         let now = unix_secs_now();
         let expires_at = expiry.expires_at(now);
-        let result = store.write_segment_with_expiry(&mut Cursor::new(&plaintext), now, expires_at);
+        let first_capture = first_capture_of(expiry, now);
+        let kinds = kinds_of(len);
+        let segment_id = super::db::random_segment_id().expect("a random segment id");
+        let result = write_batch(store, segment_id, first_capture, &kinds, &payload);
         if self.deleted_since_last_create {
             prop_assert!(
-                matches!(result, Err(StoreError::Sealed)),
+                result == Err(WriteFault::Sealed),
                 "a write after delete-all did not report Sealed: {:?}",
-                result.err()
+                result
             );
             return Ok(());
         }
-        let (seg_ref, key_id) = result.expect("a write on an open store");
-        let cipher = std::fs::read(segment_path(&self.dir, seg_ref.segment_id))
+        let written = result.expect("a write on an open store");
+        prop_assert!(
+            written.ordinal.get() as i64 > last_ordinal,
+            "the batch took the ordinal {} after the ordinal {last_ordinal} was given",
+            written.ordinal.get()
+        );
+        let cipher = std::fs::read(segment_path(&self.dir, segment_id))
             .expect("the segment file exists after the write");
-        let wrapped_key = wrapped_key_row(store, seg_ref.segment_id)
+        let wrapped_key = wrapped_key_row(store, segment_id)
             .expect("the key row of a written segment holds its wrapped key");
         self.segments.push(ModelSegment {
-            id: seg_ref.segment_id,
-            seg_ref,
-            key_id,
-            plaintext,
+            id: segment_id,
+            seg_ref: SegmentRef {
+                segment_id,
+                byte_offset: 0,
+                byte_len: written.logical_bytes,
+            },
+            key_id: SegmentKeyId(written.ordinal.get() as i64),
+            plaintext: payload,
             cipher,
             wrapped_key,
             expires_at,
             events: 0,
             fate: Fate::Live,
+            generation,
+            first_capture,
+            kinds,
         });
+        Ok(())
+    }
+
+    fn failed_write(&mut self) -> Result<(), TestCaseError> {
+        if self.deleted_since_last_create {
+            return self.does_not_apply();
+        }
+        let Some(store) = self.store.as_mut() else {
+            return self.does_not_apply();
+        };
+        let before = (
+            key_rows(store),
+            files_below(&self.dir.join("segments")),
+            rollup_rows(store),
+        );
+        failpoint::arm("batch_in_the_transaction");
+        let kinds = kinds_of(64);
+        let segment_id = super::db::random_segment_id().expect("a random segment id");
+        let result = write_batch(
+            store,
+            segment_id,
+            first_capture_of(Expiry::Future, unix_secs_now()),
+            &kinds,
+            &marker_payload(64),
+        );
+        prop_assert!(
+            result.is_err(),
+            "a batch whose transaction failed answered {result:?}"
+        );
+        let after = (
+            key_rows(store),
+            files_below(&self.dir.join("segments")),
+            rollup_rows(store),
+        );
+        prop_assert!(
+            after == before,
+            "a batch whose transaction failed left (key rows, files, rollup) {:?}, before {:?}",
+            (after.0, after.1, after.2.len()),
+            (before.0, before.1, before.2.len())
+        );
+        Ok(())
+    }
+
+    fn replay(&mut self) -> Result<(), TestCaseError> {
+        if self.deleted_since_last_create {
+            return self.does_not_apply();
+        }
+        let generation = self.generation;
+        let Some(seg) = self
+            .segments
+            .iter()
+            .rev()
+            .find(|seg| seg.generation == generation)
+        else {
+            return self.does_not_apply();
+        };
+        let Some(store) = self.store.as_mut() else {
+            return self.does_not_apply();
+        };
+        let rollup = rollup_rows(store);
+        let result = write_batch(store, seg.id, seg.first_capture, &seg.kinds, &seg.plaintext);
+        prop_assert!(
+            result
+                == Err(WriteFault::AlreadyWritten {
+                    ordinal: super::Ordinal::of_row(seg.key_id.0)
+                }),
+            "a second write of segment {} answered {result:?}",
+            seg.id.simple()
+        );
+        prop_assert!(
+            rollup_rows(store) == rollup,
+            "a second write of segment {} changed the rollup",
+            seg.id.simple()
+        );
         Ok(())
     }
 
@@ -1173,7 +1290,53 @@ impl Harness {
         self.check_remaining_keys(store)?;
         self.check_reads(store)?;
         self.check_events(store)?;
+        self.check_totals(store)?;
         self.check_store_files(store)
+    }
+
+    fn check_totals(&self, store: &EncryptedStore) -> Result<(), TestCaseError> {
+        let conn = store.db().expect("the open store's db").connection();
+        let mut live: std::collections::BTreeMap<(i64, String), (u64, u64)> =
+            std::collections::BTreeMap::new();
+        for seg in self
+            .segments
+            .iter()
+            .filter(|seg| seg.generation == self.generation)
+        {
+            let mut stored: Vec<(String, u64, u64)> = rows_of_totals(conn, seg.key_id.0);
+            stored.sort();
+            let mut passed = seg.kinds.clone();
+            passed.sort();
+            prop_assert!(
+                stored == passed,
+                "segment {} holds the totals {stored:?}, and its batch passed {passed:?}",
+                seg.id.simple()
+            );
+            if seg.fate == Fate::Live {
+                let day = UtcDay::of_instant(seg.first_capture).days_since_epoch();
+                for (kind, events, bytes) in &seg.kinds {
+                    let sum = live.entry((day, kind.clone())).or_default();
+                    sum.0 += events;
+                    sum.1 += bytes;
+                }
+            }
+        }
+        let want: Vec<InventoryRow> = live
+            .into_iter()
+            .filter(|(_, (events, _))| *events > 0)
+            .map(|((day, kind), (events, bytes))| InventoryRow {
+                day: UtcDay::from_days_since_epoch(day),
+                kind,
+                events,
+                bytes,
+            })
+            .collect();
+        let listed = store.inventory().expect("the listing of an open store");
+        prop_assert!(
+            listed == want,
+            "the listing is {listed:?}, and the live segments sum to {want:?}"
+        );
+        Ok(())
     }
 
     fn check_events(&self, store: &EncryptedStore) -> Result<(), TestCaseError> {
@@ -1186,17 +1349,6 @@ impl Harness {
             )
             .expect("the tables of the schema");
         prop_assert!(tables == 0, "the schema holds {tables} tables of events");
-        let listed: i64 = conn
-            .query_row(
-                "SELECT COALESCE(SUM(events), 0) FROM daily_totals",
-                [],
-                |r| r.get(0),
-            )
-            .expect("the rollup");
-        prop_assert!(
-            listed == 0,
-            "the rollup lists {listed} events, and the model wrote no segment with totals"
-        );
         Ok(())
     }
 
@@ -1293,6 +1445,12 @@ impl Harness {
                 middle
             );
         }
+        let marker = pages::places_of(&images, &[MARKER.as_bytes()]);
+        prop_assert!(
+            marker.iter().all(|places| places.is_empty()),
+            "the marker of the payloads stands in the decrypted store files at {:?}",
+            marker
+        );
         let live_keys: Vec<&[u8]> = live.iter().map(|seg| seg.wrapped_key.as_slice()).collect();
         for (seg, places) in live.iter().zip(pages::places_of(&images, &live_keys)) {
             prop_assert!(
@@ -1715,6 +1873,125 @@ fn wrapped_rows(conn: &Connection) -> Vec<Vec<u8>> {
         .query_map([], |r| r.get::<_, Vec<u8>>(0))
         .expect("the segment_keys rows read");
     rows.map(|r| r.expect("a wrapped key row")).collect()
+}
+
+fn marker_payload(len: usize) -> Vec<u8> {
+    format!("{MARKER} window title {MARKER}\n")
+        .into_bytes()
+        .into_iter()
+        .cycle()
+        .take(len)
+        .collect()
+}
+
+fn kinds_of(len: usize) -> Vec<(String, u64, u64)> {
+    let mut kinds = vec![(
+        "window_title".to_string(),
+        1 + (len / 64) as u64,
+        len as u64,
+    )];
+    if len % 2 == 1 {
+        kinds.push(("foreground_app".to_string(), 1, 0));
+    }
+    kinds
+}
+
+fn first_capture_of(expiry: Expiry, now: u64) -> i64 {
+    let window = DEFAULT_RETENTION.as_secs() as i64;
+    match expiry {
+        Expiry::Past => 0,
+        Expiry::OnShredBoundary => (now as i64 - window) * NANOS_PER_SECOND,
+        Expiry::Future => now as i64 * NANOS_PER_SECOND,
+    }
+}
+
+fn write_batch(
+    store: &mut EncryptedStore,
+    segment_id: Uuid,
+    first_capture: i64,
+    kinds: &[(String, u64, u64)],
+    payload: &[u8],
+) -> Result<super::Written, WriteFault> {
+    let totals: Vec<KindTotal<'_>> = kinds
+        .iter()
+        .map(|(kind, events, bytes)| KindTotal {
+            kind,
+            events: *events,
+            bytes: *bytes,
+        })
+        .collect();
+    store.write_batch(SegmentWrite {
+        segment_id: &segment_id,
+        day: UtcDay::of_instant(first_capture),
+        first_capture,
+        last_capture: first_capture,
+        kinds: &totals,
+        payload,
+    })
+}
+
+fn key_rows(store: &EncryptedStore) -> i64 {
+    store
+        .db()
+        .expect("the open store's db")
+        .connection()
+        .query_row("SELECT count(*) FROM segment_keys", [], |r| r.get(0))
+        .expect("the count of the key rows")
+}
+
+fn rollup_rows(store: &EncryptedStore) -> Vec<(i64, String, i64, i64)> {
+    let conn = store.db().expect("the open store's db").connection();
+    let mut rows = conn
+        .prepare("SELECT day, kind, events, bytes FROM daily_totals ORDER BY day, kind")
+        .expect("the rollup");
+    let read = rows
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+        .expect("the rollup reads");
+    read.map(|row| row.expect("a rollup row")).collect()
+}
+
+fn rows_of_totals(conn: &Connection, ordinal: i64) -> Vec<(String, u64, u64)> {
+    let mut rows = conn
+        .prepare("SELECT kind, events, bytes FROM segment_totals WHERE segment = ?1")
+        .expect("the totals of a segment");
+    let read = rows
+        .query_map([ordinal], |r| {
+            Ok((
+                r.get(0)?,
+                r.get::<_, i64>(1)? as u64,
+                r.get::<_, i64>(2)? as u64,
+            ))
+        })
+        .expect("the totals read");
+    read.map(|row| row.expect("a totals row")).collect()
+}
+
+#[test]
+fn the_marker_scan_finds_the_marker_when_a_batch_names_it_as_its_kind() {
+    let dir = tempfile::tempdir().expect("a temp dir for the store");
+    let mut harness = Harness::create(dir.path());
+    let store = harness.store.as_mut().expect("an open store");
+    let kinds = vec![(MARKER.to_string(), 1, 1)];
+    let segment_id = super::db::random_segment_id().expect("a random segment id");
+    write_batch(
+        store,
+        segment_id,
+        first_capture_of(Expiry::Future, unix_secs_now()),
+        &kinds,
+        b"x",
+    )
+    .expect("a batch whose kind is the marker");
+    store
+        .db()
+        .expect("the open store's db")
+        .checkpoint_truncate()
+        .expect("the log drains");
+    let images = pages::store_pages(dir.path(), &store.database_key().expect("the database key"));
+    let found = pages::places_of(&images, &[MARKER.as_bytes()]);
+    assert!(
+        found.iter().any(|places| !places.is_empty()),
+        "the scan does not see the marker that a column holds"
+    );
 }
 
 fn hold<T>(result: Result<T, TestCaseError>) -> T {
