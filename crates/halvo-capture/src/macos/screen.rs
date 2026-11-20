@@ -615,15 +615,18 @@ impl StopStream for Retained<SCStream> {
 /// When the filter is built again (B14-19 (2), ruling MA-35 R3): while Halvo's
 /// app runs under a pid that the current filter does not list, at once when
 /// the app comes in front, else after a wait of 1 s that doubles up to 60 s
-/// after each rebuild that still did not list it; and while a running process
-/// that the decision places under the exclusion root is not listed, with a
-/// wait of its own for each such pid, 1 s doubling up to 60 s, which starts
-/// again when that pid is listed or no longer runs.
+/// after each rebuild that Halvo's own wait made due and that still did not
+/// list it, a rebuild that a pid under the root alone made due leaving that
+/// wait as it was (ruling MA-37 C5); and while a running process that the
+/// decision places under the exclusion root is not listed, with a wait of its
+/// own for each such pid, 1 s doubling up to 60 s, which starts again when
+/// that pid is listed or no longer runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RebuildPlan {
     next: Option<Instant>,
     backoff: Duration,
     app_in_front: bool,
+    app_due: bool,
     tree: std::collections::BTreeMap<libc::pid_t, TreeWait>,
     pending: Vec<libc::pid_t>,
 }
@@ -641,6 +644,7 @@ impl RebuildPlan {
             next: None,
             backoff: REBUILD_FIRST_BACKOFF,
             app_in_front: false,
+            app_due: false,
             tree: std::collections::BTreeMap::new(),
             pending: Vec::new(),
         }
@@ -662,6 +666,7 @@ impl RebuildPlan {
         self.app_in_front = app_in_front;
         let app_due = !app.iter().all(|pid| listed.contains(pid))
             && (came_in_front || self.next.is_none_or(|next| now >= next));
+        self.app_due = app_due;
         let unlisted: Vec<libc::pid_t> = running
             .iter()
             .copied()
@@ -679,15 +684,12 @@ impl RebuildPlan {
         app_due || !self.pending.is_empty()
     }
 
-    /// Records a rebuild at `now` whose filter lists the app or does not, and
-    /// starts the next wait of each pid under the root that was due.
+    /// Records a rebuild at `now` whose filter lists the app or does not: the
+    /// wait of Halvo's pid moves when the last `due` found it due, and the next
+    /// wait of each pid under the root that was due starts.
     fn tried(&mut self, now: Instant, lists_app: bool) {
-        if lists_app {
-            self.next = None;
-            self.backoff = REBUILD_FIRST_BACKOFF;
-        } else {
-            self.next = Some(now + self.backoff);
-            self.backoff = (self.backoff * 2).min(REBUILD_MAX_BACKOFF);
+        if self.app_due {
+            self.tried_app(now, lists_app);
         }
         for pid in std::mem::take(&mut self.pending) {
             let wait = self.tree.entry(pid).or_insert(TreeWait {
@@ -696,6 +698,16 @@ impl RebuildPlan {
             });
             wait.next = Some(now + wait.backoff);
             wait.backoff = (wait.backoff * 2).min(REBUILD_MAX_BACKOFF);
+        }
+    }
+
+    fn tried_app(&mut self, now: Instant, lists_app: bool) {
+        if lists_app {
+            self.next = None;
+            self.backoff = REBUILD_FIRST_BACKOFF;
+        } else {
+            self.next = Some(now + self.backoff);
+            self.backoff = (self.backoff * 2).min(REBUILD_MAX_BACKOFF);
         }
     }
 }
@@ -2525,6 +2537,45 @@ mod tests {
             "Halvo listed: the reset of its own wait leaves the wait of 501 as it was"
         );
         assert!(halvo.due(&[42], &[42], false, &[42, 501], &tree, at(1)));
+    }
+
+    #[test]
+    fn a_rebuild_that_a_pid_under_the_root_alone_made_due_leaves_halvos_own_wait_as_it_was() {
+        let start = Instant::now();
+        let at = |s: u64| start + Duration::from_secs(s);
+        let probe = inactive();
+        let rooted = FloorHandle::new(Some(ProcessId::new(500)), Arc::new(DeepTree), switches_on());
+        let tree = RootTree {
+            floor: &rooted,
+            probe: &probe,
+        };
+        let mut plan = RebuildPlan::new();
+        assert!(plan.due(&[], &[900], false, &[900], &tree, at(0)));
+        plan.tried(at(0), false);
+        assert!(plan.due(&[], &[900], false, &[900], &tree, at(1)));
+        plan.tried(at(1), false);
+        assert_eq!(
+            (plan.next, plan.backoff),
+            (Some(at(3)), Duration::from_secs(4)),
+            "Halvo's wait after its own two rebuilds"
+        );
+        assert!(
+            plan.due(&[], &[900], false, &[900, 501], &tree, at(2)),
+            "501 under the root, unlisted"
+        );
+        plan.tried(at(2), false);
+        assert_eq!(
+            (plan.next, plan.backoff),
+            (Some(at(3)), Duration::from_secs(4)),
+            "Halvo's wait after a rebuild that 501 alone made due"
+        );
+        assert!(plan.due(&[], &[900], false, &[900, 501], &tree, at(3)));
+        plan.tried(at(3), false);
+        assert_eq!(
+            (plan.next, plan.backoff),
+            (Some(at(7)), Duration::from_secs(8)),
+            "Halvo's wait after a rebuild that its own wait made due"
+        );
     }
 
     #[test]
