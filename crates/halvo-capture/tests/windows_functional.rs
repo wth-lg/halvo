@@ -1943,7 +1943,7 @@ fn c5_installed_software_returns_registry_entries() {
         }
 
         let before = scan_installed().expect("scan the registry");
-        let mut sorted = before.apps.clone();
+        let mut sorted = before.apps().to_vec();
         sorted.sort();
         sorted.dedup();
         say(
@@ -1951,9 +1951,13 @@ fn c5_installed_software_returns_registry_entries() {
             format!(
                 "entries={} with_version={} with_publisher={} sorted_and_deduplicated={}",
                 before.len(),
-                before.apps.iter().filter(|a| a.version.is_some()).count(),
-                before.apps.iter().filter(|a| a.publisher.is_some()).count(),
-                sorted == before.apps,
+                before.apps().iter().filter(|a| a.version.is_some()).count(),
+                before
+                    .apps()
+                    .iter()
+                    .filter(|a| a.publisher.is_some())
+                    .count(),
+                sorted.as_slice() == before.apps(),
             ),
         );
 
@@ -1973,7 +1977,7 @@ fn c5_installed_software_returns_registry_entries() {
                 });
             let in_scan = first_listable
                 .as_ref()
-                .map(|name| before.apps.iter().any(|app| &app.name == name));
+                .map(|name| before.apps().iter().any(|app| &app.name == name));
             say(
                 "c5",
                 format!("hklm_{path_name}_first_listable_app_is_in_scan={in_scan:?}"),
@@ -1985,7 +1989,7 @@ fn c5_installed_software_returns_registry_entries() {
         let probe_path = format!(r"{UNINSTALL}\{PROBE_KEY}");
         let hkcu_key_existed = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_ok();
         assert!(
-            !before.apps.iter().any(|a| a.name == probe_name),
+            !before.apps().iter().any(|a| a.name == probe_name),
             "the probe entry must not exist yet"
         );
 
@@ -2003,7 +2007,7 @@ fn c5_installed_software_returns_registry_entries() {
             .expect("probe publisher");
 
         let with_probe = scan_installed().expect("scan with the probe");
-        let found = with_probe.apps.iter().find(|a| a.name == probe_name);
+        let found = with_probe.apps().iter().find(|a| a.name == probe_name);
         let found_ok = found.is_some_and(|app| {
             app.version.as_deref() == Some("9.9.9")
                 && app.publisher.as_deref() == Some("halvo-verifier")
@@ -2022,7 +2026,7 @@ fn c5_installed_software_returns_registry_entries() {
             .set_value("SystemComponent", &1u32)
             .expect("probe system component");
         let hidden = scan_installed().expect("scan with the hidden probe");
-        let system_component_hidden = !hidden.apps.iter().any(|a| a.name == probe_name);
+        let system_component_hidden = !hidden.apps().iter().any(|a| a.name == probe_name);
 
         drop(probe);
         hkcu.delete_subkey_all(&probe_path)
@@ -2036,7 +2040,7 @@ fn c5_installed_software_returns_registry_entries() {
             format!(
                 "system_component_probe_hidden={system_component_hidden} \
                  probe_gone_after_delete={} entries_after={} same_as_before={}",
-                !after.apps.iter().any(|a| a.name == probe_name),
+                !after.apps().iter().any(|a| a.name == probe_name),
                 after.len(),
                 after == before,
             ),
@@ -5377,12 +5381,21 @@ mod known_defect {
         });
     }
 
-    use halvo_capture::windows::apps::wait_for_change;
+    use halvo_capture::windows::apps::{InstalledSoftwareWatcher, WatchOutcome};
 
     fn arm_watcher() -> mpsc::Receiver<Result<(), String>> {
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
-            let _ = tx.send(wait_for_change().map_err(|e| e.to_string()));
+            let woke = InstalledSoftwareWatcher::new()
+                .map_err(|e| e.to_string())
+                .and_then(
+                    |mut watcher| match watcher.wait(Some(Duration::from_secs(20))) {
+                        Ok(WatchOutcome::Changed) => Ok(()),
+                        Ok(other) => Err(format!("the watch answered {other:?}")),
+                        Err(e) => Err(e.to_string()),
+                    },
+                );
+            let _ = tx.send(woke);
         });
         std::thread::sleep(Duration::from_millis(500));
         rx
@@ -5486,7 +5499,7 @@ mod known_defect {
             .parse()
             .unwrap_or(0);
             let terminal_in_inventory = scan
-                .apps
+                .apps()
                 .iter()
                 .any(|app| app.name.to_ascii_lowercase().contains("terminal"));
             say(
@@ -5509,6 +5522,86 @@ mod known_defect {
                 "RR-windows-12",
                 terminal_in_inventory,
                 format!("TF x16 inventory_has_an_entry_naming_terminal={terminal_in_inventory}")
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: reads and writes the Windows registry"]
+    fn c5_three_probe_entries_against_what_windows_lists() {
+        with_deadline("c5-three", Duration::from_secs(90), || {
+            use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
+            use winreg::RegKey;
+
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            let key_existed = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_ok();
+            let id = std::process::id();
+            let probes = [
+                (
+                    "HalvoVerifyProbeListed",
+                    format!("Halvo Verify Listed {id}"),
+                    None,
+                    false,
+                ),
+                (
+                    "HalvoVerifyProbeSystem",
+                    format!("Halvo Verify System {id}"),
+                    None,
+                    true,
+                ),
+                (
+                    "HalvoVerifyProbeChild",
+                    format!("Halvo Verify Child {id}"),
+                    Some("HalvoVerifyProbeListed"),
+                    false,
+                ),
+            ];
+            for (key, name, parent, system) in &probes {
+                let (probe, _) = hkcu
+                    .create_subkey(format!(r"{UNINSTALL}\{key}"))
+                    .expect("create a probe key");
+                probe.set_value("DisplayName", name).expect("probe name");
+                if let Some(parent) = parent {
+                    probe
+                        .set_value("ParentKeyName", &parent.to_string())
+                        .expect("probe parent");
+                }
+                if *system {
+                    probe
+                        .set_value("SystemComponent", &1u32)
+                        .expect("probe system component");
+                }
+            }
+            let scan = scan_installed();
+            for (key, ..) in &probes {
+                let _ = hkcu.delete_subkey_all(format!(r"{UNINSTALL}\{key}"));
+            }
+            if !key_existed {
+                let _ = hkcu.delete_subkey(UNINSTALL);
+            }
+            let scan = scan.expect("scan with the three probes");
+            let listed = probes
+                .each_ref()
+                .map(|(_, name, ..)| scan.apps().iter().any(|app| &app.name == name));
+            let windows_lists = [true, false, false];
+            say(
+                "c5-three",
+                format!(
+                    "probe_listed={} probe_system_component_listed={} probe_with_parent_listed={}",
+                    listed[0], listed[1], listed[2]
+                ),
+            );
+            assert!(
+                listed[0],
+                "INCONCLUSIVE: the plain probe entry is not in the scan"
+            );
+            defect!(
+                "RR-windows-25",
+                listed == windows_lists,
+                format!(
+                    "TF c5-three scan_lists_what_windows_lists={}",
+                    listed == windows_lists
+                )
             );
         });
     }

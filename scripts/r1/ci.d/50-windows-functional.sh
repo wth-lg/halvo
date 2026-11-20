@@ -82,6 +82,7 @@ known_defect::browser_self_move_after_a_held_main_thread_in_chrome W3-5-A2 group
 known_defect::browser_self_move_after_a_held_main_thread_in_edge W3-5-A2 group=browser
 known_defect::browser_swaps_on_a_held_main_thread_in_chrome W3-7-Q2i group=browser scope=long-only
 known_defect::browser_swaps_on_a_held_main_thread_in_edge W3-7-Q2i group=browser scope=long-only
+known_defect::c5_three_probe_entries_against_what_windows_lists RR-windows-25 group=native
 known_defect::c5_watch_armed_while_the_per_user_key_is_absent RR-windows-12 group=native
 known_defect::stall_no_focus_key_and_the_program_moves_the_focus_itself W3-5-A2 group=browser scope=long-only
 known_defect::style_masked_input_in_chrome_and_edge W3-20-style-mask group=browser
