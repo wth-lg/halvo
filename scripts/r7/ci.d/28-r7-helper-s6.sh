@@ -320,7 +320,7 @@ def measure(tls):
 def self_test():
     import io
     from contextlib import redirect_stdout
-    from unittest.mock import patch
+    from unittest.mock import call, patch
 
     env = {"RUNNER_ENVIRONMENT": "github-hosted", "GITHUB_ACTIONS": "true",
            "RUNNER_OS": "macOS", "CI_D_JOB": "macos"}
@@ -426,6 +426,8 @@ def self_test():
         ("0", 0, "", (False, True), 0, "MET trust-left=true, key-gone=true, hosted"),
         ("0", 1, "tls/status", (False, True), 1, "MISSED tls/status trust-left=true, key-gone=true, hosted"),
         ("0", 0, "", (False, False), 0, "MET trust-left=false, key-gone=true, hosted"),
+        (None, 0, "", (False, True), 1, "MISSED setup-or-cleanup"),
+        ("invalid", 0, "", (False, True), 1, "MISSED setup-or-cleanup"),
     ]:
         captured = io.StringIO()
         with patch("__main__.hosted", return_value=True), patch("__main__.KEY_EXIT") as witness, \
@@ -437,7 +439,11 @@ def self_test():
             faults.read_text.return_value = reasons
             result = finish(initial)
             clean.assert_called_once_with()
-        if result != code or "S6 real-helper: " + expected not in captured.getvalue().splitlines():
+        lines = captured.getvalue().splitlines()
+        if result != code or "S6 real-helper: " + expected not in lines:
+            raise RuntimeError("key-verdict-fixture")
+        if (any(line.startswith("S6 TLS stub-exit=") and line.endswith(" key-gone=false") for line in lines)
+                and any("key-gone=true" in line for line in lines)):
             raise RuntimeError("key-verdict-fixture")
         if evidence == "0" and "S6 TLS stub-exit=0 key-gone=true" not in captured.getvalue().splitlines():
             raise RuntimeError("key-exit-line-fixture")
@@ -477,6 +483,81 @@ def self_test():
             or "S6 trust delete-certificate result=ok" not in reports
             or "S6 trust certificate-after-undo=false" not in reports):
         raise RuntimeError("undo-operations-fixture")
+    with patch("__main__.reap") as reaped, patch("subprocess.Popen") as start:
+        child = start.return_value.__enter__.return_value
+        for code, answer, good in [(0, b"result=active\n", True), (3, b"result=active\n", False),
+                                   (0, b"result=pending\n", False)]:
+            child.stdout.read.return_value = answer
+            def ended(proc, code=code):
+                proc.returncode = code
+                return 5, 100
+            reaped.side_effect = ended
+            if one_call("helper", "status", {})[2] != good:
+                raise RuntimeError("helper-exit-fixture")
+            refused += int(not good)
+    with patch("__main__.hosted", return_value=False), patch("subprocess.Popen") as start, \
+         patch("__main__.KEY_EXIT") as witness:
+        try:
+            with stub(WORK / "guard-stub", True):
+                pass
+        except RuntimeError as exc:
+            if str(exc) != "certificate-outside-hosted-job":
+                raise RuntimeError("stub-guard-fixture") from exc
+        else:
+            raise RuntimeError("stub-guard-fixture")
+        if start.called or witness.write_text.called:
+            raise RuntimeError("stub-guard-fixture")
+        refused += 1
+    for action, refusal, case in [(install, "certificate-install-outside-hosted-job", "install-guard-fixture"),
+                                  (undo, "certificate-undo-outside-hosted-job", "undo-guard-fixture")]:
+        with patch("__main__.hosted", return_value=False), patch("__main__.ARMED") as armed, patch("__main__.CA"), \
+             patch("ssl.PEM_cert_to_DER_cert", return_value=b"fixture"), patch("__main__.present", return_value=False), \
+             patch("__main__.checked") as native, patch("subprocess.Popen") as start, patch("subprocess.run") as ran, \
+             redirect_stdout(io.StringIO()):
+            armed.exists.return_value = True
+            try:
+                action()
+            except RuntimeError as exc:
+                if str(exc) != refusal:
+                    raise RuntimeError(case) from exc
+            else:
+                raise RuntimeError(case)
+            if native.called or start.called or ran.called:
+                raise RuntimeError(case)
+            refused += 1
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["security"], 30)) as native:
+        try:
+            admin_trust_remains(b"fixture")
+        except RuntimeError as exc:
+            if str(exc) != "admin-trust-readback-timeout-30s":
+                raise RuntimeError("admin-readback-limit-fixture") from exc
+        else:
+            raise RuntimeError("admin-readback-limit-fixture")
+        if (native.call_args.args[0][:3] != ["security", "trust-settings-export", "-d"]
+                or native.call_args.kwargs.get("timeout") != 30):
+            raise RuntimeError("admin-readback-limit-fixture")
+        refused += 1
+    captured = io.StringIO()
+    with patch("__main__.hosted", return_value=False), patch("__main__.measure", return_value=[]) as measured, \
+         patch("__main__.REASONS"), patch("sys.argv", ["check.py", "measure"]), redirect_stdout(captured):
+        if run() != 0:
+            raise RuntimeError("run-guard-fixture")
+    if (measured.call_args_list != [call(False)]
+            or "S6 TLS skipped: requires a GitHub-hosted runner" not in captured.getvalue().splitlines()):
+        raise RuntimeError("run-guard-fixture")
+    refused += 1
+    for platform, case, expected in [
+        ("darwin", "macos-add-fixture", ["sudo", "-n", "security", "add-trusted-cert", "-d", "-r", "trustRoot",
+                                         "-p", "ssl", "-k", "/Library/Keychains/System.keychain"]),
+        ("win32", "windows-add-fixture", [str(Path("system") / "System32" / "certutil.exe"), "-addstore", "Root"]),
+    ]:
+        with patch("sys.platform", platform), patch("__main__.hosted", return_value=True), \
+             patch.dict(os.environ, {"SystemRoot": "system"}), patch("__main__.ARMED"), patch("__main__.CA") as authority, \
+             patch("ssl.PEM_cert_to_DER_cert", return_value=b"fixture"), patch("__main__.present", side_effect=[False, True]), \
+             patch("__main__.checked") as native, redirect_stdout(io.StringIO()):
+            install()
+        if native.call_args_list != [call(expected + [str(authority)])]:
+            raise RuntimeError(case)
     print(f"PASS self-test:{NAME} ({refused} failing fixtures rejected)")
 
 
