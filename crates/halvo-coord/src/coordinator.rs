@@ -2172,9 +2172,12 @@ where
 
     /// The card of the native dialog of the confirmation `item` (I8.1 `agents_present`, ruling
     /// RD-77 12.1): `items::native_card` of the confirmation that the coordinator holds for that
-    /// id, read under the lock; it calls no port and stores nothing. `unknown_item` for an id that
-    /// is no held confirmation, an item of another kind and no item among them, and the causes of
-    /// `items::native_card` otherwise.
+    /// id, read under the lock. As the first call after a move or a tick that did not return it
+    /// publishes before it reads, as every call does then (rulings RD-80 3.4, 4.2): the snapshot's
+    /// `seq` rises, the page's bell rings (`Page::changed`) and the tray's count is set
+    /// (`Tray::attention`); any other call of it calls no port. It logs no row and sends no body.
+    /// `unknown_item` for an id that is no held confirmation, an item of another kind and no item
+    /// among them, and the causes of `items::native_card` otherwise.
     pub fn native_card(&self, item: &ItemId) -> Result<NativeCard, Cause> {
         let st = self.lock();
         let h = st
