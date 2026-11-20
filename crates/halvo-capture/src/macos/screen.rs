@@ -380,13 +380,35 @@ impl Selection {
     }
 
     fn under_root(&self, pid: libc::pid_t) -> bool {
+        RootTree {
+            floor: &self.floor,
+            probe: &self.probe,
+        }
+        .holds(pid)
+    }
+}
+
+/// The tree of the exclusion root, as the selection and the rebuild plan read
+/// it: core-2's exclusion decision over the floor's root and its parent-pid
+/// lookup, asked for the kind foreground_app, whose decision reads no switch
+/// and no secure-input probe.
+struct RootTree<'a> {
+    floor: &'a FloorHandle,
+    probe: &'a SystemProbe,
+}
+
+impl RootTree<'_> {
+    /// Whether the decision places `pid` under the root: the root itself or a
+    /// process whose lineage reaches it. A process whose lineage reads unknown
+    /// is not; with no root, no process is.
+    fn holds(&self, pid: libc::pid_t) -> bool {
         let Ok(pid) = u32::try_from(pid) else {
             return false;
         };
         let subject = Subject::new(AppIdentity::unknown(), ProcessId::new(pid));
         matches!(
             self.floor
-                .decide::<kind::ScreenFrame>(subject, PrivateWindow::Unknown, &self.probe),
+                .decide::<kind::ForegroundApp>(subject, PrivateWindow::Unknown, self.probe),
             Verdict::Drop(DropReason::ExclusionTree)
         )
     }
@@ -547,15 +569,27 @@ impl StopStream for Retained<SCStream> {
     }
 }
 
-/// When the filter is built again (B14-19 (2)): while Halvo's app runs under a
-/// pid that the current filter does not list, at once when the app comes in
-/// front, else after a wait of 1 s that doubles up to 60 s after each rebuild
-/// that still did not list it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// When the filter is built again (B14-19 (2), ruling MA-35 R3): while Halvo's
+/// app runs under a pid that the current filter does not list, at once when
+/// the app comes in front, else after a wait of 1 s that doubles up to 60 s
+/// after each rebuild that still did not list it; and while a running process
+/// that the decision places under the exclusion root is not listed, with a
+/// wait of its own for each such pid, 1 s doubling up to 60 s, which starts
+/// again when that pid is listed or no longer runs.
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct RebuildPlan {
     next: Option<Instant>,
     backoff: Duration,
     app_in_front: bool,
+    tree: std::collections::BTreeMap<libc::pid_t, TreeWait>,
+    pending: Vec<libc::pid_t>,
+}
+
+/// The wait of one unlisted pid under the exclusion root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TreeWait {
+    next: Option<Instant>,
+    backoff: Duration,
 }
 
 impl RebuildPlan {
@@ -564,27 +598,46 @@ impl RebuildPlan {
             next: None,
             backoff: REBUILD_FIRST_BACKOFF,
             app_in_front: false,
+            tree: std::collections::BTreeMap::new(),
+            pending: Vec::new(),
         }
     }
 
     /// Whether a rebuild is due at `now`, for the pids that the current filter
-    /// lists, the pids of Halvo's app, and whether the app is in front.
+    /// lists, the pids of Halvo's app, whether the app is in front, the pids of
+    /// the running applications and the tree of the exclusion root.
     fn due(
         &mut self,
         listed: &[libc::pid_t],
         app: &[libc::pid_t],
         app_in_front: bool,
+        running: &[libc::pid_t],
+        tree: &RootTree<'_>,
         now: Instant,
     ) -> bool {
         let came_in_front = app_in_front && !self.app_in_front;
         self.app_in_front = app_in_front;
-        if app.iter().all(|pid| listed.contains(pid)) {
-            return false;
-        }
-        came_in_front || self.next.is_none_or(|next| now >= next)
+        let app_due = !app.iter().all(|pid| listed.contains(pid))
+            && (came_in_front || self.next.is_none_or(|next| now >= next));
+        let unlisted: Vec<libc::pid_t> = running
+            .iter()
+            .copied()
+            .filter(|pid| !listed.contains(pid) && tree.holds(*pid))
+            .collect();
+        self.tree.retain(|pid, _| unlisted.contains(pid));
+        self.pending = unlisted
+            .into_iter()
+            .filter(|pid| {
+                self.tree
+                    .get(pid)
+                    .is_none_or(|wait| wait.next.is_none_or(|next| now >= next))
+            })
+            .collect();
+        app_due || !self.pending.is_empty()
     }
 
-    /// Records a rebuild at `now` whose filter lists the app or does not.
+    /// Records a rebuild at `now` whose filter lists the app or does not, and
+    /// starts the next wait of each pid under the root that was due.
     fn tried(&mut self, now: Instant, lists_app: bool) {
         if lists_app {
             self.next = None;
@@ -593,23 +646,28 @@ impl RebuildPlan {
             self.next = Some(now + self.backoff);
             self.backoff = (self.backoff * 2).min(REBUILD_MAX_BACKOFF);
         }
+        for pid in std::mem::take(&mut self.pending) {
+            let wait = self.tree.entry(pid).or_insert(TreeWait {
+                next: None,
+                backoff: REBUILD_FIRST_BACKOFF,
+            });
+            wait.next = Some(now + wait.backoff);
+            wait.backoff = (wait.backoff * 2).min(REBUILD_MAX_BACKOFF);
+        }
     }
 }
 
-/// The pids of the running applications that are Halvo's.
-fn halvo_pids(halvo: &HalvoApp) -> Vec<libc::pid_t> {
+/// The pids of the running applications, and those of them that are Halvo's.
+fn running_pids(halvo: &HalvoApp) -> (Vec<libc::pid_t>, Vec<libc::pid_t>) {
     objc2::rc::autoreleasepool(|_| {
-        NSWorkspace::sharedWorkspace()
-            .runningApplications()
-            .iter()
-            .filter_map(|app| {
-                halvo_pid_of(
-                    halvo,
-                    app.processIdentifier(),
-                    app.bundleIdentifier().as_deref(),
-                )
-            })
-            .collect()
+        let mut running = Vec::new();
+        let mut app = Vec::new();
+        for item in NSWorkspace::sharedWorkspace().runningApplications().iter() {
+            let pid = item.processIdentifier();
+            running.push(pid);
+            app.extend(halvo_pid_of(halvo, pid, item.bundleIdentifier().as_deref()));
+        }
+        (running, app)
     })
 }
 
@@ -639,12 +697,19 @@ struct RebuildCell {
 
 impl RebuildCell {
     fn tick(&mut self, now: Instant) {
-        let app = halvo_pids(&self.selection.halvo);
+        let (running, app) = running_pids(&self.selection.halvo);
         let in_front = self
             .foreground
             .get()
             .is_some_and(|front| self.selection.halvo.selects_front(&front));
-        if !self.plan.due(&self.facts.listed(), &app, in_front, now) {
+        let tree = RootTree {
+            floor: &self.selection.floor,
+            probe: &self.selection.probe,
+        };
+        if !self
+            .plan
+            .due(&self.facts.listed(), &app, in_front, &running, &tree, now)
+        {
             return;
         }
         let lists_app = self.rebuild().unwrap_or(false);
@@ -1869,52 +1934,188 @@ mod tests {
     {
         let start = Instant::now();
         let at = |ms: u64| start + Duration::from_millis(ms);
+        let floor = FloorHandle::default();
+        let probe = inactive();
+        let no_root = || RootTree {
+            floor: &floor,
+            probe: &probe,
+        };
         let mut plan = RebuildPlan::new();
-        assert!(!plan.due(&[], &[], false, at(0)), "no app runs");
         assert!(
-            !plan.due(&[42], &[42], false, at(0)),
+            !plan.due(&[], &[], false, &[], &no_root(), at(0)),
+            "no app runs"
+        );
+        assert!(
+            !plan.due(&[42], &[42], false, &[], &no_root(), at(0)),
             "the filter lists the app"
         );
-        assert!(plan.due(&[], &[42], false, at(0)), "the app runs unlisted");
+        assert!(
+            plan.due(&[], &[42], false, &[], &no_root(), at(0)),
+            "the app runs unlisted"
+        );
         plan.tried(at(0), false);
         assert!(
-            !plan.due(&[], &[42], false, at(999)),
+            !plan.due(&[], &[42], false, &[], &no_root(), at(999)),
             "inside the first second"
         );
-        assert!(plan.due(&[], &[42], false, at(1_000)), "after one second");
+        assert!(
+            plan.due(&[], &[42], false, &[], &no_root(), at(1_000)),
+            "after one second"
+        );
         plan.tried(at(1_000), false);
         assert!(
-            !plan.due(&[], &[42], false, at(2_999)),
+            !plan.due(&[], &[42], false, &[], &no_root(), at(2_999)),
             "inside two seconds"
         );
         assert!(
-            plan.due(&[], &[42], true, at(1_001)),
+            plan.due(&[], &[42], true, &[], &no_root(), at(1_001)),
             "the app comes in front"
         );
         assert!(
-            !plan.due(&[], &[42], true, at(1_002)),
+            !plan.due(&[], &[42], true, &[], &no_root(), at(1_002)),
             "the app stays in front"
         );
-        assert!(plan.due(&[], &[42], true, at(3_000)), "after two seconds");
+        assert!(
+            plan.due(&[], &[42], true, &[], &no_root(), at(3_000)),
+            "after two seconds"
+        );
         let mut now = 3_000;
         for _ in 0..10 {
             plan.tried(at(now), false);
             now += 60_000;
         }
         assert!(
-            !plan.due(&[], &[42], true, at(now - 1)),
+            !plan.due(&[], &[42], true, &[], &no_root(), at(now - 1)),
             "the wait stays at sixty seconds"
         );
-        assert!(plan.due(&[], &[42], true, at(now)));
+        assert!(plan.due(&[], &[42], true, &[], &no_root(), at(now)));
         plan.tried(at(now), true);
         assert!(
-            plan.due(&[42], &[42, 43], false, at(now)),
+            plan.due(&[42], &[42, 43], false, &[], &no_root(), at(now)),
             "a new pid after a relaunch"
         );
         assert_eq!(
             plan.backoff, REBUILD_FIRST_BACKOFF,
             "a listing resets the wait"
         );
+    }
+
+    struct DeepTree;
+
+    impl Lineage for DeepTree {
+        fn parent_of(&self, pid: ProcessId) -> Parent {
+            match pid.get() {
+                501 => Parent::Of(ProcessId::new(500)),
+                502 => Parent::Of(ProcessId::new(501)),
+                777 => Parent::Unknown,
+                _ => Parent::None,
+            }
+        }
+    }
+
+    #[test]
+    fn a_rebuild_is_due_while_a_process_under_the_root_runs_unlisted_with_a_wait_of_its_own() {
+        let start = Instant::now();
+        let at = |s: u64| start + Duration::from_secs(s);
+        let probe = inactive();
+        let rooted = FloorHandle::new(Some(ProcessId::new(500)), Arc::new(DeepTree), switches_on());
+        let tree = RootTree {
+            floor: &rooted,
+            probe: &probe,
+        };
+        let no_floor = FloorHandle::new(None, Arc::new(DeepTree), switches_on());
+        let no_root = RootTree {
+            floor: &no_floor,
+            probe: &probe,
+        };
+        for pid in [500, 501, 502] {
+            let mut plan = RebuildPlan::new();
+            assert!(
+                plan.due(&[], &[], false, &[pid, 903], &tree, at(0)),
+                "{pid} unlisted"
+            );
+            let mut plan = RebuildPlan::new();
+            assert!(
+                !plan.due(&[pid], &[], false, &[pid, 903], &tree, at(0)),
+                "{pid} listed"
+            );
+            let mut plan = RebuildPlan::new();
+            assert!(
+                !plan.due(&[], &[], false, &[pid], &no_root, at(0)),
+                "{pid} with no root"
+            );
+        }
+        let mut plan = RebuildPlan::new();
+        assert!(
+            !plan.due(&[], &[], false, &[903, 777], &tree, at(0)),
+            "a pid outside the tree and a pid whose lineage reads unknown"
+        );
+        let mut plan = RebuildPlan::new();
+        assert!(plan.due(&[], &[], false, &[501], &tree, at(0)));
+        plan.tried(at(0), false);
+        assert!(
+            !plan.due(&[], &[], false, &[501], &tree, at(0)),
+            "the wait of 1 s"
+        );
+        assert!(plan.due(&[], &[], false, &[501], &tree, at(1)), "after 1 s");
+        plan.tried(at(1), false);
+        assert!(
+            !plan.due(&[], &[], false, &[501], &tree, at(2)),
+            "the wait has doubled"
+        );
+        assert!(
+            plan.due(&[], &[], false, &[501], &tree, at(3)),
+            "after 2 s more"
+        );
+        plan.tried(at(3), false);
+        let mut now = 3;
+        let mut waits = Vec::new();
+        for _ in 0..8 {
+            let mut wait = 1;
+            while !plan.due(&[], &[], false, &[501], &tree, at(now + wait)) {
+                wait += 1;
+            }
+            waits.push(wait);
+            now += wait;
+            plan.tried(at(now), false);
+        }
+        assert_eq!(
+            waits,
+            [4, 8, 16, 32, 60, 60, 60, 60],
+            "the waits after each rebuild"
+        );
+        assert!(
+            plan.due(&[], &[], false, &[501, 502], &tree, at(now)),
+            "a new unlisted pid is due at once"
+        );
+        plan.tried(at(now), false);
+        assert!(
+            !plan.due(&[501], &[], false, &[501, 502], &tree, at(now)),
+            "501 listed, 502 waits its first second"
+        );
+        assert!(
+            plan.due(&[], &[], false, &[501, 502], &tree, at(now)),
+            "501 unlisted again is due at once"
+        );
+        plan.tried(at(now), false);
+        assert!(
+            !plan.due(&[], &[], false, &[501], &tree, at(now)),
+            "the wait of 501 starts again at 1 s, and 502 no longer runs"
+        );
+        assert!(plan.due(&[], &[], false, &[501], &tree, at(now + 1)));
+        plan.tried(at(now + 1), false);
+        assert!(
+            plan.due(&[], &[], false, &[501, 502], &tree, at(now + 1)),
+            "502 runs again after it ran no more: due at once"
+        );
+        let mut halvo = RebuildPlan::new();
+        assert!(halvo.due(&[], &[42], false, &[42, 501], &tree, at(0)));
+        halvo.tried(at(0), true);
+        assert!(
+            !halvo.due(&[42], &[42], false, &[42, 501], &tree, at(0)),
+            "Halvo listed: the reset of its own wait leaves the wait of 501 as it was"
+        );
+        assert!(halvo.due(&[42], &[42], false, &[42, 501], &tree, at(1)));
     }
 
     #[test]
