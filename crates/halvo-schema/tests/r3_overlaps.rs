@@ -365,6 +365,12 @@ fn an_entry_is_refused_with_no_sender_with_a_text_that_is_no_sender_and_with_one
             "senders",
         );
     }
+    let apart = [(
+        other_workflow(1),
+        other_agent(1),
+        vec!["ann@people.test", "bob@people.test", "ANN@people.TEST"],
+    )];
+    refused_whole(&apart, "Overlap", "sender_twice", "senders");
     let at_most = format!("{}@people.test", "a".repeat(308));
     assert!(CoordinatorReply::parse(one(&[at_most.as_str()]).as_bytes()).is_ok());
 }
