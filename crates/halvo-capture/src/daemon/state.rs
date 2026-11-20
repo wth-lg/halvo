@@ -81,7 +81,7 @@ pub struct DaemonState {
 impl Default for DaemonState {
     fn default() -> DaemonState {
         DaemonState {
-            desired: Desired::Paused,
+            desired: Desired::default(),
             storage_cap: Cap::Known(StorageCap::DEFAULT),
             permissions_once_granted: Vec::new(),
             permissions_asked: Vec::new(),
@@ -591,6 +591,18 @@ pub(crate) mod tests {
             std::fs::read_to_string(&target).unwrap(),
             "{\"desired\":\"running\"}"
         );
+    }
+
+    #[test]
+    fn a_file_without_desired_reads_paused() {
+        let dir = test_dir();
+        std::fs::write(file_of(dir.path()), "{\"version\":1}").unwrap();
+        let writer = TestWrite::default();
+        let file = open(dir.path(), &writer);
+        assert_eq!(file.health(), StateHealth::Ok);
+        assert_eq!(file.state().desired, Desired::Paused);
+        assert_eq!(file.state(), &DaemonState::default());
+        assert_eq!(writer.calls.load(Ordering::SeqCst), 0);
     }
 
     #[test]
