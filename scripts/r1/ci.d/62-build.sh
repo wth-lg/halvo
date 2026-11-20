@@ -647,14 +647,19 @@ EOF
   bad_row_case vertical-tab-is-not-a-blank-row "$vertical_tab"
   bad_row_case import-row-trailing-text '      _free  (from libSystem) extra'
   bad_row_case import-short-ordinal '      0x001  _free  (from libSystem)'
+  bad_row_case import-ordinal-no-prefix '      0001  _free  (from libSystem)'
+  bad_row_case import-ordinal-bad-hex '      0x00G1  _free  (from libSystem)'
   bad_row_case import-lowercase-ordinal '      0x00a1  _free  (from libSystem)'
   bad_row_case import-ordinal-without-gap '      0x0001_free  (from libSystem)'
   bad_row_case import-oversized-ordinal '      0x100000000  _free  (from libSystem)'
   bad_row_case import-empty-addend '      _free+0x  (from libSystem)'
+  bad_row_case import-addend-no-prefix '      _free+10  (from libSystem)'
+  bad_row_case import-addend-nonhex '      _free+0xG  (from libSystem)'
   bad_row_case import-padded-addend '      _free+0x01  (from libSystem)'
   bad_row_case import-lowercase-addend '      _free+0xab  (from libSystem)'
   bad_row_case import-oversized-addend '      _free+0x10000000000000000  (from libSystem)'
   bad_row_case import-wrong-mark '      _free [weak] (from libSystem)'
+  bad_row_case import-repeated-mark '      _free [weak-import] [weak-import] (from libSystem)'
   bad_row_case import-mark-without-gap '      _free [weak-import](from libSystem)'
   bad_row_case import-mark-touching-symbol '      _free[weak-import] (from libSystem)'
   bad_row_case import-library-starts-with-blank '      _free  (from  libSystem)'
@@ -701,7 +706,7 @@ EOF
   printf '%s\n' "$header" '      _free  (from libSystem)' >"$work/halvo"
   expect_counts='' expect_row="$header" imports_case import-table-without-slice FAIL "$no_table" "$work/halvo"
   printf '%s\n' "$slice" "$hold_row" "$header" '      _free  (from libSystem)' >"$work/halvo"
-  expect_row="$hold_row" imports_case import-before-header FAIL "$no_table" "$work/halvo"
+  expect_counts='' expect_row="$hold_row" imports_case import-before-header FAIL "$no_table" "$work/halvo"
   printf '%s\n' "$slice" "$header" >"$work/halvo"
   expect_counts='dyld_info -imports halvo [arm64]: rows=0 ordinal=0 addend=0 weak-import=0' expect_row="$header" imports_case empty-import-table FAIL "$empty_table" "$work/halvo"
   printf '%s\n' "$clean" "$other_slice" >"$work/halvo"
@@ -719,7 +724,7 @@ EOF
   imports_case clean-imports-both-slices PASS 'dyld_info -imports halvo: absent' "$work/halvo"
   printf '%s\r\n' "$slice" '' "$header" "      .\$entry  (from libSystem)" "      ${forbidden_import}_2  (from Carbon)" >"$work/halvo"
   imports_case clean-imports-crlf PASS 'dyld_info -imports halvo: absent' "$work/halvo"
-  printf '%s\n' "$slice" "$header" '      _free  (from Text [weak-import]+0x8)' \
+  printf '%s\n' "$slice" "$header" '      _free  (from Text 0x0001  Meta [weak-import] Extra+0x8)' \
     '      0x0039  ____chkstk_darwin [weak-import] (from libSystem)' '      _open+0x8  (from Foundation)' \
     '      0x0001  _another+0x10 [weak-import] (from Two Words)' "$other_slice" "$header" "$clean_row" >"$work/halvo"
   printf '%s\n' 'halvo-capture [arm64]:' "$header" "$clean_row" >"$work/halvo-capture"
