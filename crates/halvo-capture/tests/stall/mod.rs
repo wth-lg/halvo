@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use halvo_capture::event::Modality;
 use halvo_capture::secure_input::windows::PasswordGate;
+use halvo_capture::sink::SinkHandle;
 use halvo_capture::source::{CaptureSource, SourceContext};
 use halvo_capture::windows::input::seam::{self, KeyClass, Verdict};
 use halvo_capture::windows::input::RawInputSource;
@@ -36,6 +38,13 @@ use super::{
     start_report, stop_counted, with_deadline, Events, Field,
 };
 
+mod kinds;
+
+use kinds::{
+    phase, ControlRead, Controls, Kind, Landing, Lead, Outcome, Phase, PhaseRun, Step, Totals,
+    Wait, CONTROL_LETTERS, NATIVE_PHASES,
+};
+
 const FIXTURE_ENV: &str = "HALVO_VERIFY_STALL_FIXTURE";
 const FIXTURE_TEST: &str = "stall::helper_stall_fixture";
 
@@ -63,7 +72,6 @@ const ARG_START_IN_PASSWORD: usize = 0x2;
 const TWO_STEP_MS: u64 = 200;
 
 const LETTER_STEP: Duration = Duration::from_millis(60);
-const CONTROL_LETTERS: u32 = 5;
 const FORM_ENV: &str = "HALVO_WF_FORM";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1044,68 +1052,6 @@ impl FieldWindow {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Lead {
-    Tab,
-    Click,
-    TabTab,
-    Enter,
-    Nothing,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Wait {
-    Sleeps,
-    ServesSent,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Landing {
-    Password,
-    Plain,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct Phase {
-    test: &'static str,
-    name: &'static str,
-    lead: Lead,
-    wait: Wait,
-    stall_ms: u64,
-    rounds: u32,
-    letters_through_the_wait: bool,
-    letters_after: u32,
-    start_in_password: bool,
-    self_focus: bool,
-    two_step: bool,
-    other_front: bool,
-    landing: Landing,
-}
-
-const fn phase(
-    test: &'static str,
-    name: &'static str,
-    lead: Lead,
-    wait: Wait,
-    stall_ms: u64,
-) -> Phase {
-    Phase {
-        test,
-        name,
-        lead,
-        wait,
-        stall_ms,
-        rounds: if stall_ms >= 2_000 { 5 } else { 20 },
-        letters_through_the_wait: true,
-        letters_after: 0,
-        start_in_password: false,
-        self_focus: false,
-        two_step: false,
-        other_front: false,
-        landing: Landing::Password,
-    }
-}
-
 const CLICK_ROUNDS_WITHOUT_WAIT: u32 = 5;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -1218,42 +1164,6 @@ fn control(test: &str, which: &str, fixture: &mut Fixture, events: &Events) -> u
         ),
     );
     u32::try_from(reached).unwrap_or(u32::MAX)
-}
-
-#[derive(Debug, Default)]
-pub(super) struct Totals {
-    pub(super) rounds: u32,
-    pub(super) counted: u32,
-    pub(super) letters_sent: u32,
-    pub(super) letters_landed: u32,
-    pub(super) letters_recorded: u32,
-    pub(super) tabs_recorded: u32,
-    pub(super) other_recorded: u32,
-    pub(super) late_moved: u64,
-    pub(super) withheld_set: u32,
-    pub(super) rounds_with_a_recorded_letter: u32,
-    pub(super) rounds_not_withheld_by_the_password_field: u32,
-    pub(super) sink_differs: u32,
-    pub(super) keystroke_events: u32,
-}
-
-impl Totals {
-    fn add(&mut self, other: Totals) {
-        self.rounds += other.rounds;
-        self.counted += other.counted;
-        self.letters_sent += other.letters_sent;
-        self.letters_landed += other.letters_landed;
-        self.letters_recorded += other.letters_recorded;
-        self.tabs_recorded += other.tabs_recorded;
-        self.other_recorded += other.other_recorded;
-        self.late_moved += other.late_moved;
-        self.withheld_set += other.withheld_set;
-        self.rounds_with_a_recorded_letter += other.rounds_with_a_recorded_letter;
-        self.rounds_not_withheld_by_the_password_field +=
-            other.rounds_not_withheld_by_the_password_field;
-        self.sink_differs += other.sink_differs;
-        self.keystroke_events += other.keystroke_events;
-    }
 }
 
 fn key_pair(key: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY) -> [INPUT; 2] {
@@ -1488,111 +1398,270 @@ fn run_rounds(
     totals
 }
 
-fn stall_test(phase: Phase) {
-    let test = phase.test;
-    with_deadline(test, Duration::from_secs(300), move || {
-        let form = form();
-        let wanted = rounds_for(1, phase.rounds);
-        let totals = stall_phase(phase);
+static SESSIONS: AtomicU32 = AtomicU32::new(0);
+
+struct Session {
+    test: &'static str,
+    id: u32,
+    at: u32,
+    fixture: Fixture,
+    keyboard: RawInputSource,
+    events: Events,
+    sink: SinkHandle,
+    before: ControlRead,
+}
+
+impl Session {
+    fn open(test: &'static str) -> Session {
+        source_built_by_test(test, "keyboard");
+        let mut fixture = Fixture::open(test, false);
+        let (sink, events) = capture(8192);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        say(test, format!("keyboard_start_ok={}", start.is_ok()));
+        start_report(test, "keyboard", &start);
+        assert!(
+            start.is_ok(),
+            "INCONCLUSIVE: the keyboard source did not start: {start:?}"
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let id = SESSIONS.fetch_add(1, Ordering::SeqCst) + 1;
+        let recorded = control(test, "before", &mut fixture, &events);
         say(
             test,
+            format!("session={id} step=0 control=before recorded={recorded}"),
+        );
+        Session {
+            test,
+            id,
+            at: 0,
+            fixture,
+            keyboard,
+            events,
+            sink,
+            before: ControlRead {
+                step: Step { session: id, at: 0 },
+                recorded,
+            },
+        }
+    }
+
+    fn next(&mut self, test: &str, name: &str) -> Step {
+        self.at += 1;
+        say(
+            test,
+            format!("session={} step={} phase={name}", self.id, self.at),
+        );
+        Step {
+            session: self.id,
+            at: self.at,
+        }
+    }
+
+    fn rounds(&mut self, phase: Phase) -> PhaseRun {
+        let phase = Phase {
+            rounds: rounds_for(1, phase.rounds),
+            ..phase
+        };
+        let step = self.next(phase.test, phase.name);
+        let mut totals = Totals::default();
+        if phase.lead == Lead::Click {
+            let unstalled = Phase {
+                stall_ms: 0,
+                rounds: rounds_for(1, CLICK_ROUNDS_WITHOUT_WAIT),
+                name: "click_with_no_wait",
+                ..phase
+            };
+            totals.add(run_rounds(
+                phase.test,
+                &mut self.fixture,
+                &self.events,
+                &self.keyboard,
+                unstalled,
+            ));
+        }
+        totals.add(run_rounds(
+            phase.test,
+            &mut self.fixture,
+            &self.events,
+            &self.keyboard,
+            phase,
+        ));
+        say(
+            phase.test,
             format!(
-                "form={} rounds_of_the_phase={wanted} rounds={} counted_rounds={}",
-                form.word(),
+                "form={} rounds_of_the_phase={} rounds={} counted_rounds={}",
+                form().word(),
+                phase.rounds,
                 totals.rounds,
                 totals.counted
             ),
         );
-        assert!(totals.counted > 0, "no round counted");
-        assert_eq!(
-            totals.letters_recorded, 0,
-            "a letter typed ahead of the program was recorded in a counted round"
+        PhaseRun {
+            test: phase.test,
+            name: phase.name,
+            wait: phase.wait,
+            step,
+            outcome: Outcome::Rounds {
+                totals,
+                checks: phase.checks,
+            },
+        }
+    }
+
+    fn native(
+        &mut self,
+        (test, name): (&'static str, &'static str),
+        (start, landing): (FixtureField, &'static str),
+        act: fn(&mut Fixture) -> bool,
+    ) -> PhaseRun {
+        let step = self.next(test, name);
+        let rounds = rounds_for(1, 5);
+        let mut counted = 0;
+        let mut recorded = 0;
+        for round in 0..rounds {
+            let (c, r) = native_round(
+                (test, name),
+                round,
+                &mut self.fixture,
+                &self.events,
+                (start, landing),
+                act,
+            );
+            counted += u32::from(c);
+            recorded += r;
+        }
+        PhaseRun {
+            test,
+            name,
+            wait: Wait::Sleeps,
+            step,
+            outcome: Outcome::Native {
+                rounds,
+                counted,
+                recorded,
+            },
+        }
+    }
+
+    fn close(self) -> Controls {
+        let Session {
+            test,
+            id,
+            at,
+            mut fixture,
+            mut keyboard,
+            events,
+            sink,
+            before,
+        } = self;
+        let step = Step {
+            session: id,
+            at: at + 1,
+        };
+        let recorded = control(test, "after", &mut fixture, &events);
+        let late_at_the_end = keyboard.health().counters.late_events;
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        drop(fixture);
+        drop(sink);
+        say(
+            test,
+            format!(
+                "session={id} step={} control=after recorded={recorded} late_value={late_at_the_end}",
+                step.at
+            ),
         );
-        assert_eq!(
-            totals.other_recorded, 0,
-            "a key of another class than Tab was recorded in a counted round"
-        );
-        assert_eq!(
-            totals.late_moved, 0,
-            "the source's late value moved during the phase"
-        );
-        assert_eq!(
-            totals.counted, totals.rounds,
-            "INCONCLUSIVE: not every round counted"
-        );
-    });
+        Controls {
+            before,
+            after: ControlRead { step, recorded },
+            late_at_the_end,
+        }
+    }
 }
 
-fn stall_phase(phase: Phase) -> Totals {
-    let phase = Phase {
-        rounds: rounds_for(1, phase.rounds),
-        ..phase
-    };
-    let test = phase.test;
-    source_built_by_test(test, "keyboard");
-    let mut fixture = Fixture::open(test, false);
-    let (sink, events) = capture(8192);
-    let mut keyboard = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
-    let start = keyboard.begin(SourceContext::new(sink.clone()));
-    say(test, format!("keyboard_start_ok={}", start.is_ok()));
-    start_report(test, "keyboard", &start);
-    assert!(
-        start.is_ok(),
-        "INCONCLUSIVE: the keyboard source did not start: {start:?}"
-    );
-    let _ = events.drain_for(Duration::from_millis(500));
-    let first = control(test, "before", &mut fixture, &events);
-    let mut totals = Totals::default();
-    if phase.lead == Lead::Click {
-        let unstalled = Phase {
-            stall_ms: 0,
-            rounds: rounds_for(1, CLICK_ROUNDS_WITHOUT_WAIT),
-            name: "click_with_no_wait",
-            ..phase
-        };
-        totals.add(run_rounds(
-            test,
-            &mut fixture,
-            &events,
-            &keyboard,
-            unstalled,
-        ));
+fn verdicts(runs: &[PhaseRun], controls: &Controls) -> Vec<String> {
+    let (first, last) = (controls.before.recorded, controls.after.recorded);
+    let mut failures = Vec::new();
+    for run in runs {
+        match run.outcome {
+            Outcome::Rounds { totals, .. } => say(
+                run.test,
+                format!(
+                    "summary phase={} rounds={} counted_rounds={} letters_sent={} letters_landed={} \
+                     letters_recorded={} rounds_with_a_recorded_letter={} tabs_recorded={} other_recorded={} \
+                     late_events_moved_by={} rounds_that_set_keys_withheld={} keystroke_events={} \
+                     rounds_where_the_sink_differs_from_the_seam={} control_before={first} control_after={last}",
+                    run.name,
+                    totals.rounds,
+                    totals.counted,
+                    totals.letters_sent,
+                    totals.letters_landed,
+                    totals.letters_recorded,
+                    totals.rounds_with_a_recorded_letter,
+                    totals.tabs_recorded,
+                    totals.other_recorded,
+                    totals.late_moved,
+                    totals.withheld_set,
+                    totals.keystroke_events,
+                    totals.sink_differs,
+                ),
+            ),
+            Outcome::Native {
+                counted, recorded, ..
+            } => say(
+                run.test,
+                format!(
+                    "phase={} counted={counted} letters_recorded={recorded} control_before={first} control_after={last}",
+                    run.name
+                ),
+            ),
+        }
+        let verdict = kinds::verdict(run, controls);
+        say(
+            run.test,
+            format!(
+                "phase={} session={} step={} passed={}",
+                run.name,
+                run.step.session,
+                run.step.at,
+                flag(verdict.is_ok())
+            ),
+        );
+        if let Err(why) = verdict {
+            failures.push(why);
+        }
     }
-    totals.add(run_rounds(test, &mut fixture, &events, &keyboard, phase));
-    let last = control(test, "after", &mut fixture, &events);
-    let _ = stop_counted(&mut keyboard, "keyboard");
-    drop(fixture);
-    say(
-        test,
-        format!(
-            "summary phase={} rounds={} counted_rounds={} letters_sent={} letters_landed={} \
-             letters_recorded={} rounds_with_a_recorded_letter={} tabs_recorded={} other_recorded={} \
-             late_events_moved_by={} rounds_that_set_keys_withheld={} keystroke_events={} \
-             rounds_where_the_sink_differs_from_the_seam={} control_before={first} control_after={last}",
-            phase.name,
-            totals.rounds,
-            totals.counted,
-            totals.letters_sent,
-            totals.letters_landed,
-            totals.letters_recorded,
-            totals.rounds_with_a_recorded_letter,
-            totals.tabs_recorded,
-            totals.other_recorded,
-            totals.late_moved,
-            totals.withheld_set,
-            totals.keystroke_events,
-            totals.sink_differs,
-        ),
-    );
+    failures
+}
+
+fn run_kind(kind: Kind) -> Vec<PhaseRun> {
+    let mut session = Session::open(kind.test());
+    let runs: Vec<PhaseRun> = kind
+        .phases()
+        .into_iter()
+        .map(|phase| session.rounds(phase))
+        .collect();
+    let controls = session.close();
+    let failures = verdicts(&runs, &controls);
     assert!(
-        first == CONTROL_LETTERS && last == CONTROL_LETTERS,
-        "a control recorded fewer than {CONTROL_LETTERS} letters of the plain field: control_before={first} control_after={last}"
+        failures.is_empty(),
+        "{} of the {} phases failed: {}",
+        failures.len(),
+        runs.len(),
+        failures.join(";")
     );
-    assert_eq!(
-        totals.sink_differs, 0,
-        "the sink held another number of keystroke events than the seam recorded in a round"
+    runs
+}
+
+fn kind_test(kind: Kind) {
+    with_deadline(
+        kind.test(),
+        Duration::from_secs(kind.limit_secs()),
+        move || {
+            run_kind(kind);
+        },
     );
-    totals
 }
 
 impl FieldWindow {
@@ -1617,20 +1686,6 @@ impl FieldWindow {
         let totals = run_rounds(test, &mut fixture, events, keyboard, phase);
         let last = control(test, "after", &mut fixture, events);
         (totals, first, last, masked)
-    }
-}
-
-fn tab(test: &'static str, name: &'static str, wait: Wait, stall_ms: u64) -> Phase {
-    Phase {
-        rounds: rounds_at(form(), stall_ms),
-        ..phase(test, name, Lead::Tab, wait, stall_ms)
-    }
-}
-
-fn click(test: &'static str, name: &'static str, wait: Wait, stall_ms: u64) -> Phase {
-    Phase {
-        rounds: rounds_at(form(), stall_ms),
-        ..phase(test, name, Lead::Click, wait, stall_ms)
     }
 }
 
@@ -1671,315 +1726,38 @@ fn the_round_count_of_the_stall_tests() {
 
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_then_letters_while_the_program_sleeps_150_ms() {
-    stall_test(tab(
-        "stall-tab-sleeps-150",
-        "tab_sleeps_150ms",
-        Wait::Sleeps,
-        150,
-    ));
+fn tab_then_letters_while_the_program_sleeps_at_each_wait() {
+    kind_test(Kind::TabSleeps);
 }
 
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_then_letters_while_the_program_sleeps_200_ms() {
-    stall_test(tab(
-        "stall-tab-sleeps-200",
-        "tab_sleeps_200ms",
-        Wait::Sleeps,
-        200,
-    ));
+fn tab_then_letters_while_the_program_serves_sent_messages_at_each_wait() {
+    kind_test(Kind::TabServes);
 }
 
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_then_letters_while_the_program_sleeps_300_ms() {
-    stall_test(tab(
-        "stall-tab-sleeps-300",
-        "tab_sleeps_300ms",
-        Wait::Sleeps,
-        300,
-    ));
+fn click_then_letters_while_the_program_sleeps_at_each_wait() {
+    kind_test(Kind::ClickSleeps);
 }
 
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_then_letters_while_the_program_sleeps_600_ms() {
-    stall_test(tab(
-        "stall-tab-sleeps-600",
-        "tab_sleeps_600ms",
-        Wait::Sleeps,
-        600,
-    ));
+fn click_then_letters_while_the_program_serves_sent_messages_at_each_wait() {
+    kind_test(Kind::ClickServes);
 }
 
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_then_letters_while_the_program_sleeps_2000_ms() {
-    stall_test(tab(
-        "stall-tab-sleeps-2000",
-        "tab_sleeps_2000ms",
-        Wait::Sleeps,
-        2000,
-    ));
+fn a_second_field_and_a_window_of_another_thread_while_the_program_waits_300_ms() {
+    kind_test(Kind::SecondFieldAndOtherFront);
 }
 
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_then_letters_while_the_program_serves_sent_messages_150_ms() {
-    stall_test(tab(
-        "stall-tab-serves-150",
-        "tab_serves_150ms",
-        Wait::ServesSent,
-        150,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_then_letters_while_the_program_serves_sent_messages_200_ms() {
-    stall_test(tab(
-        "stall-tab-serves-200",
-        "tab_serves_200ms",
-        Wait::ServesSent,
-        200,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_then_letters_while_the_program_serves_sent_messages_300_ms() {
-    stall_test(tab(
-        "stall-tab-serves-300",
-        "tab_serves_300ms",
-        Wait::ServesSent,
-        300,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_then_letters_while_the_program_serves_sent_messages_600_ms() {
-    stall_test(tab(
-        "stall-tab-serves-600",
-        "tab_serves_600ms",
-        Wait::ServesSent,
-        600,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_then_letters_while_the_program_serves_sent_messages_2000_ms() {
-    stall_test(tab(
-        "stall-tab-serves-2000",
-        "tab_serves_2000ms",
-        Wait::ServesSent,
-        2000,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn click_then_letters_while_the_program_sleeps_150_ms() {
-    stall_test(click(
-        "stall-click-sleeps-150",
-        "click_sleeps_150ms",
-        Wait::Sleeps,
-        150,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn click_then_letters_while_the_program_sleeps_200_ms() {
-    stall_test(click(
-        "stall-click-sleeps-200",
-        "click_sleeps_200ms",
-        Wait::Sleeps,
-        200,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn click_then_letters_while_the_program_sleeps_300_ms() {
-    stall_test(click(
-        "stall-click-sleeps-300",
-        "click_sleeps_300ms",
-        Wait::Sleeps,
-        300,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn click_then_letters_while_the_program_sleeps_600_ms() {
-    stall_test(click(
-        "stall-click-sleeps-600",
-        "click_sleeps_600ms",
-        Wait::Sleeps,
-        600,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn click_then_letters_while_the_program_sleeps_2000_ms() {
-    stall_test(click(
-        "stall-click-sleeps-2000",
-        "click_sleeps_2000ms",
-        Wait::Sleeps,
-        2000,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn click_then_letters_while_the_program_serves_sent_messages_150_ms() {
-    stall_test(click(
-        "stall-click-serves-150",
-        "click_serves_150ms",
-        Wait::ServesSent,
-        150,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn click_then_letters_while_the_program_serves_sent_messages_200_ms() {
-    stall_test(click(
-        "stall-click-serves-200",
-        "click_serves_200ms",
-        Wait::ServesSent,
-        200,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn click_then_letters_while_the_program_serves_sent_messages_300_ms() {
-    stall_test(click(
-        "stall-click-serves-300",
-        "click_serves_300ms",
-        Wait::ServesSent,
-        300,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn click_then_letters_while_the_program_serves_sent_messages_600_ms() {
-    stall_test(click(
-        "stall-click-serves-600",
-        "click_serves_600ms",
-        Wait::ServesSent,
-        600,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn click_then_letters_while_the_program_serves_sent_messages_2000_ms() {
-    stall_test(click(
-        "stall-click-serves-2000",
-        "click_serves_2000ms",
-        Wait::ServesSent,
-        2000,
-    ));
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_tab_and_a_letter_across_a_second_field_while_the_program_waits_after_the_first_tab() {
-    for wait in [Wait::ServesSent, Wait::Sleeps] {
-        stall_test(Phase {
-            letters_through_the_wait: false,
-            ..phase("stall-tab-tab", "tab_tab_300ms", Lead::TabTab, wait, 300)
-        });
-    }
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn tab_and_letters_while_a_window_of_another_thread_comes_to_the_front() {
-    for wait in [Wait::ServesSent, Wait::Sleeps] {
-        stall_test(Phase {
-            other_front: true,
-            letters_through_the_wait: false,
-            ..phase(
-                "stall-other-front",
-                "other_front_300ms",
-                Lead::Tab,
-                wait,
-                300,
-            )
-        });
-    }
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn enter_with_no_focus_move_then_five_letters_records_no_letter() {
-    let test = "stall-enter";
-    with_deadline(test, Duration::from_secs(300), move || {
-        let totals = stall_phase(Phase {
-            letters_through_the_wait: false,
-            letters_after: 4,
-            landing: Landing::Plain,
-            ..phase(
-                test,
-                "enter_then_five_letters",
-                Lead::Enter,
-                Wait::Sleeps,
-                0,
-            )
-        });
-        assert_eq!(
-            totals.letters_recorded, 0,
-            "a letter after Enter was recorded"
-        );
-        assert!(
-            totals.withheld_set > 0 || totals.counted == 0,
-            "keys_withheld did not read yes"
-        );
-        assert_eq!(totals.late_moved, 0, "the source's late value moved");
-        assert_eq!(
-            totals.counted, totals.rounds,
-            "INCONCLUSIVE: not every round counted"
-        );
-    });
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn a_second_tab_out_of_the_password_field_then_a_letter_records_nothing() {
-    let test = "stall-tab-out";
-    with_deadline(test, Duration::from_secs(300), move || {
-        let totals = stall_phase(Phase {
-            letters_through_the_wait: false,
-            start_in_password: true,
-            landing: Landing::Plain,
-            ..phase(test, "tab_out_then_a_letter", Lead::Tab, Wait::Sleeps, 0)
-        });
-        assert_eq!(
-            totals.letters_recorded, 0,
-            "the letter after the Tab out was recorded"
-        );
-        assert_eq!(
-            totals.tabs_recorded, 0,
-            "the Tab out of the password field was recorded"
-        );
-        assert_eq!(
-            totals.other_recorded, 0,
-            "a key of another class was recorded"
-        );
-        assert_eq!(totals.late_moved, 0, "the source's late value moved");
-        assert_eq!(
-            totals.counted, totals.rounds,
-            "INCONCLUSIVE: not every round counted"
-        );
-    });
+fn enter_a_tab_out_and_a_focus_move_in_two_steps_record_no_letter() {
+    kind_test(Kind::EnterTabOutAndTwoStep);
 }
 
 #[test]
@@ -2072,153 +1850,79 @@ fn native_round(
     (counted, decided.recorded().max(keystroke_events))
 }
 
-fn native_phase(
-    test: &'static str,
-    phase: &'static str,
-    start: FixtureField,
-    landing: &'static str,
-    act: fn(&mut Fixture) -> bool,
-) {
-    with_deadline(test, Duration::from_secs(150), move || {
-        source_built_by_test(test, "keyboard");
-        let mut fixture = Fixture::open(test, false);
-        let (sink, events) = capture(8192);
-        let mut keyboard =
-            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
-        let started = keyboard.begin(SourceContext::new(sink.clone()));
-        start_report(test, "keyboard", &started);
-        assert!(
-            started.is_ok(),
-            "INCONCLUSIVE: the keyboard source did not start: {started:?}"
-        );
-        let _ = events.drain_for(Duration::from_millis(500));
-        let before = control(test, "before", &mut fixture, &events);
-        let mut counted = 0;
-        let mut recorded = 0;
-        let rounds = rounds_for(1, 5);
-        for round in 0..rounds {
-            let (c, r) = native_round(
-                (test, phase),
-                round,
-                &mut fixture,
-                &events,
-                (start, landing),
-                act,
-            );
-            counted += u32::from(c);
-            recorded += r;
-        }
-        let after = control(test, "after", &mut fixture, &events);
-        let late = keyboard.health().counters.late_events;
-        let _ = stop_counted(&mut keyboard, "keyboard");
-        drop(fixture);
-        say(
-            test,
-            format!("phase={phase} counted={counted} letters_recorded={recorded} control_before={before} control_after={after}"),
-        );
-        assert!(
-            before == CONTROL_LETTERS && after == CONTROL_LETTERS,
-            "a control recorded fewer than {CONTROL_LETTERS} letters of the plain field: the source did not record"
-        );
-        assert!(
-            counted >= rounds.saturating_sub(1).max(1),
-            "INCONCLUSIVE: {phase} counted {counted} rounds of {rounds}"
-        );
-        assert_eq!(
-            recorded, 0,
-            "{phase}: a letter of a password field was recorded"
-        );
-        assert_eq!(late, 0, "the source's late value moved");
+fn masked(fixture: &mut Fixture) -> bool {
+    get(
+        &fixture.ask(CMD_MASK, FixtureField::Plain.wire(), "masked"),
+        "ok",
+    ) == 1
+}
+
+fn notified_and_unseen(fixture: &mut Fixture) -> bool {
+    let notified = get(
+        &fixture.ask(CMD_NOTIFY_FOCUS, FixtureField::Plain.wire(), "notified"),
+        "ok",
+    ) == 1;
+    std::thread::sleep(Duration::from_millis(150));
+    let marks = seam::take_marks();
+    let seen = marks.iter().any(|mark| {
+        mark.what == "event"
+            && mark.state == Some(halvo_capture::secure_input::windows::FieldState::Clear)
     });
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask() {
-    native_phase(
-        "stall-mask",
-        "mask",
-        FixtureField::Plain,
-        "plain",
-        |fixture| {
-            get(
-                &fixture.ask(CMD_MASK, FixtureField::Plain.wire(), "masked"),
-                "ok",
-            ) == 1
-        },
-    );
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn a_focus_notice_that_the_system_does_not_deliver_changes_nothing() {
-    native_phase(
+    let listed: Vec<String> = marks
+        .iter()
+        .map(|mark| {
+            let element = mark.element.as_deref().unwrap_or("");
+            let password = element
+                .split(' ')
+                .find(|part| part.starts_with("is_password="))
+                .unwrap_or("is_password=none");
+            format!("{}:{:?}:{password}", mark.what, mark.state)
+        })
+        .collect();
+    say(
         "stall-stale-focus",
-        "stale-focus",
-        FixtureField::Password,
-        "password",
-        |fixture| {
-            let notified = get(
-                &fixture.ask(CMD_NOTIFY_FOCUS, FixtureField::Plain.wire(), "notified"),
-                "ok",
-            ) == 1;
-            std::thread::sleep(Duration::from_millis(150));
-            let marks = seam::take_marks();
-            let seen = marks.iter().any(|mark| {
-                mark.what == "event"
-                    && mark.state == Some(halvo_capture::secure_input::windows::FieldState::Clear)
-            });
-            let listed: Vec<String> = marks
-                .iter()
-                .map(|mark| {
-                    let element = mark.element.as_deref().unwrap_or("");
-                    let password = element
-                        .split(' ')
-                        .find(|part| part.starts_with("is_password="))
-                        .unwrap_or("is_password=none");
-                    format!("{}:{:?}:{password}", mark.what, mark.state)
-                })
-                .collect();
-            say(
-                "stall-stale-focus",
-                format!(
-                    "notified={notified} clear_focus_event_seen={seen} marks_after_the_notice={} [{}]",
-                    marks.len(),
-                    listed.join(",")
-                ),
-            );
-            notified
-        },
+        format!(
+            "notified={notified} clear_focus_event_seen={seen} marks_after_the_notice={} [{}]",
+            marks.len(),
+            listed.join(",")
+        ),
     );
+    notified
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
+fn a_masked_edit_and_a_focus_notice_that_the_system_does_not_deliver_record_no_letter() {
+    let test = "stall-mask-stale-focus";
+    with_deadline(test, Duration::from_secs(150), move || {
+        let mut session = Session::open(test);
+        let runs = [
+            session.native(NATIVE_PHASES[0], (FixtureField::Plain, "plain"), masked),
+            session.native(
+                NATIVE_PHASES[1],
+                (FixtureField::Password, "password"),
+                notified_and_unseen,
+            ),
+        ];
+        let controls = session.close();
+        let failures = verdicts(&runs, &controls);
+        assert!(
+            failures.is_empty(),
+            "{} of the {} phases failed: {}",
+            failures.len(),
+            runs.len(),
+            failures.join(";")
+        );
+    });
 }
 
 pub(super) fn no_focus_key_and_the_program_moves_the_focus_itself() -> (u32, u64) {
-    let test = "stall-self-focus";
-    let mut recorded = 0;
-    let mut late = 0;
-    for (wait, stall_ms) in [
-        (Wait::ServesSent, 150),
-        (Wait::ServesSent, 300),
-        (Wait::ServesSent, 600),
-        (Wait::Sleeps, 300),
-    ] {
-        let totals = stall_phase(Phase {
-            self_focus: true,
-            letters_through_the_wait: false,
-            ..phase(test, "self_focus", Lead::Nothing, wait, stall_ms)
-        });
-        recorded += totals.letters_recorded;
-        late += totals.late_moved;
-    }
-    (recorded, late)
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn the_program_moves_the_focus_in_two_steps_and_no_letter_is_recorded() {
-    stall_test(Phase {
-        two_step: true,
-        letters_through_the_wait: false,
-        ..phase("stall-two-step", "two_step", Lead::Nothing, Wait::Sleeps, 0)
-    });
+    run_kind(Kind::SelfFocus)
+        .iter()
+        .fold((0, 0), |(recorded, late), run| match run.outcome {
+            Outcome::Rounds { totals, .. } => {
+                (recorded + totals.letters_recorded, late + totals.late_moved)
+            }
+            Outcome::Native { .. } => (recorded, late),
+        })
 }
