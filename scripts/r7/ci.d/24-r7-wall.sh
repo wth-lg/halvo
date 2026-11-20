@@ -1239,11 +1239,156 @@ EOF
   chmod +x "$scratch/$1/git" || exit 2
 }
 
+fixture_git() {
+  command git "$@"
+  fixture_status=$?
+  case ${3:-}:${9:-} in
+    grep:-n)
+      fixture_search=$((fixture_search + 1))
+      fixture_matches_status=$fixture_status
+      fixture_nonmatches_status=not-run
+      printf '%s\000' "$@" >"$work/read-argv"
+      ;;
+    grep:-L)
+      fixture_nonmatches_status=$fixture_status
+      if [ -n "$fixture_expected_path" ]; then
+        for fixture_last_arg do :; done
+        watch=
+        if [ "$fixture_search" -eq "$fixture_candidate_search" ]; then
+          watch=$work/expected-search
+        elif [ "$fixture_last_arg" = ":(literal)$fixture_expected_path" ]; then
+          watch=$work/expected-hidden-search
+        fi
+        if [ -n "$watch" ]; then
+          mkdir -p "$watch" &&
+            cp "$work/matches" "$work/nonmatches" "$work/read-argv" "$work/search-stderr" "$watch/" &&
+            printf '%s %s\n' "$fixture_matches_status" "$fixture_nonmatches_status" >"$watch/statuses"
+        fi
+      fi
+      ;;
+  esac
+  return "$fixture_status"
+}
+
+fixture_read_receipt() {
+  path=$2
+  snapshot=$3
+  receipt_time=$(date -u '+%Y-%m-%dT%H:%M:%SZ') || return 1
+  perl -e '
+    use strict;
+    use warnings;
+    use Time::HiRes qw(stat);
+    my ($work, $case, $path, $time) = @ARGV;
+    sub emit { print "wall-read case=$case $_[0]=$_[1]\n" or die $! }
+    sub disk {
+      my ($key, $file) = @_;
+      my @s = stat($file);
+      emit($key, @s ? sprintf("size=%d atime=%.9f mtime=%.9f ctime=%.9f", @s[7..10]) : "absent");
+    }
+    emit("time-utc", $time);
+    emit("path", $path);
+    open my $index, "<:raw", "$work/index" or die $!;
+    my ($entry) = grep { /\t\Q$path\E\n\z/ } <$index>;
+    chomp $entry if defined $entry;
+    emit("index-entry", $entry // "absent");
+    disk("worktree-stat", $path);
+    disk("index-stat", $ENV{GIT_INDEX_FILE});
+    if (defined $entry && $entry =~ /^\d+ ([0-9a-f]{2})([0-9a-f]+) /) {
+      disk("object-stat", "$ENV{GIT_OBJECT_DIRECTORY}/$1/$2");
+      my $pack = "$ENV{GIT_OBJECT_DIRECTORY}/pack";
+      opendir my $dir, $pack or die $!;
+      for my $file (sort grep { /\.(?:pack|idx)\z/ } readdir $dir) {
+        disk("pack-stat-$file", "$pack/$file");
+      }
+    } else {
+      emit("object-stat", "no listed object");
+    }
+  ' "$work" "$1" "$path" "$receipt_time" || return 1
+  reread_status=0
+  LC_ALL=C perl -e '
+    local $/;
+    my ($git, $path) = @ARGV;
+    my @args = split /\0/, <STDIN>;
+    pop @args while @args && $args[-1] ne "--";
+    die "missing pathspec separator" unless @args;
+    exec {$git} $git, @args, ":(literal)$path";
+    die "cannot execute git: $!";
+  ' "$fixture_real_git" "$path" <"$snapshot/read-argv" >"$work/reread" 2>"$work/reread-stderr" || reread_status=$?
+  blob_status=0
+  "$fixture_real_git" cat-file blob ":$path" >"$work/reread-blob" 2>"$work/blob-stderr" || blob_status=$?
+  perl -e '
+    use strict;
+    use warnings;
+    my ($snapshot, $work, $case, $hits, $misses, $reread, $blob) = @ARGV;
+    sub emit { print "wall-read case=$case $_[0]=$_[1]\n" or die $! }
+    sub bytes {
+      my ($key, $file) = @_;
+      open my $fh, "<:raw", $file or die $!;
+      local $/;
+      my $data = <$fh> // "";
+      emit("$key-bytes", length $data);
+      emit("$key-hex", unpack("H*", $data));
+    }
+    emit("matches-exit", $hits);
+    emit("nonmatches-exit", $misses);
+    emit("reread-exit", $reread);
+    emit("blob-exit", $blob);
+    bytes("argv", "$snapshot/read-argv");
+    bytes("matches", "$snapshot/matches");
+    if ($misses eq "not-run") {
+      emit("nonmatches-bytes", 0);
+      emit("nonmatches-hex", "");
+    } else {
+      bytes("nonmatches", "$snapshot/nonmatches");
+    }
+    bytes("search-stderr", "$snapshot/search-stderr");
+    bytes("reread", "$work/reread");
+    bytes("reread-stderr", "$work/reread-stderr");
+    bytes("blob", "$work/reread-blob");
+    bytes("blob-stderr", "$work/blob-stderr");
+  ' "$snapshot" "$work" "$1" "$4" "$5" "$reread_status" "$blob_status"
+}
+
+fixture_missed_reads() {
+  if [ -s "$work/search-error" ]; then
+    IFS= read -r diagnosis <"$work/search-error" || return 1
+    case $diagnosis in
+      'git grep files-read='*' missing '*)
+        path=${diagnosis#* missing }
+        fixture_read_receipt "$1" "${path%' (git quotes this tracked path)'}" "$work" "$fixture_matches_status" "$fixture_nonmatches_status"
+        return
+        ;;
+      *": error: '"*"': unable to read "*)
+        while IFS= read -r diagnostic_line; do
+          case $diagnostic_line in
+            *": error: '"*"': unable to read "*)
+              path=${diagnostic_line#*": error: '"}
+              path=${path%"': unable to read "*}
+              fixture_read_receipt "$1" "$path" "$work" "$fixture_matches_status" "$fixture_nonmatches_status" || return 1
+              ;;
+          esac
+        done <"$work/search-error"
+        return 0
+        ;;
+    esac
+  fi
+  if [ "$check_status" -eq 0 ] && [ -n "$fixture_expected_path" ] && ! grep -q -F -e "$fixture_expected_path:" "$work/lines"; then
+    for watch in "$work/expected-search" "$work/expected-hidden-search"; do
+      [ -d "$watch" ] || continue
+      read -r match_status nonmatch_status <"$watch/statuses" || return 1
+      fixture_read_receipt "$1" "$fixture_expected_path" "$watch" "$match_status" "$nonmatch_status" || return 1
+    done
+  fi
+}
+
 keep_case() {
   [ -n "${CI_D_ARTIFACTS:-}" ] || return 0
   mkdir -p "$CI_D_ARTIFACTS/case-$1" || exit 2
   cp "$work/problems" "$work/stderr" "$work/lines" "$work/index" "$CI_D_ARTIFACTS/case-$1/" || exit 2
   cp "$case_index" "$CI_D_ARTIFACTS/case-$1/git-index" || exit 2
+  if [ -s "$work/read-receipt" ]; then
+    cp "$work/read-receipt" "$CI_D_ARTIFACTS/case-$1/" || exit 2
+  fi
 }
 
 expect() {
@@ -1253,6 +1398,19 @@ expect() {
   : >"$work/lines" || exit 2
   printf '%s\t%s\t%s\t%s\t%s\n' "$cases" "$1" "$2" "$case_index" "${3:-}" >>"$scratch/pending" || exit 2
   (
+    if [ "${R7_WALL_TRACE_READS:-}" = 1 ]; then
+      fixture_real_git=$(command -v git) || exit 2
+      fixture_search=0
+      fixture_expected_path=
+      case ${3:-} in read:*) fixture_expected_path=${3#read:} ;; esac
+      case $fixture_expected_path in
+        [Bb][Aa][Cc][Kk][Ee][Nn][Dd]/*) fixture_candidate_search=1 ;;
+        *) fixture_candidate_search=2 ;;
+      esac
+      fixture_matches_status=unknown
+      fixture_nonmatches_status=unknown
+      git() { fixture_git "$@"; }
+    fi
     if [ -n "$case_bin" ]; then
       PATH="$case_bin:$PATH"
       export PATH
@@ -1260,7 +1418,11 @@ expect() {
     GIT_INDEX_FILE=$case_index
     export GIT_INDEX_FILE
     check_in "$case_repo" "$work" "$work/problems" >/dev/null 2>"$work/stderr"
-    printf '%s\n' "$?" >"$work/code"
+    check_status=$?
+    if [ "${R7_WALL_TRACE_READS:-}" = 1 ]; then
+      fixture_missed_reads "$2" >"$work/read-receipt" || printf 'wall-read case=%s capture-error=1\n' "$2" >>"$work/read-receipt"
+    fi
+    printf '%s\n' "$check_status" >"$work/code"
   ) &
   case_bin=
   running=$((running + 1))
@@ -1302,6 +1464,7 @@ verdict_of() {
   case $case_name in
     known-limit-*) seen_limits="$seen_limits ${case_name#known-limit-}" ;;
   esac
+  if [ -s "$work/read-receipt" ]; then cat "$work/read-receipt"; fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case_name" "$want" "$got"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $case_name"
