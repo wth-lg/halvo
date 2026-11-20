@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use crate::case::{read_dir, Case};
-use crate::derived::{process_key, Scratch};
+use crate::derived::{process_key, DerivedHost, Scratch};
 use crate::drift::{verdict, Gate, Plays};
+use crate::host::PlayHost;
 use crate::stub::{play_case, Arm, Tally};
 use crate::tests::admission::{admission, Line};
 use crate::tests::reader::{calendar_days_min, repo};
@@ -123,22 +124,47 @@ fn drift_derived_plays_a_case_on_a_store_file_in_the_play_s_own_directory() {
     let case = dev_cases().remove(0);
     let scratch =
         Scratch::make_in(&scratch("one-play")).expect("the command's temporary directory");
-    let store = scratch
-        .path()
-        .join("play-1")
-        .join("derived")
-        .join("derived.db");
+    let dir = scratch.path().join("play-1");
+    let store = dir.join("derived").join("derived.db");
+    let key = process_key();
     let plays = Plays::Derived {
         scratch,
-        key: process_key(),
+        key: key.clone(),
     };
     assert!(!store.exists(), "no play has run yet");
-    plays
+    let tally = plays
         .play(&case, Arm::Admit, false)
         .expect("every occurrence completes");
     assert!(
         store.is_file(),
         "the play of {} in the arm admit left no file derived/derived.db in its directory play-1",
         case.name
+    );
+    let last = case.occurrences[case.occurrences.len() - 1].day;
+    let mut again = DerivedHost::new(dir, key, last);
+    let mut learn_rows = 0;
+    let mut edit_rows = 0;
+    for entry in halvo_schema::learning::KINDS {
+        let rows = again
+            .learn_rows(entry.name)
+            .expect("a read of the play's own store")
+            .len();
+        learn_rows += rows;
+        if entry.name == "learn_edit" {
+            edit_rows = rows;
+        }
+    }
+    assert!(
+        tally.edit_rows > 0,
+        "the play of {} in the arm admit stored no edit",
+        case.name
+    );
+    assert_eq!(
+        edit_rows, tally.edit_rows as usize,
+        "the learn_edit rows of the play's own store, opened again with its key, against the tally's"
+    );
+    assert!(
+        learn_rows > 0,
+        "the play's own store holds no row of the family learn"
     );
 }
