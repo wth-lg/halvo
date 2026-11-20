@@ -131,7 +131,7 @@ carbon_calls() {
     -- . ":(exclude)$lock" ":(exclude)scripts/r1/ci.d/$name.sh" ':(exclude)scripts/r4/ci.d/20-r4-core.sh' \
     ':(exclude)tools/r4-trials/app/system/macos.swift' ":(exclude)$held" >>"$work/carbon" 2>/dev/null
   case $? in 0 | 1) ;; *) fail "git grep could not read the tree for a lookup by name" ;; esac
-  other=$(tr '\000' ' ' <"$work/carbon" | cut -d : -f 1 | sort -u | tr '\n' ' ')
+  other=$(cut -d : -f 1 "$work/carbon" | sort -u | tr '\n' ' ')
   [ -z "$other" ] ||
     fail "the name EnableSecureEventInput or DisableSecureEventInput (with or without leading underscores), a link_name whose name is no plain literal, or a lookup of a symbol by name (dlsym, dlopen, CFBundleGetFunctionPointerForName) stands outside $lock, whose one lock holds the three Carbon calls: ${other% } (rulings MA-14, MA-30 M6, MA-31 N6); call the hold of that file"
   held_lookups
@@ -1634,6 +1634,7 @@ EOF
     'extern "C" { /* \0000 */ #[link_name = concat!("Enable", "SecureEventInput")] fn hold() -> i32; }\n' "$zz"
   rules_case carbon-a-binary-file-that-holds-none-of-the-names PASS 'carbon: in every tracked text file but' \
     '\0000\0001\0002 an image with link name and dl sym in it\n' crates/other/icon.png
+  check carbon-printed-limits-without-the-way-that-closed PASS "linker arguments from outside the tree, and in $held a macro" '' rules
   rules_case carbon-held-file-limit-s02-a-module-file-whose-extension-is-RS PASS "$held_store3c_text" \
     'include!("full_flush.rs");\npub(super) fn other() -> Option<*mut libc::c_void> {\n    symbol(c"getpid")\n}\n' \
     crates/halvo-capture/src/store/hardening_tests/full_flush_again.RS
