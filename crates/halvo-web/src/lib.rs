@@ -163,35 +163,18 @@ mod tests {
         );
     }
 
-    /// CP-186 N8: every test target of the crate other than the library's own (the programs of
-    /// src/bin and the files of tests) holds the test `the_fence_is_on_in_this_test_target`, each
+    /// CP-186 N8: every test target of the crate other than the library's own (`test_targets`: the
+    /// programs of src/bin, tests, examples and benches) holds the test
+    /// `the_fence_is_on_in_this_test_target`, each
     /// program of src/bin needs the feature, and the manifest gives the crate's own tests the
     /// feature through its dev-dependency on itself, so that no test target loses the fence's
     /// means unseen.
     #[test]
     fn every_test_target_holds_the_test_that_its_fence_is_on() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let mut targets = Vec::new();
-        for dir in ["src/bin", "tests"] {
-            let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
-                continue;
-            };
-            for entry in entries {
-                let path = entry.expect("an entry").path();
-                if path.extension().is_some_and(|e| e == "rs") {
-                    targets.push(path);
-                }
-            }
-        }
+        let targets = test_targets(root);
         assert!(targets.len() >= 2, "{targets:?}");
-        let missing: Vec<&PathBuf> = targets
-            .iter()
-            .filter(|p| {
-                !std::fs::read_to_string(p)
-                    .unwrap_or_default()
-                    .contains("fn the_fence_is_on_in_this_test_target()")
-            })
-            .collect();
+        let missing = without_the_fence_test(&targets);
         assert!(
             missing.is_empty(),
             "test targets without the test: {missing:?}"
@@ -209,6 +192,85 @@ mod tests {
             (bins, fenced),
             (3, 3),
             "each program needs the feature test-fence"
+        );
+    }
+
+    /// The test targets of the crate below `root` other than the library's own, as cargo finds
+    /// them: each `.rs` file of src/bin, tests, examples and benches, and the `main.rs` of each
+    /// directory directly below one of them.
+    fn test_targets(root: &Path) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        for dir in ["src/bin", "tests", "examples", "benches"] {
+            let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let main = path.join("main.rs");
+                    if main.is_file() {
+                        out.push(main);
+                    }
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+        out.sort();
+        out
+    }
+
+    /// Of `targets`, those whose text holds no fence-state test.
+    fn without_the_fence_test(targets: &[PathBuf]) -> Vec<PathBuf> {
+        targets
+            .iter()
+            .filter(|p| {
+                !std::fs::read_to_string(p)
+                    .unwrap_or_default()
+                    .contains("fn the_fence_is_on_in_this_test_target()")
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// U2.6 round 1, R5, failing first: the reader of test targets takes, as cargo does, the `.rs`
+    /// files of src/bin, tests, examples and benches and the `main.rs` of a directory below each,
+    /// and names each one of them that holds no fence-state test; a module beside a `main.rs` is
+    /// no target.
+    #[test]
+    fn r5_a_target_in_a_directory_of_tests_examples_or_benches_is_read() {
+        let dir = crate::child::scratch("fence-targets");
+        let with = "#[test]\nfn the_fence_is_on_in_this_test_target() {}\n";
+        for (path, text) in [
+            ("src/bin/a.rs", with),
+            ("src/bin/b/main.rs", ""),
+            ("tests/c.rs", with),
+            ("tests/d/main.rs", ""),
+            ("tests/d/helper.rs", ""),
+            ("examples/e.rs", ""),
+            ("benches/f/main.rs", ""),
+        ] {
+            let p = dir.join(path);
+            std::fs::create_dir_all(p.parent().expect("a directory")).expect("a directory");
+            std::fs::write(&p, text).expect("a file");
+        }
+        let missing: Vec<String> = without_the_fence_test(&test_targets(&dir))
+            .iter()
+            .map(|p| {
+                p.strip_prefix(&dir)
+                    .expect("below the directory")
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect();
+        assert_eq!(
+            missing,
+            vec![
+                "benches/f/main.rs",
+                "examples/e.rs",
+                "src/bin/b/main.rs",
+                "tests/d/main.rs"
+            ]
         );
     }
 
