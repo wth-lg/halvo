@@ -12043,3 +12043,63 @@ fn u24s_n6_at_the_runners_end_a_second_step_whose_answer_the_run_did_not_take_la
     );
     assert_eq!(lapses(&c).len(), 1, "and lapses it no second time");
 }
+
+fn u24s_is_lapse(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::ItemLapsed { .. })
+}
+
+#[test]
+fn u24s_rd126_17_a_raise_closes_an_open_same_kind_item_of_another_run_whatever_its_day() {
+    let earlier = RunId::parse(&format!("{:032x}", 0x0f09)).unwrap();
+    let old = ItemId::parse(&format!("{:032x}", 0x0e09)).unwrap();
+    for day in [DAY - 92, DAY - 1, DAY, DAY + 2] {
+        let both = owner(&[MANUAL], Limits::PRODUCT);
+        let seq = both.ports.events.borrow().len() as u32 + 1;
+        both.ports
+            .events
+            .borrow_mut()
+            .push(halvo_coord::types::Event {
+                workflow: support::flow(0),
+                agent: agent(0),
+                seq: std::num::NonZeroU32::new(seq).unwrap(),
+                day,
+                at: 0,
+                what: What::ItemRaised {
+                    item: old.clone(),
+                    raised: halvo_coord::types::Raised::Confirm(earlier.clone()),
+                },
+            });
+        both.ports
+            .refuse_record(u24s_is_lapse, refused_name("store"));
+        let c = Coordinator::new(both, Limits::PRODUCT);
+        c.tick();
+        assert!(
+            !events(&c)
+                .iter()
+                .any(|w| matches!(w, What::ItemLapsed { .. })),
+            "day {day}: recovery's lapse of the earlier item stays owed"
+        );
+        c.ports().ports.clear_refusals();
+        let run = start(&c, 0);
+        assert_eq!(c.on_run(&run, ask_confirm(&run, 0)), Ok(()));
+        let rows = events(&c);
+        let lapse = What::ItemLapsed {
+            item: old.clone(),
+            lapsed: Lapsed::Confirm(LapseCause::AppEnded),
+        };
+        let at = rows
+            .iter()
+            .position(|w| *w == lapse)
+            .unwrap_or_else(|| panic!("day {day}: the raise closes the earlier item: {rows:?}"));
+        assert!(
+            matches!(rows.get(at + 1), Some(What::ItemRaised { raised: halvo_coord::types::Raised::Confirm(r), .. }) if *r == run),
+            "day {day}: the lapse goes first in the body of the raise (RD-126 item 17): {rows:?}"
+        );
+        c.tick();
+        assert_eq!(
+            events(&c).iter().filter(|w| **w == lapse).count(),
+            1,
+            "day {day}: the owed lapse is paid by that close, with no second row"
+        );
+    }
+}
