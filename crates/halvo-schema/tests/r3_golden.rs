@@ -5,10 +5,11 @@ use std::path::{Path, PathBuf};
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
     Accepted, AddOrigin, CheckpointsReply, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun,
-    Finish, ListCheckpoints, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply,
-    LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint,
-    PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession, RevReply, RunnerCall,
-    RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply, StepsReply, Stored,
+    Finish, ListCheckpoints, ListOverlaps, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply,
+    LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession,
+    MarkCheckpoint, Overlap, OverlapsReply, PutCheckpoint, PutEffect, PutLog, PutPlaybook,
+    PutReplyRow, PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
+    SetState, StartRun, StateReply, StepsReply, Stored,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -908,6 +909,25 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             state: MarkState::Left,
             left: Some(LeftReason::NotFile),
         }),
+        CoordinatorCall::ListOverlaps(ListOverlaps {
+            workflow: workflow(),
+            agent: agent(),
+            slots: None,
+        }),
+        CoordinatorCall::ListOverlaps(ListOverlaps {
+            workflow: workflow(),
+            agent: agent(),
+            slots: Some(vec![
+                Slot {
+                    name: name("account_address"),
+                    value: OwnValue::new("me@mail.test"),
+                },
+                Slot {
+                    name: name("reply_senders"),
+                    value: OwnValue::new("ann@people.test, bob@people.test"),
+                },
+            ]),
+        }),
     ]
 }
 
@@ -978,6 +998,25 @@ fn coordinator_replies() -> Vec<CoordinatorReply> {
             next: None,
         }),
         CoordinatorReply::Stored(Stored { stored: 1 }),
+        CoordinatorReply::Overlaps(OverlapsReply {
+            overlaps: vec![
+                Overlap {
+                    workflow: WorkflowId::from_random([0x31; 16]),
+                    agent: AgentId::from_random([0x41; 16]),
+                    senders: vec![own("ann@people.test")],
+                },
+                Overlap {
+                    workflow: WorkflowId::from_random([0x32; 16]),
+                    agent: AgentId::from_random([0x42; 16]),
+                    senders: vec![own("ann@people.test"), own("bob@people.test")],
+                },
+            ],
+            more: YesNo::No,
+        }),
+        CoordinatorReply::Overlaps(OverlapsReply {
+            overlaps: vec![],
+            more: YesNo::No,
+        }),
     ]
 }
 
@@ -1296,7 +1335,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in LEFT_OUT {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    for name in ["binding", "length"] {
+    for name in ["binding", "length", "overlap"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
     assert_eq!(executable::KINDS.len(), 10);
@@ -1313,7 +1352,7 @@ fn the_committed_names_file_holds_the_names_of_this_file_and_none_left_out() {
         assert!(lines.contains(name), "{name}");
     }
     for name in [
-        "tier", "amount", "week", "month", "role", "binding", "length",
+        "tier", "amount", "week", "month", "role", "binding", "length", "overlap",
     ] {
         assert!(!lines.contains(name), "{name}");
     }

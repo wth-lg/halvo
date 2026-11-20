@@ -31,7 +31,8 @@ commits of the event that started the workflow. No flag of git skips it.
   sh scripts/ci-commit-messages.sh
       Read the event from these variables. GitHub Actions sets three of them
       for every step:
-        GITHUB_EVENT_NAME  push or pull_request
+        GITHUB_EVENT_NAME  push, pull_request or schedule. A push to a branch
+                           whose name begins with land- starts no run.
         GITHUB_REF         the ref of the event, for example refs/heads/main
         GITHUB_BASE_REF    the base branch of a pull request. When it is empty,
                            the base counts as the default branch.
