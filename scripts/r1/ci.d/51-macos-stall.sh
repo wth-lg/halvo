@@ -1711,7 +1711,7 @@ EOF
   allowed='forbidden_import=_EnableSecureEventInput'
   mkdir -p "$work/repo/scripts/r2/ci.d" || exit 2
   rules_case carbon-s1-the-one-line-of-62-build-passes PASS "but the one whole line $allowed of $build62" \
-    '#!/bin/sh\n# jobs: macos windows\n'"$allowed"'\necho "$forbidden_import"\n' "$build62"
+    '#!/bin/sh\n# jobs: macos windows\n'"$allowed"'\necho the import that the check refuses\n' "$build62"
   for pair in "a-leading-blank| $allowed" "a-leading-tab|\t$allowed" "a-blank-after-it|$allowed " \
     "a-comment-after-it|$allowed # the import" "another-byte-after-it|$allowed;" \
     'quotes-round-the-value|forbidden_import="_EnableSecureEventInput"' "export-before-it|export $allowed" \
