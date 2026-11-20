@@ -34,6 +34,7 @@ pub struct Shared {
     policy: Policy<Config>,
     clock_fails_at_cancel: AtomicBool,
     clock_failing: AtomicBool,
+    clock_back_at_cancel: Mutex<Option<u64>>,
     recorder: Recorder,
 }
 
@@ -44,6 +45,8 @@ pub enum Hold {
     For(Duration),
     /// Until `Shared::release_kills`.
     Released,
+    /// No time: the recorder panics in place of an answer.
+    Panics,
 }
 
 #[derive(Default)]
@@ -64,6 +67,10 @@ impl Recorder {
             .push((run.clone(), Instant::now()));
         self.holding.fetch_add(1, Ordering::SeqCst);
         match hold {
+            Hold::Panics => {
+                self.holding.fetch_sub(1, Ordering::SeqCst);
+                panic!("the recorder's kill panics");
+            }
             Hold::For(time) => std::thread::sleep(time),
             Hold::Released => {
                 let mut released = self.released.lock().unwrap_or_else(PoisonError::into_inner);
@@ -111,6 +118,14 @@ impl Shared {
     /// From the next `Runs::cancel` on, `Clock::now` and `Clock::day` fail with `no_service`.
     pub fn fail_clock_at_cancel(&self) {
         self.clock_fails_at_cancel.store(true, Ordering::SeqCst);
+    }
+
+    /// At the next `Runs::cancel` the clock is set back to `to`, once.
+    pub fn step_clock_at_cancel(&self, to: u64) {
+        *self
+            .clock_back_at_cancel
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(to);
     }
 
     /// Runs `f` on the memory ports.
@@ -247,6 +262,7 @@ pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
         policy: Policy::new(&[]),
         clock_fails_at_cancel: AtomicBool::new(false),
         clock_failing: AtomicBool::new(false),
+        clock_back_at_cancel: Mutex::new(None),
         recorder: Recorder::default(),
     }
 }
@@ -523,6 +539,14 @@ impl Runs for Shared {
         let _turn = self.enter();
         if self.clock_fails_at_cancel.load(Ordering::SeqCst) {
             self.clock_failing.store(true, Ordering::SeqCst);
+        }
+        if let Some(to) = self
+            .clock_back_at_cancel
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
+            self.ports.set_now(to);
         }
         self.ports.cancel(run)
     }

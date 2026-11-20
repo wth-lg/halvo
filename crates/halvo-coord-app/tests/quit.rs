@@ -1,6 +1,7 @@
 mod support;
 
-use halvo_coord::mem::Call;
+use halvo_coord::mem::{Call, Method};
+use halvo_coord::ports::PortError;
 use halvo_coord::types::{Action, AgentId, Cause, Limits, Outcome, RunEvent, RunId, What};
 use halvo_coord_app::{Core, Hub};
 use std::sync::Arc;
@@ -307,4 +308,229 @@ fn u46_a_quit_whose_kill_succeeds_names_no_run_and_waits_out_no_bound() {
     );
     assert_eq!(kills(&hub, m), [run]);
     assert!(named.is_empty(), "{named:?}");
+}
+
+struct Release(Arc<Hub<Shared>>);
+
+impl Drop for Release {
+    fn drop(&mut self) {
+        self.0.coordinator().ports().inner().release_kills();
+    }
+}
+
+fn hub_of(agents: usize, max_live_runs: u32, grace_s: u64) -> Arc<Hub<Shared>> {
+    let limits = Limits {
+        cancel_grace_s: grace_s,
+        max_live_runs,
+        ..Limits::PRODUCT
+    };
+    let hub = Hub::new(
+        world(agents, limits),
+        limits,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    hub.tick();
+    hub
+}
+
+fn live_run_of(hub: &Hub<Shared>, n: usize) -> RunId {
+    let c = hub.coordinator();
+    c.control(&agent(n), Action::RunNow).unwrap();
+    let run = started(hub).pop().unwrap();
+    c.on_run(&run, RunEvent::Hello).unwrap();
+    run
+}
+
+fn finished_by<T>(call: &JoinHandle<T>, called: Instant, limit: Duration) -> bool {
+    while !call.is_finished() && called.elapsed() < limit {
+        sleep(ms(10));
+    }
+    call.is_finished()
+}
+
+#[test]
+fn u46_a_tick_whose_kill_holds_during_the_wait_does_not_hold_quit_past_its_bound() {
+    let hub = hub_of(2, 2, 2);
+    let _release = Release(hub.clone());
+    let c = hub.coordinator();
+    let a = live_run_of(&hub, 0);
+    let b = live_run_of(&hub, 1);
+    c.control(&agent(0), Action::Stop).unwrap();
+    c.ports().inner().with(|p| p.end_runner(&a));
+    c.on_run(&a, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    let ports = c.ports().inner();
+    ports.hold_kills(Hold::Released);
+    let called = Instant::now();
+    let quitting = quit_named(&hub, None);
+    sleep(ms(500));
+    ports.with(|p| p.set_now(T0 + 2_000));
+    let ticker = {
+        let hub = hub.clone();
+        std::thread::spawn(move || hub.tick())
+    };
+    let returned = finished_by(&quitting, called, ms(4_900));
+    let holding = ports.kills_holding();
+    ports.release_kills();
+    let (took, named) = quitting.join().unwrap();
+    ticker.join().unwrap();
+    assert!(
+        returned,
+        "2 x cancel_grace_s = 4 s and a margin: the hook had not returned while the tick's kill \
+         of A's tree held"
+    );
+    assert!(took >= ms(3_900) && took < ms(4_900), "{took:?}");
+    assert_eq!(
+        holding, 1,
+        "the tick's kill still held when the hook returned"
+    );
+    assert_eq!(named, [(agent(1), b)]);
+}
+
+#[test]
+fn u46_a_quit_during_a_ticks_retry_of_a_stuck_kill_returns_within_its_bound() {
+    let hub = hub(1);
+    let _release = Release(hub.clone());
+    let run = live_run(&hub);
+    let ports = hub.coordinator().ports().inner();
+    ports.with(|p| {
+        p.workflows.borrow_mut().clear();
+        p.refuse(Method::Kill, PortError::NoService);
+    });
+    hub.tick();
+    ports.with(|p| p.set_now(T0 + 1_000));
+    hub.tick();
+    ports.with(|p| p.clear_refusals());
+    ports.hold_kills(Hold::Released);
+    let poller = {
+        let hub = hub.clone();
+        std::thread::spawn(move || hub.tick())
+    };
+    let waited = Instant::now();
+    while ports.kills_holding() == 0 && waited.elapsed() < ms(5_000) {
+        sleep(ms(10));
+    }
+    assert_eq!(
+        ports.kills_holding(),
+        1,
+        "the tick retries the stuck kill and the recorder holds it"
+    );
+    let called = Instant::now();
+    let quitting = quit_named(&hub, Some(ms(100)));
+    let returned = finished_by(&quitting, called, ms(1_900));
+    ports.release_kills();
+    poller.join().unwrap();
+    let (took, named) = quitting.join().unwrap();
+    assert!(
+        returned,
+        "cancel_grace_s = 1 s for the first step and a margin: the hook had not returned while \
+         the tick's retry held the coordinator's lock"
+    );
+    assert!(took < ms(1_900), "{took:?}");
+    assert_eq!(named, [(agent(0), run)]);
+}
+
+#[test]
+fn u46_a_second_quit_during_the_first_quits_wait_does_not_hold_it_past_its_bound() {
+    let hub = hub(1);
+    let _release = Release(hub.clone());
+    let run = live_run(&hub);
+    let ports = hub.coordinator().ports().inner();
+    ports.hold_kills(Hold::Released);
+    let called = Instant::now();
+    let first = quit_named(&hub, None);
+    sleep(ms(100));
+    let (took2, named2) = quit_named(&hub, Some(ms(100))).join().unwrap();
+    let returned = finished_by(&first, called, ms(2_900));
+    ports.release_kills();
+    let (took1, named1) = first.join().unwrap();
+    assert!(
+        returned,
+        "2 x cancel_grace_s = 2 s and a margin: the first call had not returned while the second \
+         call's kill held"
+    );
+    assert!(took1 < ms(2_900), "{took1:?}");
+    assert!(took2 < ms(1_900), "{took2:?}");
+    assert_eq!(named1, [(agent(0), run)]);
+    assert_eq!(named2, named1);
+}
+
+#[test]
+fn u46_a_second_quit_after_a_held_kill_returns_within_its_bound_and_names_the_run() {
+    let hub = hub(1);
+    let _release = Release(hub.clone());
+    let run = live_run(&hub);
+    let ports = hub.coordinator().ports().inner();
+    ports.hold_kills(Hold::Released);
+    let (took1, named1) = quit_named(&hub, Some(ms(100))).join().unwrap();
+    assert_eq!(
+        ports.kills_holding(),
+        1,
+        "the first call's kill still holds"
+    );
+    let called = Instant::now();
+    let second = quit_named(&hub, Some(ms(100)));
+    let returned = finished_by(&second, called, ms(1_900));
+    ports.release_kills();
+    let (took2, named2) = second.join().unwrap();
+    assert!(took1 < ms(1_900), "{took1:?}");
+    assert!(
+        returned,
+        "cancel_grace_s = 1 s for the first step and a margin: the second call had not returned \
+         while the first call's kill held"
+    );
+    assert!(took2 < ms(1_900), "{took2:?}");
+    assert_eq!(named1, [(agent(0), run)]);
+    assert_eq!(named2, named1);
+}
+
+#[test]
+fn u46_a_clock_step_back_during_the_first_step_does_not_stretch_the_wait() {
+    let hub = hub(1);
+    let run = live_run(&hub);
+    hub.coordinator()
+        .ports()
+        .inner()
+        .step_clock_at_cancel(T0 - 3_000);
+    let m = mark(&hub);
+    let took = quit(&hub, None).join().unwrap();
+    assert!(
+        took >= ms(900) && took < ms(1_900),
+        "cancel_grace_s = 1 s, with the clock stepped back 3 s after the first step's read: \
+         {took:?}"
+    );
+    assert_eq!(kills(&hub, m), [run]);
+}
+
+#[test]
+fn u46_a_hub_taken_out_of_its_arc_still_bounds_the_second_step() {
+    let Ok(raw) = Arc::try_unwrap(hub(1)) else {
+        panic!("Hub::new hands out its one Arc");
+    };
+    let hub = Arc::new(raw);
+    let _release = Release(hub.clone());
+    let run = live_run(&hub);
+    let ports = hub.coordinator().ports().inner();
+    ports.hold_kills(Hold::Released);
+    let called = Instant::now();
+    let quitting = quit_named(&hub, Some(ms(100)));
+    let returned = finished_by(&quitting, called, ms(1_900));
+    ports.release_kills();
+    let (took, named) = quitting.join().unwrap();
+    let Ok(other) = Arc::try_unwrap(hub_of(1, 1, 1)) else {
+        panic!("Hub::new hands out its one Arc");
+    };
+    live_run(&other);
+    other.coordinator().ports().inner().hold_kills(Hold::Panics);
+    let unwound =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| other.quit(Some(ms(100)))))
+            .is_err();
+    assert!(
+        returned,
+        "a budget of 100 ms, then cancel_grace_s = 1 s for the second step and a margin"
+    );
+    assert!(took < ms(1_900), "{took:?}");
+    assert_eq!(named, [(agent(0), run)]);
+    assert!(!unwound, "a kill's panic does not unwind through the hook");
 }

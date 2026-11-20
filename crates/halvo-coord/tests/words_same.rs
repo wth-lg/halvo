@@ -454,16 +454,19 @@ fn u24r_the_three_texts_stand_word_for_word() {
     );
     assert_eq!(
         t("line.working.kill_stuck_windows", &[]),
-        "Its task may still run. Click Halvo's icon by the clock (or under ^), Quit Halvo, then open Halvo again."
+        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo."
     );
-    let windows = t("line.working.kill_stuck_windows", &[]).to_lowercase();
-    for word in ["stop", "end", "second", "minute", "hour"] {
-        assert!(
-            !windows.contains(word),
-            "U4.6: text 2 promises no end and no time at Quit (ruling RD-147 (5)(i)): {word}"
-        );
-    }
-    assert!(!windows.contains(|c: char| c.is_ascii_digit()));
+    let windows = t("line.working.kill_stuck_windows", &[]);
+    assert_eq!(
+        promises_an_end_or_a_time(&windows),
+        Vec::<String>::new(),
+        "U4.6: text 2 promises no end and no time at Quit (ruling RD-147 (5)(i))"
+    );
+    assert!(
+        !windows.contains("open Halvo again"),
+        "RD-148, RD-150: no text tells a person to quit and reopen Halvo while Quit can leave a \
+         run live"
+    );
     assert_eq!(
         t("line.problem.record", &[]),
         "Halvo can't read or save this agent's record. The agent starts nothing new. Stop works if shown."
@@ -481,6 +484,37 @@ fn u24r_the_three_texts_stand_word_for_word() {
         let words = t(key, &[("count", "3")]).split_whitespace().count();
         assert!(words <= 20, "{key}: {words} words");
     }
+}
+
+fn promises_an_end_or_a_time(text: &str) -> Vec<String> {
+    let lower = text.to_lowercase();
+    let mut found: Vec<String> = ["stop", "end", "second", "minute", "hour"]
+        .iter()
+        .filter(|stem| lower.contains(**stem))
+        .map(|stem| stem.to_string())
+        .collect();
+    if lower.contains(|c: char| c.is_ascii_digit()) {
+        found.push("a number".to_string());
+    }
+    found
+}
+
+#[test]
+fn u46_the_guard_of_text_2_reads_words_not_letters() {
+    let text =
+        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo.";
+    let promise = format!("{text} All tasks finish quickly.");
+    let warning = format!("{text} Check what it did before you repeat a send.");
+    assert_ne!(
+        promises_an_end_or_a_time(&promise),
+        Vec::<String>::new(),
+        "{promise}"
+    );
+    assert_eq!(
+        promises_an_end_or_a_time(&warning),
+        Vec::<String>::new(),
+        "{warning}"
+    );
 }
 
 /// The hold `failures` says what happened and its way out (ruling RD-81).

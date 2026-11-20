@@ -10,9 +10,11 @@ use halvo_coord::ports::{PortError, Reaped};
 use halvo_coord::run::{Act, StopBy};
 use halvo_coord::schedule::{Answer, Stop};
 use halvo_coord::types::{
-    Action, AgentId, Body, Doing, Limits, Live, Outcome, RunEnd, RunEvent, RunId, What,
+    Action, AgentId, Body, Doing, HandbackAsk, HandbackReason, Limits, Live, Outcome, RunEnd,
+    RunEvent, RunId, What,
 };
 use halvo_coord::{words, Coordinator};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use support::{agent, world_with, World, MANUAL, T0};
 
 fn four() -> (World, Vec<RunId>) {
@@ -282,5 +284,82 @@ fn u46_limit_the_next_life_shows_a_run_that_outlived_quit_as_if_nothing_ran() {
          keeps reap's answer alive for an agent set aside alone (run/recover.rs, recover; \
          schedule/board.rs, set_aside) and its row says that Halvo wraps up the task and the \
          person needs to do nothing, with no word that the task may have run on after Quit"
+    );
+}
+
+fn hand_back(c: &Coordinator<coord::Both>, n: usize, run: &RunId) {
+    assert_eq!(
+        c.on_run(
+            run,
+            RunEvent::Handback(HandbackAsk {
+                run: run.clone(),
+                agent: agent(n),
+                reason: HandbackReason::StepFailed,
+                origin: None,
+            })
+        ),
+        Ok(())
+    );
+}
+
+fn first_step_panics_at_its_lapse(c: &Coordinator<coord::Both>) {
+    c.ports().panics.set(Some("log_lapsed"));
+    let unwound = catch_unwind(AssertUnwindSafe(|| c.quit_stop())).is_err();
+    c.ports().panics.set(None);
+    assert!(
+        unwound,
+        "the owner's log panicked at the first step's lapse"
+    );
+}
+
+#[test]
+fn u46_no_queued_run_starts_after_a_quit_whose_first_step_panicked_in_a_lapse() {
+    let limits = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let c = coord::coordinator(&[coord::MANUAL, coord::MANUAL], limits);
+    let run = run_now(&c, 0);
+    hand_back(&c, 0, &run);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    assert_eq!(c.queued().len(), 1);
+    first_step_panics_at_its_lapse(&c);
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    assert_eq!(
+        coord::started(&c),
+        [run],
+        "I5.7: from the first step of the quit on, no start leaves the queue"
+    );
+}
+
+#[test]
+fn u46_the_list_names_every_live_run_after_a_panic_in_the_first_step() {
+    let (c, runs) = two_live();
+    hand_back(&c, 0, &runs[0]);
+    first_step_panics_at_its_lapse(&c);
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &runs[0]), (1, &runs[1])]),
+        "read before any other call takes the coordinator's lock"
+    );
+}
+
+#[test]
+fn u46_the_list_keeps_the_order_of_starts_when_a_later_agent_starts_first() {
+    let limits = Limits {
+        max_live_runs: 3,
+        ..Limits::PRODUCT
+    };
+    let c = coord::coordinator(&[coord::MANUAL, coord::MANUAL, coord::MANUAL], limits);
+    let first = run_now(&c, 2);
+    let second = run_now(&c, 0);
+    let third = run_now(&c, 1);
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(2, &first), (0, &second), (1, &third)])
     );
 }
