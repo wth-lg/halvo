@@ -53,6 +53,15 @@ verdict() {
   printf 'PASS %s\n' "$name"
 }
 
+told() {
+  [ -f "$work/ready-$1" ] || return 0
+  tr -d '\r' < "$work/ready-$1" > "$work/ready-$1.lf"
+  asked=$(sed -n 's/^asked //p' "$work/ready-$1.lf")
+  refused=$(grep -c -v -e '^asked ' -e '^interface ' -e '^$' "$work/ready-$1.lf")
+  echo "$name listeners $1: asked ${asked:-no address}, $refused refused"
+  sed -n "s/^interface /$name interface at a refused bind of $1: /p" "$work/ready-$1.lf"
+}
+
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   rejected=0
@@ -101,12 +110,216 @@ self_test() {
   case_of FAIL control-0-written-as-above-0 macos "$work/control0-accepted.txt"
   good | grep -v '^measure row: s05 ip engine-alone ' > "$work/s05-unread.txt"
   case_of FAIL s05-engine-alone-row-unread windows "$work/s05-unread.txt"
+  told_cases
+  helper_cases
   run_cases
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
   fi
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
+}
+
+told_cases() {
+  printf "s03-ip port 47030: [Errno 49] Can't assign requested address\r\ns18-ip port 47180: [Errno 49] Can't assign requested address\r\nasked 203.0.113.9\r\ninterface lo0 8049<UP,LOOPBACK,RUNNING,MULTICAST> inet 127.0.0.1\r\ninterface en0 8863<UP,BROADCAST> inet 10.0.0.5 status: active\r\n" > "$work/ready-refused-steps"
+  printf '%s\n' "$name listeners refused-steps: asked 203.0.113.9, 2 refused" "$name interface at a refused bind of refused-steps: lo0 8049<UP,LOOPBACK,RUNNING,MULTICAST> inet 127.0.0.1" "$name interface at a refused bind of refused-steps: en0 8863<UP,BROADCAST> inet 10.0.0.5 status: active" > "$work/told-refused.want"
+  printf 'asked 10.0.0.5\n' > "$work/ready-taken-steps"
+  printf '%s\n' "$name listeners taken-steps: asked 10.0.0.5, 0 refused" > "$work/told-taken.want"
+  : > "$work/told-unwritten.want"
+  for label in refused taken unwritten; do
+    told "$label-steps" > "$work/told-$label.got" 2>&1
+    got=mis-told
+    cmp -s "$work/told-$label.want" "$work/told-$label.got" && got=told
+    printf 'case %s/told-%s want=told got=%s\n' "$name" "$label" "$got"
+    if [ "$got" = told ]; then rejected=$((rejected + 1)); else wrong="$wrong told-$label"; fi
+  done
+}
+
+helper_cases() {
+  py=python3
+  command -v python3 > /dev/null 2>&1 || py=python
+  mkdir -p "$work/helper" || exit 2
+  write_helpers "$work/helper"
+  write_cases "$work/helper"
+  "$py" "$work/helper/cases.py" "$work/helper" > "$work/helper-cases.txt" 2>&1
+  code=$?
+  cat "$work/helper-cases.txt"
+  right=$(grep -c ' right$' "$work/helper-cases.txt")
+  rejected=$((rejected + right))
+  bad=$(sed -n 's/^case [^ /]*\/\([^ ]*\) .* wrong$/\1/p' "$work/helper-cases.txt" | paste -s -d ' ' -)
+  [ -z "$bad" ] || wrong="$wrong $bad"
+  if [ "$code" != 0 ] || [ "$right" != 4 ]; then wrong="$wrong helper-cases"; fi
+}
+
+write_cases() {
+  cat > "$1/cases.py" <<'CASESEOF'
+import contextlib
+import io
+import json
+import os
+import socket
+import sys
+
+directory = sys.argv[1]
+sys.path.insert(0, directory)
+import measure
+
+NAME = "38-app-engine-routes"
+REFUSED = "[Errno 49] Can't assign requested address"
+MAC_TEXT = (
+    "lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384\n"
+    "\toptions=1203<RXCSUM,TXCSUM,TXSTATUS,SW_TIMESTAMP>\n"
+    "\tinet 127.0.0.1 netmask 0xff000000\n"
+    "\tinet6 ::1 prefixlen 128 \n"
+    "en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500\n"
+    "\tether 02:00:00:00:00:01\n"
+    "\tinet6 fe80::1%en0 prefixlen 64 secured scopeid 0x4 \n"
+    "\tinet 10.0.0.5 netmask 0xffffff00 broadcast 10.0.0.255\n"
+    "\tstatus: active\n"
+    "utun0: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1380\n"
+)
+MAC_LINES = [
+    "lo0 8049<UP,LOOPBACK,RUNNING,MULTICAST> inet 127.0.0.1 inet6 ::1",
+    "en0 8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> inet6 fe80::1%en0 inet 10.0.0.5 status: active",
+    "utun0 8051<UP,POINTOPOINT,RUNNING,MULTICAST>",
+]
+WIN_TEXT = (
+    "\r\nWindows IP Configuration\r\n\r\n\r\n"
+    "Ethernet adapter Ethernet:\r\n\r\n"
+    "   Connection-specific DNS Suffix  . : example.invalid\r\n"
+    "   Link-local IPv6 Address . . . . . : fe80::5%6\r\n"
+    "   IPv4 Address. . . . . . . . . . . : 10.1.0.4\r\n"
+    "   Subnet Mask . . . . . . . . . . . : 255.255.0.0\r\n"
+    "   Default Gateway . . . . . . . . . : 10.1.0.1\r\n\r\n"
+    "Ethernet adapter vEthernet (nat):\r\n\r\n"
+    "   Media State . . . . . . . . . . . : Media disconnected\r\n"
+)
+WIN_LINES = ["Ethernet adapter Ethernet fe80::5%6 10.1.0.4", "Ethernet adapter vEthernet (nat) Media disconnected"]
+held = {"127.0.0.1", "::1", "10.0.0.5"}
+route = ["10.0.0.5"]
+reads = []
+
+
+class MadeUpSocket:
+    def __init__(self, family=socket.AF_INET, kind=socket.SOCK_STREAM, *rest):
+        self.family = family
+
+    def setsockopt(self, *rest):
+        pass
+
+    def bind(self, address):
+        if address[0] not in held:
+            raise OSError(49, "Can't assign requested address")
+
+    def listen(self, backlog):
+        pass
+
+    def accept(self):
+        raise OSError("a made-up socket takes no connection")
+
+    def recvfrom(self, size):
+        raise OSError("a made-up socket takes no datagram")
+
+    def connect(self, address):
+        pass
+
+    def getsockname(self):
+        return (route[0], 9)
+
+    def close(self):
+        pass
+
+
+def text_of_the_minute():
+    reads.append(1)
+    return MAC_TEXT
+
+
+measure.socket.socket = MadeUpSocket
+measure.time.sleep = lambda seconds: None
+measure.interface_text = text_of_the_minute
+
+
+def lines_of(name):
+    with open(os.path.join(directory, name), encoding="utf-8") as f:
+        return f.read().splitlines()
+
+
+def quiet(call, *args):
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        return call(*args)
+
+
+def listen(label):
+    open(os.path.join(directory, f"stop-{label}"), "w").close()
+    measure.listen(directory, label)
+    return lines_of(f"ready-{label}")
+
+
+def refused_binds_are_written_and_told():
+    os.environ["HALVO_MEASURE_TEST_IP"] = "203.0.113.9"
+    quiet(measure.plan, directory)
+    os.environ.pop("HALVO_MEASURE_TEST_IP")
+    with open(os.path.join(directory, "plan.json"), encoding="utf-8") as f:
+        targets = json.load(f)["targets"]
+    expected = [f"{t['step']}-{t['form']} port {t['port']}: {REFUSED}" for t in targets if not t.get("pf") and not t.get("loop")]
+    lines = listen("engine-alone-steps")
+    with open(os.path.join(directory, "counts-engine-alone-steps.json"), encoding="utf-8") as f:
+        failures = json.load(f)["listen_failures"]
+    told = [line[len("interface "):] for line in lines if line.startswith("interface ")]
+    if lines[:len(expected)] != expected or failures != expected:
+        return f"refusals-{len(failures)}-of-{len(expected)}"
+    if lines[len(expected):] != ["asked 203.0.113.9"] + [f"interface {line}" for line in MAC_LINES]:
+        return f"no-print-{len(told)}-interfaces"
+    return "told"
+
+
+def taken_binds_tell_the_address_alone():
+    held.add("203.0.113.9")
+    del reads[:]
+    lines = listen("no-layer-steps")
+    held.discard("203.0.113.9")
+    if reads:
+        return "interfaces-read"
+    return "asked-alone" if lines == ["asked 203.0.113.9"] else f"lines-{len(lines)}"
+
+
+def windows_interfaces_are_read():
+    measure.interface_text = lambda: WIN_TEXT
+    try:
+        lines = measure.interfaces()
+    finally:
+        measure.interface_text = text_of_the_minute
+    return "read" if lines == WIN_LINES else "misread"
+
+
+def an_unread_list_is_told():
+    def broken():
+        raise OSError("no reader")
+
+    told = []
+    for reader in (broken, lambda: ""):
+        measure.interface_text = reader
+        try:
+            told.append(measure.interfaces())
+        finally:
+            measure.interface_text = text_of_the_minute
+    return "told" if told == [["not read: no reader"], ["none read"]] else "untold"
+
+
+def case(label, want, run):
+    try:
+        got = run()
+    except Exception as e:
+        got = f"error-{type(e).__name__}"
+    print(f"case {NAME}/{label} want={want} got={got} {'right' if got == want else 'wrong'}")
+
+
+case("refused-binds-written-and-told", "told", refused_binds_are_written_and_told)
+case("taken-binds-tell-the-address-alone", "asked-alone", taken_binds_tell_the_address_alone)
+case("windows-interfaces-read", "read", windows_interfaces_are_read)
+case("unread-interfaces-told", "told", an_unread_list_is_told)
+CASESEOF
 }
 
 write_stubs() {
@@ -406,6 +619,7 @@ import os
 import re
 import socket
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -859,6 +1073,38 @@ def bound_socket(kind, address):
     return s
 
 
+def interface_text():
+    command = ["ipconfig"] if os.name == "nt" else ["/sbin/ifconfig", "-a"]
+    return subprocess.run(command, capture_output=True, text=True, errors="replace", timeout=30, check=False).stdout
+
+
+def interfaces():
+    try:
+        text = interface_text()
+    except (OSError, subprocess.SubprocessError) as e:
+        return [f"not read: {e}"]
+    rows = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        if not line[0].isspace():
+            head = line.split(": flags=", 1)
+            if len(head) == 2:
+                rows.append([head[0], head[1].split(" ", 1)[0]])
+            elif line.rstrip().endswith(":"):
+                rows.append([line.rstrip()[:-1]])
+            continue
+        if not rows:
+            continue
+        words = line.split()
+        key, _, value = line.partition(" : ")
+        if words[0] in ("inet", "inet6", "status:") and len(words) > 1:
+            rows[-1].append(" ".join(words[:2]))
+        elif value.strip() and ("Address" in key or "Media State" in key):
+            rows[-1].append(value.strip())
+    return [" ".join(row) for row in rows] or ["none read"]
+
+
 def failed_keys(failures, keys):
     marked = set()
     for line in failures:
@@ -916,8 +1162,11 @@ def listen(directory, label):
         threading.Thread(target=serve_dns, args=(d, ip, planned["targets"], counts), daemon=True).start()
     except OSError as e:
         failures.append(f"resolver port {planned['dns_port']}: {e}")
+    told = failures + [f"asked {ip}"]
+    if failures:
+        told += [f"interface {line}" for line in interfaces()]
     with open(os.path.join(directory, f"ready-{label}"), "w", encoding="utf-8") as f:
-        f.write("\n".join(failures) + "\n")
+        f.write("\n".join(told) + "\n")
     stop = os.path.join(directory, f"stop-{label}")
     deadline = time.time() + 1800
     while not os.path.exists(stop) and time.time() < deadline:
@@ -1662,6 +1911,7 @@ measure() {
     own_pids="$own_pids $listener"
     tick=0
     while [ ! -f "$work/ready-$copy-steps" ] && [ "$tick" -lt 100 ]; do sleep 0.2; tick=$((tick + 1)); done
+    told "$copy-steps"
     data=$(mktemp -d "$work/data-XXXXXX")
     routes=$(native "$work/routes.tsv")
     data_dir=$(native "$data")
