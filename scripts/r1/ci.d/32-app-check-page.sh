@@ -134,6 +134,7 @@ verdict() {
   [ "$code" -eq 0 ] || fail "halvo --check-page exited $code"
   [ "$lines" -eq 1 ] || fail "halvo --check-page printed $lines lines"
   [ "$matched" = true ] || fail "halvo --check-page printed another line than page=loaded commands_ok=$expected_commands_ok version=<the version> service=$service guard=installed"
+  [ -n "$5" ] || fail "halvo --check-page printed no time of the Ready of its event loop"
 }
 
 measure() {
@@ -151,7 +152,7 @@ measure() {
   data_dir=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
   watch_app "$exe" "$data_dir" "$APP_CHECK_PAGE_MAX_S" "$artifacts/check-page.out" "$artifacts/check-page.err"
   service=$(expected_service) || fail "the expected service cannot be named"
-  verdict "$artifacts/check-page.out" "$check_code" "$version" "$service"
+  verdict "$artifacts/check-page.out" "$check_code" "$version" "$service" "$ready_ms"
   git diff --quiet HEAD -- || fail "a tracked file differs from HEAD after the build and the check"
   printf 'PASS %s\n' "$name"
 }
@@ -161,7 +162,7 @@ fixture() {
   root=$2
   grace_s=2
   watch_app "$exe" "$root/data" 2 "$root/out" "$root/err"
-  verdict "$root/out" "$check_code" 0.0.0 not_running
+  verdict "$root/out" "$check_code" 0.0.0 not_running "$ready_ms"
   printf 'PASS %s\n' "$name"
 }
 
@@ -263,10 +264,13 @@ case $STUB_MODE in
       : >"$STUB_DATA/f$i"
       i=$((i + 1))
     done
+    printf 'halvo: --check-page: the event loop was ready at 6 ms\n' >&2
     printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
     ;;
   edge)
-    i=10
+    printf 'halvo: --check-page: the event loop was ready at 4 ms\n' >&2
+    : >"$STUB_DATA/f10"
+    i=11
     while [ "$i" -le 49 ]; do
       printf 'halvo: line %s\n' $((i - 9)) >&2
       : >"$STUB_DATA/f$i"
@@ -274,6 +278,7 @@ case $STUB_MODE in
     done
     printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
     ;;
+  no-ready) printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n' ;;
   setup-fails)
     printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
     exit 101
@@ -365,7 +370,8 @@ check-page data: (5 entries not shown)
 check-page exit: 0'
   check edge PASS 'check-page exit: 0, lines: 1, line matched: true' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
 ' 'check-page err lines: 40
-check-page err: halvo: line 1
+check-page err: halvo: --check-page: the event loop was ready at 4 ms
+check-page err: halvo: line 2
 ' 'check-page err: halvo: line 20
 check-page err: halvo: line 21
 ' 'check-page err: halvo: line 40
@@ -373,6 +379,9 @@ check-page data: 40 files, 0 directories, 0 bytes, 0 dump files
 check-page data entry: f10
 ' 'check-page data entry: f49
 check-page exit: 0'
+  check no-ready FAIL 'printed no time of the Ready of its event loop)' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
+' 'check-page ready ms: none
+'
   check setup-fails FAIL 'halvo --check-page exited 101)' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
 '
   check engine-start-past-the-limit FAIL 'ran past 4 s and was ended, its event loop not ready)' '' 'check-page seconds: 4, bound: 2
