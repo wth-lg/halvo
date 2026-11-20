@@ -12,6 +12,8 @@ pub mod children;
 pub mod counters;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod discard_port;
+#[cfg(any(target_os = "macos", all(windows, test)))]
+pub mod instance;
 pub mod main_loop;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod maintenance;
