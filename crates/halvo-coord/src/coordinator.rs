@@ -2368,10 +2368,18 @@ where
     /// `stop` lapses the open item of a
     /// waiting run with `cancelled` and stops the run in one command, for every kind of item,
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
-    /// switch-off control lapses that item in the same way before its own move. The take-back
-    /// takes the agent's queued start out of the queue with no read of a port and nothing stored
-    /// or sent, and answers success also where no start of it waits, a run that started in the
-    /// meantime going on (rulings RD-54 (h), RD-52 (d)).
+    /// switch-off control lapses that item in the same way before its own move. Like every move,
+    /// the call first takes up what an earlier stop, switch-off or runner's end left waiting for
+    /// a read of the clock, which can read the clock, store and send for other agents and their
+    /// runs; for `take_back`, `switch_off` and `stop`, after the refusals above, the named agent's
+    /// start that waits in the queue is set aside during that take-up and put back in its place
+    /// after it, so that no end that the take-up makes starts the agent that the control names
+    /// (RD-149, verifier-59 issue 1). The take-back's own move then takes that start out of the
+    /// queue and keeps the agent's open item; it reads no port and no clock, stores and sends
+    /// nothing, adds no hold and leaves every hold that stood, and it answers success also where
+    /// no start of the agent waits, a run that started before the call going on (rulings RD-54
+    /// (h), RD-52 (d)). The call ends, as every control does, by publishing the state, which
+    /// tells the page and the tray when it changed.
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter_control(agent, action);
         let before = Self::agents_held_off(&st);
