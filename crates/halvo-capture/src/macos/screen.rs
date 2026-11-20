@@ -1274,6 +1274,7 @@ impl ScreenSource {
             self.stream = None;
             self.stopped = true;
             release(self.output.take(), self.queue.take());
+            self.kept.let_go();
             return Ok(());
         }
         self.kept.hold(self.output.take(), self.queue.take());
@@ -1323,9 +1324,9 @@ fn release(output: Option<Retained<ScreenOutput>>, queue: Option<DispatchRetaine
 }
 
 /// The output and the queue of a stream that did not answer its stop, their
-/// sink given back: held until the stream's delegate reports the stop, which
-/// lets them go, and kept for the life of the process when the source drops
-/// before that.
+/// sink given back: held until the stream answers a later stop without an
+/// error or its delegate reports the stop, either of which lets them go, and
+/// kept for the life of the process when the source drops before that.
 #[derive(Default)]
 struct Kept {
     output: Option<Retained<ScreenOutput>>,
@@ -3933,6 +3934,49 @@ mod tests {
             weak.load().is_none(),
             "the output that the first failed stop kept was not let go"
         );
+    }
+
+    #[test]
+    fn a_clean_retry_lets_go_of_what_the_failed_stop_kept_before_a_later_stream_and_its_report() {
+        let (mut source, _handle, _writer, asks, weak) = started(&[
+            Some(StopReply::Failed { code: -3808 }),
+            Some(StopReply::Stopped),
+        ]);
+        assert!(source.shutdown().is_err(), "stream A's failed stop");
+        assert_eq!(source.shutdown(), Ok(()), "stream A's clean retry");
+        assert_eq!(asks.get(), 2, "the stops asked of stream A");
+        assert!(
+            weak.load().is_none(),
+            "the output that A's failed stop kept was not let go at A's clean retry"
+        );
+        assert!(
+            source.kept.output.is_none() && source.kept.queue.is_none(),
+            "something of stream A is still kept"
+        );
+        let (new_handle, _new_writer) = sink::channel(8);
+        let new_asks = Rc::new(Cell::new(0));
+        let begun = source.begin_with(
+            &context_on(new_handle),
+            scripted(&[Some(StopReply::Stopped)], &new_asks),
+        );
+        assert_eq!(begun, Ok(Started::Running), "stream B's begin");
+        let b = Weak::from_retained(
+            source
+                .output
+                .as_ref()
+                .expect("a started source holds its output"),
+        );
+        deliver_stop(
+            source
+                .output
+                .as_ref()
+                .expect("a started source holds its output"),
+            USER_STOPPED as NSInteger,
+        );
+        assert_eq!(source.shutdown(), Ok(()), "the shutdown after B's report");
+        assert_eq!(new_asks.get(), 0, "stream B was asked to stop");
+        assert!(b.load().is_none(), "stream B's own output was not let go");
+        assert!(weak.load().is_none(), "stream A's output came back to life");
     }
 
     #[test]
