@@ -760,6 +760,15 @@ fn list_overlaps_names_each_other_live_agent_with_the_senders_that_it_shares_in_
     assert_eq!(list_overlaps(&mut store, 1, json!(null)), Ok(ann.clone()));
     let unstored = reply_slots(Some(ME), Some("ann@people.test"));
     assert_eq!(list_overlaps(&mut store, 3, unstored), Ok(ann));
+
+    let mut store = older_rows_beside_live_agents();
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(
+            &[(2, 2, &["ann@people.test"]), (3, 7, &["dora@people.test"])],
+            "no"
+        ))
+    );
 }
 
 #[test]
@@ -825,6 +834,46 @@ fn ten_revisions() -> MemoryStore {
     store
 }
 
+fn older_rows_beside_live_agents() -> MemoryStore {
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), "email", "approved", Some(&agent(1))));
+    let both = reply_slots(Some(ME), Some("ann@people.test, dora@people.test"));
+    put_bindings(&mut store, 1, 1, 1, both);
+    store.put_workflow(workflow(&wf(3), "email", "active", Some(&agent(7))));
+    put_bindings(
+        &mut store,
+        3,
+        3,
+        3,
+        reply_slots(Some(ME), Some("dora@people.test")),
+    );
+    put_bindings(
+        &mut store,
+        3,
+        7,
+        1,
+        reply_slots(Some(ME), Some("Dora@people.test")),
+    );
+    store.put_workflow(workflow(&wf(9), "email", "active", Some(&agent(2))));
+    for rev in 1..=5 {
+        put_bindings(
+            &mut store,
+            9,
+            2,
+            rev,
+            reply_slots(Some(ME), Some("erik@people.test")),
+        );
+    }
+    gone(&mut store, 9);
+    other_agent(
+        &mut store,
+        2,
+        "active",
+        reply_slots(Some(ME), Some("ANN@people.test")),
+    );
+    store
+}
+
 #[test]
 fn set_bindings_that_would_overlap_a_live_agent_is_refused_with_overlap_and_stores_nothing() {
     let mut store = created(&[1, 2, 3]);
@@ -870,6 +919,11 @@ fn set_bindings_that_would_overlap_a_live_agent_is_refused_with_overlap_and_stor
     refused(&mut store, 1, json!([slot("signature", "Ann")]));
     let carl = reply_slots(None, Some("carl@people.test"));
     assert_eq!(set_bindings(&mut store, 1, carl), Ok(rev(11)));
+
+    let mut store = older_rows_beside_live_agents();
+    for sender in ["ann@people.test", "dora@people.test"] {
+        refused(&mut store, 1, reply_slots(None, Some(sender)));
+    }
 }
 
 #[test]
