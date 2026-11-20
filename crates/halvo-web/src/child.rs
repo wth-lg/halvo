@@ -77,15 +77,13 @@ fn pipe_child_entry() {
     }
 }
 
+/// A new, empty directory of a test under the target directory's `tmp`, below which the fenced
+/// guard of the tests' starts admits a program (`cdp::tests::guard_entry`), made by
+/// `halvo_test_dir::make`.
 pub fn scratch(name: &str) -> PathBuf {
     let exe = std::env::current_exe().unwrap();
     let target = exe.ancestors().nth(3).unwrap().to_path_buf();
-    let dir = target
-        .join("tmp")
-        .join(format!("halvo-web-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+    halvo_test_dir::make(&target.join("tmp"), &format!("halvo-web-{name}")).unwrap()
 }
 
 pub fn report_args(out: &Path) -> Vec<std::ffi::OsString> {
@@ -284,5 +282,120 @@ fn entry() {
     if let Some(out) = out {
         let _ = std::fs::write(out, text);
     }
+    std::process::exit(0);
+}
+
+/// The stand-in executor of the watch's test (CP-176 (e)): with `--watch-executor OUT` it starts
+/// this test binary as `watch_entry`, which watches this process from the system, and runs for up
+/// to 20 s; in a run of the tests it returns at once.
+#[test]
+fn watch_executor_entry() {
+    use crate::start::Start;
+    let args: Vec<String> = std::env::args().collect();
+    let Some(out) = args
+        .iter()
+        .position(|a| a == "--watch-executor")
+        .and_then(|i| args.get(i + 1))
+    else {
+        return;
+    };
+    let me = crate::procs::own().unwrap();
+    let _watcher = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(entry_args(
+            "child::watch_entry",
+            &[
+                "--watch".to_string(),
+                me.pid.to_string(),
+                me.started_us.to_string(),
+                out.clone(),
+            ],
+        ))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .start();
+    std::thread::sleep(std::time::Duration::from_secs(20));
+}
+
+/// The watcher of the watch's test: with `--watch PID STARTED OUT` it opens
+/// `procs::ExecutorWatch` of the executor PID begun at STARTED, writes into OUT its own number and
+/// creation time and whether the watch reads the executor running, then reads the watch every
+/// 10 ms and, once it reads the executor gone, writes `gone` and ends; it ends after 20 s in any
+/// case. In a run of the tests it returns at once.
+#[test]
+fn watch_entry() {
+    let args: Vec<String> = std::env::args().collect();
+    let Some(at) = args.iter().position(|a| a == "--watch") else {
+        return;
+    };
+    let num = |i: usize| args.get(at + i).and_then(|v| v.parse::<u64>().ok());
+    let (Some(pid), Some(started), Some(out)) = (num(1), num(2), args.get(at + 3)) else {
+        return;
+    };
+    let watch = crate::procs::ExecutorWatch::open(pid as u32, started);
+    let me = crate::procs::own().unwrap();
+    let mut text = format!(
+        "watcher pid={} started={} runs={}\n",
+        me.pid,
+        me.started_us,
+        if watch.runs() { "yes" } else { "no" }
+    );
+    let _ = std::fs::write(out, &text);
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while std::time::Instant::now() < until {
+        if !watch.runs() {
+            text.push_str("gone\n");
+            let _ = std::fs::write(out, &text);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    std::process::exit(0);
+}
+
+/// The process of `start::tests::a_start_leaves_no_handle_of_its_own_open` (Windows): with
+/// `--count-handles OUT` it starts `cmd /C exit 0` on the pipe and waits for it, once, then
+/// counts this process's handles, starts and waits five times more, counts again and writes
+/// `before=<n> after=<n>` into OUT; in a run of the tests it returns at once.
+#[cfg(windows)]
+#[test]
+fn handle_count_entry() {
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
+    let args: Vec<String> = std::env::args().collect();
+    let Some(out) = args
+        .iter()
+        .position(|a| a == "--count-handles")
+        .and_then(|i| args.get(i + 1))
+    else {
+        return;
+    };
+    let cmd = PathBuf::from(std::env::var_os("ComSpec").unwrap());
+    let work = crate::start::system_dir().unwrap();
+    let once = || {
+        let spec = crate::start::Spec {
+            program: &cmd,
+            args: vec!["/C".into(), "exit".into(), "0".into()],
+            env: crate::start::guard_env().unwrap(),
+            dir: &work,
+        };
+        let mut on = {
+            let held = crate::start::lock();
+            crate::start::start_on_pipe(&held, &spec).unwrap()
+        };
+        on.child.wait();
+    };
+    let count = || {
+        let mut n = 0u32;
+        // SAFETY: the pseudo handle of this process and a live u32.
+        unsafe { GetProcessHandleCount(GetCurrentProcess(), &mut n) };
+        n
+    };
+    once();
+    let before = count();
+    for _ in 0..5 {
+        once();
+    }
+    let after = count();
+    let _ = std::fs::write(out, format!("before={before} after={after}\n"));
     std::process::exit(0);
 }

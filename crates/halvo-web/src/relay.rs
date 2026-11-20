@@ -225,7 +225,10 @@ pub enum Names {
     /// The fixture's names of the probe and the tests: a name under `.test` goes to 127.0.0.1 and
     /// every other name nowhere. It is outside the class rule of CP-176 A3 by its construction: it
     /// asks the system nothing and reaches no address but 127.0.0.1. Only the probe, the tests and
-    /// the gate's stand-in start a relay with it; nothing in the crate enforces that yet.
+    /// the gate's stand-in start a relay with it: it stands behind the fence
+    /// (`crate::FENCE_MARKER`), so a build without the feature `test-fence`, which is no test
+    /// build, has `System` alone (CP-186 N8).
+    #[cfg(any(test, feature = "test-fence"))]
     Fixture,
 }
 
@@ -390,7 +393,10 @@ fn bound_loopback(host: &str) -> Option<Ipv4Addr> {
 /// every other answer (`answer`), at every tunnel and in every state of the list.
 async fn look_up(names: Names, host: &str, port: u16, bound: bool) -> Dial {
     match names {
+        #[cfg(any(test, feature = "test-fence"))]
         Names::Fixture => {
+            #[cfg(feature = "test-fence")]
+            crate::fence_marker();
             if host.to_ascii_lowercase().ends_with(".test") {
                 Dial::To(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port))
             } else {

@@ -2,7 +2,7 @@ use crate::kinds::{FieldType, KindEntry, Origin, RetentionClass};
 
 /// The error names that this run's handlers answer, in the reply form of the workflow run.
 pub const ERROR_NAMES: &[&str] = &[
-    "binding", "playbook", "config", "class", "length", "effect", "day",
+    "binding", "playbook", "config", "class", "length", "effect", "day", "overlap",
 ];
 
 /// The kinds of this run, family `agent`, each with the workflow id under the key `workflow`: of origin capture

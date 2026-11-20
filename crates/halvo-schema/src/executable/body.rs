@@ -18,8 +18,8 @@ use super::record::{
     AgentLog, AgentReply, AgentRun, AgentStart, Slot, SESSION_PARTS_MAX,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
-use super::text::{Digest, Null, OwnValue, ProviderId, RunId, SessionData, WebOrigin};
-use super::Refusal;
+use super::text::{Digest, Null, OwnText, OwnValue, ProviderId, RunId, SessionData, WebOrigin};
+use super::{is_sender, same_address, Refusal};
 
 /// The most steps of one `put_playbook` body and of one `load_steps` reply.
 pub const STEPS_PER_REQUEST_MAX: usize = 16;
@@ -35,6 +35,9 @@ pub const RUNNER_REPLY_VALUE_MAX: usize = FRAME_JSON_MAX - 28 - 53;
 
 /// The most message ids of one `load_replies` body, those of one page of the run's list.
 pub const REPLY_IDS_MAX: usize = 25;
+
+/// The most entries of one reply of `list_overlaps`.
+pub const OVERLAPS_MAX: usize = 16;
 
 macro_rules! op_enum {
     (
@@ -728,6 +731,7 @@ op_enum! {
         AddOrigin(AddOrigin) = "add_origin",
         ListCheckpoints(ListCheckpoints) = "list_checkpoints",
         MarkCheckpoint(MarkCheckpoint) = "mark_checkpoint",
+        ListOverlaps(ListOverlaps) = "list_overlaps",
     }
 }
 
@@ -768,6 +772,23 @@ object_type! {
             return fail("left", "left_of_state");
         }
         Ok(())
+    }
+}
+
+object_type! {
+    /// `list_overlaps`: the read of the other live agents that overlap the agent's slots as they would stand with
+    /// `slots` merged by name into its newest revision of the bindings, as `set_bindings` merges them, or as they
+    /// stand when `slots` is null; each slot name stands once. It stores nothing and changes nothing.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ListOverlaps [op = "list_overlaps"] {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub slots: Option<Vec<Slot>> = "slots" => opt(list(Slot::from_raw)),
+    }
+    rules(b) {
+        b.slots
+            .as_deref()
+            .map_or(Ok(()), |slots| slot_names_once("ListOverlaps", slots))
     }
 }
 
@@ -833,6 +854,81 @@ object_type! {
 }
 
 object_type! {
+    /// One other live agent of the reply of `list_overlaps`: its workflow, its agent and the senders that it shares
+    /// with the asking agent, at least one, in the spelling of the asking agent's list. Each sender is a piece that
+    /// the reader of the slot `reply_senders` takes, and no two are one address by `same_address`.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Overlap {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub senders: Vec<OwnText> = "senders" => list(from_json),
+    }
+    rules(o) {
+        let fail = |rule| Err(Refusal::malformed("Overlap", rule).at("senders"));
+        if o.senders.is_empty() {
+            return fail("no_sender");
+        }
+        if o.senders.iter().any(|s| !is_sender(s.as_str())) {
+            return fail("not_a_sender");
+        }
+        for (n, sender) in o.senders.iter().enumerate() {
+            if o.senders[..n]
+                .iter()
+                .any(|earlier| same_address(earlier.as_str(), sender.as_str()))
+            {
+                return fail("sender_twice");
+            }
+        }
+        Ok(())
+    }
+}
+
+object_type! {
+    /// The reply of `list_overlaps`: the other live agents that overlap the asking agent, at most 16, in ascending
+    /// order of workflow id, each workflow and each agent once, and `more`, `yes` when more agents overlap than the
+    /// 16 that it names, which it holds only beside 16 entries. Its bound, `CHECKPOINTS_REPLY_MAX`, counts the bytes
+    /// given to `parse` and to `CoordinatorReply::parse`, and the compact text that the writer writes, so a list that
+    /// would not fit is refused whole and never written cut.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct OverlapsReply {
+        pub overlaps: Vec<Overlap> = "overlaps" => list(Overlap::from_raw),
+        pub more: YesNo = "more" => from_json,
+    }
+    rules(r) {
+        let fail = |key, rule| Err(Refusal::malformed("OverlapsReply", rule).at(key));
+        if r.overlaps.len() > OVERLAPS_MAX {
+            return fail("overlaps", "overlaps_max");
+        }
+        if r.overlaps.windows(2).any(|w| w[1].workflow <= w[0].workflow) {
+            return fail("overlaps", "workflow_order");
+        }
+        let agents: Vec<&AgentId> = r.overlaps.iter().map(|o| &o.agent).collect();
+        each_once("OverlapsReply", &agents).map_err(|e| e.at("overlaps"))?;
+        if r.more == YesNo::Yes && r.overlaps.len() < OVERLAPS_MAX {
+            return fail("more", "more_short");
+        }
+        Ok(())
+    }
+    max_len(CHECKPOINTS_REPLY_MAX)
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
+}
+
+impl OverlapsReply {
+    /// Whether the reply answers the body: it names other agents alone, so no entry names the body's workflow or its
+    /// agent; else the refusal of that rule.
+    pub fn answers(&self, body: &ListOverlaps) -> Result<(), Refusal> {
+        if self
+            .overlaps
+            .iter()
+            .any(|o| o.workflow == body.workflow || o.agent == body.agent)
+        {
+            return Err(Refusal::malformed("OverlapsReply", "own_agent").at("overlaps"));
+        }
+        Ok(())
+    }
+}
+
+object_type! {
     /// The reply of `create_agent`, `set_bindings` and `add_origin`: the revision stored, or for an `add_origin`
     /// that stored nothing the newest.
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -870,15 +966,19 @@ reply_enum! {
         Accepted(Accepted) = "ok",
         Checkpoints(CheckpointsReply) = "checkpoints",
         Stored(Stored) = "stored",
+        Overlaps(OverlapsReply) = "overlaps",
     }
 }
 
 impl CoordinatorReply {
     /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
-    /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints` by the list and
-    /// `mark_checkpoint` by `stored` 0 or 1.
+    /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints` by the list,
+    /// `mark_checkpoint` by `stored` 0 or 1, and `list_overlaps` by its list only as `OverlapsReply::answers` says.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
         match (self, call) {
+            (CoordinatorReply::Overlaps(r), CoordinatorCall::ListOverlaps(b)) => {
+                r.answers(b).is_ok()
+            }
             (CoordinatorReply::Rev(r), CoordinatorCall::CreateAgent(_)) => r.rev.get() == 1,
             (CoordinatorReply::Stored(r), CoordinatorCall::MarkCheckpoint(_)) => r.stored <= 1,
             (

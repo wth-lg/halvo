@@ -10,7 +10,10 @@ HTTP on 127.0.0.1:N serves /page, which runs one probe in seven contexts (the pa
 the listener, a dedicated worker and a shared worker whose scripts come from the listener, an
 about:blank frame, a frame from a data: address and a worker from a blob: address). Each probe
 opens a WebSocket to /ws, fetches /f, reports on /r whether data: and blob: fetches work, and
-reports on /e when its WebSocket failed before it opened. The listener counts the handshakes on
+reports on /e when its WebSocket failed before it opened. It serves /status300 and /status302, a
+document whose status is no redirect and no success (300, and 302 with no Location line), which
+runs the probe as the contexts status300 and status302 (CP-186 point 9). The listener counts the
+handshakes on
 /ws, the fetches, the reports and the failures of each context, and answers GET /count with them
 as JSON; GET /reset sets every count to none. It prints one line "listening 127.0.0.1:<port>" and stops at the end of its standard
 input, on TERM or on INT. Exit 0 when it stopped, 2 for a refusal: one line
@@ -76,6 +79,11 @@ const http = createServer((req, res) => {
   const js = { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' };
   const none = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
   if (path === '/page') { res.writeHead(200, html); return res.end(page()); }
+  if (path === '/status300' || path === '/status302') {
+    const ctx = path.slice(1);
+    res.writeHead(ctx === 'status300' ? 300 : 302, html);
+    return res.end(`<!doctype html><title>${ctx}</title><script>${goSource()} go('${ctx}');</script>`);
+  }
   if (path === '/frame') { res.writeHead(200, html); return res.end(`<!doctype html><script>${goSource()} go('frame');</script>`); }
   if (path === '/worker.js') { res.writeHead(200, js); return res.end(`${goSource()} go('worker');`); }
   if (path === '/shared.js') { res.writeHead(200, js); return res.end(`${goSource()} go('shared');`); }

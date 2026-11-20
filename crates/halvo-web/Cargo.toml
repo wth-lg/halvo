@@ -11,10 +11,20 @@ path = "src/lib.rs"
 [[bin]]
 name = "web-probe"
 path = "src/bin/web-probe.rs"
+required-features = ["test-fence"]
 
 [[bin]]
 name = "web-rows"
 path = "src/bin/web-rows.rs"
+required-features = ["test-fence"]
+
+[[bin]]
+name = "web-standin"
+path = "src/bin/web-standin.rs"
+required-features = ["test-fence"]
+
+[features]
+test-fence = []
 
 [dependencies]
 base64 = "=0.22.1"
@@ -28,5 +38,9 @@ libc = "=0.2.191"
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "=0.61.2", features = ["Wdk_System_SystemInformation", "Wdk_System_Threading", "Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_Threading"] }
 
+[dev-dependencies]
+halvo-web = { path = ".", features = ["test-fence"] }
+halvo-test-dir = { path = "../halvo-test-dir" }
+
 [target.'cfg(windows)'.dev-dependencies]
-windows-sys = { version = "=0.61.2", features = ["Wdk_Foundation", "Win32_System_Console"] }
+windows-sys = { version = "=0.61.2", features = ["Wdk_Foundation", "Win32_System_Console", "Win32_UI_Shell"] }

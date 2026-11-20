@@ -7,6 +7,7 @@ on:
   pull_request:
   schedule:
     - cron: '17 3 * * 0'
+    - cron: '17 3 * * 3'
 
 permissions:
   contents: read
@@ -24,6 +25,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Commit messages
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -33,6 +35,7 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
       - name: Self-tests that commit in throwaway repositories
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         env:
           GIT_AUTHOR_NAME: Halvo CI
@@ -52,6 +55,7 @@ jobs:
         shell: bash
         run: sh scripts/prerequisites.sh
       - name: Changelog
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           sh scripts/check-changelog.sh --self-test
@@ -71,11 +75,13 @@ jobs:
             sh scripts/check-changelog.sh
           fi
       - name: Line endings
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           sh scripts/check-line-endings.sh --self-test
           sh scripts/check-line-endings.sh
       - name: Own-source reads
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           sh scripts/check-own-source-reads.sh --self-test
@@ -85,6 +91,7 @@ jobs:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
       - name: ci.d self-test
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         env:
           GIT_AUTHOR_NAME: Halvo CI
@@ -93,13 +100,27 @@ jobs:
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: Processor
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Long forms build
+        if: github.event.schedule == '17 3 * * 3'
+        shell: bash
+        run: cargo test --locked -p halvo-capture --lib --test macos_stall_fixture --no-run
+      - name: Long forms
+        if: github.event.schedule == '17 3 * * 3'
+        shell: bash
+        env:
+          HALVO_STALL_FORM: long
+          CI_D_SCRIPT_LIMIT_S: 3600
+        run: sh scripts/ci/run-ci-d.sh macos 51-macos-stall
       - name: Lockfile unchanged
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" cat-file blob "$GITHUB_SHA:scripts/lockfile-unchanged.sh" >"$RUNNER_TEMP/lockfile-unchanged.sh"
@@ -130,6 +151,7 @@ jobs:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
       - name: ci.d self-test
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         env:
           GIT_AUTHOR_NAME: Halvo CI
@@ -138,13 +160,27 @@ jobs:
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
         run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: Processor
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: Long forms build
+        if: github.event.schedule == '17 3 * * 3'
+        shell: bash
+        run: cargo test --locked -p halvo-capture --lib --test windows_functional --no-run
+      - name: Long forms
+        if: github.event.schedule == '17 3 * * 3'
+        shell: bash
+        env:
+          HALVO_WF_FORM: long
+          CI_D_SCRIPT_LIMIT_S: 3600
+        run: sh scripts/ci/run-ci-d.sh windows 50-windows-functional 52-windows-browser
       - name: Scripts and hook in a core.autocrlf=true clone
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
@@ -177,6 +213,7 @@ jobs:
             *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
           esac
       - name: Lockfile unchanged
+        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" cat-file blob "$GITHUB_SHA:scripts/lockfile-unchanged.sh" >"$RUNNER_TEMP/lockfile-unchanged.sh"
