@@ -291,6 +291,13 @@ if (MODE !== undefined) {
     });
   });
 
+  test("exitOf of a run that has already exited returns its code at once", async () => {
+    const child = { exitCode: 3, signalCode: null, on: () => {} };
+    const began = Date.now();
+    const code = await exitOf({ pid: 0, started: "", child } as unknown as Group, 1_000);
+    expect({ code, within100ms: Date.now() - began < 100 }).toEqual({ code: 3, within100ms: true });
+  });
+
   for (const [mode, server, ending] of STARTS) {
     test(`${server}: a run whose main process alone gets INT while it is up leaves no process of the run's group or of a group that the run marked, and it runs in a group that the run marked${ending}`, () =>
       withRun(mode, async (dir, run, watched) => {
