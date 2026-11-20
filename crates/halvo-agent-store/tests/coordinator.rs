@@ -820,6 +820,38 @@ fn list_overlaps_names_the_first_16_by_workflow_id_and_more_yes_where_17_overlap
         list_overlaps(&mut store, 1, json!(null)),
         Ok(overlaps(&first(3, 18), "no"))
     );
+
+    let crossed = |pairs: &[(u32, u32)]| {
+        let mut store = MemoryStore::new();
+        store.put_workflow(workflow(&wf(1), "email", "approved", None));
+        assert_eq!(create(&mut store, 1, 1), Ok(rev(1)));
+        put_bindings(
+            &mut store,
+            1,
+            1,
+            1,
+            reply_slots(Some(ME), Some("ann@people.test")),
+        );
+        for &(w, a) in pairs {
+            store.put_workflow(workflow(&wf(w), "email", "approved", None));
+            assert_eq!(create(&mut store, w, a), Ok(rev(1)), "{w} {a}");
+            let ann = reply_slots(Some(ME), Some("ANN@people.test"));
+            put_bindings(&mut store, w, a, 1, ann);
+        }
+        store
+    };
+    let mut store = crossed(&[(2, 9), (3, 4)]);
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&[(2, 9, ANN), (3, 4, ANN)], "no"))
+    );
+    let pairs: Vec<(u32, u32)> = (2..=18).map(|w| (w, 100 - w)).collect();
+    let mut store = crossed(&pairs);
+    let kept: Vec<(u32, u32, &[&str])> = (2..=17).map(|w| (w, 100 - w, ANN)).collect();
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&kept, "yes"))
+    );
 }
 
 fn created(agents: &[u32]) -> MemoryStore {
