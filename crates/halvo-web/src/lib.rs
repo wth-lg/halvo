@@ -19,35 +19,56 @@
 //!   the executor writes the profile in its resolved form with one.
 //! - M7: `procs::adopted` takes only rows whose parent number is 1, which Windows does not give,
 //!   so on Windows `checks::tree_of` takes no adopted process into the tree; a process that the
-//!   tree misses for that reason is neither waited for nor ended unless another clause of
-//!   `guard::members` takes it, which errs toward leaving a process.
+//!   tree misses for that reason is neither waited for nor ended as a member of the tree unless
+//!   another clause of `guard::members` takes it, which errs toward leaving a process. That holds
+//!   for the tree alone: the end at a stop (`checks::end_runs_own_with`) reads every row of the
+//!   process table by its mark (`Mark::owns`), not by the tree.
 //! - N9: the hosted row `killed_start` of web-rows does not say whether the guard or the close of
 //!   the pipe ended the browser; in the draws of U2.6 the browser was gone before the guard could
 //!   end anything. The reading of its draws comes from the rows step of the built-head run of
 //!   landing-68. It is a limit of a reading, on neither side.
-//! - The mark's reading of a command line (`checks::switch_args`, `checks::bears_profile`) rests on
-//!   the browser's own parser as it is recalled and not run: argument 0 is no switch, a Windows line
-//!   is trimmed and ends at its first NUL, the switches end at an argument `--` and, on Windows, at
-//!   the single-argument switch in the spellings `--`, `-` and `/` and any letter case, and a
-//!   switch of the profile's or the database's key that names another place takes the mark away,
-//!   whichever value of a repeated switch the browser takes; a key that is another beginning of
-//!   the word `database` is read as the database's key, because the crash handler's `getopt_long`
-//!   may take a unique beginning of a long option, a reading that is recalled and not run. The mark finds the run's exact place
-//!   only before the end of its switches and reads a switch that names another place over every
-//!   argument after argument 0, so an end of its switches that the browser does not share can lose
-//!   a witness and cannot hide another place. Where the browser's own parser reads
-//!   more of a line as switches than these clauses do, or takes the run's place where another
-//!   place is named too, the mark bears less than the browser reads and errs toward leaving a
-//!   process. One case errs toward ending: if the browser ends its switches at the text
-//!   `--single-argument` wherever it stands, also inside a quoted argument (a reading of its parser
-//!   that is recalled, not run, and that the verify step of U2.6b does not share), a process whose
-//!   line holds that text inside an argument and the run's exact profile switch after it bears the
-//!   mark where the browser does not take that profile; another program must have written the
-//!   run's exact profile after such an argument (row `win_single_argument_inside_quotes`).
+//! - The mark's reading of a command line (`checks::switch_args`, `checks::switch_of`,
+//!   `checks::bears_profile`) rests on the browser's own parser as it is recalled and not run:
+//!   argument 0 is no switch, a Windows line is read from its first sign that is not white space
+//!   and ends at its first NUL, the switches end at an argument `--` and, on Windows, at the
+//!   single-argument switch in the spellings `--`, `-` and `/` and any letter case, and a switch of
+//!   the profile's or the database's key that names another place takes the mark away, whichever
+//!   value of a repeated switch the browser takes. A key that is another beginning of the word
+//!   `database` is read as the database's key, because the crash handler's `getopt_long` may take
+//!   a unique beginning of a long option, a reading that is recalled and not run; there the mark
+//!   errs toward leaving. The mark finds the run's exact place only before the end of its switches
+//!   and reads a switch that names another place over every argument after its argument 0, so an
+//!   end of its switches that the browser does not share can lose a witness and cannot hide
+//!   another place. A value is compared as the argument holds it: where the browser sets white
+//!   space at the end of a value aside, the mark reads the run's place as another one and errs
+//!   toward leaving. Before the dashes of a switch the mark sets aside the signs that Rust's
+//!   `char::is_whitespace` counts: where the browser keeps such a sign there, the mark reads more
+//!   switches as naming another place or as an end and errs toward leaving. Where the browser's
+//!   own parser reads more of a line as witnesses than these clauses do, or takes the run's place
+//!   where another place is named too, the mark bears less than the browser reads and errs toward
+//!   leaving a process. Two cases err toward ending, each on a reading of the browser that is
+//!   recalled, not run, and not the one recalled above; in each, another program must have
+//!   written the line:
+//!   - if the browser ends its switches at the text `--single-argument` wherever it stands, also
+//!     inside a quoted argument (a reading that the verify step of U2.6b does not share), a process
+//!     whose line holds that text inside an argument and then the run's exact profile switch or
+//!     exact database switch bears the mark where the browser does not take that place (row
+//!     `win_single_argument_inside_quotes`);
+//!   - if the browser sets aside before the dashes of a switch a sign that `char::is_whitespace`
+//!     does not count, or keeps at the start of its Windows line a sign that the mark sets aside
+//!     there, so that its argument 0 ends before the mark's, it reads a switch, or an end of the
+//!     switches, that the mark does not read; with a switch of another place, or an end, before
+//!     the run's exact switch, the mark bears where the browser may not take the run's place. The
+//!     browser's signs of white space are recalled as the signs of `char::is_whitespace` on
+//!     Windows and as the ASCII ones among them on macOS, so that, as recalled, this case does
+//!     not arise.
 //! - Which value of the system's parts `guard::guard_main` hands `guard::run_guard`: a test reads
-//!   what `run_guard` does with each part and which function each part of `guard::SYSTEM` is, and
-//!   no test reads that `guard_main` hands `SYSTEM`; a change there passes every test, on either
-//!   side.
+//!   what `run_guard` does with each part; of `guard::SYSTEM` it compares six parts (`open`,
+//!   `table`, `args`, `ask_end`, `kill` and `write`) by address with the functions that they name,
+//!   and of `sleep` and `now` it reads bounds: a sleep of `POLL` timed by `now` is at least `POLL`
+//!   and, the least of five, under ten times `POLL`, and a sleep of `UNREAD_PAUSE` is at least
+//!   `UNREAD_PAUSE` and, the least of ten, under `POLL`. No test reads that `guard_main` hands
+//!   `SYSTEM`; a change there passes every test, on either side.
 //! - Below the base of U2.6 (adversary 3 of its stress step, confirmed by the verify step): after
 //!   one read in which a timed member's row has no creation time, the executor's end of a start
 //!   with no first reply (`guard::Trigger::Now`) reads that member as gone and returns with the

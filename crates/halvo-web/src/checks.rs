@@ -74,13 +74,13 @@ pub fn tree_of_with(
 /// Whether a process with the arguments `args` bears the run's `profile` (CP-189 G1, CP-239): one
 /// of its switches (`switch_args`) is one of two exact forms, and no argument after the program's
 /// name that the browser may read as a switch under the key of either form names another place,
-/// before the end of the switches or after it. The exact forms: `--user-data-dir=`
-/// followed by the profile and nothing more (the value after the first `=`), or `--database=`
-/// followed by the profile's own Crashpad directory and nothing more, the place that the
-/// executor's flag `--breakpad-dump-location` names, so that the run's crash handler stays the
-/// run's own. A switch with the key `user-data-dir` or `database` in any spelling that `switch_of`
-/// reads (a prefix `--`, `-` or `/`, any letter case, white space at its ends, with or without
-/// `=`) whose value is not the run's place takes the mark away, whichever value of a repeated
+/// before the end of the switches or after it. The exact forms: `--user-data-dir=` followed by the
+/// profile and nothing more (the value after the first `=`), or `--database=` followed by the
+/// profile's own Crashpad directory and nothing more, the place that the executor's flag
+/// `--breakpad-dump-location` names, so that the run's crash handler stays the run's own. A switch
+/// with the key `user-data-dir` or `database` in any spelling that `switch_of` reads (white space
+/// before a prefix `--`, `-` or `/`, any letter case, with or without `=`) whose value, as the
+/// argument holds it, is not the run's place takes the mark away, whichever value of a repeated
 /// switch the browser takes, and so does a switch whose key is another beginning of the word
 /// `database`, such as `--datab=` or `--d=` (U2.6b round 3, R6): that the crash handler's
 /// `getopt_long` takes a unique beginning of a long option is recalled and not run, and there the
@@ -89,24 +89,28 @@ pub fn tree_of_with(
 /// does not, and no argument after the end of the switches does (U2.6b), though such an argument
 /// that names another place takes the mark away (U2.6b round 3, R2). The value and the profile
 /// are compared as paths (`same_path_on`). On Windows the system gives a process's command line as
-/// one argument (`command_args`), which `switch_args`, and no other reader of the arguments,
-/// splits by the system's rule (`split_command_line`). The browser's own reading of a repeated
-/// switch, of the spellings of a switch, of argument 0 and of the end of its switches is recalled
-/// and not run; against it each of these clauses errs toward leaving a process: an end of the
+/// one argument (`command_args`), which `switch_args` splits by the system's rule
+/// (`split_command_line`); beside the mark, the row `database_class` of web-rows
+/// (`bin/web-rows.rs`) splits it too, for its report alone. The browser's own reading of a
+/// repeated switch, of the spellings of a switch, of argument 0, of white space and of the end of
+/// its switches is recalled and not run; against it each of these clauses errs toward leaving a
+/// process, but for the two cases on the ending side that the crate's doc names: an end of the
 /// switches that the browser does not share can lose a witness and cannot hide another place.
 pub fn bears_profile(args: &[String], profile: &str) -> bool {
     bears_profile_on(args, profile, cfg!(windows))
 }
 
 /// The arguments of a process that the mark reads as switches (U2.6b, CP-231 (6), CP-239). On
-/// Windows each command line, with white space at its ends set aside, is split by the system's
-/// rule (`split_command_line`, which reads it up to its first U+0000), and the parts of all of them
-/// stand in one list (the system gives one line); on macOS the arguments stand as they are. On
-/// both, argument 0 of that list, the program's name, is no switch, and the
-/// switches end at the first argument that ends them: `--` once white space at its ends is set
-/// aside, and on Windows the switch with the key `single-argument` in any spelling that `switch_of`
-/// reads (a prefix `--`, `-` or `/`, any letter case), after which the browser takes the rest of
-/// the line as one argument. A text such as `--single-argument` inside an argument ends nothing.
+/// Windows each command line, with white space at its start set aside (the signs that
+/// `char::is_whitespace` counts; its end is kept, so that its last value stands as the line holds
+/// it), is split by the system's rule (`split_command_line`, which reads it up to its first
+/// U+0000), and the parts of all of them stand in one list (the system gives one line); on macOS
+/// the arguments stand as they are. On both, argument 0 of that list, the program's name, is no
+/// switch, and the switches end at the first argument that ends them: `--` once white space at
+/// its ends is set aside, and on Windows the switch with the key `single-argument` in any spelling
+/// that `switch_of` reads (a prefix `--`, `-` or `/`, any letter case), after which the browser
+/// takes the rest of the line as one argument. A text such as `--single-argument` inside an
+/// argument ends nothing.
 /// The mark's witness (`bears_profile`), `profile_of` and `profile_forms` read these alone; the
 /// mark reads a switch that names another place over every argument after argument 0, wherever
 /// the switches end (`bears_profile_on`). The browser's own skip of argument 0, its trim of the
@@ -114,9 +118,12 @@ pub fn bears_profile(args: &[String], profile: &str) -> bool {
 /// and not run: where the mark ends its switches at an argument that the browser does not end at,
 /// it reads fewer witnesses and errs toward leaving a process, and it still reads each switch
 /// behind that argument that names another place, so that an earlier end can lose a witness and
-/// cannot hide another place; where the browser would end at a text inside an argument, the mark
-/// reads as witnesses switches that the browser does not, the one case on the ending side, which
-/// the crate's doc names.
+/// cannot hide another place; where the browser sets aside white space at the end of its line,
+/// the mark keeps it in the last value and errs toward leaving. Two cases are on the ending side,
+/// and the crate's doc names them: where the browser would end at a text inside an argument, the
+/// mark reads as witnesses switches that the browser does not; and where the browser keeps at the
+/// start of its line a sign that the mark sets aside, the browser's argument 0 ends before the
+/// mark's, and the browser reads as a switch what the mark takes for argument 0.
 fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     let split: Vec<String> = if windows {
         args.iter()
@@ -132,11 +139,20 @@ fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     split.into_iter().take_while(|a| !ends(a)).collect()
 }
 
-/// An argument as the browser may read it as a switch, on either system: white space at its ends
-/// set aside, a prefix `--`, `-` or `/`, then the key up to the first `=`, in lower case, and the
-/// value after it (empty when there is no `=`); none for an argument with no such prefix. It
-/// takes more spellings than the browser of one system reads (a slash and other letter case on
-/// macOS), so that the mark reads more switches as naming another place and errs toward leaving.
+/// An argument as the browser may read it as a switch, on either system: white space before it
+/// set aside (the signs that `char::is_whitespace` counts), a prefix `--`, `-` or `/`, then the
+/// key up to the first `=`, in lower case, and the value after it as the argument holds it, white
+/// space at its end kept (U2.6b round 3, R1); with no `=`, the key with white space at its end
+/// set aside and an empty value; none for an argument with no such prefix. It takes more
+/// spellings than the browser of one system reads (a slash and other letter case on macOS), so
+/// that the mark reads more switches as naming another place and errs toward leaving. That the
+/// browser sets white space aside at both ends of an argument before it reads a switch, and which
+/// signs it counts (recalled: the signs of `char::is_whitespace` on Windows, the ASCII ones among
+/// them on macOS), is recalled and not run. Where the browser sets aside white space at the end
+/// of a value, the mark reads the run's place as another one; where it keeps a sign before the
+/// dashes that the mark sets aside, the mark reads a switch that the browser does not: each errs
+/// toward leaving. Where it sets aside there a sign that `char::is_whitespace` does not count, it
+/// reads a switch that the mark does not, a case on the ending side that the crate's doc names.
 fn switch_of(arg: &str) -> Option<(String, &str)> {
     let a = arg.trim_start();
     let rest = a
@@ -153,8 +169,10 @@ fn switch_of(arg: &str) -> Option<(String, &str)> {
 /// `bears_profile` (U2.6 (12): it read the line by its prefix and so found no profile on Windows).
 /// `tree_of` reads it of the run's first process, whose line is the executor's own
 /// (`cdp::launch_args`: one profile switch, no terminator, the program at argument 0), so the
-/// first value is its one value; for a line with two profile switches it gives the first, where
-/// `bears_profile` bears no mark.
+/// first value is its one value. For a line with two profile switches it gives the first value:
+/// where the two name one directory (`same_path_on`) they keep the mark, and where they name
+/// different directories the mark is not borne and `profile_of` gives the first value all the
+/// same.
 pub fn profile_of(args: &[String]) -> Option<String> {
     profile_of_on(args, cfg!(windows))
 }
@@ -279,8 +297,10 @@ pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
 /// U0.7d, its cases 01 to 04). One bound: an empty line gives no argument, where the system's
 /// function gives the path of the calling program; the split before U2.6 had the same rule, and
 /// for the mark both mean no profile. The mark calls it through `switch_args` (`bears_profile`, and
-/// `profile_of` for `tree_of`), and beside the mark only the row's report of the profile's forms
-/// (`profile_forms`); `command_args` and `command_line` stay as they are for the six rules.
+/// `profile_of` for `tree_of`) and in `bears_profile_on` for the switches that name another place;
+/// beside the mark, the row's report of the profile's forms (`profile_forms`) calls it through
+/// `switch_args`, and the row `database_class` of web-rows (`bin/web-rows.rs`) calls it itself;
+/// `command_args` and `command_line` stay as they are for the six rules.
 pub fn split_command_line(line: &str) -> Vec<String> {
     let line = line.split('\0').next().unwrap_or_default();
     let c: Vec<char> = line.chars().collect();
