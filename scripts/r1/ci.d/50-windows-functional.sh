@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=68
+failing_fixtures=69
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 prints_rule=scripts/r1/windows-prints-rule.sh
@@ -781,7 +781,12 @@ launch() {
       WF_TIMEOUT_TOOL=$tool
       export WF_TIMEOUT_TOOL
     fi
-    sh "$0" >"$work/out-$1" 2>&1
+    if [ -n "$rules_knob" ]; then
+      PATH=$work/rules-bin:$PATH
+      sh "$0" --rules >"$work/out-$1" 2>&1
+    else
+      sh "$0" >"$work/out-$1" 2>&1
+    fi
     printf '%s\n' "$?" >"$work/code-$1"
   ) &
   running=$((running + 1))
@@ -851,6 +856,7 @@ reset_knobs() {
   loop_list=
   STUB_LIB_EXE=one
   STUB_LIB_FAIL=
+  rules_knob=
 }
 
 write_stubs() {
@@ -1100,6 +1106,16 @@ fi
 printf 'ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s\n\n'
 EOF
   chmod +x "$work/bin/cargo" "$work/bin/tf-stub" "$work/bin/lib-stub" || exit 2
+  mkdir -p "$work/rules-bin" || exit 2
+  cat >"$work/rules-bin/cargo" <<'EOF'
+#!/bin/sh
+printf 'the --rules form called %s\n' "${0##*/}"
+exit 99
+EOF
+  chmod +x "$work/rules-bin/cargo" || exit 2
+  for tool in rustc timeout; do
+    cp "$work/rules-bin/cargo" "$work/rules-bin/$tool" || exit 2
+  done
 }
 
 make_ledger_repo() {
@@ -1516,6 +1532,16 @@ fixtures() {
   check the-ledger-holds-a-run-line-of-the-old-form FAIL "$right" "holds a line of the form measured run=, which records no attempts"
   ledger_knob=$work/ledger-stale
   check the-ledger-holds-another-tree-of-the-crate FAIL "$right" "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's (0000000000000000000000000000000000000000 against "
+  ledger_knob=$right_ledger
+  rules_knob=yes
+  check rules-form-reads-the-ledger-alone-and-builds-nothing PASS "$right" \
+    "ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
+    "${nl}rules: the ledger check alone ran" "!the --rules form called" "!WF total="
+  ledger_knob=$work/ledger-stale
+  rules_knob=yes
+  check rules-form-refuses-a-ledger-of-another-tree FAIL "$right" \
+    "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's (0000000000000000000000000000000000000000 against " \
+    "!the --rules form called"
   ledger_knob=$work/ledger-source-changed
   check a-changed-source-rs-is-refused FAIL "$right" "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's"
   ledger_knob=$work/ledger-macos-changed
@@ -1617,8 +1643,22 @@ fixtures() {
   check a-loop-of-another-kind FAIL "$right" "FAIL $name (the loop list names the kind bench)"
 }
 
+rules() {
+  repo=${CI_D_REPO:-}
+  [ -n "$repo" ] || repo=$(git rev-parse --show-toplevel 2>/dev/null) || fail "no repository: run it inside a checkout or give CI_D_REPO"
+  cd "$repo" || exit 2
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name-rules.XXXXXX") || fail "mktemp failed"
+  ledger_check
+  printf 'rules: the ledger check alone ran; no build, no test and no process of the product was started\n'
+  printf 'PASS %s\n' "$name"
+}
+
 case ${1:-} in
   --self-test) self_test ;;
+  --rules) rules ;;
   '') measure ;;
-  *) exit 64 ;;
+  *)
+    printf 'usage: sh %s [--self-test | --rules]\n  --rules runs the ledger check alone: it reads docs/baseline/ledger.d/win-3.txt and the tree at HEAD, builds nothing, runs no test and starts no process of the product\n' "$0" >&2
+    exit 64
+    ;;
 esac
