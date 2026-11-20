@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no forbidden_import (the Carbon call that holds secure input) in either built macOS executable as read by dyld_info regardless of build flags or CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (a tool error, a missing slice header or import header, an empty table or an unrecognized nonblank line fails the check, which trusts dyld_info to enumerate every slice and its named imports, the import table shows what the shipped executable can call through a named import and omits an unreachable hold compiled into the capture library, which check 51 covers with proof builds, and Windows has no import check), and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the work-tree workspace manifest and Cargo configuration paths).
+# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no forbidden_import (the Carbon call that holds secure input) in either built macOS executable as read by dyld_info regardless of build flags or CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (a recognized row contains indentation, an optional hexadecimal ordinal, the symbol, an optional hexadecimal addend, an optional [weak-import] mark and a nonempty parenthesized from-library field allowing internal blanks, and a tool error, a missing slice header or import header, an empty table or an unrecognized nonblank line fails the check, which trusts dyld_info to enumerate every slice and its named imports, the import table shows what the shipped executable can call through a named import and omits an unreachable hold compiled into the capture library, which check 51 covers with proof builds, and Windows has no import check), and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the work-tree workspace manifest and Cargo configuration paths).
 set -u
 name=62-build
 forbidden_import=_EnableSecureEventInput
@@ -123,6 +123,15 @@ release_imports() {
       fail "dyld_info could not read the imports of $executable"
     fi
     result=$(LC_ALL=C awk -v symbol="$forbidden_import" '
+      function import_row(line) {
+        if (!sub(/^[[:blank:]]+/, "", line)) return 0
+        sub(/^0x([0-9A-F]{4}|[1-9A-F][0-9A-F]{4,7})[[:blank:]]+/, "", line)
+        if (!sub(/^[[:alpha:]_.$][[:alnum:]_.$]*/, "", line)) return 0
+        sub(/^\+0x(0|[1-9A-F][0-9A-F]{0,15})/, "", line)
+        if (!sub(/^[[:blank:]]+/, "", line)) return 0
+        sub(/^\[weak-import\][[:blank:]]+/, "", line)
+        return line ~ /^\(from [^()[:space:]]+([[:blank:]]+[^()[:space:]]+)*\)$/
+      }
       function unfinished() {
         if (state == "rows") return ""
         if (state == "table") return "an empty import table"
@@ -139,7 +148,7 @@ release_imports() {
       state == "slice" && /^[[:blank:]]*-imports:[[:blank:]]*$/ { state = "table"; next }
       !state || state == "slice" { reason = "no import table"; exit }
       $0 ~ needle { print raw; matched = 1; exit }
-      /^[[:blank:]]+[[:alpha:]_.$][[:alnum:]_.$]*[[:blank:]]+\(from [^()[:space:]]+\)$/ { state = "rows"; next }
+      import_row($0) { state = "rows"; next }
       { reason = "an unrecognized import listing"; exit }
       END {
         if (matched) exit 3
