@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { LATE_READ_SPAN_MS } from "../../src/metering/index.ts";
-import { ACCOUNT, DAY, HASH, HOUR, world } from "./world.ts";
+import { ACCOUNT, DAY, HASH, HOUR, quiet, type World, world } from "./world.ts";
 import { count, cutPair, END, foreign, kinds, NOT_BILLABLE, open, SPAN, stopAfterTheNextCommit, tries } from "./unexplained-support.ts";
 
 type Row = Record<string, string | number | null>;
@@ -278,4 +278,68 @@ describe("a run of unexplained totals is closed as not billable with the cause u
     expect(state(y)).toEqual(["not-billable", "unexplained-total", 0, null, 1, since, 10, 3]);
     w.close();
   });
+
+  for (const [what, atTheRunsBound, atTheRemovalsBound, own, notBillable] of [
+    ["the read at the run's bound answered failed: the removal reads once at its bound, the run closes with its cause, the 500 are sent and recorded, and then storage goes", "failed", null, [3, 500], 1],
+    ["the read at the run's bound lost to a stop before its record commits: the removal reads once at its bound, the run closes with its cause, the 500 are sent and recorded, and then storage goes", "stop", null, [3, 500], 1],
+    ["the read at the run's bound and the removal's read both answered failed: the removal is not put off, it closes what is open at its bound and storage goes", "failed", "failed", [3], 2],
+  ] as const) {
+    test(`a delete answered at the run's first unexplained total, with 500 minor units queued behind the run, and ${what}`, async () => {
+      const w = await world({ meter: MINUTE, faults: [{ kind: "response-lost" }] });
+      await w.use("r1", 30_000);
+      foreign(w, 5);
+      await w.clock(END);
+      await w.use("r2", 5_000_000);
+      const since = END + DAY;
+      await w.clock(since);
+      await quiet(w.lines, () => w.entries().destroy(HASH));
+      const fault = (kind: "failed" | "stop") => (kind === "failed" ? LOST : { kind: "during" as const, run: async () => w.stopNextStep("before") });
+      const armed: number[] = [];
+      let due: number | null = null;
+      for (let step = 0; step < 100; step += 1) {
+        const snapshot = await w.entries().testInspect();
+        if (snapshot.result !== "snapshot" || snapshot.due === null || snapshot.due === due) break;
+        due = snapshot.due;
+        if (due === since + SPAN) {
+          w.faults.push(fault(atTheRunsBound));
+          armed.push(due - since);
+        }
+        if (due === since + DAY && atTheRemovalsBound !== null) {
+          w.faults.push(fault(atTheRemovalsBound));
+          armed.push(due - since);
+        }
+        await restartOnAStop(w, due);
+      }
+      const ids = w.meter.recordedEvents(ACCOUNT).map((each) => each.identifier);
+      const read = w.calls.filter((each) => each.kind === "read").at(-1);
+      expect({
+        armed,
+        removed: (await w.entries().testInspect()).result,
+        at: w.now() - since,
+        lastRead: [(read?.at ?? 0) - since, read?.answer],
+        own: w.meter.recordedEvents(ACCOUNT).filter((each) => !each.identifier.endsWith(":foreign")).map((each) => each.amountMinor),
+        once: new Set(ids).size === ids.length,
+        notBillable: count(w.lines, NOT_BILLABLE),
+      }).toEqual({
+        armed: atTheRemovalsBound === null ? [SPAN] : [SPAN, DAY],
+        removed: "no-such-account",
+        at: DAY,
+        lastRead: [DAY, atTheRemovalsBound === null ? "total 8" : "failed"],
+        own,
+        once: true,
+        notBillable,
+      });
+      w.close();
+    });
+  }
 });
+
+/** Sets the clock; a stop of the object on the way is followed by a restart, as the platform starts the object again. */
+async function restartOnAStop(w: World, at: number): Promise<void> {
+  try {
+    await quiet(w.lines, () => w.clock(at));
+  } catch (error) {
+    if ((error as Error).name !== "ObjectStoppedError") throw error;
+    w.restart();
+  }
+}
