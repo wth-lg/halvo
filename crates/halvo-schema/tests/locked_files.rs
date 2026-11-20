@@ -1058,9 +1058,8 @@ fn the_path_rule_reads_a_raw_identifier_and_exempts_a_fragment_only_inside_a_mat
 
 #[test]
 fn the_walk_reads_every_rust_file_of_src_outside_the_lock_at_any_depth() {
-    let src = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("walk-outside-lib")
-        .join("src");
+    let held = leaf("walk-outside-lib");
+    let src = held.path().join("src");
     let written = [
         ("lib.rs", "#[path = \"other.rs\"]\nmod again;\n"),
         (
@@ -1305,33 +1304,47 @@ fn set_faults(dir: &Path) -> Vec<String> {
     faults
 }
 
-fn fixture_dir(name: &str, files: &[&str]) -> PathBuf {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("crate-files")
-        .join(name);
+fn fixture_dir(name: &str, files: &[&str]) -> Leaf {
+    let held = leaf(&format!("crate-files-{name}"));
     for file in files {
-        let path = dir.join(file);
+        let path = held.path().join(file);
         std::fs::create_dir_all(path.parent().expect("a parent")).expect("a directory");
         std::fs::write(&path, "").expect("a fixture file");
     }
-    dir
+    held
+}
+
+#[test]
+fn fixture_dir_two_calls_give_two_directories_with_the_files_and_each_is_gone_after_its_drop() {
+    let first = fixture_dir("whole", &CORE_FILES);
+    let second = fixture_dir("whole", &CORE_FILES);
+    assert_ne!(first.path(), second.path());
+    for held in [&first, &second] {
+        assert_eq!(set_faults(held.path()), Vec::<String>::new());
+    }
+    let paths = [first.path().to_path_buf(), second.path().to_path_buf()];
+    drop(first);
+    drop(second);
+    for path in paths {
+        assert!(!path.exists(), "{}", path.display());
+    }
 }
 
 #[test]
 fn the_core_crate_holds_its_set_of_files() {
     assert_eq!(set_faults(&core_dir()), Vec::<String>::new());
     assert_eq!(
-        set_faults(&fixture_dir("whole", &CORE_FILES)),
+        set_faults(fixture_dir("whole", &CORE_FILES).path()),
         Vec::<String>::new()
     );
     let more = [CORE_FILES.as_slice(), &["src/learning/more.rs"]].concat();
     assert_eq!(
-        set_faults(&fixture_dir("more", &more)),
+        set_faults(fixture_dir("more", &more).path()),
         ["the core crate holds src/learning/more.rs, which is none of its files"]
     );
     let built = [CORE_FILES.as_slice(), &["build.rs"]].concat();
     assert_eq!(
-        set_faults(&fixture_dir("built", &built)),
+        set_faults(fixture_dir("built", &built).path()),
         ["the core crate holds build.rs, which is none of its files"]
     );
     let less: Vec<&str> = CORE_FILES
@@ -1340,7 +1353,7 @@ fn the_core_crate_holds_its_set_of_files() {
         .filter(|file| *file != "src/routing.rs")
         .collect();
     assert_eq!(
-        set_faults(&fixture_dir("less", &less)),
+        set_faults(fixture_dir("less", &less).path()),
         ["the core crate lacks src/routing.rs"]
     );
 }
@@ -1364,18 +1377,18 @@ fn neither_crate_has_a_build_script() {
         Vec::<String>::new()
     );
     assert_eq!(
-        build_script_faults("a crate", &fixture_dir("built", &["build.rs"])),
+        build_script_faults("a crate", fixture_dir("built", &["build.rs"]).path()),
         ["a crate has a build script"]
     );
     assert_eq!(
-        build_script_faults("a crate", &fixture_dir("whole", &CORE_FILES)),
+        build_script_faults("a crate", fixture_dir("whole", &CORE_FILES).path()),
         Vec::<String>::new()
     );
 }
 
 const CORE_MANIFEST: &str = "[package]\nname = \"halvo-schema-core\"\nversion = \"0.0.0\"\nedition = \"2021\"\npublish = false\n\n[dependencies]\npsl = \"=2.1.246\"\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = { version = \"1\", features = [\"raw_value\"] }\n";
 
-const SCHEMA_MANIFEST: &str = "[package]\nname = \"halvo-schema\"\nversion = \"0.0.0\"\nedition = \"2021\"\npublish = false\n\n[dependencies]\nhalvo-schema-core = { path = \"../halvo-schema-core\" }\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = { version = \"1\", features = [\"raw_value\"] }\n\n[dev-dependencies]\nproc-macro2 = { version = \"1.0.107\", default-features = false }\n";
+const SCHEMA_MANIFEST: &str = "[package]\nname = \"halvo-schema\"\nversion = \"0.0.0\"\nedition = \"2021\"\npublish = false\n\n[dependencies]\nhalvo-schema-core = { path = \"../halvo-schema-core\" }\nserde = { version = \"1\", features = [\"derive\"] }\nserde_json = { version = \"1\", features = [\"raw_value\"] }\n\n[dev-dependencies]\nhalvo-test-dir = { path = \"../halvo-test-dir\" }\nproc-macro2 = { version = \"1.0.107\", default-features = false }\n";
 
 fn manifest_faults(name: &str, text: &str, want: &str) -> Vec<String> {
     if text == want {
@@ -2300,7 +2313,8 @@ fn copy_tree(from: &Path, to: &Path) {
 }
 
 fn names_read_by_a_build(lists: &[(String, String)]) -> Vec<String> {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("declared-names");
+    let held = leaf("declared-names");
+    let root = held.path();
     let dir = root.join("crate");
     copy_tree(&core_dir().join("src"), &dir.join("src"));
     for (module, text) in lists {
@@ -2547,4 +2561,187 @@ fn old_path_faults(module: &str, text: &str) -> Vec<String> {
         ));
     }
     faults
+}
+
+struct Leaf(PathBuf);
+
+impl Leaf {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for Leaf {
+    fn drop(&mut self) {
+        if let Some(line) = remove(&self.0) {
+            let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("{line}\n"));
+        }
+    }
+}
+
+fn remove(dir: &Path) -> Option<String> {
+    let error = std::fs::remove_dir_all(dir).err()?;
+    Some(format!("leaf not removed: {}: {error}", dir.display()))
+}
+
+fn leaf(word: &str) -> Leaf {
+    let tmp = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    match halvo_test_dir::make(tmp, word) {
+        Ok(dir) => Leaf(dir),
+        Err(e) => panic!("{word} under {}: {e}", tmp.display()),
+    }
+}
+
+#[test]
+fn leaf_two_calls_give_two_paths() {
+    let first = leaf("locked-files-leaf");
+    let second = leaf("locked-files-leaf");
+    assert_ne!(first.path(), second.path());
+    assert!(first.path().is_dir() && second.path().is_dir());
+    let stem = |held: &Leaf| {
+        let name = held
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+        name[..name.rfind('-').unwrap()].to_owned()
+    };
+    assert_eq!(stem(&first), stem(&second));
+}
+
+#[test]
+fn leaf_is_gone_after_its_drop() {
+    let held = leaf("locked-files-leaf");
+    let path = held.path().to_path_buf();
+    std::fs::write(path.join("file"), "x").unwrap();
+    drop(held);
+    assert!(!path.exists(), "{}", path.display());
+}
+
+#[test]
+fn leaf_removal_that_fails_gives_one_line_with_the_path() {
+    let held = leaf("locked-files-leaf");
+    let path = held.path().to_path_buf();
+    drop(held);
+    let line = remove(&path).expect("a line for a removal that fails");
+    assert!(
+        line.contains(&path.display().to_string()) && !line.contains('\n'),
+        "{line}"
+    );
+}
+
+#[test]
+fn leaf_lies_under_the_target_directory_and_its_name_begins_with_the_word() {
+    let held = leaf("locked-files-leaf");
+    assert_eq!(
+        held.path().parent(),
+        Some(Path::new(env!("CARGO_TARGET_TMPDIR"))),
+        "{}",
+        held.path().display()
+    );
+    let name = held.path().file_name().unwrap().to_str().unwrap();
+    assert!(name.starts_with("locked-files-leaf-"), "{name}");
+}
+
+const TARGET_TMP: &str = concat!("CARGO_TARGET", "_TMPDIR");
+
+fn fixed_target_tmp_names(text: &str) -> Vec<String> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut bound: Vec<String> = Vec::new();
+    let mut found = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        let mut statement = String::new();
+        for next in lines.iter().skip(i).take(6) {
+            statement.push_str(next.trim());
+            let end = next.trim_end();
+            if end.ends_with(';') || end.ends_with('{') || end.ends_with('}') {
+                break;
+            }
+        }
+        let from_tmp = line.contains(TARGET_TMP);
+        let from_bound = bound
+            .iter()
+            .any(|name| line.contains(&format!("{name}.join(\"")));
+        if !from_tmp && !from_bound {
+            continue;
+        }
+        let joined: Vec<&str> = statement
+            .split(".join(\"")
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+            .collect();
+        if from_tmp && joined.is_empty() {
+            if let Some(name) = line
+                .trim()
+                .strip_prefix("let ")
+                .and_then(|rest| rest.split(' ').next())
+            {
+                bound.push(name.to_owned());
+            }
+        }
+        for name in joined {
+            if !name.ends_with('-') {
+                found.push(format!("line {}: {name}", i + 1));
+            }
+        }
+    }
+    found
+}
+
+#[test]
+fn no_test_of_halvo_schema_or_the_probes_joins_a_fixed_name_to_the_target_tmp_directory() {
+    let schema = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut faults = Vec::new();
+    let mut read = 0;
+    for dir in [
+        schema.join("tests"),
+        schema.join("../../tools/r2-probes/tests"),
+    ] {
+        let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
+            .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+            .map(|entry| entry.expect("a directory entry").path())
+            .filter(|path| path.extension().is_some_and(|x| x == "rs"))
+            .collect();
+        files.sort();
+        for file in files {
+            read += 1;
+            let text = std::fs::read_to_string(&file).expect("a test file");
+            let name = file.file_name().unwrap().to_string_lossy().into_owned();
+            faults.extend(
+                fixed_target_tmp_names(&text)
+                    .into_iter()
+                    .map(|fault| format!("{name} {fault}")),
+            );
+        }
+    }
+    assert!(read >= 40, "{read} test files read");
+    assert_eq!(faults, Vec::<String>::new());
+}
+
+#[test]
+fn the_scan_of_fixed_names_reads_a_join_on_the_line_a_bound_name_and_a_prefix() {
+    let on_line =
+        format!("    let root = &Path::new(env!(\"{TARGET_TMP}\")).join(\"later-file-builds\");\n");
+    assert_eq!(
+        fixed_target_tmp_names(&on_line),
+        ["line 1: later-file-builds"]
+    );
+    let next_line =
+        format!("    let out = Path::new(env!(\"{TARGET_TMP}\"))\n        .join(\"lines\");\n");
+    assert_eq!(fixed_target_tmp_names(&next_line), ["line 1: lines"]);
+    let bound = format!("    let tmp = Path::new(env!(\"{TARGET_TMP}\"));\n    let out = tmp.join(\"halvo-schema-golden-r3\");\n");
+    assert_eq!(
+        fixed_target_tmp_names(&bound),
+        ["line 2: halvo-schema-golden-r3"]
+    );
+    let prefix = format!(
+        "    let place = Path::new(env!(\"{TARGET_TMP}\")).join(\"export-names-leaf-line-\");\n"
+    );
+    assert_eq!(fixed_target_tmp_names(&prefix), Vec::<String>::new());
+    let maker = format!("    let tmp = Path::new(env!(\"{TARGET_TMP}\"));\n    match halvo_test_dir::make(tmp, word) {{\n");
+    assert_eq!(fixed_target_tmp_names(&maker), Vec::<String>::new());
+    let other = "    let src = held.path().join(\"src\");\n";
+    assert_eq!(fixed_target_tmp_names(other), Vec::<String>::new());
 }
