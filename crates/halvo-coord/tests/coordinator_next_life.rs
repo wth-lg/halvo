@@ -6,8 +6,8 @@ use halvo_coord::mem::{Call, Method};
 use halvo_coord::ports::{PortError, Reaped, Rng};
 use halvo_coord::run::recover;
 use halvo_coord::types::{
-    Action, Body, Category, Control, DismissedWorkflow, Event, Limits, Name, Outcome, PastRun, Row,
-    RunEnd, RunEvent, RunHistory, RunId, Status, Trigger, What, Workflow,
+    Action, Body, Category, Cause, Control, DismissedWorkflow, Event, Limits, Name, Outcome,
+    PastRun, Row, RunEnd, RunEvent, RunHistory, RunId, Status, Trigger, What, Workflow,
 };
 use halvo_coord::{words, Coordinator};
 use std::num::NonZeroU32;
@@ -410,12 +410,27 @@ fn u46b_next_life_shows_a_gone_workflows_run_that_reap_answers_alive() {
         Some((Status::Working, kill_stuck(), Vec::new())),
         "the workflow left the owner's list between the two lives"
     );
-    store_ends(&life, 0, &record(&runs[0], Outcome::Failed));
-    tick_at(&life, 1);
     assert_eq!(
-        seen(&life, 0),
+        life.control(&agent(0), Action::RunNow),
+        Err(Cause::UnknownAgent),
+        "the agent of a gone workflow is no member, as I5.11's gone_outlives_app has it"
+    );
+    tick_at(&life, 1);
+    assert_eq!(seen(&life, 0).map(|s| s.1), Some(kill_stuck()));
+    assert!(
+        !end_runs(&life).contains(&runs[0]),
+        "nothing is sent for it"
+    );
+    store_ends(&life, 0, &record(&runs[0], Outcome::Failed));
+    let later = Coordinator::new(
+        next_life(&life, &[(runs[0].clone(), Reaped::Alive)]),
+        Limits::PRODUCT,
+    );
+    later.tick();
+    assert_eq!(
+        seen(&later, 0),
         None,
-        "a record of the store that names the run ends the row of a gone workflow"
+        "a record of the store that names the run, read at the next recovery, ends the row"
     );
 
     let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
