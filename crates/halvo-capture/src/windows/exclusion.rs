@@ -189,14 +189,15 @@ pub(crate) fn private_window(
     title: &str,
     query: impl FnOnce() -> Option<bool>,
 ) -> PrivateWindow {
-    let _ = (
-        browser,
-        title,
-        query,
-        EDGE_PRIVATE_ENDING,
-        FIREFOX_PRIVATE_ENDING,
-    );
-    let private = false;
+    let private = match browser {
+        Browser::Edge => title
+            .replace('\u{200B}', "")
+            .trim_end()
+            .ends_with(EDGE_PRIVATE_ENDING),
+        Browser::Firefox => title.trim_end().ends_with(FIREFOX_PRIVATE_ENDING),
+        Browser::Chrome => query() != Some(false),
+        Browser::Other => false,
+    };
     if private {
         PrivateWindow::Private
     } else {
