@@ -317,7 +317,9 @@ pub(crate) fn executable_path(pid: libc::pid_t) -> Option<String> {
     Some(String::from_utf8_lossy(&buffer).into_owned())
 }
 
-fn bundle_identifier(text: &objc2_foundation::NSString) -> String {
+/// The text of a bundle id: at most the cap of UTF-16 units, an unpaired
+/// surrogate read as U+FFFD; it never aborts.
+pub(crate) fn bundle_identifier(text: &objc2_foundation::NSString) -> String {
     let string = (text as *const objc2_foundation::NSString).cast::<std::ffi::c_void>()
         as core_foundation::string::CFStringRef;
     // SAFETY: an NSString is toll-free bridged with CFString, and `text`

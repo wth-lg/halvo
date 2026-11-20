@@ -35,7 +35,7 @@ use objc2_screen_capture_kit::{
 use crate::event::{AppIdentity, EventClock, FloorEvent, Modality};
 use crate::floor::exclude::{DropReason, FloorHandle, PrivateWindow, ProcessId, Subject, Verdict};
 use crate::floor::{kind, Switch};
-use crate::macos::foreground::{executable_path, ForegroundReader, HalvoApp};
+use crate::macos::foreground::{bundle_identifier, executable_path, ForegroundReader, HalvoApp};
 use crate::macos::source_failure;
 use crate::secure_input_macos::SystemProbe;
 use crate::sink::SinkHandle;
@@ -414,11 +414,19 @@ fn excluded_applications<T>(
 
 fn entry_of(app: &SCRunningApplication) -> AppEntry {
     // SAFETY: `app` is a live SCRunningApplication of the content that the
-    // caller holds, and both getters are property getters that take no argument.
-    let (pid, bundle_id) = unsafe { (app.processID(), app.bundleIdentifier().to_string()) };
+    // caller holds, and both getters are property getters that take no
+    // argument. The block reads the pid and the retained bundle id alone; the
+    // text of the id is made outside it, by `entry_from`.
+    let (pid, bundle_id) = unsafe { (app.processID(), app.bundleIdentifier()) };
+    entry_from(pid, &bundle_id)
+}
+
+/// The entry of the application `pid` whose bundle id is `bundle_id`, read
+/// through `bundle_identifier`, which never aborts.
+fn entry_from(pid: libc::pid_t, bundle_id: &NSString) -> AppEntry {
     AppEntry {
         pid,
-        bundle_id,
+        bundle_id: bundle_identifier(bundle_id),
         path: executable_path(pid),
     }
 }
@@ -595,17 +603,27 @@ fn halvo_pids(halvo: &HalvoApp) -> Vec<libc::pid_t> {
             .runningApplications()
             .iter()
             .filter_map(|app| {
-                let pid = app.processIdentifier();
-                let bundle_id = app
-                    .bundleIdentifier()
-                    .map(|id| id.to_string())
-                    .unwrap_or_default();
-                halvo
-                    .selects(&bundle_id, executable_path(pid).as_deref())
-                    .then_some(pid)
+                halvo_pid_of(
+                    halvo,
+                    app.processIdentifier(),
+                    app.bundleIdentifier().as_deref(),
+                )
             })
             .collect()
     })
+}
+
+/// `pid` when the running application `pid` with the bundle id `bundle_id` is
+/// Halvo's; the id is read through `bundle_identifier`, which never aborts.
+fn halvo_pid_of(
+    halvo: &HalvoApp,
+    pid: libc::pid_t,
+    bundle_id: Option<&NSString>,
+) -> Option<libc::pid_t> {
+    let bundle_id = bundle_id.map(bundle_identifier).unwrap_or_default();
+    halvo
+        .selects(&bundle_id, executable_path(pid).as_deref())
+        .then_some(pid)
 }
 
 /// What the rebuild's timer works on. It lives in a box whose address the
@@ -1768,6 +1786,47 @@ mod tests {
                 .map(|app| app.0)
                 .collect();
         assert_eq!(without_root, [900, 901, own]);
+    }
+
+    fn utf16_nsstring(units: &[u16]) -> core_foundation::string::CFString {
+        use core_foundation::base::kCFAllocatorDefault;
+        use core_foundation::string::{CFString, CFStringCreateWithCharacters};
+        // SAFETY: `units` holds UTF-16 code units, an unpaired surrogate among
+        // them, and the call copies them into a new string at +1.
+        unsafe {
+            CFString::wrap_under_create_rule(CFStringCreateWithCharacters(
+                kCFAllocatorDefault,
+                units.as_ptr(),
+                units.len() as isize,
+            ))
+        }
+    }
+
+    fn as_ns(text: &core_foundation::string::CFString) -> &NSString {
+        // SAFETY: a CFString is toll-free bridged with NSString, and the
+        // reference borrows `text`, which stays alive.
+        unsafe { &*(text.as_concrete_TypeRef() as *const NSString) }
+    }
+
+    #[test]
+    fn a_bundle_id_with_an_unpaired_surrogate_is_read_lossily_at_both_call_sites_and_aborts_nothing(
+    ) {
+        let evil = utf16_nsstring(&[0x63, 0x6F, 0x6D, 0x2E, 0x65, 0x76, 0x69, 0x6C, 0xD800]);
+        let own = std::process::id() as libc::pid_t;
+        let entry = entry_from(own, as_ns(&evil));
+        assert_eq!(
+            entry.bundle_id, "com.evil\u{FFFD}",
+            "the entry of the shareable content"
+        );
+        let halvo = HalvoApp::with_sibling(SIBLING);
+        assert_eq!(
+            halvo_pid_of(&halvo, own, Some(as_ns(&evil))),
+            None,
+            "a running app"
+        );
+        let ours = utf16_nsstring(&HalvoApp::BUNDLE_ID.encode_utf16().collect::<Vec<u16>>());
+        assert_eq!(halvo_pid_of(&halvo, 77, Some(as_ns(&ours))), Some(77));
+        assert_eq!(halvo_pid_of(&halvo, 77, None), None);
     }
 
     #[test]
