@@ -186,11 +186,22 @@ function release(path: string, text: string): void {
   if (now === text) unmark(path);
 }
 
+function releaseOwn(path: string, group: Id, owner: Id | null): void {
+  let mark: Mark | null;
+  try {
+    mark = readMark(readFileSync(path, "utf8"));
+  } catch {
+    return;
+  }
+  if (mark === null || owner === null || mark.pid !== group.pid || mark.started !== group.started) return;
+  if (mark.owner.pid === owner.pid && mark.owner.started === owner.started) unmark(path);
+}
+
 function stopAll(state: Live): void {
   const groups = [...state.groups.keys()];
   const left = stopNow(groups);
   for (const group of groups) {
-    if (!left.includes(group)) unmark(state.groups.get(group) as string);
+    if (!left.includes(group)) releaseOwn(state.groups.get(group) as string, group, state.owner);
   }
   state.groups.clear();
 }
@@ -269,8 +280,8 @@ export function startGroup(command: string, args: string[], options: Options): G
     const own = table().find((row) => row.pid === child.pid);
     if (own === undefined || own.pgid !== child.pid) throw new Error(`${name} (pid ${child.pid}) does not lead its own process group`);
     const group = { pid: child.pid, started: own.started, child };
-    state.groups.set(group, mark);
     writeFileSync(mark, JSON.stringify({ ...record, started: own.started }));
+    state.groups.set(group, mark);
     return group;
   } catch (error) {
     let rows: Row[] | null = null;
@@ -309,7 +320,7 @@ async function endKnown(state: Live, group: Group): Promise<void> {
     state.groups.delete(group);
     const count = members(group, rows).length;
     if (count === 0) {
-      if (mark !== undefined) unmark(mark);
+      if (mark !== undefined) releaseOwn(mark, group, state.owner);
     } else {
       process.stderr.write(`process-group: left group ${group.pid} (started ${group.started}): its leader was gone when endGroup was called and ${processes(count)} its id as their group\n`);
     }
@@ -324,7 +335,7 @@ async function endKnown(state: Live, group: Group): Promise<void> {
     throw new Error(`process group ${group.pid} (started ${group.started}) still has members ${members(group).join(" ")}`);
   }
   state.groups.delete(group);
-  if (mark !== undefined) unmark(mark);
+  if (mark !== undefined) releaseOwn(mark, group, state.owner);
 }
 
 async function gone(group: Id, ms: number): Promise<boolean> {
