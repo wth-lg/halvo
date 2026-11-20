@@ -8263,6 +8263,61 @@ mod tests {
     }
 
     #[test]
+    fn a_key_a_click_and_a_fold_of_the_tap_pass_the_owners_flush_as_a_class_a_button_and_a_count() {
+        use crate::daemon::model_store::Harness;
+        use crate::daemon::owner::Command;
+        use crate::floor::record::DecodedPayload;
+        reset_stand_ins();
+        let mut harness = Harness::new();
+        harness.ask(Command::ClosePause);
+        let (fg_writer, reader) = foreground_state_for_test();
+        fg_writer.set_for_test(Some(APP.front()));
+        let ctx = Box::new(tap_context(
+            harness.sink.clone(),
+            reader,
+            InputCounters::new(),
+            &stand_in_settings(),
+            Bounds {
+                hold: Duration::from_millis(100),
+                gap: Duration::from_millis(30),
+                lag: Duration::from_millis(30),
+                cap: 64,
+            },
+            Arc::new(AtomicBool::new(false)),
+        ));
+        ctx.start(&mut lock(&ctx.hold));
+        key_with_code(&ctx, CGEventType::KeyDown, 0x24, 0);
+        pointer(&ctx, CGEventType::RightMouseDown, 1);
+        pointer(&ctx, CGEventType::ScrollWheel, 4);
+        ticks(&ctx, 200);
+        close_interval(&ctx);
+        harness.ask(Command::Settle);
+        let records = harness.store.records();
+        let read: Vec<(&str, Option<&str>, String)> = records
+            .iter()
+            .map(|record| {
+                let payload = match record.payload() {
+                    DecodedPayload::Keystroke(class) => class.as_str().to_string(),
+                    DecodedPayload::Click(button) => format!("click {}", button.as_str()),
+                    DecodedPayload::Fold { class, count } => format!("{} {count}", class.as_str()),
+                    _ => panic!("a record of another kind"),
+                };
+                (record.kind(), record.app(), payload)
+            })
+            .collect();
+        assert_eq!(
+            read,
+            [
+                ("pointer", Some(APP.0), "click secondary".to_string()),
+                ("keystroke", Some(APP.0), "enter".to_string()),
+                ("pointer", Some(APP.0), "scroll 4".to_string()),
+            ]
+        );
+        drop(ctx);
+        drop(fg_writer);
+    }
+
+    #[test]
     fn each_type_of_the_table_has_its_class() {
         use TapClass::{
             ContinuousPointer as C, DiscretePointer as D, KeyPress as K, OtherKey as O,

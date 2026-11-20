@@ -1190,6 +1190,46 @@ mod tests {
     }
 
     #[test]
+    fn a_title_of_the_poller_passes_the_owners_flush_as_its_text_its_cut_and_why() {
+        use crate::daemon::model_store::Harness;
+        use crate::daemon::owner::Command;
+        use crate::floor::record::DecodedPayload;
+        let mut harness = Harness::new();
+        harness.ask(Command::ClosePause);
+        let (writer, _reader) = foreground_state_for_test();
+        let mut poller = Poller::new(writer, Arc::default());
+        poller.probe = SystemProbe::with_readers(at_console, probe_byte);
+        let front = app("com.example.a", 10);
+        poller.step(front.clone(), Vec::new(), &harness.sink);
+        poller.step(front, answer(1, read("Quarterly plan")), &harness.sink);
+        harness.ask(Command::Settle);
+        let records = harness.store.records();
+        assert_eq!(
+            records
+                .iter()
+                .map(|record| record.kind())
+                .collect::<Vec<_>>(),
+            ["foreground_app", "window_title"]
+        );
+        match records[1].payload() {
+            DecodedPayload::WindowTitle {
+                text,
+                cut,
+                why,
+                site,
+            } => {
+                assert_eq!(
+                    (text.as_str(), *cut, why.as_str(), site.is_none()),
+                    ("Quarterly plan", false, "app_change", true)
+                );
+            }
+            _ => panic!("the second record is no title"),
+        }
+        assert_eq!(records[1].app(), Some("com.example.a"));
+        drop(poller);
+    }
+
+    #[test]
     fn readings_a_a_b_of_one_app_give_two_title_events_with_a_and_b() {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
         let front = app("com.example.a", 10);
