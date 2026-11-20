@@ -106,14 +106,7 @@ where
         let Ok(Ok(item)) = ports.bytes16().map(|b| ItemId::parse(&hex(b))) else {
             continue;
         };
-        let events = check_raise_body(
-            &board.members[i].facts,
-            board.stored_last(i),
-            owed_ready(board, i),
-            owed_of_kind(board, i, ItemKind::Check),
-            &item,
-            stamp,
-        );
+        let events = check_raise_body(board, i, &item, stamp);
         let logged = match log_body(ports, board, i, events) {
             Ok(()) => Retried::Logged,
             Err(e) if seq_refusal(&e) => {
@@ -142,10 +135,6 @@ enum Retried {
     Nothing,
 }
 
-/// Logs the check's body as every sender of the agent does (I7.2, rulings RD-64 2.5, 3.2): an
-/// acknowledged body joins the agent's events, its last `seq` becomes the stored last and the
-/// board takes the store (`Board::acknowledged`); a refusal goes to the board's count by its
-/// class (`Board::note_refusal`).
 fn log_body<P: Owner, C>(
     ports: &P,
     board: &mut Board<C>,
@@ -165,14 +154,11 @@ fn log_body<P: Owner, C>(
     Ok(())
 }
 
-fn check_raise_body<C>(
-    facts: &Facts<C>,
-    last: u32,
-    owed: Vec<ItemId>,
-    owed_checks: Vec<What>,
-    item: &ItemId,
-    stamp: Stamp,
-) -> Vec<Event> {
+fn check_raise_body<C>(board: &Board<C>, i: usize, item: &ItemId, stamp: Stamp) -> Vec<Event> {
+    let facts = &board.members[i].facts;
+    let last = board.stored_last(i);
+    let owed = owed_ready(board, i);
+    let owed_checks = owed_of_kind(board, i, ItemKind::Check);
     let open = match &facts.doing {
         Doing::Idle(Some(own)) if own.kind == OwnItemKind::Ready => Some(own.item.clone()),
         _ => None,
@@ -223,14 +209,7 @@ where
     if !check_due(&board.members[i].facts, gone) {
         return Retried::Nothing;
     }
-    let events = check_raise_body(
-        &board.members[i].facts,
-        board.stored_last(i),
-        owed_ready(board, i),
-        owed_of_kind(board, i, ItemKind::Check),
-        item,
-        stamp,
-    );
+    let events = check_raise_body(board, i, item, stamp);
     match log_body(ports, board, i, events) {
         Ok(()) => Retried::Logged,
         Err(e) => {

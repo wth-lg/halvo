@@ -1500,10 +1500,6 @@ where
     }
 }
 
-/// Raises `setup` again for the agent of member `i`, as the new life's first creation move does
-/// (I5.8, K7): where its workflow is in the owner's list and not dismissed (`listed`), it is not
-/// set aside, holds no open item and its hold `setup` stands; the raise writes the owed lapse of
-/// an earlier life's `setup` item first, in its body (ruling RD-96 item 5 (b)).
 fn setup_again<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>, i: usize, listed: bool)
 where
     P: Owner + Rng,

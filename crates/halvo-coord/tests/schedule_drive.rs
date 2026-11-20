@@ -3311,8 +3311,6 @@ fn u24s_refused(name: &str) -> PortError {
     PortError::Refused(Name::parse(name).unwrap())
 }
 
-/// One tick in a row with a refusal of class C or D makes the record stuck, so that a refusal
-/// that counts shows at once.
 fn u24s_one_tick() -> Limits {
     Limits {
         record_stuck_ticks: 1,
@@ -3381,9 +3379,6 @@ fn u24s_is_lapse(e: &Event) -> bool {
     matches!(e.what, What::ItemLapsed { .. })
 }
 
-/// One sender of the inbox of 2026-11-17T12:53:25Z: the world in which agent `n` is about to
-/// send, how the owner refuses that send, the send with the tick that counts it, and the name of
-/// the refused call.
 struct U24sSender {
     make: fn() -> World,
     n: usize,
@@ -3392,10 +3387,6 @@ struct U24sSender {
     sent: &'static str,
 }
 
-/// I7.2's class B at a sender (ruling RD-126 item 9): a refusal with `no_workflow` counts
-/// nothing toward the stuck line and marks nothing for the life, so that a later refusal that
-/// counts makes the record stuck with no stop for the life; the same send refused with a name
-/// that can pass counts.
 fn u24s_class_b_at(s: &U24sSender) {
     let agent = agent(s.n);
     let mut w = (s.make)();

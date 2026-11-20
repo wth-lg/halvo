@@ -11864,9 +11864,6 @@ fn u24s_setup_raises_tried(c: &Coordinator<Both>, from: usize, made: &AgentId) -
         .count()
 }
 
-/// A next life after a crash of the life of `setup_agent`, whose setup item stays open in the
-/// owner's events, in which the owner refuses the history of the agent so that recovery sets it
-/// aside.
 fn u24s_aside_with_setup() -> (Coordinator<Both>, AgentId, ItemId, WorkflowId) {
     let (c, made, old) = setup_agent();
     let flow = workflow_of(&c, &made);

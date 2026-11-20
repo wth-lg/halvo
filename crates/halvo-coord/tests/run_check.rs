@@ -3477,14 +3477,24 @@ fn u24s_f3_02_a_check_raise_refused_with_store_at_each_tick_makes_the_record_stu
 
 #[test]
 fn u24s_f3_02_a_check_raise_counts_by_the_class_of_its_refusal() {
-    for (name, stuck, for_life) in [
-        ("no_workflow", false, false),
-        ("store", true, false),
-        ("malformed", true, false),
-        ("role", true, true),
-        ("seq", true, false),
+    for (name, dismissed, stuck, for_life) in [
+        ("no_workflow", false, false, false),
+        ("binding", true, false, false),
+        ("binding", false, true, true),
+        ("store", false, true, false),
+        ("malformed", false, true, false),
+        ("role", false, true, true),
+        ("seq", false, true, false),
     ] {
         let mut w = u24s_check_due(u24s_one_tick());
+        if dismissed {
+            w.ports.workflows.borrow_mut()[0] =
+                Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                    id: flow(0),
+                    category: Category::CalendarCleanup,
+                    site: None,
+                });
+        }
         w.ports.refuse_agent(Method::Log, &agent(0), refusal(name));
         w.act(Act::Tick);
         w.act(Act::Tick);
@@ -3496,12 +3506,12 @@ fn u24s_f3_02_a_check_raise_counts_by_the_class_of_its_refusal() {
         assert_eq!(
             w.board.record_stuck(&agent(0), &w.limits),
             stuck,
-            "{name}: class B counts nothing, a class that can pass and a second seq after the read count"
+            "{name} (dismissed {dismissed}): class B counts nothing, a class that can pass and a second seq after the read count"
         );
         assert_eq!(
             w.board.stuck_for_life(&agent(0), &w.limits),
             for_life,
-            "{name}: only a refusal that cannot pass in this life marks the agent for the life"
+            "{name} (dismissed {dismissed}): only a refusal that cannot pass in this life marks the agent for the life"
         );
     }
 }
