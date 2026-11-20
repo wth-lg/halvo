@@ -174,13 +174,14 @@ fn has_image(sample: &CMSampleBuffer) -> bool {
 /// the last impairment of the frames, the stop that the delegate reported, and
 /// whether the current filter lists Halvo's app. The report is held under the
 /// lock `stop`, which the delegate writes under and under which `shutdown`
-/// reads it before it would ask the stream to stop. The stream's stop flag,
+/// reads it before it would ask the stream to stop; no report and a report
+/// with the code 0 are two states of it. The stream's stop flag,
 /// which `shutdown` sets at its start, and the count of the frames that the
 /// flag dropped belong to the stream too.
 #[derive(Default)]
 struct StreamFacts {
     condition: AtomicU8,
-    stop: Mutex<i64>,
+    stop: Mutex<Option<i64>>,
     lists_app: AtomicU8,
     listed: Mutex<Vec<libc::pid_t>>,
     stop_asked: AtomicBool,
@@ -206,7 +207,7 @@ impl StreamFacts {
     }
 
     fn stopped_with(&self, code: i64) {
-        *self.stop.lock().unwrap_or_else(PoisonError::into_inner) = code;
+        *self.stop.lock().unwrap_or_else(PoisonError::into_inner) = Some(code);
     }
 
     fn mark_stop_asked(&self) {
@@ -226,10 +227,7 @@ impl StreamFacts {
     /// The code of the stop that the delegate reported, read under the lock
     /// that it writes under; None while it reported none.
     fn report(&self) -> Option<i64> {
-        match *self.stop.lock().unwrap_or_else(PoisonError::into_inner) {
-            0 => None,
-            code => Some(code),
-        }
+        *self.stop.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn filter(&self, listed: Vec<libc::pid_t>, lists_app: bool) {
@@ -2906,6 +2904,39 @@ mod tests {
     }
 
     #[test]
+    fn adv2_repro_05_delegate_stop_code_zero_reads_running() {
+        let (mut src, _h, _w, _a, _wk) = started(&[Some(StopReply::Stopped)]);
+        deliver_stop(src.output.as_ref().expect("started source holds output"), 0);
+        let state = src.health().state;
+        src.shutdown().ok();
+        assert_eq!(
+            state,
+            SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: CaptureError::Os {
+                    stage: "stream_stopped",
+                    domain: "ScreenCaptureKit",
+                    code: 0,
+                },
+            },
+            "delegate stop code 0 must map to Failed, not Running"
+        );
+    }
+
+    #[test]
+    fn adv3_a_delegate_stop_code_of_zero_reads_failed() {
+        let (handle, _writer) = sink::channel(8);
+        let (out, _front) = output(handle);
+        deliver_stop(&out, 0);
+        let state = out.ivars().facts.state();
+        eprintln!("adv3 stop code 0: state={state:?}");
+        assert!(
+            matches!(state, SourceState::Failed { .. }),
+            "a delegate stop with code 0 reads {state:?}, not failed"
+        );
+    }
+
+    #[test]
     fn adv2_repro_06_shutdown_after_user_stop_3808_overwrites_user_cause() {
         let (mut src, _h, _w, _a, _wk) = started(&[Some(StopReply::Failed { code: -3808 })]);
         deliver_stop(
@@ -2992,6 +3023,7 @@ mod tests {
         for (code, state) in [
             (USER_STOPPED, SourceState::Stopped(StopCause::User)),
             (-3821, stopped_by(-3821)),
+            (0, stopped_by(0)),
         ] {
             let (mut source, handle, writer, asks, weak) =
                 started(&[Some(StopReply::Failed { code: -3808 })]);
@@ -3157,7 +3189,7 @@ mod tests {
                 }
                 std::thread::yield_now();
             }
-            *report = USER_STOPPED;
+            *report = Some(USER_STOPPED);
             true
         });
         holds.recv().expect("the stand-in delegate holds the lock");
