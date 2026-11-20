@@ -1,3 +1,5 @@
+#![deny(clippy::let_underscore_must_use)]
+
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::sync::mpsc::channel;
@@ -2081,7 +2083,7 @@ impl TapThread {
                     let installed = match install() {
                         Ok(installed) => installed,
                         Err(e) => {
-                            let _ = loop_tx.send(Err(e));
+                            loop_tx.send(Err(e)).ok();
                             return;
                         }
                     };
@@ -2097,7 +2099,7 @@ impl TapThread {
                         std::ptr::null_mut(),
                     );
                     add_to_this_run_loop(&idle);
-                    let _ = loop_tx.send(Ok(CFRunLoop::get_current()));
+                    loop_tx.send(Ok(CFRunLoop::get_current())).ok();
                     before_run();
                     while !stop.load(Ordering::SeqCst) {
                         // SAFETY: `kCFRunLoopDefaultMode` is a constant CFString
@@ -2125,11 +2127,11 @@ impl TapThread {
                 thread: Some(thread),
             }),
             Ok(Err(e)) => {
-                let _ = thread.join();
+                thread.join().ok();
                 Err(e)
             }
             Err(_) => {
-                let _ = thread.join();
+                thread.join().ok();
                 Err(CaptureError::ThreadEnded)
             }
         }
@@ -2566,7 +2568,7 @@ impl Drop for InputSource {
         if self.unstopped.is_some() {
             return;
         }
-        let _ = self.shutdown();
+        self.shutdown().ok();
     }
 }
 
@@ -6654,7 +6656,7 @@ mod tests {
             .begin_with(handle, FakeMaker(ended_tx), || {})
             .expect("the source starts with a stand-in tap");
         if let Some(refused) = source.hold_refusal() {
-            let _ = source.shutdown();
+            source.shutdown().ok();
             assert!(
                 skip_allowed(std::env::var_os(HOLD_REQUIRED).as_deref()),
                 "a_new_source_with_a_hold_plan_holds_secure_input_through_the_system_while_it_runs: \
@@ -6975,7 +6977,9 @@ mod tests {
         let counters = InputCounters::new();
         let mut source = InputSource::new(reader, counters.clone(), HoldPlan::Never);
         source.session = || Session::NoDictionary;
-        let _ = source.begin_with(handle, KeepingMaker(kept.clone()), || {});
+        source
+            .begin_with(handle, KeepingMaker(kept.clone()), || {})
+            .ok();
         let callback = kept
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
