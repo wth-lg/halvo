@@ -571,3 +571,12 @@ rebuild-backoff-not-doubled
 user-stop-read-as-failed
 chooser-takes-the-first-display
 content-timeout-read-as-permission
+key-classes-swapped
+key-up-recorded
+cleared-modifier-recorded
+moves-not-folded
+exclusion-decision-ignored
+key-mask-always-granted
+late-rule-off
+title-read-under-secure-input
+age-not-passed
