@@ -94,9 +94,11 @@ pub fn bears_profile(args: &[String], profile: &str) -> bool {
 /// read these alone.
 fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     let split: Vec<String> = if windows {
-        args.iter().flat_map(|a| split_command_line(a)).collect()
+        args.iter()
+            .flat_map(|a| split_command_line(a.trim()).into_iter().skip(1))
+            .collect()
     } else {
-        args.to_vec()
+        args.iter().skip(1).cloned().collect()
     };
     let ends = |a: &str| {
         a.trim() == "--" || windows && switch_of(a).is_some_and(|(key, _)| key == "single-argument")
@@ -1188,7 +1190,10 @@ mod tests {
     #[test]
     fn a_profile_is_borne_by_the_two_exact_forms_alone() {
         let mac = |args: &[&str], profile: &str| {
-            let args: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+            let args: Vec<String> = std::iter::once("/B.app/Contents/MacOS/b")
+                .chain(args.iter().copied())
+                .map(|a| a.to_string())
+                .collect();
             bears_profile_on(&args, profile, false)
         };
         let win = |line: &str, profile: &str| bears_profile_on(&[line.to_string()], profile, true);
@@ -1769,7 +1774,7 @@ mod tests {
         ));
         assert!(win(r"b.exe --user-data-dir=C:\WORK\KP", r"C:\work\kp"));
         assert!(!bears_profile_on(
-            &strings(&["--user-data-dir=//t/p"]),
+            &strings(&["b", "--user-data-dir=//t/p"]),
             "/t/p",
             false
         ));
@@ -1866,7 +1871,12 @@ mod tests {
         let ended = end_runs_own_with(
             &mark,
             &|| Ok(vec![read.clone()]),
-            &|_| Some(vec!["--user-data-dir=/t/p".to_string()]),
+            &|_| {
+                Some(vec![
+                    "/bin/sleep".to_string(),
+                    "--user-data-dir=/t/p".to_string(),
+                ])
+            },
             &|_| true,
             &procs::kill,
         );
@@ -2447,12 +2457,15 @@ mod tests {
             row(400, 1, "/b/App.app/Contents/Frameworks/handler"),
         ];
         let args = |pid: u32| -> Option<Vec<String>> {
-            Some(vec![match pid {
-                100 => "--user-data-dir=/t/p-1".into(),
-                200 => "--database=/t/p-1/Crashpad".into(),
-                300 => "--user-data-dir=/t/p-10".into(),
-                _ => "--other".into(),
-            }])
+            Some(vec![
+                "/B.app/Contents/MacOS/App".into(),
+                match pid {
+                    100 => "--user-data-dir=/t/p-1".into(),
+                    200 => "--database=/t/p-1/Crashpad".into(),
+                    300 => "--user-data-dir=/t/p-10".into(),
+                    _ => "--other".into(),
+                },
+            ])
         };
         let tree: Vec<u32> = tree_of_with(&table, &table[0], &args)
             .iter()
@@ -2494,7 +2507,12 @@ mod tests {
                     Vec::new()
                 })
             },
-            &|_| Some(vec!["--user-data-dir=/t/p".to_string()]),
+            &|_| {
+                Some(vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--user-data-dir=/t/p".to_string(),
+                ])
+            },
             &|_| true,
             &|q| {
                 killed.borrow_mut().push(q.pid);
@@ -2710,8 +2728,14 @@ mod tests {
             ]
         } else {
             vec![
-                vec!["--user-data-dir=/base/agent 2".to_string()],
-                vec!["--user-data-dir=/q/base/agent".to_string()],
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--user-data-dir=/base/agent 2".to_string(),
+                ],
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--user-data-dir=/q/base/agent".to_string(),
+                ],
                 vec![
                     "/B.app/Contents/MacOS/b".to_string(),
                     "/base/agent/Downloads/report.pdf".to_string(),
@@ -2758,20 +2782,29 @@ mod tests {
     fn g1_the_run_s_own_forms_are_the_run_s_and_another_profile_is_not() {
         assert!(g1_kills(
             "/base/agent",
-            vec!["--user-data-dir=/base/agent2".to_string()]
+            vec![
+                "/B.app/Contents/MacOS/b".to_string(),
+                "--user-data-dir=/base/agent2".to_string()
+            ]
         )
         .is_empty());
         assert_eq!(
             g1_kills(
                 "/base/agent",
-                vec!["--user-data-dir=/base/agent".to_string()]
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--user-data-dir=/base/agent".to_string()
+                ]
             ),
             vec![40]
         );
         assert_eq!(
             g1_kills(
                 "/base/agent",
-                vec!["--database=/base/agent/Crashpad".to_string()]
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--database=/base/agent/Crashpad".to_string()
+                ]
             ),
             vec![40]
         );
@@ -2802,11 +2835,14 @@ mod tests {
         let profile = "/private/var/f/p";
         let args_with = |database: &'static str| {
             move |pid: u32| {
-                Some(vec![if pid == 30 {
-                    format!("--user-data-dir={profile}")
-                } else {
-                    format!("--database={database}")
-                }])
+                Some(vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    if pid == 30 {
+                        format!("--user-data-dir={profile}")
+                    } else {
+                        format!("--database={database}")
+                    },
+                ])
             }
         };
         let before = tree_of_with(&table, &root, &args_with("/var/f/p/Crashpad"));
@@ -2814,13 +2850,22 @@ mod tests {
         let after = tree_of_with(&table, &root, &args_with("/private/var/f/p/Crashpad"));
         assert!(after.iter().any(|p| p.pid == 41), "{after:?}");
         assert_eq!(
-            g1_kills(profile, vec!["--database=/var/f/p/Crashpad".to_string()]),
+            g1_kills(
+                profile,
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--database=/var/f/p/Crashpad".to_string()
+                ]
+            ),
             Vec::<u32>::new()
         );
         assert_eq!(
             g1_kills(
                 profile,
-                vec!["--database=/private/var/f/p/Crashpad".to_string()]
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--database=/private/var/f/p/Crashpad".to_string()
+                ]
             ),
             vec![40]
         );

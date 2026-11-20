@@ -829,7 +829,10 @@ mod tests {
     /// The arguments of every process: the run's profile `/p` as a whole path, so that a row of a
     /// program inside the bundle bears the run's mark.
     fn every_marked(_pid: u32) -> Option<Vec<String>> {
-        Some(vec!["--user-data-dir=/p".to_string()])
+        Some(vec![
+            BUNDLE_EXE.to_string(),
+            "--user-data-dir=/p".to_string(),
+        ])
     }
 
     /// `run` with the arguments of a process given, from which the loop takes the run's mark.
@@ -2652,8 +2655,11 @@ mod tests {
             ]
         } else {
             vec![
-                vec!["--user-data-dir=/p word".to_string()],
-                vec!["--user-data-dir=/q/p".to_string()],
+                vec![
+                    BUNDLE_EXE.to_string(),
+                    "--user-data-dir=/p word".to_string(),
+                ],
+                vec![BUNDLE_EXE.to_string(), "--user-data-dir=/q/p".to_string()],
                 vec![
                     "/B.app/Contents/MacOS/b".to_string(),
                     "/p/Downloads/report.pdf".to_string(),
@@ -2731,7 +2737,10 @@ mod tests {
             },
             &|p, t| {
                 if p == ROOT || (p == 40 && (10_000..20_000).contains(&t)) {
-                    Some(vec!["--user-data-dir=/other".to_string()])
+                    Some(vec![
+                        BUNDLE_EXE.to_string(),
+                        "--user-data-dir=/other".to_string(),
+                    ])
                 } else {
                     every_marked(p)
                 }
@@ -3027,7 +3036,10 @@ mod tests {
             &g7_table(row(ROOT, 1, 7, ROOT), Some(row(36, ROOT, 20, 0)), false),
             &|p, t| {
                 if p == 36 && t < 4_500 {
-                    Some(vec!["--user-data-dir=/other".to_string()])
+                    Some(vec![
+                        BUNDLE_EXE.to_string(),
+                        "--user-data-dir=/other".to_string(),
+                    ])
                 } else {
                     every_marked(p)
                 }

@@ -836,11 +836,14 @@ mod tests {
             root: "/B.app".into(),
         };
         let args = |pid: u32| {
-            Some(vec![if pid == 3 {
-                "--user-data-dir=/person".to_string()
-            } else {
-                "--user-data-dir=/p".to_string()
-            }])
+            Some(vec![
+                "/B.app/Contents/MacOS/b".to_string(),
+                if pid == 3 {
+                    "--user-data-dir=/person".to_string()
+                } else {
+                    "--user-data-dir=/p".to_string()
+                },
+            ])
         };
         let tree = vec![p(1, 9, "/B.app/b")];
         let living = vec![
