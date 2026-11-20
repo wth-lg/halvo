@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no forbidden_import (the Carbon call that holds secure input) in either built macOS executable as read by dyld_info regardless of build flags or CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (a recognized row contains indentation, an optional hexadecimal ordinal, the symbol, an optional hexadecimal addend, an optional [weak-import] mark and a nonempty parenthesized from-library field allowing internal blanks, and a tool error, a missing slice header or import header, an empty table or an unrecognized nonblank line fails the check, which trusts dyld_info to enumerate every slice and its named imports, the import table shows what the shipped executable can call through a named import and omits an unreachable hold compiled into the capture library, which check 51 covers with proof builds, and Windows has no import check), and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the work-tree workspace manifest and Cargo configuration paths).
+# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no forbidden_import (the Carbon call that holds secure input) in either built macOS executable as read by dyld_info regardless of build flags or CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (a recognized row contains indentation, an optional hexadecimal ordinal, the symbol, an optional hexadecimal addend, an optional [weak-import] mark and (from library), with internal blanks allowed in the nonempty library name, and the check logs the row, ordinal, addend and weak-import counts per executable and slice, and a tool error, a missing slice header or import header, an empty table or an unrecognized nonblank line fails the check, which trusts dyld_info to enumerate every slice and its named imports, the import table shows what the shipped executable can call through a named import and omits an unreachable hold compiled into the capture library, which check 51 covers with proof builds, and Windows has no import check), and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the work-tree workspace manifest and Cargo configuration paths).
 set -u
 name=62-build
 forbidden_import=_EnableSecureEventInput
@@ -122,14 +122,14 @@ release_imports() {
       printf 'dyld_info -imports %s:\n%s\n' "$executable" "$imports"
       fail "dyld_info could not read the imports of $executable"
     fi
-    result=$(LC_ALL=C awk -v symbol="$forbidden_import" '
+    result=$(LC_ALL=C awk -v symbol="$forbidden_import" -v executable="$executable" '
       function import_row(line) {
         if (!sub(/^[[:blank:]]+/, "", line)) return 0
-        sub(/^0x([0-9A-F]{4}|[1-9A-F][0-9A-F]{4,7})[[:blank:]]+/, "", line)
+        has_ordinal = sub(/^0x([0-9A-F]{4}|[1-9A-F][0-9A-F]{4,7})[[:blank:]]+/, "", line)
         if (!sub(/^[[:alpha:]_.$][[:alnum:]_.$]*/, "", line)) return 0
-        sub(/^\+0x(0|[1-9A-F][0-9A-F]{0,15})/, "", line)
+        has_addend = sub(/^\+0x(0|[1-9A-F][0-9A-F]{0,15})/, "", line)
         if (!sub(/^[[:blank:]]+/, "", line)) return 0
-        sub(/^\[weak-import\][[:blank:]]+/, "", line)
+        has_weak_import = sub(/^\[weak-import\][[:blank:]]+/, "", line)
         return line ~ /^\(from [^()[:space:]]+([[:blank:]]+[^()[:space:]]+)*\)$/
       }
       function unfinished() {
@@ -137,21 +137,36 @@ release_imports() {
         if (state == "table") return "an empty import table"
         return "no import table"
       }
+      function report_table() {
+        if (state == "table" || state == "rows")
+          printf "dyld_info -imports %s %s rows=%d ordinal=%d addend=%d weak-import=%d\n", executable, slice, rows, ordinals, addends, weak_imports >> "/dev/stderr"
+      }
       BEGIN { needle = "(^|[^[:alnum:]_])" symbol "([^[:alnum:]_]|$)" }
       { raw = $0; sub(/\r$/, "") }
       /^[[:blank:]]*$/ { next }
       /^[^[:space:]].* \[[[:alnum:]_.-]+\]:$/ {
         if (state && (reason = unfinished()) != "") exit
+        report_table()
+        slice = $NF
+        rows = ordinals = addends = weak_imports = 0
         state = "slice"
         next
       }
       state == "slice" && /^[[:blank:]]*-imports:[[:blank:]]*$/ { state = "table"; next }
       !state || state == "slice" { reason = "no import table"; exit }
-      $0 ~ needle { print raw; matched = 1; exit }
-      import_row($0) { state = "rows"; next }
+      $0 ~ needle && !matched { matched = raw }
+      import_row($0) {
+        state = "rows"
+        rows++
+        ordinals += has_ordinal
+        addends += has_addend
+        weak_imports += has_weak_import
+        next
+      }
       { reason = "an unrecognized import listing"; exit }
       END {
-        if (matched) exit 3
+        report_table()
+        if (matched) { print matched; exit 3 }
         if (!reason) reason = unfinished()
         if (reason) { print reason; exit 1 }
       }
