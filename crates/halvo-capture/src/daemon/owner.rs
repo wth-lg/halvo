@@ -338,7 +338,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             maintenance_failing: false,
             inbox: None,
             stopping: false,
-            published: Arc::new(Mutex::new(Counters::default().snapshot(0))),
+            published: Arc::new(Mutex::new(Counters::default().snapshot(0, false))),
         };
         owner.read_usage();
         let now = owner.clocks.now();
@@ -434,7 +434,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
 
     /// The snapshot of this moment.
     pub fn snapshot(&self) -> Snapshot {
-        self.counters.snapshot(self.pending())
+        self.counters.snapshot(self.pending(), self.stopped())
     }
 
     /// Runs the maintenance due at `now`: at most one shred call. It is the
@@ -1330,10 +1330,14 @@ mod tests {
             assert!(matches!(command, Command::Settle), "{command:?}");
             drop(inbox);
             reply
-                .send(Answer::Settled(Counters::default().snapshot(4)))
+                .send(Answer::Settled(Counters::default().snapshot(4, false)))
                 .expect("the settle stopped waiting");
         });
-        let settled = crate::daemon::settle_within(&handle, Duration::from_secs(5));
+        let settled = crate::daemon::settle_within(
+            &mut crate::daemon::RealWaits,
+            &handle,
+            Duration::from_secs(5),
+        );
         stand_in.join().expect("the stand-in owner panicked");
         assert_eq!(
             settled.map(|snapshot| snapshot.events_pending),
@@ -2628,7 +2632,7 @@ mod tests {
             assert_eq!(settled.events_persisted, RECORDS);
             let grown = |after: u64, before: u64| after as i128 - before as i128;
             println!(
-                "owner_heap_bytes printed_not_held all_zones_ready={} all_zones_settled={} all_zones_growth={} default_zone_ready={} default_zone_settled={} default_zone_growth={} footprint_ready={ready_footprint} footprint_settled={settled_footprint} footprint_growth={}",
+                "owner_heap_bytes held all_zones_ready={} all_zones_settled={} all_zones_growth={} default_zone_ready={} default_zone_settled={} default_zone_growth={} footprint_ready={ready_footprint} footprint_settled={settled_footprint} footprint_growth={}",
                 ready_heap.all_zones,
                 settled_heap.all_zones,
                 grown(settled_heap.all_zones, ready_heap.all_zones),
@@ -2667,6 +2671,9 @@ mod tests {
             .find_map(|line| line.find("owner_heap_bytes ").map(|at| &line[at..]))
         {
             println!("{heap}");
+        }
+        if let Err(over) = heap_growth_held(&text) {
+            panic!("{over}");
         }
         println!("{line}");
         let growth: u64 = line["owner_growth_bytes=".len()..]
@@ -3370,6 +3377,82 @@ mod tests {
                 "after {answer:?} the batch answered 19 was not held"
             );
             assert!(rejected(&harness).is_empty());
+        }
+    }
+
+    #[test]
+    fn the_snapshot_publishes_the_hold_through_a_give_up_until_a_good_write() {
+        let fresh = Harness::new();
+        assert!(!fresh.owner.snapshot().drain_hold, "a new owner holds");
+        for answer in [WriteFault::Refused, WriteFault::Sealed] {
+            let (mut harness, _) = stopped_by(WriteFault::Db(19));
+            assert!(harness.owner.snapshot().drain_hold, "the third set-aside");
+            harness.store.fail_every_write(Some(answer));
+            harness.emit(foreground_now());
+            harness.emit(foreground_now());
+            settled(&mut harness);
+            let reports = harness.reports();
+            assert_eq!(reports.last(), Some(&Report::DrainHealthy), "{reports:?}");
+            assert!(
+                harness.owner.snapshot().drain_hold,
+                "{answer:?} in the hold ended the published hold"
+            );
+            harness.store.fail_every_write(None);
+            harness.emit(foreground_now());
+            settled(&mut harness);
+            assert!(
+                !harness.owner.snapshot().drain_hold,
+                "an acknowledged write after {answer:?} left the hold published"
+            );
+        }
+    }
+
+    /// The largest growth of the bytes in use over all malloc zones that the
+    /// growth test holds: the Revision of DM-11 (4), as check 26 holds it.
+    const HEAP_GROWTH_MAX_BYTES: i128 = 27_872;
+
+    /// The largest `all_zones_growth` of the heap lines of `text`, when it is
+    /// at or under [`HEAP_GROWTH_MAX_BYTES`].
+    fn heap_growth_held(text: &str) -> Result<i128, String> {
+        let largest = text
+            .lines()
+            .filter_map(|line| line.find("owner_heap_bytes ").map(|at| &line[at..]))
+            .flat_map(|line| line.split(' '))
+            .filter_map(|field| field.strip_prefix("all_zones_growth="))
+            .filter_map(|value| value.parse::<i128>().ok())
+            .max()
+            .ok_or_else(|| "the test printed no bytes-in-use growth".to_owned())?;
+        if largest <= HEAP_GROWTH_MAX_BYTES {
+            Ok(largest)
+        } else {
+            Err(format!(
+                "the bytes in use over all malloc zones grew by {largest}, above {HEAP_GROWTH_MAX_BYTES}"
+            ))
+        }
+    }
+
+    #[test]
+    fn the_bytes_in_use_line_holds_the_largest_growth_at_or_under_27872() {
+        let line = |growth: &str| {
+            format!(
+                "owner_heap_bytes held all_zones_ready=1331072 all_zones_settled=1331136 all_zones_growth={growth} default_zone_ready=69664\n"
+            )
+        };
+        assert_eq!(HEAP_GROWTH_MAX_BYTES, 27_872);
+        for (text, held) in [
+            (line("64"), Ok(64)),
+            (line("-3520"), Ok(-3520)),
+            (line("27872"), Ok(27_872)),
+            (line("27873"), Err(())),
+            (line("211168"), Err(())),
+            (format!("{}{}", line("64"), line("211168")), Err(())),
+            (format!("{}{}", line("211168"), line("64")), Err(())),
+            (line("99999999999999999999"), Err(())),
+            (line("-"), Err(())),
+            ("owner_rss_bytes all_zones_growth=64\n".to_owned(), Err(())),
+            (String::new(), Err(())),
+        ] {
+            assert_eq!(heap_growth_held(&text).map_err(|_| ()), held, "{text:?}");
         }
     }
 
