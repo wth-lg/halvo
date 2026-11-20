@@ -3,7 +3,7 @@ use super::{
     tick_step, wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing,
     StartStep, Stop, Verdict, Waiting,
 };
-use crate::items::drive::{alone, class_of, lasts_the_life, Alone, Class};
+use crate::items::drive::{alone, class_of, Alone, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Stamp};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
@@ -446,15 +446,7 @@ fn log_at<P: Owner, C>(
     let agent = facts.agent.clone();
     if let Err(e) = cx.ports.log(&events) {
         let start = whats.iter().any(|w| matches!(w, What::RunStarted { .. }));
-        if lasts_the_life(&e, dismissed) {
-            if start && class_of(&e, dismissed) == Some(Class::Gone) {
-                board.start_gone(&agent);
-            } else {
-                board.refused_for_life(&agent);
-            }
-        } else if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
-            board.refused(&agent);
-        }
+        board.note_refusal(&agent, &e, dismissed, start);
         return Err(e);
     }
     let sent = u32::try_from(events.len()).unwrap_or(u32::MAX);
@@ -1024,11 +1016,7 @@ fn send_owed<P: Owner, C: ConfigView>(
             Ok(_) => true,
             Err(e) => {
                 let dismissed = board.workflow_dismissed(&owed.workflow);
-                if lasts_the_life(&e, dismissed) {
-                    board.refused_for_life(&owed.agent);
-                } else if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
-                    board.refused(&owed.agent);
-                }
+                board.note_refusal(&owed.agent, &e, dismissed, false);
                 gone_refusal(&e, dismissed)
             }
         },

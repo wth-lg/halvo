@@ -3306,3 +3306,377 @@ fn rd86_an_end_owed_in_this_life_keeps_its_values_and_counts_no_tick_after_the_r
         "the owed end is stored with what this life saw while the run stood on the board"
     );
 }
+
+fn u24s_refused(name: &str) -> PortError {
+    PortError::Refused(Name::parse(name).unwrap())
+}
+
+/// One tick in a row with a refusal of class C or D makes the record stuck, so that a refusal
+/// that counts shows at once.
+fn u24s_one_tick() -> Limits {
+    Limits {
+        record_stuck_ticks: 1,
+        ..Limits::PRODUCT
+    }
+}
+
+fn u24s_refused_since(w: &World, from: usize) -> Vec<String> {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| t.refused.is_some())
+        .filter_map(|t| act(&t.call))
+        .collect()
+}
+
+fn u24s_run(n: u32) -> RunId {
+    RunId::parse(&format!("{:032x}", 0x5500 + n)).unwrap()
+}
+
+fn u24s_item(n: u32) -> halvo_coord::types::ItemId {
+    halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x5600 + n)).unwrap()
+}
+
+fn u24s_owe(w: &mut World, n: usize, what: halvo_coord::schedule::Owing) {
+    w.board.owed.push(halvo_coord::schedule::Owed {
+        agent: agent(n),
+        workflow: flow(n),
+        what,
+    });
+}
+
+fn u24s_owe_lapse(w: &mut World, n: usize, k: u32) {
+    u24s_owe(
+        w,
+        n,
+        halvo_coord::schedule::Owing::ItemLapsed {
+            item: u24s_item(k),
+            lapsed: halvo_coord::types::Lapsed::Ready(halvo_coord::types::OtherLapse::AppEnded),
+            day: DAY,
+            at: 0,
+        },
+    );
+}
+
+fn u24s_is_hold_cleared(e: &Event) -> bool {
+    matches!(e.what, What::HoldCleared { .. })
+}
+
+fn u24s_is_hold_set(e: &Event) -> bool {
+    matches!(e.what, What::HoldSet { .. })
+}
+
+fn u24s_is_answer(e: &Event) -> bool {
+    matches!(e.what, What::ItemAnswered { .. })
+}
+
+fn u24s_is_raise(e: &Event) -> bool {
+    matches!(e.what, What::ItemRaised { .. })
+}
+
+fn u24s_is_end(e: &Event) -> bool {
+    matches!(e.what, What::RunEnded { .. })
+}
+
+fn u24s_is_lapse(e: &Event) -> bool {
+    matches!(e.what, What::ItemLapsed { .. })
+}
+
+/// One sender of the inbox of 2026-11-17T12:53:25Z: the world in which agent `n` is about to
+/// send, how the owner refuses that send, the send with the tick that counts it, and the name of
+/// the refused call.
+struct U24sSender {
+    make: fn() -> World,
+    n: usize,
+    refuse: fn(&World, PortError),
+    send: fn(&mut World),
+    sent: &'static str,
+}
+
+/// I7.2's class B at a sender (ruling RD-126 item 9): a refusal with `no_workflow` counts
+/// nothing toward the stuck line and marks nothing for the life, so that a later refusal that
+/// counts makes the record stuck with no stop for the life; the same send refused with a name
+/// that can pass counts.
+fn u24s_class_b_at(s: &U24sSender) {
+    let agent = agent(s.n);
+    let mut w = (s.make)();
+    (s.refuse)(&w, u24s_refused("no_workflow"));
+    let from = w.ports.tried.borrow().len();
+    (s.send)(&mut w);
+    let refused = u24s_refused_since(&w, from);
+    assert!(
+        refused.iter().any(|c| c.starts_with(s.sent)),
+        "{}: the send is refused with no_workflow: {refused:?}",
+        s.sent
+    );
+    assert!(
+        !w.board.record_stuck(&agent, &w.limits),
+        "{}: class B counts nothing toward the stuck line",
+        s.sent
+    );
+    assert!(
+        !w.board.stuck_for_life(&agent, &w.limits),
+        "{}: class B stops no start for the life",
+        s.sent
+    );
+    w.ports.clear_refusals();
+    u24s_owe_lapse(&mut w, s.n, 99);
+    w.ports.refuse_record(u24s_is_lapse, u24s_refused("store"));
+    w.tick();
+    assert!(
+        w.board.record_stuck(&agent, &w.limits),
+        "{}: a later refusal of class D counts",
+        s.sent
+    );
+    assert!(
+        !w.board.stuck_for_life(&agent, &w.limits),
+        "{}: class B marked nothing for the life",
+        s.sent
+    );
+    let mut w = (s.make)();
+    (s.refuse)(&w, u24s_refused("store"));
+    (s.send)(&mut w);
+    assert!(
+        w.board.record_stuck(&agent, &w.limits),
+        "{}: the same send refused with a name that can pass counts",
+        s.sent
+    );
+}
+
+fn u24s_failures_held() -> World {
+    let mut w = world_with(&[manual()], u24s_one_tick());
+    let seq = w.facts(0).events.len() as u32 + 1;
+    w.ports
+        .log(&[Event {
+            workflow: flow(0),
+            agent: agent(0),
+            seq: NonZeroU32::new(seq).unwrap(),
+            day: DAY,
+            at: 0,
+            what: What::HoldSet {
+                cause: HoldSetCause::Failures,
+            },
+        }])
+        .unwrap();
+    w.relife();
+    w
+}
+
+#[test]
+fn u24s_class_b_the_starts_own_store_of_hold_cleared_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: u24s_failures_held,
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_hold_cleared, e),
+        send: |w| {
+            assert_ne!(w.start(0).answer, Ok(Answer::Ok));
+            w.tick();
+        },
+        sent: "log hold_cleared failures",
+    });
+}
+
+fn u24s_queued_with_ready() -> World {
+    let mut w = world_with(&[manual(), person()], u24s_one_tick());
+    ok_run(&w.start(0));
+    w.tick();
+    assert!(matches!(
+        w.facts(1).doing,
+        Doing::Idle(Some(ref own)) if own.kind == OwnItemKind::Ready
+    ));
+    w
+}
+
+#[test]
+fn u24s_class_b_the_start_answer_of_a_queued_start_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: u24s_queued_with_ready,
+        n: 1,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_answer, e),
+        send: |w| {
+            assert_eq!(w.start(1).answer, Ok(Answer::Queued));
+            w.tick();
+        },
+        sent: "log item_answered",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_ticks_raise_of_its_own_item_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || world_with(&[person()], u24s_one_tick()),
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_raise, e),
+        send: |w| {
+            w.tick();
+        },
+        sent: "log item_raised ready",
+    });
+}
+
+fn u24s_live() -> World {
+    let mut w = world_with(&[manual()], u24s_one_tick());
+    ok_run(&w.start(0));
+    w
+}
+
+#[test]
+fn u24s_class_b_the_run_ended_at_the_end_of_a_run_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: u24s_live,
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_end, e),
+        send: |w| {
+            let run = w.board.runs[0].run.clone();
+            w.end(&run, Some(Outcome::Completed));
+            w.tick();
+        },
+        sent: "log run_ended",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_run_ended_debt_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || {
+            let mut w = world_with(&[manual()], u24s_one_tick());
+            u24s_owe(
+                &mut w,
+                0,
+                halvo_coord::schedule::Owing::RunEnded {
+                    run: u24s_run(1),
+                    cause: RunEnd::Interrupted,
+                    day: DAY,
+                    at: 0,
+                },
+            );
+            w
+        },
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_end, e),
+        send: |w| {
+            w.tick();
+        },
+        sent: "log run_ended",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_item_lapsed_debt_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || {
+            let mut w = world_with(&[manual()], u24s_one_tick());
+            u24s_owe_lapse(&mut w, 0, 1);
+            w
+        },
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_lapse, e),
+        send: |w| {
+            w.tick();
+        },
+        sent: "log item_lapsed",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_answer_to_the_check_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || {
+            let mut w = world_with(&[manual()], u24s_one_tick());
+            with_check(&mut w, 0);
+            w
+        },
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_hold_cleared, e),
+        send: |w| {
+            let r = w.go(Move::Check {
+                agent: agent(0),
+                answer: CheckAnswer::TryAgain,
+            });
+            assert_ne!(r.answer, Ok(Answer::Ok));
+            w.tick();
+        },
+        sent: "log hold_cleared check",
+    });
+}
+
+fn u24s_ready_open() -> World {
+    let mut w = world_with(&[person()], u24s_one_tick());
+    w.tick();
+    w
+}
+
+#[test]
+fn u24s_class_b_the_skip_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: u24s_ready_open,
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_answer, e),
+        send: |w| {
+            assert_ne!(w.go(Move::Skip { agent: agent(0) }).answer, Ok(Answer::Ok));
+            w.tick();
+        },
+        sent: "log item_answered",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_persons_switch_off_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || world_with(&[manual()], u24s_one_tick()),
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_hold_set, e),
+        send: |w| {
+            assert_ne!(
+                w.go(Move::SwitchOff { agent: agent(0) }).answer,
+                Ok(Answer::Ok)
+            );
+            w.tick();
+        },
+        sent: "log hold_set person",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_persons_switch_on_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || {
+            let mut w = world_with(&[manual()], u24s_one_tick());
+            assert_eq!(
+                w.go(Move::SwitchOff { agent: agent(0) }).answer,
+                Ok(Answer::Ok)
+            );
+            w
+        },
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_hold_cleared, e),
+        send: |w| {
+            assert_ne!(
+                w.go(Move::SwitchOn { agent: agent(0) }).answer,
+                Ok(Answer::Ok)
+            );
+            w.tick();
+        },
+        sent: "log hold_cleared person",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_end_run_debt_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || {
+            let mut w = world_with(&[manual()], u24s_one_tick());
+            u24s_owe(
+                &mut w,
+                0,
+                halvo_coord::schedule::Owing::EndRun { run: u24s_run(2) },
+            );
+            w
+        },
+        n: 0,
+        refuse: |w, e| w.ports.refuse(Method::EndRun, e),
+        send: |w| {
+            w.tick();
+        },
+        sent: "end_run",
+    });
+}
