@@ -161,7 +161,7 @@ pub(crate) mod tests {
         use halvo_control::instance_lock::{self, LockRead};
         use halvo_control::paths::DataDir;
 
-        use super::super::*;
+        use super::super::{InstanceLock, BACKUP_EXCLUSION_ATTRIBUTE};
 
         const HOLD: &str = "HALVO_DAEMON_INSTANCE_HOLD";
         const HOLDER: &str = "daemon::instance::tests::on_macos::hold_for_parent";
@@ -398,7 +398,7 @@ pub(crate) mod tests {
 
         use halvo_control::paths::DataDir;
 
-        use super::super::*;
+        use super::super::InstanceLock;
 
         #[test]
         fn a_second_holder_is_refused_while_the_lock_file_is_held() {
