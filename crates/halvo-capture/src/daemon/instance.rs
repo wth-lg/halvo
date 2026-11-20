@@ -145,7 +145,7 @@ mod windows {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", debug_assertions))]
     pub(crate) use on_macos::{backup_mark, kept_dir};
 
     #[cfg(target_os = "macos")]
