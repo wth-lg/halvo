@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: S6 measures wall time and peak RSS for 30 calls of each real account helper command on loopback and over TLS with a test authority that the hosted runner trusts for the length of the check, and requires every TLS call to succeed in the stub's final record within 1,000 ms.
+# rule: S6 measures wall time and peak RSS for 30 calls of each real account helper command on loopback and over TLS with a test authority that the hosted runner trusts for the length of the check, requires every TLS call to succeed in the stub's final record within 1,000 ms, confirms the TLS stub exited with its in-memory key, and reports native trust left after undo.
 # lane: alone
 set -u
 name=28-r7-helper-s6
@@ -33,6 +33,7 @@ from urllib.parse import urlsplit
 WORK = Path(__file__).resolve().parent
 CA = WORK / "authority.pem"
 ARMED = WORK / "trust-fingerprint"
+KEY_EXIT = WORK / "tls-stub-exit"
 REASONS = WORK / "failures"
 NAME = "28-r7-helper-s6"
 COUNT = 30
@@ -126,41 +127,43 @@ def install():
     print("S6 trust installed=true", flush=True)
 
 
+def undo_command(action, call, *args):
+    try:
+        call(*args)
+    except RuntimeError as exc:
+        print(f"S6 trust {action} result={exc}", flush=True)
+        return False
+    print(f"S6 trust {action} result=ok", flush=True)
+    return True
+
+
 def undo():
     if not ARMED.exists():
-        return
+        return True, False
     if not hosted(os.environ, sys.platform):
         raise RuntimeError("certificate-undo-outside-hosted-job")
     der = ssl.PEM_cert_to_DER_cert(CA.read_text("ascii"))
     fingerprint = ARMED.read_text("ascii")
     if fingerprint != der_fingerprint(der):
         raise RuntimeError("authority-identity")
-    errors = []
+    answers = []
     if sys.platform == "darwin":
-        try:
-            checked(["sudo", "-n", "security", "remove-trusted-cert", "-d", str(CA)])
-        except RuntimeError as exc:
-            errors.append(str(exc))
-        if present(fingerprint):
-            try:
-                checked(["sudo", "-n", "security", "delete-certificate", "-Z", fingerprint,
-                         SYSTEM_KEYCHAIN])
-            except RuntimeError as exc:
-                errors.append(str(exc))
+        answers.append(undo_command("remove-trusted-cert", checked,
+                                    ["sudo", "-n", "security", "remove-trusted-cert", "-d", str(CA)]))
+        answers.append(undo_command("delete-certificate", checked,
+                                    ["sudo", "-n", "security", "delete-certificate", "-Z", fingerprint,
+                                     SYSTEM_KEYCHAIN]))
     else:
-        try:
-            certutil("-delstore", "Root", hashlib.sha1(der).hexdigest())
-        except RuntimeError as exc:
-            errors.append(str(exc))
+        answers.append(undo_command("delstore", certutil, "-delstore", "Root", hashlib.sha1(der).hexdigest()))
     remains = present(fingerprint)
+    print("S6 trust certificate-after-undo=" + str(remains).lower(), flush=True)
     if sys.platform == "darwin":
         trust_setting = admin_trust_remains(der)
         print("S6 trust admin-setting-after-undo=" + str(trust_setting).lower(), flush=True)
         remains = remains or trust_setting
     print("S6 trust present-after-undo=" + str(remains).lower(), flush=True)
-    if errors or remains:
-        raise RuntimeError("-".join(["authority-undo", *errors]))
-    print("S6 trust undone=true", flush=True)
+    print("S6 trust undone=" + str(not remains).lower(), flush=True)
+    return all(answers), remains
 
 
 STUB = """
@@ -192,8 +195,13 @@ def stub(record, tls):
                 raise RuntimeError("stub-address")
         yield ready
     finally:
-        proc.stdin.close()
-        if proc.wait() != 0:
+        try:
+            proc.stdin.close()
+        finally:
+            status = proc.wait()
+            if tls:
+                KEY_EXIT.write_text(str(status), encoding="ascii")
+        if status != 0:
             raise RuntimeError("stub-stop")
 
 
@@ -347,42 +355,29 @@ def self_test():
         if accepted:
             raise RuntimeError(case)
     refused += len(bad)
-    for remains, settings, failed_tool, want_failure in [
-        (False, False, False, False), (True, False, False, True),
-        (False, True, False, True), (False, False, True, True)
+    for remains, settings, failed_tool in [
+        (False, False, False), (True, False, False), (False, True, False), (False, False, True)
     ]:
         identity = der_fingerprint(b"fixture")
         with patch("sys.platform", "darwin"), patch.dict(os.environ, env), \
              patch("__main__.ARMED") as armed, patch("__main__.CA"), \
              patch("ssl.PEM_cert_to_DER_cert", return_value=b"fixture"), \
-             patch("__main__.checked") as tool, patch("__main__.present", side_effect=[True, remains]) as read, \
+             patch("__main__.checked") as tool, patch("__main__.present", return_value=remains) as read, \
              patch("__main__.admin_trust_remains", return_value=settings) as trust, redirect_stdout(io.StringIO()):
             armed.read_text.return_value = identity
             tool.side_effect = [RuntimeError("fixture") if failed_tool else b"", b""]
-            try:
-                undo()
-                failed = False
-            except RuntimeError:
-                failed = True
-            if (failed != want_failure or read.call_count != 2 or trust.call_count != 1
+            if (undo() != (not failed_tool, remains or settings) or read.call_count != 1 or trust.call_count != 1
                     or [call.args[0][3] for call in tool.call_args_list] != ["remove-trusted-cert", "delete-certificate"]):
                 raise RuntimeError("macos-undo-fixture")
-        refused += want_failure
     with patch("sys.platform", "win32"), patch.dict(os.environ, dict(env, CI_D_JOB="windows", RUNNER_OS="Windows")), \
          patch("__main__.ARMED") as armed, patch("__main__.CA"), \
          patch("ssl.PEM_cert_to_DER_cert", return_value=b"fixture"), patch("__main__.certutil") as tool, \
          patch("__main__.present", return_value=True) as read, redirect_stdout(io.StringIO()):
         armed.read_text.return_value = identity
-        try:
-            undo()
-        except RuntimeError as exc:
-            if str(exc) != "authority-undo":
-                raise
-        else:
+        if undo() != (True, True):
             raise RuntimeError("windows-undo-fixture")
         tool.assert_called_once_with("-delstore", "Root", hashlib.sha1(b"fixture").hexdigest())
         read.assert_called_once_with(identity)
-        refused += 1
     with patch.dict(os.environ, {"SystemRoot": "system"}), patch("__main__.checked") as native:
         for operation in ("-addstore", "-delstore"):
             certutil(operation, "Root", "fixture")
@@ -409,22 +404,116 @@ def self_test():
             if native.call_args.kwargs.get("timeout") != 30:
                 raise RuntimeError("store-timeout-fixture")
             refused += 1
+    with patch("__main__.hosted", return_value=True), patch("subprocess.Popen") as start, \
+         patch("__main__.KEY_EXIT") as witness:
+        proc = start.return_value
+        proc.stdout.readline.return_value = b'{"app":"https://127.0.0.1:1","control":"http://127.0.0.1:2"}'
+        def waited():
+            witness.write_text.assert_not_called()
+            return 0
+        proc.wait.side_effect = waited
+        with stub(WORK / "witness-fixture", True):
+            witness.write_text.assert_not_called()
+        proc.wait.assert_called_once_with()
+        if witness.write_text.call_args is None:
+            raise RuntimeError("key-wait-fixture")
+        witness.write_text.assert_called_once_with("0", encoding="ascii")
+    for evidence, initial, reasons, cleanup, code, expected in [
+        (None, 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
+        ("invalid", 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
+        ("0", 0, "", (True, False), 0, "MET"),
+        ("0", 0, "", (True, True), 0, "MET trust-left=true, key-gone=true, hosted"),
+        ("0", 0, "", (False, True), 0, "MET trust-left=true, key-gone=true, hosted"),
+        ("0", 1, "tls/status", (False, True), 1, "MISSED tls/status trust-left=true, key-gone=true, hosted"),
+        ("0", 0, "", (False, False), 0, "MET trust-left=false, key-gone=true, hosted"),
+    ]:
+        captured = io.StringIO()
+        with patch("__main__.hosted", return_value=True), patch("__main__.KEY_EXIT") as witness, \
+             patch("__main__.REASONS") as faults, patch("__main__.undo", return_value=cleanup) as clean, \
+             redirect_stdout(captured):
+            witness.is_file.return_value = evidence is not None
+            witness.read_text.return_value = evidence
+            faults.exists.return_value = bool(reasons)
+            faults.read_text.return_value = reasons
+            result = finish(initial)
+            clean.assert_called_once_with()
+        if result != code or "S6 real-helper: " + expected not in captured.getvalue().splitlines():
+            raise RuntimeError("key-verdict-fixture")
+        if evidence == "0" and "S6 TLS stub-exit=0 key-gone=true" not in captured.getvalue().splitlines():
+            raise RuntimeError("key-exit-line-fixture")
+        refused += int(code != 0)
+    with patch("__main__.hosted", return_value=False), patch("__main__.KEY_EXIT") as witness, \
+         patch("__main__.undo") as native, patch("__main__.REASONS") as faults, redirect_stdout(io.StringIO()):
+        faults.exists.return_value = False
+        if finish(0):
+            raise RuntimeError("local-verdict-fixture")
+        witness.is_file.assert_not_called()
+        native.assert_not_called()
+    captured = io.StringIO()
+    with patch("__main__.hosted", return_value=True), patch("__main__.KEY_EXIT") as witness, \
+         patch("__main__.REASONS") as faults, patch("__main__.undo", side_effect=RuntimeError("authority-identity")), \
+         redirect_stdout(captured):
+        witness.read_text.return_value = "0"
+        faults.exists.return_value = False
+        if finish(0) != 1 or "S6 real-helper: MISSED setup-or-cleanup" not in captured.getvalue().splitlines():
+            raise RuntimeError("cleanup-identity-fixture")
+        refused += 1
+    captured = io.StringIO()
+    with patch("sys.platform", "darwin"), patch("__main__.hosted", return_value=True), \
+         patch("__main__.ARMED") as armed, patch("__main__.CA"), \
+         patch("ssl.PEM_cert_to_DER_cert", return_value=b"fixture"), patch("__main__.checked") as native, \
+         patch("__main__.present", return_value=False), patch("__main__.admin_trust_remains", return_value=True), \
+         redirect_stdout(captured):
+        armed.read_text.return_value = identity
+        native.side_effect = [RuntimeError("certificate-tool-remove-trusted-cert-timeout-30s"), b""]
+        try:
+            outcome = undo()
+        except RuntimeError as exc:
+            raise RuntimeError("undo-operations-fixture") from exc
+    reports = captured.getvalue().splitlines()
+    if (outcome != (False, True) or [used.args[0][3] for used in native.call_args_list]
+            != ["remove-trusted-cert", "delete-certificate"]
+            or "S6 trust remove-trusted-cert result=certificate-tool-remove-trusted-cert-timeout-30s" not in reports
+            or "S6 trust delete-certificate result=ok" not in reports
+            or "S6 trust certificate-after-undo=false" not in reports):
+        raise RuntimeError("undo-operations-fixture")
     print(f"PASS self-test:{NAME} ({refused} failing fixtures rejected)")
 
 
 def finish(code):
+    cleanup_failed = False
+    limit = ""
+    on_runner = hosted(os.environ, sys.platform)
+    if on_runner:
+        status = "unknown"
+        try:
+            if KEY_EXIT.is_file():
+                status = str(int(KEY_EXIT.read_text("ascii")))
+        except (OSError, ValueError):
+            pass
+        key_gone = status != "unknown"
+        print(f"S6 TLS stub-exit={status} key-gone={str(key_gone).lower()}", flush=True)
+        cleanup_failed = not key_gone
+        try:
+            accepted, remains = undo()
+            if key_gone and (remains or not accepted):
+                limit = f" trust-left={str(remains).lower()}, key-gone=true, hosted"
+        except Exception as exc:
+            print(f"S6 trust undone=false cause={reason(exc)}")
+            cleanup_failed = True
     try:
-        undo()
-    except Exception as exc:
-        print(f"S6 trust undone=false cause={reason(exc)}")
-        code = 1
-    reasons = REASONS.read_text().strip() if REASONS.exists() else ""
-    if code or reasons:
-        print("S6 real-helper: MISSED " + (reasons or "setup-or-cleanup"))
+        reasons = REASONS.read_text().split() if REASONS.exists() else []
+    except (OSError, ValueError):
+        reasons = []
+        cleanup_failed = True
+    if cleanup_failed or (code and not reasons):
+        reasons.append("setup-or-cleanup")
+    if reasons:
+        print("S6 real-helper: MISSED " + " ".join(reasons) + limit)
         print(f"FAIL {NAME}")
         return 1
-    if hosted(os.environ, sys.platform):
-        print("S6 real-helper: MET")
+    if on_runner:
+        print("S6 real-helper: MET" + limit)
     else:
         print("S6 real-helper: loopback measured")
     print(f"PASS {NAME}")
