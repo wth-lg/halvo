@@ -664,6 +664,52 @@ def self_test():
             or json.loads(stub_record(os.getpid(), own + "1", 0))["gone"] is not True
             or json.loads(stub_record(os.getpid(), None, 0))["gone"] is not False):
         raise RuntimeError("process-read-fixture")
+    answered_row = {"seq": 1, "connection": 1, "method": "POST", "target": "/v1/checkout", "status": 200,
+                    "result": "session"}
+    alert_row = {"seq": 1, "error": "ERR_SSL_TLSV1_ALERT_UNKNOWN_CA"}
+    for label, code, answer, rows, expected in [
+        ("answered", 0, b"result=session url=https://127.0.0.1:1/c\n", [answered_row], "tls-control-answered"),
+        ("no-alert", 1, b"error=failed-call\n", [], "tls-control-no-alert"),
+        ("refused", 1, b"error=failed-call\n", [alert_row], "fixture-install-reached"),
+    ]:
+        base = WORK / ("control-" + label)
+        base.mkdir()
+        log = base / "tls" / "record" / "requests.jsonl"
+
+        @contextmanager
+        def stand_in(record, tls):
+            record.mkdir()
+            log.write_bytes(b"")
+            yield {"app": "https://127.0.0.1:1", "control": "http://127.0.0.1:2"}
+
+        def helper_call(args, rows=rows, code=code, answer=answer, **kwargs):
+            with log.open("ab") as out:
+                out.write(b"".join(json.dumps(row).encode() + b"\n" for row in rows))
+            child = start.return_value.__enter__.return_value
+            child.stdout.read.return_value = answer
+            child.returncode = code
+            return start.return_value
+
+        captured = io.StringIO()
+        with patch("__main__.WORK", base), patch("__main__.Path"), patch("__main__.stub", stand_in), \
+             patch("__main__.CONTROL_WAIT_S", 0, create=True), patch("subprocess.Popen") as start, \
+             patch("__main__.install", side_effect=RuntimeError("fixture-install-reached")) as added, \
+             redirect_stdout(captured):
+            start.side_effect = helper_call
+            try:
+                measure(True)
+            except RuntimeError as exc:
+                if str(exc) != expected:
+                    raise RuntimeError("tls-control-fixture") from exc
+            else:
+                raise RuntimeError("tls-control-fixture")
+        lines = captured.getvalue().splitlines()
+        if added.called != (label == "refused") or len([line for line in lines if line.startswith("S6 TLS control ")]) != 1:
+            raise RuntimeError("tls-control-fixture")
+        if label == "refused" and lines != ["S6 TLS control command=subscribe exit=1 answer=error=failed-call "
+                                            "stub-lines=1 alert=ERR_SSL_TLSV1_ALERT_UNKNOWN_CA certificate-refused=true"]:
+            raise RuntimeError("tls-control-fixture")
+        refused += int(label != "refused")
     print(f"PASS self-test:{NAME} ({refused} failing fixtures rejected)")
 
 
