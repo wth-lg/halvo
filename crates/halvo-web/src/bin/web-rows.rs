@@ -47,6 +47,19 @@
 //!   (CP-186 T4 (b)) against `rows/hop-listener.mjs` on port M: the answer to the released request
 //!   is a 307 to the same address, and the hop is failed, so the listener counts one arrival.
 //!
+//! - `crash_major --browser PATH --kind chrome|edge`: the check of CP-186 N3: the browser's major
+//!   version, read by the product's executor, against the versions of the crash row's last
+//!   readings (`crash_row::LAST_READ`); ok when the row was read at that version, miss with the
+//!   cause `new_major` when it was not. It runs no other row and runs in no job of main's
+//!   workflow; running the row `crash` again at a new major is the rule of CP-165 (2) (d), and who
+//!   runs it is the planner's line of CP-186 N3.
+//! - `block_popup --browser PATH --kind chrome|edge --hop-port N`: the row of A13.7 through the
+//!   product's executor (CP-186 N2), against `rows/hop-listener.mjs` on port N: with the rule armed
+//!   in the mode that fails before the page opens, a click of `Save preferences` on `/popup`, whose
+//!   form has the target `_blank`, sends its POST from a new window; the executor pauses and fails
+//!   it, from a frame other than the page's own, and the listener counts no arrival of it, while
+//!   the row's own POST outside the browser is counted (the control).
+//!
 //! - `crash_one --browser PATH --port N --relay-port P`: one crash reading with the product's means
 //!   on a relay at port P, for the egress check of A13.3's third item to wrap (hosted runners
 //!   alone).
@@ -183,12 +196,8 @@ async fn crash_reading_at(
         .version()
         .await
         .ok()
-        .and_then(|v| {
-            v.rsplit('/')
-                .next()
-                .and_then(|x| x.split('.').next())
-                .map(str::to_string)
-        })
+        .and_then(|v| crash_row::major_of(&v))
+        .map(|m| m.to_string())
         .unwrap_or_else(|| "-".into());
     let _ = ex
         .arm_rule(
@@ -966,6 +975,207 @@ async fn hop_case(ex: &mut Executor, port: u16) -> Result<HopRead, &'static str>
     })
 }
 
+/// The check of CP-186 N3: the browser's major version against the crash row's last readings.
+async fn crash_major(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(kind), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--kind"),
+        scratch_of(argv, "crash-major"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let machine = if cfg!(windows) { "windows" } else { "macos" };
+    let Ok(relay) = Relay::start(Names::Fixture).await else {
+        return (0, 1);
+    };
+    let Some(opts) = options(&browser, dir.join("p"), &relay) else {
+        return (0, 1);
+    };
+    let major = match Executor::start(&opts).await {
+        Ok(ex) => {
+            let major = ex
+                .version()
+                .await
+                .ok()
+                .and_then(|v| crash_row::major_of(&v));
+            let _ = ex.stop_and_remove().await;
+            major
+        }
+        Err(f) => {
+            println!(
+                "row crash_major machine={machine} browser={kind} result=notrun cause={}",
+                f.cause
+            );
+            relay.stop();
+            let _ = std::fs::remove_dir(&dir);
+            return (0, 1);
+        }
+    };
+    relay.stop();
+    let _ = std::fs::remove_dir(&dir);
+    let read: Vec<String> = crash_row::LAST_READ
+        .iter()
+        .filter(|(k, _)| *k == kind)
+        .flat_map(|(_, m)| m.iter().map(u32::to_string))
+        .collect();
+    let read = if read.is_empty() {
+        "-".to_string()
+    } else {
+        read.join(",")
+    };
+    let (shown, fine, cause) = match major {
+        Some(m) if crash_row::read_at(&kind, m) => (m.to_string(), true, ""),
+        Some(m) => (m.to_string(), false, " cause=new_major"),
+        None => ("unread".to_string(), false, " cause=unread"),
+    };
+    println!(
+        "row crash_major machine={machine} browser={kind} major={shown} last_read={read} result={}{cause}",
+        if fine { "ok" } else { "miss" }
+    );
+    (usize::from(fine), 1)
+}
+
+/// The listener's count of arrivals of POST /prefs.
+fn prefs_arrivals(port: u16) -> Option<i64> {
+    fixture_json(port, "GET", "/count")?["prefs"].as_i64()
+}
+
+/// What the row `block_popup` read: the executor's record of the window's POST (whether it was
+/// paused and failed, and from a frame other than the page's), how many records the executor
+/// holds and how many of them are POST /prefs, the listener's count of POST /prefs before the
+/// row's own one, and the count after it (the control).
+struct PopupRead {
+    seen: bool,
+    failed: bool,
+    other_window: bool,
+    records: usize,
+    posts: usize,
+    arrivals: i64,
+    control: i64,
+}
+
+/// The steps of `block_popup`, as A13.7 arms its `block_` rows: the rule armed with the
+/// listener's origin allowed and state-changing requests failed, before the page opens; then a
+/// click of `Paperless billing` and of `Save preferences`, whose form has the target `_blank`.
+/// Every count is read on every way out of the steps after the click.
+async fn popup_steps(ex: &mut Executor, port: u16) -> Result<PopupRead, &'static str> {
+    use halvo_web::cdp::{Locator, Outcome};
+    fixture_json(port, "GET", "/reset").ok_or("listener")?;
+    let origin = format!("http://utility.agent.test:{port}");
+    ex.arm_rule(vec![origin.clone()], Mode::Fail)
+        .await
+        .map_err(|f| f.0)?;
+    ex.open(&format!("{origin}/popup")).await.map_err(|f| f.0)?;
+    let page = ex.main_frame().await.map_err(|f| f.0)?;
+    let paperless = ex
+        .resolve_one(
+            &[Locator::Role("checkbox", "Paperless billing".into())],
+            &[],
+        )
+        .await
+        .map_err(|f| f.0)?;
+    ex.click(&paperless).await.map_err(|f| f.0)?;
+    let save = ex
+        .resolve_one(&[Locator::Role("button", "Save preferences".into())], &[])
+        .await
+        .map_err(|f| f.0)?;
+    ex.click(&save).await.map_err(|f| f.0)?;
+    let is_post = |r: &halvo_web::cdp::PausedRequest| r.method == "POST" && r.path == "/prefs";
+    let deadline = Instant::now() + halvo_web::cdp::STEP_TIMEOUT;
+    while Instant::now() < deadline && !ex.requests().iter().any(is_post) {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(2_000)).await;
+    let records = ex.requests();
+    let post = records.iter().find(|r| is_post(r));
+    let arrivals = prefs_arrivals(port).ok_or("count")?;
+    let _ = plain_post(port, "/prefs");
+    let control = prefs_arrivals(port).ok_or("count")?;
+    Ok(PopupRead {
+        seen: post.is_some(),
+        failed: post.is_some_and(|r| !r.let_through && r.outcome == Outcome::Failed),
+        other_window: post.is_some_and(|r| r.origin == origin && r.frame != *page.inner()),
+        records: records.len(),
+        posts: records.iter().filter(|r| is_post(r)).count(),
+        arrivals,
+        control,
+    })
+}
+
+/// The row `block_popup` of A13.7 through the product's executor (CP-186 N2): the rule, armed in
+/// the mode that fails before the page opens, pauses and fails a POST that leaves from a window
+/// that the page opened. ok when the executor's record holds that POST, failed and not let
+/// through, from a frame other than the page's, the listener counted no arrival of it and counted
+/// the row's own POST, and the stop removed both directories.
+async fn block_popup(argv: &[String]) -> (usize, usize) {
+    let (Some(browser), Some(kind), Some(port), Some(dir)) = (
+        arg(argv, "--browser"),
+        arg(argv, "--kind"),
+        arg(argv, "--hop-port").and_then(|p| p.parse::<u16>().ok()),
+        scratch_of(argv, "block-popup"),
+    ) else {
+        return (0, 1);
+    };
+    let browser = std::path::absolute(&browser).unwrap_or(PathBuf::from(&browser));
+    let machine = if cfg!(windows) { "windows" } else { "macos" };
+    if fixture_json(port, "GET", "/reset").is_none() {
+        println!("row block_popup machine={machine} browser={kind} result=notrun cause=listener");
+        return (0, 1);
+    }
+    let Ok(relay) = Relay::start(Names::Fixture).await else {
+        return (0, 1);
+    };
+    relay
+        .handle()
+        .allow("utility.agent.test", port, halvo_web::relay::Entry::Listed);
+    let Some(opts) = options(&browser, dir.join("p"), &relay) else {
+        return (0, 1);
+    };
+    let mut ex = match Executor::start(&opts).await {
+        Ok(ex) => ex,
+        Err(f) => {
+            println!(
+                "row block_popup machine={machine} browser={kind} result=notrun cause={}",
+                f.cause
+            );
+            return (0, 1);
+        }
+    };
+    let steps = popup_steps(&mut ex, port).await;
+    let stopped = ex.stop_and_remove().await;
+    relay.stop();
+    let _ = std::fs::remove_dir(&dir);
+    let yes = |b: bool| if b { "yes" } else { "no" };
+    let (line, fine) = match steps {
+        Ok(r) => (
+            format!(
+                "seen={} failed={} other_window={} records={} posts={} arrivals={} control_arrivals={} removed={}",
+                yes(r.seen),
+                yes(r.failed),
+                yes(r.other_window),
+                r.records,
+                r.posts,
+                r.arrivals,
+                r.control,
+                yes(stopped.removed)
+            ),
+            r.seen
+                && r.failed
+                && r.other_window
+                && r.arrivals == 0
+                && r.control == 1
+                && stopped.removed,
+        ),
+        Err(cause) => (format!("cause={cause}"), false),
+    };
+    println!(
+        "row block_popup machine={machine} browser={kind} {line} result={}",
+        if fine { "ok" } else { "miss" }
+    );
+    (usize::from(fine), 1)
+}
+
 /// The row of CP-176 A1 (f) through the product's executor, on the fixture's bill page with the
 /// variant `get_effect`, whose link `Pay bill` sends a state-changing `POST /track` by the page's
 /// own script: the first request stays held while a snapshot of the page is read; the page sends a
@@ -1123,10 +1333,70 @@ fn contexts(counts: &serde_json::Value, map: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// The documents of the listener whose status is no redirect and no success (CP-186 point 9).
+const WS_STATUS_PAGES: [&str; 2] = ["status300", "status302"];
+
+/// What the row read of one page of `WS_STATUS_PAGES`: whether it ran (fetched), reported a failed
+/// WebSocket, its handshakes, and the executor's documents fulfilled with the policy's line and
+/// failed while it loaded.
+struct StatusRead {
+    ran: bool,
+    refused: bool,
+    handshakes: i64,
+    fulfilled: u64,
+    document_failed: u64,
+}
+
+/// Opens each page of `WS_STATUS_PAGES` and reads what the browser did with it (CP-186 point 9):
+/// a page that ran shows its own context among the fetches and the refusals of the listener, and a
+/// page that the executor failed ran nothing.
+async fn status_pages(ex: &mut Executor, port: u16) -> Vec<(&'static str, StatusRead)> {
+    let mut out = Vec::new();
+    for page in WS_STATUS_PAGES {
+        let before = ex.policy_counts();
+        let _ = ex
+            .open(&format!("http://utility.agent.test:{port}/{page}"))
+            .await;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut counts = serde_json::Value::Null;
+        while Instant::now() < deadline {
+            counts = fixture_json(port, "GET", "/count").unwrap_or(serde_json::Value::Null);
+            if contexts(&counts, "e").iter().any(|c| c == page) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        counts = fixture_json(port, "GET", "/count").unwrap_or(counts);
+        let after = ex.policy_counts();
+        let grew = |k: &str| {
+            after
+                .get(k)
+                .copied()
+                .unwrap_or(0)
+                .saturating_sub(before.get(k).copied().unwrap_or(0))
+        };
+        out.push((
+            page,
+            StatusRead {
+                ran: contexts(&counts, "f").iter().any(|c| c == page),
+                refused: contexts(&counts, "e").iter().any(|c| c == page),
+                handshakes: counts["ws"][page].as_i64().unwrap_or(0),
+                fulfilled: grew("fulfilled"),
+                document_failed: grew("document_failed"),
+            },
+        ));
+    }
+    out
+}
+
 /// The row of CP-176 A2 (c): the listener's page through the product's executor on the pipe, in
 /// the mode that fails, which lets the page's reads through. ok when the row's own handshake was
 /// counted, no handshake came from the browser, the page, its frame and its worker each fetched
-/// and reported a failed WebSocket, and the executor failed no document.
+/// and reported a failed WebSocket, and the executor failed no document. Then the two pages of a
+/// status that is no redirect and no success (CP-186 point 9), each with a line of its own that
+/// says whether the page ran and was refused or the executor failed it; such a line is ok when no
+/// handshake came from it and the page either ran and was refused or was failed and ran nothing.
 async fn ws_allowed(argv: &[String]) -> (usize, usize) {
     let (Some(browser), Some(kind), Some(port), Some(dir)) = (
         arg(argv, "--browser"),
@@ -1184,9 +1454,28 @@ async fn ws_allowed(argv: &[String]) -> (usize, usize) {
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
     let policy = ex.policy_counts();
+    let status = if opened {
+        status_pages(&mut ex, port).await
+    } else {
+        Vec::new()
+    };
     let stopped = ex.stop_and_remove().await;
     relay.stop();
     let _ = std::fs::remove_dir(&dir);
+    let mut status_fine = status.len() == WS_STATUS_PAGES.len();
+    for (page, r) in &status {
+        let fine = r.handshakes == 0 && ((r.ran && r.refused) || (!r.ran && r.document_failed > 0));
+        status_fine &= fine;
+        println!(
+            "row ws_allowed machine={machine} browser={kind} case={page} ran={} refused={} handshakes={} fulfilled={} document_failed={} result={}",
+            if r.ran { "yes" } else { "no" },
+            if r.refused { "yes" } else { "no" },
+            r.handshakes,
+            r.fulfilled,
+            r.document_failed,
+            if fine { "ok" } else { "miss" }
+        );
+    }
     let handshakes: i64 = counts["ws"]
         .as_object()
         .map(|o| {
@@ -1236,7 +1525,7 @@ async fn ws_allowed(argv: &[String]) -> (usize, usize) {
         if stopped.removed { "yes" } else { "no" },
         if fine { "ok" } else { "miss" }
     );
-    (usize::from(fine), 1)
+    (usize::from(fine && status_fine), 1)
 }
 
 /// One crash reading with the product's means on a relay at `--relay-port`, which the egress check
@@ -1837,6 +2126,7 @@ async fn relay_foreign(argv: &[String]) -> (usize, usize) {
 }
 
 fn main() -> ExitCode {
+    halvo_web::fence_marker();
     let argv: Vec<String> = std::env::args().collect();
     if let Some(code) = halvo_web::guard::run_if_guard(&argv) {
         return ExitCode::from(code.clamp(0, 255) as u8);
@@ -1861,6 +2151,8 @@ fn main() -> ExitCode {
         "block_frame_post" => runtime.block_on(block_frame_post(&argv)),
         "hold_release" => runtime.block_on(hold_release(&argv)),
         "ws_allowed" => runtime.block_on(ws_allowed(&argv)),
+        "block_popup" => runtime.block_on(block_popup(&argv)),
+        "crash_major" => runtime.block_on(crash_major(&argv)),
         "crash_one" => runtime.block_on(crash_one(&argv)),
         "handler_class" => runtime.block_on(handler_class_row(&argv)),
         _ => {
@@ -1873,5 +2165,18 @@ fn main() -> ExitCode {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// CP-186 N8: the fence is on in this test target from its start, so that the program's tests
+    /// reach the fence's means.
+    #[test]
+    fn the_fence_is_on_in_this_test_target() {
+        assert!(
+            std::hint::black_box(cfg!(feature = "test-fence")),
+            "the fence is off in this test target"
+        );
     }
 }

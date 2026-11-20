@@ -188,6 +188,114 @@ pub fn ask_end(_p: &Proc) -> bool {
     false
 }
 
+/// The guard's read of its executor's end from the system itself, never from the process table
+/// (A11.1, CP-176 (e)): on macOS its own parent number, which is the executor's while the executor
+/// runs, because the executor starts the guard, and which names launchd once the executor has
+/// ended; on Windows a handle of the executor that the guard opens at its start, checked there
+/// against the executor's creation time, which keeps the process object and its number from being
+/// taken by another process while it is held. A watch whose executor is not its parent with that
+/// creation time at the open (macOS), or that cannot be opened or names another creation time
+/// (Windows), reads the executor as gone from the start.
+pub struct ExecutorWatch {
+    #[cfg(target_os = "macos")]
+    parent: Option<u32>,
+    #[cfg(windows)]
+    handle: Option<windows_sys::Win32::Foundation::HANDLE>,
+}
+
+impl ExecutorWatch {
+    /// Opens the watch of the executor `pid` with the creation time `started_us`.
+    #[cfg(target_os = "macos")]
+    pub fn open(pid: u32, started_us: u64) -> ExecutorWatch {
+        // SAFETY: getppid reads this process's parent number and has no other effect.
+        let parent = unsafe { libc::getppid() } as u32;
+        let executor = Proc {
+            pid,
+            ppid: 0,
+            started_us,
+            pgid: 0,
+            exe: None,
+        };
+        ExecutorWatch {
+            parent: (parent == pid && running(&executor)).then_some(pid),
+        }
+    }
+
+    /// Whether the executor still runs: this process's parent is still the executor.
+    #[cfg(target_os = "macos")]
+    pub fn runs(&self) -> bool {
+        // SAFETY: as in `open`.
+        self.parent
+            .is_some_and(|p| unsafe { libc::getppid() } as u32 == p)
+    }
+
+    /// Opens the watch of the executor `pid` with the creation time `started_us`.
+    #[cfg(windows)]
+    pub fn open(pid: u32, started_us: u64) -> ExecutorWatch {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{
+            PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
+        };
+        let handle =
+            open(pid, PROCESS_SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION).and_then(|h| {
+                if created_us(h) == Some(started_us) {
+                    Some(h)
+                } else {
+                    // SAFETY: the handle was opened above and is closed once.
+                    unsafe { CloseHandle(h) };
+                    None
+                }
+            });
+        ExecutorWatch { handle }
+    }
+
+    /// Whether the executor still runs: its process, held by the watch's handle, has not ended.
+    #[cfg(windows)]
+    pub fn runs(&self) -> bool {
+        use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
+        use windows_sys::Win32::System::Threading::WaitForSingleObject;
+        // SAFETY: the handle is open while the watch holds it; a wait of 0 ms reads its state.
+        self.handle
+            .is_some_and(|h| unsafe { WaitForSingleObject(h, 0) } == WAIT_TIMEOUT)
+    }
+
+    /// Opens the watch of the executor `pid` with the creation time `started_us`.
+    #[cfg(not(any(target_os = "macos", windows)))]
+    pub fn open(_pid: u32, _started_us: u64) -> ExecutorWatch {
+        ExecutorWatch {}
+    }
+
+    /// Whether the executor still runs: never on a system that this crate does not read.
+    #[cfg(not(any(target_os = "macos", windows)))]
+    pub fn runs(&self) -> bool {
+        false
+    }
+}
+
+/// What the guard's loop reads its executor's end from, once `guard::run_guard` has opened it with
+/// the executor's number and creation time: `ExecutorWatch` in the product, a stand-in in a test
+/// (U2.6 round 2, row c).
+pub(crate) trait ExecutorRead {
+    /// Whether the executor still runs.
+    fn runs(&self) -> bool;
+}
+
+impl ExecutorRead for ExecutorWatch {
+    fn runs(&self) -> bool {
+        ExecutorWatch::runs(self)
+    }
+}
+
+#[cfg(windows)]
+impl Drop for ExecutorWatch {
+    fn drop(&mut self) {
+        if let Some(h) = self.handle.take() {
+            // SAFETY: the handle is owned by the watch and closed once.
+            unsafe { windows_sys::Win32::Foundation::CloseHandle(h) };
+        }
+    }
+}
+
 /// This process's own row of the process table, with its creation time.
 pub fn own() -> Option<Proc> {
     table()
@@ -355,6 +463,154 @@ pub fn kill(_p: &Proc) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// U2.6 (9), CP-190 (5): on Windows the ask sends nothing and says so. The test's own child,
+    /// read by its number and creation time, still runs 300 ms after the ask, which answered no;
+    /// the test ends its own child on every way out.
+    #[cfg(windows)]
+    #[test]
+    fn on_windows_the_ask_sends_nothing_and_says_so() {
+        use crate::start::Start;
+        struct Own(std::process::Child);
+        impl Drop for Own {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(crate::child::entry_args(
+                "child::hold_child_entry",
+                &["--hold-child".to_string()],
+            ))
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .start()
+            .unwrap();
+        let mut own = Own(child);
+        let pid = own.0.id();
+        let row = table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == pid && p.started_us != 0)
+            .expect("the child's row");
+        assert!(!ask_end(&row), "the ask said that it sent");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        assert!(
+            matches!(own.0.try_wait(), Ok(None)),
+            "the ask ended the child"
+        );
+    }
+
+    /// CP-176 (e): a watch opened with another creation time than its executor's reads the
+    /// executor gone from the start, and with its own creation time running. The executor here is
+    /// this process's parent, which runs for the whole test; nothing is started or ended.
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn e4_a_watch_of_an_executor_with_another_creation_time_reads_it_gone() {
+        let table = table().unwrap();
+        let me = table
+            .iter()
+            .find(|p| p.pid == std::process::id())
+            .expect("this process's row");
+        let parent = table
+            .iter()
+            .find(|p| p.pid == me.ppid && p.started_us != 0)
+            .expect("the parent's row");
+        assert!(ExecutorWatch::open(parent.pid, parent.started_us).runs());
+        assert!(!ExecutorWatch::open(parent.pid, parent.started_us + 1).runs());
+        let read = |started_us| ExecutorRead::runs(&ExecutorWatch::open(parent.pid, started_us));
+        assert!(
+            read(parent.started_us),
+            "the guard's read of the same watch"
+        );
+        assert!(
+            !read(parent.started_us + 1),
+            "the guard's read of the same watch"
+        );
+    }
+
+    /// CP-176 (e), failing first: the guard's watch reads its executor's end from the system. A
+    /// stand-in executor, a child of this test, starts a watcher (`child::watch_entry`), which
+    /// reads it running; once the test has ended the stand-in, the watcher reads it gone. The
+    /// test ends the stand-in, its own child, on every way out, and the watcher only by its number
+    /// and creation time and while its parent is the stand-in; each wait is bounded.
+    #[cfg(any(target_os = "macos", windows))]
+    #[test]
+    fn e3_a_watch_reads_its_executor_s_end_from_the_system() {
+        use crate::start::Start;
+        struct Own {
+            executor: std::process::Child,
+            watcher: Option<Proc>,
+        }
+        impl Drop for Own {
+            fn drop(&mut self) {
+                let _ = self.executor.kill();
+                let _ = self.executor.wait();
+                if let Some(w) = &self.watcher {
+                    if running(w) {
+                        kill(w);
+                    }
+                }
+            }
+        }
+        let dir = crate::child::scratch("watch");
+        let out = dir.join("watch.txt");
+        let executor = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(crate::child::entry_args(
+                "child::watch_executor_entry",
+                &["--watch-executor".to_string(), out.display().to_string()],
+            ))
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .start()
+            .unwrap();
+        let epid = executor.id();
+        let mut own = Own {
+            executor,
+            watcher: None,
+        };
+        let read = |want: &[&str]| {
+            let until = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            loop {
+                let text = std::fs::read_to_string(&out).unwrap_or_default();
+                if want.iter().any(|w| text.contains(w)) {
+                    return Some(text);
+                }
+                if std::time::Instant::now() > until {
+                    return None;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+        };
+        let first = read(&["runs=yes\n", "runs=no\n"]).expect("the watcher wrote nothing");
+        let field = |k: &str| {
+            first
+                .split_whitespace()
+                .find_map(|w| w.strip_prefix(k))
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(0)
+        };
+        let (wpid, wstart) = (field("pid=") as u32, field("started="));
+        own.watcher = table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == wpid && p.started_us == wstart && wstart != 0 && p.ppid == epid);
+        assert!(
+            own.watcher.is_some(),
+            "the watcher is not the stand-in's child"
+        );
+        assert!(first.contains("runs=yes\n"), "{first}");
+        let _ = own.executor.kill();
+        let _ = own.executor.wait();
+        let gone = read(&["gone\n"]);
+        assert!(
+            gone.is_some(),
+            "the watcher did not read its executor's end"
+        );
+    }
 
     /// CP-148: the guard's ask to end reads the creation time again and sends nothing to a process
     /// whose number now names another start.
