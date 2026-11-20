@@ -68,7 +68,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "card.records_dropped",
-        "Since Halvo started, {count} of this agent's records went unsaved. Its steps may have happened; check outside Halvo before repeating.",
+        "After Halvo started, {count} of this agent's records went unsaved. Its steps may have happened; check outside Halvo before repeating.",
     ),
     (
         "line.problem.sign_in_refused",
@@ -99,7 +99,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.working.stopping", "It is stopping."),
     (
         "line.working.kill_stuck_mac",
-        "Its task may still run. At the top of the screen, click Halvo, then Quit Halvo. All agents' tasks stop.",
+        "Its task may still run. Right-click Halvo in the Dock, choose Quit. All agents' tasks end within 25 seconds.",
     ),
     (
         "line.working.kill_stuck_windows",
