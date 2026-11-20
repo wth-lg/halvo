@@ -7,7 +7,7 @@ use super::{choices, compose_bind, compose_confirm, confirm_step, handback_kind,
 use super::{setup_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
 use crate::guard::Table;
-use crate::ports::{Clock, Owner, PortError, Rng, Runs, Stamp};
+use crate::ports::{Clock, Owner, PortError, Rng, Runs, Shared, Stamp};
 use crate::schedule::wants_active;
 use crate::types::{
     hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Cause, CheckAnswer,
@@ -2066,13 +2066,23 @@ pub enum SetupDone {
     /// ends, nothing is stored and nothing more is sent, and the caller treats the agent as one
     /// that the owner's list no longer holds (I3.5, ruling IG-36).
     AgentGone,
+    /// The owner refused the body with `overlap` at a send that was not the once-more send: the
+    /// item stays as it was, and the caller sends every `paused` that the board owes
+    /// (`schedule::pause_owed`) and then the body once more with `again_setup` (I3.5 (b); ruling
+    /// RD-67 3.2 (b)).
+    Overlap,
+    /// The item closed as `Closed` says with `active` sent, and the owner refused that
+    /// `set_state` `active` with `overlap`: the caller marks the agent and sends `paused`
+    /// (`schedule::refused_active`; ruling RD-67 4.3).
+    ActiveOverlap,
 }
 
 /// What the owner's refusal of a setup's body decides, in the three groups of names of I3.5
 /// (rulings IG-28, IG-34, IG-36) and with `no_workflow` (I5.7): still owed after a failure with
 /// no name, `busy`, `store_unavailable`, `internal` and `state`; gone after `no_workflow` and
-/// `binding`; asked again after `config`, `malformed`, `too_large`, `length` and every other
-/// name, so that the item always takes the person's answers again.
+/// `binding`; the arm of its own for `overlap` (I3.5 (a) to (f); ruling RD-67 3.2); asked again
+/// after `config`, `malformed`, `too_large`, `length` and every other name, so that the item
+/// always takes the person's answers again.
 fn refused_body(error: &PortError) -> SetupDone {
     let PortError::Refused(name) = error else {
         return SetupDone::Owed;
@@ -2081,6 +2091,7 @@ fn refused_body(error: &PortError) -> SetupDone {
         "busy" | "store_unavailable" | "internal" | "state" => SetupDone::Owed,
         "no_workflow" => SetupDone::Gone,
         "binding" => SetupDone::AgentGone,
+        "overlap" => SetupDone::Overlap,
         _ => SetupDone::NotTaken,
     }
 }
@@ -2115,14 +2126,15 @@ fn closed_row<P: Owner + Clock>(
 }
 
 /// The rule of `active` of I5.5, once, for the agent's facts with the slots of the acknowledged
-/// body among its newest bindings: sends `set_state` `active` where `wants_active` gives it and
-/// drops the answer, which the tick's own rule sends again until the owner's list shows the
-/// agent `active` (ruling IG-6a).
+/// body among its newest bindings: sends `set_state` `active` where `wants_active` gives it, which
+/// the tick's own rule sends again until the owner's list shows the agent `active` (ruling
+/// IG-6a): whether it was sent, and whether the owner refused it with `overlap` (ruling RD-67
+/// 4.3).
 fn send_active_if_wanted<P: Owner, C: ConfigView + Clone>(
     ports: &P,
     facts: &Facts<C>,
     body: &SetupBody,
-) -> bool {
+) -> (bool, bool) {
     let mut after = facts.clone();
     for slot in body.slots() {
         if !after.slots.contains(&slot.name) {
@@ -2130,18 +2142,22 @@ fn send_active_if_wanted<P: Owner, C: ConfigView + Clone>(
         }
     }
     let wants = wants_active(&after);
+    let mut overlap = false;
     if wants {
-        let _ = ports.send(&Body::SetState {
+        let sent = ports.send(&Body::SetState {
             workflow: facts.workflow.id.clone(),
             agent: facts.agent.clone(),
             state: AgentState::Active,
         });
+        overlap = sent.as_ref().is_err_and(|e| refused_with(e, "overlap"));
     }
-    wants
+    (wants, overlap)
 }
 
 /// Sends the owed body: at the acknowledgement the item closes, its row is stored and the rule
-/// of `active` runs once; a refusal decides by `refused_body`.
+/// of `active` runs once; a refusal decides by `refused_body`, but for the once-more send
+/// (`again`), whose refusal with `overlap` makes the item ask again with the body kept and asks
+/// the read (`overlap_read`).
 fn send_owed<P: Owner + Clock, C: ConfigView + Clone>(
     ports: &P,
     ledger: &mut Ledger,
@@ -2149,6 +2165,7 @@ fn send_owed<P: Owner + Clock, C: ConfigView + Clone>(
     setup: &mut Setup,
     facts: &Facts<C>,
     at: Stamp,
+    again: bool,
 ) -> Result<SetupDone, Cause> {
     let SetupState::Owed(body) = setup.state().clone() else {
         return Ok(SetupDone::Open);
@@ -2157,9 +2174,14 @@ fn send_owed<P: Owner + Clock, C: ConfigView + Clone>(
         Ok(_) => {
             *setup = setup_step(setup, SetupMove::Acknowledged)?;
             closed_row(ports, ledger, limits, setup, at);
-            Ok(SetupDone::Closed {
-                active: send_active_if_wanted(ports, facts, &body),
+            Ok(match send_active_if_wanted(ports, facts, &body) {
+                (_, true) => SetupDone::ActiveOverlap,
+                (active, false) => SetupDone::Closed { active },
             })
+        }
+        Err(e) if again && refused_with(&e, "overlap") => {
+            *setup = setup_step(setup, SetupMove::Overlap)?;
+            Ok(overlap_read(ports, setup))
         }
         Err(e) => {
             let done = refused_body(&e);
@@ -2167,10 +2189,79 @@ fn send_owed<P: Owner + Clock, C: ConfigView + Clone>(
                 SetupDone::Gone => *setup = setup_step(setup, SetupMove::Gone)?,
                 SetupDone::AgentGone => *setup = setup_step(setup, SetupMove::Binding)?,
                 SetupDone::NotTaken => *setup = setup_step(setup, SetupMove::NotTaken)?,
-                SetupDone::Open | SetupDone::Owed | SetupDone::Closed { .. } => {}
+                SetupDone::Open
+                | SetupDone::Owed
+                | SetupDone::Closed { .. }
+                | SetupDone::Overlap
+                | SetupDone::ActiveOverlap => {}
             }
             Ok(done)
         }
+    }
+}
+
+/// The read `Owner::overlaps` that follows a refusal `overlap` of the item's kept body, asked
+/// with the body's slots; its answer is what the item holds to show (`Setup::shared`), and a read
+/// that answers with no entry right after the refusal is held as one that did not answer, which
+/// a tick asks again. The item asks every parameter again (`NotTaken`).
+fn overlap_read<P: Owner>(ports: &P, setup: &mut Setup) -> SetupDone {
+    let Some(body) = setup.kept().cloned() else {
+        return SetupDone::NotTaken;
+    };
+    let read = ports.overlaps(setup.workflow(), setup.agent(), Some(body.slots()));
+    setup.take_shared(Some(
+        Shared::of(read).unwrap_or(Shared::Unread { again: true }),
+    ));
+    SetupDone::NotTaken
+}
+
+/// The body once more (I3.5 (b), (d), (e); ruling RD-67 3.2): for an item whose body the owner
+/// refused with `overlap` at a first send, after the caller sent every `paused` that the board
+/// owes, and for an open item that keeps a refused body, after a read with no entry or a
+/// switch-off of an agent that its sentence named. At the acknowledgement the item closes as at
+/// any send; a refusal with `overlap` makes the item ask every parameter again with the body
+/// kept, asks the read with the body's slots and holds its answer; any other refusal decides as
+/// `refused_body` gives. `state` for the facts or the ledger of another agent, `stale` for an item
+/// that is neither owed nor open with a kept body.
+pub fn again_setup<P: Owner + Clock, C: ConfigView + Clone>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    setup: &mut Setup,
+    facts: &Facts<C>,
+) -> Result<SetupDone, Cause> {
+    same_agent(setup, facts, ledger)?;
+    if setup.state() == &SetupState::Open {
+        *setup = setup_step(setup, SetupMove::Again).map_err(|_| Cause::Stale)?;
+    }
+    if !matches!(setup.state(), SetupState::Owed(_)) {
+        return Err(Cause::Stale);
+    }
+    let at = clock_at(ports)?;
+    send_owed(ports, ledger, limits, setup, facts, at, true)
+}
+
+/// The kept body after a control of the person that switched off the agent `off` (I3.5 (e);
+/// ruling RD-67 3.2 (e)): sent once more, as `again_setup` does, where the item is open, keeps a
+/// body of another agent and its sentence names `off` or names nobody; else nothing is sent and
+/// the answer is `Open`.
+pub fn freed_setup<P: Owner + Clock, C: ConfigView + Clone>(
+    ports: &P,
+    ledger: &mut Ledger,
+    limits: &Limits,
+    setup: &mut Setup,
+    facts: &Facts<C>,
+    off: &AgentId,
+) -> Result<SetupDone, Cause> {
+    let names = match setup.shared() {
+        Some(shared @ Shared::Named(_)) => shared.names(off),
+        Some(Shared::Unread { .. }) | None => true,
+    };
+    let open = setup.state() == &SetupState::Open && setup.kept().is_some();
+    if open && names && setup.agent() != off {
+        again_setup(ports, ledger, limits, setup, facts)
+    } else {
+        Ok(SetupDone::Open)
     }
 }
 
@@ -2201,11 +2292,15 @@ pub fn answer_setup<P: Owner + Clock, C: ConfigView + Clone>(
         }
     };
     *setup = next;
-    send_owed(ports, ledger, limits, setup, facts, at)
+    send_owed(ports, ledger, limits, setup, facts, at, false)
 }
 
 /// One tick for a setup item (I3.5, I5.9), which the coordinator's tick calls: sends its owed
-/// body again, with what `answer_setup` does at the owner's answer; an open item sends nothing.
+/// body again, with what `answer_setup` does at the owner's answer; an open item sends nothing,
+/// but one that keeps a body refused with `overlap` whose read failed in a way that waiting can
+/// change asks the read once more, holds an answer with entries or a new failure, and on an
+/// answer with no entry sends the kept body once, as `again_setup` does (I3.5 (d); ruling RD-67
+/// 3.2 (d)).
 /// `state` for the facts or the ledger of another agent, and `stale` for an item that closed or
 /// is gone.
 pub fn tick_setup<P: Owner + Clock, C: ConfigView + Clone>(
@@ -2218,10 +2313,22 @@ pub fn tick_setup<P: Owner + Clock, C: ConfigView + Clone>(
     same_agent(setup, facts, ledger)?;
     match setup.state() {
         SetupState::Closed | SetupState::Gone | SetupState::AgentGone => Err(Cause::Stale),
-        SetupState::Open => Ok(SetupDone::Open),
+        SetupState::Open => match (setup.kept().cloned(), setup.shared()) {
+            (Some(body), Some(Shared::Unread { again: true })) => {
+                let read = ports.overlaps(setup.workflow(), setup.agent(), Some(body.slots()));
+                match Shared::of(read) {
+                    None => again_setup(ports, ledger, limits, setup, facts),
+                    shared => {
+                        setup.take_shared(shared);
+                        Ok(SetupDone::Open)
+                    }
+                }
+            }
+            _ => Ok(SetupDone::Open),
+        },
         SetupState::Owed(_) => {
             let at = clock_at(ports)?;
-            send_owed(ports, ledger, limits, setup, facts, at)
+            send_owed(ports, ledger, limits, setup, facts, at, false)
         }
     }
 }

@@ -4,7 +4,7 @@ use super::{
     Owed, Owing, StartStep, Stop, Verdict, Waiting,
 };
 use crate::items::drive::{alone, class_of, lasts_the_life, Alone, Class};
-use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Stamp};
+use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Shared, Stamp};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
     Doing, Event, Facts, HoldSetCause, ItemId, ItemKind, Lapsed, Live, OtherLapse, Outcome,
@@ -127,6 +127,10 @@ pub struct Report {
     pub unstamped: bool,
     /// The read of the clock that stamped the move, where one answered.
     pub read: Option<u64>,
+    /// For a switch-on whose state the owner refused with `overlap`, what the read
+    /// `Owner::overlaps` that followed gave to show: its entries, or the half of the sentence that
+    /// is known where it did not answer (I3.5 (f); ruling RD-67 3.2 (f)); none otherwise.
+    pub shared: Option<Shared>,
 }
 
 impl Default for Report {
@@ -143,6 +147,7 @@ impl Default for Report {
             dropped: Vec::new(),
             unstamped: false,
             read: None,
+            shared: None,
         }
     }
 }
@@ -1917,7 +1922,15 @@ where
             }
             let state = switch_on_state(facts);
             if let Err(e) = send_state(cx, &mut board.members[i].facts, state) {
-                return refused(port_cause(&e));
+                let facts = &board.members[i].facts;
+                let shared = refused_overlap(&e).then(|| {
+                    let read = cx.ports.overlaps(&facts.workflow.id, &facts.agent, None);
+                    Shared::of(read).unwrap_or(Shared::Unread { again: false })
+                });
+                return Report {
+                    shared,
+                    ..refused(port_cause(&e))
+                };
             }
             if whats.is_empty() {
                 return Report::default();

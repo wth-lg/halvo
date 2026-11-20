@@ -201,6 +201,15 @@ impl Owner for Both {
     ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
         self.ports.replies(workflow, agent, run)
     }
+
+    fn overlaps(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        slots: Option<&[halvo_coord::types::Slot]>,
+    ) -> Result<halvo_coord::ports::Overlaps, PortError> {
+        self.ports.overlaps(workflow, agent, slots)
+    }
 }
 
 impl Runs for Both {

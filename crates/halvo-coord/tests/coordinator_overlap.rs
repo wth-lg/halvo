@@ -1,0 +1,474 @@
+#[allow(unused_imports)]
+#[path = "coordinator_support.rs"]
+mod support;
+
+use halvo_coord::mem::{Call, Config, Method, Ports};
+use halvo_coord::ports::{Overlap, Overlaps, Owner, PortError, Shared};
+use halvo_coord::types::{
+    Action, Agent, AgentId, AgentState, Body, Category, Cause, FullWorkflow, ItemId, ItemKind,
+    Limits, Name, Param, Slot, What, Workflow, WorkflowId, WorkflowState, WorkflowTrigger,
+};
+use halvo_coord::Coordinator;
+use support::Both;
+
+const DAY: u32 = 20_000;
+const T0: u64 = 1_700_000_000_000;
+const ACCOUNT: &str = "me@home.test";
+const ANN: &str = "ann@people.test";
+
+/// The agent that the creation move makes for the approved workflow: the first id that the
+/// memory random bytes give.
+fn asking() -> AgentId {
+    AgentId::parse(&format!("{:032x}", 1)).unwrap()
+}
+
+fn asking_flow() -> WorkflowId {
+    WorkflowId::parse(&format!("{:032x}", 0xfa)).unwrap()
+}
+
+fn other(n: usize) -> AgentId {
+    AgentId::parse(&format!("{:032x}", 0xb0 + n)).unwrap()
+}
+
+fn other_flow(n: usize) -> WorkflowId {
+    WorkflowId::parse(&format!("{:032x}", 0xe0 + n)).unwrap()
+}
+
+fn name(text: &str) -> Name {
+    Name::parse(text).unwrap()
+}
+
+fn config(flow: &WorkflowId, agent: &AgentId) -> Config {
+    Config::parse(&format!(
+        "{{\"v\":1,\"workflow\":\"{flow}\",\"agent\":\"{agent}\",\"rev\":1,\"category\":\"email\",\"tier\":\"on_device\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"no\"}},\"limits\":{{\"steps\":20,\"wall_s\":120,\"model_tokens\":0}},\"budget\":null,\"permissions\":[],\"runtime\":\"graph_mail\",\"playbook\":1}}"
+    ))
+    .unwrap()
+}
+
+fn workflow(id: WorkflowId, state: WorkflowState, agent: Option<AgentId>) -> Workflow {
+    Workflow::Full(FullWorkflow {
+        id,
+        state,
+        category: Category::Email,
+        site: None,
+        trigger: WorkflowTrigger::Manual,
+        period: None,
+        last: DAY - 2,
+        agent,
+    })
+}
+
+fn slot(n: &str, value: &str) -> Slot {
+    Slot {
+        name: name(n),
+        value: vec![value.to_owned()],
+    }
+}
+
+fn entry(flow: WorkflowId, agent: AgentId, slots: &[&str]) -> Agent<Config> {
+    Agent {
+        config: config(&flow, &agent),
+        workflow: flow,
+        agent,
+        state: AgentState::Active,
+        slots: slots.iter().map(|s| name(s)).collect(),
+        session: true,
+        last: None,
+        unknown: vec![],
+    }
+}
+
+/// Memory ports with an approved email workflow and no agent, whose agent the first tick makes
+/// with a stored `account_address` and no `reply_senders`, so that its hold `setup` raises the
+/// item, and `others` live email agents on the same mailbox, each listening to the one sender
+/// given.
+fn ports(others: &[&str]) -> Ports<Config> {
+    let p = Ports::new(T0, DAY);
+    p.workflows
+        .borrow_mut()
+        .push(workflow(asking_flow(), WorkflowState::Approved, None));
+    p.agents
+        .borrow_mut()
+        .push(entry(asking_flow(), asking(), &["account_address"]));
+    p.send(&Body::SetBindings {
+        workflow: asking_flow(),
+        agent: asking(),
+        slots: vec![slot("account_address", ACCOUNT)],
+    })
+    .unwrap();
+    for (n, sender) in others.iter().enumerate() {
+        p.workflows.borrow_mut().push(workflow(
+            other_flow(n),
+            WorkflowState::Paused,
+            Some(other(n)),
+        ));
+        p.agents.borrow_mut().push(entry(
+            other_flow(n),
+            other(n),
+            &["account_address", "reply_senders"],
+        ));
+        p.send(&Body::SetBindings {
+            workflow: other_flow(n),
+            agent: other(n),
+            slots: vec![
+                slot("account_address", ACCOUNT),
+                slot("reply_senders", sender),
+            ],
+        })
+        .unwrap();
+    }
+    for n in 0..others.len() {
+        set_listed(&p, &other_flow(n), WorkflowState::Active);
+    }
+    p
+}
+
+/// The owner of the coordinator tests over the memory ports `p`.
+fn both(p: Ports<Config>) -> Both {
+    let mut b = support::owner(&[], Limits::PRODUCT);
+    b.ports = p;
+    b
+}
+
+fn coordinator(p: Ports<Config>) -> (Coordinator<Both>, ItemId) {
+    let c = Coordinator::new(both(p), Limits::PRODUCT);
+    c.tick();
+    let item = setup_item(&c).expect("the setup item of the new agent");
+    (c, item)
+}
+
+fn setup_item(c: &Coordinator<Both>) -> Option<ItemId> {
+    c.snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Setup)
+        .map(|i| i.item().clone())
+}
+
+fn step(c: &Coordinator<Both>, item: &ItemId) -> u32 {
+    c.snapshot()
+        .items
+        .iter()
+        .find(|i| i.item() == item)
+        .map_or(0, |i| i.step())
+}
+
+fn answer(c: &Coordinator<Both>, item: &ItemId, senders: &str) -> Result<(), Cause> {
+    c.setup_typed(item, Param::ReplySenders, senders, step(c, item))
+}
+
+fn set_listed(p: &Ports<Config>, flow: &WorkflowId, state: WorkflowState) {
+    for w in p.workflows.borrow_mut().iter_mut() {
+        if let Workflow::Full(f) = w {
+            if &f.id == flow {
+                f.state = state;
+            }
+        }
+    }
+}
+
+fn mark(c: &Coordinator<Both>) -> usize {
+    c.ports().ports.tried.borrow().len()
+}
+
+/// The `set_bindings` and `set_state` calls as tried since `from`, each with `refused` where
+/// the owner refused it.
+fn writes(c: &Coordinator<Both>, from: usize) -> Vec<String> {
+    c.ports().ports.tried.borrow()[from..]
+        .iter()
+        .filter_map(|t| {
+            let text = match &t.call {
+                Call::Send(Body::SetBindings { slots, .. }) => format!(
+                    "set_bindings {}",
+                    slots
+                        .iter()
+                        .map(|s| s.value.join(","))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                ),
+                Call::Send(Body::SetState { agent, state, .. }) => {
+                    format!("set_state {} {}", &agent.as_str()[30..], state.name())
+                }
+                _ => return None,
+            };
+            Some(match &t.refused {
+                Some(_) => format!("{text} refused"),
+                None => text,
+            })
+        })
+        .collect()
+}
+
+fn answered_rows(c: &Coordinator<Both>) -> usize {
+    c.ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == asking() && matches!(e.what, What::ItemAnswered { .. }))
+        .count()
+}
+
+fn named(entries: &[(AgentId, WorkflowId, &str)], more: bool) -> Shared {
+    Shared::Named(Overlaps {
+        entries: entries
+            .iter()
+            .map(|(agent, workflow, sender)| Overlap {
+                workflow: workflow.clone(),
+                agent: agent.clone(),
+                senders: vec![(*sender).to_owned()],
+            })
+            .collect(),
+        more,
+    })
+}
+
+#[test]
+fn a_refused_body_with_overlap_sends_the_owed_paused_and_the_body_once_more_and_names_the_other_agent(
+) {
+    let p = ports(&[ANN]);
+    p.workflows.borrow_mut().push(workflow(
+        other_flow(5),
+        WorkflowState::Active,
+        Some(other(5)),
+    ));
+    p.agents
+        .borrow_mut()
+        .push(entry(other_flow(5), other(5), &["reply_senders"]));
+    let (c, item) = coordinator(p);
+    c.ports().ports.refuse(Method::Send, PortError::Busy);
+    assert_eq!(c.control(&other(5), Action::SwitchOff), Ok(()));
+    c.ports().ports.clear_refusals();
+    let before = step(&c, &item);
+    let m = mark(&c);
+    assert_eq!(answer(&c, &item, ANN), Ok(()));
+    assert_eq!(
+        writes(&c, m),
+        [
+            "set_bindings ann@people.test refused",
+            "set_state b5 paused",
+            "set_bindings ann@people.test refused"
+        ],
+        "the owed paused and the body once more, before the sentence"
+    );
+    assert_eq!(
+        c.setup_overlap(&item),
+        Some(named(&[(other(0), other_flow(0), ANN)], false))
+    );
+    assert_eq!(
+        setup_item(&c),
+        Some(item.clone()),
+        "the item takes answers again"
+    );
+    assert_eq!(step(&c, &item), before + 1, "it asks again");
+    assert_eq!(answered_rows(&c), 0, "nothing stored");
+}
+
+#[test]
+fn the_kept_body_goes_once_more_after_a_switch_off_of_the_named_agent_and_the_item_closes() {
+    let (c, item) = coordinator(ports(&[ANN]));
+    answer(&c, &item, ANN).unwrap();
+    assert!(c.setup_overlap(&item).is_some());
+    let m = mark(&c);
+    assert_eq!(c.control(&other(0), Action::SwitchOff), Ok(()));
+    assert_eq!(
+        writes(&c, m),
+        [
+            "set_state b0 paused",
+            "set_bindings ann@people.test",
+            "set_state 01 active"
+        ],
+        "the kept body, not typed again, then the rule of active"
+    );
+    assert_eq!(
+        setup_item(&c),
+        None,
+        "the item closed at the acknowledgement"
+    );
+    assert_eq!(answered_rows(&c), 1);
+    assert_eq!(
+        c.ports().ports.slots(&asking_flow(), &asking()),
+        vec![slot("account_address", ACCOUNT), slot("reply_senders", ANN)]
+    );
+}
+
+#[test]
+fn a_switch_off_of_an_agent_that_the_sentence_does_not_name_sends_nothing_more() {
+    let (c, item) = coordinator(ports(&[ANN, "zed@people.test"]));
+    answer(&c, &item, ANN).unwrap();
+    let m = mark(&c);
+    assert_eq!(c.control(&other(1), Action::SwitchOff), Ok(()));
+    assert_eq!(writes(&c, m), ["set_state b1 paused"]);
+    assert_eq!(setup_item(&c), Some(item));
+}
+
+#[test]
+fn a_read_that_fails_keeps_the_refusal_shown_and_a_tick_asks_it_again_while_waiting_can_change_it()
+{
+    let (c, item) = coordinator(ports(&[ANN]));
+    c.ports().ports.refuse(Method::Overlaps, PortError::Busy);
+    answer(&c, &item, ANN).unwrap();
+    assert_eq!(c.setup_overlap(&item), Some(Shared::Unread { again: true }));
+    assert_eq!(
+        setup_item(&c),
+        Some(item.clone()),
+        "the refusal stays shown"
+    );
+    let reads = c.ports().ports.overlap_reads.borrow().len();
+    c.tick();
+    assert_eq!(
+        c.ports().ports.overlap_reads.borrow().len(),
+        reads + 1,
+        "asked again once at a tick"
+    );
+    assert_eq!(c.setup_overlap(&item), Some(Shared::Unread { again: true }));
+    c.ports().ports.clear_refusals();
+    c.tick();
+    assert_eq!(
+        c.setup_overlap(&item),
+        Some(named(&[(other(0), other_flow(0), ANN)], false))
+    );
+    let reads = c.ports().ports.overlap_reads.borrow().len();
+    c.tick();
+    assert_eq!(
+        c.ports().ports.overlap_reads.borrow().len(),
+        reads,
+        "no read once one answered"
+    );
+}
+
+#[test]
+fn a_read_refused_by_a_name_that_waiting_cannot_change_is_not_asked_again_at_a_tick() {
+    let (c, item) = coordinator(ports(&[ANN]));
+    c.ports()
+        .ports
+        .refuse(Method::Overlaps, PortError::Refused(name("malformed")));
+    answer(&c, &item, ANN).unwrap();
+    assert_eq!(
+        c.setup_overlap(&item),
+        Some(Shared::Unread { again: false })
+    );
+    let reads = c.ports().ports.overlap_reads.borrow().len();
+    c.tick();
+    assert_eq!(c.ports().ports.overlap_reads.borrow().len(), reads);
+}
+
+#[test]
+fn a_read_at_a_tick_that_answers_with_no_entry_takes_the_sentence_away_and_sends_the_kept_body_once(
+) {
+    let (c, item) = coordinator(ports(&[ANN]));
+    c.ports()
+        .ports
+        .refuse(Method::Overlaps, PortError::NoService);
+    answer(&c, &item, ANN).unwrap();
+    c.ports().ports.clear_refusals();
+    set_listed(&c.ports().ports, &other_flow(0), WorkflowState::Paused);
+    let m = mark(&c);
+    c.tick();
+    assert_eq!(
+        writes(&c, m)
+            .iter()
+            .filter(|w| w.starts_with("set_bindings"))
+            .collect::<Vec<_>>(),
+        ["set_bindings ann@people.test"]
+    );
+    assert_eq!(setup_item(&c), None);
+    assert_eq!(answered_rows(&c), 1);
+}
+
+#[test]
+fn the_sentence_says_more_where_more_than_sixteen_agents_share_people() {
+    let senders = [ANN; 17];
+    let (c, item) = coordinator(ports(&senders));
+    answer(&c, &item, ANN).unwrap();
+    match c.setup_overlap(&item) {
+        Some(Shared::Named(o)) => {
+            assert_eq!(o.entries.len(), 16);
+            assert!(o.more);
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn a_new_answer_of_the_person_sends_a_new_body_and_ends_the_kept_one() {
+    let (c, item) = coordinator(ports(&[ANN]));
+    answer(&c, &item, ANN).unwrap();
+    let m = mark(&c);
+    assert_eq!(answer(&c, &item, "carol@people.test"), Ok(()));
+    assert_eq!(
+        writes(&c, m),
+        ["set_bindings carol@people.test", "set_state 01 active"]
+    );
+    assert_eq!(setup_item(&c), None);
+    assert_eq!(c.setup_overlap(&item), None);
+}
+
+/// Memory ports in which the agent of the asking workflow holds the sender in its stored
+/// bindings and stands switched off by the list alone (the derived hold `off`), beside a live
+/// agent on the same mailbox that shares the sender.
+fn ports_on() -> Ports<Config> {
+    let p = Ports::new(T0, DAY);
+    p.workflows.borrow_mut().push(workflow(
+        asking_flow(),
+        WorkflowState::Paused,
+        Some(asking()),
+    ));
+    p.agents.borrow_mut().push(entry(
+        asking_flow(),
+        asking(),
+        &["account_address", "reply_senders"],
+    ));
+    p.workflows.borrow_mut().push(workflow(
+        other_flow(0),
+        WorkflowState::Paused,
+        Some(other(0)),
+    ));
+    p.agents.borrow_mut().push(entry(
+        other_flow(0),
+        other(0),
+        &["account_address", "reply_senders"],
+    ));
+    for (flow, agent) in [(asking_flow(), asking()), (other_flow(0), other(0))] {
+        p.send(&Body::SetBindings {
+            workflow: flow,
+            agent,
+            slots: vec![slot("account_address", ACCOUNT), slot("reply_senders", ANN)],
+        })
+        .unwrap();
+    }
+    set_listed(&p, &other_flow(0), WorkflowState::Active);
+    p
+}
+
+#[test]
+fn a_switch_on_refused_with_overlap_holds_the_names_that_its_read_gave() {
+    let c = Coordinator::new(both(ports_on()), Limits::PRODUCT);
+    c.tick();
+    assert_eq!(
+        c.control(&asking(), Action::SwitchOn),
+        Err(Cause::NoService)
+    );
+    assert_eq!(
+        c.switch_on_overlap(&asking()),
+        Some(named(&[(other(0), other_flow(0), ANN)], false))
+    );
+    set_listed(&c.ports().ports, &other_flow(0), WorkflowState::Paused);
+    assert_eq!(c.control(&asking(), Action::SwitchOn), Ok(()));
+    assert_eq!(c.switch_on_overlap(&asking()), None);
+}
+
+#[test]
+fn a_switch_on_refused_with_overlap_whose_read_did_not_answer_holds_the_half_that_is_known() {
+    let c = Coordinator::new(both(ports_on()), Limits::PRODUCT);
+    c.tick();
+    c.ports().ports.refuse(Method::Overlaps, PortError::Busy);
+    assert_eq!(
+        c.control(&asking(), Action::SwitchOn),
+        Err(Cause::NoService)
+    );
+    assert_eq!(
+        c.switch_on_overlap(&asking()),
+        Some(Shared::Unread { again: true })
+    );
+}

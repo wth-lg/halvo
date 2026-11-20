@@ -121,6 +121,7 @@ struct State<C> {
     ended: Vec<(RunId, Option<crate::types::Outcome>)>,
     marked: Vec<RunId>,
     held_off: Vec<AgentId>,
+    refused_on: Vec<(AgentId, crate::ports::Shared)>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -373,6 +374,7 @@ where
                 ended: Vec::new(),
                 marked: Vec::new(),
                 held_off: Vec::new(),
+                refused_on: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
@@ -921,6 +923,13 @@ where
 
     /// Takes what a move of the setup `k` answered; whether the setup stays.
     fn setup_done(&self, st: &mut State<Cfg<P>>, k: usize, done: Result<SetupDone, Cause>) -> bool {
+        if matches!(done, Ok(SetupDone::Overlap)) {
+            let again = self.overlap_once_more(st, k);
+            return self.setup_done(st, k, again);
+        }
+        if matches!(done, Ok(SetupDone::ActiveOverlap)) {
+            self.active_overlap(st, k);
+        }
         let agent = st.setups[k].agent().clone();
         let stays = matches!(
             done,
@@ -945,6 +954,65 @@ where
             st.forgotten.push(agent);
         }
         false
+    }
+
+    /// What follows a first refusal `overlap` of the body of the setup `k` (I3.5 (b); ruling
+    /// RD-67 3.2 (b)): every `paused` that the board owes, then the body once more; the answer of
+    /// that send, which is never `Overlap`.
+    fn overlap_once_more(&self, st: &mut State<Cfg<P>>, k: usize) -> Result<SetupDone, Cause> {
+        let State {
+            board,
+            ledgers,
+            setups,
+            ..
+        } = &mut *st;
+        let board = board.as_mut().ok_or(Cause::State)?;
+        schedule::pause_owed(&self.ports, board);
+        let i = index(board, setups[k].agent()).ok_or(Cause::State)?;
+        let l = ledger(ledgers, board, i);
+        let facts = &board.members[i].facts;
+        items::again_setup(&self.ports, l, &self.limits, &mut setups[k], facts)
+    }
+
+    /// The `active` that the rule of `active` sent after the acknowledged body of the setup `k`
+    /// was refused with `overlap`: its agent is marked for the life and gets `paused` (ruling
+    /// RD-67 4.3).
+    fn active_overlap(&self, st: &mut State<Cfg<P>>, k: usize) {
+        let agent = st.setups[k].agent().clone();
+        if let Some(board) = st.board.as_mut() {
+            if let Some(i) = index(board, &agent) {
+                schedule::refused_active(&self.ports, board, i);
+            }
+        }
+    }
+
+    /// After a switch-off of the agent `off` that the person made, the kept body of each setup
+    /// whose sentence names that agent, or names nobody, goes once more (I3.5 (e); ruling RD-67
+    /// 3.2 (e)).
+    fn setups_freed(&self, st: &mut State<Cfg<P>>, off: &AgentId) {
+        let mut k = 0;
+        while k < st.setups.len() {
+            let State {
+                board,
+                ledgers,
+                setups,
+                ..
+            } = &mut *st;
+            let done = match board.as_mut() {
+                Some(board) => match index(board, setups[k].agent()) {
+                    Some(i) => {
+                        let l = ledger(ledgers, board, i);
+                        let facts = &board.members[i].facts;
+                        items::freed_setup(&self.ports, l, &self.limits, &mut setups[k], facts, off)
+                    }
+                    None => Err(Cause::State),
+                },
+                None => return,
+            };
+            if self.setup_done(st, k, done) {
+                k += 1;
+            }
+        }
     }
 
     fn tick_confirms(&self, st: &mut State<Cfg<P>>) {
@@ -2122,6 +2190,7 @@ where
         } = &mut *st;
         let board = board.as_mut().ok_or(Cause::State)?;
         let i = index(board, setups[k].agent()).ok_or(Cause::State)?;
+        board.free_active(setups[k].agent());
         let l = ledger(ledgers, board, i);
         let facts = &board.members[i].facts;
         let done = items::answer_setup(&self.ports, l, &self.limits, &mut setups[k], facts, input);
@@ -2243,12 +2312,45 @@ where
     }
 
     fn schedule(&self, st: &mut State<Cfg<P>>, mv: Move) -> Result<(), Cause> {
+        let on = match &mv {
+            Move::SwitchOn { agent } => Some(agent.clone()),
+            _ => None,
+        };
         let State { board, ledgers, .. } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
         share_lasts(board, ledgers);
         let report = schedule::drive(&self.ports, board, &self.limits, mv);
         self.noted(report.read);
+        if let Some(agent) = on {
+            st.refused_on.retain(|(a, _)| a != &agent);
+            if let Some(shared) = report.shared.clone() {
+                st.refused_on.push((agent, shared));
+            }
+        }
         answered(&report)
+    }
+
+    /// What the open setup item `item` holds to show of the newest refusal `overlap` of its
+    /// body: the entries of the read that followed it, or that the read did not answer; none
+    /// otherwise (I3.5 (c), (d); ruling RD-67 3.2). The sentence's words are U2.4d's.
+    pub fn setup_overlap(&self, item: &ItemId) -> Option<crate::ports::Shared> {
+        let st = self.lock();
+        st.setups
+            .iter()
+            .find(|s| s.item() == item)
+            .and_then(|s| s.shared().cloned())
+    }
+
+    /// What the newest switch-on of `agent` holds to show where the owner refused its state with
+    /// `overlap`: the entries of the read that followed, or the half of the sentence that is known
+    /// where that read did not answer; none after a switch-on that was not refused so (I3.5 (f);
+    /// ruling RD-67 3.2 (f)).
+    pub fn switch_on_overlap(&self, agent: &AgentId) -> Option<crate::ports::Shared> {
+        let st = self.lock();
+        st.refused_on
+            .iter()
+            .find(|(a, _)| a == agent)
+            .map(|(_, s)| s.clone())
     }
 
     /// A start by the person, `run_now` or the `start` of a `ready` item: `state` after the first
@@ -2301,7 +2403,11 @@ where
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
+        let off = matches!(action, Action::SwitchOff);
         let out = self.control_in(&mut st, agent, action);
+        if off && out.is_ok() {
+            self.setups_freed(&mut st, agent);
+        }
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
