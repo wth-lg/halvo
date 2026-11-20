@@ -4855,4 +4855,53 @@ mod tests {
         );
         assert!(locked(&seen.made_on).is_empty(), "a rebuild made a stream");
     }
+
+    fn probe_code(error: &CaptureError) -> String {
+        match error {
+            CaptureError::Os { code, .. } => code.to_string(),
+            CaptureError::Timeout { stage, .. } => format!("timeout-{stage}"),
+            CaptureError::PermissionDenied(_) => "permission".into(),
+            CaptureError::Start(_) => "start".into(),
+            _ => "other".into(),
+        }
+    }
+
+    #[test]
+    #[ignore = "a hosted probe: it starts a real screen stream"]
+    fn the_hosted_probe_prints_whether_a_stream_starts() {
+        if std::env::var("HALVO_SCREEN_START_PROBE").as_deref() != Ok("1") {
+            return;
+        }
+        let (handle, writer) = sink::channel(64);
+        let (_front, foreground) = in_front_for_test();
+        let opened = open_on(
+            &SystemContent,
+            frames_of(handle, foreground),
+            selection_under(None),
+            SCREEN_FRAME_CAP,
+            SCREEN_START_WAIT,
+        );
+        let (started, code, frames) = match opened {
+            Ok((stream, output, queue, _display)) => {
+                let until = Instant::now() + Duration::from_secs(4);
+                let mut frames = 0;
+                while writer
+                    .recv_timeout(until.saturating_duration_since(Instant::now()))
+                    .is_ok()
+                {
+                    frames += 1;
+                }
+                let (tx, rx) = channel();
+                stream.ask_stop(tx);
+                if rx.recv_timeout(SCREEN_STOP_WAIT) == Ok(StopReply::Stopped) {
+                    release(Some(output), Some(queue));
+                } else {
+                    keep_for_the_life_of_the_process(Some(output), Some(queue));
+                }
+                ("yes", "none".to_string(), frames)
+            }
+            Err(error) => ("no", probe_code(&error), 0),
+        };
+        println!("screen-start-probe started={started} code={code} frames={frames}");
+    }
 }
