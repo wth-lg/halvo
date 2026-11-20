@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,60 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 20-r3-policy 15-r3-test-dirs 20-r6-gateway
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 20-r3-policy 15-r3-test-dirs 20-r6-gateway
+      - name: Loop of the new tests of U3.5 (b) part 1, 200 rounds (scratch)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=200
+          dir="$RUNNER_TEMP/u35b1-loop"
+          mkdir -p "$dir"
+          exe() {
+            cargo test --locked "$@" --no-run 2>&1 | sed -n 's/.*Executable .*(\(.*\))$/\1/p' | tr '\\' '/' | tail -n 1
+          }
+          overlaps=$(exe -p halvo-schema --test r3_overlaps)
+          frames=$(exe -p halvo-schema --test r3_frames)
+          store=$(exe -p halvo-agent-store --test coordinator)
+          echo "binaries: overlaps=[${overlaps:+found}] frames=[${frames:+found}] store=[${store:+found}]"
+          O="the_body_list_overlaps_reads_writes_back_and_travels_in_a_coordinator_write the_body_list_overlaps_names_each_slot_once_and_holds_exactly_its_four_keys a_reply_of_16_entries_reads_with_more_yes_and_with_more_no a_reply_of_fewer_entries_reads_with_more_no_and_each_entry_names_one_or_more_senders a_reply_of_17_entries_is_refused_with_more_yes_and_with_more_no a_reply_whose_entries_are_out_of_workflow_id_order_or_name_a_workflow_twice_is_refused a_reply_that_names_an_agent_twice_is_refused more_yes_with_fewer_than_16_entries_is_refused an_entry_is_refused_with_no_sender_with_a_text_that_is_no_sender_and_with_one_sender_twice a_reply_holds_exactly_its_two_keys_and_an_entry_its_three the_reply_answers_list_overlaps_alone_and_never_names_the_asking_workflow_or_agent a_reply_at_the_bound_of_a_list_reply_reads_and_one_byte_more_is_refused_on_the_bytes_given the_writer_refuses_a_list_that_would_not_fit_its_bound_and_never_writes_it_cut"
+          F="a_store_reply_takes_the_nine_error_names_and_the_eight_of_this_run"
+          S="list_overlaps_is_answered_malformed_and_stores_nothing_and_changes_no_state"
+          run_set() {
+            name=$1; bin=$2; names=$3
+            want=$(wc -w <<< "$names" | tr -d ' ')
+            passed=0
+            if [ -n "$bin" ]; then
+              for round in $(seq 1 $rounds); do
+                out=$("$bin" --exact $names --test-threads 4 2>&1)
+                if [[ "$out" == *"test result: ok. $want passed; 0 failed;"* ]]; then
+                  passed=$((passed + 1))
+                else
+                  printf '%s\n' "$out" > "$dir/$name-$round.txt"
+                fi
+              done
+            fi
+            echo "loop $name: tests=$want passed $passed of $rounds" > "$dir/$name.result"
+          }
+          ( run_set overlaps "$overlaps" "$O" ) &
+          ( run_set frames "$frames" "$F"; run_set store "$store" "$S" ) &
+          wait
+          fail=0
+          for name in overlaps frames store; do
+            line=$(cat "$dir/$name.result" 2>/dev/null)
+            echo "${line:-loop $name: no result}"
+            [[ "$line" == *"passed $rounds of $rounds" ]] || fail=1
+          done
+          for f in "$dir"/*.txt; do [ -e "$f" ] && { echo "== $(basename "$f")"; grep -E "^test .*FAILED|panicked|test result" "$f" | head -n 8; }; done
+          echo "loop: 15 new or renamed tests of U3.5 (b) part 1, $rounds rounds each, fail=$fail"
+          exit $fail
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -154,14 +190,60 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 20-r3-policy 15-r3-test-dirs 20-r6-gateway 20-schema
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 20-r3-policy 15-r3-test-dirs 20-r6-gateway 20-schema
+      - name: Loop of the new tests of U3.5 (b) part 1, 200 rounds (scratch)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rounds=200
+          dir="$RUNNER_TEMP/u35b1-loop"
+          mkdir -p "$dir"
+          exe() {
+            cargo test --locked "$@" --no-run 2>&1 | sed -n 's/.*Executable .*(\(.*\))$/\1/p' | tr '\\' '/' | tail -n 1
+          }
+          overlaps=$(exe -p halvo-schema --test r3_overlaps)
+          frames=$(exe -p halvo-schema --test r3_frames)
+          store=$(exe -p halvo-agent-store --test coordinator)
+          echo "binaries: overlaps=[${overlaps:+found}] frames=[${frames:+found}] store=[${store:+found}]"
+          O="the_body_list_overlaps_reads_writes_back_and_travels_in_a_coordinator_write the_body_list_overlaps_names_each_slot_once_and_holds_exactly_its_four_keys a_reply_of_16_entries_reads_with_more_yes_and_with_more_no a_reply_of_fewer_entries_reads_with_more_no_and_each_entry_names_one_or_more_senders a_reply_of_17_entries_is_refused_with_more_yes_and_with_more_no a_reply_whose_entries_are_out_of_workflow_id_order_or_name_a_workflow_twice_is_refused a_reply_that_names_an_agent_twice_is_refused more_yes_with_fewer_than_16_entries_is_refused an_entry_is_refused_with_no_sender_with_a_text_that_is_no_sender_and_with_one_sender_twice a_reply_holds_exactly_its_two_keys_and_an_entry_its_three the_reply_answers_list_overlaps_alone_and_never_names_the_asking_workflow_or_agent a_reply_at_the_bound_of_a_list_reply_reads_and_one_byte_more_is_refused_on_the_bytes_given the_writer_refuses_a_list_that_would_not_fit_its_bound_and_never_writes_it_cut"
+          F="a_store_reply_takes_the_nine_error_names_and_the_eight_of_this_run"
+          S="list_overlaps_is_answered_malformed_and_stores_nothing_and_changes_no_state"
+          run_set() {
+            name=$1; bin=$2; names=$3
+            want=$(wc -w <<< "$names" | tr -d ' ')
+            passed=0
+            if [ -n "$bin" ]; then
+              for round in $(seq 1 $rounds); do
+                out=$("$bin" --exact $names --test-threads 4 2>&1)
+                if [[ "$out" == *"test result: ok. $want passed; 0 failed;"* ]]; then
+                  passed=$((passed + 1))
+                else
+                  printf '%s\n' "$out" > "$dir/$name-$round.txt"
+                fi
+              done
+            fi
+            echo "loop $name: tests=$want passed $passed of $rounds" > "$dir/$name.result"
+          }
+          ( run_set overlaps "$overlaps" "$O" ) &
+          ( run_set frames "$frames" "$F"; run_set store "$store" "$S" ) &
+          wait
+          fail=0
+          for name in overlaps frames store; do
+            line=$(cat "$dir/$name.result" 2>/dev/null)
+            echo "${line:-loop $name: no result}"
+            [[ "$line" == *"passed $rounds of $rounds" ]] || fail=1
+          done
+          for f in "$dir"/*.txt; do [ -e "$f" ] && { echo "== $(basename "$f")"; grep -E "^test .*FAILED|panicked|test result" "$f" | head -n 8; }; done
+          echo "loop: 15 new or renamed tests of U3.5 (b) part 1, $rounds rounds each, fail=$fail"
+          exit $fail
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
