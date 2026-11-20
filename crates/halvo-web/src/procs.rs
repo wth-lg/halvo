@@ -450,6 +450,45 @@ pub fn kill(_p: &Proc) -> bool {
 mod tests {
     use super::*;
 
+    /// U2.6 (9), CP-190 (5): on Windows the ask sends nothing and says so. The test's own child,
+    /// read by its number and creation time, still runs 300 ms after the ask, which answered no;
+    /// the test ends its own child on every way out.
+    #[cfg(windows)]
+    #[test]
+    fn on_windows_the_ask_sends_nothing_and_says_so() {
+        use crate::start::Start;
+        struct Own(std::process::Child);
+        impl Drop for Own {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(crate::child::entry_args(
+                "child::hold_child_entry",
+                &["--hold-child".to_string()],
+            ))
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .start()
+            .unwrap();
+        let mut own = Own(child);
+        let pid = own.0.id();
+        let row = table()
+            .unwrap()
+            .into_iter()
+            .find(|p| p.pid == pid && p.started_us != 0)
+            .expect("the child's row");
+        assert!(!ask_end(&row), "the ask said that it sent");
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        assert!(
+            matches!(own.0.try_wait(), Ok(None)),
+            "the ask ended the child"
+        );
+    }
+
     /// CP-176 (e), failing first: the guard's watch reads its executor's end from the system. A
     /// stand-in executor, a child of this test, starts a watcher (`child::watch_entry`), which
     /// reads it running; once the test has ended the stand-in, the watcher reads it gone. The
