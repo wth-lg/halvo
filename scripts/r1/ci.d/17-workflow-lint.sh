@@ -1053,7 +1053,7 @@ EOF
   check c07-other-commit-of-the-action FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 14: '      - uses: Swatinem/rust-cache@0123456789abcdef0123456789abcdef01234567 # v2.9.3' stands where this lint reads line 1 of the Rust cache step of the job macos, '${pin_uses}'; it differs from the line to write first at column 35, which holds the sign 0 where the line to write holds the sign d; write '${pin_uses}'; the pin holds the uses line of the Rust cache step in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
   lines j1-macos-keys-at-three-blanks-with-a-timeout-in-a-name-block 17 - 16 - 15 - 14 - 13 - 12 - 11 - 10 - 9 "  macos:${nl}   name: |${nl}    timeout-minutes: 30${nl}   runs-on: macos-15${nl}   timeout-minutes: 600${nl}   steps:${nl}     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1${nl}${pin_uses# }${nl}${pin_with# }${nl}${pin_prefix# }${nl}${pin_save# }"
   check j1-macos-keys-at-three-blanks-with-a-timeout-in-a-name-block FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 10: '   name: |' is the first line of the job macos and stands at 3 blanks; this lint reads a job's own keys at four blanks; write them at four blanks)"
-  lines byte-ff-beside-the-save-if-of-the-base 17 "$base_save" 2 "  push: # $(printf '\377')"
+  lines byte-ff-beside-the-save-if-of-the-base 17 "$base_save" 31 "  push: # $(printf '\377')"
   if locale -a 2>/dev/null | grep -q -x 'en_US.UTF-8'; then
     lc_before=${LC_ALL-unset}
     LC_ALL=en_US.UTF-8
