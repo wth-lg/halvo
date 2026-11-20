@@ -157,8 +157,8 @@ checks call and that no row fails through stands under Not covered.
 
 | Check | File | Functions | Rows that fail through it |
 |---|---|---|---|
-| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, the commit of its transaction, and the checkpoint after that commit), `destroy_store_key`, `delete_events_and_index` (the `DELETE` of the event rows), `EncryptedStore::delete_all` (the root step before every other step, and its steps on a handle that a delete-all sealed) | `formal-shredded-key-survives`, `formal-shred-never-committed`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-delete-all-returns-before-its-root-step`, `formal-shred-leaves-the-event-rows`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
-| 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file`, which `Db::open` and `Db::open_existing` call (the `secure_delete` pragma with `require_secure_delete`), `Db::checkpoint_truncate`, `EncryptedStore::write_segment_with_expiry` (where it puts the wrapped key), `KeyFile` and the publish of `store.key` in `EncryptedStore::create_with` (what `store.key` holds), `EncryptedStore::create` (the removal of the database when `Db::open` fails, and the database before the root step), `EncryptedStore::under_a_new_root` (the root step of a create, which calls `create_root`, and where its error goes), `Db::insert_event` (the rollback to its savepoint), `open_database` (the mode that it sets on `store.db` before the connection opens), `Db::require_file` with its two calls in `EncryptedStore::open_with` and `Db::open_file`, and the one place where `Db::open_file` makes `store.db`, for a create alone, `write_pending` (how it makes `create.pending`) | `formal-secure-delete-off`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file`, `formal-failed-create-leaves-the-database`, `formal-create-makes-its-root-first`, `formal-create-takes-an-existing-root`, `formal-refused-create-destroys-the-root`, `formal-create-spares-only-a-root-it-can-read`, `formal-failed-append-leaves-the-event-row`, `formal-store-db-keeps-a-wider-mode`, `formal-open-makes-a-missing-database`, `formal-create-pending-takes-the-umask` |
+| 1 | `crates/halvo-capture/src/store/expiry.rs` | `destroy_segment_keys` (the `UPDATE` that sets a key to NULL, the commit of its transaction, and the checkpoint after that commit), `destroy_store_key`, `shred_in_place` (the subtraction of the segment's totals from the rollup in the shred's transaction), `EncryptedStore::delete_all` (the root step before every other step, and its steps on a handle that a delete-all sealed) | `formal-shredded-key-survives`, `formal-shred-never-committed`, `formal-checkpoint-removed`, `formal-delete-all-destroys-nothing`, `formal-delete-all-returns-before-its-root-step`, `formal-totals-survive-shred`, `formal-second-delete-all-is-refused`, `formal-second-delete-all-finishes-nothing` |
+| 1 | `crates/halvo-capture/src/store/db.rs` | `Db::open_file`, which `Db::open` and `Db::open_existing` call (the `secure_delete` pragma with `require_secure_delete`), `Db::checkpoint_truncate`, `EncryptedStore::store_segment`, which `EncryptedStore::write_batch` calls (where it puts the wrapped key), `EncryptedStore::write_batch` (its answer for a segment id that the store holds), `Db::insert_segment` (the one transaction of the key row, the totals and the rollup, and its failpoint before the commit), `KeyFile` and the publish of `store.key` in `EncryptedStore::create_with` (what `store.key` holds), `EncryptedStore::create` (the removal of the database when `Db::open` fails, and the database before the root step), `EncryptedStore::under_a_new_root` (the root step of a create, which calls `create_root`, and where its error goes), `open_database` (the mode that it sets on `store.db` before the connection opens), `Db::require_file` with its two calls in `EncryptedStore::open_with` and `Db::open_file`, and the one place where `Db::open_file` makes `store.db`, for a create alone, `write_pending` (how it makes `create.pending`) | `formal-secure-delete-off`, `formal-checkpoint-not-verified`, `formal-wrapped-key-in-a-side-file`, `formal-second-wrap-in-another-table`, `formal-raw-store-key-in-key-file`, `formal-failed-create-leaves-the-database`, `formal-create-makes-its-root-first`, `formal-create-takes-an-existing-root`, `formal-refused-create-destroys-the-root`, `formal-create-spares-only-a-root-it-can-read`, `formal-replay-stored-twice`, `formal-failed-batch-keeps-its-key-row`, `formal-store-db-keeps-a-wider-mode`, `formal-open-makes-a-missing-database`, `formal-create-pending-takes-the-umask` |
 | 1 | `crates/halvo-capture/src/store/segment.rs` | `remove_entry_below`, which `remove_segments_through` calls for a delete-all (the kind of entry that it lists as a directory) | `formal-delete-walk-takes-a-link-for-a-directory` |
 | 1 | `crates/halvo-capture/src/custody/file_root.rs` | the root files of both systems: `seal` (the `aead_seal` call), which `FileRoots::wrap` and `FileRoots::wrap_in` call; `FileRoots::unwrap_in` (the first `aead_open` of the file, the one that the store's open uses since store-3b); and `FileRoots::publish_new_root_by_link` (the random fill of a new root), which `FileRoots::create_root` calls | `formal-custody-wrap-under-constant-key`, `formal-custody-root-is-all-zero` |
 | 1 | `crates/halvo-capture/src/store/durable.rs` | `Dir::create_new`, which `OsFs::create_new` calls (the mode of a new file), `Dir::create_dir` (the mode of `segments` and of a shard) | `formal-store-files-take-the-umask`, `formal-store-directories-take-the-umask` |
@@ -178,12 +178,14 @@ a random sequence of these operations, checking the invariants after each:
 
 | Op | What it does to the real store |
 |---|---|
-| `Write { len, expiry }` | `write_segment_with_expiry` with `expires_at` in the past, at the write's own second (the `expires_at <= now` boundary), or one retention window ahead; the ciphertext file is copied aside, and the harness records the wrapped key that the segment's key row holds when the write returns |
+| `Write { len, expiry }` | `write_batch` with a fresh random segment id, a payload of `len` bytes whose lines carry the fixed marker of the check, the totals of one or two kinds that the harness passes, and a first capture that puts the segment's expiry instant in the past, at the write's own second (the boundary of `expiry_instant(first_capture) <= now`), or one retention window ahead; the new ordinal must be above every ordinal of the store before it; the ciphertext file is copied aside, and the harness records the wrapped key that the segment's key row holds when the write returns |
 | `ShredExpired` | `crypto_shred_expired`; the report must count exactly the live segments past their bound |
 | `ShredAll` | `crypto_shred_all`, under the fault that an `ArmFault` before it armed, if one is armed. Whatever it returns, the harness then reads the root, the handle and the disk as the paragraph under the table of faults says. With no fault the first call must return `Ok` with a report that counts every live segment plus the store key, and a later call on the same handle must return `Ok` with a report that counts nothing |
 | `Reopen` | drop the store, on macOS set `store.db` to mode 0644 unless delete-all ran, as another process could while no store holds the file, and `EncryptedStore::open`; must succeed unless delete-all ran. After a delete-all it must answer `Sealed`, or `DatabaseMissing` when the delete-all returned an error and left `store.key`: every step was tried, so the database is gone, and `open` reads that before it asks its custody |
 | `ReopenUnderAnotherRoot` | drop the store, flip one bit of the root's 32 bytes under the same root id, and `open`, which must answer `Custody(WrapAuthFailed)`; put the bytes back, and `open` must succeed. Nothing after delete-all |
 | `Recreate` | after a delete-all that finished, or after one that returned an error, left no `store.key` and whose handle a `Reopen` dropped: drop the store and `create` under a fresh root, which must succeed. Otherwise `create` must refuse with `Locked` or `AlreadyExists` |
+| `FailedWrite` | on a live store: `write_batch` with the failpoint `batch_in_the_transaction` armed, which fails the batch's transaction before its commit; the call must answer an error and leave the count of key rows, the files under `segments` and the rollup as they were |
+| `Replay` | on a live store with a segment of its own: `write_batch` again with the newest segment's id, totals and payload; it must answer `AlreadyWritten` with that segment's ordinal and leave the rollup as it was |
 
 The second random test (`no_failed_or_refused_move_leaves_a_half_store`)
 replays sequences that also hold the moves of the next table, with the same
@@ -202,13 +204,18 @@ move of the list does not apply to the state that the moves before it left.
 | `OpenWithoutItsDatabase { cut }` | on a live store: drop the store, take `store.db` out of the directory or, with `cut`, cut it to no bytes, and `open`. It must answer `DatabaseMissing`, and the listing of the store directory, every name below it with its length, must be the same before that call and after it. Then the harness puts the file back, and `open` must succeed |
 | `LinkBelowSegments` | on a live store that has a `segments` directory, once in a case, on macOS alone: the harness makes a directory outside the store with one file that has the name of a segment file of the shard `ff`, and puts a symbolic link to that directory at `segments/ff`. From then on, after every operation, the directory must hold that file with the same bytes. A walk that took the link for a shard would take the file for a segment without a key and remove it. Windows has junctions and directory links of its own kind, and this move makes neither |
 | `DestroyTheRootAgain` | after a delete-all, finished or stopped, unless its root step failed: `destroy_root` of the dev-fallback custody on the root that delete-all destroyed; it must return `Ok` |
-| `Append { index_row_fails }` | on a live store with a live segment: `append_event` for the newest live segment. With `index_row_fails` the harness renames the table `events_fts` away for the call and back after it, so that the second of the two inserts fails; the append must return an error |
+| `Append { index_row_fails }` | on a live store with a live segment: the legacy append for the newest live segment, which must answer `NotImplemented`: the store keeps no per-event row. `index_row_fails` stays in the move's name and changes nothing |
 
 After every operation on a live store, the three tests that replay
-operations count the rows of `events` and of `events_fts` through the
-store's connection. Each count must equal the appends that returned `Ok`
-for the segments that are live: a failed append leaves no row, and a shred
-removes the rows of its segment.
+operations require that the schema holds no table whose name begins with
+`events`; that the totals rows of each segment of the store are the totals
+that its batch passed, also after a shred, which deletes no totals row; that
+`inventory` equals the sum of those totals over the live segments by UTC
+day and kind; and that no decrypted page of `store.db`, frame of its log or
+record of its journal holds the marker of the payloads. The scan's control
+is `the_marker_scan_finds_the_marker_when_a_batch_names_it_as_its_kind`,
+in which the marker stands as a kind text in a column and the scan finds
+it.
 
 The faults of `ArmFault`, one for each `ShredAll`. The last cell says what
 the harness then requires of the call; what it does not name must be gone
@@ -216,7 +223,7 @@ from the disk.
 
 | Fault | How the harness makes it | Needs | What the delete-all must do |
 |---|---|---|---|
-| `DamagedPage` | it drains the log into `store.db`, drops the store, overwrites 512 bytes of the root page of `events` and opens the store again | a live store | return `Ok`: the delete reads and writes no page of the database |
+| `DamagedPage` | it drains the log into `store.db`, drops the store, overwrites 512 bytes of the root page of `segment_keys` and opens the store again | a live store | return `Ok`: the delete reads and writes no page of the database |
 | `QueryOnly` | `PRAGMA query_only = ON` on the connection of the store | a live store | return `Ok` |
 | `KeyAndRootReadOnly` | mode 0400 on `store.key` and on the root file; macOS alone | both files on disk | return `Ok`, with both files removed |
 | `RootStep` | it opens the store again under a custody whose `destroy_root` answers `RootDenied` once and which names no roots directory | a live store | return `DeleteIncomplete` whose report names the root of the store as the one that stays; `store.key`, the database and the segments are gone |
@@ -583,7 +590,7 @@ the assertion message. Replay the input against the code, step by step, in
 the words of the code:
 
 - **Check 1.** The input is a list of ops. Walk the list by hand through
-  `write_segment_with_expiry`, `crypto_shred_expired`, `crypto_shred_all`,
+  `write_batch`, `crypto_shred_expired`, `crypto_shred_all`,
   `open` and `create`, tracking which `segment_keys` rows are non-NULL and
   which files hold which page. The message names the segment and the
   invariant: "decrypts with a key remaining in the store" means a non-NULL
@@ -724,8 +731,8 @@ row cannot go stale unseen.
 | `formal-checkpoint-removed` | `destroy_segment_keys` does not checkpoint after its commit | the random test of check 1 | "the wrapped key of shredded segment ... is still in the store files", in a frame of `store.db-wal` |
 | `formal-checkpoint-not-verified` | `Db::checkpoint_truncate` runs a PASSIVE checkpoint and accepts a WAL that still holds frames; the checkpoint of an open (`Db::log_drained`) stays | the random test of check 1 | the same, in a frame of `store.db-wal` |
 | `formal-secure-delete-off` | `Db::open_file` switches `secure_delete` off and does not read it back | the one-pass scaled case | the same, in a page of `store.db` |
-| `formal-wrapped-key-in-a-side-file` | `write_segment_with_expiry` also writes the wrapped key into `keys.log` in the store directory | the random test of check 1 | "the store directory holds keys.log, which is no file of a store" |
-| `formal-second-wrap-in-another-table` | `write_segment_with_expiry` wraps the segment key a second time and keeps that wrap in a table that no shred clears | the random test of check 1 | "shredded segment ... decrypts with a key remaining in the store" |
+| `formal-wrapped-key-in-a-side-file` | `store_segment` also writes the wrapped key into `keys.log` in the store directory | the random test of check 1 | "the store directory holds keys.log, which is no file of a store" |
+| `formal-second-wrap-in-another-table` | `store_segment` wraps the segment key a second time and keeps that wrap in a table that no shred clears | the random test of check 1 | "shredded segment ... decrypts with a key remaining in the store" |
 | `formal-reader-keyed-with-zeros` | the harness gives the page reader an all-zero key | the random test of check 1 | panic "page 1 does not decrypt to a SQLite header" |
 | `formal-raw-store-key-in-key-file` | `store.key` also holds the raw store key, as base64 | the random test of check 1 | "store.key of the fresh store holds the raw store key" |
 | `formal-delete-all-destroys-nothing` | `destroy_store_key` returns at once, so `delete_all` answers `DeleteIncomplete` with the report of a store that no step touched | the random test of check 1 | "after delete-all the root is alive: the retained wrapped store key still unwraps" |
@@ -749,8 +756,9 @@ row cannot go stale unseen.
 | `formal-create-takes-an-existing-root` | `create` neither looks for a root file of its id before its database step nor runs its root step, `under_a_new_root`, so the wrap through the held roots directory (`wrap_under_the_new_root`) wraps under a root that exists | the fixed order | "at move 6 of 80, CreateUnderTheRootOfThisStore: ... a create under the root of another store returned None in place of RootExists" |
 | `formal-refused-create-destroys-the-root` | `create` does not look for a root file of its id before its database step, and `under_a_new_root` sends every error of the root step, `RootExists` among them, to `abandon_create`, which destroys the root | the fixed order | "at move 6 of 80, CreateUnderTheRootOfThisStore: ... after a create under its root was refused, the store did not reopen" |
 | `formal-create-spares-only-a-root-it-can-read` | `under_a_new_root` keeps the clean-up that removes the database alone for `RootExists`, and sends every other error of the root step to `abandon_create`, as `create` did before its root step stood alone | the fixed order | "at move 25 of 80, CreateWhoseRootStepFails: ... a create whose root step answered Custody(RootLocked(-25308)) had made no root and called destroy_root 1 times" |
-| `formal-failed-append-leaves-the-event-row` | `insert_event` releases its savepoint without the rollback | the fixed order | "at move 3 of 80, Append { index_row_fails: true }: ... events holds 2 rows, and 1 appends returned Ok for the segments that are live" |
-| `formal-shred-leaves-the-event-rows` | `delete_events_and_index` deletes the index rows and leaves the event rows | the fixed order | "at move 7 of 80, ShredExpired: ... events holds 2 rows, and 1 appends returned Ok for the segments that are live" |
+| `formal-totals-survive-shred` | the shred's transaction keeps the segment's totals in the rollup | check 1 | "the listing is [InventoryRow { day: UtcDay(0), kind: \"window_title\", events: 1, bytes: 0 }], and the live segments sum to []" |
+| `formal-replay-stored-twice` | `write_batch` does not look for the segment id before it writes, so a second write of one id writes its file again and the key row's insert fails | check 1 | "a second write of segment ... answered Err(Db(2067))" |
+| `formal-failed-batch-keeps-its-key-row` | `insert_segment` commits its transaction before its failpoint, so a batch that answers an error keeps its key row and its totals | check 1 | "a batch whose transaction failed left (key rows, files, rollup) (1, 0, 1), before (0, 0, 0)" |
 | `formal-second-delete-all-is-refused` | `delete_all` answers `Sealed` on a handle that a delete-all sealed, and finishes nothing | the fixed order | "at move 13 of 80, ShredAll: ... a second delete-all did not finish with nothing left to shred: Err(Sealed)" |
 | `formal-second-delete-all-finishes-nothing` | `delete_all` runs no step on a handle that a delete-all sealed, and answers with the report of the call before | the fixed order | "at move 13 of 80, ShredAll: ... a second delete-all did not finish with nothing left to shred: Err(DeleteIncomplete(DeleteReport { ... key_file_gone: false ... }))" |
 
@@ -1997,10 +2005,12 @@ set, and the root's own volume name answers the root.
   tests the first of these states for a removal that fails.
 - Code that check 1 calls in every case and that no row fails through. A
   change there can fail the check, and no row shows it: in `expiry.rs`
-  `segment_ids_with_keys`, `remove_keyless_files`, `shred_segments`,
+  `live_segments`, `due_segments` with `expiry_instant`, `reconcile`,
+  which every open runs, `remove_keyless_files`, `shred_segments`,
   `crypto_shred_expired`, and `crypto_shred_all`, which counts what
   `delete_all` reports; in `db.rs`
-  `reserve_segment_key`, `commit_segment_key`, `KeyFile::read_in`, which
+  `Db::ordinal_of`, `Db::look_after_the_first_commit`, `refusal_of`,
+  `derived_key`, `KeyFile::read_in`, which
   `KeyFile::read` calls, with `known_version`, `KeyFilePlace::publish`, `KeyFilePlace::destroy`,
   `Db::destroy_through`, `write_pending`, `clear_pending`, `Db::require_file`,
   `Db::require_schema`, `Db::refuse_a_live_holder` where it answers that no

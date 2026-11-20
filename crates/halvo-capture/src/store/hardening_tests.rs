@@ -43,7 +43,9 @@ fn wrapped_key_in_copy_of_main_file_without_wal(
     let copy = tempfile::tempdir().unwrap();
     std::fs::copy(dir.join("store.db"), copy.path().join("store.db")).unwrap();
     let conn = Connection::open(copy.path().join("store.db"))?;
-    conn.execute_batch(&super::db::test_support::key_statement(store_key))?;
+    conn.execute_batch(&super::db::test_support::key_statement(&database_key_of(
+        store_key,
+    )))?;
     match conn.query_row(
         "SELECT wrapped_key FROM segment_keys WHERE segment_id = ?1",
         [segment_id.simple().to_string()],
@@ -54,10 +56,16 @@ fn wrapped_key_in_copy_of_main_file_without_wal(
     }
 }
 
+fn database_key_of(store_key: &[u8; 32]) -> [u8; 32] {
+    *super::db::database_key(&StoreKey::from_bytes(*store_key)).unwrap()
+}
+
 fn recoverable(cipher: &[u8], store_key: &[u8; 32], wrapped: Option<Vec<u8>>) -> bool {
+    let wrapping = super::db::wrapping_key(&StoreKey::from_bytes(*store_key)).unwrap();
+    let segment_id = Uuid::from_slice(&cipher[8..24]).unwrap();
     wrapped
-        .and_then(|w| segment::unwrap_segment_key(store_key, &w).ok())
-        .and_then(|k| segment::decrypt_segment_bytes(cipher, &k).ok())
+        .and_then(|w| segment::unwrap_segment_key(&wrapping, segment_id, &w).ok())
+        .and_then(|k| segment::decrypt_segment_bytes(cipher, &k, segment_id).ok())
         .is_some()
 }
 
@@ -150,7 +158,9 @@ fn shred_under_a_concurrent_reader_leaves_nothing_recoverable() {
     let reader = Connection::open(dir.path().join("store.db")).unwrap();
     reader.busy_timeout(Duration::ZERO).unwrap();
     reader
-        .execute_batch(&super::db::test_support::key_statement(&store_key))
+        .execute_batch(&super::db::test_support::key_statement(&database_key_of(
+            &store_key,
+        )))
         .unwrap();
     let snapshot = reader.unchecked_transaction().ok().filter(|tx| {
         tx.query_row("SELECT count(*) FROM segment_keys", [], |r| {
@@ -2235,9 +2245,9 @@ fn open_refuses_a_format_version_that_this_build_does_not_know_and_changes_no_fi
             "store.key version 1: OlderStore { found: 1, supported: 2 }",
             "store.key version 0: OlderStore { found: 0, supported: 2 }",
             "store.key version 999 and no other field: NewerStore { found: 999, supported: 2 }",
-            "user_version 99: NewerStore { found: 99, supported: 1 }",
-            "user_version 0: OlderStore { found: 0, supported: 1 }",
-            "user_version -1: OlderStore { found: -1, supported: 1 }",
+            "user_version 99: NewerStore { found: 99, supported: 2 }",
+            "user_version 0: OlderStore { found: 0, supported: 2 }",
+            "user_version -1: OlderStore { found: -1, supported: 2 }",
         ]
     );
 
@@ -2255,7 +2265,7 @@ fn open_refuses_a_format_version_that_this_build_does_not_know_and_changes_no_fi
                 refused,
                 Err(StoreError::NewerStore {
                     found: 99,
-                    supported: 1
+                    supported: 2
                 })
             ),
             "{refused:?}"
@@ -2299,7 +2309,7 @@ fn open_refuses_a_format_version_that_this_build_does_not_know_and_changes_no_fi
                 refused,
                 Err(StoreError::NewerStore {
                     found: 99,
-                    supported: 1
+                    supported: 2
                 })
             ),
             "{refused:?}"
@@ -3044,7 +3054,7 @@ fn a_segment_write_whose_key_commit_fails_leaves_no_segment_file() {
         .unwrap()
         .connection()
         .execute_batch(
-            "CREATE TEMP TRIGGER refuse_the_key_commit BEFORE UPDATE OF wrapped_key ON segment_keys \
+            "CREATE TEMP TRIGGER refuse_the_key_commit BEFORE INSERT ON segment_keys \
              BEGIN SELECT RAISE(ABORT, 'the key commit is refused'); END;",
         )
         .unwrap();
@@ -3348,13 +3358,18 @@ fn a_full_database_answers_db_with_sqlite_full() {
 }
 
 #[test]
-fn a_live_key_without_its_file_reads_as_segment_missing() {
+fn a_live_key_without_its_file_reads_as_segment_missing_until_the_next_open_shreds_it() {
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
-    std::fs::remove_file(segment_path(&store_dir, segment_id)).unwrap();
     let store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    std::fs::remove_file(segment_path(&store_dir, segment_id)).unwrap();
     let read = store.read_segment(segment_id, &mut Vec::new());
     assert!(matches!(read, Err(StoreError::SegmentMissing)), "{read:?}");
+    drop(store);
+    let store = reopened_file_root_store(&store_dir, &roots_dir, root_id);
+    assert_eq!(store.reconciled().rows_shredded, 1);
+    let read = store.read_segment(segment_id, &mut Vec::new());
+    assert!(matches!(read, Err(StoreError::Sealed)), "{read:?}");
 }
 
 fn open_over_protector(
@@ -3598,7 +3613,7 @@ fn leftovers_in_raw_pages(store: &EncryptedStore, key: &[u8; 32], rows: &[&Keyed
 }
 
 fn copy_of_store_key(store: &EncryptedStore) -> zeroize::Zeroizing<[u8; 32]> {
-    zeroize::Zeroizing::new(*store.store_key().unwrap().expose())
+    store.database_key().unwrap()
 }
 
 fn expire_rows_up_to(store: &EncryptedStore, last_id: i64) {
@@ -3607,7 +3622,7 @@ fn expire_rows_up_to(store: &EncryptedStore, last_id: i64) {
         .unwrap()
         .connection()
         .execute(
-            "UPDATE segment_keys SET expires_at = 1 WHERE wrapped_key IS NOT NULL AND id <= ?1",
+            "UPDATE segment_keys SET first_capture = 0 WHERE wrapped_key IS NOT NULL AND id <= ?1",
             [last_id],
         )
         .unwrap();
@@ -3722,7 +3737,7 @@ fn a_shredded_wrapped_key_is_gone_from_the_raw_database_pages() {
         .unwrap()
         .connection()
         .execute(
-            "UPDATE segment_keys SET expires_at = 1 WHERE wrapped_key IS NOT NULL AND (id - 1) % 16 != 0",
+            "UPDATE segment_keys SET first_capture = 0 WHERE wrapped_key IS NOT NULL AND (id - 1) % 16 != 0",
             [],
         )
         .unwrap();
@@ -3919,7 +3934,7 @@ fn truncation_points(file: &[u8], spans: &[(usize, usize)]) -> Vec<usize> {
 
 #[test]
 fn every_modified_segment_file_is_rejected_with_no_plaintext() {
-    const CASES: usize = 1992;
+    const CASES: usize = 1808;
     let dir = tempfile::tempdir().unwrap();
     let mut store = super::db::test_support::make_store(dir.path());
     let mut tally = TamperTally::default();
@@ -4952,7 +4967,7 @@ fn a_refused_newer_store_whose_log_holds_frames_keeps_its_database_and_its_log()
             answer,
             Err(StoreError::NewerStore {
                 found: 99,
-                supported: 1
+                supported: 2
             })
         ),
         "a store.db of user_version 99 in its log opened as {answer:?}"
@@ -5991,12 +6006,12 @@ fn a_sweep_after_the_store_directory_moved_acts_in_its_own_directory_alone() {
     let shard = shard_of(segment_id);
     let ours = format!("{shard}{}.seg", "1".repeat(30));
     let theirs_name = format!("segments/{shard}/{shard}{}.seg", "2".repeat(30));
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     std::fs::write(
         store_dir.join("segments").join(&shard).join(&ours),
         b"keyless and ours",
     )
     .unwrap();
-    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     let moved = dir.path().join("moved-store");
     std::fs::rename(&store_dir, &moved).unwrap();
     let file = store_dir.join(&theirs_name);
@@ -7064,7 +7079,7 @@ fn the_live_holder_probe_answers_locked_while_another_process_holds_the_database
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
-    let key = *store.store_key().unwrap().expose();
+    let key = *store.database_key().unwrap();
     drop(store);
     std::fs::write(dir.path().join("raw-key"), key).unwrap();
     let mut child = Command::new(std::env::current_exe().unwrap())
@@ -7200,28 +7215,32 @@ fn delete_all_on_a_damaged_page_destroys_the_root_and_the_key_file_in_its_first_
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
-    let (segment, key_id) = store
-        .write_segment(&mut Cursor::new(b"with events"))
-        .unwrap();
-    for i in 1..=10u64 {
-        let event = crate::event::CaptureStreamEvent::new_raw(
-            crate::event::CapturedAt {
-                wall_clock: std::time::SystemTime::now(),
-                sequence: crate::event::MonotonicSequence::new(i),
-            },
-            crate::event::Modality::ForegroundApp,
-            format!("com.example.app-{i}"),
-            segment.clone(),
-            key_id,
-        );
-        store.append_event(&event).unwrap();
+    for i in 1..=10u8 {
+        let segment_id = super::db::random_segment_id().unwrap();
+        let first = crate::event::unix_nanos(std::time::SystemTime::now());
+        let kind = format!("kind_{}", (b'a' + i) as char);
+        let kinds = [super::KindTotal {
+            kind: &kind,
+            events: u64::from(i),
+            bytes: 10,
+        }];
+        store
+            .write_batch(super::SegmentWrite {
+                segment_id: &segment_id,
+                day: super::UtcDay::of_instant(first),
+                first_capture: first,
+                last_capture: first,
+                kinds: &kinds,
+                payload: b"with totals",
+            })
+            .unwrap();
     }
     let index_page: i64 = store
         .db()
         .unwrap()
         .connection()
         .query_row(
-            "SELECT rootpage FROM sqlite_master WHERE type = 'table' AND name = 'events'",
+            "SELECT rootpage FROM sqlite_master WHERE type = 'table' AND name = 'segment_keys'",
             [],
             |r| r.get(0),
         )
@@ -9207,7 +9226,7 @@ fn a_create_answers_locked_before_it_clears_a_pending_create() {
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
-    let key = *store.store_key().unwrap().expose();
+    let key = *store.database_key().unwrap();
     drop(store);
     std::fs::write(dir.path().join("raw-key"), key).unwrap();
     std::fs::rename(
@@ -9558,7 +9577,7 @@ fn a_refused_open_while_another_process_holds_the_database_keeps_the_pending_roo
                 |_: &crate::custody::CustodyLocator| default_file_root_custody(roots_dir, root_id),
             )
             .unwrap();
-            let key = *store.store_key().unwrap().expose();
+            let key = *store.database_key().unwrap();
             drop(store);
             std::fs::rename(&aside, store_dir.join("create.pending")).unwrap();
             std::fs::write(dir.join("raw-key"), key).unwrap();
@@ -10000,7 +10019,7 @@ fn delete_all_unlinks_a_link_at_one_database_side_file_and_still_removes_the_oth
 
 #[cfg(unix)]
 #[test]
-fn an_open_whose_log_is_unlinked_before_its_first_write_answers_obstructed_at_the_second_instant() {
+fn an_open_whose_log_is_unlinked_before_its_first_write_answers_obstructed_at_that_write() {
     use super::db::SEAM_AT_THE_LOG_CHECK;
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
@@ -10014,11 +10033,22 @@ fn an_open_whose_log_is_unlinked_before_its_first_write_answers_obstructed_at_th
         }
     };
     let seam = super::failpoint::at(SEAM_AT_THE_LOG_CHECK, nth_call(1, act));
-    let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     drop(seam);
-    println!("LOG-UNLINKED answer={opened}");
+    let unlink_the_log = {
+        let store_dir = store_dir.clone();
+        move || {
+            let log = store_dir.join("store.db-wal");
+            if log.exists() {
+                std::fs::remove_file(&log).unwrap();
+            }
+        }
+    };
+    unlink_the_log();
+    let written = answer_text(&store.write_segment(&mut Cursor::new(b"the first write")));
+    println!("LOG-UNLINKED answer={written}");
     assert_eq!(
-        opened,
+        written,
         "Obstructed { name: Log, met: DatabaseOutsideTheDirectory }"
     );
 }
@@ -10455,4 +10485,1556 @@ fn a_file_that_gains_a_second_name_before_the_kept_open_is_not_written_through()
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+mod batch_write {
+    use std::io::Cursor;
+    use std::path::Path;
+    use std::time::SystemTime;
+
+    use halvo_sqlcipher::rusqlite::Connection;
+    use uuid::Uuid;
+
+    use super::super::db::test_support::{key_statement, make_store};
+    use super::super::db::{random_segment_id, EncryptedStore};
+    use super::super::failpoint;
+    use super::super::roots::{self, RootGuard};
+    use super::super::segment::segment_path;
+    use super::super::{
+        InventoryRow, KindTotal, Refusal, SegmentExpiry, SegmentStore, SegmentWrite, StoreError,
+        UtcDay, WriteFault, Written, DEFAULT_RETENTION, PAYLOAD_MAX_BYTES,
+    };
+    use crate::custody::StoreKey;
+
+    const NANOS_PER_SECOND: i64 = 1_000_000_000;
+    const NANOS_PER_DAY: i64 = 86_400 * NANOS_PER_SECOND;
+
+    fn now() -> i64 {
+        crate::event::unix_nanos(SystemTime::now())
+    }
+
+    fn due_first_capture() -> i64 {
+        now() - DEFAULT_RETENTION.as_nanos() as i64 - NANOS_PER_DAY
+    }
+
+    fn noon_of(nanos: i64) -> i64 {
+        nanos.div_euclid(NANOS_PER_DAY) * NANOS_PER_DAY + NANOS_PER_DAY / 2
+    }
+
+    fn write(
+        store: &mut EncryptedStore,
+        segment_id: &Uuid,
+        first: i64,
+        kinds: &[KindTotal<'_>],
+        payload: &[u8],
+    ) -> Result<Written, WriteFault> {
+        store.write_batch(SegmentWrite {
+            segment_id,
+            day: UtcDay::of_instant(first),
+            first_capture: first,
+            last_capture: first,
+            kinds,
+            payload,
+        })
+    }
+
+    fn kinds_of_512() -> [KindTotal<'static>; 2] {
+        [
+            KindTotal {
+                kind: "keystroke",
+                events: 500,
+                bytes: 400,
+            },
+            KindTotal {
+                kind: "pointer",
+                events: 12,
+                bytes: 112,
+            },
+        ]
+    }
+
+    fn count(store: &EncryptedStore, sql: &str) -> i64 {
+        store
+            .db()
+            .unwrap()
+            .connection()
+            .query_row(sql, [], |r| r.get(0))
+            .unwrap()
+    }
+
+    fn rollup(store: &EncryptedStore) -> Vec<(i64, String, i64, i64)> {
+        let conn = store.db().unwrap().connection();
+        let mut rows = conn
+            .prepare("SELECT day, kind, events, bytes FROM daily_totals ORDER BY day, kind")
+            .unwrap();
+        let read = rows
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .unwrap();
+        read.map(|row| row.unwrap()).collect()
+    }
+
+    fn segment_files(dir: &Path) -> usize {
+        let Ok(shards) = std::fs::read_dir(dir.join("segments")) else {
+            return 0;
+        };
+        shards
+            .map(|shard| std::fs::read_dir(shard.unwrap().path()).unwrap().count())
+            .sum()
+    }
+
+    struct Before {
+        key_rows: i64,
+        totals_rows: i64,
+        rollup: Vec<(i64, String, i64, i64)>,
+        files: usize,
+    }
+
+    fn before(store: &EncryptedStore, dir: &Path) -> Before {
+        Before {
+            key_rows: count(store, "SELECT count(*) FROM segment_keys"),
+            totals_rows: count(store, "SELECT count(*) FROM segment_totals"),
+            rollup: rollup(store),
+            files: segment_files(dir),
+        }
+    }
+
+    fn assert_nothing_stored(store: &EncryptedStore, dir: &Path, was: &Before, case: &str) {
+        let now = before(store, dir);
+        assert_eq!(
+            (now.key_rows, now.totals_rows, now.files),
+            (was.key_rows, was.totals_rows, was.files),
+            "{case}: a failed batch left (key rows, totals rows, files)"
+        );
+        assert_eq!(
+            now.rollup, was.rollup,
+            "{case}: a failed batch changed the rollup"
+        );
+    }
+
+    fn retry_commits_once(store: &mut EncryptedStore, dir: &Path, id: &Uuid, payload: &[u8]) {
+        let first = noon_of(now());
+        let written = write(store, id, first, &kinds_of_512(), payload).unwrap();
+        let sum: i64 = store
+            .db()
+            .unwrap()
+            .connection()
+            .query_row(
+                "SELECT SUM(events) FROM segment_totals WHERE segment = ?1",
+                [written.ordinal.get() as i64],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(sum, 512, "the retried batch's totals");
+        assert_eq!(
+            count(
+                store,
+                &format!(
+                    "SELECT count(*) FROM segment_keys WHERE segment_id = '{}'",
+                    id.simple()
+                )
+            ),
+            1
+        );
+        let mut plain = Vec::new();
+        store.read_segment(*id, &mut plain).unwrap();
+        assert_eq!(plain, payload);
+        assert!(segment_path(dir, *id).exists());
+    }
+
+    #[test]
+    fn a_fresh_store_holds_no_table_of_events_no_index_on_one_and_reads_database_version_2() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = make_store(dir.path());
+        assert_eq!(
+            count(
+                &store,
+                "SELECT count(*) FROM sqlite_master WHERE name LIKE 'events%'"
+            ),
+            0
+        );
+        assert_eq!(
+            count(
+                &store,
+                "SELECT count(*) FROM sqlite_master WHERE sql LIKE '%fts%' OR sql LIKE '%VIRTUAL%'"
+            ),
+            0
+        );
+        assert_eq!(
+            count(
+                &store,
+                "SELECT count(*) FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL"
+            ),
+            1,
+            "one partial index, made with the schema"
+        );
+        assert_eq!(store.db().unwrap().pragma_int("user_version").unwrap(), 2);
+    }
+
+    #[test]
+    fn one_batch_write_stores_its_key_row_its_totals_and_the_rollup() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let id = random_segment_id().unwrap();
+        let first = noon_of(now());
+        let payload = vec![0x5au8; 70_000];
+        let written = store
+            .write_batch(SegmentWrite {
+                segment_id: &id,
+                day: UtcDay::of_instant(first),
+                first_capture: first,
+                last_capture: first + 5 * NANOS_PER_SECOND,
+                kinds: &kinds_of_512(),
+                payload: &payload,
+            })
+            .unwrap();
+        assert_eq!(written.logical_bytes, payload.len() as u64);
+        let metadata = std::fs::metadata(segment_path(dir.path(), id)).unwrap();
+        #[cfg(unix)]
+        let taken = {
+            use std::os::unix::fs::MetadataExt;
+            metadata.blocks() * 512
+        };
+        #[cfg(windows)]
+        let taken = metadata.len().div_ceil(4096) * 4096;
+        assert_eq!(
+            written.disk_bytes, taken,
+            "disk_bytes is the file's allocated size"
+        );
+        let row: (i64, i64, i64, i64, i64, bool) = store
+            .db()
+            .unwrap()
+            .connection()
+            .query_row(
+                "SELECT day, first_capture, last_capture, logical_bytes, disk_bytes, \
+                 wrapped_key IS NOT NULL FROM segment_keys WHERE id = ?1",
+                [written.ordinal.get() as i64],
+                |r| {
+                    Ok((
+                        r.get(0)?,
+                        r.get(1)?,
+                        r.get(2)?,
+                        r.get(3)?,
+                        r.get(4)?,
+                        r.get(5)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            row,
+            (
+                UtcDay::of_instant(first).days_since_epoch(),
+                first,
+                first + 5 * NANOS_PER_SECOND,
+                70_000,
+                taken as i64,
+                true
+            )
+        );
+        let day = UtcDay::of_instant(first).days_since_epoch();
+        assert_eq!(
+            rollup(&store),
+            vec![
+                (day, "keystroke".to_string(), 500, 400),
+                (day, "pointer".to_string(), 12, 112)
+            ]
+        );
+        let mut plain = Vec::new();
+        store.read_segment(id, &mut plain).unwrap();
+        assert_eq!(plain, payload);
+    }
+
+    #[test]
+    fn each_malformed_batch_is_refused_and_writes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let id = random_segment_id().unwrap();
+        let noon = noon_of(now());
+        let one = [KindTotal {
+            kind: "keystroke",
+            events: 1,
+            bytes: 1,
+        }];
+        let nine: Vec<String> = (0..9)
+            .map(|i| format!("kind_{}", (b'a' + i) as char))
+            .collect();
+        let nine: Vec<KindTotal<'_>> = nine
+            .iter()
+            .map(|kind| KindTotal {
+                kind,
+                events: 1,
+                bytes: 1,
+            })
+            .collect();
+        let twice = [one[0], one[0]];
+        let over = vec![0u8; PAYLOAD_MAX_BYTES + 1];
+        let long_kind = "k".repeat(33);
+        let bad_kinds = [
+            "Keystroke",
+            "",
+            "key-stroke",
+            long_kind.as_str(),
+            "key stroke",
+        ];
+        let zero = [KindTotal {
+            kind: "keystroke",
+            events: 0,
+            bytes: 0,
+        }];
+        let nil = Uuid::nil();
+        let v7 = Uuid::now_v7();
+        let midnight = noon.div_euclid(NANOS_PER_DAY) * NANOS_PER_DAY + NANOS_PER_DAY;
+        let was = before(&store, dir.path());
+        let mut cases: Vec<(String, SegmentWrite<'_>, Refusal)> = Vec::new();
+        let base = SegmentWrite {
+            segment_id: &id,
+            day: UtcDay::of_instant(noon),
+            first_capture: noon,
+            last_capture: noon,
+            kinds: &one,
+            payload: b"x",
+        };
+        cases.push((
+            "nil id".into(),
+            SegmentWrite {
+                segment_id: &nil,
+                ..base
+            },
+            Refusal::NotRandomId,
+        ));
+        cases.push((
+            "v7 id".into(),
+            SegmentWrite {
+                segment_id: &v7,
+                ..base
+            },
+            Refusal::NotRandomId,
+        ));
+        cases.push((
+            "cap + 1".into(),
+            SegmentWrite {
+                payload: &over,
+                ..base
+            },
+            Refusal::PayloadOverCap,
+        ));
+        cases.push((
+            "9 kinds".into(),
+            SegmentWrite {
+                kinds: &nine,
+                ..base
+            },
+            Refusal::TooManyKinds,
+        ));
+        cases.push((
+            "repeated".into(),
+            SegmentWrite {
+                kinds: &twice,
+                ..base
+            },
+            Refusal::RepeatedKind,
+        ));
+        cases.push((
+            "no event".into(),
+            SegmentWrite {
+                kinds: &zero,
+                ..base
+            },
+            Refusal::NoEvent,
+        ));
+        cases.push((
+            "no kind".into(),
+            SegmentWrite { kinds: &[], ..base },
+            Refusal::NoEvent,
+        ));
+        cases.push((
+            "out of order".into(),
+            SegmentWrite {
+                first_capture: noon + 1,
+                ..base
+            },
+            Refusal::InstantsOutOfOrder,
+        ));
+        cases.push((
+            "23:59:59 to 00:00:00".into(),
+            SegmentWrite {
+                first_capture: midnight - NANOS_PER_SECOND,
+                last_capture: midnight,
+                day: UtcDay::of_instant(midnight - NANOS_PER_SECOND),
+                ..base
+            },
+            Refusal::InstantsOnTwoDays,
+        ));
+        cases.push((
+            "another day".into(),
+            SegmentWrite {
+                day: UtcDay::from_days_since_epoch(UtcDay::of_instant(noon).days_since_epoch() - 1),
+                ..base
+            },
+            Refusal::DayNotTheInstants,
+        ));
+        let bad: Vec<[KindTotal<'_>; 1]> = bad_kinds
+            .iter()
+            .map(|kind| {
+                [KindTotal {
+                    kind,
+                    events: 1,
+                    bytes: 1,
+                }]
+            })
+            .collect();
+        for (kind, kinds) in bad_kinds.iter().zip(&bad) {
+            cases.push((
+                format!("kind {kind:?}"),
+                SegmentWrite { kinds, ..base },
+                Refusal::KindNotText,
+            ));
+        }
+        for (case, batch, refusal) in cases {
+            let answer = store.write_batch(batch);
+            assert_eq!(answer, Err(WriteFault::Refused(refusal)), "{case}");
+            assert_nothing_stored(&store, dir.path(), &was, &case);
+        }
+        let at_the_cap = vec![0u8; PAYLOAD_MAX_BYTES];
+        let written = store
+            .write_batch(SegmentWrite {
+                payload: &at_the_cap,
+                ..base
+            })
+            .unwrap();
+        assert_eq!(written.logical_bytes, PAYLOAD_MAX_BYTES as u64);
+    }
+
+    #[test]
+    fn a_batch_whose_transaction_meets_a_failing_trigger_stores_nothing_and_its_retry_commits_once()
+    {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        write(
+            &mut store,
+            &random_segment_id().unwrap(),
+            noon_of(now()),
+            &kinds_of_512(),
+            b"a",
+        )
+        .unwrap();
+        let conn_sql = |store: &EncryptedStore, sql: &str| {
+            store.db().unwrap().connection().execute_batch(sql).unwrap()
+        };
+        conn_sql(
+            &store,
+            "CREATE TEMP TRIGGER totals_fail BEFORE INSERT ON segment_totals \
+             BEGIN SELECT RAISE(ABORT, 'a failing trigger'); END;",
+        );
+        let was = before(&store, dir.path());
+        let id = random_segment_id().unwrap();
+        let payload = b"a batch of 512 events".to_vec();
+        let answer = write(&mut store, &id, noon_of(now()), &kinds_of_512(), &payload);
+        assert!(matches!(answer, Err(WriteFault::Db(_))), "{answer:?}");
+        assert_nothing_stored(&store, dir.path(), &was, "a failing trigger");
+        conn_sql(&store, "DROP TRIGGER totals_fail;");
+        retry_commits_once(&mut store, dir.path(), &id, &payload);
+    }
+
+    #[test]
+    fn a_batch_whose_transaction_meets_its_failpoint_stores_nothing_and_its_retry_commits_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        write(
+            &mut store,
+            &random_segment_id().unwrap(),
+            noon_of(now()),
+            &kinds_of_512(),
+            b"a",
+        )
+        .unwrap();
+        for point in ["batch_before_the_transaction", "batch_in_the_transaction"] {
+            let was = before(&store, dir.path());
+            let id = random_segment_id().unwrap();
+            let payload = format!("a batch of 512 events at {point}").into_bytes();
+            failpoint::arm(point);
+            let answer = write(&mut store, &id, noon_of(now()), &kinds_of_512(), &payload);
+            assert!(
+                matches!(answer, Err(WriteFault::Io(_))),
+                "{point}: {answer:?}"
+            );
+            assert_nothing_stored(&store, dir.path(), &was, point);
+            retry_commits_once(&mut store, dir.path(), &id, &payload);
+        }
+    }
+
+    #[test]
+    fn a_batch_that_meets_a_full_database_stores_nothing_and_its_retry_commits_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let pages = count(&store, "PRAGMA page_count");
+        store
+            .db()
+            .unwrap()
+            .connection()
+            .query_row(&format!("PRAGMA max_page_count = {pages}"), [], |r| {
+                r.get::<_, i64>(0)
+            })
+            .unwrap();
+        let kinds: Vec<String> = (0..8)
+            .map(|i| format!("kind_{}", (b'a' + i) as char))
+            .collect();
+        let totals: Vec<KindTotal<'_>> = kinds
+            .iter()
+            .map(|kind| KindTotal {
+                kind,
+                events: 64,
+                bytes: 640,
+            })
+            .collect();
+        let mut full = None;
+        for round in 0..2_000 {
+            let was = before(&store, dir.path());
+            let id = random_segment_id().unwrap();
+            let first = noon_of(now()) - i64::from(round % 50) * NANOS_PER_DAY;
+            let payload = format!("round {round}").into_bytes();
+            match write(&mut store, &id, first, &totals, &payload) {
+                Ok(_) => {}
+                Err(fault) => {
+                    full = Some((fault, was, id, payload));
+                    break;
+                }
+            }
+        }
+        let (fault, was, id, payload) = full.expect("no batch met the page limit");
+        assert!(
+            matches!(fault, WriteFault::Db(code) if code & 0xff == 13),
+            "the fault was not SQLITE_FULL: {fault:?}"
+        );
+        assert_nothing_stored(&store, dir.path(), &was, "SQLITE_FULL");
+        store
+            .db()
+            .unwrap()
+            .connection()
+            .query_row("PRAGMA max_page_count = 1073741823", [], |r| {
+                r.get::<_, i64>(0)
+            })
+            .unwrap();
+        retry_commits_once(&mut store, dir.path(), &id, &payload);
+    }
+
+    #[test]
+    fn batch_child_for_parent() {
+        let Ok(dir) = std::env::var("HALVO_TEST_BATCH_DIR") else {
+            println!("batch_child_for_parent: HALVO_TEST_BATCH_DIR is not set, so no parent asked for a batch");
+            return;
+        };
+        let dir = Path::new(&dir);
+        let root_id = crate::custody::RootId::fresh().unwrap();
+        let mut store = EncryptedStore::create(
+            &dir.join("store"),
+            Box::new(crate::custody::dev_fallback::DevFallbackCustody::new(
+                root_id,
+                dir.join("roots"),
+            )),
+            DEFAULT_RETENTION,
+        )
+        .unwrap();
+        let id = random_segment_id().unwrap();
+        let answer = write(
+            &mut store,
+            &id,
+            noon_of(now()),
+            &kinds_of_512(),
+            b"from the child",
+        );
+        println!("BATCH-CHILD answer_is_err={}", answer.is_err());
+    }
+
+    #[test]
+    fn a_failpoint_named_in_the_environment_of_a_child_leaves_no_row_and_no_file_after_a_reopen() {
+        let dir = tempfile::tempdir().unwrap();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "store::hardening_tests::batch_write::batch_child_for_parent",
+                "--nocapture",
+                "--test-threads=1",
+            ])
+            .env("HALVO_TEST_BATCH_DIR", dir.path())
+            .env(
+                failpoint::FROM_THE_ENVIRONMENT,
+                "batch_before_the_transaction",
+            )
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(output.status.success(), "the child failed: {text}");
+        assert!(text.contains("BATCH-CHILD answer_is_err=true"), "{text}");
+        let store = EncryptedStore::open(
+            &dir.path().join("store"),
+            &dir.path().join("roots"),
+            DEFAULT_RETENTION,
+        )
+        .unwrap();
+        assert_eq!(count(&store, "SELECT count(*) FROM segment_keys"), 0);
+        assert_eq!(count(&store, "SELECT count(*) FROM segment_totals"), 0);
+        assert!(rollup(&store).is_empty());
+        assert_eq!(segment_files(&dir.path().join("store")), 0);
+    }
+
+    #[test]
+    fn a_second_write_of_one_segment_id_answers_already_written_and_the_rollup_counts_it_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let id = random_segment_id().unwrap();
+        let first = noon_of(now());
+        let written = write(&mut store, &id, first, &kinds_of_512(), b"once").unwrap();
+        let after_one = rollup(&store);
+        let again = write(&mut store, &id, first, &kinds_of_512(), b"once");
+        assert_eq!(
+            again,
+            Err(WriteFault::AlreadyWritten {
+                ordinal: written.ordinal
+            })
+        );
+        assert_eq!(rollup(&store), after_one);
+        assert_eq!(segment_files(dir.path()), 1);
+        store.destroy_segment_keys(&[id]).unwrap();
+        let after_the_shred = write(&mut store, &id, first, &kinds_of_512(), b"once");
+        assert_eq!(
+            after_the_shred,
+            Err(WriteFault::AlreadyWritten {
+                ordinal: written.ordinal
+            }),
+            "a batch of a shredded segment is refused"
+        );
+    }
+
+    #[test]
+    fn a_repeated_shred_of_one_segment_takes_its_totals_out_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let first = noon_of(now());
+        let (a, b) = (random_segment_id().unwrap(), random_segment_id().unwrap());
+        write(&mut store, &a, first, &kinds_of_512(), b"a").unwrap();
+        write(&mut store, &b, first, &kinds_of_512(), b"b").unwrap();
+        assert_eq!(store.destroy_segment_keys(&[a, a]).unwrap(), 1);
+        assert_eq!(store.destroy_segment_keys(&[a]).unwrap(), 0);
+        let day = UtcDay::of_instant(first).days_since_epoch();
+        assert_eq!(
+            rollup(&store),
+            vec![
+                (day, "keystroke".to_string(), 500, 400),
+                (day, "pointer".to_string(), 12, 112)
+            ]
+        );
+    }
+
+    #[test]
+    fn every_ordinal_is_above_every_ordinal_given_before_also_after_a_shred_of_the_newest_and_a_reopen(
+    ) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = RootGuard::fresh();
+        let mut store = EncryptedStore::create(
+            dir.path(),
+            Box::new(roots::custody(root.id())),
+            DEFAULT_RETENTION,
+        )
+        .unwrap();
+        let mut given = Vec::new();
+        for first in [noon_of(now()), noon_of(now()), due_first_capture()] {
+            let id = random_segment_id().unwrap();
+            given.push(
+                write(&mut store, &id, first, &kinds_of_512(), b"o")
+                    .unwrap()
+                    .ordinal,
+            );
+        }
+        assert_eq!(store.crypto_shred_expired().unwrap().segments_shredded, 1);
+        drop(store);
+        let mut store = roots::open(dir.path(), DEFAULT_RETENTION).unwrap();
+        let fourth = write(
+            &mut store,
+            &random_segment_id().unwrap(),
+            noon_of(now()),
+            &kinds_of_512(),
+            b"o",
+        )
+        .unwrap()
+        .ordinal;
+        let (_, legacy) = store.write_segment(&mut Cursor::new(b"legacy")).unwrap();
+        assert!(
+            given.iter().all(|before| *before < fourth) && legacy.0 as u64 > fourth.get(),
+            "ordinals {given:?}, then {fourth:?} and {}",
+            legacy.0
+        );
+    }
+
+    fn live_sum(store: &EncryptedStore) -> Vec<InventoryRow> {
+        let conn = store.db().unwrap().connection();
+        let mut rows = conn
+            .prepare(
+                "SELECT k.day, t.kind, SUM(t.events), SUM(t.bytes) FROM segment_totals AS t \
+                 JOIN segment_keys AS k ON k.id = t.segment WHERE k.wrapped_key IS NOT NULL \
+                 GROUP BY k.day, t.kind HAVING SUM(t.events) > 0 ORDER BY k.day, t.kind",
+            )
+            .unwrap();
+        let read = rows
+            .query_map([], |r| {
+                Ok(InventoryRow {
+                    day: UtcDay::from_days_since_epoch(r.get(0)?),
+                    kind: r.get(1)?,
+                    events: r.get::<_, i64>(2)? as u64,
+                    bytes: r.get::<_, i64>(3)? as u64,
+                })
+            })
+            .unwrap();
+        read.map(|row| row.unwrap()).collect()
+    }
+
+    struct Draw(u64);
+
+    impl Draw {
+        fn next(&mut self, below: u64) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0 % below
+        }
+    }
+
+    #[test]
+    fn the_rollup_equals_the_totals_of_live_segments() {
+        const KINDS: [&str; 10] = [
+            "screen_frame",
+            "keystroke",
+            "pointer",
+            "foreground_app",
+            "window_title",
+            "run_mark",
+            "kind_g",
+            "kind_h",
+            "kind_i",
+            "kind_j",
+        ];
+        for seed in 1..=6u64 {
+            let mut draw = Draw(0x9e37_79b9_7f4a_7c15 ^ seed);
+            let dir = tempfile::tempdir().unwrap();
+            let root = RootGuard::fresh();
+            let store_dir = dir.path().join("store");
+            let mut store = EncryptedStore::create(
+                &store_dir,
+                Box::new(roots::custody(root.id())),
+                DEFAULT_RETENTION,
+            )
+            .unwrap();
+            let mut ids = Vec::new();
+            for step in 0..60 {
+                match draw.next(10) {
+                    0..=5 => {
+                        let n = 1 + draw.next(8) as usize;
+                        let start = draw.next(10) as usize;
+                        let kinds: Vec<KindTotal<'_>> = (0..n)
+                            .map(|i| KindTotal {
+                                kind: KINDS[(start + i) % KINDS.len()],
+                                events: 1 + draw.next(50),
+                                bytes: draw.next(500),
+                            })
+                            .collect();
+                        let first = if draw.next(3) == 0 {
+                            due_first_capture() - draw.next(3) as i64 * NANOS_PER_DAY
+                        } else {
+                            noon_of(now()) - draw.next(3) as i64 * NANOS_PER_DAY
+                        };
+                        let id = random_segment_id().unwrap();
+                        write(&mut store, &id, first, &kinds, b"draw").unwrap();
+                        ids.push(id);
+                    }
+                    6 => {
+                        store.crypto_shred_expired().unwrap();
+                    }
+                    7 if !ids.is_empty() => {
+                        let id = ids[draw.next(ids.len() as u64) as usize];
+                        store.destroy_segment_keys(&[id]).unwrap();
+                    }
+                    8 => {
+                        drop(store);
+                        store = roots::open(&store_dir, DEFAULT_RETENTION).unwrap();
+                    }
+                    _ => {}
+                }
+                assert_eq!(
+                    store.inventory().unwrap(),
+                    live_sum(&store),
+                    "seed {seed}, step {step}: the rollup is not the totals of the live segments"
+                );
+            }
+            store.delete_all().unwrap();
+            assert_eq!(
+                store.inventory().unwrap(),
+                Vec::new(),
+                "seed {seed}: after delete-all"
+            );
+        }
+    }
+
+    #[test]
+    fn one_batch_with_one_event_of_each_of_8_kinds_lists_8_rows_with_the_texts_that_were_passed() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let texts = [
+            "screen_frame",
+            "keystroke",
+            "pointer",
+            "foreground_app",
+            "window_title",
+            "run_mark",
+            "system_audio",
+            "camera",
+        ];
+        let kinds: Vec<KindTotal<'_>> = texts
+            .iter()
+            .map(|kind| KindTotal {
+                kind,
+                events: 1,
+                bytes: 10,
+            })
+            .collect();
+        let first = noon_of(now());
+        write(
+            &mut store,
+            &random_segment_id().unwrap(),
+            first,
+            &kinds,
+            b"eight",
+        )
+        .unwrap();
+        let listed = store.inventory().unwrap();
+        let mut expected: Vec<&str> = texts.to_vec();
+        expected.sort_unstable();
+        assert_eq!(
+            listed
+                .iter()
+                .map(|row| row.kind.as_str())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert!(listed
+            .iter()
+            .all(|row| row.events == 1 && row.bytes == 10 && row.day == UtcDay::of_instant(first)));
+    }
+
+    #[test]
+    fn an_event_at_16_30_on_a_clock_8_hours_behind_utc_lands_on_the_next_utc_day() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let at = (20_777 * 86_400 + 30 * 60) * NANOS_PER_SECOND;
+        let kinds = [KindTotal {
+            kind: "keystroke",
+            events: 1,
+            bytes: 1,
+        }];
+        let local_day = UtcDay::from_days_since_epoch(20_776);
+        let as_local = store.write_batch(SegmentWrite {
+            segment_id: &random_segment_id().unwrap(),
+            day: local_day,
+            first_capture: at,
+            last_capture: at,
+            kinds: &kinds,
+            payload: b"t",
+        });
+        assert_eq!(
+            as_local,
+            Err(WriteFault::Refused(Refusal::DayNotTheInstants))
+        );
+        write(&mut store, &random_segment_id().unwrap(), at, &kinds, b"t").unwrap();
+        assert_eq!(
+            store.inventory().unwrap(),
+            vec![InventoryRow {
+                day: UtcDay::from_days_since_epoch(20_777),
+                kind: "keystroke".to_string(),
+                events: 1,
+                bytes: 1
+            }]
+        );
+    }
+
+    #[test]
+    fn a_first_capture_before_1970_round_trips_through_the_key_row() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let first = -1_234_567_890_123_456_789i64;
+        let written = write(
+            &mut store,
+            &random_segment_id().unwrap(),
+            first,
+            &kinds_of_512(),
+            b"old",
+        )
+        .unwrap();
+        let row: (i64, i64) = store
+            .db()
+            .unwrap()
+            .connection()
+            .query_row(
+                "SELECT first_capture, day FROM segment_keys WHERE id = ?1",
+                [written.ordinal.get() as i64],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(row, (first, UtcDay::of_instant(first).days_since_epoch()));
+        assert!(row.1 < 0);
+    }
+
+    fn wal_len(dir: &Path) -> u64 {
+        std::fs::metadata(dir.join("store.db-wal")).map_or(0, |m| m.len())
+    }
+
+    #[test]
+    fn a_clean_reopen_leaves_the_log_at_0_bytes_and_reconciles_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = RootGuard::fresh();
+        let mut store = EncryptedStore::create(
+            dir.path(),
+            Box::new(roots::custody(root.id())),
+            DEFAULT_RETENTION,
+        )
+        .unwrap();
+        write(
+            &mut store,
+            &random_segment_id().unwrap(),
+            noon_of(now()),
+            &kinds_of_512(),
+            b"r",
+        )
+        .unwrap();
+        drop(store);
+        let database = std::fs::read(dir.path().join("store.db")).unwrap();
+        for round in 0..3 {
+            let reopened = roots::open(dir.path(), DEFAULT_RETENTION).unwrap();
+            assert_eq!(
+                wal_len(dir.path()),
+                0,
+                "round {round}: the open wrote to the log"
+            );
+            assert_eq!(reopened.reconciled(), Default::default());
+            drop(reopened);
+            assert!(
+                std::fs::read(dir.path().join("store.db")).unwrap() == database,
+                "round {round}: a clean reopen changed store.db"
+            );
+        }
+    }
+
+    #[test]
+    fn the_open_time_reconcile_removes_a_keyless_file_and_shreds_a_row_whose_file_is_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = RootGuard::fresh();
+        let mut store = EncryptedStore::create(
+            dir.path(),
+            Box::new(roots::custody(root.id())),
+            DEFAULT_RETENTION,
+        )
+        .unwrap();
+        let first = noon_of(now());
+        let (kept, lost) = (random_segment_id().unwrap(), random_segment_id().unwrap());
+        write(&mut store, &kept, first, &kinds_of_512(), b"kept").unwrap();
+        write(&mut store, &lost, first, &kinds_of_512(), b"lost").unwrap();
+        drop(store);
+        std::fs::remove_file(segment_path(dir.path(), lost)).unwrap();
+        let stray = random_segment_id().unwrap();
+        std::fs::create_dir_all(segment_path(dir.path(), stray).parent().unwrap()).unwrap();
+        std::fs::write(
+            segment_path(dir.path(), stray),
+            b"a file that no key row names",
+        )
+        .unwrap();
+        let store = roots::open(dir.path(), DEFAULT_RETENTION).unwrap();
+        assert_eq!(
+            store.reconciled(),
+            super::super::Reconciled {
+                files_removed: 1,
+                rows_shredded: 1,
+                owed: false
+            }
+        );
+        assert!(!segment_path(dir.path(), stray).exists());
+        assert_eq!(
+            count(&store, "SELECT count(*) FROM segment_keys"),
+            2,
+            "no row is deleted"
+        );
+        assert_eq!(
+            count(
+                &store,
+                "SELECT count(*) FROM segment_keys WHERE wrapped_key IS NULL"
+            ),
+            1
+        );
+        let day = UtcDay::of_instant(first).days_since_epoch();
+        assert_eq!(
+            rollup(&store),
+            vec![
+                (day, "keystroke".to_string(), 500, 400),
+                (day, "pointer".to_string(), 12, 112)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_failed_write_leaves_no_key_row_and_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let failed = store.write_segment(&mut super::DyingReader { remaining: 100_000 });
+        assert!(failed.is_err());
+        assert_eq!(count(&store, "SELECT count(*) FROM segment_keys"), 0);
+        assert_eq!(segment_files(dir.path()), 0);
+    }
+
+    #[test]
+    fn new_segment_names_carry_no_time_spread_over_shards_and_their_header_holds_no_ordinal() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let written_at_ms = now() / 1_000_000;
+        let mut shards = std::collections::BTreeSet::new();
+        for _ in 0..300 {
+            let (seg, key_id) = store.write_segment(&mut Cursor::new(b"s")).unwrap();
+            assert_eq!(seg.segment_id.get_version_num(), 4);
+            let name = seg.segment_id.simple().to_string();
+            shards.insert(name[..2].to_string());
+            let as_ms = i64::from_str_radix(&name[..12], 16).unwrap();
+            assert!(
+                (as_ms - written_at_ms).abs() > 86_400_000,
+                "a name decodes to an instant within a day of the write"
+            );
+            let bytes = std::fs::read(segment_path(dir.path(), seg.segment_id)).unwrap();
+            let head = &bytes[..super::HEADER];
+            assert!(!head.windows(8).any(|w| w == key_id.0.to_le_bytes()));
+        }
+        assert!(shards.len() > 1, "300 segments in {} shard", shards.len());
+    }
+
+    #[test]
+    fn the_store_key_and_the_wrapping_key_do_not_open_the_database() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = make_store(dir.path());
+        let store_key = *store.store_key().unwrap().expose();
+        let wrapping = store.wrapping_key().unwrap();
+        let database = store.database_key().unwrap();
+        assert_ne!(*wrapping, *database);
+        assert_ne!(store_key, *database);
+        assert_ne!(store_key, *wrapping);
+        store.db().unwrap().checkpoint_truncate().unwrap();
+        let copy = tempfile::tempdir().unwrap();
+        std::fs::copy(dir.path().join("store.db"), copy.path().join("store.db")).unwrap();
+        let reads = |key: &[u8; 32]| {
+            let conn = Connection::open(copy.path().join("store.db")).unwrap();
+            conn.execute_batch(&key_statement(key)).unwrap();
+            conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+                r.get::<_, i64>(0)
+            })
+            .is_ok()
+        };
+        assert!(reads(&database), "the database key does not open the copy");
+        assert!(!reads(&wrapping), "the wrapping key opens store.db");
+        assert!(!reads(&store_key), "the store key itself opens store.db");
+    }
+
+    fn older_schema_at_version(dir: &Path, version: i64, key: &[u8; 32]) {
+        let conn = Connection::open(dir.join("store.db")).unwrap();
+        conn.execute_batch(&key_statement(key)).unwrap();
+        conn.execute_batch(&format!(
+            "PRAGMA journal_mode = WAL;\n\
+             CREATE TABLE segment_keys (id INTEGER PRIMARY KEY, segment_id TEXT NOT NULL UNIQUE, \
+               wrapped_key BLOB, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL);\n\
+             CREATE TABLE events (event_id TEXT PRIMARY KEY, wall_clock_nanos INTEGER NOT NULL, \
+               sequence INTEGER NOT NULL, modality TEXT NOT NULL, foreground_app TEXT NOT NULL, \
+               segment_id TEXT NOT NULL, byte_offset INTEGER NOT NULL, byte_len INTEGER NOT NULL, \
+               segment_key_id INTEGER NOT NULL, is_derived INTEGER NOT NULL, \
+               retention_class TEXT NOT NULL);\n\
+             PRAGMA user_version = {version};\n\
+             PRAGMA wal_checkpoint(TRUNCATE);"
+        ))
+        .unwrap();
+    }
+
+    fn schema_text(dir: &Path, key: &[u8; 32]) -> Vec<String> {
+        let conn = Connection::open(dir.join("store.db")).unwrap();
+        conn.execute_batch(&key_statement(key)).unwrap();
+        let mut rows = conn
+            .prepare("SELECT sql FROM sqlite_master ORDER BY name")
+            .unwrap();
+        let read = rows
+            .query_map([], |r| r.get::<_, Option<String>>(0))
+            .unwrap();
+        read.map(|row| row.unwrap().unwrap_or_default()).collect()
+    }
+
+    #[test]
+    fn a_store_of_the_schema_before_this_one_answers_older_store_and_one_above_answers_newer_store()
+    {
+        for (case, version) in [("older", 1i64), ("newer", 3)] {
+            let dir = tempfile::tempdir().unwrap();
+            let root = RootGuard::fresh();
+            let store = EncryptedStore::create(
+                dir.path(),
+                Box::new(roots::custody(root.id())),
+                DEFAULT_RETENTION,
+            )
+            .unwrap();
+            let store_key = StoreKey::from_bytes(*store.store_key().unwrap().expose());
+            let database = store.database_key().unwrap();
+            drop(store);
+            let key: [u8; 32] = if version < 2 {
+                for name in ["store.db", "store.db-wal", "store.db-shm"] {
+                    let _ = std::fs::remove_file(dir.path().join(name));
+                }
+                *store_key.expose()
+            } else {
+                *database
+            };
+            if version < 2 {
+                older_schema_at_version(dir.path(), version, &key);
+            } else {
+                let conn = Connection::open(dir.path().join("store.db")).unwrap();
+                conn.execute_batch(&key_statement(&key)).unwrap();
+                conn.execute_batch(&format!("PRAGMA user_version = {version};"))
+                    .unwrap();
+            }
+            let schema = schema_text(dir.path(), &key);
+            let opened = roots::open(dir.path(), DEFAULT_RETENTION).map(drop);
+            let expected = if version < 2 {
+                StoreError::OlderStore {
+                    found: 1,
+                    supported: 2,
+                }
+            } else {
+                StoreError::NewerStore {
+                    found: 3,
+                    supported: 2,
+                }
+            };
+            assert_eq!(
+                format!("{opened:?}"),
+                format!("{:?}", Err::<(), _>(expected)),
+                "{case}"
+            );
+            assert_eq!(
+                schema_text(dir.path(), &key),
+                schema,
+                "{case}: the refused open changed the schema"
+            );
+        }
+    }
+
+    #[test]
+    fn a_shred_takes_the_totals_out_of_the_rollup_and_keeps_the_rows_of_the_segment() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let first = due_first_capture();
+        let id = random_segment_id().unwrap();
+        let written = write(&mut store, &id, first, &kinds_of_512(), b"due").unwrap();
+        write(
+            &mut store,
+            &random_segment_id().unwrap(),
+            noon_of(now()),
+            &kinds_of_512(),
+            b"live",
+        )
+        .unwrap();
+        assert_eq!(store.crypto_shred_expired().unwrap().segments_shredded, 1);
+        let day = UtcDay::of_instant(first).days_since_epoch();
+        let today = UtcDay::of_instant(noon_of(now())).days_since_epoch();
+        assert_eq!(
+            rollup(&store),
+            vec![
+                (day, "keystroke".to_string(), 0, 0),
+                (day, "pointer".to_string(), 0, 0),
+                (today, "keystroke".to_string(), 500, 400),
+                (today, "pointer".to_string(), 12, 112)
+            ]
+        );
+        assert_eq!(
+            count(
+                &store,
+                &format!(
+                    "SELECT count(*) FROM segment_totals WHERE segment = {}",
+                    written.ordinal.get()
+                )
+            ),
+            2,
+            "a shred deletes no totals row"
+        );
+        assert!(!segment_path(dir.path(), id).exists());
+        assert_eq!(store.inventory().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn the_decrypted_pages_hold_no_copy_of_a_marker_written_in_a_batch_payload() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let marker = b"com.example.MarkerAppForTheRawPages";
+        let id = random_segment_id().unwrap();
+        let mut payload = Vec::new();
+        for _ in 0..50 {
+            payload.extend_from_slice(marker);
+            payload.push(b'\n');
+        }
+        write(
+            &mut store,
+            &id,
+            due_first_capture(),
+            &kinds_of_512(),
+            &payload,
+        )
+        .unwrap();
+        store.db().unwrap().checkpoint_truncate().unwrap();
+        let key = store.database_key().unwrap();
+        let copies = |store: &EncryptedStore| {
+            let images = super::pages::store_pages(store.dir(), &key);
+            super::pages::places_of(&images, &[marker.as_slice()])[0].len()
+        };
+        assert_eq!(copies(&store), 0, "before the shred");
+        assert_eq!(store.crypto_shred_expired().unwrap().segments_shredded, 1);
+        assert_eq!(copies(&store), 0, "after the shred");
+    }
+
+    #[test]
+    fn an_open_whose_foreign_keys_read_back_off_is_refused_by_its_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = super::file_root_store(dir.path());
+        let opened = {
+            let _seam = super::super::db::read_back_seam::before_the_read_backs(|conn| {
+                conn.execute_batch("PRAGMA foreign_keys = OFF;").unwrap();
+            });
+            super::open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+        };
+        assert!(
+            matches!(&opened, Err(StoreError::SettingNotInEffect("foreign_keys"))),
+            "an open whose foreign_keys read back off answered {opened:?}"
+        );
+        assert!(super::open_over_file_root(&store_dir, &roots_dir, root_id).is_ok());
+    }
+
+    #[test]
+    fn the_store_payload_cap_is_the_ports_cap() {
+        assert_eq!(PAYLOAD_MAX_BYTES, crate::daemon::port::PAYLOAD_MAX_BYTES);
+        assert_eq!(super::super::KINDS_MAX, crate::daemon::port::ENTRIES_MAX);
+    }
+
+    #[test]
+    fn no_fault_of_a_batch_write_leaves_its_batch_stored() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let points = ["batch_before_the_transaction", "batch_in_the_transaction"];
+        for point in points {
+            let id = random_segment_id().unwrap();
+            failpoint::arm(point);
+            let answer = write(&mut store, &id, noon_of(now()), &kinds_of_512(), b"p");
+            assert!(answer.is_err(), "{point}");
+            assert_eq!(
+                store
+                    .read_segment(id, &mut Vec::new())
+                    .err()
+                    .map(|e| format!("{e:?}")),
+                Some(format!("{:?}", StoreError::Sealed)),
+                "{point}: the batch answered a fault and can be read"
+            );
+        }
+        let id = random_segment_id().unwrap();
+        assert!(write(&mut store, &id, noon_of(now()), &kinds_of_512(), b"p").is_ok());
+    }
+}
+
+mod page_gap_probe {
+    use std::time::SystemTime;
+
+    use super::super::db::random_segment_id;
+    use super::super::db::test_support::make_store;
+    use super::super::page_gap_rules as rules;
+    use super::super::{KindTotal, SegmentWrite, UtcDay, DEFAULT_RETENTION};
+    use super::pages;
+    use super::EncryptedStore;
+
+    const NANOS_PER_DAY: i64 = 86_400_000_000_000;
+    const SEGMENTS: usize = 120;
+    const SINGLE_SHREDS: usize = 60;
+
+    struct Draw(u64);
+
+    impl Draw {
+        fn below(&mut self, n: u64) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0 % n
+        }
+    }
+
+    fn kind_text(draw: &mut Draw) -> String {
+        let len = 1 + draw.below(31);
+        (0..len)
+            .map(|_| char::from(b'a' + draw.below(26) as u8))
+            .collect()
+    }
+
+    fn write_one(store: &mut EncryptedStore, draw: &mut Draw) -> uuid::Uuid {
+        let now = crate::event::unix_nanos(SystemTime::now());
+        let first = if draw.below(2) == 0 {
+            now - DEFAULT_RETENTION.as_nanos() as i64 - NANOS_PER_DAY
+        } else {
+            now
+        };
+        let names: Vec<String> = (0..1 + draw.below(8))
+            .map(|i| format!("{}{}", kind_text(draw), char::from(b'a' + i as u8)))
+            .collect();
+        let mut names = names;
+        names.sort();
+        names.dedup();
+        let kinds: Vec<KindTotal<'_>> = names
+            .iter()
+            .map(|kind| KindTotal {
+                kind,
+                events: 1 + draw.below(1000),
+                bytes: draw.below(100_000),
+            })
+            .collect();
+        let id = random_segment_id().unwrap();
+        let payload = vec![0x42u8; draw.below(2048) as usize];
+        store
+            .write_batch(SegmentWrite {
+                segment_id: &id,
+                day: UtcDay::of_instant(first),
+                first_capture: first,
+                last_capture: first,
+                kinds: &kinds,
+                payload: &payload,
+            })
+            .unwrap();
+        id
+    }
+
+    fn image(store: &EncryptedStore) -> Vec<u8> {
+        store.db().unwrap().checkpoint_truncate().unwrap();
+        let key = store.database_key().unwrap();
+        let file = std::fs::read(store.dir().join("store.db")).unwrap();
+        pages::database_pages(&file, &key)
+            .iter()
+            .flat_map(|page| page.plain.clone())
+            .collect()
+    }
+
+    fn checked(store: &EncryptedStore, when: &str) -> Vec<String> {
+        let image = image(store);
+        let found = rules::check(store.db().unwrap().connection(), &image);
+        let kinds = found.btree + found.overflow + found.trunks + found.leaves;
+        let mut lines: Vec<String> = found
+            .problems
+            .iter()
+            .map(|line| format!("{when}: {line}"))
+            .collect();
+        if found.pages != image.len() / pages::PAGE || kinds != found.pages {
+            lines.push(format!(
+                "{when}: the check read {} pages ({} b-tree, {} overflow with {} tails, {} trunks, {} leaves) of an image of {}",
+                found.pages,
+                found.btree,
+                found.overflow,
+                found.overflow_tails,
+                found.trunks,
+                found.leaves,
+                image.len() / pages::PAGE
+            ));
+        }
+        lines
+    }
+
+    fn the_draw(secure_delete: bool, seed: u64) -> Vec<String> {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        if !secure_delete {
+            store
+                .db()
+                .unwrap()
+                .connection()
+                .execute_batch("PRAGMA secure_delete = OFF;")
+                .unwrap();
+        }
+        let mut draw = Draw(0x9e37_79b9_7f4a_7c15 ^ seed);
+        let mut live: Vec<uuid::Uuid> = (0..SEGMENTS)
+            .map(|_| write_one(&mut store, &mut draw))
+            .collect();
+        let mut lines = checked(&store, "after the writes");
+        for step in 0..SINGLE_SHREDS {
+            let id = live.remove(draw.below(live.len() as u64) as usize);
+            store.destroy_segment_keys(&[id]).unwrap();
+            lines.extend(checked(&store, &format!("seed {seed} shred {step}")));
+            if step % 3 == 2 {
+                live.push(write_one(&mut store, &mut draw));
+            }
+        }
+        lines
+    }
+
+    #[test]
+    fn the_rules_see_every_plant_on_the_decrypted_images_of_store_db() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let mut draw = Draw(7);
+        for _ in 0..40 {
+            write_one(&mut store, &mut draw);
+        }
+        store
+            .db()
+            .unwrap()
+            .connection()
+            .execute_batch(
+                "CREATE TABLE probe_shapes(id INTEGER PRIMARY KEY, body BLOB);
+                 INSERT INTO probe_shapes(body) VALUES (randomblob(8100));
+                 INSERT INTO probe_shapes(body) SELECT randomblob(3000) FROM segment_keys LIMIT 30;
+                 DELETE FROM probe_shapes WHERE id > 1;
+                 CREATE TABLE probe_small(id INTEGER PRIMARY KEY, t TEXT);
+                 INSERT INTO probe_small(t) SELECT hex(randomblob(10)) FROM segment_keys LIMIT 40;
+                 DELETE FROM probe_small WHERE id % 3 = 0;",
+            )
+            .unwrap();
+        let image = image(&store);
+        let conn = store.db().unwrap().connection();
+        assert_eq!(rules::check(conn, &image).problems, Vec::<String>::new());
+        let missed = rules::plants(conn, &image);
+        assert!(
+            missed.is_empty(),
+            "plants that the check does not name: {missed:?}"
+        );
+    }
+
+    #[test]
+    fn single_shreds_of_keys_with_writes_between_leave_no_line_of_the_structural_check() {
+        for seed in [1, 2] {
+            let lines = the_draw(true, seed);
+            assert!(lines.is_empty(), "{}", lines.join("\n"));
+        }
+    }
+
+    #[test]
+    fn with_secure_delete_off_the_draw_of_the_store_gives_lines() {
+        let lines = the_draw(false, 1);
+        println!("PAGE-GAP-STORE secure_delete=off lines={}", lines.len());
+        assert!(
+            !lines.is_empty(),
+            "with secure delete off the draw of the store gave no line, so the draw shows nothing"
+        );
+    }
+}
+
+mod measure {
+    use std::path::Path;
+    use std::time::SystemTime;
+
+    use super::super::db::{random_segment_id, EncryptedStore};
+    use super::super::{KindTotal, SegmentWrite, UtcDay, DEFAULT_RETENTION};
+    use crate::custody::dev_fallback::DevFallbackCustody;
+    use crate::custody::RootId;
+
+    const NANOS_PER_DAY: i64 = 86_400_000_000_000;
+    const KINDS: [&str; 5] = [
+        "screen_frame",
+        "keystroke",
+        "pointer",
+        "foreground_app",
+        "window_title",
+    ];
+
+    fn create(dir: &Path) -> EncryptedStore {
+        EncryptedStore::create(
+            &dir.join("store"),
+            Box::new(DevFallbackCustody::new(
+                RootId::fresh().unwrap(),
+                dir.join("roots"),
+            )),
+            DEFAULT_RETENTION,
+        )
+        .unwrap()
+    }
+
+    fn batch(store: &mut EncryptedStore, first: i64, per_kind: u64, kinds: usize) -> uuid::Uuid {
+        let totals: Vec<KindTotal<'_>> = KINDS[..kinds]
+            .iter()
+            .map(|kind| KindTotal {
+                kind,
+                events: per_kind,
+                bytes: per_kind * 60,
+            })
+            .collect();
+        let id = random_segment_id().unwrap();
+        store
+            .write_batch(SegmentWrite {
+                segment_id: &id,
+                day: UtcDay::of_instant(first),
+                first_capture: first,
+                last_capture: first,
+                kinds: &totals,
+                payload: &[0x61; 256],
+            })
+            .unwrap();
+        id
+    }
+
+    #[test]
+    fn measure_for_the_report_of_store_4() {
+        let Ok(dir) = std::env::var("HALVO_STORE4_MEASURE_DIR") else {
+            println!("measure_for_the_report_of_store_4: HALVO_STORE4_MEASURE_DIR is not set, so nothing is measured");
+            return;
+        };
+        let dir = Path::new(&dir);
+        let now = crate::event::unix_nanos(SystemTime::now());
+        match std::env::var("HALVO_STORE4_MEASURE_FORM").as_deref() {
+            Ok("fill") => {
+                let mut store = create(dir);
+                for i in 0..4_000i64 {
+                    batch(&mut store, now - (i % 13) * NANOS_PER_DAY, 100, 5);
+                }
+                println!("MEASURE fill events=2000000 segments=4000");
+            }
+            Ok("list") => {
+                let store =
+                    EncryptedStore::open(&dir.join("store"), &dir.join("roots"), DEFAULT_RETENTION)
+                        .unwrap();
+                let rows = store.inventory().unwrap();
+                let events: u64 = rows.iter().map(|row| row.events).sum();
+                println!("MEASURE list rows={} events={events}", rows.len());
+            }
+            Ok("idle") => println!("MEASURE idle"),
+            Ok("shredded-bytes") => {
+                let mut store = create(dir);
+                let ids: Vec<uuid::Uuid> = (0..10_000)
+                    .map(|_| batch(&mut store, now, 100, 1))
+                    .collect();
+                let conn = store.db().unwrap().connection();
+                let bytes = |label: &str| {
+                    let total: i64 = conn
+                        .query_row(
+                            "SELECT sum(pgsize) FROM dbstat WHERE name IN ('segment_keys', \
+                             'sqlite_autoindex_segment_keys_1', 'segment_keys_live_by_first_capture', \
+                             'segment_totals')",
+                            [],
+                            |r| r.get(0),
+                        )
+                        .unwrap();
+                    println!("MEASURE {label} bytes_of_the_key_and_totals_tables={total}");
+                    total
+                };
+                store.db().unwrap().checkpoint_truncate().unwrap();
+                let live = bytes("live");
+                for chunk in ids.chunks(64) {
+                    store.destroy_segment_keys(chunk).unwrap();
+                }
+                store.db().unwrap().checkpoint_truncate().unwrap();
+                let shredded = bytes("shredded");
+                println!(
+                    "MEASURE shredded segments=10000 bytes_per_shredded_segment={} bytes_per_live_segment={}",
+                    shredded / 10_000,
+                    live / 10_000
+                );
+            }
+            other => panic!(
+                "HALVO_STORE4_MEASURE_FORM is {other:?}, not fill, list, idle or shredded-bytes"
+            ),
+        }
+    }
 }

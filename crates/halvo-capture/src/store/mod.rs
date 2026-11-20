@@ -5,6 +5,7 @@ pub(crate) mod durable;
 pub(in crate::store) mod expiry;
 #[cfg(test)]
 pub(crate) mod failpoint;
+pub(in crate::store) mod inventory;
 pub(in crate::store) mod lock;
 #[cfg(not(test))]
 pub(in crate::store) mod failpoint {
@@ -25,6 +26,11 @@ pub(in crate::store) mod pages;
 #[cfg(test)]
 #[path = "test_support/roots.rs"]
 pub(crate) mod roots;
+#[cfg(test)]
+use halvo_sqlcipher::rusqlite::Connection;
+#[cfg(test)]
+#[path = "../../../halvo-sqlcipher/tests/page_gap/rules.rs"]
+mod page_gap_rules;
 
 use std::fmt;
 use std::io::Read;
@@ -36,14 +42,166 @@ use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
 pub(in crate::store) const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
+/// The most bytes of one segment payload (contracts.md C11.2 and C18 item 5).
+pub const PAYLOAD_MAX_BYTES: usize = 1_048_576;
+
+/// The most per-kind entries of one segment write (contracts.md C11.2).
+pub const KINDS_MAX: usize = 8;
+
+/// The most bytes of a kind text.
+pub const KIND_MAX_BYTES: usize = 32;
+
+const NANOS_PER_DAY: i64 = 86_400 * 1_000_000_000;
+
+/// A UTC day: whole days since 1970-01-01, negative before it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UtcDay(i64);
+
+impl UtcDay {
+    pub const fn from_days_since_epoch(days: i64) -> UtcDay {
+        UtcDay(days)
+    }
+
+    /// The UTC day of an instant in signed Unix nanoseconds.
+    pub const fn of_instant(nanos: i64) -> UtcDay {
+        UtcDay(nanos.div_euclid(NANOS_PER_DAY))
+    }
+
+    pub const fn days_since_epoch(self) -> i64 {
+        self.0
+    }
+}
+
+/// The store-wide ordinal of a segment: its key row's id, which the store
+/// never gives twice, also after a shred of the newest segments and a reopen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Ordinal(u64);
+
+impl Ordinal {
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+
+    pub(in crate::store) const fn of_row(id: i64) -> Ordinal {
+        Ordinal(id as u64)
+    }
+}
+
+/// The records of one kind in a batch: the kind text that the caller takes
+/// from the one codec, how many records, and their encoded bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KindTotal<'a> {
+    pub kind: &'a str,
+    pub events: u64,
+    pub bytes: u64,
+}
+
+/// One batch, borrowed from its caller, which keeps it on every answer. The
+/// segment id is the replay key; the record count is the sum of the counts.
+#[derive(Debug, Clone, Copy)]
+pub struct SegmentWrite<'a> {
+    pub segment_id: &'a uuid::Uuid,
+    pub day: UtcDay,
+    pub first_capture: i64,
+    pub last_capture: i64,
+    pub kinds: &'a [KindTotal<'a>],
+    pub payload: &'a [u8],
+}
+
+/// Why the store refused a batch before it wrote anything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refusal {
+    /// The segment id is not a random version 4 UUID.
+    NotRandomId,
+    /// The payload holds more than [`PAYLOAD_MAX_BYTES`] bytes.
+    PayloadOverCap,
+    /// The counts add up to no record.
+    NoEvent,
+    /// More than [`KINDS_MAX`] kinds.
+    TooManyKinds,
+    /// One kind stands twice.
+    RepeatedKind,
+    /// A kind text that is not 1 to [`KIND_MAX_BYTES`] bytes of lower-case
+    /// letters and `_`.
+    KindNotText,
+    /// The first capture comes after the last.
+    InstantsOutOfOrder,
+    /// The two instants fall on two UTC days.
+    InstantsOnTwoDays,
+    /// The day is not the UTC day of the instants.
+    DayNotTheInstants,
+}
+
+/// A stored batch; the store measures both byte counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Written {
+    pub ordinal: Ordinal,
+    pub logical_bytes: u64,
+    pub disk_bytes: u64,
+}
+
+/// Why a batch write stored nothing: no row and no file remain from it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteFault {
+    /// The segment id was stored before, under this ordinal.
+    AlreadyWritten {
+        ordinal: Ordinal,
+    },
+    Refused(Refusal),
+    Io(std::io::ErrorKind),
+    /// A database error with its SQLite result code; 5 for a store that
+    /// another party holds, 11 for damage, 0 for a seal that failed.
+    Db(i32),
+    /// The handle refuses writes because a delete-all began on it.
+    Sealed,
+}
+
+impl From<StoreError> for WriteFault {
+    fn from(e: StoreError) -> WriteFault {
+        match e {
+            StoreError::Sealed => WriteFault::Sealed,
+            StoreError::Io(kind) => WriteFault::Io(kind),
+            StoreError::Db(code) => WriteFault::Db(code),
+            StoreError::Seal => WriteFault::Db(0),
+            StoreError::Locked => WriteFault::Db(halvo_sqlcipher::rusqlite::ffi::SQLITE_BUSY),
+            StoreError::Corrupt(_) => {
+                WriteFault::Db(halvo_sqlcipher::rusqlite::ffi::SQLITE_CORRUPT)
+            }
+            StoreError::SegmentMissing => WriteFault::Io(std::io::ErrorKind::NotFound),
+            _ => WriteFault::Io(std::io::ErrorKind::Other),
+        }
+    }
+}
+
+/// One row of the per-day rollup: a UTC day, a kind text, and the records
+/// and bytes of the live segments of that day and kind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InventoryRow {
+    pub day: UtcDay,
+    pub kind: String,
+    pub events: u64,
+    pub bytes: u64,
+}
+
+/// What the open-time reconcile did: the keyless segment files that it
+/// removed, and the keyed rows whose file was missing that it shredded in
+/// place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Reconciled {
+    pub files_removed: u64,
+    pub rows_shredded: u64,
+    /// A step failed; the next open or expiry pass does what it left.
+    pub owed: bool,
+}
+
 /// The store the capture daemon appends to.
 pub trait SegmentStore {
-    /// Append one event's metadata row and its search-index row, both or
-    /// neither.
+    /// Refused with [`StoreError::NotImplemented`]: the store keeps no
+    /// per-event row. It touches nothing.
     fn append_event(&mut self, event: &CaptureStreamEvent) -> StoreResult<()>;
 
-    /// Write raw capture bytes as a new encrypted segment and return its ref and
-    /// the id of the per-segment key that encrypts it.
+    /// Write raw capture bytes as a new encrypted segment with no totals, its
+    /// instants the write instant, and return its ref and its ordinal.
     fn write_segment(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)>;
 
     /// The summed lengths of the files under the store directory, for the cost
