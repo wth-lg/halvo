@@ -71,27 +71,41 @@ pub fn tree_of_with(
     tree
 }
 
-/// Whether a process with the arguments `args` bears the run's `profile` (CP-189 G1): one of its
-/// switches (`switch_args`) is one of two exact forms, and nothing else does it. `--user-data-dir=`
+/// Whether a process with the arguments `args` bears the run's `profile` (CP-189 G1, CP-239): one
+/// of its switches (`switch_args`) is one of two exact forms, and no switch that the browser may
+/// read under the key of either form names another place. The exact forms: `--user-data-dir=`
 /// followed by the profile and nothing more (the value after the first `=`), or `--database=`
 /// followed by the profile's own Crashpad directory and nothing more, the place that the
 /// executor's flag `--breakpad-dump-location` names, so that the run's crash handler stays the
-/// run's own. No bare argument bears it, no occurrence inside an argument does, and no argument
-/// after a switch terminator does, where the browser reads no switch (U2.6b, CP-231 (6)). The
-/// value and the profile are compared as paths (`same_path_on`). On Windows the system gives a
-/// process's command line as one argument (`command_args`), which `switch_args`, and no other
-/// reader of the arguments, splits by the system's rule (`split_command_line`).
+/// run's own. A switch with the key `user-data-dir` or `database` in any spelling that `switch_of`
+/// reads (a prefix `--`, `-` or `/`, any letter case, white space at its ends, no `=`) whose value
+/// is not the run's place takes the mark away, whichever value of a repeated switch the browser
+/// takes; such a switch that names the run's place bears no mark by itself. No bare argument bears
+/// it, no occurrence inside an argument does, the program's name (argument 0) does not, and no
+/// argument after the switch terminator does (U2.6b). The value and the profile are compared as
+/// paths (`same_path_on`). On Windows the system gives a process's command line as one argument
+/// (`command_args`), which `switch_args`, and no other reader of the arguments, splits by the
+/// system's rule (`split_command_line`). The browser's own reading of a repeated switch, of the
+/// spellings of a switch and of argument 0 is recalled and not run; against it each of these
+/// clauses errs toward leaving a process.
 pub fn bears_profile(args: &[String], profile: &str) -> bool {
     bears_profile_on(args, profile, cfg!(windows))
 }
 
-/// The arguments of a process that the browser's own parser reads as switches (U2.6b, CP-231
-/// (6)): on Windows the one command line up to the first `--single-argument` in any letter case,
-/// after which the browser takes the rest of the line as one argument, split by the system's rule
-/// (`split_command_line`); on macOS the arguments as they stand; on both, those before the first
-/// argument that is `--` once white space at its ends is set aside, the switch terminator after
-/// which the browser reads no switch. The mark (`bears_profile`), `profile_of` and `profile_forms`
-/// read these alone.
+/// The arguments of a process that the mark reads as switches (U2.6b, CP-231 (6), CP-239). On
+/// Windows each command line, with white space at its ends set aside, is split by the system's
+/// rule (`split_command_line`, which reads it up to its first U+0000); on macOS the arguments stand
+/// as they are. On both, argument 0 of each line, the program's name, is no switch, and the
+/// switches end at the first argument that ends them: `--` once white space at its ends is set
+/// aside, and on Windows the switch with the key `single-argument` in any spelling that `switch_of`
+/// reads (a prefix `--`, `-` or `/`, any letter case), after which the browser takes the rest of
+/// the line as one argument. A text such as `--single-argument` inside an argument ends nothing.
+/// The mark (`bears_profile`), `profile_of` and `profile_forms` read these alone. The browser's
+/// own skip of argument 0, its trim of the line, its end of the line at a NUL and its spellings of
+/// the single-argument switch are recalled and not run: where the mark ends its switches at an
+/// argument that the browser does not end at, it reads fewer switches and errs toward leaving a
+/// process; where the browser would end at a text inside an argument, the mark reads switches that
+/// the browser does not, the one case on the ending side, which the crate's doc names.
 fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     let split: Vec<String> = if windows {
         args.iter()
@@ -106,9 +120,11 @@ fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     split.into_iter().take_while(|a| !ends(a)).collect()
 }
 
-/// An argument as the browser may read it as a switch: white space at its ends set aside, a
-/// prefix `--`, `-` or `/`, then the key up to the first `=`, in lower case, and the value after
-/// it (empty when there is no `=`); none for an argument with no such prefix.
+/// An argument as the browser may read it as a switch, on either system: white space at its ends
+/// set aside, a prefix `--`, `-` or `/`, then the key up to the first `=`, in lower case, and the
+/// value after it (empty when there is no `=`); none for an argument with no such prefix. It
+/// takes more spellings than the browser of one system reads (a slash and other letter case on
+/// macOS), so that the mark reads more switches as naming another place and errs toward leaving.
 fn switch_of(arg: &str) -> Option<(String, &str)> {
     let a = arg.trim();
     let rest = a
@@ -119,10 +135,14 @@ fn switch_of(arg: &str) -> Option<(String, &str)> {
     Some((key.to_ascii_lowercase(), value))
 }
 
-/// The profile that the browser's first process names: the value of its first switch
-/// `--user-data-dir=` (`switch_args`), none when it is empty or absent; on Windows the one command
-/// line is split as the mark splits it, so that `tree_of` reads the same arguments as
+/// The profile that the browser's first process names: the value of its first exact switch
+/// `--user-data-dir=` among `switch_args`, none when it is empty or absent; on Windows the one
+/// command line is split as the mark splits it, so that `tree_of` reads the same arguments as
 /// `bears_profile` (U2.6 (12): it read the line by its prefix and so found no profile on Windows).
+/// `tree_of` reads it of the run's first process, whose line is the executor's own
+/// (`cdp::launch_args`: one profile switch, no terminator, the program at argument 0), so the
+/// first value is its one value; for a line with two profile switches it gives the first, where
+/// `bears_profile` bears no mark.
 pub fn profile_of(args: &[String]) -> Option<String> {
     profile_of_on(args, cfg!(windows))
 }
@@ -220,10 +240,10 @@ pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
 }
 
 /// The arguments of a Windows command line by the rule of `CommandLineToArgvW` of shell32. The
-/// line ends at its first U+0000, as the system's function reads a string that ends there (U2.6b
-/// round 2, R5: the system can hold a line with a NUL in it, which the browser's own line ends at;
-/// the browser's end is recalled, not run). The
-/// program's name: when the line begins with a quote, up to the next quote, the quotes dropped;
+/// line ends at its first U+0000, as the system's function reads a string that ends there; the
+/// system can hold a line with a NUL in it, and that the browser's own line ends there too is
+/// recalled and not run (U2.6b round 2, R5). The program's name: when the line begins with a
+/// quote, up to the next quote, the quotes dropped;
 /// else up to the first character at or below U+0020 (a space, a tab or a control character),
 /// which is dropped, a quote kept as it stands (U2.6b: the system's own reading of control
 /// characters in hosted run 44774789907); after the name, spaces and tabs alone are skipped. Each
