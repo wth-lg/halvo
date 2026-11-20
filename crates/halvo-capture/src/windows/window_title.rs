@@ -148,6 +148,20 @@ impl WindowTitleSource {
     pub fn handoff_counts(&self) -> super::HandOffCounts {
         self.life.handoff_counts()
     }
+
+    /// A title source that reads the gate of a keyboard source: no title
+    /// leaves while the gate reads Password.
+    pub fn with_password_gate(
+        self,
+        _gate: std::sync::Arc<crate::secure_input::windows::PasswordGate>,
+    ) -> Self {
+        self
+    }
+
+    /// The events that this source dropped at the floor's decision.
+    pub fn drops(&self) -> super::Drops {
+        super::Drops::default()
+    }
 }
 
 impl Default for WindowTitleSource {

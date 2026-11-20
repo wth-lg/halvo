@@ -989,6 +989,17 @@ impl RawInputSource {
         self.life.handoff_counts()
     }
 
+    /// The events that this source dropped at the floor's decision.
+    pub fn drops(&self) -> super::Drops {
+        super::Drops::default()
+    }
+
+    /// The gate of a keyboard source, which the title and the screen source
+    /// read so that nothing of theirs leaves while it reads Password.
+    pub fn password_gate(&self) -> Option<Arc<PasswordGate>> {
+        self.gate.clone()
+    }
+
     /// The state that the password gate of a keyboard source read last.
     pub fn field_state(&self) -> Option<crate::secure_input::windows::FieldState> {
         self.gate.as_ref().map(|gate| gate.field_now())

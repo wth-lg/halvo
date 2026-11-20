@@ -234,6 +234,11 @@ impl ForegroundAppSource {
     pub fn handoff_counts(&self) -> super::HandOffCounts {
         self.life.handoff_counts()
     }
+
+    /// The events that this source dropped at the floor's decision.
+    pub fn drops(&self) -> super::Drops {
+        super::Drops::default()
+    }
 }
 
 impl Default for ForegroundAppSource {

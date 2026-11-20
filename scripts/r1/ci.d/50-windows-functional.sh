@@ -80,10 +80,14 @@ capture_times_follow_the_input_order group=native
 helper_child_window group=native
 helper_limited_listener group=native
 keys_queued_before_a_stop_are_delivered_or_counted group=native
+known_defect::a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event E4 group=native
+known_defect::a_window_under_the_exclusion_root_gives_no_event_and_another_window_does P8 group=native
 known_defect::browser_self_move_after_a_held_main_thread_in_chrome W3-5-A2 group=browser
 known_defect::browser_self_move_after_a_held_main_thread_in_edge W3-5-A2 group=browser
 known_defect::browser_swaps_on_a_held_main_thread_in_chrome W3-7-Q2i group=browser scope=long-only
 known_defect::browser_swaps_on_a_held_main_thread_in_edge W3-7-Q2i group=browser scope=long-only
+known_defect::one_key_of_each_class_gives_one_keystroke_record_of_each_class E4 group=native
+known_defect::pointer_events_fold_into_one_record_for_each_class_and_interval E4 group=native
 known_defect::stall_no_focus_key_and_the_program_moves_the_focus_itself W3-5-A2 group=browser scope=long-only
 known_defect::style_masked_input_in_chrome_and_edge W3-20-style-mask group=browser
 password_field_fixture_chrome group=browser

@@ -16,7 +16,7 @@ pub mod main_loop;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod maintenance;
 #[cfg(test)]
-mod model_store;
+pub(crate) mod model_store;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod owner;
 #[cfg(test)]

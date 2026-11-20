@@ -163,6 +163,18 @@ fn instant_from_age(now: SystemTime, now_tick: u32, event_tick: u32) -> SystemTi
         .unwrap_or(now)
 }
 
+/// The events that a source dropped at the floor's decision, one count for
+/// each reason; it holds no content.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Drops {
+    pub switch_off: u64,
+    pub listed_app: u64,
+    pub exclusion_tree: u64,
+    pub unknown_lineage: u64,
+    pub private_window: u64,
+    pub secure_input: u64,
+}
+
 /// The counts of a source's hand-off queue: packets that a full or closed
 /// queue dropped, packets and the pending motion sample that the queue still
 /// held when it was closed, and motion samples that a newer one replaced.
@@ -929,6 +941,124 @@ pub(crate) mod tests {
         assert_eq!(at(100, u32::MAX - 149), Duration::from_millis(250));
         assert_eq!(at(4_750, 5_000), Duration::ZERO);
         assert_eq!(at(5_000, 5_000), Duration::ZERO);
+    }
+
+    const SHAPE_APP: &str = "C:\\Apps\\halvo-shape\\tool.exe";
+    const MARKER: &str = "halvo-shape-marker-7c1";
+
+    /// One event of each kind, each built by its Windows path and handed to a
+    /// source's hand-off: today the packets of each source.
+    fn one_of_each_kind(producer: &Producer) {
+        let tick = now_tick();
+        let app = || Some(SHAPE_APP.to_string());
+        producer.push(foreground::foreground_packet(app(), tick));
+        producer.push(
+            window_title::title_packet(&format!("Inbox {MARKER}"), app(), tick).expect("a title"),
+        );
+        let key = input::KeyStroke {
+            vkey: 0x41,
+            released: false,
+        };
+        producer.push(input::keystroke_packet(cleared(), key, app(), tick));
+        let press = input::PointerSample {
+            button_flags: 0x0001,
+            ..input::PointerSample::default()
+        };
+        producer.push(input::pointer_packet(press, app(), tick));
+        let release = input::PointerSample {
+            button_flags: 0x0002,
+            ..input::PointerSample::default()
+        };
+        producer.push(input::pointer_packet(release, app(), tick));
+        for _ in 0..3 {
+            let moved = input::PointerSample {
+                last_x: 3,
+                ..input::PointerSample::default()
+            };
+            producer.push_motion(input::pointer_packet(moved, app(), tick));
+        }
+        producer.push(screen::frame_packet(1920, 1080, app(), tick).expect("a frame"));
+    }
+
+    fn shape(record: &crate::floor::record::DecodedRecord) -> String {
+        use crate::floor::record::DecodedPayload;
+        let payload = match record.payload() {
+            DecodedPayload::ForegroundApp => "{}".to_string(),
+            DecodedPayload::WindowTitle {
+                text,
+                cut,
+                why,
+                site,
+            } => format!(
+                "text={} cut={cut} why={} site={}",
+                text.as_str(),
+                why.as_str(),
+                site.is_some()
+            ),
+            DecodedPayload::Keystroke(class) => format!("class={}", class.as_str()),
+            DecodedPayload::Click(button) => format!("class=click button={}", button.as_str()),
+            DecodedPayload::Fold { class, count } => {
+                format!("class={} count={count}", class.as_str())
+            }
+            DecodedPayload::ScreenFrame => "{}".to_string(),
+            #[allow(unreachable_patterns)]
+            _ => "other".to_string(),
+        };
+        format!("{} {payload}", record.kind())
+    }
+
+    #[test]
+    fn one_event_of_each_kind_reaches_the_model_store_in_the_shape_of_c13() {
+        use crate::daemon::model_store::Harness;
+        use crate::daemon::owner::Command;
+        let mut harness = Harness::new();
+        harness.ask(Command::ClosePause);
+        let handoff = HandOff::start(harness.sink.clone(), "halvo-test-shape", Arc::default())
+            .expect("hand-off");
+        one_of_each_kind(&handoff.producer());
+        let accepted = || {
+            Modality::ALL
+                .into_iter()
+                .map(|kind| harness.sink.counts().of(kind).accepted)
+                .sum::<u64>()
+        };
+        let began = Instant::now();
+        while accepted() < 6 && began.elapsed() < Duration::from_secs(5) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        harness.ask(Command::Settle);
+        let records = harness.store.records();
+        let mut shapes: Vec<String> = records.iter().map(shape).collect();
+        shapes.sort();
+        let mut expected = vec![
+            "foreground_app {}".to_string(),
+            "keystroke class=printable".to_string(),
+            "pointer class=click button=primary".to_string(),
+            "pointer class=move count=3".to_string(),
+            "screen_frame {}".to_string(),
+            format!("window_title text=Inbox {MARKER} cut=false why=title_change site=false"),
+        ];
+        expected.sort();
+        assert_eq!(shapes, expected, "a kind has no record of its shape");
+        for record in &records {
+            assert_eq!(record.app(), Some(SHAPE_APP), "{}", shape(record));
+            let resolution: i64 = match record.kind() {
+                "keystroke" => 1_000_000_000,
+                "pointer" if shape(record).contains("click") => 1_000_000_000,
+                _ => 1_000_000,
+            };
+            assert_eq!(record.at() % resolution, 0, "{}", shape(record));
+        }
+        let with_marker: Vec<String> = records
+            .iter()
+            .map(shape)
+            .filter(|shape| shape.contains(MARKER))
+            .collect();
+        assert_eq!(with_marker.len(), 1, "{with_marker:?}");
+        assert!(with_marker[0].starts_with("window_title text=Inbox "));
+        assert!(records
+            .iter()
+            .all(|record| !record.app().unwrap_or_default().contains(MARKER)));
     }
 
     #[test]
