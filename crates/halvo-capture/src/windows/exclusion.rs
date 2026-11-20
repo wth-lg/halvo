@@ -1,11 +1,11 @@
 //! The exclusion inputs of the Windows sources (contracts.md C13.7): the
 //! parent of a process, read from a process snapshot with a creation-time check
-//! against reused ids.
+//! against reused ids, and the private-window input of a title.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, PoisonError};
 
-use crate::floor::exclude::{Lineage, Parent, ProcessId};
+use crate::floor::exclude::{Lineage, Parent, PrivateWindow, ProcessId};
 
 /// The most processes whose parent the lineage keeps; a full cache is emptied.
 pub(crate) const LINEAGE_CACHE_MAX: usize = 4096;
@@ -148,11 +148,109 @@ impl<T: ProcessTable> Lineage for ProcessLineage<T> {
     }
 }
 
+/// The browsers whose private windows a title source tells apart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Browser {
+    Edge,
+    Firefox,
+    Chrome,
+    Other,
+}
+
+impl Browser {
+    /// The browser of an executable path, by its file name, ignoring ASCII case.
+    pub(crate) fn of(path: Option<&str>) -> Browser {
+        let Some(path) = path else {
+            return Browser::Other;
+        };
+        let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+        [
+            ("msedge.exe", Browser::Edge),
+            ("firefox.exe", Browser::Firefox),
+            ("chrome.exe", Browser::Chrome),
+        ]
+        .into_iter()
+        .find(|(file, _)| name.eq_ignore_ascii_case(file))
+        .map_or(Browser::Other, |(_, browser)| browser)
+    }
+}
+
+const EDGE_PRIVATE_ENDING: &str = "[InPrivate] - Microsoft Edge";
+
+const FIREFOX_PRIVATE_ENDING: &str = "Mozilla Firefox Private Browsing";
+
+/// The private-window input of a title of `browser` (C13.7 item 4). Edge and
+/// Firefox are told by the ending of the title that the source has just read,
+/// and never by a word alone; a Chrome window is private unless `query` tells
+/// it as not private, so a query with no answer drops its title; every other
+/// window is Unknown, which drops nothing.
+pub(crate) fn private_window(
+    browser: Browser,
+    title: &str,
+    query: impl FnOnce() -> Option<bool>,
+) -> PrivateWindow {
+    let _ = (
+        browser,
+        title,
+        query,
+        EDGE_PRIVATE_ENDING,
+        FIREFOX_PRIVATE_ENDING,
+    );
+    let private = false;
+    if private {
+        PrivateWindow::Private
+    } else {
+        PrivateWindow::Unknown
+    }
+}
+
+/// What the UI Automation query tells of a Chrome window: `Some(true)` when a
+/// button of the window is named Incognito, `Some(false)` when the window holds
+/// buttons and none is, and `None` when the query gives no answer. The calling
+/// thread must be in an apartment of COM.
+#[cfg(target_os = "windows")]
+pub(crate) fn chrome_window_is_incognito(
+    automation: &windows::Win32::UI::Accessibility::IUIAutomation,
+    window: windows::Win32::Foundation::HWND,
+) -> Option<bool> {
+    use windows::Win32::System::Variant::{VARIANT, VT_I4};
+    use windows::Win32::UI::Accessibility::{
+        TreeScope_Descendants, UIA_ButtonControlTypeId, UIA_ControlTypePropertyId,
+    };
+    let mut button = VARIANT::default();
+    // SAFETY: the value holds nothing; the tag and the member that it names
+    // are written together, and an integer owns nothing to free.
+    unsafe {
+        (*button.Anonymous.Anonymous).vt = VT_I4;
+        (*button.Anonymous.Anonymous).Anonymous.lVal = UIA_ButtonControlTypeId.0;
+    }
+    // SAFETY: the calls take the live client, a window handle value and the
+    // condition that they made; each returns an owned COM pointer or an error.
+    unsafe {
+        let element = automation.ElementFromHandle(window).ok()?;
+        let condition = automation
+            .CreatePropertyCondition(UIA_ControlTypePropertyId, &button)
+            .ok()?;
+        let buttons = element.FindAll(TreeScope_Descendants, &condition).ok()?;
+        let count = buttons.Length().ok()?;
+        if count == 0 {
+            return None;
+        }
+        for index in 0..count {
+            let name = buttons.GetElement(index).ok()?.CurrentName().ok()?;
+            if name.to_string().to_ascii_lowercase().contains("incognito") {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::event::AppIdentity;
-    use crate::floor::exclude::{DropReason, FloorHandle, PrivateWindow, Subject, Verdict};
+    use crate::floor::exclude::{DropReason, FloorHandle, Subject, Verdict};
     use crate::floor::kind;
     use crate::floor::Switches;
     use crate::secure_input::windows::PasswordFieldProbe;
@@ -283,5 +381,82 @@ mod tests {
             matches!(verdict, Verdict::Drop(DropReason::ExclusionTree)),
             "{verdict:?}"
         );
+    }
+
+    #[test]
+    fn a_title_of_a_private_window_is_told_by_its_ending_alone() {
+        let never = || -> Option<bool> { panic!("the query ran for a window that is not Chrome") };
+        let private = PrivateWindow::Private;
+        let unknown = PrivateWindow::Unknown;
+        for (browser, title, expected) in [
+            (
+                Browser::Edge,
+                "New tab - [InPrivate] - Microsoft\u{200B} Edge",
+                private,
+            ),
+            (
+                Browser::Edge,
+                "New tab - [InPrivate] - Microsoft Edge",
+                private,
+            ),
+            (
+                Browser::Edge,
+                "Private notes - Microsoft\u{200B} Edge",
+                unknown,
+            ),
+            (
+                Browser::Edge,
+                "[InPrivate] browsing tips - Microsoft\u{200B} Edge",
+                unknown,
+            ),
+            (
+                Browser::Firefox,
+                "Inbox \u{2014} Mozilla Firefox Private Browsing",
+                private,
+            ),
+            (
+                Browser::Firefox,
+                "Private Browsing - Mozilla Firefox",
+                unknown,
+            ),
+            (
+                Browser::Other,
+                "Notes - Mozilla Firefox Private Browsing",
+                unknown,
+            ),
+            (Browser::Other, "x - [InPrivate] - Microsoft Edge", unknown),
+        ] {
+            assert_eq!(private_window(browser, title, never), expected, "{title}");
+        }
+        assert_eq!(
+            Browser::of(Some("C:\\Program Files\\Edge\\MSEDGE.EXE")),
+            Browser::Edge
+        );
+        assert_eq!(
+            Browser::of(Some("C:\\Firefox\\firefox.exe")),
+            Browser::Firefox
+        );
+        assert_eq!(Browser::of(Some("C:\\Chrome\\chrome.exe")), Browser::Chrome);
+        assert_eq!(
+            Browser::of(Some("C:\\Chrome\\chrome.exe.bak")),
+            Browser::Other
+        );
+        assert_eq!(Browser::of(None), Browser::Other);
+    }
+
+    #[test]
+    fn a_chrome_window_is_kept_only_when_the_query_tells_it_as_not_private() {
+        let title = "Inbox - Google Chrome";
+        for (answer, expected) in [
+            (Some(false), PrivateWindow::Unknown),
+            (Some(true), PrivateWindow::Private),
+            (None, PrivateWindow::Private),
+        ] {
+            assert_eq!(
+                private_window(Browser::Chrome, title, || answer),
+                expected,
+                "{answer:?}"
+            );
+        }
     }
 }

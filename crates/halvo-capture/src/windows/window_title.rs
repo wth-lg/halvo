@@ -12,6 +12,7 @@ use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
 
+use super::exclusion::{chrome_window_is_incognito, private_window, Browser};
 use super::{DropCounts, Drops, Floor, FrontApp, Lifecycle, OsTick, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
@@ -37,12 +38,12 @@ pub(crate) const TITLE_READ_UNITS: usize = crate::floor::text::TEXT_MAX_BYTES;
 pub(crate) fn title_event(
     floor: &Floor,
     gate: Option<&PasswordGate>,
-    front: &FrontApp,
+    (front, window): (&FrontApp, PrivateWindow),
     (title, why): (String, TitleWhy),
     tick: OsTick,
 ) -> Option<FloorEvent> {
     let probe = gate.map_or_else(PasswordFieldProbe::default, PasswordGate::content_probe);
-    let keep = floor.keep::<kind::WindowTitle>(front, PrivateWindow::Unknown, &probe)?;
+    let keep = floor.keep::<kind::WindowTitle>(front, window, &probe)?;
     Some(FloorEvent::window_title(
         keep,
         Title::new(title, why, None),
@@ -131,6 +132,38 @@ struct TitleState {
     last: LastTitle,
 }
 
+/// The UI Automation query of a Chrome window, made on the title thread, with
+/// each answer kept for its window.
+#[derive(Default)]
+struct ChromeQuery {
+    automation: Option<windows::Win32::UI::Accessibility::IUIAutomation>,
+    answers: std::collections::HashMap<usize, bool>,
+}
+
+impl ChromeQuery {
+    const KEPT: usize = 256;
+
+    fn ask(&mut self, window: HWND) -> Option<bool> {
+        use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
+        use windows::Win32::UI::Accessibility::CUIAutomation;
+        if let Some(answer) = self.answers.get(&(window.0 as usize)) {
+            return Some(*answer);
+        }
+        if self.automation.is_none() {
+            // SAFETY: CoCreateInstance makes the system's UI Automation object
+            // for this thread, which joined the process's MTA at its start.
+            self.automation =
+                unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) }.ok();
+        }
+        let answer = chrome_window_is_incognito(self.automation.as_ref()?, window)?;
+        if self.answers.len() >= Self::KEPT {
+            self.answers.clear();
+        }
+        self.answers.insert(window.0 as usize, answer);
+        Some(answer)
+    }
+}
+
 /// Window-title capture source.
 pub struct WindowTitleSource {
     life: Lifecycle,
@@ -195,6 +228,8 @@ impl Default for WindowTitleSource {
 thread_local! {
     static TITLE_CTX: std::cell::RefCell<Option<TitleState>> =
         const { std::cell::RefCell::new(None) };
+    static CHROME_QUERY: std::cell::RefCell<ChromeQuery> =
+        std::cell::RefCell::new(ChromeQuery::default());
 }
 
 #[cfg(target_os = "windows")]
@@ -240,13 +275,39 @@ fn emit_front_title(front: HWND, time: u32, why: TitleWhy) {
                 return;
             }
             let app = resolve_front(front).unwrap_or_default();
+            let browser = Browser::of(app.path.as_deref());
+            let window = private_window(browser, &title, || {
+                CHROME_QUERY.with(|query| query.borrow_mut().ask(front))
+            });
             let gate = state.gate.as_deref();
-            let made = title_event(&state.floor, gate, &app, (title, why), OsTick::new(time));
+            let made = title_event(
+                &state.floor,
+                gate,
+                (&app, window),
+                (title, why),
+                OsTick::new(time),
+            );
             if let Some(event) = made {
                 state.producer.push(event);
             }
         }
     });
+}
+
+/// Leaves the apartment that the title thread joined, after the thread's
+/// state, which holds the Chrome query's COM object, is gone.
+struct Apartment(bool);
+
+impl Drop for Apartment {
+    fn drop(&mut self) {
+        TITLE_CTX.with(|cell| *cell.borrow_mut() = None);
+        CHROME_QUERY.with(|query| *query.borrow_mut() = ChromeQuery::default());
+        if self.0 {
+            // SAFETY: this thread's CoInitializeEx succeeded once, and no COM
+            // object of this thread is left: the title state was dropped above.
+            unsafe { windows::Win32::System::Com::CoUninitialize() };
+        }
+    }
 }
 
 impl CaptureSource for WindowTitleSource {
@@ -288,6 +349,16 @@ fn run_title_hook(
     ready: PumpReady,
     signal: &super::StopSignal,
 ) {
+    // SAFETY: CoInitializeEx joins this new thread to the process's MTA; a
+    // refusal leaves the Chrome query with no answer.
+    let joined = unsafe {
+        windows::Win32::System::Com::CoInitializeEx(
+            None,
+            windows::Win32::System::Com::COINIT_MULTITHREADED,
+        )
+    }
+    .is_ok();
+    let _apartment = Apartment(joined);
     TITLE_CTX.with(|cell| *cell.borrow_mut() = Some(state));
     let hook = installer(EVENT_OBJECT_NAMECHANGE, Some(title_proc));
     if hook.is_invalid() {

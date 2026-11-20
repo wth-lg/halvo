@@ -891,8 +891,10 @@ pub(crate) mod tests {
             .expect("kept");
         producer.push(FloorEvent::foreground_app(keep, tick.age(), clock));
         let title = (format!("Inbox {MARKER}"), TitleWhy::TitleChange);
-        producer
-            .push(window_title::title_event(&floor, None, &front, title, tick).expect("a title"));
+        producer.push(
+            window_title::title_event(&floor, None, (&front, PrivateWindow::Unknown), title, tick)
+                .expect("a title"),
+        );
         let keep = floor
             .keep::<kind::Keystroke>(&front, PrivateWindow::Unknown, &probe)
             .expect("kept");
