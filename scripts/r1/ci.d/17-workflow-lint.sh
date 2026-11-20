@@ -730,6 +730,14 @@ EOF
   check w23-long-forms-named-in-a-block-on-the-other-days-without-env FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
   lines w24-always-in-quotes 13 "$checkout${nl}        if: 'always()'"
   check w24-always-in-quotes FAIL 'job macos step 1: write the condition as a plain YAML scalar, with no quotes and no block; this lint reads a condition by its plain value alone'
+  lines w25-quoted-variable-name 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}        env:${nl}          'HALVO_STALL_FORM': long${nl}          CI_D_SCRIPT_LIMIT_S: 3600${nl}$run_l"
+  check w25-quoted-variable-name FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w26-wednesday-condition-on-long-forms-extra 17 "$pin_save${nl}      - name: Long forms extra${nl}$wed${nl}$run_l"
+  check w26-wednesday-condition-on-long-forms-extra FAIL "job macos step 3: the condition github.event.schedule == '17 3 * * 3' belongs to the steps Long forms build and Long forms alone"
+  lines w27-other-days-condition-in-capitals 13 "$checkout${nl}        if: GITHUB.EVENT.SCHEDULE != '17 3 * * 3'"
+  check w27-other-days-condition-in-capitals FAIL 'job macos step 1: use only always() as a step condition'
+  lines w28-other-days-condition-in-an-expression 13 "$checkout${nl}        if: \${{ github.event.schedule != '17 3 * * 3' }}"
+  check w28-other-days-condition-in-an-expression FAIL 'job macos step 1: use only always() as a step condition'
 
   tree pinned-and-timed ''
   check pinned-and-timed PASS 'jobs: 2, uses keys: 4, findings: 0'
@@ -1086,6 +1094,10 @@ EOF
   check s06-a-key-after-the-sunday-time FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 36: 'name: ci' stands on the second line under '  schedule:', where this lint reads the second cron line; it differs from the line to write first at column 1, which holds the sign n where the line to write holds a blank; write '${pin_cron_long}'; the pin holds the second cron line in the variable pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
   lines s07-comment-between-the-two-times 36 "$pin_cron${nl}    # the long forms"
   check s07-comment-between-the-two-times FAIL ".github/workflows/ci.yml line 37: '    # the long forms' stands on the second line under '  schedule:', where this lint reads the second cron line; it differs from the line to write first at column 5, which holds the sign # where the line to write holds the sign -; write '${pin_cron_long}'; the pin holds the second cron line in the variable pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines s08-a-second-on-block-after-the-sunday-time 37 "on:${nl}  push:"
+  check s08-a-second-on-block-after-the-sunday-time FAIL ".github/workflows/ci.yml line 37: a second line 'on:'; this lint reads one block on:, the one at line 30; write the events of this block under that one"
+  lines s09-the-action-named-on-the-second-cron-line 37 "    - cron: rust-cache"
+  check s09-the-action-named-on-the-second-cron-line FAIL ".github/workflows/ci.yml line 37: '    - cron: rust-cache' names the action rust-cache"
   lines line-at-three-blanks-in-a-job 10 "    runs-on: macos-15${nl}   env: {}"
   check line-at-three-blanks-in-a-job FAIL ".github/workflows/ci.yml line 11: '   env: {}' stands at 3 blanks in the job macos; this lint reads a job's own keys at four blanks and its steps at six; write the line at one of those"
   lines line-at-five-blanks-in-the-steps 13 "$checkout${nl}     name: x"
