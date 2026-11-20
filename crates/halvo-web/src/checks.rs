@@ -1513,6 +1513,13 @@ mod tests {
                 r"--user-data-dir=C:\T\run\p https://example.test/",
                 false,
             ),
+            Line {
+                name: "win_program_and_profile_as_two_elements",
+                windows: true,
+                args: strings(&[r"C:\P F\b.exe", r"--user-data-dir=C:\T\run\p"]),
+                profile: r"C:\T\run\p",
+                bears: true,
+            },
             win(
                 "win_leading_space_then_profile",
                 r" --user-data-dir=C:\T\run\p https://example.test/",
