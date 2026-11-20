@@ -50,17 +50,40 @@ pub fn line(seen: &str, version: &str, guard: Option<&GuardInstalled>) -> Option
     })
 }
 
+/// When the check mode gives up, as a time after its start: `within` after
+/// its event loop was ready at `ready`, and never while the loop is not ready,
+/// so that the start of the engine before Ready does not count in `within`.
+pub fn gives_up_after(ready: Option<Duration>, within: Duration) -> Option<Duration> {
+    ready.map(|ready| ready + within)
+}
+
+fn give_up(started: Instant, within: Duration, ready: &mpsc::Receiver<Duration>) {
+    let mut ready_at = None;
+    loop {
+        let heard = match gives_up_after(ready_at, within) {
+            Some(at) => ready.recv_timeout(at.saturating_sub(started.elapsed())),
+            None => ready
+                .recv()
+                .map_err(|_| mpsc::RecvTimeoutError::Disconnected),
+        };
+        match heard {
+            Ok(at) => ready_at = Some(at),
+            Err(mpsc::RecvTimeoutError::Timeout) => break,
+            Err(mpsc::RecvTimeoutError::Disconnected) => return,
+        }
+    }
+    eprintln!(
+        "halvo: --check-page: the page did not have the reply of its {} read commands within {} s after the event loop was ready",
+        reads().len(),
+        within.as_secs()
+    );
+    std::process::exit(Exit::PageNotLoaded.code());
+}
+
 pub fn run(data_dir: PathBuf, within: Duration) -> i32 {
     let started = Instant::now();
-    std::thread::spawn(move || {
-        std::thread::sleep(within);
-        eprintln!(
-            "halvo: --check-page: the page did not have the reply of its {} read commands within {} s",
-            reads().len(),
-            within.as_secs()
-        );
-        std::process::exit(Exit::PageNotLoaded.code());
-    });
+    let (ready_tx, ready_rx) = mpsc::channel();
+    std::thread::spawn(move || give_up(started, within, &ready_rx));
     let engine_rules_dir = Some(data_dir.join(app::ENGINE_RULES_DIR));
     let parts = app::Parts {
         #[cfg(windows)]
@@ -87,10 +110,12 @@ pub fn run(data_dir: PathBuf, within: Duration) -> i32 {
     std::thread::spawn(move || watch(handle, started));
     app.run_return(move |_, event| {
         if let tauri::RunEvent::Ready = event {
+            let ready = started.elapsed();
             eprintln!(
                 "halvo: --check-page: the event loop was ready at {} ms",
-                started.elapsed().as_millis()
+                ready.as_millis()
             );
+            let _ = ready_tx.send(ready);
         }
     })
 }
@@ -293,5 +318,20 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn the_timer_of_the_check_mode_runs_from_the_ready_of_its_event_loop() {
+        let within = Duration::from_secs(60);
+        assert_eq!(gives_up_after(None, within), None);
+        assert_eq!(
+            gives_up_after(Some(Duration::from_millis(8_086)), within),
+            Some(Duration::from_millis(68_086))
+        );
+        assert_eq!(
+            gives_up_after(Some(Duration::from_secs(75)), within),
+            Some(Duration::from_secs(135))
+        );
+        assert_eq!(gives_up_after(Some(Duration::ZERO), within), Some(within));
     }
 }
