@@ -43,4 +43,4 @@ halvo-web = { path = ".", features = ["test-fence"] }
 halvo-test-dir = { path = "../halvo-test-dir" }
 
 [target.'cfg(windows)'.dev-dependencies]
-windows-sys = { version = "=0.61.2", features = ["Wdk_Foundation", "Win32_System_Console"] }
+windows-sys = { version = "=0.61.2", features = ["Wdk_Foundation", "Win32_System_Console", "Win32_UI_Shell"] }
