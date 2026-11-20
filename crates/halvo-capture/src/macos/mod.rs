@@ -28,23 +28,89 @@ pub(crate) fn source_failure(error: CaptureError) -> SourceState {
 }
 
 #[cfg(debug_assertions)]
-pub(crate) use timed::timed_run;
+pub(crate) use timed::{self_check_run_loop, timed_run};
 
 #[cfg(debug_assertions)]
 mod timed {
-    use std::sync::atomic::AtomicBool;
-    use std::time::Duration;
+    use std::ffi::c_void;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex, PoisonError};
+    use std::time::{Duration, Instant};
 
-    use super::foreground::FOREGROUND_POLL;
-    use super::{foreground, input, run_loop, screen, secure_input_byte};
-    use crate::daemon::{DaemonError, FailedSource, RunOutcome, RunSources, SourceName, TimedRun};
-    use crate::source::{CaptureSource, SourceContext, SourceCounters};
+    use core_foundation::base::TCFType;
+    use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop, CFRunLoopRef};
+    use halvo_control::proto::{Platform, SourceName};
+
+    use super::foreground::{ForegroundReader, ForegroundWriter, FOREGROUND_POLL};
+    use super::run_loop::{ClaimError, MainRunLoop, RunLoopTurns};
+    use super::{foreground, input, screen, secure_input_byte};
+    use crate::daemon::main_loop::{MainLoop, SELF_CHECK_WINDOW};
+    use crate::daemon::permissions::ChildProbe;
+    use crate::daemon::sources::SourceFactory;
+    use crate::daemon::supervisor::{Supervisor, SystemSources};
+    use crate::daemon::{children, DaemonError, RunOutcome, RunSources, TimedRun};
+    use crate::source::{
+        CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
+    };
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
+        fn CFRunLoopPerformBlock(
+            run_loop: CFRunLoopRef,
+            mode: *const c_void,
+            block: &block2::Block<dyn Fn()>,
+        );
+        fn CFRunLoopWakeUp(run_loop: CFRunLoopRef);
+    }
+
+    /// The process main thread's run loop as the supervisor's loop.
+    pub(crate) struct MacLoop {
+        run_loop: MainRunLoop,
+        started: Instant,
+    }
+
+    impl MainLoop for MacLoop {
+        fn turn(&mut self, wait: Duration) {
+            self.run_loop.turn_for(wait);
+        }
+
+        fn now(&self) -> Duration {
+            self.started.elapsed()
+        }
+    }
+
+    fn claim() -> Result<MainRunLoop, DaemonError> {
+        MainRunLoop::claim().map_err(|error| match error {
+            ClaimError::NotMainThread => DaemonError::NotMainThread,
+            ClaimError::AlreadyClaimed => DaemonError::NotImplemented("a second timed run"),
+        })
+    }
 
     pub(crate) fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
-        let mut sources = MacSources::claim()?;
+        let mut run_loop = claim()?;
+        let (writer, reader) = run_loop
+            .foreground_state()
+            .ok_or(DaemonError::NotImplemented("a second timed run"))?;
+        let factory = MacSources {
+            foreground_writer: Some(writer),
+            foreground_reader: reader,
+            turns: run_loop.turns(),
+            input_counters: input::InputCounters::new(),
+            hold_after: None,
+            refusal: Arc::default(),
+        };
+        let main_loop = MacLoop {
+            run_loop,
+            started: Instant::now(),
+        };
+        let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop)
+            .with_ending(Arc::new(crate::daemon::main_loop::ExitNow));
+        if let Ok(dir) = children::own_dir() {
+            supervisor = supervisor.with_probe(Box::new(ChildProbe::new(dir, "halvo-capture")));
+        }
         crate::daemon::run_timed(
             run,
-            &mut sources,
+            &mut supervisor,
             crate::daemon::discard_port::DiscardPort::new(run.store_dir.clone()),
             crate::daemon::maintenance::SystemClocks::new(),
             crate::daemon::signal::flag(),
@@ -52,120 +118,136 @@ mod timed {
         )
     }
 
-    struct MacSources {
-        main_loop: run_loop::MainRunLoop,
-        foreground_state: Option<(foreground::ForegroundWriter, foreground::ForegroundReader)>,
-        input_counters: input::InputCounters,
-        started: Vec<(SourceName, Box<dyn CaptureSource>)>,
-        hold_refusal: Option<DaemonError>,
-        input: Option<input::InputSource>,
-    }
+    struct NoSources;
 
-    impl MacSources {
-        fn claim() -> Result<MacSources, DaemonError> {
-            let off_the_main_thread =
-                || DaemonError::NotImplemented("a second timed run, or one off the main thread,");
-            let mut main_loop =
-                run_loop::MainRunLoop::claim().map_err(|_| off_the_main_thread())?;
-            let foreground_state = Some(
-                main_loop
-                    .foreground_state()
-                    .ok_or_else(off_the_main_thread)?,
-            );
-            Ok(MacSources {
-                main_loop,
-                foreground_state,
-                input_counters: input::InputCounters::new(),
-                started: Vec::new(),
-                hold_refusal: None,
-                input: None,
-            })
+    impl SourceFactory for NoSources {
+        fn make(&mut self, _name: SourceName) -> Option<Box<dyn CaptureSource>> {
+            None
         }
     }
 
-    impl RunSources for MacSources {
-        fn start(
-            &mut self,
-            ctx: &SourceContext,
-            wanted: &[SourceName],
-            hold_after: Option<Duration>,
-        ) -> Vec<FailedSource> {
-            let Some((foreground_writer, foreground_reader)) = self.foreground_state.take() else {
-                return Vec::new();
-            };
-            let mut failed = Vec::new();
-            let mut foreground_writer = Some(foreground_writer);
-            for name in wanted {
-                let mut source: Box<dyn CaptureSource> = match name {
-                    SourceName::Foreground => match foreground_writer.take() {
-                        Some(writer) => Box::new(foreground::ForegroundSource::new(
-                            FOREGROUND_POLL,
-                            writer,
-                            self.main_loop.turns(),
-                        )),
-                        None => continue,
-                    },
-                    SourceName::Screen => Box::new(screen::ScreenSource::new(
-                        screen::SCREEN_FRAME_CAP,
-                        foreground_reader.clone(),
-                    )),
-                    SourceName::Input => {
-                        let plan =
-                            hold_after.map_or(input::HoldPlan::Never, input::HoldPlan::After);
-                        let mut input = input::InputSource::new(
-                            foreground_reader.clone(),
+    impl SystemSources for NoSources {}
+
+    /// The time from the queue of a block on the main run loop, by a second
+    /// thread, to its run, while the main thread waits as a timed run waits
+    /// with no source started; `None` when the block did not run inside the
+    /// self-check's window.
+    pub(crate) fn self_check_run_loop() -> Result<Option<Duration>, DaemonError> {
+        let main_loop = MacLoop {
+            run_loop: claim()?,
+            started: Instant::now(),
+        };
+        let mut supervisor = Supervisor::new(Platform::Macos, NoSources, main_loop);
+        let ran = Arc::new(AtomicBool::new(false));
+        let ran_after: Arc<Mutex<Option<Duration>>> = Arc::default();
+        let queue = {
+            let ran = ran.clone();
+            let ran_after = ran_after.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(100));
+                let queued = Instant::now();
+                let block = block2::RcBlock::new(move || {
+                    *ran_after.lock().unwrap_or_else(PoisonError::into_inner) =
+                        Some(queued.elapsed());
+                    ran.store(true, Ordering::SeqCst);
+                });
+                let main = CFRunLoop::get_main();
+                // SAFETY: the main run loop lives as long as the process, the
+                // mode is a constant CFString, and the call copies the block.
+                unsafe {
+                    CFRunLoopPerformBlock(
+                        main.as_concrete_TypeRef(),
+                        kCFRunLoopCommonModes.cast(),
+                        &block,
+                    );
+                }
+                // SAFETY: the main run loop lives as long as the process.
+                unsafe { CFRunLoopWakeUp(main.as_concrete_TypeRef()) };
+            })
+        };
+        supervisor.wait(SELF_CHECK_WINDOW, &ran);
+        let _ = queue.join();
+        let ran_after = *ran_after.lock().unwrap_or_else(PoisonError::into_inner);
+        Ok(ran_after)
+    }
+
+    struct MacSources {
+        foreground_writer: Option<ForegroundWriter>,
+        foreground_reader: ForegroundReader,
+        turns: RunLoopTurns,
+        input_counters: input::InputCounters,
+        hold_after: Option<Duration>,
+        refusal: Arc<Mutex<Option<DaemonError>>>,
+    }
+
+    /// The input source, which hands the system's refusal of its hold to the
+    /// supervisor when it stops.
+    struct InputWithRefusal {
+        source: input::InputSource,
+        refusal: Arc<Mutex<Option<DaemonError>>>,
+    }
+
+    impl CaptureSource for InputWithRefusal {
+        fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+            self.source.begin(ctx)
+        }
+
+        fn shutdown(&mut self) -> Result<(), CaptureError> {
+            let answer = self.source.shutdown();
+            *self.refusal.lock().unwrap_or_else(PoisonError::into_inner) =
+                secure_input_byte::refusal_or_none(self.source.hold_refusal()).err();
+            answer
+        }
+
+        fn health(&self) -> SourceHealth {
+            self.source.health()
+        }
+    }
+
+    impl SourceFactory for MacSources {
+        fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
+            match name {
+                SourceName::Foreground => {
+                    let writer = self.foreground_writer.take()?;
+                    Some(Box::new(foreground::ForegroundSource::new(
+                        FOREGROUND_POLL,
+                        writer,
+                        self.turns.clone(),
+                    )))
+                }
+                SourceName::Screen => Some(Box::new(screen::ScreenSource::new(
+                    screen::SCREEN_FRAME_CAP,
+                    self.foreground_reader.clone(),
+                ))),
+                SourceName::Input => {
+                    let plan = self
+                        .hold_after
+                        .map_or(input::HoldPlan::Never, input::HoldPlan::After);
+                    Some(Box::new(InputWithRefusal {
+                        source: input::InputSource::new(
+                            self.foreground_reader.clone(),
                             self.input_counters.clone(),
                             plan,
-                        );
-                        match input.begin(ctx.clone()) {
-                            Ok(_) => self.input = Some(input),
-                            Err(error) => failed.push(FailedSource {
-                                name: name.as_str(),
-                                error: error.to_string(),
-                            }),
-                        }
-                        continue;
-                    }
-                };
-                match source.begin(ctx.clone()) {
-                    Ok(_) => self.started.push((*name, source)),
-                    Err(error) => failed.push(FailedSource {
-                        name: name.as_str(),
-                        error: error.to_string(),
-                    }),
+                        ),
+                        refusal: self.refusal.clone(),
+                    }))
                 }
-            }
-            failed
-        }
-
-        fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
-            let slice = Duration::from_millis(100);
-            let until = std::time::Instant::now() + window;
-            loop {
-                if stop.load(std::sync::atomic::Ordering::SeqCst) {
-                    return true;
-                }
-                let left = until.saturating_duration_since(std::time::Instant::now());
-                if left.is_zero() {
-                    return false;
-                }
-                self.main_loop.turn_for(left.min(slice));
+                SourceName::SystemAudio
+                | SourceName::Microphone
+                | SourceName::Keyboard
+                | SourceName::Pointer
+                | SourceName::WindowTitle => None,
             }
         }
+    }
 
-        fn stop(&mut self) -> Vec<FailedSource> {
-            let mut failed = Vec::new();
-            if let Some(mut input) = self.input.take() {
-                failed.extend(crate::daemon::stop_failure(
-                    SourceName::Input,
-                    input.shutdown(),
-                ));
-                self.hold_refusal = secure_input_byte::refusal_or_none(input.hold_refusal()).err();
-            }
-            for (name, mut source) in self.started.drain(..) {
-                failed.extend(crate::daemon::stop_failure(name, source.shutdown()));
-            }
-            failed
+    impl SystemSources for MacSources {
+        fn plan_hold(&mut self, after: Option<Duration>) {
+            self.hold_after = after;
+        }
+
+        fn holds_secure_input(&self) -> bool {
+            self.hold_after.is_some()
         }
 
         fn figures(&self) -> SourceCounters {
@@ -173,7 +255,7 @@ mod timed {
         }
 
         fn hold_refusal(&self) -> Option<DaemonError> {
-            match &self.hold_refusal {
+            match &*self.refusal.lock().unwrap_or_else(PoisonError::into_inner) {
                 Some(DaemonError::SecureInputRefused(status)) => {
                     Some(DaemonError::SecureInputRefused(*status))
                 }
