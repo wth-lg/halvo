@@ -75,6 +75,21 @@ a_round_lost_to_a_late_marker_reads_by_its_rule_on_a_table twelve
 EOF
 }
 
+count_line_tests() {
+  if [ -n "${MS_COUNT_FILE:-}" ]; then
+    tr -d '\r' <"$MS_COUNT_FILE"
+    return
+  fi
+  cat <<'EOF'
+a_key_typed_ahead_into_a_secure_field_is_not_recorded
+a_key_typed_ahead_of_a_click_into_a_secure_field_is_not_recorded
+a_key_typed_ahead_of_a_focus_move_by_the_program_is_not_recorded
+the_up_of_the_key_that_leaves_a_secure_field_is_not_recorded
+known_fault_a_key_typed_ahead_of_a_stall_longer_than_the_bound_is_not_recorded
+the_mended_click_phase_counts_62_rounds_at_wait_2000_ms
+EOF
+}
+
 notes() {
   if [ -n "${MS_NOTES_FILE:-}" ]; then
     tr -d '\r' <"$MS_NOTES_FILE"
@@ -687,6 +702,7 @@ measure() {
     expected_tests >"$work/expected"
   fi
   proof_lines >"$work/proofs"
+  count_line_tests >"$work/count-tests" || fail "the list of the phases that print the count line cannot be read"
   before=$(tracked_changes) || fail "git status failed before the run"
 
   twelve_test
@@ -845,7 +861,10 @@ measure() {
     read -r round_lines control_lines counted_here not_driven_rounds not_driven_controls recorded_here by_wait \
       <"$work/rounds-$index" || fail "the round lines of $test cannot be read"
     waits_not_driven=$(sed -n "s/^$test not_driven_waits=//p" "$work/lines-$index" | tail -n 1)
-    lost_line=$(sed -n "s/^$test rounds_lost_to_the_late_rule=\([0-9][0-9]*\) by_wait=\([0-9:,]*\)\$/\1 \2/p" "$work/lines-$index" | tail -n 1)
+    lost_lines=$(grep -c "^$test rounds_lost_to_the_late_rule=" "$work/lines-$index")
+    lost_line=
+    [ "$lost_lines" != 1 ] ||
+      lost_line=$(sed -n -E "s/^$test rounds_lost_to_the_late_rule=([0-9]+) by_wait=([0-9]+:[0-9]+(,[0-9]+:[0-9]+)*)\$/\1 \2/p" "$work/lines-$index")
     not_driven_here=$((not_driven_rounds + not_driven_controls))
     rounds_counted=$((rounds_counted + counted_here))
     rounds_not_driven=$((rounds_not_driven + not_driven_here))
@@ -888,6 +907,15 @@ measure() {
           cause='the three-way phase printed no verdict line of held, notdriven or notkept'
           ;;
       esac
+    fi
+    if [ "$verdict" != FAIL ] && grep -q -x -F -e "$test" "$work/count-tests"; then
+      if [ "$lost_lines" != 1 ]; then
+        verdict=FAIL
+        cause="printed $lost_lines lines of its count of rounds lost to the late rule, not one (ruling MA-32)"
+      elif [ -z "$lost_line" ]; then
+        verdict=FAIL
+        cause="its count line of rounds lost to the late rule does not read rounds_lost_to_the_late_rule=<n> by_wait=<wait>:<n>,... (ruling MA-32)"
+      fi
     fi
     case $verdict in
       pass) passed=$((passed + 1)) ;;
