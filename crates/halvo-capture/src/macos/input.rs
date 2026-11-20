@@ -17,6 +17,11 @@ use core_graphics::event::{
 };
 
 use crate::event::Modality;
+use crate::event::{EventClock, FloorEvent, FoldEvent};
+use crate::floor::exclude::{FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict};
+use crate::floor::kind::{self as floor_kind, Recorded};
+use crate::floor::payload::{Button, FoldClass, FoldCount, KeyClass, PointerFold};
+use crate::floor::POINTER_FOLD_INTERVAL;
 use crate::macos::foreground::{emit_metadata_only, Foreground, ForegroundReader, Unpersisted};
 use crate::macos::source_failure;
 use crate::secure_input_macos::hold::{
@@ -32,9 +37,9 @@ use crate::secure_input_macos::notice::{NoticeMark, NoticeThread};
 use crate::secure_input_macos::{hold_secure_input, SecureInputHold};
 use crate::secure_input_macos::{
     read_session, secure_input_reading, Reading, SecureInputRefused, SecureInputReleaseRefused,
-    Session,
+    Session, SystemProbe,
 };
-use crate::sink::SinkHandle;
+use crate::sink::{FoldEmitted, SinkHandle};
 use crate::source::{
     CaptureError, CaptureSource, HealthReason, HeldSamples, SourceContext, SourceCounters,
     SourceHealth, SourceState, Started, StopCause, SuppressedKeys,
@@ -168,6 +173,10 @@ impl InputCounters {
         self.0.late_events.fetch_add(1, Ordering::Relaxed);
     }
 
+    fn count_pointer_coalesced(&self) {
+        self.0.pointer_coalesced.fetch_add(1, Ordering::Relaxed);
+    }
+
     fn count_pointer_dropped_at_stop(&self) {
         self.0
             .pointer_dropped_at_stop
@@ -253,6 +262,7 @@ const TAP_EVENTS: [(CGEventType, TapClass); 14] = [
     (CGEventType::ScrollWheel, TapClass::ContinuousPointer),
 ];
 
+#[cfg(test)]
 fn tap_class(etype: CGEventType) -> Option<TapClass> {
     TAP_EVENTS
         .iter()
@@ -302,7 +312,12 @@ const _: () = {
     }
 };
 
+const CAPS_LOCK: i64 = 0x39;
+
 fn modifier_pressed(key_code: Option<i64>, flags: u64) -> bool {
+    if key_code == Some(CAPS_LOCK) {
+        return true;
+    }
     let Some(&(_, side, family)) = MODIFIER_KEYS
         .iter()
         .find(|&&(code, _, _)| Some(code) == key_code)
@@ -316,26 +331,101 @@ fn modifier_pressed(key_code: Option<i64>, flags: u64) -> bool {
     }
 }
 
+/// The device-independent masks of control, option and command.
+const CHORD_MASKS: u64 = 0x001C_0000;
+
+fn key_class(key_code: Option<i64>, flags: u64) -> KeyClass {
+    if flags & CHORD_MASKS != 0 {
+        return KeyClass::Shortcut;
+    }
+    match key_code {
+        Some(0x24 | 0x4C) => KeyClass::Enter,
+        Some(0x30) => KeyClass::Tab,
+        Some(0x33 | 0x72 | 0x75) => KeyClass::Editing,
+        Some(0x73 | 0x74 | 0x77 | 0x79 | 0x7B..=0x7E) => KeyClass::Navigation,
+        Some(0x00..=0x32 | 0x41 | 0x43 | 0x45 | 0x4B | 0x4E | 0x51..=0x59 | 0x5B..=0x5F) => {
+            KeyClass::Printable
+        }
+        _ => KeyClass::Other,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Kind {
-    Key,
+    Key(KeyClass),
     Reading,
-    Pointer,
+    Click(Button),
+    ButtonUp,
+    Fold(FoldClass),
     Ignore,
 }
 
-fn kind_of(etype: CGEventType, key_code: Option<i64>, flags: u64) -> Kind {
-    match tap_class(etype) {
-        Some(TapClass::KeyPress) => Kind::Key,
-        Some(TapClass::OtherKey)
-            if etype as u32 == CGEventType::FlagsChanged as u32
-                && modifier_pressed(key_code, flags) =>
-        {
-            Kind::Key
+impl Kind {
+    fn is_key(self) -> bool {
+        matches!(self, Kind::Key(_))
+    }
+
+    fn is_pointer(self) -> bool {
+        matches!(self, Kind::Click(_) | Kind::ButtonUp | Kind::Fold(_))
+    }
+}
+
+fn kind_of(etype: CGEventType, key_code: Option<i64>, flags: u64, autorepeat: bool) -> Kind {
+    match etype {
+        CGEventType::KeyDown if autorepeat => Kind::Reading,
+        CGEventType::KeyDown => Kind::Key(key_class(key_code, flags)),
+        CGEventType::FlagsChanged if modifier_pressed(key_code, flags) => {
+            Kind::Key(KeyClass::Other)
         }
-        Some(TapClass::OtherKey) => Kind::Reading,
-        Some(TapClass::DiscretePointer | TapClass::ContinuousPointer) => Kind::Pointer,
-        None => Kind::Ignore,
+        CGEventType::KeyUp | CGEventType::FlagsChanged => Kind::Reading,
+        CGEventType::LeftMouseDown => Kind::Click(Button::Primary),
+        CGEventType::RightMouseDown => Kind::Click(Button::Secondary),
+        CGEventType::OtherMouseDown => Kind::Click(Button::Other),
+        CGEventType::LeftMouseUp | CGEventType::RightMouseUp | CGEventType::OtherMouseUp => {
+            Kind::ButtonUp
+        }
+        CGEventType::MouseMoved => Kind::Fold(FoldClass::Move),
+        CGEventType::LeftMouseDragged
+        | CGEventType::RightMouseDragged
+        | CGEventType::OtherMouseDragged => Kind::Fold(FoldClass::Drag),
+        CGEventType::ScrollWheel => Kind::Fold(FoldClass::Scroll),
+        _ => Kind::Ignore,
+    }
+}
+
+/// The pointer events of one fold interval, counted by class.
+#[derive(Default)]
+struct Folds([Option<FoldCount>; 3]);
+
+impl Folds {
+    fn slot(&mut self, class: FoldClass) -> &mut Option<FoldCount> {
+        let at = FoldClass::ALL
+            .iter()
+            .position(|&listed| listed == class)
+            .unwrap_or(0);
+        &mut self.0[at]
+    }
+
+    fn add(&mut self, class: FoldClass) {
+        match self.slot(class) {
+            Some(count) => count.add_one(),
+            slot @ None => *slot = Some(FoldCount::one()),
+        }
+    }
+
+    fn carry(&mut self, fold: PointerFold) {
+        match self.slot(fold.class()) {
+            Some(count) => count.add(fold.count()),
+            slot @ None => *slot = Some(fold.count()),
+        }
+    }
+
+    fn take(&mut self) -> Vec<PointerFold> {
+        FoldClass::ALL
+            .iter()
+            .zip(std::mem::take(&mut self.0))
+            .filter_map(|(&class, count)| count.map(|count| PointerFold::new(class, count)))
+            .collect()
     }
 }
 
@@ -343,7 +433,7 @@ fn events_of_interest() -> Vec<CGEventType> {
     TAP_EVENTS.iter().map(|&(etype, _)| etype).collect()
 }
 
-const TAP_LOCATION: CGEventTapLocation = CGEventTapLocation::HID;
+const TAP_LOCATION: CGEventTapLocation = CGEventTapLocation::Session;
 const TAP_PLACEMENT: CGEventTapPlacement = CGEventTapPlacement::HeadInsertEventTap;
 const TAP_OPTIONS: CGEventTapOptions = CGEventTapOptions::ListenOnly;
 
@@ -550,10 +640,23 @@ impl OwnTake {
 #[derive(Clone, Copy)]
 struct TimerCalls {
     make: fn(*mut c_void, Duration) -> CFRunLoopTimer,
+    fold: fn(*mut c_void, Duration) -> CFRunLoopTimer,
     invalidate: fn(&CFRunLoopTimer),
 }
 
 fn reading_timer(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
+    repeating_timer(info, step, reading_timer_fired)
+}
+
+fn fold_timer(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
+    repeating_timer(info, step, fold_timer_fired)
+}
+
+fn repeating_timer(
+    info: *mut c_void,
+    step: Duration,
+    callout: extern "C" fn(CFRunLoopTimerRef, *mut c_void),
+) -> CFRunLoopTimer {
     let mut context = CFRunLoopTimerContext {
         version: 0,
         info,
@@ -567,7 +670,7 @@ fn reading_timer(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
         step,
         0,
         0,
-        reading_timer_fired,
+        callout,
         &mut context,
     );
     add_to_this_run_loop(&timer);
@@ -576,6 +679,7 @@ fn reading_timer(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
 
 const TIMER_CALLS: TimerCalls = TimerCalls {
     make: reading_timer,
+    fold: fold_timer,
     invalidate,
 };
 
@@ -583,6 +687,7 @@ const TIMER_CALLS: TimerCalls = TimerCalls {
 struct Keyed {
     event: TapEvent,
     key_code: Option<i64>,
+    autorepeat: bool,
 }
 
 impl From<TapEvent> for Keyed {
@@ -590,6 +695,7 @@ impl From<TapEvent> for Keyed {
         Self {
             event,
             key_code: None,
+            autorepeat: false,
         }
     }
 }
@@ -615,6 +721,11 @@ struct TapContext {
     step: Duration,
     hold: SharedHold,
     notices: NoticeMark,
+    floor: FloorHandle,
+    probe: SystemProbe,
+    clock: &'static EventClock,
+    folds: Mutex<Folds>,
+    fold_timer: Mutex<Option<ReadingTimer>>,
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
     drops: Option<DropCounts>,
 }
@@ -1189,11 +1300,118 @@ impl Drop for TapContext {
         if let Some(ReadingTimer(timer)) = timer {
             (self.timers.invalidate)(&timer);
         }
+        let fold = self
+            .fold_timer
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        if let Some(ReadingTimer(timer)) = fold {
+            (self.timers.invalidate)(&timer);
+        }
     }
 }
 
+impl TapContext {
+    /// The keep verdict of kind `K` for the app in front, which an event without
+    /// a known app in front never gets.
+    fn keep<K: Recorded>(&self, front: Option<&Foreground>) -> Option<Keep<K>> {
+        let front = front?;
+        let pid = ProcessId::new(u32::try_from(front.pid).ok()?);
+        let subject = Subject::new(front.identity.to_event(), pid);
+        match self
+            .floor
+            .decide::<K>(subject, PrivateWindow::Unknown, &self.probe)
+        {
+            Verdict::Keep(keep) => Some(keep),
+            Verdict::Drop(_) => None,
+        }
+    }
+
+    fn folds(&self) -> MutexGuard<'_, Folds> {
+        self.folds.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn start_folds(&self) {
+        let info = std::ptr::from_ref(self).cast_mut().cast::<c_void>();
+        let timer = (self.timers.fold)(info, POINTER_FOLD_INTERVAL);
+        *self
+            .fold_timer
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(ReadingTimer(timer));
+    }
+}
+
+/// The age of an event at the callback's entry, from its OS time; none for an
+/// event whose OS time is 0 or after the entry.
+fn event_age(event: &TapEvent) -> Option<Duration> {
+    match timing(event.entry.uptime, event.os_time, Duration::MAX) {
+        Timing::InTime { lag } | Timing::Late { lag } => Some(lag),
+        Timing::Untimed | Timing::Asleep | Timing::Unclocked | Timing::Noticed => None,
+    }
+}
+
+fn on_pointer(ctx: &TapContext, kind: Kind, event: &TapEvent) {
+    if ctx.stop.load(Ordering::SeqCst) {
+        ctx.counters.count_pointer_dropped_at_stop();
+        return;
+    }
+    match kind {
+        Kind::Click(button) => {
+            let front = ctx.foreground.get();
+            if let Some(keep) = ctx.keep::<floor_kind::Pointer>(front.as_ref()) {
+                ctx.sink
+                    .emit_event(FloorEvent::click(keep, button, event_age(event), ctx.clock));
+            }
+        }
+        Kind::Fold(class) => {
+            let front = ctx.foreground.get();
+            if ctx.keep::<floor_kind::Pointer>(front.as_ref()).is_some() {
+                ctx.folds().add(class);
+            }
+        }
+        Kind::Key(_) | Kind::Reading | Kind::ButtonUp | Kind::Ignore => {}
+    }
+}
+
+/// Ends one fold interval: one record for each class that had activity, sent
+/// by the emit that never blocks. A record that a full queue hands back adds
+/// its count to the next interval.
+fn close_interval(ctx: &TapContext) {
+    let folds = ctx.folds().take();
+    if folds.is_empty() || ctx.stop.load(Ordering::SeqCst) {
+        return;
+    }
+    let front = ctx.foreground.get();
+    for fold in folds {
+        let Some(keep) = ctx.keep::<floor_kind::Pointer>(front.as_ref()) else {
+            continue;
+        };
+        match ctx
+            .sink
+            .emit_continuous(FoldEvent::new(keep, fold, None, ctx.clock))
+        {
+            FoldEmitted::Queued | FoldEmitted::Refused => {}
+            FoldEmitted::Coalesced(back) => {
+                ctx.counters.count_pointer_coalesced();
+                ctx.folds().carry(back.fold());
+            }
+        }
+    }
+}
+
+extern "C" fn fold_timer_fired(_timer: CFRunLoopTimerRef, info: *mut c_void) {
+    // SAFETY: as in `reading_timer_fired`: `info` is the address of the boxed
+    // TapContext that armed this timer and invalidates it in its Drop.
+    let ctx = unsafe { &*info.cast::<TapContext>() };
+    close_interval(ctx);
+}
+
 fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
-    let Keyed { event, key_code } = keyed.into();
+    let Keyed {
+        event,
+        key_code,
+        autorepeat,
+    } = keyed.into();
     let hold = ctx.hold.clone();
     let mut state = lock(&hold);
     if is_tap_disabled(event.etype) {
@@ -1207,7 +1425,7 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
         }
         return;
     }
-    let kind = kind_of(event.etype, key_code, event.flags);
+    let kind = kind_of(event.etype, key_code, event.flags, autorepeat);
     if kind == Kind::Ignore {
         return;
     }
@@ -1217,18 +1435,18 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
     } else {
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
         ctx.mark(Caller::Event);
-        let (reading, at) = ctx.reading(&mut state, kind == Kind::Key);
+        let (reading, at) = ctx.reading(&mut state, kind.is_key());
         if ctx.stop.load(Ordering::SeqCst) {
             let keys = state.keys.drop_all();
             ctx.dropped(keys, Cause::Stop);
-            if kind == Kind::Key {
+            if kind.is_key() {
                 let lag_bound = state.keys.bounds().lag;
                 ctx.withheld_at_a_stop(timing(event.entry.uptime, event.os_time, lag_bound));
             }
             ctx.settle_timer(&mut state);
             drop(state);
-            if kind == Kind::Pointer {
-                emit_pointer(ctx);
+            if kind.is_pointer() {
+                on_pointer(ctx, kind, &event);
             }
             return;
         }
@@ -1255,13 +1473,13 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             at_reading
         };
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
-        if let (Some(drops), Kind::Key | Kind::Reading, Timing::Late { .. }) =
+        if let (Some(drops), Kind::Key(_) | Kind::Reading, Timing::Late { .. }) =
             (&ctx.drops, kind, at_entry)
         {
             drops.late_at_entry();
         }
         let step = match (kind, at_reading.refusal()) {
-            (Kind::Key | Kind::Reading, Some(_)) => state.keys.late_reading(at, at_reading),
+            (Kind::Key(_) | Kind::Reading, Some(_)) => state.keys.late_reading(at, at_reading),
             _ => state.keys.reading(reading, at),
         };
         let step = match step {
@@ -1271,7 +1489,7 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             }
             other => other,
         };
-        if kind == Kind::Key {
+        if kind.is_key() {
             let lag = match at_reading {
                 Timing::InTime { lag } => lag,
                 _ => Duration::ZERO,
@@ -1289,23 +1507,9 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
     }
     ctx.settle_timer(&mut state);
     drop(state);
-    if kind == Kind::Pointer {
-        emit_pointer(ctx);
+    if kind.is_pointer() {
+        on_pointer(ctx, kind, &event);
     }
-}
-
-fn emit_pointer(ctx: &TapContext) {
-    if ctx.stop.load(Ordering::SeqCst) {
-        ctx.counters.count_pointer_dropped_at_stop();
-        return;
-    }
-    let _ = emit_metadata_only(
-        &ctx.sink,
-        Modality::Pointer,
-        ctx.foreground.get(),
-        Unpersisted::EMPTY,
-        SystemTime::now(),
-    );
 }
 
 fn on_reading_tick(ctx: &TapContext) {
@@ -1364,6 +1568,11 @@ fn tap_context(
             doubt_at_reading: false,
         })),
         notices: NoticeMark::new(),
+        floor: FloorHandle::default(),
+        probe: SystemProbe::new(),
+        clock: EventClock::system(),
+        folds: Mutex::new(Folds::default()),
+        fold_timer: Mutex::new(None),
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
         drops: None,
     }
@@ -1393,6 +1602,7 @@ fn tap_event(ctx: &TapContext, etype: CGEventType, event: &CGEvent) -> Keyed {
             entry: Entry { monotonic, uptime },
         },
         key_code: Some(event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE)),
+        autorepeat: event.get_integer_value_field(EventField::KEYBOARD_EVENT_AUTOREPEAT) != 0,
     }
 }
 
@@ -1401,6 +1611,7 @@ fn tap_callback(
 ) -> impl Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static {
     let ctx = Box::new(ctx);
     ctx.start(&mut lock(&ctx.hold));
+    ctx.start_folds();
     move |_proxy, etype, event: &CGEvent| {
         on_tap_event(&ctx, tap_event(&ctx, etype, event));
         CallbackResult::Keep
@@ -1726,6 +1937,7 @@ impl TapThread {
 
 pub struct InputSource {
     foreground: ForegroundReader,
+    floor: FloorHandle,
     counters: InputCounters,
     plan: HoldPlan,
     #[cfg(any(test, debug_assertions))]
@@ -1808,6 +2020,7 @@ impl InputSource {
     ) -> Self {
         Self {
             foreground,
+            floor: FloorHandle::default(),
             counters,
             plan,
             #[cfg(any(test, debug_assertions))]
@@ -1867,6 +2080,7 @@ impl InputSource {
             stop.clone(),
         );
         ctx.step = self.step;
+        ctx.floor = self.floor.clone();
         ctx.port = TapPort::with_enable(self.tap_enable);
         let port = ctx.port.clone();
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -1964,6 +2178,7 @@ impl CaptureSource for InputSource {
         {
             self.real = true;
         }
+        self.floor = ctx.floor().clone();
         self.begin_with(ctx.sink().clone(), SystemTapMaker, || {})
     }
 
@@ -2209,6 +2424,7 @@ fn events_until_the_sink_closes(writer: &crate::sink::SinkWriter) -> Vec<Modalit
 #[cfg(all(test, debug_assertions))]
 mod tests {
     use super::*;
+    use crate::floor::cases;
     use crate::macos::foreground::foreground_state_for_test;
     use crate::secure_input_macos::hold::Timing;
     use crate::secure_input_macos::test_support::{
@@ -2368,6 +2584,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         ));
         ctx.start(&mut lock(&ctx.hold));
+        fg_writer.set_for_test(Some(APP.front()));
         Held {
             ctx,
             writer,
@@ -2378,6 +2595,136 @@ mod tests {
 
     fn held(bound_ms: u64) -> Held {
         held_with(bound_ms, 64, 64)
+    }
+
+    struct TestApp(&'static str, libc::pid_t);
+
+    impl TestApp {
+        fn front(&self) -> Foreground {
+            crate::macos::foreground::tests_support::front(self.0, self.1)
+        }
+    }
+
+    const APP: TestApp = TestApp("com.example.editor", 4242);
+    const LISTED: TestApp = TestApp("com.apple.Passwords", 4343);
+
+    fn pointer_records(writer: &sink::SinkWriter) -> Vec<(&'static str, u64)> {
+        received(writer)
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .filter_map(|floor| match floor.event().observation() {
+                crate::floor::payload::Observation::Click(button) => Some((button.as_str(), 1)),
+                crate::floor::payload::Observation::Fold(fold) => {
+                    Some((fold.class().as_str(), fold.count().get()))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn pointer(ctx: &TapContext, etype: CGEventType, times: usize) {
+        for _ in 0..times {
+            advance(1);
+            on_tap_event(ctx, event(etype));
+        }
+    }
+
+    #[test]
+    fn a_press_fifty_drags_and_a_release_give_one_click_and_one_drag_record_of_50() {
+        let held = held(100);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::LeftMouseDragged, 50);
+        pointer(&held.ctx, CGEventType::LeftMouseUp, 1);
+        assert_eq!(pointer_records(&held.writer), [("primary", 1)]);
+        close_interval(&held.ctx);
+        assert_eq!(pointer_records(&held.writer), [("drag", 50)]);
+        close_interval(&held.ctx);
+        assert_eq!(
+            pointer_records(&held.writer),
+            [],
+            "an interval with no activity"
+        );
+    }
+
+    #[test]
+    fn thirty_scrolls_give_one_scroll_record_of_30_and_each_button_its_click() {
+        let held = held(100);
+        pointer(&held.ctx, CGEventType::ScrollWheel, 30);
+        pointer(&held.ctx, CGEventType::RightMouseDown, 1);
+        pointer(&held.ctx, CGEventType::OtherMouseDown, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 100);
+        assert_eq!(
+            pointer_records(&held.writer),
+            [("secondary", 1), ("other", 1)]
+        );
+        close_interval(&held.ctx);
+        assert_eq!(
+            pointer_records(&held.writer),
+            [("scroll", 30), ("move", 100)]
+        );
+    }
+
+    #[test]
+    fn after_a_flood_of_drags_and_scrolls_a_key_is_queued_at_once() {
+        let held = held_with(100, 64, 4);
+        for _ in 0..1_024 {
+            pointer(&held.ctx, CGEventType::LeftMouseDragged, 1);
+            pointer(&held.ctx, CGEventType::ScrollWheel, 1);
+        }
+        key_down(&held.ctx);
+        ticks(&held.ctx, 120);
+        assert_eq!(keystrokes(&held.writer), 1);
+        close_interval(&held.ctx);
+        assert_eq!(
+            pointer_records(&held.writer),
+            [("scroll", 1_024), ("drag", 1_024)]
+        );
+    }
+
+    #[test]
+    fn a_fold_that_a_full_queue_hands_back_is_counted_and_goes_into_the_next_interval() {
+        let held = held_with(100, 64, 1);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 3);
+        close_interval(&held.ctx);
+        assert_eq!(held.counters.figures().pointer_coalesced, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 2);
+        assert_eq!(pointer_records(&held.writer), [("primary", 1)]);
+        close_interval(&held.ctx);
+        assert_eq!(pointer_records(&held.writer), [("move", 5)]);
+        assert_eq!(held.counters.figures().pointer_coalesced, 1);
+    }
+
+    #[test]
+    fn no_pointer_record_leaves_for_a_listed_app_in_front_or_with_nothing_in_front() {
+        for front in [Some(LISTED.front()), None] {
+            let held = held(100);
+            held.fg_writer.set_for_test(front);
+            pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+            pointer(&held.ctx, CGEventType::MouseMoved, 5);
+            close_interval(&held.ctx);
+            held.fg_writer.set_for_test(Some(APP.front()));
+            close_interval(&held.ctx);
+            assert_eq!(pointer_records(&held.writer), []);
+        }
+    }
+
+    #[test]
+    fn a_click_carries_the_time_of_its_os_event() {
+        let held = held(100);
+        let mut click = event(CGEventType::LeftMouseDown);
+        click.os_time = Uptime::from_nanos(click.entry.uptime.nanos() - 3_000 * MS);
+        on_tap_event(&held.ctx, click);
+        let floor = received(&held.writer)
+            .into_iter()
+            .find_map(|received| received.into_floor().ok())
+            .expect("a click");
+        let now = crate::event::unix_nanos(std::time::SystemTime::now());
+        let age = now - floor.event().at();
+        assert!(
+            (3_000 * MS as i64..6_000 * MS as i64).contains(&age),
+            "the click's time lies 3 s back, at its resolution of 1 s: {age} ns"
+        );
     }
 
     fn event(etype: CGEventType) -> TapEvent {
@@ -2431,6 +2778,7 @@ mod tests {
                 ..event(etype)
             },
             key_code: Some(key_code),
+            autorepeat: false,
         }
     }
 
@@ -3920,10 +4268,16 @@ mod tests {
         let command = CGEventFlags::CGEventFlagCommand.bits();
         let left_command = 0x8;
         let flags = CGEventType::FlagsChanged;
-        assert_eq!(kind_of(CGEventType::KeyDown, Some(0), 0), Kind::Key);
-        assert_eq!(kind_of(CGEventType::KeyUp, Some(0), 0), Kind::Reading);
         assert_eq!(
-            kind_of(flags, None, shift | LEFT_SHIFT_BIT),
+            kind_of(CGEventType::KeyDown, Some(0), 0, false),
+            Kind::Key(KeyClass::Printable)
+        );
+        assert_eq!(
+            kind_of(CGEventType::KeyUp, Some(0), 0, false),
+            Kind::Reading
+        );
+        assert_eq!(
+            kind_of(flags, None, shift | LEFT_SHIFT_BIT, false),
             Kind::Reading,
             "a flags change whose key code was not read"
         );
@@ -3931,13 +4285,13 @@ mod tests {
             (
                 LEFT_SHIFT,
                 shift | LEFT_SHIFT_BIT,
-                Kind::Key,
+                Kind::Key(KeyClass::Other),
                 "a shift press",
             ),
             (
                 LEFT_COMMAND,
                 command | left_command | shift | LEFT_SHIFT_BIT,
-                Kind::Key,
+                Kind::Key(KeyClass::Other),
                 "a command press while shift is down",
             ),
             (LEFT_SHIFT, 0, Kind::Reading, "a shift release"),
@@ -3950,7 +4304,7 @@ mod tests {
             (
                 RIGHT_SHIFT,
                 shift | LEFT_SHIFT_BIT | RIGHT_SHIFT_BIT,
-                Kind::Key,
+                Kind::Key(KeyClass::Other),
                 "the right shift pressed while the left one is down",
             ),
             (
@@ -3966,9 +4320,19 @@ mod tests {
                 "a posted shift press, with no device bits, is a reading alone (ruling MA-30 M1)",
             ),
             (LEFT_SHIFT, 0x100, Kind::Reading, "a posted shift release"),
-            (0x39, 0x1_0000, Kind::Key, "caps lock turned on"),
-            (0x39, 0, Kind::Reading, "caps lock turned off"),
-            (0x3F, 0x80_0000, Kind::Key, "a fn press"),
+            (
+                0x39,
+                0x1_0000,
+                Kind::Key(KeyClass::Other),
+                "caps lock turned on",
+            ),
+            (
+                0x39,
+                0,
+                Kind::Key(KeyClass::Other),
+                "caps lock turned off is a press too",
+            ),
+            (0x3F, 0x80_0000, Kind::Key(KeyClass::Other), "a fn press"),
             (0x3F, 0, Kind::Reading, "a fn release"),
             (
                 0,
@@ -3978,7 +4342,7 @@ mod tests {
             ),
         ];
         for (key_code, bits, kind, what) in rows {
-            assert_eq!(kind_of(flags, Some(key_code), bits), kind, "{what}");
+            assert_eq!(kind_of(flags, Some(key_code), bits, false), kind, "{what}");
         }
     }
 
@@ -4007,7 +4371,12 @@ mod tests {
             }
         }
         assert_eq!(
-            kind_of(CGEventType::FlagsChanged, Some(LEFT_SHIFT), shift | 0x100),
+            kind_of(
+                CGEventType::FlagsChanged,
+                Some(LEFT_SHIFT),
+                shift | 0x100,
+                false
+            ),
             Kind::Reading,
             "the left release while the right stays down is no press"
         );
@@ -4018,7 +4387,7 @@ mod tests {
         let shift = 0x2_0000;
         for flags in [0x100, shift | 0x100] {
             assert_eq!(
-                kind_of(CGEventType::FlagsChanged, Some(LEFT_SHIFT), flags),
+                kind_of(CGEventType::FlagsChanged, Some(LEFT_SHIFT), flags, false),
                 Kind::Reading,
                 "flags {flags:#x}"
             );
@@ -4053,49 +4422,52 @@ mod tests {
         );
         let flags = CGEventType::FlagsChanged;
         let mut checked = 0;
-        for &(code, side, family) in &iokit {
+        for &(code, side, family) in iokit.iter().filter(|row| row.0 != CAPS_LOCK) {
             assert_eq!(
-                kind_of(flags, Some(code), 0),
+                kind_of(flags, Some(code), 0, false),
                 Kind::Reading,
                 "{code:#x} released"
             );
             if side == 0 {
                 assert_eq!(
-                    kind_of(flags, Some(code), family),
-                    Kind::Key,
+                    kind_of(flags, Some(code), family, false),
+                    Kind::Key(KeyClass::Other),
                     "{code:#x} on by its family bit"
                 );
                 assert_eq!(
-                    kind_of(flags, Some(code), 0x100),
+                    kind_of(flags, Some(code), 0x100, false),
                     Kind::Reading,
                     "{code:#x} off"
                 );
             } else {
                 assert_eq!(
-                    kind_of(flags, Some(code), family | side),
-                    Kind::Key,
+                    kind_of(flags, Some(code), family | side, false),
+                    Kind::Key(KeyClass::Other),
                     "{code:#x} pressed with its device bit"
                 );
                 let others = MODIFIER_SIDE_BITS & !side;
                 assert_eq!(
-                    kind_of(flags, Some(code), family | others),
+                    kind_of(flags, Some(code), family | others, false),
                     Kind::Reading,
                     "{code:#x} released while the other device bits stay set"
                 );
                 assert_eq!(
-                    kind_of(flags, Some(code), family | 0x100),
+                    kind_of(flags, Some(code), family | 0x100, false),
                     Kind::Reading,
                     "{code:#x} posted with its family bit alone"
                 );
                 assert_eq!(
-                    kind_of(flags, Some(code), 0x100),
+                    kind_of(flags, Some(code), 0x100, false),
                     Kind::Reading,
                     "{code:#x} posted release"
                 );
             }
             checked += 1;
         }
-        assert_eq!(checked, 10);
+        assert_eq!(
+            checked, 9,
+            "the nine keys but caps lock, which its own test reads"
+        );
     }
 
     #[test]
@@ -4123,23 +4495,307 @@ mod tests {
     }
 
     #[test]
-    fn pointer_events_are_recorded_and_the_tap_notices_are_no_event_of_the_mask() {
-        for &(etype, class) in &TAP_EVENTS {
-            if matches!(
-                class,
-                TapClass::DiscretePointer | TapClass::ContinuousPointer
-            ) {
-                assert_eq!(kind_of(etype, Some(0), 0), Kind::Pointer, "{etype:?}");
-            }
+    fn button_presses_are_clicks_moves_drags_and_scrolls_fold_and_the_notices_are_no_event() {
+        let rows = [
+            (CGEventType::LeftMouseDown, Kind::Click(Button::Primary)),
+            (CGEventType::RightMouseDown, Kind::Click(Button::Secondary)),
+            (CGEventType::OtherMouseDown, Kind::Click(Button::Other)),
+            (CGEventType::LeftMouseUp, Kind::ButtonUp),
+            (CGEventType::RightMouseUp, Kind::ButtonUp),
+            (CGEventType::OtherMouseUp, Kind::ButtonUp),
+            (CGEventType::MouseMoved, Kind::Fold(FoldClass::Move)),
+            (CGEventType::LeftMouseDragged, Kind::Fold(FoldClass::Drag)),
+            (CGEventType::RightMouseDragged, Kind::Fold(FoldClass::Drag)),
+            (CGEventType::OtherMouseDragged, Kind::Fold(FoldClass::Drag)),
+            (CGEventType::ScrollWheel, Kind::Fold(FoldClass::Scroll)),
+        ];
+        for (etype, kind) in rows {
+            assert_eq!(kind_of(etype, Some(0), 0, false), kind, "{etype:?}");
         }
         for etype in [
             CGEventType::TapDisabledByTimeout,
             CGEventType::TapDisabledByUserInput,
         ] {
-            assert_eq!(kind_of(etype, Some(0), 0), Kind::Ignore);
+            assert_eq!(kind_of(etype, Some(0), 0, false), Kind::Ignore);
             assert!(is_tap_disabled(etype));
         }
         assert!(!is_tap_disabled(CGEventType::KeyDown));
+    }
+
+    #[test]
+    fn the_key_table_maps_a_fixed_list_of_codes_and_flags_to_their_class() {
+        let shift = 0x2_0000;
+        let control = 0x4_0000;
+        let option = 0x8_0000;
+        let command = 0x10_0000;
+        let pad = 0x20_0000;
+        let fn_bit = 0x80_0000;
+        let rows: [(i64, u64, KeyClass, &str); 24] = [
+            (0x00, 0, KeyClass::Printable, "a letter"),
+            (0x2D, shift, KeyClass::Printable, "a letter with shift"),
+            (0x12, 0, KeyClass::Printable, "a digit"),
+            (0x31, 0, KeyClass::Printable, "space"),
+            (0x2B, 0, KeyClass::Printable, "punctuation"),
+            (0x52, pad, KeyClass::Printable, "a digit of the keypad"),
+            (0x33, 0, KeyClass::Editing, "delete"),
+            (0x75, fn_bit, KeyClass::Editing, "forward delete"),
+            (
+                0x72,
+                fn_bit,
+                KeyClass::Editing,
+                "help, insert on a PC keyboard",
+            ),
+            (0x7B, pad | fn_bit, KeyClass::Navigation, "an arrow"),
+            (0x7E, pad | fn_bit, KeyClass::Navigation, "the up arrow"),
+            (0x73, fn_bit, KeyClass::Navigation, "home"),
+            (0x77, fn_bit, KeyClass::Navigation, "end"),
+            (0x74, fn_bit, KeyClass::Navigation, "page up"),
+            (0x79, fn_bit, KeyClass::Navigation, "page down"),
+            (0x24, 0, KeyClass::Enter, "return"),
+            (0x4C, pad, KeyClass::Enter, "the enter key of the keypad"),
+            (0x30, 0, KeyClass::Tab, "tab"),
+            (0x35, 0, KeyClass::Other, "escape"),
+            (0x7A, fn_bit, KeyClass::Other, "F1"),
+            (0x00, command, KeyClass::Shortcut, "a letter with command"),
+            (
+                0x7B,
+                control | pad | fn_bit,
+                KeyClass::Shortcut,
+                "an arrow with control",
+            ),
+            (0x00, option, KeyClass::Shortcut, "a letter with option"),
+            (
+                0x24,
+                command | shift,
+                KeyClass::Shortcut,
+                "return with command and shift",
+            ),
+        ];
+        for (code, flags, class, what) in rows {
+            assert_eq!(
+                kind_of(CGEventType::KeyDown, Some(code), flags, false),
+                Kind::Key(class),
+                "{what}"
+            );
+        }
+        assert_eq!(
+            kind_of(CGEventType::KeyDown, None, 0, false),
+            Kind::Key(KeyClass::Other),
+            "a key down whose key code was not read"
+        );
+        assert_eq!(
+            kind_of(
+                CGEventType::FlagsChanged,
+                Some(LEFT_SHIFT),
+                shift | LEFT_SHIFT_BIT,
+                false
+            ),
+            Kind::Key(KeyClass::Other),
+            "shift pressed alone"
+        );
+        assert_eq!(
+            kind_of(
+                CGEventType::FlagsChanged,
+                Some(LEFT_COMMAND),
+                command | 0x8 | control | 0x1,
+                false
+            ),
+            Kind::Key(KeyClass::Other),
+            "command pressed while control is held is a modifier's key down, not a shortcut"
+        );
+    }
+
+    #[test]
+    fn an_autorepeat_a_key_up_and_a_released_modifier_are_readings_alone() {
+        let shift = 0x2_0000;
+        assert_eq!(
+            kind_of(CGEventType::KeyDown, Some(0x00), 0, true),
+            Kind::Reading,
+            "an automatic repeat"
+        );
+        assert_eq!(
+            kind_of(CGEventType::KeyDown, Some(0x00), 0x10_0000, true),
+            Kind::Reading,
+            "an automatic repeat of a shortcut"
+        );
+        assert_eq!(
+            kind_of(CGEventType::KeyUp, Some(0x00), 0, false),
+            Kind::Reading
+        );
+        assert_eq!(
+            kind_of(CGEventType::FlagsChanged, Some(LEFT_SHIFT), 0, false),
+            Kind::Reading,
+            "shift released"
+        );
+        assert_eq!(
+            kind_of(
+                CGEventType::FlagsChanged,
+                Some(LEFT_SHIFT),
+                shift | RIGHT_SHIFT_BIT,
+                false
+            ),
+            Kind::Reading,
+            "the left shift released while the right one stays down"
+        );
+    }
+
+    #[test]
+    fn caps_lock_is_a_press_each_time_that_it_toggles() {
+        for flags in [0x1_0000, 0, 0x100] {
+            assert_eq!(
+                kind_of(CGEventType::FlagsChanged, Some(0x39), flags, false),
+                Kind::Key(KeyClass::Other),
+                "flags {flags:#x}"
+            );
+        }
+    }
+
+    #[derive(Default)]
+    struct MacMapper {
+        flags: u64,
+        folds: Folds,
+    }
+
+    fn code_of(key: cases::Key) -> i64 {
+        match key {
+            cases::Key::Letter => 0x00,
+            cases::Key::Digit => 0x12,
+            cases::Key::Space => 0x31,
+            cases::Key::Punctuation => 0x2B,
+            cases::Key::Backspace => 0x33,
+            cases::Key::Delete => 0x75,
+            cases::Key::Insert => 0x72,
+            cases::Key::Arrow => 0x7B,
+            cases::Key::Home => 0x73,
+            cases::Key::End => 0x77,
+            cases::Key::PageUp => 0x74,
+            cases::Key::PageDown => 0x79,
+            cases::Key::Enter => 0x24,
+            cases::Key::Tab => 0x30,
+            cases::Key::Escape => 0x35,
+            cases::Key::Function => 0x7A,
+            cases::Key::Modifier(modifier) => modifier_row(modifier).0,
+        }
+    }
+
+    fn modifier_row(modifier: cases::Modifier) -> (i64, u64, u64) {
+        let code = match modifier {
+            cases::Modifier::Shift => 0x38,
+            cases::Modifier::Control => 0x3B,
+            cases::Modifier::OptionOrAlt => 0x3A,
+            cases::Modifier::CommandOrWindows => 0x37,
+        };
+        *MODIFIER_KEYS
+            .iter()
+            .find(|row| row.0 == code)
+            .expect("a modifier of the table")
+    }
+
+    fn button_type(button: Button, down: bool) -> CGEventType {
+        match (button, down) {
+            (Button::Primary, true) => CGEventType::LeftMouseDown,
+            (Button::Primary, false) => CGEventType::LeftMouseUp,
+            (Button::Secondary, true) => CGEventType::RightMouseDown,
+            (Button::Secondary, false) => CGEventType::RightMouseUp,
+            (Button::Other, true) => CGEventType::OtherMouseDown,
+            (Button::Other, false) => CGEventType::OtherMouseUp,
+        }
+    }
+
+    impl cases::Mapper for MacMapper {
+        fn input(&mut self, input: cases::Input) -> Vec<cases::Expected> {
+            use cases::Input;
+            let (etype, code, autorepeat) = match input {
+                Input::KeyDown(cases::Key::Modifier(modifier)) => {
+                    let (code, side, family) = modifier_row(modifier);
+                    self.flags |= side | family;
+                    (CGEventType::FlagsChanged, code, false)
+                }
+                Input::KeyUp(cases::Key::Modifier(modifier)) => {
+                    let (code, side, family) = modifier_row(modifier);
+                    self.flags &= !side;
+                    if self.flags & MODIFIER_SIDE_BITS & !side == 0 {
+                        self.flags &= !family;
+                    }
+                    (CGEventType::FlagsChanged, code, false)
+                }
+                Input::KeyDown(key) => (CGEventType::KeyDown, code_of(key), false),
+                Input::KeyRepeat(key) => (CGEventType::KeyDown, code_of(key), true),
+                Input::KeyUp(key) => (CGEventType::KeyUp, code_of(key), false),
+                Input::ButtonDown(button) => (button_type(button, true), 0, false),
+                Input::ButtonUp(button) => (button_type(button, false), 0, false),
+                Input::Move => (CGEventType::MouseMoved, 0, false),
+                Input::Drag => (CGEventType::LeftMouseDragged, 0, false),
+                Input::Scroll => (CGEventType::ScrollWheel, 0, false),
+                Input::IntervalEnd => {
+                    return self
+                        .folds
+                        .take()
+                        .into_iter()
+                        .map(|fold| cases::Expected::Fold(fold.class(), fold.count().get()))
+                        .collect();
+                }
+            };
+            match kind_of(etype, Some(code), self.flags, autorepeat) {
+                Kind::Key(class) => vec![cases::Expected::Key(class)],
+                Kind::Click(button) => vec![cases::Expected::Click(button)],
+                Kind::Fold(class) => {
+                    self.folds.add(class);
+                    Vec::new()
+                }
+                Kind::Reading | Kind::ButtonUp | Kind::Ignore => Vec::new(),
+            }
+        }
+    }
+
+    #[test]
+    fn the_shared_list_of_inputs_gives_its_events_through_the_macos_mapper() {
+        assert_eq!(cases::failing_cases(MacMapper::default), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn a_hundred_moves_fold_into_one_record_with_count_100() {
+        let mut folds = Folds::default();
+        for _ in 0..100 {
+            match kind_of(CGEventType::MouseMoved, None, 0, false) {
+                Kind::Fold(class) => folds.add(class),
+                other => panic!("a move is {other:?}"),
+            }
+        }
+        let taken = folds.take();
+        assert_eq!(
+            taken
+                .iter()
+                .map(|fold| (fold.class(), fold.count().get()))
+                .collect::<Vec<_>>(),
+            [(FoldClass::Move, 100)]
+        );
+        assert!(folds.take().is_empty(), "the interval after it is empty");
+    }
+
+    #[test]
+    fn a_fold_handed_back_adds_its_count_to_the_next_interval() {
+        let mut folds = Folds::default();
+        folds.add(FoldClass::Scroll);
+        let back = folds.take();
+        folds.add(FoldClass::Scroll);
+        for fold in back {
+            folds.carry(fold);
+        }
+        assert_eq!(
+            folds
+                .take()
+                .iter()
+                .map(|fold| (fold.class(), fold.count().get()))
+                .collect::<Vec<_>>(),
+            [(FoldClass::Scroll, 2)]
+        );
+    }
+
+    #[test]
+    fn the_tap_sits_at_the_session_level() {
+        assert_eq!(TAP_LOCATION as u32, CGEventTapLocation::Session as u32);
+        assert_eq!(tap_settings().location as u32, 1);
     }
 
     const EVERY_EVENT_TYPE: [CGEventType; 19] = [
@@ -4169,7 +4825,7 @@ mod tests {
         let mask = events_of_interest();
         for etype in EVERY_EVENT_TYPE {
             let masked = mask.iter().any(|&listed| listed as u32 == etype as u32);
-            let handled = kind_of(etype, Some(0), 0) != Kind::Ignore;
+            let handled = kind_of(etype, Some(0), 0, false) != Kind::Ignore;
             assert_eq!(
                 masked, handled,
                 "{etype:?}: masked {masked}, handled {handled}"
@@ -4675,14 +5331,15 @@ mod tests {
                 42,
             )));
         advance(1);
-        on_tap_event(&held.ctx, event(CGEventType::MouseMoved));
+        on_tap_event(&held.ctx, event(CGEventType::LeftMouseDown));
         ticks(&held.ctx, 1_010);
+        let all = received(&held.writer);
         let records: Vec<(
             Modality,
             String,
             SystemTime,
             crate::event::MonotonicSequence,
-        )> = received(&held.writer)
+        )> = all
             .iter()
             .map(|r| {
                 let e = r.event();
@@ -4695,11 +5352,15 @@ mod tests {
             })
             .collect();
         assert_eq!(records.len(), 2);
+        let numbers: Vec<_> = all.iter().map(crate::sink::Received::number).collect();
         let (pointer, key) = (&records[0], &records[1]);
-        assert_eq!(
-            (pointer.0, pointer.1.as_str()),
-            (Modality::Pointer, "com.example.other")
-        );
+        assert_eq!(pointer.0, Modality::Pointer);
+        let pointer_pid = all
+            .into_iter()
+            .next()
+            .and_then(|received| received.into_floor().ok())
+            .map(|floor| floor.event().pid());
+        assert_eq!(pointer_pid, Some(ProcessId::new(42)), "the click's app");
         assert_eq!(
             (key.0, key.1.as_str()),
             (Modality::Keystroke, "com.example.editor")
@@ -4708,7 +5369,10 @@ mod tests {
             key.2 <= before_arrival - Duration::from_millis(19),
             "the key's instant is its own time, its arrival less its lag"
         );
-        assert!(pointer.3 < key.3, "the key takes its number at its release");
+        assert!(
+            numbers[0] < numbers[1],
+            "the key takes its number at its release"
+        );
     }
 
     #[test]
@@ -5413,10 +6077,7 @@ mod tests {
             suppressed,
             asked,
         } = outcome;
-        let is_pointer = matches!(
-            tap_class(etype),
-            Some(TapClass::DiscretePointer | TapClass::ContinuousPointer)
-        );
+        let is_pointer = matches!(kind_of(etype, None, 0, false), Kind::Click(_));
         let key_down = etype as u32 == CGEventType::KeyDown as u32;
         let want = (
             usize::from(is_pointer),
@@ -6085,7 +6746,7 @@ mod tests {
     }
 
     #[test]
-    fn the_tap_is_requested_listen_only_at_the_hid_location() {
+    fn the_tap_is_requested_listen_only_at_the_session_location() {
         let settings = tap_settings();
         assert_eq!(
             (
@@ -6093,7 +6754,7 @@ mod tests {
                 settings.location as u32,
                 settings.placement as u32
             ),
-            (1, 0, 0)
+            (1, 1, 0)
         );
     }
 
@@ -7867,9 +8528,19 @@ mod secure_input_invariant {
     use super::*;
     use crate::sink;
 
-    fn context(secure: fn(Session) -> Reading) -> (TapContext, sink::SinkWriter) {
+    fn context(
+        secure: fn(Session) -> Reading,
+    ) -> (
+        TapContext,
+        sink::SinkWriter,
+        crate::macos::foreground::ForegroundWriter,
+    ) {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = crate::macos::foreground::foreground_state_for_test();
+        let (front, reader) = crate::macos::foreground::foreground_state_for_test();
+        front.set_for_test(Some(crate::macos::foreground::tests_support::front(
+            "com.example.editor",
+            4242,
+        )));
         let settings = TapSettings {
             secure,
             session: || Session::AtConsole,
@@ -7887,7 +8558,7 @@ mod secure_input_invariant {
             Arc::new(AtomicBool::new(false)),
         );
         ctx.start(&mut lock(&ctx.hold));
-        (ctx, writer)
+        (ctx, writer, front)
     }
 
     fn event(etype: CGEventType, flags: u64) -> TapEvent {
@@ -7896,7 +8567,7 @@ mod secure_input_invariant {
 
     #[test]
     fn a_key_press_under_secure_input_records_nothing_and_is_counted() {
-        let (ctx, writer) = context(|_| Reading::On);
+        let (ctx, writer, _front) = context(|_| Reading::On);
         let shift = core_graphics::event::CGEventFlags::CGEventFlagShift.bits();
         on_tap_event(&ctx, event(CGEventType::KeyDown, 0));
         on_tap_event(&ctx, event(CGEventType::KeyUp, 0));
@@ -7905,6 +8576,7 @@ mod secure_input_invariant {
             Keyed {
                 event: event(CGEventType::FlagsChanged, shift | 0x2),
                 key_code: Some(0x38),
+                autorepeat: false,
             },
         );
         on_tap_event(
@@ -7912,9 +8584,10 @@ mod secure_input_invariant {
             Keyed {
                 event: event(CGEventType::FlagsChanged, 0),
                 key_code: Some(0x38),
+                autorepeat: false,
             },
         );
-        on_tap_event(&ctx, event(CGEventType::MouseMoved, 0));
+        on_tap_event(&ctx, event(CGEventType::LeftMouseDown, 0));
         assert_eq!(
             ctx.counters.suppressed_keys(),
             2,
@@ -7930,7 +8603,7 @@ mod secure_input_invariant {
 
     #[test]
     fn a_suppressed_key_raises_the_count_from_zero_to_one() {
-        let (ctx, _writer) = context(|_| Reading::On);
+        let (ctx, _writer, _front) = context(|_| Reading::On);
         assert_eq!(ctx.counters.suppressed_keys(), 0);
         on_tap_event(&ctx, event(CGEventType::KeyDown, 0));
         assert_eq!(ctx.counters.suppressed_keys(), 1);
@@ -7939,8 +8612,8 @@ mod secure_input_invariant {
 
     #[test]
     fn pointer_events_record_under_secure_input_without_a_count() {
-        let (ctx, writer) = context(|_| Reading::On);
-        on_tap_event(&ctx, event(CGEventType::MouseMoved, 0));
+        let (ctx, writer, _front) = context(|_| Reading::On);
+        on_tap_event(&ctx, event(CGEventType::RightMouseDown, 0));
         on_tap_event(&ctx, event(CGEventType::LeftMouseDown, 0));
         assert_eq!(ctx.counters.suppressed_keys(), 0);
         drop(ctx);
@@ -7950,14 +8623,14 @@ mod secure_input_invariant {
 
     #[test]
     fn a_key_event_without_secure_input_is_recorded_at_its_release_and_not_at_its_arrival() {
-        let (ctx, writer) = context(|_| Reading::Off);
+        let (ctx, writer, _front) = context(|_| Reading::Off);
         on_tap_event(&ctx, event(CGEventType::KeyDown, 0));
         assert_eq!(ctx.counters.suppressed_keys(), 0);
         assert!(
             writer.try_recv().is_err(),
             "a key was recorded at its arrival"
         );
-        on_tap_event(&ctx, event(CGEventType::MouseMoved, 0));
+        on_tap_event(&ctx, event(CGEventType::LeftMouseDown, 0));
         drop(ctx);
         assert_eq!(
             events_until_the_sink_closes(&writer),
