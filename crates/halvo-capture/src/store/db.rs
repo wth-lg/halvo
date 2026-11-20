@@ -1459,20 +1459,33 @@ impl Db {
     /// store key itself opens store.db read-only and its user_version is
     /// below this build's: a store made before the database key was derived.
     /// It reads that one value.
-    fn older_version_of(store_dir: &Dir, store_key: &StoreKey) -> Option<StoreError> {
-        match store_dir.entry(OsStr::new(DATABASE_LOG)) {
+    fn another_version_of(store_dir: &Dir, store_key: &StoreKey) -> Option<StoreError> {
+        let log_was_there = match store_dir.entry(OsStr::new(DATABASE_LOG)) {
             Ok(entry) if entry.len > 0 => return None,
-            Ok(_) => {}
-            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Ok(_) => true,
+            Err(e) if e.kind() == ErrorKind::NotFound => false,
             Err(_) => return None,
+        };
+        let length = store_dir.entry(OsStr::new(DATABASE_FILE)).ok()?.len;
+        let database = database_key(store_key).ok()?;
+        for key in [&*database, store_key.expose()] {
+            let (probe, _) = open_connection(store_dir, DATABASE_OPEN).ok()?;
+            probe
+                .set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_was_there)
+                .ok()?;
+            probe.execute_batch(&key_pragma(key)).ok()?;
+            probe
+                .execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
+                .ok()?;
+            if pragma_int(&probe, "user_version").is_err() {
+                continue;
+            }
+            return match another_version(&probe, length) {
+                Err(e @ (StoreError::OlderStore { .. } | StoreError::NewerStore { .. })) => Some(e),
+                _ => None,
+            };
         }
-        let (probe, _) = open_connection(store_dir, PROBE_OPEN).ok()?;
-        probe.execute_batch(&key_pragma(store_key.expose())).ok()?;
-        let found = pragma_int(&probe, "user_version").ok()?;
-        (found < DATABASE_VERSION).then_some(StoreError::OlderStore {
-            found,
-            supported: DATABASE_VERSION,
-        })
+        None
     }
 
     fn require_file(store_dir: &Dir) -> StoreResult<()> {
@@ -1495,10 +1508,17 @@ impl Db {
             Self::require_file(store_dir)?;
         }
         halvo_sqlcipher::initialize().map_err(|code| code_answer(Some(code)))?;
-        let log_was_there = match store_dir.entry(OsStr::new(DATABASE_LOG)) {
-            Ok(_) => true,
-            Err(e) if e.kind() == ErrorKind::NotFound => false,
+        let (log_was_there, log_holds_frames) = match store_dir.entry(OsStr::new(DATABASE_LOG)) {
+            Ok(entry) => (true, entry.len > 0),
+            Err(e) if e.kind() == ErrorKind::NotFound => (false, false),
             Err(e) => return Err(io_error(e)),
+        };
+        let whole_length = match database {
+            Database::Existing if !log_holds_frames => store_dir
+                .entry(OsStr::new(DATABASE_FILE))
+                .map(|entry| entry.len)
+                .ok(),
+            _ => None,
         };
         if database == Database::New {
             store_dir
@@ -1506,7 +1526,7 @@ impl Db {
                 .map_err(io_error)?;
         }
         let (conn, (name_form, volume_ids)) = open_database(store_dir, DATABASE_OPEN)?;
-        let set_up = Self::set_up(&conn, key, database, log_was_there);
+        let set_up = Self::set_up(&conn, key, database, log_was_there, whole_length);
         #[cfg(test)]
         failpoint::seam(SEAM_AFTER_THE_FIRST_READ);
         held_look(&conn, store_dir, name_form)?;
@@ -1536,6 +1556,7 @@ impl Db {
         key: &[u8; 32],
         database: Database,
         log_was_there: bool,
+        whole_length: Option<u64>,
     ) -> StoreResult<()> {
         conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_was_there)
             .map_err(db_error)?;
@@ -1547,7 +1568,10 @@ impl Db {
         failpoint::seam(SEAM_BEFORE_THE_FIRST_READ);
         verify_key(conn)?;
         if database == Database::Existing {
-            known_version(pragma_int(conn, "user_version")?, DATABASE_VERSION)?;
+            match whole_length {
+                Some(length) => another_version(conn, length)?,
+                None => known_version(pragma_int(conn, "user_version")?, DATABASE_VERSION)?,
+            }
         }
         conn.execute_batch(
             "PRAGMA secure_delete = ON;\n\
@@ -1913,20 +1937,47 @@ fn setting_in_effect(name: &'static str, read: i64, wanted: i64) -> StoreResult<
     }
 }
 
-fn require_setting(conn: &Connection, name: &'static str, wanted: i64) -> StoreResult<()> {
-    let read = conn
-        .query_row(&format!("PRAGMA {name}"), [], |r| {
-            Ok(match r.get::<_, rusqlite::types::Value>(0)? {
-                rusqlite::types::Value::Integer(n) => Some(n),
-                rusqlite::types::Value::Text(text) => text.trim().parse().ok(),
-                _ => None,
-            })
+fn pragma_number(conn: &Connection, name: &str) -> rusqlite::Result<Option<i64>> {
+    conn.query_row(&format!("PRAGMA {name}"), [], |r| {
+        Ok(match r.get::<_, rusqlite::types::Value>(0)? {
+            rusqlite::types::Value::Integer(n) => Some(n),
+            rusqlite::types::Value::Text(text) => text.trim().parse().ok(),
+            _ => None,
         })
-        .map_err(db_error)?;
-    match read {
+    })
+}
+
+fn require_setting(conn: &Connection, name: &'static str, wanted: i64) -> StoreResult<()> {
+    match pragma_number(conn, name).map_err(db_error)? {
         Some(read) => setting_in_effect(name, read, wanted),
         None => Err(StoreError::SettingNotInEffect(name)),
     }
+}
+
+fn require_whole(conn: &Connection, length: u64) -> StoreResult<()> {
+    match pragma_number(conn, "page_size").map_err(unreadable_or_db_error)? {
+        Some(size) if size > 0 && length > 0 && length % size as u64 == 0 => Ok(()),
+        _ => Err(StoreError::DatabaseUnreadable),
+    }
+}
+
+fn holds_the_key_table(conn: &Connection) -> StoreResult<bool> {
+    conn.query_row(
+        "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'segment_keys'",
+        [],
+        |r| r.get::<_, i64>(0),
+    )
+    .map(|count| count == 1)
+    .map_err(unreadable_or_db_error)
+}
+
+fn another_version(conn: &Connection, length: u64) -> StoreResult<()> {
+    let found = pragma_int(conn, "user_version").map_err(|_| StoreError::DatabaseUnreadable)?;
+    require_whole(conn, length)?;
+    if found < DATABASE_VERSION && !holds_the_key_table(conn)? {
+        return Err(StoreError::DatabaseUnreadable);
+    }
+    known_version(found, DATABASE_VERSION)
 }
 
 fn require_secure_delete(conn: &Connection) -> StoreResult<()> {
@@ -2425,7 +2476,17 @@ impl EncryptedStore {
     /// `store.db` is missing or empty, before any custody call, and
     /// [`StoreError::DatabaseUnreadable`] when the unwrapped key does not open
     /// the database: a key of another store, a damaged page, a cut file, or a
-    /// database without the store's tables. Fails
+    /// database without the store's tables. A version is believed only from a
+    /// `store.db` that the store's key, or the database key derived from it,
+    /// opens and that is whole (no shorter than its header says, which SQLite
+    /// itself refuses at the first read, and a whole number of its pages long,
+    /// read while no log with frames stands): a version above this
+    /// build's answers [`StoreError::NewerStore`] whatever its schema holds, a
+    /// version below answers [`StoreError::OlderStore`] when the database
+    /// holds the table `segment_keys` and `DatabaseUnreadable` when it does
+    /// not, and a cut file answers `DatabaseUnreadable` whatever its version.
+    /// A refused open of another version leaves every entry of the store's
+    /// directory with its name, length and bytes. Fails
     /// [`StoreError::KeyFileUnparseable`] for a key file that does not parse or
     /// whose wrapped key has another length than a wrap,
     /// [`StoreError::KeyFileOfAnotherLabel`] for a key file of another label,
@@ -2494,7 +2555,7 @@ impl EncryptedStore {
         let unwrap_time = started.elapsed();
         let db = match Db::open_existing(&store, &*database_key(&store_key)?) {
             Err(StoreError::DatabaseUnreadable) => {
-                return Err(Db::older_version_of(&store, &store_key)
+                return Err(Db::another_version_of(&store, &store_key)
                     .unwrap_or(StoreError::DatabaseUnreadable))
             }
             opened => opened?,
