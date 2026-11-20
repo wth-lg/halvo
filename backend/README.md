@@ -329,10 +329,11 @@ which vitest sends KILL to a fork that it stops; a group whose owner gets KILL, 
 of the same checkout, and for good if none follows; one unmarked group when a KILL comes between
 the spawn and the first write of its mark; a group whose leader is gone while other processes
 keep its id, which the sweep and `endGroup` leave with a line (a group whose leader died before a
-test calls `endGroup` is left to the sweep); a group marked under a test's own
-`HALVO_GROUP_MARKS` directory, which no sweep reads; and the servers that
-`test/ledger/gateway-chat.node.test.ts`, `test/metering/stripe-meter-load.node.test.ts` and
-`test/billing/servers.ts` start outside the kit, which end only with the processes that own them.
+test calls `endGroup` is left to the sweep); and a group marked under a test's own
+`HALVO_GROUP_MARKS` directory, which no sweep reads. The kit signals a group only after it has
+read the pid and start time of the group's leader, with one exception: when `startGroup` cannot
+read ps after a start fails, it sends KILL to the group of the child that it has just spawned and
+still holds, before node can reap that child, so that no other process can have its pid.
 The sweep ends a group only by a mark of this checkout whose leader started at or after the mark's
 owner; a mark that a person writes by hand in the checkout's own marks directory, naming a leader
 that started after a dead owner, is trusted. Nothing empties `backend/.tmp/`: each run of the node
