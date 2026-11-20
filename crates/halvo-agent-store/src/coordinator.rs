@@ -64,6 +64,8 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   Else, in one commit, the run's record with the outcome `failed`, the mode null, every count 0, no playbook and
 ///   no model, on the request's day, and the moves of the run's end as `runner` makes them for `finish`. It answers
 ///   `{"ok":"yes"}`.
+/// - `list_overlaps`: not served yet. It is answered `malformed`, as the store answered the body before the schema
+///   read it, and it stores nothing and changes no state.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -78,6 +80,7 @@ pub fn coordinator(
         CoordinatorCall::AddOrigin(b) => bindings::add_origin(host, &b),
         CoordinatorCall::ListCheckpoints(b) => checkpoint::list(&*host, &b),
         CoordinatorCall::MarkCheckpoint(b) => checkpoint::mark(host, now, &b),
+        CoordinatorCall::ListOverlaps(_) => Err(ErrorName::Malformed),
     }
 }
 
