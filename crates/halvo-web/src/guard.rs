@@ -1767,7 +1767,12 @@ mod tests {
         }
     }
 
+    const RC_UNMARKED: u32 = 999_997;
+    const RC_STRANGER: u32 = 999_996;
+    const RC_EARLY: u32 = 999_995;
+
     thread_local! {
+        static RC_SCENE: Cell<u8> = const { Cell::new(0) };
         static RC_CLOCK: Cell<u64> = const { Cell::new(0) };
         static RC_BASE: std::time::Instant = std::time::Instant::now();
         static RC_OPENED: RefCell<Vec<(u32, u64)>> = const { RefCell::new(Vec::new()) };
@@ -1775,7 +1780,7 @@ mod tests {
         static RC_ENDS: RefCell<Ends> = const { RefCell::new(Vec::new()) };
         static RC_WRITES: RefCell<Vec<(std::path::PathBuf, String)>> =
             const { RefCell::new(Vec::new()) };
-        static RC_SLEEPS: RefCell<Vec<Duration>> = const { RefCell::new(Vec::new()) };
+        static RC_SLEEPS: RefCell<Vec<(u64, Duration)>> = const { RefCell::new(Vec::new()) };
         static RC_FENCE: Fence = const {
             Fence {
                 admit: (ROOT, 7),
@@ -1796,24 +1801,51 @@ mod tests {
             r.set(r.get() + 1);
             r.get()
         });
-        assert!(reads < 20_000, "the guard reads on without end");
+        assert!(reads < 40_000, "the guard reads on without end");
+        let scene = RC_SCENE.with(Cell::get);
+        if scene == 1 && RC_CLOCK.with(Cell::get) < 2_000 {
+            return Err(std::io::Error::other("the stand-in table is unread"));
+        }
+        let ends = RC_ENDS.with(|e| e.borrow().clone());
+        let gone = match scene {
+            2 => !ends.is_empty(),
+            4 => false,
+            _ => forced(&ends, ROOT).is_some(),
+        };
         let mut v = vec![stranger(5, 1, 50, 5)];
-        if RC_ENDS.with(|e| forced(&e.borrow(), ROOT).is_none()) {
+        if scene == 0 {
+            v.push(row(RC_EARLY, ROOT, 3, 0));
+        }
+        if !gone {
             v.push(row(ROOT, 1, 7, ROOT));
+            if scene == 0 {
+                v.push(row(RC_UNMARKED, ROOT, 8, ROOT));
+                v.push(stranger(RC_STRANGER, ROOT, 9, ROOT));
+            }
         }
         Ok(v)
     }
 
+    fn rc_args(pid: u32) -> Option<Vec<String>> {
+        let unmarked = pid == RC_UNMARKED || pid == ROOT && RC_SCENE.with(Cell::get) == 4;
+        Some(if unmarked {
+            vec![BUNDLE_EXE.to_string(), "--type=renderer".to_string()]
+        } else {
+            vec![BUNDLE_EXE.to_string(), "--user-data-dir=/p".to_string()]
+        })
+    }
+
     fn rc_end(p: &Proc, force: bool) -> bool {
+        let sent = force || RC_SCENE.with(Cell::get) != 3;
         RC_FENCE.with(|f| {
             f.pass(p, force, &|p, force| {
                 println!(
-                    "recorder would_end pid={} started_us={} force={force}",
+                    "recorder would_end pid={} started_us={} force={force} sent={sent}",
                     p.pid, p.started_us
                 );
                 let at = u128::from(RC_CLOCK.with(Cell::get));
                 RC_ENDS.with(|e| e.borrow_mut().push((p.pid, force, at)));
-                true
+                sent
             })
         })
     }
@@ -1835,28 +1867,14 @@ mod tests {
     }
 
     fn rc_sleep(d: Duration) {
-        RC_SLEEPS.with(|s| s.borrow_mut().push(d));
+        let at = RC_CLOCK.with(Cell::get);
+        RC_SLEEPS.with(|s| s.borrow_mut().push((at, d)));
         let ms = u64::try_from(d.as_millis()).expect("a pause in ms");
-        RC_CLOCK.with(|c| c.set(c.get() + ms));
+        RC_CLOCK.with(|c| c.set(at + ms));
     }
 
-    /// U2.6 round 2, row c, failing first (in the place of round 1's R4 test, whose rules it
-    /// holds), and U2.6b, pr-review-51 N8: `guard_main`'s loop (`run_guard`) runs on its parts
-    /// alone and opens the read of its executor's end itself, once, with the executor's number and
-    /// creation time of the arguments (5 and 50, where the browser's first process is 999999 begun
-    /// at 7), and reads the executor's end from that read and from nothing else. Stand-in parts:
-    /// tables in which the browser's first process runs until it is forced and the executor's row
-    /// stands at every read; an opener that records the numbers it is given (`ClockWatch`); every
-    /// process's arguments bearing the run's profile; an ask and a forced end through the fence of
-    /// CP-161 F1 to a recorder that writes the number and the creation time it would have ended
-    /// (CP-214); a write of the record, a clock and a sleep that record what they get. The first
-    /// ask comes from the ask after the watch's end and `GRACE`, the forced end from the forced
-    /// end `TERM_WAIT` later, nothing else is asked or ended, every pause after a read of the table
-    /// is `POLL`, and the record goes to the file of the arguments with `ended_by=guard` and the
-    /// cause `tree_gone` last. `guard_main` runs on `SYSTEM`, whose parts are the functions of
-    /// `procs`, `checks` and this module by name, and whose clock and sleep keep time.
-    #[test]
-    fn rc_run_guard_opens_the_watch_of_its_executor_and_reads_its_end_from_it() {
+    fn rc_scene(scene: u8, argv: &[String]) -> i32 {
+        RC_SCENE.with(|s| s.set(scene));
         RC_CLOCK.with(|c| c.set(0));
         RC_READS.with(|r| r.set(0));
         RC_OPENED.with(|o| o.borrow_mut().clear());
@@ -1866,13 +1884,49 @@ mod tests {
         let parts = GuardParts {
             open: rc_open,
             table: rc_table,
-            args: every_marked,
+            args: rc_args,
             ask_end: rc_ask,
             kill: rc_kill,
             write: rc_write,
             now: rc_now,
             sleep: rc_sleep,
         };
+        let code = run_guard(argv, &parts);
+        let writes = RC_WRITES.with(|w| w.borrow().clone());
+        println!(
+            "rc scene={scene} code={code} at_ms={} ends={:?} writes={} last={:?}",
+            RC_CLOCK.with(Cell::get),
+            RC_ENDS.with(|e| e.borrow().clone()),
+            writes.len(),
+            writes.last().map(|w| &w.1)
+        );
+        assert!(RC_FENCE.with(|f| f.refused.borrow().is_empty()));
+        code
+    }
+
+    /// U2.6 round 2, row c, failing first (in the place of round 1's R4 test, whose rules it
+    /// holds), U2.6b, pr-review-51 N8, and U2.6b round 2, R7: `guard_main`'s loop (`run_guard`)
+    /// runs on its parts alone and opens the read of its executor's end itself, once, with the
+    /// executor's number and creation time of the arguments (5 and 50, where the browser's first
+    /// process is 999999 begun at 7), and reads the executor's end from that read and from nothing
+    /// else. Stand-in parts: an opener that records the numbers it is given (`ClockWatch`); a table,
+    /// arguments, an ask and a forced end, a write of the record, a clock and a sleep that record
+    /// what they get, every end through the fence of CP-161 F1 to a recorder that writes the number
+    /// and the creation time it would have ended (CP-214). Five scenes. 0: beside the first process
+    /// a child without the run's profile, a child of a program outside the bundle, and a process of
+    /// the bundle that began before the first; the first is asked after the watch's end and `GRACE`
+    /// and ended by force `TERM_WAIT` later, the two children are left and named at the act, and
+    /// nothing else is asked or ended; every pause is `POLL`; the record goes to the file of the
+    /// arguments and its last line counts the ask and the forced end. 1: a table unread for the
+    /// first 2,000 ms: each pause before then is `UNREAD_PAUSE`, and the ask comes as in 0. 2: the
+    /// browser ends at the ask: the last line counts one ask and no forced end. 3: an ask that sends
+    /// nothing: the last line counts no ask and one forced end. 4: a first process without the
+    /// mark: nothing is asked or ended, the first line names the member left with `ended_by=none`,
+    /// and the guard leaves at the cap. `guard_main` runs on `SYSTEM`, whose parts are the
+    /// functions of `procs`, `checks` and this module by name, and whose sleep of `POLL` is at
+    /// least `POLL` and, the least of five, under ten times `POLL`.
+    #[test]
+    fn rc_run_guard_opens_the_watch_of_its_executor_and_reads_its_end_from_it() {
         let argv: Vec<String> = [
             "999999",
             "7",
@@ -1885,24 +1939,34 @@ mod tests {
         .iter()
         .map(|a| a.to_string())
         .collect();
-        assert_eq!(run_guard(&argv[..4], &parts), 2);
-        let code = run_guard(&argv, &parts);
+        RC_SCENE.with(|s| s.set(0));
+        let refused = GuardParts {
+            open: rc_open,
+            table: rc_table,
+            args: rc_args,
+            ask_end: rc_ask,
+            kill: rc_kill,
+            write: rc_write,
+            now: rc_now,
+            sleep: rc_sleep,
+        };
+        assert_eq!(run_guard(&argv[..4], &refused), 2);
+
+        assert_eq!(rc_scene(0, &argv), 0);
         assert_eq!(
             RC_OPENED.with(|o| o.borrow().clone()),
             vec![(5, 50)],
             "the numbers the watch was opened with"
         );
-        assert_eq!(code, 0);
         let ends = RC_ENDS.with(|e| e.borrow().clone());
         let asked = ends.iter().find(|e| !e.1).expect("asked").2;
         let forced_at = forced(&ends, ROOT).expect("forced");
         assert!((8_000..8_100).contains(&asked), "asked at {asked} ms");
         assert!(forced_at >= asked + 2_000, "forced at {forced_at} ms");
         assert!(ends.iter().all(|e| e.0 == ROOT), "{ends:?}");
-        assert!(RC_FENCE.with(|f| f.refused.borrow().is_empty()));
         let sleeps = RC_SLEEPS.with(|s| s.borrow().clone());
         assert!(
-            !sleeps.is_empty() && sleeps.iter().all(|d| *d == POLL),
+            !sleeps.is_empty() && sleeps.iter().all(|s| s.1 == POLL),
             "{sleeps:?}"
         );
         let writes = RC_WRITES.with(|w| w.borrow().clone());
@@ -1912,11 +1976,72 @@ mod tests {
                 .all(|(p, _)| p == std::path::Path::new("/r/record")),
             "{writes:?}"
         );
+        assert!(
+            writes.iter().any(|(_, w)| w.starts_with("ended_by=guard ")
+                && w.contains(" asked=1 forced=0 ")
+                && w.contains(" left=2 ")
+                && w.ends_with(" cause=act")),
+            "{writes:?}"
+        );
         let last = &writes.last().expect("the record was written").1;
         assert!(
-            last.starts_with("ended_by=guard ") && last.ends_with(" cause=tree_gone"),
+            last.starts_with("ended_by=guard ")
+                && last.contains(" asked=1 forced=1 ")
+                && last.ends_with(" cause=tree_gone"),
             "{last}"
         );
+
+        assert_eq!(rc_scene(1, &argv), 0);
+        let asked = RC_ENDS.with(|e| e.borrow().iter().find(|e| !e.1).map(|e| e.2));
+        assert!(
+            asked.is_some_and(|a| (8_000..8_100).contains(&a)),
+            "asked at {asked:?} ms"
+        );
+        let early: Vec<Duration> = RC_SLEEPS.with(|s| {
+            s.borrow()
+                .iter()
+                .filter(|s| s.0 < 2_000)
+                .map(|s| s.1)
+                .collect()
+        });
+        assert!(
+            !early.is_empty() && early.iter().all(|d| *d == UNREAD_PAUSE),
+            "{early:?}"
+        );
+
+        assert_eq!(rc_scene(2, &argv), 0);
+        let last = RC_WRITES.with(|w| w.borrow().last().map(|w| w.1.clone()));
+        assert!(
+            last.as_deref().is_some_and(
+                |l| l.starts_with("ended_by=guard ") && l.contains(" asked=1 forced=0 ")
+            ),
+            "{last:?}"
+        );
+
+        assert_eq!(rc_scene(3, &argv), 0);
+        let last = RC_WRITES.with(|w| w.borrow().last().map(|w| w.1.clone()));
+        assert!(
+            last.as_deref().is_some_and(
+                |l| l.starts_with("ended_by=guard ") && l.contains(" asked=0 forced=1 ")
+            ),
+            "{last:?}"
+        );
+
+        assert_eq!(rc_scene(4, &argv), 4);
+        assert!(RC_ENDS.with(|e| e.borrow().is_empty()));
+        let writes = RC_WRITES.with(|w| w.borrow().clone());
+        let first = &writes.first().expect("a record at the act").1;
+        assert!(
+            first.starts_with("ended_by=none ") && first.contains(" left=1 "),
+            "{first}"
+        );
+        assert!(
+            writes
+                .last()
+                .is_some_and(|w| w.1.ends_with(" cause=left_unmarked")),
+            "{writes:?}"
+        );
+
         assert!(std::ptr::fn_addr_eq(
             SYSTEM.open,
             procs::ExecutorWatch::open as fn(u32, u64) -> procs::ExecutorWatch
@@ -1941,9 +2066,16 @@ mod tests {
             SYSTEM.write,
             write_record as fn(&std::path::Path, &GuardAct)
         ));
-        let before = (SYSTEM.now)();
-        (SYSTEM.sleep)(Duration::from_millis(5));
-        assert!((SYSTEM.now)().duration_since(before) >= Duration::from_millis(5));
+        let samples: Vec<Duration> = (0..5)
+            .map(|_| {
+                let before = (SYSTEM.now)();
+                (SYSTEM.sleep)(POLL);
+                (SYSTEM.now)().duration_since(before)
+            })
+            .collect();
+        let least = samples.iter().min().copied().expect("five samples");
+        println!("rc system_sleep_poll={samples:?}");
+        assert!(least >= POLL && least < POLL * 10, "{samples:?}");
     }
 
     #[test]
