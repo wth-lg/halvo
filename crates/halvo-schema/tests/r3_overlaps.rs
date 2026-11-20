@@ -180,6 +180,43 @@ fn list_call(slots: &str) -> CoordinatorCall {
     CoordinatorCall::parse(body(slots).as_bytes()).unwrap()
 }
 
+fn refused_whole(entries: &[(String, String, Vec<&str>)], type_name: &str, rule: &str, key: &str) {
+    let texts: Vec<String> = entries.iter().map(|(w, a, s)| entry_of(w, a, s)).collect();
+    let text = reply_of(&texts, "no");
+    expect(
+        CoordinatorReply::parse(text.as_bytes()),
+        type_name,
+        rule,
+        key,
+    );
+    expect(OverlapsReply::parse(text.as_bytes()), type_name, rule, key);
+    let through_serde = serde_json::from_str::<CoordinatorReply>(&text)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        through_serde.contains(&format!("malformed: {type_name}: {key}: {rule}")),
+        "{through_serde}"
+    );
+    let typed = OverlapsReply {
+        overlaps: entries
+            .iter()
+            .map(|(w, a, s)| Overlap {
+                workflow: WorkflowId::parse(w).unwrap(),
+                agent: AgentId::parse(a).unwrap(),
+                senders: s.iter().map(|x| OwnText::parse(x).unwrap()).collect(),
+            })
+            .collect(),
+        more: YesNo::No,
+    };
+    expect(typed.to_json(), type_name, rule, key);
+    expect(
+        CoordinatorReply::Overlaps(typed).to_json(),
+        type_name,
+        rule,
+        key,
+    );
+}
+
 #[test]
 fn a_reply_of_16_entries_reads_with_more_yes_and_with_more_no() {
     let call = list_call("null");
@@ -254,6 +291,12 @@ fn a_reply_that_names_an_agent_twice_is_refused() {
         "repeated_name",
         "overlaps",
     );
+    let apart = [
+        (other_workflow(1), other_agent(1), vec!["ann@people.test"]),
+        (other_workflow(2), other_agent(2), vec!["ann@people.test"]),
+        (other_workflow(3), other_agent(1), vec!["ann@people.test"]),
+    ];
+    refused_whole(&apart, "OverlapsReply", "repeated_name", "overlaps");
 }
 
 #[test]
