@@ -119,16 +119,26 @@ const WHEEL_FLAGS: u16 = (RI_MOUSE_WHEEL | RI_MOUSE_HWHEEL) as u16;
 /// before the sample, and leaves with the buttons that are down after it.
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn pointer_parts(held: &mut u8, moved: bool, button_flags: u16) -> PointerParts {
-    let _ = (BUTTON_FLAGS, WHEEL_FLAGS, *held);
-    let mut parts = PointerParts::default();
-    if button_flags == 0 {
-        parts.motion = moved.then_some(FoldClass::Move);
-    } else if button_went_down(button_flags) {
-        parts.presses[0] = Some(Button::Primary);
+    let motion = moved.then_some(if *held != 0 {
+        FoldClass::Drag
     } else {
-        parts.scroll = true;
+        FoldClass::Move
+    });
+    let mut presses = [None; 5];
+    for (index, (down, up, button)) in BUTTON_FLAGS.into_iter().enumerate() {
+        if button_flags & down != 0 {
+            presses[index] = Some(button);
+            *held |= 1 << index;
+        }
+        if button_flags & up != 0 {
+            *held &= !(1 << index);
+        }
     }
-    parts
+    PointerParts {
+        motion,
+        presses,
+        scroll: button_flags & WHEEL_FLAGS != 0,
+    }
 }
 
 #[derive(Debug)]
