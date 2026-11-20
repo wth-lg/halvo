@@ -2192,13 +2192,41 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
     own_not_run tmpdir-flagged-immutable-cannot-be-removed 'no chflags on this host'
   fi
   term_child='( trap ": >\"\$CI_D_REPO/child-got-term\"; exit 0" TERM; sleep 60 & wait ) & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
-  new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; $term_child; trap '' TERM; sleep 60 & printf '%s\\n%s\\n' \"\$\$\" \"\$!\" >>\"\$CI_D_REPO/pids\"; wait; printf 'PASS 10-a\\n'" &&
+  limit_date='if [ "$1" = +%s ]; then
+  if [ -e clock-read-ready ]; then
+    echo 5
+  else
+    [ ! -e limit-ready ] || : >clock-read-ready
+    echo 0
+  fi
+  exit 0
+fi'
+  mkdir -p "$tmp/limit-clock" &&
+    cp "$tmp/slow-sleep/sleep" "$tmp/limit-clock/sleep" &&
+    printf '#!/bin/sh\n%s\nexec "%s" "$@"\n' "$limit_date" "$real_date" >"$tmp/limit-clock/date" &&
+    chmod +x "$tmp/limit-clock/date" || return 1
+  limit_child='on_term() { : >child-got-term; exit 0; }
+( trap on_term TERM; : >child-ready; sleep 60 & wait ) &
+printf "%s\n" "$!" >>pids
+trap "" TERM
+sleep 60 &
+printf "%s\n%s\n" "$$" "$!" >>pids
+n=0
+while [ ! -e child-ready ]; do
+  [ "$n" -lt 100 ] || exit 1
+  sleep 0.1
+  n=$((n + 1))
+done
+: >limit-ready
+wait
+printf "PASS 10-a\n"'
+  new_repo && add_script r1 10-a.sh "$good" "me=10-a; $leaves; $limit_child" &&
     add_script r1 20-b.sh "$good" "$pass_b"
   case_gone=1
   case_made=child-got-term
   case_limit=5
   case_max_s=40
-  case_path=$tmp/slow-sleep
+  case_path=$tmp/limit-clock
   case_first='FAIL 10-a (time limit 5 s)'
   case_then='PASS 20-b'
   own_case script-that-ignores-term-past-its-limit 1 'FAIL 10-a (time limit 5 s)' macos
@@ -2344,10 +2372,34 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
   case_jobs=2
   case_max_s=25
   own_case child-that-a-self-test-leaves-is-ended-at-the-end-of-the-step 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
-  ends_together='case $me in 10-a) other=20-b ;; *) other=10-a ;; esac; ( trap "t=\$CI_D_REPO/term; : >\"\$t.\$me\"; n=0; while [ ! -e \"\$t.\$other\" ] && [ \$n -lt 30 ]; do sleep 0.1; n=\$((n + 1)); done; [ ! -e \"\$t.\$other\" ] || : >\"\$CI_D_REPO/met.\$me\"; exit 0" TERM; sleep 60 & wait ) >/dev/null 2>&1 & printf "%s\n" "$!" >>"$CI_D_REPO/pids"'
+  group_call='if [ "$#" -eq 4 ] && [ "$1" = -e ] && [ "$3" = 50 ]; then
+  echo "group cleanup call"
+  (
+    set -f
+    set -- $4
+    [ "$#" -eq 2 ] && read -r a <group.10-a && read -r b <group.20-b &&
+      [ "$a" != "$b" ] && { [ "$1 $2" = "$a $b" ] || [ "$2 $1" = "$a $b" ]; }
+  ) || echo "group cleanup arguments differ"
+fi'
+  mkdir -p "$tmp/group-calls" &&
+    printf '#!/bin/sh\n%s\nexec "%s" "$@"\n' "$group_call" "$perl_bin" >"$tmp/group-calls/perl" &&
+    chmod +x "$tmp/group-calls/perl" || return 1
+  ends_together='
+    case $me in 10-a) other=20-b ;; *) other=10-a ;; esac
+    record_term() {
+      : >"term.$me"
+      [ ! -e "term.$other" ] || : >both-got-term
+    }
+    perl -e "print getpgrp(0), qq(\n)" >"group.$me" || exit 1
+    ( trap "record_term; exit 0" TERM; : >"ready.$me"; sleep 60 & wait ) >/dev/null 2>&1 &
+    printf "%s\n" "$!" >>pids
+    w "ready.$me" || exit 1'
   new_repo && add_script r1 10-a.sh "$good" "$prelude; $ends_together; $passes" && add_script r1 20-b.sh "$good" "$prelude; $ends_together; $passes"
   case_jobs=2
-  case_made=met.10-a
+  case_made=both-got-term
+  case_once='group cleanup call'
+  case_absent='group cleanup arguments differ'
+  case_path=$tmp/group-calls
   case_max_s=40
   case_witness=yes
   own_case groups-that-two-self-tests-left-are-ended-by-one-process 0 'ci.d macos self-test: 2 passed, 0 failed' macos --self-test 10-a 20-b
@@ -3004,12 +3056,13 @@ file-system-that-folds-case:run-directory-renamed-by-case-alone-stays-refused
     case_signal_min=4
     own_case "step-interrupted-by-${signal%:*}" "${signal#*:}" "FAIL run-ci-d (the step was interrupted by ${signal%:*}; every self-test that it started is ended)" macos --self-test 10-a 20-b
   done
-  new_repo && add_script r1 10-a.sh "$good" "$prelude; ( set -- start.20-b; $late_wait; printf 'late detail of %s on stderr\\n' \"\$me\" >&2; : >\"\$CI_D_REPO/late-written\" ) >/dev/null & $passes" &&
-    add_script r1 20-b.sh "$good" "$prelude; $starts; set -- late-written; $late_wait; [ -e \"\$CI_D_REPO/late-written\" ] || exit 1; $passes"
+  new_repo && add_script r1 10-a.sh "$good" "$prelude; ( set -- start.30-c; $late_wait; [ -e \"\$CI_D_REPO/start.30-c\" ] || exit 1; printf 'late detail of %s on stderr\\n' \"\$me\" >&2; : >\"\$CI_D_REPO/late-written\" ) >/dev/null & $passes" &&
+    add_script r1 20-b.sh "$good" "$prelude; $passes" &&
+    add_script r1 30-c.sh "$good" "$prelude; $starts; set -- late-written; $late_wait; [ -e \"\$CI_D_REPO/late-written\" ] || exit 1; $passes"
   case_jobs=1
   case_first="standard error of 10-a after it was printed:${nl}late detail of 10-a on stderr"
-  case_then='ci.d macos self-test: 2 passed, 0 failed'
-  own_case standard-error-written-after-the-print 0 'late detail of 10-a on stderr' macos --self-test 10-a 20-b
+  case_then='ci.d macos self-test: 3 passed, 0 failed'
+  own_case standard-error-written-after-the-print 0 'late detail of 10-a on stderr' macos --self-test 10-a 20-b 30-c
 
   own_list_case lists-of-the-macos-alone-cases-and-of-the-windows-rules
   own_finish
