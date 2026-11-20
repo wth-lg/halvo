@@ -15,6 +15,8 @@ pub mod checks;
 #[cfg(test)]
 mod child;
 pub mod crash_row;
+#[cfg(test)]
+mod fence_manifest;
 pub mod guard;
 pub mod peer;
 pub mod pipe;
@@ -241,12 +243,6 @@ mod tests {
         assert!(fenced(&format!("x\n  {FENCE}\n  Without,"), "Without,"));
     }
 
-    /// Whether a manifest's text names halvo-web and the feature `test-fence` together, as a
-    /// dependency on halvo-web with that feature would.
-    fn names_the_fence(manifest: &str) -> bool {
-        manifest.contains("halvo-web") && manifest.contains("test-fence")
-    }
-
     /// The manifests under `dir`, at any depth, but in a directory whose name begins with a dot or
     /// is `target` or `node_modules`.
     fn manifests(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -267,33 +263,25 @@ mod tests {
     }
 
     /// CP-186 N8, with the capture run's W3-8 (b) (2): no manifest of the repository but the
-    /// crate's own names halvo-web with the feature `test-fence`, so that no build for a person
-    /// turns the fence's means on through a dependency. Read lexically: a manifest that holds
-    /// both words is refused.
+    /// crate's own turns halvo-web's feature `test-fence` on, and the crate's own `default` does
+    /// not, so that no build for a person turns the fence's means on through a manifest. Each
+    /// manifest is read as cargo decodes it (`fence_manifest::naming_the_fence`, U2.6 round 1,
+    /// R3); the forms that it reads and its cases stand in that module.
     #[test]
     fn no_other_manifest_names_the_fence() {
-        assert!(names_the_fence(
-            "[dependencies]\nhalvo-web = { path = \"../halvo-web\", features = [\"test-fence\"] }\n"
-        ));
-        assert!(names_the_fence(
-            "[dependencies.halvo-web]\npath = \"../halvo-web\"\nfeatures = [\"test-fence\"]\n"
-        ));
-        assert!(!names_the_fence(
-            "[dev-dependencies]\nr3-web = { path = \".\", features = [\"test-fence\"] }\n"
-        ));
-        assert!(!names_the_fence(
-            "[dependencies]\nhalvo-web = { path = \"../halvo-web\" }\n"
-        ));
         let own = Path::new(env!("CARGO_MANIFEST_DIR"));
         let root = own.ancestors().nth(2).expect("the repository");
         let mut found = Vec::new();
         manifests(root, &mut found);
         assert!(found.len() > 10, "{found:?}");
-        let naming: Vec<&PathBuf> = found
-            .iter()
-            .filter(|m| m.parent() != Some(own))
-            .filter(|m| names_the_fence(&std::fs::read_to_string(m).unwrap_or_default()))
+        let files: Vec<(PathBuf, String)> = found
+            .into_iter()
+            .map(|m| {
+                let text = std::fs::read_to_string(&m).expect("a manifest");
+                (m, text)
+            })
             .collect();
+        let naming = crate::fence_manifest::naming_the_fence(&files, &own.join("Cargo.toml"));
         assert!(naming.is_empty(), "{naming:?}");
     }
 
