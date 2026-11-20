@@ -179,6 +179,8 @@ const SLEEPER = 'setInterval(() => {}, 1 << 30); console.log("held");';
 const STUBBORN = 'process.on("SIGTERM", () => {}); setInterval(() => {}, 1 << 30); console.log("held");';
 
 function exitOf(run: Group, ms: number): Promise<number | null | "still running"> {
+  const { exitCode, signalCode } = run.child as unknown as { exitCode: number | null; signalCode: string | null };
+  if (exitCode !== null || signalCode !== null) return Promise.resolve(exitCode);
   return Promise.race([new Promise<number | null>((resolve) => run.child.on("exit", (code) => resolve(code))), pause(ms).then(() => "still running" as const)]);
 }
 
