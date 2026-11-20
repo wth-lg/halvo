@@ -913,6 +913,31 @@ pub(in crate::store) mod code_seams {
         "the held look's question whether the file moved";
     pub(in crate::store) const CHECKPOINT_QUERY: &str =
         "the truncating checkpoint's query of checkpoint_truncate";
+    pub(in crate::store) const LOG_ENTRY_READ: &str = "the read of the log's entry in log_look";
+
+    thread_local! {
+        static FORCED_IO_AT: Cell<Option<(&'static str, std::io::ErrorKind)>> =
+            const { Cell::new(None) };
+    }
+
+    /// Makes the next read at `place` of this thread fail with `kind`, once;
+    /// `None` takes the forced failure back.
+    pub(in crate::store) fn force_io_at(place: &'static str, kind: Option<std::io::ErrorKind>) {
+        FORCED_IO_AT.with(|forced| forced.set(kind.map(|kind| (place, kind))));
+    }
+
+    pub(in crate::store) fn or_forced_io_at<T>(
+        place: &'static str,
+        result: std::io::Result<T>,
+    ) -> std::io::Result<T> {
+        FORCED_IO_AT.with(|forced| match forced.get() {
+            Some((at, kind)) if at == place => {
+                forced.set(None);
+                Err(std::io::Error::from(kind))
+            }
+            _ => result,
+        })
+    }
 
     thread_local! {
         static FORCED_AT: Cell<Option<(&'static str, i32)>> = const { Cell::new(None) };
@@ -1692,7 +1717,10 @@ impl Db {
     }
 
     fn log_look(&self) -> StoreResult<()> {
-        match self.store_dir.entry(&self.log_name) {
+        let entry = self.store_dir.entry(&self.log_name);
+        #[cfg(test)]
+        let entry = code_seams::or_forced_io_at(code_seams::LOG_ENTRY_READ, entry);
+        match entry {
             Ok(entry) if entry.kind == EntryKind::File && entry.len > 0 => Ok(()),
             Ok(entry) if entry.kind == EntryKind::Link => {
                 Err(obstructed(StoreName::Log, Met::Link))
