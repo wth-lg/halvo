@@ -104,7 +104,8 @@ fn an_open_whose_store_db_is_exchanged_before_the_drain_while_the_log_holds_fram
         "CREATE TABLE frames_alone(x); DROP TABLE frames_alone;",
     );
     let aside = dir.path().join("store-db-aside");
-    let seen: Rc<RefCell<Option<(Listed, Vec<u8>)>>> = Rc::new(RefCell::new(None));
+    type Seen = Option<(Listed, Vec<u8>)>;
+    let seen: Rc<RefCell<Seen>> = Rc::new(RefCell::new(None));
     let act = {
         let (store_dir, aside, seen) = (store_dir.clone(), aside.clone(), seen.clone());
         move || {
