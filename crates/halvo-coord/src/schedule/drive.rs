@@ -546,17 +546,26 @@ fn own(doing: &Doing, kind: OwnItemKind) -> Option<ItemId> {
 
 /// The queued start of the agent of member `i`, whose card the person skipped, leaves the queue
 /// in the same move with nothing stored, also where the skip is answered `stale` because the
-/// owner stored the start's answer with a lost acknowledgement (ruling RD-102 item 2): the agent
-/// whose start it dropped, or none.
+/// owner stored the start's answer with a lost acknowledgement (ruling RD-102 item 2), and the
+/// agent keeps an open item that the skip's own read brought (pr-review-36 N1): the agent whose
+/// start it dropped, or none.
 fn drop_skipped_start<C>(board: &mut Board<C>, i: usize) -> Vec<AgentId> {
+    if leave_queue(board, i) {
+        vec![board.members[i].facts.agent.clone()]
+    } else {
+        Vec::new()
+    }
+}
+
+fn leave_queue<C>(board: &mut Board<C>, i: usize) -> bool {
     let agent = board.members[i].facts.agent.clone();
     if !board.queue.remove(&agent) {
-        return Vec::new();
+        return false;
     }
-    if let Doing::Queued(_) = board.members[i].facts.doing {
-        board.members[i].facts.doing = Doing::Idle(None);
+    if let Doing::Queued(item) = &board.members[i].facts.doing {
+        board.members[i].facts.doing = Doing::Idle(item.clone());
     }
-    vec![agent]
+    true
 }
 
 fn without_item(doing: &Doing) -> Doing {
@@ -1912,11 +1921,7 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
 ) -> Report {
     let agent = board.members[i].facts.agent.clone();
     let mut report = Report::default();
-    if board.queue.remove(&agent) {
-        if let Doing::Queued(item) = &board.members[i].facts.doing {
-            board.members[i].facts.doing = Doing::Idle(item.clone());
-        }
-    }
+    leave_queue(board, i);
     let live = board
         .runs
         .iter()

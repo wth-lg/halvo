@@ -3306,3 +3306,65 @@ fn rd86_an_end_owed_in_this_life_keeps_its_values_and_counts_no_tick_after_the_r
         "the owed end is stored with what this life saw while the run stood on the board"
     );
 }
+
+fn queued_with_a_lost_acknowledgement(w: &mut World, n: usize) -> Report {
+    let from = w.ports.tried.borrow().len();
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let r = w.start(n);
+    w.ports.clear_refusals();
+    let refused: Vec<Vec<Event>> = w.ports.tried.borrow()[from..]
+        .iter()
+        .filter_map(|t| match (&t.call, &t.refused) {
+            (Call::Log(events), Some(_)) => Some(events.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(refused.len(), 1, "one body: {refused:?}");
+    w.ports.events.borrow_mut().extend(refused[0].clone());
+    r
+}
+
+#[test]
+fn u24e_a_stale_skip_of_a_queued_agent_keeps_the_open_check_that_its_read_brought() {
+    let mut w = world(&[person(), manual()]);
+    assert_eq!(w.tick().raised, vec![agent(0)]);
+    ok_run(&w.start(1));
+    let queued = queued_with_a_lost_acknowledgement(&mut w, 0);
+    assert_eq!(queued.answer, Ok(Answer::Queued));
+    assert!(
+        matches!(&w.facts(0).doing, Doing::Queued(Some(o)) if o.kind == OwnItemKind::Ready),
+        "the board still holds the ready item whose start the owner stored: {:?}",
+        w.facts(0).doing
+    );
+    let check = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x24e1)).unwrap();
+    stored_at_owner(
+        &mut w,
+        0,
+        What::ItemRaised {
+            item: check.clone(),
+            raised: Raised::Check(None),
+        },
+        false,
+    );
+    w.forget();
+    let skip = w.go(Move::Skip { agent: agent(0) });
+    assert_eq!(skip.answer, Err(Cause::Stale), "{skip:?}");
+    assert_eq!(
+        skip.dropped,
+        vec![agent(0)],
+        "the skip drops the queued start"
+    );
+    assert!(
+        !w.calls().iter().any(|c| c.contains("slot_skipped")),
+        "a stale skip stores nothing: {:?}",
+        w.calls()
+    );
+    assert!(
+        matches!(
+            &w.facts(0).doing,
+            Doing::Idle(Some(o)) if o.item == check && o.kind == OwnItemKind::Check
+        ),
+        "the board holds the open check that the skip's own read brought: {:?}",
+        w.facts(0).doing
+    );
+}
