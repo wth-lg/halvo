@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no system call that holds secure input in either built macOS executable as read by dyld_info regardless of build flags or the release profile environment (Windows has no import check), and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned.
+# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no system call that holds secure input in either built macOS executable as read by dyld_info regardless of build flags or the CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (Windows has no import check), and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the workspace manifest and Cargo configuration paths).
 set -u
 name=62-build
 forbidden_import=_EnableSecureEventInput
@@ -165,6 +165,50 @@ run_call() {
   "$@" >>"$CI_D_ARTIFACTS/build.txt" 2>&1
 }
 
+file_rules() {
+  git ls-files --error-unmatch -- Cargo.toml >/dev/null 2>&1 || fail "the workspace Cargo.toml must be tracked"
+  python=python3
+  if command -v python3.11 >/dev/null 2>&1; then python=python3.11; fi
+  found=$("$python" -I - 2>&1 <<'PY'
+import sys
+try:
+    import tomllib
+except ImportError:
+    sys.exit("reading Cargo.toml requires Python 3.11 or later")
+try:
+    with open("Cargo.toml", "rb") as manifest:
+        release = tomllib.load(manifest).get("profile", {}).get("release", {})
+    if release.get("debug-assertions") is not False:
+        sys.exit("Cargo.toml must set profile.release.debug-assertions to false")
+    for package, options in release.get("package", {}).items():
+        if options.get("debug-assertions") is True:
+            sys.exit(f"Cargo.toml enables release debug assertions for package {package}")
+except (OSError, ValueError, AttributeError) as error:
+    sys.exit(f"could not read the release profile in Cargo.toml: {error}")
+PY
+  ) || fail "$found"
+
+  set -- '.cargo/config' '.cargo/config.toml' '*/.cargo/config' '*/.cargo/config.toml'
+  untracked_configurations=$(git ls-files --others -- "$@") || fail "git ls-files failed"
+  tracked_configurations=$(git ls-files -- "$@") || fail "git ls-files failed"
+  found=$(cargo_config_defect "$untracked_configurations") || fail "$found"
+  while IFS= read -r configuration; do
+    [ -n "$configuration" ] || continue
+    found=$(cargo_config_defect '' "$configuration") || fail "$found"
+  done <<EOF
+$tracked_configurations
+EOF
+}
+
+rules() {
+  printf 'rules: workspace manifest and Cargo configuration paths only (binary imports require the macOS build)\n'
+  cd "${CI_D_REPO:-.}" || exit 2
+  root=$(git rev-parse --show-toplevel) || fail "no git checkout"
+  cd "$root" || exit 2
+  file_rules
+  printf 'PASS %s\n' "$name"
+}
+
 measure() {
   cd "$CI_D_REPO" || exit 2
   case $CI_D_JOB in
@@ -183,13 +227,7 @@ EOF
     printf 'SKIP %s (%s)\n' "$name" "$found"
     exit 77
   fi
-  configurations='.cargo/config .cargo/config.toml */.cargo/config */.cargo/config.toml'
-  # shellcheck disable=SC2086
-  untracked_configurations=$(git ls-files --others -- $configurations) || fail "git ls-files failed"
-  # shellcheck disable=SC2086
-  tracked_configurations=$(git ls-files -- $configurations) || fail "git ls-files failed"
-  # shellcheck disable=SC2086
-  found=$(cargo_config_defect "$untracked_configurations" $tracked_configurations) || fail "$found"
+  file_rules
   others=$(git ls-files --others -- src-tauri) || fail "git ls-files failed"
   # shellcheck disable=SC2086
   found=$(untracked_configuration_defect $others) || fail "$found"
@@ -456,6 +494,52 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   imports_case unreadable-import-list FAIL 'dyld_info returned no import table for halvo' "$work/halvo"
   imports_case import-tool-failed FAIL 'dyld_info could not read the imports of missing' "$work/missing"
 
+  rules_repo=$work/rules
+  mkdir -p "$rules_repo/crates/member" "$rules_repo/crates/member/.cargo" || exit 2
+  git init -q "$rules_repo" || exit 2
+  rules_case() {
+    answer=$(CI_D_REPO="$rules_repo" CI_D_JOB=rules sh "$0" --rules)
+    code=$?
+    case $answer in
+      'rules: workspace manifest and Cargo configuration paths only (binary imports require the macOS build)
+'*)
+        case $code:$answer in
+          0:*"PASS $name") got=PASS ;;
+          1:*"FAIL $name ($3"*) got=FAIL ;;
+          *) got="unexpected-exit-$code" ;;
+        esac ;;
+      *) got="unexpected-rules-output-$code" ;;
+    esac
+    verdict "$1" "$2" "$got"
+  }
+  root_manifest=$rules_repo/Cargo.toml
+  member_manifest=$rules_repo/crates/member/Cargo.toml
+  profile_off='[profile.release]
+debug-assertions = false'
+  need_profile='Cargo.toml must set profile.release.debug-assertions to false'
+  printf '%s\n' '[workspace]' 'members = ["crates/*"]' >"$root_manifest"
+  printf '%s\n' "$profile_off" >"$member_manifest"
+  git -C "$rules_repo" add -- Cargo.toml crates/member/Cargo.toml || exit 2
+  rules_case member-pin-without-root-pin FAIL "$need_profile"
+  printf '%s\n' '[profile.release]' 'debug-assertions = true' >"$root_manifest"
+  rules_case release-assertions-on FAIL "$need_profile"
+  printf '%s\n' '[profile.dev]' 'debug-assertions = false' >"$root_manifest"
+  rules_case other-profile-off FAIL "$need_profile"
+  printf '%s\n' '[workspace.metadata]' 'example = """' "$profile_off" '"""' >"$root_manifest"
+  rules_case profile-inside-string FAIL "$need_profile"
+  printf '%s\n' '[profile.release]' 'debug-assertions = "false"' >"$root_manifest"
+  rules_case release-assertions-string FAIL "$need_profile"
+  printf '%s\n' "$profile_off" '[profile.release.package.member]' 'debug-assertions = true' >"$root_manifest"
+  rules_case package-assertions-on FAIL 'Cargo.toml enables release debug assertions for package member'
+  printf '%s\n' "$profile_off" '[profile.release.package."*"]' 'debug-assertions = true' >"$root_manifest"
+  rules_case wildcard-assertions-on FAIL 'Cargo.toml enables release debug assertions for package *'
+  printf '%s\n' "$profile_off" '[profile.release.package.member]' 'debug-assertions = false' >"$root_manifest"
+  rules_case release-assertions-off PASS ''
+  printf '%s\n' '[profile.release]' 'debug-assertions = true' >"$rules_repo/crates/member/.cargo/config"
+  rules_case untracked-configuration-in-rules FAIL 'the cargo configuration crates/member/.cargo/config is no tracked file'
+  git -C "$rules_repo" add -f -- crates/member/.cargo/config || exit 2
+  rules_case tracked-configuration-in-rules FAIL 'the cargo configuration crates/member/.cargo/config is tracked'
+
   for ref in tag:fresh branch:cached :cached; do
     got=$(build_root_for "${ref%:*}")
     if [ "$got" = "${ref#*:}" ]; then got=PASS; else got=FAIL; fi
@@ -471,6 +555,7 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
 
 case ${1:-} in
   --self-test) self_test ;;
+  --rules) rules ;;
   '') measure ;;
   *) exit 64 ;;
 esac
