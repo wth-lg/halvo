@@ -990,6 +990,18 @@ fn set_bindings_passes_where_no_live_agent_overlaps() {
         assert_eq!(rows(&store, "agent_bindings").len(), 1, "{why}");
         passes(&mut store, shared.clone());
     }
+
+    let mut store = created(&[1]);
+    other_agent(&mut store, 5, "active", shared.clone());
+    gone(&mut store, 5);
+    store.put_workflow(workflow(&wf(5), "email", "approved", None));
+    assert_eq!(rows(&store, "agent_bindings").len(), 1);
+    assert_eq!(set_bindings(&mut store, 1, shared.clone()), Ok(rev(1)));
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&[], "no"))
+    );
+    assert_eq!(move_to(&mut store, 1, "active"), Ok(state_reply("active")));
 }
 
 #[test]
