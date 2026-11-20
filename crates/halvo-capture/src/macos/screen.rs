@@ -2,7 +2,7 @@
 
 use std::ffi::c_void;
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicI64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
@@ -171,12 +171,14 @@ fn has_image(sample: &CMSampleBuffer) -> bool {
 }
 
 /// What the stream's own callbacks have told, shared with the source's health:
-/// the last impairment of the frames, the stop code of the delegate, and
-/// whether the current filter lists Halvo's app.
+/// the last impairment of the frames, the stop that the delegate reported, and
+/// whether the current filter lists Halvo's app. The report is held under the
+/// lock `stop`, which the delegate writes under and under which `shutdown`
+/// reads it before it would ask the stream to stop.
 #[derive(Default)]
 struct StreamFacts {
     condition: AtomicU8,
-    stop_code: AtomicI64,
+    stop: Mutex<i64>,
     lists_app: AtomicU8,
     listed: Mutex<Vec<libc::pid_t>>,
 }
@@ -200,7 +202,16 @@ impl StreamFacts {
     }
 
     fn stopped_with(&self, code: i64) {
-        self.stop_code.store(code, Ordering::SeqCst);
+        *self.stop.lock().unwrap_or_else(PoisonError::into_inner) = code;
+    }
+
+    /// The code of the stop that the delegate reported, read under the lock
+    /// that it writes under; None while it reported none.
+    fn report(&self) -> Option<i64> {
+        match *self.stop.lock().unwrap_or_else(PoisonError::into_inner) {
+            0 => None,
+            code => Some(code),
+        }
     }
 
     fn filter(&self, listed: Vec<libc::pid_t>, lists_app: bool) {
@@ -228,9 +239,8 @@ impl StreamFacts {
     }
 
     fn state(&self) -> SourceState {
-        match self.stop_code.load(Ordering::SeqCst) {
-            0 => {}
-            code => return stopped_by(code),
+        if let Some(code) = self.report() {
+            return stopped_by(code);
         }
         match self.condition.load(Ordering::Relaxed) {
             BLANK_FRAMES => SourceState::Impaired {
@@ -838,6 +848,7 @@ pub struct ScreenSource {
     rebuild: Option<Rebuild>,
     failure: Option<CaptureError>,
     unstopped: Option<CaptureError>,
+    reported: Option<i64>,
     off: bool,
     stopped: bool,
     #[cfg(test)]
@@ -859,6 +870,7 @@ impl ScreenSource {
             rebuild: None,
             failure: None,
             unstopped: None,
+            reported: None,
             off: false,
             stopped: false,
             #[cfg(test)]
@@ -869,9 +881,13 @@ impl ScreenSource {
 
     /// Whether the current filter of the stream lists Halvo's app, for the
     /// status field screen_filter_excludes_app (contract C10.2); `None` while no
-    /// stream runs, which is the answer while the switch screen_activity is off.
+    /// stream runs, which is the answer while the switch screen_activity is off
+    /// and from the stream's own report of a stop on.
     pub fn filter_excludes_app(&self) -> Option<bool> {
         self.stream.as_ref()?;
+        if self.facts.report().is_some() {
+            return None;
+        }
         self.facts.lists_app()
     }
 
@@ -912,6 +928,7 @@ impl ScreenSource {
                 self.queue = Some(queue);
                 self.rebuild = rebuild.map(Rebuild::start);
                 self.failure = None;
+                self.reported = None;
                 self.stopped = false;
                 Ok(Started::Running)
             }
@@ -1109,17 +1126,24 @@ impl CaptureSource for ScreenSource {
         if self.stream.is_none() {
             return self.unstopped.clone().map_or(Ok(()), Err);
         }
+        if let Some(code) = self.facts.report() {
+            self.stream = None;
+            self.reported = Some(code);
+            release(self.output.take(), self.queue.take());
+            return self.answered(Ok(()));
+        }
         let answer = self.stop_stream();
         self.answered(answer)
     }
 
     fn health(&self) -> SourceHealth {
-        let state = match (&self.stream, &self.failure) {
-            (Some(_), _) => self.facts.state(),
-            (None, Some(error)) => source_failure(error.clone()),
-            (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
-            (None, None) if self.off => SourceState::Off,
-            (None, None) => SourceState::NotReported,
+        let state = match (&self.stream, &self.failure, self.reported) {
+            (Some(_), _, _) => self.facts.state(),
+            (None, Some(error), _) => source_failure(error.clone()),
+            (None, None, Some(code)) => stopped_by(code),
+            (None, None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
+            (None, None, None) if self.off => SourceState::Off,
+            (None, None, None) => SourceState::NotReported,
         };
         let state = self.unstopped.clone().map_or(state, source_failure);
         SourceHealth {
@@ -2790,6 +2814,161 @@ mod tests {
         assert!(
             closed,
             "the output that a holder keeps still holds the sink"
+        );
+    }
+
+    #[test]
+    fn adv2_repro_06_shutdown_after_user_stop_3808_overwrites_user_cause() {
+        let (mut src, _h, _w, _a, _wk) = started(&[Some(StopReply::Failed { code: -3808 })]);
+        deliver_stop(
+            src.output.as_ref().expect("started source holds output"),
+            -3817,
+        );
+        assert_eq!(src.health().state, SourceState::Stopped(StopCause::User));
+        let shut = src.shutdown();
+        let after = src.health().state;
+        assert_eq!(
+            (shut, after),
+            (Ok(()), SourceState::Stopped(StopCause::User)),
+            "shutting down a stream already stopped by user (-3817) when stopCapture answers -3808"
+        );
+    }
+
+    #[test]
+    fn adv3_a_user_stop_then_a_shutdown_whose_stop_answers_minus_3808() {
+        let (mut source, handle, writer, asks, weak) = started(&[
+            Some(StopReply::Failed { code: -3808 }),
+            Some(StopReply::Failed { code: -3808 }),
+        ]);
+        deliver_stop(
+            source
+                .output
+                .as_ref()
+                .expect("a started source holds its output"),
+            -3817,
+        );
+        let before = source.health().state;
+        let shut = source.shutdown();
+        let after = source.health().state;
+        let opened = Rc::new(Cell::new(0));
+        let again = source.begin_with(&context_on(handle.clone()), counting_opener(&opened));
+        let shut_again = source.shutdown();
+        let kept = weak.load().is_some();
+        let fact = source.filter_excludes_app();
+        eprintln!("adv3 user stop: health before shutdown={before:?}");
+        eprintln!("adv3 user stop: shutdown={shut:?}");
+        eprintln!("adv3 user stop: health after shutdown={after:?}");
+        eprintln!(
+            "adv3 user stop: begin after={again:?} opened={} second shutdown={shut_again:?} asks={}",
+            opened.get(),
+            asks.get()
+        );
+        eprintln!("adv3 user stop: output kept={kept} filter fact={fact:?}");
+        drop(source);
+        assert!(sink_closed(handle, &writer));
+        assert_eq!(before, SourceState::Stopped(StopCause::User));
+        assert_eq!(
+            after,
+            SourceState::Stopped(StopCause::User),
+            "the person stopped the stream; after the source's own stop it reads {after:?}"
+        );
+    }
+
+    #[test]
+    fn adv3_a_system_stop_then_a_shutdown_whose_stop_answers_minus_3808() {
+        let (mut source, handle, writer, _asks, _weak) =
+            started(&[Some(StopReply::Failed { code: -3808 })]);
+        deliver_stop(
+            source
+                .output
+                .as_ref()
+                .expect("a started source holds its output"),
+            -3821,
+        );
+        let before = source.health().state;
+        let shut = source.shutdown();
+        let after = source.health().state;
+        eprintln!("adv3 system stop: health before shutdown={before:?}");
+        eprintln!("adv3 system stop: shutdown={shut:?} health after={after:?}");
+        drop(source);
+        assert!(sink_closed(handle, &writer));
+        assert_eq!(
+            after, before,
+            "the stop code of the delegate is replaced by the answer of the source's own stop"
+        );
+    }
+
+    #[test]
+    fn a_stop_that_the_delegate_reported_is_not_asked_again_and_gives_back_the_output_and_the_sink()
+    {
+        for (code, state) in [
+            (USER_STOPPED, SourceState::Stopped(StopCause::User)),
+            (-3821, stopped_by(-3821)),
+        ] {
+            let (mut source, handle, writer, asks, weak) =
+                started(&[Some(StopReply::Failed { code: -3808 })]);
+            deliver_stop(
+                source
+                    .output
+                    .as_ref()
+                    .expect("a started source holds its output"),
+                code as NSInteger,
+            );
+            assert_eq!(source.shutdown(), Ok(()), "{code}");
+            assert_eq!(asks.get(), 0, "{code}: the stream was asked to stop again");
+            assert_eq!(source.health().state, state, "{code}");
+            assert!(source.output.is_none() && source.queue.is_none(), "{code}");
+            assert!(weak.load().is_none(), "{code}: the output was kept");
+            assert!(sink_closed(handle, &writer), "{code}: the sink was kept");
+            drop(source);
+            assert_eq!(asks.get(), 0, "{code}: the drop asked the stream to stop");
+        }
+    }
+
+    #[test]
+    fn the_filter_fact_reads_no_stream_from_the_delegates_report_on_before_any_shutdown() {
+        let (source, _handle, _writer, _asks, _weak) = started(&[Some(StopReply::Stopped)]);
+        assert_eq!(
+            source.filter_excludes_app(),
+            Some(false),
+            "before the report"
+        );
+        deliver_stop(
+            source
+                .output
+                .as_ref()
+                .expect("a started source holds its output"),
+            -3821,
+        );
+        assert_eq!(source.filter_excludes_app(), None, "after the report");
+    }
+
+    #[test]
+    fn a_begin_after_a_stop_that_the_delegate_reported_answers_as_a_first_begin_and_reads_running()
+    {
+        let (mut source, handle, _writer, first_asks, _weak) =
+            started(&[Some(StopReply::Failed { code: -3808 })]);
+        deliver_stop(
+            source
+                .output
+                .as_ref()
+                .expect("a started source holds its output"),
+            USER_STOPPED as NSInteger,
+        );
+        assert_eq!(source.shutdown(), Ok(()));
+        let asks = Rc::new(Cell::new(0));
+        let again = source.begin_with(
+            &context_on(handle),
+            scripted(&[Some(StopReply::Stopped)], &asks),
+        );
+        assert_eq!(again, Ok(Started::Running));
+        assert_eq!(source.health().state, SourceState::Running);
+        assert_eq!(source.filter_excludes_app(), Some(false), "the new filter");
+        assert_eq!(source.shutdown(), Ok(()));
+        assert_eq!((first_asks.get(), asks.get()), (0, 1));
+        assert_eq!(
+            source.health().state,
+            SourceState::Stopped(StopCause::Request)
         );
     }
 
