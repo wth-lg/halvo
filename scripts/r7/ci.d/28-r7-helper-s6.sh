@@ -354,6 +354,61 @@ def summary(command, samples, record, forced, tls, report=True):
             and (not tls or (successes == COUNT and max(wall) <= LIMIT_NS)))
 
 
+CONTROL_WAIT_S = 10
+CERTIFICATE_ALERTS = ("ERR_SSL_TLSV1_ALERT_UNKNOWN_CA", "ERR_SSL_SSLV3_ALERT_BAD_CERTIFICATE",
+                      "ERR_SSL_SSLV3_ALERT_CERTIFICATE_UNKNOWN", "ERR_SSL_SSLV3_ALERT_UNSUPPORTED_CERTIFICATE")
+
+
+def control_window(log, before):
+    deadline = time.monotonic() + CONTROL_WAIT_S
+    while True:
+        data = log.read_bytes()[before:]
+        if data.endswith(b"\n") or time.monotonic() >= deadline:
+            break
+        time.sleep(0.05)
+    rows = []
+    for line in data.splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            row = None
+        rows.append(row if isinstance(row, dict) else {"error": "unreadable-line"})
+    return rows
+
+
+def control_cause(code, answer, rows):
+    if code == 0 or any("status" in row for row in rows):
+        return "answered"
+    if code != 1:
+        return f"helper-exit-{code}"
+    if answer != [b"error=failed-call"]:
+        return "helper-answer"
+    if not rows:
+        return "no-alert"
+    if len(rows) != 1:
+        return f"lines-{len(rows)}"
+    if rows[0].get("error") not in CERTIFICATE_ALERTS:
+        return "alert-other"
+    return None
+
+
+def tls_control(helper, ready, folder, log):
+    env = dict(os.environ, HALVO_ACCOUNT_BACKEND=ready["app"],
+               HALVO_ACCOUNT_STORE_DIR=str(folder / "store-control"))
+    before = log.stat().st_size
+    with subprocess.Popen([str(helper), "--print-url", "subscribe", *COMMANDS["subscribe"][0]], env=env,
+                          stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL) as child:
+        answer = child.stdout.read().split()[:1]
+    rows = control_window(log, before)
+    cause = control_cause(child.returncode, answer, rows)
+    said = answer[0].decode("ascii", "replace") if answer else "none"
+    alert = rows[0].get("error", "none") if len(rows) == 1 else "none"
+    print(f"S6 TLS control command=subscribe exit={child.returncode} answer={said} stub-lines={len(rows)} "
+          f"alert={alert} certificate-refused={str(cause is None).lower()}", flush=True)
+    if cause is not None:
+        raise RuntimeError("tls-control-" + cause)
+
+
 def forced_connections(record):
     rows = (json.loads(line) for line in record.splitlines())
     return {row["connection"] for row in rows if row.get("error") == "forced-close"}
@@ -371,6 +426,7 @@ def measure(tls):
     samples = {name: [] for name in COMMANDS}
     with stub(record, tls) as ready:
         if tls:
+            tls_control(helper, ready, folder, log)
             install()
         for round_id in range(COUNT):
             env = dict(os.environ, HALVO_ACCOUNT_BACKEND=ready["app"],
@@ -710,6 +766,28 @@ def self_test():
                                             "stub-lines=1 alert=ERR_SSL_TLSV1_ALERT_UNKNOWN_CA certificate-refused=true"]:
             raise RuntimeError("tls-control-fixture")
         refused += int(label != "refused")
+    for code, answer, rows, cause in [
+        (1, [b"error=failed-call"], [alert_row], None),
+        (1, [b"error=failed-call"], [dict(alert_row, error="ERR_SSL_SSLV3_ALERT_BAD_CERTIFICATE")], None),
+        (0, [b"result=session"], [], "answered"),
+        (1, [b"error=failed-call"], [answered_row], "answered"),
+        (3, [b"error=no-credential"], [], "helper-exit-3"),
+        (4, [b"error=store-fault"], [alert_row], "helper-exit-4"),
+        (1, [b"result=session"], [alert_row], "helper-answer"),
+        (1, [b"error=failed-call"], [], "no-alert"),
+        (1, [b"error=failed-call"], [alert_row, alert_row], "lines-2"),
+        (1, [b"error=failed-call"], [dict(alert_row, error="ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION")], "alert-other"),
+        (1, [b"error=failed-call"], [{"seq": 1, "connection": 2, "error": "forced-close"}], "alert-other"),
+    ]:
+        if control_cause(code, answer, rows) != cause:
+            raise RuntimeError("control-cause-fixture")
+        refused += int(cause is not None)
+    window = WORK / "control-window"
+    window.write_bytes(b'{"seq":1,"error":"ERR_SSL_TLSV1_ALERT_UNKNOWN_CA"}\n7\n{"seq":3,"err')
+    with patch("__main__.CONTROL_WAIT_S", 0):
+        if (control_window(window, 0) != [alert_row, {"error": "unreadable-line"}, {"error": "unreadable-line"}]
+                or control_window(window, window.stat().st_size) != []):
+            raise RuntimeError("control-window-fixture")
     print(f"PASS self-test:{NAME} ({refused} failing fixtures rejected)")
 
 
