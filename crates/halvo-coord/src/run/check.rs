@@ -59,7 +59,9 @@ where
 }
 
 /// Raises the item `check` for each agent of the board, or for `only`, for which `check_due`
-/// holds: after the agent's last event it stores, in one body, `item_lapsed` with the cause `check`
+/// holds: numbered after the agent's stored last (`Board::stored_last`, the one stored last that
+/// every sender of the agent takes, ruling RD-64 3.2), it stores, in one body, `item_lapsed` with
+/// the cause `check`
 /// of the agent's open `ready` item where it holds one and of each `ready` item whose lapse the
 /// board owes and the events do not close (`owed_ready`), then the owed `item_lapsed` of each
 /// `check` item of an earlier life that the events do not close (`owed_of_kind`, ruling RD-96
@@ -101,6 +103,7 @@ where
         };
         let events = check_raise_body(
             &board.members[i].facts,
+            board.stored_last(i),
             owed_ready(board, i),
             owed_of_kind(board, i, ItemKind::Check),
             &item,
@@ -138,12 +141,12 @@ enum Retried {
 
 fn check_raise_body<C>(
     facts: &Facts<C>,
+    last: u32,
     owed: Vec<ItemId>,
     owed_checks: Vec<What>,
     item: &ItemId,
     stamp: Stamp,
 ) -> Vec<Event> {
-    let last = facts.events.last().map_or(0, |e| e.seq.get());
     let open = match &facts.doing {
         Doing::Idle(Some(own)) if own.kind == OwnItemKind::Ready => Some(own.item.clone()),
         _ => None,
@@ -196,6 +199,7 @@ where
     }
     let events = check_raise_body(
         &board.members[i].facts,
+        board.stored_last(i),
         owed_ready(board, i),
         owed_of_kind(board, i, ItemKind::Check),
         item,

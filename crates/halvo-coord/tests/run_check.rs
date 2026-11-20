@@ -3392,3 +3392,35 @@ fn a_roster_read_that_does_not_answer_keeps_the_hold_of_an_email_card_that_a_new
         "the row offers no Run now beside the card"
     );
 }
+
+fn u24s_seqs_of(w: &World, n: usize) -> Vec<u32> {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .map(|e| e.seq.get())
+        .collect()
+}
+
+#[test]
+fn u24s_f3_01_a_check_raised_after_the_read_that_lowered_the_stored_last_numbers_from_it() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    w.ports.events.borrow_mut().retain(|e| e.agent != agent(0));
+    let tick = w.act(Act::Tick);
+    assert_eq!(
+        tick.checked,
+        vec![agent(0)],
+        "RD-64 3.2: after the read whose last is 0 the check numbers from it: {:?}",
+        u24s_seqs_of(&w, 0)
+    );
+    assert!(holds_check_item(&w, 0));
+    assert_eq!(check_items(&w, 0), 1);
+    assert_eq!(
+        u24s_seqs_of(&w, 0),
+        vec![1],
+        "the check takes the next seq after 0"
+    );
+}
