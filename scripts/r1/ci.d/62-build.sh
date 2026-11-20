@@ -593,10 +593,14 @@ EOF
   bad_row_case import-row-touching-origin '      _free(from libSystem)'
   bad_row_case import-row-wrong-origin '      _free  (into libSystem)'
   bad_row_case import-row-library-parenthesis '      _free  (from lib(System))'
+  bad_row_case import-row-library-close-paren '      _free  (from lib)System)'
+  bad_row_case import-row-library-open-paren '      _free  (from lib(System)'
+  bad_row_case import-row-library-only-blanks '      _free  (from   )'
   bad_row_case import-row-trailing-text '      _free  (from libSystem) extra'
   table_case indented-slice-header FAIL "$bad_layout" "  $slice" "$clean" "  $slice" "$header" "$clean_row"
   table_case slice-with-trailing-text FAIL "$bad_layout" "$slice extra" "$clean" "$slice extra" "$header" "$clean_row"
   table_case slice-with-empty-arch FAIL "$bad_layout" 'halvo []:' "$clean" 'halvo []:' "$header" "$clean_row"
+  table_case slice-without-path-separator FAIL "$bad_layout" 'halvo[arm64]:' "$clean" 'halvo[arm64]:' "$header" "$clean_row"
   table_case slice-with-invalid-arch FAIL "$bad_layout" 'halvo [arm/64]:' "$clean" 'halvo [arm/64]:' "$header" "$clean_row"
   table_case header-with-surrounding-text FAIL "$no_table" 'prefix -imports: suffix' "$slice" 'prefix -imports: suffix' "$clean_row"
   table_case header-with-prefix FAIL "$no_table" 'prefix -imports:' "$slice" 'prefix -imports:' "$clean_row"
@@ -606,6 +610,13 @@ EOF
   table_case underscored-architecture PASS "$clean_result" '' 'halvo [x86_64]:' "$header" "$clean_row"
   table_case unindented-import-header PASS "$clean_result" '' "$slice" '-imports:' "$clean_row"
   table_case padded-import-header PASS "$clean_result" '' "$slice" ' -imports:  ' "$clean_row"
+  table_case supported-symbol-characters PASS "$clean_result" '' "$slice" "$header" \
+    "      \$x7  (from libSystem)" '      .  (from libSystem)' '      A1_b.2  (from libSystem)'
+  table_case longer-import-names PASS "$clean_result" '' "$slice" "$header" \
+    "      _2$forbidden_import  (from Carbon)" "      _Pre_$forbidden_import  (from Carbon)" \
+    "      ${forbidden_import}7  (from Carbon)" "      ${forbidden_import}_  (from Carbon)"
+  import_row_case standalone-import-at-line-boundaries "$forbidden_import"
+  import_row_case following-punctuation-import "      _other,$forbidden_import  (from Carbon)"
   printf '%s\n' "$header" '      _free  (from libSystem)' >"$work/halvo"
   expect_row="$header" imports_case import-table-without-slice FAIL "$no_table" "$work/halvo"
   printf '%s\n' "$slice" "$hold_row" "$header" '      _free  (from libSystem)' >"$work/halvo"
@@ -712,6 +723,20 @@ SH
   bad_probe_case probe-requires-patch '42 3.11.'
   bad_probe_case probe-requires-first-dot '42 3x11.0'
   bad_probe_case probe-requires-second-dot '42 3.11x0'
+  stand_in python3.11 <<'SH'
+if [ "${1:-}" = -c ] || [ "${2:-}" = -c ]; then
+  printf 'candidate probe diagnostic\n' >&2
+  exec "$fixture_python" "$@"
+fi
+{
+  printf '%s\n' 'import os, sys' 'assert sys.flags.isolated and os.environ["PYTHONPATH"] not in sys.path'
+  cat
+} | "$fixture_python" "$@"
+SH
+  expect_first="manifest reader: python3.11 $fixture_version"
+  mkdir "$work/empty-python-path" || exit 2
+  PYTHONPATH="$work/empty-python-path" PATH="$standins:$PATH" expect_reader="$expect_first" rules_case manifest-reader-isolated FAIL "$need_profile"
+  PYTHONIOENCODING=unknown-fixture-encoding rules_case python-ignores-caller-encoding FAIL "$need_profile"
   probe_input=$work/probe-input
   export probe_input
   stand_in python3.11 <<'SH'
@@ -867,7 +892,7 @@ SH
     measure_case "guard-measure-fixture-${input##*/}" 2 "unsafe measure fixture: $input"
     mv "$measure_repo/$input" "$work/used-measure-input" || exit 2
   done
-  MSYS=winsymlinks:nativestrict ln -s missing-input "$measure_repo/node_modules" || exit 2
+  MSYS="${MSYS:+$MSYS }winsymlinks:nativestrict" ln -s missing-input "$measure_repo/node_modules" || exit 2
   [ -L "$measure_repo/node_modules" ] && [ ! -e "$measure_repo/node_modules" ] || exit 2
   measure_case guard-dangling-node-modules 2 'unsafe measure fixture: node_modules'
 
