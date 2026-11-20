@@ -94,8 +94,9 @@ pub fn bears_profile(args: &[String], profile: &str) -> bool {
 
 /// The arguments of a process that the mark reads as switches (U2.6b, CP-231 (6), CP-239). On
 /// Windows each command line, with white space at its ends set aside, is split by the system's
-/// rule (`split_command_line`, which reads it up to its first U+0000); on macOS the arguments stand
-/// as they are. On both, argument 0 of each line, the program's name, is no switch, and the
+/// rule (`split_command_line`, which reads it up to its first U+0000), and the parts of all of them
+/// stand in one list (the system gives one line); on macOS the arguments stand as they are. On
+/// both, argument 0 of that list, the program's name, is no switch, and the
 /// switches end at the first argument that ends them: `--` once white space at its ends is set
 /// aside, and on Windows the switch with the key `single-argument` in any spelling that `switch_of`
 /// reads (a prefix `--`, `-` or `/`, any letter case), after which the browser takes the rest of
@@ -109,7 +110,8 @@ pub fn bears_profile(args: &[String], profile: &str) -> bool {
 fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     let split: Vec<String> = if windows {
         args.iter()
-            .flat_map(|a| split_command_line(a.trim()).into_iter().skip(1))
+            .flat_map(|a| split_command_line(a.trim()))
+            .skip(1)
             .collect()
     } else {
         args.iter().skip(1).cloned().collect()
