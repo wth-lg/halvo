@@ -1,4 +1,5 @@
 use halvo_connect::{reply_senders, ReplyRule, Token};
+use halvo_schema::record::Instant;
 use serde_json::Value;
 
 use super::fixture::repo;
@@ -38,6 +39,13 @@ impl Seed {
     }
 
     pub fn rule(&self) -> ReplyRule {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("a time after 1970");
+        self.rule_from(Instant(i64::try_from(now.as_nanos()).expect("an instant")))
+    }
+
+    pub fn rule_from(&self, start: Instant) -> ReplyRule {
         let senders: Vec<String> = self
             .get("/bindings/reply/slots")
             .as_array()
@@ -50,7 +58,7 @@ impl Seed {
             .map(|sender| sender.as_str().expect("an address").to_owned())
             .collect();
         let senders = reply_senders(&senders.join(", ")).expect("the seed's senders");
-        ReplyRule::new(self.text("/mail/address").to_owned(), senders)
+        ReplyRule::new(self.text("/mail/address").to_owned(), senders, start)
     }
 
     pub fn subject(&self, id: &str) -> Option<&str> {

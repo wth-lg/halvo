@@ -1,7 +1,6 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use halvo_cap::{model_lock_path, take_model_lock, LockError};
 
@@ -82,16 +81,23 @@ impl Drop for Started {
     }
 }
 
-fn fresh_dir(name: &str) -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join("model-lock-accounts")
-        .join(format!("{name}-{}-{nanos}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
+fn fresh_dir(name: &str) -> (Leaf, PathBuf) {
+    let held = leaf(&format!("model-lock-accounts-{name}"));
+    let dir = held.path().to_path_buf();
+    (held, dir)
+}
+
+#[test]
+fn fresh_dir_two_calls_give_two_directories_and_each_is_gone_after_its_drop() {
+    let (first, first_dir) = fresh_dir("fresh");
+    let (second, second_dir) = fresh_dir("fresh");
+    assert_ne!(first_dir, second_dir);
+    assert!(first_dir.is_dir() && second_dir.is_dir());
+    std::fs::write(first_dir.join("file"), "x").unwrap();
+    drop(first);
+    drop(second);
+    assert!(!first_dir.exists(), "{}", first_dir.display());
+    assert!(!second_dir.exists(), "{}", second_dir.display());
 }
 
 fn child_command(role: &str) -> Command {
@@ -143,8 +149,8 @@ fn say(line: &str) {
 #[test]
 fn two_children_with_other_account_variables_print_the_parents_lock_path() {
     let parent = model_lock_path().ok();
-    let first = fresh_dir("first");
-    let second = fresh_dir("second");
+    let (_fresh_first, first) = fresh_dir("first");
+    let (_fresh_second, second) = fresh_dir("second");
     let one = printed_path(&mut with_account_variables_in(
         child_command("path"),
         &first,
@@ -175,7 +181,7 @@ fn children_with_other_cache_and_user_variables_and_working_directories_print_th
 ) {
     let parent = model_lock_path().ok();
     for name in ["first", "second"] {
-        let dir = fresh_dir(&format!("more-{name}"));
+        let (_fresh, dir) = fresh_dir(&format!("more-{name}"));
         let mut command = with_account_variables_in(child_command("path"), &dir);
         for variable in [
             "TMPDIR",
@@ -401,7 +407,7 @@ fn the_library_half_of_lock_rs_reads_no_variable_asks_for_the_effective_user_and
 fn a_child_whose_account_variable_names_a_directory_with_a_lock_file_prints_the_parents_lock_path()
 {
     let parent = model_lock_path().ok();
-    let dir = fresh_dir("lock-file-there");
+    let (_fresh_dir, dir) = fresh_dir("lock-file-there");
     let layouts: [PathBuf; 2] = [
         ["Library", "Caches", "halvo", "model.lock"]
             .iter()
@@ -465,8 +471,8 @@ fn two_loaders_with_other_account_variables_meet_at_the_accounts_lock() {
         "a gated take after the refused roles did not take the lock"
     );
     let parent = model_lock_path().ok();
-    let first = fresh_dir("hold-first");
-    let second = fresh_dir("try-second");
+    let (_fresh_first, first) = fresh_dir("hold-first");
+    let (_fresh_second, second) = fresh_dir("try-second");
     let mut holder = Started(
         with_account_variables_in(child_command("hold-account"), &first)
             .stdin(Stdio::piped())
@@ -508,4 +514,86 @@ fn two_loaders_with_other_account_variables_meet_at_the_accounts_lock() {
         Some(0),
         "no loader took the lock after the holder ended"
     );
+}
+
+struct Leaf(PathBuf);
+
+impl Leaf {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for Leaf {
+    fn drop(&mut self) {
+        if let Some(line) = remove(&self.0) {
+            let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("{line}\n"));
+        }
+    }
+}
+
+fn remove(dir: &Path) -> Option<String> {
+    let error = std::fs::remove_dir_all(dir).err()?;
+    Some(format!("leaf not removed: {}: {error}", dir.display()))
+}
+
+fn leaf(word: &str) -> Leaf {
+    let tmp = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    match halvo_test_dir::make(tmp, word) {
+        Ok(dir) => Leaf(dir),
+        Err(e) => panic!("{word} under {}: {e}", tmp.display()),
+    }
+}
+
+#[test]
+fn leaf_two_calls_give_two_paths() {
+    let first = leaf("model-lock-leaf");
+    let second = leaf("model-lock-leaf");
+    assert_ne!(first.path(), second.path());
+    assert!(first.path().is_dir() && second.path().is_dir());
+    let stem = |held: &Leaf| {
+        let name = held
+            .path()
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+        name[..name.rfind('-').unwrap()].to_owned()
+    };
+    assert_eq!(stem(&first), stem(&second));
+}
+
+#[test]
+fn leaf_is_gone_after_its_drop() {
+    let held = leaf("model-lock-leaf");
+    let path = held.path().to_path_buf();
+    std::fs::write(path.join("file"), "x").unwrap();
+    drop(held);
+    assert!(!path.exists(), "{}", path.display());
+}
+
+#[test]
+fn leaf_removal_that_fails_gives_one_line_with_the_path() {
+    let held = leaf("model-lock-leaf");
+    let path = held.path().to_path_buf();
+    drop(held);
+    let line = remove(&path).expect("a line for a removal that fails");
+    assert!(
+        line.contains(&path.display().to_string()) && !line.contains('\n'),
+        "{line}"
+    );
+}
+
+#[test]
+fn leaf_lies_under_the_target_directory_and_its_name_begins_with_the_word() {
+    let held = leaf("model-lock-leaf");
+    assert_eq!(
+        held.path().parent(),
+        Some(Path::new(env!("CARGO_TARGET_TMPDIR"))),
+        "{}",
+        held.path().display()
+    );
+    let name = held.path().file_name().unwrap().to_str().unwrap();
+    assert!(name.starts_with("model-lock-leaf-"), "{name}");
 }

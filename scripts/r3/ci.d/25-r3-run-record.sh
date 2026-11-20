@@ -19,14 +19,13 @@ known() {
   cat <<'EOF'
 crates/halvo-learn-store/src/tests/host.rs 1 learning run, until its unit calls the maker
 crates/halvo-learn-store/src/tests/pass.rs 1 learning run, until its unit calls the maker
-crates/halvo-learn-store/src/tests/ruled.rs 1 learning run, until its unit calls the maker
 crates/halvo-schema/tests/later_kinds.rs 2 workflow run, its frozen entry of agent_run checked against itself
 EOF
 }
 
-pinned_rows=4
-pinned_places=5
-pinned_paths=1769810987
+pinned_rows=3
+pinned_places=4
+pinned_paths=2070842190
 
 program='
 function keys(text, k,    n, re) {

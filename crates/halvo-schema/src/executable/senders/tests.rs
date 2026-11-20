@@ -389,14 +389,27 @@ fn texts() {
     for (error, text) in rows {
         assert_eq!(error.to_string(), text);
     }
-    assert_eq!(
-        format!(
-            "{:?}",
+}
+
+#[test]
+fn the_debug_form_names_the_fault_and_no_number_of_a_piece() {
+    let rows = [
+        (SendersError::Empty(at(1)), "Empty(..)"),
+        (SendersError::NotAnAddress(at(27)), "NotAnAddress(..)"),
+        (SendersError::NotAscii(at(3)), "NotAscii(..)"),
+        (
             SendersError::Twice {
-                earlier: at(1),
-                later: at(2)
-            }
+                earlier: at(4),
+                later: at(56),
+            },
+            "Twice { .. }",
         ),
-        "Twice { earlier: 1, later: 2 }"
-    );
+    ];
+    for (error, text) in rows {
+        assert_eq!(format!("{error:?}"), text);
+        assert_eq!(format!("{error:#?}"), text);
+        assert!(!format!("{:?}", Err::<(), _>(error))
+            .bytes()
+            .any(|b| b.is_ascii_digit()));
+    }
 }

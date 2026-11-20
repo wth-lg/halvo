@@ -1589,6 +1589,7 @@ dependencies = [
 name = "halvo-cap"
 version = "0.0.0"
 dependencies = [
+ "halvo-test-dir",
  "libc",
  "windows-sys 0.61.2",
 ]
@@ -1645,6 +1646,7 @@ dependencies = [
 name = "halvo-connect"
 version = "0.0.0"
 dependencies = [
+ "halvo-connect",
  "halvo-schema",
  "reqwest",
  "rustls",
@@ -1813,6 +1815,7 @@ name = "halvo-schema"
 version = "0.0.0"
 dependencies = [
  "halvo-schema-core",
+ "halvo-test-dir",
  "proc-macro2",
  "serde",
  "serde_json",
