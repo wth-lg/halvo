@@ -1099,8 +1099,9 @@ impl RawInputSource {
         }
     }
 
-    /// A pointer source; as for [`RawInputSource::keyboard`], the cell is not
-    /// read.
+    /// A pointer source. Each event belongs to the process of the window in
+    /// front when the source reads it; the cell of the foreground source is
+    /// not read.
     pub fn pointer(_last_app: Arc<Mutex<Option<String>>>) -> Self {
         Self::new(RawDevice::Pointer)
     }
