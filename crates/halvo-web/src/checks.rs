@@ -37,7 +37,7 @@ pub struct Count {
 
 /// The browser's tree as the process table reads it now: the first process with every descendant
 /// by creation time, and the processes that the stop reports as adopted (A11.1) that bear the
-/// first process's profile by one of the two exact forms of `bears_profile`, as the crash
+/// first process's profile (`profile_of`) by one of the two exact forms of `bears_profile`, as the crash
 /// handler's `--database=<profile>/Crashpad` does; an adopted process of another browser of the
 /// same app, such as the person's own, is no member.
 pub fn tree_of(table: &[Proc], root: &Proc) -> Vec<Proc> {
@@ -58,11 +58,7 @@ pub fn tree_of_with(
         .map(procs::bundle_root)
         .into_iter()
         .collect();
-    let profile = command_args(root.pid).and_then(|args| {
-        args.iter()
-            .find_map(|a| a.strip_prefix("--user-data-dir=").map(str::to_string))
-    });
-    let Some(profile) = profile.filter(|p| !p.is_empty()) else {
+    let Some(profile) = command_args(root.pid).and_then(|args| profile_of(&args)) else {
         return tree;
     };
     let adopted = procs::adopted(table, &tree, root.started_us, &roots);
@@ -86,6 +82,28 @@ pub fn tree_of_with(
 /// by the system's rule (`split_command_line`).
 pub fn bears_profile(args: &[String], profile: &str) -> bool {
     bears_profile_on(args, profile, cfg!(windows))
+}
+
+/// The profile that the browser's first process names: the value of its first argument
+/// `--user-data-dir=`, none when it is empty or absent; on Windows the one command line is split
+/// as the mark splits it, so that `tree_of` reads the same arguments as `bears_profile` (U2.6
+/// (12): it read the line by its prefix and so found no profile on Windows).
+pub fn profile_of(args: &[String]) -> Option<String> {
+    profile_of_on(args, cfg!(windows))
+}
+
+/// `profile_of` with the system's rule given.
+pub fn profile_of_on(args: &[String], windows: bool) -> Option<String> {
+    let split: Vec<String> = if windows {
+        args.iter().flat_map(|a| split_command_line(a)).collect()
+    } else {
+        args.to_vec()
+    };
+    split
+        .iter()
+        .find_map(|a| a.strip_prefix("--user-data-dir="))
+        .filter(|p| !p.is_empty())
+        .map(str::to_string)
 }
 
 /// `bears_profile` with the system's rules given: `windows` splits each argument as a command line
@@ -176,9 +194,9 @@ pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
 /// the quote opens or closes a quoted part, 2n+1 give n backslashes and a quote; backslashes before
 /// any other character stand as they are; in a run of quotes each third one counted from the
 /// opening quote gives a quote, and a count that ends at two leaves the part closed (the review of
-/// U0.7d, its cases 01 to 04). The mark calls it (`bears_profile`), and beside the mark only the
-/// row's report of the profile's forms (`profile_forms`); `command_args` and `command_line` stay
-/// as they are for the six rules.
+/// U0.7d, its cases 01 to 04). The mark calls it (`bears_profile`, and `profile_of` for
+/// `tree_of`), and beside the mark only the row's report of the profile's forms (`profile_forms`);
+/// `command_args` and `command_line` stay as they are for the six rules.
 pub fn split_command_line(line: &str) -> Vec<String> {
     let c: Vec<char> = line.chars().collect();
     let space = |x: char| x == ' ' || x == '\t';
@@ -1267,6 +1285,63 @@ mod tests {
             unsafe { LocalFree(argv.cast()) };
             assert_eq!(split_command_line(line), system, "{line}");
         }
+    }
+
+    /// U2.6 (12), failing first, from the web trial's hosted run 43741794346 (windows): `tree_of`
+    /// read the first process's profile from the one Windows command line by its prefix and so
+    /// never found it there. `profile_of_on` reads it from the arguments as the mark splits them.
+    #[test]
+    fn the_first_process_s_profile_is_read_from_the_split_arguments() {
+        let win = |line: &str| profile_of_on(&strings(&[line]), true);
+        assert_eq!(
+            win(r"b.exe --user-data-dir=C:\t\p --type=x").as_deref(),
+            Some(r"C:\t\p")
+        );
+        assert_eq!(
+            win(r#""C:\P F\b.exe" "--user-data-dir=C:\t\p 2""#).as_deref(),
+            Some(r"C:\t\p 2")
+        );
+        assert_eq!(win(r"b.exe --user-data-dir= --x"), None);
+        assert_eq!(win(r#"b.exe "x --user-data-dir=C:\t\p""#), None);
+        let mac = |args: &[&str]| profile_of_on(&strings(args), false);
+        assert_eq!(mac(&["b", "--user-data-dir=/t/p"]).as_deref(), Some("/t/p"));
+        assert_eq!(
+            mac(&["b", "--user-data-dir=/t/p", "--user-data-dir=/q"]).as_deref(),
+            Some("/t/p")
+        );
+        assert_eq!(mac(&["b --user-data-dir=/t/p"]), None);
+    }
+
+    /// U2.6 (12), failing first on Windows: with the one command line that Windows gives for each
+    /// process, `tree_of` takes the adopted process that bears the first process's profile and no
+    /// other.
+    #[cfg(windows)]
+    #[test]
+    fn n12_on_windows_tree_of_reads_the_profile_from_the_one_command_line() {
+        let row = |pid: u32, ppid: u32, exe: &str| Proc {
+            pid,
+            ppid,
+            started_us: if pid == 100 { 10 } else { 20 },
+            pgid: 0,
+            exe: Some(std::path::PathBuf::from(exe)),
+        };
+        let table = vec![
+            row(100, 50, r"C:\B\Application\b.exe"),
+            row(200, 1, r"C:\B\Application\b.exe"),
+            row(300, 1, r"C:\B\Application\b.exe"),
+        ];
+        let args = |pid: u32| -> Option<Vec<String>> {
+            Some(vec![match pid {
+                100 => r"b.exe --user-data-dir=C:\t\p-1 --no-first-run".into(),
+                200 => r"b.exe --type=crashpad-handler --database=C:\t\p-1\Crashpad".into(),
+                _ => r"b.exe --type=crashpad-handler --database=C:\t\p-10\Crashpad".into(),
+            }])
+        };
+        let tree: Vec<u32> = tree_of_with(&table, &table[0], &args)
+            .iter()
+            .map(|p| p.pid)
+            .collect();
+        assert_eq!(tree, vec![100, 200]);
     }
 
     /// The review of U0.7d: a Windows share (`\\srv\share\p`) is not the path below the root of a
