@@ -272,6 +272,20 @@ impl ExecutorWatch {
     }
 }
 
+/// What the guard's loop reads its executor's end from, once `guard::run_guard` has opened it with
+/// the executor's number and creation time: `ExecutorWatch` in the product, a stand-in in a test
+/// (U2.6 round 2, row c).
+pub(crate) trait ExecutorRead {
+    /// Whether the executor still runs.
+    fn runs(&self) -> bool;
+}
+
+impl ExecutorRead for ExecutorWatch {
+    fn runs(&self) -> bool {
+        ExecutorWatch::runs(self)
+    }
+}
+
 #[cfg(windows)]
 impl Drop for ExecutorWatch {
     fn drop(&mut self) {
@@ -506,6 +520,15 @@ mod tests {
             .expect("the parent's row");
         assert!(ExecutorWatch::open(parent.pid, parent.started_us).runs());
         assert!(!ExecutorWatch::open(parent.pid, parent.started_us + 1).runs());
+        let read = |started_us| ExecutorRead::runs(&ExecutorWatch::open(parent.pid, started_us));
+        assert!(
+            read(parent.started_us),
+            "the guard's read of the same watch"
+        );
+        assert!(
+            !read(parent.started_us + 1),
+            "the guard's read of the same watch"
+        );
     }
 
     /// CP-176 (e), failing first: the guard's watch reads its executor's end from the system. A

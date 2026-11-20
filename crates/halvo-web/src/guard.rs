@@ -247,12 +247,11 @@ pub fn guard_main(argv: &[String]) -> i32 {
     let Some(args) = parse_args(argv) else {
         return 2;
     };
-    let watch = procs::ExecutorWatch::open(args.epid, args.estart);
     let start = std::time::Instant::now();
     let file = args.record.clone();
     run_guard(
         &args,
-        &|| watch.runs(),
+        &procs::ExecutorWatch::open,
         GuardSys {
             read: &mut || procs::table().ok(),
             args: &crate::checks::command_args,
@@ -285,17 +284,20 @@ pub(crate) struct GuardSys<'a> {
     pub end: &'a mut dyn FnMut(&Proc, bool) -> bool,
 }
 
-/// `guard_main`'s loop, built from its parsed arguments, the read of its executor's end
-/// `executor_runs` (the guard's `ExecutorWatch` in the product, CP-176 (e)), the system's parts
-/// and the record: `Trigger::ExecutorGone` with the executor of the arguments, the run's mark of
-/// the arguments, and the loop's read of the executor from `executor_runs` alone. It has no effect
-/// of its own, so that a test hands it stand-ins (U2.6 round 1, R4, in the form of CP-189 G7).
-pub(crate) fn run_guard(
+/// `guard_main`'s loop, built from its parsed arguments, the opener of the read of its executor's
+/// end `open` (`ExecutorWatch::open` in the product, CP-176 (e)), the system's parts and the
+/// record: it opens the read once with the executor's number and creation time of the arguments,
+/// and builds `Trigger::ExecutorGone` with the executor of the arguments, the run's mark of the
+/// arguments, and the loop's read of the executor from that read alone. It has no effect of its
+/// own beyond what `open` does, so that a test hands it stand-ins (U2.6 round 1, R4, and round 2,
+/// row c, in the form of CP-189 G7).
+pub(crate) fn run_guard<W: procs::ExecutorRead>(
     args: &GuardArgs,
-    executor_runs: &dyn Fn() -> bool,
+    open: &dyn Fn(u32, u64) -> W,
     sys: GuardSys<'_>,
     record: &mut dyn FnMut(&GuardAct),
 ) -> i32 {
+    let watch = open(args.epid, args.estart);
     let GuardSys {
         read,
         args: proc_args,
@@ -314,7 +316,7 @@ pub(crate) fn run_guard(
             read,
             args: proc_args,
             mark: Some(&args.mark),
-            executor: &mut |_, _| executor_runs(),
+            executor: &mut |_, _| watch.runs(),
             now_ms,
             pause,
             end,
@@ -1754,14 +1756,31 @@ mod tests {
         }
     }
 
-    /// U2.6 round 1, R4, failing first: `guard_main`'s loop (`run_guard`) reads its executor's
-    /// end from the read that it is given, and from nothing else. Stand-in tables in which the
-    /// browser's first process runs until it is forced and the executor's row stands at every
-    /// read; a stand-in watch that reads the executor running until 5,000 ms; every end through
-    /// the fence of CP-161 F1 to a recorder (CP-214). The first ask comes after the watch's end
-    /// and `GRACE`, and the forced end `TERM_WAIT` later; nothing else is asked or ended.
+    /// A stand-in of the read of the executor's end: it reads the executor running while `runs`
+    /// says so.
+    struct StandInWatch<'a> {
+        runs: &'a dyn Fn() -> bool,
+    }
+
+    impl procs::ExecutorRead for StandInWatch<'_> {
+        fn runs(&self) -> bool {
+            (self.runs)()
+        }
+    }
+
+    /// U2.6 round 2, row c, failing first (in the place of round 1's R4 test, whose rules it
+    /// holds): `guard_main`'s loop (`run_guard`) opens the read of its executor's end itself, once,
+    /// with the executor's number and creation time of the arguments (5 and 50, where the
+    /// browser's first process is 999999 begun at 7), and reads the executor's end from that read
+    /// and from nothing else. Stand-in tables in which the browser's first process runs until it
+    /// is forced and the executor's row stands at every read; a stand-in opener that records the
+    /// numbers it is given and whose watch reads the executor running until 5,000 ms when it was
+    /// opened with the executor's numbers and gone from the start when it was not, as the macOS
+    /// watch of a process that is not the guard's parent reads; every end through the fence of
+    /// CP-161 F1 to a recorder (CP-214). The first ask comes after the watch's end and `GRACE`,
+    /// and the forced end `TERM_WAIT` later; nothing else is asked or ended.
     #[test]
-    fn r4_guard_main_s_loop_reads_its_executor_from_the_watch() {
+    fn rc_run_guard_opens_the_watch_of_its_executor_and_reads_its_end_from_it() {
         let argv: Vec<String> = [
             "999999",
             "7",
@@ -1781,10 +1800,22 @@ mod tests {
         };
         let clock = Cell::new(0u128);
         let ends: RefCell<Ends> = RefCell::new(Vec::new());
+        let opened: RefCell<Vec<(u32, u64)>> = RefCell::new(Vec::new());
+        let until_5000: &dyn Fn() -> bool = &|| clock.get() < 5_000;
+        let gone: &dyn Fn() -> bool = &|| false;
         let mut reads = 0u64;
         let code = run_guard(
             &args,
-            &|| clock.get() < 5_000,
+            &|pid, started_us| {
+                opened.borrow_mut().push((pid, started_us));
+                StandInWatch {
+                    runs: if (pid, started_us) == (5, 50) {
+                        until_5000
+                    } else {
+                        gone
+                    },
+                }
+            },
             GuardSys {
                 read: &mut || {
                     reads += 1;
@@ -1806,6 +1837,11 @@ mod tests {
                 },
             },
             &mut |_| {},
+        );
+        assert_eq!(
+            opened.into_inner(),
+            vec![(5, 50)],
+            "the numbers the watch was opened with"
         );
         assert_eq!(code, 0);
         let ends = ends.into_inner();
