@@ -23,7 +23,7 @@ use crate::floor::exclude::{
 };
 use crate::floor::kind::{self as floor_kind, Recorded};
 use crate::floor::payload::{Button, FoldClass, FoldCount, KeyClass, PointerFold};
-use crate::floor::{Switch, POINTER_FOLD_INTERVAL};
+use crate::floor::{Switch, Switches, POINTER_FOLD_INTERVAL};
 use crate::macos::foreground::{Foreground, ForegroundReader};
 use crate::macos::source_failure;
 use crate::secure_input_macos::hold::{
@@ -52,6 +52,56 @@ extern "C" {
     fn CGEventTapEnable(tap: *mut c_void, enable: bool);
     fn CGPreflightListenEventAccess() -> bool;
     fn CGEventGetTimestamp(event: *const c_void) -> u64;
+    fn CGGetEventTapList(max: u32, list: *mut TapInformation, count: *mut u32) -> i32;
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct TapInformation {
+    event_tap_id: u32,
+    tap_point: u32,
+    options: u32,
+    events_of_interest: u64,
+    tapping_process: libc::pid_t,
+    process_being_tapped: libc::pid_t,
+    enabled: bool,
+    min_usec_latency: f32,
+    avg_usec_latency: f32,
+    max_usec_latency: f32,
+}
+
+const NO_TAP: TapInformation = TapInformation {
+    event_tap_id: 0,
+    tap_point: 0,
+    options: 0,
+    events_of_interest: 0,
+    tapping_process: 0,
+    process_being_tapped: 0,
+    enabled: false,
+    min_usec_latency: 0.0,
+    avg_usec_latency: 0.0,
+    max_usec_latency: 0.0,
+};
+
+const TAP_LIST_MAX: usize = 256;
+
+fn own_taps() -> Option<Vec<TapInformation>> {
+    let mut list = [NO_TAP; TAP_LIST_MAX];
+    let mut count = 0u32;
+    // SAFETY: `list` holds TAP_LIST_MAX entries, the maximum passed, and `count`
+    // is a valid place for the number of entries written.
+    let err = unsafe { CGGetEventTapList(TAP_LIST_MAX as u32, list.as_mut_ptr(), &mut count) };
+    if err != 0 {
+        return None;
+    }
+    let own = libc::pid_t::try_from(std::process::id()).ok()?;
+    Some(
+        list[..(count as usize).min(TAP_LIST_MAX)]
+            .iter()
+            .copied()
+            .filter(|tap| tap.tapping_process == own)
+            .collect(),
+    )
 }
 
 extern "C" {
@@ -175,6 +225,14 @@ impl InputCounters {
         self.0.late_events.fetch_add(1, Ordering::Relaxed);
     }
 
+    fn count_tap_disabled(&self, etype: CGEventType) {
+        let counter = match etype {
+            CGEventType::TapDisabledByUserInput => &self.0.tap_disabled_user_input,
+            _ => &self.0.tap_disabled_timeout,
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+
     fn note_lag(&self, lag: Duration) {
         let ms = u64::try_from(lag.as_millis()).unwrap_or(u64::MAX);
         self.0.max_lag_ms.fetch_max(ms, Ordering::Relaxed);
@@ -269,7 +327,6 @@ const TAP_EVENTS: [(CGEventType, TapClass); 14] = [
     (CGEventType::ScrollWheel, TapClass::ContinuousPointer),
 ];
 
-#[cfg(test)]
 fn tap_class(etype: CGEventType) -> Option<TapClass> {
     TAP_EVENTS
         .iter()
@@ -434,8 +491,30 @@ impl Folds {
     }
 }
 
-fn events_of_interest() -> Vec<CGEventType> {
-    TAP_EVENTS.iter().map(|&(etype, _)| etype).collect()
+fn events_of_interest(switches: Switches) -> Vec<CGEventType> {
+    TAP_EVENTS
+        .iter()
+        .filter(|&&(etype, _)| match tap_class(etype) {
+            Some(TapClass::KeyPress | TapClass::OtherKey) => switches.is_on(Switch::KeyClass),
+            Some(TapClass::DiscretePointer | TapClass::ContinuousPointer) => {
+                switches.is_on(Switch::PointerClass)
+            }
+            None => false,
+        })
+        .map(|&(etype, _)| etype)
+        .collect()
+}
+
+fn mask_of(events: &[CGEventType]) -> u64 {
+    events
+        .iter()
+        .fold(0u64, |mask, &etype| mask | 1 << (etype as u64))
+}
+
+const KEY_EVENTS: u64 = 1 << (CGEventType::KeyDown as u64) | 1 << (CGEventType::KeyUp as u64);
+
+fn key_events_granted(requested: u64, granted: u64) -> bool {
+    granted & requested & KEY_EVENTS == requested & KEY_EVENTS
 }
 
 const TAP_LOCATION: CGEventTapLocation = CGEventTapLocation::Session;
@@ -491,7 +570,7 @@ fn tap_settings() -> TapSettings {
         location: TAP_LOCATION,
         placement: TAP_PLACEMENT,
         options: TAP_OPTIONS,
-        events: events_of_interest(),
+        events: events_of_interest(Switches::default()),
         secure: secure_input_reading,
         session: read_session,
         clocks: CLOCKS,
@@ -522,6 +601,10 @@ trait TapMaker {
 
     fn listen_denied() -> bool;
 
+    fn granted_events(_tap: &Self::Tap, requested: u64) -> u64 {
+        requested
+    }
+
     fn enable(tap: Self::Tap, port: TapPort) -> Result<Self::Enabled, CaptureError>;
 }
 
@@ -542,6 +625,18 @@ impl TapMaker for SystemTapMaker {
     fn listen_denied() -> bool {
         // SAFETY: a parameterless predicate of the system with no side effect.
         !unsafe { CGPreflightListenEventAccess() }
+    }
+
+    fn granted_events(_tap: &Self::Tap, requested: u64) -> u64 {
+        own_taps()
+            .and_then(|taps| {
+                taps.into_iter()
+                    .filter(|tap| {
+                        tap.tap_point == TAP_LOCATION as u32 && tap.options == TAP_OPTIONS as u32
+                    })
+                    .max_by_key(|tap| tap.event_tap_id)
+            })
+            .map_or(requested, |tap| tap.events_of_interest)
     }
 
     fn enable(tap: Self::Tap, port: TapPort) -> Result<Self::Enabled, CaptureError> {
@@ -1431,6 +1526,7 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
     let hold = ctx.hold.clone();
     let mut state = lock(&hold);
     if is_tap_disabled(event.etype) {
+        ctx.counters.count_tap_disabled(event.etype);
         let stopped = ctx.stop.load(Ordering::SeqCst);
         let keys = state.keys.drop_all();
         ctx.dropped_unread(keys, Cause::TapSwitchedOff);
@@ -1640,11 +1736,17 @@ fn install_tap<M: TapMaker>(
     ctx: TapContext,
     settings: TapSettings,
     maker: M,
+    keys_missing: Arc<AtomicBool>,
 ) -> Result<M::Enabled, CaptureError> {
     let port = ctx.port.clone();
+    let requested = mask_of(&settings.events);
     let tap = maker
         .make(settings, tap_callback(ctx))
         .map_err(|()| tap_refusal(M::listen_denied()))?;
+    if !key_events_granted(requested, M::granted_events(&tap, requested)) {
+        keys_missing.store(true, Ordering::SeqCst);
+        return Err(CaptureError::PermissionDenied(Modality::Keystroke));
+    }
     M::enable(tap, port)
 }
 
@@ -1956,6 +2058,8 @@ impl TapThread {
 pub struct InputSource {
     foreground: ForegroundReader,
     floor: FloorHandle,
+    off: bool,
+    keys_missing: Arc<AtomicBool>,
     counters: InputCounters,
     plan: HoldPlan,
     #[cfg(any(test, debug_assertions))]
@@ -2039,6 +2143,8 @@ impl InputSource {
         Self {
             foreground,
             floor: FloorHandle::default(),
+            off: false,
+            keys_missing: Arc::new(AtomicBool::new(false)),
             counters,
             plan,
             #[cfg(any(test, debug_assertions))]
@@ -2083,8 +2189,21 @@ impl InputSource {
         *self.refusal.lock().unwrap_or_else(PoisonError::into_inner) = None;
         *self.released.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.counters.set_stalled(false);
+        self.keys_missing.store(false, Ordering::SeqCst);
+        let switches = self.floor.switches();
+        self.off = !switches.is_on(Switch::KeyClass) && !switches.is_on(Switch::PointerClass);
+        if self.off {
+            self.failure = None;
+            return Ok(Started::Off);
+        }
+        if switches.is_on(Switch::KeyClass) && M::listen_denied() {
+            let refused = CaptureError::PermissionDenied(Modality::Keystroke);
+            self.failure = Some(refused.clone());
+            return Err(refused);
+        }
         let settings = TapSettings {
             session: self.session,
+            events: events_of_interest(switches),
             ..tap_settings()
         };
         let stop = Arc::new(AtomicBool::new(false));
@@ -2126,8 +2245,9 @@ impl InputSource {
             #[cfg(all(debug_assertions, feature = "stall-seam"))]
             clock: ctx.clocks.stamps,
         };
+        let keys_missing = self.keys_missing.clone();
         let started = TapThread::spawn(
-            move || install_tap(ctx, settings, maker),
+            move || install_tap(ctx, settings, maker, keys_missing),
             TapPlan {
                 plan: self.plan,
                 #[cfg(any(test, debug_assertions))]
@@ -2241,7 +2361,14 @@ impl CaptureSource for InputSource {
                 reason: HealthReason::RunLoopStalled,
             },
             (Some(_), _) => SourceState::Running,
+            (None, Some(error)) if self.keys_missing.load(Ordering::SeqCst) => {
+                SourceState::Failed {
+                    reason: HealthReason::NoKeyEvents,
+                    error: error.clone(),
+                }
+            }
             (None, Some(error)) => source_failure(error.clone()),
+            (None, None) if self.off => SourceState::Off,
             (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
             (None, None) => SourceState::NotReported,
         };
@@ -4841,7 +4968,7 @@ mod tests {
 
     #[test]
     fn the_tap_listens_for_exactly_the_types_that_it_holds_records_or_reads() {
-        let mask = events_of_interest();
+        let mask = events_of_interest(crate::floor::Switches::default());
         for etype in EVERY_EVENT_TYPE {
             let masked = mask.iter().any(|&listed| listed as u32 == etype as u32);
             let handled = kind_of(etype, Some(0), 0, false) != Kind::Ignore;
@@ -4854,7 +4981,7 @@ mod tests {
 
     #[test]
     fn the_tap_mask_is_0x0e401cfe() {
-        let mask = events_of_interest()
+        let mask = events_of_interest(crate::floor::Switches::default())
             .iter()
             .fold(0u64, |mask, &etype| mask | 1 << (etype as u64));
         assert_eq!(mask, 0x0E40_1CFE);
@@ -7561,6 +7688,198 @@ mod tests {
         assert_eq!(figures.secure_input_keystrokes, 0);
     }
 
+    fn switches_with(key: bool, pointer: bool) -> crate::floor::Switches {
+        let mut switches = crate::floor::Switches::default();
+        switches.set(crate::floor::Switch::KeyClass, key);
+        switches.set(crate::floor::Switch::PointerClass, pointer);
+        switches
+    }
+
+    #[test]
+    fn the_mask_holds_the_key_types_only_with_key_class_on_and_the_mouse_types_only_with_pointer_class_on(
+    ) {
+        let rows = [
+            (true, true, 0x0E40_1CFE),
+            (false, true, 0x0E40_00FE),
+            (true, false, 0x0000_1C00),
+            (false, false, 0),
+        ];
+        for (key, pointer, mask) in rows {
+            assert_eq!(
+                mask_of(&events_of_interest(switches_with(key, pointer))),
+                mask,
+                "key_class {key}, pointer_class {pointer}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_granted_mask_without_the_key_types_fails_and_any_other_passes() {
+        assert!(!key_events_granted(0x0E40_1CFE, 0x0E40_10FE));
+        assert!(!key_events_granted(0x0E40_1CFE, 0x0E40_14FE));
+        assert!(key_events_granted(0x0E40_1CFE, 0x0E40_1CFE));
+        assert!(
+            key_events_granted(0x0E40_00FE, 0x0E40_00FE),
+            "with key_class off no key type is asked for"
+        );
+        assert!(key_events_granted(0x0E40_00FE, 0));
+    }
+
+    struct DeniedMaker(Arc<AtomicUsize>);
+
+    impl TapMaker for DeniedMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(())
+        }
+
+        fn listen_denied() -> bool {
+            true
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    struct MadeMaker(Arc<AtomicUsize>);
+
+    impl TapMaker for MadeMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(())
+        }
+
+        fn listen_denied() -> bool {
+            false
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    fn source_switched(switches: crate::floor::Switches) -> InputSource {
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let mut source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
+        source.floor = FloorHandle::new(None, Arc::new(crate::floor::exclude::NoLineage), switches);
+        source
+    }
+
+    #[test]
+    fn a_start_without_the_grant_for_key_events_fails_with_the_permission_error_and_makes_no_tap() {
+        let (handle, _writer) = sink::channel(4);
+        let made = Arc::new(AtomicUsize::new(0));
+        let mut source = source_switched(switches_with(true, true));
+        let begun = source.begin_with(handle, DeniedMaker(made.clone()), || {});
+        assert_eq!(
+            begun,
+            Err(CaptureError::PermissionDenied(Modality::Keystroke))
+        );
+        assert_eq!(made.load(Ordering::SeqCst), 0, "no tap was asked for");
+        assert!(matches!(
+            source.health().state,
+            SourceState::Failed {
+                reason: HealthReason::Permission,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn with_both_switches_off_the_source_answers_off_and_makes_no_tap() {
+        let (handle, _writer) = sink::channel(4);
+        let made = Arc::new(AtomicUsize::new(0));
+        let mut source = source_switched(switches_with(false, false));
+        let begun = source.begin_with(handle, MadeMaker(made.clone()), || {});
+        assert_eq!(begun, Ok(Started::Off));
+        assert_eq!(made.load(Ordering::SeqCst), 0, "no tap was asked for");
+        assert_eq!(source.health().state, SourceState::Off);
+        assert_eq!(source.shutdown(), Ok(()));
+    }
+
+    struct KeylessMaker;
+
+    impl TapMaker for KeylessMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            Ok(())
+        }
+
+        fn listen_denied() -> bool {
+            false
+        }
+
+        fn granted_events(_tap: &(), _requested: u64) -> u64 {
+            0x0E40_10FE
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            panic!("a tap granted without key events is not enabled")
+        }
+    }
+
+    #[test]
+    fn a_tap_granted_without_the_key_types_fails_its_start_and_reads_no_key_events() {
+        let held = held(100);
+        let Held { ctx, .. } = held;
+        let missing = Arc::new(AtomicBool::new(false));
+        let installed = install_tap(*ctx, stand_in_settings(), KeylessMaker, missing.clone());
+        assert_eq!(
+            installed.err(),
+            Some(CaptureError::PermissionDenied(Modality::Keystroke))
+        );
+        assert!(missing.load(Ordering::SeqCst));
+        let mut source = source_switched(switches_with(true, true));
+        source.keys_missing = missing;
+        source.failure = Some(CaptureError::PermissionDenied(Modality::Keystroke));
+        assert!(matches!(
+            source.health().state,
+            SourceState::Failed {
+                reason: HealthReason::NoKeyEvents,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn each_tap_disabled_notice_raises_its_own_counter() {
+        let held = held(100);
+        for etype in [
+            CGEventType::TapDisabledByTimeout,
+            CGEventType::TapDisabledByUserInput,
+            CGEventType::TapDisabledByTimeout,
+        ] {
+            advance(1);
+            on_tap_event(&held.ctx, event(etype));
+        }
+        let figures = held.counters.figures();
+        assert_eq!(
+            (
+                figures.tap_disabled_timeout,
+                figures.tap_disabled_user_input
+            ),
+            (2, 1)
+        );
+    }
+
     #[test]
     fn each_type_of_the_table_has_its_class() {
         use TapClass::{
@@ -8467,34 +8786,6 @@ mod granted_tests {
     use crate::macos::foreground::foreground_state_for_test;
     use crate::sink;
 
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct TapInformation {
-        event_tap_id: u32,
-        tap_point: u32,
-        options: u32,
-        events_of_interest: u64,
-        tapping_process: libc::pid_t,
-        process_being_tapped: libc::pid_t,
-        enabled: bool,
-        min_usec_latency: f32,
-        avg_usec_latency: f32,
-        max_usec_latency: f32,
-    }
-
-    const NO_TAP: TapInformation = TapInformation {
-        event_tap_id: 0,
-        tap_point: 0,
-        options: 0,
-        events_of_interest: 0,
-        tapping_process: 0,
-        process_being_tapped: 0,
-        enabled: false,
-        min_usec_latency: 0.0,
-        avg_usec_latency: 0.0,
-        max_usec_latency: 0.0,
-    };
-
     #[test]
     fn tap_information_has_the_layout_of_cg_event_tap_information() {
         use std::mem::{align_of, offset_of, size_of};
@@ -8521,7 +8812,6 @@ mod granted_tests {
 
     #[link(name = "CoreGraphics", kind = "framework")]
     extern "C" {
-        fn CGGetEventTapList(max: u32, list: *mut TapInformation, count: *mut u32) -> i32;
         fn CGEventTapIsEnabled(tap: *mut c_void) -> bool;
     }
 
@@ -8628,7 +8918,14 @@ mod granted_tests {
         );
         let port = ctx.port.clone();
         let mut tap = TapThread::spawn(
-            move || install_tap(ctx, tap_settings(), SystemTapMaker),
+            move || {
+                install_tap(
+                    ctx,
+                    tap_settings(),
+                    SystemTapMaker,
+                    Arc::new(AtomicBool::new(false)),
+                )
+            },
             TapPlan {
                 plan: HoldPlan::Never,
                 hold: hold_secure_input,
