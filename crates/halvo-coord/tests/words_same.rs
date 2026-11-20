@@ -454,8 +454,16 @@ fn u24r_the_three_texts_stand_word_for_word() {
     );
     assert_eq!(
         t("line.working.kill_stuck_windows", &[]),
-        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo. All tasks stop."
+        "Its task may still run. Click Halvo's icon by the clock (or under ^), Quit Halvo, then open Halvo again."
     );
+    let windows = t("line.working.kill_stuck_windows", &[]).to_lowercase();
+    for word in ["stop", "end", "second", "minute", "hour"] {
+        assert!(
+            !windows.contains(word),
+            "U4.6: text 2 promises no end and no time at Quit (ruling RD-147 (5)(i)): {word}"
+        );
+    }
+    assert!(!windows.contains(|c: char| c.is_ascii_digit()));
     assert_eq!(
         t("line.problem.record", &[]),
         "Halvo can't read or save this agent's record. The agent starts nothing new. Stop works if shown."

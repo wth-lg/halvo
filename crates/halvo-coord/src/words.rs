@@ -103,7 +103,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.working.kill_stuck_windows",
-        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo. All tasks stop.",
+        "Its task may still run. Click Halvo's icon by the clock (or under ^), Quit Halvo, then open Halvo again.",
     ),
     (
         "line.waiting_turn.queued",
