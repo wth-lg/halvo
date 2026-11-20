@@ -614,7 +614,31 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   import_row_case star-after-import "      $forbidden_import*  (from Carbon)"
   import_row_case comma-after-import "      $forbidden_import,  (from Carbon)"
   cr=$(printf '\r')
-  import_row_case cr-after-import "      $forbidden_import$cr"
+  cr_after_import_case() {
+    row="      $forbidden_import"
+    printf '%s\n' "$clean" "$row$cr" >"$work/halvo"
+    cr_count=$(tr -dc '\r' <"$work/halvo" | wc -c)
+    printf 'a\r\n' >"$work/cr-probe"
+    captured=$(cat "$work/cr-probe") || captured=failed
+    width=$(printf 'a\r\n' | LC_ALL=C awk '{ print length($0) }') || width=failed
+    case $captured in
+      a) captured_width=1 ;;
+      "a$cr") captured_width=2 ;;
+      *) captured_width=invalid ;;
+    esac
+    printf 'cr-after-import: fixture CR count %d, captured width %s, awk width %s\n' "$cr_count" "$captured_width" "$width"
+    if ! [ "$cr_count" -eq 1 ]; then
+      verdict cr-after-import FAIL invalid-fixture
+      return
+    fi
+    case $captured_width:$width in
+      2:2) row=$row$cr ;;
+      1:1|1:2|2:1) ;;
+      *) verdict cr-after-import FAIL invalid-reader-probe; return ;;
+    esac
+    expect_row=$row imports_case cr-after-import FAIL "halvo imports $forbidden_import" "$work/halvo"
+  }
+  cr_after_import_case
   import_row_case dollar-after-import "      $forbidden_import\$suffix  (from Carbon)"
   import_row_case dot-after-import "      $forbidden_import.suffix  (from Carbon)"
   slice='halvo [arm64]:'
