@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { LATE_READ_SPAN_MS } from "../../src/metering/index.ts";
-import { ACCOUNT, DAY, HOUR, world } from "./world.ts";
+import { ACCOUNT, DAY, HASH, HOUR, world } from "./world.ts";
 import { count, cutPair, END, foreign, kinds, NOT_BILLABLE, open, SPAN, stopAfterTheNextCommit, tries } from "./unexplained-support.ts";
 
 type Row = Record<string, string | number | null>;
@@ -195,6 +195,41 @@ describe("a run of unexplained totals is closed as not billable with the cause u
     expect(Number(row?.closed_at)).toBeGreaterThanOrEqual(since + SPAN);
     expect(kinds(w.calls).filter((each) => each.startsWith("send"))).toEqual(["send failed", "send refused unknown_account"]);
     expect(count(w.lines, NOT_BILLABLE)).toBe(1);
+    w.close();
+  });
+
+  test("a try is set at the run's bound: the run of a pending refusal closes LATE_READ_SPAN_MS after its first unexplained total and not at the doubling delay's next read", async () => {
+    const w = await world({ meter: MINUTE, faults: [LOST, UNKNOWN] });
+    await w.use("r1", 30_000);
+    foreign(w, 5);
+    await w.clock(END);
+    const since = END + 60_000;
+    await w.clock(since);
+    await tries(w, open(0));
+    const [row] = await w.intervals();
+    expect([row?.outcome, row?.refusal, row?.unexplained_since]).toEqual(["not-billable", "unexplained-total", since]);
+    expect(Number(row?.closed_at) - since).toBe(LATE_READ_SPAN_MS);
+    w.close();
+  });
+
+  test("a delete answered at the run's first unexplained total, with an interval of 500 minor units queued behind the run: the run closes at its bound, before the removal's, and the meter gets the 500", async () => {
+    const w = await world({ meter: MINUTE, faults: [{ kind: "response-lost" }] });
+    await w.use("r1", 30_000);
+    foreign(w, 5);
+    await w.clock(END);
+    await w.use("r2", 5_000_000);
+    await w.clock(END + DAY);
+    await w.entries().destroy(HASH);
+    let due: number | null = null;
+    for (let step = 0; step < 100; step += 1) {
+      const snapshot = await w.entries().testInspect();
+      if (snapshot.result !== "snapshot" || snapshot.due === null || snapshot.due === due) break;
+      due = snapshot.due;
+      await w.clock(due);
+    }
+    const own = w.meter.recordedEvents(ACCOUNT).filter((each) => !each.identifier.endsWith(":foreign"));
+    expect((await w.entries().testInspect()).result).toBe("no-such-account");
+    expect(own.map((each) => each.amountMinor)).toEqual([3, 500]);
     w.close();
   });
 });
