@@ -378,6 +378,23 @@ impl CardEffect {
         })
     }
 
+    /// The entry of an effect whose last state is `unknown` (I2.6, ruling RD-126 item 10), which
+    /// says that Halvo could not tell whether it went through: `run.effect.<class>.unknown` for
+    /// a class with an effect row and `run.effect.unknown` for any other, with the kept fields of
+    /// `kept` that the one rule lets stand.
+    pub fn unknown(class: Class, kept: &[Kept]) -> Result<CardEffect, Cause> {
+        let key = match kept_names(class) {
+            Some(_) => format!("run.effect.{}.unknown", class.name()),
+            None => "run.effect.unknown".to_owned(),
+        };
+        Ok(CardEffect {
+            class,
+            text: words::text(&key, &[])?,
+            key,
+            fields: standing(class, kept),
+        })
+    }
+
     /// The entry of an effect whose last row is `rejected` with a null cause (I2.6, ruling RD-85
     /// items 1, 5 and 6): `run.effect.<class>.refused` where `refused`, the witness of a no that
     /// the person pressed, and `run.effect.<class>.not_done` otherwise, or `run.effect.refused`

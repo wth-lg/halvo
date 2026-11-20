@@ -984,9 +984,10 @@ fn rd116_r4_a_declined_run_with_one_refusal_beside_a_not_done_effect_says_you_sa
 }
 
 #[test]
-fn rd116_r4_only_rejected_and_committed_effects_give_entries() {
+fn rd116_r4_only_rejected_committed_and_unknown_effects_give_entries() {
     for state in [
-        EffectState::Unknown,
+        EffectState::Refused,
+        EffectState::Cleared,
         EffectState::Releasing,
         EffectState::Approved,
         EffectState::Held,
@@ -1270,4 +1271,113 @@ fn u24q_an_unshown_entry_with_no_readable_field_keeps_todays_sentence() {
         )
     );
     assert!(e.fields().is_empty());
+}
+
+/// Every kept field of `class` in the table's order, each one that the reader takes whole.
+fn whole(class: Class) -> Vec<Kept> {
+    match class {
+        Class::Payment => payment().kept,
+        Class::Purchase => vec![
+            one_kept("seller", "Shop One"),
+            one_kept("amount", "19.99 USD"),
+            one_kept("instrument", "Card ending 4242"),
+            one_kept("origin", "https://shop.example:443"),
+        ],
+        Class::Sign => vec![one_kept("document", "Lease"), one_kept("party", "Bo Chan")],
+        Class::LocalEdit => vec![
+            one_kept("file", "Shared/Books.xlsx"),
+            one_kept("range", "B2 to B9"),
+        ],
+        other => vec![readable(other)],
+    }
+}
+
+fn unknown(class: Class, kept: Vec<Kept>) -> PastEffect {
+    PastEffect {
+        state: EffectState::Unknown,
+        ..committed(class, kept)
+    }
+}
+
+/// RD-126 item 10: an effect whose last state is `unknown` gets an entry in its place that says
+/// that Halvo could not tell whether it went through, one for each class with an effect row and
+/// the plain one for the rest, with the fields that its committed entry shows.
+#[test]
+fn u24q_an_effect_whose_last_state_is_unknown_gets_an_entry_that_says_halvo_could_not_tell() {
+    for class in Class::ALL.iter().copied() {
+        let c = beside_a_good_run(unknown(class, whole(class)));
+        let want = if has_row(class) {
+            format!("run.effect.{}.unknown", class.name())
+        } else {
+            "run.effect.unknown".to_owned()
+        };
+        assert_eq!(
+            keys(&c, 0),
+            ["run.effect.payment", want.as_str(), "run.effect.payment"],
+            "{class:?}"
+        );
+        let e = &c.runs[0].effects[1];
+        assert_eq!(e.text(), line(&want), "{class:?}");
+        let fields = CardEffect::committed(class, &whole(class))
+            .map(|x| x.fields().to_vec())
+            .unwrap_or_default();
+        assert_eq!(e.fields(), &fields[..], "{class:?}");
+        assert_eq!(
+            e.fields().is_empty(),
+            !has_row(class) || class == Class::Delete,
+            "{class:?}"
+        );
+    }
+}
+
+/// The review's N2 (pr-review-35) under RD-126 item 10: the person allowed a send and then
+/// pressed Stop, or Halvo closed, and the store ended the run with the send's last state
+/// `unknown`: the run's line is the coordinator's own, and the entry under it says that Halvo
+/// could not tell whether the message was sent, with its address.
+#[test]
+fn u24q_an_unknown_send_stands_under_the_line_of_a_run_that_the_coordinator_ended() {
+    for (own, want) in [
+        (RunEnd::Cancelled, "line.run.cancelled"),
+        (RunEnd::Interrupted, "line.run.interrupted"),
+    ] {
+        let mut f = facts(State::Card).remove(0);
+        row(
+            &mut f,
+            What::RunEnded {
+                run: run_of(2),
+                cause: own,
+                defers: None,
+            },
+        );
+        let mut h = history(2, Outcome::EffectUnknown);
+        h.effects = vec![unknown(Class::Send, vec![one_kept("to", "Ann Lee")])];
+        let c = card(&f, "N", &[h], &Limits::PRODUCT).unwrap();
+        assert_eq!(c.runs[0].text, line(want), "{own:?}");
+        assert_eq!(keys(&c, 0), ["run.effect.send.unknown"], "{own:?}");
+        assert_eq!(shown(&c.runs[0].effects[0]), [pair("To", "Ann Lee")]);
+    }
+}
+
+/// The entry of an unknown last state takes the one rule for which fields may stand, whatever
+/// the cause of its last row: a refused origin and a piece over 1,024 bytes never stand.
+#[test]
+fn u24q_an_unknown_entry_shows_only_the_fields_that_the_reader_took_whole_whatever_its_cause() {
+    let mut p = unknown(Class::Payment, payment().kept);
+    p.kept[3].value = vec!["http://2130706433:80".into()];
+    p.cause = Some(Name::parse("lost").unwrap());
+    let c = beside_a_good_run(p);
+    assert_eq!(keys(&c, 0)[1], "run.effect.payment.unknown");
+    assert_eq!(shown(&c.runs[0].effects[1]), paid_fields()[..3]);
+    assert!(!serde_json::to_string(&c).unwrap().contains("2130706433"));
+    let c = beside_a_good_run(unknown(Class::Send, vec![one_kept("to", &long())]));
+    let e = &c.runs[0].effects[1];
+    assert_eq!(
+        (e.key().as_str(), e.text()),
+        (
+            "run.effect.send.unknown",
+            line("run.effect.send.unknown").as_str()
+        )
+    );
+    assert!(e.fields().is_empty());
+    assert!(!serde_json::to_string(&c).unwrap().contains(&long()));
 }

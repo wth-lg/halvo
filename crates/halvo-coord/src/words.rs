@@ -501,6 +501,38 @@ pub const KEYS: &[(&str, &str)] = &[
         "run.effect.refused",
         "You said no, so one step of this task was not done.",
     ),
+    (
+        "run.effect.payment.unknown",
+        "Halvo could not tell whether this payment was made.",
+    ),
+    (
+        "run.effect.purchase.unknown",
+        "Halvo could not tell whether this order was placed.",
+    ),
+    (
+        "run.effect.send.unknown",
+        "Halvo could not tell whether this message was sent.",
+    ),
+    (
+        "run.effect.delete.unknown",
+        "Halvo could not tell whether something it was going to remove was removed.",
+    ),
+    (
+        "run.effect.submit.unknown",
+        "Halvo could not tell whether this form was sent.",
+    ),
+    (
+        "run.effect.sign.unknown",
+        "Halvo could not tell whether this document was signed.",
+    ),
+    (
+        "run.effect.local_edit.unknown",
+        "Halvo could not tell whether this file was changed.",
+    ),
+    (
+        "run.effect.unknown",
+        "Halvo could not tell whether one step of this task was done.",
+    ),
     ("line.run.stopped", "It stopped before the task was done."),
     ("field.local_edit.file", "File"),
     ("field.local_edit.range", "Where in the file"),

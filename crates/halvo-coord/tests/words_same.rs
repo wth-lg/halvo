@@ -260,6 +260,18 @@ fn expected_keys() -> BTreeSet<String> {
     ] {
         k.insert(format!("run.effect.{class}.partial"));
     }
+    for class in [
+        "payment",
+        "purchase",
+        "send",
+        "delete",
+        "submit",
+        "sign",
+        "local_edit",
+    ] {
+        k.insert(format!("run.effect.{class}.unknown"));
+    }
+    k.insert("run.effect.unknown".to_owned());
     k.insert("line.run.stopped".to_owned());
     for key in [
         "line.quitting",
@@ -302,7 +314,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 259);
+    assert_eq!(seen.len(), 267);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -522,6 +534,46 @@ fn u24q_the_six_partial_texts_stand_word_for_word() {
         (
             "run.effect.local_edit.partial",
             "It changed this file, but Halvo shows only the details it could read.",
+        ),
+    ]);
+}
+
+/// The texts of the entry of an effect whose last state is unknown (ruling RD-126 item 10),
+/// U2.4q.
+#[test]
+fn u24q_the_eight_unknown_texts_stand_word_for_word() {
+    pinned(&[
+        (
+            "run.effect.payment.unknown",
+            "Halvo could not tell whether this payment was made.",
+        ),
+        (
+            "run.effect.purchase.unknown",
+            "Halvo could not tell whether this order was placed.",
+        ),
+        (
+            "run.effect.send.unknown",
+            "Halvo could not tell whether this message was sent.",
+        ),
+        (
+            "run.effect.delete.unknown",
+            "Halvo could not tell whether something it was going to remove was removed.",
+        ),
+        (
+            "run.effect.submit.unknown",
+            "Halvo could not tell whether this form was sent.",
+        ),
+        (
+            "run.effect.sign.unknown",
+            "Halvo could not tell whether this document was signed.",
+        ),
+        (
+            "run.effect.local_edit.unknown",
+            "Halvo could not tell whether this file was changed.",
+        ),
+        (
+            "run.effect.unknown",
+            "Halvo could not tell whether one step of this task was done.",
         ),
     ]);
 }
