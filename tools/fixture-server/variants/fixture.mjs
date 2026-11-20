@@ -16,7 +16,18 @@ export const VARIANTS = [
   'no_reply',
   'amount_changes',
   'slow_charge',
+  'draft_no_recipient',
+  'draft_two_recipients',
+  'draft_copy',
+  'draft_blind_copy',
+  'draft_other_conversation',
+  'draft_not_yet',
+  'reply_not_draft',
+  'reply_listed_id',
 ];
+
+// The address that a variant of the drafts adds beside the sender.
+export const OTHER_ADDRESS = 'someone.else@people.agent.test';
 
 export const SEEDS = [1, 2, 3];
 
@@ -34,6 +45,12 @@ export const COOKIES = { session: 'halvo_fx_session', ref: 'halvo_fx_ref', devic
 
 const BODY_LIMIT = 1024 * 1024;
 const DAY_MS = 86400000;
+// A list request that names $top gets pages of at most this many items, so that every chain of a
+// caller crosses pages: the service may answer a page shorter than the size asked for.
+export const PAGE_ITEMS = 2;
+const INBOX_PATHS = ['/v1.0/me/mailFolders/inbox/messages', "/v1.0/me/mailFolders('inbox')/messages"];
+const VIEW_PATHS = ['/v1.0/me/calendarView', '/v1.0/me/calendarview'];
+const FILTER = /^isRead eq false and from\/emailAddress\/address eq '((?:[^']|'')*)'(?: and receivedDateTime ge (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z))?$/;
 const READ_ONLY = new Set(['GET', 'HEAD', 'OPTIONS']);
 // With slow_charge the answer to a charge comes this long after the charge is recorded, so the form
 // stays on the page meanwhile: longer than a driver's settle of 2,500 ms (ruling CP-179, H9 (c)).
@@ -55,9 +72,16 @@ function isText(v) {
   return typeof v === 'string' && v.length > 0;
 }
 
+function isAddressList(v) {
+  return Array.isArray(v) && v.every((r) => isObject(r) && isObject(r.emailAddress) && isText(r.emailAddress.address));
+}
+
 function checkMessage(m) {
   return (
     isObject(m) &&
+    Number.isInteger(m.received_minutes) &&
+    (m.replyTo === undefined || isAddressList(m.replyTo)) &&
+    (m.isReadReceiptRequested === undefined || typeof m.isReadReceiptRequested === 'boolean') &&
     isText(m.id) &&
     isText(m.conversationId) &&
     isText(m.subject) &&
@@ -82,7 +106,8 @@ function checkEvent(e) {
     Number.isInteger(e.minutes) &&
     e.minutes > 0 &&
     typeof e.isCancelled === 'boolean' &&
-    isText(e.response)
+    isText(e.response) &&
+    e.isOrganizer === (e.response === 'organizer')
   );
 }
 
@@ -123,9 +148,9 @@ export function seedProblem(seed, n) {
   if (!Array.isArray(s.instruments) || s.instruments.length < 1 || !s.instruments.every(isText)) return 'shop.instruments';
   const m = seed.mail;
   if (!isObject(m) || !isText(m.address)) return 'mail.address';
-  if (!Array.isArray(m.inbox) || m.inbox.length !== 4 || !m.inbox.every(checkMessage)) return 'mail.inbox';
+  if (!Array.isArray(m.inbox) || m.inbox.length !== 6 || !m.inbox.every(checkMessage)) return 'mail.inbox';
   const cal = seed.calendar;
-  if (!isObject(cal) || !Array.isArray(cal.events) || cal.events.length !== 6 || !cal.events.every(checkEvent)) {
+  if (!isObject(cal) || !Array.isArray(cal.events) || cal.events.length !== 8 || !cal.events.every(checkEvent)) {
     return 'calendar.events';
   }
   const sh = seed.sheet;
@@ -168,6 +193,11 @@ function clone(v) {
   return JSON.parse(JSON.stringify(v));
 }
 
+function equalKeys(object, keys) {
+  const own = Object.keys(object);
+  return own.length === keys.length && own.every((k, i) => k === keys[i]);
+}
+
 function newId() {
   return randomBytes(16).toString('hex');
 }
@@ -182,6 +212,10 @@ function graphDateTime(ms) {
     `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}` +
     `T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}.0000000`
   );
+}
+
+function graphInstant(ms) {
+  return graphDateTime(Math.floor(ms / 1000) * 1000).replace('.0000000', 'Z');
 }
 
 export function startDayOf(ms) {
@@ -202,6 +236,7 @@ function materializeEvent(e, startDay) {
       end: { dateTime: graphDateTime(end), timeZone: 'UTC' },
       isCancelled: e.isCancelled,
       responseStatus: { response: e.response },
+      isOrganizer: e.isOrganizer,
     },
   };
 }
@@ -235,6 +270,8 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
     fx.tokens = new Map();
     fx.withheld = false;
     fx.changed = false;
+    fx.receivedBase = Date.now();
+    fx.throttle = null;
   }
 
   function stateObject() {
@@ -271,11 +308,48 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
   }
 
   function serveMessage(m, index) {
-    const out = clone(m);
+    const out = {
+      id: m.id,
+      conversationId: m.conversationId,
+      subject: m.subject,
+      isRead: m.isRead,
+      from: clone(m.from),
+      toRecipients: clone(m.toRecipients),
+      body: clone(m.body),
+      replyTo: clone(m.replyTo || []),
+      receivedDateTime: graphInstant(fx.receivedBase + m.received_minutes * 60000),
+      isReadReceiptRequested: m.isReadReceiptRequested === true,
+    };
     if (has('inject_mail') && index === 1) {
       out.body.content += ` ${page.injectMailText(evilUrl())}`;
     }
     return out;
+  }
+
+  function pageOf(ctx, list, paths) {
+    const q = ctx.url.searchParams;
+    const top = q.get('$top');
+    if (top === null) return json(ctx, 200, { value: list });
+    const skip = q.get('$skip') === null ? '0' : q.get('$skip');
+    if (!/^[1-9]\d{0,3}$/.test(top) || !/^\d{1,6}$/.test(skip)) return graphError(ctx, 400, 'ErrorInvalidUrlQuery');
+    const size = Math.min(Number(top), PAGE_ITEMS);
+    const from = Number(skip);
+    const out = { value: list.slice(from, from + size) };
+    if (from + size < list.length) {
+      const next = new URLSearchParams(q);
+      next.set('$skip', String(from + size));
+      const spelling = paths[Math.floor(from / size + 1) % paths.length];
+      out['@odata.nextLink'] = `http://${ctx.host}:${fx.port}${spelling}?${next.toString()}`;
+    }
+    return json(ctx, 200, out);
+  }
+
+  function throttled(ctx) {
+    if (fx.throttle === null) return false;
+    const seconds = fx.throttle;
+    fx.throttle = null;
+    json(ctx, 429, { error: { code: 'TooManyRequests', message: 'TooManyRequests' } }, { 'Retry-After': String(seconds) });
+    return true;
   }
 
   function cookiesOf(req) {
@@ -302,7 +376,7 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
 
   function respond(ctx, status, headers, body) {
     if (status === 401 && ctx.counted) fx.st.requests.unauthorized += 1;
-    if (ctx.counted && ctx.changing && has('no_reply') && !fx.withheld) {
+    if (ctx.records && has('no_reply') && !fx.withheld) {
       fx.withheld = true;
     } else {
       ctx.res.writeHead(status, { 'Cache-Control': 'no-store', ...headers });
@@ -482,6 +556,7 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       const instrument = f.get('instrument');
       if (!instruments.includes(instrument)) return html(ctx, 400, page.frame(kind, token, amountOf(t), instruments, opts()));
       fx.tokens.delete(token);
+      ctx.records = true;
       if (kind === 'bill') {
         fx.st.utility.payments.push({ account: d.utility.account, amount: amountOf(t), payee: d.utility.payee, instrument });
       } else {
@@ -542,10 +617,25 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
 
   function mailHandler(ctx) {
     if (!bearerOk(ctx)) return graphError(ctx, 401, 'InvalidAuthenticationToken');
+    if (throttled(ctx)) return;
     const d = data();
     const { method, path } = ctx;
-    if (method === 'GET' && path === '/v1.0/me/mailFolders/inbox/messages') {
-      return json(ctx, 200, { value: fx.inbox.map(serveMessage) });
+    if (method === 'GET' && INBOX_PATHS.some((p) => p.toLowerCase() === path.toLowerCase())) {
+      let list = fx.inbox.map(serveMessage);
+      const filter = ctx.url.searchParams.get('$filter');
+      if (filter !== null) {
+        const f = FILTER.exec(filter);
+        if (!f) return graphError(ctx, 400, 'ErrorInvalidUrlQueryFilter');
+        const sender = f[1].replace(/''/g, "'").toLowerCase();
+        const since = f[2] === undefined ? null : Date.parse(f[2]);
+        list = list.filter(
+          (m) =>
+            m.isRead === false &&
+            m.from.emailAddress.address.toLowerCase() === sender &&
+            (since === null || Date.parse(m.receivedDateTime) >= since),
+        );
+      }
+      return pageOf(ctx, list, INBOX_PATHS);
     }
     const m = /^\/v1\.0\/me\/messages\/([^/]+)(\/createReply|\/send)?$/.exec(path);
     if (!m) return graphError(ctx, 404, 'ResourceNotFound');
@@ -562,31 +652,53 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
         conversationId: original.conversationId,
         subject: `RE: ${original.subject}`,
         isRead: true,
+        isDraft: true,
         from: { emailAddress: { address: d.mail.address } },
         toRecipients: [clone(original.from)],
+        ccRecipients: [],
+        bccRecipients: [],
         body: { content: typeof body.comment === 'string' ? body.comment : '' },
       };
       if ('message' in body && !setDraftKeys({ draft }, body.message)) return graphError(ctx, 400, 'ErrorInvalidRequest');
-      fx.drafts.set(draft.id, { draft, inReplyTo: original.id });
+      const other = { emailAddress: { address: OTHER_ADDRESS } };
+      if (has('draft_no_recipient')) draft.toRecipients = [];
+      if (has('draft_two_recipients')) draft.toRecipients.push(clone(other));
+      if (has('draft_copy')) draft.ccRecipients = [clone(other)];
+      if (has('draft_blind_copy')) draft.bccRecipients = [clone(other)];
+      if (has('draft_other_conversation')) draft.conversationId = `${original.conversationId}-other`;
+      if (has('reply_not_draft')) draft.isDraft = false;
+      if (has('reply_listed_id')) return json(ctx, 201, { ...draft, id: original.id });
+      fx.drafts.set(draft.id, { draft, inReplyTo: original.id, patches: 0 });
       return json(ctx, 201, draft);
     }
     if (method === 'PATCH' && !m[2]) {
+      const received = fx.inbox.find((x) => x.id === id);
+      if (received) {
+        const body = jsonBody(ctx);
+        if (!isObject(body) || !equalKeys(body, ['isRead']) || typeof body.isRead !== 'boolean') {
+          return graphError(ctx, 400, 'ErrorInvalidRequest');
+        }
+        received.isRead = body.isRead;
+        return json(ctx, 200, serveMessage(received, fx.inbox.indexOf(received)));
+      }
       const entry = fx.drafts.get(id);
       if (!entry) return graphError(ctx, 404, 'ErrorItemNotFound');
       if (!setDraftKeys(entry, jsonBody(ctx))) return graphError(ctx, 400, 'ErrorInvalidRequest');
-      return json(ctx, 200, entry.draft);
+      entry.patches += 1;
+      const answer = clone(entry.draft);
+      if (has('draft_not_yet') && entry.patches === 1) answer.isDraft = false;
+      return json(ctx, 200, answer);
     }
     if (method === 'POST' && m[2] === '/send') {
       const entry = fx.drafts.get(id);
       if (!entry) return graphError(ctx, 404, 'ErrorItemNotFound');
       fx.drafts.delete(id);
+      ctx.records = true;
       fx.st.mail.sent.push({
         to: entry.draft.toRecipients.map((r) => r.emailAddress.address).join(','),
         conversation: entry.draft.conversationId,
         in_reply_to: entry.inReplyTo,
       });
-      const original = fx.inbox.find((x) => x.id === entry.inReplyTo);
-      if (original) original.isRead = true;
       return respond(ctx, 202, {}, '');
     }
     return graphError(ctx, 405, 'ErrorInvalidRequest');
@@ -599,16 +711,14 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
 
   function calendarHandler(ctx) {
     if (!bearerOk(ctx)) return graphError(ctx, 401, 'InvalidAuthenticationToken');
+    if (throttled(ctx)) return;
     const { method, path } = ctx;
-    if (method === 'GET' && path === '/v1.0/me/calendarView') {
+    if (method === 'GET' && VIEW_PATHS.some((p) => p.toLowerCase() === path.toLowerCase())) {
       const from = parseUtc(ctx.url.searchParams.get('startDateTime'));
       const to = parseUtc(ctx.url.searchParams.get('endDateTime'));
       if (Number.isNaN(from) || Number.isNaN(to)) return graphError(ctx, 400, 'ErrorInvalidParameter');
-      const value = fx.events
-        .filter((e) => e.startMs < to && e.endMs > from)
-        .sort((a, b) => a.startMs - b.startMs)
-        .map((e) => clone(e.json));
-      return json(ctx, 200, { value });
+      const value = fx.events.filter((e) => e.startMs < to && e.endMs > from).map((e) => clone(e.json));
+      return pageOf(ctx, value, VIEW_PATHS);
     }
     const m = /^\/v1\.0\/me\/events\/([^/]+)$/.exec(path);
     if (m && method === 'DELETE') {
@@ -616,6 +726,7 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       const i = fx.events.findIndex((e) => e.json.id === id);
       if (i < 0) return graphError(ctx, 404, 'ErrorItemNotFound');
       fx.events.splice(i, 1);
+      ctx.records = true;
       fx.st.calendar.deleted.push(id);
       return respond(ctx, 204, {}, '');
     }
@@ -655,6 +766,15 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
       fx.changed = true;
       return json(ctx, 200, stateObject());
     }
+    if (path === '/throttle') {
+      if (method !== 'POST') return text(ctx, 405, 'method not allowed\n', { Allow: 'POST' });
+      const q = ctx.url.searchParams;
+      if (![...q.keys()].every((k) => k === 'seconds') || !/^\d{1,5}$/.test(q.get('seconds') || '')) {
+        return text(ctx, 400, 'bad seconds\n');
+      }
+      fx.throttle = Number(q.get('seconds'));
+      return json(ctx, 200, stateObject());
+    }
     if (path === '/advance') {
       if (method !== 'POST') return text(ctx, 405, 'method not allowed\n', { Allow: 'POST' });
       if (!fx.advanced) {
@@ -677,11 +797,13 @@ export function createFixture({ seeds, seed, variants, startDay, port }) {
     const ctx = {
       req,
       res,
+      host,
       url,
       path: url.pathname,
       method: req.method === 'HEAD' ? 'GET' : req.method,
       counted: host !== HOSTS.control,
       changing: !READ_ONLY.has(req.method),
+      records: false,
       carried: null,
       body: Buffer.alloc(0),
     };

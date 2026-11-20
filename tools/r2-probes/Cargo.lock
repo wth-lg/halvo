@@ -790,6 +790,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-test-dir"
+version = "0.0.0"
+
+[[package]]
 name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1686,6 +1690,7 @@ dependencies = [
  "block2",
  "core-foundation",
  "enigo",
+ "halvo-test-dir",
  "image",
  "libc",
  "oar-ocr",

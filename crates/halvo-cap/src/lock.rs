@@ -436,7 +436,7 @@ mod tests {
     use super::*;
     use std::io::{BufRead, BufReader, Lines, Read, Write};
     use std::process::{Child, ChildStdout, Command, Stdio};
-    use std::time::{Instant, SystemTime, UNIX_EPOCH};
+    use std::time::Instant;
 
     const LOADER: &str = "lock::tests::loader";
 
@@ -669,19 +669,81 @@ mod tests {
         lines: Lines<BufReader<ChildStdout>>,
     }
 
-    fn fresh_dir(name: &str) -> PathBuf {
+    struct Fresh(PathBuf);
+
+    impl Drop for Fresh {
+        fn drop(&mut self) {
+            if let Some(line) = removal(&self.0) {
+                let _ = writeln!(io::stderr(), "{line}");
+            }
+        }
+    }
+
+    fn removal(dir: &Path) -> Option<String> {
+        let error = std::fs::remove_dir_all(dir).err()?;
+        Some(format!(
+            "scratch directory not removed: {}: {error}",
+            dir.display()
+        ))
+    }
+
+    fn fresh_dir(name: &str) -> (Fresh, PathBuf) {
         let exe = std::env::current_exe().unwrap();
-        let target = exe.ancestors().nth(3).unwrap();
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let dir = target
-            .join("tmp")
-            .join("halvo-cap-lock")
-            .join(format!("{name}-{}-{nanos}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+        let tmp = exe.ancestors().nth(3).unwrap().join("tmp");
+        let word = format!("halvo-cap-lock-{name}");
+        match halvo_test_dir::make(&tmp, &word) {
+            Ok(dir) => (Fresh(dir.clone()), dir),
+            Err(e) => panic!("{word} under {}: {e}", tmp.display()),
+        }
+    }
+
+    #[test]
+    fn fresh_dir_two_calls_give_two_directories_and_each_is_gone_after_its_drop() {
+        let (first, first_dir) = fresh_dir("fresh");
+        let (second, second_dir) = fresh_dir("fresh");
+        assert_ne!(first_dir, second_dir);
+        assert!(first_dir.is_dir() && second_dir.is_dir());
+        std::fs::write(first_dir.join("file"), "x").unwrap();
+        drop(first);
+        drop(second);
+        assert!(!first_dir.exists(), "{}", first_dir.display());
+        assert!(!second_dir.exists(), "{}", second_dir.display());
+    }
+
+    #[test]
+    fn fresh_dir_passes_over_the_directory_that_the_next_call_names() {
+        let (_first, first_dir) = fresh_dir("fresh-next");
+        let name = first_dir.file_name().unwrap().to_str().unwrap();
+        let (stem, count) = name.rsplit_once('-').unwrap();
+        let count: u64 = count.parse().unwrap();
+        let next = first_dir.with_file_name(format!("{stem}-{}", count + 1));
+        std::fs::create_dir(&next).unwrap();
+        let _next = Fresh(next.clone());
+        std::fs::write(next.join("kept"), "kept\n").unwrap();
+        let (_second, second_dir) = fresh_dir("fresh-next");
+        assert!(second_dir.is_dir(), "{}", second_dir.display());
+        assert_ne!(second_dir, next);
+        assert_eq!(
+            std::fs::read_to_string(next.join("kept")).unwrap(),
+            "kept\n"
+        );
+        assert_eq!(std::fs::read_dir(&next).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn fresh_dir_lies_in_the_target_tmp_directory_and_a_removal_that_fails_gives_one_line() {
+        let (held, dir) = fresh_dir("fresh-line");
+        let exe = std::env::current_exe().unwrap();
+        assert_eq!(
+            dir.parent(),
+            Some(exe.ancestors().nth(3).unwrap().join("tmp").as_path())
+        );
+        drop(held);
+        let line = removal(&dir).expect("a line for a removal that fails");
+        assert!(
+            line.contains(&dir.display().to_string()) && !line.contains('\n'),
+            "{line}"
+        );
     }
 
     fn loader_command(role: &str, dir: &Path) -> Command {
@@ -728,7 +790,7 @@ mod tests {
 
     #[test]
     fn a_second_loader_is_refused_at_once_and_a_killed_holder_frees_the_lock() {
-        let dir = fresh_dir("refused");
+        let (_fresh, dir) = fresh_dir("refused");
         let lock = lock_path_in(&dir);
         assert!(!lock.exists());
 
@@ -756,7 +818,7 @@ mod tests {
 
     #[test]
     fn the_take_leaves_the_content_of_the_lock_file_as_it_was() {
-        let dir = fresh_dir("content");
+        let (_fresh, dir) = fresh_dir("content");
         let lock = lock_path_in(&dir);
         std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
         std::fs::write(&lock, "left by an earlier run\n").unwrap();
@@ -770,7 +832,7 @@ mod tests {
 
     #[test]
     fn a_holder_that_starts_a_child_and_ends_leaves_the_lock_free_while_the_child_lives() {
-        let dir = fresh_dir("child");
+        let (_fresh, dir) = fresh_dir("child");
         let mut holder = start_holder_as("start-child-and-exit", &dir);
         let child_input = holder.child.0.stdin.take().unwrap();
         holder.child.0.wait().unwrap();
@@ -785,7 +847,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn a_child_that_the_holder_starts_inherits_no_descriptor_of_the_lock_and_cannot_unlock_it() {
-        let dir = fresh_dir("unlock");
+        let (_fresh, dir) = fresh_dir("unlock");
         let _holder = start_holder_as("hold-and-start-unlocker", &dir);
         let (code, line) = loader_line("try", &dir);
         assert_eq!(
@@ -796,7 +858,7 @@ mod tests {
 
     #[test]
     fn a_held_lock_is_refused_with_words_that_name_no_other_process() {
-        let dir = fresh_dir("twice");
+        let (_fresh, dir) = fresh_dir("twice");
         let (code, line) = loader_line("take-twice", &dir);
         assert_eq!(code, 3, "{line}");
         assert_eq!(
@@ -811,7 +873,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn a_child_started_after_the_second_call_holds_the_lock_after_the_holder_has_ended() {
-        let dir = fresh_dir("hand-on");
+        let (_fresh, dir) = fresh_dir("hand-on");
         let mut holder = start_holder_as("hand-on-start-child-and-exit", &dir);
         let child_input = holder.child.0.stdin.take().unwrap();
         holder.child.0.wait().unwrap();
@@ -837,7 +899,7 @@ mod tests {
 
     #[test]
     fn a_loader_that_exits_frees_the_lock() {
-        let dir = fresh_dir("exit");
+        let (_fresh, dir) = fresh_dir("exit");
         let (code, line) = loader_line("try", &dir);
         assert_eq!(code, 0, "{line}");
         let (code, line) = loader_line("try", &dir);
@@ -847,7 +909,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_holder_that_execs_keeps_the_lock_until_its_process_ends() {
-        let dir = fresh_dir("exec");
+        let (_fresh, dir) = fresh_dir("exec");
         let mut holder = start_holder_as("hold-then-exec", &dir);
         let next = holder.lines.next().unwrap().unwrap();
         assert_eq!(next, "execd", "the holder did not exec");
@@ -864,7 +926,7 @@ mod tests {
     #[cfg(windows)]
     #[test]
     fn the_held_lock_file_and_its_directory_cannot_be_moved() {
-        let dir = fresh_dir("move");
+        let (_fresh, dir) = fresh_dir("move");
         let lock = lock_path_in(&dir);
         let mut holder = start_holder_as("hold", &dir);
         let moved = dir.join("moved.lock");
@@ -977,7 +1039,7 @@ mod tests {
 
     #[test]
     fn an_existing_lock_file_that_cannot_be_written_is_taken_and_held() {
-        let dir = fresh_dir("read-only");
+        let (_fresh, dir) = fresh_dir("read-only");
         let lock = lock_path_in(&dir);
         let parent = lock.parent().unwrap().to_path_buf();
         std::fs::create_dir_all(&parent).unwrap();
@@ -994,7 +1056,7 @@ mod tests {
 
     #[test]
     fn a_directory_that_cannot_be_written_gives_io_and_no_lock() {
-        let base = fresh_dir("unwritable-base");
+        let (_fresh_base, base) = fresh_dir("unwritable-base");
         let _base_unwritable = Unwritable::make(std::slice::from_ref(&base));
         assert!(
             File::create(base.join("probe")).is_err(),
@@ -1035,7 +1097,7 @@ mod tests {
             let _ = writeln!(io::stderr(), "model-lock unwritable base: tried");
         }
 
-        let dir = fresh_dir("unwritable-dir");
+        let (_fresh, dir) = fresh_dir("unwritable-dir");
         let lock = lock_path_in(&dir);
         let parent = lock.parent().unwrap().to_path_buf();
         std::fs::create_dir_all(&parent).unwrap();
@@ -1049,7 +1111,7 @@ mod tests {
 
     #[test]
     fn a_directory_at_the_lock_path_gives_io_and_no_lock() {
-        let dir = fresh_dir("lock-is-a-directory");
+        let (_fresh, dir) = fresh_dir("lock-is-a-directory");
         let lock = lock_path_in(&dir);
         std::fs::create_dir_all(&lock).unwrap();
         match take_lock_from(Ok(Some(dir.into_os_string()))) {
@@ -1070,7 +1132,7 @@ mod tests {
                 let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o644));
             }
         }
-        let dir = fresh_dir("unreadable");
+        let (_fresh, dir) = fresh_dir("unreadable");
         let lock = lock_path_in(&dir);
         std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
         std::fs::write(&lock, "left by an earlier run\n").unwrap();
@@ -1094,7 +1156,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_fifo_at_the_lock_path_gives_io_at_once() {
-        let dir = fresh_dir("fifo");
+        let (_fresh, dir) = fresh_dir("fifo");
         let lock = lock_path_in(&dir);
         std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
         let made = Command::new("/usr/bin/mkfifo").arg(&lock).status().unwrap();
@@ -1111,7 +1173,7 @@ mod tests {
 
     #[test]
     fn a_lock_file_that_another_process_made_after_the_open_is_kept_as_it_is() {
-        let dir = fresh_dir("made-meanwhile");
+        let (_fresh, dir) = fresh_dir("made-meanwhile");
         let lock = lock_path_in(&dir);
         std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
         std::fs::write(&lock, "made by another loader\n").unwrap();
@@ -1124,7 +1186,7 @@ mod tests {
 
     #[test]
     fn each_answer_of_the_lock_call_gives_its_own_result_and_an_error_is_never_held() {
-        let dir = fresh_dir("answers");
+        let (_fresh, dir) = fresh_dir("answers");
         let path = dir.join("model.lock");
         std::fs::write(&path, "").unwrap();
         let open = || File::open(&path).unwrap();
@@ -1171,7 +1233,7 @@ mod tests {
                 .success()
         })
         .expect("every user id of the list has an account");
-        let dir = fresh_dir("no-account");
+        let (_fresh, dir) = fresh_dir("no-account");
         let output = loader_command("lookup-uid", &dir)
             .arg(format!("halvo-uid={uid}"))
             .env("HOME", &dir)
@@ -1198,7 +1260,7 @@ mod tests {
 
     #[test]
     fn a_file_in_the_way_of_the_lock_directory_gives_io_and_no_lock() {
-        let base = fresh_dir("file-in-the-way");
+        let (_fresh_base, base) = fresh_dir("file-in-the-way");
         let lock = lock_path_in(&base);
         let in_the_way = lock.parent().unwrap().to_path_buf();
         std::fs::create_dir_all(in_the_way.parent().unwrap()).unwrap();
@@ -1243,7 +1305,7 @@ mod tests {
 
     #[test]
     fn a_lookup_that_gives_an_absolute_directory_gives_the_lock_below_it() {
-        let dir = fresh_dir("absolute");
+        let (_fresh, dir) = fresh_dir("absolute");
         let path = lock_path_from(Ok(Some(dir.clone().into_os_string()))).unwrap();
         assert_eq!(path, lock_path_in(&dir));
     }
@@ -1274,7 +1336,7 @@ mod tests {
     #[test]
     fn a_lookup_that_gives_no_absolute_path_gives_the_cause_and_no_lock() {
         for role in ["take-relative", "take-empty"] {
-            let dir = fresh_dir(role);
+            let (_fresh, dir) = fresh_dir(role);
             let output = loader_command(role, &dir)
                 .current_dir(&dir)
                 .output()
