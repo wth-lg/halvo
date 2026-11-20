@@ -1585,6 +1585,54 @@ EOF
   printf '%b' "$held_store3c" >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
   check rules-form-holds-the-file-as-store-3c-has-it PASS "$held looks a symbol up by name only in its fn symbol, by the plain literal names r1_full_flushes r1_plain_flushes r1_full_flush_path r1_fail_full_flushes" '' rules
+  zz=crates/halvo-capture/src/zz_carbon.rs
+  zz_body='extern "C" {\n    fn EnableSecureEventInput() -> i32;\n    #[link_name = concat!("Disable", "SecureEventInput")]\n    fn off() -> i32;\n}\nfn look() -> *mut libc::c_void {\n    unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"getpid".as_ptr()) }\n}\n'
+  x03_parent='mod full_flush_again {\n    include!("hardening_tests/full_flush.rs");\n    pub(super) fn other() -> Option<*mut libc::c_void> {\n        symbol(c"getpid")\n    }\n}\n'
+  rules_case() {
+    printf '%b' "$4" >"$work/repo/$5" || exit 2
+    git -C "$work/repo" add -A || exit 2
+    check "$1" "$2" "$3" '' rules
+    printf 'none\n' >"$work/repo/$5" || exit 2
+    git -C "$work/repo" add -A || exit 2
+  }
+  attribute_case() {
+    printf '%b' "$4" >"$work/repo/.gitattributes" || exit 2
+    rules_case "$1" "$2" "$3" "$6" "$5"
+    : >"$work/repo/.gitattributes" || exit 2
+    git -C "$work/repo" add -A || exit 2
+  }
+  rules_case carbon-u01-a-rust-file-with-a-nul-byte-that-holds-a-carbon-name-and-a-lookup FAIL "$carbon_text$zz (" \
+    '// \0000 one NUL byte in this comment\n'"$zz_body" "$zz"
+  rules_case carbon-u02-the-same-rust-file-without-the-nul-byte FAIL "$carbon_text$zz (" \
+    '// no NUL byte in this comment\n'"$zz_body" "$zz"
+  rules_case carbon-held-file-s06-a-nul-byte-in-a-comment-of-the-parent-file FAIL "$held_named_text" \
+    '// \0000 one NUL byte in this comment\n'"$x03_parent" "$held_parent"
+  attribute_case carbon-held-file-s07-a-diff-attribute-that-makes-the-parent-file-binary FAIL "$held_named_text" \
+    "/$held_parent -diff\n" "$held_parent" "$x03_parent"
+  attribute_case carbon-attribute-binary-makes-a-rust-file-no-text FAIL "$carbon_text$zz (" "/$zz binary\n" "$zz" "$zz_body"
+  attribute_case carbon-attribute-minus-diff-makes-a-rust-file-no-text FAIL "$carbon_text$zz (" "/$zz -diff\n" "$zz" "$zz_body"
+  attribute_case carbon-attribute-a-macro-that-unsets-diff-makes-a-rust-file-no-text FAIL "$carbon_text$zz (" \
+    "[attr]nodiff -diff\n/$zz nodiff\n" "$zz" "$zz_body"
+  git -C "$work/repo" config diff.bindriver.binary true || exit 2
+  attribute_case carbon-attribute-a-diff-driver-that-the-config-makes-binary FAIL "$carbon_text$zz (" \
+    "/$zz diff=bindriver\n" "$zz" "$zz_body"
+  git -C "$work/repo" config --unset diff.bindriver.binary || exit 2
+  filler=$(awk 'BEGIN { for (i = 0; i < 199; i++) printf "// %s\\n", "ffffffffffffffffffffffffffffffffffff" }') || exit 2
+  rules_case carbon-a-nul-byte-in-the-last-of-the-first-8000-bytes FAIL "$carbon_text$zz (" \
+    "$filler"'// ffffffffffffffffffffffffffffffffffff\0000\n'"$zz_body" "$zz"
+  rules_case carbon-a-nul-byte-after-the-first-8000-bytes FAIL "$carbon_text$zz (" \
+    "$filler"'// fffffffffffffffffffffffffffffffffffff\0000\n'"$zz_body" "$zz"
+  rules_case carbon-a-binary-file-of-another-name-that-a-rust-file-takes-as-a-module FAIL "${carbon_text}crates/halvo-capture/src/hold.bin (" \
+    '// \0000 a module that a Rust file names by #[path = "hold.bin"]\n'"$zz_body" crates/halvo-capture/src/hold.bin
+  rules_case carbon-a-binary-objective-c-file FAIL "${carbon_text}crates/other/src/hold.m (" \
+    'void hold(void) { /* \0000 */ EnableSecureEventInput(); }\n' crates/other/src/hold.m
+  rules_case carbon-a-nul-byte-before-a-link-name-on-its-line FAIL "$carbon_text$zz (" \
+    'extern "C" { /* \0000 */ #[link_name = concat!("Enable", "SecureEventInput")] fn hold() -> i32; }\n' "$zz"
+  rules_case carbon-a-binary-file-that-holds-none-of-the-names PASS 'carbon: in every tracked text file but' \
+    '\0000\0001\0002 an image with link name and dl sym in it\n' crates/other/icon.png
+  rules_case carbon-held-file-limit-s02-a-module-file-whose-extension-is-RS PASS "$held_store3c_text" \
+    'include!("full_flush.rs");\npub(super) fn other() -> Option<*mut libc::c_void> {\n    symbol(c"getpid")\n}\n' \
+    crates/halvo-capture/src/store/hardening_tests/full_flush_again.RS
   printf '%b' "$held_head$held_symbol"'fn loaded() -> Option<()> {\n    let pid = symbol(c"getpid")?;\n    Some(())\n}\n' >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
   check rules-form-refuses-a-lookup-by-another-name FAIL "$held: fn symbol gets a name that is no plain literal beginning r1_, or is named other than in such a call, at line 14" '' rules
