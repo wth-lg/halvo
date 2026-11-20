@@ -361,7 +361,10 @@ impl<C> Board<C> {
     /// `Runs::reap` answered `alive` has ended in the agent store: a copy in which each
     /// `run_ended` row with `interrupted` of such a run that a record of `records` names holds
     /// the end of that record, so that the `interrupted` that recovery stored does not win over
-    /// the store's outcome (I5.8; ruling RD-151). None where no such row stands.
+    /// the store's outcome (I5.8; ruling RD-151). Where no `run_ended` row of such a run stands,
+    /// because recovery's row never reached the ledger, the copy holds one of that end after
+    /// its `run_started`, so that the row reads the end of that run and not of an earlier one
+    /// (RD-151 (b)). None where neither stands.
     pub fn ended_after_reap(
         &self,
         facts: &Facts<C>,
@@ -380,7 +383,20 @@ impl<C> Board<C> {
             matches!(what, crate::types::What::RunEnded { run, cause: RunEnd::Interrupted, .. }
                 if end_of(run).is_some())
         };
-        if !facts.events.iter().any(|e| stands(&e.what)) {
+        let unended = |what: &crate::types::What| match what {
+            crate::types::What::RunStarted { run, .. } if self.alive.contains(run) => {
+                let ended = facts.events.iter().any(
+                    |e| matches!(&e.what, crate::types::What::RunEnded { run: r, .. } if r == run),
+                );
+                (!ended).then(|| end_of(run)).flatten()
+            }
+            _ => None,
+        };
+        if !facts
+            .events
+            .iter()
+            .any(|e| stands(&e.what) || unended(&e.what).is_some())
+        {
             return None;
         }
         let mut read = facts.clone();
@@ -392,6 +408,24 @@ impl<C> Board<C> {
                     }
                 }
             }
+        }
+        let mut k = 0;
+        while k < read.events.len() {
+            if let (Some(end), crate::types::What::RunStarted { run, .. }) =
+                (unended(&read.events[k].what), &read.events[k].what)
+            {
+                let ended = crate::types::Event {
+                    what: crate::types::What::RunEnded {
+                        run: run.clone(),
+                        cause: end,
+                        defers: None,
+                    },
+                    ..read.events[k].clone()
+                };
+                read.events.insert(k + 1, ended);
+                k += 1;
+            }
+            k += 1;
         }
         Some(read)
     }
