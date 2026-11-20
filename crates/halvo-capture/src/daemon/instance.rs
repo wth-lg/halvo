@@ -281,12 +281,10 @@ pub(crate) mod tests {
             assert!(InstanceLock::take(&named).unwrap().is_some());
         }
 
-        const READER_HOLDS: Duration = Duration::from_millis(300);
-
         const READS_APART: Duration = Duration::from_millis(1);
 
         #[test]
-        fn a_take_waits_out_a_reader_that_holds_the_lock_for_300_ms() {
+        fn a_take_against_a_reader_that_never_lets_go_answers_held_after_its_whole_window() {
             let dir = kept_dir("instance-tests-");
             let named = data_dir(&dir);
             let reader = std::fs::File::open(&dir).unwrap();
@@ -297,22 +295,20 @@ pub(crate) mod tests {
                 )
             };
             assert_eq!(shared, 0);
-            let release = std::thread::spawn(move || {
-                std::thread::sleep(READER_HOLDS);
-                drop(reader);
-            });
+            let window = Duration::from_millis(instance_lock::TAKE_FOR_MS);
             let started = Instant::now();
             let taken = InstanceLock::take(&named).unwrap();
             let took = started.elapsed();
-            release.join().unwrap();
+            drop(reader);
             assert!(
-                taken.is_some(),
-                "a reader that held the shared lock for {READER_HOLDS:?} made the take answer held"
+                taken.is_none(),
+                "a take answered taken while a reader held the shared lock"
             );
             assert!(
-                took + Duration::from_millis(50) >= READER_HOLDS,
-                "the take did not wait for the reader: {took:?}"
+                took >= window,
+                "the take answered held after {took:?}, inside its window of {window:?}: it did not try again"
             );
+            assert!(InstanceLock::take(&named).unwrap().is_some());
         }
 
         #[test]
