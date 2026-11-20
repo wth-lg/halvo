@@ -523,7 +523,7 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
         [ "$#" = 3 ] && [ "$1" = dyld_info ] && [ "$2" = -imports ] || return 2
         cat "$3" 2>/dev/null
       }
-      release_imports "$@"
+      release_imports "$@" 2>"$work/imports.err"
     )
     code=$?
     case $code:$output in
@@ -531,6 +531,7 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
       1:*"FAIL $name ($wanted_text)"*) got=FAIL ;;
       *) got="unexpected-exit-$code" ;;
     esac
+    if [ -s "$work/imports.err" ]; then got=unexpected-stderr; fi
     if [ "$got" = "$want" ] && [ -n "${expect_row:-}" ]; then
       grep -Fx -- "$expect_row" >/dev/null <<EOF || got=missing-row
 $output
@@ -570,6 +571,8 @@ EOF
   no_table='dyld_info returned no import table for halvo'
   empty_table='dyld_info returned an empty import table for halvo'
   bad_layout='dyld_info returned an unrecognized import listing for halvo'
+  printf '%s\n' "$header" '      _free  (from libSystem)' >"$work/halvo"
+  expect_row="$header" imports_case import-table-without-slice FAIL "$no_table" "$work/halvo"
   printf '%s\n' "$slice" "$hold_row" "$header" '      _free  (from libSystem)' >"$work/halvo"
   expect_row="$hold_row" imports_case import-before-header FAIL "$no_table" "$work/halvo"
   printf '%s\n' "$slice" "$header" >"$work/halvo"
@@ -783,7 +786,7 @@ SH
     CI=true CI_D_JOB=macos CI_D_REPO="$measure_repo" TMPDIR="$measure_manifest" PATH="$standins:$PATH" sh "$check_script"
   )
   measure_case() {
-    output=$(measure_fixture 2>"$work/measure.err")
+    output=$(TAURI_CONFIG=fixture APPLE_ID=fixture measure_fixture 2>"$work/measure.err")
     code=$?
     got=unexpected-exit-$code
     if [ "$code" = "$2" ] && [ "$output" = "$3" ] && [ ! -e "$measure_trace" ]; then
