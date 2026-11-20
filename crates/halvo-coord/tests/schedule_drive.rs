@@ -3680,3 +3680,50 @@ fn u24s_class_b_the_end_run_debt_counts_nothing() {
         sent: "end_run",
     });
 }
+
+fn u24s_starts_tried(w: &World, from: usize) -> usize {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| matches!(&t.call, Call::Log(events) if events.iter().any(|e| matches!(e.what, What::RunStarted { .. }))))
+        .count()
+}
+
+#[test]
+fn u24s_g3_an_acknowledged_store_of_the_agent_ends_the_stop_for_the_life_of_a_start_refused_with_no_workflow(
+) {
+    let mut w = world(&[AUTO]);
+    w.ports
+        .refuse(Method::LogRunStarted, u24s_refused("no_workflow"));
+    let from = w.ports.tried.borrow().len();
+    w.tick();
+    w.clock(T0 + 1_000, DAY);
+    w.tick();
+    assert_eq!(
+        u24s_starts_tried(&w, from),
+        1,
+        "RD-125 (1): the start refused with no_workflow is not tried again"
+    );
+    assert!(w.board.stuck_for_life(&agent(0), &w.limits));
+    assert!(!w.board.record_stuck(&agent(0), &w.limits));
+    w.ports.clear_refusals();
+    u24s_owe_lapse(&mut w, 0, 3);
+    w.clock(T0 + 2_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    let tick = w.tick();
+    assert!(
+        w.stored().iter().any(|e| e.what
+            == What::ItemLapsed {
+                item: u24s_item(3),
+                lapsed: halvo_coord::types::Lapsed::Ready(halvo_coord::types::OtherLapse::AppEnded),
+            }),
+        "the debt is stored, an acknowledged store of the agent"
+    );
+    assert_eq!(
+        u24s_starts_tried(&w, from),
+        1,
+        "G3, kept as built (RD-126 item 12): the acknowledged store ends the stop for the life, and the same tick tries the start"
+    );
+    assert_eq!(tick.started.len(), 1);
+    assert_eq!(tick.started[0].answer, Ok(Answer::Ok));
+    assert!(!w.board.stuck_for_life(&agent(0), &w.limits));
+}
