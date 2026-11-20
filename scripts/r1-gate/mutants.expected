@@ -542,3 +542,5 @@ signal-health-unread
 window-arm-ignores-the-flag
 barrier-wait-50-s
 tick-1000-ms
+state-save-without-temp-and-rename
+state-version-default-zero
