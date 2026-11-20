@@ -1,10 +1,54 @@
 use std::path::Path;
 
+use halvo_derived::DbKey;
+
 use crate::case::{read_dir, Case, Form, Kind};
 use crate::cli::{Cause, Flags, Refusal, Report, StoreName};
+use crate::derived::{process_key, DerivedHost, Scratch};
 use crate::link;
-use crate::stub::{play_case, Arm, Tally};
+use crate::stub::{play_all, play_case, Arm, Play, Tally};
 use crate::targets::{self, Targets};
+
+/// Where a command plays each case in each arm: on a memory store of its own, or on a derived store of its own in a
+/// directory under the command's temporary directory, opened with the command's key (contracts.md L10.1).
+pub enum Plays {
+    Memory,
+    Derived { scratch: Scratch, key: DbKey },
+}
+
+impl Plays {
+    /// The plays on the store that `--store` names; the refusal `store` when the command's temporary directory cannot
+    /// be made.
+    pub fn on(store: StoreName) -> Result<Plays, Refusal> {
+        match store {
+            StoreName::Memory => Ok(Plays::Memory),
+            StoreName::Derived => Ok(Plays::Derived {
+                scratch: Scratch::make().map_err(|detail| Refusal::new(Cause::Store, detail))?,
+                key: process_key(),
+            }),
+        }
+    }
+
+    pub fn store(&self) -> StoreName {
+        match self {
+            Plays::Memory => StoreName::Memory,
+            Plays::Derived { .. } => StoreName::Derived,
+        }
+    }
+
+    /// Plays every occurrence of the case in the arm on a store of its own (L10.2, L10.4).
+    pub fn play(&self, case: &Case, arm: Arm, restart_all: bool) -> Result<Tally, String> {
+        match self {
+            Plays::Memory => play_case(case, arm, restart_all),
+            Plays::Derived { scratch, key } => {
+                let host =
+                    DerivedHost::new(scratch.play_dir()?, key.clone(), case.occurrences[0].day);
+                let mut play = Play::with_host(case, arm, 1, host);
+                play_all(&mut play, restart_all)
+            }
+        }
+    }
+}
 
 /// The set of cases that `--gate` names, with the keys of the targets file that L8.2 reads for it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -23,14 +67,15 @@ impl Gate {
 }
 
 /// One case line of `drift` (L10.4).
-pub fn case_line(case: &Case, arm: Arm, tally: &Tally) -> String {
+pub fn case_line(case: &Case, arm: Arm, store: StoreName, tally: &Tally) -> String {
     let c = &tally.counts;
     format!(
-        "case name={} kind={} form={} arm={} store=memory occurrences={} drifts={} assisted={} failed={} harm={} reverted_good={} edit_rows={} expired_runs={}",
+        "case name={} kind={} form={} arm={} store={} occurrences={} drifts={} assisted={} failed={} harm={} reverted_good={} edit_rows={} expired_runs={}",
         case.name,
         case.kind.as_str(),
         case.form.as_str(),
         arm.as_str(),
+        store.as_str(),
         c.occurrences,
         c.drifts,
         c.assisted,
@@ -42,8 +87,16 @@ pub fn case_line(case: &Case, arm: Arm, tally: &Tally) -> String {
     )
 }
 
-fn played(case: &Case, arm: Arm, restart_all: bool) -> Result<Tally, Refusal> {
-    play_case(case, arm, restart_all).map_err(|detail| {
+/// One play of the command, the one numbered `n` + 1, which `n` then counts; on the derived store the play's own
+/// store is read back before the command's scratch goes (`read_back`).
+pub fn played(
+    plays: &Plays,
+    case: &Case,
+    arm: Arm,
+    restart_all: bool,
+    n: &mut u32,
+) -> Result<Tally, Refusal> {
+    let tally = plays.play(case, arm, restart_all).map_err(|detail| {
         Refusal::new(
             Cause::Case,
             format!(
@@ -51,7 +104,40 @@ fn played(case: &Case, arm: Arm, restart_all: bool) -> Result<Tally, Refusal> {
                 case.name
             ),
         )
-    })
+    })?;
+    *n += 1;
+    if let Plays::Derived { scratch, key } = plays {
+        let last = case.occurrences.last().map_or(0, |o| o.day);
+        read_back(
+            &scratch.path().join(format!("play-{n}")),
+            key,
+            last,
+            tally.edit_rows,
+        )?;
+    }
+    Ok(tally)
+}
+
+/// The read-back of one play on the derived store (contracts.md L10.1): the store under `dir`, opened again with
+/// `key` on `day`, holds `edit_rows` rows of the kind `learn_edit`. The refusal `store`, whose line holds no value,
+/// when no store file stands under `dir`, when the store cannot be read, or when it holds another number of rows.
+pub fn read_back(dir: &Path, key: &DbKey, day: u32, edit_rows: u32) -> Result<(), Refusal> {
+    let held = if dir.join("derived").join("derived.db").is_file() {
+        let mut host = crate::derived::DerivedHost::new(dir.to_path_buf(), key.clone(), day);
+        crate::host::PlayHost::learn_rows(&mut host, "learn_edit")
+            .ok()
+            .map(|rows| rows.len())
+    } else {
+        None
+    };
+    if held.is_some_and(|rows| u32::try_from(rows) == Ok(edit_rows)) {
+        Ok(())
+    } else {
+        Err(Refusal::new(
+            Cause::Store,
+            "a play's own derived store does not hold the play's learned edits",
+        ))
+    }
 }
 
 /// The six `spread` lines of L7.4, one per form in the order of L9.3.
@@ -165,18 +251,21 @@ pub fn run(args: &[String]) -> Result<Report, Refusal> {
         (None, Some(_)) => return Err(Refusal::usage("--gate takes dev or heldout")),
         _ => return Err(Refusal::usage("drift takes one of --arm and --gate")),
     };
-    store.unwrap_or(StoreName::Memory).memory_only()?;
     let targets = targets::read()?;
     let cases = read_dir(
         Path::new(cases_dir),
         targets.get("gate", "calendar_days_min"),
     )
     .map_err(|detail| Refusal::new(Cause::Case, detail))?;
+    let plays = Plays::on(store.unwrap_or(StoreName::Memory))?;
+    let store = plays.store();
+    let mut n = 0;
     match mode {
         Ok(arm) => {
             let mut lines = Vec::new();
             for case in &cases {
-                lines.push(case_line(case, arm, &played(case, arm, restart_all)?));
+                let tally = played(&plays, case, arm, restart_all, &mut n)?;
+                lines.push(case_line(case, arm, store, &tally));
             }
             Ok(Report { lines, ok: true })
         }
@@ -203,12 +292,12 @@ pub fn run(args: &[String]) -> Result<Report, Refusal> {
             let mut played_cases = Vec::new();
             for case in cases {
                 let tallies = [
-                    played(&case, Arm::None, restart_all)?,
-                    played(&case, Arm::Plain, restart_all)?,
-                    played(&case, Arm::Admit, restart_all)?,
+                    played(&plays, &case, Arm::None, restart_all, &mut n)?,
+                    played(&plays, &case, Arm::Plain, restart_all, &mut n)?,
+                    played(&plays, &case, Arm::Admit, restart_all, &mut n)?,
                 ];
                 for (arm, tally) in Arm::ALL.iter().zip(&tallies) {
-                    lines.push(case_line(&case, *arm, tally));
+                    lines.push(case_line(&case, *arm, store, tally));
                 }
                 played_cases.push((case, tallies));
             }
