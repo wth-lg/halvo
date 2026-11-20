@@ -450,7 +450,7 @@ fn u24r_the_three_texts_stand_word_for_word() {
     let t = |k: &str, pairs: &[(&str, &str)]| words::text(k, pairs).unwrap();
     assert_eq!(
         t("line.working.kill_stuck_mac", &[]),
-        "Its task may still run. Right-click Halvo in the Dock, choose Quit. All agents' tasks end within 25 seconds."
+        "Its task may still run. Right-click Halvo in the Dock, choose Quit. Halvo stops all tasks; that can take seconds."
     );
     assert_eq!(
         t("line.working.kill_stuck_windows", &[]),
@@ -458,7 +458,7 @@ fn u24r_the_three_texts_stand_word_for_word() {
     );
     assert_eq!(
         t("line.problem.record", &[]),
-        "Halvo can't read or save this agent's record. The agent starts nothing new, asks you nothing. Stop works if shown."
+        "Halvo can't read or save this agent's record. The agent starts nothing new. Stop works if shown."
     );
     assert_eq!(
         t("card.records_dropped", &[("count", "3")]),

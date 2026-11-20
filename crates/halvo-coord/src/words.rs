@@ -64,7 +64,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.record",
-        "Halvo can't read or save this agent's record. The agent starts nothing new, asks you nothing. Stop works if shown.",
+        "Halvo can't read or save this agent's record. The agent starts nothing new. Stop works if shown.",
     ),
     (
         "card.records_dropped",
@@ -99,7 +99,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.working.stopping", "It is stopping."),
     (
         "line.working.kill_stuck_mac",
-        "Its task may still run. Right-click Halvo in the Dock, choose Quit. All agents' tasks end within 25 seconds.",
+        "Its task may still run. Right-click Halvo in the Dock, choose Quit. Halvo stops all tasks; that can take seconds.",
     ),
     (
         "line.working.kill_stuck_windows",
