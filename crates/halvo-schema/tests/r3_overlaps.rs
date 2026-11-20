@@ -477,6 +477,18 @@ fn the_reply_answers_list_overlaps_alone_and_never_names_the_asking_workflow_or_
         let reply = reads(&reply_of(entries, "no"));
         assert!(calls.iter().all(|call| !reply.answers(call)));
     }
+    let own_agent_first = [
+        entry_of(&other_workflow(0), A, &["ann@people.test"]),
+        entry(1),
+    ];
+    let own_workflow_first = [
+        entry_of(W, &other_agent(1), &["ann@people.test"]),
+        entry_of(&"f".repeat(32), &other_agent(2), &["ann@people.test"]),
+    ];
+    for entries in [&own_agent_first[..], &own_workflow_first[..]] {
+        let reply = reads(&reply_of(entries, "no"));
+        assert!(calls.iter().all(|call| !reply.answers(call)));
+    }
 }
 
 const LONG_PAD: usize = 280;
