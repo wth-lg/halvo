@@ -510,3 +510,18 @@ fn a_later_state_write_lands_in_the_held_folder_after_a_move_and_the_folder_at_t
     assert!(names(&data).is_empty(), "{:?}", names(&data));
     drop((second, lock));
 }
+
+#[test]
+fn a_service_run_on_a_data_directory_reached_through_a_link_writes_its_state_file_in_the_linked_folder(
+) {
+    use std::os::unix::fs::PermissionsExt;
+    let root = kept_dir("service-tests-");
+    let real = root.join("real");
+    std::fs::create_dir(&real).unwrap();
+    std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let link = root.join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let (status, err) = serve_with(&link, durable_writer());
+    assert_eq!((status, err.as_str()), (0, ""));
+    assert_eq!(names(&real), vec!["daemon-state.json".to_owned()]);
+}
