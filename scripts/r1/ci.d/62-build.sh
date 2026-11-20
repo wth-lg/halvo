@@ -521,7 +521,8 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
     output=$(
       xcrun() {
         [ "$#" = 3 ] && [ "$1" = dyld_info ] && [ "$2" = -imports ] || return 2
-        cat "$3" 2>/dev/null
+        cat "$3" 2>/dev/null || return 1
+        return "${tool_status:-0}"
       }
       release_imports "$@" 2>"$work/imports.err"
     )
@@ -553,6 +554,8 @@ EOF
   printf '%s\n' 'unrecognized import listing' >"$work/halvo"
   imports_case unreadable-import-list FAIL 'dyld_info returned no import table for halvo' "$work/halvo"
   imports_case import-tool-failed FAIL 'dyld_info could not read the imports of missing' "$work/missing"
+  printf '%s\n' 'incomplete tool output' >"$work/halvo"
+  tool_status=7 expect_row='incomplete tool output' imports_case import-tool-failure-shows-stdout FAIL 'dyld_info could not read the imports of halvo' "$work/halvo"
   import_row_case() {
     printf '%s\n' "$clean" "$2" >"$work/halvo"
     expect_row="$2" imports_case "$1" FAIL "halvo imports $forbidden_import" "$work/halvo"
@@ -571,6 +574,38 @@ EOF
   no_table='dyld_info returned no import table for halvo'
   empty_table='dyld_info returned an empty import table for halvo'
   bad_layout='dyld_info returned an unrecognized import listing for halvo'
+  table_case() {
+    table_name=$1 table_want=$2 table_reason=$3 table_row=$4
+    shift 4
+    printf '%s\n' "$@" >"$work/halvo"
+    expect_row="$table_row" imports_case "$table_name" "$table_want" "$table_reason" "$work/halvo"
+  }
+  clean_row='      _free  (from libSystem)'
+  clean_result='dyld_info -imports halvo: absent'
+  bad_row_case() {
+    table_case "$1" FAIL "$bad_layout" "$2" "$slice" "$header" "$2"
+  }
+  bad_row_case import-row-without-library '      _free'
+  bad_row_case import-row-with-empty-library '      _free  (from )'
+  bad_row_case import-row-without-indent '_free  (from libSystem)'
+  bad_row_case import-row-with-leading-digit '      2name  (from libSystem)'
+  bad_row_case import-row-with-punctuation '      _fr!ee  (from libSystem)'
+  bad_row_case import-row-touching-origin '      _free(from libSystem)'
+  bad_row_case import-row-wrong-origin '      _free  (into libSystem)'
+  bad_row_case import-row-library-parenthesis '      _free  (from lib(System))'
+  bad_row_case import-row-trailing-text '      _free  (from libSystem) extra'
+  table_case indented-slice-header FAIL "$bad_layout" "  $slice" "$clean" "  $slice" "$header" "$clean_row"
+  table_case slice-with-trailing-text FAIL "$bad_layout" "$slice extra" "$clean" "$slice extra" "$header" "$clean_row"
+  table_case slice-with-empty-arch FAIL "$bad_layout" 'halvo []:' "$clean" 'halvo []:' "$header" "$clean_row"
+  table_case slice-with-invalid-arch FAIL "$bad_layout" 'halvo [arm/64]:' "$clean" 'halvo [arm/64]:' "$header" "$clean_row"
+  table_case header-with-surrounding-text FAIL "$no_table" 'prefix -imports: suffix' "$slice" 'prefix -imports: suffix' "$clean_row"
+  table_case header-with-prefix FAIL "$no_table" 'prefix -imports:' "$slice" 'prefix -imports:' "$clean_row"
+  table_case header-with-suffix FAIL "$no_table" '-imports: suffix' "$slice" '-imports: suffix' "$clean_row"
+  table_case dotted-architecture PASS "$clean_result" '' 'halvo [arm64e.x1]:' "$header" "$clean_row"
+  table_case hyphenated-architecture PASS "$clean_result" '' 'halvo [arch-1]:' "$header" "$clean_row"
+  table_case underscored-architecture PASS "$clean_result" '' 'halvo [x86_64]:' "$header" "$clean_row"
+  table_case unindented-import-header PASS "$clean_result" '' "$slice" '-imports:' "$clean_row"
+  table_case padded-import-header PASS "$clean_result" '' "$slice" ' -imports:  ' "$clean_row"
   printf '%s\n' "$header" '      _free  (from libSystem)' >"$work/halvo"
   expect_row="$header" imports_case import-table-without-slice FAIL "$no_table" "$work/halvo"
   printf '%s\n' "$slice" "$hold_row" "$header" '      _free  (from libSystem)' >"$work/halvo"
@@ -663,6 +698,20 @@ SH
   forward_python python3
   expect_second="manifest reader: python3 $fixture_version"
   PATH="$standins:$PATH" expect_reader="$expect_second" rules_case skip-notice-interpreter FAIL "$need_profile"
+  stand_in python3.11 <<'SH'
+printf '%s\n' "$probe_reply"
+SH
+  bad_probe_case() {
+    PATH="$standins:$PATH" probe_reply="$2" expect_reader="$expect_second" rules_case "$1" FAIL "$need_profile"
+  }
+  bad_probe_case probe-rejects-wrong-answer '0 3.11.0'
+  bad_probe_case probe-rejects-version-suffix '42 3.11.0 extra'
+  bad_probe_case probe-requires-three-version-parts '42 3.11'
+  bad_probe_case probe-requires-major '42 .11.0'
+  bad_probe_case probe-requires-minor '42 3..0'
+  bad_probe_case probe-requires-patch '42 3.11.'
+  bad_probe_case probe-requires-first-dot '42 3x11.0'
+  bad_probe_case probe-requires-second-dot '42 3.11x0'
   probe_input=$work/probe-input
   export probe_input
   stand_in python3.11 <<'SH'
@@ -818,6 +867,9 @@ SH
     measure_case "guard-measure-fixture-${input##*/}" 2 "unsafe measure fixture: $input"
     mv "$measure_repo/$input" "$work/used-measure-input" || exit 2
   done
+  MSYS=winsymlinks:nativestrict ln -s missing-input "$measure_repo/node_modules" || exit 2
+  [ -L "$measure_repo/node_modules" ] && [ ! -e "$measure_repo/node_modules" ] || exit 2
+  measure_case guard-dangling-node-modules 2 'unsafe measure fixture: node_modules'
 
   for ref in tag:fresh branch:cached :cached; do
     got=$(build_root_for "${ref%:*}")
