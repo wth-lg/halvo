@@ -1430,15 +1430,19 @@ impl Db {
         }
     }
 
-    /// `OlderStore` when the store key itself opens store.db read-only and
-    /// its user_version is below this build's: a store made before the
-    /// database key was derived. It reads that one value and writes nothing.
+    /// `OlderStore` when no log with frames stands beside store.db, the
+    /// store key itself opens store.db read-only and its user_version is
+    /// below this build's: a store made before the database key was derived.
+    /// It reads that one value.
     fn older_version_of(store_dir: &Dir, store_key: &StoreKey) -> Option<StoreError> {
+        match store_dir.entry(OsStr::new(DATABASE_LOG)) {
+            Ok(entry) if entry.len > 0 => return None,
+            Ok(_) => {}
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Err(_) => return None,
+        }
         let (probe, _) = open_connection(store_dir, PROBE_OPEN).ok()?;
         probe.execute_batch(&key_pragma(store_key.expose())).ok()?;
-        probe
-            .execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
-            .ok()?;
         let found = pragma_int(&probe, "user_version").ok()?;
         (found < DATABASE_VERSION).then_some(StoreError::OlderStore {
             found,
