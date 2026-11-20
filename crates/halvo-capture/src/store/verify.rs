@@ -1290,8 +1290,40 @@ mod tests {
         assert_eq!(check.delete_all_keys, 2);
         assert!(check.root_destroyed);
         assert!(check.store_sealed);
+        assert_eq!(check.expired_events_left, 0);
         let line = check.to_string();
+        assert!(line.contains(" expired_events_left=0 "), "{line}");
         assert!(line.contains(" root_destroyed=yes "), "{line}");
         assert!(line.contains(" store_sealed=yes"), "{line}");
+    }
+
+    #[test]
+    fn expired_events_left_counts_what_the_rollup_holds_beyond_the_live_segments() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = make_store(dir.path());
+        let now = unix_nanos(SystemTime::now());
+        let past = now - nanos_of(store.retention()) - NANOS_PER_DAY;
+        let (expired, written) =
+            batch_of(&mut store, Modality::Keystroke, 3, past, b"expired").unwrap();
+        batch_of(&mut store, Modality::Keystroke, 2, now, b"live").unwrap();
+        assert_eq!(
+            events_left_for(&store, expired).unwrap(),
+            0,
+            "before any shred"
+        );
+        store
+            .db()
+            .unwrap()
+            .connection()
+            .execute(
+                "UPDATE segment_keys SET wrapped_key = NULL WHERE id = ?1",
+                [written.ordinal.get() as i64],
+            )
+            .unwrap();
+        assert_eq!(
+            events_left_for(&store, expired).unwrap(),
+            3,
+            "a key cleared without the subtraction leaves its 3 events in the rollup"
+        );
     }
 }

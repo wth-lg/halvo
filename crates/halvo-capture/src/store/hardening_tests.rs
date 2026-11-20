@@ -11696,6 +11696,23 @@ mod batch_write {
     }
 
     #[test]
+    fn an_open_whose_foreign_keys_read_back_off_is_refused_by_its_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = super::file_root_store(dir.path());
+        let opened = {
+            let _seam = super::super::db::read_back_seam::before_the_read_backs(|conn| {
+                conn.execute_batch("PRAGMA foreign_keys = OFF;").unwrap();
+            });
+            super::open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+        };
+        assert!(
+            matches!(&opened, Err(StoreError::SettingNotInEffect("foreign_keys"))),
+            "an open whose foreign_keys read back off answered {opened:?}"
+        );
+        assert!(super::open_over_file_root(&store_dir, &roots_dir, root_id).is_ok());
+    }
+
+    #[test]
     fn the_store_payload_cap_is_the_ports_cap() {
         assert_eq!(PAYLOAD_MAX_BYTES, crate::daemon::port::PAYLOAD_MAX_BYTES);
         assert_eq!(super::super::KINDS_MAX, crate::daemon::port::ENTRIES_MAX);

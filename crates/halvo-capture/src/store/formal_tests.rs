@@ -284,6 +284,7 @@ struct Harness {
     segments: Vec<ModelSegment>,
     moves_that_did_not_apply: usize,
     generation: u32,
+    linked_shard: Option<u8>,
 }
 
 impl Drop for Harness {
@@ -312,6 +313,7 @@ impl Harness {
             segments: Vec::new(),
             moves_that_did_not_apply: 0,
             generation: 0,
+            linked_shard: None,
         };
         harness.create_store();
         harness
@@ -442,7 +444,19 @@ impl Harness {
     }
 
     fn link_below_segments(&mut self) -> Result<(), TestCaseError> {
-        let of_no_segment = segment_path(&self.dir, Uuid::from_bytes([0xff; 16]));
+        let free = (0..=0xffu8).rev().find(|first| {
+            !self
+                .dir
+                .join("segments")
+                .join(format!("{first:02x}"))
+                .exists()
+        });
+        let Some(first) = free else {
+            return self.does_not_apply();
+        };
+        let mut bytes = [0xff; 16];
+        bytes[0] = first;
+        let of_no_segment = segment_path(&self.dir, Uuid::from_bytes(bytes));
         let shard = of_no_segment.parent().expect("the shard of a segment");
         let applies = cfg!(unix)
             && !self.deleted_since_last_create
@@ -460,6 +474,7 @@ impl Harness {
         std::fs::write(outside.path().join(name), b"a file of another program")
             .expect("the file outside the store writes");
         link_to_a_directory(outside.path(), shard);
+        self.linked_shard = Some(first);
         self.outside = Some(Outside {
             files: files_with_their_bytes(outside.path()),
             dir: outside,
@@ -723,7 +738,10 @@ impl Harness {
         let expires_at = expiry.expires_at(now);
         let first_capture = first_capture_of(expiry, now);
         let kinds = kinds_of(len);
-        let segment_id = super::db::random_segment_id().expect("a random segment id");
+        let mut segment_id = super::db::random_segment_id().expect("a random segment id");
+        while Some(segment_id.as_bytes()[0]) == self.linked_shard {
+            segment_id = super::db::random_segment_id().expect("a random segment id");
+        }
         let result = write_batch(store, segment_id, first_capture, &kinds, &payload);
         if self.deleted_since_last_create {
             prop_assert!(
