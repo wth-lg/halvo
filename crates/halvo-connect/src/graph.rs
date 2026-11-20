@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use halvo_schema::executable::WebOrigin;
 use reqwest::blocking::{Client, Response};
-use reqwest::header::CONTENT_TYPE;
+use reqwest::header::{CONTENT_TYPE, RETRY_AFTER};
 use reqwest::{redirect, retry, Method, Url};
 use serde_json::Value;
 
@@ -21,8 +21,28 @@ pub enum Route {
     System,
     /// The test configuration of A11.2: the client maps the origin's host name to 127.0.0.1 at the origin's port
     /// and looks no name up. Only this route takes an `http` origin, and it takes no host that the URL parser reads
-    /// as an IP address.
+    /// as an IP address. It stands only under the cargo feature `loopback`, which the crate's own tests turn on and
+    /// no packaged build names (CP-109 (l)); a build with it holds [`LOOPBACK_MARKER`].
+    #[cfg(feature = "loopback")]
     Loopback,
+}
+
+/// The marker text of the loopback route: it stands in every binary that can take the route, so that a check of a
+/// packaged binary finds a build with the feature `loopback` by it.
+#[cfg(feature = "loopback")]
+pub static LOOPBACK_MARKER: &str = "halvo-connect-loopback-route-of-tests";
+
+impl Route {
+    fn is_loopback(self) -> bool {
+        match self {
+            Route::System => false,
+            #[cfg(feature = "loopback")]
+            Route::Loopback => {
+                std::hint::black_box(LOOPBACK_MARKER.as_ptr());
+                true
+            }
+        }
+    }
 }
 
 /// The Graph-shaped adapter of A11.2 for one origin, the faces of mail and calendar under `/v1.0/me/`. It holds
@@ -79,16 +99,16 @@ impl Graph {
     /// when the TLS configuration or the client cannot be built.
     pub fn new(origin: &WebOrigin, route: Route, timeout: Duration) -> Result<Graph, BuildError> {
         let url = Url::parse(origin.as_str()).map_err(|_| BuildError::Client)?;
-        if url.scheme() != "https" && route != Route::Loopback {
+        let loopback = route.is_loopback();
+        if url.scheme() != "https" && !loopback {
             return Err(BuildError::Cleartext);
         }
-        let mapped = match route {
-            Route::System => None,
-            Route::Loopback => {
-                let host = url.domain().ok_or(BuildError::Address)?;
-                let port = url.port_or_known_default().ok_or(BuildError::Client)?;
-                Some((host, SocketAddr::from((Ipv4Addr::LOCALHOST, port))))
-            }
+        let mapped = if loopback {
+            let host = url.domain().ok_or(BuildError::Address)?;
+            let port = url.port_or_known_default().ok_or(BuildError::Client)?;
+            Some((host, SocketAddr::from((Ipv4Addr::LOCALHOST, port))))
+        } else {
+            None
         };
         let provider = Arc::new(rustls::crypto::ring::default_provider());
         let verifier = rustls_platform_verifier::Verifier::new(provider.clone())
@@ -140,6 +160,34 @@ impl Graph {
         self.send(token, method, path, None, success).map(drop)
     }
 
+    pub(crate) fn url(&self, path: &str) -> Result<Url, CallError> {
+        Url::parse(&format!("{}{path}", self.origin)).map_err(|_| CallError::NotSent)
+    }
+
+    pub(crate) fn page(&self, token: &Token, url: &Url) -> Result<Value, CallError> {
+        let response = self.send_url(token, Method::GET, url.clone(), None, 200)?;
+        let bytes = read_bounded(response)?;
+        serde_json::from_slice(&bytes).map_err(|_| FORM)
+    }
+
+    pub(crate) fn next(&self, link: &str, collection: Collection) -> Result<Url, CallError> {
+        let fault = CallError::Answer(AnswerFault::Link);
+        let url = Url::parse(link).map_err(|_| fault)?;
+        let origin = Url::parse(&self.origin).map_err(|_| fault)?;
+        let same = url.scheme() == origin.scheme()
+            && url.host_str() == origin.host_str()
+            && url.port_or_known_default() == origin.port_or_known_default()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.fragment().is_none()
+            && collection.takes(url.path());
+        if same {
+            Ok(url)
+        } else {
+            Err(fault)
+        }
+    }
+
     fn send(
         &self,
         token: &Token,
@@ -148,10 +196,22 @@ impl Graph {
         body: Option<&Value>,
         success: u16,
     ) -> Result<Response, CallError> {
+        self.send_url(token, method, self.url(path)?, body, success)
+    }
+
+    fn send_url(
+        &self,
+        token: &Token,
+        method: Method,
+        url: Url,
+        body: Option<&Value>,
+        success: u16,
+    ) -> Result<Response, CallError> {
         let mut request = self
             .client
-            .request(method, format!("{}{path}", self.origin))
+            .request(method, url)
             .bearer_auth(token.value())
+            .header("Prefer", PREFER)
             .timeout(self.timeout);
         if let Some(body) = body {
             request = request
@@ -168,9 +228,45 @@ impl Graph {
         match response.status().as_u16() {
             status if status == success => Ok(response),
             401 => Err(CallError::Unauthorized),
-            status => Err(CallError::Status(status)),
+            status @ (429 | 500..=599) => Err(CallError::Status(status, retry_after(&response))),
+            status => Err(CallError::Status(status, None)),
         }
     }
+}
+
+const PREFER: &str = "IdType=\"ImmutableId\"";
+
+#[derive(Clone, Copy)]
+pub(crate) enum Collection {
+    Inbox,
+    CalendarView,
+}
+
+impl Collection {
+    fn takes(self, path: &str) -> bool {
+        let spellings: &[&str] = match self {
+            Collection::Inbox => &[
+                "/v1.0/me/mailFolders/inbox/messages",
+                "/v1.0/me/mailFolders('inbox')/messages",
+            ],
+            Collection::CalendarView => &["/v1.0/me/calendarView"],
+        };
+        spellings
+            .iter()
+            .any(|spelling| spelling.eq_ignore_ascii_case(path))
+    }
+}
+
+fn retry_after(response: &Response) -> Option<u32> {
+    let mut lines = response.headers().get_all(RETRY_AFTER).iter();
+    let value = lines.next()?.as_bytes();
+    if lines.next().is_some() {
+        return None;
+    }
+    if value.is_empty() || !value.iter().all(u8::is_ascii_digit) {
+        return None;
+    }
+    std::str::from_utf8(value).ok()?.parse().ok()
 }
 
 impl fmt::Debug for Graph {

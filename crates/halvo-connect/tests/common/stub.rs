@@ -15,6 +15,7 @@ pub struct Seen {
     pub method: String,
     pub path: String,
     pub authorization: Option<String>,
+    pub prefer: Option<String>,
     pub body: Option<Value>,
 }
 
@@ -25,8 +26,13 @@ pub struct Stub {
 
 impl Stub {
     pub fn start(routes: Vec<(String, u16, String)>) -> Stub {
+        Stub::start_at(|_| routes)
+    }
+
+    pub fn start_at(routes: impl FnOnce(u16) -> Vec<(String, u16, String)>) -> Stub {
         let listener = TcpListener::bind("127.0.0.1:0").expect("a port");
         let port = listener.local_addr().expect("its address").port();
+        let routes = routes(port);
         let (tx, rx) = mpsc::channel();
         thread::spawn(move || {
             for stream in listener.incoming() {
@@ -101,11 +107,13 @@ fn read(stream: &mut TcpStream) -> Option<Seen> {
     let method = first.next()?.to_owned();
     let path = first.next()?.to_owned();
     let mut authorization = None;
+    let mut prefer = None;
     let mut length = 0;
     for line in lines {
         let (name, value) = line.split_once(':')?;
         match name.to_ascii_lowercase().as_str() {
             "authorization" => authorization = Some(value.trim().to_owned()),
+            "prefer" => prefer = Some(value.trim().to_owned()),
             "content-length" => length = value.trim().parse().ok()?,
             _ => {}
         }
@@ -129,6 +137,7 @@ fn read(stream: &mut TcpStream) -> Option<Seen> {
         method,
         path,
         authorization,
+        prefer,
         body,
     })
 }

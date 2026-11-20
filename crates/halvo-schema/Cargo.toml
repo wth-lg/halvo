@@ -10,4 +10,5 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
 
 [dev-dependencies]
+halvo-test-dir = { path = "../halvo-test-dir" }
 proc-macro2 = { version = "1.0.107", default-features = false }

@@ -58,6 +58,12 @@ fn seed(flags: &BTreeMap<String, String>) -> Result<u64, Refusal> {
     parse_seed(&s).ok_or_else(|| Refusal::new("usage", "--seed"))
 }
 
+/// A place counted from 1: decimal digits with no sign and no leading zero.
+fn parse_place(s: &str) -> Option<usize> {
+    let digits = !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) && !s.starts_with('0');
+    digits.then(|| s.parse().ok()).flatten()
+}
+
 fn paths(list: &[String]) -> Vec<PathBuf> {
     list.iter().map(PathBuf::from).collect()
 }
@@ -126,7 +132,7 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
             halvo_sample::split::split(&a).map(done)
         }
         "compose" => {
-            let (f, rest) = parse(args, &["--rates", "--out"], &["--ranges"])?;
+            let (f, rest) = parse(args, &["--rates", "--out", "--late"], &["--ranges"])?;
             if f.contains_key("--ranges") {
                 if f.len() != 1 || !rest.is_empty() {
                     return Err(Refusal::new("usage", "--ranges"));
@@ -136,10 +142,15 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
             if rest.is_empty() {
                 return Err(Refusal::new("usage", "missing SITE_DATA"));
             }
+            let late = match f.get("--late") {
+                None => None,
+                Some(n) => Some(parse_place(n).ok_or_else(|| Refusal::new("usage", "--late"))?),
+            };
             let a = halvo_sample::compose::ComposeArgs {
                 rates: PathBuf::from(need(&f, "--rates")?),
                 out: PathBuf::from(need(&f, "--out")?),
                 sites: paths(&rest),
+                late,
             };
             halvo_sample::compose::compose(&a).map(done)
         }
@@ -181,9 +192,30 @@ fn run(args: &[String]) -> Result<(Vec<String>, bool), Refusal> {
     }
 }
 
+/// The arguments as UTF-8 text. An argument that is no UTF-8 is `usage`, before any file is read, so every
+/// command orders and prints paths as UTF-8 text (contracts.md C11.1).
+fn utf8_args() -> Result<Vec<String>, Refusal> {
+    std::env::args_os()
+        .skip(1)
+        .map(|a| {
+            a.into_string()
+                .map_err(|_| Refusal::new("usage", "an argument that is no UTF-8"))
+        })
+        .collect()
+}
+
+/// Runs the command. A panic prints no message of its own and ends as the refusal `internal` with status 2,
+/// because a panic message can hold a value that the command read (contracts.md C12.1).
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    match run(&args) {
+    std::panic::set_hook(Box::new(|_| {}));
+    let outcome = std::panic::catch_unwind(|| utf8_args().and_then(|args| run(&args)))
+        .unwrap_or_else(|_| {
+            Err(Refusal::new(
+                "internal",
+                "the command stopped at a fault of its own",
+            ))
+        });
+    match outcome {
         Ok((lines, pass)) => {
             let mut text = String::new();
             for l in lines {

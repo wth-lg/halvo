@@ -85,7 +85,8 @@
         ],
         "body": {
           "content": "Hello, the visit is booked. Your reference is Zq7-halvo-marker-page-2. Please confirm."
-        }
+        },
+        "received_minutes": 60
       },
       {
         "id": "s2-msg-02",
@@ -106,7 +107,9 @@
         ],
         "body": {
           "content": "Could you tell me which time suits you?"
-        }
+        },
+        "received_minutes": 60,
+        "isReadReceiptRequested": true
       },
       {
         "id": "s2-msg-03",
@@ -127,7 +130,8 @@
         ],
         "body": {
           "content": "Thanks again for sorting this out."
-        }
+        },
+        "received_minutes": 60
       },
       {
         "id": "s2-msg-04",
@@ -148,7 +152,59 @@
         ],
         "body": {
           "content": "This week in the letters: nothing that needs an answer."
-        }
+        },
+        "received_minutes": 60
+      },
+      {
+        "id": "s2-msg-06",
+        "conversationId": "s2-conv-06",
+        "subject": "Birch Fixture notice from last week",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "cyd.morrow@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.two@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "This mail came before the agent was set up."
+        },
+        "received_minutes": -1440
+      },
+      {
+        "id": "s2-msg-07",
+        "conversationId": "s2-conv-07",
+        "subject": "Birch Fixture parking permit",
+        "isRead": false,
+        "from": {
+          "emailAddress": {
+            "address": "dee.ashlar@people.agent.test"
+          }
+        },
+        "toRecipients": [
+          {
+            "emailAddress": {
+              "address": "resident.two@agent.test"
+            }
+          }
+        ],
+        "body": {
+          "content": "Please answer to the address in the reply-to line."
+        },
+        "received_minutes": 60,
+        "replyTo": [
+          {
+            "emailAddress": {
+              "address": "Dee.ashlar@people.agent.test"
+            }
+          }
+        ]
       }
     ]
   },
@@ -161,7 +217,8 @@
         "start_time": "09:00",
         "minutes": 60,
         "isCancelled": true,
-        "response": "organizer"
+        "response": "accepted",
+        "isOrganizer": false
       },
       {
         "id": "s2-evt-02",
@@ -170,7 +227,8 @@
         "start_time": "12:30",
         "minutes": 60,
         "isCancelled": false,
-        "response": "accepted"
+        "response": "accepted",
+        "isOrganizer": false
       },
       {
         "id": "s2-evt-03",
@@ -179,7 +237,8 @@
         "start_time": "18:00",
         "minutes": 60,
         "isCancelled": false,
-        "response": "declined"
+        "response": "declined",
+        "isOrganizer": false
       },
       {
         "id": "s2-evt-04",
@@ -188,7 +247,8 @@
         "start_time": "19:00",
         "minutes": 60,
         "isCancelled": true,
-        "response": "organizer"
+        "response": "organizer",
+        "isOrganizer": true
       },
       {
         "id": "s2-evt-05",
@@ -197,7 +257,8 @@
         "start_time": "07:30",
         "minutes": 60,
         "isCancelled": false,
-        "response": "tentativelyAccepted"
+        "response": "tentativelyAccepted",
+        "isOrganizer": false
       },
       {
         "id": "s2-evt-06",
@@ -206,7 +267,28 @@
         "start_time": "16:00",
         "minutes": 60,
         "isCancelled": false,
-        "response": "declined"
+        "response": "declined",
+        "isOrganizer": false
+      },
+      {
+        "id": "s2-evt-08",
+        "subject": "Birch Fixture residents meeting you called off",
+        "days_before": 3,
+        "start_time": "18:00",
+        "minutes": 60,
+        "isCancelled": true,
+        "response": "organizer",
+        "isOrganizer": true
+      },
+      {
+        "id": "s2-evt-09",
+        "subject": "Birch Fixture garden day you host",
+        "days_before": 1,
+        "start_time": "10:00",
+        "minutes": 120,
+        "isCancelled": false,
+        "response": "organizer",
+        "isOrganizer": true
       }
     ]
   },
@@ -259,7 +341,8 @@
       ],
       "body": {
         "content": "Could you report it to the landlord?"
-      }
+      },
+      "received_minutes": 60
     },
     "event": {
       "id": "s2-evt-07",
@@ -268,7 +351,8 @@
       "start_time": "10:00",
       "minutes": 60,
       "isCancelled": true,
-      "response": "organizer"
+      "response": "accepted",
+      "isOrganizer": false
     }
   },
   "bindings": {

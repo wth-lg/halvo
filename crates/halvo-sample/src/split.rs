@@ -184,7 +184,7 @@ pub fn split(args: &SplitArgs) -> Result<Vec<String>, Refusal> {
         side_steps.push(steps);
     }
     let header = Line::Header(script.header.clone()).write();
-    let mut outputs: Vec<(&str, usize, PathBuf, String)> = Vec::new();
+    let mut outputs: Vec<(usize, PathBuf, String)> = Vec::new();
     for (k, (sites, streams)) in side_streams.iter().enumerate() {
         for (file, path) in args.scripts.iter().enumerate() {
             let mut text = format!("{header}\n");
@@ -211,20 +211,15 @@ pub fn split(args: &SplitArgs) -> Result<Vec<String>, Refusal> {
                 text.push('\n');
             }
             let name = path.file_name().map(PathBuf::from).unwrap_or_default();
-            outputs.push((
-                sites.as_str(),
-                file,
-                PathBuf::from(sites.as_str()).join(name),
-                text,
-            ));
+            outputs.push((file, PathBuf::from(sites.as_str()).join(name), text));
         }
     }
     create_out_dir(&args.out)?;
-    for (side, file, rel, text) in &outputs {
+    for (file, rel, text) in &outputs {
         let path = args.out.join(rel);
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)
-                .map_err(|_| Refusal::new("output", args.out.join(side).display().to_string()))?;
+                .map_err(|_| Refusal::new("output", args.out.display().to_string()))?;
         }
         write_new(&path, text.as_bytes()).map_err(|_| {
             Refusal::new(

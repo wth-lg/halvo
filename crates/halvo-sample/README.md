@@ -6,9 +6,20 @@ contracts.md C9 to C12 of the run ledger. Run it as
 `build`, `check-labels`, `input-copy`, `leak` and `mask-layers`.
 
 The library holds the readers and writers of a body: the tier manifest (`manifest`), the label
-rows (`labels`), the script manifest (`manifest`), the script with its rules S1 to S15
+rows (`labels`), the script manifest (`manifest`), the script with its rules S1 to S16
 (`script`), and the site names, title tokens, site-masked titles and templates of C12.4
 (`text`).
+
+## Late keystrokes
+
+An item of a script may end with the key `late`, an integer from 1,000 to 30,000: the
+milliseconds by which its last keystroke reaches the store late, as a Mac's store holds such
+a record (contracts.md C4.7). Rule S16 refuses `late` outside that range, on an item with
+`keys` 0 and on an item whose step has `password_input` true. `compose --late N` writes
+`"late":30000` on every item with keystrokes of the stream with place N among the stream ids
+in byte order, from 1, and writes every other byte as it does without the flag. `split`
+copies the key as it stands. tools/r2-driver plays a script on a test bed and cannot make a
+keystroke reach the store late, so a late key has no effect on a recorded body.
 
 ## The draws of `build`
 
@@ -31,8 +42,14 @@ order, `build` draws:
 4. One word for each scroll record. Its `count` is 1 + (w mod 20).
 
 `build` then sorts the records of the stream by instant. At one instant the order is
-`run_mark`, `foreground_app`, `window_title`, `keystroke`, click, scroll. For each record in
-that order it draws two words, w1 and w2, for the record's id. The id is a UUID of version 7:
+`run_mark`, `foreground_app`, `window_title`, `keystroke`, click, scroll. Then each late
+keystroke moves, in the order of its own instant: the last keystroke record of an item with
+`late`, the keystroke with the latest second, goes right after the last record of its own
+day file, late records placed before it included, whose instant is at most its own plus
+`late` milliseconds. Where that sum passes midnight it is the last record of its day file;
+it never moves into another day file. It keeps its instant and its class. For each record in that order `build` draws two words, w1 and w2, for the record's id.
+So a script without `late` draws and writes what it did before the key existed. The id is a
+UUID of version 7:
 
 - the first 48 bits hold the millisecond of `at`, rounded down;
 - then the version 7;
@@ -46,7 +63,8 @@ that `build` writes: a record that cannot be made takes no number.
 `build` takes script files whose names end in `.jsonl` and do not start with a dot. It refuses
 any other SCRIPT argument with `script`, a directory or a symbolic link among them, so a
 caller that passes every entry of a scripts directory skips no file. `build` and `split` name a
-script file in a refusal by its place among the arguments, `SCRIPT <n>` from 1, never by its name.
+script file in a refusal by its argument number, `SCRIPT <n>` from 1 in the order given, with
+`:<line>: <rule>` for a broken rule, never by its name; the detail holds no id, title or site.
 
 ## The script manifest and `check-labels`
 
@@ -57,9 +75,21 @@ So a body that lost every row of a seed task fails with `FAIL outside` lines und
 generated rule, while the step's mark is true. A range of such an episode whose step is marked
 false fails with `FAIL seed` under both rules.
 
+No line of `check-labels` prints a stream, episode or step id, because the author of a sealed
+tier writes them. A stream is printed as `s<n>`: n is its entry number, its place among the
+entries of `streams/` that are directories or symbolic links, in byte order of name, from 1;
+a plain file is not counted. An episode is printed
+as `l<n>`: n is the line of its first episode row in that stream's `labels.jsonl`, or the line
+of the range row itself where no episode row of the stream holds the episode. The step of a
+`range`, `seed`, `unmarked` or `keys` line is `l<n>` of its range row. The step of an
+`outside` line is `l<n>` of the first range row of the stream that names it, or `m<n>`, n its
+line in `script-manifest.jsonl`, where no row of the stream names it. A refusal names the DIR
+argument as given, then ` s<n>` where one stream is at fault, then ` l<n>` where a line of its
+`labels.jsonl` is no row, and never a file below DIR.
+
 `check-labels` follows no symbolic link below its DIR argument. Each entry of `streams/` that
 is a link gives
-`FAIL link <stream id>`, and these lines come first. A `streams` directory that is itself a
+`FAIL link s<n>`, and these lines come first. A `streams` directory that is itself a
 link is refused with `batches`, and a `manifest.toml`, `script-manifest.jsonl`, day file or
 `labels.jsonl` that is a link with `tier-manifest`, `script-manifest`, `batches` or `labels`.
 Each range is held against every earlier range whose end lies after its start, and the later
@@ -97,7 +127,36 @@ name, from 1. No name below the argument is printed, because a file's name may b
 - The `site-data` refusal of `compose`, of the fixture server and of
   tools/fixture-server/check-sites.mjs names a site file as `SITE_DATA <n>`: n is the file's
   number in byte order of the paths given, from 1, and equal paths keep the order given. The
-  checker's `password`, `card` and `missing` lines still print the path of a site file.
+  checker's lines `password SITE_DATA <n> page <k>`, `card SITE_DATA <n> page <k>` and
+  `missing SITE_DATA <n> <category> parameter <k>` name the file the same way, a page by its
+  place in the file's `pages` and a parameter by its place in `parameters`, from 1. The checker
+  refuses a site file larger than 262,144 bytes with `REFUSED too-large: SITE_DATA <n>` and exit
+  2 before it reads any file: the rule check of tools/fixture-server/sites.mjs spreads a value
+  list into one call, which throws a RangeError from about 125,000 values on Node 26, and a list
+  under the bound holds at most 65,536 values. The fixture server reads files through the same
+  rule check and has no such bound.
+- A `script` refusal of `build` for the `sites` or the negative rule names the stream by the
+  place of its stream line, `SCRIPT <n>:<line>: sites` or `SCRIPT <n>:<line>: negative`. The
+  `output` refusal of `split` prints `<out>` alone when a side directory cannot be made, and
+  `<out>: SCRIPT <n>` when a file cannot be written.
+- Every command of `halvo-sample`, the fixture server and the site checker refuses an argument
+  that is no UTF-8 with `usage` before it reads a file. Site files (SITE_DATA) are numbered by
+  the bytes of their paths as UTF-8 text; SCRIPT arguments keep the order given. Node hands such
+  a byte on as U+FFFD, so the server and the checker also refuse a path whose name holds a
+  written U+FFFD.
+- A panic while a command runs prints nothing of its own and ends as `REFUSED internal: the
+  command stopped at a fault of its own` with status 2; the site checker ends an uncaught error
+  the same way with `the checker stopped at a fault of its own`. A write of the output that
+  fails, a closed standard output or standard error pipe or a full disk under a redirect, makes
+  the write itself panic after the run, and `halvo-sample` then ends with status 101 and prints
+  nothing.
+- A public job over a sealed tier keeps three steps that no check makes for it. First, DIR of
+  `check-labels`, `--out` and `--layer-records` of `build` and `--parameters` of the site checker
+  print as given, so they must name nothing of the tier. Second, a step that echoes its command
+  (`set -x`, or the `run:` block that Actions prints) shows every SCRIPT and SITE_DATA argument,
+  so such a step must not run over the tier's files. Third, the lines of `split --sides
+  check,heldout` and of `compose` over the held-out author's site files go into no public log, and
+  no check enforces that today (contracts.md C12.5, C12.6, C12.10).
 - `input-copy` writes `layers/instants.jsonl` only when the input set lists a layer.
 - The records of an input copy, its run marks among them, are those that the seam's fixture
   transport keeps for the input set. `input-copy` adds and moves no record.

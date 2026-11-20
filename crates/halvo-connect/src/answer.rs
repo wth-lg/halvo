@@ -6,20 +6,11 @@ use crate::error::{AnswerFault, CallError};
 
 pub(crate) const FORM: CallError = CallError::Answer(AnswerFault::Form);
 
-pub(crate) fn page(answer: &Value) -> Result<&[Value], CallError> {
-    let object = answer.as_object().ok_or(FORM)?;
-    if object.contains_key("@odata.nextLink") {
-        return Err(CallError::Answer(AnswerFault::Paged));
-    }
-    object
-        .get("value")
-        .and_then(Value::as_array)
-        .map(Vec::as_slice)
-        .ok_or(FORM)
+pub(crate) fn id(item: &Value) -> Result<String, CallError> {
+    checked(item.get("id").and_then(Value::as_str).ok_or(FORM)?)
 }
 
-pub(crate) fn id(item: &Value) -> Result<String, CallError> {
-    let id = item.get("id").and_then(Value::as_str).ok_or(FORM)?;
+pub(crate) fn checked(id: &str) -> Result<String, CallError> {
     if matches!(id, "" | "." | "..") {
         return Err(CallError::Answer(AnswerFault::Id));
     }
@@ -31,6 +22,14 @@ pub(crate) fn text(item: &Value, key: &str) -> Result<String, CallError> {
         .and_then(Value::as_str)
         .map(str::to_owned)
         .ok_or(FORM)
+}
+
+pub(crate) fn subject(item: &Value) -> Option<String> {
+    match item.get("subject") {
+        None | Some(Value::Null) => Some(String::new()),
+        Some(Value::String(subject)) => Some(subject.clone()),
+        Some(_) => None,
+    }
 }
 
 #[derive(Default)]
