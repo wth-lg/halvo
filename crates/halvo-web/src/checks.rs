@@ -78,16 +78,16 @@ pub fn tree_of_with(
 /// followed by the profile's own Crashpad directory and nothing more, the place that the
 /// executor's flag `--breakpad-dump-location` names, so that the run's crash handler stays the
 /// run's own. A switch with the key `user-data-dir` or `database` in any spelling that `switch_of`
-/// reads (a prefix `--`, `-` or `/`, any letter case, white space at its ends, no `=`) whose value
-/// is not the run's place takes the mark away, whichever value of a repeated switch the browser
-/// takes; such a switch that names the run's place bears no mark by itself. No bare argument bears
-/// it, no occurrence inside an argument does, the program's name (argument 0) does not, and no
-/// argument after the switch terminator does (U2.6b). The value and the profile are compared as
-/// paths (`same_path_on`). On Windows the system gives a process's command line as one argument
-/// (`command_args`), which `switch_args`, and no other reader of the arguments, splits by the
-/// system's rule (`split_command_line`). The browser's own reading of a repeated switch, of the
-/// spellings of a switch and of argument 0 is recalled and not run; against it each of these
-/// clauses errs toward leaving a process.
+/// reads (a prefix `--`, `-` or `/`, any letter case, white space at its ends, with or without
+/// `=`) whose value is not the run's place takes the mark away, whichever value of a repeated
+/// switch the browser takes; such a switch that names the run's place bears no mark by itself. No
+/// bare argument bears it, no occurrence inside an argument does, the program's name (argument 0)
+/// does not, and no argument after the switch terminator does (U2.6b). The value and the profile
+/// are compared as paths (`same_path_on`). On Windows the system gives a process's command line as
+/// one argument (`command_args`), which `switch_args`, and no other reader of the arguments,
+/// splits by the system's rule (`split_command_line`). The browser's own reading of a repeated
+/// switch, of the spellings of a switch and of argument 0 is recalled and not run; against it each
+/// of these clauses errs toward leaving a process.
 pub fn bears_profile(args: &[String], profile: &str) -> bool {
     bears_profile_on(args, profile, cfg!(windows))
 }
