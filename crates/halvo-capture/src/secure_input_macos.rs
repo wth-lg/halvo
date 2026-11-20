@@ -146,6 +146,50 @@ pub fn secure_input_reading(session: Session) -> Reading {
     reading_under(session, secure_input_active)
 }
 
+/// The macOS probe of the exclusion decision: unknown unless this process's
+/// session is at the console, else the system's secure-input byte through the
+/// predicate of [`crate::macos::secure_input_byte`].
+#[derive(Debug, Clone, Copy)]
+pub struct SystemProbe {
+    session: fn() -> Session,
+    byte: fn() -> u8,
+}
+
+impl SystemProbe {
+    /// The probe over the system's session and secure-input byte.
+    pub fn new() -> Self {
+        Self {
+            session: read_session,
+            byte: || carbon::one_carbon_call_at_a_time(carbon::is_secure_event_input_enabled),
+        }
+    }
+}
+
+#[cfg(test)]
+impl SystemProbe {
+    pub(crate) fn with_readers(session: fn() -> Session, byte: fn() -> u8) -> Self {
+        Self { session, byte }
+    }
+}
+
+impl Default for SystemProbe {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl super::seal::Sealed for SystemProbe {}
+
+impl super::SecureInputProbe for SystemProbe {
+    fn read(&self) -> super::SecureInputReading {
+        match reading_under((self.session)(), || secure_input_on((self.byte)())) {
+            Reading::On => super::SecureInputReading::Active,
+            Reading::Off => super::SecureInputReading::Inactive,
+            Reading::Unknown => super::SecureInputReading::Unknown,
+        }
+    }
+}
+
 /// The queued notices of a focus change into a secure field of the program in
 /// front (rulings MA-12 E and MA-20 (7)(c)): a thread of its own follows the
 /// program in front with an Accessibility observer and, for every notice whose
@@ -1868,6 +1912,35 @@ mod tests {
             hold_with(|| -50, || 0),
             Err(SecureInputRefused(-50))
         ));
+    }
+
+    #[test]
+    fn the_probe_answers_active_for_byte_one_inactive_for_byte_zero_and_unknown_off_the_console() {
+        use crate::secure_input::{SecureInputProbe, SecureInputReading};
+        fn at_console() -> Session {
+            Session::AtConsole
+        }
+        fn not_at_console() -> Session {
+            Session::NotAtConsole
+        }
+        fn byte_one() -> u8 {
+            1
+        }
+        fn byte_zero() -> u8 {
+            0
+        }
+        assert_eq!(
+            SystemProbe::with_readers(at_console, byte_one).read(),
+            SecureInputReading::Active
+        );
+        assert_eq!(
+            SystemProbe::with_readers(at_console, byte_zero).read(),
+            SecureInputReading::Inactive
+        );
+        assert_eq!(
+            SystemProbe::with_readers(not_at_console, byte_one).read(),
+            SecureInputReading::Unknown
+        );
     }
 
     #[test]

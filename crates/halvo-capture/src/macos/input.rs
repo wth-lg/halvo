@@ -1643,8 +1643,8 @@ impl TapThread {
                     #[cfg(not(any(test, debug_assertions)))]
                     let given_back: Result<(), SecureInputReleaseRefused> = Ok(());
                     invalidate(&idle);
-                    if let Err(refused) = given_back {
-                        *released.lock().unwrap_or_else(PoisonError::into_inner) = Some(refused);
+                    if let Err(status) = given_back {
+                        *released.lock().unwrap_or_else(PoisonError::into_inner) = Some(status);
                     }
                 })
                 .map_err(spawn_failure)?

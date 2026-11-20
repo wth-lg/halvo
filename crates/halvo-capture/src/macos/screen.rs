@@ -1,27 +1,47 @@
+#![deny(clippy::let_underscore_must_use)]
+
+use std::ffi::c_void;
 use std::marker::PhantomData;
+use std::sync::atomic::{AtomicI64, AtomicU8, Ordering};
 use std::sync::mpsc::{channel, RecvTimeoutError, Sender};
-use std::sync::{Mutex, PoisonError};
-use std::time::{Duration, Instant, SystemTime};
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use block2::RcBlock;
+use core_foundation::array::{CFArrayGetCount, CFArrayGetValueAtIndex, CFArrayRef};
+use core_foundation::base::{CFGetTypeID, TCFType};
+use core_foundation::date::CFDate;
+use core_foundation::dictionary::{CFDictionaryGetValue, CFDictionaryRef};
+use core_foundation::number::{
+    kCFNumberSInt64Type, CFNumberGetTypeID, CFNumberGetValue, CFNumberRef,
+};
+use core_foundation::runloop::{
+    kCFRunLoopCommonModes, CFRunLoop, CFRunLoopTimer, CFRunLoopTimerContext,
+    CFRunLoopTimerInvalidate, CFRunLoopTimerRef,
+};
 use dispatch2::{DispatchQueue, DispatchRetained};
 use objc2::rc::Retained;
 use objc2::runtime::{NSObject, ProtocolObject};
 use objc2::{define_class, msg_send, AnyThread, DefinedClass};
+use objc2_app_kit::NSWorkspace;
 use objc2_core_media::{CMSampleBuffer, CMTime};
-use objc2_foundation::{NSArray, NSError, NSInteger, NSObjectProtocol};
+use objc2_foundation::{NSArray, NSError, NSInteger, NSObjectProtocol, NSString};
 use objc2_screen_capture_kit::{
-    SCContentFilter, SCDisplay, SCRunningApplication, SCShareableContent, SCStream,
-    SCStreamConfiguration, SCStreamOutput, SCStreamOutputType, SCWindow,
+    SCContentFilter, SCDisplay, SCFrameStatus, SCRunningApplication, SCShareableContent, SCStream,
+    SCStreamConfiguration, SCStreamDelegate, SCStreamFrameInfoStatus, SCStreamOutput,
+    SCStreamOutputType, SCWindow,
 };
 
-use crate::event::Modality;
-use crate::macos::foreground::{emit_metadata_only, ForegroundReader, Unpersisted};
+use crate::event::{AppIdentity, EventClock, FloorEvent, Modality};
+use crate::floor::exclude::{DropReason, FloorHandle, PrivateWindow, ProcessId, Subject, Verdict};
+use crate::floor::{kind, Switch};
+use crate::macos::foreground::{executable_path, ForegroundReader, HalvoApp};
 use crate::macos::source_failure;
+use crate::secure_input_macos::SystemProbe;
 use crate::sink::SinkHandle;
 use crate::source::{
-    CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
-    StopCause,
+    CaptureError, CaptureSource, HealthReason, SourceContext, SourceCounters, SourceHealth,
+    SourceState, Started, StopCause,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,9 +64,233 @@ const _: () = assert!(
 
 const STREAM_QUEUE_DEPTH: NSInteger = 8;
 
+/// The stop code with which ScreenCaptureKit tells that the person stopped the
+/// stream from the system's control (SCStreamErrorUserStopped, SCError.h).
+const USER_STOPPED: i64 = -3817;
+
+/// The first wait between two rebuilds of the filter that did not list Halvo's
+/// app; each further wait doubles, up to [`REBUILD_MAX_BACKOFF`].
+const REBUILD_FIRST_BACKOFF: Duration = Duration::from_secs(1);
+
+const REBUILD_MAX_BACKOFF: Duration = Duration::from_secs(60);
+
+/// How often the rebuild's timer reads whether a rebuild is due.
+const REBUILD_TICK: Duration = Duration::from_secs(1);
+
+/// What the frame callback does with one sample.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FrameAction {
+    /// One activity record: a complete or started frame with an image buffer.
+    Record,
+    /// No record, and the stream delivers: an idle frame.
+    Quiet,
+    /// No record, and the stream reads impaired with this reason.
+    Impaired(HealthReason),
+    /// No record and no change: no status, a stop, or a complete or started
+    /// status with no image buffer.
+    Ignore,
+}
+
+const COMPLETE: NSInteger = SCFrameStatus::Complete.0;
+const IDLE: NSInteger = SCFrameStatus::Idle.0;
+const BLANK: NSInteger = SCFrameStatus::Blank.0;
+const SUSPENDED: NSInteger = SCFrameStatus::Suspended.0;
+const STARTED: NSInteger = SCFrameStatus::Started.0;
+
+fn frame_action(status: Option<NSInteger>, has_image: bool) -> FrameAction {
+    match status {
+        Some(COMPLETE | STARTED) if has_image => FrameAction::Record,
+        Some(IDLE) => FrameAction::Quiet,
+        Some(BLANK) => FrameAction::Impaired(HealthReason::StreamBlank),
+        Some(SUSPENDED) => FrameAction::Impaired(HealthReason::StreamSuspended),
+        _ => FrameAction::Ignore,
+    }
+}
+
+#[link(name = "CoreMedia", kind = "framework")]
+extern "C" {
+    fn CMSampleBufferGetSampleAttachmentsArray(
+        sample: *const c_void,
+        create_if_necessary: u8,
+    ) -> CFArrayRef;
+    fn CMSampleBufferGetImageBuffer(sample: *const c_void) -> *const c_void;
+}
+
+/// The value of SCStreamFrameInfoStatus in the first attachments dictionary of
+/// `sample`, or `None` when the sample carries none.
+fn frame_status(sample: &CMSampleBuffer) -> Option<NSInteger> {
+    let sample = (sample as *const CMSampleBuffer).cast::<c_void>();
+    // SAFETY: `sample` is a live CMSampleBuffer for the length of the call. With
+    // create set to 0 the getter makes nothing and returns the buffer's own
+    // array at +0, or null.
+    let array = unsafe { CMSampleBufferGetSampleAttachmentsArray(sample, 0) };
+    if array.is_null() {
+        return None;
+    }
+    // SAFETY: `array` is a live CFArray that the sample owns while it lives.
+    if unsafe { CFArrayGetCount(array) } < 1 {
+        return None;
+    }
+    // SAFETY: index 0 lies inside the array; its element is the attachments
+    // dictionary of the first sample, at +0.
+    let attachments = unsafe { CFArrayGetValueAtIndex(array, 0) } as CFDictionaryRef;
+    if attachments.is_null() {
+        return None;
+    }
+    // SAFETY: SCStreamFrameInfoStatus is a constant NSString that
+    // ScreenCaptureKit exports and never writes.
+    let key: &NSString = unsafe { SCStreamFrameInfoStatus };
+    // SAFETY: `attachments` is a live CFDictionary and the key is a live
+    // NSString, which is toll-free bridged with CFString.
+    let value = unsafe { CFDictionaryGetValue(attachments, (key as *const NSString).cast()) };
+    if value.is_null() {
+        return None;
+    }
+    // SAFETY: `value` is a live CF object that the dictionary owns.
+    if unsafe { CFGetTypeID(value) } != unsafe { CFNumberGetTypeID() } {
+        return None;
+    }
+    let mut raw: i64 = 0;
+    // SAFETY: `value` is a CFNumber, as the type check shows, and `raw` has room
+    // for the 64-bit integer that the call writes.
+    let read = unsafe {
+        CFNumberGetValue(
+            value as CFNumberRef,
+            kCFNumberSInt64Type,
+            (&mut raw as *mut i64).cast(),
+        )
+    };
+    read.then_some(raw as NSInteger)
+}
+
+/// Whether `sample` carries an image buffer. No byte of the image is read.
+fn has_image(sample: &CMSampleBuffer) -> bool {
+    // SAFETY: `sample` is a live CMSampleBuffer for the length of the call; the
+    // getter returns its image buffer at +0, or null, and reads no pixel.
+    !unsafe { CMSampleBufferGetImageBuffer((sample as *const CMSampleBuffer).cast()) }.is_null()
+}
+
+/// What the stream's own callbacks have told, shared with the source's health:
+/// the last impairment of the frames, the stop code of the delegate, and
+/// whether the current filter lists Halvo's app.
+#[derive(Default)]
+struct StreamFacts {
+    condition: AtomicU8,
+    stop_code: AtomicI64,
+    lists_app: AtomicU8,
+    listed: Mutex<Vec<libc::pid_t>>,
+}
+
+const DELIVERING: u8 = 0;
+const BLANK_FRAMES: u8 = 1;
+const SUSPENDED_FRAMES: u8 = 2;
+const NO_FILTER: u8 = 0;
+const FILTER_LACKS_APP: u8 = 1;
+const FILTER_LISTS_APP: u8 = 2;
+
+impl StreamFacts {
+    fn frame(&self, action: FrameAction) {
+        let condition = match action {
+            FrameAction::Record | FrameAction::Quiet => DELIVERING,
+            FrameAction::Impaired(HealthReason::StreamSuspended) => SUSPENDED_FRAMES,
+            FrameAction::Impaired(_) => BLANK_FRAMES,
+            FrameAction::Ignore => return,
+        };
+        self.condition.store(condition, Ordering::Relaxed);
+    }
+
+    fn stopped_with(&self, code: i64) {
+        self.stop_code.store(code, Ordering::SeqCst);
+    }
+
+    fn filter(&self, listed: Vec<libc::pid_t>, lists_app: bool) {
+        *self.listed.lock().unwrap_or_else(PoisonError::into_inner) = listed;
+        let fact = if lists_app {
+            FILTER_LISTS_APP
+        } else {
+            FILTER_LACKS_APP
+        };
+        self.lists_app.store(fact, Ordering::SeqCst);
+    }
+
+    fn listed(&self) -> Vec<libc::pid_t> {
+        self.listed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    fn lists_app(&self) -> Option<bool> {
+        match self.lists_app.load(Ordering::SeqCst) {
+            NO_FILTER => None,
+            fact => Some(fact == FILTER_LISTS_APP),
+        }
+    }
+
+    fn state(&self) -> SourceState {
+        match self.stop_code.load(Ordering::SeqCst) {
+            0 => {}
+            code => return stopped_by(code),
+        }
+        match self.condition.load(Ordering::Relaxed) {
+            BLANK_FRAMES => SourceState::Impaired {
+                reason: HealthReason::StreamBlank,
+            },
+            SUSPENDED_FRAMES => SourceState::Impaired {
+                reason: HealthReason::StreamSuspended,
+            },
+            _ => SourceState::Running,
+        }
+    }
+}
+
+/// The state that the stop code of the stream's delegate gives: stopped with
+/// the cause user for SCStreamErrorUserStopped, failed for any other code.
+fn stopped_by(code: i64) -> SourceState {
+    if code == USER_STOPPED {
+        SourceState::Stopped(StopCause::User)
+    } else {
+        source_failure(CaptureError::Os {
+            stage: "stream_stopped",
+            domain: "ScreenCaptureKit",
+            code,
+        })
+    }
+}
+
+/// What decides whether a frame becomes a record: the app in front, Halvo's
+/// app, the exclusion decision and its secure-input probe.
+struct FrameRule {
+    foreground: ForegroundReader,
+    floor: FloorHandle,
+    halvo: HalvoApp,
+    probe: SystemProbe,
+}
+
+impl FrameRule {
+    /// The keep verdict for a frame now. None while nothing is known to be in
+    /// front, while Halvo's app is in front, and when the decision drops.
+    fn verdict(&self) -> Option<crate::floor::exclude::Keep<kind::ScreenFrame>> {
+        let front = self.foreground.get()?;
+        if self.halvo.selects_front(&front) {
+            return None;
+        }
+        let pid = ProcessId::new(u32::try_from(front.pid).ok()?);
+        let subject = Subject::new(front.identity.to_event(), pid);
+        match self
+            .floor
+            .decide::<kind::ScreenFrame>(subject, PrivateWindow::Unknown, &self.probe)
+        {
+            Verdict::Keep(keep) => Some(keep),
+            Verdict::Drop(_) => None,
+        }
+    }
+}
+
 struct ScreenIvars {
     sink: Mutex<Option<SinkHandle>>,
-    foreground: ForegroundReader,
+    rule: FrameRule,
+    facts: Arc<StreamFacts>,
 }
 
 define_class!(
@@ -68,30 +312,49 @@ define_class!(
             on_sample(self.ivars(), sample, ty);
         }
     }
+
+    unsafe impl SCStreamDelegate for ScreenOutput {
+        #[unsafe(method(stream:didStopWithError:))]
+        fn stream_stopped(&self, _stream: &SCStream, error: &NSError) {
+            self.ivars().facts.stopped_with(error.code() as i64);
+        }
+    }
 );
 
-fn on_sample(ivars: &ScreenIvars, _sample: &CMSampleBuffer, ty: SCStreamOutputType) {
+fn on_sample(ivars: &ScreenIvars, sample: &CMSampleBuffer, ty: SCStreamOutputType) {
     if ty != SCStreamOutputType::Screen {
         return;
     }
+    let action = frame_action(frame_status(sample), has_image(sample));
+    ivars.facts.frame(action);
+    if action == FrameAction::Record {
+        record_frame(ivars);
+    }
+}
+
+fn record_frame(ivars: &ScreenIvars) {
     let sink = ivars.sink.lock().unwrap_or_else(PoisonError::into_inner);
     let Some(sink) = sink.as_ref() else {
         return;
     };
-    let _ = emit_metadata_only(
-        sink,
-        Modality::ScreenFrame,
-        ivars.foreground.get(),
-        Unpersisted::EMPTY,
-        SystemTime::now(),
-    );
+    if let Some(keep) = ivars.rule.verdict() {
+        sink.emit_event(FloorEvent::screen_frame(keep, None, EventClock::system()));
+    }
+}
+
+/// What a stream's output takes at its start.
+struct FrameContext {
+    sink: SinkHandle,
+    rule: FrameRule,
+    facts: Arc<StreamFacts>,
 }
 
 impl ScreenOutput {
-    fn new(sink: SinkHandle, foreground: ForegroundReader) -> Retained<Self> {
+    fn new(frames: FrameContext) -> Retained<Self> {
         let this = Self::alloc().set_ivars(ScreenIvars {
-            sink: Mutex::new(Some(sink)),
-            foreground,
+            sink: Mutex::new(Some(frames.sink)),
+            rule: frames.rule,
+            facts: frames.facts,
         });
         // SAFETY: `this` is a fresh allocation of this class with its ivars set,
         // and `init` is NSObject's initializer: it takes no argument and returns
@@ -100,45 +363,116 @@ impl ScreenOutput {
     }
 }
 
-fn is_own_process(pid: libc::pid_t) -> bool {
-    pid == std::process::id() as libc::pid_t
+/// Which applications the filter leaves out: this process, Halvo's app by its
+/// one predicate, and every process that the exclusion decision places under
+/// the exclusion root. Every other application is kept, a password manager
+/// too, whose frames the decision drops while it is in front.
+struct Selection {
+    own: libc::pid_t,
+    halvo: HalvoApp,
+    floor: FloorHandle,
+    probe: SystemProbe,
+}
+
+impl Selection {
+    fn excludes(&self, pid: libc::pid_t, bundle_id: &str, path: Option<&str>) -> bool {
+        pid == self.own || self.halvo.selects(bundle_id, path) || self.under_root(pid)
+    }
+
+    fn under_root(&self, pid: libc::pid_t) -> bool {
+        let Ok(pid) = u32::try_from(pid) else {
+            return false;
+        };
+        let subject = Subject::new(AppIdentity::unknown(), ProcessId::new(pid));
+        matches!(
+            self.floor
+                .decide::<kind::ScreenFrame>(subject, PrivateWindow::Unknown, &self.probe),
+            Verdict::Drop(DropReason::ExclusionTree)
+        )
+    }
+}
+
+/// One application of the shareable content as the selection reads it.
+struct AppEntry {
+    pid: libc::pid_t,
+    bundle_id: String,
+    path: Option<String>,
 }
 
 fn excluded_applications<T>(
     apps: impl IntoIterator<Item = T>,
-    pid_of: impl Fn(&T) -> libc::pid_t,
+    entry_of: impl Fn(&T) -> AppEntry,
+    selection: &Selection,
 ) -> Vec<T> {
     apps.into_iter()
-        .filter(|app| is_own_process(pid_of(app)))
+        .filter(|app| {
+            let entry = entry_of(app);
+            selection.excludes(entry.pid, &entry.bundle_id, entry.path.as_deref())
+        })
         .collect()
 }
 
-fn filter_excluding_self(
+fn entry_of(app: &SCRunningApplication) -> AppEntry {
+    // SAFETY: `app` is a live SCRunningApplication of the content that the
+    // caller holds, and both getters are property getters that take no argument.
+    let (pid, bundle_id) = unsafe { (app.processID(), app.bundleIdentifier().to_string()) };
+    AppEntry {
+        pid,
+        bundle_id,
+        path: executable_path(pid),
+    }
+}
+
+/// The filter of `display` that leaves out what `selection` excludes, with the
+/// pids that it leaves out and whether Halvo's app is among them.
+fn filter_for(
     content: &SCShareableContent,
     display: &SCDisplay,
-) -> Retained<SCContentFilter> {
+    selection: &Selection,
+) -> (Retained<SCContentFilter>, Vec<libc::pid_t>, bool) {
     // SAFETY: `content` is a live SCShareableContent that the caller holds, and
     // `applications` is a property getter that takes no argument.
     let apps = unsafe { content.applications() };
-    let excluded = excluded_applications(apps.iter(), |app| {
-        // SAFETY: `app` is a retained element of `apps`, and `processID` is a
-        // property getter that takes no argument.
-        unsafe { app.processID() }
+    let excluded = excluded_applications(apps.iter(), |app| entry_of(app), selection);
+    let entries: Vec<AppEntry> = excluded.iter().map(|app| entry_of(app)).collect();
+    let lists_app = entries.iter().any(|entry| {
+        selection
+            .halvo
+            .selects(&entry.bundle_id, entry.path.as_deref())
     });
+    let pids = entries.iter().map(|entry| entry.pid).collect();
     let excluded_refs: Vec<&SCRunningApplication> = excluded.iter().map(|r| &**r).collect();
     let excluded_apps = NSArray::from_slice(&excluded_refs);
     let no_windows: Retained<NSArray<SCWindow>> = NSArray::new();
     // SAFETY: the receiver is a fresh allocation of SCContentFilter; `display`
     // and the two arrays live past the call, and the arrays hold the element
     // types that the initializer declares.
-    unsafe {
+    let filter = unsafe {
         SCContentFilter::initWithDisplay_excludingApplications_exceptingWindows(
             SCContentFilter::alloc(),
             display,
             &excluded_apps,
             &no_windows,
         )
-    }
+    };
+    (filter, pids, lists_app)
+}
+
+/// The display that the source captures: the main display by its id, else the
+/// first of the list (README RD-39).
+fn chosen_display(ids: &[u32], main: u32) -> Option<usize> {
+    ids.iter()
+        .position(|&id| id == main)
+        .or((!ids.is_empty()).then_some(0))
+}
+
+fn display_ids(displays: &NSArray<SCDisplay>) -> Vec<u32> {
+    displays
+        .iter()
+        // SAFETY: `display` is a retained element of `displays`, and `displayID`
+        // is a property getter that takes no argument.
+        .map(|display| unsafe { display.displayID() })
+        .collect()
 }
 
 fn stream_configuration(
@@ -197,7 +531,7 @@ impl StopStream for Retained<SCStream> {
                 let code = unsafe { (*err).code() } as i64;
                 StopReply::Failed { code }
             };
-            let _ = reply.send(answer);
+            reply.send(answer).ok();
         });
         // SAFETY: the stream is live, and the handler has the completion
         // signature `void (^)(NSError *)`.
@@ -205,10 +539,197 @@ impl StopStream for Retained<SCStream> {
     }
 }
 
+/// When the filter is built again (B14-19 (2)): while Halvo's app runs under a
+/// pid that the current filter does not list, at once when the app comes in
+/// front, else after a wait of 1 s that doubles up to 60 s after each rebuild
+/// that still did not list it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct RebuildPlan {
+    next: Option<Instant>,
+    backoff: Duration,
+    app_in_front: bool,
+}
+
+impl RebuildPlan {
+    fn new() -> Self {
+        Self {
+            next: None,
+            backoff: REBUILD_FIRST_BACKOFF,
+            app_in_front: false,
+        }
+    }
+
+    /// Whether a rebuild is due at `now`, for the pids that the current filter
+    /// lists, the pids of Halvo's app, and whether the app is in front.
+    fn due(
+        &mut self,
+        listed: &[libc::pid_t],
+        app: &[libc::pid_t],
+        app_in_front: bool,
+        now: Instant,
+    ) -> bool {
+        let came_in_front = app_in_front && !self.app_in_front;
+        self.app_in_front = app_in_front;
+        if app.iter().all(|pid| listed.contains(pid)) {
+            return false;
+        }
+        came_in_front || self.next.is_none_or(|next| now >= next)
+    }
+
+    /// Records a rebuild at `now` whose filter lists the app or does not.
+    fn tried(&mut self, now: Instant, lists_app: bool) {
+        if lists_app {
+            self.next = None;
+            self.backoff = REBUILD_FIRST_BACKOFF;
+        } else {
+            self.next = Some(now + self.backoff);
+            self.backoff = (self.backoff * 2).min(REBUILD_MAX_BACKOFF);
+        }
+    }
+}
+
+/// The pids of the running applications that are Halvo's.
+fn halvo_pids(halvo: &HalvoApp) -> Vec<libc::pid_t> {
+    objc2::rc::autoreleasepool(|_| {
+        NSWorkspace::sharedWorkspace()
+            .runningApplications()
+            .iter()
+            .filter_map(|app| {
+                let pid = app.processIdentifier();
+                let bundle_id = app
+                    .bundleIdentifier()
+                    .map(|id| id.to_string())
+                    .unwrap_or_default();
+                halvo
+                    .selects(&bundle_id, executable_path(pid).as_deref())
+                    .then_some(pid)
+            })
+            .collect()
+    })
+}
+
+/// What the rebuild's timer works on. It lives in a box whose address the
+/// timer holds, and only that timer's callout reads it.
+struct RebuildCell {
+    stream: Retained<SCStream>,
+    display: u32,
+    selection: Selection,
+    foreground: ForegroundReader,
+    facts: Arc<StreamFacts>,
+    plan: RebuildPlan,
+}
+
+impl RebuildCell {
+    fn tick(&mut self, now: Instant) {
+        let app = halvo_pids(&self.selection.halvo);
+        let in_front = self
+            .foreground
+            .get()
+            .is_some_and(|front| self.selection.halvo.selects_front(&front));
+        if !self.plan.due(&self.facts.listed(), &app, in_front, now) {
+            return;
+        }
+        let lists_app = self.rebuild().unwrap_or(false);
+        self.plan.tried(now, lists_app);
+    }
+
+    /// Builds the filter again against the stored display, or the display that
+    /// the chooser takes when the stored one has left the list, and hands it to
+    /// the stream. Whether the new filter lists Halvo's app.
+    fn rebuild(&mut self) -> Result<bool, CaptureError> {
+        let content = fetch_shareable_content()?;
+        // SAFETY: `content` is a live, retained SCShareableContent, and
+        // `displays` is a property getter that takes no argument.
+        let displays = unsafe { content.displays() };
+        let ids = display_ids(&displays);
+        let index = match ids.iter().position(|&id| id == self.display) {
+            Some(index) => index,
+            None => chosen_display(&ids, main_display_id())
+                .ok_or_else(|| CaptureError::Start("no display to capture".into()))?,
+        };
+        let display = displays.objectAtIndex(index);
+        self.display = ids[index];
+        let (filter, listed, lists_app) = filter_for(&content, &display, &self.selection);
+        let facts = self.facts.clone();
+        let handler = RcBlock::new(move |err: *mut NSError| {
+            if err.is_null() {
+                facts.filter(listed.clone(), lists_app);
+            }
+        });
+        // SAFETY: the stream is live and runs; `filter` lives past the call, and
+        // the handler has the completion signature `void (^)(NSError *)`.
+        unsafe {
+            self.stream
+                .updateContentFilter_completionHandler(&filter, Some(&handler))
+        };
+        Ok(lists_app)
+    }
+}
+
+/// A rebuild's cell with the timer that holds its address. Its Drop
+/// invalidates the timer, and only then does the cell drop.
+struct Rebuild {
+    cell: Box<RebuildCell>,
+    timer: Option<CFRunLoopTimer>,
+}
+
+impl Rebuild {
+    /// Adds the timer to the run loop of the calling thread: the thread that
+    /// began the source, which owns it, since a source is not Send.
+    fn start(cell: RebuildCell) -> Self {
+        let mut rebuild = Self {
+            cell: Box::new(cell),
+            timer: None,
+        };
+        let mut context = CFRunLoopTimerContext {
+            version: 0,
+            info: (&mut *rebuild.cell as *mut RebuildCell).cast::<c_void>(),
+            retain: None,
+            release: None,
+            copyDescription: None,
+        };
+        let tick = REBUILD_TICK.as_secs_f64();
+        let timer = CFRunLoopTimer::new(
+            CFDate::now().abs_time() + tick,
+            tick,
+            0,
+            0,
+            rebuild_timer_fired,
+            &mut context,
+        );
+        // SAFETY: `kCFRunLoopCommonModes` is a constant CFString that
+        // CoreFoundation exports and never writes.
+        CFRunLoop::get_current().add_timer(&timer, unsafe { kCFRunLoopCommonModes });
+        rebuild.timer = Some(timer);
+        rebuild
+    }
+}
+
+impl Drop for Rebuild {
+    fn drop(&mut self) {
+        if let Some(timer) = self.timer.take() {
+            // SAFETY: `timer` is a live timer; invalidating it removes it from
+            // every run loop, so its callout never runs again.
+            unsafe { CFRunLoopTimerInvalidate(timer.as_concrete_TypeRef()) };
+        }
+    }
+}
+
+extern "C" fn rebuild_timer_fired(_timer: CFRunLoopTimerRef, info: *mut c_void) {
+    // SAFETY: `info` is the boxed RebuildCell of a Rebuild, whose box keeps it
+    // at one address and whose Drop invalidates this timer before the box
+    // drops. The timer fires on the run loop of the thread that owns the source,
+    // which touches the cell only to drop it, so no other reference to the cell
+    // is used while the callout runs.
+    let cell = unsafe { &mut *info.cast::<RebuildCell>() };
+    cell.tick(Instant::now());
+}
+
 type Opened = (
     Box<dyn StopStream>,
     Retained<ScreenOutput>,
     DispatchRetained<DispatchQueue>,
+    Option<RebuildCell>,
 );
 
 /// ```
@@ -223,11 +744,16 @@ type Opened = (
 pub struct ScreenSource {
     cap: FrameRateCap,
     foreground: ForegroundReader,
+    halvo: HalvoApp,
+    probe: SystemProbe,
+    facts: Arc<StreamFacts>,
     stream: Option<Box<dyn StopStream>>,
     output: Option<Retained<ScreenOutput>>,
     queue: Option<DispatchRetained<DispatchQueue>>,
+    rebuild: Option<Rebuild>,
     failure: Option<CaptureError>,
     unstopped: Option<CaptureError>,
+    off: bool,
     stopped: bool,
     #[cfg(test)]
     real: bool,
@@ -239,11 +765,16 @@ impl ScreenSource {
         Self {
             cap,
             foreground,
+            halvo: HalvoApp::beside_this_executable(),
+            probe: SystemProbe::new(),
+            facts: Arc::default(),
             stream: None,
             output: None,
             queue: None,
+            rebuild: None,
             failure: None,
             unstopped: None,
+            off: false,
             stopped: false,
             #[cfg(test)]
             real: false,
@@ -251,19 +782,50 @@ impl ScreenSource {
         }
     }
 
+    /// Whether the current filter of the stream lists Halvo's app, for the
+    /// status field screen_filter_excludes_app (contract C10.2); `None` while no
+    /// stream runs, which is the answer while the switch screen_activity is off.
+    pub fn filter_excludes_app(&self) -> Option<bool> {
+        self.stream.as_ref()?;
+        self.facts.lists_app()
+    }
+
     fn begin_with(
         &mut self,
-        sink: SinkHandle,
-        open: impl FnOnce(SinkHandle, ForegroundReader, FrameRateCap) -> Result<Opened, CaptureError>,
+        ctx: &SourceContext,
+        open: impl FnOnce(FrameContext, Selection, FrameRateCap) -> Result<Opened, CaptureError>,
     ) -> Result<Started, CaptureError> {
-        if self.stream.is_some() {
+        if self.stream.is_some() || self.unstopped.is_some() {
             return Err(CaptureError::AlreadyStarted);
         }
-        match open(sink, self.foreground.clone(), self.cap) {
-            Ok((stream, output, queue)) => {
+        if !ctx.floor().switches().is_on(Switch::ScreenActivity) {
+            self.off = true;
+            return Ok(Started::Off);
+        }
+        self.off = false;
+        self.facts = Arc::default();
+        let frames = FrameContext {
+            sink: ctx.sink().clone(),
+            rule: FrameRule {
+                foreground: self.foreground.clone(),
+                floor: ctx.floor().clone(),
+                halvo: self.halvo.clone(),
+                probe: self.probe,
+            },
+            facts: self.facts.clone(),
+        };
+        let selection = Selection {
+            own: std::process::id() as libc::pid_t,
+            halvo: self.halvo.clone(),
+            floor: ctx.floor().clone(),
+            probe: self.probe,
+        };
+        match open(frames, selection, self.cap) {
+            Ok((stream, output, queue, rebuild)) => {
                 self.stream = Some(stream);
                 self.output = Some(output);
                 self.queue = Some(queue);
+                self.rebuild = rebuild.map(Rebuild::start);
                 self.failure = None;
                 self.stopped = false;
                 Ok(Started::Running)
@@ -279,11 +841,17 @@ impl ScreenSource {
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
     fn CGPreflightScreenCaptureAccess() -> bool;
+    fn CGMainDisplayID() -> u32;
 }
 
 fn screen_access_denied() -> bool {
     // SAFETY: a parameterless predicate of the system with no side effect.
     !unsafe { CGPreflightScreenCaptureAccess() }
+}
+
+fn main_display_id() -> u32 {
+    // SAFETY: a parameterless getter of the system with no side effect.
+    unsafe { CGMainDisplayID() }
 }
 
 fn content_refusal(denied: bool, answer: Result<i64, RecvTimeoutError>) -> CaptureError {
@@ -317,21 +885,20 @@ fn fetch_shareable_content() -> Result<Retained<SCShareableContent>, CaptureErro
             // it takes ownership.
             unsafe { Retained::retain(content) }.ok_or(0)
         };
-        let _ = tx.send(answer);
+        tx.send(answer).ok();
     });
     // SAFETY: the handler has the completion signature
     // `void (^)(SCShareableContent *, NSError *)`. ScreenCaptureKit calls it on
     // a queue of its own, possibly after the wait below gave up. It holds
     // nothing but `tx`; a send to a receiver that is gone returns an error,
-    // which the handler ignores, and the retained content drops with it. The
-    // content is retained on ScreenCaptureKit's queue, handed over once through
-    // the channel, and used by one thread at a time. That rests on what is
-    // assumed: one owner at a time, no use on two threads at once, and no
-    // documented tie of the object to the queue that delivered it. The SDK
-    // marks nothing: neither objc2 nor SCShareableContent.h nor the
-    // framework's Swift interface says that the class may be sent between
-    // threads. This is a named limit and not a proof; macos-3 takes the
-    // hand-over away.
+    // which the handler ignores, and the retained content drops with it. What
+    // holds: the content is retained on ScreenCaptureKit's queue and crosses
+    // to the calling thread once, through the channel, after the handler has
+    // let go of it, so one thread at a time holds it and no two threads use it
+    // at once. What does not hold as a proof: neither objc2, SCShareableContent.h
+    // nor the framework's Swift interface says that the class may be sent
+    // between threads, and nothing documents a tie of the object to the queue
+    // that delivered it; this hand-over is a named limit (RR-macos-sources-20).
     unsafe { SCShareableContent::getShareableContentWithCompletionHandler(&handler) };
     match rx.recv_timeout(SHAREABLE_CONTENT_WAIT) {
         Ok(Ok(content)) => Ok(content),
@@ -341,8 +908,8 @@ fn fetch_shareable_content() -> Result<Retained<SCShareableContent>, CaptureErro
 }
 
 fn open_stream(
-    sink: SinkHandle,
-    foreground: ForegroundReader,
+    frames: FrameContext,
+    selection: Selection,
     cap: FrameRateCap,
 ) -> Result<Opened, CaptureError> {
     let content = fetch_shareable_content()?;
@@ -350,23 +917,33 @@ fn open_stream(
     // SAFETY: `content` is a live, retained SCShareableContent, and
     // `displays` is a property getter that takes no argument.
     let displays = unsafe { content.displays() };
-    let display = displays
-        .iter()
-        .next()
+    let ids = display_ids(&displays);
+    let index = chosen_display(&ids, main_display_id())
         .ok_or_else(|| CaptureError::Start("no display to capture".into()))?;
+    let display = displays.objectAtIndex(index);
 
-    let filter = filter_excluding_self(&content, &display);
+    let (filter, listed, lists_app) = filter_for(&content, &display, &selection);
+    frames.facts.filter(listed, lists_app);
 
     // SAFETY: `display` is a live, retained SCDisplay, and `width` and
     // `height` are property getters that take no argument.
     let (width, height) = unsafe { (display.width() as usize, display.height() as usize) };
     let config = stream_configuration(width, height, cap);
 
-    let output = ScreenOutput::new(sink, foreground);
+    let foreground = frames.rule.foreground.clone();
+    let facts = frames.facts.clone();
+    let output = ScreenOutput::new(frames);
+    let delegate: &ProtocolObject<dyn SCStreamDelegate> = ProtocolObject::from_ref(&*output);
     // SAFETY: the receiver is a fresh allocation of SCStream; `filter` and
-    // `config` live past the call, and the delegate may be nil.
+    // `config` live past the call. The delegate is `output`, which the source
+    // stores until the stream cannot run, or keeps for the life of the process.
     let stream = unsafe {
-        SCStream::initWithFilter_configuration_delegate(SCStream::alloc(), &filter, &config, None)
+        SCStream::initWithFilter_configuration_delegate(
+            SCStream::alloc(),
+            &filter,
+            &config,
+            Some(delegate),
+        )
     };
     let queue = DispatchQueue::new("com.halvo.capture.screen", None);
     let proto: &ProtocolObject<dyn SCStreamOutput> = ProtocolObject::from_ref(&*output);
@@ -400,13 +977,23 @@ fn open_stream(
         // the handler for the length of the call; `code` is a property getter
         // that takes no argument.
         let code = (!err.is_null()).then(|| unsafe { (*err).code() } as i64);
-        let _ = stx.send(code);
+        stx.send(code).ok();
     });
     // SAFETY: `stream` is live, and the handler has the completion signature
     // `void (^)(NSError *)`.
     unsafe { stream.startCaptureWithCompletionHandler(Some(&handler)) };
     match srx.recv_timeout(SCREEN_START_WAIT) {
-        Ok(None) => Ok((Box::new(stream), output, queue)),
+        Ok(None) => {
+            let rebuild = RebuildCell {
+                stream: stream.clone(),
+                display: ids[index],
+                selection,
+                foreground,
+                facts,
+                plan: RebuildPlan::new(),
+            };
+            Ok((Box::new(stream), output, queue, Some(rebuild)))
+        }
         Ok(Some(code)) => Err(CaptureError::Os {
             stage: "start_capture",
             domain: "ScreenCaptureKit",
@@ -429,10 +1016,11 @@ impl CaptureSource for ScreenSource {
         {
             self.real = true;
         }
-        self.begin_with(ctx.sink().clone(), open_stream)
+        self.begin_with(&ctx, open_stream)
     }
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
+        self.rebuild = None;
         if self.stream.is_none() {
             return self.unstopped.clone().map_or(Ok(()), Err);
         }
@@ -442,9 +1030,10 @@ impl CaptureSource for ScreenSource {
 
     fn health(&self) -> SourceHealth {
         let state = match (&self.stream, &self.failure) {
-            (Some(_), _) => SourceState::Running,
+            (Some(_), _) => self.facts.state(),
             (None, Some(error)) => source_failure(error.clone()),
             (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
+            (None, None) if self.off => SourceState::Off,
             (None, None) => SourceState::NotReported,
         };
         let state = self.unstopped.clone().map_or(state, source_failure);
@@ -501,7 +1090,7 @@ impl Drop for ScreenSource {
         if self.unstopped.is_some() {
             return;
         }
-        let _ = self.shutdown();
+        self.shutdown().ok();
     }
 }
 
@@ -548,26 +1137,117 @@ fn keep_for_the_life_of_the_process(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::macos::foreground::foreground_state_for_test;
+    use crate::floor::exclude::{Lineage, NoLineage, Parent};
+    use crate::floor::Switches;
+    use crate::macos::foreground::{foreground_state_for_test, Foreground};
+    use crate::secure_input_macos::Session;
     use crate::sink::{self, SinkWriter};
     use core_foundation::base::{CFGetRetainCount, CFRelease};
+    use core_foundation::number::CFNumber;
     use objc2::rc::{Allocated, Weak};
     use objc2_core_media::{CMSampleTimingInfo, CMTimeFlags};
     use std::cell::{Cell, RefCell};
-    use std::ffi::c_void;
     use std::rc::Rc;
 
-    #[test]
-    fn only_the_own_process_is_excluded_and_every_other_entry_is_kept() {
-        let own = std::process::id() as libc::pid_t;
-        let apps = [
-            (own + 1, "com.example.editor"),
-            (own, ""),
-            (1, "com.example.finder"),
-            (own + 2, ""),
-        ];
-        let excluded = excluded_applications(apps, |&(pid, _)| pid);
-        assert_eq!(excluded, [(own, "")]);
+    const SIBLING: &str = "/opt/halvo-test/halvo";
+
+    fn switches_on() -> Switches {
+        let mut switches = Switches::default();
+        switches.set(Switch::ScreenActivity, true);
+        switches
+    }
+
+    fn floor_on() -> FloorHandle {
+        FloorHandle::new(None, Arc::new(NoLineage), switches_on())
+    }
+
+    fn context_on(handle: SinkHandle) -> SourceContext {
+        SourceContext::with_floor(handle, floor_on())
+    }
+
+    fn at_console() -> Session {
+        Session::AtConsole
+    }
+
+    fn not_at_console() -> Session {
+        Session::NotAtConsole
+    }
+
+    fn byte_zero() -> u8 {
+        0
+    }
+
+    fn byte_one() -> u8 {
+        1
+    }
+
+    fn inactive() -> SystemProbe {
+        SystemProbe::with_readers(at_console, byte_zero)
+    }
+
+    fn rule(foreground: ForegroundReader, floor: FloorHandle, probe: SystemProbe) -> FrameRule {
+        FrameRule {
+            foreground,
+            floor,
+            halvo: HalvoApp::with_sibling(SIBLING),
+            probe,
+        }
+    }
+
+    fn frames_of(sink: SinkHandle, foreground: ForegroundReader) -> FrameContext {
+        FrameContext {
+            sink,
+            rule: rule(foreground, floor_on(), inactive()),
+            facts: Arc::default(),
+        }
+    }
+
+    fn front(bundle_id: &str, pid: libc::pid_t) -> Foreground {
+        crate::macos::foreground::tests_support::front(bundle_id, pid)
+    }
+
+    fn in_front_for_test() -> (crate::macos::foreground::ForegroundWriter, ForegroundReader) {
+        let (writer, reader) = foreground_state_for_test();
+        writer.set_for_test(Some(front("com.example.editor", 41)));
+        (writer, reader)
+    }
+
+    fn output(
+        sink: SinkHandle,
+    ) -> (
+        Retained<ScreenOutput>,
+        crate::macos::foreground::ForegroundWriter,
+    ) {
+        let (writer, reader) = in_front_for_test();
+        (ScreenOutput::new(frames_of(sink, reader)), writer)
+    }
+
+    fn screen_ivars(
+        probe: SystemProbe,
+    ) -> (
+        ScreenIvars,
+        SinkWriter,
+        crate::macos::foreground::ForegroundWriter,
+    ) {
+        let (handle, writer) = sink::channel(8);
+        let (fg_writer, reader) = in_front_for_test();
+        let ivars = ScreenIvars {
+            sink: Mutex::new(Some(handle)),
+            rule: rule(reader, floor_on(), probe),
+            facts: Arc::default(),
+        };
+        (ivars, writer, fg_writer)
+    }
+
+    fn kinds_until_closed(writer: &SinkWriter) -> Vec<Modality> {
+        std::iter::from_fn(|| writer.recv_timeout(Duration::from_secs(1)).ok())
+            .map(|received| received.event().modality)
+            .collect()
+    }
+
+    fn records(ivars: ScreenIvars, writer: &SinkWriter) -> usize {
+        drop(ivars);
+        kinds_until_closed(writer).len()
     }
 
     #[test]
@@ -592,6 +1272,21 @@ mod tests {
         assert!(!audio, "the stream captures system audio");
         assert!(!microphone, "the stream captures the microphone");
         assert_eq!(size, (640, 480));
+    }
+
+    #[test]
+    fn the_frame_cap_is_the_key_screen_frames_max_per_s_of_the_bounds_file() {
+        let bounds = include_str!("../../../../docs/baseline/r1-gate-bounds.txt");
+        let values: Vec<&str> = bounds
+            .lines()
+            .filter_map(|line| line.strip_prefix("screen_frames_max_per_s="))
+            .collect();
+        assert_eq!(values.len(), 1, "the bounds file holds the key once");
+        assert_eq!(
+            values[0].trim().parse::<i32>(),
+            Ok(FrameRateCap::MAX_PER_SECOND)
+        );
+        assert_eq!(SCREEN_FRAME_CAP.per_second(), FrameRateCap::MAX_PER_SECOND);
     }
 
     #[link(name = "CoreVideo", kind = "framework")]
@@ -620,12 +1315,54 @@ mod tests {
             timing: *const CMSampleTimingInfo,
             sample: *mut *mut c_void,
         ) -> i32;
+        fn CMSampleBufferCreate(
+            allocator: *const c_void,
+            data: *const c_void,
+            data_ready: u8,
+            make_ready: *const c_void,
+            refcon: *const c_void,
+            format: *const c_void,
+            samples: isize,
+            timing_entries: isize,
+            timing: *const CMSampleTimingInfo,
+            size_entries: isize,
+            sizes: *const usize,
+            sample: *mut *mut c_void,
+        ) -> i32;
+    }
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFDictionarySetValue(
+            dictionary: *const c_void,
+            key: *const c_void,
+            value: *const c_void,
+        );
     }
 
     const PIXEL_FORMAT_BGRA: u32 = 0x4247_5241;
 
+    fn timing() -> CMSampleTimingInfo {
+        let invalid = CMTime {
+            value: 0,
+            timescale: 0,
+            flags: CMTimeFlags(0),
+            epoch: 0,
+        };
+        CMSampleTimingInfo {
+            duration: invalid,
+            presentationTimeStamp: CMTime {
+                value: 0,
+                timescale: 2,
+                flags: CMTimeFlags::Valid,
+                epoch: 0,
+            },
+            decodeTimeStamp: invalid,
+        }
+    }
+
     struct Frame {
-        image: *mut c_void,
+        image: Option<*mut c_void>,
         sample: *mut c_void,
     }
 
@@ -652,22 +1389,7 @@ mod tests {
                 CMVideoFormatDescriptionCreateForImageBuffer(std::ptr::null(), image, &mut format)
             };
             assert_eq!(status, 0, "CMVideoFormatDescriptionCreateForImageBuffer");
-            let invalid = CMTime {
-                value: 0,
-                timescale: 0,
-                flags: CMTimeFlags(0),
-                epoch: 0,
-            };
-            let timing = CMSampleTimingInfo {
-                duration: invalid,
-                presentationTimeStamp: CMTime {
-                    value: 0,
-                    timescale: 2,
-                    flags: CMTimeFlags::Valid,
-                    epoch: 0,
-                },
-                decodeTimeStamp: invalid,
-            };
+            let timing = timing();
             let mut sample = std::ptr::null_mut();
             // SAFETY: `image` and `format` are live and `format` describes
             // `image`; `timing` lives past the call, and `sample` is a valid
@@ -685,7 +1407,64 @@ mod tests {
             // returned; the sample buffer holds a reference of its own.
             unsafe { CFRelease(format) };
             assert_eq!(status, 0, "CMSampleBufferCreateReadyWithImageBuffer");
-            Self { image, sample }
+            Self {
+                image: Some(image),
+                sample,
+            }
+        }
+
+        fn imageless() -> Self {
+            let timing = timing();
+            let mut sample = std::ptr::null_mut();
+            // SAFETY: no data buffer and no format are passed, with data ready,
+            // one sample and one timing entry that lives past the call;
+            // `sample` is a valid place for the new sample buffer.
+            let status = unsafe {
+                CMSampleBufferCreate(
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    1,
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    1,
+                    1,
+                    &timing,
+                    0,
+                    std::ptr::null(),
+                    &mut sample,
+                )
+            };
+            assert_eq!(status, 0, "CMSampleBufferCreate");
+            Self {
+                image: None,
+                sample,
+            }
+        }
+
+        fn with_status(self, status: NSInteger) -> Self {
+            // SAFETY: `sample` is a live sample buffer that this frame owns;
+            // with create set to 1 the getter makes the array of attachments
+            // that the buffer then owns, and returns it at +0.
+            let array = unsafe { CMSampleBufferGetSampleAttachmentsArray(self.sample, 1) };
+            assert!(!array.is_null(), "the sample has no attachments array");
+            // SAFETY: `array` is live and holds one mutable dictionary for the
+            // one sample.
+            let attachments = unsafe { CFArrayGetValueAtIndex(array, 0) };
+            let number = CFNumber::from(status as i64);
+            // SAFETY: SCStreamFrameInfoStatus is a constant NSString that
+            // ScreenCaptureKit exports and never writes.
+            let key: &NSString = unsafe { SCStreamFrameInfoStatus };
+            // SAFETY: `attachments` is a live mutable dictionary of the sample;
+            // the dictionary retains the key and the value that it is given.
+            unsafe {
+                CFDictionarySetValue(
+                    attachments,
+                    (key as *const NSString).cast(),
+                    number.as_CFTypeRef(),
+                )
+            };
+            self
         }
 
         fn sample(&self) -> &CMSampleBuffer {
@@ -702,13 +1481,19 @@ mod tests {
 
     impl Drop for Frame {
         fn drop(&mut self) {
-            // SAFETY: both are +1 references that `new` created and that this
-            // frame owns alone.
+            // SAFETY: both are +1 references that the constructors created and
+            // that this frame owns alone.
             unsafe {
                 CFRelease(self.sample);
-                CFRelease(self.image);
+                if let Some(image) = self.image {
+                    CFRelease(image);
+                }
             }
         }
+    }
+
+    fn complete() -> Frame {
+        Frame::new(16, 16).with_status(SCFrameStatus::Complete.0)
     }
 
     fn deliver(output: &ScreenOutput, sample: &CMSampleBuffer) {
@@ -729,11 +1514,362 @@ mod tests {
         std::mem::forget(stream);
     }
 
+    fn deliver_stop(output: &ScreenOutput, code: NSInteger) {
+        let domain = NSString::from_str("SCStreamErrorDomain");
+        // SAFETY: a class method that makes an error of the domain and code
+        // given, with no user info.
+        let error = unsafe { NSError::errorWithDomain_code_userInfo(&domain, code, None) };
+        let stream = SCStream::alloc();
+        let stream_ptr = Allocated::as_ptr(&stream);
+        // SAFETY: ScreenOutput implements this delegate selector with these
+        // argument types; the method never reads its stream argument, which
+        // points to an allocated SCStream that stays allocated, and `error` is
+        // live for the call.
+        unsafe {
+            let _: () = msg_send![output, stream: stream_ptr, didStopWithError: &*error];
+        }
+        std::mem::forget(stream);
+    }
+
+    #[test]
+    fn each_frame_status_maps_to_its_action() {
+        let cases = [
+            (Some(SCFrameStatus::Complete.0), true, FrameAction::Record),
+            (Some(SCFrameStatus::Started.0), true, FrameAction::Record),
+            (Some(SCFrameStatus::Complete.0), false, FrameAction::Ignore),
+            (Some(SCFrameStatus::Started.0), false, FrameAction::Ignore),
+            (Some(SCFrameStatus::Idle.0), true, FrameAction::Quiet),
+            (Some(SCFrameStatus::Idle.0), false, FrameAction::Quiet),
+            (
+                Some(SCFrameStatus::Blank.0),
+                true,
+                FrameAction::Impaired(HealthReason::StreamBlank),
+            ),
+            (
+                Some(SCFrameStatus::Suspended.0),
+                true,
+                FrameAction::Impaired(HealthReason::StreamSuspended),
+            ),
+            (Some(SCFrameStatus::Stopped.0), true, FrameAction::Ignore),
+            (Some(99), true, FrameAction::Ignore),
+            (None, true, FrameAction::Ignore),
+            (None, false, FrameAction::Ignore),
+        ];
+        for (status, image, action) in cases {
+            assert_eq!(frame_action(status, image), action, "{status:?} {image}");
+        }
+    }
+
+    #[test]
+    fn with_screen_activity_on_only_a_complete_or_started_frame_with_an_image_gives_one_record() {
+        let statuses = [
+            (Some(SCFrameStatus::Complete.0), 1),
+            (Some(SCFrameStatus::Started.0), 1),
+            (Some(SCFrameStatus::Idle.0), 0),
+            (Some(SCFrameStatus::Blank.0), 0),
+            (Some(SCFrameStatus::Suspended.0), 0),
+            (Some(SCFrameStatus::Stopped.0), 0),
+            (None, 0),
+        ];
+        for (status, wanted) in statuses {
+            let (ivars, writer, _front) = screen_ivars(inactive());
+            let frame = match status {
+                Some(status) => Frame::new(16, 16).with_status(status),
+                None => Frame::new(16, 16),
+            };
+            assert_eq!(frame_status(frame.sample()), status, "the status read back");
+            on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+            assert_eq!(records(ivars, &writer), wanted, "{status:?}");
+        }
+    }
+
+    #[test]
+    fn a_complete_or_started_sample_with_no_image_buffer_gives_no_record() {
+        for status in [SCFrameStatus::Complete.0, SCFrameStatus::Started.0] {
+            let (ivars, writer, _front) = screen_ivars(inactive());
+            let frame = Frame::imageless().with_status(status);
+            assert!(!has_image(frame.sample()));
+            on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+            assert_eq!(records(ivars, &writer), 0, "{status}");
+        }
+    }
+
+    #[test]
+    fn a_blank_or_suspended_frame_reads_impaired_and_the_next_idle_frame_reads_running() {
+        let (ivars, _writer, _front) = screen_ivars(inactive());
+        let mut seen = Vec::new();
+        for status in [
+            SCFrameStatus::Blank.0,
+            SCFrameStatus::Idle.0,
+            SCFrameStatus::Suspended.0,
+            SCFrameStatus::Stopped.0,
+            SCFrameStatus::Complete.0,
+        ] {
+            let frame = Frame::new(16, 16).with_status(status);
+            on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+            seen.push(ivars.facts.state());
+        }
+        let impaired = |reason| SourceState::Impaired { reason };
+        assert_eq!(
+            seen,
+            [
+                impaired(HealthReason::StreamBlank),
+                SourceState::Running,
+                impaired(HealthReason::StreamSuspended),
+                impaired(HealthReason::StreamSuspended),
+                SourceState::Running,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_frame_while_secure_input_reads_active_gives_no_record_and_while_it_reads_unknown_one() {
+        let active = SystemProbe::with_readers(at_console, byte_one);
+        let (ivars, writer, _front) = screen_ivars(active);
+        on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+        assert_eq!(records(ivars, &writer), 0, "known active");
+        let unknown = SystemProbe::with_readers(not_at_console, byte_one);
+        let (ivars, writer, _front) = screen_ivars(unknown);
+        on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+        assert_eq!(records(ivars, &writer), 1, "unknown");
+    }
+
+    #[test]
+    fn a_frame_is_dropped_while_nothing_is_known_in_front_halvo_or_an_excluded_app_is_in_front() {
+        let (handle, writer) = sink::channel(16);
+        let (fg_writer, reader) = foreground_state_for_test();
+        let ivars = ScreenIvars {
+            sink: Mutex::new(Some(handle)),
+            rule: rule(reader, floor_on(), inactive()),
+            facts: Arc::default(),
+        };
+        let frame = complete();
+        let mut taken = Vec::new();
+        let unbundled = Foreground {
+            identity: crate::macos::foreground::tests_support::unbundled(SIBLING),
+            pid: 77,
+        };
+        let fronts = [
+            ("before the first poll", None),
+            ("Halvo by bundle id", Some(front(HalvoApp::BUNDLE_ID, 70))),
+            ("Halvo by its sibling executable", Some(unbundled)),
+            ("a password manager", Some(front("com.apple.Passwords", 71))),
+            ("an editor", Some(front("com.example.editor", 72))),
+            ("nothing in front", None),
+            ("Halvo again", Some(front(HalvoApp::BUNDLE_ID, 70))),
+            ("the editor again", Some(front("com.example.editor", 72))),
+        ];
+        for (what, now) in fronts {
+            if what != "before the first poll" {
+                fg_writer.set_for_test(now);
+            }
+            let before = writer.try_recv().is_ok();
+            assert!(!before, "a record before {what}");
+            on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+            taken.push((what, writer.try_recv().is_ok()));
+        }
+        assert_eq!(
+            taken,
+            [
+                ("before the first poll", false),
+                ("Halvo by bundle id", false),
+                ("Halvo by its sibling executable", false),
+                ("a password manager", false),
+                ("an editor", true),
+                ("nothing in front", false),
+                ("Halvo again", false),
+                ("the editor again", true),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_record_carries_the_app_in_front_and_its_pid() {
+        let (ivars, writer, _front) = screen_ivars(inactive());
+        on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+        drop(ivars);
+        let received = writer
+            .recv_timeout(Duration::from_secs(1))
+            .expect("one record");
+        let floor = received.into_floor().expect("a floor value");
+        let event = floor.event();
+        assert_eq!(event.kind(), Modality::ScreenFrame);
+        assert_eq!(event.pid(), ProcessId::new(41));
+        assert!(event.app().is_listed(&["com.example.editor"], &[]));
+    }
+
+    struct Tree;
+
+    impl Lineage for Tree {
+        fn parent_of(&self, pid: ProcessId) -> Parent {
+            match pid.get() {
+                501 => Parent::Of(ProcessId::new(500)),
+                502 => Parent::Of(ProcessId::new(501)),
+                _ => Parent::None,
+            }
+        }
+    }
+
+    fn selection_under(root: Option<u32>) -> Selection {
+        Selection {
+            own: std::process::id() as libc::pid_t,
+            halvo: HalvoApp::with_sibling(SIBLING),
+            floor: FloorHandle::new(root.map(ProcessId::new), Arc::new(Tree), switches_on()),
+            probe: inactive(),
+        }
+    }
+
+    type Entry = (libc::pid_t, &'static str, Option<&'static str>);
+
+    fn entry(app: &Entry) -> AppEntry {
+        AppEntry {
+            pid: app.0,
+            bundle_id: app.1.to_owned(),
+            path: app.2.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn the_selection_excludes_halvo_the_own_process_and_the_root_tree_and_keeps_every_other_entry()
+    {
+        let own = std::process::id() as libc::pid_t;
+        let apps: [Entry; 9] = [
+            (900, "", Some(SIBLING)),
+            (
+                902,
+                "com.example.editor",
+                Some("/Applications/Editor.app/Contents/MacOS/Editor"),
+            ),
+            (
+                901,
+                HalvoApp::BUNDLE_ID,
+                Some("/Applications/Halvo.app/Contents/MacOS/Halvo"),
+            ),
+            (own, "", None),
+            (501, "com.example.child", None),
+            (903, "com.apple.Passwords", None),
+            (502, "", Some("/opt/halvo-test/helper")),
+            (904, "", Some("/opt/elsewhere/halvo")),
+            (1, "com.apple.finder", None),
+        ];
+        let excluded: Vec<libc::pid_t> =
+            excluded_applications(apps, entry, &selection_under(Some(500)))
+                .iter()
+                .map(|app| app.0)
+                .collect();
+        assert_eq!(excluded, [900, 901, own, 501, 502]);
+        let without_root: Vec<libc::pid_t> =
+            excluded_applications(apps, entry, &selection_under(None))
+                .iter()
+                .map(|app| app.0)
+                .collect();
+        assert_eq!(without_root, [900, 901, own]);
+    }
+
+    #[test]
+    fn the_chooser_takes_the_main_display_by_its_id_wherever_it_stands() {
+        assert_eq!(chosen_display(&[7, 9], 7), Some(0), "main first");
+        assert_eq!(chosen_display(&[9, 7], 7), Some(1), "main second");
+        assert_eq!(chosen_display(&[9, 8], 7), Some(0), "main absent");
+        assert_eq!(chosen_display(&[], 7), None, "no display");
+    }
+
+    #[test]
+    fn a_rebuild_is_due_while_the_app_runs_unlisted_at_once_in_front_and_after_a_doubling_backoff()
+    {
+        let start = Instant::now();
+        let at = |ms: u64| start + Duration::from_millis(ms);
+        let mut plan = RebuildPlan::new();
+        assert!(!plan.due(&[], &[], false, at(0)), "no app runs");
+        assert!(
+            !plan.due(&[42], &[42], false, at(0)),
+            "the filter lists the app"
+        );
+        assert!(plan.due(&[], &[42], false, at(0)), "the app runs unlisted");
+        plan.tried(at(0), false);
+        assert!(
+            !plan.due(&[], &[42], false, at(999)),
+            "inside the first second"
+        );
+        assert!(plan.due(&[], &[42], false, at(1_000)), "after one second");
+        plan.tried(at(1_000), false);
+        assert!(
+            !plan.due(&[], &[42], false, at(2_999)),
+            "inside two seconds"
+        );
+        assert!(
+            plan.due(&[], &[42], true, at(1_001)),
+            "the app comes in front"
+        );
+        assert!(
+            !plan.due(&[], &[42], true, at(1_002)),
+            "the app stays in front"
+        );
+        assert!(plan.due(&[], &[42], true, at(3_000)), "after two seconds");
+        let mut now = 3_000;
+        for _ in 0..10 {
+            plan.tried(at(now), false);
+            now += 60_000;
+        }
+        assert!(
+            !plan.due(&[], &[42], true, at(now - 1)),
+            "the wait stays at sixty seconds"
+        );
+        assert!(plan.due(&[], &[42], true, at(now)));
+        plan.tried(at(now), true);
+        assert!(
+            plan.due(&[42], &[42, 43], false, at(now)),
+            "a new pid after a relaunch"
+        );
+        assert_eq!(
+            plan.backoff, REBUILD_FIRST_BACKOFF,
+            "a listing resets the wait"
+        );
+    }
+
+    #[test]
+    fn the_delegate_reads_stop_code_minus_3817_as_stopped_by_the_user_and_any_other_as_failed() {
+        let (handle, _writer) = sink::channel(8);
+        let (user, _front) = output(handle.clone());
+        deliver_stop(&user, -3817);
+        assert_eq!(
+            user.ivars().facts.state(),
+            SourceState::Stopped(StopCause::User)
+        );
+        let (other, _front) = output(handle);
+        deliver_stop(&other, -3821);
+        assert_eq!(
+            other.ivars().facts.state(),
+            SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: CaptureError::Os {
+                    stage: "stream_stopped",
+                    domain: "ScreenCaptureKit",
+                    code: -3821
+                }
+            }
+        );
+    }
+
+    #[test]
+    fn a_started_source_reads_the_stop_code_of_its_delegate() {
+        let (mut source, _handle, _writer, _asks, _weak) = started(&[Some(StopReply::Stopped)]);
+        assert_eq!(source.health().state, SourceState::Running);
+        deliver_stop(
+            source
+                .output
+                .as_ref()
+                .expect("a started source holds its output"),
+            -3817,
+        );
+        assert_eq!(source.health().state, SourceState::Stopped(StopCause::User));
+        assert_eq!(source.shutdown(), Ok(()));
+    }
+
     #[test]
     fn a_kept_output_stays_alive() {
         let (handle, _writer) = sink::channel(8);
-        let (_fg_writer, reader) = foreground_state_for_test();
-        let output = ScreenOutput::new(handle, reader);
+        let (output, _front) = output(handle);
         let weak = Weak::from_retained(&output);
         keep_for_the_life_of_the_process(Some(output), None);
         assert!(weak.load().is_some(), "the kept output was released");
@@ -742,8 +1878,7 @@ mod tests {
     #[test]
     fn a_kept_output_lets_the_drain_end() {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state_for_test();
-        let output = ScreenOutput::new(handle, reader);
+        let (output, _front) = output(handle);
         keep_for_the_life_of_the_process(Some(output), Some(DispatchQueue::new("kept", None)));
         assert_eq!(
             writer
@@ -757,11 +1892,9 @@ mod tests {
     #[test]
     fn a_sample_that_reaches_a_kept_output_emits_nothing() {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state_for_test();
-        let output = ScreenOutput::new(handle.clone(), reader);
+        let (output, _front) = output(handle.clone());
         keep_for_the_life_of_the_process(Some(output.clone()), None);
-        let frame = Frame::new(16, 16);
-        deliver(&output, frame.sample());
+        deliver(&output, complete().sample());
         drop(handle);
         assert_eq!(
             writer
@@ -775,23 +1908,17 @@ mod tests {
     #[test]
     fn the_stream_output_message_gives_exactly_one_screen_frame_event() {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state_for_test();
-        let output = ScreenOutput::new(handle, reader);
-        let frame = Frame::new(16, 16);
-        deliver(&output, frame.sample());
+        let (output, _front) = output(handle);
+        deliver(&output, complete().sample());
         drop(output);
-        let kinds: Vec<Modality> = std::iter::from_fn(|| writer.recv())
-            .map(|event| event.modality)
-            .collect();
-        assert_eq!(kinds, [Modality::ScreenFrame]);
+        assert_eq!(kinds_until_closed(&writer), [Modality::ScreenFrame]);
     }
 
     #[test]
     fn the_stream_output_message_keeps_no_reference_to_the_sample() {
         let (handle, _sink_writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state_for_test();
-        let output = ScreenOutput::new(handle, reader);
-        let frame = Frame::new(16, 16);
+        let (output, _front) = output(handle);
+        let frame = complete();
         let before = frame.retain_count();
         deliver(&output, frame.sample());
         assert_eq!(frame.retain_count(), before);
@@ -807,55 +1934,23 @@ mod tests {
         assert!(!stopped_without_error(&Err(RecvTimeoutError::Disconnected)));
     }
 
-    fn screen_ivars() -> (ScreenIvars, SinkWriter) {
-        let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state_for_test();
-        let ivars = ScreenIvars {
-            sink: Mutex::new(Some(handle)),
-            foreground: reader,
-        };
-        (ivars, writer)
-    }
-
     #[test]
     fn a_complete_frame_gives_exactly_one_screen_frame_event() {
-        let (ivars, writer) = screen_ivars();
-        let frame = Frame::new(16, 16);
-        on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
+        let (ivars, writer, _front) = screen_ivars(inactive());
+        on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
         drop(ivars);
-        let kinds: Vec<Modality> = std::iter::from_fn(|| writer.recv())
-            .map(|event| event.modality)
-            .collect();
-        assert_eq!(kinds, [Modality::ScreenFrame]);
-    }
-
-    #[test]
-    fn a_frame_carries_the_app_in_front() {
-        let (handle, writer) = sink::channel(8);
-        let (fg_writer, reader) = foreground_state_for_test();
-        let front = crate::macos::foreground::tests_support::front("com.example.editor", 41);
-        fg_writer.set_for_test(Some(front));
-        let ivars = ScreenIvars {
-            sink: Mutex::new(Some(handle)),
-            foreground: reader,
-        };
-        let frame = Frame::new(16, 16);
-        on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
-        drop(ivars);
-        let apps: Vec<String> = std::iter::from_fn(|| writer.recv())
-            .map(|event| event.foreground_app)
-            .collect();
-        assert_eq!(apps, ["com.example.editor"]);
+        assert_eq!(kinds_until_closed(&writer), [Modality::ScreenFrame]);
     }
 
     #[test]
     fn the_frame_handler_keeps_no_reference_to_the_sample() {
-        let (ivars, _writer) = screen_ivars();
-        let frame = Frame::new(16, 16);
+        let (ivars, _writer, _front) = screen_ivars(inactive());
+        let frame = complete();
         let before = frame.retain_count();
         on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
         assert_eq!(frame.retain_count(), before);
     }
+
     type Answers = Rc<RefCell<std::collections::VecDeque<Option<StopReply>>>>;
 
     struct ScriptedStream {
@@ -869,31 +1964,41 @@ mod tests {
             self.asks.set(self.asks.get() + 1);
             match self.answers.borrow_mut().pop_front().flatten() {
                 Some(answer) => {
-                    let _ = reply.send(answer);
+                    reply.send(answer).ok();
                 }
                 None => self.held.borrow_mut().push(reply),
             }
         }
     }
 
-    fn scripted(
-        answers: &[Option<StopReply>],
-        asks: &Rc<Cell<u32>>,
-    ) -> impl FnOnce(SinkHandle, ForegroundReader, FrameRateCap) -> Result<Opened, CaptureError>
-    {
-        let answers: Answers = Rc::new(RefCell::new(answers.iter().copied().collect()));
-        let asks = asks.clone();
-        move |sink, foreground, _cap| {
+    type Opener =
+        Box<dyn FnOnce(FrameContext, Selection, FrameRateCap) -> Result<Opened, CaptureError>>;
+
+    fn with_stream(stream: impl StopStream + 'static) -> Opener {
+        Box::new(move |frames: FrameContext, _selection, _cap| {
+            frames.facts.filter(Vec::new(), false);
             Ok((
-                Box::new(ScriptedStream {
-                    answers,
-                    asks,
-                    held: RefCell::new(Vec::new()),
-                }),
-                ScreenOutput::new(sink, foreground),
+                Box::new(stream) as Box<dyn StopStream>,
+                ScreenOutput::new(frames),
                 DispatchQueue::new("scripted", None),
+                None,
             ))
-        }
+        })
+    }
+
+    fn scripted(answers: &[Option<StopReply>], asks: &Rc<Cell<u32>>) -> Opener {
+        with_stream(ScriptedStream {
+            answers: Rc::new(RefCell::new(answers.iter().copied().collect())),
+            asks: asks.clone(),
+            held: RefCell::new(Vec::new()),
+        })
+    }
+
+    fn source() -> ScreenSource {
+        let (_writer, reader) = foreground_state_for_test();
+        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+        source.probe = inactive();
+        source
     }
 
     fn started(
@@ -906,10 +2011,9 @@ mod tests {
         Weak<ScreenOutput>,
     ) {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = foreground_state_for_test();
-        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+        let mut source = source();
         let asks = Rc::new(Cell::new(0));
-        let first = source.begin_with(handle.clone(), scripted(answers, &asks));
+        let first = source.begin_with(&context_on(handle.clone()), scripted(answers, &asks));
         assert_eq!(first, Ok(Started::Running));
         let weak = Weak::from_retained(
             source
@@ -920,25 +2024,22 @@ mod tests {
         (source, handle, writer, asks, weak)
     }
 
-    fn counting_opener(
-        opened: &Cell<u32>,
-    ) -> impl FnOnce(SinkHandle, ForegroundReader, FrameRateCap) -> Result<Opened, CaptureError> + '_
-    {
-        move |_sink, _foreground, _cap| {
+    fn counting_opener(opened: &Rc<Cell<u32>>) -> Opener {
+        let opened = opened.clone();
+        Box::new(move |_frames, _selection, _cap| {
             opened.set(opened.get() + 1);
             Err(CaptureError::Start(
                 "the counting opener opens nothing".into(),
             ))
-        }
+        })
     }
 
     #[test]
     fn a_source_with_no_stream_calls_its_opener_once() {
         let (handle, _writer) = sink::channel(8);
-        let (_fg_writer, reader) = foreground_state_for_test();
-        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
-        let opened = Cell::new(0);
-        let begun = source.begin_with(handle, counting_opener(&opened));
+        let mut source = source();
+        let opened = Rc::new(Cell::new(0));
+        let begun = source.begin_with(&context_on(handle), counting_opener(&opened));
         assert_eq!(opened.get(), 1);
         assert_eq!(
             begun,
@@ -946,6 +2047,68 @@ mod tests {
                 "the counting opener opens nothing".into()
             ))
         );
+    }
+
+    #[test]
+    fn with_the_switch_off_and_with_the_default_switches_begin_answers_off_and_opens_no_stream() {
+        let mut off = switches_on();
+        off.set(Switch::ScreenActivity, false);
+        assert!(!Switches::default().is_on(Switch::ScreenActivity));
+        for (what, switches) in [
+            ("the switch off", Some(off)),
+            ("core-2's default set", None),
+        ] {
+            let (handle, writer) = sink::channel(8);
+            let context = match switches {
+                Some(switches) => SourceContext::with_floor(
+                    handle.clone(),
+                    FloorHandle::new(None, Arc::new(NoLineage), switches),
+                ),
+                None => SourceContext::new(handle.clone()),
+            };
+            let mut source = source();
+            let opened = Rc::new(Cell::new(0));
+            let begun = source.begin_with(&context, counting_opener(&opened));
+            drop(context);
+            let health = source.health().state;
+            let fact = source.filter_excludes_app();
+            let shut = source.shutdown();
+            drop(handle);
+            assert_eq!(begun, Ok(Started::Off), "{what}");
+            assert_eq!(opened.get(), 0, "{what}: a stream was opened");
+            assert_eq!(health, SourceState::Off, "{what}");
+            assert_eq!(fact, None, "{what}: no stream, no filter fact");
+            assert_eq!(shut, Ok(()), "{what}");
+            assert_eq!(kinds_until_closed(&writer), [], "{what}: a record");
+        }
+    }
+
+    #[test]
+    fn the_filter_fact_reads_no_stream_before_a_start_and_after_a_stop_and_else_the_filters_answer()
+    {
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source();
+        assert_eq!(source.filter_excludes_app(), None, "before a start");
+        let asks = Rc::new(Cell::new(0));
+        source
+            .begin_with(
+                &context_on(handle),
+                scripted(&[Some(StopReply::Stopped)], &asks),
+            )
+            .expect("the source starts");
+        assert_eq!(
+            source.filter_excludes_app(),
+            Some(false),
+            "a filter without the app"
+        );
+        source.facts.filter(vec![42], true);
+        assert_eq!(
+            source.filter_excludes_app(),
+            Some(true),
+            "a filter that lists the app"
+        );
+        assert_eq!(source.shutdown(), Ok(()));
+        assert_eq!(source.filter_excludes_app(), None, "after a stop");
     }
 
     fn sink_closed(handle: SinkHandle, writer: &SinkWriter) -> bool {
@@ -959,8 +2122,8 @@ mod tests {
     #[test]
     fn a_second_begin_is_refused_and_a_clean_shutdown_releases_the_output_and_the_sink() {
         let (mut source, handle, writer, asks, weak) = started(&[Some(StopReply::Stopped)]);
-        let opened = Cell::new(0);
-        let second = source.begin_with(handle.clone(), counting_opener(&opened));
+        let opened = Rc::new(Cell::new(0));
+        let second = source.begin_with(&context_on(handle.clone()), counting_opener(&opened));
         let called = Instant::now();
         let shut = source.shutdown();
         let took = called.elapsed();
@@ -999,9 +2162,9 @@ mod tests {
         assert!(took < SCREEN_STOP_DEADLINE, "the shutdown took {took:?}");
         assert!(source.output.is_none() && source.queue.is_none());
         assert!(weak.load().is_some(), "the kept output was released");
-        let opened = Cell::new(0);
+        let opened = Rc::new(Cell::new(0));
         assert_eq!(
-            source.begin_with(handle.clone(), counting_opener(&opened)),
+            source.begin_with(&context_on(handle.clone()), counting_opener(&opened)),
             Err(CaptureError::AlreadyStarted)
         );
         assert_eq!(opened.get(), 0, "a begin after the timeout opened a stream");
@@ -1077,16 +2240,12 @@ mod tests {
     #[test]
     fn a_stop_whose_ask_takes_1500_ms_still_answers_inside_the_deadline() {
         let (handle, _writer) = sink::channel(8);
-        let (_fg_writer, reader) = foreground_state_for_test();
-        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+        let mut source = source();
         source
-            .begin_with(handle, |sink, foreground, _cap| {
-                Ok((
-                    Box::new(SlowAskStream(RefCell::new(Vec::new()))),
-                    ScreenOutput::new(sink, foreground),
-                    DispatchQueue::new("slow-ask", None),
-                ))
-            })
+            .begin_with(
+                &context_on(handle),
+                with_stream(SlowAskStream(RefCell::new(Vec::new()))),
+            )
             .expect("the source starts with a stream whose ask is slow");
         let called = Instant::now();
         let shut = source.shutdown();
@@ -1116,16 +2275,9 @@ mod tests {
     #[test]
     fn a_stop_whose_reply_is_dropped_unanswered_waits_its_wait_and_answers_timeout() {
         let (handle, writer) = sink::channel(8);
-        let (_fg_writer, reader) = foreground_state_for_test();
-        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, reader);
+        let mut source = source();
         source
-            .begin_with(handle.clone(), |sink, foreground, _cap| {
-                Ok((
-                    Box::new(DroppingStream),
-                    ScreenOutput::new(sink, foreground),
-                    DispatchQueue::new("dropping", None),
-                ))
-            })
+            .begin_with(&context_on(handle.clone()), with_stream(DroppingStream))
             .expect("the source starts with a stream that drops its reply");
         let called = Instant::now();
         let shut = source.shutdown();
