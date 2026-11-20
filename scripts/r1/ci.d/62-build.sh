@@ -747,6 +747,13 @@ SH
   bad_probe_case probe-requires-first-dot '42 3x11.0'
   bad_probe_case probe-requires-second-dot '42 3.11x0'
   stand_in python3.11 <<'SH'
+if [ "${2:-}" = -c ]; then
+  exec "$fixture_python" -I -c 'import sys, tomllib; sys.version_info = (12, 34, 56); exec(sys.argv[1])' "$3"
+fi
+exec "$fixture_python" "$@"
+SH
+  PATH="$standins:$PATH" expect_reader='manifest reader: python3.11 12.34.56' rules_case multi-digit-interpreter-version FAIL "$need_profile"
+  stand_in python3.11 <<'SH'
 if [ "${1:-}" = -c ] || [ "${2:-}" = -c ]; then
   printf 'candidate probe diagnostic\n' >&2
   exec "$fixture_python" "$@"
