@@ -605,7 +605,7 @@ impl Harness {
             let page: i64 = db
                 .connection()
                 .query_row(
-                    "SELECT rootpage FROM sqlite_master WHERE type = 'table' AND name = 'events'",
+                    "SELECT rootpage FROM sqlite_master WHERE type = 'table' AND name = 'segment_keys'",
                     [],
                     |r| r.get(0),
                 )

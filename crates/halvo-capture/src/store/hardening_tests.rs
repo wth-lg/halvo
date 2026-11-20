@@ -7240,7 +7240,7 @@ fn delete_all_on_a_damaged_page_destroys_the_root_and_the_key_file_in_its_first_
         .unwrap()
         .connection()
         .query_row(
-            "SELECT rootpage FROM sqlite_master WHERE type = 'table' AND name = 'daily_totals'",
+            "SELECT rootpage FROM sqlite_master WHERE type = 'table' AND name = 'segment_keys'",
             [],
             |r| r.get(0),
         )

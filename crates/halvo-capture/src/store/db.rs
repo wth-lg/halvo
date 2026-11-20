@@ -1436,6 +1436,9 @@ impl Db {
     fn older_version_of(store_dir: &Dir, store_key: &StoreKey) -> Option<StoreError> {
         let (probe, _) = open_connection(store_dir, PROBE_OPEN).ok()?;
         probe.execute_batch(&key_pragma(store_key.expose())).ok()?;
+        probe
+            .execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
+            .ok()?;
         let found = pragma_int(&probe, "user_version").ok()?;
         (found < DATABASE_VERSION).then_some(StoreError::OlderStore {
             found,
@@ -1610,7 +1613,7 @@ impl Db {
     /// handle whose open wrote nothing: the log in the store directory holds
     /// the commit's frames, or the answer is the obstructed variant.
     pub(in crate::store) fn look_after_the_first_commit(&self) -> StoreResult<()> {
-        if self.log_written.get() {
+        if self.log_written.get() || self.conn.total_changes() == 0 {
             return Ok(());
         }
         self.log_look()?;
