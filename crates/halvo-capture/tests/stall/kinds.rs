@@ -304,6 +304,23 @@ pub(super) struct PhaseRun {
     pub(super) wait: Wait,
     pub(super) step: Step,
     pub(super) outcome: Outcome,
+    pub(super) open_latches_at_the_start: u32,
+}
+
+pub(super) fn latches_of(text: Option<&str>) -> u32 {
+    text.and_then(|text| text.strip_prefix("count="))
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|count| count.parse().ok())
+        .unwrap_or(u32::MAX)
+}
+
+pub(super) fn began_with_no_open_latch(open: u32) -> Result<(), String> {
+    if open != 0 {
+        return Err(format!(
+            "an open latch of an earlier phase stood at its start: open_latches_at_the_start={open}"
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn bracketed(step: Step, controls: &Controls) -> Result<(), String> {
@@ -409,6 +426,7 @@ fn of_native(rounds: u32, counted: u32, recorded: u32, late: u64) -> Result<(), 
 
 pub(super) fn verdict(run: &PhaseRun, controls: &Controls) -> Result<(), String> {
     bracketed(run.step, controls)
+        .and_then(|()| began_with_no_open_latch(run.open_latches_at_the_start))
         .and_then(|()| match run.outcome {
             Outcome::Rounds { totals, checks } => {
                 of_rounds(&totals, checks).map_err(str::to_string)
@@ -770,6 +788,7 @@ fn run(session: u32, at: u32, outcome: Outcome) -> PhaseRun {
         wait: Wait::Sleeps,
         step: Step { session, at },
         outcome,
+        open_latches_at_the_start: 0,
     }
 }
 
@@ -1106,4 +1125,70 @@ fn the_kinds_hold_one_phase_for_each_test_and_sub_case_that_they_replace() {
     );
     let native: Vec<(&str, &str)> = REPLACED_NATIVE.iter().map(|(_, phase)| *phase).collect();
     assert_eq!(native, NATIVE_PHASES.to_vec(), "the native phases");
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn a_phase_that_begins_with_an_open_latch_of_an_earlier_phase_fails() {
+    let pair = controls(control(OWN, 0), control(OWN, 2));
+    let families = [
+        Outcome::Rounds {
+            totals: passing(),
+            checks: Checks::Stall,
+        },
+        Outcome::Rounds {
+            totals: passing(),
+            checks: Checks::Enter,
+        },
+        Outcome::Rounds {
+            totals: passing(),
+            checks: Checks::TabOut,
+        },
+        Outcome::Rounds {
+            totals: passing(),
+            checks: Checks::ControlsAndSink,
+        },
+        Outcome::Native {
+            rounds: 5,
+            counted: 5,
+            recorded: 0,
+        },
+    ];
+    let mut missed = Vec::new();
+    for (index, outcome) in families.into_iter().enumerate() {
+        let clear = run(OWN, 1, outcome);
+        assert_eq!(
+            verdict(&clear, &pair),
+            Ok(()),
+            "family {index} at no open latch"
+        );
+        for open in [1, 2, u32::MAX] {
+            let latched = PhaseRun {
+                open_latches_at_the_start: open,
+                ..clear
+            };
+            if !verdict(&latched, &pair)
+                .is_err_and(|why| why.contains("open_latches_at_the_start="))
+            {
+                missed.push(index);
+            }
+        }
+    }
+    assert!(
+        missed.is_empty(),
+        "a family passed with an open latch at the start, by its index: {missed:?}"
+    );
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn the_count_of_open_latches_is_read_from_the_text_of_the_gate() {
+    assert_eq!(latches_of(Some("count=0 []")), 0);
+    assert_eq!(
+        latches_of(Some("count=2 [seq4@100:Tab:based=1,seq5@120:Tab:based=0]")),
+        2
+    );
+    assert_eq!(latches_of(None), u32::MAX);
+    assert_eq!(latches_of(Some("open=1")), u32::MAX);
+    assert_eq!(latches_of(Some("count=one")), u32::MAX);
 }

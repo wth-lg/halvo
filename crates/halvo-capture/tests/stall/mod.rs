@@ -1447,6 +1447,30 @@ impl Session {
         }
     }
 
+    fn begin(&mut self, test: &str, name: &str) -> (Step, u32) {
+        if self.at > 0 {
+            for _ in 0..3 {
+                std::thread::sleep(Duration::from_millis(250));
+                let _ = self
+                    .fixture
+                    .ask(CMD_FOCUS, FixtureField::Password.wire(), "focused");
+                std::thread::sleep(Duration::from_millis(250));
+                let _ = self
+                    .fixture
+                    .ask(CMD_FOCUS, FixtureField::Plain.wire(), "focused");
+            }
+            let _ = self.events.drain_for(Duration::from_millis(400));
+            let _ = seam::take();
+        }
+        let open = kinds::latches_of(self.keyboard.open_latches().as_deref());
+        let step = self.next(test, name);
+        say(
+            test,
+            format!("phase={name} open_latches_at_the_start={open}"),
+        );
+        (step, open)
+    }
+
     fn next(&mut self, test: &str, name: &str) -> Step {
         self.at += 1;
         say(
@@ -1464,7 +1488,7 @@ impl Session {
             rounds: rounds_for(1, phase.rounds),
             ..phase
         };
-        let step = self.next(phase.test, phase.name);
+        let (step, open) = self.begin(phase.test, phase.name);
         let mut totals = Totals::default();
         if phase.lead == Lead::Click {
             let unstalled = Phase {
@@ -1507,6 +1531,7 @@ impl Session {
                 totals,
                 checks: phase.checks,
             },
+            open_latches_at_the_start: open,
         }
     }
 
@@ -1516,7 +1541,7 @@ impl Session {
         (start, landing): (FixtureField, &'static str),
         act: fn(&mut Fixture) -> bool,
     ) -> PhaseRun {
-        let step = self.next(test, name);
+        let (step, open) = self.begin(test, name);
         let rounds = rounds_for(1, 5);
         let mut counted = 0;
         let mut recorded = 0;
@@ -1542,6 +1567,7 @@ impl Session {
                 counted,
                 recorded,
             },
+            open_latches_at_the_start: open,
         }
     }
 
