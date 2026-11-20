@@ -1578,14 +1578,25 @@ verdict_of() {
   if [ -s "$work/second-reads" ]; then
     awk -v c="$case_name" '{ print $0 " case=" c }' "$work/second-reads" || exit 2
   fi
-  if [ "$got" = "$want" ] && [ -s "$work/want-second-read" ]; then
-    while IFS= read -r needed; do
-      occurrences=0
-      if [ -s "$work/second-reads" ]; then
-        occurrences=$(grep -F -x -c -e "$needed" "$work/second-reads") || occurrences=0
-      fi
-      if [ "$occurrences" -ne 1 ]; then got=$want-without-expected-second-read; fi
-    done <"$work/want-second-read"
+  if [ "$got" = "$want" ] && { [ -s "$work/want-second-read" ] || [ -s "$work/second-reads" ]; }; then
+    expected=/dev/null
+    if [ -s "$work/want-second-read" ]; then expected=$work/want-second-read; fi
+    receipt_status=0
+    awk '
+      FILENAME == ARGV[1] { required[$0] = 1; next }
+      { seen[$0]++ }
+      /^wall second-read search=[^ ]+ outcome=unread path=/ && !($0 in required) { unexpected = 1 }
+      END {
+        if (unexpected) exit 3
+        for (line in required) if (seen[line] != 1) exit 1
+      }
+    ' "$expected" "$work/second-reads" || receipt_status=$?
+    case $receipt_status in
+      0) ;;
+      1) got=$want-without-expected-second-read ;;
+      3) got=$want-with-unexpected-unread-file ;;
+      *) exit 2 ;;
+    esac
   fi
   if [ -s "$work/read-receipt" ]; then cat "$work/read-receipt"; fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$case_name" "$want" "$got"
@@ -1865,7 +1876,7 @@ wall second-read search=backend outcome=read path=backend/scripts/retry again.sh
   fixture search-misses-a-file-in-the-original-index
   fake_git incomplete-view
   case_bin=$scratch/incomplete-view
-  expect FAIL search-misses-a-file-in-the-original-index 'missing backend/fixtures/f.json'
+  expect FAIL search-misses-a-file-in-the-original-index 'missing backend/fixtures/f.json' 'wall second-read search=anchors outcome=unread path=backend/fixtures/f.json'
 
   fixture a-grep-line-of-no-tracked-path
   fake_git bogus-grep
