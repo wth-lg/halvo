@@ -211,14 +211,15 @@ pub(crate) struct GuardArgs {
 }
 
 /// The guard's arguments after `GUARD_FLAG`, read with no effect: `None` when a number cannot be
-/// read, when the executor's creation time is 0, which names no executor (CP-176 A4 (b)), and
-/// when the run's profile (argument 5) or the browser's program (argument 6) is missing or empty
-/// (CP-185 (2)). The mark is built from the profile, the program and the first process's
-/// creation time.
+/// read, when the executor's creation time is 0, which names no executor (CP-176 A4 (b)), when the
+/// first process's creation time is 0, which the guard could not tell from a later process of its
+/// number and from which the mark would take every process since 0 (U2.6b, M8), and when the run's
+/// profile (argument 5) or the browser's program (argument 6) is missing or empty (CP-185 (2)).
+/// The mark is built from the profile, the program and the first process's creation time.
 pub(crate) fn parse_args(argv: &[String]) -> Option<GuardArgs> {
     let num = |i: usize| argv.get(i).and_then(|v| v.parse::<u64>().ok());
     let (pid, started_us, epid, estart) = (num(0)?, num(1)?, num(2)?, num(3)?);
-    if estart == 0 {
+    if estart == 0 || started_us == 0 {
         return None;
     }
     let given = |i: usize| argv.get(i).filter(|v| !v.is_empty());
@@ -1500,6 +1501,9 @@ mod tests {
             (got.pid, got.started_us, got.epid, got.estart),
             (9, 7, 5, 50)
         );
+        let mut untimed_first = full("50");
+        untimed_first[1] = "0".to_string();
+        assert_eq!(parse_args(&untimed_first), None);
     }
 
     /// CP-185 (9), first case: a child of the browser's first process whose program lies outside
