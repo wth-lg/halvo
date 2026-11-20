@@ -4,7 +4,7 @@ import { RULE_DOWNTIME_BUDGET } from "../../test-kit/fake-meter/rerun/property.t
 import { type Command, DAY, type Fault, HOUR, runScenario, type Scenario } from "../../test-kit/fake-meter/rerun/world.ts";
 
 const DOWN_PAST_THE_WINDOW: Fault = { kind: "crash-before-call", downSeconds: 86_101 };
-const scripted = vi.hoisted(() => ({ closesAnAcknowledgedRead: false }));
+const scripted = vi.hoisted(() => ({ closesAnAcknowledgedRead: false, sendsOneMinorUnitMore: false }));
 
 vi.mock("../../src/metering/index.ts", async (importOriginal) => {
   const real = await importOriginal<typeof import("../../src/metering/index.ts")>();
@@ -14,6 +14,12 @@ vi.mock("../../src/metering/index.ts", async (importOriginal) => {
       const metering = real.makeMetering(config);
       return {
         ...metering,
+        send(...args: Parameters<Metering["send"]>) {
+          const next = metering.send(...args);
+          if (!scripted.sendsOneMinorUnitMore || next.call?.kind !== "send") return next;
+          scripted.sendsOneMinorUnitMore = false;
+          return { ...next, call: { ...next.call, amountMinor: next.call.amountMinor + 1 } };
+        },
         record(sql, made, answer, now) {
           const outcome = () => sql.exec("SELECT outcome FROM metering_interval WHERE start = ?", made.interval)[0]?.outcome ?? null;
           const before = outcome();
@@ -224,5 +230,17 @@ describe("check 55's model with a foreign event at the meter in an interval's mi
       holds: (report.coverage["read.holds-the-amount"] ?? 0) > 0,
       short: report.coverage["read.short-by-the-lag"] ?? 0,
     }).toEqual({ findings: [], foreign: 1, holds: true, short: 0 });
+  });
+
+  test("a read whose total holds an amount that is no foreign event, no acknowledged neighbour and no held close is a finding: no foreign event, a scripted module sends one minor unit more than its row, the answer is lost and the reads after the window show it", async () => {
+    const kept = behindAForeignEvent({ kind: "response-lost" }, false);
+    const alone: Scenario = { ...kept, commands: kept.commands.filter((command) => command.kind !== "foreign-event") };
+    scripted.sendsOneMinorUnitMore = true;
+    try {
+      const report = await runScenario(alone, { downtimeBudgetSeconds: RULE_DOWNTIME_BUDGET, onFailedCheck: "list" });
+      expect(report.findings.map((finding) => finding.check)).toContain("a read the sync cannot explain");
+    } finally {
+      scripted.sendsOneMinorUnitMore = false;
+    }
   });
 });
