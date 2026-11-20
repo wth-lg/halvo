@@ -53,7 +53,7 @@ step_lines() {
 }
 
 judge() {
-  awk -F "$tab" -v q="'" -v contract="$contract" -v r7="$r7_files" -v nlimits="$nlimits" -v problems="$1" -v tally="$2" '
+  awk -F "$tab" -v tree_read="$tree_read" -v tree_listed="$tree_listed" -v q="'" -v contract="$contract" -v r7="$r7_files" -v nlimits="$nlimits" -v problems="$1" -v tally="$2" '
     function problem(where, why) { printf "%s: %s\n", where, why >>problems; refused[side]++ }
     function lower(s) { return tolower(s) }
     function inside(r,   l) {
@@ -668,9 +668,77 @@ judge() {
       for (k = 1; k <= quoted_paths; k++) problem(quoted[k], "git quotes this tracked path, so the check cannot read it; rename the file, or ask for a ruling")
       if (unparsed) problem("git grep", "printed " unparsed " lines that name no tracked path, so the check cannot read them; ask for a ruling")
       if (!files) problem("the index", "holds no tracked file")
-      printf "files=%d backend-files=%d links=%d step-lines=%d lines=%d limits=%d backend-refused=%d app-refused=%d tree-refused=%d unparsed=%d\n", files, backend_files, links, steps, lines, nlimits, refused["backend"], refused["app"], refused["tree"], unparsed >tally
+      printf "files=%d backend-files=%d links=%d step-lines=%d lines=%d limits=%d backend-refused=%d app-refused=%d tree-refused=%d unparsed=%d files-read=%d files-listed=%d\n", files, backend_files, links, steps, lines, nlimits, refused["backend"], refused["app"], refused["tree"], unparsed, tree_read + links, tree_listed + links >tally
     }
   ' "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}"
+}
+
+git_search() {
+  status=0
+  LC_ALL=C git -c core.quotepath=off grep --cached --no-color --no-heading --no-break --no-column "$@" 2>"$work/search-stderr" || status=$?
+  if [ "$status" -gt 1 ] || [ -s "$work/search-stderr" ]; then
+    awk -v status="$status" '{ print "git grep exit " status ": " $0 }
+      END { if (!NR) print "git grep exit " status }' "$work/search-stderr" >"$work/search-error" || return 2
+    cat "$work/search-stderr" >&2
+    cat "$work/search-error" >>"$problems" || return 2
+    return 1
+  fi
+  return 0
+}
+
+search_lines() {
+  git_search -n -z "$@" >"$work/matches" || return
+  git_search -L "$@" >"$work/nonmatches" || return
+  while [ "$1" != -- ]; do shift; done
+  git -c core.quotepath=off ls-files -s "$@" >"$work/selected" || return 2
+  perl -e '
+    use strict;
+    use warnings;
+    my ($work) = @ARGV;
+    my (%selected, %seen);
+    my $listed = 0;
+    open my $index, "<:raw", "$work/selected" or die $!;
+    while (<$index>) {
+      next if /^120000 /;
+      /\t(.*)\n\z/s or die "unreadable index entry\n";
+      $selected{$1} = 1;
+      ++$listed;
+    }
+    open my $misses, "<:raw", "$work/nonmatches" or die $!;
+    while (<$misses>) {
+      chomp;
+      $seen{$_} = 1 if exists $selected{$_};
+    }
+    open my $hits, "<:raw", "$work/matches" or die $!;
+    binmode STDOUT;
+    while (<$hits>) {
+      if (/^([^\0]*)\0(\d+)\0(.*)\z/s) {
+        $seen{$1} = 1 if exists $selected{$1};
+        print "$1:$2:$3" or die $!;
+      } elsif (/^Binary file (.*) matches\n\z/s && exists $selected{$1}) {
+        $seen{$1} = 1;
+      } else {
+        print or die $!;
+      }
+    }
+    close STDOUT or die $!;
+    my $read = keys %seen;
+    open my $tally, ">", "$work/coverage" or die $!;
+    print {$tally} "$read $listed\n" or die $!;
+    close $tally or die $!;
+    if ($read != $listed) {
+      my ($missing) = sort grep { !exists $seen{$_} } keys %selected;
+      $missing //= "(unmerged index)";
+      my $why = $missing =~ /^"/ ? " (git quotes this tracked path)" : "";
+      open my $error, ">", "$work/search-error" or die $!;
+      print {$error} "git grep files-read=$read files-listed=$listed missing $missing$why\n" or die $!;
+      close $error or die $!;
+    }
+  ' "$work" || return 2
+  if [ -s "$work/search-error" ]; then
+    cat "$work/search-error" >>"$problems" || return 2
+    return 1
+  fi
 }
 
 check_in() {
@@ -730,19 +798,12 @@ check_in() {
   ' "$work/app-only" "$work/links" >"$work/patterns" || return 2
   { read -r names; read -r linked; } <"$work/patterns" || return 2
   anchors='|[$]|[A-Za-z0-9_~^@/-]:[^/ ]|show-toplevel|CARGO_MANIFEST_DIR|from[ \t]*["'"'"']|require[ \t]*[(]|import[ \t]*[(]'
-  git -c core.quotepath=off grep --cached -I -n -i -E -e "[.][.]$anchors$names$linked" -- ':(icase)backend/' >"$work/lines"
-  found=$?
-  [ "$found" -le 1 ] || return 2
-  git -c core.quotepath=off grep --cached -I -n -i -E -e "ackend|[*?][^[:space:]]*/$linked" -- . ':(exclude,icase)backend/' ':(exclude,icase)formal/r7-ledger/' >>"$work/lines"
-  found=$?
-  [ "$found" -le 1 ] || return 2
-  git -c core.quotepath=off grep --cached -I -n -E -e '(^|[;&|({[:space:]])(case[[:space:]].*[[:space:]]in|esac)([[:space:];&|)]|$)' -e '(;;&?|;&)[[:space:]]*(#.*)?$' -e '[|][[:space:]]*\\[[:space:]]*$' -- '*.sh' '*.bash' '.githooks/' >"$work/case-lines"
-  found=$?
-  [ "$found" -le 1 ] || return 2
+  search_lines -i -E -e "[.][.]$anchors$names$linked" -- ':(icase)backend/' >"$work/lines" || return
+  search_lines -i -E -e "ackend|[*?][^[:space:]]*/$linked" -- . ':(exclude,icase)backend/' ':(exclude,icase)formal/r7-ledger/' >>"$work/lines" || return
+  search_lines -E -e '(^|[;&|({[:space:]])(case[[:space:]].*[[:space:]]in|esac)([[:space:];&|)]|$)' -e '(;;&?|;&)[[:space:]]*(#.*)?$' -e '[|][[:space:]]*\\[[:space:]]*$' -- '*.sh' '*.bash' '.githooks/' >"$work/case-lines" || return
   awk -v t="$tab" '{ print "caseline" t $0 }' "$work/case-lines" >>"$work/facts" || return 2
-  git -c core.quotepath=off grep --cached -I -n -E -e 'dirname[(]fileURLToPath[(]import[.]meta[.]url[)][)]|__dirname|import[.]meta[.]dirname|[$][(]dirname "[$]0"[)]' -- . >"$work/anchor-lines"
-  found=$?
-  [ "$found" -le 1 ] || return 2
+  search_lines -E -e 'dirname[(]fileURLToPath[(]import[.]meta[.]url[)][)]|__dirname|import[.]meta[.]dirname|[$][(]dirname "[$]0"[)]' -- . >"$work/anchor-lines" || return
+  read -r tree_read tree_listed <"$work/coverage" || return 2
   anchor_names=$(awk '
     match($0, /:[ \t]*(export[ \t]+|const[ \t]+|let[ \t]+|var[ \t]+|readonly[ \t]+|local[ \t]+)?[A-Za-z_][A-Za-z0-9_]*[ \t]*=/) {
       v = substr($0, RSTART + 1, RLENGTH - 2)
@@ -754,9 +815,7 @@ check_in() {
   ' "$work/anchor-lines") || return 2
   : >"$work/assignments"
   if [ -n "$anchor_names" ]; then
-    git -c core.quotepath=off grep --cached -I -n -E -e "^[ $tab]*(export[ $tab]+|const[ $tab]+|let[ $tab]+|var[ $tab]+|readonly[ $tab]+|local[ $tab]+)?($anchor_names)[ $tab]*[+]?=([^=]|\$)" -- . >"$work/assignments"
-    found=$?
-    [ "$found" -le 1 ] || return 2
+    search_lines -E -e "^[ $tab]*(export[ $tab]+|const[ $tab]+|let[ $tab]+|var[ $tab]+|readonly[ $tab]+|local[ $tab]+)?($anchor_names)[ $tab]*[+]?=([^=]|\$)" -- . >"$work/assignments" || return
   fi
   git -c core.quotepath=off check-attr --cached --stdin diff <"$work/paths" >"$work/attributes" || return 2
   awk '{ k = length($0) - length(": diff: unset"); if (k > 0 && substr($0, k + 1) == ": diff: unset") print substr($0, 1, k) }' "$work/attributes" >"$work/hidden" || return 2
@@ -766,9 +825,7 @@ check_in() {
     tr -d '\000' <"$work/blob" >"$work/blob-text" || return 2
     text=$(wc -c <"$work/blob-text") || return 2
     [ "$size" -eq "$((text))" ] || continue
-    git -c core.quotepath=off grep --cached -a -n -i -E -e "[.][.]|ackend|[*?][^[:space:]]*/$anchors$names$linked" -- ":(literal)$path" >>"$work/lines"
-    found=$?
-    [ "$found" -le 1 ] || return 2
+    search_lines -a -i -E -e "[.][.]|ackend|[*?][^[:space:]]*/$anchors$names$linked" -- ":(literal)$path" >>"$work/lines" || return
   done <"$work/hidden"
   judge "$problems" "$work/tally" "$work/app-only" "$work/step" "$work/links" "$work/paths" "$work/facts" "$work/assignments" "$work/anchor-lines" "$work/lines" || return 2
   read -r counts <"$work/tally" || return 2
@@ -786,7 +843,12 @@ measure() {
   printf '%s problems=%s\n' "${counts:-unmeasured}" "$found"
   case $code in
     0) printf 'PASS %s\n' "$name" ;;
-    1) printf 'FAIL %s (%s reads across the wall or parts that the check cannot read; the list, with what to do for each, is problems.txt among the artifacts)\n' "$name" "$found"; exit 1 ;;
+    1) if [ -s "$work/search-error" ]; then
+         IFS= read -r reason <"$work/search-error" || exit 1
+         printf 'FAIL %s (%s)\n' "$name" "$reason"
+         exit 1
+       fi
+       printf 'FAIL %s (%s reads across the wall or parts that the check cannot read; the list, with what to do for each, is problems.txt among the artifacts)\n' "$name" "$found"; exit 1 ;;
     *) printf 'FAIL %s (setup)\n' "$name"; exit 1 ;;
   esac
 }
@@ -803,7 +865,10 @@ What it reads. Every tracked file but a .md file and a file under docs/ that is
 no script (a script has mode 100755 or the extension .sh, .bash, .mjs, .cjs,
 .js, .ts, .py, .rs, .ps1, .bat or .cmd). It refuses a tree that it cannot read:
 a tracked file whose name git quotes, a line of git grep that names no tracked
-path, and a step of scripts/prerequisites.sh that it cannot read.
+path, and a step of scripts/prerequisites.sh that it cannot read. Each search
+accounts for its listed files by name from its matching lines, binary matches
+and files without a match. A missing file, an exit above 1 or a diagnostic
+on standard error fails the check. The tally includes the links read by id.
 
 How it places a path. A path is walked from where it starts, through the
 tracked links: from the file's own directory for a relative path, for
@@ -1124,6 +1189,26 @@ case $mode in
       exit 1
     fi
     ;;
+  search-*)
+    case " $* " in
+      *' grep '*' -n '*)
+        case $mode in
+          search-dies) printf '%s\n' 'fixture search stopped' >&2; exit 73 ;;
+          search-dies-quietly) exit 73 ;;
+          search-skips-a-file)
+            exec "$real" "$@" ':(exclude,literal)backend/scripts/names-v0.sh'
+            ;;
+        esac
+        calls=0
+        if [ -f "$0.calls" ]; then read -r calls <"$0.calls" || exit 2; fi
+        calls=$((calls + 1))
+        printf '%s\n' "$calls" >"$0.calls" || exit 2
+        if [ "search-$calls" = "$mode" ]; then
+          printf 'fixture search %s could not finish reading\n' "$calls" >&2
+        fi
+        ;;
+    esac
+    ;;
   bogus-grep)
     for a in "$@"; do
       if [ "$a" = grep ]; then
@@ -1401,6 +1486,35 @@ cat "$server_dir/contract/routes/v1.json"' 'scripts/check-routes.sh:1: assigns t
   fake_git fail-blob
   case_bin=$scratch/fail-blob
   expect SETUP a-hidden-file-that-git-cannot-read
+
+  fixture a-blob-that-the-search-cannot-load
+  missing=$(printf '%s\n' 'unwritten wall fixture' | git -C "$case_repo" hash-object --stdin) || exit 2
+  GIT_INDEX_FILE=$case_index git -C "$case_repo" update-index --cacheinfo "100644,$missing,backend/scripts/names-v0.sh" || exit 2
+  expect FAIL a-blob-that-the-search-cannot-load "$missing"
+
+  for case_name in search-dies search-dies-quietly search-skips-a-file; do
+    fixture "$case_name"
+    fake_git "$case_name"
+    case_bin=$scratch/$case_name
+    case $case_name in
+      search-dies) detail='fixture search stopped' ;;
+      search-dies-quietly) detail='git grep exit 73' ;;
+      search-skips-a-file) detail='missing backend/scripts/names-v0.sh' ;;
+    esac
+    expect FAIL "$case_name" "$detail"
+  done
+
+  search_number=0
+  for kind in backend app case-lines anchors assignments hidden; do
+    search_number=$((search_number + 1))
+    case_name=$kind-search-writes-to-stderr
+    fixture "$case_name"
+    put .gitattributes 'scripts/probe.sh -diff'
+    put scripts/probe.sh 'echo done'
+    fake_git "search-$search_number"
+    case_bin=$scratch/search-$search_number
+    expect FAIL "$case_name" "fixture search $search_number could not finish reading"
+  done
 
   fixture a-grep-line-of-no-tracked-path
   fake_git bogus-grep
