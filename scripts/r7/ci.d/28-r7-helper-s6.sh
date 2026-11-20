@@ -9,7 +9,7 @@ case $#:${1:-} in
   1:--self-test) mode=self-test ;;
   *) exit 64 ;;
 esac
-work=$(mktemp -d "${TMPDIR:?}/s6.XXXXXX") || exit 1
+work=$(mktemp -d "${TMPDIR:?}/$name.XXXXXX") || exit 1
 py=python3
 if command -v cygpath >/dev/null 2>&1; then py=python; fi
 cat >"$work/check.py" <<'PY' || exit 1
