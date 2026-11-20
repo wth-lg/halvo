@@ -244,31 +244,18 @@ pub(crate) fn parse_args(argv: &[String]) -> Option<GuardArgs> {
 /// it builds the mark that every ask and forced end needs (CP-185 (2)). Exit 4 after `LEFT_CAP`
 /// with members that do not bear the mark.
 pub fn guard_main(argv: &[String]) -> i32 {
-    let Some(GuardArgs {
-        pid,
-        started_us,
-        epid,
-        estart,
-        record,
-        mark,
-    }) = parse_args(argv)
-    else {
+    let Some(args) = parse_args(argv) else {
         return 2;
     };
-    let watch = procs::ExecutorWatch::open(epid, estart);
+    let watch = procs::ExecutorWatch::open(args.epid, args.estart);
     let start = std::time::Instant::now();
-    guard_loop(
-        pid,
-        started_us,
-        Trigger::ExecutorGone {
-            pid: epid,
-            started_us: estart,
-        },
-        GuardIo {
+    let file = args.record.clone();
+    run_guard(
+        &args,
+        &|| watch.runs(),
+        GuardSys {
             read: &mut || procs::table().ok(),
             args: &crate::checks::command_args,
-            mark: Some(&mark),
-            executor: &mut |_, _| watch.runs(),
             now_ms: &mut || start.elapsed().as_millis(),
             pause: &mut |unread| std::thread::sleep(if unread { UNREAD_PAUSE } else { POLL }),
             end: &mut |p, force| {
@@ -278,11 +265,60 @@ pub fn guard_main(argv: &[String]) -> i32 {
                     procs::ask_end(p)
                 }
             },
-            record: &mut |act| {
-                if let Some(r) = &record {
-                    write_record(r, act);
-                }
-            },
+        },
+        &mut |act| {
+            if let Some(r) = &file {
+                write_record(r, act);
+            }
+        },
+    )
+}
+
+/// The parts of the system that `guard_main` hands its loop: the process table, a process's
+/// arguments, the clock, the pause and the end of one process (`GuardIo`'s fields of the same
+/// names).
+pub(crate) struct GuardSys<'a> {
+    pub read: &'a mut dyn FnMut() -> Option<Vec<Proc>>,
+    pub args: &'a dyn Fn(u32) -> Option<Vec<String>>,
+    pub now_ms: &'a mut dyn FnMut() -> u128,
+    pub pause: &'a mut dyn FnMut(bool),
+    pub end: &'a mut dyn FnMut(&Proc, bool) -> bool,
+}
+
+/// `guard_main`'s loop, built from its parsed arguments, the read of its executor's end
+/// `executor_runs` (the guard's `ExecutorWatch` in the product, CP-176 (e)), the system's parts
+/// and the record: `Trigger::ExecutorGone` with the executor of the arguments, the run's mark of
+/// the arguments, and the loop's read of the executor from `executor_runs` alone. It has no effect
+/// of its own, so that a test hands it stand-ins (U2.6 round 1, R4, in the form of CP-189 G7).
+pub(crate) fn run_guard(
+    args: &GuardArgs,
+    executor_runs: &dyn Fn() -> bool,
+    sys: GuardSys<'_>,
+    record: &mut dyn FnMut(&GuardAct),
+) -> i32 {
+    let GuardSys {
+        read,
+        args: proc_args,
+        now_ms,
+        pause,
+        end,
+    } = sys;
+    guard_loop(
+        args.pid,
+        args.started_us,
+        Trigger::ExecutorGone {
+            pid: args.epid,
+            started_us: args.estart,
+        },
+        GuardIo {
+            read,
+            args: proc_args,
+            mark: Some(&args.mark),
+            executor: &mut |_, _| executor_runs(),
+            now_ms,
+            pause,
+            end,
+            record,
         },
     )
 }
@@ -1716,6 +1752,69 @@ mod tests {
                 self.refused.borrow()
             );
         }
+    }
+
+    /// U2.6 round 1, R4, failing first: `guard_main`'s loop (`run_guard`) reads its executor's
+    /// end from the read that it is given, and from nothing else. Stand-in tables in which the
+    /// browser's first process runs until it is forced and the executor's row stands at every
+    /// read; a stand-in watch that reads the executor running until 5,000 ms; every end through
+    /// the fence of CP-161 F1 to a recorder (CP-214). The first ask comes after the watch's end
+    /// and `GRACE`, and the forced end `TERM_WAIT` later; nothing else is asked or ended.
+    #[test]
+    fn r4_guard_main_s_loop_reads_its_executor_from_the_watch() {
+        let argv: Vec<String> = [
+            "999999",
+            "7",
+            "5",
+            "50",
+            "",
+            "/p",
+            "/B.app/Contents/MacOS/b",
+        ]
+        .iter()
+        .map(|a| a.to_string())
+        .collect();
+        let args = parse_args(&argv).expect("the arguments");
+        let fence = Fence {
+            admit: (ROOT, 7),
+            refused: RefCell::new(Vec::new()),
+        };
+        let clock = Cell::new(0u128);
+        let ends: RefCell<Ends> = RefCell::new(Vec::new());
+        let mut reads = 0u64;
+        let code = run_guard(
+            &args,
+            &|| clock.get() < 5_000,
+            GuardSys {
+                read: &mut || {
+                    reads += 1;
+                    assert!(reads < 20_000, "the guard reads on without end");
+                    let mut v = vec![stranger(5, 1, 50, 5)];
+                    if forced(&ends.borrow(), ROOT).is_none() {
+                        v.push(row(ROOT, 1, 7, ROOT));
+                    }
+                    Some(v)
+                },
+                args: &every_marked,
+                now_ms: &mut || clock.get(),
+                pause: &mut |_| clock.set(clock.get() + 20),
+                end: &mut |p, force| {
+                    fence.pass(p, force, &|p, force| {
+                        ends.borrow_mut().push((p.pid, force, clock.get()));
+                        true
+                    })
+                },
+            },
+            &mut |_| {},
+        );
+        assert_eq!(code, 0);
+        let ends = ends.into_inner();
+        let asked = ends.iter().find(|e| !e.1).expect("asked").2;
+        let forced_at = forced(&ends, ROOT).expect("forced");
+        assert!((8_000..8_100).contains(&asked), "asked at {asked} ms");
+        assert!(forced_at >= asked + 2_000, "forced at {forced_at} ms");
+        assert!(ends.iter().all(|e| e.0 == ROOT), "{ends:?}");
+        assert!(fence.refused.borrow().is_empty());
     }
 
     #[test]
