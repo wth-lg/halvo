@@ -171,7 +171,7 @@ jobs:
       - name: Long forms build
         if: github.event.schedule == '17 3 * * 3'
         shell: bash
-        run: cargo test --locked -p halvo-capture --test windows_functional --no-run
+        run: cargo test --locked -p halvo-capture --lib --test windows_functional --no-run
       - name: Long forms
         if: github.event.schedule == '17 3 * * 3'
         shell: bash
