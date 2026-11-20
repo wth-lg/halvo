@@ -616,6 +616,34 @@ EOF
   vertical_tab=$(printf '\013')
   bad_row_case vertical-tab-is-not-a-blank-row "$vertical_tab"
   bad_row_case import-row-trailing-text '      _free  (from libSystem) extra'
+  bad_row_case import-short-ordinal '      0x001  _free  (from libSystem)'
+  bad_row_case import-lowercase-ordinal '      0x00a1  _free  (from libSystem)'
+  bad_row_case import-ordinal-without-gap '      0x0001_free  (from libSystem)'
+  bad_row_case import-oversized-ordinal '      0x100000000  _free  (from libSystem)'
+  bad_row_case import-empty-addend '      _free+0x  (from libSystem)'
+  bad_row_case import-padded-addend '      _free+0x01  (from libSystem)'
+  bad_row_case import-lowercase-addend '      _free+0xab  (from libSystem)'
+  bad_row_case import-oversized-addend '      _free+0x10000000000000000  (from libSystem)'
+  bad_row_case import-wrong-mark '      _free [weak] (from libSystem)'
+  bad_row_case import-mark-without-gap '      _free [weak-import](from libSystem)'
+  bad_row_case import-mark-touching-symbol '      _free[weak-import] (from libSystem)'
+  bad_row_case import-library-starts-with-blank '      _free  (from  libSystem)'
+  bad_row_case import-library-ends-with-blank '      _free  (from libSystem )'
+  shape_cases() {
+    table_case "$1-clean" PASS "$clean_result" '' "$slice" "$header" "$2"
+    table_case "$1-hold" FAIL "halvo imports $forbidden_import" "$3" "$slice" "$header" "$2" "$3"
+  }
+  shape_cases weak-import '      _NSAppearanceNameDarkAqua [weak-import] (from AppKit)' \
+    "      $forbidden_import [weak-import] (from AppKit)"
+  shape_cases ordinal-import '      0x0000  __NSConcreteGlobalBlock  (from libSystem)' \
+    "      0x0000  $forbidden_import  (from libSystem)"
+  shape_cases addend-import '      0x0001  __ZTVN10__cxxabiv120__si_class_type_infoE+0x10  (from libc++)' \
+    "      0x0001  $forbidden_import+0x10  (from libc++)"
+  shape_cases spaced-library-import "      _OBJC_CLASS_\$_Alfred1PasswordManager  (from Alfred Framework)" \
+    "      $forbidden_import  (from Alfred Framework)"
+  table_case printable-import-limits PASS "$clean_result" '' "$slice" "$header" \
+    '      0xFFFF  _free+0x0  (from libSystem)' '      0x10000  _free+0xA [weak-import] (from Two Words)' \
+    '      0xFFFFFFFF  _free+0xFFFFFFFFFFFFFFFF  (from libSystem)' '      _free+0x1  (from libSystem)'
   table_case indented-slice-header FAIL "$bad_layout" "  $slice" "$clean" "  $slice" "$header" "$clean_row"
   table_case slice-with-trailing-text FAIL "$bad_layout" "$slice extra" "$clean" "$slice extra" "$header" "$clean_row"
   table_case slice-with-empty-arch FAIL "$bad_layout" 'halvo []:' "$clean" 'halvo []:' "$header" "$clean_row"
