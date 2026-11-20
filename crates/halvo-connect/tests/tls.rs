@@ -9,7 +9,9 @@ use std::time::{Duration, Instant};
 use common::test_only_untrusted_tls_key::{
     TEST_ONLY_UNTRUSTED_CERT_DER, TEST_ONLY_UNTRUSTED_KEY_PKCS8,
 };
-use halvo_connect::{reply_senders, CallError, Effect, Graph, Mail, ReplyRule, Route, Token};
+use halvo_connect::{
+    reply_senders, CallError, Effect, Graph, Mail, NotMade, ReplyRule, Route, Token,
+};
 use halvo_schema::executable::WebOrigin;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use rustls::{AlertDescription, ServerConfig, ServerConnection, SupportedProtocolVersion};
@@ -104,13 +106,14 @@ fn a_certificate_that_the_system_does_not_trust_ends_the_call_before_any_request
         let rule = ReplyRule::new(
             "me@home.test".to_owned(),
             reply_senders("ann@people.test").expect("a sender"),
+            halvo_schema::record::Instant(0),
         );
         let began = Instant::now();
         let error = graph
             .mail_list(&token, &rule)
             .expect_err("the certificate is refused");
         assert_eq!(error, CallError::NotSent, "{name}");
-        assert_eq!(error.effect(), Effect::NotMade, "{name}");
+        assert_eq!(error.effect(), Effect::NotMade(NotMade::NotSent), "{name}");
         assert!(began.elapsed() < limit, "{name}: within the limit");
         let outcome = outcome
             .recv_timeout(Duration::from_secs(15))

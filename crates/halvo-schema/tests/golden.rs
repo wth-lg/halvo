@@ -5,9 +5,6 @@ mod export_names;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::OnceLock;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use halvo_schema::kinds::{check_record, RetentionClass, KINDS};
 use halvo_schema::request::{
@@ -40,28 +37,38 @@ fn committed(name: &str) -> String {
     }
 }
 
+fn written(name: &str, text: &str) -> Leaf {
+    let held = leaf(&format!("golden-{}", name.replace('.', "-")));
+    std::fs::write(held.path().join(name), text).unwrap();
+    held
+}
+
+fn first_difference(committed: &[u8], built: &[u8]) -> String {
+    let committed = String::from_utf8_lossy(committed);
+    let built = String::from_utf8_lossy(built);
+    let line = committed
+        .lines()
+        .zip(built.lines())
+        .position(|(a, b)| a != b)
+        .unwrap_or_else(|| committed.lines().count().min(built.lines().count()));
+    format!(
+        "first at line {}: the committed file holds {:?} and the test wrote {:?}",
+        line + 1,
+        committed.lines().nth(line).unwrap_or_default(),
+        built.lines().nth(line).unwrap_or_default()
+    )
+}
+
 fn write_and_compare(name: &str, text: &str) {
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .parent()
-        .unwrap()
-        .join("halvo-schema/golden");
-    std::fs::create_dir_all(&dir).unwrap();
-    let written = dir.join(name);
-    std::fs::write(&written, text).unwrap();
+    let held = written(name, text);
+    let built = std::fs::read(held.path().join(name)).unwrap();
     let path = golden(name);
     let before = std::fs::read(&path).unwrap_or_default();
-    if before != text.as_bytes() {
-        let before = String::from_utf8_lossy(&before);
-        let line = before
-            .lines()
-            .zip(text.lines())
-            .position(|(a, b)| a != b)
-            .unwrap_or_else(|| before.lines().count().min(text.lines().count()));
+    if before != built {
         panic!(
-            "{} differs from the file that the test wrote, {}, first at line {}",
+            "{} differs from the file that the test wrote, {}",
             path.display(),
-            written.display(),
-            line + 1
+            first_difference(&before, &built)
         );
     }
 }
@@ -916,6 +923,99 @@ fn export_names_writes_the_committed_names_file_on_two_runs() {
     }
 }
 
+#[test]
+fn written_two_calls_give_two_directories_with_the_file_and_each_is_gone_after_its_drop() {
+    let first = written("names.txt", "x\n");
+    let second = written("names.txt", "x\n");
+    assert_ne!(first.path(), second.path());
+    for held in [&first, &second] {
+        assert_eq!(
+            std::fs::read_to_string(held.path().join("names.txt")).unwrap(),
+            "x\n"
+        );
+    }
+    let paths = [first.path().to_path_buf(), second.path().to_path_buf()];
+    drop(first);
+    drop(second);
+    for path in paths {
+        assert!(!path.exists(), "{}", path.display());
+    }
+}
+
+fn entries_added_by(work: impl FnOnce()) -> Vec<String> {
+    let own = format!("-{}-", std::process::id());
+    let listed = || -> Vec<String> {
+        std::fs::read_dir(env!("CARGO_TARGET_TMPDIR"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|name| name.contains(&own))
+            .collect()
+    };
+    let before = listed();
+    work();
+    listed()
+        .into_iter()
+        .filter(|name| !before.contains(name))
+        .collect()
+}
+
+#[test]
+fn write_and_compare_of_a_file_that_differs_leaves_no_directory_and_names_the_first_line_that_differs(
+) {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("differ") {
+        leaf_child(
+            "write_and_compare_of_a_file_that_differs_leaves_no_directory_and_names_the_first_line_that_differs",
+            "differ",
+            false,
+        );
+        return;
+    }
+    let mut message = String::new();
+    let left = entries_added_by(|| {
+        let caught = std::panic::catch_unwind(|| write_and_compare("no-such-golden-file", "x\n"));
+        message = *caught
+            .err()
+            .and_then(|payload| payload.downcast::<String>().ok())
+            .expect("a failure with a message");
+    });
+    assert!(left.is_empty(), "{left:?}: {message}");
+    assert!(message.contains("first at line 1"), "{message}");
+}
+
+fn names_compare_left() -> Vec<String> {
+    entries_added_by(|| write_and_compare("names.txt", &committed("names.txt")))
+}
+
+#[test]
+fn write_and_compare_of_a_file_that_matches_leaves_no_directory_of_its_own() {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("match") {
+        leaf_child(
+            "write_and_compare_of_a_file_that_matches_leaves_no_directory_of_its_own",
+            "match",
+            false,
+        );
+        return;
+    }
+    let left = names_compare_left();
+    assert!(left.is_empty(), "{left:?}");
+}
+
+#[test]
+fn write_and_compare_of_a_file_that_matches_counts_no_directory_of_its_name_that_stood_before() {
+    if std::env::var(LEAF_CHILD).as_deref() != Ok("before") {
+        leaf_child(
+            "write_and_compare_of_a_file_that_matches_counts_no_directory_of_its_name_that_stood_before",
+            "before",
+            false,
+        );
+        return;
+    }
+    let earlier = leaf("golden-names-txt");
+    let left = names_compare_left();
+    assert!(left.is_empty(), "{left:?}");
+    assert!(earlier.path().is_dir(), "{}", earlier.path().display());
+}
+
 struct Leaf(PathBuf);
 
 impl Leaf {
@@ -937,31 +1037,12 @@ fn remove(dir: &Path) -> Option<String> {
     Some(format!("leaf not removed: {}: {error}", dir.display()))
 }
 
-fn leaf_name(word: &str, pid: u32, clock: u128, count: u64) -> String {
-    format!("{word}-{pid}-{clock}-{count}")
-}
-
-fn make_leaf(dir: PathBuf) -> Result<Leaf, String> {
-    let parent = dir
-        .parent()
-        .ok_or_else(|| format!("no parent: {}", dir.display()))?;
-    std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
-    std::fs::create_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    Ok(Leaf(dir))
-}
-
 fn leaf(word: &str) -> Leaf {
-    static CLOCK: OnceLock<u128> = OnceLock::new();
-    static COUNT: AtomicU64 = AtomicU64::new(0);
-    let clock = *CLOCK.get_or_init(|| {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    });
-    let count = COUNT.fetch_add(1, Ordering::Relaxed);
-    let name = leaf_name(word, std::process::id(), clock, count);
-    make_leaf(Path::new(env!("CARGO_TARGET_TMPDIR")).join(name)).unwrap_or_else(|e| panic!("{e}"))
+    let tmp = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    match halvo_test_dir::make(tmp, word) {
+        Ok(dir) => Leaf(dir),
+        Err(e) => panic!("{word} under {}: {e}", tmp.display()),
+    }
 }
 
 #[test]
@@ -981,26 +1062,6 @@ fn leaf_two_calls_give_two_paths() {
         name[..name.rfind('-').unwrap()].to_owned()
     };
     assert_eq!(stem(&first), stem(&second));
-}
-
-#[test]
-fn leaf_name_differs_by_the_clock_reading_the_counter_and_the_process_id() {
-    assert_ne!(leaf_name("w", 7, 1, 0), leaf_name("w", 7, 2, 0));
-    assert_ne!(leaf_name("w", 7, 1, 0), leaf_name("w", 7, 1, 1));
-    assert_ne!(leaf_name("w", 7, 1, 0), leaf_name("w", 8, 1, 0));
-    assert!(leaf_name("w", 7, 1, 0).starts_with("w-7-"));
-}
-
-#[test]
-fn leaf_that_exists_fails_with_its_path() {
-    let first = leaf("golden-leaf");
-    let error = make_leaf(first.path().to_path_buf())
-        .err()
-        .expect("a second making of one leaf fails");
-    assert!(
-        error.contains(&first.path().display().to_string()),
-        "{error}"
-    );
 }
 
 #[test]
@@ -1025,13 +1086,16 @@ fn leaf_removal_that_fails_gives_one_line_with_the_path() {
 }
 
 #[test]
-fn leaf_lies_under_the_target_directory() {
+fn leaf_lies_under_the_target_directory_and_its_name_begins_with_the_word() {
     let held = leaf("golden-leaf");
-    assert!(
-        held.path().starts_with(env!("CARGO_TARGET_TMPDIR")),
+    assert_eq!(
+        held.path().parent(),
+        Some(Path::new(env!("CARGO_TARGET_TMPDIR"))),
         "{}",
         held.path().display()
     );
+    let name = held.path().file_name().unwrap().to_str().unwrap();
+    assert!(name.starts_with("golden-leaf-"), "{name}");
 }
 
 const LEAF_CHILD: &str = "HALVO_LEAF_CHILD";
@@ -1055,72 +1119,28 @@ fn leaf_child(test: &str, role: &str, nocapture: bool) -> std::process::Output {
     out
 }
 
-fn leaf_parts(path: &Path) -> (String, u32, u128, u64) {
-    let name = path.file_name().unwrap().to_str().unwrap();
-    let mut parts = name.rsplitn(4, '-');
-    let count = parts.next().unwrap_or_default().parse();
-    let clock = parts.next().unwrap_or_default().parse();
-    let pid = parts.next().unwrap_or_default().parse();
-    let word = parts.next().unwrap_or_default().to_owned();
-    match (pid, clock, count) {
-        (Ok(pid), Ok(clock), Ok(count)) => (word, pid, clock, count),
-        _ => panic!("not word-pid-clock-count: {name}"),
-    }
-}
-
-fn leaf_clock_now() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos()
-}
-
 #[test]
-fn leaf_from_leaf_holds_the_word_the_process_id_and_the_clock() {
-    if std::env::var(LEAF_CHILD).as_deref() != Ok("clock") {
-        leaf_child(
-            "leaf_from_leaf_holds_the_word_the_process_id_and_the_clock",
-            "clock",
-            false,
-        );
-        return;
-    }
-    let before = leaf_clock_now();
-    let held = leaf("golden-leaf-clock");
-    let after = leaf_clock_now();
-    let (word, pid, clock, _) = leaf_parts(held.path());
-    assert_eq!(word, "golden-leaf-clock");
-    assert_eq!(pid, std::process::id());
-    assert!(
-        before <= clock && clock <= after,
-        "{before} {clock} {after}"
-    );
-}
-
-#[test]
-fn leaf_refuses_the_directory_that_the_next_leaf_names() {
+fn leaf_passes_over_the_directory_that_the_next_leaf_names() {
     if std::env::var(LEAF_CHILD).as_deref() != Ok("next") {
         leaf_child(
-            "leaf_refuses_the_directory_that_the_next_leaf_names",
+            "leaf_passes_over_the_directory_that_the_next_leaf_names",
             "next",
             false,
         );
         return;
     }
     let first = leaf("golden-leaf-next");
-    let (word, pid, clock, count) = leaf_parts(first.path());
-    let next = first
-        .path()
-        .with_file_name(format!("{word}-{pid}-{clock}-{}", count + 1));
+    let name = first.path().file_name().unwrap().to_str().unwrap();
+    let (stem, count) = name.rsplit_once('-').unwrap();
+    let count: u64 = count.parse().unwrap();
+    let next = first.path().with_file_name(format!("{stem}-{}", count + 1));
     std::fs::create_dir(&next).unwrap();
     let _next = Leaf(next.clone());
     std::fs::write(next.join("kept"), "kept\n").unwrap();
-    let caught = std::panic::catch_unwind(|| leaf("golden-leaf-next"));
-    let message = caught
-        .err()
-        .and_then(|payload| payload.downcast::<String>().ok())
-        .expect("leaf() fails on the directory that it names");
-    assert!(message.contains(&next.display().to_string()), "{message}");
+    let second = leaf("golden-leaf-next");
+    assert!(second.path().is_dir(), "{}", second.path().display());
+    assert_ne!(second.path(), next);
+    assert_ne!(second.path(), first.path());
     assert_eq!(
         std::fs::read_to_string(next.join("kept")).unwrap(),
         "kept\n"
