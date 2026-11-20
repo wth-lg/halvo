@@ -17,6 +17,7 @@ export const RETRY_DELAY_CAP_MS = 3_600_000;
 export interface Next {
   call: UsageCall | null;
   notBillable: number;
+  unexplained: number;
 }
 export interface Metering {
   init(sql: Sql): void;

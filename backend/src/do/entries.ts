@@ -482,8 +482,13 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (removal === "unanswered") log({ event: "pending-unanswered" });
   }
 
-  function logNotBillable(next: Next): void {
-    for (let each = 0; each < next.notBillable; each += 1) log({ event: "usage-not-billable" });
+  function logNotBillable(intervals: number): void {
+    for (let each = 0; each < intervals; each += 1) log({ event: "usage-not-billable" });
+  }
+
+  function logSync(next: Next): void {
+    logNotBillable(next.notBillable);
+    for (let each = 0; each < next.unexplained; each += 1) log({ event: "usage-total-unexplained" });
   }
 
   function sealLoop(sql: Sql, now: Ms): void {
@@ -526,7 +531,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     }, by);
     if (sent === null) return "gone";
     planned(sent.next.call, sent.now);
-    logNotBillable(sent.next);
+    logSync(sent.next);
     let call = sent.next.call;
     let ids = sent.ids;
     let plannedAt = sent.now;
@@ -551,7 +556,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (recorded === null) return "gone";
       if (recorded === "not-metered") return "done";
       planned(recorded.next.call, recorded.now);
-      logNotBillable(recorded.next);
+      logSync(recorded.next);
       call = recorded.next.call;
       ids = recorded.ids;
       plannedAt = recorded.now;
@@ -996,7 +1001,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if ("result" in last) return last;
     if (removalLogged !== last.decidedAt) {
       removalLogged = last.decidedAt;
-      if (typeof last.closed === "number") logNotBillable({ call: null, notBillable: last.closed });
+      if (typeof last.closed === "number") logNotBillable(last.closed);
       else log({ event: "usage-not-billable", error: errorName(last.closed.unknown) });
     }
     try {
