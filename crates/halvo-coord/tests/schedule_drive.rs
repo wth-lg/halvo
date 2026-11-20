@@ -3500,3 +3500,63 @@ fn u24e_a_take_back_reads_no_port_and_answers_ok_where_no_start_waits() {
         Err(Cause::UnknownAgent)
     );
 }
+
+/// The row's controls offer the take-back exactly while a start of the agent is queued, whatever
+/// hold stands beside it: a hold that a later read brings, as `check` from a record whose effect
+/// is not known, leaves the start in the queue until it leaves it (I2.5, I5.5; ruling RD-54 (h)).
+#[test]
+fn u24e_the_controls_offer_take_back_exactly_while_a_start_is_queued_whatever_hold_stands() {
+    use halvo_coord::roster::controls;
+    use halvo_coord::types::Control::{Delete, RunNow, Stop, SwitchOff, SwitchOn, TakeBack};
+    use halvo_coord::types::Live;
+    let w = world(&[manual()]);
+    let plain = w.facts(0).clone();
+    assert!(holds(&plain).is_empty());
+    let facts = |doing: &Doing, hold: &str| {
+        let mut f = plain.clone();
+        f.doing = doing.clone();
+        let first = f.events[0].clone();
+        let set = |cause| Event {
+            what: What::HoldSet { cause },
+            ..first.clone()
+        };
+        match hold {
+            "off" => f.events.push(set(HoldSetCause::Person)),
+            "failures" => f.events.push(set(HoldSetCause::Failures)),
+            "check" => f.runs[0].unknown = 1,
+            _ => {}
+        }
+        f
+    };
+    let queued = Doing::Queued(None);
+    let idle = Doing::Idle(None);
+    let live = Doing::Live(Live::Working);
+    for (doing, hold, want, standing) in [
+        (&queued, "none", vec![TakeBack, SwitchOff, Delete], vec![]),
+        (
+            &queued,
+            "check",
+            vec![TakeBack, SwitchOff, Delete],
+            vec![Hold::Check],
+        ),
+        (
+            &queued,
+            "off",
+            vec![TakeBack, SwitchOn, Delete],
+            vec![Hold::Off],
+        ),
+        (
+            &queued,
+            "failures",
+            vec![TakeBack, SwitchOn, Delete],
+            vec![Hold::Failures],
+        ),
+        (&idle, "none", vec![RunNow, SwitchOff, Delete], vec![]),
+        (&idle, "check", vec![SwitchOff, Delete], vec![Hold::Check]),
+        (&live, "none", vec![Stop, SwitchOff, Delete], vec![]),
+    ] {
+        let f = facts(doing, hold);
+        assert_eq!(holds(&f), standing, "{doing:?} {hold}");
+        assert_eq!(controls(&f), want, "{doing:?} {hold}");
+    }
+}
