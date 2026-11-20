@@ -738,6 +738,16 @@ measure() {
   printf 'PASS %s\n' "$name"
 }
 
+rules() {
+  repo=${CI_D_REPO:-}
+  [ -n "$repo" ] || repo=$(git rev-parse --show-toplevel 2>/dev/null) || fail "no repository: run it inside a checkout or give CI_D_REPO"
+  cd "$repo" || exit 2
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name-rules.XXXXXX") || fail "mktemp failed"
+  ledger_check
+  printf 'rules: the ledger check alone ran; no build, no test and no process of the product was started\n'
+  printf 'PASS %s\n' "$name"
+}
+
 launch() {
   printf '%s\n' "$3" >"$work/spec-$1"
   if [ "$expected" = real ]; then
@@ -1641,16 +1651,6 @@ fixtures() {
   form_word=long
   loop_list="bench 3 a::plain_one"
   check a-loop-of-another-kind FAIL "$right" "FAIL $name (the loop list names the kind bench)"
-}
-
-rules() {
-  repo=${CI_D_REPO:-}
-  [ -n "$repo" ] || repo=$(git rev-parse --show-toplevel 2>/dev/null) || fail "no repository: run it inside a checkout or give CI_D_REPO"
-  cd "$repo" || exit 2
-  work=$(mktemp -d "${TMPDIR:-/tmp}/$name-rules.XXXXXX") || fail "mktemp failed"
-  ledger_check
-  printf 'rules: the ledger check alone ran; no build, no test and no process of the product was started\n'
-  printf 'PASS %s\n' "$name"
 }
 
 case ${1:-} in
