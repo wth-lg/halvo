@@ -2145,8 +2145,9 @@ mod tests {
 
     /// CP-189 G7, fenced, on the real process table of each system: the guard's loop leaves a
     /// process without the mark and writes it into its record. The stand-in browser is this test
-    /// binary with the run's profile as an argument; its child is this test binary with no
-    /// profile, a member that does not bear the mark. The executor, another such child, is ended
+    /// binary with the run's profile switch before the harness's `--`, as the value of `--skip`,
+    /// which skips no test (U2.6b: the mark reads no switch after a terminator); its child is this
+    /// test binary with no profile, a member that does not bear the mark. The executor, another such child, is ended
     /// at 500 ms. The guard asks and ends the stand-in browser through the fence, which admits it
     /// alone, and leaves its child; the test then ends that child, its own, and the guard reads the
     /// tree gone. The test has a bound of 30 s inside its read and pause.
@@ -2167,8 +2168,9 @@ mod tests {
             std::env::temp_dir().join(format!("halvo-guard-left-profile-{}", std::process::id()));
         let record_file =
             std::env::temp_dir().join(format!("halvo-guard-left-record-{}", std::process::id()));
-        let start = |entry: &str, extra: &[String]| {
+        let start = |entry: &str, before: &[String], extra: &[String]| {
             std::process::Command::new(&me)
+                .args(before)
                 .args(crate::child::entry_args(entry, extra))
                 .stdin(std::process::Stdio::null())
                 .stdout(std::process::Stdio::null())
@@ -2180,12 +2182,14 @@ mod tests {
         own.0.push(start(
             "child::hold_parent_entry",
             &[
-                "--hold-parent".to_string(),
+                "--skip".to_string(),
                 format!("--user-data-dir={}", profile.display()),
             ],
+            &["--hold-parent".to_string()],
         ));
         own.0.push(start(
             "child::hold_child_entry",
+            &[],
             &["--hold-child".to_string()],
         ));
         let (bpid, epid) = (own.0[0].id(), own.0[1].id());
