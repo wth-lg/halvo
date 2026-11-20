@@ -2613,21 +2613,16 @@ where
             }
         }
         if st.quitting {
-            let mut live: Vec<(u64, AgentId, RunId)> =
-                st.board.as_ref().map_or_else(Vec::new, |b| {
-                    b.runs
-                        .iter()
-                        .map(|r| (r.rank, r.agent.clone(), r.run.clone()))
-                        .collect()
-                });
-            live.sort();
+            let live = st.board.as_ref().map_or_else(Vec::new, |b| {
+                b.runs
+                    .iter()
+                    .map(|r| (r.agent.clone(), r.run.clone()))
+                    .collect()
+            });
             *self
                 .unstopped
                 .lock()
-                .unwrap_or_else(PoisonError::into_inner) = live
-                .into_iter()
-                .map(|(_, agent, run)| (agent, run))
-                .collect();
+                .unwrap_or_else(PoisonError::into_inner) = live;
         }
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
