@@ -448,8 +448,14 @@ fn u46b_next_life_shows_a_gone_workflows_run_that_reap_answers_alive() {
         "the workflow left the owner's list after the next life's first tick"
     );
 
-    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
-    let next = next_life(&c, &[(runs[0].clone(), Reaped::Gone)]);
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], room()));
+    let next = next_life(
+        &c,
+        &[
+            (runs[0].clone(), Reaped::Gone),
+            (runs[1].clone(), Reaped::Alive),
+        ],
+    );
     next.ports.workflows.borrow_mut().clear();
     let life = Coordinator::new(next, Limits::PRODUCT);
     life.tick();
@@ -457,6 +463,11 @@ fn u46b_next_life_shows_a_gone_workflows_run_that_reap_answers_alive() {
         seen(&life, 0),
         None,
         "nothing of a gone workflow whose run reap answered gone may still run"
+    );
+    assert_eq!(
+        seen(&life, 1).map(|s| s.1),
+        Some(kill_stuck()),
+        "beside it, the gone workflow whose run reap answered alive keeps its row"
     );
 }
 
