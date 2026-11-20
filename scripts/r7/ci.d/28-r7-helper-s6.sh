@@ -447,7 +447,7 @@ def measure(tls):
 def self_test():
     import io
     from contextlib import redirect_stdout
-    from unittest.mock import call, patch
+    from unittest.mock import MagicMock, call, patch
 
     env = {"RUNNER_ENVIRONMENT": "github-hosted", "GITHUB_ACTIONS": "true",
            "RUNNER_OS": "macOS", "CI_D_JOB": "macos"}
@@ -814,6 +814,11 @@ def self_test():
     with patch("__main__.CONTROL_WAIT_S", 0):
         if (control_window(window, 0) != [alert_row, {"error": "unreadable-line"}, {"error": "unreadable-line"}]
                 or control_window(window, window.stat().st_size) != []):
+            raise RuntimeError("control-window-fixture")
+    growing = MagicMock()
+    growing.read_bytes.side_effect = [b"", b'{"seq":1,"err', b'{"seq":1,"error":"ERR_SSL_TLSV1_ALERT_UNKNOWN_CA"}\n']
+    with patch("time.sleep") as paused:
+        if control_window(growing, 0) != [alert_row] or growing.read_bytes.call_count != 3 or paused.call_count != 2:
             raise RuntimeError("control-window-fixture")
     print(f"PASS self-test:{NAME} ({refused} failing fixtures rejected)")
 
