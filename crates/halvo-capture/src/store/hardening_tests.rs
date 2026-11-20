@@ -10739,6 +10739,28 @@ mod batch_write {
                 (day, "pointer".to_string(), 12, 112)
             ]
         );
+        let totals: Vec<(String, i64, i64)> = {
+            let conn = store.db().unwrap().connection();
+            let mut rows = conn
+                .prepare(
+                    "SELECT kind, events, bytes FROM segment_totals WHERE segment = ?1 ORDER BY kind",
+                )
+                .unwrap();
+            let read = rows
+                .query_map([written.ordinal.get() as i64], |r| {
+                    Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+                })
+                .unwrap();
+            read.map(|row| row.unwrap()).collect()
+        };
+        assert_eq!(
+            totals,
+            vec![
+                ("keystroke".to_string(), 500, 400),
+                ("pointer".to_string(), 12, 112)
+            ],
+            "the batch's totals rows"
+        );
         let mut plain = Vec::new();
         store.read_segment(id, &mut plain).unwrap();
         assert_eq!(plain, payload);
