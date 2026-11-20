@@ -115,7 +115,7 @@ of a row that is built, by cargo or by `sh -n`, `cc`, `perl` or `swiftc`, reads
 `(applies and builds)`. `FAIL mutation:<name> (the mutant does not build)` and
 `FAIL mutation:<name> (the mutant does not type-check)` are never caught mutants.
 
-What the runs prove for a row. In every CI run, the macos
+What the runs prove for a row. On each pull request and each push, the macos
 job's `scripts/r1/ci.d/30-mutants.sh` applies each row that a run would apply
 here and compiles its mutant as above, so the mutant of a cargo row that keeps no build is type-checked and
 not built. On a push to
