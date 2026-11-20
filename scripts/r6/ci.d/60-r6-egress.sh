@@ -899,8 +899,9 @@ tree_after() {
 }
 
 untracked_view() {
-  git -c core.fsmonitor=false -c core.untrackedCache=false -c core.quotePath=false \
-    ls-files --others --directory --exclude=/target/
+  untracked_listing=$(git -c core.fsmonitor=false -c core.untrackedCache=false -c core.quotePath=false \
+    ls-files --others --directory) || return 1
+  printf '%s\n' "$untracked_listing" | awk '$0 != "target/"'
 }
 
 wrapped_call() {
