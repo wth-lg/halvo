@@ -181,11 +181,30 @@ pub fn names_host(token: &str) -> bool {
         || parts.windows(2).any(|w| name(w[0]) && port(w[1]))
 }
 
+/// The start of the reply rule's clause of A11.2: a message is selected only when it was received
+/// at the start's whole second or later.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Since {
+    /// Seconds since 1970-01-01T00:00:00Z, held against the `receivedDateTime` that the fixture
+    /// serves (`YYYY-MM-DDTHH:MM:SSZ`).
+    Seconds(i64),
+    /// The fixture's reset, held against the `received_minutes` of a seed file's message.
+    #[cfg(test)]
+    Reset,
+}
+
 /// The messages that the reply rule of A1 selects, in the order of the inbox: unread, naming the
-/// account's address among `toRecipients`, and from a sender of the slot `reply_senders`, each
-/// address held against another by halvo-schema's `same_address`. The senders are the list that
-/// `read_senders` reads; a list that it refuses selects nothing.
-pub fn selected<'a>(inbox: &'a [Value], account: &str, senders: &[String]) -> Vec<&'a Value> {
+/// account's address among `toRecipients`, from a sender of the slot `reply_senders`, each
+/// address held against another by halvo-schema's `same_address`, received at `since` or later,
+/// and with no address in `replyTo` but the sender's, byte for byte (A11.2; a message with no
+/// `replyTo`, as in a seed file, holds none). The senders are the list that `read_senders` reads;
+/// a list that it refuses selects nothing.
+pub fn selected<'a>(
+    inbox: &'a [Value],
+    account: &str,
+    senders: &[String],
+    since: Since,
+) -> Vec<&'a Value> {
     let Some(senders) = read_senders(senders) else {
         return Vec::new();
     };
@@ -206,7 +225,64 @@ pub fn selected<'a>(inbox: &'a [Value], account: &str, senders: &[String]) -> Ve
                 .as_str()
                 .is_some_and(|a| senders.holds(a))
         })
+        .filter(|m| received_since(m, since))
+        .filter(|m| reply_to_is_the_sender(m))
         .collect()
+}
+
+fn received_since(m: &Value, since: Since) -> bool {
+    match since {
+        Since::Seconds(start) => m["receivedDateTime"]
+            .as_str()
+            .and_then(utc_seconds)
+            .is_some_and(|at| at >= start),
+        #[cfg(test)]
+        Since::Reset => m["received_minutes"]
+            .as_i64()
+            .is_some_and(|minutes| minutes >= 0),
+    }
+}
+
+fn reply_to_is_the_sender(m: &Value) -> bool {
+    let sender = m["from"]["emailAddress"]["address"].as_str();
+    match m.get("replyTo") {
+        None => true,
+        Some(list) => list.as_array().is_some_and(|list| {
+            list.iter().all(|r| {
+                r["emailAddress"]["address"].as_str().is_some()
+                    && r["emailAddress"]["address"].as_str() == sender
+            })
+        }),
+    }
+}
+
+/// The seconds since 1970-01-01T00:00:00Z of a time `YYYY-MM-DDTHH:MM:SSZ`, none for another form.
+fn utc_seconds(text: &str) -> Option<i64> {
+    let b = text.as_bytes();
+    let shape = b.len() == 20
+        && b.iter().enumerate().all(|(i, &c)| match i {
+            4 | 7 => c == b'-',
+            10 => c == b'T',
+            13 | 16 => c == b':',
+            19 => c == b'Z',
+            _ => c.is_ascii_digit(),
+        });
+    if !shape {
+        return None;
+    }
+    let n = |from: usize, to: usize| text[from..to].parse::<i64>().ok();
+    let (y, mo, d) = (n(0, 4)?, n(5, 7)?, n(8, 10)?);
+    let (h, mi, s) = (n(11, 13)?, n(14, 16)?, n(17, 19)?);
+    if !(1..=12).contains(&mo) || !(1..=31).contains(&d) || h > 23 || mi > 59 || s > 59 {
+        return None;
+    }
+    let y = if mo <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let doy = (153 * (if mo > 2 { mo - 3 } else { mo + 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    Some(days * 86_400 + h * 3_600 + mi * 60 + s)
 }
 
 /// The senders of the seed's list of the slot `reply_senders`, read by halvo-schema's reader
@@ -674,7 +750,8 @@ mod tests {
             "toRecipients": [{"emailAddress": {"address": to}}],
             "from": {"emailAddress": {"address": from}},
             "subject": "s",
-            "body": {"content": "b"}
+            "body": {"content": "b"},
+            "received_minutes": 60
         })
     }
 
@@ -689,7 +766,7 @@ mod tests {
             message("5", false, me, "bo@x.test"),
         ];
         let senders = vec!["ada@x.test".to_string(), "bo@x.test".to_string()];
-        let ids: Vec<&str> = selected(&inbox, me, &senders)
+        let ids: Vec<&str> = selected(&inbox, me, &senders, Since::Reset)
             .iter()
             .filter_map(|m| m["id"].as_str())
             .collect();
@@ -717,13 +794,64 @@ mod tests {
             assert_eq!(read.iter().collect::<Vec<_>>(), list);
             let inbox = seed["mail"]["inbox"].as_array().expect("the inbox").clone();
             let account = seed["mail"]["address"].as_str().expect("the account");
-            assert_eq!(selected(&inbox, account, &list).len(), 2);
+            let ids: Vec<&str> = selected(&inbox, account, &list, Since::Reset)
+                .iter()
+                .filter_map(|m| m["id"].as_str())
+                .collect();
+            let end: Vec<&str> = seed["end"]["reply"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|row| row["in_reply_to"].as_str())
+                .collect();
+            assert_eq!(ids, end, "the two messages of end.reply");
         }
+    }
+
+    #[test]
+    fn a_message_received_before_the_start_or_with_another_reply_to_is_not_selected() {
+        let me = "resident.one@agent.test";
+        let at = |id: &str, received: &str, reply_to: Value| {
+            let mut m = message(id, false, me, "Ada@x.test");
+            m["receivedDateTime"] = Value::from(received);
+            m["replyTo"] = reply_to;
+            m
+        };
+        let ada = serde_json::json!([{"emailAddress": {"address": "Ada@x.test"}}]);
+        let inbox = vec![
+            at("1", "2026-11-18T10:00:00Z", serde_json::json!([])),
+            at("2", "2026-11-18T09:59:59Z", serde_json::json!([])),
+            at("3", "2026-11-18T10:00:01Z", ada.clone()),
+            at(
+                "4",
+                "2026-11-18T10:00:01Z",
+                serde_json::json!([{"emailAddress": {"address": "ada@x.test"}}]),
+            ),
+            at(
+                "5",
+                "2026-11-18T10:00:01Z",
+                serde_json::json!([{"emailAddress": {"address": "eve@x.test"}}]),
+            ),
+            at("6", "2026-11-18 10:00:01Z", ada),
+        ];
+        let senders = vec!["ada@x.test".to_string()];
+        let start = Since::Seconds(1_794_996_000);
+        let ids: Vec<&str> = selected(&inbox, me, &senders, start)
+            .iter()
+            .filter_map(|m| m["id"].as_str())
+            .collect();
+        assert_eq!(ids, ["1", "3"]);
+        assert_eq!(utc_seconds("2026-11-18T10:00:00Z"), Some(1_794_996_000));
+        assert_eq!(utc_seconds("1970-01-01T00:00:00Z"), Some(0));
+        assert_eq!(utc_seconds("2026-11-18T10:00:00.5Z"), None);
+        let mut early = message("7", false, me, "ada@x.test");
+        early["received_minutes"] = Value::from(-1_440);
+        assert!(selected(&[early], me, &senders, Since::Reset).is_empty());
     }
 
     fn ids_of(inbox: &[Value], account: &str, senders: &[&str]) -> Vec<String> {
         let senders: Vec<String> = senders.iter().map(|s| s.to_string()).collect();
-        selected(inbox, account, &senders)
+        selected(inbox, account, &senders, Since::Reset)
             .iter()
             .filter_map(|m| m["id"].as_str().map(String::from))
             .collect()

@@ -1365,6 +1365,9 @@ async fn repair(
 /// The write run of `reply`: the model writes one body for each message that the reply rule
 /// selects; it gives the run and the count of bodies that count (A13.6).
 pub async fn write(ctx: &Ctx) -> Result<(Run, usize), End> {
+    let since = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
     reset(ctx, &[])?;
     let began = Instant::now();
     let mut tally = Tally::new();
@@ -1388,10 +1391,11 @@ pub async fn write(ctx: &Ctx) -> Result<(Run, usize), End> {
         ctx.trace(&format!("inbox: {e}"));
         End::NotRun("fixture")
     })?;
-    let chosen: Vec<Value> = body::selected(&inbox, &account, &senders)
-        .into_iter()
-        .cloned()
-        .collect();
+    let chosen: Vec<Value> =
+        body::selected(&inbox, &account, &senders, body::Since::Seconds(since))
+            .into_iter()
+            .cloned()
+            .collect();
     let mut child = Some(start_child(ctx, &mut tally).await?);
     let mut bodies = 0;
     let mut failed = false;

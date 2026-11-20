@@ -28,6 +28,9 @@ image = { version = "0.25.10", default-features = false, optional = true }
 oar-ocr = { version = "0.10.2", default-features = false, features = ["simd"], optional = true }
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic"], optional = true }
 
+[dev-dependencies]
+halvo-test-dir = { path = "../../crates/halvo-test-dir" }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.191"
 core-foundation = "0.10.1"

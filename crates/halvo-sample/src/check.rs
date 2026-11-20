@@ -9,7 +9,7 @@ use std::path::Path;
 use halvo_schema::Category;
 use halvo_seam::record::Edge;
 
-use crate::body::{is_link, read_stream, stream_dirs, StreamRecords};
+use crate::body::{is_link, read_stream, stream_dirs, StreamRecords, Streams};
 use crate::form::{text_lines, Refusal};
 use crate::labels::{parse_row, Row};
 use crate::manifest::{parse_script_manifest, StepLine, TierManifest};
@@ -51,12 +51,26 @@ type OpenEpisode<'a> = Option<(usize, &'a Row, Vec<(usize, i64, i64)>)>;
 
 struct Stream {
     id: String,
+    place: usize,
     rows: Vec<(usize, Row)>,
     records: StreamRecords,
 }
 
-fn row_fail(id: &str, line: usize, token: &str) -> String {
-    format!("FAIL row {id} {line} {token}")
+fn row_fail(place: usize, line: usize, token: &str) -> String {
+    format!("FAIL row s{place} {line} {token}")
+}
+
+/// The 1-based place of each entry of `DIR/streams/`, directories and links alike, in byte order of name: the
+/// number that a line prints for a stream id (contracts.md C12.6).
+fn stream_places(listing: &Streams) -> BTreeMap<&str, usize> {
+    let mut names: Vec<&str> = listing
+        .dirs
+        .iter()
+        .map(|d| d.id.as_str())
+        .chain(listing.links.iter().map(String::as_str))
+        .collect();
+    names.sort_unstable();
+    names.into_iter().zip(1..).collect()
 }
 
 /// The FAIL lines of the six rules of C10.4 for one stream, with the episode ids and the task ids that the
@@ -170,12 +184,14 @@ fn check_rows(
     };
     fails
         .into_iter()
-        .map(|(line, rule)| row_fail(&s.id, line, token(rule)))
+        .map(|(line, rule)| row_fail(s.place, line, token(rule)))
         .collect()
 }
 
-fn read_rows(path: &Path) -> Result<Vec<(usize, Row)>, Refusal> {
-    let fault = || Refusal::new("labels", path.display().to_string());
+/// The rows of a label file. A refusal names the DIR argument as given, the stream's place and, for a line that
+/// is no row, its line number, and never a name below DIR (contracts.md C12.1).
+fn read_rows(path: &Path, shown: &str) -> Result<Vec<(usize, Row)>, Refusal> {
+    let fault = || Refusal::new("labels", shown.to_owned());
     let bytes = fs::read(path).map_err(|_| fault())?;
     let lines = text_lines(&bytes).ok_or_else(fault)?;
     lines
@@ -184,38 +200,31 @@ fn read_rows(path: &Path) -> Result<Vec<(usize, Row)>, Refusal> {
         .map(|(i, l)| {
             parse_row(l.as_bytes())
                 .map(|r| (i + 1, r))
-                .ok_or_else(fault)
+                .ok_or_else(|| Refusal::new("labels", format!("{shown} l{}", i + 1)))
         })
         .collect()
 }
 
-/// Runs `check-labels` on `dir`.
+/// Runs `check-labels` on `dir`. A refusal prints the DIR argument as given and, where one stream is at fault,
+/// its place `s<n>`, and never a name below DIR (contracts.md C12.1, C12.6).
 pub fn check_labels(dir: &Path, rule: Option<Rule>) -> Result<Checked, Refusal> {
+    let given = dir.display().to_string();
     let manifest_path = dir.join("manifest.toml");
+    let manifest_fault = || Refusal::new("tier-manifest", given.clone());
     if is_link(&manifest_path) {
-        return Err(Refusal::new(
-            "tier-manifest",
-            manifest_path.display().to_string(),
-        ));
+        return Err(manifest_fault());
     }
     let source = match fs::read(&manifest_path) {
         Ok(bytes) => {
-            let m = TierManifest::parse(&bytes).ok_or_else(|| {
-                Refusal::new("tier-manifest", manifest_path.display().to_string())
-            })?;
+            let m = TierManifest::parse(&bytes).ok_or_else(manifest_fault)?;
             Rule::parse(&m.source)
         }
         Err(_) if fs::symlink_metadata(&manifest_path).is_err() => None,
-        Err(_) => {
-            return Err(Refusal::new(
-                "tier-manifest",
-                manifest_path.display().to_string(),
-            ))
-        }
+        Err(_) => return Err(manifest_fault()),
     };
     let rule = rule.or(source).unwrap_or(Rule::Generated);
     let sm_path = dir.join("script-manifest.jsonl");
-    let sm_fault = || Refusal::new("script-manifest", sm_path.display().to_string());
+    let sm_fault = || Refusal::new("script-manifest", given.clone());
     if is_link(&sm_path) {
         return Err(sm_fault());
     }
@@ -223,40 +232,79 @@ pub fn check_labels(dir: &Path, rule: Option<Rule>) -> Result<Checked, Refusal> 
     let steps: Vec<StepLine> = parse_script_manifest(&sm_bytes).ok_or_else(sm_fault)?;
     let listing = stream_dirs(dir)
         .filter(|l| !l.dirs.is_empty() || !l.links.is_empty())
-        .ok_or_else(|| Refusal::new("batches", dir.join("streams").display().to_string()))?;
+        .ok_or_else(|| Refusal::new("batches", given.clone()))?;
+    let places = stream_places(&listing);
     let mut streams = Vec::new();
     for d in &listing.dirs {
+        let place = places[d.id.as_str()];
+        let shown = format!("{given} s{place}");
         if let Some(name) = d.links.first() {
             let cause = if name == "labels.jsonl" {
                 "labels"
             } else {
                 "batches"
             };
-            return Err(Refusal::new(
-                cause,
-                dir.join("streams")
-                    .join(&d.id)
-                    .join(name)
-                    .display()
-                    .to_string(),
-            ));
+            return Err(Refusal::new(cause, shown));
         }
         if !d.labels.is_file() {
-            return Err(Refusal::new("labels", d.labels.display().to_string()));
+            return Err(Refusal::new("labels", shown));
         }
-        let rows = read_rows(&d.labels)?;
-        let records = read_stream(&d.days)
-            .map_err(|(p, line)| Refusal::new("batches", format!("{}:{line}", p.display())))?;
+        let rows = read_rows(&d.labels, &shown)?;
+        let records = read_stream(&d.days).map_err(|_| Refusal::new("batches", shown.clone()))?;
         streams.push(Stream {
             id: d.id.clone(),
+            place,
             rows,
             records,
         });
     }
-    Ok(check_streams(rule, &steps, &listing.links, &streams))
+    let links: Vec<usize> = listing.links.iter().map(|l| places[l.as_str()]).collect();
+    Ok(check_streams(rule, &steps, &links, &streams))
 }
 
-fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[Stream]) -> Checked {
+/// The place of each episode and step that a stream's FAIL lines name: for an episode the line of its first
+/// episode row in the stream's labels.jsonl, for a step of an outside line the line of the first range row that
+/// names it, else `m<n>`, its line in script-manifest.jsonl (contracts.md C12.6).
+struct Places<'a> {
+    episodes: BTreeMap<&'a str, usize>,
+    steps: BTreeMap<&'a str, usize>,
+}
+
+impl<'a> Places<'a> {
+    fn of(s: &'a Stream) -> Places<'a> {
+        let mut episodes = BTreeMap::new();
+        let mut steps = BTreeMap::new();
+        for (line, row) in &s.rows {
+            match row {
+                Row::Episode { episode, .. } => {
+                    episodes.entry(episode.as_str()).or_insert(*line);
+                }
+                Row::Range { step, .. } => {
+                    steps.entry(step.as_str()).or_insert(*line);
+                }
+            }
+        }
+        Places { episodes, steps }
+    }
+
+    /// `l<n>` of the episode of the range row on `line`, or of that row itself where no episode row of the
+    /// stream holds the episode.
+    fn episode(&self, episode: &str, line: usize) -> String {
+        format!("l{}", self.episodes.get(episode).copied().unwrap_or(line))
+    }
+
+    fn outside_step(&self, step: &str, manifest: &[StepLine]) -> String {
+        match self.steps.get(step) {
+            Some(line) => format!("l{line}"),
+            None => {
+                let n = manifest.iter().position(|sl| sl.step == step).unwrap_or(0) + 1;
+                format!("m{n}")
+            }
+        }
+    }
+}
+
+fn check_streams(rule: Rule, steps: &[StepLine], links: &[usize], streams: &[Stream]) -> Checked {
     let by_id: BTreeMap<&str, &StepLine> = steps.iter().map(|s| (s.step.as_str(), s)).collect();
     let step_ids: BTreeSet<&str> = by_id.keys().copied().collect();
     let mut episode_category: BTreeMap<&str, (Category, TaskKind)> = BTreeMap::new();
@@ -277,7 +325,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
     }
     let seed_in_order: Vec<&StepLine> = steps.iter().filter(|s| s.seed_category).collect();
     let mut lines = vec![format!("rule {}", rule.as_str())];
-    lines.extend(links.iter().map(|id| format!("FAIL link {id}")));
+    lines.extend(links.iter().map(|place| format!("FAIL link s{place}")));
     let mut fails = links.len();
     let (mut marked_ranges, mut unmarked) = (0u64, 0u64);
     let (mut password_ranges, mut password_keys) = (0u64, 0u64);
@@ -295,6 +343,8 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
         let mut marks: Vec<(i64, Edge)> = s.records.marks.clone();
         marks.sort_by_key(|(t, e)| (*t, *e == Edge::End));
         let mut in_range = vec![false; titles.len()];
+        let places = Places::of(s);
+        let sp = s.place;
         for (line, row) in &s.rows {
             let Row::Range {
                 episode,
@@ -307,6 +357,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
                 continue;
             };
             n_ranges += 1;
+            let (ep, st) = (places.episode(episode, *line), format!("l{line}"));
             let step_line = by_id.get(step.as_str());
             let mut inside = 0u64;
             let mut own = 0u64;
@@ -346,10 +397,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
                     *start,
                     0,
                     *line,
-                    format!(
-                        "FAIL range {} {episode} {step} {start} {end} titles={inside} own={own}",
-                        s.id
-                    ),
+                    format!("FAIL range s{sp} {ep} {st} {start} {end} titles={inside} own={own}"),
                 ));
             }
             let facts = episode_category.get(episode.as_str());
@@ -359,7 +407,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
                     *start,
                     1,
                     *line,
-                    format!("FAIL seed {} {episode} {step} {start} {end}", s.id),
+                    format!("FAIL seed s{sp} {ep} {st} {start} {end}"),
                 ));
             }
             let kind = facts.map(|(_, k)| *k);
@@ -380,7 +428,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
                         *start,
                         2,
                         *line,
-                        format!("FAIL unmarked {} {episode} {step} {start} {end}", s.id),
+                        format!("FAIL unmarked s{sp} {ep} {st} {start} {end}"),
                     ));
                 }
             }
@@ -398,10 +446,7 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
                         *start,
                         3,
                         *line,
-                        format!(
-                            "FAIL keys {} {episode} {step} {start} {end} key_events={keys}",
-                            s.id
-                        ),
+                        format!("FAIL keys s{sp} {ep} {st} {start} {end} key_events={keys}"),
                     ));
                 }
             }
@@ -419,7 +464,11 @@ fn check_streams(rule: Rule, steps: &[StepLine], links: &[String], streams: &[St
                         t.at,
                         0,
                         usize::MAX,
-                        format!("FAIL outside {} {} {}", s.id, t.at, sl.step),
+                        format!(
+                            "FAIL outside s{sp} {} {}",
+                            t.at,
+                            places.outside_step(&sl.step, steps)
+                        ),
                     ));
                 }
             }
