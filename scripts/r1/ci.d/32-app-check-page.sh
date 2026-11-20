@@ -220,8 +220,8 @@ self_test() {
 [ "$1" = --check-page ] && [ "$2" = --data-dir ] && [ -n "$3" ] && [ "$4" = --within-s ] && [ "$5" = 2 ] || exit 98
 case $STUB_MODE in
   loaded)
-    printf 'halvo: --check-page: the event loop was ready at 5 ms\n' >&2
-    printf 'halvo: --check-page: done in 9 ms\n' >&2
+    printf 'halvo: --check-page: the event loop was ready at 15 ms\n' >&2
+    printf 'halvo: --check-page: done in 19 ms\n' >&2
     printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
     ;;
   two-commands) printf 'page=loaded commands_ok=2 version=0.0.0 service=not_running guard=installed\n' ;;
@@ -292,7 +292,7 @@ case $STUB_MODE in
     exec sleep 30
     ;;
   odd-ready)
-    printf 'halvo: --check-page: the event loop was ready at 7x ms\nhalvo: --check-page: the event loop was ready at 8 ms\nhalvo: --check-page: the event loop was ready at 9 ms\n' >&2
+    printf 'noise halvo: --check-page: the event loop was ready at 1 ms\nhalvo: --check-page: the event loop was ready at 7x ms\nhalvo: --check-page: the event loop was ready at 8 ms\nhalvo: --check-page: the event loop was ready at 9 ms\n' >&2
     exit 1
     ;;
 esac
@@ -302,10 +302,10 @@ EOF
   wrong=
   zeros=$(printf '%0200d' 0)
   check loaded PASS 'check-page exit: 0, lines: 1, line matched: true' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
-' 'check-page ready ms: 5
+' 'check-page ready ms: 15
 check-page err lines: 2
-check-page err: halvo: --check-page: the event loop was ready at 5 ms
-check-page err: halvo: --check-page: done in 9 ms
+check-page err: halvo: --check-page: the event loop was ready at 15 ms
+check-page err: halvo: --check-page: done in 19 ms
 check-page data: 0 files, 0 directories, 0 bytes, 0 dump files
 check-page exit: 0'
   check two-commands FAIL 'printed another line than' 'page=loaded commands_ok=2 version=0.0.0 service=not_running guard=installed
@@ -398,7 +398,7 @@ check-page data: 0 files, 0 directories, 0 bytes, 0 dump files
 FAIL 32-app-check-page (halvo --check-page ran past 4 s and was ended, its event loop ready at 7 ms)'
   check odd-ready FAIL 'halvo --check-page exited 1)' '(none)
 ' 'check-page ready ms: 8
-check-page err lines: 3
+check-page err lines: 4
 '
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
