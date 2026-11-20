@@ -1,6 +1,6 @@
 import { type Child, execFileSync, spawn } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 declare module "node:path" {
   export function basename(path: string): string;
@@ -265,7 +265,8 @@ export function marksDir(): string {
  * cannot be read: the one signal of the kit with no start time, sent while startGroup still runs, before node can reap
  * the child, so that no other process can have its pid. Then it removes the mark and throws; its errors name the
  * command by its file name, and a command that does not start throws that error alone, with node's own error event
- * of the child caught. Until endGroup ends it, the owner ends the group when it gets TERM, INT or
+ * of the child caught. No error that it throws, its own or node's, names a directory of the checkout: the mark and
+ * the command are named by their file names, and node's code of the error is kept. Until endGroup ends it, the owner ends the group when it gets TERM, INT or
  * HUP (and then dies by that signal), when its IPC channel to vitest's main process closes (and then exits with 1),
  * and when it exits: TERM to a group whose leader has the recorded pid and start time, and KILL after the grace to
  * the members that are left, also when the leader itself left on TERM, that TERM or the TERM of an endGroup that had
@@ -275,6 +276,29 @@ export function marksDir(): string {
  * these: the group and its mark stay until sweepMarks.
  */
 export function startGroup(command: string, args: string[], options: Options): Group {
+  try {
+    return startOwn(command, args, options);
+  } catch (error) {
+    throw plain(error, command);
+  }
+}
+
+function plain(error: unknown, command: string): Error {
+  const found = error as { message?: unknown; code?: unknown } | null;
+  let message = typeof found?.message === "string" ? found.message : String(error);
+  const dirs = [marksDir(), dirname(command), process.cwd()];
+  try {
+    dirs.push(realpathSync(process.cwd()));
+  } catch {}
+  for (const dir of dirs.filter((each) => each.startsWith("/")).sort((a, b) => b.length - a.length)) {
+    message = message.split(`${dir}/`).join("").split(dir).join(basename(dir));
+  }
+  const made = new Error(message) as Error & { code?: unknown };
+  if (found?.code !== undefined) made.code = found.code;
+  return made;
+}
+
+function startOwn(command: string, args: string[], options: Options): Group {
   const state = live();
   if (state.owner === null) {
     const self = table().find((row) => row.pid === process.pid);
