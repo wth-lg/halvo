@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=69
+failing_fixtures=70
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 prints_rule=scripts/r1/windows-prints-rule.sh
@@ -746,6 +746,12 @@ rules() {
   [ -n "$repo" ] || repo=$(git rev-parse --show-toplevel 2>/dev/null) || fail "no repository: run it inside a checkout or give CI_D_REPO"
   cd "$repo" || exit 2
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name-rules.XXXXXX") || fail "mktemp failed"
+  if [ -z "${WF_LEDGER_FILE:-}" ]; then
+    mkdir -p "$work/HEAD/${ledger%/*}" || fail "the directory for the ledger of HEAD cannot be made"
+    git show "HEAD:$ledger" >"$work/HEAD/$ledger" 2>/dev/null ||
+      fail "HEAD holds no $ledger: commit the ledger, and the form reads it as HEAD holds it"
+    ledger=$work/HEAD/$ledger
+  fi
   ledger_check
   printf 'rules: the ledger check alone ran; no build, no test and no process of the product was started\n'
   printf 'PASS %s\n' "$name"
@@ -1284,6 +1290,15 @@ EOF
   grep -v 'path=scripts/r1/ci.d/50-windows-functional.sh ' "$right_ledger" >"$work/ledger-paths" || exit 2
   sed 's/ wf_browser=total=1,pass=0,known_defect=1,fail=0 / wf_browser=total=1,pass=0,known_defect=0,fail=0 /' "$right_ledger" >"$work/ledger-sums" || exit 2
   grep -v '^measured view ' "$right_ledger" >"$work/ledger-no-view" || exit 2
+  git clone -q "$repo" "$work/repo-stale-ledger-committed" || exit 2
+  (
+    cd "$work/repo-stale-ledger-committed" || exit 2
+    mkdir -p docs/baseline/ledger.d || exit 2
+    cp "$work/ledger-stale" docs/baseline/ledger.d/win-3.txt || exit 2
+    git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
+      -c commit.gpgsign=false commit -q -m "a stale ledger committed" || exit 2
+    cp "$right_ledger" docs/baseline/ledger.d/win-3.txt || exit 2
+  ) || exit 2
 }
 
 self_test() {
@@ -1577,6 +1592,11 @@ fixtures() {
   check rules-form-runs-through-52-for-the-browser-group exit-0 "$right" \
     "ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
     "${nl}rules: the ledger check alone ran" "${nl}PASS 52-windows-browser" "!the --rules form called"
+  repo_knob=$work/repo-stale-ledger-committed
+  rules_knob=yes
+  check rules-form-reads-the-ledger-that-head-holds FAIL "$right" \
+    "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's (0000000000000000000000000000000000000000 against " \
+    "!the --rules form called"
   args_knob=--no-such-form
   check an-unknown-argument-prints-the-usage-and-exits-64 exit-64 "$right" \
     "usage: sh " "--rules runs the ledger check alone" "!PASS " "!FAIL "
@@ -1686,7 +1706,7 @@ case ${1:-} in
   --rules) rules ;;
   '') measure ;;
   *)
-    printf 'usage: sh %s [--self-test | --rules]\n  --rules runs the ledger check alone: it reads docs/baseline/ledger.d/win-3.txt and the tree at HEAD, builds nothing, runs no test and starts no process of the product\n' "$0" >&2
+    printf 'usage: sh %s [--self-test | --rules]\n  --rules runs the ledger check alone: it reads docs/baseline/ledger.d/win-3.txt as HEAD holds it (or the file that WF_LEDGER_FILE names, as that file stands) against the tree at HEAD, builds nothing, runs no test and starts no process of the product\n' "$0" >&2
     exit 64
     ;;
 esac
