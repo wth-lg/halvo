@@ -342,6 +342,7 @@ impl std::fmt::Display for NoReply {
 }
 
 const NOT_DRIVEN: &str = "a reply of the fixture did not come";
+const MARKERS_NOT_RECORDED: &str = "the markers were not recorded";
 
 fn source_of(path: &str) -> &'static str {
     let full = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
@@ -1349,7 +1350,7 @@ impl Drive {
         if state.plain != MARKERS.len() {
             round.why_not = "the markers did not land in the plain field";
         } else if round.markers < MARKERS.len() {
-            round.why_not = "the markers were not recorded";
+            round.why_not = MARKERS_NOT_RECORDED;
         } else {
             round.counted = true;
         }
@@ -1637,6 +1638,98 @@ fn by_wait_line(name: &str, rounds: &[Round], waits: &[(u64, Duration)]) -> Stri
     )
 }
 
+fn late_drops(entries: &[RawEntry]) -> usize {
+    entries
+        .iter()
+        .filter(|entry| match **entry {
+            RawEntry::Dropped {
+                cause: Cause::LateKey,
+                keys,
+                ..
+            } => keys > 0,
+            RawEntry::Arrival {
+                admission: Arrived::Withheld { cause, .. },
+                ..
+            } => cause == Cause::LateKey,
+            _ => false,
+        })
+        .count()
+}
+
+fn released_before_the_markers(round: &Round) -> bool {
+    released_keys(&round.entries)
+        .iter()
+        .any(|&(arrival, _)| match (arrival, round.markers_at) {
+            (Some(arrival), Some(posted)) => arrival < posted,
+            _ => true,
+        })
+}
+
+fn lost_to_the_late_rule(round: &Round) -> bool {
+    let markers_not_recorded = round.verdict.map_or(
+        !round.counted && round.not_driven.is_none() && round.why_not == MARKERS_NOT_RECORDED,
+        |verdict| verdict == Verdict::NotCounted(MARKERS_NOT_RECORDED),
+    );
+    markers_not_recorded
+        && round.ahead == 0
+        && !released_before_the_markers(round)
+        && late_drops(&round.entries) > 0
+}
+
+fn lost_at(rounds: &[Round], wait_ms: u64) -> usize {
+    rounds
+        .iter()
+        .filter(|round| round.wait_ms == wait_ms && lost_to_the_late_rule(round))
+        .count()
+}
+
+fn late_rule_line(name: &str, rounds: &[Round], waits: &[u64]) -> String {
+    let by_wait: Vec<String> = waits
+        .iter()
+        .map(|&wait_ms| format!("{wait_ms}:{}", lost_at(rounds, wait_ms)))
+        .collect();
+    format!(
+        "{name} rounds_lost_to_the_late_rule={} by_wait={}",
+        rounds
+            .iter()
+            .filter(|round| lost_to_the_late_rule(round))
+            .count(),
+        by_wait.join(",")
+    )
+}
+
+fn assert_at_most_one_lost(name: &str, rounds: &[Round], waits: &[u64]) {
+    let above: Vec<String> = waits
+        .iter()
+        .filter_map(|&wait_ms| {
+            let lost = lost_at(rounds, wait_ms);
+            (lost > 1).then(|| format!("wait {wait_ms} ms: {lost}"))
+        })
+        .collect();
+    assert!(
+        above.is_empty(),
+        "{name}: rounds lost to the late rule above one at a wait in the long form: {}",
+        above.join(", ")
+    );
+}
+
+fn assert_quota(name: &str, rounds: &[Round], waits: &[u64], count: usize) {
+    let short_of_count: Vec<String> = waits
+        .iter()
+        .filter_map(|&wait_ms| {
+            let held = at_wait(rounds, wait_ms, Verdict::Held);
+            let not_driven = at_wait(rounds, wait_ms, Verdict::NotDriven);
+            (held + not_driven < count)
+                .then(|| format!("wait {wait_ms} ms: {held} of {count}, {not_driven} not driven"))
+        })
+        .collect();
+    assert!(
+        short_of_count.is_empty(),
+        "{name}: rounds that did not count by the cap of rounds run: {}",
+        short_of_count.join(", ")
+    );
+}
+
 fn judge_mended(name: &str, rounds: &[Round], waits: &[(u64, Duration)], count: usize) {
     judge_mended_in(name, rounds, waits, count, short_form());
 }
@@ -1650,6 +1743,8 @@ fn judge_mended_in(
 ) {
     assert!(!rounds.is_empty(), "{name}: the phase ran no round");
     println!("{}", by_wait_line(name, rounds, waits));
+    let wait_list: Vec<u64> = waits.iter().map(|&(wait_ms, _)| wait_ms).collect();
+    println!("{}", late_rule_line(name, rounds, &wait_list));
     let of = |want: fn(Verdict) -> bool| -> Vec<String> {
         rounds
             .iter()
@@ -1704,6 +1799,7 @@ fn judge_mended_in(
     );
     let not_counted: Vec<String> = rounds
         .iter()
+        .filter(|round| !lost_to_the_late_rule(round))
         .filter_map(|round| match round.verdict {
             Some(Verdict::NotCounted(why)) => Some(format!("wait {} ms: {why}", round.wait_ms)),
             _ => None,
@@ -1754,6 +1850,12 @@ fn judge_mended_in(
             "{name}: no round of the phase was held: the short form passes a phase with one held \
              round and no failed round"
         );
+        let lost_waits: Vec<u64> = wait_list
+            .iter()
+            .copied()
+            .filter(|&wait_ms| lost_at(rounds, wait_ms) > 0)
+            .collect();
+        assert_quota(name, rounds, &lost_waits, count);
         return;
     }
     let not_driven_waits: Vec<u64> = waits
@@ -1781,20 +1883,8 @@ fn judge_mended_in(
             .collect::<Vec<_>>()
             .join(", ")
     );
-    let short_of_count: Vec<String> = waits
-        .iter()
-        .filter_map(|&(wait_ms, _)| {
-            let held = at_wait(rounds, wait_ms, Verdict::Held);
-            let not_driven = at_wait(rounds, wait_ms, Verdict::NotDriven);
-            (held + not_driven < count)
-                .then(|| format!("wait {wait_ms} ms: {held} of {count}, {not_driven} not driven"))
-        })
-        .collect();
-    assert!(
-        short_of_count.is_empty(),
-        "{name}: rounds that did not count by the cap of rounds run: {}",
-        short_of_count.join(", ")
-    );
+    assert_at_most_one_lost(name, rounds, &wait_list);
+    assert_quota(name, rounds, &wait_list, count);
 }
 
 fn measured(name: &str, form: &str, rounds: &[Round]) {
@@ -1842,6 +1932,10 @@ fn measured(name: &str, form: &str, rounds: &[Round]) {
 }
 
 fn judge(name: &str, rounds: &[Round]) {
+    judge_in(name, rounds, short_form());
+}
+
+fn judge_in(name: &str, rounds: &[Round], short: bool) {
     let leaked: Vec<String> = rounds
         .iter()
         .filter(|round| {
@@ -1862,9 +1956,18 @@ fn judge(name: &str, rounds: &[Round]) {
         leaked.join(", ")
     );
     assert_some_round_driven(name, rounds);
+    let mut waits: Vec<u64> = Vec::new();
+    for round in rounds {
+        if !waits.contains(&round.wait_ms) {
+            waits.push(round.wait_ms);
+        }
+    }
+    println!("{}", late_rule_line(name, rounds, &waits));
     let not_counted: Vec<String> = rounds
         .iter()
-        .filter(|round| !round.counted && round.not_driven.is_none())
+        .filter(|round| {
+            !round.counted && round.not_driven.is_none() && !lost_to_the_late_rule(round)
+        })
         .map(|round| format!("wait {} ms: {}", round.wait_ms, round.why_not))
         .collect();
     assert!(
@@ -1882,6 +1985,29 @@ fn judge(name: &str, rounds: &[Round]) {
         "{name}: records of the markers other than one for each marker: {}",
         inexact.join(", ")
     );
+    let short_of_count: Vec<String> = waits
+        .iter()
+        .filter(|&&wait_ms| lost_at(rounds, wait_ms) > 0)
+        .filter(|&&wait_ms| {
+            !rounds.iter().any(|round| {
+                round.wait_ms == wait_ms && (round.counted || round.not_driven.is_some())
+            })
+        })
+        .map(|&wait_ms| {
+            format!(
+                "wait {wait_ms} ms: 0 counted, 0 not driven, {} lost to the late rule",
+                lost_at(rounds, wait_ms)
+            )
+        })
+        .collect();
+    assert!(
+        short_of_count.is_empty(),
+        "{name}: rounds that did not count by the cap of rounds run: {}",
+        short_of_count.join(", ")
+    );
+    if !short {
+        assert_at_most_one_lost(name, rounds, &waits);
+    }
 }
 
 fn stall_waits() -> Vec<(u64, Duration)> {
@@ -6738,6 +6864,84 @@ fn a_round_lost_to_a_late_marker_reads_by_its_rule_on_a_table() {
     println!("late row: as is: a round lost to a late marker beside a counted round at its wait: want=None got={as_is:?}");
     if as_is.is_some() {
         wrong.push("as is: a round lost to a late marker beside a counted round at its wait");
+    }
+    let waits_ms: Vec<u64> = stall_waits().iter().map(|&(wait_ms, _)| wait_ms).collect();
+    let one_at_2000 =
+        "stand-in rounds_lost_to_the_late_rule=1 by_wait=150:0,300:0,600:0,850:0,2000:1";
+    for (what, rounds) in [
+        (
+            "1 the count reads 1 at the wait of the round lost to a late marker",
+            beside_a_counted_retry(lost_to_a_late_marker(2_000)),
+        ),
+        (
+            "7 the count of the hosted job's rounds reads 1 at wait 2000 ms",
+            the_rounds_of_the_hosted_job_135405942095(),
+        ),
+    ] {
+        let got = late_rule_line("stand-in", &rounds, &waits_ms);
+        println!("late row: {what}: want={one_at_2000} got={got}");
+        if got != one_at_2000 {
+            wrong.push(what);
+        }
+    }
+    let lost_as_is = |wait_ms: u64| Round {
+        verdict: None,
+        ..lost_to_a_late_marker(wait_ms)
+    };
+    let counted_at = |wait_ms: u64| Round {
+        wait_ms,
+        ..stand_in_round(true, 0)
+    };
+    let as_is_rows: Vec<LateRow> = vec![
+        (
+            "as is: a round lost to a late marker alone at its wait",
+            vec![counted_at(300), lost_as_is(1_500)],
+            true,
+            Some("rounds that did not count by the cap of rounds run: wait 1500 ms: 0 counted, 0 not driven, 1 lost to the late rule"),
+        ),
+        (
+            "as is: a round lost to a late marker beside a round not driven at its wait",
+            vec![counted_at(300), lost_as_is(1_500), not_driven_round(1_500, 0)],
+            true,
+            None,
+        ),
+        (
+            "as is: two rounds lost to a late marker at one wait, long form",
+            vec![counted_at(1_500), lost_as_is(1_500), lost_as_is(1_500)],
+            false,
+            Some("rounds lost to the late rule above one at a wait in the long form: wait 1500 ms: 2"),
+        ),
+        (
+            "as is: two rounds lost to a late marker at one wait, short form",
+            vec![counted_at(1_500), lost_as_is(1_500), lost_as_is(1_500)],
+            true,
+            None,
+        ),
+        (
+            "as is: a round not counted with a key ahead and a late drop",
+            vec![
+                counted_at(1_500),
+                Round {
+                    ahead: 1,
+                    ..lost_as_is(1_500)
+                },
+            ],
+            true,
+            Some("rounds that did not count: wait 1500 ms: the markers were not recorded"),
+        ),
+    ];
+    for (what, rounds, short, want) in as_is_rows {
+        let got = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || judge_in("stand-in", &rounds, short),
+        )));
+        println!("late row: {what}: want={want:?} got={got:?}");
+        let right = match want {
+            None => got.is_none(),
+            Some(text) => got.is_some_and(|got| got.contains(text)),
+        };
+        if !right {
+            wrong.push(what);
+        }
     }
     assert!(
         wrong.is_empty(),
