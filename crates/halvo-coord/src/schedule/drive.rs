@@ -1,5 +1,5 @@
 use super::{
-    active_state, clean, current_slot, gives_active, holds, slot_open, start_step, tick_plan,
+    clean, current_slot, holds, kept_off, slot_open, start_step, switch_on_state, tick_plan,
     tick_step, wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing,
     StartStep, Stop, Verdict, Waiting,
 };
@@ -526,12 +526,29 @@ fn take_open_item_from_read<C>(facts: &mut Facts<C>, before: usize) {
     }
 }
 
-fn send_state<P: Owner, C>(cx: &MoveContext<'_, P>, facts: &Facts<C>, state: AgentState) {
-    let _ = cx.ports.send(&Body::SetState {
+/// Sends `set_state` and reads its answer: the owner's acknowledgement, `{"state":"<state>"}`
+/// with the state sent, writes that state into the agent's facts, so that every later step of the
+/// move reads it (ruling RD-67 1.3 (a); I5.1); any other reply is no acknowledgement and answers
+/// `no_service`, and a refusal or no answer changes nothing.
+fn send_state<P: Owner, C>(
+    cx: &MoveContext<'_, P>,
+    facts: &mut Facts<C>,
+    state: AgentState,
+) -> Result<(), PortError> {
+    let reply = cx.ports.send(&Body::SetState {
         workflow: facts.workflow.id.clone(),
         agent: facts.agent.clone(),
         state,
-    });
+    })?;
+    if reply.get("state").and_then(|s| s.as_str()) != Some(state.name()) {
+        return Err(PortError::NoService);
+    }
+    facts.workflow.state = match state {
+        AgentState::Approved => WorkflowState::Approved,
+        AgentState::Active => WorkflowState::Active,
+        AgentState::Paused => WorkflowState::Paused,
+    };
+    Ok(())
 }
 
 fn minted<P: Rng>(cx: &MoveContext<'_, P>) -> Result<String, PortError> {
@@ -654,7 +671,7 @@ where
         store_at(cx, board, i, whats, day, at)?;
     }
     if pause {
-        send_state(cx, &board.members[i].facts, AgentState::Paused);
+        let _ = send_state(cx, &mut board.members[i].facts, AgentState::Paused);
     }
     Ok(())
 }
@@ -792,7 +809,7 @@ where
     let off = holds(&board.members[i].facts).contains(&Hold::Off);
     let served = start_steps(cx, board, i, trigger, listed, from_queue, unread);
     if !off && holds(&board.members[i].facts).contains(&Hold::Off) {
-        send_state(cx, &board.members[i].facts, AgentState::Paused);
+        let _ = send_state(cx, &mut board.members[i].facts, AgentState::Paused);
     }
     served
 }
@@ -848,7 +865,18 @@ where
         answer,
         run: None,
     };
-    if step.clear.is_some() {
+    if step.clear.is_some_and(|c| c.set_state.is_some()) {
+        if let Err(e) = read_once(cx, board, i) {
+            return served(Err(port_cause(&e)));
+        }
+        step = steps(&mut board.members[i].facts);
+    }
+    if let Some(clear) = step.clear {
+        if let Some(state) = clear.set_state {
+            if let Err(e) = send_state(cx, &mut board.members[i].facts, state) {
+                return served(Err(port_cause(&e)));
+            }
+        }
         let cleared = What::HoldCleared {
             cause: Cleared::Failures,
         };
@@ -856,10 +884,6 @@ where
             return served(Err(port_cause(&e)));
         }
         step = steps(&mut board.members[i].facts);
-        let facts = &board.members[i].facts;
-        if !holds(facts).contains(&Hold::Off) {
-            send_state(cx, facts, active_state(&facts.config));
-        }
     }
     if let Some(cause) = unread {
         let off = holds(&board.members[i].facts).contains(&Hold::Off);
@@ -1440,9 +1464,9 @@ where
     };
     recover_aside(cx, board);
     pay_owed(cx, board);
-    for m in &board.members {
+    for m in &mut board.members {
         if starts && wants_active(&m.facts) {
-            send_state(cx, &m.facts, AgentState::Active);
+            let _ = send_state(cx, &mut m.facts, AgentState::Active);
         }
     }
     if plan.serve && starts {
@@ -1819,8 +1843,11 @@ where
             answer_check(cx, board, i, &run, answer)
         }
         Move::SwitchOn { .. } => {
+            if !standing.contains(&Hold::Off) && !standing.contains(&Hold::Failures) {
+                return refused(Cause::State);
+            }
             let mut whats = Vec::new();
-            if standing.contains(&Hold::Off) {
+            if standing.contains(&Hold::Off) && !kept_off(facts) {
                 whats.push(What::HoldCleared {
                     cause: Cleared::Person,
                 });
@@ -1830,8 +1857,12 @@ where
                     cause: Cleared::Failures,
                 });
             }
+            let state = switch_on_state(facts);
+            if let Err(e) = send_state(cx, &mut board.members[i].facts, state) {
+                return refused(port_cause(&e));
+            }
             if whats.is_empty() {
-                return refused(Cause::State);
+                return Report::default();
             }
             if let Err(e) = store(cx, board, i, whats) {
                 let ended = !seq_refusal(&e)
@@ -1843,13 +1874,6 @@ where
                     return refused(port_cause(&e));
                 }
             }
-            let facts = &board.members[i].facts;
-            let state = if gives_active(facts) {
-                AgentState::Active
-            } else {
-                AgentState::Approved
-            };
-            send_state(cx, facts, state);
             Report::default()
         }
         Move::SwitchOff { .. } => {
@@ -1932,7 +1956,7 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
         }
         report.stopped.push(run);
     }
-    send_state(cx, &board.members[i].facts, AgentState::Paused);
+    let _ = send_state(cx, &mut board.members[i].facts, AgentState::Paused);
     report
 }
 

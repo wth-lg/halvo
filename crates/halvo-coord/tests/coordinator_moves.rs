@@ -5961,12 +5961,15 @@ fn rd52b_a_switch_on_whose_hold_cleared_reply_is_lost_in_both_forms() {
         lose_the_next_holds_reply(&c, order);
         let out = c.control(&agent(0), Action::SwitchOn);
         c.ports().loss.set(None);
+        assert_eq!(
+            states_sent(&c, m).len(),
+            1,
+            "{order:?}: the state goes first (ruling RD-67 1.3 (a), 1.5 (iii))"
+        );
         if order == support::Loss::Reply {
             assert_eq!(out, Ok(()), "{order:?}");
-            assert_eq!(states_sent(&c, m).len(), 1, "{order:?}");
         } else {
             assert_eq!(out, Err(Cause::NoService), "{order:?}");
-            assert!(states_sent(&c, m).is_empty(), "{order:?}");
         }
     }
 }

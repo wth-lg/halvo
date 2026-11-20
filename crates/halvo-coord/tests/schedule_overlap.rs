@@ -387,3 +387,232 @@ fn a_new_life_gives_the_stand_in_of_a_dismissed_workflow_no_hold() {
         vec![halvo_coord::schedule::Hold::Off]
     );
 }
+
+const L: halvo_coord::types::Limits = halvo_coord::types::Limits::PRODUCT;
+
+fn go(
+    p: &Ports<Config>,
+    board: &mut halvo_coord::schedule::Board<Config>,
+    mv: halvo_coord::schedule::Move,
+) -> halvo_coord::schedule::Report {
+    halvo_coord::schedule::drive(p, board, &L, mv)
+}
+
+fn switch_on(n: usize) -> halvo_coord::schedule::Move {
+    halvo_coord::schedule::Move::SwitchOn { agent: agent(n) }
+}
+
+fn start(n: usize) -> halvo_coord::schedule::Move {
+    halvo_coord::schedule::Move::Start { agent: agent(n) }
+}
+
+/// The calls that wrote or asked the owner, as tried, in order: `set_state <state>` and `log`
+/// with its events' names, each with `refused` where the owner refused it.
+fn writes(p: &Ports<Config>) -> Vec<String> {
+    p.tried
+        .borrow()
+        .iter()
+        .filter_map(|t| {
+            let text = match &t.call {
+                Call::Send(Body::SetState {
+                    agent: a, state, ..
+                }) => {
+                    format!("set_state {} {}", &a.as_str()[30..], state.name())
+                }
+                Call::Send(Body::StartRun { .. }) => "start_run".to_owned(),
+                Call::Log(events) => format!(
+                    "log {}",
+                    events
+                        .iter()
+                        .map(halvo_coord::items::drive::event_name)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                _ => return None,
+            };
+            Some(match &t.refused {
+                Some(_) => format!("{text} refused"),
+                None => text,
+            })
+        })
+        .collect()
+}
+
+fn stored(p: &Ports<Config>, n: usize) -> Vec<&'static str> {
+    p.events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .map(halvo_coord::items::drive::event_name)
+        .collect()
+}
+
+fn holds_of(
+    board: &halvo_coord::schedule::Board<Config>,
+    n: usize,
+) -> Vec<halvo_coord::schedule::Hold> {
+    halvo_coord::schedule::holds(&board.members[n].facts)
+}
+
+const OFF: halvo_coord::schedule::Hold = halvo_coord::schedule::Hold::Off;
+const FAILURES: halvo_coord::schedule::Hold = halvo_coord::schedule::Hold::Failures;
+
+fn fresh(p: &Ports<Config>) {
+    p.tried.borrow_mut().clear();
+    p.calls.borrow_mut().clear();
+}
+
+#[test]
+fn b_a_switch_on_sends_the_state_first_and_stores_hold_cleared_only_after_its_acknowledgement() {
+    let p = ports(&[(
+        PAUSED,
+        ACCOUNT,
+        &["ann@people.test"],
+        &[HoldSetCause::Person],
+    )]);
+    let mut board = life(&p);
+    fresh(&p);
+    assert_eq!(
+        go(&p, &mut board, switch_on(0)).answer,
+        Ok(halvo_coord::schedule::Answer::Ok)
+    );
+    assert_eq!(writes(&p), ["set_state a0 active", "log hold_cleared"]);
+    assert_eq!(
+        board.members[0].facts.workflow.state, ACTIVE,
+        "the acknowledged state"
+    );
+    assert_eq!(holds_of(&board, 0), vec![]);
+}
+
+#[test]
+fn b_a_switch_on_whose_state_gets_no_acknowledgement_clears_nothing_stores_nothing_and_answers_the_cause(
+) {
+    use halvo_coord::types::Cause;
+    for (error, cause) in [
+        (PortError::Busy, Cause::Busy),
+        (PortError::NoService, Cause::NoService),
+        (refused("store_unavailable"), Cause::NoService),
+        (refused("overlap"), Cause::NoService),
+    ] {
+        let p = ports(&[(
+            PAUSED,
+            ACCOUNT,
+            &["ann@people.test"],
+            &[HoldSetCause::Person, HoldSetCause::Failures],
+        )]);
+        let mut board = life(&p);
+        let before = stored(&p, 0);
+        fresh(&p);
+        p.refuse(Method::Send, error.clone());
+        assert_eq!(
+            go(&p, &mut board, switch_on(0)).answer,
+            Err(cause),
+            "{error:?}"
+        );
+        assert_eq!(writes(&p), ["set_state a0 active refused"], "{error:?}");
+        assert_eq!(stored(&p, 0), before, "{error:?}: nothing stored");
+        assert_eq!(holds_of(&board, 0), vec![OFF, FAILURES], "{error:?}");
+        assert_eq!(board.members[0].facts.workflow.state, PAUSED, "{error:?}");
+    }
+}
+
+#[test]
+fn b_a_switch_on_refused_with_overlap_by_the_store_beside_a_live_agent_stores_nothing() {
+    let p = ports(&[
+        (
+            PAUSED,
+            ACCOUNT,
+            &["ann@people.test"],
+            &[HoldSetCause::Person],
+        ),
+        (ACTIVE, ACCOUNT, &["ann@people.test"], &[]),
+    ]);
+    let mut board = life(&p);
+    let before = stored(&p, 0);
+    fresh(&p);
+    assert_eq!(
+        go(&p, &mut board, switch_on(0)).answer,
+        Err(halvo_coord::types::Cause::NoService)
+    );
+    assert_eq!(writes(&p), ["set_state a0 active refused"]);
+    assert_eq!(stored(&p, 0), before);
+    assert_eq!(holds_of(&board, 0), vec![OFF]);
+    assert_eq!(listed(&p, 0), PAUSED);
+}
+
+#[test]
+fn b_a_start_that_ends_failures_sends_the_state_first_and_on_no_acknowledgement_stores_no_run() {
+    let p = ports(&[(
+        PAUSED,
+        ACCOUNT,
+        &["ann@people.test"],
+        &[HoldSetCause::Failures],
+    )]);
+    let mut board = life(&p);
+    let before = stored(&p, 0);
+    fresh(&p);
+    p.refuse(Method::Send, PortError::Busy);
+    assert_eq!(
+        go(&p, &mut board, start(0)).answer,
+        Err(halvo_coord::types::Cause::Busy)
+    );
+    assert_eq!(writes(&p), ["set_state a0 active refused"]);
+    assert_eq!(
+        stored(&p, 0),
+        before,
+        "no hold_cleared, no run_started, no run_ended"
+    );
+    assert_eq!(holds_of(&board, 0), vec![FAILURES]);
+    p.clear_refusals();
+    fresh(&p);
+    let r = go(&p, &mut board, start(0));
+    assert_eq!(r.answer, Ok(halvo_coord::schedule::Answer::Ok), "{r:?}");
+    assert_eq!(
+        writes(&p),
+        [
+            "set_state a0 active",
+            "log hold_cleared",
+            "log run_started",
+            "start_run"
+        ]
+    );
+}
+
+#[test]
+fn b_under_a_standing_hold_off_a_start_ends_failures_and_sends_no_state() {
+    let p = ports(&[(
+        PAUSED,
+        ACCOUNT,
+        &["ann@people.test"],
+        &[HoldSetCause::Person, HoldSetCause::Failures],
+    )]);
+    let mut board = life(&p);
+    fresh(&p);
+    assert_eq!(
+        go(&p, &mut board, start(0)).answer,
+        Err(halvo_coord::types::Cause::Hold)
+    );
+    assert_eq!(writes(&p), ["log hold_cleared"]);
+    assert_eq!(holds_of(&board, 0), vec![OFF]);
+}
+
+#[test]
+fn b_the_derived_off_takes_switch_on_with_its_state_and_no_event() {
+    let p = ports(&[(PAUSED, ACCOUNT, &["ann@people.test"], &[])]);
+    let mut board = life(&p);
+    assert_eq!(holds_of(&board, 0), vec![OFF]);
+    assert_eq!(
+        go(&p, &mut board, start(0)).answer,
+        Err(halvo_coord::types::Cause::Hold),
+        "a start is refused with hold"
+    );
+    fresh(&p);
+    assert_eq!(
+        go(&p, &mut board, switch_on(0)).answer,
+        Ok(halvo_coord::schedule::Answer::Ok)
+    );
+    assert_eq!(writes(&p), ["set_state a0 active"]);
+    assert_eq!(listed(&p, 0), ACTIVE);
+    assert_eq!(holds_of(&board, 0), vec![]);
+    assert_eq!(stored(&p, 0), Vec::<&str>::new());
+}

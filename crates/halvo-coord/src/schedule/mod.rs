@@ -22,3 +22,4 @@ pub use start::{
     active_state, needs_model, needs_person, start_step, Around, Clear, Go, StartStep, Verdict,
 };
 pub use tick::{gives_active, tick_plan, tick_step, wants_active, Ask, Plan};
+pub use tick::{switch_on_state, wants_paused};
