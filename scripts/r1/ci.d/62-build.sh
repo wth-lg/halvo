@@ -578,6 +578,8 @@ EOF
   expect_row="$header" imports_case repeated-import-header FAIL "$bad_layout" "$work/halvo"
   printf '%s\n' "$clean" "$other_slice" "$header" "      other$forbidden_import  (from Carbon)" >"$work/halvo"
   imports_case clean-imports-both-slices PASS 'dyld_info -imports halvo: absent' "$work/halvo"
+  printf '%s\r\n' "$slice" '' "$header" "      .\$entry  (from libSystem)" "      ${forbidden_import}_2  (from Carbon)" >"$work/halvo"
+  imports_case clean-imports-crlf PASS 'dyld_info -imports halvo: absent' "$work/halvo"
 
   rules_repo=$work/rules
   mkdir -p "$rules_repo/crates/member" "$rules_repo/crates/member/.cargo" || exit 2
@@ -669,6 +671,28 @@ if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
 exit 0
 SH
   PATH="$standins:$PATH" rules_case reader-silent-with-success FAIL 'unexpected Cargo.toml reader output: '
+  stand_in python3.11 <<'SH'
+if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
+printf 'profile-ok\n'
+SH
+  PATH="$standins:$PATH" rules_case reader-extra-newline FAIL 'unexpected Cargo.toml reader output: profile-ok'
+  stand_in python3.11 <<'SH'
+if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
+printf 'profile-ok'
+printf ' extra' >&2
+SH
+  PATH="$standins:$PATH" rules_case reader-extra-stderr FAIL 'unexpected Cargo.toml reader output: profile-ok extra'
+  stand_in python3.11 <<'SH'
+if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
+printf 'profile-ok'
+exit 1
+SH
+  PATH="$standins:$PATH" rules_case reader-token-with-failure FAIL 'profile-ok)'
+  stand_in python3.11 <<'SH'
+if [ "$2" = -c ]; then "$fixture_python" "$@"; fi
+exit 1
+SH
+  PATH="$standins:$PATH" expect_reader="$expect_second" rules_case probe-answer-with-failure FAIL "$need_profile"
   for program in python3.11 python3 python; do
     stand_in "$program" <<'SH'
 exit 1
