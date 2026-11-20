@@ -89,6 +89,7 @@ test/metering/u56p2-round.node.test.ts	9
 test/metering/u56p2-stored.node.test.ts	9
 test/metering/unexplained-bound.node.test.ts	9
 test/metering/unexplained-line.node.test.ts	5
+test/metering/unexplained-model.node.test.ts	3
 test/metering/ver2-v1-calls.node.test.ts	6
 test/metering/ver37-f1b.node.test.ts	1
 test/metering/ver37-x1.node.test.ts	4
