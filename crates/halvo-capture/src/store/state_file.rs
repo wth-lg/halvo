@@ -179,11 +179,6 @@ mod tests {
         use crate::daemon::instance::InstanceLock;
         use halvo_control::paths::DataDir;
 
-        let reads_running = |dir: &Path| {
-            std::fs::read_to_string(dir.join("daemon-state.json"))
-                .ok()
-                .map(|text| text.contains("\"desired\":\"running\""))
-        };
         let root = crate::daemon::state::tests::test_dir();
         let root_path = root.path().canonicalize().unwrap();
         let (data, moved) = (root_path.join("data"), root_path.join("moved"));
@@ -218,5 +213,172 @@ mod tests {
             written_by_the_second
         );
         drop((first_lock, second_lock));
+    }
+
+    fn next_start(dir: &Path) -> (StateHealth, Desired) {
+        let next = StateFile::open(
+            StateDir::open(dir).unwrap(),
+            Box::new(DurableStateWrite::new()),
+        );
+        (next.health(), next.state().desired)
+    }
+
+    fn reads_running(dir: &Path) -> Option<bool> {
+        std::fs::read_to_string(dir.join("daemon-state.json"))
+            .ok()
+            .map(|text| text.contains("\"desired\":\"running\""))
+    }
+
+    fn recorded(dir: &Path, fs: &Arc<RecordingFs>) -> StateFile {
+        StateFile::open(
+            StateDir::open(dir).unwrap(),
+            Box::new(DurableStateWrite {
+                fs: Box::new(Shared(fs.clone())),
+            }),
+        )
+    }
+
+    #[test]
+    fn an_error_at_each_step_of_a_later_write_leaves_memory_equal_to_what_the_next_start_reads() {
+        for step in [
+            Kind::RemoveFile,
+            Kind::CreateNew,
+            Kind::SyncFile,
+            Kind::Rename,
+            Kind::SyncDir,
+        ] {
+            let dir = crate::daemon::state::tests::test_dir();
+            let fs = Arc::new(RecordingFs::new());
+            let mut file = recorded(dir.path(), &fs);
+            assert_eq!(
+                (file.health(), file.state().desired),
+                (StateHealth::Ok, Desired::Paused)
+            );
+            fs.fail(step);
+            let answer = file.update(|state| state.desired = Desired::Running);
+            let renamed = step == Kind::SyncDir;
+            match (&answer, renamed) {
+                (
+                    Err(StateError::NotFlushed {
+                        kind: io::ErrorKind::StorageFull,
+                        ..
+                    }),
+                    true,
+                )
+                | (
+                    Err(StateError::NotWritten {
+                        kind: io::ErrorKind::StorageFull,
+                        ..
+                    }),
+                    false,
+                ) => {}
+                _ => panic!("{step:?}: {answer:?}"),
+            }
+            assert_eq!(
+                file.health(),
+                StateHealth::WriteFailed(io::ErrorKind::StorageFull),
+                "{step:?}"
+            );
+            assert_eq!(reads_running(dir.path()), Some(renamed), "{step:?}");
+            assert_eq!(
+                (StateHealth::Ok, file.state().desired),
+                next_start(dir.path()),
+                "{step:?}: memory differs from what the next start reads"
+            );
+        }
+    }
+
+    #[test]
+    fn a_pause_whose_folder_flush_fails_leaves_memory_no_more_capturing_than_the_file() {
+        let dir = crate::daemon::state::tests::test_dir();
+        let fs = Arc::new(RecordingFs::new());
+        let mut file = recorded(dir.path(), &fs);
+        file.update(|state| state.desired = Desired::Running)
+            .unwrap();
+        fs.fail(Kind::SyncDir);
+        let answer = file.update(|state| state.desired = Desired::Paused);
+        assert!(
+            matches!(answer, Err(StateError::NotFlushed { .. })),
+            "{answer:?}"
+        );
+        assert_eq!(reads_running(dir.path()), Some(false));
+        assert_eq!(file.state().desired, Desired::Paused);
+        assert_eq!(next_start(dir.path()), (StateHealth::Ok, Desired::Paused));
+    }
+
+    struct StepFs(Arc<std::sync::Mutex<Option<Kind>>>);
+
+    impl StepFs {
+        fn at(&self, kind: Kind) -> io::Result<()> {
+            if *self.0.lock().unwrap() == Some(kind) {
+                return Err(io::Error::from(io::ErrorKind::StorageFull));
+            }
+            Ok(())
+        }
+    }
+
+    impl DurableFs for StepFs {
+        fn create_new(&self, dir: &Dir, name: &OsStr) -> io::Result<File> {
+            self.at(Kind::CreateNew)?;
+            OsFs.create_new(dir, name)
+        }
+
+        fn sync_file(&self, file: &File, dir: &Dir, name: &OsStr) -> io::Result<()> {
+            self.at(Kind::SyncFile)?;
+            OsFs.sync_file(file, dir, name)
+        }
+
+        fn rename(&self, dir: &Dir, from: &OsStr, to: &OsStr) -> io::Result<()> {
+            self.at(Kind::Rename)?;
+            OsFs.rename(dir, from, to)
+        }
+
+        fn remove_file(&self, dir: &Dir, name: &OsStr) -> io::Result<()> {
+            self.at(Kind::RemoveFile)?;
+            OsFs.remove_file(dir, name)
+        }
+
+        fn sync_dir(&self, dir: &Dir) -> io::Result<()> {
+            self.at(Kind::SyncDir)?;
+            OsFs.sync_dir(dir)
+        }
+
+        fn entries(&self, dir: &Dir) -> io::Result<Vec<Entry>> {
+            OsFs.entries(dir)
+        }
+
+        fn open_dir(&self, dir: &Dir, name: &OsStr) -> io::Result<Dir> {
+            OsFs.open_dir(dir, name)
+        }
+    }
+
+    #[test]
+    fn after_a_failed_folder_flush_a_record_of_a_grant_writes_no_older_desired_back() {
+        use halvo_control::onboarding::Permission;
+
+        let dir = crate::daemon::state::tests::test_dir();
+        let step = Arc::new(std::sync::Mutex::new(None));
+        let mut file = StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(DurableStateWrite {
+                fs: Box::new(StepFs(step.clone())),
+            }),
+        );
+        *step.lock().unwrap() = Some(Kind::SyncDir);
+        let resume = file.update(|state| state.desired = Desired::Running);
+        assert!(
+            matches!(resume, Err(StateError::NotFlushed { .. })),
+            "{resume:?}"
+        );
+        assert_eq!(reads_running(dir.path()), Some(true));
+        *step.lock().unwrap() = None;
+        file.record_granted(&[Permission::InputMonitoring]).unwrap();
+        assert_eq!(
+            reads_running(dir.path()),
+            Some(true),
+            "the record wrote an older desired back"
+        );
+        assert_eq!(file.state().desired, Desired::Running);
+        assert_eq!(file.health(), StateHealth::Ok);
     }
 }

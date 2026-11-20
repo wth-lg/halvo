@@ -187,8 +187,8 @@ pub enum StateHealth {
     Corrupt,
     /// The file names a version above [`STATE_VERSION`].
     NewerVersion(u64),
-    /// The last write failed with this kind; memory holds what the file held
-    /// before it.
+    /// The last write failed with this kind; memory holds what the file read
+    /// after it.
     WriteFailed(io::ErrorKind),
 }
 
@@ -199,6 +199,11 @@ pub enum StateError {
     LeftAsItIs { file: PathBuf, health: StateHealth },
     #[error("the state file {} was not written: {kind}", .file.display())]
     NotWritten { file: PathBuf, kind: io::ErrorKind },
+    /// The file holds the change and memory took it, but the flush of its
+    /// folder failed, so the change is in effect and may not outlive a power
+    /// loss.
+    #[error("the state file {} holds the change and memory took it, but the flush of its folder failed: {kind}", .file.display())]
+    NotFlushed { file: PathBuf, kind: io::ErrorKind },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -210,9 +215,11 @@ enum Loaded {
 
 /// The state file of one data directory and the state that it holds: the one
 /// holder of the daemon's state. A change is written whole before memory
-/// takes it, so memory equals the file, or differs from it only where the
-/// file did not load and memory holds the defaults, desired paused among
-/// them.
+/// takes it, and after a failed write memory takes what the file reads, so
+/// memory equals the file, or differs from it only toward not capturing:
+/// where the file did not load and memory holds the defaults, desired paused
+/// among them, or where a failed write left a file that does not load and
+/// memory took desired paused.
 pub struct StateFile {
     dir: StateDir,
     state: DaemonState,
@@ -267,11 +274,15 @@ impl StateFile {
     }
 
     /// Writes the state that `change` makes of the current one, whole, and
-    /// takes it into memory only once the write succeeded. Every call writes,
-    /// also when the change leaves the state as it was. A file that did not
-    /// load is never written: the call answers [`StateError::LeftAsItIs`]. A
-    /// failed write answers [`StateError::NotWritten`] and leaves memory as it
-    /// was.
+    /// takes it into memory once the write succeeded. Every call writes, also
+    /// when the change leaves the state as it was. A file that did not load is
+    /// never written: the call answers [`StateError::LeftAsItIs`]. After a
+    /// failed write the file is read again, and memory takes what the next
+    /// start would read: the change, when the file holds it, answered
+    /// [`StateError::NotFlushed`]; the state of before, or another state that
+    /// loads, answered [`StateError::NotWritten`]; and desired paused with the
+    /// other fields kept when the file does not load, answered
+    /// [`StateError::NotWritten`].
     pub fn update(&mut self, change: impl FnOnce(&mut DaemonState)) -> Result<(), StateError> {
         if self.loaded != Loaded::Readable {
             return Err(StateError::LeftAsItIs {
@@ -288,11 +299,23 @@ impl StateFile {
                 Ok(())
             }
             Err(error) => {
-                self.last_write = Some(error.kind());
-                Err(StateError::NotWritten {
-                    file: self.dir.file_for_words(),
-                    kind: error.kind(),
-                })
+                let kind = error.kind();
+                self.last_write = Some(kind);
+                let file = self.dir.file_for_words();
+                match reread(&self.dir) {
+                    Some(on_disk) if on_disk == next => {
+                        self.state = next;
+                        Err(StateError::NotFlushed { file, kind })
+                    }
+                    Some(on_disk) => {
+                        self.state = on_disk;
+                        Err(StateError::NotWritten { file, kind })
+                    }
+                    None => {
+                        self.state.desired = Desired::Paused;
+                        Err(StateError::NotWritten { file, kind })
+                    }
+                }
             }
         }
     }
@@ -329,6 +352,13 @@ enum Found {
     Missing,
     Unloadable,
     Bytes(Vec<u8>),
+}
+
+fn reread(dir: &StateDir) -> Option<DaemonState> {
+    match read(dir) {
+        Found::Bytes(bytes) => parse(&bytes).ok(),
+        Found::Missing | Found::Unloadable => None,
+    }
 }
 
 fn read(dir: &StateDir) -> Found {
