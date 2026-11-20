@@ -148,7 +148,12 @@ helper_cases() {
   rejected=$((rejected + right))
   bad=$(sed -n 's/^case [^ /]*\/\([^ ]*\) .* wrong$/\1/p' "$work/helper-cases.txt" | paste -s -d ' ' -)
   [ -z "$bad" ] || wrong="$wrong $bad"
-  if [ "$code" != 0 ] || [ "$right" != 4 ]; then wrong="$wrong helper-cases"; fi
+  if [ "$code" != 0 ] || [ "$right" != 6 ]; then wrong="$wrong helper-cases"; fi
+  shown=$(verdict "$work/helper/judged.txt" macos)
+  got=green
+  [ "$shown" = "FAIL $name (s03-ip:open-or-unread s18-ip:open-or-unread)" ] && got=red
+  printf 'case %s/unbound-listener-judged-red want=red got=%s %s\n' "$name" "$got" "$shown"
+  if [ "$got" = red ]; then rejected=$((rejected + 1)); else wrong="$wrong unbound-listener-judged-red"; fi
 }
 
 write_cases() {
@@ -307,6 +312,42 @@ def an_unread_list_is_told():
     return "told" if told == [["not read: no reader"], ["none read"]] else "untold"
 
 
+def an_unbound_listener_reads_not_measured():
+    with open(os.path.join(directory, "counts-no-layer-steps.json"), "w", encoding="utf-8") as f:
+        json.dump({"counts": {"s03-ip": {"connections": 1, "requests": 1}, "s18-ip": {"packets": 21, "marked": 21}}, "seen": [], "listen_failures": []}, f)
+    for label in ("engine-alone-steps", "no-layer-steps"):
+        with open(os.path.join(directory, f"{label}.err"), "w", encoding="utf-8") as f:
+            f.write("".join(f"halvo-measure {key} at-app-origin=true\n" for key in ("s03-ip", "s05-ip", "s18-ip")) + "halvo-measure done\n")
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = measure.judge(directory, "macos")
+    with open(os.path.join(directory, "judged.txt"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(out.getvalue())
+    rows = [line for line in out.getvalue().splitlines() if line.startswith(("measure row: s03 ip engine-alone ", "measure row: s18 ip engine-alone "))]
+    want = [f"measure row: {step} ip engine-alone 0 0 0 0 0 true UNEXPECTED not measured (listener)" for step in ("s03", "s18")]
+    if code != 1:
+        return f"judge-exit-{code}"
+    return "not-measured" if rows == want else "measured"
+
+
+def a_loopback_read_is_refused():
+    elsewhere = os.path.join(directory, "loopback")
+    route[0] = "127.0.0.1"
+    try:
+        quiet(measure.plan, elsewhere)
+        refused = False
+    except AssertionError:
+        refused = not os.path.exists(os.path.join(elsewhere, "plan.json"))
+    finally:
+        route[0] = "10.0.0.5"
+    quiet(measure.plan, elsewhere)
+    with open(os.path.join(elsewhere, "plan.json"), encoding="utf-8") as f:
+        ip = json.load(f)["ip"]
+    if ip != "10.0.0.5":
+        return f"read-{ip}"
+    return "refused" if refused else "let-through"
+
+
 def case(label, want, run):
     try:
         got = run()
@@ -319,6 +360,8 @@ case("refused-binds-written-and-told", "told", refused_binds_are_written_and_tol
 case("taken-binds-tell-the-address-alone", "asked-alone", taken_binds_tell_the_address_alone)
 case("windows-interfaces-read", "read", windows_interfaces_are_read)
 case("unread-interfaces-told", "told", an_unread_list_is_told)
+case("unbound-listener-reads-not-measured", "not-measured", an_unbound_listener_reads_not_measured)
+case("loopback-read-refused", "refused", a_loopback_read_is_refused)
 CASESEOF
 }
 
@@ -353,6 +396,12 @@ case "$tool:$*" in
       chmod +x "$CARGO_TARGET_DIR/debug/halvo"
       exit 0
     fi
+    if [ "${FIXTURE_LAUNCH:-}" = run ]; then
+      mkdir -p "$CARGO_TARGET_DIR/debug"
+      printf '#!/bin/sh\necho page=loaded\n' > "$CARGO_TARGET_DIR/debug/halvo"
+      chmod +x "$CARGO_TARGET_DIR/debug/halvo"
+      exit 0
+    fi
     exit 1
     ;;
   git:archive*)
@@ -365,12 +414,16 @@ case "$tool:$*" in
     sed '/on_navigation/d;/initialization_script_for_all_frames/d' src-tauri/src/app.rs > src-tauri/src/app.rs.new && mv src-tauri/src/app.rs.new src-tauri/src/app.rs
     if [ "$2" = no-layer ]; then echo HALVO_MEASURE_NEVER_SET >> src-tauri/src/engine.rs; fi
     ;;
+  python*:*measure.py\ plan*)
+    if [ "${FIXTURE_PLAN:-}" = fail ]; then exit 1; fi
+    ;;
   python*:*measure.py\ listen*)
     if [ "${FIXTURE_LAUNCH:-}" = stop ]; then
       : > "$3/ready-$4"
       echo "$$" >> "$FIXTURE_PIDS"
       exec sleep 30
     fi
+    if [ -n "${FIXTURE_READY:-}" ]; then cp "$FIXTURE_READY" "$3/ready-$4"; fi
     ;;
   python*:*measure.py\ judge*)
     if [ -n "${FIXTURE_JUDGED:-}" ]; then cat "$FIXTURE_JUDGED"; fi
@@ -504,6 +557,27 @@ run_cases() {
   n=$(calls_of macos-asks-no-s20 'netsh ')
   is "$n" 0 left
   report macos-asks-no-s20 "$got"
+  printf "s03-ip port 47030: [Errno 49] Can't assign requested address\r\nasked 203.0.113.9\r\ninterface en0 8863<UP,BROADCAST> inet 10.0.0.5\r\n" > "$work/ready-made-up"
+  run_fixture address-read-after-each-build true macos FIXTURE_LAUNCH=run FIXTURE_READY="$work/ready-made-up" FIXTURE_JUDGED="$work/judged-good.txt"
+  got=refused
+  code=$(cat "$work/address-read-after-each-build.code")
+  is "$code" 0 left
+  order=$(sed -n -e 's/^cargo .*/build/p' -e 's/^python[0-9]* .*measure\.py plan .*/plan/p' -e 's/^python[0-9]* .*measure\.py listen .*/listen/p' "$work/address-read-after-each-build.calls" | paste -s -d ' ' -)
+  is "$order" "build plan listen build plan listen" left
+  for phase in engine-alone-steps no-layer-steps; do
+    n=$(grep -c -x -F -e "$name listeners $phase: asked 203.0.113.9, 1 refused" -e "$name interface at a refused bind of $phase: en0 8863<UP,BROADCAST> inet 10.0.0.5" "$work/address-read-after-each-build.out")
+    is "$n" 2 left
+  done
+  report address-read-after-each-build "$got"
+  run_fixture a-failed-plan-fails-the-check true macos FIXTURE_LAUNCH=run FIXTURE_PLAN=fail
+  got=refused
+  code=$(cat "$work/a-failed-plan-fails-the-check.code")
+  is "$code" 1 ran
+  last=$(tail -n 1 "$work/a-failed-plan-fails-the-check.out")
+  is "$last" "FAIL $name (the plan could not read an address of the runner for the copy engine-alone)" ran
+  n=$(grep -c 'measure\.py listen ' "$work/a-failed-plan-fails-the-check.calls")
+  is "$n" 0 ran
+  report a-failed-plan-fails-the-check "$got"
 }
 
 hosted_only() {
@@ -1887,11 +1961,7 @@ measure() {
     firewall_take
   fi
   write_helpers "$work"
-  "$py" "$work/measure.py" plan "$work" > /dev/null
   keys_of "$job" | tr ' ' '-' > "$work/keys.txt"
-  grep -F -f "$work/keys.txt" "$work/steps.tsv" | awk -F'\t' 'NR==FNR {k[$1]=1; next} ($1 in k)' "$work/keys.txt" - > "$work/routes.tsv"
-  steps=$(cut -f1 "$work/routes.tsv" | paste -s -d ' ' -)
-  echo "$name steps: $steps"
   for copy in engine-alone no-layer; do
     tree="$work/tree-$copy"
     mkdir -p "$tree" || fail "the directory of the copy $copy cannot be made"
@@ -1904,6 +1974,10 @@ measure() {
       tail -n 5 "$work/build-$copy.txt"
       continue
     fi
+    "$py" "$work/measure.py" plan "$work" > /dev/null || fail "the plan could not read an address of the runner for the copy $copy"
+    grep -F -f "$work/keys.txt" "$work/steps.tsv" | awk -F'\t' 'NR==FNR {k[$1]=1; next} ($1 in k)' "$work/keys.txt" - > "$work/routes.tsv"
+    steps=$(cut -f1 "$work/routes.tsv" | paste -s -d ' ' -)
+    echo "$name steps of $copy: $steps"
     exe="$work/target/debug/halvo"
     [ -f "$exe.exe" ] && exe=$exe.exe
     "$py" "$work/measure.py" listen "$work" "$copy-steps" &
