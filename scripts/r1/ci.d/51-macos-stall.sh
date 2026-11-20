@@ -1316,6 +1316,7 @@ waits-not-driven-phase_one'
   check names-and-numbers-of-a-known-fault PASS 'MS known_one result=known-fault' ''
   check rounds-lost-to-the-late-rule-on-the-ms-line PASS ' by_wait=150:1/0 rounds_lost_to_the_late_rule=1 lost_by_wait=150:0,300:1' 'late-rule-phase_one'
   check rounds-lost-to-the-late-rule-in-the-total PASS 'phases_not_driven=0 rounds_lost_to_the_late_rule=1' 'late-rule-phase_one'
+  check rounds-lost-to-the-late-rule-in-the-log PASS '    | phase_one rounds_lost_to_the_late_rule=1 by_wait=150:0,300:1' 'late-rule-phase_one'
   printf '%s\n' 'phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE,HALVO_STALL_FORM,HALVO_STALL_GAP_MS,' \
     'phase_one round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0' \
     'a line that the check does not print' '  and a second one' 'test result: ok. 1 passed; 0 failed; 0 ignored' \
