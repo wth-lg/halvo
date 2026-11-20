@@ -103,12 +103,25 @@ impl HalvoApp {
     pub const BUNDLE_ID: &'static str = "com.halvo.desktop";
 
     /// The app whose executable is the file `halvo` beside this process's own
-    /// executable, read through its links where the file exists.
+    /// executable, read through its links.
     pub fn beside_this_executable() -> Self {
-        let sibling = std::env::current_exe()
-            .ok()
-            .and_then(|exe| exe.parent().map(|dir| dir.join("halvo")))
-            .map(|path| std::fs::canonicalize(&path).unwrap_or(path))
+        Self::beside(std::env::current_exe().ok().as_deref())
+    }
+
+    /// The app whose executable is the file `halvo` beside `executable`: that
+    /// file read through its links where it exists, else the file `halvo` in
+    /// the directory read through its links, so that a link in the directory
+    /// path and a `halvo` that comes later still give the path that the
+    /// system reports for its process.
+    fn beside(executable: Option<&std::path::Path>) -> Self {
+        let sibling = executable
+            .and_then(std::path::Path::parent)
+            .map(|dir| {
+                let path = dir.join("halvo");
+                std::fs::canonicalize(&path)
+                    .or_else(|_| std::fs::canonicalize(dir).map(|dir| dir.join("halvo")))
+                    .unwrap_or(path)
+            })
             .and_then(|path| path.to_str().map(str::to_owned));
         Self { sibling }
     }
@@ -128,11 +141,16 @@ impl HalvoApp {
     }
 
     /// Whether the app in front is Halvo's: its identity, else the path of its
-    /// process.
+    /// process. A path identity is held to the sibling as the identity's cap
+    /// cuts it, so a sibling longer than the cap is still seen.
     pub fn selects_front(&self, front: &Foreground) -> bool {
         match &front.identity {
             AppIdentity::BundleId(id) if id.as_str() == Self::BUNDLE_ID => true,
-            AppIdentity::ExecutablePath(path) => self.selects("", Some(path.as_str())),
+            AppIdentity::ExecutablePath(path) => self
+                .sibling
+                .as_deref()
+                .and_then(CappedText::new)
+                .is_some_and(|sibling| sibling.as_str() == path.as_str()),
             AppIdentity::BundleId(_) | AppIdentity::Unknown => {
                 self.selects("", executable_path(front.pid).as_deref())
             }
@@ -1254,6 +1272,38 @@ mod tests {
             .expect("the test's own executable")
             .with_file_name("halvo");
         assert!(sibling.selects("", beside.to_str()));
+    }
+
+    #[test]
+    fn an_unbundled_front_whose_path_is_the_sibling_longer_than_the_cap_is_halvos() {
+        let long_sibling = format!("/{}/halvo", "a".repeat(1040));
+        let halvo = HalvoApp::with_sibling(&long_sibling);
+        let front = unbundled(&long_sibling, 920).expect("a front");
+        assert!(long_sibling.len() > IDENTITY_CAP_BYTES);
+        assert!(front.identity.text().len() <= IDENTITY_CAP_BYTES);
+        assert!(halvo.selects_front(&front), "the long sibling in front");
+        let other = unbundled(&format!("/{}/other", "b".repeat(1040)), 921).expect("a front");
+        assert!(!halvo.selects_front(&other), "another long path");
+    }
+
+    #[test]
+    fn a_sibling_beside_an_executable_in_a_linked_directory_is_the_canonical_path_once_it_exists() {
+        let root = tempfile::tempdir().expect("a temporary directory");
+        let real = root.path().join("real");
+        let link = root.path().join("link");
+        std::fs::create_dir(&real).expect("the real directory");
+        std::os::unix::fs::symlink(&real, &link).expect("the link to it");
+        let halvo = HalvoApp::beside(Some(&link.join("halvo-capture")));
+        std::fs::write(real.join("halvo"), b"").expect("the sibling, made after the app");
+        let canonical = std::fs::canonicalize(real.join("halvo")).expect("the canonical path");
+        assert!(
+            halvo.selects("", canonical.to_str()),
+            "{:?} against {canonical:?}",
+            halvo.sibling
+        );
+        let through_the_link = link.join("halvo");
+        assert_ne!(through_the_link, canonical);
+        assert!(!halvo.selects("", through_the_link.to_str()));
     }
 
     #[test]

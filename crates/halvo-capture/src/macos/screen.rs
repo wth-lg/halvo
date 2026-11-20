@@ -1830,6 +1830,33 @@ mod tests {
     }
 
     #[test]
+    fn an_unbundled_halvo_in_front_whose_path_is_longer_than_the_cap_gives_no_record() {
+        let long_sibling = format!("/{}/halvo", "a".repeat(1040));
+        let (handle, writer) = sink::channel(8);
+        let (fg_writer, fg_reader) = foreground_state_for_test();
+        fg_writer.set_for_test(Some(Foreground {
+            identity: crate::macos::foreground::tests_support::unbundled(&long_sibling),
+            pid: 920,
+        }));
+        let ivars = ScreenIvars {
+            sink: Mutex::new(Some(handle)),
+            rule: FrameRule {
+                foreground: fg_reader,
+                floor: floor_on(),
+                halvo: HalvoApp::with_sibling(&long_sibling),
+                probe: inactive(),
+            },
+            facts: Arc::default(),
+        };
+        on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+        assert_eq!(
+            records(ivars, &writer),
+            0,
+            "a record while the long sibling was in front"
+        );
+    }
+
+    #[test]
     fn the_chooser_takes_the_main_display_by_its_id_wherever_it_stands() {
         assert_eq!(chosen_display(&[7, 9], 7), Some(0), "main first");
         assert_eq!(chosen_display(&[9, 7], 7), Some(1), "main second");
