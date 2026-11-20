@@ -1276,7 +1276,11 @@ mod tests {
 
     #[test]
     fn the_frame_cap_is_the_key_screen_frames_max_per_s_of_the_bounds_file() {
-        let bounds = include_str!("../../../../docs/baseline/r1-gate-bounds.txt");
+        let bounds = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../docs/baseline/r1-gate-bounds.txt"
+        ))
+        .expect("the bounds file reads");
         let values: Vec<&str> = bounds
             .lines()
             .filter_map(|line| line.strip_prefix("screen_frames_max_per_s="))
