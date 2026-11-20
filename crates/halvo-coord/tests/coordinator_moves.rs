@@ -12114,3 +12114,103 @@ fn u24e_rd149_a_start_now_of_an_agent_that_does_not_ask_first_offers_take_back_o
     );
     assert_eq!(controls_of(&c, 1), [SwitchOff, Delete]);
 }
+
+/// Agent 0 runs and agents 1 and up wait behind it on the person's Start now; agent 0's run
+/// ends while no read of the clock answers, so that its end is kept and serves nothing; then the
+/// clock answers again, and the next move takes that end up.
+fn a_kept_end_and_starts_that_wait(spec: &[support::A]) -> (Coordinator<Both>, RunId) {
+    let c = coordinator(spec, one_at_a_time());
+    let first = start(&c, 0);
+    for n in 1..spec.len() {
+        assert_eq!(c.control(&agent(n), Action::RunNow), Ok(()), "{n}");
+    }
+    clock_fails(&c);
+    c.ports().ports.end_runner(&first);
+    let _ = c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)));
+    assert_eq!(
+        started(&c).len(),
+        1,
+        "the end is kept and serves nothing yet"
+    );
+    assert_eq!(c.queued().len(), spec.len() - 1);
+    clock_answers(&c);
+    (c, first)
+}
+
+/// The calls among `calls` that start agent `n`: a log of its `run_started`, the body
+/// `start_run` and `Runs::start`.
+fn starts_of(calls: &[Call], n: usize) -> Vec<Call> {
+    calls
+        .iter()
+        .filter(|call| match call {
+            Call::Log(rows) => rows
+                .iter()
+                .any(|e| e.agent == agent(n) && matches!(e.what, What::RunStarted { .. })),
+            Call::Send(Body::StartRun { agent: a, .. }) => *a == agent(n),
+            Call::Start(spec) => spec.agent == agent(n),
+            _ => false,
+        })
+        .cloned()
+        .collect()
+}
+
+fn logs_end_of(calls: &[Call], run: &RunId) -> bool {
+    calls.iter().any(|call| match call {
+        Call::Log(rows) => rows
+            .iter()
+            .any(|e| matches!(&e.what, What::RunEnded { run: r, .. } if r == run)),
+        _ => false,
+    })
+}
+
+/// RD-149's note of 2026-11-20T22:14:21Z, R1: the agent that a control names is not started by
+/// the take-up inside that call. For `take_back`, `switch_off` and `stop` pressed for the agent
+/// whose start waits, as the first call after the clock answers with a kept end waiting: the
+/// reply is ok, the call stores, sends and starts nothing for the named agent, the kept end is
+/// stored with its own cause, and behind the press the agent is neither queued nor live and its
+/// row offers no Stop (the Stop arm by the coordinator's line of 22:33:44Z).
+fn the_named_agent_is_not_started_by_the_take_up(action: Action) {
+    use halvo_coord::types::Control;
+    let (c, first) = a_kept_end_and_starts_that_wait(&[MANUAL, MANUAL]);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), action), Ok(()), "{action}");
+    let calls = calls_since(&c, m);
+    assert_eq!(starts_of(&calls, 1), [], "{action}: {calls:?}");
+    assert!(logs_end_of(&calls, &first), "{action}: {calls:?}");
+    assert_eq!(started(&c).len(), 1, "{action}");
+    assert_eq!(c.queued(), vec![], "{action}");
+    assert_eq!(c.live(), 0, "{action}");
+    assert!(!controls_of(&c, 1).contains(&Control::Stop), "{action}");
+}
+
+#[test]
+fn u24e_r1_a_take_back_after_a_kept_end_does_not_start_the_agent_that_it_names() {
+    the_named_agent_is_not_started_by_the_take_up(Action::TakeBack);
+}
+
+#[test]
+fn u24e_r1_a_switch_off_after_a_kept_end_does_not_start_the_agent_that_it_names() {
+    the_named_agent_is_not_started_by_the_take_up(Action::SwitchOff);
+}
+
+#[test]
+fn u24e_r1_a_stop_after_a_kept_end_does_not_start_the_agent_that_it_names() {
+    the_named_agent_is_not_started_by_the_take_up(Action::Stop);
+}
+
+/// R1's neighbour: with a third agent waiting behind the named one, the take-back after a kept
+/// end stores that end, the named start is gone, and the place that the end frees serves the
+/// third agent's start at that end, inside the same call.
+#[test]
+fn u24e_r1_the_place_that_a_kept_end_frees_serves_the_next_start_and_not_the_named_one() {
+    let (c, first) = a_kept_end_and_starts_that_wait(&[MANUAL, MANUAL, MANUAL]);
+    assert_eq!(c.queued(), vec![(agent(1), false), (agent(2), false)]);
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::TakeBack), Ok(()));
+    let calls = calls_since(&c, m);
+    assert!(logs_end_of(&calls, &first), "{calls:?}");
+    assert_eq!(starts_of(&calls, 1), [], "{calls:?}");
+    assert_eq!(starts_of(&calls, 2).len(), 3, "{calls:?}");
+    assert_eq!(c.queued(), vec![]);
+    assert_eq!(c.live(), 1, "agent 2 runs");
+}
