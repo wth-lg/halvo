@@ -30,6 +30,10 @@ attribution line reaches the default branch.
       the copy that this run uses, and with exit 2 when a read fails.
       Then read pull request <number> with gh and refuse unless all of these hold:
         - it is OPEN, it is not a draft, and GitHub reports it MERGEABLE
+        - it targets the repository's default branch. If it should target that
+          branch, change the base on GitHub, then close and reopen the pull
+          request so a new pull_request run tests the merge with that base.
+          This script only merges into the default branch.
         - its head is the commit given with --head, the one that was reviewed
         - the newest pull_request run on that head completed with success and
           the jobs macos and windows succeeded in it. The newest run is the
@@ -152,18 +156,18 @@ EOF
 }
 
 check_own_copy() {
-  branch=$(gh api 'repos/{owner}/{repo}' --jq .default_branch) && [ -n "$branch" ] ||
+  default_branch=$(gh api 'repos/{owner}/{repo}' --jq .default_branch) && [ -n "$default_branch" ] ||
     die 'gh api could not read the default branch of the repository that gh merges into, so this run cannot compare its own copy with it. This run merged nothing.'
   own_hashes=
   for name in $compared_scripts; do
     local_copy=$(local_copy_of "$name")
-    on_branch=$(gh api "repos/{owner}/{repo}/contents/scripts/$name?ref=$branch" --jq .sha) && [ -n "$on_branch" ] ||
-      die "gh api could not read scripts/$name on the default branch $branch of the repository that gh merges into. This run merged nothing."
+    on_branch=$(gh api "repos/{owner}/{repo}/contents/scripts/$name?ref=$default_branch" --jq .sha) && [ -n "$on_branch" ] ||
+      die "gh api could not read scripts/$name on the default branch $default_branch of the repository that gh merges into. This run merged nothing."
     here=$(git hash-object --no-filters "$local_copy") || die "git hash-object could not read $local_copy. This run merged nothing."
     own_hashes="$own_hashes$name $here $local_copy
 "
     if [ "$here" != "$on_branch" ]; then
-      printf 'merge-pr: REFUSED: the copy of scripts/%s that this run uses (%s) differs from the copy that the default branch %s of the repository that gh merges into holds, so this run could merge by another rule. Run the script from a checkout of %s at its newest commit. This run merged nothing.\n' "$name" "$local_copy" "$branch" "$branch" >&2
+      printf 'merge-pr: REFUSED: the copy of scripts/%s that this run uses (%s) differs from the copy that the default branch %s of the repository that gh merges into holds, so this run could merge by another rule. Run the script from a checkout of %s at its newest commit. This run merged nothing.\n' "$name" "$local_copy" "$default_branch" "$default_branch" >&2
       exit 1
     fi
   done
@@ -235,6 +239,7 @@ EOF
 
 print_facts() {
   say "pull request #$number: state $state, draft $is_draft, mergeable $mergeable, base $base, head branch $head_branch"
+  say "repository default branch: $default_branch"
   say "head on GitHub: $head_on_github"
   say "head reviewed:  $head"
   say "title: $title"
@@ -310,6 +315,8 @@ apply_gates() {
       refuse "pull request #$number is $state, and only an OPEN pull request can be merged. If the work is not on $base yet, open a new pull request for it."
       ;;
   esac
+  [ "$base" = "$default_branch" ] ||
+    refuse "pull request #$number targets $base, and the repository default branch is $default_branch. To merge into $default_branch, change the base on GitHub, then close and reopen the pull request so a new pull_request run tests that base. This script only merges into $default_branch."
   [ "$is_draft" = false ] ||
     refuse "pull request #$number is a draft. Mark it ready when its review is done: gh pr ready $number"
   [ "$head_on_github" = "$head" ] ||
@@ -620,7 +627,7 @@ EOF
     printf '%s\n' "$reviewed_head" >"$state_directory/head-after-the-merge-call"
   }
   fields() {
-    printf '%s\n%s\n%s\n%s\n%s\nmain\n%s\n%s\n' "$2" "$3" "$4" "$5" "${8-feature}" "${6-false}" "${7-none}" >"$work/state/$1/fields"
+    printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$2" "$3" "$4" "$5" "${8-feature}" "${9-main}" "${6-false}" "${7-none}" >"$work/state/$1/fields"
   }
   runs() {
     name=$1
@@ -680,6 +687,33 @@ EOF
       printf 'PASS %s: the output does not hold the text "%s"\n' "$name" "$text"
     fi
   }
+
+  git --git-dir="$work/github.git" update-ref refs/heads/release "$clean_squash"
+  git --git-dir="$work/github.git" update-ref refs/heads/land-65 "$clean_squash"
+  state_of release-base-dry-run
+  fields release-base-dry-run OPEN false MERGEABLE "$reviewed_head" false none feature release
+  runs release-base-dry-run "$green_pull_request_run"
+  refused release-base-dry-run 'targets release, and the repository default branch is main.' --body-file "$work/body.txt" --dry-run
+
+  state_of release-base-with-only-pr
+  fields release-base-with-only-pr OPEN false MERGEABLE "$reviewed_head" false none feature release
+  runs release-base-with-only-pr "$green_pull_request_run"
+  refused release-base-with-only-pr 'targets release, and the repository default branch is main.'
+
+  state_of release-base-with-both-runs
+  fields release-base-with-both-runs OPEN false MERGEABLE "$reviewed_head" false none feature release
+  refused release-base-with-both-runs 'targets release, and the repository default branch is main.'
+
+  state_of landing-base-with-only-pr
+  fields landing-base-with-only-pr OPEN false MERGEABLE "$reviewed_head" false none feature land-65
+  runs landing-base-with-only-pr "$green_pull_request_run"
+  refused landing-base-with-only-pr 'targets land-65, and the repository default branch is main.'
+
+  state_of release-as-the-default-branch
+  fields release-as-the-default-branch OPEN false MERGEABLE "$reviewed_head" false none feature release
+  runs release-as-the-default-branch "$green_pull_request_run"
+  printf 'release\n' >"$work/state/release-as-the-default-branch/default-branch"
+  expect release-as-the-default-branch 0 called "merge-pr: merged as $clean_squash" --body-file "$work/body.txt"
 
   state_of dry-run-with-every-gate-open
   expect dry-run-with-every-gate-open 0 not-called 'dry run: every gate holds' --body-file "$work/body.txt" --dry-run
