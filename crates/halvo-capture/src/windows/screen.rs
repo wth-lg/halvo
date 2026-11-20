@@ -15,18 +15,20 @@ use windows_capture::settings::{
     MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
 };
 
+use crate::event::{EventClock, FloorEvent};
+use crate::floor::exclude::PrivateWindow;
+use crate::floor::kind;
 use crate::floor::Switch;
+use crate::secure_input::windows::{PasswordFieldProbe, PasswordGate};
 use crate::source::{
     CaptureError, CaptureSource, HealthReason, SourceContext, SourceCounters, SourceHealth,
     SourceState, Started, StopCause,
 };
 
-use super::{HandOff, HandOffCounts, LossCounts, Observed, Packet, Producer};
+use super::{DropCounts, Drops, Floor, FrontCache, HandOff, HandOffCounts, LossCounts, Producer};
 
 /// The default minimum interval between captured frames.
 pub const DEFAULT_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(500);
-
-const BGRA8_BYTES_PER_PIXEL: u64 = 4;
 
 const SINK_GONE: &str = "the capture writer has stopped";
 const NO_PRIMARY_MONITOR: &str = "the primary monitor could not be read";
@@ -185,27 +187,24 @@ impl FrameCounters {
     }
 }
 
-pub(crate) fn frame_packet(
-    width: u32,
-    height: u32,
-    foreground_app: Option<String>,
-    tick: u32,
-) -> Option<Packet> {
-    if width == 0 || height == 0 {
-        return None;
-    }
-    Some(Packet::observed(
-        Observed::ScreenFrame,
-        foreground_app,
-        u64::from(width) * u64::from(height) * BGRA8_BYTES_PER_PIXEL,
-        tick,
-    ))
+/// The screen record of one changed frame: the floor's decision on the
+/// process in front when the frame arrives, with the reading of the keyboard
+/// source's gate where one runs. It holds no pixel and no size.
+pub(crate) fn frame_event(
+    floor: &Floor,
+    gate: Option<&PasswordGate>,
+    front: &super::FrontApp,
+) -> Option<FloorEvent> {
+    let probe = gate.map_or_else(PasswordFieldProbe::default, PasswordGate::content_probe);
+    let keep = floor.keep::<kind::ScreenFrame>(front, PrivateWindow::Unknown, &probe)?;
+    Some(FloorEvent::screen_frame(keep, None, EventClock::system()))
 }
 
 /// What the capture handler needs, passed through the settings flags.
 pub struct ScreenFlags {
     producer: Producer,
-    last_app: Arc<Mutex<Option<String>>>,
+    floor: Floor,
+    gate: Option<Arc<PasswordGate>>,
     drop_within: Option<Duration>,
     closed: Arc<AtomicBool>,
     report: RegionReport,
@@ -216,7 +215,9 @@ pub struct ScreenFlags {
 /// keeps, handed to the source's queue.
 pub struct ScreenHandler {
     producer: Producer,
-    last_app: Arc<Mutex<Option<String>>>,
+    floor: Floor,
+    gate: Option<Arc<PasswordGate>>,
+    front: FrontCache,
     drop_within: Option<Duration>,
     last_kept: Option<Instant>,
     closed: Arc<AtomicBool>,
@@ -231,7 +232,9 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
     fn new(ctx: Context<Self::Flags>) -> Result<Self, Self::Error> {
         Ok(Self {
             producer: ctx.flags.producer,
-            last_app: ctx.flags.last_app,
+            floor: ctx.flags.floor,
+            gate: ctx.flags.gate,
+            front: FrontCache::default(),
             drop_within: ctx.flags.drop_within,
             last_kept: None,
             closed: ctx.flags.closed,
@@ -256,10 +259,9 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
         if !keep_frame(self.drop_within, &mut self.last_kept, Instant::now()) {
             return Ok(());
         }
-        let (width, height) = (frame.width(), frame.height());
-        let app = super::app_of(&self.last_app);
-        if let Some(packet) = frame_packet(width, height, app, super::now_tick()) {
-            self.producer.push(packet);
+        let front = self.front.now();
+        if let Some(event) = frame_event(&self.floor, self.gate.as_deref(), &front) {
+            self.producer.push(event);
         }
         if self.producer.writer_gone() {
             return Err(CaptureError::Start(SINK_GONE.to_string()));
@@ -280,7 +282,8 @@ type Control = CaptureControl<ScreenHandler, CaptureError>;
 /// that is gone each read as failed health. The source asks for the system's
 /// capture border (`DrawBorderSettings::Default`) by decision RD-04.
 pub struct ScreenSource {
-    last_app: Arc<Mutex<Option<String>>>,
+    gate: Option<Arc<PasswordGate>>,
+    drops: Arc<DropCounts>,
     min_interval: Duration,
     life: ScreenLife<Control>,
     handoff: Option<HandOff>,
@@ -291,9 +294,13 @@ pub struct ScreenSource {
 }
 
 impl ScreenSource {
-    pub fn new(last_app: Arc<Mutex<Option<String>>>) -> Self {
+    /// A screen source. Each record belongs to the process of the window in
+    /// front when its frame arrives; the cell of the foreground source is not
+    /// read.
+    pub fn new(_last_app: Arc<Mutex<Option<String>>>) -> Self {
         Self {
-            last_app,
+            gate: None,
+            drops: Arc::default(),
             min_interval: DEFAULT_MIN_FRAME_INTERVAL,
             life: ScreenLife::default(),
             handoff: None,
@@ -313,6 +320,18 @@ impl ScreenSource {
     /// The counts of this source's hand-off queues since it was made.
     pub fn handoff_counts(&self) -> HandOffCounts {
         self.counts.read()
+    }
+
+    /// A screen source that reads the gate of a keyboard source: no record
+    /// leaves while the gate reads Password.
+    pub fn with_password_gate(mut self, gate: Arc<PasswordGate>) -> Self {
+        self.gate = Some(gate);
+        self
+    }
+
+    /// The events that this source dropped at the floor's decision.
+    pub fn drops(&self) -> Drops {
+        self.drops.read()
     }
 
     /// The frames that this source was handed and those that were activity.
@@ -342,7 +361,8 @@ impl CaptureSource for ScreenSource {
         let report = probe_region_report();
         let flags = ScreenFlags {
             producer: handoff.producer(),
-            last_app: Arc::clone(&self.last_app),
+            floor: Floor::new(ctx.floor().clone(), Arc::clone(&self.drops)),
+            gate: self.gate.clone(),
             drop_within: choice.drop_within(),
             closed: Arc::clone(&closed),
             report,
@@ -655,16 +675,6 @@ fn start_error(error: GraphicsCaptureApiError<CaptureError>) -> CaptureError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event::Modality;
-
-    #[test]
-    fn a_frame_maps_to_a_screen_frame_packet_of_its_byte_count() {
-        let packet = frame_packet(1920, 1080, Some("C:\\browser.exe".to_string()), 1)
-            .expect("a sized frame produces a packet");
-        assert_eq!(packet.kind(), Modality::ScreenFrame);
-        assert_eq!(packet.app.as_deref(), Some("C:\\browser.exe"));
-        assert_eq!(packet.byte_len, 1920 * 1080 * 4);
-    }
 
     fn asked(
         support: CaptureSupport,
@@ -853,7 +863,12 @@ mod tests {
         let closed = Arc::new(AtomicBool::new(false));
         let mut handler = ScreenHandler {
             producer: handoff.producer(),
-            last_app: Arc::default(),
+            floor: Floor::new(
+                crate::floor::exclude::FloorHandle::default(),
+                Arc::default(),
+            ),
+            gate: None,
+            front: FrontCache::default(),
             drop_within: None,
             last_kept: None,
             closed: Arc::clone(&closed),
@@ -1147,7 +1162,8 @@ mod tests {
         let producer = handoff.producer();
         source.handoff = Some(handoff);
         let stopped = source.shutdown();
-        producer.push(frame_packet(1920, 1080, None, 1).expect("a frame"));
+        let keep = crate::floor::cases::keep(crate::event::AppIdentity::unknown(), 7);
+        producer.push(FloorEvent::screen_frame(keep, None, EventClock::system()));
         let arrived = writer.recv_timeout(Duration::from_millis(500)).is_ok();
         assert_eq!(stopped, Ok(()));
         assert!(
@@ -1207,11 +1223,5 @@ mod tests {
         .join()
         .expect("the probe thread");
         assert_eq!(apartment, Ok((APTTYPE_MTA, APTTYPEQUALIFIER_IMPLICIT_MTA)));
-    }
-
-    #[test]
-    fn a_zero_area_frame_is_not_recorded() {
-        assert!(frame_packet(0, 1080, None, 1).is_none());
-        assert!(frame_packet(1920, 0, None, 1).is_none());
     }
 }

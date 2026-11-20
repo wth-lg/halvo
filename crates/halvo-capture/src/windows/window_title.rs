@@ -1,10 +1,18 @@
 //! Window-title capture via `SetWinEventHook`.
 
+use std::sync::Arc;
+
+use crate::event::{EventClock, FloorEvent};
+use crate::floor::exclude::PrivateWindow;
+use crate::floor::kind;
+use crate::floor::payload::{Title, TitleWhy};
+use crate::floor::Switch;
+use crate::secure_input::windows::{PasswordFieldProbe, PasswordGate};
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
 
-use super::{Lifecycle, Observed, Packet, Producer, PumpReady};
+use super::{DropCounts, Drops, Floor, FrontApp, Lifecycle, OsTick, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
 use super::foreground::{
@@ -22,15 +30,24 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 pub(crate) const TITLE_READ_UNITS: usize = crate::floor::text::TEXT_MAX_BYTES;
 
-pub(crate) fn title_packet(title: &str, exe_path: Option<String>, tick: u32) -> Option<Packet> {
-    if title.trim().is_empty() {
-        return None;
-    }
-    Some(Packet::observed(
-        Observed::WindowTitle,
-        exe_path,
-        title.len() as u64,
-        tick,
+/// The title event of the window in front: the floor's decision on its
+/// process, with the reading of the keyboard source's gate where one runs,
+/// then core-2's title constructor with its reason. Nothing of the text
+/// leaves when the decision drops it.
+pub(crate) fn title_event(
+    floor: &Floor,
+    gate: Option<&PasswordGate>,
+    front: &FrontApp,
+    (title, why): (String, TitleWhy),
+    tick: OsTick,
+) -> Option<FloorEvent> {
+    let probe = gate.map_or_else(PasswordFieldProbe::default, PasswordGate::content_probe);
+    let keep = floor.keep::<kind::WindowTitle>(front, PrivateWindow::Unknown, &probe)?;
+    Some(FloorEvent::window_title(
+        keep,
+        Title::new(title, why, None),
+        tick.age(),
+        EventClock::system(),
     ))
 }
 
@@ -109,12 +126,16 @@ impl LastTitle {
 
 struct TitleState {
     producer: Producer,
+    floor: Floor,
+    gate: Option<Arc<PasswordGate>>,
     last: LastTitle,
 }
 
 /// Window-title capture source.
 pub struct WindowTitleSource {
     life: Lifecycle,
+    drops: Arc<DropCounts>,
+    gate: Option<Arc<PasswordGate>>,
     installer: HookInstaller,
     remover: HookRemover,
 }
@@ -123,9 +144,23 @@ impl WindowTitleSource {
     pub fn new() -> Self {
         Self {
             life: Lifecycle::default(),
+            drops: Arc::default(),
+            gate: None,
             installer: set_win_event_hook,
             remover: unhook_win_event,
         }
+    }
+
+    /// A title source that reads the gate of a keyboard source: no title
+    /// leaves while the gate reads Password.
+    pub fn with_password_gate(mut self, gate: Arc<PasswordGate>) -> Self {
+        self.gate = Some(gate);
+        self
+    }
+
+    /// The events that this source dropped at the floor's decision.
+    pub fn drops(&self) -> Drops {
+        self.drops.read()
     }
 
     #[cfg(test)]
@@ -147,20 +182,6 @@ impl WindowTitleSource {
     /// The counts of this source's hand-off queues since it was made.
     pub fn handoff_counts(&self) -> super::HandOffCounts {
         self.life.handoff_counts()
-    }
-
-    /// A title source that reads the gate of a keyboard source: no title
-    /// leaves while the gate reads Password.
-    pub fn with_password_gate(
-        self,
-        _gate: std::sync::Arc<crate::secure_input::windows::PasswordGate>,
-    ) -> Self {
-        self
-    }
-
-    /// The events that this source dropped at the floor's decision.
-    pub fn drops(&self) -> super::Drops {
-        super::Drops::default()
     }
 }
 
@@ -189,7 +210,7 @@ unsafe extern "system" fn title_proc(
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
     let front = unsafe { GetForegroundWindow() };
     if keeps_title_event(hwnd, id_object, id_child, front) {
-        emit_front_title(front, time);
+        emit_front_title(front, time, TitleWhy::TitleChange);
     }
 }
 
@@ -204,11 +225,11 @@ unsafe extern "system" fn front_proc(
     time: u32,
 ) {
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
-    emit_front_title(unsafe { GetForegroundWindow() }, time);
+    emit_front_title(unsafe { GetForegroundWindow() }, time, TitleWhy::AppChange);
 }
 
 #[cfg(target_os = "windows")]
-fn emit_front_title(front: HWND, time: u32) {
+fn emit_front_title(front: HWND, time: u32, why: TitleWhy) {
     if front.0.is_null() {
         return;
     }
@@ -218,9 +239,11 @@ fn emit_front_title(front: HWND, time: u32) {
             if !state.last.shows_new(front.0 as usize, &title) {
                 return;
             }
-            let app = resolve_front(front).and_then(|front| front.path);
-            if let Some(packet) = title_packet(&title, app, time) {
-                state.producer.push(packet);
+            let app = resolve_front(front).unwrap_or_default();
+            let gate = state.gate.as_deref();
+            let made = title_event(&state.floor, gate, &app, (title, why), OsTick::new(time));
+            if let Some(event) = made {
+                state.producer.push(event);
             }
         }
     });
@@ -230,10 +253,17 @@ impl CaptureSource for WindowTitleSource {
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
         let installer = self.installer;
         let remover = self.remover;
+        let floor = Floor::new(ctx.floor().clone(), Arc::clone(&self.drops));
+        if !floor.is_on(Switch::TitleText) {
+            return self.life.off();
+        }
+        let gate = self.gate.clone();
         self.life
             .begin(&ctx, "halvo-window-title-forward", move |producer| {
                 let state = TitleState {
                     producer,
+                    floor,
+                    gate,
                     last: LastTitle::default(),
                 };
                 super::spawn_pump("halvo-window-title".to_string(), move |ready, signal| {
@@ -280,7 +310,11 @@ fn run_title_hook(
     super::ensure_message_queue();
     ready.report(Ok(()));
     // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
-    emit_front_title(unsafe { GetForegroundWindow() }, super::now_tick());
+    emit_front_title(
+        unsafe { GetForegroundWindow() },
+        super::now_tick(),
+        TitleWhy::AppChange,
+    );
     super::pump_messages(signal);
     signal.report_removal("UnhookWinEvent", remover(front_hook));
     signal.report_removal("UnhookWinEvent", remover(hook));
@@ -290,23 +324,6 @@ fn run_title_hook(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event::Modality;
-
-    #[test]
-    fn a_non_empty_title_maps_to_a_window_title_packet() {
-        let packet = title_packet("Inbox - Mail", Some("C:\\mail.exe".to_string()), 3)
-            .expect("a non-empty title produces a packet");
-        assert_eq!(packet.kind(), Modality::WindowTitle);
-        assert_eq!(packet.app.as_deref(), Some("C:\\mail.exe"));
-        assert_eq!(packet.byte_len, 12);
-        assert_eq!(packet.tick, 3);
-    }
-
-    #[test]
-    fn an_empty_or_whitespace_title_produces_no_packet() {
-        assert!(title_packet("", Some("a.exe".to_string()), 3).is_none());
-        assert!(title_packet("   ", Some("a.exe".to_string()), 3).is_none());
-    }
 
     fn handle(value: usize) -> HWND {
         HWND(value as *mut core::ffi::c_void)

@@ -10,137 +10,23 @@ pub mod screen;
 pub mod window_title;
 
 use crate::daemon::{DaemonError, TimedRunReport};
-use crate::event::{CaptureStreamEvent, CapturedAt, Modality, SegmentKeyId, SegmentRef};
-use crate::sink::{SinkError, SinkHandle};
+use crate::event::{AppIdentity, FloorEvent, FoldEvent};
+use crate::floor::exclude::{
+    DropReason, FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict,
+};
+use crate::floor::kind::Recorded;
+use crate::floor::payload::PointerFold;
+use crate::floor::Switch;
+use crate::secure_input::SecureInputProbe;
+use crate::sink::{Emitted, FoldEmitted, SinkHandle};
 use crate::source::{
-    CaptureError, EmitOutcome, EventSink, HealthReason, SourceContext, SourceCounters,
-    SourceHealth, SourceState, Started, StopCause,
+    CaptureError, HealthReason, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
+    StopCause,
 };
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
-use std::time::{Duration, Instant, SystemTime};
-use uuid::Uuid;
-
-/// Where a captured payload's bytes live in the encrypted segment store: the
-/// segment ref plus the per-segment key id.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EventPlacement {
-    pub segment_ref: SegmentRef,
-    pub segment_key_id: SegmentKeyId,
-}
-
-impl EventPlacement {
-    /// The placement an R1 capture source puts on a metadata-only event: the
-    /// decoded payload's bytes are not persisted in this phase, so the segment is
-    /// the nil sentinel and the key id is 0. `byte_len` carries the decoded
-    /// payload's measured size where the source knows it, so the quantity of
-    /// captured data is visible in the event even before the store holds the
-    /// bytes.
-    pub fn unpersisted(byte_len: u64) -> Self {
-        Self {
-            segment_ref: SegmentRef {
-                segment_id: Uuid::nil(),
-                byte_offset: 0,
-                byte_len,
-            },
-            segment_key_id: SegmentKeyId(0),
-        }
-    }
-}
-
-/// Build the one raw stream event for a captured payload: the capture instant
-/// that the caller computed, the sink's next monotonic sequence, the foreground
-/// app and the store placement, marked raw.
-pub fn build_event(
-    sink: &SinkHandle,
-    modality: Modality,
-    foreground_app: String,
-    placement: EventPlacement,
-    wall_clock: SystemTime,
-) -> CaptureStreamEvent {
-    let captured_at = CapturedAt {
-        wall_clock,
-        sequence: sink.next_sequence(),
-    };
-    CaptureStreamEvent::new_raw(
-        captured_at,
-        modality,
-        foreground_app,
-        placement.segment_ref,
-        placement.segment_key_id,
-    )
-}
-
-pub(crate) use packet::{Observed, Packet};
-
-mod packet {
-    use crate::event::Modality;
-    use crate::secure_input::KeystrokeClearance;
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum Observed {
-        Pointer,
-        ForegroundApp,
-        WindowTitle,
-        ScreenFrame,
-    }
-
-    pub(crate) struct Packet {
-        kind: Modality,
-        pub(crate) app: Option<String>,
-        pub(crate) byte_len: u64,
-        pub(crate) tick: u32,
-    }
-
-    impl Packet {
-        /// ```compile_fail,E0603
-        /// use halvo_capture::windows::Packet;
-        /// ```
-        /// ```
-        /// use halvo_capture::windows::EventPlacement;
-        /// let _ = EventPlacement::unpersisted(2);
-        /// ```
-        pub(crate) fn keystroke(
-            clearance: KeystrokeClearance,
-            app: Option<String>,
-            byte_len: u64,
-            tick: u32,
-        ) -> Packet {
-            let _ = clearance.key_age();
-            Packet {
-                kind: Modality::Keystroke,
-                app,
-                byte_len,
-                tick,
-            }
-        }
-
-        pub(crate) fn observed(
-            kind: Observed,
-            app: Option<String>,
-            byte_len: u64,
-            tick: u32,
-        ) -> Packet {
-            let kind = match kind {
-                Observed::Pointer => Modality::Pointer,
-                Observed::ForegroundApp => Modality::ForegroundApp,
-                Observed::WindowTitle => Modality::WindowTitle,
-                Observed::ScreenFrame => Modality::ScreenFrame,
-            };
-            Packet {
-                kind,
-                app,
-                byte_len,
-                tick,
-            }
-        }
-
-        pub(crate) fn kind(&self) -> Modality {
-            self.kind
-        }
-    }
-}
+use std::time::{Duration, Instant};
 
 #[link(name = "kernel32")]
 extern "system" {
@@ -152,15 +38,47 @@ pub(crate) fn now_tick() -> u32 {
     unsafe { GetTickCount() }
 }
 
-pub(crate) fn capture_instant(event_tick: u32) -> SystemTime {
-    instant_from_age(SystemTime::now(), now_tick(), event_tick)
+/// The time of an OS event, in the milliseconds of GetTickCount.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct OsTick(u32);
+
+impl OsTick {
+    pub(crate) const fn new(tick: u32) -> OsTick {
+        OsTick(tick)
+    }
+
+    /// The age of the event at the tick `now`; a tick after `now` is no age.
+    pub(crate) fn age_at(self, now: u32) -> Duration {
+        let age = now.wrapping_sub(self.0);
+        if age > i32::MAX as u32 {
+            Duration::ZERO
+        } else {
+            Duration::from_millis(u64::from(age))
+        }
+    }
+
+    /// The age of the event now, which the floor constructors take.
+    pub(crate) fn age(self) -> Option<Duration> {
+        Some(self.age_at(now_tick()))
+    }
 }
 
-fn instant_from_age(now: SystemTime, now_tick: u32, event_tick: u32) -> SystemTime {
-    let age = now_tick.wrapping_sub(event_tick);
-    let age = if age > i32::MAX as u32 { 0 } else { age };
-    now.checked_sub(Duration::from_millis(u64::from(age)))
-        .unwrap_or(now)
+/// The process that an event belongs to and the path of its executable, when
+/// it could be read.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct FrontApp {
+    pub(crate) pid: u32,
+    pub(crate) path: Option<String>,
+}
+
+impl FrontApp {
+    pub(crate) fn subject(&self) -> Subject {
+        let app = self
+            .path
+            .clone()
+            .map_or_else(AppIdentity::unknown, AppIdentity::executable_path);
+        Subject::new(app, ProcessId::new(self.pid))
+    }
 }
 
 /// The events that a source dropped at the floor's decision, one count for
@@ -175,9 +93,74 @@ pub struct Drops {
     pub secure_input: u64,
 }
 
-/// The counts of a source's hand-off queue: packets that a full or closed
-/// queue dropped, packets and the pending motion sample that the queue still
-/// held when it was closed, and motion samples that a newer one replaced.
+#[derive(Debug, Default)]
+pub(crate) struct DropCounts([AtomicU64; 6]);
+
+impl DropCounts {
+    const fn index(reason: DropReason) -> usize {
+        match reason {
+            DropReason::SwitchOff => 0,
+            DropReason::ListedApp => 1,
+            DropReason::ExclusionTree => 2,
+            DropReason::UnknownLineage => 3,
+            DropReason::PrivateWindow => 4,
+            DropReason::SecureInput => 5,
+        }
+    }
+
+    pub(crate) fn count(&self, reason: DropReason) {
+        self.0[Self::index(reason)].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub(crate) fn read(&self) -> Drops {
+        let at = |reason| self.0[Self::index(reason)].load(Ordering::Relaxed);
+        Drops {
+            switch_off: at(DropReason::SwitchOff),
+            listed_app: at(DropReason::ListedApp),
+            exclusion_tree: at(DropReason::ExclusionTree),
+            unknown_lineage: at(DropReason::UnknownLineage),
+            private_window: at(DropReason::PrivateWindow),
+            secure_input: at(DropReason::SecureInput),
+        }
+    }
+}
+
+/// The floor's decision as a source asks it: the keep verdict of one event, or
+/// a drop that is counted under its reason.
+#[derive(Clone)]
+pub(crate) struct Floor {
+    handle: FloorHandle,
+    drops: Arc<DropCounts>,
+}
+
+impl Floor {
+    pub(crate) fn new(handle: FloorHandle, drops: Arc<DropCounts>) -> Floor {
+        Floor { handle, drops }
+    }
+
+    pub(crate) fn is_on(&self, switch: Switch) -> bool {
+        self.handle.switches().is_on(switch)
+    }
+
+    pub(crate) fn keep<K: Recorded>(
+        &self,
+        front: &FrontApp,
+        window: PrivateWindow,
+        probe: &dyn SecureInputProbe,
+    ) -> Option<Keep<K>> {
+        match self.handle.decide::<K>(front.subject(), window, probe) {
+            Verdict::Keep(keep) => Some(keep),
+            Verdict::Drop(reason) => {
+                self.drops.count(reason);
+                None
+            }
+        }
+    }
+}
+
+/// The counts of a source's hand-off queue: events that a full or closed queue
+/// dropped, and pointer folds that a full sink handed back to be added to the
+/// next interval.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct HandOffCounts {
     pub lost: u64,
@@ -186,11 +169,8 @@ pub struct HandOffCounts {
 
 pub(crate) const HANDOFF_CAPACITY: usize = 1_024;
 
-pub(crate) const MOTION_INTERVAL: Duration = Duration::from_millis(100);
-
 struct Queue {
-    packets: VecDeque<Packet>,
-    motion: Option<Packet>,
+    events: VecDeque<FloorEvent>,
     closed: bool,
     writer_gone: bool,
 }
@@ -202,8 +182,8 @@ pub(crate) struct LossCounts {
 }
 
 impl LossCounts {
-    fn lose(&self, packets: u64) {
-        self.lost.fetch_add(packets, Ordering::Relaxed);
+    fn lose(&self, events: u64) {
+        self.lost.fetch_add(events, Ordering::Relaxed);
     }
 
     pub(crate) fn read(&self) -> HandOffCounts {
@@ -244,8 +224,7 @@ impl HandOff {
     ) -> Result<Self, CaptureError> {
         let shared = Arc::new(Shared {
             queue: Mutex::new(Queue {
-                packets: VecDeque::new(),
-                motion: None,
+                events: VecDeque::new(),
                 closed: false,
                 writer_gone: false,
             }),
@@ -285,13 +264,8 @@ impl HandOff {
     }
 
     #[cfg(test)]
-    fn pending_motion(&self) -> bool {
-        self.shared.lock().motion.is_some()
-    }
-
-    #[cfg(test)]
     fn queued(&self) -> usize {
-        self.shared.lock().packets.len()
+        self.shared.lock().events.len()
     }
 }
 
@@ -302,37 +276,40 @@ impl Drop for HandOff {
 }
 
 impl Producer {
-    pub(crate) fn push(&self, packet: Packet) {
+    pub(crate) fn push(&self, event: FloorEvent) {
         let mut queue = self.shared.lock();
-        if queue.closed {
+        if queue.closed || queue.events.len() >= HANDOFF_CAPACITY {
             self.shared.counts.lose(1);
             return;
         }
-        if queue.packets.len() < HANDOFF_CAPACITY {
-            if let Some(motion) = queue.motion.take() {
-                queue.packets.push_back(motion);
-            }
-        }
-        if queue.packets.len() >= HANDOFF_CAPACITY {
-            self.shared.counts.lose(1);
-            return;
-        }
-        queue.packets.push_back(packet);
+        queue.events.push_back(event);
         drop(queue);
         self.shared.wake.notify_one();
     }
 
-    pub(crate) fn push_motion(&self, packet: Packet) {
+    /// Hands a fold record to the sink, which never blocks for one. A full
+    /// sink hands it back and its fold is returned, to be added to the next
+    /// interval of its class; a closed hand-off counts it lost.
+    pub(crate) fn emit_fold(&self, fold: FoldEvent) -> Option<PointerFold> {
         let mut queue = self.shared.lock();
         if queue.closed {
             self.shared.counts.lose(1);
-            return;
+            return None;
         }
-        if queue.motion.replace(packet).is_some() {
-            self.shared.counts.coalesced.fetch_add(1, Ordering::Relaxed);
+        match self.shared.sink.emit_continuous(fold) {
+            FoldEmitted::Queued => None,
+            FoldEmitted::Coalesced(back) => {
+                self.shared.counts.coalesced.fetch_add(1, Ordering::Relaxed);
+                Some(back.fold())
+            }
+            FoldEmitted::Refused => {
+                self.shared.counts.lose(1);
+                discard(&mut queue, &self.shared.counts);
+                queue.closed = true;
+                queue.writer_gone = true;
+                None
+            }
         }
-        drop(queue);
-        self.shared.wake.notify_one();
     }
 
     pub(crate) fn writer_gone(&self) -> bool {
@@ -347,9 +324,8 @@ impl HandOff {
 }
 
 fn forward(shared: &Shared) {
-    let mut last_motion: Option<Instant> = None;
-    while let Some(packet) = next_packet(shared, &mut last_motion) {
-        if forward_one(&shared.sink, packet).is_err() {
+    while let Some(event) = next_event(shared) {
+        if forward_one(&shared.sink, event) == Emitted::Refused {
             let mut queue = shared.lock();
             discard(&mut queue, &shared.counts);
             queue.closed = true;
@@ -360,32 +336,15 @@ fn forward(shared: &Shared) {
 }
 
 fn discard(queue: &mut Queue, counts: &LossCounts) {
-    let held = queue.packets.len() + usize::from(queue.motion.is_some());
-    counts.lose(held as u64);
-    queue.packets.clear();
-    queue.motion = None;
+    counts.lose(queue.events.len() as u64);
+    queue.events.clear();
 }
 
-fn next_packet(shared: &Shared, last_motion: &mut Option<Instant>) -> Option<Packet> {
+fn next_event(shared: &Shared) -> Option<FloorEvent> {
     let mut queue = shared.lock();
     loop {
-        if let Some(packet) = queue.packets.pop_front() {
-            return Some(packet);
-        }
-        if queue.motion.is_some() {
-            let wait = last_motion.map_or(Duration::ZERO, |at| {
-                MOTION_INTERVAL.saturating_sub(at.elapsed())
-            });
-            if wait.is_zero() || queue.closed {
-                *last_motion = Some(Instant::now());
-                return queue.motion.take();
-            }
-            queue = shared
-                .wake
-                .wait_timeout(queue, wait)
-                .unwrap_or_else(PoisonError::into_inner)
-                .0;
-            continue;
+        if let Some(event) = queue.events.pop_front() {
+            return Some(event);
         }
         if queue.closed {
             return None;
@@ -397,16 +356,9 @@ fn next_packet(shared: &Shared, last_motion: &mut Option<Instant>) -> Option<Pac
     }
 }
 
-pub(crate) fn forward_one(sink: &SinkHandle, packet: Packet) -> Result<EmitOutcome, SinkError> {
-    let placement = EventPlacement::unpersisted(packet.byte_len);
-    let wall_clock = capture_instant(packet.tick);
-    sink.emit(build_event(
-        sink,
-        packet.kind(),
-        packet.app.unwrap_or_default(),
-        placement,
-        wall_clock,
-    ))
+/// The one emit of a source's forwarder.
+pub(crate) fn forward_one(sink: &SinkHandle, event: FloorEvent) -> Emitted {
+    sink.emit_event(event)
 }
 
 #[cfg(target_os = "windows")]
@@ -594,9 +546,20 @@ pub(crate) struct Lifecycle {
     timed_out: Option<CaptureError>,
     removal_failed: Option<CaptureError>,
     stopped: bool,
+    off: bool,
 }
 
 impl Lifecycle {
+    /// A begin whose switch is off: nothing is installed and the health reads
+    /// Off until a begin with the switch on.
+    pub(crate) fn off(&mut self) -> Result<Started, CaptureError> {
+        if self.pump.is_some() || self.removal_failed.is_some() {
+            return Err(CaptureError::AlreadyStarted);
+        }
+        self.off = true;
+        Ok(Started::Off)
+    }
+
     pub(crate) fn begin(
         &mut self,
         ctx: &SourceContext,
@@ -611,6 +574,7 @@ impl Lifecycle {
         self.pump = Some(pump);
         self.handoff = Some(handoff);
         self.stopped = false;
+        self.off = false;
         Ok(Started::Running)
     }
 
@@ -662,6 +626,7 @@ impl Lifecycle {
             (Some(_), None) if writer_gone => failed_with(HealthReason::WriterGone),
             (Some(pump), None) if pump.has_ended() => thread_ended(),
             (Some(_), None) => SourceState::Running,
+            (None, _) if self.off => SourceState::Off,
             (None, _) if self.stopped => SourceState::Stopped(StopCause::Request),
             (None, _) => SourceState::NotReported,
         };
@@ -685,8 +650,24 @@ impl Drop for Lifecycle {
     }
 }
 
-pub(crate) fn app_of(cell: &Mutex<Option<String>>) -> Option<String> {
-    cell.lock().ok().and_then(|app| app.clone())
+/// The process of the window in front, read again only when the window in
+/// front changes.
+#[derive(Debug, Default)]
+pub(crate) struct FrontCache {
+    window: usize,
+    front: FrontApp,
+}
+
+impl FrontCache {
+    pub(crate) fn now(&mut self) -> FrontApp {
+        // SAFETY: GetForegroundWindow takes no argument and returns a handle value.
+        let window = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+        if window.0 as usize != self.window {
+            self.window = window.0 as usize;
+            self.front = foreground::resolve_front(window).unwrap_or_default();
+        }
+        self.front.clone()
+    }
 }
 
 pub(crate) fn thread_ended() -> SourceState {
@@ -832,6 +813,7 @@ pub fn timed_run(seconds: u64) -> Result<TimedRunReport, DaemonError> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::event::Modality;
 
     static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -872,71 +854,9 @@ pub(crate) mod tests {
         }
     }
 
-    pub(crate) fn test_placement() -> EventPlacement {
-        EventPlacement {
-            segment_ref: SegmentRef {
-                segment_id: Uuid::now_v7(),
-                byte_offset: 0,
-                byte_len: 0,
-            },
-            segment_key_id: SegmentKeyId(1),
-        }
-    }
-
-    #[test]
-    fn unpersisted_placement_is_the_nil_sentinel_carrying_the_measured_len() {
-        let placement = EventPlacement::unpersisted(128);
-        assert!(placement.segment_ref.segment_id.is_nil());
-        assert_eq!(placement.segment_ref.byte_offset, 0);
-        assert_eq!(placement.segment_ref.byte_len, 128);
-        assert_eq!(placement.segment_key_id, SegmentKeyId(0));
-    }
-
-    #[test]
-    fn build_event_is_raw_and_carries_the_modality() {
-        let (sink, _writer) = crate::sink::channel(8);
-        let event = build_event(
-            &sink,
-            Modality::Keystroke,
-            "C:\\Windows\\explorer.exe".to_string(),
-            test_placement(),
-            SystemTime::UNIX_EPOCH,
-        );
-        assert_eq!(event.modality, Modality::Keystroke);
-        assert!(!event.is_derived);
-        assert_eq!(event.retention_class, crate::event::RetentionClass::Raw);
-        assert_eq!(event.foreground_app, "C:\\Windows\\explorer.exe");
-    }
-
-    #[test]
-    fn build_event_takes_the_given_instant_and_a_fresh_monotonic_sequence() {
-        let (sink, _writer) = crate::sink::channel(8);
-        let at = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000);
-        let a = build_event(
-            &sink,
-            Modality::Pointer,
-            String::new(),
-            test_placement(),
-            at,
-        );
-        let b = build_event(
-            &sink,
-            Modality::Pointer,
-            String::new(),
-            test_placement(),
-            at,
-        );
-        assert!(a.captured_at.sequence < b.captured_at.sequence);
-        assert_eq!(a.captured_at.wall_clock, at);
-    }
-
     #[test]
     fn the_age_of_an_event_is_read_across_the_wrap_of_the_tick_count() {
-        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(100 * 86_400);
-        let at = |now_tick, event_tick| {
-            now.duration_since(instant_from_age(now, now_tick, event_tick))
-                .expect("not after now")
-        };
+        let at = |now_tick, event_tick| OsTick::new(event_tick).age_at(now_tick);
         assert_eq!(at(5_000, 4_750), Duration::from_millis(250));
         assert_eq!(at(100, u32::MAX - 149), Duration::from_millis(250));
         assert_eq!(at(4_750, 5_000), Duration::ZERO);
@@ -947,37 +867,57 @@ pub(crate) mod tests {
     const MARKER: &str = "halvo-shape-marker-7c1";
 
     /// One event of each kind, each built by its Windows path and handed to a
-    /// source's hand-off: today the packets of each source.
+    /// source's hand-off: the floor's decision, then core-2's constructor.
     fn one_of_each_kind(producer: &Producer) {
-        let tick = now_tick();
-        let app = || Some(SHAPE_APP.to_string());
-        producer.push(foreground::foreground_packet(app(), tick));
-        producer.push(
-            window_title::title_packet(&format!("Inbox {MARKER}"), app(), tick).expect("a title"),
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::payload::TitleWhy;
+        use crate::floor::{kind, Switches};
+        use crate::secure_input::windows::PasswordFieldProbe;
+        let mut switches = Switches::default();
+        switches.set(Switch::ScreenActivity, true);
+        let floor = Floor::new(
+            FloorHandle::new(None, Arc::new(NoLineage), switches),
+            Arc::default(),
         );
-        let key = input::KeyStroke {
-            vkey: 0x41,
-            released: false,
+        let front = FrontApp {
+            pid: 4242,
+            path: Some(SHAPE_APP.to_string()),
         };
-        producer.push(input::keystroke_packet(cleared(), key, app(), tick));
-        let press = input::PointerSample {
-            button_flags: 0x0001,
-            ..input::PointerSample::default()
-        };
-        producer.push(input::pointer_packet(press, app(), tick));
-        let release = input::PointerSample {
-            button_flags: 0x0002,
-            ..input::PointerSample::default()
-        };
-        producer.push(input::pointer_packet(release, app(), tick));
-        for _ in 0..3 {
-            let moved = input::PointerSample {
-                last_x: 3,
-                ..input::PointerSample::default()
-            };
-            producer.push_motion(input::pointer_packet(moved, app(), tick));
+        let tick = OsTick::new(now_tick());
+        let probe = PasswordFieldProbe::default();
+        let clock = crate::event::EventClock::system();
+        let keep = floor
+            .keep::<kind::ForegroundApp>(&front, PrivateWindow::Unknown, &probe)
+            .expect("kept");
+        producer.push(FloorEvent::foreground_app(keep, tick.age(), clock));
+        let title = (format!("Inbox {MARKER}"), TitleWhy::TitleChange);
+        producer
+            .push(window_title::title_event(&floor, None, &front, title, tick).expect("a title"));
+        let keep = floor
+            .keep::<kind::Keystroke>(&front, PrivateWindow::Unknown, &probe)
+            .expect("kept");
+        producer.push(FloorEvent::keystroke(
+            keep,
+            cleared(),
+            input::class_of(0x41),
+            clock,
+        ));
+        let mut folds = input::Folds::default();
+        let mut held = 0;
+        for (moved, flags) in [
+            (false, 0x0001),
+            (false, 0x0002),
+            (true, 0),
+            (true, 0),
+            (true, 0),
+        ] {
+            let parts = input::pointer_parts(&mut held, moved, flags);
+            input::pointer_records((&floor, producer, &mut folds), &front, parts, now_tick());
         }
-        producer.push(screen::frame_packet(1920, 1080, app(), tick).expect("a frame"));
+        for due in folds.due(now_tick(), true).into_iter().flatten() {
+            input::emit_due(&floor, producer, &mut folds, due);
+        }
+        producer.push(screen::frame_event(&floor, None, &front).expect("a frame"));
     }
 
     fn shape(record: &crate::floor::record::DecodedRecord) -> String {
@@ -1062,6 +1002,24 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn the_content_probe_of_a_gate_reads_its_field_state() {
+        use crate::secure_input::windows::{FieldState, PasswordGate};
+        use crate::secure_input::{SecureInputProbe, SecureInputReading};
+        let gate = PasswordGate::new();
+        assert_eq!(gate.content_probe().read(), SecureInputReading::Unknown);
+        for (state, reading) in [
+            (FieldState::Password, SecureInputReading::Active),
+            (FieldState::Clear, SecureInputReading::Inactive),
+            (FieldState::Unknown, SecureInputReading::Unknown),
+            (FieldState::Password, SecureInputReading::Active),
+        ] {
+            gate.field_at(now_tick(), state);
+            assert_eq!(gate.field_now(), state);
+            assert_eq!(gate.content_probe().read(), reading, "{state:?}");
+        }
+    }
+
+    #[test]
     fn timed_run_reports_the_deferral() {
         assert!(matches!(
             timed_run(600),
@@ -1128,8 +1086,26 @@ pub(crate) mod tests {
         );
     }
 
-    fn pointer(app: &str) -> Packet {
-        Packet::observed(Observed::Pointer, Some(app.to_string()), 12, now_tick())
+    fn pointer(app: &str) -> FloorEvent {
+        let keep = crate::floor::cases::keep(AppIdentity::executable_path(app.to_string()), 7);
+        FloorEvent::click(
+            keep,
+            crate::floor::payload::Button::Primary,
+            None,
+            crate::event::EventClock::system(),
+        )
+    }
+
+    /// The app of a received floor value, read back through the encoder.
+    pub(crate) fn tag(received: crate::sink::Received) -> String {
+        let floor = received.into_floor().expect("a floor value");
+        let line = crate::floor::record::encode(&floor, &crate::floor::cases::IdentityPoint)
+            .expect("a record");
+        crate::floor::record::decode(line.as_str())
+            .expect("the decoder reads the record")
+            .app()
+            .unwrap_or_default()
+            .to_string()
     }
 
     pub(crate) fn cleared() -> crate::secure_input::KeystrokeClearance {
@@ -1145,8 +1121,14 @@ pub(crate) mod tests {
         }
     }
 
-    fn keystroke(app: &str) -> Packet {
-        Packet::keystroke(cleared(), Some(app.to_string()), 2, now_tick())
+    fn keystroke(app: &str) -> FloorEvent {
+        let keep = crate::floor::cases::keep(AppIdentity::executable_path(app.to_string()), 7);
+        FloorEvent::keystroke(
+            keep,
+            cleared(),
+            crate::floor::payload::KeyClass::Printable,
+            crate::event::EventClock::system(),
+        )
     }
 
     fn wait_for(mut done: impl FnMut() -> bool) {
@@ -1186,21 +1168,22 @@ pub(crate) mod tests {
     fn packets_that_a_stopped_run_held_do_not_arrive_after_a_barrier_drawn_after_the_stop() {
         within(Duration::from_secs(60), || {
             let (sink, writer) = crate::sink::channel(1);
-            assert!(forward_one(&sink, keystroke("filler")).is_ok());
+            assert!(forward_one(&sink, keystroke("filler")) == Emitted::Queued);
             let ctx = SourceContext::new(sink.clone());
             let mut life = Lifecycle::default();
             life.begin(&ctx, "halvo-test-forward-1", |producer| {
                 for i in 1..=5 {
                     producer.push(keystroke(&format!("old-{i}")));
                 }
-                producer.push_motion(pointer("old-motion"));
                 quiet_pump()
             })
             .expect("the first run");
             wait_for(|| life.handoff.as_ref().is_some_and(|h| h.queued() == 4));
             let first_stop = life.shutdown();
             let lost_at_the_stop = life.handoff_counts().lost;
-            let filler = writer.recv().expect("the filler");
+            let filler = tag(writer
+                .recv_timeout(Duration::from_secs(5))
+                .expect("the filler"));
             wait_for(|| sink.counts().of(Modality::Keystroke).accepted >= 2);
             let barrier = writer.barrier();
             life.begin(&ctx, "halvo-test-forward-2", |producer| {
@@ -1220,18 +1203,14 @@ pub(crate) mod tests {
                 let received = writer
                     .recv_timeout(Duration::from_secs(3_600))
                     .expect("an event");
-                arrivals.push((
-                    received.event().foreground_app.clone(),
-                    received.is_before(barrier),
-                ));
+                let before = received.is_before(barrier);
+                arrivals.push((tag(received), before));
             }
             let second_stop = life.shutdown();
             drop((life, ctx, sink));
             while let Ok(received) = writer.recv_timeout(Duration::from_secs(3_600)) {
-                arrivals.push((
-                    received.event().foreground_app.clone(),
-                    received.is_before(barrier),
-                ));
+                let before = received.is_before(barrier);
+                arrivals.push((tag(received), before));
             }
             let old_after: Vec<&str> = arrivals
                 .iter()
@@ -1254,20 +1233,17 @@ pub(crate) mod tests {
             );
             assert_eq!(old_after, ["old-1"], "{arrivals:?}");
             assert_eq!(old_after_a_new, 0, "{arrivals:?}");
-            assert_eq!(filler.foreground_app, "filler");
+            assert_eq!(filler, "filler");
             assert_eq!(first_stop, Ok(()));
             assert_eq!(second_stop, Ok(()));
-            assert_eq!(
-                lost_at_the_stop, 5,
-                "the four queued packets and the pending sample"
-            );
+            assert_eq!(lost_at_the_stop, 4, "the four queued packets");
         });
     }
 
     #[test]
     fn a_full_queue_drops_a_packet_and_counts_it_lost() {
         let (sink, _writer) = crate::sink::channel(1);
-        assert!(forward_one(&sink, pointer("filler")).is_ok());
+        assert!(forward_one(&sink, pointer("filler")) == Emitted::Queued);
         let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
         let producer = handoff.producer();
         producer.push(pointer("taken"));
@@ -1296,7 +1272,6 @@ pub(crate) mod tests {
             producer.writer_gone()
         });
         producer.push(pointer("after"));
-        producer.push_motion(pointer("after"));
         assert!(handoff.writer_gone());
         assert_eq!(handoff.counts().lost, 2);
     }
@@ -1330,7 +1305,7 @@ pub(crate) mod tests {
     #[test]
     fn a_closed_hand_off_takes_no_packet_while_its_forwarder_is_parked() {
         let (sink, writer) = crate::sink::channel(1);
-        assert!(forward_one(&sink, pointer("filler")).is_ok());
+        assert!(forward_one(&sink, pointer("filler")) == Emitted::Queued);
         let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
         let producer = handoff.producer();
         producer.push(pointer("parked"));
@@ -1339,32 +1314,28 @@ pub(crate) mod tests {
         for _ in 0..3 {
             producer.push(pointer("after-close"));
         }
-        producer.push_motion(pointer("after-close"));
         let lost = handoff.counts().lost;
         let queued = handoff.queued();
-        let pending = handoff.pending_motion();
-        let filler = writer.recv().expect("the filler");
+        let filler = tag(writer
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the filler"));
         let mut apps = Vec::new();
         while let Ok(received) = writer.recv_timeout(Duration::from_secs(1)) {
-            apps.push(received.event().foreground_app.clone());
+            apps.push(tag(received));
         }
-        assert_eq!(filler.foreground_app, "filler");
+        assert_eq!(filler, "filler");
         assert_eq!(
-            lost, 4,
+            lost, 3,
             "each push into the closed hand-off is counted lost"
         );
         assert_eq!(queued, 0, "a push into the closed hand-off was queued");
-        assert!(
-            !pending,
-            "a motion sample is pending in the closed hand-off"
-        );
         assert_eq!(apps, ["parked"], "only the parked packet reaches the sink");
     }
 
     #[test]
-    fn a_gone_writer_counts_the_queued_packets_and_the_pending_motion_sample() {
+    fn a_gone_writer_counts_the_queued_events() {
         let (sink, writer) = crate::sink::channel(1);
-        assert!(forward_one(&sink, pointer("filler")).is_ok());
+        assert!(forward_one(&sink, pointer("filler")) == Emitted::Queued);
         let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
         let producer = handoff.producer();
         producer.push(pointer("parked"));
@@ -1372,20 +1343,13 @@ pub(crate) mod tests {
         for _ in 0..3 {
             producer.push(pointer("queued"));
         }
-        producer.push_motion(pointer("pending"));
         let queued = handoff.queued();
-        let pending = handoff.pending_motion();
         drop(writer);
         wait_until("the forwarder did not see the gone writer", || {
             handoff.writer_gone()
         });
         assert_eq!(queued, 3);
-        assert!(pending, "no motion sample was pending");
-        assert_eq!(
-            handoff.counts().lost,
-            4,
-            "the three queued packets and the pending motion sample"
-        );
+        assert_eq!(handoff.counts().lost, 3, "the three queued events");
     }
 
     fn stuck_source(sink: SinkHandle) -> Lifecycle {
@@ -1496,32 +1460,9 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_motion_sample_made_before_a_button_reaches_the_sink_before_it() {
-        let (sink, writer) = crate::sink::channel(16);
-        let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
-        let producer = handoff.producer();
-        producer.push_motion(pointer("motion-0"));
-        let first = writer
-            .recv_timeout(Duration::from_secs(2))
-            .expect("the first motion sample is sent");
-        assert_eq!(first.event().foreground_app, "motion-0");
-        producer.push_motion(pointer("motion-1"));
-        std::thread::sleep(Duration::from_millis(20));
-        producer.push(pointer("button"));
-        let mut order = Vec::new();
-        for _ in 0..2 {
-            let received = writer
-                .recv_timeout(Duration::from_secs(2))
-                .expect("both packets reach the sink");
-            order.push(received.event().foreground_app.clone());
-        }
-        assert_eq!(order, ["motion-1", "button"]);
-    }
-
-    #[test]
     fn packets_that_a_stopped_run_still_held_count_after_a_restart() {
         let (sink, writer) = crate::sink::channel(1);
-        assert!(forward_one(&sink, pointer("filler")).is_ok());
+        assert!(forward_one(&sink, pointer("filler")) == Emitted::Queued);
         let ctx = SourceContext::new(sink.clone());
         let quiet_pump = || {
             spawn_pump("halvo-pump-quiet".to_string(), |ready, signal| {
@@ -1557,35 +1498,13 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn motion_samples_reach_the_sink_at_most_once_in_100_ms() {
-        let (sink, writer) = crate::sink::channel(4_096);
-        let handoff = HandOff::start(sink, "halvo-test-forward", Arc::default()).expect("hand-off");
-        let producer = handoff.producer();
-        let began = Instant::now();
-        let mut pushed = 0u32;
-        while began.elapsed() < Duration::from_millis(350) {
-            producer.push_motion(pointer("motion"));
-            pushed += 1;
-            std::thread::sleep(Duration::from_millis(1));
-        }
-        std::thread::sleep(Duration::from_millis(250));
-        let mut sent = 0;
-        while writer.try_recv().is_ok() {
-            sent += 1;
-        }
-        assert!(pushed >= 20, "INCONCLUSIVE: {pushed} pushes in 350 ms");
-        assert!(
-            (3..=6).contains(&sent),
-            "{sent} motion samples reached the sink for {pushed} pushes in 350 ms"
-        );
-    }
-
-    #[test]
     fn an_event_carries_the_time_of_its_os_event() {
         let (sink, writer) = crate::sink::channel(4);
         let before = std::time::SystemTime::now();
-        let packet = Packet::keystroke(cleared(), None, 2, now_tick().wrapping_sub(250));
-        assert!(forward_one(&sink, packet).is_ok());
+        let keep = crate::floor::cases::keep(AppIdentity::unknown(), 7);
+        let age = OsTick::new(now_tick().wrapping_sub(250)).age();
+        let event = FloorEvent::foreground_app(keep, age, crate::event::EventClock::system());
+        assert_eq!(forward_one(&sink, event), Emitted::Queued);
         let after = std::time::SystemTime::now();
         let received = writer.try_recv().expect("the event is queued");
         let stamped = received.event().captured_at.wall_clock;
@@ -1596,51 +1515,6 @@ pub(crate) mod tests {
             "the event is stamped {:?} before the forward, not about 250 ms",
             after.duration_since(stamped).unwrap_or_default()
         );
-    }
-
-    #[test]
-    fn with_the_sink_full_one_motion_sample_is_pending_and_no_button_packet_is_lost() {
-        let (sink, writer) = crate::sink::channel(1);
-        let handoff =
-            HandOff::start(sink.clone(), "halvo-test-forward", Arc::default()).expect("hand-off");
-        assert!(matches!(
-            forward_one(&sink, pointer("filler")),
-            Ok(EmitOutcome::Queued)
-        ));
-        let producer = handoff.producer();
-        let (pushed, all_pushed) = std::sync::mpsc::channel();
-        std::thread::spawn(move || {
-            producer.push(pointer("button-1"));
-            for _ in 0..1_000 {
-                producer.push_motion(pointer("motion"));
-            }
-            producer.push(pointer("button-2"));
-            for _ in 0..1_000 {
-                producer.push_motion(pointer("motion"));
-            }
-            let _ = pushed.send(());
-        });
-        assert!(
-            all_pushed
-                .recv_timeout(std::time::Duration::from_secs(2))
-                .is_ok(),
-            "a push blocked on the full sink"
-        );
-        assert!(handoff.pending_motion(), "no motion sample is pending");
-        let counts = handoff.counts();
-        assert_eq!(counts.lost, 0);
-        assert!(counts.coalesced >= 1_997, "{counts:?}");
-        let mut apps = Vec::new();
-        while let Ok(received) = writer.recv_timeout(std::time::Duration::from_secs(1)) {
-            apps.push(received.event().foreground_app.clone());
-        }
-        let count = |app: &str| apps.iter().filter(|a| a.as_str() == app).count();
-        assert_eq!(count("filler"), 1, "{apps:?}");
-        assert_eq!(count("button-1"), 1, "{apps:?}");
-        assert_eq!(count("button-2"), 1, "{apps:?}");
-        let motions = count("motion");
-        assert!((1..=3).contains(&motions), "{apps:?}");
-        assert_eq!(apps.len(), 3 + motions);
     }
 
     #[test]

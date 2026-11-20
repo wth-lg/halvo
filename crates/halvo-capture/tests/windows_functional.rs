@@ -1629,17 +1629,22 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
 
         let keystrokes = count(&after_keys, Modality::Keystroke);
         let pointers = count(&after_moves, Modality::Pointer);
-        let attributed = after_keys
-            .iter()
-            .chain(&after_moves)
-            .all(|e| e.foreground_app == ATTRIBUTION);
+        let front_app = after_keys
+            .first()
+            .map(|e| e.foreground_app.clone())
+            .unwrap_or_default();
+        let attributed = !front_app.is_empty()
+            && after_keys
+                .iter()
+                .chain(&after_moves)
+                .all(|e| e.foreground_app == front_app);
         say(
             "c1",
             format!(
                 "key_presses_sent={PRESSES} sendinput_key_events_accepted={key_events_accepted} \
                  keystroke_events={keystrokes} pointer_moves_sent={MOVES} \
                  sendinput_move_events_accepted={move_events_accepted} pointer_events={pointers} \
-                 events_before_input={} events_after_stop={} attributed_to_last_app={attributed}",
+                 events_before_input={} events_after_stop={} attributed_to_one_app_in_front={attributed}",
                 quiet.len(),
                 after_stop.len(),
             ),
@@ -1671,11 +1676,8 @@ fn c2_screen_source_delivers_a_frame() {
     with_deadline("c2", Duration::from_secs(120), || {
         env_report("c2");
         source_built_by_test("c2", "screen");
-        let (cx, cy) = screen_size();
-        let expected_len = cx as u64 * cy as u64 * 4;
         let (sink, events) = capture(1024);
-        let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
-        let mut screen = ScreenSource::new(last_app);
+        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
         let started = Instant::now();
         let start = screen.begin(screen_on(sink.clone()));
         say(
@@ -1723,28 +1725,21 @@ fn c2_screen_source_delivers_a_frame() {
             "c2",
             format!(
                 "frames_unchanged_screen={} frames_moving_window={} frames_after_stop={} \
-                 expected_byte_len={expected_len} every_frame_is_full_screen={} \
-                 attributed_to_last_app={} dropped={}",
+                 frames_with_an_app={} dropped={}",
                 count(&idle, Modality::ScreenFrame),
                 count(&moving, Modality::ScreenFrame),
                 after_stop.len(),
                 frames
                     .iter()
-                    .all(|e| e.segment_ref.byte_len == expected_len),
-                frames.iter().all(|e| e.foreground_app == ATTRIBUTION),
+                    .filter(|e| !e.foreground_app.is_empty())
+                    .count(),
                 sink.dropped_count(),
             ),
         );
         assert!(!frames.is_empty(), "no frame of the desktop in 15 seconds");
         assert!(
-            frames
-                .iter()
-                .all(|e| e.segment_ref.byte_len == expected_len),
-            "a frame event does not have the size of the full screen"
-        );
-        assert!(
-            frames.iter().all(|e| e.foreground_app == ATTRIBUTION),
-            "a frame event does not carry the app in the shared cell"
+            frames.iter().all(|e| e.record.is_some()),
+            "a frame event is no record of the floor"
         );
     });
 }
@@ -3063,24 +3058,16 @@ fn x9_screen_source_across_a_display_mode_change() {
         summarize("x9", "after-mode-change", &after);
         let _ = stop_counted(&mut screen, "screen");
         let restored = set_resolution(start_w, start_h);
-        let with_new_size = after
-            .iter()
-            .filter(|e| e.segment_ref.byte_len == now_w as u64 * now_h as u64 * 4)
-            .count();
+        let frames_after = count(&after, Modality::ScreenFrame);
         say(
             "x9",
             format!(
                 "screen_start={} mode_before={start_w}x{start_h} mode_change_command_ok={changed} \
                  mode_after={now_w}x{now_h} frames_before={} frames_after_change={} \
-                 frames_after_with_new_size={with_new_size} frames_after_with_old_size={} \
                  mode_restored={restored}",
                 show(&start),
                 count(&before, Modality::ScreenFrame),
-                count(&after, Modality::ScreenFrame),
-                after
-                    .iter()
-                    .filter(|e| e.segment_ref.byte_len == start_w as u64 * start_h as u64 * 4)
-                    .count(),
+                frames_after,
             ),
         );
         assert!(start.is_ok(), "the screen source must start");
@@ -3088,10 +3075,7 @@ fn x9_screen_source_across_a_display_mode_change() {
             changed && (now_w, now_h) == (other_w, other_h),
             "INCONCLUSIVE: the display mode did not change"
         );
-        assert!(
-            with_new_size >= 1,
-            "no frame of the new display size after the mode change"
-        );
+        assert!(frames_after >= 1, "no frame after the mode change");
     });
 }
 
@@ -3161,78 +3145,6 @@ fn x13_frames_on_a_static_screen() {
             "VWF-10",
             records_while_static <= 1,
             format!("TF x13 records_while_static={records_while_static}")
-        );
-    });
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn pointer_moves_coalesce() {
-    with_deadline("coalesce", Duration::from_secs(60), || {
-        const MOVES: u32 = 100;
-        env_report("coalesce");
-        source_built_by_test("coalesce", "pointer");
-        let (sink, events) = capture(8192);
-        let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
-        let start = pointer.begin(SourceContext::new(sink.clone()));
-        let first = move_pointer(MOVES / 2);
-        let wheel = send(&[wheel_notch()]);
-        let second = move_pointer(MOVES / 2);
-        let pointers = count(
-            &events.drain_for(Duration::from_millis(1500)),
-            Modality::Pointer,
-        );
-        std::thread::sleep(Duration::from_millis(300));
-        let coalesced_before = pointer.handoff_counts().coalesced;
-        let mut segment_sent = send(&[mouse_move(3, 0)]);
-        std::thread::sleep(Duration::from_millis(10));
-        segment_sent += send(&[wheel_notch()]);
-        std::thread::sleep(Duration::from_millis(10));
-        segment_sent += send(&[mouse_move(-3, 0)]);
-        let segment = count(
-            &events.drain_for(Duration::from_millis(700)),
-            Modality::Pointer,
-        );
-        let segment_coalesced = pointer.handoff_counts().coalesced - coalesced_before;
-        let _ = stop_counted(&mut pointer, "pointer");
-        let counts = pointer.handoff_counts();
-        let accepted = first + second;
-        say(
-            "coalesce",
-            format!(
-                "pointer_start={} moves_sent={MOVES} sendinput_move_events_accepted={accepted} \
-                 sendinput_wheel_events_accepted={wheel} pointer_events={pointers} \
-                 coalesced={} lost={} move_notch_move_accepted={segment_sent} \
-                 move_notch_move_events={segment} move_notch_move_coalesced={segment_coalesced}",
-                show(&start),
-                counts.coalesced,
-                counts.lost,
-            ),
-        );
-        assert!(start.is_ok(), "the pointer source must start");
-        assert!(
-            accepted == MOVES && wheel == 1,
-            "INCONCLUSIVE: SendInput did not insert every move and the wheel notch"
-        );
-        assert!(pointers >= 1, "no pointer event at all");
-        assert!(
-            pointers < accepted as usize,
-            "every move gave its own pointer event"
-        );
-        assert_eq!(counts.lost, 0, "the hand-off lost packets");
-        assert_eq!(
-            pointers as u64 + counts.coalesced,
-            u64::from(accepted) + 1,
-            "the wheel packet inside the burst is not its own pointer event"
-        );
-        assert_eq!(
-            segment_sent, 3,
-            "INCONCLUSIVE: SendInput did not insert the move, the notch and the move"
-        );
-        assert_eq!(
-            (segment, segment_coalesced),
-            (3, 0),
-            "a wheel notch 10 ms after a move and 10 ms before the next was folded into the motion sample"
         );
     });
 }
@@ -5601,300 +5513,6 @@ mod known_defect {
             );
         });
     }
-
-    fn key_press(keys: &[VIRTUAL_KEY]) -> u32 {
-        let mut accepted = 0;
-        for key in keys {
-            accepted += send(&[key_input(*key, false)]);
-            std::thread::sleep(Duration::from_millis(30));
-        }
-        for key in keys.iter().rev() {
-            accepted += send(&[key_input(*key, true)]);
-            std::thread::sleep(Duration::from_millis(30));
-        }
-        std::thread::sleep(Duration::from_millis(300));
-        accepted
-    }
-
-    #[test]
-    #[ignore = "known defect: E4, a keystroke record holds no class"]
-    fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
-        with_deadline("classes", Duration::from_secs(90), || {
-            env_report("classes");
-            source_built_by_test("classes", "keyboard");
-            let (sink, events) = capture(4096);
-            let _fields = FieldWindow::open(
-                "one_key_of_each_class_gives_one_keystroke_record_of_each_class",
-                Field::Plain,
-            );
-            let mut keyboard =
-                RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
-            let start = keyboard.begin(SourceContext::new(sink.clone()));
-            let _ = events.drain_for(Duration::from_secs(1));
-            let presses: [&[VIRTUAL_KEY]; 6] = [
-                &[VIRTUAL_KEY(0x41)],
-                &[VIRTUAL_KEY(0x08)],
-                &[VIRTUAL_KEY(0x25)],
-                &[VIRTUAL_KEY(0x0D)],
-                &[VIRTUAL_KEY(0x09)],
-                &[VIRTUAL_KEY(0x11), VIRTUAL_KEY(0x41)],
-            ];
-            let mut accepted = 0;
-            for keys in presses {
-                accepted += key_press(keys);
-            }
-            let seen = events.drain_for(Duration::from_secs(2));
-            let _ = stop_counted(&mut keyboard, "keyboard");
-            let classes: Vec<KeyClass> = payloads(&seen)
-                .into_iter()
-                .filter_map(|payload| match payload {
-                    DecodedPayload::Keystroke(class) => Some(class),
-                    _ => None,
-                })
-                .collect();
-            let each: Vec<String> = KeyClass::ALL
-                .iter()
-                .map(|class| {
-                    format!(
-                        "{}={}",
-                        class.as_str(),
-                        classes.iter().filter(|seen| *seen == class).count()
-                    )
-                })
-                .collect();
-            say(
-                "classes",
-                format!(
-                    "keyboard_start={} sendinput_key_events_accepted={accepted} keystroke_events={} {}",
-                    show(&start),
-                    count(&seen, Modality::Keystroke),
-                    each.join(" ")
-                ),
-            );
-            assert!(start.is_ok(), "the keyboard source must start");
-            assert_eq!(
-                accepted, 14,
-                "INCONCLUSIVE: SendInput did not insert every key"
-            );
-            defect!(
-                "E4",
-                KeyClass::ALL.iter().all(|class| classes
-                    .iter()
-                    .filter(|seen| *seen == class)
-                    .count()
-                    == 1)
-                    && classes.len() == KeyClass::ALL.len(),
-                format!(
-                    "TF classes keystroke_records_with_a_class={}",
-                    classes.len()
-                )
-            );
-        });
-    }
-
-    fn mouse(flags: MOUSE_EVENT_FLAGS, dx: i32, data: i32) -> INPUT {
-        INPUT {
-            r#type: INPUT_MOUSE,
-            Anonymous: INPUT_0 {
-                mi: MOUSEINPUT {
-                    dx,
-                    dy: 0,
-                    mouseData: data as u32,
-                    dwFlags: flags,
-                    time: 0,
-                    dwExtraInfo: 0,
-                },
-            },
-        }
-    }
-
-    fn folds(events: &[Seen], wanted: FoldClass) -> Vec<u64> {
-        payloads(events)
-            .into_iter()
-            .filter_map(|payload| match payload {
-                DecodedPayload::Fold { class, count } if class == wanted => Some(count),
-                _ => None,
-            })
-            .collect()
-    }
-
-    fn clicks(events: &[Seen]) -> Vec<Button> {
-        payloads(events)
-            .into_iter()
-            .filter_map(|payload| match payload {
-                DecodedPayload::Click(button) => Some(button),
-                _ => None,
-            })
-            .collect()
-    }
-
-    #[test]
-    #[ignore = "known defect: E4 and B14-20, pointer events are not folded by class and interval"]
-    fn pointer_events_fold_into_one_record_for_each_class_and_interval() {
-        with_deadline("folds", Duration::from_secs(90), || {
-            const MOVES: usize = 100;
-            env_report("folds");
-            source_built_by_test("folds", "pointer");
-            let (sink, events) = capture(8192);
-            let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
-            let start = pointer.begin(SourceContext::new(sink.clone()));
-            let _ = events.drain_for(Duration::from_secs(1));
-            let moves: Vec<INPUT> = (0..MOVES)
-                .map(|i| mouse(MOUSEEVENTF_MOVE, if i % 2 == 0 { 3 } else { -3 }, 0))
-                .collect();
-            let moved = send(&moves);
-            let first = events.drain_for(Duration::from_millis(2_500));
-            let mut second_sent = send(&[
-                mouse(MOUSEEVENTF_LEFTDOWN, 0, 0),
-                mouse(MOUSEEVENTF_LEFTUP, 0, 0),
-            ]);
-            second_sent += send(&[mouse(MOUSEEVENTF_WHEEL, 0, 120)]);
-            second_sent += send(&[
-                mouse(MOUSEEVENTF_LEFTDOWN, 0, 0),
-                mouse(MOUSEEVENTF_MOVE, 3, 0),
-                mouse(MOUSEEVENTF_MOVE, -3, 0),
-                mouse(MOUSEEVENTF_MOVE, 3, 0),
-                mouse(MOUSEEVENTF_LEFTUP, 0, 0),
-            ]);
-            let second = events.drain_for(Duration::from_millis(2_500));
-            let third_sent = send(&[
-                mouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_LEFTDOWN, -3, 0),
-                mouse(MOUSEEVENTF_LEFTUP, 0, 0),
-            ]);
-            let third = events.drain_for(Duration::from_millis(2_500));
-            let _ = stop_counted(&mut pointer, "pointer");
-            let moves_first = folds(&first, FoldClass::Move);
-            let drags = folds(&second, FoldClass::Drag);
-            let scrolls = folds(&second, FoldClass::Scroll);
-            let moves_second = folds(&second, FoldClass::Move);
-            let clicks_second = clicks(&second);
-            let moves_third = folds(&third, FoldClass::Move);
-            let clicks_third = clicks(&third);
-            say(
-                "folds",
-                format!(
-                    "pointer_start={} sendinput_move_events_accepted={moved} \
-                     move_records={moves_first:?} pointer_events={} second_accepted={second_sent} \
-                     clicks={} drag_records={drags:?} scroll_records={scrolls:?} \
-                     move_records_of_the_second={moves_second:?} third_accepted={third_sent} \
-                     clicks_of_the_third={} move_records_of_the_third={moves_third:?}",
-                    show(&start),
-                    count(&first, Modality::Pointer),
-                    clicks_second.len(),
-                    clicks_third.len(),
-                ),
-            );
-            assert!(start.is_ok(), "the pointer source must start");
-            assert!(
-                moved as usize == MOVES && second_sent == 8 && third_sent == 2,
-                "INCONCLUSIVE: SendInput did not insert every pointer event"
-            );
-            defect!(
-                "E4",
-                moves_first == [MOVES as u64]
-                    && clicks_second == [Button::Primary, Button::Primary]
-                    && drags == [3]
-                    && scrolls == [1]
-                    && moves_second.is_empty()
-                    && clicks_third == [Button::Primary]
-                    && moves_third == [1],
-                format!("TF folds move_records={moves_first:?}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: P8, an event of a process under the exclusion root leaves the sources"]
-    fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
-        with_deadline("tree", Duration::from_secs(120), || {
-            env_report("tree");
-            for source in ["foreground", "window_title", "keyboard", "pointer"] {
-                source_built_by_test("tree", source);
-            }
-            let (sink, events) = capture(8192);
-            let mut root = spawn_child("root", 8);
-            let floor = FloorHandle::new(
-                Some(ProcessId::new(root.id())),
-                Arc::new(ProcessLineage::new()),
-                Switches::default(),
-            );
-            let ctx = SourceContext::with_floor(sink.clone(), floor);
-            let mut foreground = ForegroundAppSource::new();
-            let mut title = WindowTitleSource::new();
-            let mut keyboard =
-                RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
-            let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
-            let starts = [
-                foreground.begin(ctx.clone()),
-                title.begin(ctx.clone()),
-                keyboard.begin(ctx.clone()),
-                pointer.begin(ctx.clone()),
-            ];
-            let began = Instant::now();
-            let mut held_in_front = false;
-            while !held_in_front && began.elapsed() < Duration::from_secs(5) {
-                pump_thread(Duration::from_millis(100));
-                held_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
-            }
-            let _ = events.drain_for(Duration::from_millis(500));
-            let in_tree_keys = press_keys(5);
-            let in_tree_moves = move_pointer(10);
-            let in_tree = events.drain_for(Duration::from_millis(1_500));
-            let still_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
-            let fields = FieldWindow::open(
-                "a_window_under_the_exclusion_root_gives_no_event_and_another_window_does",
-                Field::Plain,
-            );
-            let _ = events.drain_for(Duration::from_millis(500));
-            let outside_keys = press_keys(5);
-            let outside_moves = move_pointer(10);
-            let outside = events.drain_for(Duration::from_millis(2_000));
-            drop(fields);
-            for (source, name) in [
-                (&mut foreground as &mut dyn CaptureSource, "foreground"),
-                (&mut title, "window_title"),
-                (&mut keyboard, "keyboard"),
-                (&mut pointer, "pointer"),
-            ] {
-                let _ = stop_counted(source, name);
-            }
-            let _ = root.wait();
-            root.print_output();
-            let tree_drops = foreground.drops().exclusion_tree
-                + title.drops().exclusion_tree
-                + keyboard.drops().exclusion_tree
-                + pointer.drops().exclusion_tree;
-            say(
-                "tree",
-                format!(
-                    "starts_ok={} grandchild_window_in_front={held_in_front} still_in_front={still_in_front} \
-                     sendinput_key_events_accepted={in_tree_keys} sendinput_move_events_accepted={in_tree_moves} \
-                     events_in_the_tree={} exclusion_tree_drops={tree_drops} \
-                     outside_keys={outside_keys} outside_moves={outside_moves} events_outside={} \
-                     keystroke_events_outside={} pointer_events_outside={}",
-                    starts.iter().all(Result::is_ok),
-                    in_tree.len(),
-                    outside.len(),
-                    count(&outside, Modality::Keystroke),
-                    count(&outside, Modality::Pointer),
-                ),
-            );
-            assert!(starts.iter().all(Result::is_ok), "the sources must start");
-            assert!(
-                held_in_front && still_in_front,
-                "INCONCLUSIVE: the window of the grandchild was not in front"
-            );
-            assert!(
-                count(&outside, Modality::Pointer) >= 1,
-                "no pointer event for a window outside the tree"
-            );
-            defect!(
-                "P8",
-                in_tree.is_empty() && tree_drops > 0,
-                format!("TF tree events_in_the_tree={}", in_tree.len())
-            );
-        });
-    }
 }
 
 use halvo_capture::windows::apps::{InstalledSoftwareWatcher, WatchOutcome};
@@ -6120,4 +5738,296 @@ fn c5_three_probe_entries_against_what_windows_lists() {
             )
         );
     });
+}
+
+#[test]
+#[ignore = "functional: was a known defect: E4, a keystroke record holds no class"]
+fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
+    with_deadline("classes", Duration::from_secs(90), || {
+        env_report("classes");
+        source_built_by_test("classes", "keyboard");
+        let (sink, events) = capture(4096);
+        let _fields = FieldWindow::open(
+            "one_key_of_each_class_gives_one_keystroke_record_of_each_class",
+            Field::Plain,
+        );
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        let _ = events.drain_for(Duration::from_secs(1));
+        let presses: [&[VIRTUAL_KEY]; 6] = [
+            &[VIRTUAL_KEY(0x41)],
+            &[VIRTUAL_KEY(0x08)],
+            &[VIRTUAL_KEY(0x25)],
+            &[VIRTUAL_KEY(0x0D)],
+            &[VIRTUAL_KEY(0x09)],
+            &[VIRTUAL_KEY(0x11), VIRTUAL_KEY(0x41)],
+        ];
+        let mut accepted = 0;
+        for keys in presses {
+            accepted += key_press(keys);
+        }
+        let seen = events.drain_for(Duration::from_secs(2));
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let classes: Vec<KeyClass> = payloads(&seen)
+            .into_iter()
+            .filter_map(|payload| match payload {
+                DecodedPayload::Keystroke(class) => Some(class),
+                _ => None,
+            })
+            .collect();
+        let each: Vec<String> = KeyClass::ALL
+            .iter()
+            .map(|class| {
+                format!(
+                    "{}={}",
+                    class.as_str(),
+                    classes.iter().filter(|seen| *seen == class).count()
+                )
+            })
+            .collect();
+        say(
+            "classes",
+            format!(
+                "keyboard_start={} sendinput_key_events_accepted={accepted} keystroke_events={} {}",
+                show(&start),
+                count(&seen, Modality::Keystroke),
+                each.join(" ")
+            ),
+        );
+        assert!(start.is_ok(), "the keyboard source must start");
+        assert_eq!(
+            accepted, 14,
+            "INCONCLUSIVE: SendInput did not insert every key"
+        );
+        flipped!(
+            "E4",
+            KeyClass::ALL
+                .iter()
+                .all(|class| classes.iter().filter(|seen| *seen == class).count() == 1)
+                && classes.len() == KeyClass::ALL.len(),
+            format!(
+                "TF classes keystroke_records_with_a_class={}",
+                classes.len()
+            )
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: was a known defect: E4 and B14-20, pointer events are not folded by class and interval"]
+fn pointer_events_fold_into_one_record_for_each_class_and_interval() {
+    with_deadline("folds", Duration::from_secs(90), || {
+        const MOVES: usize = 100;
+        env_report("folds");
+        source_built_by_test("folds", "pointer");
+        let (sink, events) = capture(8192);
+        let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
+        let start = pointer.begin(SourceContext::new(sink.clone()));
+        let _ = events.drain_for(Duration::from_secs(1));
+        let moves: Vec<INPUT> = (0..MOVES)
+            .map(|i| mouse(MOUSEEVENTF_MOVE, if i % 2 == 0 { 3 } else { -3 }, 0))
+            .collect();
+        let moved = send(&moves);
+        let first = events.drain_for(Duration::from_millis(2_500));
+        let mut second_sent = send(&[
+            mouse(MOUSEEVENTF_LEFTDOWN, 0, 0),
+            mouse(MOUSEEVENTF_LEFTUP, 0, 0),
+        ]);
+        second_sent += send(&[mouse(MOUSEEVENTF_WHEEL, 0, 120)]);
+        second_sent += send(&[
+            mouse(MOUSEEVENTF_LEFTDOWN, 0, 0),
+            mouse(MOUSEEVENTF_MOVE, 3, 0),
+            mouse(MOUSEEVENTF_MOVE, -3, 0),
+            mouse(MOUSEEVENTF_MOVE, 3, 0),
+            mouse(MOUSEEVENTF_LEFTUP, 0, 0),
+        ]);
+        let second = events.drain_for(Duration::from_millis(2_500));
+        let third_sent = send(&[
+            mouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_LEFTDOWN, -3, 0),
+            mouse(MOUSEEVENTF_LEFTUP, 0, 0),
+        ]);
+        let third = events.drain_for(Duration::from_millis(2_500));
+        let _ = stop_counted(&mut pointer, "pointer");
+        let moves_first = folds(&first, FoldClass::Move);
+        let drags = folds(&second, FoldClass::Drag);
+        let scrolls = folds(&second, FoldClass::Scroll);
+        let moves_second = folds(&second, FoldClass::Move);
+        let clicks_second = clicks(&second);
+        let moves_third = folds(&third, FoldClass::Move);
+        let clicks_third = clicks(&third);
+        say(
+            "folds",
+            format!(
+                "pointer_start={} sendinput_move_events_accepted={moved} \
+                 move_records={moves_first:?} pointer_events={} second_accepted={second_sent} \
+                 clicks={} drag_records={drags:?} scroll_records={scrolls:?} \
+                 move_records_of_the_second={moves_second:?} third_accepted={third_sent} \
+                 clicks_of_the_third={} move_records_of_the_third={moves_third:?}",
+                show(&start),
+                count(&first, Modality::Pointer),
+                clicks_second.len(),
+                clicks_third.len(),
+            ),
+        );
+        assert!(start.is_ok(), "the pointer source must start");
+        assert!(
+            moved as usize == MOVES && second_sent == 8 && third_sent == 2,
+            "INCONCLUSIVE: SendInput did not insert every pointer event"
+        );
+        flipped!(
+            "E4",
+            moves_first == [MOVES as u64]
+                && clicks_second == [Button::Primary, Button::Primary]
+                && drags == [3]
+                && scrolls == [1]
+                && moves_second.is_empty()
+                && clicks_third == [Button::Primary]
+                && moves_third == [1],
+            format!("TF folds move_records={moves_first:?}")
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: was a known defect: P8, an event of a process under the exclusion root leaves the sources"]
+fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
+    with_deadline("tree", Duration::from_secs(120), || {
+        env_report("tree");
+        for source in ["foreground", "window_title", "keyboard", "pointer"] {
+            source_built_by_test("tree", source);
+        }
+        let (sink, events) = capture(8192);
+        let mut root = spawn_child("root", 8);
+        let floor = FloorHandle::new(
+            Some(ProcessId::new(root.id())),
+            Arc::new(ProcessLineage::new()),
+            Switches::default(),
+        );
+        let ctx = SourceContext::with_floor(sink.clone(), floor);
+        let mut foreground = ForegroundAppSource::new();
+        let mut title = WindowTitleSource::new();
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
+        let starts = [
+            foreground.begin(ctx.clone()),
+            title.begin(ctx.clone()),
+            keyboard.begin(ctx.clone()),
+            pointer.begin(ctx.clone()),
+        ];
+        let began = Instant::now();
+        let mut held_in_front = false;
+        while !held_in_front && began.elapsed() < Duration::from_secs(5) {
+            pump_thread(Duration::from_millis(100));
+            held_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
+        }
+        let _ = events.drain_for(Duration::from_millis(500));
+        let in_tree_keys = press_keys(5);
+        let in_tree_moves = move_pointer(10);
+        let in_tree = events.drain_for(Duration::from_millis(1_500));
+        let still_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
+        let fields = FieldWindow::open(
+            "a_window_under_the_exclusion_root_gives_no_event_and_another_window_does",
+            Field::Plain,
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let outside_keys = press_keys(5);
+        let outside_moves = move_pointer(10);
+        let outside = events.drain_for(Duration::from_millis(2_000));
+        drop(fields);
+        for (source, name) in [
+            (&mut foreground as &mut dyn CaptureSource, "foreground"),
+            (&mut title, "window_title"),
+            (&mut keyboard, "keyboard"),
+            (&mut pointer, "pointer"),
+        ] {
+            let _ = stop_counted(source, name);
+        }
+        let _ = root.wait();
+        root.print_output();
+        let tree_drops = foreground.drops().exclusion_tree
+            + title.drops().exclusion_tree
+            + keyboard.drops().exclusion_tree
+            + pointer.drops().exclusion_tree;
+        say(
+            "tree",
+            format!(
+                "starts_ok={} grandchild_window_in_front={held_in_front} still_in_front={still_in_front} \
+                 sendinput_key_events_accepted={in_tree_keys} sendinput_move_events_accepted={in_tree_moves} \
+                 events_in_the_tree={} exclusion_tree_drops={tree_drops} \
+                 outside_keys={outside_keys} outside_moves={outside_moves} events_outside={} \
+                 keystroke_events_outside={} pointer_events_outside={}",
+                starts.iter().all(Result::is_ok),
+                in_tree.len(),
+                outside.len(),
+                count(&outside, Modality::Keystroke),
+                count(&outside, Modality::Pointer),
+            ),
+        );
+        assert!(starts.iter().all(Result::is_ok), "the sources must start");
+        assert!(
+            held_in_front && still_in_front,
+            "INCONCLUSIVE: the window of the grandchild was not in front"
+        );
+        assert!(
+            count(&outside, Modality::Pointer) >= 1,
+            "no pointer event for a window outside the tree"
+        );
+        flipped!(
+            "P8",
+            in_tree.is_empty() && tree_drops > 0,
+            format!("TF tree events_in_the_tree={}", in_tree.len())
+        );
+    });
+}
+
+fn key_press(keys: &[VIRTUAL_KEY]) -> u32 {
+    let mut accepted = 0;
+    for key in keys {
+        accepted += send(&[key_input(*key, false)]);
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    for key in keys.iter().rev() {
+        accepted += send(&[key_input(*key, true)]);
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    accepted
+}
+
+fn mouse(flags: MOUSE_EVENT_FLAGS, dx: i32, data: i32) -> INPUT {
+    INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 {
+            mi: MOUSEINPUT {
+                dx,
+                dy: 0,
+                mouseData: data as u32,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+fn folds(events: &[Seen], wanted: FoldClass) -> Vec<u64> {
+    payloads(events)
+        .into_iter()
+        .filter_map(|payload| match payload {
+            DecodedPayload::Fold { class, count } if class == wanted => Some(count),
+            _ => None,
+        })
+        .collect()
+}
+
+fn clicks(events: &[Seen]) -> Vec<Button> {
+    payloads(events)
+        .into_iter()
+        .filter_map(|payload| match payload {
+            DecodedPayload::Click(button) => Some(button),
+            _ => None,
+        })
+        .collect()
 }

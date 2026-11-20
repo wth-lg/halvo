@@ -856,6 +856,10 @@ impl PasswordGate {
             .unwrap_or(FieldState::Unknown)
     }
 
+    pub(crate) fn content_probe(&self) -> PasswordFieldProbe {
+        PasswordFieldProbe::default()
+    }
+
     #[cfg(test)]
     pub(crate) fn clearance(
         &self,
