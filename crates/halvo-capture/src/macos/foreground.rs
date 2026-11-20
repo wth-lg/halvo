@@ -1511,6 +1511,15 @@ mod tests {
                 .selects_front(&unbundled(short, 76).expect("a front")),
             "an identity that the cap did not cut is the whole path, read no more"
         );
+        let no_sibling = HalvoApp::beside(None).reading_paths_by(the_other_program);
+        assert!(
+            !no_sibling.selects_front(&front),
+            "an app with no sibling took a cut path for its own"
+        );
+        assert!(
+            !no_sibling.selects_front(&unbundled(short, 77).expect("a front")),
+            "an app with no sibling took a short path for its own"
+        );
     }
 
     #[test]

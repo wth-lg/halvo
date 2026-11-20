@@ -2356,6 +2356,10 @@ mod tests {
     {
         use super::test_support::{take_where_hosted, REFUSED_OFF_A_HOSTED_RUNNER};
         use std::panic::{catch_unwind, AssertUnwindSafe};
+        assert_ne!(
+            REFUSED_OFF_A_HOSTED_RUNNER, 0,
+            "the refusal's status would read as a hold that the system took"
+        );
         static TAKES: AtomicUsize = AtomicUsize::new(0);
         fn counted_take() -> i32 {
             TAKES.fetch_add(1, Ordering::SeqCst);

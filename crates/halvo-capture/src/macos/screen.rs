@@ -3917,6 +3917,25 @@ mod tests {
     }
 
     #[test]
+    fn a_report_after_two_failed_stops_lets_go_of_what_the_first_one_kept() {
+        let (mut source, _handle, _writer, asks, weak) = started(&[
+            Some(StopReply::Failed { code: -3808 }),
+            Some(StopReply::Failed { code: -3810 }),
+        ]);
+        assert!(source.shutdown().is_err(), "the first stop");
+        assert!(source.shutdown().is_err(), "the second stop");
+        let kept = weak.load().expect("the output that the first stop kept");
+        deliver_stop(&kept, USER_STOPPED as NSInteger);
+        drop(kept);
+        assert_eq!(source.shutdown(), Ok(()), "the shutdown after the report");
+        assert_eq!(asks.get(), 2, "a third ask");
+        assert!(
+            weak.load().is_none(),
+            "the output that the first failed stop kept was not let go"
+        );
+    }
+
+    #[test]
     fn a_dropped_started_source_asks_the_stream_to_stop_and_releases_the_output() {
         let (source, handle, writer, asks, weak) = started(&[Some(StopReply::Stopped)]);
         drop(source);
