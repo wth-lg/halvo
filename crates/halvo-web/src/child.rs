@@ -352,3 +352,50 @@ fn watch_entry() {
     }
     std::process::exit(0);
 }
+
+/// The process of `start::tests::a_start_leaves_no_handle_of_its_own_open` (Windows): with
+/// `--count-handles OUT` it starts `cmd /C exit 0` on the pipe and waits for it, once, then
+/// counts this process's handles, starts and waits five times more, counts again and writes
+/// `before=<n> after=<n>` into OUT; in a run of the tests it returns at once.
+#[cfg(windows)]
+#[test]
+fn handle_count_entry() {
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessHandleCount};
+    let args: Vec<String> = std::env::args().collect();
+    let Some(out) = args
+        .iter()
+        .position(|a| a == "--count-handles")
+        .and_then(|i| args.get(i + 1))
+    else {
+        return;
+    };
+    let cmd = PathBuf::from(std::env::var_os("ComSpec").unwrap());
+    let work = crate::start::system_dir().unwrap();
+    let once = || {
+        let spec = crate::start::Spec {
+            program: &cmd,
+            args: vec!["/C".into(), "exit".into(), "0".into()],
+            env: crate::start::guard_env().unwrap(),
+            dir: &work,
+        };
+        let mut on = {
+            let held = crate::start::lock();
+            crate::start::start_on_pipe(&held, &spec).unwrap()
+        };
+        on.child.wait();
+    };
+    let count = || {
+        let mut n = 0u32;
+        // SAFETY: the pseudo handle of this process and a live u32.
+        unsafe { GetProcessHandleCount(GetCurrentProcess(), &mut n) };
+        n
+    };
+    once();
+    let before = count();
+    for _ in 0..5 {
+        once();
+    }
+    let after = count();
+    let _ = std::fs::write(out, format!("before={before} after={after}\n"));
+    std::process::exit(0);
+}
