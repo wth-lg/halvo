@@ -473,6 +473,29 @@ fn the_reply_answers_list_overlaps_alone_and_never_names_the_asking_workflow_or_
         assert!(overlaps.answers(call));
     }
     assert!(!overlaps.answers(&set) && !overlaps.answers(&checkpoints));
+    let golden = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/golden/r3/coordinator-bodies.jsonl"),
+    )
+    .unwrap();
+    let bodies: Vec<CoordinatorCall> = golden
+        .lines()
+        .map(|b| CoordinatorCall::parse(b.as_bytes()).unwrap())
+        .collect();
+    let others: std::collections::BTreeSet<&str> = bodies
+        .iter()
+        .map(|b| b.op())
+        .filter(|op| *op != "list_overlaps")
+        .collect();
+    assert_eq!(others.len(), 8, "{others:?}");
+    for call in &bodies {
+        assert_eq!(
+            overlaps.answers(call),
+            call.op() == "list_overlaps",
+            "{}",
+            call.op()
+        );
+    }
     for other in [
         r#"{"rev":1}"#,
         r#"{"state":"active"}"#,
