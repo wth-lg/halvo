@@ -2,6 +2,7 @@ use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::value::RawValue;
 
+use crate::executable::body::CHECKPOINTS_REPLY_MAX;
 use crate::ids::{AgentId, WorkflowId};
 use crate::request::CoordinatorBody;
 
@@ -138,8 +139,13 @@ impl Refinements {
         Ok(reply)
     }
 
-    /// Reads one reply and refuses every other input.
+    /// Reads one reply and refuses every other input. An input of more than `CHECKPOINTS_REPLY_MAX` bytes, counted
+    /// on the bytes given before anything is read, white space and escapes included, is refused with the rule
+    /// `reply_bytes`.
     pub fn parse(bytes: &[u8]) -> Result<Refinements, Refusal> {
+        if bytes.len() > CHECKPOINTS_REPLY_MAX {
+            return Err(Refusal::new("Refinements", "reply_bytes"));
+        }
         Refinements::from_raw(json::whole("Refinements", bytes)?)
     }
 

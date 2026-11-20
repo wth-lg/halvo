@@ -1,0 +1,52 @@
+{
+  "kind": "judge",
+  "ruling": "P7-83 (7) (c) D4",
+  "about": "a request of the first burst was lost at its sends of 1,000 ms (a reset) and 2,500 ms (the dev proxy's 500), and its third send at 3,000 ms was answered at 3,500 ms: its wait is 2,500 ms from the first send, not 1,000 ms from the second or 500 ms from the last",
+  "source": "by hand",
+  "top": {
+    "requests": [
+      {
+        "id": "q0",
+        "index": 0,
+        "status": 403,
+        "body": "{\"result\":\"refused\",\"reason\":\"over-cap\"}",
+        "sentAt": 3000,
+        "headersAt": 3500,
+        "endedAt": 3501,
+        "hold": 100,
+        "receipt": null,
+        "trailer": null,
+        "abortedAt": null,
+        "error": null,
+        "lost": [
+          { "why": "reset", "body": "", "sentAt": 1000 },
+          {
+            "why": "500",
+            "body": "Error: Network connection lost.\n    at async Object.fetch (file:///SCRATCH/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)",
+            "sentAt": 2500
+          }
+        ],
+        "behavior": "normal",
+        "fault": "usage-last"
+      }
+    ],
+    "final": {
+      "now": 20000,
+      "account": { "cap": 10000, "clock_ms": 20000, "seq": 0 },
+      "periods": [],
+      "holds": [],
+      "alarm": null,
+      "databaseSize": null
+    }
+  },
+  "expect": {
+    "counted": true,
+    "violations": [],
+    "facts": {
+      "slow": false,
+      "burstWaits": [2500],
+      "burstMedianMs": 2500,
+      "slowBoundMs": 2600
+    }
+  }
+}

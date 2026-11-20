@@ -135,7 +135,7 @@
         input.setAttribute('data-param', p.name);
         input.setAttribute('data-n', String(c.n));
         input.addEventListener('change', function () {
-          call('agents_answer', { item: item.item, choice: 'choose', param: p.name, n: c.n });
+          call('agents_answer', { item: item.item, step: item.step, choice: 'choose', param: p.name, n: c.n });
         });
         label.appendChild(input);
         label.appendChild(document.createTextNode(c.value.join(' ')));
@@ -173,7 +173,7 @@
       b.setAttribute('data-act', c.choice);
       b.setAttribute('data-param', item.item);
       b.addEventListener('click', function () {
-        call('agents_answer', { item: item.item, choice: c.choice });
+        call('agents_answer', { item: item.item, step: item.step, choice: c.choice });
       });
       controls.appendChild(b);
     });
@@ -225,7 +225,7 @@
         if (c.safe === 'yes' && fault === 'inert_left') list.inert = true;
         if (c.safe === 'yes' && fault === 'dialog_noclose') return;
         answered[item.item] = true;
-        call('agents_answer', { item: item.item, choice: c.choice }).then(function () {
+        call('agents_answer', { item: item.item, step: item.step, choice: c.choice }).then(function () {
           if (d.open) d.close();
           if (d.parentNode) d.parentNode.removeChild(d);
           if (c.safe === 'yes' && fault === 'modal_left') {

@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::mpsc;
+use std::sync::{mpsc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::Duration;
 
@@ -9,7 +9,7 @@ use reqwest::Method;
 use serde_json::json;
 
 use super::{segment, Graph, Route};
-use crate::error::{AnswerFault, BuildError, CallError, Effect};
+use crate::error::{AnswerFault, BuildError, CallError, Effect, NotMade};
 use crate::token::Token;
 
 const LIMIT: Duration = Duration::from_secs(5);
@@ -40,8 +40,24 @@ fn graph(port: u16, timeout: Duration) -> Graph {
     Graph::new(&origin("http", port), Route::Loopback, timeout).expect("the client builds")
 }
 
+static PORTS: Mutex<()> = Mutex::new(());
+
+fn ports() -> MutexGuard<'static, ()> {
+    PORTS.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+fn bind_any(_ports: &MutexGuard<'static, ()>) -> TcpListener {
+    TcpListener::bind("127.0.0.1:0").expect("a port")
+}
+
+fn closed_port() -> (MutexGuard<'static, ()>, u16) {
+    let held = ports();
+    let port = bind_any(&held).local_addr().expect("its address").port();
+    (held, port)
+}
+
 fn listen(reply: Reply) -> (u16, mpsc::Receiver<Vec<u8>>) {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("a port");
+    let listener = bind_any(&ports());
     let port = listener.local_addr().expect("its address").port();
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
@@ -97,6 +113,18 @@ fn segment_keeps_unreserved_bytes_and_encodes_every_other() {
     assert_eq!(segment("a b?#="), "a%20b%3F%23%3D");
     assert_eq!(segment("é"), "%C3%A9");
     assert_eq!(segment("+\u{0}\u{7f}"), "%2B%00%7F");
+}
+
+#[test]
+fn the_loopback_route_stands_under_the_feature_that_the_tests_name_with_its_marker() {
+    const { assert!(cfg!(feature = "loopback")) };
+    assert_eq!(
+        super::LOOPBACK_MARKER,
+        "halvo-connect-loopback-route-of-tests"
+    );
+    let manifest = include_str!("../../Cargo.toml").replace("\r\n", "\n");
+    assert!(manifest.contains("[features]\nloopback = []\n"));
+    assert!(manifest.contains("halvo-connect = { path = \".\", features = [\"loopback\"] }"));
 }
 
 #[test]
@@ -191,7 +219,7 @@ fn status_401_is_unauthorized_and_makes_nothing() {
         .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
         .expect_err("a 401");
     assert_eq!(error, CallError::Unauthorized);
-    assert_eq!(error.effect(), Effect::NotMade);
+    assert_eq!(error.effect(), Effect::NotMade(NotMade::Unauthorized));
     assert!(seen.recv_timeout(LIMIT).is_ok());
     assert!(seen.recv_timeout(QUIET).is_err(), "one request");
 }
@@ -203,13 +231,122 @@ fn another_status_outside_2xx_is_named() {
         let client = graph(port, LIMIT);
         assert_eq!(
             client.effect(&token(), Method::DELETE, "/v1.0/me/events/e1", 204),
-            Err(CallError::Status(status))
+            Err(CallError::Status(status, None))
         );
         assert_eq!(
             client.json(&token(), Method::GET, "/v1.0/me/x", None, 200),
-            Err(CallError::Status(status))
+            Err(CallError::Status(status, None))
         );
     }
+}
+
+fn answer_with(status: &str, header: &str, body: &str) -> Reply {
+    Reply::Bytes(format!(
+        "HTTP/1.1 {status}\r\n{header}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    ))
+}
+
+#[test]
+fn an_answer_429_or_5xx_carries_the_seconds_of_retry_after_and_no_other_does() {
+    let rows = [
+        ("429 Too Many Requests", 429, "Retry-After: 30", Some(30)),
+        ("429 Too Many Requests", 429, "retry-after: 0", Some(0)),
+        (
+            "500 Internal Server Error",
+            500,
+            "Retry-After: 4294967295",
+            Some(u32::MAX),
+        ),
+        (
+            "503 Service Unavailable",
+            503,
+            "Retry-After: 120",
+            Some(120),
+        ),
+        ("599 Other", 599, "Retry-After: 7", Some(7)),
+        ("429 Too Many Requests", 429, "X-Other: 30", None),
+        (
+            "429 Too Many Requests",
+            429,
+            "Retry-After: Wed, 21 Oct 2026 07:28:00 GMT",
+            None,
+        ),
+        (
+            "429 Too Many Requests",
+            429,
+            "Retry-After: 4294967296",
+            None,
+        ),
+        ("429 Too Many Requests", 429, "Retry-After: -1", None),
+        ("429 Too Many Requests", 429, "Retry-After: +5", None),
+        ("429 Too Many Requests", 429, "Retry-After: 1.5", None),
+        ("429 Too Many Requests", 429, "Retry-After: ", None),
+        ("404 Not Found", 404, "Retry-After: 30", None),
+        ("400 Bad Request", 400, "Retry-After: 30", None),
+        ("499 Other", 499, "Retry-After: 30", None),
+        ("600 Other", 600, "Retry-After: 30", None),
+        ("302 Found", 302, "Retry-After: 30", None),
+        ("201 Created", 201, "Retry-After: 30", None),
+    ];
+    let mut answered = Vec::new();
+    for (line, status, header, seconds) in rows {
+        let (port, seen) = listen(answer_with(line, header, "{}"));
+        let client = graph(port, LIMIT);
+        assert_eq!(
+            client.effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202),
+            Err(CallError::Status(status, seconds)),
+            "{line} {header}"
+        );
+        assert_eq!(
+            client.json(&token(), Method::GET, "/v1.0/me/x", None, 200),
+            Err(CallError::Status(status, seconds)),
+            "{line} {header}"
+        );
+        assert!(seen.recv_timeout(LIMIT).is_ok());
+        assert!(seen.recv_timeout(LIMIT).is_ok());
+        answered.push(seen);
+    }
+    thread::sleep(QUIET);
+    assert!(
+        answered.iter().all(|seen| seen.try_recv().is_err()),
+        "no request is sent again"
+    );
+}
+
+#[test]
+fn an_answer_with_two_retry_after_lines_carries_no_seconds() {
+    for header in [
+        "Retry-After: 5\r\nRetry-After: 600",
+        "Retry-After: 5\r\nRetry-After: 5",
+    ] {
+        let (port, seen) = listen(answer_with("429 Too Many Requests", header, "{}"));
+        let error = graph(port, LIMIT)
+            .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
+            .expect_err("a 429");
+        assert!(seen.recv_timeout(LIMIT).is_ok());
+        assert_eq!(error, CallError::Status(429, None), "{header}");
+    }
+}
+
+#[test]
+fn a_send_answered_429_is_throttled_with_its_seconds_and_unknown_after_a_5xx() {
+    let (port, _seen) = listen(answer_with("429 Too Many Requests", "Retry-After: 9", "{}"));
+    let error = graph(port, LIMIT)
+        .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
+        .expect_err("a 429");
+    assert_eq!(error, CallError::Status(429, Some(9)));
+    assert_eq!(error.effect(), Effect::NotMade(NotMade::Throttled));
+    let (port, _seen) = listen(answer_with(
+        "503 Service Unavailable",
+        "Retry-After: 9",
+        "{}",
+    ));
+    let error = graph(port, LIMIT)
+        .effect(&token(), Method::DELETE, "/v1.0/me/events/e1", 204)
+        .expect_err("a 503");
+    assert_eq!(error, CallError::Status(503, Some(9)));
+    assert_eq!(error.effect(), Effect::Unknown);
 }
 
 #[test]
@@ -221,7 +358,7 @@ fn a_redirect_is_not_followed() {
     let error = graph(port, LIMIT)
         .effect(&token(), Method::DELETE, "/v1.0/me/events/e1", 204)
         .expect_err("a 302");
-    assert_eq!(error, CallError::Status(302));
+    assert_eq!(error, CallError::Status(302, None));
     assert_eq!(error.effect(), Effect::Unknown);
     assert!(seen.recv_timeout(LIMIT).is_ok());
     assert!(seen.recv_timeout(QUIET).is_err(), "one request");
@@ -255,14 +392,14 @@ fn every_other_status_is_named_and_its_effect_is_unknown() {
         let error = graph(port, LIMIT)
             .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
             .expect_err("not the success status of send");
-        assert_eq!(error, CallError::Status(status), "{line}");
+        assert_eq!(error, CallError::Status(status, None), "{line}");
         assert_eq!(error.effect(), Effect::Unknown, "{line}");
     }
     for (line, status) in others.into_iter().skip(1) {
         let (port, _seen) = listen(answer(line, "{\"value\":[]}"));
         assert_eq!(
             graph(port, LIMIT).json(&token(), Method::GET, "/v1.0/me/x", None, 200),
-            Err(CallError::Status(status)),
+            Err(CallError::Status(status, None)),
             "{line}"
         );
     }
@@ -279,15 +416,47 @@ fn an_answer_that_is_not_json_is_refused() {
 
 #[test]
 fn a_closed_port_is_not_sent() {
-    let port = {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("a port");
-        listener.local_addr().expect("its address").port()
-    };
+    let (_ports, port) = closed_port();
     let error = graph(port, LIMIT)
         .effect(&token(), Method::POST, "/v1.0/me/messages/d1/send", 202)
         .expect_err("no listener");
     assert_eq!(error, CallError::NotSent);
-    assert_eq!(error.effect(), Effect::NotMade);
+    assert_eq!(error.effect(), Effect::NotMade(NotMade::NotSent));
+}
+
+#[test]
+fn listen_binds_no_port_while_a_closed_port_is_held() {
+    let (held, _port) = closed_port();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(listen(Reply::Close).0);
+    });
+    assert_eq!(
+        rx.recv_timeout(Duration::from_millis(300)),
+        Err(mpsc::RecvTimeoutError::Timeout),
+        "listen bound a port while a closed port was held"
+    );
+    drop(held);
+    assert!(
+        rx.recv_timeout(LIMIT).is_ok(),
+        "listen binds once the port is let go"
+    );
+}
+
+#[test]
+fn a_panic_while_the_ports_are_held_leaves_them_usable() {
+    let panicked = thread::spawn(|| {
+        let _held = ports();
+        panic!("a test failed while it held the ports");
+    })
+    .join();
+    assert!(panicked.is_err());
+    assert!(
+        PORTS.is_poisoned(),
+        "the panic left the ports lock poisoned"
+    );
+    let (held, _port) = closed_port();
+    drop(held);
 }
 
 #[test]

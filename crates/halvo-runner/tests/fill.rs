@@ -1,7 +1,8 @@
 mod support;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
+use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::Cancel;
 use halvo_schema::executable::names::{Autonomy, FieldName, HandbackReason, LogEvent};
 use halvo_schema::executable::{
@@ -9,7 +10,10 @@ use halvo_schema::executable::{
 };
 use halvo_schema::Category;
 
-use support::{is_effect, is_op, range_texts, store_error, Act, FillFiles, Supervisor, LONG};
+use support::{
+    is_effect, is_op, now_nanos, offset_of_another_day, offset_of_another_day_at, range_texts,
+    store_error, Act, FillFiles, Supervisor, LONG,
+};
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
     Supervisor::new(n, Category::SpreadsheetFill, files.slots())
@@ -49,6 +53,105 @@ fn a_file_step_locks_under_the_data_directory_that_the_harness_gives() {
     );
 }
 
+/// CP-204 D3 and D7, CP-212 V2: every log line and every row of an effect carries day_of(at, the run's offset), and
+/// the run's finish, which holds no instant, the day of an instant of the run; a row is held to differ from the UTC
+/// day only where the two days of its instant differ, so a run across 00:00 UTC does not fail a correct runner.
+#[test]
+fn every_row_of_a_run_takes_the_day_of_its_instant_at_the_runs_offset() {
+    let files = FillFiles::new("day-of", 1);
+    let mut sup = fill(170, &files);
+    let offset = offset_of_another_day();
+    sup.utc_offset_s = offset;
+    let before = halvo_schema::Instant(now_nanos());
+    let seen = sup.serve(|_, _| Act::Answer, LONG);
+    let after = halvo_schema::Instant(now_nanos());
+    assert_eq!(seen.done(), Some(Outcome::Completed), "{}", seen.stderr);
+    println!("cp204 offset={offset}");
+    let logs = seen.logs();
+    let effects = seen.effects();
+    assert!(!logs.is_empty() && effects.len() == 3, "{:?}", seen.ops());
+    for (what, day, at) in logs
+        .iter()
+        .map(|l| ("log", l.day, l.at))
+        .chain(effects.iter().map(|e| ("effect", e.day, e.at)))
+    {
+        assert_eq!(day, day_of(at, offset), "{what} at {}", at.0);
+        if day_of(at, offset) != day_of(at, 0) {
+            assert_ne!(day, day_of(at, 0), "{what} at {}: the UTC day", at.0);
+        }
+    }
+    let finish = seen.finish().expect("the finish").day;
+    assert!(
+        (day_of(before, offset)..=day_of(after, offset)).contains(&finish),
+        "finish {finish} between {} and {}",
+        day_of(before, offset),
+        day_of(after, offset)
+    );
+    if day_of(before, offset) == day_of(after, offset)
+        && day_of(before, 0) == day_of(after, 0)
+        && day_of(before, offset) != day_of(before, 0)
+    {
+        assert_ne!(finish, day_of(before, 0), "finish: the UTC day");
+    }
+}
+
+/// CP-212 V2: at instants drawn over a whole UTC day, the helper gives +50,400 s from 12:00 UTC on and -50,400 s
+/// before, and that offset gives a local day that differs from the UTC day from the call until the end that its doc
+/// names (14:00 UTC for -50,400 s, the next 00:00 UTC for +50,400 s) and no longer at that end.
+#[test]
+fn the_offset_helper_differs_from_the_utc_day_until_the_end_that_its_doc_names() {
+    const SECOND: i64 = 1_000_000_000;
+    const DAY: i64 = 86_400 * SECOND;
+    let midnight = 20_404 * DAY;
+    let mut draws: Vec<i64> = vec![
+        0,
+        1,
+        43_199 * SECOND + 999_999_999,
+        43_200 * SECOND,
+        DAY - 1,
+    ];
+    let mut x: u64 = 0x2545_f491_4f6c_dd1d;
+    for _ in 0..2_000 {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        draws.push((x % DAY as u64) as i64);
+    }
+    for into_day in draws {
+        let call = midnight + into_day;
+        let offset = offset_of_another_day_at(call);
+        assert_eq!(
+            offset,
+            if into_day >= 12 * 3_600 * SECOND {
+                50_400
+            } else {
+                -50_400
+            },
+            "a call {into_day} ns into the day: +50,400 s from 12:00 UTC on, else -50,400 s"
+        );
+        let end = if offset > 0 {
+            midnight + DAY
+        } else {
+            midnight + 14 * 3_600 * SECOND
+        };
+        for at in [call, end - 1] {
+            let at = halvo_schema::Instant(at);
+            assert_ne!(
+                day_of(at, offset),
+                day_of(at, 0),
+                "a call {into_day} ns into the day, offset {offset}, at {}",
+                at.0
+            );
+        }
+        let end = halvo_schema::Instant(end);
+        assert_eq!(
+            day_of(end, offset),
+            day_of(end, 0),
+            "a call {into_day} ns into the day, offset {offset}: the end"
+        );
+    }
+}
+
 #[test]
 fn the_fill_playbook_replays_on_seeds_1_to_3() {
     for seed in 1..=3u8 {
@@ -66,15 +169,28 @@ fn the_fill_playbook_replays_on_seeds_1_to_3() {
             seen.tags(),
             [
                 "hello", "store", "progress", "store", "progress", "store", "store", "store",
-                "store", "store", "store", "store", "done"
+                "store", "store", "store", "store", "store", "store", "done"
             ],
             "seed {seed}"
         );
         assert_eq!(
             seen.ops(),
-            ["load", "log", "load", "effect", "load", "effect", "effect", "log", "finish"],
-            "seed {seed}: load, the read's line, the load before the prepare and the propose, the propose, the \
-             load before the begin, the begin and the commit, the write's line"
+            [
+                "load",
+                "log",
+                "load",
+                "checkpoint",
+                "checkpoint",
+                "effect",
+                "load",
+                "effect",
+                "effect",
+                "log",
+                "finish"
+            ],
+            "seed {seed}: load, the read's line, the load before the prepare and the propose, the checkpoint's \
+             planned and made rows, the propose, the load before the begin, the begin and the commit, the write's \
+             line"
         );
         let effects = seen.effects();
         assert_eq!(
@@ -222,17 +338,28 @@ fn a_wall_limit_ends_the_run_limit_with_the_cause_wall() {
     assert_eq!(seen.finish().map(|f| f.steps), Some(0));
 }
 
+/// A read that fails is handed back, and the wait for the handback's reply, which comes after `PAUSE`, is no time of
+/// the run's `wall_s`: the finish's `wall_s` is at most the time from before the runner's start to the finish frame
+/// less `PAUSE`, in whole seconds, however slowly the run's own steps go. A runner that counts the wait reports the
+/// whole seconds of its own time, which pass that bound whenever its late start and the finish frame's way to the
+/// test take together at most `PAUSE` less 1 s, 2.5 s.
 #[test]
 fn a_read_that_fails_is_handed_back_and_its_wait_is_no_wall_time() {
+    const PAUSE: Duration = Duration::from_millis(3500);
     let files = FillFiles::new("read-fails", 1);
     std::fs::write(&files.source, "a,b\r\n").expect("a source with a carriage return");
     let before = files.workbook_bytes();
     let sup = fill(43, &files);
+    let started = Instant::now();
+    let mut finished = None;
     let seen = sup.serve(
         |frame, _| {
+            if is_op(frame, "finish") {
+                finished = Some(started.elapsed());
+            }
             if matches!(frame, FromRunner::Handback(_)) {
                 Act::After(
-                    Duration::from_millis(1100),
+                    PAUSE,
                     Box::new(Act::With(support::handback_reply(
                         halvo_schema::executable::names::HandbackOutcome::Done,
                         None,
@@ -247,7 +374,16 @@ fn a_read_that_fails_is_handed_back_and_its_wait_is_no_wall_time() {
     assert_eq!(seen.handbacks(), [HandbackReason::StepFailed]);
     assert_eq!(seen.done(), Some(Outcome::HandedBack));
     let finish = seen.finish().expect("finish");
-    assert_eq!((finish.handbacks, finish.prompts, finish.wall_s), (1, 1, 0));
+    assert_eq!((finish.handbacks, finish.prompts), (1, 1));
+    let most = finished
+        .expect("the finish frame came")
+        .saturating_sub(PAUSE)
+        .as_secs();
+    assert!(
+        u64::from(finish.wall_s) <= most,
+        "the handback's wait is no wall time: wall_s {} and at most {most} s",
+        finish.wall_s
+    );
     let events: Vec<(LogEvent, Option<Cause>)> =
         seen.logs().iter().map(|l| (l.event, l.cause)).collect();
     assert_eq!(

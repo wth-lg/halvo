@@ -302,18 +302,16 @@ pub fn run(args: &[String]) -> Result<Report, Refusal> {
 #[cfg(test)]
 mod tests {
     use std::path::{Path, PathBuf};
-    use std::sync::atomic::{AtomicU32, Ordering};
 
     use halvo_schema::WorkflowId;
 
     use super::{deleted, holds_marker, markers_seeded, outcomes, report, Check, Outcome, Row};
     use crate::cli::Cause;
     use crate::delete::{seed_case, seed_cases, MARKERS, SEED_DAY};
-    use crate::store::MemoryStore;
+    use crate::store::{Held, MemoryStore};
     use crate::stub::id;
 
     fn scratch(name: &str) -> PathBuf {
-        static NEXT: AtomicU32 = AtomicU32::new(0);
         let exe = std::env::current_exe().expect("the test binary");
         let root = exe
             .ancestors()
@@ -321,16 +319,7 @@ mod tests {
             .expect("the target directory")
             .join("tmp")
             .join("r5-privacy");
-        std::fs::create_dir_all(&root).expect("the tests' directory");
-        loop {
-            let n = NEXT.fetch_add(1, Ordering::Relaxed);
-            let dir = root.join(format!("{name}-{}-{n}", std::process::id()));
-            match std::fs::create_dir(&dir) {
-                Ok(()) => return dir,
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(e) => panic!("a test directory: {e}"),
-            }
-        }
+        halvo_test_dir::make(&root, name).expect("a test directory")
     }
 
     fn store_cascade(store: &mut MemoryStore, id: &WorkflowId) -> bool {
@@ -387,7 +376,7 @@ mod tests {
             .expect("rows of the kind");
         let at = rows
             .iter()
-            .position(|r| keep_out(r))
+            .position(|r| keep_out(&r.json))
             .expect("a row to take");
         rows.remove(at);
     }
@@ -397,7 +386,7 @@ mod tests {
             .learn_rows_mut()
             .entry(kind_name(kind))
             .or_default()
-            .push(row);
+            .push(Held::of(kind, row));
     }
 
     #[test]
@@ -450,8 +439,9 @@ mod tests {
             let got = deleted_with(&mut |store, id| {
                 let row = store.learn_rows_mut()[kind]
                     .iter()
-                    .find(|r| names(r, &first))
+                    .find(|r| names(&r.json, &first))
                     .expect("a row of the first workflow")
+                    .json
                     .clone();
                 let stored = store.delete_workflow(id);
                 put_back(store, kind, row);
@@ -467,8 +457,9 @@ mod tests {
         let got = deleted_with(&mut |store, id| {
             let row = store.learn_rows_mut()["learn_edit"]
                 .iter()
-                .find(|r| names(r, &first))
+                .find(|r| names(&r.json, &first))
                 .expect("an edit row of the first workflow")
+                .json
                 .clone();
             let stored = store.delete_workflow(id);
             put_back(store, "learn_edit", row[..row.len() - 1].to_owned());
@@ -507,9 +498,9 @@ mod tests {
                 .expect("edit rows");
             let row = rows
                 .iter_mut()
-                .find(|r| names(r, &second) && r.contains("\"state\":\"active\""))
+                .find(|r| names(&r.json, &second) && r.json.contains("\"state\":\"active\""))
                 .expect("the active row of the second workflow");
-            *row = row.replacen("Zq7", "Zq8", 1);
+            row.json = row.json.replacen("Zq7", "Zq8", 1);
             stored
         });
         assert_eq!(got, Outcome::Miss);
@@ -812,8 +803,9 @@ mod tests {
         deleted_with(&mut |store, wid| {
             let row = store.learn_rows_mut()[kind]
                 .iter()
-                .find(|r| names(r, &first) && r.contains(holds))
+                .find(|r| names(&r.json, &first) && r.json.contains(holds))
                 .expect("a row of the first workflow")
+                .json
                 .clone();
             let stored = store.delete_workflow(wid);
             put_back(store, kind, rewrite(&row, &first));
@@ -885,10 +877,10 @@ mod tests {
                 .expect("run rows");
             let at = rows
                 .iter()
-                .position(|r| names(r, &second))
+                .position(|r| names(&r.json, &second))
                 .expect("a run row of the second");
             let row = rows.remove(at);
-            put_back(store, "learn_routine", row);
+            put_back(store, "learn_routine", row.json);
             stored
         });
         assert_eq!(got, Outcome::Miss);
@@ -901,8 +893,9 @@ mod tests {
             let stored = store.delete_workflow(wid);
             let row = store.learn_rows_mut()["learn_run"]
                 .iter()
-                .find(|r| names(r, &second))
+                .find(|r| names(&r.json, &second))
                 .expect("a run row of the second")
+                .json
                 .clone();
             put_back(store, "learn_run", row);
             stored

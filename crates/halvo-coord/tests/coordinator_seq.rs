@@ -188,7 +188,7 @@ fn a_lost_acknowledgement_of_a_run_started_holds_the_next_start_until_its_run_is
     assert_eq!(
         count(&w, 0, |what| matches!(
             what,
-            What::RunEnded { run, cause: halvo_coord::types::RunEnd::Interrupted } if *run == lost
+            What::RunEnded { run, cause: halvo_coord::types::RunEnd::Interrupted, defers: _ } if *run == lost
         )),
         1
     );
@@ -356,7 +356,7 @@ fn a_switch_off_after_another_writers_event_is_stored_although_the_log_holds_an_
 }
 
 #[test]
-fn a_queued_agent_that_adopts_a_revealed_ready_item_stays_queued() {
+fn a_queued_agent_whose_start_reads_a_hold_and_a_revealed_ready_item_keeps_that_item() {
     let limits = halvo_coord::types::Limits {
         max_live_runs: 1,
         ..halvo_coord::types::Limits::PRODUCT
@@ -379,18 +379,32 @@ fn a_queued_agent_that_adopts_a_revealed_ready_item_stays_queued() {
     assert_eq!(w.facts(0).doing, Doing::Idle(None));
     let live = w.act(Act::Start { agent: agent(1) });
     assert_eq!(live.report.answer, Ok(Answer::Ok));
+    let run = live.report.run.expect("the live run");
     let queued = w.act(Act::Start { agent: agent(0) });
     assert_eq!(queued.report.answer, Ok(Answer::Queued));
     assert_eq!(w.facts(0).doing, Doing::Queued(None));
     assert!(w.board.queue.holds(&agent(0)));
-    let off = w.act(Act::SwitchOff { agent: agent(0) });
-    assert_eq!(off.report.answer, Ok(Answer::Ok));
+    stored_by_another_writer(
+        &w,
+        0,
+        What::HoldSet {
+            cause: HoldSetCause::Person,
+        },
+    );
+    let end = w.act(Act::End { run, outcome: None });
+    let served = &end.report.ended[0].next;
+    assert_eq!(served.len(), 1);
+    assert_eq!(
+        (served[0].agent.clone(), served[0].answer),
+        (agent(0), Err(halvo_coord::types::Cause::Hold))
+    );
     assert!(
-        matches!(&w.facts(0).doing, Doing::Queued(Some(o)) if o.kind == OwnItemKind::Ready && o.item == ready),
-        "the queued agent holds the revealed item and stays queued: {:?}",
+        matches!(&w.facts(0).doing, Doing::Idle(Some(o)) if o.kind == OwnItemKind::Ready && o.item == ready),
+        "the agent holds the revealed item: {:?}",
         w.facts(0).doing
     );
-    assert!(w.board.queue.holds(&agent(0)));
+    assert!(!w.board.queue.holds(&agent(0)));
+    assert!(holds(w.facts(0)).contains(&Hold::Off));
     agree(&w, 0);
 }
 
@@ -459,6 +473,7 @@ fn an_owed_run_ended_whose_run_the_read_shows_ended_with_another_cause_is_not_lo
         What::RunEnded {
             run: run.clone(),
             cause: halvo_coord::types::RunEnd::Interrupted,
+            defers: None,
         },
     );
     w.set_clock(T0 + 10_000, DAY);
@@ -480,6 +495,7 @@ fn the_end_of_a_run_whose_log_meets_seq_logs_nothing_when_the_read_shows_the_run
         What::RunEnded {
             run: run.clone(),
             cause: halvo_coord::types::RunEnd::Interrupted,
+            defers: None,
         },
     );
     w.act(Act::End {

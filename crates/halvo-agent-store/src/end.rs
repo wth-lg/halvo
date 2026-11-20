@@ -9,18 +9,18 @@ use halvo_schema::executable::{
 };
 use halvo_schema::{ErrorName, TypedRecord};
 
-use crate::bind;
 use crate::effect::rebinds;
 use crate::errors::Own;
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
+use crate::{bind, day, reply};
 
 pub(crate) fn finish(host: &mut dyn Host, now: Now, b: &Finish) -> Result<RunnerReply, ErrorName> {
     let (_, workflow) = bind::runner_agent(&*host, &b.agent)?;
     if b.record.workflow != workflow.id {
         return Err(Own::Binding.into());
     }
-    bind::own_run(&*host, &b.run, &b.agent)?;
+    bind::own_run(&*host, now, &b.run, &b.agent)?;
     match rows::runs(host.rows())?
         .into_iter()
         .find(|r| r.run == b.run)
@@ -28,12 +28,50 @@ pub(crate) fn finish(host: &mut dyn Host, now: Now, b: &Finish) -> Result<Runner
         Some(stored) if stored == b.record => {}
         Some(_) => return Err(Own::Effect.into()),
         None => {
+            agrees(&*host, &b.record)?;
             let mut records = vec![record(rows::AGENT_RUN, b.record.to_json())?];
             records.extend(moves(&*host, &b.run, now)?);
-            host.commit(records)?;
+            records.extend(reply::ended(&*host, &b.run, now)?);
+            day::commit(host, now, records)?;
         }
     }
     Ok(RunnerReply::Stored(Stored { stored: 1 }))
+}
+
+fn agrees(host: &dyn Host, record: &AgentRun) -> Result<(), ErrorName> {
+    let all = rows::effects(host.rows())?;
+    let lasts = last_states(&all, &record.run);
+    let open = lasts.iter().any(|s| {
+        matches!(
+            s,
+            EffectState::Held
+                | EffectState::Cleared
+                | EffectState::Approved
+                | EffectState::Releasing
+        )
+    });
+    if record.outcome == Outcome::Completed && open {
+        return Err(Own::Effect.into());
+    }
+    let unknown = lasts
+        .iter()
+        .filter(|s| matches!(s, EffectState::Unknown | EffectState::Releasing))
+        .count();
+    if usize::try_from(record.unknown).unwrap_or(usize::MAX) < unknown {
+        return Err(Own::Effect.into());
+    }
+    Ok(())
+}
+
+fn last_states(all: &[AgentEffect], run: &RunId) -> Vec<EffectState> {
+    let mut last: BTreeMap<&EffectId, &AgentEffect> = BTreeMap::new();
+    for row in all.iter().filter(|r| &r.run == run) {
+        let newer = last.get(&row.effect).is_none_or(|held| held.seq < row.seq);
+        if newer {
+            last.insert(&row.effect, row);
+        }
+    }
+    last.into_values().map(|r| r.state).collect()
 }
 
 pub(crate) fn end_run(
@@ -42,14 +80,14 @@ pub(crate) fn end_run(
     b: &EndRun,
 ) -> Result<CoordinatorReply, ErrorName> {
     bind::of_agent(&*host, &b.workflow, &b.agent)?;
-    bind::own_run(&*host, &b.run, &b.agent)?;
+    bind::no_other_agent(&*host, &b.run, &b.agent)?;
     if !rows::runs(host.rows())?.iter().any(|r| r.run == b.run) {
         let run = AgentRun {
             v: V1,
             workflow: b.workflow.clone(),
             agent: b.agent.clone(),
             run: b.run.clone(),
-            day: now.day,
+            day: day::of(&*host, now),
             mode: None,
             outcome: Outcome::Failed,
             playbook: None,
@@ -79,7 +117,8 @@ pub(crate) fn end_run(
         };
         let mut records = vec![record(rows::AGENT_RUN, run.to_json())?];
         records.extend(moves(&*host, &b.run, now)?);
-        host.commit(records)?;
+        records.extend(reply::ended(&*host, &b.run, now)?);
+        day::commit(host, now, records)?;
     }
     Ok(CoordinatorReply::Accepted(Accepted {}))
 }
@@ -113,7 +152,7 @@ fn moves(host: &dyn Host, run: &RunId, now: Now) -> Result<Vec<TypedRecord>, Err
         let state = effect_step(Some(&effect), step).map_err(|_| Own::Effect)?;
         let next = AgentEffect {
             seq: last.seq.checked_add(1).ok_or(Own::Length)?,
-            day: now.day,
+            day: day::of(host, now),
             at: now.at,
             state,
             approval,

@@ -4,8 +4,9 @@ use crate::types::{Cause, Live, Outcome, RunEnd, RunItem};
 /// The cause of a stop (I5.6, I5.7): the person's stop and the switch-off control give
 /// `cancelled`, a lapse with `wait_limit` gives `lapsed`, and a workflow that is gone gives
 /// `deleted`; a request that the coordinator answers with the end of its run gives `kind` (I3.1,
-/// ruling IG-32), and one beyond `items_per_run` gives `budget` (I3.3). A stopped run ends with
-/// the cause of its stop.
+/// ruling IG-32), and one beyond `items_per_run` gives `budget` (I3.3); the settle of a
+/// confirmation that an answer's move left `answered` gives `answer_lost`, whose run ends
+/// `failed` (ruling RD-84). A stopped run ends with the end of its stop's cause.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StopCause {
     /// `cancelled`.
@@ -18,6 +19,8 @@ pub enum StopCause {
     Kind,
     /// `budget`.
     Budget,
+    /// `answer_lost`, which ends the run `failed`.
+    AnswerLost,
 }
 
 impl StopCause {
@@ -29,16 +32,19 @@ impl StopCause {
             StopCause::Deleted => RunEnd::Deleted,
             StopCause::Kind => RunEnd::Kind,
             StopCause::Budget => RunEnd::Budget,
+            StopCause::AnswerLost => RunEnd::Failed,
         }
     }
 
     /// The stop that the stored cause `end` of a stop names, the coordinator's own ends `kind`
-    /// and `budget` among them, or none for an end that no stop has; `Phase::of` reads it, so
-    /// that `run_step`'s end and the stored cause are one (ruling RD-9).
+    /// and `budget` among them and `failed` for `answer_lost`, or none for an end that no stop
+    /// has; `Phase::of` reads it, so that `run_step`'s end and the stored cause are one (ruling
+    /// RD-9).
     pub const fn of_stop(end: RunEnd) -> Option<StopCause> {
         match end {
             RunEnd::Kind => Some(StopCause::Kind),
             RunEnd::Budget => Some(StopCause::Budget),
+            RunEnd::Failed => Some(StopCause::AnswerLost),
             _ => StopCause::of(end),
         }
     }

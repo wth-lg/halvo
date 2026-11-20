@@ -8,7 +8,8 @@ use halvo_agent_gate::GateHost;
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::names::Way;
 use halvo_schema::executable::{
-    AgentBindings, AgentRun, CoordinatorCall, RunId, RunnerCall, RunnerReply, WebOrigin,
+    AgentBindings, AgentRun, CoordinatorCall, RunId, RunnerCall, RunnerReply, SendersError,
+    WebOrigin,
 };
 use halvo_schema::{AgentId, ErrorName, SeedCategory};
 use serde_json::{json, Value};
@@ -126,6 +127,10 @@ fn every_seed_binds_through_set_bindings_and_add_origin_with_the_port() {
                 .collect();
             assert_eq!(got_slots, slots, "seed {n} {name}");
 
+            let start = json!({"op": "start_run", "workflow": prepared.workflow.as_str(), "agent": prepared.agent.as_str(), "run": run.as_str(), "mode": "compile"});
+            let start =
+                CoordinatorCall::parse(start.to_string().as_bytes()).expect("a start_run body");
+            assert!(host.send(&start).is_ok(), "seed {n} {name}");
             let reply = load(&mut host, &prepared.agent, &run).expect("the runner's load");
             let RunnerReply::Load(LoadReply {
                 bindings: Some(loaded),
@@ -178,27 +183,44 @@ fn reply_senders_is_one_text_joined_by_a_comma_and_a_space() {
 #[test]
 fn join_senders_refuses_what_a_reader_of_the_slot_refuses() {
     let list = |items: &[&str]| -> Vec<String> { items.iter().map(|s| (*s).to_owned()).collect() };
-    assert_eq!(join_senders(&[]), Err(SendersRefused::Empty));
+    assert_eq!(
+        join_senders(&[]),
+        Err(SendersRefused::Read(SendersError::Empty(at(1))))
+    );
     assert_eq!(
         join_senders(&list(&["a@x.test", "b,c@y.test"])),
-        Err(SendersRefused::Comma)
+        Err(SendersRefused::Comma(at(2)))
     );
     assert_eq!(
         join_senders(&list(&["a@x.test", ""])),
-        Err(SendersRefused::EmptyAddress)
+        Err(SendersRefused::Read(SendersError::Empty(at(2))))
     );
     assert_eq!(
         join_senders(&list(&["  ", "a@x.test"])),
-        Err(SendersRefused::EmptyAddress)
+        Err(SendersRefused::Read(SendersError::Empty(at(1))))
     );
     assert_eq!(
         join_senders(&list(&["A@X.test", "a@x.TEST"])),
-        Err(SendersRefused::Twice)
+        Err(SendersRefused::Read(SendersError::Twice {
+            earlier: at(1),
+            later: at(2)
+        }))
     );
     assert_eq!(
         join_senders(&list(&["a@x.test", " a@x.test "])),
-        Err(SendersRefused::Twice)
+        Err(SendersRefused::Read(SendersError::Twice {
+            earlier: at(1),
+            later: at(2)
+        }))
     );
+    assert_eq!(
+        join_senders(&list(&[" a@x.test\t", "b@y.test"])),
+        Ok("a@x.test, b@y.test".to_owned())
+    );
+}
+
+fn at(piece: usize) -> std::num::NonZeroUsize {
+    std::num::NonZeroUsize::new(piece).expect("a place counted from 1")
 }
 
 #[test]
@@ -216,7 +238,7 @@ fn seed_binding_refuses_a_seed_that_does_not_bind() {
                 json!({"origins": ["http://mail.agent.test"], "slots": [{"name": "reply_senders", "value": []}]}),
             ),
             SeedTask::Reply,
-            SeedRefused::Senders(SendersRefused::Empty),
+            SeedRefused::Senders(SendersRefused::Read(SendersError::Empty(at(1)))),
         ),
         (
             with_binding(
@@ -224,7 +246,7 @@ fn seed_binding_refuses_a_seed_that_does_not_bind() {
                 json!({"origins": ["http://mail.agent.test"], "slots": [{"name": "reply_senders", "value": ["a,b@x.test"]}]}),
             ),
             SeedTask::Reply,
-            SeedRefused::Senders(SendersRefused::Comma),
+            SeedRefused::Senders(SendersRefused::Comma(at(1))),
         ),
         (
             with_binding(
@@ -419,10 +441,15 @@ fn every_runner_body_of_an_ended_run_is_refused() {
     let (agent, workflow) = (p.agent.as_str().to_owned(), p.workflow.as_str().to_owned());
     let origin = format!("http://utility.agent.test:{PORT}");
     let session = |r: &RunId| json!({"op": "put_session", "agent": agent, "run": r.as_str(), "origin": origin, "rev": 1, "part": 1, "of": 1, "data": ["QUJD"]});
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("after 1970")
+        .as_nanos() as i64;
+    let day = at.div_euclid(86_400_000_000_000);
     let log = |r: &RunId| {
         json!({"op": "log", "agent": agent, "run": r.as_str(), "records": [{
-            "v": 1, "workflow": workflow, "agent": agent, "run": r.as_str(), "seq": 1, "day": 20_770,
-            "at": 1_794_400_000_000_000_000_i64, "event": "step_ok", "step": 1, "cause": null,
+            "v": 1, "workflow": workflow, "agent": agent, "run": r.as_str(), "seq": 2, "day": day,
+            "at": at, "event": "step_ok", "step": 1, "cause": null,
             "model": null, "ms": null, "tokens_in": null, "tokens_out": null,
         }]})
     };
@@ -435,7 +462,16 @@ fn every_runner_body_of_an_ended_run_is_refused() {
     };
     let load_session = |r: &RunId| json!({"op": "load_session", "agent": agent, "run": r.as_str(), "origin": origin, "rev": 1, "part": 1});
     let body = |v: Value| RunnerCall::parse(v.to_string().as_bytes()).expect("a runner body");
+    let start = |r: &RunId| {
+        let start = json!({"op": "start_run", "workflow": workflow, "agent": agent, "run": r.as_str(), "mode": "compile"});
+        CoordinatorCall::parse(start.to_string().as_bytes()).expect("a start_run body")
+    };
 
+    assert_eq!(
+        host.runner(&body(load_session(&run))).map(|_| ()),
+        Err(declared("binding"))
+    );
+    assert!(host.send(&start(&run)).is_ok());
     assert!(host.runner(&body(session(&run))).is_ok());
     assert!(host.runner(&body(log(&run))).is_ok());
     assert!(load(&mut host, &p.agent, &run).is_ok());
@@ -452,6 +488,7 @@ fn every_runner_body_of_an_ended_run_is_refused() {
     assert_eq!(host.runner(&body(load_session(&run))).map(|_| ()), effect);
 
     let next = run_id(8);
+    assert!(host.send(&start(&next)).is_ok());
     assert!(load(&mut host, &p.agent, &next).is_ok());
     assert!(host.runner(&body(playbook(&next))).is_ok());
 }
@@ -561,15 +598,223 @@ fn a_start_slot_with_another_scheme_than_http_is_refused() {
     );
 }
 
-#[test]
-fn join_senders_trims_ascii_spaces_alone_and_folds_ascii_case_alone() {
-    let list = |items: &[&str]| -> Vec<String> { items.iter().map(|s| (*s).to_owned()).collect() };
+fn senders_list(items: &[&str]) -> Vec<String> {
+    items.iter().map(|s| (*s).to_owned()).collect()
+}
+
+fn refused_as_the_reader_refuses(items: &[&str]) {
+    let list = senders_list(items);
+    let error = halvo_schema::executable::reply_senders(&list.join(", "))
+        .err()
+        .unwrap_or_else(|| panic!("the reader takes {list:?}"));
     assert_eq!(
-        join_senders(&list(&["\ta@x.test", "a@x.test"])),
-        Ok("\ta@x.test, a@x.test".to_owned())
+        format!("{:?}", join_senders(&list)),
+        format!("Err(Read({error:?}))"),
+        "{list:?}"
+    );
+}
+
+#[test]
+fn join_senders_refuses_an_entry_of_white_space_alone_as_the_reader_does() {
+    for white in ["\t", "\u{a0}", "\u{3000}", "\n"] {
+        refused_as_the_reader_refuses(&[white, "a@x.test"]);
+    }
+    assert_eq!(
+        format!("{:?}", join_senders(&senders_list(&["\t", "a@x.test"]))),
+        "Err(Read(Empty(..)))"
+    );
+}
+
+#[test]
+fn join_senders_refuses_one_address_twice_after_the_readers_trim() {
+    refused_as_the_reader_refuses(&["\ta@x.test", "a@x.test"]);
+    refused_as_the_reader_refuses(&["a@x.test", "A@X.test\u{a0}"]);
+    assert_eq!(
+        format!(
+            "{:?}",
+            join_senders(&senders_list(&["\ta@x.test", "a@x.test"]))
+        ),
+        "Err(Read(Twice { .. }))"
+    );
+}
+
+#[test]
+fn join_senders_refuses_a_sender_with_a_letter_outside_ascii_as_the_reader_does() {
+    refused_as_the_reader_refuses(&["\u{e4}@x.test"]);
+    refused_as_the_reader_refuses(&["\u{e4}@x.test", "\u{c4}@x.test"]);
+    assert_eq!(
+        format!("{:?}", join_senders(&senders_list(&["\u{e4}@x.test"]))),
+        "Err(Read(NotAscii(..)))"
+    );
+}
+
+#[test]
+fn seed_binding_binds_no_reply_senders_that_the_reader_refuses() {
+    let seed = with_binding(
+        "reply",
+        json!({"origins": ["http://mail.agent.test"], "slots": [{"name": "reply_senders", "value": ["Ann Berg"]}]}),
     );
     assert_eq!(
-        join_senders(&list(&["\u{e4}@x.test", "\u{c4}@x.test"])),
-        Ok("\u{e4}@x.test, \u{c4}@x.test".to_owned())
+        format!(
+            "{:?}",
+            seed_binding(&seed, SeedTask::Reply, PORT).map(|_| ())
+        ),
+        "Err(Senders(Read(NotAnAddress(..))))"
+    );
+}
+
+#[test]
+fn join_senders_refuses_a_comma_in_any_entry_also_where_its_pieces_are_addresses() {
+    let rows: &[(&[&str], usize)] = &[
+        (&["a@x.test, b@x.test"], 1),
+        (&["a@x.test, b@x.test", "c@x.test"], 1),
+        (&["c@x.test", "a@x.test,b@x.test", "d@x.test"], 2),
+        (&["c@x.test", "a@x.test, b@x.test"], 2),
+    ];
+    for (items, entry) in rows {
+        let list = senders_list(items);
+        assert_eq!(
+            join_senders(&list),
+            Err(SendersRefused::Comma(at(*entry))),
+            "{list:?}"
+        );
+    }
+}
+
+#[test]
+fn join_senders_binds_the_senders_byte_for_byte_with_their_letter_case() {
+    assert_eq!(
+        join_senders(&senders_list(&["Ann@X.test", "b@Y.test"])),
+        Ok("Ann@X.test, b@Y.test".to_owned())
+    );
+}
+
+#[test]
+fn join_senders_refuses_a_comma_and_takes_a_list_exactly_when_the_reader_takes_its_text() {
+    let rows: &[&[&str]] = &[
+        &["a@x.test, b@y.test"],
+        &["a@x.test,b@y.test", "c@z.test"],
+        &["c@z.test", "a@x.test, b@y.test", "d@z.test"],
+        &["a@x.test", "b@y.test,"],
+        &[",a@x.test"],
+        &["a,b@x.test"],
+        &["Ann Berg, a@x.test"],
+        &[],
+        &["a@x.test"],
+        &["a@x.test", "b@y.test"],
+        &[" a@x.test ", "b@y.test"],
+        &["\u{a0}a@x.test", "b@y.test\t"],
+        &["a@x.test", "a@x.test\u{a0}"],
+        &["\u{3000}"],
+        &["a@x.test", "\n"],
+        &["A@X.test", "a@x.TEST"],
+        &["a@x.test."],
+        &["a@.x.test"],
+        &["a@x..test"],
+        &["a.@x.test"],
+        &["a@x"],
+        &["Ann Berg"],
+        &["ann berg@x.test"],
+        &["\u{e9}lan@x.test"],
+        &["a@x.test", "  "],
+        &["a@x.test", "b@y.test", "B@Y.TEST"],
+        &["a\"b@x.test"],
+    ];
+    for items in rows {
+        let list = senders_list(items);
+        let read = halvo_schema::executable::reply_senders(&list.join(", "));
+        let joined = join_senders(&list);
+        if let Some(entry) = items.iter().position(|item| item.contains(',')) {
+            assert_eq!(
+                joined,
+                Err(SendersRefused::Comma(at(entry + 1))),
+                "{list:?}"
+            );
+            continue;
+        }
+        match read {
+            Ok(senders) => assert_eq!(
+                joined,
+                Ok(senders.iter().collect::<Vec<_>>().join(", ")),
+                "{list:?}"
+            ),
+            Err(error) => assert_eq!(
+                format!("{joined:?}"),
+                format!("Err(Read({error:?}))"),
+                "{list:?}"
+            ),
+        }
+    }
+}
+
+#[test]
+fn join_senders_names_the_entry_that_holds_a_comma() {
+    let rows: [(&[&str], usize); 5] = [
+        (&["a,b@x.test"], 1),
+        (&["a@x.test, b@x.test"], 1),
+        (&["a@x.test", "b@x.test", "c,d@x.test", "e,f@x.test"], 3),
+        (&["", "a,b@x.test"], 2),
+        (&["Ann Berg", "a@x.test", ","], 3),
+    ];
+    for (items, entry) in rows {
+        assert_eq!(
+            join_senders(&senders_list(items)),
+            Err(SendersRefused::Comma(at(entry))),
+            "{items:?}"
+        );
+    }
+}
+
+fn senders_of(count: usize) -> Vec<String> {
+    (0..count)
+        .map(|n| {
+            let domain = format!("@p{n:03}.test");
+            format!("{}{domain}", "a".repeat(320 - domain.len()))
+        })
+        .collect()
+}
+
+fn set_bindings_bytes(text: &str) -> usize {
+    use halvo_schema::executable::body::SetBindings;
+    use halvo_schema::executable::record::Slot;
+    use halvo_schema::executable::{Name, OwnValue};
+    use halvo_schema::WorkflowId;
+    CoordinatorCall::SetBindings(SetBindings {
+        workflow: WorkflowId::from_random([7; 16]),
+        agent: AgentId::from_random([8; 16]),
+        slots: vec![Slot {
+            name: Name::parse("reply_senders").expect("a name"),
+            value: OwnValue::new(text),
+        }],
+    })
+    .to_json()
+    .expect("the body")
+    .len()
+}
+
+#[test]
+fn join_senders_refuses_a_list_that_no_frame_can_carry_with_a_cause_of_its_own() {
+    use halvo_schema::executable::frame::FRAME_JSON_MAX;
+    assert_eq!(join_senders(&senders_of(250)), Err(SendersRefused::Long));
+    let most = (1..250)
+        .take_while(|count| join_senders(&senders_of(*count)).is_ok())
+        .last()
+        .expect("a list that fits");
+    let text = join_senders(&senders_of(most)).expect("the longest list that fits");
+    assert!(set_bindings_bytes(&text) <= FRAME_JSON_MAX);
+    let over = senders_of(most + 1).join(", ");
+    assert!(set_bindings_bytes(&over) > FRAME_JSON_MAX);
+    assert_eq!(
+        join_senders(&senders_of(most + 1)),
+        Err(SendersRefused::Long)
+    );
+    assert_eq!(most, 202);
+    let seed = with_binding(
+        "reply",
+        json!({"origins": ["http://mail.agent.test"], "slots": [{"name": "reply_senders", "value": senders_of(250)}]}),
+    );
+    assert_eq!(
+        seed_binding(&seed, SeedTask::Reply, PORT).map(|_| ()),
+        Err(SeedRefused::Senders(SendersRefused::Long))
     );
 }

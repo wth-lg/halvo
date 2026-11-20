@@ -1,0 +1,59 @@
+{
+  "kind": "attempts",
+  "ruling": "the planner's Addition 27, section 1 (plan.md line 239), from reports/builder-54.md lines 102 to 107",
+  "about": "the record good-f10-an-unbuilt-attempt-is-drawn-again with its expect key discarded spelled discardded: the reader of attempts does not read that key, so the record pins less than it says; records.mjs refuses it",
+  "source": "the review cases of builder-54 (evidence/builder-54/review/), written again by hand; good-f10-an-unbuilt-attempt-is-drawn-again with one key misspelled",
+  "cell": {
+    "name": "rollover@20",
+    "kind": "rollover",
+    "level": 20,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 1
+  },
+  "stopAtFirstViolation": true,
+  "attempts": [
+    {
+      "counted": false,
+      "facts": {
+        "crossed": false,
+        "crossingBuilt": false,
+        "firstAdmissionMs": 152,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    },
+    {
+      "counted": true,
+      "facts": {
+        "crossed": true,
+        "crossingBuilt": true,
+        "firstAdmissionMs": -100,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    }
+  ],
+  "expect": {
+    "halted": false,
+    "runs": [
+      {
+        "key": "attempt-2",
+        "rigUnbuilt": false
+      }
+    ],
+    "reported": [
+      "attempt-1",
+      "attempt-2"
+    ],
+    "discardded": [
+      {
+        "key": "attempt-1",
+        "crossed": false,
+        "crossingBuilt": false,
+        "firstAdmissionMs": 152
+      }
+    ]
+  },
+  "refusal": "its expect holds the key discardded"
+}

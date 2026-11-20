@@ -19,11 +19,14 @@ mod workflow;
 pub use cause::Cause;
 pub use config::{Budget, ConfigView};
 pub use event::{
-    Answered, BindAnswer, BindResult, Body, CheckAnswer, Cleared, DoneAnswer, Event,
+    Answered, BindAnswer, BindResult, Body, CheckAnswer, Cleared, Defers, DoneAnswer, Event,
     ItemLapseCause, Lapsed, LinkAnswer, OtherLapse, Raised, ReadyAnswer, Reply, SetupAnswer,
     SignInAnswer, Slot, What,
 };
-pub use facts::{Doing, Facts, Live, OpenItem, OwnItem, OwnItemKind, RunItem, RunItemKind};
+pub use facts::{
+    Doing, Facts, Live, OpenItem, OwnItem, OwnItemKind, Replies, ReplyRow, ReplyState, RunItem,
+    RunItemKind,
+};
 pub use ids::{
     hex, AgentId, ApprovalId, Digest, EffectId, ItemId, Name, Origin, RunId, WorkflowId,
 };

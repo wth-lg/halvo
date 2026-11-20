@@ -14,10 +14,12 @@ name = "halvo-runner"
 path = "src/main.rs"
 
 [dependencies]
+halvo-checkpoint = { path = "../halvo-checkpoint" }
 halvo-control = { path = "../halvo-control" }
 halvo-policy = { path = "../halvo-policy" }
 halvo-schema = { path = "../halvo-schema" }
 halvo-sheet = { path = "../halvo-sheet" }
 
 [dev-dependencies]
+halvo-test-dir = { path = "../halvo-test-dir" }
 serde_json = "1"

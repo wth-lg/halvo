@@ -1,7 +1,11 @@
 use halvo_agent_store::{CommitRefused, Host, MemoryStore, AGENT_KINDS};
-use halvo_schema::executable::names::AgentState;
+use std::num::NonZeroU32;
+
+use halvo_schema::executable::names::{AgentState, Mode, Outcome};
+use halvo_schema::executable::record::AgentRun;
+use halvo_schema::executable::text::RunId;
 use halvo_schema::{
-    AgentId, ErrorName, Origin, RowRead, SummaryRead, TypedRecord, Workflow, WorkflowId,
+    AgentId, ErrorName, Instant, Origin, RowRead, SummaryRead, TypedRecord, Workflow, WorkflowId,
     WorkflowState, WriterStep,
 };
 use serde_json::json;
@@ -63,13 +67,23 @@ fn log_line(w: u32, seq: u32) -> TypedRecord {
 }
 
 fn run_line(w: u32, run: u32) -> TypedRecord {
+    let mut made = AgentRun::new(
+        workflow_id(w),
+        agent_id(1),
+        RunId::parse(&format!("5{run:031x}")).expect("a run id"),
+        20770,
+        Some(Mode::Replay),
+        Outcome::Completed,
+    );
+    made.playbook = NonZeroU32::new(1);
+    made.steps = 9;
+    made.prompts = 1;
+    made.confirmations = 1;
+    made.effects = 1;
+    made.wall_s = 14;
     TypedRecord {
         kind: "agent_run",
-        json: format!(
-            r#"{{"v":1,"workflow":"{}","agent":"{}","run":"5{run:031x}","day":20770,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":1,"handbacks":0,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":14,"model":null,"before_start":null,"cut":null,"no_key":null,"not_to_account":null,"incomplete":null,"reply_to_other":null,"more_pages":null,"held_recipient":null,"organized":null,"other_task":null,"held_earlier":null,"earlier_page":null}}"#,
-            wf(w),
-            agent(1)
-        ),
+        json: made.to_json().expect("a made record"),
     }
 }
 
@@ -145,6 +159,8 @@ fn the_kind_table_is_the_family_agent() {
             "agent_log",
             "agent_session",
             "agent_checkpoint",
+            "agent_reply",
+            "agent_start",
         ]
     );
     let capture: Vec<&str> = AGENT_KINDS
@@ -188,9 +204,8 @@ fn commit_is_all_or_none() {
 fn commit_checks_a_record_against_its_entry() {
     let mut store = store();
     let mut extra = run_line(1, 1);
-    extra.json = extra
-        .json
-        .replace(r#""earlier_page":null}"#, r#""earlier_page":null,"x":1}"#);
+    let open = extra.json.strip_suffix('}').expect("an object");
+    extra.json = format!(r#"{open},"x":1}}"#);
     assert_eq!(store.typed_commit(vec![extra]), Err(CommitRefused::Record));
     let mut not_json = log_line(1, 1);
     not_json.json = "[1]".to_owned();
@@ -294,4 +309,65 @@ fn the_state_call() {
     };
     assert_eq!(w.state, WorkflowState::Paused);
     assert!(store.workflow(&workflow_id(9)).is_none());
+}
+
+#[test]
+fn the_day_of_an_instant_is_the_day_of_the_store_s_calendar() {
+    let second = 1_000_000_000_i64;
+    let day = 86_400 * second;
+    let utc = MemoryStore::new();
+    assert_eq!(utc.day(Instant(20_769 * day)), 20_769);
+    assert_eq!(utc.day(Instant(20_770 * day - 1)), 20_769);
+    let west = MemoryStore::new().with_utc_offset(-5 * 3600);
+    assert_eq!(
+        west.day(Instant(20_770 * day + 5 * 3600 * second - 1)),
+        20_769
+    );
+    assert_eq!(west.day(Instant(20_770 * day + 5 * 3600 * second)), 20_770);
+    let east = MemoryStore::new().with_utc_offset(3600);
+    assert_eq!(east.day(Instant(20_770 * day - 3600 * second)), 20_770);
+    assert_eq!(east.day(Instant(20_770 * day - 3600 * second - 1)), 20_769);
+    assert_eq!(utc.day(Instant(-1)), 0);
+}
+
+#[test]
+fn the_store_s_day_is_day_of_at_the_very_offset_that_with_utc_offset_took() {
+    use halvo_schema::executable::day::{day_of, UTC_OFFSET_S_MAX};
+    let second = 1_000_000_000_i64;
+    let day = 86_400 * second;
+    let max = UTC_OFFSET_S_MAX;
+    for offset in [
+        i32::MIN,
+        -max - 1,
+        -max,
+        -5 * 3600,
+        -1,
+        0,
+        1,
+        3600,
+        max,
+        max + 1,
+        i32::MAX,
+    ] {
+        let store = MemoryStore::new().with_utc_offset(offset);
+        let midnight = 20_769 * day - i64::from(offset) * second;
+        for at in [
+            i64::MIN,
+            -day,
+            -1,
+            0,
+            midnight - 1,
+            midnight,
+            midnight + 12 * 3600 * second,
+            i64::MAX,
+        ] {
+            assert_eq!(
+                store.day(Instant(at)),
+                day_of(Instant(at), offset),
+                "offset {offset}, at {at}"
+            );
+        }
+        assert_eq!(store.day(Instant(midnight)), 20_769, "{offset}");
+        assert_eq!(store.day(Instant(midnight - 1)), 20_768, "{offset}");
+    }
 }

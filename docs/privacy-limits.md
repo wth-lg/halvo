@@ -97,6 +97,14 @@ Each sentence names the unit that makes it true.
   macos-4 reads it; a read from the window list was not tried.
 - A terminal that does not assert secure input gets no protection, so key classes
   and the window title are recorded while a password is typed there (macos-4).
+- A box that a web page only draws as dots, without telling the system that it is
+  a password box, is not recognised as a password field, and what is typed into it
+  is recorded like any other typing (win-3, ruling W3-20). On Windows nothing that
+  UI Automation reports tells such a box from any other text box in Chrome, Edge or
+  Firefox. On macOS the guard rests on the system's secure input, which a program
+  turns on for its own password fields, and a text field that a page only styles as
+  dots does not turn it on, so the two systems are alike here as far as the team
+  has read; no test has shown it on a Mac yet.
 - Halvo records no keystroke typed while secure input is held: a key event that
   reaches it in that time is not recorded and is only counted by type (macos-4).
   Line (c) of the gate is the check that shows it, and gate-3 builds that line
@@ -116,18 +124,3 @@ system; until then they are the recommended text.
   store-3 and daemon-3 make it true.
 
 docs-2 confirms each sentence of this section against the merged code.
-
-## What the derived store keeps after a removal
-
-Note of 2026-11-13: when Halvo removes something from what it has learned about your
-work (because it expired, because the recording behind it was removed, or because you
-dismissed or deleted a workflow), a copy of the removed text can remain inside Halvo's
-encrypted data file, with no time limit, until Halvo happens to reuse that space. The
-same holds for an earlier value that Halvo replaced in place, as when you approve a
-workflow or a later batch changes one. Any program that runs under your account can
-find it there, and on a Mac so can anyone who has a copy of Halvo's whole data folder;
-someone who has only the file cannot read it. A delete of everything that removes the
-folder derived/ with its key leaves no such copy; no code of this version does that.
-The mend is Halvo's own build of the database, which zeroes that space: the capture
-run's unit sqlcipher-1 builds it (ruling S-82). U5.2 of the workflow run deletes this
-note, when the mended build of the database and its test are on main.

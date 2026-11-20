@@ -591,7 +591,7 @@ self_test() {
   counts 46 4 4 4 4 4 4 4 4 4 4 7 >"$work/check-services-count"
   : >"$work/empty"
   printf 'REFUSED usage: usage: node check-sites.mjs [--parameters FILE] SITE_DATA...\n' >"$work/err-usage"
-  printf 'REFUSED site-data: tools/fixture-server/sites/a.json\n' >"$work/err-site-data"
+  printf 'REFUSED site-data: SITE_DATA 1\n' >"$work/err-site-data"
   printf 'REFUSED parameters: docs/r2/category-parameters.md\n' >"$work/err-parameters"
   printf 'checked files=46\nparameters names=10 missing=1\nmissing sites/a.json email folder\n' >"$work/check-missing"
   printf 'node:internal/modules/run_main:1\nError: boom\n' >"$work/err-crash"

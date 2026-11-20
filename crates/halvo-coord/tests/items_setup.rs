@@ -106,6 +106,8 @@ fn facts(category: Category, runtime: &str, state: WorkflowState) -> Facts<Confi
         runs: vec![],
         events: vec![],
         store_ended: true,
+        replies: halvo_coord::types::Replies::NotAsked,
+        unknown: Vec::new(),
         today: TODAY,
         doing: Doing::Idle(Some(OwnItem {
             item: item_id(1),
@@ -182,7 +184,7 @@ impl Owner for Lossy<'_> {
         self.inner.log(events)
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.inner.history(agent, after)
     }
 
@@ -204,6 +206,15 @@ impl Owner for Lossy<'_> {
             Ok(reply)
         }
     }
+
+    fn replies(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        self.inner.replies(workflow, agent, run)
+    }
 }
 
 impl Clock for Lossy<'_> {
@@ -212,10 +223,6 @@ impl Clock for Lossy<'_> {
             return Err(PortError::NoService);
         }
         self.inner.now()
-    }
-
-    fn today(&self) -> Result<u32, PortError> {
-        self.inner.today()
     }
 
     fn day(&self, at: u64) -> Result<u32, PortError> {

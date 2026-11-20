@@ -1,19 +1,25 @@
 use halvo_coord::guard::{guard_step, EffectRecord, EffectState, Gives, Table};
+use halvo_coord::items::drive::{answer_bind, lapse_bind, raise_bind, BindState, HeldBind, Ledger};
 use halvo_coord::items::{
     confirm_step, raise_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation, Raise, Source,
 };
 use halvo_coord::mem::{Call, Config, Method, Ports};
-use halvo_coord::ports::{PortError, Reaped};
-use halvo_coord::run::{delete_step, drive, recover, Act, StopBy};
+use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
+use halvo_coord::run::{delete_step, drive, recover, recover_step, Act, Earlier, StopBy};
 use halvo_coord::schedule::{self, holds, Answer, Board, Ended, Served};
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Answered, ApprovalId, AskedEffect, Body, Category, Cause, Class,
     Cleared, ConfirmAsk, Decision, DecisionEntry, Digest, Doing, EffectAnswer, EffectId, Event,
     Facts, FullWorkflow, ItemId, LapseCause, Lapsed, Limits, Live, Name, Outcome, PastRun,
-    Presenter, Raised, RunEnd, RunId, RunItem, RunItemKind, What, Workflow, WorkflowId,
+    Presenter, Raised, RunEnd, RunId, RunItem, RunItemKind, Unknown, What, Workflow, WorkflowId,
     WorkflowState, WorkflowTrigger,
 };
+use halvo_coord::types::{
+    Answer as PortAnswer, BindAsk, BindResult, Choice, Decision as PortDecision, HandbackResult,
+    Origin, OtherLapse, Reply, RunEvent, RunSpec, SignInAnswer,
+};
 use serde_json::{json, Map, Value};
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
@@ -195,7 +201,11 @@ fn sched_event(e: &Event, names: &Names) -> Option<Value> {
             "agent": agent, "event": "run_started", "run": names.run(run),
             "slot": slot.map_or(Value::Null, rel), "trigger": trigger.name()
         }),
-        What::RunEnded { run, cause } => json!({
+        What::RunEnded {
+            run,
+            cause,
+            defers: _,
+        } => json!({
             "agent": agent, "event": "run_ended", "run": names.run(run), "cause": cause.name()
         }),
         What::HoldSet { cause } => {
@@ -323,6 +333,7 @@ impl Sched {
                         What::RunEnded {
                             run: run.clone(),
                             cause: RunEnd::Completed,
+                            defers: None,
                         },
                     ),
                 ]);
@@ -428,6 +439,29 @@ impl Sched {
         }
     }
 
+    /// The agent store's `end_run` of a run that left an effect `releasing`: its record counts 0
+    /// and the roster entry's key `unknown` names the effect (ruling RD-81 8.1, 13.5), which the
+    /// model's fact of a run whose outcome is not known maps.
+    fn key_names(&mut self, n: usize, run: &RunId) {
+        let agent = &self.names.agents[n];
+        if let Some(a) = self
+            .ports
+            .agents
+            .borrow_mut()
+            .iter_mut()
+            .find(|a| &a.agent == agent)
+        {
+            a.unknown.push(Unknown {
+                run: run.clone(),
+                effect: EffectId::parse(&format!("{:032x}", 0xe400 + n)).unwrap(),
+                day: DAY,
+                class: Class::Send,
+                kept: vec![],
+            });
+        }
+        self.unknown.insert(n, run.clone());
+    }
+
     fn member_of(&self, run: &RunId) -> Option<usize> {
         let r = self.board.runs.iter().find(|r| &r.run == run)?;
         self.names.agents.iter().position(|a| a == &r.agent)
@@ -445,7 +479,7 @@ impl Sched {
 
     /// One line: the move on the code, then the answer, the events, the calls and the state
     /// compared with the model's.
-    fn line(&mut self, m: &Value, at: &str, out: &mut Mismatch) {
+    fn line(&mut self, m: &Value, at: &str, out: &mut Mismatch) -> Value {
         let mv = m["m"].as_str().unwrap();
         let a = &m["a"];
         let mut keys = Map::new();
@@ -498,14 +532,13 @@ impl Sched {
                             self.table = self.table.stop(&run);
                             let _ = halvo_coord::ports::Runs::cancel(&self.ports, &run);
                         }
-                        Act::Stop {
-                            run,
-                            by: if a["cause"] == "lapsed" {
-                                StopBy::WaitLimit
-                            } else {
-                                StopBy::Person
-                            },
-                        }
+                        let by = match a["cause"].as_str() {
+                            Some("cancelled") => StopBy::Person,
+                            Some("lapsed") => StopBy::WaitLimit,
+                            Some("answer_lost") => StopBy::AnswerLost,
+                            other => panic!("{at}: no stop cause {other:?}"),
+                        };
+                        Act::Stop { run, by }
                     }
                 };
                 let done = self.act(act);
@@ -662,8 +695,11 @@ impl Sched {
             "ack" => {
                 let n = self.index(&a["agent"]);
                 if let Some(run) = self.agent_run(n) {
-                    let unknown = u32::from(self.left.get(&run.to_string()) == Some(&true));
-                    self.store_ends(n, &run, Outcome::Failed, unknown);
+                    let left = self.left.get(&run.to_string()) == Some(&true);
+                    self.store_ends(n, &run, Outcome::Failed, 0);
+                    if left {
+                        self.key_names(n, &run);
+                    }
                 }
                 answer = json!("ok");
             }
@@ -692,9 +728,21 @@ impl Sched {
             "off" => {
                 self.ports_for(None);
                 let n = self.index(&a["agent"]);
-                let done = self.act(Act::SwitchOff {
-                    agent: self.names.agents[n].clone(),
-                });
+                let lossy = Lossy {
+                    inner: &self.ports,
+                    lose: Cell::new(a["port"] == "lost" || a["port"] == "lost_read"),
+                    unread: a["port"] == "lost",
+                    read_fails: Cell::new(false),
+                };
+                let done = drive(
+                    &lossy,
+                    &mut self.board,
+                    &mut self.table,
+                    &self.limits,
+                    Act::SwitchOff {
+                        agent: self.names.agents[n].clone(),
+                    },
+                );
                 answer = json!(cause_name(&done.report.answer));
                 keys.insert(
                     "stopped".into(),
@@ -739,6 +787,7 @@ impl Sched {
                 keys.get(k).unwrap_or(&Value::Null),
             );
         }
+        json!({"r": answer, "e": events, "p": calls, "s": keys})
     }
 
     fn name_new_events(&mut self) {
@@ -772,6 +821,9 @@ impl Sched {
         if let Some(l) = last {
             f.runs.retain(|r| r.run != l.run);
             f.runs.insert(0, l);
+        }
+        if let Some(a) = entry {
+            f.take_unknown(&a.unknown);
         }
         f
     }
@@ -959,12 +1011,116 @@ fn replay_schedule(traces: &[Trace]) -> Vec<String> {
     out.0
 }
 
+/// The memory ports with an owner that can store a body and lose its reply: with `lose` set, the
+/// next body that the memory owner stores is answered `no_service`, as a lost acknowledgement;
+/// with `unread` set as well, the one read of the owner's events after that body fails too.
+struct Lossy<'a> {
+    inner: &'a Ports<Config>,
+    lose: Cell<bool>,
+    unread: bool,
+    read_fails: Cell<bool>,
+}
+
+impl Owner for Lossy<'_> {
+    type Config = Config;
+    fn log(&self, events: &[Event]) -> Result<(), PortError> {
+        let stored = self.inner.log(events);
+        if stored.is_ok() && self.lose.replace(false) {
+            self.read_fails.set(self.unread);
+            return Err(PortError::NoService);
+        }
+        stored
+    }
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
+        if self.read_fails.replace(false) {
+            return Err(PortError::NoService);
+        }
+        self.inner.history(agent, after)
+    }
+    fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
+        self.inner.workflows()
+    }
+    fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+        self.inner.agents()
+    }
+    fn send(&self, body: &Body) -> Result<Reply, PortError> {
+        self.inner.send(body)
+    }
+    fn replies(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        self.inner.replies(workflow, agent, run)
+    }
+}
+
+impl Runs for Lossy<'_> {
+    fn start(&self, spec: &RunSpec) -> Result<(), PortError> {
+        self.inner.start(spec)
+    }
+    fn answer_confirm(
+        &self,
+        run: &RunId,
+        answers: &[PortAnswer],
+        record: &mut dyn FnMut(&PortDecision) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        self.inner.answer_confirm(run, answers, record)
+    }
+    fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
+        self.inner.answer_handback(run, result)
+    }
+    fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+        self.inner.answer_bind(run, result)
+    }
+    fn cancel(&self, run: &RunId) -> Result<(), PortError> {
+        self.inner.cancel(run)
+    }
+    fn kill(&self, run: &RunId) -> Result<(), PortError> {
+        self.inner.kill(run)
+    }
+    fn reap(&self) -> Result<Vec<(RunId, Reaped)>, PortError> {
+        self.inner.reap()
+    }
+}
+
+impl Clock for Lossy<'_> {
+    fn now(&self) -> Result<u64, PortError> {
+        self.inner.now()
+    }
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.inner.day(at)
+    }
+}
+
+impl Rng for Lossy<'_> {
+    fn bytes16(&self) -> Result<[u8; 16], PortError> {
+        self.inner.bytes16()
+    }
+}
+
+impl Analysis for Lossy<'_> {
+    fn defer(&self, until: u64) -> Result<(), PortError> {
+        self.inner.defer(until)
+    }
+}
+
 /// One run of one agent with the confirmations and the guard's table, replayed through the
 /// pure functions: `confirm_step` for the moves of an item, `raise_step` for whether a request
 /// is admitted, `run_step` for the person's stop, `guard_step` for a record and the table's
 /// own moves. The port mints approval ids from a counter, `p1` first, in the order of the
-/// effects (I4.6).
+/// effects (I4.6). The second step of a `sign_in` item goes through the items drive on the
+/// memory ports (`raise_bind`, `answer_bind`, `lapse_bind`), and a kill through `recover_step`
+/// over the owner's events.
 struct Conf {
+    ports: Ports<Config>,
+    ledger: Ledger,
+    binds: Vec<(String, HeldBind)>,
+    killed: Vec<String>,
+    answering: Option<String>,
+    events_seen: usize,
+    tried_seen: usize,
     items: Vec<(String, Confirmation)>,
     pending: BTreeMap<String, Decision>,
     table: Table,
@@ -1030,7 +1186,26 @@ fn rows(event: &str, item: &str, d: &Decision) -> Vec<Value> {
 
 impl Conf {
     fn new() -> Conf {
+        let limits = limits();
+        let ports: Ports<Config> = Ports::with_limits(T0, DAY, limits);
+        ports
+            .workflows
+            .borrow_mut()
+            .push(Workflow::Full(Conf::workflow()));
+        let run = conf_id(RunId::parse, "r1");
+        ports.runner_of(&run);
         Conf {
+            ports,
+            ledger: Ledger::new(
+                conf_id(WorkflowId::parse, "w1"),
+                conf_id(AgentId::parse, "a1"),
+                0,
+            ),
+            binds: Vec::new(),
+            killed: Vec::new(),
+            answering: None,
+            events_seen: 0,
+            tried_seen: 0,
             items: Vec::new(),
             pending: BTreeMap::new(),
             table: Table::new(),
@@ -1039,7 +1214,7 @@ impl Conf {
             state: "live",
             minted: 0,
             raised: Vec::new(),
-            limits: limits(),
+            limits,
         }
     }
 
@@ -1060,14 +1235,105 @@ impl Conf {
         Decision::new(entries).unwrap()
     }
 
+    fn workflow() -> FullWorkflow {
+        FullWorkflow {
+            id: conf_id(WorkflowId::parse, "w1"),
+            state: WorkflowState::Active,
+            category: Category::Email,
+            site: None,
+            trigger: WorkflowTrigger::Manual,
+            period: None,
+            last: DAY,
+            agent: Some(conf_id(AgentId::parse, "a1")),
+        }
+    }
+
     fn open_item(&self) -> Option<RunItem> {
-        self.items
+        let confirm = self
+            .items
             .iter()
             .find(|(_, c)| c.state().is_open())
             .map(|(name, _)| RunItem {
                 item: conf_id(ItemId::parse, name),
                 kind: RunItemKind::Confirm,
-            })
+            });
+        let bind = self
+            .binds
+            .iter()
+            .find(|(name, b)| *b.state() != BindState::Closed && !self.killed.contains(name))
+            .map(|(_, b)| RunItem {
+                item: b.item().clone(),
+                kind: RunItemKind::SignIn,
+            });
+        confirm.or(bind)
+    }
+
+    fn bind_name(&self, item: &ItemId) -> String {
+        self.binds
+            .iter()
+            .find(|(_, b)| b.item() == item)
+            .map(|(n, _)| n.clone())
+            .unwrap_or_default()
+    }
+
+    fn bind_state(&self, name: &str, b: &HeldBind) -> &'static str {
+        if self.killed.iter().any(|k| k == name) {
+            return "closed";
+        }
+        match b.state() {
+            BindState::Open => "open",
+            BindState::Recorded(BindResult::Allow) => "allow",
+            BindState::Recorded(BindResult::Decline) => "decline",
+            BindState::Closed => "closed",
+        }
+    }
+
+    /// The events that the memory owner stored and the calls that act since the last line, as
+    /// a trace line writes them.
+    fn port_lines(&mut self, e: &mut Vec<Value>, p: &mut Vec<Value>) {
+        let stored: Vec<Event> = self.ports.events.borrow()[self.events_seen..].to_vec();
+        self.events_seen = self.ports.events.borrow().len();
+        for ev in stored {
+            match &ev.what {
+                What::ItemRaised { item, .. } => {
+                    e.push(json!({"event": "item_raised", "item": self.bind_name(item)}))
+                }
+                What::ItemAnswered {
+                    item,
+                    answer: Answered::SignIn(SignInAnswer::Second(b)),
+                } => e.push(
+                    json!({"event": "item_answered", "item": self.bind_name(item),
+                    "answer": b.answer.name()}),
+                ),
+                What::ItemLapsed {
+                    item,
+                    lapsed: Lapsed::SignIn(cause),
+                } => e.push(json!({"event": "item_lapsed", "item": self.bind_name(item),
+                    "cause": cause.cause().name()})),
+                other => panic!("an event that no bind line stores: {other:?}"),
+            }
+        }
+        let tried: Vec<Call> = self.ports.tried.borrow()[self.tried_seen..]
+            .iter()
+            .map(|t| t.call.clone())
+            .collect();
+        self.tried_seen = self.ports.tried.borrow().len();
+        let open = self
+            .binds
+            .iter()
+            .rev()
+            .find(|(_, b)| *b.state() != BindState::Closed)
+            .map(|(n, _)| n.clone());
+        for call in tried {
+            match call {
+                Call::AnswerBind(_, result) => {
+                    let name = self.answering.clone().or(open.clone()).unwrap_or_default();
+                    p.push(json!({"call": "answer_bind", "item": name, "answer": result.name()}))
+                }
+                Call::Cancel(_) => p.push(json!({"call": "cancel"})),
+                _ => {}
+            }
+        }
     }
 
     fn facts(&self) -> Facts<Config> {
@@ -1094,6 +1360,8 @@ impl Conf {
             runs: Vec::new(),
             events: self.raised.clone(),
             store_ended: true,
+            replies: halvo_coord::types::Replies::NotAsked,
+            unknown: Vec::new(),
             today: DAY,
             doing,
         }
@@ -1250,12 +1518,25 @@ impl Conf {
                                     LapseCause::parse(a["cause"].as_str().unwrap()).unwrap();
                                 let lives =
                                     !matches!(cause, LapseCause::RunEnded | LapseCause::AppEnded);
+                                if matches!(
+                                    cause,
+                                    LapseCause::WaitLimit
+                                        | LapseCause::Cancelled
+                                        | LapseCause::AnswerLost
+                                ) {
+                                    self.table = self.table.stop(&self.run);
+                                    self.state = "stopped";
+                                    p.push(json!({"call": "cancel"}));
+                                }
                                 if lives && conf.state().waits_for_person() {
                                     let d = self.mint(&conf, EffectAnswer::RejectOnce);
                                     sent = entries(&d);
                                     p.push(json!({"call": "answer_confirm", "item": name, "answer": "reject"}));
                                 }
-                                if lives && matches!(conf.state(), ConfirmState::Answered(_)) {
+                                if lives
+                                    && cause != LapseCause::AnswerLost
+                                    && matches!(conf.state(), ConfirmState::Answered(_))
+                                {
                                     let d = self.mint(&conf, EffectAnswer::RejectOnce);
                                     sent = entries(&d);
                                 }
@@ -1266,11 +1547,6 @@ impl Conf {
                                 self.table = self.table.lapse(&conf_id(ItemId::parse, &name));
                                 if matches!(cause, LapseCause::RunEnded | LapseCause::AppEnded) {
                                     self.state = "ended";
-                                }
-                                if matches!(cause, LapseCause::WaitLimit | LapseCause::Cancelled) {
-                                    self.table = self.table.stop(&self.run);
-                                    self.state = "stopped";
-                                    p.push(json!({"call": "cancel"}));
                                 }
                             }
                             _ => {}
@@ -1340,6 +1616,146 @@ impl Conf {
                     Err(refusal) => r = refusal.name().into(),
                 }
             }
+            "bind" => {
+                let ask = BindAsk {
+                    run: self.run.clone(),
+                    agent: self.agent.clone(),
+                    origin: Origin::parse("https://pay.site1.example:8443").unwrap(),
+                };
+                let event = RunEvent::Bind(ask.clone());
+                let mut item = Value::Null;
+                match raise_step(&self.facts(), Source::of(&event).unwrap(), &self.limits) {
+                    Raise::Run(RunItemKind::SignIn) => {
+                        let lossy = Lossy {
+                            inner: &self.ports,
+                            lose: Cell::new(false),
+                            unread: false,
+                            read_fails: Cell::new(false),
+                        };
+                        match raise_bind(&lossy, &mut self.ledger, &self.table, &self.limits, &ask)
+                        {
+                            Ok(held) => {
+                                let name = format!("b{}", self.binds.len() + 1);
+                                self.raised.push(Event {
+                                    workflow: conf_id(WorkflowId::parse, "w1"),
+                                    agent: self.agent.clone(),
+                                    seq: NonZeroU32::new(self.raised.len() as u32 + 1).unwrap(),
+                                    day: DAY,
+                                    at: 0,
+                                    what: What::ItemRaised {
+                                        item: held.item().clone(),
+                                        raised: Raised::SignIn(self.run.clone()),
+                                    },
+                                });
+                                item = json!(name);
+                                self.binds.push((name, held));
+                                r = "ok".into();
+                            }
+                            Err(c) => r = c.name().into(),
+                        }
+                    }
+                    Raise::End(_) => {
+                        self.state = "ended";
+                        r = "state".into();
+                    }
+                    Raise::Refused(c) => r = c.name().into(),
+                    other => r = format!("{other:?}"),
+                }
+                self.port_lines(&mut e, &mut p);
+                keys.insert("item".into(), item);
+            }
+            "press" | "bind_lapse" => {
+                let name = a["item"].as_str().unwrap().to_string();
+                let Some(j) = self.binds.iter().position(|(n, _)| *n == name) else {
+                    panic!("{at}: no item {name}");
+                };
+                self.ports.clear_refusals();
+                self.answering = Some(name.clone());
+                let lossy = Lossy {
+                    inner: &self.ports,
+                    lose: Cell::new(a["store"] == "lost"),
+                    unread: false,
+                    read_fails: Cell::new(false),
+                };
+                let answer = if m["m"] == "press" {
+                    match a["runs"].as_str().unwrap() {
+                        "busy" => self.ports.refuse(Method::AnswerBind, PortError::Busy),
+                        "ended" => self.ports.refuse(
+                            Method::AnswerBind,
+                            PortError::Refused(Name::parse("ended").unwrap()),
+                        ),
+                        _ => {}
+                    }
+                    let choice = if a["choice"] == "allow" {
+                        Choice::Allow
+                    } else {
+                        Choice::Decline
+                    };
+                    answer_bind(
+                        &lossy,
+                        &mut self.ledger,
+                        &self.table,
+                        &self.limits,
+                        &mut self.binds[j].1,
+                        choice,
+                    )
+                } else {
+                    let cause = OtherLapse::parse(a["cause"].as_str().unwrap()).unwrap();
+                    let lapsed = lapse_bind(
+                        &lossy,
+                        &mut self.ledger,
+                        &mut self.table,
+                        &mut self.binds[j].1,
+                        cause,
+                        &self.limits,
+                    );
+                    if lapsed.is_ok() {
+                        self.state = match cause {
+                            OtherLapse::WaitLimit | OtherLapse::Cancelled => "stopped",
+                            _ => "ended",
+                        };
+                    }
+                    lapsed
+                };
+                let ended = self.ports.tried.borrow()[self.tried_seen..]
+                    .iter()
+                    .any(|t| {
+                        matches!(t.call, Call::AnswerBind(..))
+                            && t.refused == Some(PortError::Refused(Name::parse("ended").unwrap()))
+                    });
+                if ended {
+                    self.state = "ended";
+                    self.ports.end_runner(&self.run);
+                }
+                self.ports.clear_refusals();
+                r = match answer {
+                    Ok(()) => "ok".into(),
+                    Err(c) => c.name().into(),
+                };
+                self.port_lines(&mut e, &mut p);
+                self.answering = None;
+            }
+            "kill" => {
+                let events: Vec<Event> = self.ports.events.borrow().clone();
+                let recovery = recover_step(
+                    &Earlier {
+                        agent: &self.agent,
+                        events: &events,
+                        last: None,
+                    },
+                    &[],
+                );
+                for (item, lapsed) in &recovery.lapsed {
+                    let name = self.bind_name(item);
+                    let Lapsed::SignIn(cause) = lapsed else {
+                        panic!("{at}: a kill lapses no confirmation");
+                    };
+                    e.push(json!({"event": "item_lapsed", "item": name, "cause": cause.cause().name()}));
+                    self.killed.push(name);
+                }
+                self.state = "ended";
+                r = "ok".into();
+            }
             other => panic!("{at}: no move {other}"),
         }
         out.check(at, "r", &m["r"], &json!(r));
@@ -1367,6 +1783,11 @@ impl Conf {
                 .collect::<Vec<_>>()),
         );
         keys.insert("run".into(), json!(self.state));
+        let mut binds = Map::new();
+        for (name, b) in &self.binds {
+            binds.insert(name.clone(), json!(self.bind_state(name, b)));
+        }
+        keys.insert("binds".into(), Value::Object(binds));
         let want = m["s"].as_object().unwrap();
         let mut gk: Vec<&String> = keys.keys().collect();
         let mut wk: Vec<&String> = want.keys().collect();
@@ -1415,10 +1836,125 @@ fn formal_traces() {
 }
 
 #[test]
+fn formal_traces_a_lost_switch_off_whose_read_answers_moves_as_the_switch_off_in_order() {
+    let (schedule, _) = read_pair(SCHEDULE, CONFIRM).unwrap();
+    let mut cases = 0;
+    for t in &schedule {
+        for (k, m) in t.moves.iter().enumerate() {
+            if !(m["m"] == "off" && m["a"]["port"] == "lost") {
+                continue;
+            }
+            let at = format!("schedule {} line {}", t.name(), k + 1);
+            let lines: Vec<Value> = ["lost_read", "ok"]
+                .iter()
+                .map(|port| {
+                    let mut s = Sched::new();
+                    let mut prefix = Mismatch(Vec::new());
+                    for before in &t.moves[..k] {
+                        s.line(before, &at, &mut prefix);
+                    }
+                    assert!(prefix.0.is_empty(), "{at}: {:?}", prefix.0);
+                    let mut mv = m.clone();
+                    mv["a"]["port"] = json!(port);
+                    s.line(&mv, &at, &mut Mismatch(Vec::new()))
+                })
+                .collect();
+            assert_eq!(lines[0], lines[1], "{at}");
+            assert_eq!(lines[0]["r"], json!("ok"), "{at}");
+            cases += 1;
+        }
+    }
+    assert!(cases > 0, "no trace holds a lost switch-off");
+}
+
+#[test]
 fn formal_traces_refuses_a_pair_whose_stamps_differ() {
     let (stamp, _) = read_file(CONFIRM).unwrap();
     let other = CONFIRM.replacen(&stamp, &"0".repeat(64), 1);
     let refused = read_pair(SCHEDULE, &other);
     assert!(refused.is_err_and(|e| e.contains("two stamps")));
     assert!(read_pair(SCHEDULE, CONFIRM).is_ok());
+}
+
+const CONFIRM_MODEL: &str = include_str!("../../../formal/r4-coordinator/Confirm4.tla");
+const SCHEDULE_MODEL: &str = include_str!("../../../formal/r4-coordinator/Schedule.tla");
+
+/// The set that a line `<head>{"a", "b"}` of a model names, sorted.
+fn model_set<'a>(model: &'a str, head: &str) -> Vec<&'a str> {
+    let line = model
+        .lines()
+        .map(str::trim_start)
+        .find(|l| l.starts_with(head))
+        .unwrap_or_else(|| panic!("no line {head}"));
+    let set = line[head.len()..].trim_end().trim_end_matches('}');
+    let mut names: Vec<&str> = set.split(", ").map(|n| n.trim_matches('"')).collect();
+    names.sort_unstable();
+    names
+}
+
+#[test]
+fn formal_traces_the_models_take_the_codes_cause_answer_lost() {
+    let mut code: Vec<&str> = LapseCause::ALL.iter().map(|c| c.name()).collect();
+    code.sort_unstable();
+    assert_eq!(
+        model_set(CONFIRM_MODEL, "Causes == {"),
+        code,
+        "Confirm4's Causes are the causes of a lapse of a confirmation (ruling RD-84 item 5)"
+    );
+    assert_eq!(
+        model_set(SCHEDULE_MODEL, "/\\ StopCauses \\subseteq {"),
+        ["answer_lost", "cancelled", "lapsed"],
+        "Schedule's bound on the stop causes holds answer_lost (ruling RD-84 item 5)"
+    );
+}
+
+/// The directed traces of the settle of a lost answer (I5.13, RD-84 items 2 and 4; the start
+/// object's "a directed trace for the settle"): exported from this commit's models with the case
+/// `answer_lost_settle` added to copies of ScheduleTrace.tla and Confirm4Trace.tla alone. The
+/// schedule stops a waiting run with `answer_lost` and the run ends `failed`; the confirmation is
+/// answered, lapses with `answer_lost` with one cancel and nothing sent, and the guard refuses
+/// the allow that the lost move may have handed on.
+const SETTLE_SCHEDULE: &str = r##"{"n":215,"case":"answer_lost_settle","moves":[{"m":"start","a":{"agent":"a4","trigger":"person","port":"ok"},"r":"ok","e":[{"agent":"a4","event":"run_started","run":"r1","slot":null,"trigger":"person"}],"p":[{"call":"defer"},{"call":"start_run","run":"r1"},{"call":"start","run":"r1"}],"s":{"run":"r1","day":1,"runs":{"r1":"starting"},"queue":[],"ready":[],"held":[],"starts":[0,0,0,1,0],"slot":[null,null,null,null,null],"fails":[0,0,0,0,0],"gone":[],"lost":[],"open":["r1"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"hello","a":{"run":"r1"},"r":"ok","e":[],"p":[],"s":{"day":1,"runs":{"r1":"working"},"queue":[],"ready":[],"held":[],"starts":[0,0,0,1,0],"slot":[null,null,null,null,null],"fails":[0,0,0,0,0],"gone":[],"lost":[],"open":["r1"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"wait","a":{"run":"r1"},"r":"ok","e":[],"p":[],"s":{"day":1,"runs":{"r1":"waiting"},"queue":[],"ready":[],"held":[],"starts":[0,0,0,1,0],"slot":[null,null,null,null,null],"fails":[0,0,0,0,0],"gone":[],"lost":[],"open":["r1"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"stop","a":{"run":"r1","cause":"answer_lost"},"r":"ok","e":[],"p":[{"call":"cancel","run":"r1"}],"s":{"day":1,"runs":{"r1":"stopping"},"queue":[],"ready":[],"held":[],"starts":[0,0,0,1,0],"slot":[null,null,null,null,null],"fails":[0,0,0,0,0],"gone":[],"lost":[],"open":["r1"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"end","a":{"run":"r1","frame":null,"port":"ok","left":"no"},"r":"ok","e":[{"agent":"a4","event":"run_ended","run":"r1","cause":"failed"}],"p":[],"s":{"cause":"failed","next":[],"day":1,"runs":{},"queue":[],"ready":[],"held":[],"starts":[0,0,0,1,0],"slot":[null,null,null,null,null],"fails":[0,0,0,1,0],"gone":[],"lost":[],"open":["r1"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"tick","a":{"day":1,"grace":"yes","port":"ok","left":"no"},"r":"ok","e":[{"agent":"a2","event":"run_started","run":"r2","slot":1,"trigger":"schedule"}],"p":[{"call":"kill","run":"r1"},{"call":"defer"},{"call":"start_run","run":"r2"},{"call":"start","run":"r2"}],"s":{"stopped":[],"ended":[],"next":[],"raised":["a1","a3"],"started":[{"agent":"a2","r":"ok","run":"r2"}],"day":1,"runs":{"r2":"starting"},"queue":[],"ready":["a1","a3"],"held":[],"starts":[0,1,0,1,0],"slot":[null,1,null,null,null],"fails":[0,0,0,1,0],"gone":[],"lost":[],"open":["r1","r2"],"unknown":[],"cleared":[],"owing":[],"life":1}},{"m":"start","a":{"agent":"a4","trigger":"person","port":"ok"},"r":"state","e":[],"p":[],"s":{"run":null,"day":1,"runs":{"r2":"starting"},"queue":[],"ready":["a1","a3"],"held":[],"starts":[0,1,0,1,0],"slot":[null,1,null,null,null],"fails":[0,0,0,1,0],"gone":[],"lost":[],"open":["r1","r2"],"unknown":[],"cleared":[],"owing":[],"life":1}}]}"##;
+const SETTLE_CONFIRM: &str = r##"{"n":216,"case":"answer_lost_settle","moves":[{"m":"issue","a":{"effects":[{"effect":"e1","class":"send","digest":"d1"},{"effect":"e2","class":"payment","digest":"d2"}],"digest_ok":"yes"},"r":"ok","e":[{"event":"item_raised","item":"i1"}],"p":[],"s":{"item":"i1","sent":[],"items":{"i1":"shown"},"table":[],"used":[],"run":"live","binds":{}}},{"m":"arm","a":{"item":"i1"},"r":"ok","e":[],"p":[],"s":{"items":{"i1":"armed"},"table":[],"used":[],"run":"live","binds":{}}},{"m":"answer","a":{"item":"i1","answer":"allow","from":"native"},"r":"ok","e":[],"p":[{"call":"answer_confirm","item":"i1","answer":"allow"}],"s":{"approvals":["p1","p2"],"items":{"i1":"answered"},"table":[],"used":[],"run":"live","binds":{}}},{"m":"lapse","a":{"item":"i1","cause":"answer_lost","stored":null},"r":"ok","e":[{"event":"item_lapsed","item":"i1","cause":"answer_lost"}],"p":[{"call":"cancel"}],"s":{"sent":[],"items":{"i1":"lapsed"},"table":[],"used":[],"run":"stopped","binds":{}}},{"m":"guard","a":{"effect":"e1","class":"send","state":"approved","digest":"d1","approval":"p1","policy":null},"r":"approval","e":[],"p":[],"s":{"items":{"i1":"lapsed"},"table":[],"used":[],"run":"stopped","binds":{}}},{"m":"lapse","a":{"item":"i1","cause":"run_ended","stored":null},"r":"state","e":[],"p":[],"s":{"sent":[],"items":{"i1":"lapsed"},"table":[],"used":[],"run":"stopped","binds":{}}}]}"##;
+
+fn directed(line: &str) -> Vec<Trace> {
+    read_file(&format!("{{\"stamp\":\"directed\"}}\n{line}"))
+        .unwrap()
+        .1
+}
+
+#[test]
+fn formal_traces_the_directed_settle_of_a_lost_answer_replays() {
+    let schedule = directed(SETTLE_SCHEDULE);
+    let confirm = directed(SETTLE_CONFIRM);
+    let stop = schedule[0]
+        .moves
+        .iter()
+        .position(|m| m["m"] == "stop" && m["a"]["cause"] == "answer_lost")
+        .expect("the schedule trace stops with answer_lost");
+    assert_eq!(schedule[0].moves[stop + 1]["m"], json!("end"));
+    assert_eq!(
+        schedule[0].moves[stop + 1]["e"][0]["cause"],
+        json!("failed"),
+        "the run's end is failed (RD-84 item 4)"
+    );
+    let lapse = confirm[0]
+        .moves
+        .iter()
+        .find(|m| m["m"] == "lapse" && m["a"]["cause"] == "answer_lost")
+        .expect("the confirm trace lapses with answer_lost");
+    assert_eq!(
+        lapse["p"],
+        json!([{"call": "cancel"}]),
+        "one cancel and no decision"
+    );
+    assert_eq!(lapse["s"]["sent"], json!([]), "nothing sent");
+    let mut faults = replay_schedule(&schedule);
+    faults.extend(replay_confirm(&confirm));
+    assert!(
+        faults.is_empty(),
+        "{} lines differ from the model:\n{}",
+        faults.len(),
+        faults.join("\n")
+    );
 }

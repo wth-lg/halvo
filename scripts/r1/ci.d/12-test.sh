@@ -2,6 +2,7 @@
 # jobs: macos windows
 # rule: Every test of the workspace passes with the committed lockfile, and the test run leaves no entry in its temp directory.
 # lane: alone
+# limit: 1800
 set -u
 name=12-test
 exempt=halvo-consent-test-

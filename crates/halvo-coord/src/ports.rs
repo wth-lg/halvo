@@ -4,7 +4,7 @@
 
 use crate::types::{
     Agent, AgentId, Answer, BindResult, Body, ConfigView, Decision, Event, HandbackResult, Name,
-    Reply, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
+    Reply, ReplyRow, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
 };
 
 /// Why a port call did not do its work (I5.10). The coordinator answers a command with `busy`
@@ -28,9 +28,12 @@ pub trait Owner {
     /// stores none of its events.
     fn log(&self, events: &[Event]) -> Result<(), PortError>;
     /// The events of the agent with a `seq` above `after`, in ascending `seq`, at most 64 for
-    /// one call, as `coord_history` answers (I7.2); the caller asks again from the last `seq`
-    /// that it holds.
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError>;
+    /// one call, as `coord_history` answers (I7.2), and the reply's `last`: the largest `seq`
+    /// among the agent's rows that the read hands out, 0 with none, whatever `after` is, which
+    /// the three places of ruling RD-64 3.2, the items' ledger, the schedule's log and recovery's
+    /// body, take as the stored last, also where it is below a `seq` that they hold (I5.10,
+    /// I7.2; ruling RD-64 3.1, 3.2); the caller asks again from the last `seq` that it holds.
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError>;
     /// The owner's list of workflows.
     fn workflows(&self) -> Result<Vec<Workflow>, PortError>;
     /// The agents, as the reply of I6.1 lists them.
@@ -49,6 +52,19 @@ pub trait Owner {
         let _ = (workflow, agent, runs);
         Err(PortError::NoService)
     }
+
+    /// The rows of `agent_reply` of the run `run` of the agent, in the order in which the store
+    /// keeps them (ruling RD-67 3.4). A row that the reader cannot read is `ReplyRow::Unreadable`
+    /// and fails no other row; a read that did not answer is an error, never an empty list. The
+    /// owner refuses a workflow that is not in its list with `no_workflow` and an agent that is
+    /// not the workflow's with `binding`. The coordinator asks it for an agent of the category
+    /// `email` alone (I5.4; ruling RD-81 8.4).
+    fn replies(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &RunId,
+    ) -> Result<Vec<ReplyRow>, PortError>;
 }
 
 /// The runners of the agent-setup run, through its supervisor library.

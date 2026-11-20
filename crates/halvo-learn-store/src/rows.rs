@@ -8,6 +8,7 @@ use halvo_schema::learning::Refusal;
 use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord, WorkflowId};
 
 use crate::convert;
+use crate::host::LearnHost;
 
 pub(crate) const LEARN_RUN: &str = "learn_run";
 pub(crate) const LEARN_EDIT: &str = "learn_edit";
@@ -18,21 +19,19 @@ pub(crate) enum Read<T> {
     Stopped,
 }
 
+/// The rows of `kind` that the store keeps under the workflow's key, parsed, or `Stopped` where its parser refuses
+/// one of them (contracts.md L4.2, L4.4; the coordinator's ruling LM-58 (a), (c)).
 fn read<T>(
-    rows: &dyn RowRead,
+    host: &dyn LearnHost,
     kind: &str,
     parse: fn(&[u8]) -> Result<T, Refusal>,
     workflow: &WorkflowId,
 ) -> Read<Vec<T>> {
     let mut out = Vec::new();
     let mut stopped = false;
-    rows.for_each(kind, &mut |row| match parse(row.as_bytes()) {
+    host.for_each_under(kind, workflow, &mut |row| match parse(row.as_bytes()) {
         Ok(value) => out.push(value),
-        Err(_) => {
-            if refused_workflow(kind, row).is_none_or(|named| &named == workflow) {
-                stopped = true;
-            }
-        }
+        Err(_) => stopped = true,
     });
     if stopped {
         return Read::Stopped;
@@ -40,12 +39,12 @@ fn read<T>(
     Read::Rows(out)
 }
 
-pub(crate) fn runs(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Vec<LearnRun>> {
-    read(rows, LEARN_RUN, LearnRun::parse, workflow)
+pub(crate) fn runs(host: &dyn LearnHost, workflow: &WorkflowId) -> Read<Vec<LearnRun>> {
+    read(host, LEARN_RUN, LearnRun::parse, workflow)
 }
 
-pub(crate) fn routines(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Vec<LearnRoutine>> {
-    read(rows, LEARN_ROUTINE, LearnRoutine::parse, workflow)
+pub(crate) fn routines(host: &dyn LearnHost, workflow: &WorkflowId) -> Read<Vec<LearnRoutine>> {
+    read(host, LEARN_ROUTINE, LearnRoutine::parse, workflow)
 }
 
 pub(crate) fn run_row(rows: &dyn RowRead, run: &str) -> Option<LearnRun> {
@@ -105,8 +104,8 @@ pub fn newest_routine<'a>(
 }
 
 /// The workflow that a row of `kind` names, read from its text by the registry's entry of the kind and never by the
-/// kind's typed parser, for a row that the typed parser refused (contracts.md L4.5, L4.2; the coordinator's ruling
-/// LM-58 (d), (e)): the value under the entry's `workflow_key` at the top level of the one JSON object that the text
+/// kind's typed parser, for a row that the typed parser refused, which the step reads (contracts.md L4.5; the
+/// coordinator's ruling LM-58 (e)): the value under the entry's `workflow_key` at the top level of the one JSON object that the text
 /// holds. It gives none where the kind has no entry or no workflow key, the text is not one JSON object, the key
 /// does not stand exactly once at its top level, or the key's value is not a string of the form of a workflow id;
 /// a caller stops every workflow then.
@@ -156,15 +155,16 @@ impl<'de> serde::de::Visitor<'de> for TopLevelKey {
     }
 }
 
-/// Every row of the family's kind `learn_edit`, by edit, each edit's rows in the order of `rev`.
+/// The rows of the family's kind `learn_edit` that the store keeps under one workflow's key, by edit, each edit's rows
+/// in the order of `rev`.
 #[derive(Clone)]
 pub(crate) struct Edits {
     by_id: BTreeMap<EditId, Vec<LearnEdit>>,
 }
 
 impl Edits {
-    pub(crate) fn read(rows: &dyn RowRead, workflow: &WorkflowId) -> Read<Edits> {
-        let Read::Rows(parsed) = read(rows, LEARN_EDIT, LearnEdit::parse, workflow) else {
+    pub(crate) fn read(host: &dyn LearnHost, workflow: &WorkflowId) -> Read<Edits> {
+        let Read::Rows(parsed) = read(host, LEARN_EDIT, LearnEdit::parse, workflow) else {
             return Read::Stopped;
         };
         let mut by_id: BTreeMap<EditId, Vec<LearnEdit>> = BTreeMap::new();

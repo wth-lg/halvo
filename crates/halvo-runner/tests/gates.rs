@@ -7,7 +7,8 @@ use halvo_schema::executable::{Cause, EffectState, ExecutableStep, FromRunner, O
 use halvo_schema::Category;
 
 use support::{
-    is_effect, is_op, store_error, store_error_for, stored, Act, FillFiles, Supervisor, LONG,
+    is_effect, is_op, load_with, store_error, store_error_for, stored, Act, FillFiles, Supervisor,
+    LONG,
 };
 
 fn fill(n: u8, files: &FillFiles) -> Supervisor {
@@ -116,20 +117,27 @@ fn an_effect_row_answered_with_another_stored_count_ends_the_run_with_no_later_r
     }
 }
 
-/// D4, the review's B-4, the verifier's v23: the wall check between the propose and the begin.
+/// D4, the review's B-4, the verifier's v23: the wall check between the propose and the begin. The loads before the
+/// propose give the preset's wall limit, so that the run reaches its propose however slowly it runs; the load before
+/// the begin, the newest, gives 1 s, which the run has passed by then because the propose's answer comes after 1.1 s.
 #[test]
 fn a_wall_limit_passed_while_the_propose_waits_ends_the_run_before_the_begin() {
     let files = FillFiles::new("gates-d4", 3);
     let before = files.workbook_bytes();
-    let mut sup = fill(72, &files);
-    sup.config.limits.wall_s = 1;
+    let sup = fill(72, &files);
+    let mut loads = 0;
     let seen = sup.serve(
         |frame, _| {
             if is_effect(frame, EffectState::Cleared) {
-                Act::After(Duration::from_millis(2100), Box::new(Act::Answer))
-            } else {
-                Act::Answer
+                return Act::After(Duration::from_millis(1100), Box::new(Act::Answer));
             }
+            if is_op(frame, "load") {
+                loads += 1;
+                if loads == 3 {
+                    return load_with(&sup, frame, |l| l.config.limits.wall_s = 1);
+                }
+            }
+            Act::Answer
         },
         LONG,
     );

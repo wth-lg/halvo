@@ -213,7 +213,7 @@ describe("events", () => {
     expect(await call("/test/expire", { session: expiring.id })).toEqual({ result: "not-open" });
   });
 
-  test("recover and cancel move the subscription; the cancel of an ended subscription is refused and the adapter reads nothing-to-cancel", async () => {
+  test("recover and cancel move the subscription; the cancel of an ended subscription is refused and the adapter reads nothing-to-cancel; an id that the fake does not hold is a first unknown answer (failed), and nothing-to-cancel at the second call (P7-120 N2)", async () => {
     const session = await newSession();
     const paid = await call("/test/pay", { session: session.id });
     const subscription = String(paid.subscription);
@@ -224,13 +224,16 @@ describe("events", () => {
     expect(cancelled).toEqual({ result: "cancelled", events: [expect.any(String)] });
     expect((await call(`/test/events/${(cancelled.events as string[])[0]}`)).type).toBe("customer.subscription.deleted");
     expect(await call("/test/cancel", { subscription })).toEqual({ result: "already-ended" });
-    expect(await port.cancelSubscription(subscription)).toEqual({ kind: "nothing-to-cancel" });
-    expect(await port.cancelSubscription("sub_test_not_held")).toEqual({ kind: "nothing-to-cancel" });
+    const customer = String((await call(`/test/subscriptions/${subscription}`)).customer);
+    expect(await port.cancelSubscription(subscription, customer, "unsettled")).toEqual({ kind: "nothing-to-cancel" });
+    expect(await port.cancelSubscription("sub_test_not_held", customer, "unsettled")).toEqual({ kind: "failed", cancelled: 0, unended: 0, stored: "unknown-once" });
+    expect(await port.cancelSubscription("sub_test_not_held", customer, "unknown-once")).toEqual({ kind: "nothing-to-cancel" });
 
     const other = await newSession();
     const otherPaid = await call("/test/pay", { session: other.id });
+    const otherCustomer = String((await call(`/test/subscriptions/${String(otherPaid.subscription)}`)).customer);
     const count = entry.requests.length;
-    expect(await port.cancelSubscription(String(otherPaid.subscription))).toEqual({ kind: "cancelled" });
+    expect(await port.cancelSubscription(String(otherPaid.subscription), otherCustomer, "unsettled")).toEqual({ kind: "cancelled" });
     expect(deliveredSince(count)).toEqual([]);
     expect((await call(`/test/subscriptions/${String(otherPaid.subscription)}`)).status).toBe("canceled");
   });

@@ -8,7 +8,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::io::{Seek, Write};
 use std::process::Stdio;
-use support::{helper, keep_sign_in, scratch, store_at, Listener, Ran, Seen};
+use support::{helper, keep_sign_in, scratch, scratch_path, store_at, Listener, Ran, Seen};
 
 const TRANSPORT: &str = include_str!("../transport-headers.txt");
 
@@ -181,6 +181,72 @@ fn each_command_sends_its_route_with_the_stored_sign_in_and_only_the_listed_head
     for name in transport_names() {
         assert!(every_name.contains(&name), "no request carried {name}");
     }
+}
+
+#[test]
+fn scratch_passes_over_a_name_that_an_earlier_process_of_the_same_id_left() {
+    for n in 0..128 {
+        let left = scratch_path("left", n);
+        fs::create_dir_all(&left).expect("a directory that an earlier process left");
+        fs::write(left.join("store"), b"left").expect("what that process left");
+    }
+    let first = scratch("left");
+    let second = scratch("left");
+    assert_ne!(first, second);
+    for dir in [&first, &second] {
+        let name = dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .expect("a name");
+        let n: usize = name
+            .rsplit('-')
+            .next()
+            .and_then(|n| n.parse().ok())
+            .expect("a number");
+        assert!(n >= 128, "{name} is a name that an earlier process left");
+        assert_eq!(
+            *dir,
+            scratch_path("left", n),
+            "scratch and scratch_path name alike"
+        );
+    }
+    for dir in [&first, &second] {
+        let entries = fs::read_dir(dir).expect("the directory is read").count();
+        assert_eq!(
+            entries,
+            0,
+            "{} holds what another process left",
+            dir.display()
+        );
+    }
+}
+
+#[test]
+fn the_binary_prints_the_line_and_the_sentence_of_closing_for_status() {
+    let base = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-account-closing");
+    let dir = halvo_test_dir::make(&base, "status")
+        .expect("a fresh directory")
+        .join("store");
+    keep_sign_in(&dir, &kept());
+    let answering = Listener::new().answer(200, "", r#"{"result":"closing"}"#);
+    let ran = helper(
+        &["status"],
+        &backend_and_store(&answering.origin, &dir),
+        Stdio::null(),
+    );
+    let seen = answering.seen().expect("status sent its request");
+    assert_eq!(
+        (seen.method.as_str(), seen.target.as_str()),
+        ("GET", "/v1/subscription")
+    );
+    assert_eq!(
+        (ran.code, ran.stdout.as_str(), ran.stderr.as_str()),
+        (
+            0,
+            "result=closing\n",
+            "halvo-account: the backend answered that the account is closing: its delete has begun and the backend is waiting for the payment provider's answer to its request to cancel any paid plan; the backend sees to that and finishes the delete by itself, nothing is asked of you, and when that happens is not known\n"
+        )
+    );
 }
 
 #[test]

@@ -101,7 +101,7 @@ fn a_verified_recovered_run_stores_a_provisional_edit_that_two_clean_uses_make_a
     w.host.day = DAY + 4;
     let served = w.replay(3);
     assert_eq!(locator_names(&served[1]), vec!["A", "Pay"]);
-    w.log(3, &[(1, "step_ok", 2, None)]);
+    w.log(3, &[(2, "step_ok", 2, None)]);
     assert!(w.finish(3, "replay", "completed").is_ok());
     let e = &newest(&w)[0];
     assert_eq!(
@@ -152,8 +152,8 @@ fn a_counted_failure_reverts_the_provisional_edit_served_on_its_step_and_another
     w.log(
         5,
         &[
-            (1, "step_failed", 2, Some("class_mismatch")),
-            (2, "step_ok", 2, None),
+            (2, "step_failed", 2, Some("class_mismatch")),
+            (3, "step_ok", 2, None),
         ],
     );
     assert!(w.finish(5, "replay", "completed").is_ok());
@@ -188,7 +188,7 @@ fn a_lost_run_and_a_repeated_finish_change_no_row() {
         vec![loc("A"), pay()],
     );
     assert_eq!(w.put(2, 1, vec![step]), Ok(stored(1)));
-    w.log(2, &[(1, "recovered", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None)]);
     w.handlers = LearnHandlers::new();
     let count = w.host.count();
     let commits = w.host.commits.get();
@@ -209,7 +209,7 @@ fn refusal_reverted_not_served() {
     w.clean_use(4, 2);
     w.learn(5, 2, "button Pay today", vec![loc("B"), loc("A"), pay()]);
     assert_eq!(locator_names(&w.replay(6)[1]), vec!["B", "A", "Pay"]);
-    w.log(6, &[(1, "step_failed", 2, Some("step_failed"))]);
+    w.log(6, &[(2, "step_failed", 2, Some("step_failed"))]);
     assert!(w.finish(6, "replay", "failed").is_ok());
     let after_revert = w.replay(7);
     assert_eq!(locator_names(&after_revert[1]), vec!["A", "Pay"]);
@@ -231,7 +231,7 @@ fn refusal_reverted_not_served() {
         .filter(|e| e.state.name() != "withdrawn")
         .count();
     assert_eq!(lower_open, 2);
-    w.log(8, &[(1, "step_ok", 2, None)]);
+    w.log(8, &[(2, "step_ok", 2, None)]);
     assert!(w.finish(8, "replay", "completed").is_ok());
     assert!(newest(&w).iter().all(|e| e.state.name() == "withdrawn"));
     assert!(newest(&w).iter().all(|e| e.base.get() == 1));
@@ -285,12 +285,12 @@ fn refusal_replay_put_not_stored() {
     assert_eq!(w.put(3, 1, vec![proposal.clone()]), Ok(stored(1)));
     assert_eq!(w.host.agent_rows("agent_playbook"), playbooks);
     assert_eq!(w.host.count(), count);
-    w.log(3, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(3, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(3, "replay", "completed").is_ok());
     assert_eq!(newest(&w).len(), 1);
     w.failed_use(4, 2, "origin");
     assert_eq!(newest(&w)[0].state.name(), "reverted");
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     let edits = w.host.edits().len();
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert_eq!(w.host.edits().len(), edits);
@@ -305,9 +305,9 @@ fn refusal_replay_put_not_stored() {
     w.log(
         5,
         &[
-            (1, "recovered", 3, None),
-            (2, "step_failed", 3, Some("timeout")),
-            (3, "step_ok", 3, None),
+            (2, "recovered", 3, None),
+            (3, "step_failed", 3, Some("timeout")),
+            (4, "step_ok", 3, None),
         ],
     );
     assert!(w.finish(5, "replay", "completed").is_ok());
@@ -342,7 +342,7 @@ fn refusal_cross_workflow_source() {
         vec![loc("A"), pay()],
     );
     assert_eq!(w.put(2, 1, vec![step]), Ok(stored(1)));
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     w.host.run_workflow = Some(wf(2));
     let commits = w.host.commits.get();
     let count = w.host.count();
@@ -361,8 +361,8 @@ fn a_counted_line_that_a_second_body_follows_with_the_same_seq_still_reverts() {
     let served = w.replay(3);
     assert_eq!(locator_names(&served[1])[0], "A");
     let logs_before = w.host.agent_rows("agent_log").len();
-    w.log(3, &[(1, "step_failed", 2, Some("step_failed"))]);
-    w.log(3, &[(1, "step_ok", 2, None)]);
+    w.log(3, &[(2, "step_failed", 2, Some("step_failed"))]);
+    w.log(3, &[(2, "step_ok", 2, None)]);
     assert_eq!(w.host.agent_rows("agent_log").len(), logs_before + 2);
     assert!(w.finish(3, "replay", "completed").is_ok());
     let e = &newest(&w)[0];
@@ -387,9 +387,9 @@ fn log_lines_are_read_in_the_order_of_their_seq_whatever_the_order_of_their_bodi
     let served = w.replay(2);
     let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
     assert_eq!(w.put(2, 1, vec![proposal]), Ok(stored(1)));
-    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
-    w.log(2, &[(1, "step_failed", 2, Some("timeout"))]);
-    w.log(2, &[(1, "step_failed", 2, Some("timeout"))]);
+    w.log(2, &[(3, "recovered", 2, None), (4, "step_ok", 2, None)]);
+    w.log(2, &[(2, "step_failed", 2, Some("timeout"))]);
+    w.log(2, &[(2, "step_failed", 2, Some("timeout"))]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert_eq!(newest(&w).len(), 1);
     assert!(matches!(
@@ -400,4 +400,64 @@ fn log_lines_are_read_in_the_order_of_their_seq_whatever_the_order_of_their_bodi
             ..
         }
     ));
+}
+
+fn run_id(r: u32) -> halvo_schema::executable::RunId {
+    halvo_schema::executable::RunId::parse(&run(r)).expect("a run id")
+}
+
+fn going_run_proposed_on(w: &mut World, day: u32) {
+    w.host.day = day;
+    let served = w.replay(2);
+    let proposed = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
+    let reply = w.put(2, 1, vec![proposed]);
+    assert!(reply.is_ok(), "the replay's put_playbook: {reply:?}");
+}
+
+#[test]
+fn a_start_under_a_clock_one_day_back_keeps_a_going_run_whose_finish_then_stores_its_edit() {
+    let mut w = active_world();
+    going_run_proposed_on(&mut w, DAY + 2);
+    w.host.day = DAY + 1;
+    w.start(3, "replay");
+    assert!(
+        w.handlers.facts.contains_key(&run_id(2)),
+        "run 2 keeps its facts"
+    );
+    w.host.day = DAY + 2;
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
+    let reply = w.finish(2, "replay", "completed");
+    assert!(reply.is_ok(), "run 2's finish: {reply:?}");
+    assert_eq!(
+        w.host.edits().len(),
+        1,
+        "run 2's verified finish stores its edit"
+    );
+    assert_eq!(run_row(&w, 2).rev(), 2);
+}
+
+#[test]
+fn a_log_body_of_a_going_run_sent_under_a_clock_one_day_back_is_stored_and_the_run_keeps_its_facts()
+{
+    let mut w = active_world();
+    going_run_proposed_on(&mut w, DAY + 2);
+    w.host.day = DAY + 1;
+    w.log(2, &[(2, "recovered", 2, None)]);
+    assert!(
+        w.handlers.facts.contains_key(&run_id(2)),
+        "run 2 keeps its facts"
+    );
+}
+
+#[test]
+fn a_start_under_a_clock_three_days_back_drops_the_facts_of_a_run_whose_start_row_it_cannot_read() {
+    let mut w = active_world();
+    going_run_proposed_on(&mut w, DAY + 3);
+    assert!(w.handlers.facts.contains_key(&run_id(2)));
+    w.host.day = DAY;
+    w.start(3, "replay");
+    assert!(
+        !w.handlers.facts.contains_key(&run_id(2)),
+        "the sweep drops run 2"
+    );
 }

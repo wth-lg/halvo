@@ -98,7 +98,11 @@ under `/tmp` when that is not set, and leaves that directory in place.
 `scripts/r3/ci.d/30-r3-formal.sh` runs in both jobs of CI on every push: the workflow calls
 the driver as `sh scripts/ci/run-ci-d.sh macos` and `sh scripts/ci/run-ci-d.sh windows`, which
 runs every script of its job, and `sh scripts/ci/run-ci-d.sh <job> 30-r3-formal` runs this one
-alone. Its PASS is a statement about the commit:
+alone. In the windows job, where the driver sets `CI_D_JOB=windows`, it leaves the runs of
+`Confirm.cfg`, `Rebinds.cfg` and `Control.cfg` and the 12 control copies to the macos job and prints
+one line that names them; every other step below runs in both jobs. The jar (its pinned SHA-256),
+the model and the configurations are the same bytes on both systems, and both jobs printed the same
+distinct states before this change. Its PASS is a statement about the commit:
 
 - Before it looks for java, and again after its last step, it ends `FAIL 30-r3-formal
   (tracked)` when a tracked file of this directory or the script itself differs from `HEAD`,
@@ -581,8 +585,9 @@ the 134 sets of values and with the derived moves that the section "The traces" 
   not.
 - A page that sends other values than it shows. P10 holds for the values that the runner
   reads again; the model's `val` is those values.
-- Windows, beyond the export and the runs of the check. The check runs TLC and the export
-  in the windows job of CI as in the macos job, and the export gives the committed bytes
-  there. The model computes the traces with whole numbers below 2^31 and prints them in the
+- Windows, beyond the export. The windows job of CI runs the export, and the export gives
+  the committed bytes there; the runs of `Confirm.cfg`, `Rebinds.cfg` and `Control.cfg` and the
+  controls run in the macos job alone, so no job of CI runs them under the Java 17 of the windows
+  job (the macos job's java is 21). The model computes the traces with whole numbers below 2^31 and prints them in the
   order of their numbers; `export.sh` takes carriage returns out of TLC's output and sorts in
   byte order.

@@ -3,8 +3,8 @@
   "edits": [
     {
       "file": "src/do/entries.ts",
-      "find": "    if (arm) armAlarm(tested ? null : due);",
-      "replace": "    if (arm) armAlarm(due);"
+      "find": "      if (stop !== null) stopAlarm(stop);\n      else if (due !== null) {",
+      "replace": "      if (stop !== null && stop.ground === \"no mark\") stopAlarm(stop);\n      else if (due !== null) {"
     }
   ],
   "line": [

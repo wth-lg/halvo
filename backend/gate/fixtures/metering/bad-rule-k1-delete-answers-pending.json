@@ -2,8 +2,8 @@
   "edits": [
     {
       "file": "src/do/entries.ts",
-      "find": "      return { result: \"deleted\" };",
-      "replace": "      return { result: \"pending\" };"
+      "find": "      throw error;\n    }\n    return { result: \"deleted\" };",
+      "replace": "      throw error;\n    }\n    return { result: \"pending\" };"
     }
   ],
   "args": [

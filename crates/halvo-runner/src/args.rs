@@ -1,13 +1,14 @@
 use std::ffi::OsString;
 
 use halvo_control::paths::{DataDir, PathError};
+use halvo_schema::executable::day::UTC_OFFSET_S_MAX;
 use halvo_schema::executable::names::Mode;
 use halvo_schema::executable::RunId;
 use halvo_schema::{AgentId, WorkflowId};
 
 /// The arguments of A6.1: `--run <run id> --agent <agent id> --workflow <workflow id> --mode compile|replay
-/// --browser PATH [--model FILE] [--headed]`, each once, in any order, and `[--data-dir DIR]`, Halvo's data
-/// directory, whose `agents/locks/` the file steps lock (the coordinator's ruling CP-134; optional until the
+/// --browser PATH --utc-offset SECONDS [--model FILE] [--headed]`, each once, in any order, and `[--data-dir DIR]`,
+/// Halvo's data directory, whose `agents/locks/` the file steps lock (the coordinator's ruling CP-134; optional until the
 /// supervisor passes the directory that the app resolved). This build starts no browser and no model, so it
 /// checks the form of `--browser`, `--model` and `--headed` and keeps none of them.
 #[derive(Debug)]
@@ -20,12 +21,15 @@ pub(crate) struct Args {
     /// check of a data directory given as a flag; `None` without the argument, and the file
     /// steps then take the app's default directory.
     pub data_dir: Option<DataDir>,
+    /// The run's offset of `--utc-offset`: whole seconds east of UTC, from -50,400 to 50,400, by which the runner
+    /// stamps the day of every row (`day_of`, the coordinator's ruling CP-204).
+    pub utc_offset_s: i32,
 }
 
 /// The detail of a refusal with the cause `usage`.
 pub(crate) type Usage = &'static str;
 
-const KEYS: [&str; 7] = [
+const KEYS: [&str; 8] = [
     "--run",
     "--agent",
     "--workflow",
@@ -33,9 +37,10 @@ const KEYS: [&str; 7] = [
     "--browser",
     "--model",
     "--data-dir",
+    "--utc-offset",
 ];
 
-const TWICE: [Usage; 7] = [
+const TWICE: [Usage; 8] = [
     "--run twice",
     "--agent twice",
     "--workflow twice",
@@ -43,7 +48,21 @@ const TWICE: [Usage; 7] = [
     "--browser twice",
     "--model twice",
     "--data-dir twice",
+    "--utc-offset twice",
 ];
+
+/// The detail of a `--utc-offset` that is no whole number from -50,400 to 50,400 in the decimal form that `i32`
+/// writes, which has no sign before a positive number and no leading zero.
+const OUT_OF_RANGE: Usage = "--utc-offset is out of range";
+
+/// The offset of `--utc-offset`, or the detail of its refusal.
+fn utc_offset(value: &OsString) -> Result<i32, Usage> {
+    let text = text(value, OUT_OF_RANGE)?;
+    text.parse::<i32>()
+        .ok()
+        .filter(|n| (-UTC_OFFSET_S_MAX..=UTC_OFFSET_S_MAX).contains(n) && n.to_string() == text)
+        .ok_or(OUT_OF_RANGE)
+}
 
 /// The detail of a `--data-dir` that `DataDir::from_flag` refuses: not UTF-8, not absolute (an
 /// empty value among them), or holding a parent step.
@@ -61,7 +80,7 @@ fn text(value: &OsString, what: Usage) -> Result<&str, Usage> {
 
 /// Reads the arguments, or the detail of the refusal `usage`.
 pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
-    let mut values: [Option<&OsString>; 7] = [None; 7];
+    let mut values: [Option<&OsString>; 8] = [None; 8];
     let mut headed = false;
     let mut at = args.iter();
     while let Some(key) = at.next() {
@@ -82,12 +101,13 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
             return Err(TWICE[index]);
         }
     }
-    let [run, agent, workflow, mode, browser, _model, data_dir] = values;
+    let [run, agent, workflow, mode, browser, _model, data_dir, offset] = values;
     let run = run.ok_or("no --run")?;
     let agent = agent.ok_or("no --agent")?;
     let workflow = workflow.ok_or("no --workflow")?;
     let mode = mode.ok_or("no --mode")?;
     browser.ok_or("no --browser")?;
+    let offset = offset.ok_or("no --utc-offset")?;
     Ok(Args {
         run: RunId::parse(text(run, "--run")?).map_err(|_| "--run is no run id")?,
         agent: AgentId::parse(text(agent, "--agent")?).map_err(|_| "--agent is no agent id")?,
@@ -97,6 +117,7 @@ pub(crate) fn parse(args: &[OsString]) -> Result<Args, Usage> {
         data_dir: data_dir
             .map(|dir| DataDir::from_flag(dir).map_err(data_dir_refusal))
             .transpose()?,
+        utc_offset_s: utc_offset(offset)?,
     })
 }
 
@@ -122,6 +143,8 @@ mod tests {
             "compile",
             "--browser",
             "b",
+            "--utc-offset",
+            "0",
         ]
     }
 
@@ -157,6 +180,7 @@ mod tests {
         assert_eq!(parse(&args(&bad)).err(), Some("--run is no run id"));
         assert_eq!(parse(&args(&full()[2..])).err(), Some("no --run"));
         assert_eq!(parse(&args(&full()[..8])).err(), Some("no --browser"));
+        assert_eq!(parse(&args(&full()[..10])).err(), Some("no --utc-offset"));
         let mut headed = full();
         headed.extend(["--headed", "--headed"]);
         assert_eq!(parse(&args(&headed)).err(), Some("--headed twice"));
@@ -198,5 +222,54 @@ mod tests {
             parse(&args(&list)).err(),
             Some("--data-dir holds a parent step")
         );
+    }
+
+    fn with_offset(value: &str) -> Result<i32, Usage> {
+        let mut list: Vec<&str> = full();
+        list[11] = value;
+        parse(&args(&list)).map(|a| a.utc_offset_s)
+    }
+
+    /// CP-204 D1: the offset is a whole number of seconds east of UTC from -50,400 to 50,400, kept as given.
+    #[test]
+    fn an_offset_in_its_range_is_kept() {
+        for n in [-50_400, -50_399, -3_600, -1, 0, 1, 19_800, 50_399, 50_400] {
+            assert_eq!(with_offset(&n.to_string()), Ok(n), "{n}");
+        }
+    }
+
+    /// CP-204 D4: a value outside the range, or not in the form that `i32` writes, is refused with one detail.
+    #[test]
+    fn an_offset_out_of_range_or_of_another_form_is_refused() {
+        for value in [
+            "50401",
+            "-50401",
+            "2147483647",
+            "-2147483648",
+            "2147483648",
+            "1.5",
+            "",
+            "x",
+            "+3600",
+            "0x10",
+            "007",
+            "-0",
+            " 1",
+            "1 ",
+            "3600s",
+        ] {
+            assert_eq!(
+                with_offset(value),
+                Err("--utc-offset is out of range"),
+                "{value:?}"
+            );
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStringExt;
+            let mut list = args(&full());
+            list[11] = OsString::from_vec(vec![0x31, 0xff]);
+            assert_eq!(parse(&list).err(), Some("--utc-offset is out of range"));
+        }
     }
 }

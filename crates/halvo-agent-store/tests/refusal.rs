@@ -87,12 +87,14 @@ fn refusal_propose_after_end() {
         put(&mut store, row(1, 2, 1, "held", "payment", 1, None, None)),
         Err(declared("effect"))
     );
+    start(&mut store, 2);
     assert_eq!(end_run(&mut store, 2), Ok(accepted()));
     assert_eq!(
         put(&mut store, row(2, 3, 1, "held", "payment", 1, None, None)),
         Err(declared("effect"))
     );
     assert_eq!(effects(&store).len(), 2);
+    start(&mut store, 3);
     assert_eq!(
         put(&mut store, row(3, 4, 1, "held", "payment", 1, None, None)),
         Ok(stored(1))
@@ -102,6 +104,7 @@ fn refusal_propose_after_end() {
 #[test]
 fn refusal_end_run_loses() {
     let mut store = unattended_sender();
+    start(&mut store, 2);
     let moves = [
         row(1, 1, 1, "cleared", "send", 1, None, None),
         row(1, 1, 2, "releasing", "send", 1, None, None),
@@ -138,7 +141,7 @@ fn refusal_end_run_loses() {
     }
     for e in 1..=4 {
         let last = last_of(&store, &effect(e));
-        assert_eq!((last.day, last.at), (NOW.day, NOW.at));
+        assert_eq!((last.day, last.at), (TODAY, NOW.at));
         assert_eq!(last.approval, None);
     }
     let record = stored_run(&store, 1);
@@ -146,7 +149,7 @@ fn refusal_end_run_loses() {
     let record = &record[0];
     assert_eq!(record.mode, None);
     assert_eq!(record.outcome, Outcome::Failed);
-    assert_eq!(record.day, NOW.day);
+    assert_eq!(record.day, TODAY);
     assert_eq!(record.agent, AgentId::parse(&agent(1)).expect("an id"));
     assert_eq!(record.playbook, None);
     assert_eq!(record.model, None);
@@ -194,4 +197,73 @@ fn refusal_repeat_begin() {
     assert_eq!(put(&mut store, begin), Err(declared("effect")));
     assert_eq!(effects(&store).len(), 4);
     assert_eq!(last_of(&store, &effect(1)).state, EffectState::Unknown);
+}
+
+fn turn_to_observe(store: &mut halvo_agent_store::MemoryStore) {
+    use halvo_agent_store::Host;
+    let mut config = configs(store).pop().expect("a config");
+    config.rev = std::num::NonZeroU32::new(2).expect("2");
+    config.autonomy = halvo_schema::executable::Autonomy::Observe;
+    store
+        .commit(vec![halvo_schema::TypedRecord {
+            kind: "agent_config",
+            json: config.to_json().expect("the config's JSON"),
+        }])
+        .expect("a later config");
+}
+
+#[test]
+fn a_releasing_row_under_a_newest_configuration_that_gives_refuse_is_refused_and_stores_nothing() {
+    let mut store = store_with("email");
+    for e in [1, 2] {
+        put(&mut store, row(1, e, 1, "held", "send", 1, None, None)).expect("held");
+        put(
+            &mut store,
+            row(1, e, 2, "approved", "send", 1, Some(e), None),
+        )
+        .expect("approved");
+    }
+    put(
+        &mut store,
+        row(1, 1, 3, "releasing", "send", 1, Some(1), None),
+    )
+    .expect("releasing");
+    turn_to_observe(&mut store);
+    let before = effects(&store);
+    assert_eq!(
+        put(
+            &mut store,
+            row(1, 2, 3, "releasing", "send", 1, Some(2), None)
+        ),
+        Err(declared("effect"))
+    );
+    assert_eq!(effects(&store), before);
+    let mut again = row(1, 1, 3, "releasing", "send", 1, Some(1), None);
+    again["at"] = serde_json::json!(ROW_AT + 7);
+    assert_eq!(put(&mut store, again), Ok(stored(1)));
+    assert_eq!(effects(&store), before);
+    assert_eq!(
+        put(
+            &mut store,
+            row(1, 2, 3, "rejected", "send", 1, None, Some("ended"))
+        ),
+        Ok(stored(1))
+    );
+}
+
+#[test]
+fn a_releasing_local_edit_is_decided_with_the_checkpoint_of_its_cleared_first_row() {
+    let mut store = store_with("spreadsheet_fill");
+    put(
+        &mut store,
+        row(1, 1, 1, "cleared", "local_edit", 1, None, None),
+    )
+    .expect("cleared");
+    assert_eq!(
+        put(
+            &mut store,
+            row(1, 1, 2, "releasing", "local_edit", 1, None, None)
+        ),
+        Ok(stored(1))
+    );
 }

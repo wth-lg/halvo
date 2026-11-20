@@ -14,22 +14,26 @@ use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-use crate::custody::file_root::{self, RootStepForm, RootsLeft};
+use crate::custody::file_root::{self, NamedBy, NamedRoot, RootStepForm, RootsLeft};
 use crate::custody::{
-    custody_for, is_label, CustodyError, CustodyKind, CustodyLocator, KeyCustody, KeyLabel, RootId,
-    StoreKey, WrappedKey,
+    custody_for, is_label, CustodyError, CustodyKind, CustodyLocator, FileIdentity, KeyCustody,
+    KeyLabel, RootId, RootsHandle, StoreKey, WrappedKey,
 };
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
 use super::durable::{self, Dir, DurableFs, EntryKind, OsFs, Refused};
 use super::lock::DirLock;
 use super::segment::{self, SegmentHeader, SegmentKey};
-use super::{DeleteReport, Met, RootReading, SegmentStore, StoreError, StoreName, StoreResult};
+use super::{
+    DeleteReport, Layout, Met, RootReading, SegmentStore, StoreError, StoreName, StoreResult,
+};
 
 const KEY_FILE_VERSION: u32 = 2;
 #[cfg(target_os = "macos")]
 const STATS_AFTER_THE_FIRST: u32 = 2;
 const DATABASE_VERSION: i64 = 1;
+/// The name of the store directory in a data directory (C3.5).
+const STORE_DIR_NAME: &str = "store";
 const KEY_FILE: &str = "store.key";
 const CREATE_PENDING: &str = "create.pending";
 const CREATE_PENDING_TEMP: &str = "create.pending.tmp";
@@ -42,28 +46,47 @@ const DATABASE_SIDE_FILES: [(&str, StoreName); 3] = [
 ];
 
 #[cfg(test)]
-pub(crate) const SEAM_BEFORE_THE_LOOK: &str = "a database open, before its look";
+pub(in crate::store) const SEAM_BEFORE_THE_LOOK: &str = "a database open, before its look";
 #[cfg(test)]
-pub(crate) const SEAM_AFTER_THE_LAST_LOOK: &str = "a database open, after its last look";
+pub(in crate::store) const SEAM_AFTER_THE_LAST_LOOK: &str = "a database open, after its last look";
 #[cfg(test)]
-pub(crate) const SEAM_BEFORE_THE_MODE_STEP: &str = "the mode step of store.db";
+pub(in crate::store) const SEAM_BEFORE_THE_MODE_STEP: &str = "the mode step of store.db";
 #[cfg(test)]
-pub(crate) const SEAM_SIZE_AFTER_THE_LISTING: &str = "the size, after its first listing";
+pub(in crate::store) const SEAM_SIZE_AFTER_THE_LISTING: &str = "the size, after its first listing";
 #[cfg(test)]
-pub(crate) const SEAM_AFTER_THE_FIRST_READ: &str = "a database open, after its first read";
+pub(in crate::store) const SEAM_AFTER_THE_FIRST_READ: &str =
+    "a database open, after its first read";
 #[cfg(test)]
-pub(crate) const SEAM_BEFORE_THE_DATABASE_STEP: &str =
+pub(in crate::store) const SEAM_BEFORE_THE_DATABASE_STEP: &str =
     "a create, between its probe and its database step";
 #[cfg(test)]
-pub(crate) const SEAM_AFTER_THE_ROOT_STEP: &str = "a delete-all, after its root step";
+pub(in crate::store) const SEAM_AFTER_THE_ROOT_STEP: &str = "a delete-all, after its root step";
 #[cfg(test)]
-pub(crate) const SEAM_BEFORE_THE_FIRST_READ: &str = "a database open, before its first read";
+pub(in crate::store) const SEAM_BEFORE_THE_FIRST_READ: &str =
+    "a database open, before its first read";
 #[cfg(test)]
-pub(crate) const SEAM_AFTER_THE_ROOT: &str = "a create, after its root";
+pub(in crate::store) const SEAM_AFTER_THE_ROOT: &str = "a create, after its root";
+/// A place where a test acts in a create whose look met an entry at the
+/// root's name, before the create picks its answer.
 #[cfg(test)]
-pub(crate) const SEAM_AT_THE_LOG_CHECK: &str = "an open, at the first instant of the log's check";
+pub(in crate::store) const SEAM_IN_THE_REFUSAL_ARM: &str =
+    "a create, after its look met an entry at the root's name";
+/// A place where a test acts after the tail opened the store directory and
+/// before its root step.
 #[cfg(test)]
-pub(crate) const SEAM_BEFORE_THE_PAGE_LOOK: &str = "a create, before its page look";
+pub(in crate::store) const SEAM_BEFORE_THE_TAILS_ROOT_STEP: &str =
+    "the tail, after its look at the store and before its root step";
+/// A place where a test acts after the tail on a data directory opened that
+/// directory and before it opens the store directory from that handle
+/// (ruling ST-48 U5 (b)).
+#[cfg(test)]
+pub(in crate::store) const SEAM_AFTER_THE_DATA_DIRECTORY_OPEN: &str =
+    "the tail, after it opened the data directory";
+#[cfg(test)]
+pub(in crate::store) const SEAM_AT_THE_LOG_CHECK: &str =
+    "an open, at the first instant of the log's check";
+#[cfg(test)]
+pub(in crate::store) const SEAM_BEFORE_THE_PAGE_LOOK: &str = "a create, before its page look";
 
 fn obstructed(name: StoreName, met: Met) -> StoreError {
     StoreError::Obstructed { name, met }
@@ -88,7 +111,7 @@ fn known_version(found: i64, supported: i64) -> StoreResult<()> {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct KeyFile {
+pub(in crate::store) struct KeyFile {
     pub version: u32,
     pub custody_kind: CustodyKind,
     pub root_id: RootId,
@@ -96,7 +119,7 @@ pub(crate) struct KeyFile {
     pub wrapped_key: String,
 }
 
-pub(crate) struct KeyFilePlace {
+pub(in crate::store) struct KeyFilePlace {
     dir: Dir,
     name: OsString,
     temp: OsString,
@@ -120,13 +143,17 @@ enum KeyFileNames {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Removal {
+pub(in crate::store) struct Removal {
     pub(crate) gone: bool,
     pub(crate) not_followed: u64,
 }
 
 impl KeyFile {
-    pub(crate) fn new(custody: &dyn KeyCustody, label: KeyLabel, wrapped: &WrappedKey) -> Self {
+    pub(in crate::store) fn new(
+        custody: &dyn KeyCustody,
+        label: KeyLabel,
+        wrapped: &WrappedKey,
+    ) -> Self {
         KeyFile {
             version: KEY_FILE_VERSION,
             custody_kind: custody.kind(),
@@ -136,7 +163,7 @@ impl KeyFile {
         }
     }
 
-    pub(crate) fn at(path: &Path) -> StoreResult<KeyFilePlace> {
+    pub(in crate::store) fn at(path: &Path) -> StoreResult<KeyFilePlace> {
         let name = path
             .file_name()
             .ok_or(StoreError::Io(ErrorKind::InvalidInput))?;
@@ -173,7 +200,7 @@ impl KeyFile {
         }
     }
 
-    pub(crate) fn locator(&self, roots: &Path) -> CustodyLocator {
+    pub(in crate::store) fn locator(&self, roots: &Path) -> CustodyLocator {
         CustodyLocator {
             kind: self.custody_kind,
             root_id: self.root_id,
@@ -206,7 +233,7 @@ impl KeyFilePlace {
         }
     }
 
-    pub(crate) fn read(&self, label: KeyLabel) -> StoreResult<KeyFile> {
+    pub(in crate::store) fn read(&self, label: KeyLabel) -> StoreResult<KeyFile> {
         let json = self.bytes()?;
         serde_json::from_slice::<KeyFileVersion>(&json)
             .map_err(|_| StoreError::KeyFileUnparseable)
@@ -244,7 +271,7 @@ impl KeyFilePlace {
         }
     }
 
-    pub(crate) fn named_root(&self) -> Option<RootId> {
+    pub(in crate::store) fn named_root(&self) -> Option<RootId> {
         let json = self.bytes().ok()?;
         let named: OlderKeyFile = serde_json::from_slice(&json).ok()?;
         RootId::parse(&named.root_id)
@@ -269,7 +296,7 @@ impl KeyFilePlace {
     }
 
     #[cfg(test)]
-    pub(crate) fn publish(&self, key_file: &KeyFile) -> StoreResult<()> {
+    pub(in crate::store) fn publish(&self, key_file: &KeyFile) -> StoreResult<()> {
         self.publish_keeping(key_file).0
     }
 
@@ -375,7 +402,7 @@ impl KeyFilePlace {
     /// zero-fill reaches every name of the store's own key file. An entry at
     /// the temporary name that is no regular file and that stays is counted
     /// as not followed (ruling ST-45 H5).
-    pub(crate) fn destroy(&self) -> Removal {
+    pub(in crate::store) fn destroy(&self) -> Removal {
         let temp_kind = self.dir.entry(&self.temp).ok().map(|entry| entry.kind);
         let temp_stays = self.clear_a_temp_of_another_party().is_err();
         let temp_not_followed =
@@ -406,7 +433,7 @@ fn io_error(e: std::io::Error) -> StoreError {
 /// What the publish of a key file did, kept for a create that is abandoned:
 /// whether its own link answered Ok, and the handle of the temporary file
 /// that this create made.
-pub(crate) struct Published {
+pub(in crate::store) struct Published {
     linked: bool,
     temp: Option<std::fs::File>,
 }
@@ -497,7 +524,7 @@ const PROBE_OPEN: OpenFlags = OpenFlags::SQLITE_OPEN_READ_ONLY
     not(target_os = "macos"),
     expect(dead_code, reason = "the volume form is compiled on macOS alone")
 )]
-pub(crate) enum NameForm {
+pub(in crate::store) enum NameForm {
     Volume,
     Kept,
 }
@@ -571,7 +598,7 @@ fn open_connection(store_dir: &Dir, flags: OpenFlags) -> StoreResult<(Connection
     not(target_os = "macos"),
     expect(dead_code, reason = "the volume form is compiled on macOS alone")
 )]
-pub(crate) enum VolumeIds {
+pub(in crate::store) enum VolumeIds {
     Yes,
     No,
     Unknown,
@@ -579,7 +606,7 @@ pub(crate) enum VolumeIds {
 
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct VolumeReadings {
+pub(in crate::store) struct VolumeReadings {
     pub(crate) flag: Option<bool>,
     pub(crate) capability: Option<(bool, bool)>,
     pub(crate) root: Option<RootAnswer>,
@@ -587,7 +614,7 @@ pub(crate) struct VolumeReadings {
 
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RootAnswer {
+pub(in crate::store) enum RootAnswer {
     TheRoot,
     NoSuchName,
     Other,
@@ -595,7 +622,7 @@ pub(crate) enum RootAnswer {
 
 #[cfg(target_os = "macos")]
 impl VolumeReadings {
-    pub(crate) fn ids(self) -> VolumeIds {
+    pub(in crate::store) fn ids(self) -> VolumeIds {
         let yes = self.capability == Some((true, true))
             || self.flag == Some(true)
             || self.root == Some(RootAnswer::TheRoot);
@@ -612,7 +639,7 @@ impl VolumeReadings {
 
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DirectoryStat {
+pub(in crate::store) enum DirectoryStat {
     TheHandle,
     AnotherIdentity,
     NoSuchName,
@@ -621,7 +648,7 @@ pub(crate) enum DirectoryStat {
 
 #[cfg(target_os = "macos")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NameChoice {
+pub(in crate::store) enum NameChoice {
     Volume,
     Kept,
     StatAgain,
@@ -630,7 +657,7 @@ pub(crate) enum NameChoice {
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn choose_the_name(
+pub(in crate::store) fn choose_the_name(
     stat: DirectoryStat,
     before: VolumeIds,
     after: VolumeIds,
@@ -653,7 +680,7 @@ pub(crate) fn choose_the_name(
 }
 
 #[cfg(target_os = "macos")]
-pub(crate) fn volume_readings(store_dir: &Dir) -> VolumeReadings {
+pub(in crate::store) fn volume_readings(store_dir: &Dir) -> VolumeReadings {
     #[cfg(test)]
     if let Some(readings) = name_seams::volume_answer() {
         return readings;
@@ -822,7 +849,7 @@ fn database_name(store_dir: &Dir) -> StoreResult<(PathBuf, NameForm, VolumeIds)>
 }
 
 #[cfg(all(test, target_os = "macos"))]
-pub(crate) mod name_seams {
+pub(in crate::store) mod name_seams {
     use std::cell::RefCell;
     use std::path::PathBuf;
 
@@ -836,33 +863,33 @@ pub(crate) mod name_seams {
         static STAT: RefCell<Option<Box<dyn Fn() -> Answer>>> = const { RefCell::new(None) };
     }
 
-    pub(crate) fn answer_volume(readings: Option<super::VolumeReadings>) {
+    pub(in crate::store) fn answer_volume(readings: Option<super::VolumeReadings>) {
         VOLUME.with(|volume| *volume.borrow_mut() = readings);
     }
 
-    pub(crate) fn volume_answer() -> Option<super::VolumeReadings> {
+    pub(in crate::store) fn volume_answer() -> Option<super::VolumeReadings> {
         VOLUME.with(|volume| *volume.borrow())
     }
 
-    pub(crate) fn give_name(name: Option<PathBuf>) {
+    pub(in crate::store) fn give_name(name: Option<PathBuf>) {
         GIVEN.with(|given| *given.borrow_mut() = name);
     }
 
-    pub(crate) fn given_name() -> Option<PathBuf> {
+    pub(in crate::store) fn given_name() -> Option<PathBuf> {
         GIVEN.with(|given| given.borrow().clone())
     }
 
-    pub(crate) fn answer_stat(answer: Option<Box<dyn Fn() -> Answer>>) {
+    pub(in crate::store) fn answer_stat(answer: Option<Box<dyn Fn() -> Answer>>) {
         STAT.with(|stat| *stat.borrow_mut() = answer);
     }
 
-    pub(crate) fn stat_answer() -> Option<Answer> {
+    pub(in crate::store) fn stat_answer() -> Option<Answer> {
         STAT.with(|stat| stat.borrow().as_ref().map(|answer| answer()))
     }
 }
 
 #[cfg(test)]
-pub(crate) mod code_seams {
+pub(in crate::store) mod code_seams {
     use std::cell::Cell;
 
     use halvo_sqlcipher::rusqlite;
@@ -871,23 +898,24 @@ pub(crate) mod code_seams {
         static FORCED: Cell<Option<(usize, i32)>> = const { Cell::new(None) };
     }
 
-    pub(crate) fn force(nth: usize, code: Option<i32>) {
+    pub(in crate::store) fn force(nth: usize, code: Option<i32>) {
         FORCED.with(|forced| forced.set(code.map(|code| (nth, code))));
     }
 
-    pub(crate) const PROBE_TIMEOUT: &str = "the live-holder probe's busy timeout";
-    pub(crate) const PROBE_LOCKING_MODE: &str = "the live-holder probe's locking mode";
-    pub(crate) const HELD_LOOK_HAS_MOVED: &str = "the held look's question whether the file moved";
+    pub(in crate::store) const PROBE_TIMEOUT: &str = "the live-holder probe's busy timeout";
+    pub(in crate::store) const PROBE_LOCKING_MODE: &str = "the live-holder probe's locking mode";
+    pub(in crate::store) const HELD_LOOK_HAS_MOVED: &str =
+        "the held look's question whether the file moved";
 
     thread_local! {
         static FORCED_AT: Cell<Option<(&'static str, i32)>> = const { Cell::new(None) };
     }
 
-    pub(crate) fn force_at(place: &'static str, code: Option<i32>) {
+    pub(in crate::store) fn force_at(place: &'static str, code: Option<i32>) {
         FORCED_AT.with(|forced| forced.set(code.map(|code| (place, code))));
     }
 
-    pub(crate) fn or_forced_at<T>(
+    pub(in crate::store) fn or_forced_at<T>(
         place: &'static str,
         result: rusqlite::Result<T>,
     ) -> rusqlite::Result<T> {
@@ -903,7 +931,7 @@ pub(crate) mod code_seams {
         })
     }
 
-    pub(crate) fn forced() -> Option<i32> {
+    pub(in crate::store) fn forced() -> Option<i32> {
         FORCED.with(|forced| match forced.get() {
             Some((1, code)) => {
                 forced.set(None);
@@ -915,6 +943,43 @@ pub(crate) mod code_seams {
             }
             None => None,
         })
+    }
+}
+
+#[cfg(test)]
+pub(in crate::store) mod read_back_seam {
+    use std::cell::RefCell;
+
+    use halvo_sqlcipher::rusqlite::Connection;
+
+    type Act = Box<dyn Fn(&Connection)>;
+
+    thread_local! {
+        static ACT: RefCell<Option<Act>> = const { RefCell::new(None) };
+    }
+
+    /// Runs `act` on the connection of each open and create of this thread,
+    /// after the settings are set and before they are read back, until the
+    /// guard is dropped.
+    pub(in crate::store) fn before_the_read_backs(act: impl Fn(&Connection) + 'static) -> Guard {
+        ACT.with(|slot| *slot.borrow_mut() = Some(Box::new(act)));
+        Guard
+    }
+
+    pub(in crate::store) struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            ACT.with(|slot| *slot.borrow_mut() = None);
+        }
+    }
+
+    pub(super) fn run(conn: &Connection) {
+        ACT.with(|slot| {
+            if let Some(act) = slot.borrow().as_ref() {
+                act(conn);
+            }
+        });
     }
 }
 
@@ -938,7 +1003,7 @@ fn look_again(store_dir: &Dir) -> StoreResult<()> {
     look_at_the_database_files(store_dir)
 }
 
-pub(crate) fn code_answer(code: Option<i32>) -> StoreError {
+pub(in crate::store) fn code_answer(code: Option<i32>) -> StoreError {
     match code.map(|code| code & 0xff) {
         Some(rusqlite::ffi::SQLITE_CORRUPT | rusqlite::ffi::SQLITE_NOTADB) => {
             StoreError::DatabaseUnreadable
@@ -980,16 +1045,16 @@ fn look_at_the_database_files(store_dir: &Dir) -> StoreResult<()> {
     Ok(())
 }
 
-pub(crate) use super::failpoint;
+pub(in crate::store) use super::failpoint;
 
-pub(crate) fn db_error(e: rusqlite::Error) -> StoreError {
+pub(in crate::store) fn db_error(e: rusqlite::Error) -> StoreError {
     match e {
         rusqlite::Error::SqliteFailure(failure, _) => StoreError::Db(failure.extended_code),
         _ => StoreError::Corrupt("the database returned an unexpected value".to_string()),
     }
 }
 
-pub(crate) fn unix_secs_now() -> u64 {
+pub(in crate::store) fn unix_secs_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -1012,8 +1077,10 @@ fn remove_in(store_dir: &Dir, name: &str) -> StoreResult<()> {
 
 /// Whether the root that a pending mark names was made: `Owed` is written
 /// before the root step, `Made` after the custody's create_root answered Ok
-/// and before the key file is published. A mark without the reading, or one
-/// that does not parse, reads `Owed`.
+/// and the wrap read the root file through the held roots directory, before
+/// the key file is published. A mark without the reading, one that does not
+/// parse, and one that reads made without the identity of its root file read
+/// `Owed`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum PendingReading {
@@ -1029,17 +1096,37 @@ struct Pending {
     root_id: RootId,
     #[serde(default)]
     reading: PendingReading,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    root_file: Option<FileIdentity>,
+}
+
+impl Pending {
+    /// The root that this mark names: one that reads made with the identity
+    /// of its root file, which a cleanup destroys alone; every other mark
+    /// names none.
+    fn made_root(&self) -> Option<NamedRoot> {
+        match (self.reading, self.root_file) {
+            (PendingReading::Made, Some(file)) => Some(NamedRoot {
+                id: self.root_id,
+                by: NamedBy::AMark,
+                file: Some(file),
+            }),
+            _ => None,
+        }
+    }
 }
 
 fn write_pending(
     store_dir: &Dir,
     custody: &dyn KeyCustody,
     reading: PendingReading,
+    root_file: Option<FileIdentity>,
 ) -> StoreResult<()> {
     let json = serde_json::to_vec(&Pending {
         custody_kind: custody.kind(),
         root_id: custody.root_id(),
         reading,
+        root_file,
     })
     .map_err(|_| StoreError::Io(ErrorKind::InvalidData))?;
     durable::write_durably(
@@ -1072,27 +1159,55 @@ fn remove_pending(store_dir: &Dir) -> StoreResult<()> {
     store_dir.sync().map_err(io_error)
 }
 
-fn clear_pending(store_dir: &Dir, roots: &Path, keyed: KeyNames) -> StoreResult<()> {
+/// Where a cleanup of a stopped create reaches the roots: the directory that
+/// the store holds, with the identity of the store's own root file, which no
+/// cleanup destroys, or, before a create took its handle, the path.
+#[derive(Clone, Copy)]
+enum CleanupRoots<'a> {
+    Path(&'a Path),
+    Held(&'a RootsHandle, FileIdentity),
+}
+
+/// The answer of a create whose look met an entry at the root name of its
+/// id, read through the custody and never written, so that the refusal
+/// publishes no root (the review's F1): `RootExists` for a root that the
+/// custody reads, and for a name at which nothing stands any longer; the
+/// custody's own error for a root that it cannot read. The read is an unwrap
+/// of an empty wrap, which no root authenticates.
+fn a_root_that_stands(custody: &dyn KeyCustody) -> CustodyError {
+    match custody.unwrap_store_key(&WrappedKey(Vec::new()), KeyLabel::STORE) {
+        Ok(_) | Err(CustodyError::WrapAuthFailed | CustodyError::RootMissing) => {
+            CustodyError::RootExists
+        }
+        Err(e) => e,
+    }
+}
+
+fn clear_pending(store_dir: &Dir, roots: CleanupRoots<'_>, keyed: KeyNames) -> StoreResult<()> {
     let present = store_dir.entry(OsStr::new(CREATE_PENDING)).is_ok()
         || store_dir.entry(OsStr::new(CREATE_PENDING_TEMP)).is_ok();
     if !present || keyed == KeyNames::Unknown {
         return Ok(());
     }
-    if let Some(pending) = read_pending(store_dir).filter(|p| p.reading == PendingReading::Made) {
-        if keyed != KeyNames::Root(pending.root_id) {
-            file_root::destroy_root_at(roots, pending.root_id)?;
+    if let Some(made) = read_pending(store_dir).and_then(|p| p.made_root()) {
+        if keyed != KeyNames::Root(made.id) {
+            match roots {
+                CleanupRoots::Path(roots) => file_root::destroy_named_root_at(roots, made)?,
+                CleanupRoots::Held(_, own) if made.file == Some(own) => {}
+                CleanupRoots::Held(held, _) => file_root::destroy_root_through(&held.dir, made)?,
+            }
         }
     }
     remove_pending(store_dir)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Checkpoint {
+pub(in crate::store) struct Checkpoint {
     pub busy: i64,
     pub wal_bytes: u64,
 }
 
-pub(crate) struct Db {
+pub(in crate::store) struct Db {
     conn: Connection,
     store_dir: Dir,
     log_name: std::ffi::OsString,
@@ -1108,13 +1223,13 @@ enum Database {
 const SCHEMA_TABLES: [&str; 3] = ["segment_keys", "events", "events_fts"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DatabaseRemoval {
+pub(in crate::store) struct DatabaseRemoval {
     pub(crate) left: bool,
     pub(crate) not_followed: u64,
 }
 
 impl Db {
-    pub(crate) fn destroy_through(store_dir: &Dir) -> DatabaseRemoval {
+    pub(in crate::store) fn destroy_through(store_dir: &Dir) -> DatabaseRemoval {
         if failpoint::hit("database_destroy").is_err() {
             return DatabaseRemoval {
                 left: true,
@@ -1266,13 +1381,19 @@ impl Db {
             "PRAGMA secure_delete = ON;\n\
              PRAGMA temp_store = MEMORY;\n\
              PRAGMA foreign_keys = ON;\n\
+             PRAGMA synchronous = FULL;\n\
+             PRAGMA fullfsync = ON;\n\
              PRAGMA checkpoint_fullfsync = ON;\n\
              PRAGMA cipher_log_level = NONE;",
         )
         .map_err(db_error)?;
+        #[cfg(test)]
+        read_back_seam::run(conn);
         require_write_ahead_log(conn)?;
         require_secure_delete(conn)?;
         require_exclusive_locking(conn)?;
+        require_synchronous_full(conn)?;
+        require_fullfsync(conn)?;
         require_checkpoint_fullfsync(conn)?;
         require_cipher_log_level_none(conn)?;
         require_pinned_cipher(conn)
@@ -1368,12 +1489,12 @@ impl Db {
     }
 
     #[cfg(all(test, target_os = "macos"))]
-    pub(crate) fn name_form(&self) -> NameForm {
+    pub(in crate::store) fn name_form(&self) -> NameForm {
         self.named.0
     }
 
     #[cfg(all(test, target_os = "macos"))]
-    pub(crate) fn volume_ids(&self) -> VolumeIds {
+    pub(in crate::store) fn volume_ids(&self) -> VolumeIds {
         self.named.1
     }
 
@@ -1545,7 +1666,7 @@ impl Db {
             .map_err(db_error)
     }
 
-    pub(crate) fn keyed_segments(&self) -> Option<u64> {
+    pub(in crate::store) fn keyed_segments(&self) -> Option<u64> {
         self.conn
             .query_row(
                 "SELECT count(*) FROM segment_keys WHERE wrapped_key IS NOT NULL",
@@ -1568,6 +1689,14 @@ impl Db {
         }
     }
 
+    /// The truncating checkpoint: the log copied into store.db, the
+    /// full-flush call asked for on store.db on a Mac (fullfsync, read back
+    /// at the open) and the log emptied; `CheckpointIncomplete` when a reader
+    /// held it back or the log still holds bytes. Where that call fails the
+    /// library makes a plain fsync in its place and answers Ok, a named limit
+    /// (ruling ST-50). After a shred's key clear, with its full flush
+    /// answered, it is the step that makes the shred last through a loss of
+    /// power, before any file of the shred is removed (ruling PR-30 PR9 (2)).
     pub(crate) fn checkpoint_truncate(&self) -> StoreResult<Checkpoint> {
         let busy: i64 = self
             .conn
@@ -1674,6 +1803,20 @@ fn require_cipher_log_level_none(conn: &Connection) -> StoreResult<()> {
         Ok(())
     } else {
         Err(StoreError::SettingNotInEffect("cipher_log_level"))
+    }
+}
+
+fn require_synchronous_full(conn: &Connection) -> StoreResult<()> {
+    match pragma_int(conn, "synchronous")? {
+        2 => Ok(()),
+        _ => Err(StoreError::SettingNotInEffect("synchronous")),
+    }
+}
+
+fn require_fullfsync(conn: &Connection) -> StoreResult<()> {
+    match pragma_int(conn, "fullfsync")? {
+        1 => Ok(()),
+        _ => Err(StoreError::SettingNotInEffect("fullfsync")),
     }
 }
 
@@ -1798,9 +1941,33 @@ enum Keyed {
     Deleted(Box<DeleteReport>),
 }
 
-pub(crate) struct RootStep {
+pub(in crate::store) struct RootStep {
     reading: RootReading,
     roots: RootsLeft,
+}
+
+/// How the store reaches its root: through the roots directory that it holds,
+/// with the identity of its root file, or through a custody that keeps no
+/// root file.
+enum RootKeeping {
+    Held {
+        roots: RootsHandle,
+        root_file: FileIdentity,
+    },
+    NoRootFile,
+}
+
+impl RootKeeping {
+    fn named(&self, id: RootId) -> NamedRoot {
+        match self {
+            RootKeeping::Held { root_file, .. } => NamedRoot {
+                id,
+                by: NamedBy::TheStore,
+                file: Some(*root_file),
+            },
+            RootKeeping::NoRootFile => NamedRoot::by_id(id),
+        }
+    }
 }
 
 /// The encrypted store: the SQLCipher database, the per-segment files
@@ -1823,16 +1990,17 @@ pub struct EncryptedStore {
     /// The roots listing of the call on this handle that read its root
     /// destroyed; a later call reports from it and opens no roots path.
     root_destroyed_with: Option<RootsLeft>,
+    roots: RootKeeping,
     _writer_lock: DirLock,
 }
 
 impl EncryptedStore {
     /// Create a fresh store in `dir` under `custody`, whose roots directory
-    /// holds the new root. It takes the writer lock, finishes what a stopped
-    /// create left in `create.pending`, and answers
-    /// [`StoreError::AlreadyExists`] when any entry stands at `store.key` and
+    /// holds the new root. It takes the writer lock and answers
     /// [`StoreError::Locked`] while another process holds the lock or the
-    /// database, with nothing removed. Otherwise it removes the keyless
+    /// database and [`StoreError::AlreadyExists`] when any entry stands at
+    /// `store.key`, with nothing removed; then it finishes what a stopped
+    /// create left in `create.pending`. Otherwise it removes the keyless
     /// leftovers (a segment that it cannot remove stays for the open-time
     /// sweep), records the custody kind and root id in `create.pending`, opens
     /// a new database under a random store key, makes the root, publishes the
@@ -1850,7 +2018,7 @@ impl EncryptedStore {
         Self::create_with(dir, custody, retention, &mut || {})
     }
 
-    pub(crate) fn create_with(
+    pub(in crate::store) fn create_with(
         dir: &Path,
         custody: Box<dyn KeyCustody + Send>,
         retention: Duration,
@@ -1869,42 +2037,65 @@ impl EncryptedStore {
             Ok(()) | Err(StoreError::Obstructed { .. }) => {}
             Err(e) => return Err(e),
         }
-        if let Some(roots) = custody.roots() {
-            clear_pending(dir, roots, key_file.names())?;
-            if file_root::root_file_may_be_present(roots, custody.root_id()) {
-                return Err(StoreError::Custody(
-                    custody
-                        .create_root()
-                        .err()
-                        .unwrap_or(CustodyError::RootExists),
-                ));
-            }
-        }
         if key_file.present()? {
             return Err(StoreError::AlreadyExists);
+        }
+        if let Some(roots) = custody.roots() {
+            clear_pending(dir, CleanupRoots::Path(roots), key_file.names())?;
+            if file_root::root_file_may_be_present(roots, custody.root_id()) {
+                #[cfg(test)]
+                failpoint::seam(SEAM_IN_THE_REFUSAL_ARM);
+                return Err(StoreError::Custody(a_root_that_stands(custody.as_ref())));
+            }
         }
         failpoint::hit("create_before_the_database_step")?;
         #[cfg(test)]
         failpoint::seam(SEAM_BEFORE_THE_DATABASE_STEP);
         Db::destroy_in(dir)?;
         let _ = segment::remove_segments_tree(dir);
-        write_pending(dir, custody.as_ref(), PendingReading::Owed)?;
+        write_pending(dir, custody.as_ref(), PendingReading::Owed, None)?;
         let store_key = StoreKey::random()?;
         let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
-        if let Err(e) = write_pending(dir, custody.as_ref(), PendingReading::Made) {
+        let (wrapped, roots) = match Self::wrap_under_the_new_root(custody.as_ref(), &store_key) {
+            Ok(wrapped) => wrapped,
+            Err((e, held)) => {
+                drop(db);
+                let own_root = held.as_ref().map(|roots| (roots, custody.root_id()));
+                return Err(Self::abandon_create(
+                    dir,
+                    &key_file,
+                    None,
+                    custody.as_ref(),
+                    own_root.map(|(roots, id)| (roots, NamedRoot::by_id(id))),
+                    e,
+                ));
+            }
+        };
+        let own_root = match &roots {
+            RootKeeping::Held { roots: held, .. } => Some((held, roots.named(custody.root_id()))),
+            RootKeeping::NoRootFile => None,
+        };
+        if let Err(e) = write_pending(
+            dir,
+            custody.as_ref(),
+            PendingReading::Made,
+            own_root.and_then(|(_, root)| root.file),
+        ) {
             drop(db);
             return Err(Self::abandon_create(
                 dir,
                 &key_file,
                 None,
                 custody.as_ref(),
+                own_root,
                 e,
             ));
         }
         #[cfg(test)]
         failpoint::seam(SEAM_AFTER_THE_ROOT);
-        let (written, published) = Self::write_key_file(&key_file, custody.as_ref(), &store_key);
+        let (written, published) =
+            key_file.publish_keeping(&KeyFile::new(custody.as_ref(), KeyLabel::STORE, &wrapped));
         match written
             .and_then(|()| failpoint::hit("create_after_the_key_file"))
             .and_then(|()| remove_pending(dir))
@@ -1918,6 +2109,7 @@ impl EncryptedStore {
                 unwrap_time: Duration::ZERO,
                 pending_left: false,
                 root_destroyed_with: None,
+                roots,
                 _writer_lock,
             }),
             Err(e) => {
@@ -1925,11 +2117,33 @@ impl EncryptedStore {
                 Err(Self::abandon_create(
                     dir,
                     &key_file,
-                    published.as_ref(),
+                    Some(&published),
                     custody.as_ref(),
+                    own_root,
                     e,
                 ))
             }
+        }
+    }
+
+    /// The wrap of a create, after its create_root answered Ok: through the
+    /// roots directory, held from here on, for a custody that keeps a root
+    /// file, with the identity of the root file that the wrap read. On a
+    /// failure, the error and the held directory when it was taken.
+    fn wrap_under_the_new_root(
+        custody: &dyn KeyCustody,
+        store_key: &StoreKey,
+    ) -> Result<(WrappedKey, RootKeeping), (StoreError, Option<RootsHandle>)> {
+        let Some(path) = custody.roots() else {
+            return custody
+                .wrap_store_key(store_key, KeyLabel::STORE)
+                .map(|wrapped| (wrapped, RootKeeping::NoRootFile))
+                .map_err(|e| (StoreError::Custody(e), None));
+        };
+        let roots = RootsHandle::open(path).map_err(|e| (StoreError::Custody(e), None))?;
+        match custody.wrap_store_key_in(&roots, store_key, KeyLabel::STORE) {
+            Ok((wrapped, root_file)) => Ok((wrapped, RootKeeping::Held { roots, root_file })),
+            Err(e) => Err((StoreError::Custody(e), Some(roots))),
         }
     }
 
@@ -1940,21 +2154,6 @@ impl EncryptedStore {
                 drop(db);
                 Err(Self::without_database(dir, StoreError::Custody(e)))
             }
-        }
-    }
-
-    fn write_key_file(
-        key_file: &KeyFilePlace,
-        custody: &dyn KeyCustody,
-        store_key: &StoreKey,
-    ) -> (StoreResult<()>, Option<Published>) {
-        match custody.wrap_store_key(store_key, KeyLabel::STORE) {
-            Ok(wrapped) => {
-                let (written, published) =
-                    key_file.publish_keeping(&KeyFile::new(custody, KeyLabel::STORE, &wrapped));
-                (written, Some(published))
-            }
-            Err(e) => (Err(StoreError::Custody(e)), None),
         }
     }
 
@@ -1972,6 +2171,7 @@ impl EncryptedStore {
         key_file: &KeyFilePlace,
         published: Option<&Published>,
         custody: &dyn KeyCustody,
+        own_root: Option<(&RootsHandle, NamedRoot)>,
         cause: StoreError,
     ) -> StoreError {
         let own_name = match published {
@@ -1983,7 +2183,11 @@ impl EncryptedStore {
         let root = if kept_for_the_entry_there {
             Ok(())
         } else {
-            custody.destroy_root().map_err(StoreError::Custody)
+            match own_root {
+                Some((roots, root)) => file_root::destroy_root_through(&roots.dir, root),
+                None => custody.destroy_root(),
+            }
+            .map_err(StoreError::Custody)
         };
         let key_file = own_name.map(drop).map_err(io_error);
         let database = Db::destroy_in(dir);
@@ -2030,7 +2234,7 @@ impl EncryptedStore {
         Self::open_with(dir, roots, retention, custody_for)
     }
 
-    pub(crate) fn open_with(
+    pub(in crate::store) fn open_with(
         dir: &Path,
         roots: &Path,
         retention: Duration,
@@ -2047,11 +2251,36 @@ impl EncryptedStore {
         Db::require_file(&store)?;
         Db::refuse_a_live_holder(&store)?;
         let custody = custody_for(&key_file.locator(roots))?;
+        let held = custody.roots().map(RootsHandle::open).transpose()?;
         let started = Instant::now();
-        let store_key = custody.unwrap_store_key(&wrapped, KeyLabel::STORE)?;
+        let (store_key, kept) = match held {
+            Some(held) => {
+                let (store_key, root_file) =
+                    custody.unwrap_store_key_in(&held, &wrapped, KeyLabel::STORE)?;
+                (
+                    store_key,
+                    RootKeeping::Held {
+                        roots: held,
+                        root_file,
+                    },
+                )
+            }
+            None => (
+                custody.unwrap_store_key(&wrapped, KeyLabel::STORE)?,
+                RootKeeping::NoRootFile,
+            ),
+        };
         let unwrap_time = started.elapsed();
         let db = Db::open_existing(&store, store_key.expose())?;
-        let pending_left = clear_pending(&store, roots, KeyNames::Root(key_file.root_id)).is_err();
+        let cleanup_roots = match &kept {
+            RootKeeping::Held {
+                roots: held,
+                root_file,
+            } => CleanupRoots::Held(held, *root_file),
+            RootKeeping::NoRootFile => CleanupRoots::Path(roots),
+        };
+        let pending_left =
+            clear_pending(&store, cleanup_roots, KeyNames::Root(key_file.root_id)).is_err();
         Ok(Self {
             dir: store,
             retention,
@@ -2061,6 +2290,7 @@ impl EncryptedStore {
             unwrap_time,
             pending_left,
             root_destroyed_with: None,
+            roots: kept,
             _writer_lock,
         })
     }
@@ -2072,15 +2302,15 @@ impl EncryptedStore {
         }
     }
 
-    pub(crate) fn db(&self) -> StoreResult<&Db> {
+    pub(in crate::store) fn db(&self) -> StoreResult<&Db> {
         self.keyed().map(|(db, _)| db)
     }
 
-    pub(crate) fn dir(&self) -> &Path {
+    pub(in crate::store) fn dir(&self) -> &Path {
         self.dir.path()
     }
 
-    pub(crate) fn handle(&self) -> &Dir {
+    pub(in crate::store) fn handle(&self) -> &Dir {
         &self.dir
     }
 
@@ -2090,20 +2320,20 @@ impl EncryptedStore {
         self.unwrap_time
     }
 
-    pub(crate) fn fs(&self) -> &dyn DurableFs {
+    pub(in crate::store) fn fs(&self) -> &dyn DurableFs {
         self.fs.as_ref()
     }
 
     #[cfg(test)]
-    pub(crate) fn use_fs(&mut self, fs: Arc<dyn DurableFs>) {
+    pub(in crate::store) fn use_fs(&mut self, fs: Arc<dyn DurableFs>) {
         self.fs = fs;
     }
 
-    pub(crate) fn store_key(&self) -> StoreResult<&StoreKey> {
+    pub(in crate::store) fn store_key(&self) -> StoreResult<&StoreKey> {
         self.keyed().map(|(_, key)| key)
     }
 
-    pub(crate) fn answer(&self, e: StoreError) -> StoreError {
+    pub(in crate::store) fn answer(&self, e: StoreError) -> StoreError {
         match e {
             StoreError::Db(rusqlite::ffi::SQLITE_IOERR_FSTAT | rusqlite::ffi::SQLITE_CANTOPEN)
             | StoreError::SegmentMissing
@@ -2142,7 +2372,7 @@ impl EncryptedStore {
         segment::read_segment_file(&self.dir, &seg_key, segment_id, out).map_err(|e| self.answer(e))
     }
 
-    pub(crate) fn write_segment_with_expiry(
+    pub(in crate::store) fn write_segment_with_expiry(
         &mut self,
         bytes: &mut dyn Read,
         created_at: u64,
@@ -2179,7 +2409,7 @@ impl EncryptedStore {
     /// destroyed, a later call reads its root as destroyed from the handle's
     /// state and the other roots from the listing that the earlier call kept,
     /// and opens no roots path again (ruling ST-45 H3).
-    pub(crate) fn root_step(&self) -> RootStep {
+    pub(in crate::store) fn root_step(&self) -> RootStep {
         if let Some(kept) = &self.root_destroyed_with {
             return RootStep {
                 reading: RootReading::Destroyed,
@@ -2187,32 +2417,28 @@ impl EncryptedStore {
             };
         }
         let named = self.custody.root_id();
-        let (reading, roots) = match self.custody.roots() {
-            Some(roots) => file_root::destroy_roots_in(roots, Some(named), RootStepForm::Witness),
-            None => (
+        let (reading, roots) = match &self.roots {
+            RootKeeping::Held { roots, .. } => file_root::destroy_roots_through(
+                &roots.dir,
+                Some(self.roots.named(named)),
+                RootStepForm::Witness,
+            ),
+            RootKeeping::NoRootFile => (
                 match self.custody.destroy_root() {
                     Ok(()) => RootReading::Destroyed,
                     Err(_) => RootReading::Left(Some(named)),
                 },
-                RootsLeft {
-                    left: Vec::new(),
-                    names: Vec::new(),
-                    listed: true,
-                },
+                RootsLeft::none_counted(true),
             ),
         };
         RootStep { reading, roots }
     }
 
-    pub(crate) fn untouched(&self) -> DeleteReport {
+    pub(in crate::store) fn untouched(&self) -> DeleteReport {
         DeleteReport {
             keyed_segments: None,
             root: RootReading::Left(Some(self.custody.root_id())),
-            roots: RootsLeft {
-                left: Vec::new(),
-                names: Vec::new(),
-                listed: true,
-            },
+            roots: RootsLeft::none_counted(true),
             root_not_handled: None,
             key_file_gone: false,
             database_left: true,
@@ -2221,7 +2447,7 @@ impl EncryptedStore {
         }
     }
 
-    pub(crate) fn remove_files_after(&mut self, root_step: RootStep) {
+    pub(in crate::store) fn remove_files_after(&mut self, root_step: RootStep) {
         self.keyed = Keyed::Deleting(None);
         if root_step.reading == RootReading::Destroyed && self.root_destroyed_with.is_none() {
             self.root_destroyed_with = Some(root_step.roots.clone());
@@ -2234,7 +2460,7 @@ impl EncryptedStore {
         self.keyed = Keyed::Deleting(Some(Box::new(report)));
     }
 
-    pub(crate) fn deleting_report(&self) -> Option<DeleteReport> {
+    pub(in crate::store) fn deleting_report(&self) -> Option<DeleteReport> {
         match &self.keyed {
             Keyed::Deleting(Some(report)) => Some((**report).clone()),
             _ => None,
@@ -2242,172 +2468,221 @@ impl EncryptedStore {
     }
 
     #[cfg(all(test, unix))]
-    pub(crate) fn pending_left(&self) -> bool {
+    pub(in crate::store) fn pending_left(&self) -> bool {
         self.pending_left
     }
 
     #[cfg(all(test, unix))]
-    pub(crate) fn writer_lock_file(&self) -> &std::fs::File {
+    pub(in crate::store) fn writer_lock_file(&self) -> &std::fs::File {
         &self._writer_lock.file
     }
 
-    pub(crate) fn mark_deleted(&mut self, report: DeleteReport) {
+    pub(in crate::store) fn mark_deleted(&mut self, report: DeleteReport) {
         self.keyed = Keyed::Deleted(Box::new(report));
     }
 
-    pub(crate) fn finished_report(&self) -> Option<DeleteReport> {
+    pub(in crate::store) fn finished_report(&self) -> Option<DeleteReport> {
         match &self.keyed {
             Keyed::Deleted(report) => Some((**report).clone()),
             _ => None,
         }
     }
 
-    /// The delete tail on a store directory that no handle holds. It takes the
-    /// writer lock, runs the root step, removes the key file, the database
-    /// files and the segments tree through a handle of the directory in every
-    /// case, never opens the database and follows no link. A root is named by
-    /// `store.key` or by a `create.pending` that reads made, never by one that
-    /// reads owed. With the lock held, with nothing at the store name, and
-    /// after it removed a link or an entry of another kind at the store name
-    /// (counted as not followed), the root step sweeps `roots`: it destroys
-    /// every root file and partial root file there, named or not, and opens
-    /// no roots path that leads through a store name at which it did not open
-    /// a directory itself. A directory that it cannot open leaves its root
-    /// unread; a lock that it cannot take for a reason other than a holder,
-    /// and on Windows a path of which a part ends in a dot or a space (read
-    /// through its verbatim form, with no removal at or beside it and
-    /// `not_followed` 1), get the root step for the named root alone, with
-    /// the witness; these three answer [`StoreError::DeleteIncomplete`] with
-    /// the files as left. The root reads destroyed only when a named root's
-    /// entries were removed by this call, left when a named root was not
-    /// removed, and unnamed when nothing names one; a key file of another
-    /// version, or of a custody that keeps no root file under `roots`, is
-    /// removed with the rest, and its root is reported as not handled and
-    /// never as destroyed. Answers as [`EncryptedStore::delete_all`] does,
-    /// `Ok` only with no root file or partial root file left under `roots`
-    /// or nothing there, and [`StoreError::Locked`] while another process
-    /// holds the directory (ruling ST-45 H1). A roots path that holds a parent
-    /// part, or a link in a part below the deepest directory that it shares
-    /// with the store path, is refused: the tail runs no sweep there, takes
-    /// the named root alone with its witness, reads the roots as not listed
-    /// and answers [`StoreError::DeleteIncomplete`] on every call (ruling
-    /// ST-46 K2).
-    pub fn delete_store_dir(store_dir: &Path, roots: &Path) -> StoreResult<DeleteReport> {
+    /// The delete tail on a data directory `dir` of the closed `layout`, which
+    /// no handle holds. It opens `dir` as a handle by the components of its
+    /// path, following no link at its last part in any spelling (`dir/`,
+    /// `dir/.`), opens the store directory and the roots directory from the
+    /// handle of the directory that holds each by their fixed names, never by
+    /// a path and following no link, takes the writer lock and runs the root
+    /// step; when it holds the writer lock it removes the key file, the
+    /// database files and the segments tree through the store's handle, and
+    /// without it it removes none of them. It never opens the database. A root
+    /// is named by `store.key`, by its name, or by a `create.pending` that
+    /// reads made, by the identity of its root file, never by one that reads
+    /// owed. With the lock held, with nothing at the store's name, and in the
+    /// data layout after it removed a link or an entry of another kind at the
+    /// store's name (counted as not followed), the root step sweeps the roots
+    /// directory: it destroys every root file and partial root file there,
+    /// named or not, and removes every regular file at any other name,
+    /// zero-filling it first only when it has one name and a root file's
+    /// length, which it reads by the name before any mode change (ruling
+    /// ST-48 U1); by a made mark the file of its identity is written through
+    /// only where the name at which it stands lets a write (ruling ST-48 U2);
+    /// it removes a link or an entry of another kind as the entry that it is,
+    /// and enters no directory; in the scratch layout nothing is
+    /// swept where no store directory stands, because its roots lie inside it.
+    /// A link, or an entry of another kind, at the roots directory's name is
+    /// not followed: the roots read as not listed. A data directory that is a
+    /// link, in either layout and in any spelling, is not followed and nothing
+    /// is removed: the root is left unread, the roots are not listed and
+    /// `not_followed` is 1. A store directory that it cannot open leaves its
+    /// root unread; a lock that it cannot take for a reason other than a
+    /// holder, and on Windows a data directory of which a part ends in a dot
+    /// or a space (read through its verbatim form, with no removal and
+    /// `not_followed` 1), get the root step for the named root alone, with the
+    /// witness; these answer [`StoreError::DeleteIncomplete`] with the files as
+    /// left. The root reads destroyed only when this call destroyed a named
+    /// root's file, left when a named root was not destroyed, and unnamed when
+    /// nothing names one; a key file of another version, or of a custody that
+    /// keeps no root file under the roots directory, is removed with the rest,
+    /// and its root is reported as not handled and never as destroyed. Answers
+    /// as [`EncryptedStore::delete_all`] does, `Ok` only when the roots
+    /// directory was listed after the step and nothing stays in it at any name,
+    /// or nothing stands at the roots path, and [`StoreError::Locked`] while
+    /// another process holds the store directory (ruling ST-45 H1; store-3b;
+    /// ruling ST-47 T1 to T3).
+    pub fn delete_data_dir(dir: &Path, layout: Layout) -> StoreResult<DeleteReport> {
         #[cfg(windows)]
-        if durable::has_a_part_that_windows_trims(store_dir) {
-            return finished(Self::root_step_alone_at_a_trimmed_name(store_dir, roots));
+        if durable::has_a_part_that_windows_trims(dir) {
+            return finished(Self::root_step_alone_at_a_trimmed_name(dir, layout));
         }
-        let store = match Dir::open(store_dir) {
-            Ok(store) => store,
+        match layout {
+            Layout::DataDirectory => Self::delete_in_a_data_directory(dir),
+            Layout::ScratchStore => Self::delete_a_scratch_store(dir),
+        }
+    }
+
+    fn delete_in_a_data_directory(dir: &Path) -> StoreResult<DeleteReport> {
+        let parent = match Dir::open(dir) {
+            Ok(parent) => parent,
             Err(e) if e.kind() == ErrorKind::NotFound => {
-                let (root, roots) = sweep_where_no_store_stands(store_dir, roots);
-                return finished(DeleteReport {
-                    keyed_segments: None,
-                    root,
-                    roots,
-                    root_not_handled: None,
-                    key_file_gone: true,
-                    database_left: false,
-                    files_left: 0,
-                    not_followed: 0,
-                });
+                return finished(nothing_of_a_store(
+                    RootReading::Unnamed,
+                    RootsLeft::none_counted(true),
+                ))
             }
             Err(e) if durable::refusal(&e).is_some() => {
-                let gone = remove_what_stands_at(store_dir);
-                let (root, roots) = if gone {
-                    sweep_where_no_store_stands(store_dir, roots)
-                } else {
-                    (
-                        RootReading::Unnamed,
-                        RootsLeft {
-                            left: Vec::new(),
-                            names: Vec::new(),
-                            listed: false,
-                        },
-                    )
-                };
-                return finished(DeleteReport {
-                    keyed_segments: None,
-                    root,
-                    roots,
-                    root_not_handled: None,
-                    key_file_gone: true,
-                    database_left: false,
-                    files_left: u64::from(!gone),
-                    not_followed: 1,
-                });
-            }
-            #[cfg(windows)]
-            Err(e) if e.raw_os_error() == Some(durable::ERROR_SHARING_VIOLATION) => {
-                return Err(StoreError::Locked)
+                let mut report =
+                    not_opened(RootReading::Left(None), RootsLeft::none_counted(false));
+                report.not_followed = 1;
+                return finished(report);
             }
             Err(_) => {
                 return finished(not_opened(
                     RootReading::Left(None),
-                    RootsLeft {
-                        left: Vec::new(),
-                        names: Vec::new(),
-                        listed: false,
-                    },
+                    RootsLeft::none_counted(false),
                 ))
             }
         };
-        let place = KeyFile::of_store(&store)?;
-        let _writer_lock = match DirLock::take(&store)
+        #[cfg(test)]
+        failpoint::seam(SEAM_AFTER_THE_DATA_DIRECTORY_OPEN);
+        match parent.open_dir(OsStr::new(STORE_DIR_NAME)) {
+            Ok(store) => Self::delete_through(&store, &parent),
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                let (root, roots) =
+                    file_root::destroy_roots_below(&parent, None, RootStepForm::Sweep);
+                finished(nothing_of_a_store(root, roots))
+            }
+            Err(e) if durable::refusal(&e).is_some() => {
+                let gone = parent
+                    .remove_entry(OsStr::new(STORE_DIR_NAME))
+                    .and_then(|()| parent.sync())
+                    .is_ok();
+                let (root, roots) = if gone {
+                    file_root::destroy_roots_below(&parent, None, RootStepForm::Sweep)
+                } else {
+                    (RootReading::Unnamed, RootsLeft::none_counted(false))
+                };
+                let mut report = nothing_of_a_store(root, roots);
+                report.files_left = u64::from(!gone);
+                report.not_followed = 1;
+                finished(report)
+            }
+            #[cfg(windows)]
+            Err(e) if e.raw_os_error() == Some(durable::ERROR_SHARING_VIOLATION) => {
+                Err(StoreError::Locked)
+            }
+            Err(_) => finished(not_opened(
+                RootReading::Left(None),
+                RootsLeft::none_counted(false),
+            )),
+        }
+    }
+
+    fn delete_a_scratch_store(dir: &Path) -> StoreResult<DeleteReport> {
+        match Dir::open(dir) {
+            Ok(store) => Self::delete_through(&store, &store),
+            Err(e) if e.kind() == ErrorKind::NotFound => finished(nothing_of_a_store(
+                RootReading::Unnamed,
+                RootsLeft::none_counted(true),
+            )),
+            Err(e) if durable::refusal(&e).is_some() => {
+                let mut report =
+                    not_opened(RootReading::Left(None), RootsLeft::none_counted(false));
+                report.not_followed = 1;
+                finished(report)
+            }
+            #[cfg(windows)]
+            Err(e) if e.raw_os_error() == Some(durable::ERROR_SHARING_VIOLATION) => {
+                Err(StoreError::Locked)
+            }
+            Err(_) => finished(not_opened(
+                RootReading::Left(None),
+                RootsLeft::none_counted(false),
+            )),
+        }
+    }
+
+    /// The tail through the handle of the store directory, with the roots
+    /// directory opened from the handle of `parent`, the directory that holds
+    /// it.
+    fn delete_through(store: &Dir, parent: &Dir) -> StoreResult<DeleteReport> {
+        let place = KeyFile::of_store(store)?;
+        let writer_lock = match DirLock::take(store)
             .and_then(|lock| failpoint::hit("tail_lock").map(|()| lock))
         {
             Ok(lock) => Some(lock),
             Err(StoreError::Locked) => return Err(StoreError::Locked),
             Err(_) => None,
         };
-        let refused = a_roots_path_that_the_sweep_refuses(store_dir, roots);
-        let form = match _writer_lock {
-            Some(_) if !refused => RootStepForm::Sweep,
-            _ => RootStepForm::NamedAlone,
+        let form = match writer_lock {
+            Some(_) => RootStepForm::Sweep,
+            None => RootStepForm::NamedAlone,
         };
-        let (reading, mut roots, root_not_handled) = tail_root_step(&store, &place, roots, form);
-        if refused {
-            roots.listed = false;
-        }
-        if _writer_lock.is_none() {
-            let mut report = not_opened(reading, roots);
-            report.root_not_handled = root_not_handled;
-            return finished(report);
-        }
-        let mut report = remove_the_store_files(&store, None, reading, roots);
+        #[cfg(test)]
+        failpoint::seam(SEAM_BEFORE_THE_TAILS_ROOT_STEP);
+        let (reading, roots, root_not_handled) = tail_root_step(store, &place, parent, form);
+        let mut report = match writer_lock {
+            Some(_) => remove_the_store_files(store, None, reading, roots),
+            None => not_opened(reading, roots),
+        };
         report.root_not_handled = root_not_handled;
         finished(report)
     }
 }
 
 impl EncryptedStore {
-    /// The tail on a path of which a part ends in a dot or a space: Win32
-    /// trims that end when it opens a name that is not verbatim, so a removal
-    /// could reach the sibling without it. The tail removes nothing at or
-    /// beside the path. It runs the root step from the key file that it reads
+    /// The tail on a data directory of which a part ends in a dot or a
+    /// space: Win32 trims that end when it opens a name that is not
+    /// verbatim, so a removal could reach the sibling without it. The tail
+    /// removes nothing. It runs the root step from the key file that it reads
     /// through the verbatim form of the path, takes no lock there, and counts
     /// the path as not followed.
     #[cfg(windows)]
-    fn root_step_alone_at_a_trimmed_name(store_dir: &Path, roots: &Path) -> DeleteReport {
+    fn root_step_alone_at_a_trimmed_name(dir: &Path, layout: Layout) -> DeleteReport {
         let unread = || {
             (
                 RootReading::Left(None),
-                RootsLeft {
-                    left: Vec::new(),
-                    names: Vec::new(),
-                    listed: false,
-                },
+                RootsLeft::none_counted(false),
                 None,
             )
         };
-        let (reading, roots, root_not_handled) = durable::verbatim_form(store_dir)
+        let (reading, roots, root_not_handled) = durable::verbatim_form(dir)
             .and_then(|verbatim| Dir::open(&verbatim).ok())
-            .and_then(|store| {
+            .and_then(|parent| {
+                let store = match layout {
+                    Layout::DataDirectory => parent.open_dir(OsStr::new(STORE_DIR_NAME)).ok()?,
+                    Layout::ScratchStore => parent.try_clone().ok()?,
+                };
                 let place = KeyFile::of_store(&store).ok()?;
+                let roots_parent = match layout {
+                    Layout::DataDirectory => &parent,
+                    Layout::ScratchStore => &store,
+                };
                 Some(tail_root_step(
                     &store,
                     &place,
-                    roots,
+                    roots_parent,
                     RootStepForm::NamedAlone,
                 ))
             })
@@ -2419,98 +2694,53 @@ impl EncryptedStore {
     }
 }
 
-/// The root step of the tail in `form`: the root that the key file names, or
-/// that a made pending mark names when no key file stands. The sweep runs
-/// also beside a key file that this build does not handle, whose root then
-/// reads left on this call (ruling ST-45 H1).
+/// The root step of the tail in `form`, on the roots directory that
+/// `parent` holds: the root that the key file names, by its name, or that a
+/// made pending mark names when no key file stands, by the identity of its
+/// root file that the mark records. The sweep runs also beside a key file
+/// that this build does not handle, whose root then reads left on this call
+/// (ruling ST-45 H1).
 fn tail_root_step(
     store: &Dir,
     place: &KeyFilePlace,
-    roots: &Path,
+    parent: &Dir,
     form: RootStepForm,
 ) -> (RootReading, RootsLeft, Option<RootId>) {
     let (named, root_not_handled) = match place.what_it_names() {
-        KeyFileNames::Destroys(root_id) => (Some(root_id), None),
+        KeyFileNames::Destroys(root_id) => (Some(NamedRoot::by_id(root_id)), None),
         KeyFileNames::NotHandled(root_id) => (None, Some(root_id)),
         KeyFileNames::Nothing => (
-            read_pending(store)
-                .filter(|pending| pending.reading == PendingReading::Made)
-                .map(|pending| pending.root_id),
+            read_pending(store).and_then(|pending| pending.made_root()),
             None,
         ),
     };
     let (reading, roots) = match root_not_handled {
         Some(root_id) if form == RootStepForm::Sweep => (
             RootReading::Left(Some(root_id)),
-            file_root::destroy_roots_in(roots, None, RootStepForm::Sweep).1,
+            file_root::destroy_roots_below(parent, None, RootStepForm::Sweep).1,
         ),
         Some(root_id) => (
             RootReading::Left(Some(root_id)),
-            RootsLeft {
-                left: Vec::new(),
-                names: Vec::new(),
-                listed: false,
-            },
+            RootsLeft::none_counted(false),
         ),
-        None => file_root::destroy_roots_in(roots, named, form),
+        None => file_root::destroy_roots_below(parent, named, form),
     };
     (reading, roots, root_not_handled)
 }
 
-/// The sweep of a tail at whose store name nothing stands, or no longer
-/// stands after this call removed it. It opens no roots path that leads
-/// through that store name, at which the tail opened no directory itself:
-/// nothing stands there (ruling ST-45 H1).
-fn sweep_where_no_store_stands(store_dir: &Path, roots: &Path) -> (RootReading, RootsLeft) {
-    if a_roots_path_that_the_sweep_refuses(store_dir, roots) {
-        return (
-            RootReading::Unnamed,
-            RootsLeft {
-                left: Vec::new(),
-                names: Vec::new(),
-                listed: false,
-            },
-        );
+/// The report of a tail at whose store name no store directory stands, or no
+/// longer stands after this call removed what stood there.
+fn nothing_of_a_store(root: RootReading, roots: RootsLeft) -> DeleteReport {
+    DeleteReport {
+        keyed_segments: None,
+        root,
+        roots,
+        root_not_handled: None,
+        key_file_gone: true,
+        database_left: false,
+        files_left: 0,
+        not_followed: 0,
     }
-    if roots.starts_with(store_dir) {
-        return (
-            RootReading::Unnamed,
-            RootsLeft {
-                left: Vec::new(),
-                names: Vec::new(),
-                listed: true,
-            },
-        );
-    }
-    file_root::destroy_roots_in(roots, None, RootStepForm::Sweep)
-}
-
-/// Whether the tail refuses to sweep `roots` (ruling ST-46 K2): the path holds
-/// a parent part, or a part below the deepest directory that the roots path
-/// and the store path share, by their parts as given, is a link (on Windows a
-/// link or a junction), looked at without following it. A part that does not
-/// stand ends the walk. Links above the shared directory stay: both names are
-/// reached through them alike.
-fn a_roots_path_that_the_sweep_refuses(store_dir: &Path, roots: &Path) -> bool {
-    use std::path::Component;
-    if roots.components().any(|part| part == Component::ParentDir) {
-        return true;
-    }
-    let shared = roots
-        .components()
-        .zip(store_dir.components())
-        .take_while(|(a, b)| a == b)
-        .count();
-    let mut walked: PathBuf = roots.components().take(shared).collect();
-    for part in roots.components().skip(shared) {
-        walked.push(part);
-        match std::fs::symlink_metadata(&walked) {
-            Ok(meta) if meta.file_type().is_symlink() => return true,
-            Ok(_) => {}
-            Err(_) => return false,
-        }
-    }
-    false
 }
 
 /// On Windows a create or an open given a store path or a roots path of which
@@ -2552,20 +2782,6 @@ fn not_opened(root: RootReading, roots: RootsLeft) -> DeleteReport {
         database_left: true,
         files_left: 1,
         not_followed: 0,
-    }
-}
-
-/// Removes a link or an entry of another kind at the store name as the
-/// entry that it is: whether it is gone.
-fn remove_what_stands_at(store_dir: &Path) -> bool {
-    match (store_dir.parent(), store_dir.file_name()) {
-        (Some(parent), Some(name)) => Dir::open(parent)
-            .and_then(|parent| {
-                parent.remove_entry(name)?;
-                parent.sync()
-            })
-            .is_ok(),
-        _ => false,
     }
 }
 
@@ -2624,7 +2840,7 @@ fn listed(dir: &Dir) -> StoreResult<Vec<durable::Entry>> {
     }
 }
 
-pub(crate) fn dir_size(dir: &Dir) -> StoreResult<u64> {
+pub(in crate::store) fn dir_size(dir: &Dir) -> StoreResult<u64> {
     type Pending = Vec<(Option<Rc<Dir>>, std::ffi::OsString)>;
     fn take(
         parent: Option<&Rc<Dir>>,
@@ -2660,9 +2876,54 @@ pub(crate) fn dir_size(dir: &Dir) -> StoreResult<u64> {
     Ok(total)
 }
 
+/// What the steps of a database open answer in the directory `dir`, for the
+/// trace of a create in a directory whose name is not Unicode (inbox entry
+/// of 2026-11-13T20:16Z (d)): booleans and codes alone, no path.
 #[cfg(test)]
-pub(crate) mod test_support {
-    pub(crate) use crate::store::pages;
+#[cfg_attr(
+    not(windows),
+    expect(dead_code, reason = "the trace runs on Windows alone")
+)]
+pub(in crate::store) fn database_open_steps(dir: &Path) -> Vec<String> {
+    let mut steps = Vec::new();
+    let store = match Dir::open(dir) {
+        Ok(store) => store,
+        Err(e) => {
+            steps.push(format!(
+                "open_dir={:?} code={:?}",
+                e.kind(),
+                e.raw_os_error()
+            ));
+            return steps;
+        }
+    };
+    steps.push(format!(
+        "handle_path_is_unicode={}",
+        store.path().to_str().is_some()
+    ));
+    match database_name(&store) {
+        Ok((name, _, _)) => {
+            steps.push(format!(
+                "database_name_is_unicode={}",
+                name.to_str().is_some()
+            ));
+            steps.push(format!(
+                "sqlite_open={}",
+                match Connection::open_with_flags(&name, PROBE_OPEN) {
+                    Ok(_) => "Ok".to_string(),
+                    Err(rusqlite::Error::InvalidPath(_)) => "InvalidPath".to_string(),
+                    Err(e) => format!("code={:?}", e.sqlite_error_code()),
+                }
+            ));
+        }
+        Err(e) => steps.push(format!("database_name={e:?}")),
+    }
+    steps
+}
+
+#[cfg(test)]
+pub(in crate::store) mod test_support {
+    pub(in crate::store) use crate::store::pages;
 
     use std::ops::{Deref, DerefMut};
     use std::path::Path;
@@ -2903,6 +3164,8 @@ mod tests {
         assert_eq!(db.pragma_int("temp_store").unwrap(), 2);
         assert_eq!(db.fts_secure_delete().unwrap(), 1);
         assert_eq!(db.pragma_int("checkpoint_fullfsync").unwrap(), 1);
+        assert_eq!(db.pragma_int("synchronous").unwrap(), 2);
+        assert_eq!(db.pragma_int("fullfsync").unwrap(), 1);
         let text = |pragma: &str| -> String {
             db.connection().query_row(pragma, [], |r| r.get(0)).unwrap()
         };

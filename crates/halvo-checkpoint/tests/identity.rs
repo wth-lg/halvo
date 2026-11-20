@@ -119,9 +119,8 @@ fn no_source_of_either_crate_compares_two_files_outside_the_identity_module() {
 /// path or names a read as a value, and skips a file named `identity.rs`.
 #[test]
 fn around_reports_a_source_that_reads_through_the_traits_path() {
-    let dir =
-        Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("cp134-scan-{}", std::process::id()));
-    fs::create_dir_all(&dir).expect("make the directory");
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join("halvo-checkpoint");
+    let dir = halvo_test_dir::make(&base, "cp134-scan").expect("make the directory");
     fs::write(
         dir.join("probe.rs"),
         "fn f(m: &Metadata) -> u64 { MetadataExt::ino(m) }\nfn g(v: &[Metadata]) { v.iter().map(MetadataExt::dev); }\n",

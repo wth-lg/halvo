@@ -1,0 +1,37 @@
+{
+  "kind": "attempts",
+  "ruling": "P7-107 K3, on the planner's Addition 27",
+  "about": "an attempts record whose list of attempts by run is empty; records.mjs refuses it",
+  "source": "by hand, after the review's B3 and the verifier's finding 4",
+  "cell": {
+    "name": "rollover@20",
+    "kind": "rollover",
+    "level": 20,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 3
+  },
+  "attemptsByRun": [],
+  "cfgAttempts": 6,
+  "expect": {
+    "runs": [
+      {
+        "key": "attempt-4",
+        "rigUnbuilt": false,
+        "discarded": 3
+      },
+      {
+        "key": "attempt-3",
+        "rigUnbuilt": false,
+        "discarded": 2
+      },
+      {
+        "key": "attempt-1",
+        "rigUnbuilt": true,
+        "discarded": 0,
+        "countedAtTheDraw": 2
+      }
+    ]
+  },
+  "refusal": "its list attemptsByRun is empty"
+}

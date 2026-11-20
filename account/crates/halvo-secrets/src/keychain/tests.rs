@@ -1,6 +1,6 @@
 use super::*;
 use crate::MAX_SECRET_LEN;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 const SERVICE: &str = "dev.halvo.test";
 const ACCOUNT: &str = "account";
@@ -19,6 +19,10 @@ type Stored = ((String, String), Vec<u8>);
 
 struct Fake {
     items: RefCell<Vec<Stored>>,
+    serials: RefCell<Vec<u64>>,
+    made: Cell<u64>,
+    after_find: RefCell<Option<Option<Vec<u8>>>>,
+    keeps_on_delete_item: bool,
     fail: RefCell<Vec<(&'static str, i32)>>,
     log: RefCell<Vec<&'static str>>,
 }
@@ -27,6 +31,10 @@ impl Fake {
     fn new() -> Fake {
         Fake {
             items: RefCell::new(Vec::new()),
+            serials: RefCell::new(Vec::new()),
+            made: Cell::new(0),
+            after_find: RefCell::new(None),
+            keeps_on_delete_item: false,
             fail: RefCell::new(Vec::new()),
             log: RefCell::new(Vec::new()),
         }
@@ -35,11 +43,27 @@ impl Fake {
     fn holding(items: &[(&str, &[u8])]) -> Fake {
         let fake = Fake::new();
         for (account, bytes) in items {
-            fake.items
-                .borrow_mut()
-                .push(((SERVICE.to_string(), account.to_string()), bytes.to_vec()));
+            fake.push(SERVICE, account, bytes);
         }
         fake
+    }
+
+    fn push(&self, service: &str, account: &str, bytes: &[u8]) {
+        self.made.set(self.made.get() + 1);
+        self.items
+            .borrow_mut()
+            .push(((service.to_string(), account.to_string()), bytes.to_vec()));
+        self.serials.borrow_mut().push(self.made.get());
+    }
+
+    fn replacing_after_find(self, with: Option<&[u8]>) -> Fake {
+        *self.after_find.borrow_mut() = Some(with.map(<[u8]>::to_vec));
+        self
+    }
+
+    fn keeping_on_delete_item(mut self) -> Fake {
+        self.keeps_on_delete_item = true;
+        self
     }
 
     fn failing(self, op: &'static str, code: i32) -> Fake {
@@ -96,9 +120,7 @@ impl Keychain for Fake {
         if self.matching(service, account) > 0 {
             return Err(DUPLICATE_ITEM);
         }
-        self.items
-            .borrow_mut()
-            .push(((service.to_string(), account.to_string()), bytes.to_vec()));
+        self.push(service, account, bytes);
         Ok(())
     }
 
@@ -107,10 +129,66 @@ impl Keychain for Fake {
         if self.matching(service, account) == 0 {
             return Err(ITEM_NOT_FOUND);
         }
+        let keep: Vec<bool> = self
+            .items
+            .borrow()
+            .iter()
+            .map(|((s, a), _)| !(s == service && a == account))
+            .collect();
+        let mut kept = keep.iter();
         self.items
             .borrow_mut()
-            .retain(|((s, a), _)| !(s == service && a == account));
+            .retain(|_| *kept.next().unwrap_or(&true));
+        let mut kept = keep.iter();
+        self.serials
+            .borrow_mut()
+            .retain(|_| *kept.next().unwrap_or(&true));
         Ok(())
+    }
+
+    fn find(&self, service: &str, account: &str) -> Result<(Vec<u8>, ItemRef), i32> {
+        self.check("find")?;
+        let found = self
+            .items
+            .borrow()
+            .iter()
+            .zip(self.serials.borrow().iter())
+            .find(|(((s, a), _), _)| s == service && a == account)
+            .map(|((_, bytes), serial)| (bytes.clone(), ItemRef::Fake(*serial)))
+            .ok_or(ITEM_NOT_FOUND)?;
+        if let Some(with) = self.after_find.borrow_mut().take() {
+            self.items.borrow_mut().clear();
+            self.serials.borrow_mut().clear();
+            if let Some(bytes) = with {
+                self.push(service, account, &bytes);
+            }
+        }
+        Ok(found)
+    }
+
+    fn delete_item(&self, item: ItemRef) {
+        self.log.borrow_mut().push("delete_item");
+        if self.keeps_on_delete_item {
+            return;
+        }
+        let serial = serial_of(&item);
+        let at = self
+            .serials
+            .borrow()
+            .iter()
+            .position(|made| *made == serial);
+        if let Some(at) = at {
+            self.items.borrow_mut().remove(at);
+            self.serials.borrow_mut().remove(at);
+        }
+    }
+}
+
+fn serial_of(item: &ItemRef) -> u64 {
+    match item {
+        ItemRef::Fake(serial) => *serial,
+        #[cfg(target_os = "macos")]
+        ItemRef::System(_) => panic!("a reference that no fake made"),
     }
 }
 
@@ -332,6 +410,14 @@ impl Keychain for Holder {
             .map(drop)
             .ok_or(ITEM_NOT_FOUND)
     }
+
+    fn find(&self, service: &str, account: &str) -> Result<(Vec<u8>, ItemRef), i32> {
+        Ok((self.data(service, account)?, ItemRef::Fake(1)))
+    }
+
+    fn delete_item(&self, _item: ItemRef) {
+        let _ = self.held.borrow_mut().take();
+    }
 }
 
 #[test]
@@ -360,4 +446,154 @@ fn a_keychain_round_trip_frees_no_copy_of_the_secret() {
         0,
         "a keychain call freed a copy of the secret as it was"
     );
+}
+
+const HELD: &[u8] = b"0123456789abcdef0123456789abcdef";
+
+fn one_byte_off(bytes: &[u8], at: usize) -> Vec<u8> {
+    let mut other = bytes.to_vec();
+    other[at] ^= 1;
+    other
+}
+
+fn other_bytes(answer: DeleteIfHolds) -> Vec<u8> {
+    match answer {
+        DeleteIfHolds::Other(secret) => secret.expose().to_vec(),
+        answer => panic!("the delete answered {answer:?}"),
+    }
+}
+
+fn faulted(answer: DeleteIfHolds) -> Option<Fault> {
+    match answer {
+        DeleteIfHolds::Fault(fault) => Some(fault),
+        _ => None,
+    }
+}
+
+#[test]
+fn a_delete_if_holds_removes_the_item_only_while_it_holds_the_bytes_read() {
+    let store = item(Fake::holding(&[(ACCOUNT, HELD)]));
+    assert!(matches!(
+        store.delete_if_holds(HELD),
+        DeleteIfHolds::Deleted
+    ));
+    assert!(store.keychain.all().is_empty());
+    assert!(matches!(
+        store.delete_if_holds(HELD),
+        DeleteIfHolds::NotStored
+    ));
+    for at in [0, HELD.len() / 2, HELD.len() - 1] {
+        let other = one_byte_off(HELD, at);
+        assert_eq!(other.len(), HELD.len());
+        let store = item(Fake::holding(&[(ACCOUNT, &other)]));
+        assert_eq!(other_bytes(store.delete_if_holds(HELD)), other);
+        assert_eq!(store.keychain.all().len(), 1);
+        assert_eq!(store.keychain.all()[0].1, other);
+        assert!(!store.keychain.ops().contains(&"delete_item"));
+        assert!(!store.keychain.ops().contains(&"delete"));
+    }
+    let store = item(Fake::holding(&[("another", HELD)]));
+    assert!(matches!(
+        store.delete_if_holds(HELD),
+        DeleteIfHolds::NotStored
+    ));
+    assert_eq!(store.keychain.all().len(), 1);
+}
+
+#[test]
+fn a_delete_if_holds_removes_by_its_reference_and_never_an_item_put_in_place_after_its_read() {
+    let later = one_byte_off(HELD, 7);
+    let store = item(Fake::holding(&[(ACCOUNT, HELD)]).replacing_after_find(Some(&later)));
+    assert_eq!(other_bytes(store.delete_if_holds(HELD)), later);
+    assert_eq!(store.keychain.all().len(), 1);
+    assert_eq!(store.keychain.all()[0].1, later);
+    assert!(!store.keychain.ops().contains(&"delete"));
+
+    let store = item(Fake::holding(&[(ACCOUNT, HELD)]).replacing_after_find(Some(HELD)));
+    assert_eq!(
+        faulted(store.delete_if_holds(HELD)),
+        Some(Fault { code: -1 })
+    );
+    assert_eq!(store.keychain.all().len(), 1);
+
+    let store = item(Fake::holding(&[(ACCOUNT, HELD)]).replacing_after_find(None));
+    assert!(matches!(
+        store.delete_if_holds(HELD),
+        DeleteIfHolds::Deleted
+    ));
+    assert!(store.keychain.all().is_empty());
+}
+
+#[test]
+fn a_delete_if_holds_whose_removal_did_not_take_answers_a_fault_and_keeps_the_item() {
+    let store = item(Fake::holding(&[(ACCOUNT, HELD)]).keeping_on_delete_item());
+    assert_eq!(
+        faulted(store.delete_if_holds(HELD)),
+        Some(Fault { code: -1 })
+    );
+    assert_eq!(store.keychain.all()[0].1, HELD);
+    assert_eq!(
+        store.keychain.ops(),
+        ["count", "find", "delete_item", "count", "data"]
+    );
+}
+
+#[test]
+fn a_delete_if_holds_answers_the_class_of_a_failed_count_or_find_and_removes_nothing() {
+    for op in ["count", "find"] {
+        for code in CLASSES {
+            let store = item(Fake::holding(&[(ACCOUNT, HELD)]).failing(op, code));
+            let answer = store.delete_if_holds(HELD);
+            match (op, code) {
+                ("count", ITEM_NOT_FOUND) | ("find", ITEM_NOT_FOUND) => {
+                    assert!(matches!(answer, DeleteIfHolds::NotStored), "{op} {code}")
+                }
+                _ if is_refusal(code) => assert!(
+                    matches!(answer, DeleteIfHolds::Locked(locked) if locked == refused(code)),
+                    "{op} {code}: {answer:?}"
+                ),
+                _ => assert_eq!(faulted(answer), Some(fault(code)), "{op} {code}"),
+            }
+            assert_eq!(store.keychain.all().len(), 1, "{op} {code}");
+            assert!(!store.keychain.ops().contains(&"delete_item"));
+        }
+    }
+    let store = item(Fake::holding(&[(ACCOUNT, HELD), (ACCOUNT, HELD)]));
+    assert!(matches!(
+        store.delete_if_holds(HELD),
+        DeleteIfHolds::Locked(Locked::Duplicate)
+    ));
+    assert_eq!(store.keychain.all().len(), 2);
+    let too_long = vec![b'x'; MAX_SECRET_LEN + 1];
+    for bytes in [&b""[..], &too_long] {
+        let store = item(Fake::holding(&[(ACCOUNT, bytes)]));
+        assert!(matches!(
+            store.delete_if_holds(HELD),
+            DeleteIfHolds::Locked(Locked::Size)
+        ));
+        assert_eq!(store.keychain.all().len(), 1);
+    }
+}
+
+#[test]
+fn a_delete_if_holds_whose_second_look_fails_answers_a_fault() {
+    for (code, answer) in [
+        (AUTH_FAILED, fault(AUTH_FAILED)),
+        (NOT_AVAILABLE, fault(NOT_AVAILABLE)),
+        (DUPLICATE_ITEM, fault(DUPLICATE_ITEM)),
+    ] {
+        let store = item(Fake::holding(&[(ACCOUNT, HELD)]).keeping_on_delete_item());
+        store.keychain.fail.borrow_mut().push(("data", code));
+        assert_eq!(faulted(store.delete_if_holds(HELD)), Some(answer), "{code}");
+    }
+}
+
+#[test]
+fn a_delete_if_holds_whose_second_look_finds_an_item_it_does_not_give_answers_a_fault() {
+    let store = item(Fake::holding(&[(ACCOUNT, HELD)]).replacing_after_find(Some(b"")));
+    assert_eq!(
+        faulted(store.delete_if_holds(HELD)),
+        Some(Fault { code: -1 })
+    );
+    assert_eq!(store.keychain.all().len(), 1);
 }

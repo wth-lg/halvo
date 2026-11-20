@@ -22,7 +22,7 @@ struct Chosen {
 }
 
 impl Dialog for Chosen {
-    fn show(&self, _: &Card, on_screen: &dyn Fn()) -> ConfirmAnswer {
+    fn show(&self, _: &Card, _: Duration, on_screen: &dyn Fn()) -> ConfirmAnswer {
         let n = self.shows.fetch_add(1, Ordering::SeqCst) + 1;
         if n > LAST_SHOW {
             return ConfirmAnswer::Reject;
@@ -54,9 +54,11 @@ fn rig() -> Rig {
         shown: Mutex::new(shown_tx),
         press: Mutex::new(press_rx),
     });
-    let presenter = DialogPresenter::new(dialog.clone(), |_: &ItemId| {
-        Card::new(&[Class::Payment], &[])
-    });
+    let presenter = DialogPresenter::new(
+        dialog.clone(),
+        |_: &ItemId| Card::new(&[Class::Payment], &[]),
+        Duration::from_millis(Limits::PRODUCT.arm_ms),
+    );
     let hub = Hub::new(
         world(1, Limits::PRODUCT),
         Limits::PRODUCT,
@@ -222,7 +224,7 @@ fn the_pages_allow_for_the_native_item_answers_presenter_while_the_dialog_is_ope
     assert_eq!(rig.present(), Reply::Ok);
     assert_eq!(rig.shown.recv_timeout(WAIT), Ok(1));
     rig.clock(Limits::PRODUCT.arm_ms);
-    let allow = json!({ "item": rig.item, "choice": "allow" });
+    let allow = json!({ "item": rig.item, "step": 0, "choice": "allow" });
     assert_eq!(
         rig.hub.call("agents_answer", Some(&allow)),
         Reply::Error(Cause::Presenter)

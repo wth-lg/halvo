@@ -45,7 +45,8 @@ B(d) == B2(d, {}, FALSE)
 K(a) == [m |-> "ack", agent |-> a]
 C(a) == [m |-> "check", agent |-> a]
 D(a) == [m |-> "delete", agent |-> a]
-O(a) == [m |-> "off", agent |-> a]
+O(a) == [m |-> "off", agent |-> a, port |-> "ok"]
+OL(a) == [m |-> "off", agent |-> a, port |-> "lost"]
 H(id) == [m |-> "hello", run |-> id]
 
 Directed ==
@@ -72,13 +73,16 @@ Directed ==
                    S(5, "ok")>>],
       [case |-> "reap_alive", cfg |-> "reap",
        moves |-> <<S(1, "ok"), S(5, "ok"), B2(1, {1}, TRUE), S(1, "ok"), K(5), S(5, "ok"),
-                   B2(1, {}, FALSE)>>]>>
+                   B2(1, {}, FALSE)>>],
+      [case |-> "failures_start_after_lost_off", cfg |-> "holds",
+       moves |-> <<S(3, "no_store"), K(3), S(3, "no_store"), K(3), OL(3), T(2, TRUE, "ok"), S(3, "ok")>>]>>
 
 StartCands(s) == Cat([a \in 1..NAgents |-> [i \in 1..4 |-> S(a, PortSeq[i])]])
 
 LiveCands(s, id) ==
     <<H(id), [m |-> "wait", run |-> id], [m |-> "resume", run |-> id], X(id, "cancelled")>>
-    \o (IF (CHOOSE r \in s.runs : r.id = id).phase = "waiting" THEN <<X(id, "lapsed")>> ELSE <<>>)
+    \o (IF (CHOOSE r \in s.runs : r.id = id).phase = "waiting"
+        THEN <<X(id, "lapsed"), X(id, "answer_lost")>> ELSE <<>>)
     \o [f \in 1..Len(FrameSeq) |-> E(id, FrameSeq[f], "ok")]
 
 RunCands(s) ==
@@ -96,6 +100,7 @@ OtherCands(s) ==
     \o Cat([a \in 1..NAgents |->
               IF s.dels < MaxDeletes /\ a \in Deletable \ (s.gone \cup s.lost) THEN <<D(a)>> ELSE <<>>])
     \o Cat([a \in 1..NAgents |-> IF a \in OffAgents \ s.off THEN <<O(a)>> ELSE <<>>])
+    \o Cat([a \in 1..NAgents |-> IF OL(a) \in OffMoves(s, h) THEN <<OL(a), OL(a)>> ELSE <<>>])
 
 EnvCands(g) ==
     Cat([a \in 1..NAgents |-> IF Acked(g, a) THEN <<K(a)>> ELSE <<>>])
@@ -110,8 +115,9 @@ AnswersOf(s, cs, i) ==
 Choose(s, x0) ==
     LET cs == Cands(s)
         as == AnswersOf(s, cs, 1)
-        IsGood(i) == as[i] \in {"ok", "queued"}
-        IsBad(i) == as[i] \notin {"ok", "queued"}
+        Lost(i) == cs[i].m = "off" /\ cs[i].port = "lost"
+        IsGood(i) == as[i] \in {"ok", "queued"} \/ Lost(i)
+        IsBad(i) == ~IsGood(i)
         idx == [i \in 1..Len(cs) |-> i]
         good == SelectSeq(idx, IsGood)
         bad == SelectSeq(idx, IsBad)
@@ -202,7 +208,8 @@ Args(mv) ==
               KV("left", YesNo(mv.left))>>
       [] mv.m = "restart" ->
             <<KV("day", ToString(mv.day)), KV("alive", RunList(mv.alive)), KV("left", YesNo(mv.left))>>
-      [] mv.m \in {"delete", "off", "ack", "check"} -> <<KV("agent", Id("a", mv.agent))>>
+      [] mv.m \in {"delete", "ack", "check"} -> <<KV("agent", Id("a", mv.agent))>>
+      [] mv.m = "off" -> <<KV("agent", Id("a", mv.agent)), KV("port", Str(mv.port))>>
 
 Extra(mv, res) ==
     CASE mv.m = "start" -> <<KV("run", RunName(res.run))>>
@@ -282,7 +289,7 @@ TraceNext ==
                THEN Skip
                ELSE IF w.k = Len(d.moves)
                THEN Emit(<<KV("n", ToString(w.n)), KV("case", Str(d.case))>>)
-               ELSE /\ Assert(d.moves[w.k + 1] \in Moves(st) \cup EnvMoves(h),
+               ELSE /\ Assert(d.moves[w.k + 1] \in Moves(st) \cup EnvMoves(h) \cup OffMoves(st, h),
                               <<"a move that the configuration does not allow", d.case, w.k + 1>>)
                     /\ Play(d.moves[w.k + 1], w.x)
 =============================================================================

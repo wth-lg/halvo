@@ -30,7 +30,7 @@ const DAEMON: &str = "crates/halvo-capture/src/daemon/";
 /// Every use of `#[path]` and of the include macros that the crate and the app
 /// may hold: the file from the root of the repository, the name, and the
 /// literal that it reads.
-const LISTED: [(&str, &str, &str); 8] = [
+const LISTED: [(&str, &str, &str); 10] = [
     (
         "crates/halvo-capture/src/secure_input.rs",
         "path",
@@ -40,6 +40,11 @@ const LISTED: [(&str, &str, &str); 8] = [
         "crates/halvo-capture/src/secure_input.rs",
         "path",
         "\"windows/secure_input.rs\"",
+    ),
+    (
+        "crates/halvo-capture/src/secure_input_macos.rs",
+        "path",
+        "\"secure_input_macos_hold.rs\"",
     ),
     (
         "crates/halvo-capture/src/store/mod.rs",
@@ -66,6 +71,11 @@ const LISTED: [(&str, &str, &str); 8] = [
         "src-tauri/src/tests.rs",
         "include_str",
         "\"engine-url-forms.txt\"",
+    ),
+    (
+        "crates/halvo-capture/tests/cold_evidence.rs",
+        "path",
+        "\"browser/evidence.rs\"",
     ),
 ];
 
@@ -849,37 +859,113 @@ fn path_attributes_and_include_macros_stand_only_at_the_listed_uses() {
     );
 }
 
-/// Ruling ST-46 K8: no code outside `crates/halvo-capture/src/store` names
-/// the delete tail or the encrypted store, so none calls `delete_store_dir`
-/// or `EncryptedStore::delete_all`. store-3b's unit removes this test.
+/// Ruling DM-12 G9 (units/daemon-1.md line 173): the macOS entry hands the
+/// signal flag that the binary installs to the timed run, as the fifth
+/// argument of its one call of `run_timed`. A process test of a signal needs
+/// the main run loop and the sources' grants, so on this Mac the rule is held
+/// over the source text; the process test is daemon-3's tests/cli.rs.
 #[test]
-fn no_code_outside_the_store_calls_the_delete_tail_or_the_stores_delete_all() {
-    let base = root();
-    let (mut files, mut faults) = (Vec::new(), Vec::new());
-    files_under(&base, "crates", &mut files, &mut faults);
-    files_under(&base, "src-tauri/src", &mut files, &mut faults);
-    assert_eq!(faults, Vec::<String>::new());
-    let callers: Vec<String> = files
-        .iter()
-        .filter(|file| {
-            file.ends_with(".rs") && !file.starts_with("crates/halvo-capture/src/store/")
-        })
-        .filter(|file| {
-            read_tokens_at(&base, file).is_ok_and(|tokens| {
-                tokens
-                    .iter()
-                    .any(|token| token == "delete_store_dir" || token == "EncryptedStore")
-            })
-        })
-        .cloned()
+fn the_macos_timed_run_hands_the_signal_flag_to_the_run() {
+    let file = "crates/halvo-capture/src/macos/mod.rs";
+    let tokens = read_tokens(file).unwrap();
+    let calls: Vec<usize> = (0..tokens.len().saturating_sub(1))
+        .filter(|&i| tokens[i] == "run_timed" && tokens[i + 1] == "(")
         .collect();
-    println!(
-        "rust files read outside the store: {}",
-        files.iter().filter(|file| file.ends_with(".rs")).count()
-    );
     assert_eq!(
-        callers,
-        Vec::<String>::new(),
-        "code outside the store names the delete tail or the encrypted store"
+        calls.len(),
+        1,
+        "{file} holds {} calls of run_timed",
+        calls.len()
     );
+    let open = calls[0] + 1;
+    let close = matching(&tokens, open);
+    let mut args: Vec<Vec<&str>> = vec![Vec::new()];
+    let mut depth = 0usize;
+    for token in &tokens[open + 1..close] {
+        match token.as_str() {
+            "(" | "[" | "{" => depth += 1,
+            ")" | "]" | "}" => depth -= 1,
+            "," if depth == 0 => {
+                args.push(Vec::new());
+                continue;
+            }
+            _ => {}
+        }
+        args.last_mut().unwrap().push(token);
+    }
+    let flag = [
+        "crate", ":", ":", "daemon", ":", ":", "signal", ":", ":", "flag", "(", ")",
+    ];
+    assert_eq!(
+        args.get(4).map(Vec::as_slice),
+        Some(&flag[..]),
+        "the fifth argument of run_timed in {file} is not the binary's signal flag"
+    );
+}
+
+/// The body of each match arm in `tokens` that opens with `head` followed by
+/// `=>`: its tokens up to the comma or the closing delimiter at its own depth,
+/// without a comma that stands just before a closing delimiter, which the
+/// formatter adds to a call that it breaks over lines.
+fn arm_bodies(tokens: &[String], head: &[&str]) -> Vec<Vec<String>> {
+    let mut bodies = Vec::new();
+    for at in 0..tokens.len() {
+        let end = at + head.len();
+        if end + 2 > tokens.len()
+            || tokens[at..end].iter().zip(head).any(|(t, h)| t != h)
+            || tokens[end] != "="
+            || tokens[end + 1] != ">"
+        {
+            continue;
+        }
+        let mut body = Vec::new();
+        let mut depth = 0usize;
+        for token in &tokens[end + 2..] {
+            match token.as_str() {
+                "(" | "[" | "{" => depth += 1,
+                ")" | "]" | "}" if depth == 0 => break,
+                ")" | "]" | "}" => {
+                    depth -= 1;
+                    if body.last().is_some_and(|last: &String| last == ",") {
+                        body.pop();
+                    }
+                }
+                "," if depth == 0 => break,
+                _ => {}
+            }
+            body.push(token.clone());
+        }
+        bodies.push(body);
+    }
+    bodies
+}
+
+/// Ruling DM-15 (1), the binary's own arm (G3): the usage arm of the binary
+/// returns the status that `usage_answer` gives, and its run arm the status
+/// that `outcome_answer` gives, each arm once. Both answers are tested in the
+/// lib; a process test of the binary's exit code is daemon-3's tests/cli.rs,
+/// so the two calls are held over the source text.
+#[test]
+fn the_binary_returns_what_usage_answer_and_outcome_answer_give() {
+    let file = "crates/halvo-capture/src/bin/halvo-capture.rs";
+    let tokens = read_tokens(file).unwrap();
+    let arms = [
+        (
+            &["Err", "(", "usage", ")"][..],
+            "status(daemon::usage_answer(&usage, &mut std::io::stderr()))",
+        ),
+        (
+            &["Ok", "(", "outcome", ")"][..],
+            "status(daemon::outcome_answer(&outcome, &mut std::io::stdout().lock(), &mut std::io::stderr()))",
+        ),
+    ];
+    for (head, body) in arms {
+        let want = lex(body).unwrap();
+        assert_eq!(
+            arm_bodies(&tokens, head),
+            [want],
+            "the arm {} of {file} does not return {body} alone, once",
+            head.concat()
+        );
+    }
 }

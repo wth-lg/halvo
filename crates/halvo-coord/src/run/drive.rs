@@ -5,15 +5,17 @@ use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use crate::schedule::{self, stop_run, Board, Move, Report, Stop};
 use crate::types::{
     Agent, AgentId, Answer, BindResult, Body, Cause, ConfigView, Decision, Doing, Event,
-    HandbackResult, Limits, Live, Outcome, Reply, RunEnd, RunId, RunItem, RunSpec, Workflow,
-    WorkflowId,
+    HandbackResult, Limits, Live, Outcome, Reply, ReplyRow, RunEnd, RunId, RunItem, RunSpec,
+    Workflow, WorkflowId,
 };
 use std::cell::RefCell;
 
 /// Who stops a live run with the move `stop` of the run drive: the person's stop control,
 /// which gives the cause `cancelled`, a lapse of the run's item with `wait_limit`, which gives
 /// `lapsed` (I5.6, I5.7), or the coordinator's answer to a request that ends the run with
-/// `kind` or `budget` (I3.1, I3.3, ruling IG-32). The switch-off control and a workflow that is
+/// `kind` or `budget` (I3.1, I3.3, ruling IG-32), or the settle of a confirmation that an
+/// answer's move left `answered`, which gives `answer_lost` (ruling RD-84). The switch-off
+/// control and a workflow that is
 /// gone stop a run through `Act::SwitchOff` and `Act::Tick`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StopBy {
@@ -28,6 +30,8 @@ pub enum StopBy {
     Kind,
     /// A request after the run raised `items_per_run` items, which ends it with `budget` (I3.3).
     Budget,
+    /// The settle of a confirmation that an answer's move left `answered` (ruling RD-84).
+    AnswerLost,
 }
 
 impl StopBy {
@@ -38,8 +42,31 @@ impl StopBy {
             StopBy::WaitLimit => StopCause::Lapsed,
             StopBy::Kind => StopCause::Kind,
             StopBy::Budget => StopCause::Budget,
+            StopBy::AnswerLost => StopCause::AnswerLost,
         }
     }
+}
+
+/// A stop that no read of the clock answered (ruling RD-133 1): the run is stopped on the guard's
+/// table and the board at once, with the time 0 on the board, which is the record that the
+/// coordinator stamps at the next read that answers. It sends nothing: the coordinator writes the
+/// rest of the record and then sends the cancel (`send_cancel`), or the lapse of the run's open
+/// item sends it (ruling RD-138 (1)). Whether the board took a new stop.
+pub fn stop_unstamped<C>(board: &mut Board<C>, table: &mut Table, run: &RunId, by: StopBy) -> bool {
+    *table = table.stop(run);
+    if board.runs.iter().any(|r| &r.run == run && r.stop.is_some()) {
+        return false;
+    }
+    stop_run(board, run, 0, by.cause().end());
+    true
+}
+
+/// Sends `Runs::cancel` for a run whose stop is already on the guard's table and the board, and
+/// whose record (its board stop at time 0 where no read of the clock answered, the switch-off's
+/// list and `hold_set`) the coordinator wrote first, so that a cancel that does not return loses
+/// none of it (ruling RD-138 (1)).
+pub fn send_cancel<P: Runs>(ports: &P, run: &RunId) {
+    let _ = ports.cancel(run);
 }
 
 /// A move that the run drive carries out on the ports, the board of the schedule and the
@@ -177,16 +204,27 @@ fn phase_of(phase: &Phase) -> Live {
 }
 
 /// The ports as the schedule's tick and switch-off see them, with the runs whose kill the
-/// supervisor library refused with `unknown_run` noted, and no `cancel` for a run in `sent`,
-/// whose cancel the lapse of its item sent when it stopped the run in the guard's table (I5.7).
-/// Every other `cancel` marks the run stopped in the guard's table before the port's call, so
-/// that a panic in the call leaves the run's effect records refused (ruling RD-34 (e)).
+/// supervisor library refused with `unknown_run` noted, and no `cancel` for a run in
+/// `cancel_already_sent`, whose cancel the lapse of its item sent when it stopped the run in the
+/// guard's table (I5.7). Every other `cancel` marks the run stopped in the guard's table before
+/// the port's call, so that a panic in the call leaves the run's effect records refused (ruling
+/// RD-34 (e)).
 struct Watch<'a, P> {
     ports: &'a P,
-    unknown: RefCell<Vec<RunId>>,
+    kill_refused_unknown_run: RefCell<Vec<RunId>>,
     listed: RefCell<Option<Vec<WorkflowId>>>,
-    sent: Vec<RunId>,
+    cancel_already_sent: Vec<RunId>,
     table: RefCell<&'a mut Table>,
+}
+
+impl<P: Runs> Watch<'_, P> {
+    fn mark_stopped_then_cancel(&self, run: &RunId) -> Result<(), PortError> {
+        {
+            let mut table = self.table.borrow_mut();
+            **table = table.stop(run);
+        }
+        self.ports.cancel(run)
+    }
 }
 
 impl<P: Owner> Owner for Watch<'_, P> {
@@ -196,7 +234,7 @@ impl<P: Owner> Owner for Watch<'_, P> {
         self.ports.log(events)
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.ports.history(agent, after)
     }
 
@@ -214,6 +252,15 @@ impl<P: Owner> Owner for Watch<'_, P> {
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.ports.send(body)
+    }
+
+    fn replies(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &RunId,
+    ) -> Result<Vec<ReplyRow>, PortError> {
+        self.ports.replies(workflow, agent, run)
     }
 }
 
@@ -240,21 +287,17 @@ impl<P: Runs> Runs for Watch<'_, P> {
     }
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
-        if self.sent.contains(run) {
+        if self.cancel_already_sent.contains(run) {
             return Ok(());
         }
-        {
-            let mut table = self.table.borrow_mut();
-            **table = table.stop(run);
-        }
-        self.ports.cancel(run)
+        self.mark_stopped_then_cancel(run)
     }
 
     fn kill(&self, run: &RunId) -> Result<(), PortError> {
         let killed = self.ports.kill(run);
         if let Err(e) = &killed {
             if refused_with(e, "unknown_run") {
-                self.unknown.borrow_mut().push(run.clone());
+                self.kill_refused_unknown_run.borrow_mut().push(run.clone());
             }
         }
         killed
@@ -276,10 +319,6 @@ impl<P: Clock> Clock for Watch<'_, P> {
         self.ports.now()
     }
 
-    fn today(&self) -> Result<u32, PortError> {
-        self.ports.today()
-    }
-
     fn day(&self, at: u64) -> Result<u32, PortError> {
         self.ports.day(at)
     }
@@ -294,7 +333,12 @@ impl<P: Rng> Rng for Watch<'_, P> {
 /// Ends the `stopping` run whose kill the library refused with `unknown_run`, in the tick of
 /// that kill and with the cause `interrupted` (I5.7, I5.8): its `run_ended` is stored, no
 /// `end_run` is sent for it, and its end takes one start from the queue.
-fn lose<P>(ports: &P, board: &mut Board<P::Config>, limits: &Limits, run: &RunId) -> Option<Report>
+fn end_interrupted_after_unknown_run_kill<P>(
+    ports: &P,
+    board: &mut Board<P::Config>,
+    limits: &Limits,
+    run: &RunId,
+) -> Option<Report>
 where
     P: Owner + Runs + Analysis + Clock + Rng,
     P::Config: ConfigView + Clone,
@@ -332,15 +376,15 @@ where
 {
     let watch = Watch {
         ports,
-        unknown: RefCell::new(Vec::new()),
+        kill_refused_unknown_run: RefCell::new(Vec::new()),
         listed: RefCell::new(None),
-        sent: Vec::new(),
+        cancel_already_sent: Vec::new(),
         table: RefCell::new(table),
     };
     let before = board.clone();
     let mut report = schedule::drive(&watch, board, limits, Move::Tick);
     let Watch {
-        unknown,
+        kill_refused_unknown_run,
         listed,
         table,
         ..
@@ -354,8 +398,8 @@ where
         *table = table.stop(run);
     }
     let mut lost = Vec::new();
-    for run in unknown.into_inner() {
-        if let Some(end) = lose(ports, board, limits, &run) {
+    for run in kill_refused_unknown_run.into_inner() {
+        if let Some(end) = end_interrupted_after_unknown_run_kill(ports, board, limits, &run) {
             report.ended.extend(end.ended);
             lost.push(run);
         }
@@ -428,9 +472,9 @@ where
                 .collect();
             let watch = Watch {
                 ports,
-                unknown: RefCell::new(Vec::new()),
+                kill_refused_unknown_run: RefCell::new(Vec::new()),
                 listed: RefCell::new(None),
-                sent,
+                cancel_already_sent: sent,
                 table: RefCell::new(table),
             };
             let report = schedule::drive(&watch, board, limits, Move::SwitchOff { agent });
@@ -480,8 +524,18 @@ where
         .map(|r| r.run.clone())
         .collect();
     for run in runs {
-        let stopped = stop_as(ports, board, table, &run, StopBy::Person, false);
+        let stopped = stop_as(
+            ports,
+            board,
+            table,
+            &run,
+            StopBy::Person,
+            ItemLapse::LapsedByQuit,
+        );
         done.report.stopped.extend(stopped.report.stopped);
+        if stopped.report.read.is_some() {
+            done.report.read = stopped.report.read;
+        }
     }
     while let Some(waiting) = board.queue.pop() {
         if let Some(m) = board
@@ -510,7 +564,7 @@ where
     trees.sort();
     let mut done = answer(None);
     for (_, run) in trees {
-        if kill_tree(ports, board, &run) {
+        if quit_kill_tree(ports, board, &run) {
             done.killed.push(run);
         }
     }
@@ -519,11 +573,14 @@ where
 
 /// `Runs::kill` for the tree of `run`, which leaves the board when the kill succeeded, with
 /// nothing stored or sent: the quit's kill.
-fn kill_tree<P, C>(ports: &P, board: &mut Board<C>, run: &RunId) -> bool
+fn quit_kill_tree<P, C>(ports: &P, board: &mut Board<C>, run: &RunId) -> bool
 where
     P: Runs,
 {
     if ports.kill(run).is_err() {
+        if let Some(r) = board.runs.iter_mut().find(|r| &r.run == run) {
+            r.kill_refused = true;
+        }
         return false;
     }
     board.dying.retain(|d| &d.run != run);
@@ -568,7 +625,7 @@ where
     trees.sort();
     let mut done = answer(None);
     for (_, run) in trees {
-        if kill_tree(ports, board, &run) {
+        if quit_kill_tree(ports, board, &run) {
             done.killed.push(run);
         }
     }
@@ -599,45 +656,56 @@ fn stop<P>(
 where
     P: Runs + Clock + Owner,
 {
-    let lapsed_first = matches!(by, StopBy::Person | StopBy::WaitLimit);
-    stop_as(ports, board, table, run, by, lapsed_first)
+    let lapse = match by {
+        StopBy::Person | StopBy::WaitLimit | StopBy::AnswerLost => ItemLapse::MustHaveLapsed,
+        StopBy::Kind | StopBy::Budget => ItemLapse::NoOpenItem,
+    };
+    stop_as(ports, board, table, run, by, lapse)
 }
 
-/// The stop of a live run; `lapsed_first` makes a `waiting` run whose item has not lapsed in
-/// the guard's table `state`, which the quit's stop-all does not ask, because the quit lapses
-/// every open item with `app_ended` first (I4.5).
+/// Where the lapse of a stopped run's open item stands at its stop: a stop by the person or at
+/// the wait limit answers `state` for a `waiting` run whose item has not lapsed in the guard's
+/// table; the quit lapses every open item with `app_ended` before its stop-all (I4.5); a stop for
+/// a request's kind or budget finds the run working, with no open item.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ItemLapse {
+    MustHaveLapsed,
+    LapsedByQuit,
+    NoOpenItem,
+}
+
 fn stop_as<P>(
     ports: &P,
     board: &mut Board<P::Config>,
     table: &mut Table,
     run: &RunId,
     by: StopBy,
-    lapsed_first: bool,
+    lapse: ItemLapse,
 ) -> Done
 where
     P: Runs + Clock + Owner,
 {
-    let now = match ports.now() {
-        Ok(now) => now,
-        Err(PortError::Busy) => return answer(Some(Cause::Busy)),
-        Err(_) => return answer(Some(Cause::NoService)),
-    };
+    let now = ports.now().ok();
     let Some((_, phase)) = live(board, run) else {
         return answer(Some(Cause::State));
     };
     if run_step(Some(&phase), RunMove::Stop(by.cause())).is_err() {
         return answer(Some(Cause::State));
     }
-    if lapsed_first && matches!(phase, Phase::Waiting(_)) && !table.is_stopped(run) {
+    if lapse == ItemLapse::MustHaveLapsed
+        && matches!(phase, Phase::Waiting(_))
+        && !table.is_stopped(run)
+    {
         return answer(Some(Cause::State));
     }
     let send = !table.is_stopped(run);
     *table = table.stop(run);
-    stop_run(board, run, now, by.cause().end());
+    stop_run(board, run, now.unwrap_or(0), by.cause().end());
     if send {
         let _ = ports.cancel(run);
     }
     let mut done = answer(None);
     done.report.stopped.push(run.clone());
+    done.report.read = now;
     done
 }

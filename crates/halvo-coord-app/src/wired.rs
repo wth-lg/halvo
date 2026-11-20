@@ -3,7 +3,7 @@ use halvo_coord::guard::Policy;
 use halvo_coord::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
 use halvo_coord::types::{
     Agent, AgentId, Answer, BindResult, Body, Class, Decision, Event, HandbackResult, Reply,
-    RunHistory, RunId, RunSpec, Workflow, WorkflowId,
+    ReplyRow, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
 };
 use std::sync::Arc;
 
@@ -34,7 +34,7 @@ impl<P: Owner> Owner for Wired<P> {
         self.ports.log(events)
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.ports.history(agent, after)
     }
 
@@ -57,6 +57,15 @@ impl<P: Owner> Owner for Wired<P> {
         runs: u32,
     ) -> Result<Vec<RunHistory>, PortError> {
         self.ports.agent_history(workflow, agent, runs)
+    }
+
+    fn replies(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &RunId,
+    ) -> Result<Vec<ReplyRow>, PortError> {
+        self.ports.replies(workflow, agent, run)
     }
 }
 

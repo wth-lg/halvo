@@ -1,10 +1,19 @@
+use halvo_coord::items::chars::columns;
+use halvo_coord::items::{CARD_COLUMNS, CARD_LINES};
 use halvo_coord::types::{Cause, Class, Field};
 use halvo_coord::words;
 
 /// What the native dialog shows (I4.3, I4.9): a title, one line per bound field, and its two
 /// controls, the rejecting one first. The title and the two controls come from the words file
 /// by the classes of the request's effects, so a card cannot hold the allowing text on its
-/// rejecting control, nor two controls of the same text.
+/// rejecting control, nor two controls of the same text. A card keeps the composed form when its
+/// title, each of its lines and each control text holds no character of the closed list of
+/// `breaks` (the control characters, the line and paragraph separators and the marks that set the
+/// direction of text), when it has at most `LINES` lines, when its title, each line and each
+/// control text takes at most `LINE_COLUMNS` columns of display width, and when no control text
+/// holds the mark of an
+/// access key of the system that shows it (`&` on Windows, none on macOS); the presenter refuses
+/// to show a card that breaks that form, and nothing mends it (ruling RD-90 item 10).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Card {
     title: String,
@@ -21,9 +30,9 @@ impl Card {
     /// `confirm.mixed.title`, `confirm.mixed.reject` and `confirm.mixed.allow` with `{count}`.
     /// A field is the line `<label>: <value>`, or its label alone when it has no value; the value
     /// is its pieces joined with nothing, because they are the cut of one value at character
-    /// bounds, as the page joins them (I3.4); a control character, a line or paragraph separator
-    /// and a mark that sets the direction of text in a field is a space, so that each field stays
-    /// one line and reads in its own order. `malformed` for no class, for a class whose entries the
+    /// bounds, as the page joins them (I3.4); the label and the value are taken as they are, so a
+    /// field that holds a character of `breaks` gives a card that breaks the composed form, which
+    /// the presenter refuses to show. `malformed` for no class, for a class whose entries the
     /// words file does not hold (its action line in a request of more than one class), and for two
     /// controls of one text.
     pub fn new(classes: &[Class], fields: &[Field]) -> Result<Card, Cause> {
@@ -91,9 +100,61 @@ impl Card {
     pub fn allow(&self) -> &str {
         &self.allow
     }
+
+    /// Whether the card keeps the composed form on the system that this build is for.
+    pub(crate) fn whole(&self) -> bool {
+        self.keeps(MARKS)
+    }
+
+    /// Whether the card keeps the composed form on a system whose marks of an access key are
+    /// `marks`.
+    pub(crate) fn keeps(&self, marks: &[char]) -> bool {
+        let short = |text: &str| columns(text) <= LINE_COLUMNS;
+        let plain = |text: &str| !text.chars().any(breaks);
+        self.lines.len() <= LINES
+            && [&self.title, &self.reject, &self.allow]
+                .into_iter()
+                .chain(&self.lines)
+                .all(|text| short(text) && plain(text))
+            && [&self.reject, &self.allow]
+                .into_iter()
+                .all(|text| !text.contains(marks))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn of(title: &str, lines: &[&str], reject: &str, allow: &str) -> Card {
+        Card {
+            title: title.into(),
+            lines: lines.iter().map(|line| line.to_string()).collect(),
+            reject: reject.into(),
+            allow: allow.into(),
+        }
+    }
 }
 
-fn breaks(c: char) -> bool {
+/// The most lines that a card holds, the empty line between two fields counted: the dialog's
+/// bound proven on a hosted screen of both systems, `halvo_coord::items::CARD_LINES` (ruling
+/// RD-90 items 7 and 9).
+pub const LINES: usize = CARD_LINES;
+
+/// The most columns that a card's title, one of its lines or one of its control texts takes,
+/// counted as display width by `halvo_coord::items::chars::columns` and not in characters, so
+/// that a wide character takes two and a combining mark none: the dialog's bound proven on a
+/// hosted screen of both systems, `halvo_coord::items::CARD_COLUMNS` (ruling RD-90 items 7 and 9).
+pub const LINE_COLUMNS: usize = CARD_COLUMNS;
+
+/// The marks of an access key in a control text of the task dialog of Windows.
+#[cfg(any(test, windows))]
+pub const WINDOWS_MARKS: &[char] = &['&'];
+
+#[cfg(windows)]
+const MARKS: &[char] = WINDOWS_MARKS;
+#[cfg(not(windows))]
+const MARKS: &[char] = &[];
+
+/// The closed list of characters that break a line of a card: the control characters, the line
+/// and paragraph separators and the marks that set the direction of text.
+pub fn breaks(c: char) -> bool {
     c.is_control()
         || matches!(
             c,
@@ -101,17 +162,10 @@ fn breaks(c: char) -> bool {
         )
 }
 
-fn one_line(text: &str) -> String {
-    text.chars()
-        .map(|c| if breaks(c) { ' ' } else { c })
-        .collect()
-}
-
 fn line(field: &Field) -> String {
-    let label = one_line(&field.label);
     if field.value.is_empty() {
-        return label;
+        return field.label.clone();
     }
-    let value: String = field.value.iter().map(|piece| one_line(piece)).collect();
-    format!("{label}: {value}")
+    let value: String = field.value.concat();
+    format!("{}: {value}", field.label)
 }

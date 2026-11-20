@@ -3,7 +3,7 @@ mod common;
 use std::time::{Duration, Instant};
 
 use common::stand_in::{head, inbox_of, Plan, StandIn};
-use halvo_connect::{AnswerFault, CallError, Mail, ReplyRule, Token};
+use halvo_connect::{reply_senders, AnswerFault, CallError, Mail, ReplyRule, Token};
 
 const BOUND: usize = 33_554_432;
 
@@ -15,7 +15,8 @@ fn list(stand_in: &StandIn, limit: Duration) -> (Result<usize, CallError>, Durat
     let graph = stand_in.graph(limit);
     let rule = ReplyRule::new(
         "me@home.test".to_owned(),
-        vec!["ann@people.test".to_owned()],
+        reply_senders("ann@people.test").expect("a sender"),
+        halvo_schema::record::Instant(0),
     );
     let began = Instant::now();
     let result = graph

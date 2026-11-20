@@ -1,10 +1,13 @@
+use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
+use std::panic::PanicHookInfo;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 
-use halvo_learn_store::{Clock, LearnStep};
+use halvo_learn_store::{newest_routine, Clock, LearnStep};
 use halvo_schema::learning::names::Mark;
 use halvo_schema::learning::record::LearnRoutine;
-use halvo_schema::{RowRead, Summary, SummaryRead, WriterStep};
+use halvo_schema::{AgentId, RowRead, Summary, SummaryRead, WorkflowId, WriterStep};
 use serde_json::{json, Value};
 
 use crate::case::{Case, Form, Kind, Occurrence, Step, Verb};
@@ -18,6 +21,8 @@ pub const SAMPLE_PATH: &str = "fixtures/r5/trains/sample.jsonl";
 
 /// The number of trains that the sample holds (L7.2).
 pub const TRAINS: usize = 135;
+
+const WORKFLOW: u32 = 1;
 
 /// The last day of a train; the play runs the clock from day 1 to it (L7.2, L10.4).
 pub const LAST_DAY: u32 = 730;
@@ -131,6 +136,14 @@ const MISS_PCTS: [&str; 3] = ["0", "10", "20"];
 /// The highest train number of a cell (L7.2: each cell has 200 trains).
 const TRAIN_MAX: u64 = 200;
 
+fn kind_of(train: u64) -> &'static str {
+    match train {
+        1..=100 => "same",
+        101..=150 => "stop",
+        _ => "shift",
+    }
+}
+
 fn in_grid(cell: &str) -> bool {
     let parts: Vec<&str> = cell.split('-').collect();
     matches!(parts[..], [cadence, jitter, miss]
@@ -167,9 +180,7 @@ fn read_train(line: &str) -> Option<Train> {
     let train = value["train"]
         .as_u64()
         .filter(|n| (1..=TRAIN_MAX).contains(n))?;
-    let kind = value["kind"]
-        .as_str()
-        .filter(|k| matches!(*k, "same" | "stop" | "shift"))?;
+    let kind = value["kind"].as_str().filter(|k| *k == kind_of(train))?;
     let days: Vec<u32> = value["days"]
         .as_array()?
         .iter()
@@ -190,7 +201,8 @@ fn read_train(line: &str) -> Option<Train> {
 }
 
 /// The trains of a sample file: one line per train, each ending in LF alone and each the line of L7.2 byte for byte:
-/// the keys in L7.2's order and each once, no white space, a cell of L7.2's grid and a train number from 1 to 200.
+/// the keys in L7.2's order and each once, no white space, a cell of L7.2's grid, a train number from 1 to 200 and the
+/// kind of that number.
 pub fn read_sample(bytes: &[u8]) -> Result<Vec<Train>, String> {
     let text = std::str::from_utf8(bytes).map_err(|_| "the sample is not UTF-8".to_owned())?;
     let body = text
@@ -282,50 +294,62 @@ fn summary(workflow: &str, day: u32) -> Result<(String, Summary), String> {
     Ok((json, summary))
 }
 
-/// The mark and the period of the newest `learn_routine` row of the rows, or an error when a row of that kind
-/// cannot be read or none is there.
-pub fn newest(rows: &dyn RowRead) -> Result<Figures, String> {
-    let mut found: Option<LearnRoutine> = None;
+/// The mark and the period of the newest `learn_routine` row of the workflow and agent among the rows, by
+/// `halvo_learn_store::newest_routine` over the rows in the order of the read (the coordinator's ruling LM-79, item
+/// 2), none when the pair has no such row, or an error when a row of that kind cannot be read.
+pub fn newest(
+    rows: &dyn RowRead,
+    workflow: &WorkflowId,
+    agent: &AgentId,
+) -> Result<Option<Figures>, String> {
+    let mut read: Vec<LearnRoutine> = Vec::new();
     let mut unread = false;
     rows.for_each(
         "learn_routine",
         &mut |json| match LearnRoutine::parse(json.as_bytes()) {
-            Ok(row) if found.as_ref().is_none_or(|f| row.rev > f.rev) => found = Some(row),
-            Ok(_) => {}
+            Ok(row) => read.push(row),
             Err(_) => unread = true,
         },
     );
     if unread {
         return Err("a learn_routine row that its parser refuses".to_owned());
     }
-    let row = found.ok_or_else(|| "no learn_routine row".to_owned())?;
-    Ok((row.mark, row.period.map(std::num::NonZeroU32::get)))
+    Ok(newest_routine(&read, workflow, agent)
+        .map(|row| (row.mark, row.period.map(std::num::NonZeroU32::get))))
 }
 
 /// Plays one train in one stream on a memory store of its own (L10.2, L10.4): the compile on day 1, then each day
-/// from 1 to `LAST_DAY` on the clock, until the first day whose figures differ from the train's. On a day with an
-/// occurrence the store and the command's list of summaries are opened on the day, and the stub runner plays the
-/// occurrence where the stream carries it as a run; else the day's summary goes onto that list. No batch is
-/// committed: every day `LearnStep` runs over that list and the rows of the family `learn`, its rows are committed,
-/// and the mark and the period of the newest routine row, read again after a write or on an occurrence day, are
-/// compared with the train's. The line reaches neither the step's 30-day rewrite nor the bound of a routine row.
+/// from 1 to `LAST_DAY` on the clock, until the first day whose figures differ from the train's. Every day the store
+/// and the command's list of summaries are opened on the day first (the coordinator's ruling LM-67); then, on a day
+/// with an occurrence, the stub runner plays the occurrence where the stream carries it as a run, else the day's
+/// summary goes onto that list. No batch is committed: every day `LearnStep` runs over that list and the rows of the
+/// family `learn`, its rows are committed, and the mark and the period of the newest routine row, read again after a
+/// write, on an occurrence day or after an open that removed a routine row, are compared with the train's. A day on
+/// which no routine row is left differs; no routine row after the compile is an error.
 pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
     let case = routine_case();
-    let mut play = Play::new(&case, Arm::Admit, 1, MemoryStore::new());
+    let mut play = Play::new(&case, Arm::Admit, WORKFLOW, MemoryStore::new());
     play.host.day = 1;
     play.compile()?;
     let workflow = play.workflow().to_owned();
+    let pair = (
+        WorkflowId::parse(&workflow).map_err(|_| "the play's workflow id".to_owned())?,
+        AgentId::parse(&id('4', WORKFLOW)).map_err(|_| "the play's agent id".to_owned())?,
+    );
     let occurs: BTreeSet<u32> = train.days.iter().copied().collect();
     let mut batches = Batches(Vec::new());
     let mut played = Played::default();
-    let mut figures = newest(play.host.store.rows(Family::Learn))?;
+    let mut figures = Some(
+        newest(play.host.store.rows(Family::Learn), &pair.0, &pair.1)?
+            .ok_or_else(|| "no learn_routine row".to_owned())?,
+    );
     for day in 1..=LAST_DAY {
         play.host.day = day;
+        let expired = play.host.store.open(day);
+        played.expired_runs += u32::try_from(expired.of("learn_run")).unwrap_or(u32::MAX);
+        played.expired_summaries += batches.open(day);
         let occurs_today = occurs.contains(&day);
         if occurs_today {
-            let expired = play.host.store.open(day).of("learn_run");
-            played.expired_runs += u32::try_from(expired).unwrap_or(u32::MAX);
-            played.expired_summaries += batches.open(day);
             if stream == Stream::Replay && day >= REPLAY_FROM {
                 let (_, _, completed, _) = play.occurrence(&occurrence(day))?;
                 if !completed {
@@ -344,10 +368,10 @@ pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
             .store
             .commit(Family::Learn, records)
             .map_err(|e| format!("the step's rows of day {day} are refused: {e:?}"))?;
-        if wrote || occurs_today {
-            figures = newest(play.host.store.rows(Family::Learn))?;
+        if wrote || occurs_today || expired.of("learn_routine") > 0 {
+            figures = newest(play.host.store.rows(Family::Learn), &pair.0, &pair.1)?;
         }
-        if figures != train.figures_on(day) {
+        if figures != Some(train.figures_on(day)) {
             played.differs_on = Some(day);
             return Ok(played);
         }
@@ -360,11 +384,92 @@ pub fn threads() -> usize {
     std::thread::available_parallelism().map_or(1, |n| n.get().min(4))
 }
 
+/// Why one play gave no result: the error that it returned, or the message and the place, file and line, of its
+/// panic, the message with its control characters escaped so that it stays on one line.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Failure {
+    Error(String),
+    Panic {
+        message: String,
+        file: String,
+        line: u32,
+    },
+}
+
+impl Failure {
+    /// The words of the refusal's detail after the train.
+    pub fn detail(&self) -> String {
+        match self {
+            Failure::Error(detail) => detail.clone(),
+            Failure::Panic {
+                message,
+                file,
+                line,
+            } => format!("the play panicked: {message} at {file}:{line}"),
+        }
+    }
+}
+
+thread_local! {
+    static PLAYING: Cell<bool> = const { Cell::new(false) };
+    static PANICKED: RefCell<Option<Failure>> = const { RefCell::new(None) };
+}
+
+static HOOK: Mutex<()> = Mutex::new(());
+
+type Hook = Box<dyn Fn(&PanicHookInfo<'_>) + Sync + Send + 'static>;
+
+fn one_line(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            if c.is_control() {
+                c.escape_default().to_string()
+            } else {
+                c.to_string()
+            }
+        })
+        .collect()
+}
+
+fn panic_of(info: &PanicHookInfo<'_>) -> Failure {
+    let (file, line) = info
+        .location()
+        .map_or(("an unknown file".to_owned(), 0), |l| {
+            (one_line(l.file()), l.line())
+        });
+    Failure::Panic {
+        message: one_line(info.payload_as_str().unwrap_or("a panic with no message")),
+        file,
+        line,
+    }
+}
+
+fn with_the_panic_hook<T>(plays: impl FnOnce() -> T) -> T {
+    let _held = HOOK.lock().unwrap_or_else(PoisonError::into_inner);
+    let before: Arc<Hook> = Arc::new(std::panic::take_hook());
+    let others = Arc::clone(&before);
+    std::panic::set_hook(Box::new(move |info| {
+        if PLAYING.get() {
+            PANICKED.set(Some(panic_of(info)));
+        } else {
+            others(info);
+        }
+    }));
+    let out = plays();
+    drop(std::panic::take_hook());
+    match Arc::try_unwrap(before) {
+        Ok(hook) => std::panic::set_hook(hook),
+        Err(shared) => std::panic::set_hook(Box::new(move |info| shared(info))),
+    }
+    out
+}
+
 /// Every play of the trains, each train in both streams in the order of `Stream::BOTH`, in the order of the trains,
-/// spread over `threads` threads, each play made by `play_one`. A play that panics gives the error "the play
-/// panicked" at its own place, and the thread goes on with the next play, so every place holds its own result; what
-/// the panic hook writes to standard error stays beside the command's one line.
-pub fn play_all<F>(trains: &[Train], threads: usize, play_one: F) -> Vec<Result<Played, String>>
+/// spread over `threads` threads, each play made by `play_one`. It takes the panic hook before the plays and gives it
+/// back after them (L0.3, the coordinator's ruling LM-69): a panic inside a play writes nothing, gives the failure
+/// `Panic` with its message and place at the play's own place, and the thread goes on with the next play, so every
+/// place holds its own result; a panic on another thread goes to the hook that was there before.
+pub fn play_all<F>(trains: &[Train], threads: usize, play_one: F) -> Vec<Result<Played, Failure>>
 where
     F: Fn(&Train, Stream) -> Result<Played, String> + Sync,
 {
@@ -373,36 +478,49 @@ where
         .flat_map(|t| Stream::BOTH.map(|s| (t, s)))
         .collect();
     let next = AtomicUsize::new(0);
-    let mut out: Vec<Option<Result<Played, String>>> = vec![None; plays.len()];
-    let done: Vec<Vec<(usize, Result<Played, String>)>> = std::thread::scope(|scope| {
-        let workers: Vec<_> = (0..threads.max(1))
-            .map(|_| {
-                scope.spawn(|| {
-                    let mut mine = Vec::new();
-                    loop {
-                        let at = next.fetch_add(1, Ordering::Relaxed);
-                        let Some((train, stream)) = plays.get(at) else {
-                            return mine;
-                        };
-                        let one = || play_one(train, *stream);
-                        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(one)) {
-                            Ok(result) => mine.push((at, result)),
-                            Err(_) => mine.push((at, Err("the play panicked".to_owned()))),
+    let mut out: Vec<Option<Result<Played, Failure>>> = vec![None; plays.len()];
+    let done: Vec<Vec<(usize, Result<Played, Failure>)>> = with_the_panic_hook(|| {
+        std::thread::scope(|scope| {
+            let workers: Vec<_> = (0..threads.max(1))
+                .map(|_| {
+                    scope.spawn(|| {
+                        let mut mine = Vec::new();
+                        loop {
+                            let at = next.fetch_add(1, Ordering::Relaxed);
+                            let Some((train, stream)) = plays.get(at) else {
+                                return mine;
+                            };
+                            let one = || play_one(train, *stream);
+                            PLAYING.set(true);
+                            let result =
+                                std::panic::catch_unwind(std::panic::AssertUnwindSafe(one));
+                            PLAYING.set(false);
+                            match result {
+                                Ok(result) => mine.push((at, result.map_err(Failure::Error))),
+                                Err(_) => mine.push((
+                                    at,
+                                    Err(PANICKED.take().unwrap_or(Failure::Panic {
+                                        message: "a panic that the hook did not see".to_owned(),
+                                        file: "an unknown file".to_owned(),
+                                        line: 0,
+                                    })),
+                                )),
+                            }
                         }
-                    }
+                    })
                 })
-            })
-            .collect();
-        workers
-            .into_iter()
-            .map(|w| w.join().unwrap_or_default())
-            .collect()
+                .collect();
+            workers
+                .into_iter()
+                .map(|w| w.join().unwrap_or_default())
+                .collect()
+        })
     });
     for (at, result) in done.into_iter().flatten() {
         out[at] = Some(result);
     }
     out.into_iter()
-        .map(|r| r.unwrap_or_else(|| Err("a play that no thread ran".to_owned())))
+        .map(|r| r.unwrap_or_else(|| Err(Failure::Error("a play that no thread ran".to_owned()))))
         .collect()
 }
 
@@ -413,7 +531,8 @@ pub fn report(trains: &[Train]) -> Result<Report, Refusal> {
 }
 
 /// `report` with the thread count and the function that plays one train in one stream given: the command passes
-/// `threads()` and `play`.
+/// `threads()` and `play`. A play that failed refuses with `store` and the train of its place: the first play in
+/// place order that panicked, else the first that failed.
 pub fn report_with<F>(trains: &[Train], threads: usize, play_one: F) -> Result<Report, Refusal>
 where
     F: Fn(&Train, Stream) -> Result<Played, String> + Sync,
@@ -424,18 +543,23 @@ where
             format!("the sample holds {} trains, not {TRAINS}", trains.len()),
         ));
     }
-    let played = play_all(trains, threads, play_one)
-        .into_iter()
+    let results = play_all(trains, threads, play_one);
+    let first = results
+        .iter()
         .enumerate()
-        .map(|(at, result)| {
-            result.map_err(|detail| {
-                Refusal::new(
-                    Cause::Store,
-                    format!("train {}: {detail}", at / Stream::BOTH.len() + 1),
-                )
-            })
-        })
-        .collect::<Result<Vec<Played>, Refusal>>()?;
+        .filter_map(|(at, result)| result.as_ref().err().map(|failure| (at, failure)))
+        .min_by_key(|(at, failure)| (!matches!(failure, Failure::Panic { .. }), *at));
+    if let Some((at, failure)) = first {
+        return Err(Refusal::new(
+            Cause::Store,
+            format!(
+                "train {}: {}",
+                at / Stream::BOTH.len() + 1,
+                failure.detail()
+            ),
+        ));
+    }
+    let played: Vec<Played> = results.into_iter().flatten().collect();
     Ok(line(trains.len(), &played))
 }
 

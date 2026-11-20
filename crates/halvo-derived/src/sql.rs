@@ -22,6 +22,7 @@ CREATE INDEX rows_kind_day ON rows(kind, day, summary);
 CREATE UNIQUE INDEX rows_workflow_id ON rows(workflow) WHERE kind = 'workflow';
 CREATE UNIQUE INDEX rows_workflow_key ON rows(wkey) WHERE kind = 'workflow';
 CREATE INDEX rows_read ON rows(kind, body) WHERE family <> 'workflow';
+CREATE INDEX rows_read_workflow ON rows(kind, workflow, body) WHERE family <> 'workflow';
 ";
 
 pub(crate) const MASTER: &str = "SELECT type, name, tbl_name, sql FROM sqlite_master";
@@ -172,9 +173,13 @@ catalogue! {
     EXPIRE_NO_DAY = concat!("SELECT id, family FROM rows WHERE ", bounded_without_day!("rows"));
     EXPIRE_WINDOW = concat!("SELECT id, family FROM rows WHERE ", expiry_has_come!("rows"));
     BOUND_GONE = "UPDATE rows SET gone = day + ?2 WHERE kind = ?1 AND gone > day + ?2";
+    GONE_FILL = "UPDATE rows SET gone = day + ?2 WHERE kind = ?1 AND class = 1 AND day IS NOT NULL \
+        AND gone IS NULL";
     STORED_OTHER_CLASS = "SELECT id FROM rows WHERE kind = ?1 AND class <> ?2 LIMIT 1";
+    STORED_OTHER_FAMILY = "SELECT id FROM rows WHERE kind = ?1 AND family <> ?2 LIMIT 1";
     STORED_OTHER_WORKFLOW = "SELECT id FROM rows WHERE kind = ?1 AND workflow IS NOT NULL \
         AND json_extract(body, ?2) IS NOT workflow LIMIT 1";
+    STORED_WORKFLOW_HELD = "SELECT id FROM rows WHERE kind = ?1 AND workflow IS NOT NULL LIMIT 1";
     WORKFLOW_FILL = "UPDATE rows SET workflow = json_extract(body, ?2) WHERE kind = ?1 AND workflow IS NULL";
     REVISION_READ = "SELECT n FROM revisions WHERE family = ?1";
     COUNT_CLASS = "SELECT count(*) FROM rows WHERE class = ?1";

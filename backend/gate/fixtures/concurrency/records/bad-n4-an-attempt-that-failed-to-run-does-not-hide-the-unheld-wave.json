@@ -1,0 +1,132 @@
+{
+  "kind": "line",
+  "note": "N4 probe. A plain wave run of six attempts: the first failed to run (driver.mjs runCounted line 706 gives facts null, so the discarded entry has no held key, line 733), the other five held the wave in none. No attempt held the wave, but check.mjs line 108 asks every attempt for held === false, so the errored one sends the line to the generic sentence (admitted, holds open at the kill, ...) that names no cause. Expected: the N4 sentence with the last attempt's first early end.",
+  "selected": [
+    {
+      "name": "wave@200",
+      "kind": "wave",
+      "level": 200,
+      "switch": "usage-last",
+      "k": 120,
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "halted": false,
+  "attempts": 6,
+  "runs": [
+    {
+      "key": "ledger-wave-at-200-plain-1-try6",
+      "cell": "wave@200",
+      "kind": "wave",
+      "level": 200,
+      "switch": "usage-last",
+      "variant": "counts-open-holds",
+      "withKill": false,
+      "runNo": 1,
+      "counted": false,
+      "error": null,
+      "violations": [],
+      "ms": 1,
+      "facts": {
+        "admitted": 118,
+        "settled": 0,
+        "expired": 0,
+        "voided": 3,
+        "overruns": 0,
+        "resets": 0,
+        "proxyLost": 0,
+        "lostInTransport": 0,
+        "openAtKill": 0,
+        "streamAtKill": false,
+        "slow": false,
+        "burstWaits": [
+          120
+        ],
+        "burstMedianMs": 120,
+        "slowBoundMs": 2600,
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "voided",
+          "ms": 300
+        },
+        "settleMs": []
+      },
+      "discarded": [
+        {
+          "key": "ledger-wave-at-200-plain-1-try1",
+          "error": "Error: the server did not answer within 30000 ms; see server.log",
+          "ms": 30000,
+          "openAtKill": null,
+          "streamAtKill": null,
+          "crossed": null,
+          "violations": []
+        },
+        {
+          "key": "ledger-wave-at-200-plain-1-try2",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": false,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": {
+            "state": "voided",
+            "ms": 40
+          },
+          "violations": []
+        },
+        {
+          "key": "ledger-wave-at-200-plain-1-try3",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": false,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": {
+            "state": "voided",
+            "ms": 50
+          },
+          "violations": []
+        },
+        {
+          "key": "ledger-wave-at-200-plain-1-try4",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": false,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": {
+            "state": "voided",
+            "ms": 60
+          },
+          "violations": []
+        },
+        {
+          "key": "ledger-wave-at-200-plain-1-try5",
+          "error": null,
+          "ms": 1,
+          "openAtKill": 0,
+          "streamAtKill": false,
+          "crossed": null,
+          "slow": false,
+          "held": false,
+          "firstEndBeforeTheLastAnswer": {
+            "state": "voided",
+            "ms": 70
+          },
+          "violations": []
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "line": "FAIL concurrency: runs=0 of 1 cells=0 of 1 violations=0 wave=0 of 120 lost-sends=0 settle-p99-at-200=unmeasured second-attempts=1 rollover-uncrossed=0 slow=0 burst-p50-at-200=120ms rollover-redrawn=0; first failure: ledger-wave-at-200-plain-1-try6 did not count in 6 attempts because its wave was held in none of them (ruling B-37); in the last attempt the first hold of the wave to end, voided, ended 300 ms before the last reserve of the wave was answered"
+  },
+  "source": "the review of unit 4.10 (evidence/builder-56/90-review-verdicts.txt), finder f2"
+}

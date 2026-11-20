@@ -153,9 +153,9 @@ fn a_refused_learn_edit_row_stops_the_edit_side_of_its_workflow_and_nothing_else
     w.log(
         10,
         &[
-            (1, "step_ok", 2, None),
-            (2, "recovered", 3, None),
-            (3, "step_ok", 3, None),
+            (2, "step_ok", 2, None),
+            (3, "recovered", 3, None),
+            (4, "step_ok", 3, None),
         ],
     );
     assert_eq!(w.finish(10, "replay", "completed"), Ok(stored(1)));
@@ -187,7 +187,7 @@ fn a_refused_learn_edit_row_stops_the_edit_side_of_its_workflow_and_nothing_else
     w.pair = 2;
     let served = w.replay(12);
     assert_eq!(names(&served[1]), ["B", "Pay"]);
-    w.log(12, &[(1, "step_ok", 2, None)]);
+    w.log(12, &[(2, "step_ok", 2, None)]);
     assert!(w.finish(12, "replay", "completed").is_ok());
     let b_edit: Vec<LearnEdit> = edits(&w)
         .into_iter()
@@ -228,9 +228,9 @@ fn a_refused_learn_run_row_makes_the_runs_of_its_workflow_lost_runs_and_stops_no
     w.log(
         10,
         &[
-            (1, "step_ok", 2, None),
-            (2, "recovered", 3, None),
-            (3, "step_ok", 3, None),
+            (2, "step_ok", 2, None),
+            (3, "recovered", 3, None),
+            (4, "step_ok", 3, None),
         ],
     );
     assert_eq!(w.finish(10, "replay", "completed"), Ok(stored(1)));
@@ -288,9 +288,9 @@ fn a_refused_learn_run_row_that_comes_after_a_runs_start_makes_it_a_lost_run() {
     assert_eq!(names(&served[1]), ["Pay"]);
     let id = RunId::parse(&run(11)).expect("a run id");
     assert!(!w.handlers.facts.contains_key(&id));
-    w.log(11, &[(1, "step_ok", 2, None)]);
+    w.log(11, &[(2, "step_ok", 2, None)]);
     assert_eq!(w.finish(11, "replay", "completed"), Ok(stored(1)));
-    w.log(12, &[(1, "step_ok", 2, None)]);
+    w.log(12, &[(2, "step_ok", 2, None)]);
     assert_eq!(w.finish(12, "replay", "completed"), Ok(stored(1)));
     assert_eq!(rows_of(&w, "learn_run", 1), runs);
     assert!(w.handlers.faults.is_empty(), "a stopped read is no fault");
@@ -344,19 +344,25 @@ fn a_refused_learn_routine_row_stops_the_routine_rows_of_its_workflow_and_no_run
 }
 
 #[test]
-fn a_refused_row_whose_workflow_cannot_be_read_stops_its_kind_for_every_workflow() {
+fn a_refused_row_whose_text_names_no_workflow_stops_only_the_workflow_under_whose_key_it_stands() {
     let mut w = active_world();
     w.add_pair(2);
     w.learn(2, 2, "button Pay now", vec![loc("A"), pay()]);
     w.pair = 2;
     w.learn(3, 2, "button Pay now", vec![loc("B"), pay()]);
-    w.host.put_raw("learn_edit", r#"{"v":1,"workflow":7}"#);
-    for n in [1, 2] {
-        w.pair = n;
-        let served = w.replay(10 + n);
-        assert_eq!(names(&served[1]), ["Pay"]);
-        assert_eq!(list(&mut w, n), Err(Refused::Error(ErrorName::Store)));
-    }
+    w.host
+        .put_raw_under("learn_edit", Some(&wf(1)), r#"{"v":1,"workflow":7}"#);
+    w.pair = 1;
+    let served = w.replay(11);
+    assert_eq!(names(&served[1]), ["Pay"]);
+    assert_eq!(list(&mut w, 1), Err(Refused::Error(ErrorName::Store)));
+    w.pair = 2;
+    let served = w.replay(12);
+    assert_eq!(names(&served[1]), ["B", "Pay"]);
+    assert!(matches!(
+        list(&mut w, 2),
+        Ok(CoordinatorAnswer::Refinements(_))
+    ));
 }
 
 #[test]
@@ -364,7 +370,7 @@ fn a_learning_commit_that_the_store_refuses_leaves_the_agent_stores_reply() {
     let mut w = active_world();
     w.learn(2, 2, "button Pay now", vec![loc("A"), pay()]);
     w.replay(4);
-    w.log(4, &[(1, "step_ok", 2, None)]);
+    w.log(4, &[(2, "step_ok", 2, None)]);
     w.host.refuse = true;
 
     assert_eq!(w.finish(4, "replay", "completed"), Ok(stored(1)));
@@ -523,12 +529,31 @@ fn a_start_run_of_a_held_run_under_another_agent_at_runs_held_max_drops_no_other
     let reply = w.coordinator(json!({
         "op": "start_run", "workflow": wf(2), "agent": agent(2), "run": run(42), "mode": "replay",
     }));
-    assert!(matches!(
+    let binding = ErrorName::read("binding").expect("a declared name");
+    assert_eq!(
         reply,
-        Ok(CoordinatorAnswer::Agent(CoordinatorReply::Accepted(_)))
-    ));
+        Err(Refused::Error(binding)),
+        "the run is the first agent's"
+    );
     assert!(
         (2..last).all(|r| held(&w, r)),
         "a start of run 42 under agent 2 dropped a held run"
     );
+    w.host.agent.hidden_runs.push(run(42));
+    let reply = w.coordinator(json!({
+        "op": "start_run", "workflow": wf(2), "agent": agent(2), "run": run(42), "mode": "replay",
+    }));
+    assert!(
+        matches!(
+            reply,
+            Ok(CoordinatorAnswer::Agent(CoordinatorReply::Accepted(_)))
+        ),
+        "with the first agent's rows of run 42 removed the agent store accepts the start: {reply:?}"
+    );
+    assert!(
+        (2..last).all(|r| held(&w, r)),
+        "a start of the held run 42 under agent 2 dropped another held run"
+    );
+    let held_42 = &w.handlers.starts[&RunId::parse(&run(42)).expect("a run id")];
+    assert_eq!(held_42.agent.as_str(), agent(2));
 }

@@ -48,10 +48,10 @@ fn assisted_counts_the_distinct_steps_with_a_recovered_line() {
     w.log(
         2,
         &[
-            (1, "recovered", 2, None),
             (2, "recovered", 2, None),
-            (3, "step_ok", 2, None),
-            (4, "step_ok", 3, None),
+            (3, "recovered", 2, None),
+            (4, "step_ok", 2, None),
+            (5, "step_ok", 3, None),
         ],
     );
     assert!(w.finish(2, "replay", "completed").is_ok());
@@ -70,10 +70,10 @@ fn the_last_recovered_line_of_a_step_decides_whether_its_held_proposal_is_kept()
     w.log(
         2,
         &[
-            (1, "recovered", 2, None),
-            (2, "step_failed", 2, Some("timeout")),
-            (3, "recovered", 2, None),
-            (4, "step_ok", 2, None),
+            (2, "recovered", 2, None),
+            (3, "step_failed", 2, Some("timeout")),
+            (4, "recovered", 2, None),
+            (5, "step_ok", 2, None),
         ],
     );
     assert!(w.finish(2, "replay", "completed").is_ok());
@@ -86,7 +86,7 @@ fn the_base_of_a_run_row_is_the_number_that_the_run_loaded_when_a_compile_lands_
     let mut w = active_world();
     w.replay(2);
     w.compile(20, 2, compiled());
-    w.log(2, &[(1, "step_ok", 2, None)]);
+    w.log(2, &[(2, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert!(matches!(ended(&w, 2).status, RunStatus::Ended { base: Some(n), .. } if n.get() == 1));
 }
@@ -97,7 +97,7 @@ fn a_second_load_of_a_run_changes_nothing_and_its_served_edit_still_takes_its_mo
     w.learn(2, 2, "button Pay now", vec![loc("A"), pay()]);
     w.replay(3);
     w.load(3);
-    w.log(3, &[(1, "step_failed", 2, Some("step_failed"))]);
+    w.log(3, &[(2, "step_failed", 2, Some("step_failed"))]);
     assert!(w.finish(3, "replay", "failed").is_ok());
     assert_eq!(newest(&w)[0].state.name(), "reverted");
 }
@@ -210,7 +210,7 @@ fn finish_reads_the_edit_limit_of_a_step_again_and_stores_no_edit_above_it() {
     assert_eq!(newest(&w).len(), 8);
     w.failed_use(4, 2, "step_failed");
     assert!(newest(&w).iter().all(|e| e.state.name() == "reverted"));
-    w.log(2, &[(1, "recovered", 2, None), (2, "step_ok", 2, None)]);
+    w.log(2, &[(2, "recovered", 2, None), (3, "step_ok", 2, None)]);
     assert!(w.finish(2, "replay", "completed").is_ok());
     assert_eq!(newest(&w).len(), 8);
 }

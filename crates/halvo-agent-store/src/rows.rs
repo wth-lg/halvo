@@ -1,6 +1,6 @@
 use halvo_schema::executable::{
-    AgentBindings, AgentConfig, AgentEffect, AgentLog, AgentPlaybook, AgentRun, AgentSession,
-    Refusal,
+    AgentBindings, AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentPlaybook, AgentReply,
+    AgentRun, AgentSession, AgentStart, Refusal,
 };
 use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord};
 
@@ -13,6 +13,9 @@ pub(crate) const AGENT_BINDINGS: &str = "agent_bindings";
 pub(crate) const AGENT_EFFECT: &str = "agent_effect";
 pub(crate) const AGENT_LOG: &str = "agent_log";
 pub(crate) const AGENT_SESSION: &str = "agent_session";
+pub(crate) const AGENT_CHECKPOINT: &str = "agent_checkpoint";
+pub(crate) const AGENT_REPLY: &str = "agent_reply";
+pub(crate) const AGENT_START: &str = "agent_start";
 
 fn parsed<T>(
     rows: &dyn RowRead,
@@ -67,6 +70,24 @@ pub(crate) fn logs(rows: &dyn RowRead) -> Result<Vec<AgentLog>, ErrorName> {
 
 pub(crate) fn sessions(rows: &dyn RowRead) -> Result<Vec<AgentSession>, ErrorName> {
     parsed(rows, AGENT_SESSION, AgentSession::parse)
+}
+
+pub(crate) fn checkpoints(rows: &dyn RowRead) -> Result<Vec<AgentCheckpoint>, ErrorName> {
+    parsed(rows, AGENT_CHECKPOINT, AgentCheckpoint::parse)
+}
+
+pub(crate) fn replies(rows: &dyn RowRead) -> Result<Vec<AgentReply>, ErrorName> {
+    parsed(rows, AGENT_REPLY, AgentReply::parse)
+}
+
+pub(crate) fn start_of(
+    rows: &dyn RowRead,
+    agent: &AgentId,
+) -> Result<Option<AgentStart>, ErrorName> {
+    Ok(parsed(rows, AGENT_START, AgentStart::parse)?
+        .into_iter()
+        .filter(|s| &s.agent == agent)
+        .min_by_key(|s| s.at))
 }
 
 pub(crate) fn newest_config(

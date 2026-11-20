@@ -31,7 +31,7 @@ runs the jar. Nothing of the product links it and no bundle ships it (L0.8).
 |---|---|
 | `Admit.tla` | the model: the step relation of one edit, the system, the properties Q1 to Q14 |
 | `Admit.cfg` | the configuration that TLC checks |
-| `Small.cfg` | the small bound that `scripts/r5/ci.d/30-r5-formal.sh` checks in every push: `Admit.cfg` with `RunsMax` 3 and `RunsOnBothSteps` 2 |
+| `Small.cfg` | the small bound that `scripts/r5/ci.d/30-r5-formal.sh` checks in every push of the macos job (the windows job leaves this run and the two controls to the macos job): `Admit.cfg` with `RunsMax` 3 and `RunsOnBothSteps` 2 |
 | `record.txt` | the record of the runs that are too long for a push (see "The record") |
 | `runs.txt` | the wrong designs and the reach runs, one run per line with its bound (see "The record") |
 | `record.sh` | the writer of `record.txt`, one TLC run for each call (see "Writing the record") |
@@ -372,7 +372,10 @@ how the run of `Admit.cfg` ran: `workers` is TLC's `-workers`, `run` is `helper`
 run through the machine's queue of timed runs and `nice19` for a run beside it at the
 lowest priority, and `seconds` is the wall time, an observation and not a measurement.
 The `small` line holds the count of distinct states of `Small.cfg`, which the check finds
-again in every push. There is one `design` line and one `reach` line for each line of
+again in every push of the macos job. In the windows job the check does not read the value of
+this line and prints `small=-`; the line still counts among the record's lines (`lines=`). No
+job of CI then runs `Small.cfg` and the two control copies under the Java 17 of the windows job
+(the macos job's java is 21); the export there stays a TLC run under Java 17. There is one `design` line and one `reach` line for each line of
 `runs.txt`, with the bound of that line.
 
 The stamp shows which files the record names: a change of a `.tla` or `.cfg` file gives

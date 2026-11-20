@@ -1,8 +1,8 @@
 use halvo_coord::mem::{Call, Config, Method, Ports};
 use halvo_coord::ports::{Owner, PortError};
 use halvo_coord::schedule::{
-    drive, start_step, tick_step, Answer, Around, Ask, Board, Hold, Member, Move, Report, Served,
-    Verdict,
+    drive, holds, start_step, tick_step, Answer, Around, Ask, Board, Hold, Member, Move, Report,
+    Served, Verdict,
 };
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Answered, Body, Category, Cause, CheckAnswer, Cleared, Doing,
@@ -11,6 +11,13 @@ use halvo_coord::types::{
     WorkflowTrigger,
 };
 use std::num::NonZeroU32;
+
+/// What a life that saw the whole run writes of its defers: the defer of its launch acknowledged
+/// and no tick at which a defer failed (ruling RD-86, RD-120).
+const SEEN_WHOLE: Option<halvo_coord::types::Defers> = Some(halvo_coord::types::Defers {
+    launch: true,
+    ticks_failed: 0,
+});
 
 const DAY: u32 = 20_000;
 const T0: u64 = 1_700_000_000_000;
@@ -116,6 +123,8 @@ fn member(world: &World, n: usize) -> Member<Config> {
             config: config(n, &a),
             slots: names(a.slots),
             store_ended: newest.is_none_or(|r| last.as_ref().is_some_and(|l| l.run == r)),
+            replies: halvo_coord::types::Replies::NotAsked,
+            unknown: Vec::new(),
             runs: last.into_iter().collect(),
             events,
             today: world.board.day,
@@ -172,6 +181,7 @@ fn world_with(spec: &[A], limits: Limits) -> World {
                         What::RunEnded {
                             run,
                             cause: RunEnd::Completed,
+                            defers: None,
                         },
                     ),
                 ])
@@ -873,10 +883,7 @@ fn a_hold_stored_between_the_queue_and_the_start_drops_the_start() {
     let mut w = world(&[manual(), manual(), manual()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    assert_eq!(
-        w.go(Move::SwitchOff { agent: agent(1) }).answer,
-        Ok(Answer::Ok)
-    );
+    stored_at_owner(&mut w, 1, OFF, false);
     w.forget();
     let end = w.end(&run, Some(Outcome::Completed));
     let next = &end.ended[0].next;
@@ -1098,7 +1105,7 @@ fn a_tick_with_no_live_run_takes_one_start_from_the_queue_before_the_agents() {
     let mut w = world(&[manual(), manual(), manual(), person()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     w.end(&run, Some(Outcome::Completed));
     w.forget();
     let tick = w.tick();
@@ -1153,6 +1160,69 @@ fn tick_step_raises_ready_for_a_first_run_and_an_open_slot_of_the_person_and_sta
     let mut live = w.facts(0).clone();
     live.doing = Doing::Live(halvo_coord::types::Live::Working);
     assert_eq!(tick_step(&live, true, &l), Ask::Nothing);
+    let mut w = world(&[AUTO, manual()]);
+    store_clean_run_without_finished(&mut w, 0);
+    store_clean_run_without_finished(&mut w, 1);
+    assert_eq!(
+        tick_step(w.facts(0), true, &l),
+        Ask::Ready,
+        "a clean run and no finished one: ready at an open slot (ruling RD-67 5.2)"
+    );
+    assert_eq!(
+        tick_step(w.facts(1), true, &l),
+        Ask::Nothing,
+        "a clean run and no slot: no ready at once"
+    );
+}
+
+fn store_clean_run_without_finished(w: &mut World, n: usize) {
+    let to_nothing = |e: &mut Event| {
+        if let What::RunEnded { cause, .. } = &mut e.what {
+            if e.agent == agent(n) {
+                *cause = RunEnd::NothingToDo;
+            }
+        }
+    };
+    w.ports.events.borrow_mut().iter_mut().for_each(to_nothing);
+    let i = w
+        .board
+        .members
+        .iter()
+        .position(|m| m.facts.agent == agent(n))
+        .unwrap();
+    w.board.members[i]
+        .facts
+        .events
+        .iter_mut()
+        .for_each(to_nothing);
+    for r in &mut w.board.members[i].facts.runs {
+        r.outcome = Outcome::NothingToDo;
+    }
+}
+
+#[test]
+fn rd67_the_slot_of_a_skip_and_of_a_persons_start_read_the_clean_run() {
+    let mut w = world(&[AUTO]);
+    store_clean_run_without_finished(&mut w, 0);
+    assert_eq!(w.tick().raised, vec![agent(0)]);
+    w.forget();
+    assert_eq!(w.go(Move::Skip { agent: agent(0) }).answer, Ok(Answer::Ok));
+    assert_eq!(
+        w.calls(),
+        vec!["log item_answered ready skip, slot_skipped 0".to_string()]
+    );
+    let mut s = world(&[AUTO]);
+    store_clean_run_without_finished(&mut s, 0);
+    let run = ok_run(&s.start(0));
+    let slot = s.stored().iter().find_map(|e| match &e.what {
+        What::RunStarted { run: r, slot, .. } if *r == run => Some(*slot),
+        _ => None,
+    });
+    assert_eq!(
+        slot,
+        Some(Some(DAY)),
+        "the start by the person takes the slot"
+    );
 }
 
 #[test]
@@ -1191,7 +1261,27 @@ fn skip_of_a_first_run_stores_a_null_slot_and_waits_for_the_next_day() {
     );
     assert_eq!(w.tick().raised, Vec::<AgentId>::new());
     w.clock(T0, DAY + 1);
-    assert_eq!(w.tick().raised, vec![agent(0)]);
+    assert_eq!(
+        w.tick().raised,
+        Vec::<AgentId>::new(),
+        "turned by ruling RD-73 1.2: no ready until the next slot opens"
+    );
+    w.clock(T0, DAY + 2);
+    assert_eq!(w.tick().raised, vec![agent(0)], "the next slot");
+    let mut manual = world(&[A {
+        finished: false,
+        ..manual()
+    }]);
+    manual.tick();
+    manual.go(Move::Skip { agent: agent(0) });
+    for day in [DAY + 1, DAY + 40] {
+        manual.clock(T0, day);
+        assert_eq!(
+            manual.tick().raised,
+            Vec::<AgentId>::new(),
+            "no slot: no ready while the skip's row is handed out"
+        );
+    }
     let mut none = world(&[AUTO]);
     assert_eq!(
         none.go(Move::Skip { agent: agent(0) }).answer,
@@ -1901,7 +1991,7 @@ fn a_tick_whose_kill_ended_a_run_serves_no_second_start_after_a_drop() {
     let mut w = world(&[manual(), manual(), manual()]);
     queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     w.go(Move::SwitchOff { agent: agent(0) });
     w.clock(T0 + 5_000, DAY);
     let tick = w.tick();
@@ -2104,7 +2194,7 @@ fn a_run_ended_that_the_owner_did_not_acknowledge_is_owed_and_holds_the_agent() 
         "no start while its run_ended is owed"
     );
     assert_eq!(w.calls(), Vec::<String>::new());
-    w.clock(T0 + 1_000, DAY + 1);
+    w.clock(T0 + 86_400_000 + 1_000, DAY + 1);
     w.tick();
     assert_eq!(w.calls(), ["log run_ended completed"]);
     let e = w.stored().last().cloned().unwrap();
@@ -2112,7 +2202,8 @@ fn a_run_ended_that_the_owner_did_not_acknowledge_is_owed_and_holds_the_agent() 
         e.what,
         What::RunEnded {
             run,
-            cause: RunEnd::Completed
+            cause: RunEnd::Completed,
+            defers: SEEN_WHOLE
         }
     );
     assert_eq!(e.day, DAY, "the day of the end");
@@ -2395,7 +2486,7 @@ fn a_tick_whose_read_of_the_agents_fails_takes_no_start_from_the_queue() {
     let mut w = world(&[manual(), manual(), manual()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     let end = w.end(&run, Some(Outcome::Completed));
     assert_eq!(end.ended[0].next[0].answer, Err(Cause::Hold));
     assert!(w.board.queue.holds(&agent(2)) && w.board.runs.is_empty());
@@ -2718,7 +2809,7 @@ fn a_tick_sends_active_before_the_start_that_it_serves_from_the_queue() {
     let mut w = world(&[manual(), manual(), manual(), manual()]);
     let run = queue_two_behind(&mut w);
     assert_eq!(w.start(2).answer, Ok(Answer::Queued));
-    w.go(Move::SwitchOff { agent: agent(1) });
+    stored_at_owner(&mut w, 1, OFF, false);
     w.end(&run, Some(Outcome::Completed));
     approved_listed(&w, 3);
     w.forget();
@@ -2900,4 +2991,318 @@ fn an_end_after_midnight_takes_the_day_first_for_the_start_that_it_serves() {
         .map(|e| e.day)
         .collect();
     assert_eq!(started, [DAY + 1]);
+}
+
+fn stored_at_owner(w: &mut World, n: usize, what: What, also_on_board: bool) {
+    let last = w
+        .stored()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    let event = Event {
+        workflow: flow(n),
+        agent: agent(n),
+        seq: NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 1,
+        what,
+    };
+    w.ports.events.borrow_mut().push(event.clone());
+    if also_on_board {
+        let i = w
+            .board
+            .members
+            .iter()
+            .position(|m| m.facts.agent == agent(n))
+            .unwrap();
+        w.board.members[i].facts.events.push(event);
+    }
+}
+
+const OFF: What = What::HoldSet {
+    cause: HoldSetCause::Person,
+};
+
+#[test]
+fn rd52b_rule_4_the_switch_offs_guard_answers_by_a_read_where_a_live_run_stands() {
+    let mut w = world(&[manual()]);
+    stored_at_owner(&mut w, 0, OFF, true);
+    w.forget();
+    assert_eq!(
+        w.go(Move::SwitchOff { agent: agent(0) }).answer,
+        Err(Cause::State),
+        "off with no run"
+    );
+    assert!(w.calls().is_empty());
+    for case in ["standing", "ended", "read_fails"] {
+        let mut w = world(&[manual()]);
+        let run = ok_run(&w.start(0));
+        stored_at_owner(&mut w, 0, OFF, true);
+        if case == "ended" {
+            stored_at_owner(
+                &mut w,
+                0,
+                What::HoldCleared {
+                    cause: Cleared::Person,
+                },
+                false,
+            );
+        }
+        if case == "read_fails" {
+            w.ports.refuse(Method::History, PortError::NoService);
+        }
+        w.forget();
+        let r = w.go(Move::SwitchOff { agent: agent(0) });
+        w.ports.clear_refusals();
+        let expected: Vec<String> = match case {
+            "standing" => vec![format!("cancel {run}"), "set_state paused".into()],
+            "ended" => vec![
+                "log hold_set person".into(),
+                format!("cancel {run}"),
+                "set_state paused".into(),
+            ],
+            _ => vec![],
+        };
+        assert_eq!(w.calls(), expected, "{case}");
+        if case == "read_fails" {
+            assert_eq!(r.answer, Err(Cause::NoService), "{case}");
+            assert!(r.stopped.is_empty(), "{case}");
+            continue;
+        }
+        assert_eq!(r.answer, Ok(Answer::Ok), "{case}");
+        assert_eq!(r.stopped, vec![run.clone()], "{case}");
+        assert_eq!(
+            w.go(Move::SwitchOff { agent: agent(0) }).answer,
+            Err(Cause::State),
+            "{case}: off with a stopping run"
+        );
+    }
+}
+
+#[test]
+fn rd52a_the_ticks_raise_of_a_ready_item_whose_read_shows_a_hold_raises_nothing() {
+    let mut w = world(&[person()]);
+    stored_at_owner(&mut w, 0, OFF, false);
+    let r = w.tick();
+    assert!(r.raised.is_empty(), "{r:?}");
+    assert!(
+        !w.stored()
+            .iter()
+            .any(|e| matches!(e.what, What::ItemRaised { .. })),
+        "no item_raised"
+    );
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    assert!(
+        holds(w.facts(0)).contains(&Hold::Off),
+        "the read brought the hold"
+    );
+    let mut control = world(&[person()]);
+    assert_eq!(
+        control.tick().raised,
+        vec![agent(0)],
+        "the control raises it"
+    );
+}
+
+#[test]
+fn a_tick_raises_ready_at_once_for_a_persons_agent_with_no_slot_whose_only_run_failed() {
+    for (outcome, raised) in [
+        (Outcome::Failed, vec![agent(0)]),
+        (Outcome::Completed, Vec::<AgentId>::new()),
+    ] {
+        let mut w = world(&[A {
+            person: true,
+            finished: false,
+            ..manual()
+        }]);
+        let run = ok_run(&w.start(0));
+        w.end(&run, Some(outcome));
+        w.clock(T0 + 5_000, DAY);
+        let tick = w.tick();
+        assert_eq!(tick.raised, raised, "{outcome:?}");
+    }
+}
+
+#[test]
+fn no_writer_stores_a_run_ended_deleted_for_a_run_whose_workflow_is_listed_again_before_its_end() {
+    for by in ["kill", "end"] {
+        let mut w = world(&[manual()]);
+        let run = ok_run(&w.start(0));
+        w.delete(0);
+        assert_eq!(w.tick().stopped, vec![run.clone()], "{by}");
+        w.ports
+            .workflows
+            .borrow_mut()
+            .push(Workflow::Full(workflow(0, &manual())));
+        w.forget();
+        let ended = if by == "kill" {
+            w.clock(T0 + w.limits.cancel_grace_s * 1000, DAY);
+            w.tick().ended
+        } else {
+            w.end_only(&run, Some(Outcome::Completed)).ended
+        };
+        assert_eq!(ended.len(), 1, "{by}: the run ends");
+        assert_eq!(
+            ended[0].cause,
+            RunEnd::Deleted,
+            "{by}: with the cause of its stop"
+        );
+        assert_eq!(
+            count(&w.stored(), "run_ended deleted"),
+            0,
+            "{by}: deleted is the cause of no stored row"
+        );
+        assert!(
+            !w.calls().iter().any(|c| c.starts_with("log run_ended")),
+            "{by}: {:?}",
+            w.calls()
+        );
+        assert!(
+            !w.board.owed.iter().any(|o| matches!(
+                o.what,
+                halvo_coord::schedule::Owing::RunEnded {
+                    cause: RunEnd::Deleted,
+                    ..
+                }
+            )),
+            "{by}: and none is owed"
+        );
+    }
+}
+
+fn defers_of(w: &World, run: &RunId) -> Option<halvo_coord::types::Defers> {
+    w.stored()
+        .iter()
+        .find_map(|e| match &e.what {
+            What::RunEnded { run: r, defers, .. } if r == run => Some(*defers),
+            _ => None,
+        })
+        .expect("the run_ended is stored")
+}
+
+fn defers(launch: bool, ticks_failed: u32) -> Option<halvo_coord::types::Defers> {
+    Some(halvo_coord::types::Defers {
+        launch,
+        ticks_failed,
+    })
+}
+
+fn ticks(w: &mut World, from: u64, n: u64) {
+    for k in 0..n {
+        w.clock(T0 + (from + k) * 1_000, DAY);
+        w.tick();
+    }
+}
+
+#[test]
+fn rd86_every_defer_refused_for_a_run_of_n_ticks_gives_no_and_n() {
+    let mut w = world(&[manual()]);
+    w.ports.refuse(Method::Defer, PortError::NoService);
+    let run = ok_run(&w.start(0));
+    ticks(&mut w, 1, 3);
+    w.ports.clear_refusals();
+    w.end(&run, Some(Outcome::Completed));
+    assert_eq!(defers_of(&w, &run), defers(false, 3));
+}
+
+#[test]
+fn rd86_the_launch_acknowledged_and_the_ticks_refused_gives_yes_and_n() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.ports.refuse(Method::Defer, PortError::Busy);
+    ticks(&mut w, 1, 3);
+    w.ports.clear_refusals();
+    ticks(&mut w, 4, 2);
+    w.end(&run, Some(Outcome::Completed));
+    assert_eq!(
+        defers_of(&w, &run),
+        defers(true, 3),
+        "an acknowledged tick counts nothing"
+    );
+}
+
+#[test]
+fn rd86_a_tick_whose_clock_or_day_fails_counts_for_the_run() {
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.clock(halvo_coord::ports::Stamp::LAST + 1, DAY);
+    w.tick();
+    w.clock(T0 + 1_000, DAY);
+    w.ports.set_zone(i64::MIN / 2);
+    w.tick();
+    ticks(&mut w, 2, 1);
+    w.end(&run, Some(Outcome::Completed));
+    assert_eq!(defers_of(&w, &run), defers(true, 2));
+}
+
+#[test]
+fn rd86_two_live_runs_each_get_the_ticks_failure() {
+    let two = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let mut w = world_with(&[manual(), manual()], two);
+    let first = ok_run(&w.start(0));
+    let second = ok_run(&w.start(1));
+    w.ports.refuse(Method::Defer, PortError::NoService);
+    ticks(&mut w, 1, 1);
+    w.ports.clear_refusals();
+    w.end(&first, Some(Outcome::Completed));
+    w.end(&second, Some(Outcome::Failed));
+    assert_eq!(defers_of(&w, &first), defers(true, 1));
+    assert_eq!(defers_of(&w, &second), defers(true, 1));
+}
+
+#[test]
+fn rd86_a_start_that_failed_holds_null() {
+    let mut w = world(&[manual()]);
+    w.ports.refuse(Method::Start, PortError::NoService);
+    let report = w.start(0);
+    w.ports.clear_refusals();
+    let run = report
+        .run
+        .clone()
+        .expect("the start stored its run_started");
+    assert_eq!(defers_of(&w, &run), None);
+}
+
+#[test]
+fn rd86_a_start_whose_defer_waited_for_its_run_started_takes_that_defers_answer() {
+    let mut w = world(&[manual()]);
+    w.ports.refuse(
+        Method::LogRunStarted,
+        PortError::Refused(Name::parse("store").unwrap()),
+    );
+    assert!(
+        w.start(0).answer.is_err(),
+        "the store refused its run_started"
+    );
+    w.ports.clear_refusals();
+    let run = ok_run(&w.start(0));
+    w.end(&run, Some(Outcome::Completed));
+    assert_eq!(
+        defers_of(&w, &run),
+        defers(true, 0),
+        "the defer that went after its run_started was acknowledged"
+    );
+}
+
+#[test]
+fn rd86_an_end_owed_in_this_life_keeps_its_values_and_counts_no_tick_after_the_run_left_the_board()
+{
+    let mut w = world(&[manual()]);
+    let run = ok_run(&w.start(0));
+    w.ports.refuse(Method::Log, PortError::NoService);
+    w.end(&run, Some(Outcome::Completed));
+    w.ports.clear_refusals();
+    w.clock(halvo_coord::ports::Stamp::LAST + 1, DAY);
+    w.tick();
+    ticks(&mut w, 1, 1);
+    assert_eq!(
+        defers_of(&w, &run),
+        defers(true, 0),
+        "the owed end is stored with what this life saw while the run stood on the board"
+    );
 }

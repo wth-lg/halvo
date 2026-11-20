@@ -2,18 +2,18 @@
 
 pub mod db;
 pub(crate) mod durable;
-pub mod expiry;
+pub(in crate::store) mod expiry;
 #[cfg(test)]
 pub(crate) mod failpoint;
-pub(crate) mod lock;
+pub(in crate::store) mod lock;
 #[cfg(not(test))]
-pub(crate) mod failpoint {
+pub(in crate::store) mod failpoint {
     pub(crate) fn hit(_name: &'static str) -> super::StoreResult<()> {
         Ok(())
     }
 }
-pub mod segment;
-pub mod verify;
+pub(in crate::store) mod segment;
+pub(in crate::store) mod verify;
 
 #[cfg(test)]
 mod formal_tests;
@@ -21,7 +21,7 @@ mod formal_tests;
 mod hardening_tests;
 #[cfg(test)]
 #[path = "test_support/pages.rs"]
-pub(crate) mod pages;
+pub(in crate::store) mod pages;
 #[cfg(test)]
 #[path = "test_support/roots.rs"]
 pub(crate) mod roots;
@@ -34,7 +34,7 @@ use std::time::Duration;
 use crate::custody::{CustodyError, RootId};
 use crate::event::{CaptureStreamEvent, SegmentKeyId, SegmentRef};
 
-pub const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
+pub(in crate::store) const DEFAULT_RETENTION: Duration = Duration::from_secs(14 * 24 * 60 * 60);
 
 /// The store the capture daemon appends to.
 pub trait SegmentStore {
@@ -132,11 +132,32 @@ impl fmt::Display for Met {
     }
 }
 
+/// Where a data directory keeps its store and its roots, for the delete tail
+/// of [`db::EncryptedStore::delete_data_dir`], which opens each from the
+/// handle of the directory that holds it by its fixed name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Layout {
+    /// The product's data directory (C3.5): the store directory `store` and
+    /// the roots directory `roots`, side by side in it.
+    DataDirectory,
+    /// A scratch run's store directory (C4 item 9): the store in the
+    /// directory itself, and its roots directory `roots` inside it.
+    ScratchStore,
+}
+
 /// What a delete says of the store's root. `Destroyed`: this call, or an
-/// earlier call on the same handle, removed that root's file itself at the
-/// root's own name (a regular file that is not empty and, off Windows, of the
-/// root file's length; an all-zero file of that length counts), and the last
-/// reading of the roots directory shows none (ruling ST-45 H4). `Left`: a root may stand,
+/// earlier call on the same handle, destroyed that root's file, and the last
+/// reading of the roots directory shows no root file of it. A root file is
+/// destroyed only when its zero-fill went through its kept handle with the
+/// zero-fill's full flush answered (ruling ST-50 Addition 1), and the root
+/// reads destroyed only when the flush of the roots directory after the
+/// step's removals answered too (ruling PR-30 PR9 (3)). With the identity
+/// of the root file that the open or the create read, the file of that
+/// identity wherever it lies in the roots directory; a name removed with no
+/// write through it, because the name at which the file stood lets no write,
+/// is no destruction (ruling ST-48 U2). By name alone, the file at the root's own name (a regular file
+/// that is not empty and, off Windows, of the root file's length; an all-zero
+/// file of that length counts; ruling ST-45 H4). `Left`: a root may stand,
 /// the one named when the call knows its id. `Unnamed`: nothing that the call
 /// could read names a root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -160,13 +181,16 @@ impl RootReading {
 /// What a delete-all, or the delete tail on a directory, did: each step was
 /// attempted. `keyed_segments` is the count of keyed segments read before the
 /// root step, `None` when it could not be read. `root` reads the store's own
-/// root. `roots` lists the root files that stay under the roots directory
-/// after the root step; `root_not_handled` names the root of a key file that
+/// root. `roots` names the root files and partial root files that stay in the
+/// roots directory after the root step, and counts by kind, naming none, the
+/// entries that stay at any other name (ruling ST-48 U3); `root_not_handled`
+/// names the root of a key file that
 /// this build cannot destroy (a key file of another version, or of a custody
 /// that keeps no root file under the roots directory). `not_followed` counts
 /// the store names, the store directory's own name among them, at which the
 /// delete met a link, an entry of another kind or a directory that was not
-/// the handle's.
+/// the handle's, and the data directory given to the tail when it is a link
+/// in any spelling, which the tail does not follow.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteReport {
     pub keyed_segments: Option<u64>,
@@ -179,7 +203,7 @@ pub struct DeleteReport {
     pub not_followed: u64,
 }
 
-pub use crate::custody::file_root::RootsLeft;
+pub(in crate::store) use crate::custody::file_root::RootsLeft;
 
 impl DeleteReport {
     /// The store's root reads destroyed.
@@ -187,12 +211,14 @@ impl DeleteReport {
         self.root == RootReading::Destroyed
     }
 
-    /// The root reads destroyed or unnamed, no root file that the step
-    /// counted stays, and the delete left nothing of the store: the report of
-    /// an `Ok`. A root that reads left never gives `Ok`.
-    pub fn complete(&self) -> bool {
+    /// The root reads destroyed or unnamed, the roots directory was listed and
+    /// no entry that the step counted stays in it at any name, that directory
+    /// still stands at its path, and the delete left nothing of the store: the
+    /// report of an `Ok`. A root that reads left never gives `Ok`.
+    pub(in crate::store) fn complete(&self) -> bool {
         matches!(self.root, RootReading::Destroyed | RootReading::Unnamed)
             && self.roots.none_left()
+            && self.roots.at_its_path
             && self.root_not_handled.is_none()
             && self.key_file_gone
             && !self.database_left
@@ -256,7 +282,7 @@ pub enum StoreError {
     /// store.key or store.db has a format version below the one this build
     /// reads, among them a key file of version 1, which an older build wrote.
     /// No migration exists; the delete tail of
-    /// [`db::EncryptedStore::delete_store_dir`] removes such a store.
+    /// [`db::EncryptedStore::delete_data_dir`] removes such a store.
     #[error(
         "the store has format version {found}, below version {supported} that this build reads"
     )]

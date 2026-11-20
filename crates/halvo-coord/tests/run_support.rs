@@ -99,6 +99,7 @@ pub fn finished_run(n: usize) -> (PastRun, Vec<Event>) {
             What::RunEnded {
                 run: run.clone(),
                 cause: RunEnd::Completed,
+                defers: None,
             },
         ),
     ];
@@ -140,6 +141,8 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
                 runs: vec![record],
                 events,
                 store_ended: true,
+                replies: halvo_coord::types::Replies::NotAsked,
+                unknown: Vec::new(),
                 today: DAY,
                 doing: Doing::Idle(None),
             },

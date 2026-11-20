@@ -610,7 +610,11 @@ fn drive_end(before: Before, stop: StopOf, end: EndOf) -> Drove {
         .borrow()
         .iter()
         .filter_map(|e| match &e.what {
-            What::RunEnded { run: r, cause } if *r == run => Some(*cause),
+            What::RunEnded {
+                run: r,
+                cause,
+                defers: _,
+            } if *r == run => Some(*cause),
             _ => None,
         })
         .collect();

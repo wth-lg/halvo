@@ -96,9 +96,9 @@ fn refusal_page_text_instruction() {
     w.log(
         2,
         &[
-            (1, "recovered", 1, None),
-            (2, "recovered", 2, None),
-            (3, "recovered", 4, None),
+            (2, "recovered", 1, None),
+            (3, "recovered", 2, None),
+            (4, "recovered", 4, None),
         ],
     );
     assert!(w.finish(2, "replay", "completed").is_ok());
@@ -261,6 +261,11 @@ fn a_proposal_that_holds_a_slot_value_or_a_barred_locator_or_comes_after_eight_e
 fn put_playbook_of_a_run_with_no_learn_run_row_is_refused_with_binding() {
     let mut w = active_world();
     let now = w.host.agent_now();
+    let start = json!({"op": "start_run", "workflow": wf(1), "agent": agent(1), "run": run(2), "mode": "replay"});
+    assert!(
+        halvo_agent_store::coordinator(&mut w.host.agent, now, start.to_string().as_bytes())
+            .is_ok()
+    );
     let load = json!({"op": "load", "agent": agent(1), "run": run(2)});
     assert!(halvo_agent_store::runner(&mut w.host.agent, now, load.to_string().as_bytes()).is_ok());
     let binding = ErrorName::read("binding").expect("a declared name");

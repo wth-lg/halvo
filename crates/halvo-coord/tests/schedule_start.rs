@@ -72,6 +72,8 @@ fn facts(spec: &Spec, whats: Vec<(u32, What)>) -> Facts<Config> {
         runs: vec![],
         events,
         store_ended: true,
+        replies: halvo_coord::types::Replies::NotAsked,
+        unknown: Vec::new(),
         today: TODAY,
         doing: Doing::Idle(None),
     }
@@ -86,7 +88,11 @@ fn started(n: u32, trigger: Trigger, slot: Option<u32>) -> What {
 }
 
 fn ended(n: u32, cause: RunEnd) -> What {
-    What::RunEnded { run: run(n), cause }
+    What::RunEnded {
+        run: run(n),
+        cause,
+        defers: None,
+    }
 }
 
 fn done_before() -> Vec<(u32, What)> {

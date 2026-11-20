@@ -154,10 +154,10 @@ function plan(item, choice) {
       if (p.candidates.length > 0) {
         const n = p.candidates[p.candidates.length - 1].n;
         acts.push({ act: 'candidate', param: p.name, n });
-        calls.push({ call: 'agents_answer', args: { item: item.item, choice: 'choose', param: p.name, n } });
+        calls.push({ call: 'agents_answer', args: { item: item.item, step: item.step, choice: 'choose', param: p.name, n } });
       } else if (p.typed === 'yes') {
         acts.push({ act: 'typed', param: p.name, text: TYPED });
-        calls.push({ call: 'agents_setup_typed', args: { item: item.item, param: p.name, text: TYPED } });
+        calls.push({ call: 'agents_setup_typed', args: { item: item.item, step: item.step, param: p.name, text: TYPED } });
       }
     }
     acts.push({ act: 'choose', param: item.item });
@@ -165,7 +165,7 @@ function plan(item, choice) {
   }
   return {
     acts: [{ act: choice.choice, param: item.item }],
-    calls: [{ call: 'agents_answer', args: { item: item.item, choice: choice.choice } }],
+    calls: [{ call: 'agents_answer', args: { item: item.item, step: item.step, choice: choice.choice } }],
   };
 }
 
@@ -405,7 +405,7 @@ async function hold(origin, dir) {
   const item = stateFile(dir, 'needs_sign_in').snapshot.items[0];
   const first = { seq: 1, rows: [], items: [item], note: null };
   const same = { seq: 2, rows: [], items: [item], note: null };
-  const done = { call: 'agents_answer', args: { item: item.item, choice: 'done' } };
+  const done = { call: 'agents_answer', args: { item: item.item, step: item.step, choice: 'done' } };
   let h = await open({ origin, replies: [{ state: first }, { ...done, hold: true }], views: [VIEW] });
   try {
     await act(h, { act: 'done', param: item.item });
@@ -470,7 +470,7 @@ async function replies(origin, dir) {
     await h.close();
   }
   const confirm = stateFile(dir, 'needs_confirm_page').snapshot.items[0];
-  const reject = { call: 'agents_answer', args: { item: confirm.item, choice: 'reject' } };
+  const reject = { call: 'agents_answer', args: { item: confirm.item, step: confirm.step, choice: 'reject' } };
   const back = async (line, tag) => {
     const out = outDir();
     const k = await open({ origin, replies: [{ state: snap(1, [confirm]) }, line], views: [VIEW], out });
@@ -531,7 +531,7 @@ async function setups(origin, dir) {
   } finally {
     await h.close();
   }
-  const k = await open({ origin, replies: [{ state: snap(1, [one, two]) }, { call: 'agents_answer', args: { item: one.item, choice: 'choose', param: one.params[0].name, n: 1 }, reply: { ok: 'yes' } }], views: [VIEW], out: outDir() });
+  const k = await open({ origin, replies: [{ state: snap(1, [one, two]) }, { call: 'agents_answer', args: { item: one.item, step: one.step, choice: 'choose', param: one.params[0].name, n: 1 }, reply: { ok: 'yes' } }], views: [VIEW], out: outDir() });
   try {
     const radios = k.page.locator('[data-act="candidate"][data-param="' + one.params[0].name + '"]');
     await radios.nth(0).check();
@@ -654,9 +654,9 @@ async function confirms(origin, dir) {
     origin,
     replies: [
       { state: snap(1, [sign]) },
-      { call: 'agents_answer', args: { item: sign.item, choice: 'done' }, reply: { ok: 'yes' } },
+      { call: 'agents_answer', args: { item: sign.item, step: sign.step, choice: 'done' }, reply: { ok: 'yes' } },
       { state: snap(2, [sign, a]) },
-      { call: 'agents_answer', args: { item: a.item, choice: 'reject' }, reply: { ok: 'yes' } },
+      { call: 'agents_answer', args: { item: a.item, step: a.step, choice: 'reject' }, reply: { ok: 'yes' } },
     ],
     views: [VIEW],
     out,
@@ -686,9 +686,9 @@ async function confirms(origin, dir) {
     origin,
     replies: [
       { state: snap(1, [typed, stuck]) },
-      { call: 'agents_answer', args: { item: stuck.item, choice: 'done' }, reply: { ok: 'yes' } },
+      { call: 'agents_answer', args: { item: stuck.item, step: stuck.step, choice: 'done' }, reply: { ok: 'yes' } },
       { state: snap(2, [typed, stuck, a]) },
-      { call: 'agents_answer', args: { item: a.item, choice: 'reject' }, reply: { ok: 'yes' } },
+      { call: 'agents_answer', args: { item: a.item, step: a.step, choice: 'reject' }, reply: { ok: 'yes' } },
     ],
     views: [VIEW],
     out,
@@ -757,8 +757,8 @@ async function confirms(origin, dir) {
     await keep(h);
     await h.close();
   }
-  const allowA = { call: 'agents_answer', args: { item: a.item, choice: 'allow' }, reply: { ok: 'yes' } };
-  const doneSign = { call: 'agents_answer', args: { item: sign.item, choice: 'done' }, reply: { ok: 'yes' } };
+  const allowA = { call: 'agents_answer', args: { item: a.item, step: a.step, choice: 'allow' }, reply: { ok: 'yes' } };
+  const doneSign = { call: 'agents_answer', args: { item: sign.item, step: sign.step, choice: 'done' }, reply: { ok: 'yes' } };
   let point = null;
   h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }], views: [VIEW] });
   try {
@@ -870,7 +870,7 @@ async function crossed(origin, dir) {
   const sel = (act, id) => '[data-act="' + act + '"][data-param="' + id + '"]';
   const gate = { call: 'agents_card', args: { agent: 'e'.repeat(32) }, reply: { error: 'busy' } };
   for (const choice of ['decline', 'done']) {
-    const answer = { call: 'agents_answer', args: { item: b.item, choice }, reply: { ok: 'yes' } };
+    const answer = { call: 'agents_answer', args: { item: b.item, step: b.step, choice }, reply: { ok: 'yes' } };
     let out = outDir();
     let h = await open({ origin, state: 'test_two_sign_in', views: [VIEW], out });
     try {
@@ -1031,7 +1031,7 @@ async function region(origin, dir) {
   }
   const second = told(withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'd'.repeat(32)), 'Second');
   const other = told(withId(stateFile(dir, 'needs_show').snapshot.items[0], '7'.repeat(32)), 'Other');
-  const answerLine = (c) => ({ call: 'agents_answer', args: { item: c.item, choice: 'reject' }, reply: { ok: 'yes' } });
+  const answerLine = (c) => ({ call: 'agents_answer', args: { item: c.item, step: c.step, choice: 'reject' }, reply: { ok: 'yes' } });
   const says = (h) => facts(h).then((f) => f.says);
   const waitIds = (h, items) =>
     h.page.waitForFunction(
@@ -2070,7 +2070,7 @@ async function press(origin, dir) {
     { state: 'test_two_setups' },
   );
   const gate = { call: 'agents_card', args: { agent: 'e'.repeat(32) }, reply: { error: 'busy' } };
-  const typedLine = (text, extra) => ({ call: 'agents_setup_typed', args: { item: item.item, param: p.name, text }, ...extra });
+  const typedLine = (text, extra) => ({ call: 'agents_setup_typed', args: { item: item.item, step: item.step, param: p.name, text }, ...extra });
   await run(
     'p12_a_card_that_waits_for_a_reply',
     async (h, out, k) => {
@@ -2120,7 +2120,7 @@ async function holds(origin, dir) {
   const second = told(withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'd'.repeat(32)), 'Second');
   const other = told(withId(stateFile(dir, 'needs_show').snapshot.items[0], '7'.repeat(32)), 'Other');
   const gate = { call: 'agents_card', args: { agent: 'e'.repeat(32) }, reply: { error: 'busy' } };
-  const answerLine = (c, extra) => ({ call: 'agents_answer', args: { item: c.item, choice: 'reject' }, ...(extra || { reply: { ok: 'yes' } }) });
+  const answerLine = (c, extra) => ({ call: 'agents_answer', args: { item: c.item, step: c.step, choice: 'reject' }, ...(extra || { reply: { ok: 'yes' } }) });
   const B = p.too_long;
   const waitIds = (h, items) =>
     h.page.waitForFunction(
@@ -2386,6 +2386,136 @@ async function holds(origin, dir) {
   return faults;
 }
 
+function askedAgain(item, step) {
+  const copy = JSON.parse(JSON.stringify(item));
+  copy.step = step;
+  copy.fields = [{ label: words()['item.setup.not_taken'], value: [], from: 'halvo', from_text: 'Set by Halvo' }, ...copy.fields];
+  return copy;
+}
+
+async function answerIn(h, card, item) {
+  for (const a of prepare(item)) {
+    const control = card.locator('[data-act="' + a.act + '"][data-param="' + a.param + '"]' + (a.n === undefined ? '' : '[data-n="' + a.n + '"]'));
+    if (a.act === 'candidate') await control.check();
+    else await control.pressSequentially(a.text);
+  }
+  await card.locator(sel('choose', item.item)).click();
+  await settled(h);
+}
+
+async function steps(origin, dir) {
+  const faults = [];
+  const setup = stateFile(dir, 'setup_three').snapshot.items[0];
+  if (setup.step !== 0 || setup.params.length < 3) return ['fixture_setup_three'];
+  const later = askedAgain(setup, 1);
+  const ok = { reply: { ok: 'yes' } };
+  const chain = (item) => plan(item, item.choices.find((c) => c.choice === 'choose')).calls.map((c) => ({ ...c, ...ok }));
+  const none = (item) => ({ call: 'agents_answer', args: { item: item.item, step: item.step, choice: 'none' }, ...ok });
+  const strays = (h) => trail(h).filter((l) => l.includes('not_next_in_transcript')).length;
+  const marks = (out) => callsOf(out).map((c) => c.call.slice(7) + ':' + c.args.step).join(',') || '-';
+
+  let out = outDir();
+  let h = await open({ origin, replies: [{ state: snap(1, [setup, later]) }, ...chain(later), none(later), none(setup)], views: [VIEW], out });
+  try {
+    const cards = h.page.locator('#views .hn-item');
+    await answerIn(h, cards.nth(1), later);
+    await waitCalls(h, out, 3);
+    await cards.nth(1).locator(sel('none', later.item)).click();
+    await waitCalls(h, out, 4);
+    await cards.nth(0).locator(sel('none', setup.item)).click();
+    await waitCalls(h, out, 5);
+    const want = [...chain(later), none(later), none(setup)].map((c) => ({ call: c.call, args: c.args }));
+    if (firstDiff(callsOf(out).map((c) => ({ call: c.call, args: c.args })), want) >= 0) faults.push('the_drawn_card:steps=' + marks(out));
+    if (strays(h) !== 0) faults.push('the_drawn_card:strays=' + strays(h));
+  } catch {
+    faults.push('the_drawn_card:throws:steps=' + marks(out));
+  } finally {
+    await h.close();
+  }
+
+  const [first, ...rest] = chain(setup);
+  out = outDir();
+  h = await open({ origin, replies: [{ state: snap(1, [setup]) }, first, { state: snap(2, [later]) }, ...rest], views: [VIEW], out });
+  try {
+    for (const a of prepare(setup)) await act(h, a);
+    await h.page.locator(sel('choose', setup.item)).click();
+    await waitCalls(h, out, 3);
+    const want = chain(setup).map((c) => ({ call: c.call, args: c.args }));
+    if (firstDiff(callsOf(out).map((c) => ({ call: c.call, args: c.args })), want) >= 0) faults.push('one_press_one_step:steps=' + marks(out));
+    if (strays(h) !== 0) faults.push('one_press_one_step:strays=' + strays(h));
+    const r = await read(h);
+    if (firstDiff(r.units, expectedUnits([later])) >= 0) faults.push('one_press_one_step:not_rebuilt');
+  } catch {
+    faults.push('one_press_one_step:throws:steps=' + marks(out));
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
+async function again(origin, dir) {
+  const faults = [];
+  const setup = stateFile(dir, 'setup_three').snapshot.items[0];
+  const later = askedAgain(setup, 1);
+  const chain = (item) => plan(item, item.choices.find((c) => c.choice === 'choose')).calls;
+  const [first] = chain(setup);
+  const strays = (h) => trail(h).filter((l) => l.includes('not_next_in_transcript')).length;
+  const out = outDir();
+  const h = await open({
+    origin,
+    replies: [{ state: snap(1, [setup]) }, { ...first, reply: { error: 'state' } }, { state: snap(2, [later]) }, ...chain(later).map((c) => ({ ...c, reply: { ok: 'yes' } }))],
+    views: [VIEW],
+    out,
+  });
+  try {
+    for (const a of prepare(setup)) await act(h, a);
+    await h.page.evaluate(() => {
+      for (const el of document.querySelectorAll('#views [data-param]')) el.r4needsMark = true;
+    });
+    await h.page.locator(sel('choose', setup.item)).click();
+    await h.page.waitForFunction((text) => document.getElementById('views').textContent.includes(text), later.fields[0].label, { timeout: 10000 });
+    for (let i = 0; i < 12; i++) await frames(h);
+    if (callsOf(out).length !== 1 || strays(h) !== 0) faults.push('chain_not_stopped:calls=' + callsOf(out).length + ':strays=' + strays(h));
+    const r = await read(h);
+    if (firstDiff(r.units, expectedUnits([later])) >= 0) faults.push('not_read_anew');
+    const says = r.region.flatMap((x) => x.says);
+    if (says.length !== 0) faults.push('said=' + says.length);
+    const kept = await h.page.evaluate(() => [...document.querySelectorAll('#views [data-param]')].filter((el) => el.r4needsMark).length);
+    if (kept !== 0) faults.push('not_rebuilt=' + kept);
+    for (const a of prepare(later)) await act(h, a);
+    await act(h, { act: 'choose', param: later.item });
+    await waitCalls(h, out, 1 + chain(later).length);
+    const want = [first, ...chain(later)].map((c) => ({ call: c.call, args: c.args }));
+    const got = callsOf(out).map((c) => ({ call: c.call, args: c.args }));
+    if (firstDiff(got, want) >= 0) faults.push('rebuilt_press:steps=' + (got.map((c) => c.args.step).join(',') || '-'));
+  } catch {
+    faults.push('throws:calls=' + callsOf(out).length + ':strays=' + strays(h));
+  } finally {
+    await h.close();
+  }
+  const second = chain(setup)[1];
+  const stops = [
+    ...['malformed', 'busy', 'stale', 'unknown_item', 'no_service'].map((cause) => [cause, [{ ...first, reply: { error: cause } }]]),
+    ['rejected_first', [{ ...first, reject: true }]],
+    ['rejected_second', [{ ...first, reply: { ok: 'yes' } }, { ...second, reject: true }]],
+  ];
+  for (const [tag, lines] of stops) {
+    const o = outDir();
+    const k = await open({ origin, replies: [{ state: snap(1, [setup]) }, ...lines], views: [VIEW], out: o });
+    try {
+      for (const a of prepare(setup)) await act(k, a);
+      await k.page.locator(sel('choose', setup.item)).click();
+      for (let i = 0; i < 12; i++) await frames(k);
+      if (callsOf(o).length !== lines.length || strays(k) !== 0) faults.push('chain_not_stopped_at_' + tag + ':calls=' + callsOf(o).length + ':strays=' + strays(k));
+    } catch {
+      faults.push('throws_at_' + tag);
+    } finally {
+      await k.close();
+    }
+  }
+  return faults;
+}
+
 const FEATURES = join(ROOT, 'docs', 'r4', 'page-features.txt');
 
 async function features(origin) {
@@ -2423,7 +2553,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -2447,6 +2577,8 @@ if (PAGE_TESTS.some(want)) {
     if (want('compose')) report('compose', await compose(origin, dir));
     if (want('press')) report('press', await press(origin, dir));
     if (want('holds')) report('holds', await holds(origin, dir));
+    if (want('step')) report('step', await steps(origin, dir));
+    if (want('again')) report('again', await again(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;

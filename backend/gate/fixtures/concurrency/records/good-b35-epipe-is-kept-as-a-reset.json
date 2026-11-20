@@ -1,17 +1,19 @@
 {
   "kind": "lost-attempt",
   "ruling": "B-35",
-  "about": "the driver keeps an EPIPE that it sends again as a reset, as an ECONNRESET",
+  "about": "the driver keeps an EPIPE that it sends again as a reset, as an ECONNRESET, with the time of that send, from which the wait of the request runs (P7-83 (7) (c) D4)",
   "source": "by hand",
   "attempt": {
     "status": null,
     "error": "EPIPE",
-    "body": ""
+    "body": "",
+    "sentAt": 1000
   },
   "expect": {
     "entry": {
       "why": "reset",
-      "body": ""
+      "body": "",
+      "sentAt": 1000
     }
   }
 }

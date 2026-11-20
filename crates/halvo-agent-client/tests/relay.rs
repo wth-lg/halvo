@@ -5,13 +5,11 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use common::{ask_store, effect, id, wait_until, Rig, Script};
-use halvo_agent_client::{CallError, EndRun};
+use halvo_agent_client::{CallError, EndRun, StartError};
 use halvo_schema::executable::names::{EffectState, Outcome};
 use halvo_schema::executable::text::EffectId;
 
 const SHORT: Duration = Duration::from_secs(10);
-
-const RUN_RECORD: &str = r#"{"v":1,"workflow":"{workflow}","agent":"{agent}","run":"{run}","day":20768,"mode":"replay","outcome":"completed","playbook":1,"steps":9,"prompts":2,"handbacks":1,"confirmations":1,"effects":1,"unknown":0,"model_calls":0,"tokens_in":0,"tokens_out":0,"wall_s":41,"model":null,"before_start":null,"cut":null,"no_key":null,"not_to_account":null,"incomplete":null,"reply_to_other":null,"more_pages":null,"held_recipient":null,"organized":null,"other_task":null,"held_earlier":null,"earlier_page":null}"#;
 
 fn send_store(id: &str, body: &str) -> String {
     ask_store(id, body).replacen("ask ", "send ", 1)
@@ -23,7 +21,7 @@ fn load() -> String {
 
 fn finish() -> String {
     r#"{"op":"finish","agent":"{agent}","run":"{run}","record":RECORD}"#
-        .replace("RECORD", RUN_RECORD)
+        .replace("RECORD", &common::run_record())
 }
 
 fn sent_by_runner(script: &Script, rig: &Rig) -> Vec<String> {
@@ -127,7 +125,10 @@ fn the_owner_gets_a_store_request_only_while_the_mark_is_complete() {
 
     let early = rig.script(&[&send_store(&id(6), &load()), "hello", "idle"]);
     let spec = rig.spec(&early);
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_eq!(seen.lock().unwrap().as_slice(), &[true]);
     assert_eq!(rig.store.count(&id(6)), 0);
 }

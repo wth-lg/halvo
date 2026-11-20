@@ -3,11 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const FILES: [(&str, &str); 4] = [
-    ("schema.v1.json", "contract/schema/v1.json"),
-    ("routes.v1.json", "contract/routes/v1.json"),
-    ("samples.v1.json", "contract/samples/v1.json"),
-    ("prompt-budget.json", "gate/prompt-budget.json"),
+const NAMES: [&str; 4] = [
+    "schema.v1.json",
+    "routes.v1.json",
+    "samples.v1.json",
+    "prompt-budget.json",
 ];
 
 const K: [u32; 64] = [
@@ -81,7 +81,6 @@ fn schema_dir() -> PathBuf {
 
 #[derive(Clone)]
 struct Record {
-    commit: String,
     lines: Vec<(String, String, String)>,
 }
 
@@ -92,23 +91,42 @@ fn lower_hex(text: &str, length: usize) -> bool {
             .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
 }
 
+fn places() -> Vec<(String, String)> {
+    let path = schema_dir().join("vendor.sh");
+    let text = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+    let start = text
+        .find("\nfiles='")
+        .expect("vendor.sh has its list files")
+        + "\nfiles='".len();
+    let length = text[start..].find('\'').expect("the list files ends");
+    text[start..start + length]
+        .lines()
+        .map(|line| {
+            let (place, name) = line.split_once(' ').expect("a line `<path> <name>`");
+            (place.to_string(), name.to_string())
+        })
+        .collect()
+}
+
 fn parse_record(text: &str) -> Result<Record, String> {
     if !text.ends_with('\n') || text.contains('\r') {
         return Err("vendored.txt ends with a newline and holds no carriage return".to_string());
     }
-    let mut rows = text.lines();
-    let commit = rows
-        .next()
-        .and_then(|first| first.strip_prefix("commit "))
-        .filter(|commit| lower_hex(commit, 40))
-        .ok_or("the first line is `commit` and 40 lower-case hexadecimal digits")?
-        .to_string();
+    let places = places();
     let mut lines = Vec::new();
-    for row in rows {
+    for (index, row) in text.lines().enumerate() {
         let words: Vec<&str> = row.split(' ').collect();
-        if words.len() != 3 || !lower_hex(words[0], 64) {
+        let named = NAMES
+            .get(index)
+            .zip(places.get(index))
+            .is_some_and(|(name, (place, _))| {
+                words.get(1) == Some(name) && words.get(2) == Some(&place.as_str())
+            });
+        if words.len() != 3 || !lower_hex(words[0], 64) || !named {
             return Err(format!(
-                "a file line is `<sha256> <name> <backend path>`: {row:?}"
+                "line {} is `<sha256> <name> <path>` with the name and the path of vendor.sh: {row:?}",
+                index + 1
             ));
         }
         lines.push((
@@ -117,7 +135,31 @@ fn parse_record(text: &str) -> Result<Record, String> {
             words[2].to_string(),
         ));
     }
-    Ok(Record { commit, lines })
+    if lines.len() != NAMES.len() {
+        return Err(format!(
+            "the record holds {} file lines, not {}",
+            lines.len(),
+            NAMES.len()
+        ));
+    }
+    Ok(Record { lines })
+}
+
+fn text_of(lines: &[(String, String, String)]) -> String {
+    lines
+        .iter()
+        .map(|(sum, name, path)| format!("{sum} {name} {path}\n"))
+        .collect()
+}
+
+fn with_path(lines: &[(String, String, String)], index: usize, path: String) -> String {
+    let mut changed = lines.to_vec();
+    changed[index].2 = path;
+    text_of(&changed)
+}
+
+fn top_and_rest(path: &str) -> (&str, &str) {
+    path.split_once('/').expect("a path below a top directory")
 }
 
 fn record_text() -> String {
@@ -131,23 +173,50 @@ fn record() -> Record {
 }
 
 #[test]
+fn vendor_sh_names_the_four_files_in_the_order_of_the_record_below_one_top_directory() {
+    let places = places();
+    let names: Vec<&str> = places.iter().map(|(_, name)| name.as_str()).collect();
+    assert_eq!(names, NAMES.to_vec());
+    let tops: Vec<&str> = places
+        .iter()
+        .map(|(place, _)| top_and_rest(place).0)
+        .collect();
+    assert!(tops.iter().all(|top| *top == tops[0]), "{tops:?}");
+    assert!(places.iter().all(|(place, _)| place
+        .split('/')
+        .all(|part| !part.is_empty() && part != "." && part != "..")));
+}
+
+#[test]
 fn the_record_parser_refuses_each_malformed_form() {
     let good = record_text();
     assert!(parse_record(&good).is_ok());
-    let commit = record().commit;
-    let first_sum = &record().lines[0].0;
+    let lines = record().lines;
+    assert_eq!(text_of(&lines), good);
+    let first_sum = &lines[0].0;
+    let last_line = good.lines().last().expect("a last line");
+    let old_form: Vec<(String, String, String)> = lines
+        .iter()
+        .map(|(sum, name, path)| (sum.clone(), name.clone(), top_and_rest(path).1.to_string()))
+        .collect();
+    let mut swapped = lines.clone();
+    swapped.swap(0, 1);
+    let (top, rest) = top_and_rest(&lines[1].2);
     let cases = [
         ("carriage returns", good.replace('\n', "\r\n")),
         ("no final newline", good.trim_end_matches('\n').to_string()),
         (
-            "an upper-case commit",
-            good.replacen(&commit, &commit.to_uppercase(), 1),
+            "a commit line of the old form",
+            format!("commit 651e68fb43c14381c8ae104a7fa3f40d4d3311f7\n{good}"),
         ),
-        ("a short commit", good.replacen(&commit, &commit[1..], 1)),
         (
-            "another first word",
-            good.replacen("commit ", "commit: ", 1),
+            "the old form",
+            format!(
+                "commit 651e68fb43c14381c8ae104a7fa3f40d4d3311f7\n{}",
+                text_of(&old_form)
+            ),
         ),
+        ("the old form's paths alone", text_of(&old_form)),
         ("a short sum", good.replacen(first_sum, &first_sum[1..], 1)),
         (
             "an upper-case sum",
@@ -155,7 +224,33 @@ fn the_record_parser_refuses_each_malformed_form() {
         ),
         (
             "a fourth word",
-            good.replacen(" contract/schema/v1.json", " contract/schema/v1.json x", 1),
+            with_path(&lines, 0, format!("{} x", lines[0].2)),
+        ),
+        (
+            "a missing file",
+            good.replacen(&format!("{last_line}\n"), "", 1),
+        ),
+        ("a fifth line", format!("{good}{last_line}\n")),
+        ("the files in another order", text_of(&swapped)),
+        (
+            "a path outside the backend",
+            with_path(&lines, 1, rest.to_string()),
+        ),
+        (
+            "a path under another top directory",
+            with_path(&lines, 1, ["account", rest].join("/")),
+        ),
+        (
+            "a path that climbs out of the backend and back",
+            with_path(&lines, 1, [top, "..", top, rest].join("/")),
+        ),
+        (
+            "the path of another file",
+            with_path(&lines, 1, lines[2].2.clone()),
+        ),
+        (
+            "a path with a backslash",
+            with_path(&lines, 1, [top, rest].join("\\")),
         ),
     ];
     for (label, text) in cases {
@@ -185,16 +280,16 @@ fn sha256_gives_the_published_digests() {
 }
 
 #[test]
-fn the_record_names_one_commit_and_the_four_vendored_files() {
+fn the_record_names_the_four_vendored_files_by_the_paths_of_vendor_sh() {
     let record = record();
-    let named: Vec<(&str, &str)> = record
+    let named: Vec<(String, String)> = record
         .lines
         .iter()
-        .map(|(_, name, path)| (name.as_str(), path.as_str()))
+        .map(|(_, name, path)| (path.clone(), name.clone()))
         .collect();
-    assert_eq!(named, FILES.to_vec());
+    assert_eq!(named, places());
     assert!(record.lines.iter().all(|(sum, _, _)| lower_hex(sum, 64)));
-    assert_eq!(record.commit.len(), 40);
+    assert!(!record_text().contains("commit"));
 }
 
 fn differing(record: &Record, dir: &Path) -> Vec<String> {
@@ -216,7 +311,7 @@ fn each_vendored_file_has_its_recorded_sha256() {
     let record = record();
     let differ = differing(&record, &schema_dir());
     assert!(differ.is_empty(), "{differ:#?}");
-    assert_eq!(record.lines.len(), FILES.len());
+    assert_eq!(record.lines.len(), NAMES.len());
 }
 
 #[test]
@@ -247,5 +342,5 @@ fn a_changed_byte_or_a_changed_sum_is_reported_for_each_file() {
         assert!(reported[0].starts_with(&format!("{name}: ")));
         cases += 2;
     }
-    assert_eq!(cases, 2 * FILES.len());
+    assert_eq!(cases, 2 * NAMES.len());
 }

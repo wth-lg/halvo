@@ -1,0 +1,18 @@
+{
+  "kind": "kept-body",
+  "ruling": "P7-83 (7) (c) D5, on B-36",
+  "about": "the dev proxy's text with two frames under a long checkout path, 557 characters, read in one chunk and in two: the driver keeps it whole, so that the recognizer reads the proxy's whole text",
+  "source": "the review of unit 4.10 (evidence/builder-56/90-review-verdicts.txt), finder f1's case of the driver's 400 characters",
+  "chunks": [
+    [
+      "Error: Network connection lost.\n    at fetchWithTimeout (file:///SCRATCH/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5480:11)\n    at async Object.fetch (file:///SCRATCH/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)"
+    ],
+    [
+      "Error: Network connection lost.\n    at fetchWithTimeout (file:///SCRATCH/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory",
+      "/a-long-checkout-directory/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5480:11)\n    at async Object.fetch (file:///SCRATCH/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)"
+    ]
+  ],
+  "expect": {
+    "body": "Error: Network connection lost.\n    at fetchWithTimeout (file:///SCRATCH/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5480:11)\n    at async Object.fetch (file:///SCRATCH/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/a-long-checkout-directory/node_modules/.pnpm/miniflare@5.20261109.0-beta/node_modules/miniflare/dist/src/workers/core/entry.worker.js:5494:22)"
+  }
+}
