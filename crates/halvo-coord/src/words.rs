@@ -64,11 +64,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.problem.record",
-        "Halvo can't read or save this agent's notes, so it starts nothing and can't get your replies. Stop still works.",
+        "Halvo can't read or save this agent's record. The agent starts nothing new, asks you nothing. Stop works if shown.",
     ),
     (
         "card.records_dropped",
-        "Since Halvo opened, {count} of this agent's steps or your answers went unsaved. They may have happened; check before repeating.",
+        "Since Halvo started, {count} of this agent's records went unsaved. Its steps may have happened; check outside Halvo before repeating.",
     ),
     (
         "line.problem.sign_in_refused",
@@ -99,11 +99,11 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.working.stopping", "It is stopping."),
     (
         "line.working.kill_stuck_mac",
-        "This agent did not fully stop. In the Halvo menu at the top, choose Quit Halvo, then open Halvo again.",
+        "Its task may still run. At the top of the screen, click Halvo, then Quit Halvo. All agents' tasks stop.",
     ),
     (
         "line.working.kill_stuck_windows",
-        "This agent did not fully stop. Click Halvo's icon by the clock, choose Quit Halvo, then open Halvo again.",
+        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo. All tasks stop.",
     ),
     (
         "line.waiting_turn.queued",

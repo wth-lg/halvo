@@ -450,19 +450,19 @@ fn u24r_the_three_texts_stand_word_for_word() {
     let t = |k: &str, pairs: &[(&str, &str)]| words::text(k, pairs).unwrap();
     assert_eq!(
         t("line.working.kill_stuck_mac", &[]),
-        "This agent did not fully stop. In the Halvo menu at the top, choose Quit Halvo, then open Halvo again."
+        "Its task may still run. At the top of the screen, click Halvo, then Quit Halvo. All agents' tasks stop."
     );
     assert_eq!(
         t("line.working.kill_stuck_windows", &[]),
-        "This agent did not fully stop. Click Halvo's icon by the clock, choose Quit Halvo, then open Halvo again."
+        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo. All tasks stop."
     );
     assert_eq!(
         t("line.problem.record", &[]),
-        "Halvo can't read or save this agent's notes, so it starts nothing and can't get your replies. Stop still works."
+        "Halvo can't read or save this agent's record. The agent starts nothing new, asks you nothing. Stop works if shown."
     );
     assert_eq!(
         t("card.records_dropped", &[("count", "3")]),
-        "Since Halvo opened, 3 of this agent's steps or your answers went unsaved. They may have happened; check before repeating."
+        "Since Halvo started, 3 of this agent's records went unsaved. Its steps may have happened; check outside Halvo before repeating."
     );
     for key in [
         "line.working.kill_stuck_mac",
