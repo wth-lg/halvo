@@ -1210,7 +1210,7 @@ class World {
         }
         for (const [identifier, closed] of account.unexplainedClosed) {
           const atTheMeter = events.some((e) => e.identifier === identifier);
-          if (!atTheMeter && closed.timestamp >= period.start && closed.timestamp < countedUntil) unsent += closed.amountMinor * RULE_MICRO_PER_MINOR;
+          if (!atTheMeter && !account.refused.has(identifier) && closed.timestamp >= period.start && closed.timestamp < countedUntil) unsent += closed.amountMinor * RULE_MICRO_PER_MINOR;
         }
         for (const [identifier, closed] of account.deleteBound) {
           const atTheMeter = events.some((e) => e.identifier === identifier);
