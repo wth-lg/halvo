@@ -1468,6 +1468,7 @@ fi
 for known in $STUB_COMMANDS; do
   if [ "$1" = "$known" ]; then
     [ "$1" != "$STUB_LEAVE" ] || printf 'x\n' >left-behind.txt
+    [ "$1" != "$STUB_TAKE" ] || mv untracked-before.txt target/untracked-before.txt
     exit "$STUB_RUN_EXIT"
   fi
 done
@@ -1673,6 +1674,7 @@ case_reset() {
   STUB_CONTROL=
   STUB_HELD_PORT=
   STUB_LEAVE=
+  STUB_TAKE=
   STUB_CHECK=pass
   STUB_TOUCH=
   STUB_FRESH=true
@@ -1880,6 +1882,8 @@ check-exits-3-with-a-clean-line
 forbid-finding-then-a-stale-build
 control-without-an-egress-line
 port-47202-held-by-another-process
+untracked-path-before-the-run
+import-takes-away-an-untracked-path
 EOF
 }
 
@@ -1926,7 +1930,7 @@ case_run() {
   fi
   case_started=$(date +%s)
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE STUB_TAKE=$STUB_TAKE \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
@@ -1951,6 +1955,11 @@ case_run() {
   if [ -n "${5:-}" ]; then
     case $out in
       *"$5"*) got=$got-with-the-other-text ;;
+    esac
+  fi
+  if [ -n "${6:-}" ]; then
+    case $out in
+      *"$6"*) got=$got-with-the-second-other-text ;;
     esac
   fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
@@ -2227,6 +2236,10 @@ self_test() {
   link_tree=$(odd_repo "$work/repo-link" link) || self_failed "setup at line $LINENO"
   gitlink_tree=$(odd_repo "$work/repo-gitlink" gitlink) || self_failed "setup at line $LINENO"
   leave_tree=$(write_repo "$work/repo-leave" '') || self_failed "setup at line $LINENO"
+  take_tree=$(write_repo "$work/repo-take" '') || self_failed "setup at line $LINENO"
+  for dir in repo-leave repo-take; do
+    printf 'x\n' >"$work/$dir/untracked-before.txt" || self_failed "setup at line $LINENO"
+  done
   awk '/^run_list\(\) \{/ { skip = 1 } skip && /^EOF$/ { skip = 0 } skip && /^[a-z-]+( |$)/ { next } { print }' "$self" \
     >"$work/norun.sh" || self_failed "setup at line $LINENO"
   awk '/^spend-sim --seed 1$/ { print "spend-sim"; next } { print }' "$self" >"$work/bare.sh" || self_failed "setup at line $LINENO"
@@ -2461,6 +2474,13 @@ EOF
   case_tree=$leave_tree
   STUB_LEAVE=import
   case_run import-leaves-a-file-in-the-checkout FAIL check 'egress run=import: a wrapped run left a new path: left-behind.txt'
+  case_repo=$work/repo-leave
+  case_tree=$leave_tree
+  case_run untracked-path-before-the-run PASS - 'egress checks=8 denied=0 entries=0' 'a wrapped run left a new path'
+  case_repo=$work/repo-take
+  case_tree=$take_tree
+  STUB_TAKE=import
+  case_run import-takes-away-an-untracked-path FAIL check 'egress run=import: a wrapped run took away a path: untracked-before.txt'
   case_run graph-closed PASS - 'egress graph paths=3 linked=6 build=5 holds=yes'
   case_run rules-allowed-forms PASS - 'egress rules files='
   case_env="$v_flags=-Dwarnings"
@@ -2592,7 +2612,7 @@ EOF
   case_job=windows
   case_self=$work/norun.sh
   STUB_COMMANDS=
-  case_run job-with-no-run FAIL check 'egress checks=0: no command of the first list ran' 'egress no-command='
+  case_run job-with-no-run FAIL check 'egress checks=0: no command of the first list ran' 'egress no-command=' 'egress on-neither-list='
   case_job=windows
   case_run forbid-list-of-the-windows-job PASS - 'egress forbid profile=dev findings=0 exit=0'
   STUB_CLIPPY_JSON=$work/clippy-finding.json
