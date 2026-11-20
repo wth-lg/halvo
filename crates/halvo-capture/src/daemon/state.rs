@@ -898,4 +898,74 @@ pub(crate) mod tests {
             .unwrap()
             .contains("store_made"));
     }
+
+    #[cfg(target_os = "macos")]
+    fn fifo_at(path: &Path) {
+        use std::os::unix::ffi::OsStrExt;
+        let c = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o600) }, 0);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_fifo_at_the_name_with_no_writer_loads_at_once_as_corrupt_and_is_never_written() {
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let dir = test_dir();
+        let path = file_of(dir.path());
+        fifo_at(&path);
+        let writer = TestWrite::default();
+        let (sent, got) = std::sync::mpsc::channel();
+        let (at, port) = (dir.path().to_path_buf(), writer.clone());
+        let load = std::thread::spawn(move || {
+            let file = open(&at, &port);
+            let _ = sent.send((file.health(), file.state().desired));
+        });
+        let bound = std::time::Duration::from_secs(20);
+        let Ok(answer) = got.recv_timeout(bound) else {
+            let writer_end = std::fs::OpenOptions::new()
+                .write(true)
+                .custom_flags(libc::O_NONBLOCK)
+                .open(&path);
+            let late = got.recv_timeout(bound);
+            drop(writer_end);
+            let _ = load.join();
+            panic!("the load of a FIFO at the name did not return within 20 s; once a writer opened the FIFO it answered {late:?}");
+        };
+        load.join().unwrap();
+        assert_eq!(answer, (StateHealth::Corrupt, Desired::Paused));
+        assert_eq!(writer.calls.load(Ordering::SeqCst), 0);
+        assert!(!std::fs::symlink_metadata(&path).unwrap().is_file());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_fifo_that_holds_a_whole_state_and_has_no_writer_loads_as_corrupt() {
+        use std::io::Write as _;
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let dir = test_dir();
+        let path = file_of(dir.path());
+        fifo_at(&path);
+        let mut both = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        both.write_all(b"{\"desired\":\"running\"}").unwrap();
+        let reader = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(&path)
+            .unwrap();
+        drop(both);
+        let writer = TestWrite::default();
+        let file = open(dir.path(), &writer);
+        drop(reader);
+        assert_eq!(
+            (file.health(), file.state().desired),
+            (StateHealth::Corrupt, Desired::Paused)
+        );
+        assert_eq!(writer.calls.load(Ordering::SeqCst), 0);
+    }
 }
