@@ -43,4 +43,17 @@ describe("check 55's model with a foreign event at the meter in an interval's mi
       expect(report.coverage["interval.not-billable-after-an-unexplained-run"]).toBe(deleted ? 0 : 1);
     });
   }
+
+  test("a refused interval closed by a run is counted once in the equation: the first send lost, the retry refused while the mark is set, with the account deleted and with it kept", async () => {
+    const faults: Fault[] = [{ kind: "request-lost" }, { kind: "refused" }];
+    const seen = [];
+    for (const deleted of [true, false]) {
+      const report = await runScenario({ ...behindAForeignEvent(faults[0] as Fault, deleted), faultsByProviderCall: faults }, { downtimeBudgetSeconds: RULE_DOWNTIME_BUDGET, onFailedCheck: "list" });
+      seen.push([deleted, report.findings, report.facts["not-billable-unexplained-total"]]);
+    }
+    expect(seen).toEqual([
+      [true, [], 1],
+      [false, [], 1],
+    ]);
+  });
 });
