@@ -28,9 +28,11 @@ use crate::secure_input_macos::notice::MarkKind;
 #[cfg(all(debug_assertions, feature = "stall-seam"))]
 use crate::secure_input_macos::notice::{Focus, Seen};
 use crate::secure_input_macos::notice::{NoticeMark, NoticeThread};
+#[cfg(any(test, debug_assertions))]
+use crate::secure_input_macos::{hold_secure_input, SecureInputHold};
 use crate::secure_input_macos::{
-    hold_secure_input, read_session, secure_input_reading, Reading, SecureInputHold,
-    SecureInputRefused, SecureInputReleaseRefused, Session,
+    read_session, secure_input_reading, Reading, SecureInputRefused, SecureInputReleaseRefused,
+    Session,
 };
 use crate::sink::SinkHandle;
 use crate::source::{
@@ -510,6 +512,7 @@ fn lock(hold: &SharedHold) -> MutexGuard<'_, HoldState> {
     hold.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+#[cfg(any(test, debug_assertions))]
 struct OwnTake {
     hold: SharedHold,
     counters: InputCounters,
@@ -520,6 +523,7 @@ struct OwnTake {
     clock: fn() -> Monotonic,
 }
 
+#[cfg(any(test, debug_assertions))]
 impl OwnTake {
     fn taken(&self) {
         let dropped = lock(&self.hold).keys.drop_all();
@@ -1422,12 +1426,17 @@ pub enum HoldPlan {
     /// The tap thread never holds secure input.
     Never,
     /// The tap thread holds secure input from this long after its tap is made
-    /// until its run loop has ended. Zero holds it before the tap is enabled.
+    /// until its tap is gone and the thread ends, or the process ends. Zero
+    /// holds it before the tap is enabled. A build without debug assertions and
+    /// without tests has no such plan (ruling MA-9 part (3)).
+    #[cfg(any(test, debug_assertions))]
     After(Duration),
 }
 
+#[cfg(any(test, debug_assertions))]
 type Hold = fn() -> Result<SecureInputHold, SecureInputRefused>;
 
+#[cfg(any(test, debug_assertions))]
 struct HoldSlot {
     hold: Hold,
     held: Option<SecureInputHold>,
@@ -1435,6 +1444,7 @@ struct HoldSlot {
     own_take: Option<OwnTake>,
 }
 
+#[cfg(any(test, debug_assertions))]
 impl HoldSlot {
     fn take(&mut self) {
         match (self.hold)() {
@@ -1453,12 +1463,14 @@ impl HoldSlot {
 
 /// A hold slot at a fixed address with the timer that holds that address. Its
 /// Drop invalidates the timer, and only then does the slot drop.
+#[cfg(any(test, debug_assertions))]
 struct TimedHold {
     slot: Box<HoldSlot>,
     timer: Option<CFRunLoopTimer>,
     invalidate: fn(&CFRunLoopTimer),
 }
 
+#[cfg(any(test, debug_assertions))]
 impl TimedHold {
     fn new(slot: HoldSlot) -> Self {
         Self {
@@ -1486,6 +1498,7 @@ impl TimedHold {
     }
 }
 
+#[cfg(any(test, debug_assertions))]
 impl Drop for TimedHold {
     fn drop(&mut self) {
         if let Some(timer) = self.timer.take() {
@@ -1494,6 +1507,7 @@ impl Drop for TimedHold {
     }
 }
 
+#[cfg(any(test, debug_assertions))]
 extern "C" fn hold_timer_fired(_timer: CFRunLoopTimerRef, info: *mut c_void) {
     // SAFETY: `info` is the boxed `HoldSlot` of a `TimedHold`, whose box keeps
     // it at one address and whose Drop invalidates this timer before the slot
@@ -1553,9 +1567,11 @@ struct TapThread {
 
 struct TapPlan {
     plan: HoldPlan,
+    #[cfg(any(test, debug_assertions))]
     hold: Hold,
     refusal: Arc<Mutex<Option<SecureInputRefused>>>,
     released: Arc<Mutex<Option<SecureInputReleaseRefused>>>,
+    #[cfg(any(test, debug_assertions))]
     own_take: Option<OwnTake>,
 }
 
@@ -1575,17 +1591,23 @@ impl TapThread {
                 .spawn(move || {
                     let TapPlan {
                         plan,
+                        #[cfg(any(test, debug_assertions))]
                         hold,
                         refusal,
                         released,
+                        #[cfg(any(test, debug_assertions))]
                         own_take,
                     } = tap_plan;
+                    #[cfg(not(any(test, debug_assertions)))]
+                    let _ = (plan, refusal);
+                    #[cfg(any(test, debug_assertions))]
                     let mut slot = TimedHold::new(HoldSlot {
                         hold,
                         held: None,
                         refusal,
                         own_take,
                     });
+                    #[cfg(any(test, debug_assertions))]
                     if plan == HoldPlan::After(Duration::ZERO) {
                         slot.take_now();
                     }
@@ -1596,6 +1618,7 @@ impl TapThread {
                             return;
                         }
                     };
+                    #[cfg(any(test, debug_assertions))]
                     if let HoldPlan::After(delay) = plan {
                         if !delay.is_zero() {
                             slot.take_after(delay);
@@ -1615,7 +1638,10 @@ impl TapThread {
                         CFRunLoop::run_in_mode(unsafe { kCFRunLoopDefaultMode }, RUN_SLICE, false);
                     }
                     drop(installed);
+                    #[cfg(any(test, debug_assertions))]
                     let given_back = slot.give_back();
+                    #[cfg(not(any(test, debug_assertions)))]
+                    let given_back: Result<(), SecureInputReleaseRefused> = Ok(());
                     invalidate(&idle);
                     if let Err(refused) = given_back {
                         *released.lock().unwrap_or_else(PoisonError::into_inner) = Some(refused);
@@ -1702,6 +1728,7 @@ pub struct InputSource {
     foreground: ForegroundReader,
     counters: InputCounters,
     plan: HoldPlan,
+    #[cfg(any(test, debug_assertions))]
     hold: Hold,
     bounds: Bounds,
     step: Duration,
@@ -1783,6 +1810,7 @@ impl InputSource {
             foreground,
             counters,
             plan,
+            #[cfg(any(test, debug_assertions))]
             hold: hold_secure_input,
             bounds,
             step: READING_STEP,
@@ -1856,6 +1884,7 @@ impl InputSource {
         } else {
             None
         };
+        #[cfg(any(test, debug_assertions))]
         let own_take = OwnTake {
             hold: ctx.hold.clone(),
             counters: self.counters.clone(),
@@ -1869,9 +1898,11 @@ impl InputSource {
             move || install_tap(ctx, settings, maker),
             TapPlan {
                 plan: self.plan,
+                #[cfg(any(test, debug_assertions))]
                 hold: self.hold,
                 refusal: self.refusal.clone(),
                 released: self.released.clone(),
+                #[cfg(any(test, debug_assertions))]
                 own_take: Some(own_take),
             },
             stop,
@@ -2092,6 +2123,26 @@ mod proofs {
             super::HoldPlan::Never,
             std::time::Duration::ZERO,
         )
+    }
+
+    #[cfg(halvo_proof = "hold_plan_after_in_a_release_build")]
+    fn hold_plan_after_in_a_release_build() -> super::HoldPlan {
+        super::HoldPlan::After(std::time::Duration::ZERO)
+    }
+
+    #[cfg(halvo_proof = "hold_plan_after_in_a_release_build_twin")]
+    fn hold_plan_after_in_a_release_build_twin() -> super::HoldPlan {
+        super::HoldPlan::Never
+    }
+
+    #[cfg(halvo_proof = "take_in_a_release_build")]
+    fn take_in_a_release_build() -> bool {
+        crate::secure_input_macos::hold_secure_input().is_ok()
+    }
+
+    #[cfg(halvo_proof = "take_in_a_release_build_twin")]
+    fn take_in_a_release_build_twin() -> bool {
+        crate::secure_input_macos::secure_input_active()
     }
 
     #[cfg(halvo_proof = "hold_bound_in_a_release_build_twin")]

@@ -5,6 +5,7 @@ pub(crate) fn secure_input_on(byte: u8) -> bool {
     byte != 0
 }
 
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn hold_status(status: i32) -> Result<(), i32> {
     if status == 0 {
         Ok(())
@@ -13,10 +14,12 @@ pub(crate) fn hold_status(status: i32) -> Result<(), i32> {
     }
 }
 
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn take_hold(enable: fn() -> i32) -> Result<(), i32> {
     hold_status(enable())
 }
 
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn release_hold(disable: fn() -> i32) -> Result<(), i32> {
     hold_status(disable())
 }

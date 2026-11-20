@@ -8,7 +8,9 @@ mod carbon {
     #[link(name = "Carbon", kind = "framework")]
     extern "C" {
         fn IsSecureEventInputEnabled() -> u8;
+        #[cfg(any(test, debug_assertions))]
         fn EnableSecureEventInput() -> i32;
+        #[cfg(any(test, debug_assertions))]
         fn DisableSecureEventInput() -> i32;
     }
 
@@ -62,6 +64,7 @@ mod carbon {
         unsafe { IsSecureEventInputEnabled() }
     }
 
+    #[cfg(any(test, debug_assertions))]
     pub(super) fn enable_secure_event_input(_one: &OneCall<'_>) -> i32 {
         // SAFETY: parameterless Carbon call that returns an OSStatus, as
         // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
@@ -72,6 +75,7 @@ mod carbon {
         unsafe { EnableSecureEventInput() }
     }
 
+    #[cfg(any(test, debug_assertions))]
     pub(super) fn disable_secure_event_input(_one: &OneCall<'_>) -> i32 {
         // SAFETY: parameterless Carbon call that returns an OSStatus, as
         // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
@@ -829,6 +833,7 @@ mod session {
     }
 }
 
+#[cfg(any(test, debug_assertions))]
 #[must_use = "dropping the hold releases secure input immediately"]
 pub struct SecureInputHold {
     #[cfg(test)]
@@ -846,14 +851,17 @@ pub struct SecureInputRefused(pub i32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SecureInputReleaseRefused(pub i32);
 
+#[cfg(any(test, debug_assertions))]
 pub fn hold_secure_input() -> Result<SecureInputHold, SecureInputRefused> {
     hold_with(enable_secure_event_input, disable_secure_event_input)
 }
 
+#[cfg(any(test, debug_assertions))]
 fn enable_secure_event_input() -> i32 {
     carbon::one_carbon_call_at_a_time(carbon::enable_secure_event_input)
 }
 
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn hold_with(
     enable: fn() -> i32,
     release: fn() -> i32,
@@ -867,10 +875,12 @@ pub(crate) fn hold_with(
         .map_err(SecureInputRefused)
 }
 
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn disable_secure_event_input() -> i32 {
     carbon::one_carbon_call_at_a_time(carbon::disable_secure_event_input)
 }
 
+#[cfg(any(test, debug_assertions))]
 impl SecureInputHold {
     /// Gives the hold back and answers the status of the system's release.
     pub fn release(self) -> Result<(), SecureInputReleaseRefused> {
@@ -880,6 +890,7 @@ impl SecureInputHold {
     }
 }
 
+#[cfg(any(test, debug_assertions))]
 impl Drop for SecureInputHold {
     fn drop(&mut self) {
         let _ = crate::macos::secure_input_byte::release_hold(self.release);
