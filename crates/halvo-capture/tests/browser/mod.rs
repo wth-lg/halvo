@@ -2,15 +2,13 @@ use super::*;
 use halvo_capture::secure_input::windows::FieldState;
 
 mod evidence;
-mod steps;
 use halvo_capture::source::Started;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicI64, Ordering};
-use steps::{address_of, on_its_step, steps_of, PageStep};
 use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSE_EVENT_FLAGS, VK_A,
-    VK_F22, VK_F23, VK_F24, VK_TAB,
+    VK_F22, VK_F24, VK_TAB,
 };
 
 const PHASE_PAGE: &str = r#"<!doctype html>
@@ -23,20 +21,12 @@ const PHASE_PAGE: &str = r#"<!doctype html>
 <button id="show">show</button>
 <script>
 const q = new URLSearchParams(location.search);
-const steps = (q.get('phase') || 'none').split(',').map((s) => s.split(':'));
+const phase = q.get('phase') || 'none';
+const hold = Number(q.get('hold') || '0');
 const run = q.get('run') || '0';
-let step = 0;
-let phase = 'none';
-let hold = 0;
-const enter = (i) => {
-  step = i;
-  phase = steps[i][0];
-  hold = Number(steps[i].length > 1 ? steps[i][1] : (q.get('hold') || '0'));
-};
-enter(0);
-let plain = document.getElementById('plain');
-let password = document.getElementById('password');
-let button = document.getElementById('show');
+const plain = document.getElementById('plain');
+const password = document.getElementById('password');
+const button = document.getElementById('show');
 const c = { text: 0, password: 0, tp: 0, tt: 0, downs: 0, round: 0, seq: '', lt: [], base: Date.now(), ev: -1, mv: -1, kd: -1 };
 let armed = false;
 let timers = [];
@@ -53,45 +43,33 @@ function show() {
     ' px=' + Math.round(left + r.left + r.width / 2) + ' py=' + Math.round(top + r.top + r.height / 2) +
     ' tx=' + Math.round(left + t.left + t.width / 2) + ' ty=' + Math.round(top + t.top + t.height / 2) +
     ' seq=' + (c.seq || '-') + ' lt=' + (c.lt.length ? c.lt.join(',') : '-') + ' ev=' + c.ev +
-    ' mv=' + c.mv + ' kd=' + c.kd + ' phase=' + phase + ' hold=' + hold + ' step=' + step + ' end';
+    ' mv=' + c.mv + ' kd=' + c.kd + ' end';
 }
 const later = (ms, f) => timers.push(setTimeout(() => { f(); show(); }, ms));
 const freed = () => { c.ev = Date.now() - c.base; };
 const swap = () => { busy(hold); plain.type = 'password'; busy(hold); freed(); };
-function wire() {
-  for (const el of [plain, password]) {
-    el.addEventListener('input', () => {
-      if (el.type === 'password') c.password++; else c.text++;
-      c.seq += el.type === 'password' ? 'p' : 't';
-      c.lt.push(Date.now() - c.base);
-      show();
-    });
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Tab') { if (el.type === 'password') c.tp++; else c.tt++; show(); }
-    });
-  }
-  plain.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab' && phase === 'tab') busy(hold);
-    if (e.key !== 'F24' && e.key !== 'F23' && armed && (phase === 'swap-keydown' || phase === 'burst')) { armed = false; swap(); }
+for (const el of [plain, password]) {
+  el.addEventListener('input', () => {
+    if (el.type === 'password') c.password++; else c.text++;
+    c.seq += el.type === 'password' ? 'p' : 't';
+    c.lt.push(Date.now() - c.base);
+    show();
   });
-  plain.addEventListener('keyup', (e) => {
-    if (e.key !== 'F24' && e.key !== 'F23' && armed && phase === 'swap-keyup') { armed = false; swap(); }
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') { if (el.type === 'password') c.tp++; else c.tt++; show(); }
   });
-  plain.addEventListener('focus', () => {
-    if (armed && phase === 'swap-focus') { armed = false; swap(); }
-  });
-  password.addEventListener('mousedown', () => { c.downs++; show(); if (phase === 'click') busy(hold); });
 }
-wire();
-function fresh() {
-  plain.outerHTML = '<input id="plain" type="text">';
-  password.outerHTML = '<input id="password" type="password">';
-  button.outerHTML = '<button id="show">show</button>';
-  plain = document.getElementById('plain');
-  password = document.getElementById('password');
-  button = document.getElementById('show');
-  wire();
-}
+plain.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab' && phase === 'tab') busy(hold);
+  if (e.key !== 'F24' && armed && (phase === 'swap-keydown' || phase === 'burst')) { armed = false; swap(); }
+});
+plain.addEventListener('keyup', (e) => {
+  if (e.key !== 'F24' && armed && phase === 'swap-keyup') { armed = false; swap(); }
+});
+plain.addEventListener('focus', () => {
+  if (armed && phase === 'swap-focus') { armed = false; swap(); }
+});
+password.addEventListener('mousedown', () => { c.downs++; show(); if (phase === 'click') busy(hold); });
 function reset() {
   for (const t of timers) clearTimeout(t);
   timers = [];
@@ -131,14 +109,8 @@ function reset() {
 }
 document.addEventListener('focusin', () => show());
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'F24' && e.key !== 'F23' && e.key !== 'F22' && c.kd < 0) { c.kd = Date.now() - c.base; show(); }
+  if (e.key !== 'F24' && e.key !== 'F22' && c.kd < 0) { c.kd = Date.now() - c.base; show(); }
   if (e.key === 'F24') { e.preventDefault(); reset(); }
-  if (e.key === 'F23') {
-    e.preventDefault();
-    e.stopPropagation();
-    if (step + 1 < steps.length) { enter(step + 1); fresh(); }
-    reset();
-  }
   if (e.key === 'F22') { e.preventDefault(); password.focus(); show(); }
 }, true);
 reset();
@@ -164,7 +136,6 @@ struct PageRead {
     freed_at: i64,
     moved_at: i64,
     first_key_at: i64,
-    at: Option<PageStep>,
 }
 
 fn page_read(hwnd: HWND) -> Option<PageRead> {
@@ -195,13 +166,6 @@ fn page_read(hwnd: HWND) -> Option<PageRead> {
         freed_at: number("ev")?,
         moved_at: number("mv")?,
         first_key_at: number("kd")?,
-        at: field("phase").and_then(|phase| {
-            Some(PageStep {
-                phase,
-                hold: u64::try_from(number("hold")?).ok()?,
-                step: u32::try_from(number("step")?).ok()?,
-            })
-        }),
     })
 }
 
@@ -410,26 +374,7 @@ impl PhaseBrowser {
         self.open_with(test, phase, hold, false)
     }
 
-    fn open_steps(&mut self, test: &str, steps: &[PageStep]) -> Option<HWND> {
-        let hwnd = self.open(test, &address_of(steps), 0);
-        say(
-            test,
-            format!(
-                "browser={} one_page_for_the_steps={} opened={}",
-                self.name,
-                steps.len(),
-                u8::from(hwnd.is_some())
-            ),
-        );
-        hwnd
-    }
-
     fn open_with(&mut self, test: &str, phase: &str, hold: u64, click: bool) -> Option<HWND> {
-        let first = phase
-            .split(',')
-            .next()
-            .and_then(|at| at.split(':').next())
-            .unwrap_or(phase);
         self.runs += 1;
         let url = format!("{}?phase={phase}&hold={hold}&run={}", self.page, self.runs);
         let profile = self.profile.path().to_string_lossy().into_owned();
@@ -456,7 +401,7 @@ impl PhaseBrowser {
             .stderr(Stdio::null())
             .spawn()
             .ok()?;
-        let prefix = format!("halvo-phase {first}{} ", self.runs);
+        let prefix = format!("halvo-phase {phase}{} ", self.runs);
         let began = Instant::now();
         while began.elapsed() < Duration::from_secs(40) {
             if let Some((hwnd, _)) = window_titled(&prefix) {
@@ -469,7 +414,7 @@ impl PhaseBrowser {
                 say(
                     test,
                     format!(
-                        "browser={} phase={first} hold={hold} opened=1 foreground={front} method={method} front_tick={}",
+                        "browser={} phase={phase} hold={hold} opened=1 foreground={front} method={method} front_tick={}",
                         self.name, self.front_tick
                     ),
                 );
@@ -479,7 +424,7 @@ impl PhaseBrowser {
         }
         say(
             test,
-            format!("browser={} phase={first} hold={hold} opened=0", self.name),
+            format!("browser={} phase={phase} hold={hold} opened=0", self.name),
         );
         None
     }
@@ -644,32 +589,6 @@ fn reset(keyboard: &Keyboard, hwnd: HWND) -> Option<PageRead> {
     keyboard.settle(Duration::from_millis(450));
     let _ = seam::take();
     page_read(hwnd)
-}
-
-fn onto(test: &str, name: &str, keyboard: &Keyboard, hwnd: HWND, want: &PageStep) -> bool {
-    if want.step > 0 {
-        key(VK_F23);
-        keyboard.settle(Duration::from_millis(450));
-        let _ = seam::take();
-    }
-    let began = Instant::now();
-    let mut on = on_its_step(page_read(hwnd).and_then(|page| page.at).as_ref(), want);
-    while on.is_err() && began.elapsed() < Duration::from_secs(2) {
-        std::thread::sleep(Duration::from_millis(100));
-        on = on_its_step(page_read(hwnd).and_then(|page| page.at).as_ref(), want);
-    }
-    say(
-        test,
-        format!(
-            "browser={name} phase={} hold={} step={} on_its_step={} {}",
-            want.phase,
-            want.hold,
-            want.step,
-            u8::from(on.is_ok()),
-            on.err().unwrap_or("none")
-        ),
-    );
-    on.is_ok()
 }
 
 #[derive(Debug, Default, Clone)]
@@ -932,9 +851,10 @@ fn page_control(
     keyboard: &Keyboard,
     which: &str,
     counter: Option<EventCounter>,
-    (opened, want): (Option<HWND>, &PageStep),
+    opened: Option<HWND>,
 ) -> usize {
-    let Some(hwnd) = opened.filter(|hwnd| onto(test, browser.name, keyboard, *hwnd, want)) else {
+    let opened = opened.or_else(|| browser.open(test, "control", 0));
+    let Some(hwnd) = opened else {
         say(
             test,
             format!("browser={} control={which} page=none", browser.name),
@@ -963,8 +883,7 @@ fn page_control(
         } else {
             format!("{label}-after-slip-{slips}")
         };
-        let (sink, second, slipped) =
-            one_control(test, name, keyboard, (hwnd, want), &attempt, first);
+        let (sink, second, slipped) = one_control(test, name, keyboard, hwnd, &attempt, first);
         if let Some(counter) = counter.take() {
             say(
                 test,
@@ -1020,7 +939,7 @@ fn one_control(
     test: &str,
     name: &str,
     keyboard: &Keyboard,
-    (hwnd, want): (HWND, &PageStep),
+    hwnd: HWND,
     which: &str,
     first: bool,
 ) -> (usize, Result<(), &'static str>, bool) {
@@ -1166,12 +1085,8 @@ fn one_control(
         return (r.sink, Err("schedule_slipped"), true);
     }
     assert!(
-        front
-            && start.focus == "plain"
-            && sent == 5
-            && r.page.text == 5
-            && on_its_step(r.page.at.as_ref(), want).is_ok(),
-        "INCONCLUSIVE: the control's page was not in front, not on its step or did not take its 5 letters"
+        front && start.focus == "plain" && sent == 5 && r.page.text == 5,
+        "INCONCLUSIVE: the control's page was not in front or did not take its 5 letters"
     );
     assert!(
         !r.sink_differs(),
@@ -1236,9 +1151,10 @@ pub(super) enum StallKind {
 
 fn stall_rounds(
     test: &str,
-    (name, keyboard, hwnd): (&str, &Keyboard, HWND),
-    want: &PageStep,
+    browser: &mut PhaseBrowser,
+    keyboard: &Keyboard,
     kind: StallKind,
+    hold: u64,
     rounds: u32,
 ) -> Vec<Round> {
     let phase = match kind {
@@ -1246,7 +1162,9 @@ fn stall_rounds(
         StallKind::Click => "click",
         StallKind::SelfMove => "self",
     };
-    let hold = want.hold;
+    let Some(hwnd) = browser.open(test, phase, hold) else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
     for round in 0..rounds {
         let start = reset(keyboard, hwnd).unwrap_or_default();
@@ -1289,10 +1207,7 @@ fn stall_rounds(
         if start.focus != "plain" {
             r.why.push("not_on_the_text_input_at_the_reset");
         }
-        let on_step = on_its_step(r.page.at.as_ref(), want);
-        r.why.extend(on_step.err());
         r.counted = ready
-            && on_step.is_ok()
             && match kind {
                 StallKind::Tab => r.page.text == 0 && r.page.password == sent,
                 StallKind::Click => {
@@ -1303,7 +1218,8 @@ fn stall_rounds(
         say(
             test,
             format!(
-                "browser={name} phase={phase} hold={hold} round={round} foreground={front} {}",
+                "browser={} phase={phase} hold={hold} round={round} foreground={front} {}",
+                browser.name,
                 r.line()
             ),
         );
@@ -1367,15 +1283,7 @@ pub(super) fn stall_phases(test: &'static str, name: &'static str) {
         source_built_by_test(test, "keyboard");
         let mut counter = Some(EventCounter::start());
         let mut browser = open_browser(test, name);
-        let at = steps_of(&[
-            ("control", 0),
-            ("tab", 150),
-            ("tab", 300),
-            ("click", 150),
-            ("click", 300),
-            ("control", 0),
-        ]);
-        let page = browser.open_steps(test, &at);
+        let first_page = browser.open(test, "control", 0);
         let keyboard = Keyboard::start(test);
         assert!(
             keyboard.start.is_ok(),
@@ -1388,29 +1296,23 @@ pub(super) fn stall_phases(test: &'static str, name: &'static str) {
             &keyboard,
             "before",
             counter.take(),
-            (page, &at[0]),
+            first_page,
         );
         let mut all = Vec::new();
-        let kinds = [
-            StallKind::Tab,
-            StallKind::Tab,
-            StallKind::Click,
-            StallKind::Click,
-        ];
-        for (kind, want) in kinds.into_iter().zip(&at[1..5]) {
-            let rounds = match page {
-                Some(hwnd) if onto(test, name, &keyboard, hwnd, want) => stall_rounds(
+        for kind in [StallKind::Tab, StallKind::Click] {
+            for hold in [150, 300] {
+                let rounds = stall_rounds(
                     test,
-                    (name, &keyboard, hwnd),
-                    want,
+                    &mut browser,
+                    &keyboard,
                     kind,
+                    hold,
                     super::stall::rounds_for(1, 5),
-                ),
-                _ => Vec::new(),
-            };
-            all.push((format!("{kind:?}-{}", want.hold), rounds));
+                );
+                all.push((format!("{kind:?}-{hold}"), rounds));
+            }
         }
-        let after = page_control(test, &mut browser, &keyboard, "after", None, (page, &at[5]));
+        let after = page_control(test, &mut browser, &keyboard, "after", None, None);
         let late = keyboard.source.health().counters.late_events;
         let stopped = keyboard.stop();
         say(
@@ -1440,23 +1342,18 @@ pub(super) fn self_move_phases(test: &'static str, name: &'static str) -> i64 {
             "the keyboard source must start: {:?}",
             keyboard.start
         );
-        let at = steps_of(&[("self", 150), ("self", 300)]);
-        let page = browser.open_steps(test, &at);
         let mut counted = 0;
         let mut another_way = 0;
         let mut sink_differs = 0;
-        for want in &at {
-            let rounds = match page {
-                Some(hwnd) if onto(test, name, &keyboard, hwnd, want) => stall_rounds(
-                    test,
-                    (name, &keyboard, hwnd),
-                    want,
-                    StallKind::SelfMove,
-                    super::stall::rounds_for(1, 5),
-                ),
-                _ => Vec::new(),
-            };
-            for r in rounds {
+        for hold in [150, 300] {
+            for r in stall_rounds(
+                test,
+                &mut browser,
+                &keyboard,
+                StallKind::SelfMove,
+                hold,
+                super::stall::rounds_for(1, 5),
+            ) {
                 counted += usize::from(r.counted);
                 let held = r.password_letters_recorded_while_the_page_was_held();
                 if r.counted {
@@ -1497,10 +1394,9 @@ fn swap_round(
     browser_name: &str,
     keyboard: &Keyboard,
     hwnd: HWND,
-    want: &PageStep,
+    phase: &str,
     round: u32,
 ) -> (Round, Option<Round>) {
-    let phase = want.phase.as_str();
     let start = reset(keyboard, hwnd).unwrap_or_default();
     let front = foreground_window() == hwnd;
     let mut shown = None;
@@ -1538,14 +1434,12 @@ fn swap_round(
         r.page.landed_at.drain(..first);
     }
     r.why.extend(not_in_front(front));
-    let on_step = on_its_step(r.page.at.as_ref(), want);
-    r.why.extend(on_step.err());
     let start_ok = match phase {
         "show-hide" | "show-control" => start.focus == "password",
         "swap-focus" => true,
         _ => start.focus == "plain",
     };
-    r.counted = front && start_ok && on_step.is_ok() && r.page.text + r.page.password == sent;
+    r.counted = front && start_ok && r.page.text + r.page.password == sent;
     if let Some(shown) = &shown {
         say(
             test,
@@ -1571,17 +1465,7 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
         source_built_by_test(test, "keyboard");
         let mut counter = Some(EventCounter::start());
         let mut browser = open_browser(test, name);
-        let at = steps_of(&[
-            ("control", 0),
-            ("swap-timer", 0),
-            ("swap-focus", 0),
-            ("swap-keydown", 0),
-            ("swap-keyup", 0),
-            ("show-hide", 0),
-            ("show-control", 0),
-            ("control", 0),
-        ]);
-        let page = browser.open_steps(test, &at);
+        let first_page = browser.open(test, "control", 0);
         let keyboard = Keyboard::start(test);
         assert!(
             keyboard.start.is_ok(),
@@ -1594,20 +1478,26 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
             &keyboard,
             "before",
             counter.take(),
-            (page, &at[0]),
+            first_page,
         );
         let mut failures = Vec::new();
         let mut thin = Vec::new();
-        for want in &at[1..7] {
-            let phase = want.phase.as_str();
-            let Some(hwnd) = page.filter(|hwnd| onto(test, name, &keyboard, *hwnd, want)) else {
+        for phase in [
+            "swap-timer",
+            "swap-focus",
+            "swap-keydown",
+            "swap-keyup",
+            "show-hide",
+            "show-control",
+        ] {
+            let Some(hwnd) = browser.open(test, phase, 0) else {
                 thin.push(phase);
                 continue;
             };
             let mut counted = 0;
             let rounds = super::stall::rounds_for(1, 3);
             for round in 0..rounds {
-                let (r, shown) = swap_round(test, name, &keyboard, hwnd, want, round);
+                let (r, shown) = swap_round(test, name, &keyboard, hwnd, phase, round);
                 counted += u32::from(r.counted);
                 let failed = r.sink_differs()
                     || shown.as_ref().is_some_and(Round::sink_differs)
@@ -1629,7 +1519,7 @@ pub(super) fn swap_phases(test: &'static str, name: &'static str) {
                 thin.push(phase);
             }
         }
-        let after = page_control(test, &mut browser, &keyboard, "after", None, (page, &at[7]));
+        let after = page_control(test, &mut browser, &keyboard, "after", None, None);
         let stopped = keyboard.stop();
         say(
             test,
@@ -1668,57 +1558,44 @@ pub(super) fn held_swap_phases(test: &'static str, name: &'static str) -> i64 {
             "the keyboard source must start: {:?}",
             keyboard.start
         );
-        let at = steps_of(&[
-            ("swap-timer", 150),
-            ("swap-timer", 300),
-            ("swap-focus", 150),
-            ("swap-focus", 300),
-            ("swap-keydown", 150),
-            ("swap-keydown", 300),
-            ("swap-keyup", 150),
-            ("swap-keyup", 300),
-        ]);
-        let page = browser.open_steps(test, &at);
         let mut counted = 0;
         let mut another_way = 0;
         let mut sink_differs = 0;
-        for want in &at {
-            let (phase, hold) = (want.phase.as_str(), want.hold);
-            let Some(hwnd) = page.filter(|hwnd| onto(test, name, &keyboard, *hwnd, want)) else {
-                continue;
-            };
-            for round in 0..2 {
-                let start = reset(&keyboard, hwnd).unwrap_or_default();
-                let front = foreground_window() == hwnd;
-                if phase == "swap-timer" || phase == "swap-focus" {
-                    std::thread::sleep(Duration::from_millis(150));
+        for phase in ["swap-timer", "swap-focus", "swap-keydown", "swap-keyup"] {
+            for hold in [150, 300] {
+                let Some(hwnd) = browser.open(test, phase, hold) else {
+                    continue;
+                };
+                for round in 0..2 {
+                    let start = reset(&keyboard, hwnd).unwrap_or_default();
+                    let front = foreground_window() == hwnd;
+                    if phase == "swap-timer" || phase == "swap-focus" {
+                        std::thread::sleep(Duration::from_millis(150));
+                    }
+                    let sent = letters_for(Duration::from_millis(1_300), Duration::from_millis(60));
+                    let mut r = end_round(&keyboard, hwnd, sent, front);
+                    r.why.extend(not_in_front(front));
+                    r.counted = front
+                        && (phase == "swap-focus" || start.focus == "plain")
+                        && r.page.password >= 1;
+                    counted += usize::from(r.counted);
+                    let held = r.password_letters_recorded_while_the_page_was_held();
+                    if r.counted {
+                        recorded += held;
+                        another_way += r.password_letters_recorded() - held;
+                    } else {
+                        another_way += r.password_letters_recorded();
+                    }
+                    another_way += (r.keys.other + r.keys.tabs) as i64;
+                    sink_differs += usize::from(r.sink_differs());
+                    say(
+                        test,
+                        format!(
+                            "browser={name} phase={phase}-held hold={hold} round={round} {}",
+                            r.line()
+                        ),
+                    );
                 }
-                let sent = letters_for(Duration::from_millis(1_300), Duration::from_millis(60));
-                let mut r = end_round(&keyboard, hwnd, sent, front);
-                r.why.extend(not_in_front(front));
-                let on_step = on_its_step(r.page.at.as_ref(), want);
-                r.why.extend(on_step.err());
-                r.counted = front
-                    && (phase == "swap-focus" || start.focus == "plain")
-                    && on_step.is_ok()
-                    && r.page.password >= 1;
-                counted += usize::from(r.counted);
-                let held = r.password_letters_recorded_while_the_page_was_held();
-                if r.counted {
-                    recorded += held;
-                    another_way += r.password_letters_recorded() - held;
-                } else {
-                    another_way += r.password_letters_recorded();
-                }
-                another_way += (r.keys.other + r.keys.tabs) as i64;
-                sink_differs += usize::from(r.sink_differs());
-                say(
-                    test,
-                    format!(
-                        "browser={name} phase={phase}-held hold={hold} round={round} {}",
-                        r.line()
-                    ),
-                );
             }
         }
         let _ = keyboard.stop();
