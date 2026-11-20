@@ -190,6 +190,7 @@ esac
 #= tests/privacy.rs the_indexes_over_the_body_are_rows_read_and_rows_read_workflow
 #= tests/page_gap_check.rs small_rows_removed_one_at_a_time_leave_no_line_of_the_structural_check
 #= tests/page_gap_check.rs the_same_draw_with_secure_delete_off_leaves_lines_of_the_structural_check
+#= tests/crash_model.rs no_window_row_names_a_shredded_ordinal_at_any_step_or_crash_of_commit_purge_and_delete_all
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

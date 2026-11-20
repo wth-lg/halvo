@@ -5,7 +5,8 @@ The candidates of `docs/r3/trials/model-cells.md`'s verdict line ran A13.6's cel
 through `tools/r3-trials/web`; on `hosted-win` `C:/Program Files/Google/Chrome/Application/chrome.exe`, in the run of
 the `hosted` line; on `mac`, M3 Max, one timed-run helper call per cell and two for `mac` ministral_3_3b `bill` seed
 2, so 28 `timed` lines, and a `load` line per run). The harness of commit c882c15 printed every line of the block.
-More: README.md.
+More: README.md. A pull request that changes the verdict line or a `limits` line of this file keeps the table
+`LIMITS` of halvo-policy (`crates/halvo-policy/src/limits.rs`) equal to what this file gives, in the same commit.
 
 The verdict line below stands, and as far as the three rules that the ruling CP-179 mended go it is no longer
 provisional (CP-173 to CP-179). The harness of c882c15 asked the model on the sign-in page and signed in at its

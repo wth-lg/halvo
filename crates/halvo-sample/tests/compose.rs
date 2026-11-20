@@ -681,3 +681,155 @@ fn compose_takes(o: &common::Out, k: usize) -> bool {
         code => panic!("compose on case {k}: exit {code}, {}", o.stderr),
     }
 }
+
+#[test]
+fn compose_late_n_writes_late_keys_in_that_stream_alone_and_its_built_stream_holds_late_keystrokes()
+{
+    let dir = scratch("compose-late");
+    let sites = services(&dir.join("sites"));
+    let plain = compose(&dir, &rates(20, 4).write(), &sites, "plain");
+    assert_eq!(plain.code, 0, "{}", plain.stderr);
+    let with = |late: &str, out: &str| {
+        let mut args = vec![
+            "compose".to_owned(),
+            "--rates".to_owned(),
+            s(&dir.join("rates.toml")),
+            "--late".to_owned(),
+            late.to_owned(),
+            "--out".to_owned(),
+            s(&dir.join(out)),
+        ];
+        args.extend(sites.iter().map(|p| s(p)));
+        let a: Vec<&str> = args.iter().map(String::as_str).collect();
+        run(&a)
+    };
+    let o = with("3", "late");
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    assert_eq!(o.stdout, plain.stdout);
+    let names = files_under(&dir.join("plain"));
+    assert_eq!(names, files_under(&dir.join("late")));
+    for f in &names {
+        let p = fs::read_to_string(dir.join("plain").join(f)).expect("plain");
+        let l = fs::read_to_string(dir.join("late").join(f)).expect("late");
+        if f.starts_with("s003.") {
+            assert!(l.contains(",\"late\":30000}"), "{f}");
+            assert_eq!(l.replace(",\"late\":30000}", "}"), p, "{f}");
+        } else {
+            assert_eq!(l, p, "{f}");
+        }
+    }
+    let (mut one_key, mut noise_keys) = (0, 0);
+    for f in ["s003.jsonl", "s003.marked.jsonl"] {
+        let text = fs::read_to_string(dir.join("late").join(f)).expect("late");
+        for l in text.lines() {
+            let line = halvo_sample::script::parse_line(l.as_bytes()).expect("a line");
+            let items: Vec<(&halvo_sample::script::Item, bool)> = match &line {
+                halvo_sample::script::Line::Episode(e) => {
+                    e.ranges.iter().map(|i| (i, false)).collect()
+                }
+                halvo_sample::script::Line::Noise(n) => vec![(&n.item, true)],
+                _ => Vec::new(),
+            };
+            for (i, noise) in items {
+                let want = (i.keys > 0).then_some(30_000);
+                assert_eq!(i.late, want, "{l}");
+                one_key += usize::from(i.keys == 1);
+                noise_keys += usize::from(noise && i.keys > 0);
+            }
+        }
+    }
+    assert!(one_key > 0 && noise_keys > 0, "{one_key} {noise_keys}");
+    let body = dir.join("body");
+    let o = run(&[
+        "build",
+        "--seed",
+        "5",
+        "--out",
+        &s(&body),
+        &s(&dir.join("late/s003.jsonl")),
+        &s(&dir.join("late/s003.marked.jsonl")),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let c = run(&["check-labels", &s(&body)]);
+    assert_eq!(c.code, 0, "{}", c.stdout);
+    let mut late_keys = 0;
+    for f in files_under(&body.join("streams/s003")) {
+        if !f.starts_with("day-") {
+            continue;
+        }
+        let text = fs::read_to_string(body.join("streams/s003").join(&f)).expect("day file");
+        let records: Vec<(i64, String)> = text
+            .lines()
+            .map(|l| {
+                let v: serde_json::Value = serde_json::from_str(l).expect("a record");
+                (
+                    v["at"].as_i64().expect("at"),
+                    v["kind"].as_str().expect("kind").to_owned(),
+                )
+            })
+            .collect();
+        let mut highest = i64::MIN;
+        for (at, kind) in &records {
+            if *at < highest {
+                assert_eq!(
+                    kind, "keystroke",
+                    "{f}: only a keystroke stands after a later record"
+                );
+                assert!(highest - at <= 30_000_000_000, "{f}");
+                late_keys += 1;
+            }
+            highest = highest.max(*at);
+        }
+    }
+    assert!(late_keys > 0, "a keystroke stands after a later record");
+    for bad in ["0", "21", "03", "x", "-1"] {
+        refused(&with(bad, &format!("bad-{bad}")), "usage");
+        assert!(!dir.join(format!("bad-{bad}")).exists(), "{bad}");
+    }
+    let last = with("20", "late-last");
+    assert_eq!(last.code, 0, "{}", last.stderr);
+    let text = fs::read_to_string(dir.join("late-last/s020.jsonl")).expect("s020");
+    assert!(text.contains(",\"late\":30000}"));
+}
+
+#[test]
+fn a_panic_of_the_command_ends_as_the_refusal_internal_and_prints_nothing_it_read() {
+    let dir = scratch("panic");
+    let repo = common::repo();
+    let rates = fs::read_to_string(repo.join("fixtures/r2/scripts/rates.toml")).expect("rates");
+    let huge: String = rates
+        .lines()
+        .map(|l| {
+            if l.starts_with("streams = ") {
+                "streams = 9223372036854775806".to_owned()
+            } else if l.starts_with("browser = ") {
+                "browser = \"org.qzmq.Chromium\"".to_owned()
+            } else {
+                l.to_owned()
+            }
+        })
+        .map(|l| format!("{l}\n"))
+        .collect();
+    assert!(huge.contains("9223372036854775806") && huge.contains("qzmq"));
+    write(&dir.join("rates.toml"), &huge);
+    let site = fs::read_dir(repo.join("tools/fixture-server/sites"))
+        .expect("the site files")
+        .map(|e| e.expect("entry").path())
+        .min()
+        .expect("a site file");
+    fs::copy(&site, dir.join("qzmq-site.json")).expect("copy");
+    let o = run(&[
+        "compose",
+        "--rates",
+        &s(&dir.join("rates.toml")),
+        "--out",
+        &s(&dir.join("out")),
+        &s(&dir.join("qzmq-site.json")),
+    ]);
+    refused(&o, "internal");
+    assert_eq!(
+        o.stderr,
+        "REFUSED internal: the command stopped at a fault of its own\n"
+    );
+    assert!(!dir.join("out").exists());
+}

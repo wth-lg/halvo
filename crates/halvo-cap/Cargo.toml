@@ -5,6 +5,9 @@ description = "Runs one child under a memory cap and reads its peak; the binary 
 edition = "2021"
 publish = false
 
+[dev-dependencies]
+halvo-test-dir = { path = "../halvo-test-dir" }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
 
