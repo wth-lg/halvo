@@ -409,6 +409,16 @@ fn an_open_whose_reconcile_shred_meets_a_log_that_left_its_name_answers_obstruct
     let (store_dir, roots_dir, root_id, kept) = file_root_store(dir.path());
     let (key, wrapped) = the_kept_key(&store_dir, &roots_dir, root_id, kept);
     std::fs::remove_file(segment_path(&store_dir, kept)).unwrap();
+    let keyless = {
+        let mut bytes = *kept.as_bytes();
+        bytes[15] ^= 0xff;
+        Uuid::from_bytes(bytes)
+    };
+    std::fs::write(
+        segment_path(&store_dir, keyless),
+        b"a segment file with no key row",
+    )
+    .unwrap();
     let before = tree(&store_dir);
     let unlink = {
         let store_dir = store_dir.clone();
@@ -464,7 +474,7 @@ fn an_open_whose_reconcile_shred_meets_a_log_that_left_its_name_answers_obstruct
     assert_eq!(
         reopened.reconciled(),
         Reconciled {
-            files_removed: 0,
+            files_removed: 1,
             rows_shredded: 1,
             owed: false
         }

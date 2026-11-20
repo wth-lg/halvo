@@ -246,6 +246,16 @@ fn a_store_cut_behind_its_first_page_answers_database_unreadable_whatever_its_ve
         },
         &unreadable,
     );
+    refused(
+        "v1-a-byte-more",
+        &|dir, store_key, _| {
+            older_at(dir, 1, store_key, false);
+            let mut bytes = std::fs::read(dir.join("store.db")).unwrap();
+            bytes.push(0);
+            std::fs::write(dir.join("store.db"), bytes).unwrap();
+        },
+        &unreadable,
+    );
 }
 
 #[test]
