@@ -18,7 +18,8 @@ read at least one file and none holds the marker. With --control the call names 
 well ("--features test-fence"), and the verdict is PASS when a file holds the marker and every
 program holds it: a program that is built only with the feature (web-probe, web-rows,
 web-standin) and lacks the marker fails the control. --self-test reads files that it writes
-itself and runs no cargo. Exit 0 for PASS, 1 for FAIL, 2 for a refusal: one line
+itself, rows of the verdict and lines in the form of cargo's messages, from which it wants the
+files and the programs named above, and runs no cargo. Exit 0 for PASS, 1 for FAIL, 2 for a refusal: one line
 REFUSED <usage|cargo>: <detail> on standard error. It prints file names, sizes and words alone.
 `);
 }
@@ -117,8 +118,53 @@ function selfTest() {
       process.stdout.write(`self-test verdict files=${read.length} control=${control} want=${want}\n`);
     }
   }
+  const message = (reason, manifest, filenames, executable) =>
+    JSON.stringify({ reason, manifest_path: manifest, filenames, executable });
+  const web = '/w/crates/halvo-web/Cargo.toml';
+  const rlib = message('compiler-artifact', web, ['/w/r/libhalvo_web.rlib', '/w/r/deps/libhalvo_web-1.rmeta'], null);
+  const bin = message('compiler-artifact', web, ['/w/r/web-probe'], '/w/r/web-probe');
+  const winBin = message(
+    'compiler-artifact',
+    'C:\\w\\crates\\halvo-web\\Cargo.toml',
+    ['C:\\w\\r\\web-rows.exe', 'C:\\w\\r\\web_rows.pdb'],
+    'C:\\w\\r\\web-rows.exe',
+  );
+  const other = message('compiler-artifact', '/w/crates/halvo-test-dir/Cargo.toml', ['/w/r/libhalvo_test_dir.rlib'], null);
+  const notArtifact = message('compiler-message', web, ['/w/r/note'], '/w/r/note');
+  const libFiles = [
+    ['/w/r/deps/libhalvo_web-1.rmeta', false],
+    ['/w/r/libhalvo_web.rlib', false],
+  ];
+  const winFiles = [
+    ['C:\\w\\r\\web-rows.exe', true],
+    ['C:\\w\\r\\web_rows.pdb', false],
+  ];
+  const lines = [
+    ['rlib', [rlib], libFiles],
+    ['bin', [bin], [['/w/r/web-probe', true]]],
+    ['windows_bin', [winBin], winFiles],
+    ['other_crate', [other], []],
+    ['not_json', ['{"reason":"compiler-artifact",', 'Compiling halvo-web v0.0.0'], []],
+    ['not_artifact', [notArtifact, JSON.stringify({ reason: 'build-finished', success: true })], []],
+    [
+      'all',
+      ['Compiling halvo-web v0.0.0', other, winBin, '{not json', bin, notArtifact, rlib],
+      [...libFiles, ['/w/r/web-probe', true], ...winFiles],
+    ],
+  ];
+  for (const [name, stdout, want] of lines) {
+    const got = artifacts(stdout.join('\n'));
+    if (JSON.stringify(got) !== JSON.stringify(want)) {
+      bad += 1;
+      const programs = (list) => list.filter(([, program]) => program).length;
+      process.stdout.write(
+        `self-test artifacts case=${name} files=${got.length} programs=${programs(got)} want_files=${want.length} want_programs=${programs(want)}\n`,
+      );
+    }
+  }
   rmSync(dir, { recursive: true, force: true });
-  process.stdout.write(`self-test cases=${cases.length + verdicts.length} bad=${bad} result=${bad === 0 ? 'PASS' : 'FAIL'}\n`);
+  const count = cases.length + verdicts.length + lines.length;
+  process.stdout.write(`self-test cases=${count} bad=${bad} result=${bad === 0 ? 'PASS' : 'FAIL'}\n`);
   return bad === 0;
 }
 
