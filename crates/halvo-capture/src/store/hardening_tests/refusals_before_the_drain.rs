@@ -1,16 +1,12 @@
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
 use halvo_sqlcipher::rusqlite::config::DbConfig;
 use halvo_sqlcipher::rusqlite::Connection;
 
 use super::super::db::test_support::key_statement;
-use super::super::db::SEAM_BEFORE_THE_DRAIN;
-use super::super::failpoint;
 use super::super::StoreError;
 use super::open_gates::{names, tree};
-use super::{answer_text, file_root_store, nth_call, open_over_file_root, RootId};
+use super::{answer_text, file_root_store, open_over_file_root, RootId};
 
 type Listed = Vec<(String, Option<Vec<u8>>)>;
 
@@ -95,6 +91,13 @@ fn an_open_refused_by_the_schema_look_while_the_log_holds_frames_leaves_names_le
 #[test]
 fn an_open_whose_store_db_is_exchanged_before_the_drain_while_the_log_holds_frames_is_refused_and_writes_no_byte(
 ) {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use super::super::db::SEAM_BEFORE_THE_DRAIN;
+    use super::super::failpoint;
+    use super::nth_call;
+
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id) = a_store_with_frames(
         dir.path(),
