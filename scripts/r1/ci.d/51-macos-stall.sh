@@ -955,7 +955,8 @@ check() {
     MS_EXPECTED_FILE=$work/expected-small
     MS_TEST_LIMIT_S=${limit:-}
     MS_NOTES_FILE=$work/notes-small
-    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_EXE STUB_LIB STUB_CALLS MS_EXPECTED_FILE MS_TEST_LIMIT_S MS_NOTES_FILE
+    MS_COUNT_FILE=$work/count-small
+    export PATH CI_D_REPO CI_D_ARTIFACTS STUB_SPEC STUB_EXE STUB_LIB STUB_CALLS MS_EXPECTED_FILE MS_TEST_LIMIT_S MS_NOTES_FILE MS_COUNT_FILE
     if [ "${5:-}" = rules ]; then sh "$0" --rules 2>&1; else sh "$0" 2>&1; fi
   )
   code=$?
@@ -1133,6 +1134,8 @@ spec "control-not-driven-$test" && printf '%s control=0 bound_ms=1000 counted=0 
 spec "recorded-not-driven-$test" && printf '%s round=1 wait_ms=300 bound_ms=1000 counted=0 ahead=2 markers=0 plain=0 secure=8 rv=recorded not_driven=output_ended_before_left_secure phase_counted=1 phase_not_driven=1\n' "$test"
 spec "long-output-$test" && printf 'a line that the check does not print\n  and a second one\n'
 spec "late-rule-$test" && printf '%s rounds_lost_to_the_late_rule=1 by_wait=150:0,300:1\n' "$test"
+spec "late-rule-twice-$test" && printf '%s rounds_lost_to_the_late_rule=1 by_wait=150:1\n%s rounds_lost_to_the_late_rule=0 by_wait=150:0\n' "$test" "$test"
+spec "late-rule-empty-$test" && printf '%s rounds_lost_to_the_late_rule=1 by_wait=\n' "$test"
 spec "prose-$test" && printf '%s the session was lost\n' "$test"
 spec "debug-word-$test" && printf '%s round=2 wait_ms=150 rv=notcounted("the markers were not recorded")\n' "$test"
 spec "panic-$test" && {
@@ -1203,6 +1206,7 @@ self_test() {
   write_stubs
   printf 'the_probe not-run\nthe_form_of_the_hosted_phases not-run\nphase_one phase\nphase_two phase\nknown_one known-fault\nthree_one three-way\nthree_long three-way long\nlaunch_one twelve\nmeasured_one measured\nloop_one loop\n' >"$work/expected-small"
   printf 'phase_two shows what it shows; it does not show the rest\n' >"$work/notes-small"
+  : >"$work/count-small" || exit 2
   git -C "$work/repo" init -q || exit 2
   printf 'tracked\n' >"$work/repo/tracked.txt" || exit 2
   mkdir -p "$work/repo/crates/halvo-capture" "$work/repo/crates/other" || exit 2
@@ -1317,6 +1321,14 @@ waits-not-driven-phase_one'
   check rounds-lost-to-the-late-rule-on-the-ms-line PASS ' by_wait=150:1/0 rounds_lost_to_the_late_rule=1 lost_by_wait=150:0,300:1' 'late-rule-phase_one'
   check rounds-lost-to-the-late-rule-in-the-total PASS 'phases_not_driven=0 rounds_lost_to_the_late_rule=1' 'late-rule-phase_one'
   check rounds-lost-to-the-late-rule-in-the-log PASS '    | phase_one rounds_lost_to_the_late_rule=1 by_wait=150:0,300:1' 'late-rule-phase_one'
+  check count-lines-of-two-phases-sum PASS 'phases_not_driven=0 rounds_lost_to_the_late_rule=2' 'late-rule-phase_one
+late-rule-phase_two'
+  printf 'phase_one\n' >"$work/count-small" || exit 2
+  check count-line-held-once PASS 'MS phase_one result=pass' 'late-rule-phase_one'
+  check count-line-missing FAIL 'phase_one: printed 0 lines of its count of rounds lost to the late rule, not one' ''
+  check count-line-twice FAIL 'phase_one: printed 2 lines of its count of rounds lost to the late rule, not one' 'late-rule-twice-phase_one'
+  check count-line-malformed FAIL 'phase_one: its count line of rounds lost to the late rule does not read' 'late-rule-empty-phase_one'
+  : >"$work/count-small" || exit 2
   printf '%s\n' 'phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE,HALVO_STALL_FORM,HALVO_STALL_GAP_MS,' \
     'phase_one round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0' \
     'a line that the check does not print' '  and a second one' 'test result: ok. 1 passed; 0 failed; 0 ignored' \
