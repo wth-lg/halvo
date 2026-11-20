@@ -637,8 +637,8 @@ def self_test():
         try:
             with stub(WORK / "guard-stub", True):
                 pass
-        except RuntimeError as exc:
-            if str(exc) != "certificate-outside-hosted-job":
+        except Exception as exc:
+            if type(exc) is not RuntimeError or str(exc) != "certificate-outside-hosted-job":
                 raise RuntimeError("stub-guard-fixture") from exc
         else:
             raise RuntimeError("stub-guard-fixture")
@@ -654,8 +654,8 @@ def self_test():
             armed.exists.return_value = True
             try:
                 action()
-            except RuntimeError as exc:
-                if str(exc) != refusal:
+            except Exception as exc:
+                if type(exc) is not RuntimeError or str(exc) != refusal:
                     raise RuntimeError(case) from exc
             else:
                 raise RuntimeError(case)
