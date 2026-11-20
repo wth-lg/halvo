@@ -1,4 +1,7 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the windows job alone (no macos job in this copy)
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -14,121 +17,6 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  macos:
-    runs-on: macos-15
-    timeout-minutes: 180
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Commit messages
-        shell: bash
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 26
-          cache: npm
-      - name: Prerequisites
-        shell: bash
-        run: sh scripts/prerequisites.sh
-      - name: Changelog
-        shell: bash
-        run: |
-          sh scripts/check-changelog.sh --self-test
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            if git rev-parse --quiet --verify 'HEAD^2^{commit}' >/dev/null; then
-              base=$(git rev-parse 'HEAD^1')
-              echo "Changelog: the base of the entry check is $base, the first parent of the merge commit that actions/checkout made."
-            else
-              base=$(git merge-base HEAD "refs/remotes/origin/$GITHUB_BASE_REF") || {
-                echo "Changelog: HEAD has one parent and no merge base with refs/remotes/origin/$GITHUB_BASE_REF in this checkout. Fix: fetch the base branch with its history (fetch-depth: 0 on actions/checkout)."
-                exit 2
-              }
-              echo "Changelog: HEAD has one parent, so the base of the entry check is $base, its merge base with origin/$GITHUB_BASE_REF."
-            fi
-            sh scripts/check-changelog.sh --base "$base"
-          else
-            sh scripts/check-changelog.sh
-          fi
-      - name: Line endings
-        shell: bash
-        run: |
-          sh scripts/check-line-endings.sh --self-test
-          sh scripts/check-line-endings.sh
-      - name: Own-source reads
-        shell: bash
-        run: |
-          sh scripts/check-own-source-reads.sh --self-test
-          sh scripts/check-own-source-reads.sh
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
-      - name: Processor
-        shell: bash
-        run: |
-          printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
-      - name: ci.d
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
-      - name: Lockfile unchanged
-        shell: bash
-        run: |
-          for name in $(env | sed -n 's/^\(GIT_[A-Za-z0-9_]*\)=.*/\1/p'); do
-            unset "$name"
-          done
-          in_checkout() {
-            git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$GITHUB_WORKSPACE" -c core.fsmonitor=false -c core.trustctime=true -c core.checkStat=default -c core.fileMode=true "$@"
-          }
-          head=$(in_checkout rev-parse HEAD)
-          if [ "$head" != "$GITHUB_SHA" ]; then
-            echo "HEAD is not the commit of this run: a step or a check moved HEAD of the checkout."
-            exit 1
-          fi
-          changed=$(in_checkout status --porcelain --untracked-files=no --ignore-submodules=none)
-          untracked=$(in_checkout ls-files --others --exclude-per-directory=.gitignore)
-          flagged=$(in_checkout ls-files -v | awk '!/^H /')
-          hidden=$(in_checkout status --porcelain --ignored --untracked-files=normal | sed -n 's/^!! //p' | while IFS= read -r entry; do
-            source=$(in_checkout check-ignore -v --no-index -- "$entry") || { echo "$entry"; continue; }
-            in_checkout ls-files --error-unmatch -- "${source%%:*}" >/dev/null 2>&1 || echo "$entry"
-          done)
-          if [ -n "$changed$untracked$flagged$hidden" ]; then
-            printf '%s\n' "$changed" "$untracked" "$flagged" "$hidden" | sed '/^$/d'
-            echo "A step or a check changed these files of the checkout, left them untracked and not ignored by a tracked .gitignore, or hid them by an index flag. A check builds with --locked and writes only under target/ and its temporary directory. On the windows job a file that differs by its line endings alone needs an eol attribute in .gitattributes."
-            exit 1
-          fi
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: ci-artifacts-macos
-          path: target/ci-artifacts/
-
   windows:
     runs-on: windows-2025
     timeout-minutes: 180
@@ -154,14 +42,1115 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 30-core-boundary-proofs 50-windows-functional
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 30-core-boundary-proofs 50-windows-functional
+      - name: "Loop (win-detector-clock round 2, T6, T0 and the two cases 200 times, T1 to T5 20 times, by exact name)"
+        if: ${{ !cancelled() }}
+        shell: python
+        env:
+          WDC_PART: loop
+        run: |
+          """win-detector-clock, round 2 (builder-134, Addition 1): D1's meeting point, D2's case for until, D4's hold guard.
+
+          On this Mac:  python3 -I wdc2.py check <clone> <out dir> [id ...]
+              applies each form and each change to the clone's file (read with its line ends turned to LF, written back as it
+              was found), type-checks the Windows target's lib with its tests (cargo check, the run's stub C compiler), writes
+              <out dir>/<id>.log and one row of <out dir>/check.tsv, and restores the file with git checkout. No test runs here.
+          On the hosted windows job: python wdc2.py, with WDC_PART=loop, forced or changes, at the repo root.
+              loop     T6, T0, the case of D2 and the case of D4 200 times each; T1 to T5 20 times each.
+              forced   failing first: D1 (the head's T6 green, the control copy that holds the detector's lock across the wait
+                       red; and the two schedules of verifier-198: a slot check that holds the lock 600 ms, an attach that
+                       starts 1,500 ms late), D2 (the case against m10) and D4 (the case against a guard that lets nothing go).
+              changes  every one-rule change over the lines of this round, built and run against the nine tests.
+          Each part restores the file with git checkout and prints counts, verdicts and libtest's own lines only."""
+          import json, os, subprocess, sys, time
+
+          BASE = "ce6585fc35758cbf4d55194b99e20090449c0d00"
+          PATH = "crates/halvo-capture/src/windows/secure_input.rs"
+          MOD = "secure_input::windows::detector::tests::"
+          TESTS = [
+              ("T0", "a_desktop_hook_that_cannot_be_set_refuses_the_attach_and_removes_the_focus_handler"),
+              ("T1", "after_attach_the_first_mark_is_the_start_and_attach_returns_after_the_detectors_own_read"),
+              ("T2", "detach_ends_the_detectors_thread_and_a_new_attach_starts_one"),
+              ("T3", "detach_answers_the_first_of_its_removal_calls_that_failed"),
+              ("T4", "an_attach_after_a_timed_out_detach_is_refused_while_the_old_detector_runs"),
+              ("T5", "detach_answers_timeout_when_the_detector_does_not_end_in_time"),
+              ("T6", "an_attach_whose_first_read_does_not_answer_times_out_and_stops_that_detector"),
+              ("C2", "until_asks_its_fact_again_until_it_holds_and_then_no_more"),
+              ("C4", "a_hold_is_let_go_when_its_test_unwinds"),
+          ]
+          NAMES = dict(TESTS)
+          LOOP = {"T0": 200, "T1": 20, "T2": 20, "T3": 20, "T4": 20, "T5": 20, "T6": 200, "C2": 200, "C4": 200}
+          TEST_LIMIT_S = 60
+          HELD_WORDS = "the attach held the detector's lock across its wait"
+
+          SLOT = ("            if self\n                .detector\n                .lock()\n"
+                  "                .unwrap_or_else(std::sync::PoisonError::into_inner)\n                .is_some()\n"
+                  "            {\n                return Ok(());\n            }\n            self.wait_for_the_stale_detector()?;")
+          RECEIVE = "            match started.recv_timeout(deadline) {\n                Ok(Ok(())) => {"
+          ATTACH = "        pub(crate) fn attach(&self) -> Result<(), CaptureError> {\n"
+          FORMS = {
+              "CONTROL": [
+                  (SLOT, SLOT.replace("            if self\n", "            let held = self\n")
+                   .replace("into_inner)\n                .is_some()\n            {\n", "into_inner);\n            if held.is_some() {\n")),
+                  (RECEIVE, "            let answer = started.recv_timeout(deadline);\n            drop(held);\n"
+                            "            match answer {\n                Ok(Ok(())) => {"),
+              ],
+              "SLOWSLOT": [
+                  (SLOT, SLOT.replace("                .lock()\n",
+                                      "                .lock().map(|g| { std::thread::sleep(std::time::Duration::from_millis(600)); g })\n")),
+              ],
+              "LATE": [
+                  (ATTACH, ATTACH.rstrip("\n") + " std::thread::sleep(std::time::Duration::from_millis(1_500));\n"),
+              ],
+              "M10": [
+                  ("            while !fact() {", "            if !fact() {"),
+              ],
+              "NODROP": [
+                  ("            fn drop(&mut self) {\n                self.0.store(false, std::sync::atomic::Ordering::SeqCst);\n",
+                   "            fn drop(&mut self) {\n                let _ = self.0;\n"),
+              ],
+          }
+          FORM_WORDS = {
+              "CONTROL": "the control: attach keeps the guard of its slot check until its receive has answered (the detector's lock held across the wait)",
+              "SLOWSLOT": "a slow slot check: attach holds the detector's lock 600 ms in its slot check (verifier-198, the probe that fails on right code)",
+              "LATE": "a late attach: attach starts 1,500 ms late (verifier-198, the probe that passes without the wait seen)",
+              "M10": "m10 of round 1: until looks at its fact once",
+              "NODROP": "a hold guard whose drop lets nothing go",
+          }
+
+          T6_SEAM_CALL = "            #[cfg(test)]\n            (self.removals.at_receive)();\n"
+          # id, the rule, old text (exactly once in the head's file), new text, what I expect
+          CHANGES = [
+              ("r01", "attach does not call at_receive", T6_SEAM_CALL, "", "hang"),
+              ("r02", "receive_met does not count its arrival",
+               "            RECEIVES_MET.fetch_add(1, std::sync::atomic::Ordering::SeqCst);\n", "", "hang"),
+              ("r03", "receive_met counts each arrival twice",
+               "RECEIVES_MET.fetch_add(1, std::sync::atomic::Ordering::SeqCst);", "RECEIVES_MET.fetch_add(2, std::sync::atomic::Ordering::SeqCst);", "hang"),
+              ("r04", "receive_met holds the attaching thread for one turn only",
+               "            while HOLD_RECEIVE.load(std::sync::atomic::Ordering::SeqCst) {",
+               "            if HOLD_RECEIVE.load(std::sync::atomic::Ordering::SeqCst) {", "green"),
+              ("r05", "T6 hands in no at_receive", "                at_receive: receive_met,\n", "", "hang"),
+              ("r06", "T6 does not hold the receive",
+               "            let receive = Hold::on(&HOLD_RECEIVE);", "            let receive = ();", "green"),
+              ("r07", "T6 never lets the receive go", "            drop(receive);\n", "", "hang"),
+              ("r08", "T6 does not reset the count of arrivals", "            RECEIVES_MET.store(0, Ordering::SeqCst);\n", "", "green"),
+              ("r09", "T6 waits for two arrivals",
+               "            until(|| RECEIVES_MET.load(Ordering::SeqCst) == 1);", "            until(|| RECEIVES_MET.load(Ordering::SeqCst) == 2);", "hang"),
+              ("r10", "T6 does not wait for the meeting", "            until(|| RECEIVES_MET.load(Ordering::SeqCst) == 1);\n", "", "green"),
+              ("r11", "T6 reads a held lock as free",
+               "            let free_during_the_wait = gate.detector.try_lock().is_ok();",
+               "            let free_during_the_wait = gate.detector.try_lock().is_err();", "red"),
+              ("r12", "the case of D2 expects 2 asks",
+               "            assert_eq!(asked.load(Ordering::SeqCst), 3);", "            assert_eq!(asked.load(Ordering::SeqCst), 2);", "red"),
+              ("r13", "the case of D2's fact holds at the second ask",
+               "            until(|| asked.fetch_add(1, Ordering::SeqCst) + 1 == 3);", "            until(|| asked.fetch_add(1, Ordering::SeqCst) + 1 == 2);", "red"),
+              ("r14", "Hold::on does not set its flag",
+               "                flag.store(true, std::sync::atomic::Ordering::SeqCst);\n                Hold(flag)",
+               "                flag.store(false, std::sync::atomic::Ordering::SeqCst);\n                Hold(flag)", "red"),
+              ("r15", "Hold's drop sets its flag",
+               "            fn drop(&mut self) {\n                self.0.store(false, std::sync::atomic::Ordering::SeqCst);\n",
+               "            fn drop(&mut self) {\n                self.0.store(true, std::sync::atomic::Ordering::SeqCst);\n", "hang"),
+              ("r16", "T4 does not reset HOLD_READS on entry",
+               "            let _serial = crate::windows::tests::serial();\n            HOLD_READS.store(false, Ordering::SeqCst);\n",
+               "            let _serial = crate::windows::tests::serial();\n", "green"),
+              ("r17", "T5 does not reset HOLD_REMOVAL on entry",
+               "            let _serial = crate::windows::tests::serial();\n            HOLD_REMOVAL.store(false, Ordering::SeqCst);\n",
+               "            let _serial = crate::windows::tests::serial();\n", "green"),
+              ("r18", "T6 does not reset HOLD_FIRST_READ on entry", "            HOLD_FIRST_READ.store(false, Ordering::SeqCst);\n", "", "green"),
+              ("r19", "T6 does not reset HOLD_RECEIVE on entry", "            HOLD_RECEIVE.store(false, Ordering::SeqCst);\n", "", "green"),
+              ("r20", "T4 never lets its reads go", "            drop(reads);\n", "", "hang"),
+              ("r21", "T5 never lets its removal go", "            drop(removal);\n", "", "hang"),
+              ("r22", "T6 never lets its first read go", "            drop(first_read);\n", "", "hang"),
+              ("r23", "the case of D4 does not unwind",
+               "                panic!(\"an unwind inside the hold\");\n", "", "red"),
+              ("r24", "the case of D4 reads the hold as set",
+               "                !HELD.load(std::sync::atomic::Ordering::SeqCst),", "                HELD.load(std::sync::atomic::Ordering::SeqCst),", "red"),
+          ]
+
+
+          def out(line):
+              sys.stdout.write(line + "\n")
+              sys.stdout.flush()
+
+
+          def apply(text, old, new, what):
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit("WDC %s: its old text is found %d times, not once" % (what, n))
+              return text.replace(old, new, 1)
+
+
+          def read(path):
+              with open(path, "rb") as f:
+                  data = f.read()
+              return data.decode("utf-8").replace("\r\n", "\n"), b"\r\n" in data
+
+
+          def write(path, text, crlf):
+              data = text.replace("\r\n", "\n")
+              if crlf:
+                  data = data.replace("\n", "\r\n")
+              with open(path, "wb") as f:
+                  f.write(data.encode("utf-8"))
+
+
+          def formed(text, *names):
+              for name in names:
+                  for i, (old, new) in enumerate(FORMS[name]):
+                      text = apply(text, old, new, "%s.%d" % (name, i))
+              return text
+
+
+          def changed(text, cid):
+              for c in CHANGES:
+                  if c[0] == cid:
+                      return apply(text, c[2], c[3], cid)
+              raise SystemExit("WDC no change " + cid)
+
+
+          def restore(root):
+              subprocess.run(["git", "checkout", "--", PATH], cwd=root, check=True)
+
+
+          def plan_forced(head, base):
+              return [
+                  ("head-plain", head, ["T6", "C2", "C4"]),
+                  ("head-control", formed(head, "CONTROL"), ["T6"]),
+                  ("base-slowslot", formed(base, "SLOWSLOT"), ["T6"]),
+                  ("head-slowslot", formed(head, "SLOWSLOT"), ["T6"]),
+                  ("base-late-control", formed(base, "LATE", "CONTROL"), ["T6"]),
+                  ("head-late", formed(head, "LATE"), ["T6"]),
+                  ("head-late-control", formed(head, "LATE", "CONTROL"), ["T6"]),
+                  ("head-m10", formed(head, "M10"), ["C2"]),
+                  ("head-nodrop", formed(head, "NODROP"), ["C4"]),
+              ]
+
+
+          def check(clone, outdir, ids):
+              os.makedirs(outdir, exist_ok=True)
+              env = dict(os.environ)
+              env["PATH"] = os.path.expanduser("~/.cargo/bin") + os.pathsep + env.get("PATH", "")
+              env["TMPDIR"] = "/private/tmp/r1-builder-134-scratch/tmp"
+              env["CARGO_BUILD_JOBS"] = "4"
+              env["CARGO_TARGET_DIR"] = "/private/tmp/r1-builder-134-scratch/target"
+              stub = os.path.expanduser("~/.wstack/runs/20261108-halvo-r1-capture/bin/static-analyzer/stub-cc.sh")
+              env["CC_x86_64_pc_windows_msvc"] = stub
+              env["AR_x86_64_pc_windows_msvc"] = stub
+              file = os.path.join(clone, PATH)
+              head, crlf = read(file)
+              base = subprocess.run(["git", "show", BASE + ":" + PATH], cwd=clone, capture_output=True, check=True).stdout.decode("utf-8")
+              plan = [(label, text) for label, text, _ in plan_forced(head, base)]
+              plan += [(c[0], changed(head, c[0])) for c in CHANGES]
+              if ids:
+                  plan = [p for p in plan if p[0] in ids]
+              rows = open(os.path.join(outdir, "check.tsv"), "a")
+              try:
+                  for pid, text in plan:
+                      write(file, text, crlf)
+                      start = time.time()
+                      r = subprocess.run(["cargo", "check", "--locked", "--target", "x86_64-pc-windows-msvc", "-p", "halvo-capture",
+                                          "--lib", "--tests"], cwd=clone, env=env, capture_output=True)
+                      log = r.stdout.decode("utf-8", "replace") + r.stderr.decode("utf-8", "replace")
+                      with open(os.path.join(outdir, pid + ".log"), "w") as f:
+                          f.write(log + "\ncheck_exit=%d\n" % r.returncode)
+                      errors = [l for l in log.splitlines() if l.startswith("error") or l.startswith("warning: unused")]
+                      checked = "Checking halvo-capture" in log
+                      row = "%s\t%d\t%s\t%d\t%s" % (pid, r.returncode, "checked" if checked else "NOT-REBUILT", round(time.time() - start),
+                                                    errors[0][:160] if errors else "-")
+                      rows.write(row + "\n")
+                      rows.flush()
+                      out(row)
+                      restore(clone)
+              finally:
+                  restore(clone)
+                  rows.close()
+
+
+          def build(root):
+              r = subprocess.run(["cargo", "test", "--locked", "-p", "halvo-capture", "--lib", "--no-run", "--message-format", "json"],
+                                 cwd=root, capture_output=True)
+              exe = None
+              for line in r.stdout.decode("utf-8", "replace").splitlines():
+                  if not line.startswith("{"):
+                      continue
+                  m = json.loads(line)
+                  if m.get("reason") == "compiler-artifact" and m.get("target", {}).get("name") == "halvo_capture" \
+                          and "lib" in m.get("target", {}).get("kind", []) and m.get("profile", {}).get("test") and m.get("executable"):
+                      exe = m["executable"]
+              err = r.stderr.decode("utf-8", "replace")
+              first = [l for l in err.splitlines() if l.startswith("error")]
+              return r.returncode, exe, first[:3], "Compiling halvo-capture" in err
+
+
+          def run_test(exe, name):
+              start = time.time()
+              try:
+                  r = subprocess.run([exe, "--exact", MOD + name, "--test-threads=1"], capture_output=True, timeout=TEST_LIMIT_S,
+                                     stdin=subprocess.DEVNULL)
+              except subprocess.TimeoutExpired:
+                  return "HANG", ["killed after %d s" % TEST_LIMIT_S], time.time() - start
+              text = (r.stdout + r.stderr).decode("utf-8", "replace").replace("\r\n", "\n")
+              lines = text.split("\n")
+              if "test result: ok. 1 passed; 0 failed" in text:
+                  return "ok", [l for l in lines if l.startswith("test result:")], time.time() - start
+              keep = [l for l in lines if "panicked at" in l or l.startswith("  left:") or l.startswith(" right:")
+                      or l.startswith("assertion") or l.startswith("test result:") or "running 0 tests" in l]
+              return "RED", keep[:8], time.time() - start
+
+
+          def some(exe, label, ids):
+              verdicts = {}
+              for tid in ids:
+                  v, keep, secs = run_test(exe, NAMES[tid])
+                  verdicts[tid] = (v, keep)
+                  out("WDC %s %s %s %s %.2f s" % (label, tid, NAMES[tid], v, secs))
+                  for l in keep:
+                      out("WDC   | " + l)
+              return verdicts
+
+
+          def hosted(part):
+              root = os.getcwd()
+              file = os.path.join(root, PATH)
+              head, crlf = read(file)
+              ok = True
+              try:
+                  if part == "loop":
+                      code, exe, first, _ = build(root)
+                      if code != 0 or not exe:
+                          out("WDC loop: the head's test build failed: exit %d %s" % (code, first))
+                          return 1
+                      for tid, name in TESTS:
+                          runs = LOOP[tid]
+                          passed, start, secs = 0, time.time(), []
+                          for i in range(runs):
+                              v, keep, s = run_test(exe, name)
+                              secs.append(s)
+                              if v == "ok":
+                                  passed += 1
+                              else:
+                                  out("WDC loop round %d of %s: %s" % (i + 1, name, v))
+                                  for l in keep:
+                                      out("WDC   | " + l)
+                          secs.sort()
+                          out("loop win-detector-clock: %s: passed %d of %d in %d s (median %.2f s, longest %.2f s a run)"
+                              % (name, passed, runs, round(time.time() - start), secs[len(secs) // 2], secs[-1]))
+                          ok = ok and passed == runs
+                      return 0 if ok else 1
+                  if part == "forced":
+                      have = subprocess.run(["git", "cat-file", "-e", BASE + "^{commit}"], cwd=root, capture_output=True).returncode == 0
+                      if have:
+                          out("WDC the base commit is in the checkout; no fetch")
+                      else:
+                          f = subprocess.run(["git", "fetch", "--no-tags", "--depth=1", "origin", BASE], cwd=root, capture_output=True)
+                          out("WDC fetch of the base exited %d" % f.returncode)
+                      base = subprocess.run(["git", "show", BASE + ":" + PATH], cwd=root, capture_output=True, check=True).stdout.decode("utf-8")
+                      for name, words in FORM_WORDS.items():
+                          out("WDC form %s: %s" % (name, words))
+                      r = {}
+                      for label, text, ids in plan_forced(head, base):
+                          write(file, text, crlf)
+                          code, exe, first, compiled = build(root)
+                          out("WDC %s build exit %d compiled=%s" % (label, code, compiled))
+                          if code != 0 or not exe:
+                              out("WDC %s: build failed %s" % (label, first))
+                              return 1
+                          r[label] = some(exe, label, ids)
+                      held = lambda v: v[0] == "RED" and any(HELD_WORDS in l for l in v[1])
+                      d1 = r["head-plain"]["T6"][0] == "ok" and held(r["head-control"]["T6"])
+                      d1_schedules = (r["base-slowslot"]["T6"][0] == "RED" and r["head-slowslot"]["T6"][0] == "ok"
+                                      and r["base-late-control"]["T6"][0] == "ok" and r["head-late"]["T6"][0] == "ok"
+                                      and held(r["head-late-control"]["T6"]))
+                      d2 = r["head-plain"]["C2"][0] == "ok" and r["head-m10"]["C2"][0] == "RED"
+                      d4 = r["head-plain"]["C4"][0] == "ok" and r["head-nodrop"]["C4"][0] == "RED"
+                      out("WDC failing_first D1 (the head's T6 ok; the control red with its words): %s" % ("PASS" if d1 else "FAIL"))
+                      out("WDC D1 schedules (base red and head ok under a slow slot check; base ok and head red under a late attach "
+                          "with the control; the head ok under a late attach alone): %s" % ("PASS" if d1_schedules else "FAIL"))
+                      out("WDC failing_first D2 (the case ok at the head, red under m10): %s" % ("PASS" if d2 else "FAIL"))
+                      out("WDC failing_first D4 (the case ok at the head, red with a guard that lets nothing go): %s" % ("PASS" if d4 else "FAIL"))
+                      return 0 if d1 and d2 and d4 else 1
+                  if part == "changes":
+                      code, exe, first, compiled = build(root)
+                      control = some(exe, "control-head", [t for t, _ in TESTS]) if code == 0 and exe else {}
+                      if not control or not all(v[0] == "ok" for v in control.values()):
+                          out("WDC the control (the head) is not green; the changes are not judged")
+                          return 1
+                      counts = {"red": 0, "hang": 0, "does-not-compile": 0, "green": 0}
+                      for c in CHANGES:
+                          write(file, changed(head, c[0]), crlf)
+                          code, exe, first, compiled = build(root)
+                          if code != 0 or not exe:
+                              out("WDC change %s expect=%s result=does-not-compile :: %s" % (c[0], c[4], c[1]))
+                              for l in first:
+                                  out("WDC   | " + l)
+                              counts["does-not-compile"] += 1
+                              continue
+                          v = some(exe, c[0], [t for t, _ in TESTS])
+                          hangs = [t for t in v if v[t][0] == "HANG"]
+                          reds = [t for t in v if v[t][0] == "RED"]
+                          result = "hang" if hangs and not reds else ("red" if reds else "green")
+                          counts[result] += 1
+                          out("WDC change %s expect=%s result=%s compiled=%s red=%s hang=%s :: %s" % (
+                              c[0], c[4], result, compiled, ",".join(reds) or "-", ",".join(hangs) or "-", c[1]))
+                      out("WDC changes: %d; red %d, hang %d, does-not-compile %d, green %d" % (
+                          len(CHANGES), counts["red"], counts["hang"], counts["does-not-compile"], counts["green"]))
+                      return 0
+                  out("WDC unknown part " + part)
+                  return 2
+              finally:
+                  restore(root)
+
+
+          if __name__ == "__main__":
+              try:
+                  sys.stdout.reconfigure(errors="backslashreplace")
+              except AttributeError:
+                  pass
+              if len(sys.argv) > 1 and sys.argv[1] == "check":
+                  check(sys.argv[2], sys.argv[3], sys.argv[4:])
+              else:
+                  sys.exit(hosted(os.environ.get("WDC_PART", "")))
+      - name: "win-detector-clock round 2 failing first (D1 control and schedules, D2 against m10, D4 against a guard that lets nothing go)"
+        if: ${{ !cancelled() }}
+        shell: python
+        env:
+          WDC_PART: forced
+        run: |
+          """win-detector-clock, round 2 (builder-134, Addition 1): D1's meeting point, D2's case for until, D4's hold guard.
+
+          On this Mac:  python3 -I wdc2.py check <clone> <out dir> [id ...]
+              applies each form and each change to the clone's file (read with its line ends turned to LF, written back as it
+              was found), type-checks the Windows target's lib with its tests (cargo check, the run's stub C compiler), writes
+              <out dir>/<id>.log and one row of <out dir>/check.tsv, and restores the file with git checkout. No test runs here.
+          On the hosted windows job: python wdc2.py, with WDC_PART=loop, forced or changes, at the repo root.
+              loop     T6, T0, the case of D2 and the case of D4 200 times each; T1 to T5 20 times each.
+              forced   failing first: D1 (the head's T6 green, the control copy that holds the detector's lock across the wait
+                       red; and the two schedules of verifier-198: a slot check that holds the lock 600 ms, an attach that
+                       starts 1,500 ms late), D2 (the case against m10) and D4 (the case against a guard that lets nothing go).
+              changes  every one-rule change over the lines of this round, built and run against the nine tests.
+          Each part restores the file with git checkout and prints counts, verdicts and libtest's own lines only."""
+          import json, os, subprocess, sys, time
+
+          BASE = "ce6585fc35758cbf4d55194b99e20090449c0d00"
+          PATH = "crates/halvo-capture/src/windows/secure_input.rs"
+          MOD = "secure_input::windows::detector::tests::"
+          TESTS = [
+              ("T0", "a_desktop_hook_that_cannot_be_set_refuses_the_attach_and_removes_the_focus_handler"),
+              ("T1", "after_attach_the_first_mark_is_the_start_and_attach_returns_after_the_detectors_own_read"),
+              ("T2", "detach_ends_the_detectors_thread_and_a_new_attach_starts_one"),
+              ("T3", "detach_answers_the_first_of_its_removal_calls_that_failed"),
+              ("T4", "an_attach_after_a_timed_out_detach_is_refused_while_the_old_detector_runs"),
+              ("T5", "detach_answers_timeout_when_the_detector_does_not_end_in_time"),
+              ("T6", "an_attach_whose_first_read_does_not_answer_times_out_and_stops_that_detector"),
+              ("C2", "until_asks_its_fact_again_until_it_holds_and_then_no_more"),
+              ("C4", "a_hold_is_let_go_when_its_test_unwinds"),
+          ]
+          NAMES = dict(TESTS)
+          LOOP = {"T0": 200, "T1": 20, "T2": 20, "T3": 20, "T4": 20, "T5": 20, "T6": 200, "C2": 200, "C4": 200}
+          TEST_LIMIT_S = 60
+          HELD_WORDS = "the attach held the detector's lock across its wait"
+
+          SLOT = ("            if self\n                .detector\n                .lock()\n"
+                  "                .unwrap_or_else(std::sync::PoisonError::into_inner)\n                .is_some()\n"
+                  "            {\n                return Ok(());\n            }\n            self.wait_for_the_stale_detector()?;")
+          RECEIVE = "            match started.recv_timeout(deadline) {\n                Ok(Ok(())) => {"
+          ATTACH = "        pub(crate) fn attach(&self) -> Result<(), CaptureError> {\n"
+          FORMS = {
+              "CONTROL": [
+                  (SLOT, SLOT.replace("            if self\n", "            let held = self\n")
+                   .replace("into_inner)\n                .is_some()\n            {\n", "into_inner);\n            if held.is_some() {\n")),
+                  (RECEIVE, "            let answer = started.recv_timeout(deadline);\n            drop(held);\n"
+                            "            match answer {\n                Ok(Ok(())) => {"),
+              ],
+              "SLOWSLOT": [
+                  (SLOT, SLOT.replace("                .lock()\n",
+                                      "                .lock().map(|g| { std::thread::sleep(std::time::Duration::from_millis(600)); g })\n")),
+              ],
+              "LATE": [
+                  (ATTACH, ATTACH.rstrip("\n") + " std::thread::sleep(std::time::Duration::from_millis(1_500));\n"),
+              ],
+              "M10": [
+                  ("            while !fact() {", "            if !fact() {"),
+              ],
+              "NODROP": [
+                  ("            fn drop(&mut self) {\n                self.0.store(false, std::sync::atomic::Ordering::SeqCst);\n",
+                   "            fn drop(&mut self) {\n                let _ = self.0;\n"),
+              ],
+          }
+          FORM_WORDS = {
+              "CONTROL": "the control: attach keeps the guard of its slot check until its receive has answered (the detector's lock held across the wait)",
+              "SLOWSLOT": "a slow slot check: attach holds the detector's lock 600 ms in its slot check (verifier-198, the probe that fails on right code)",
+              "LATE": "a late attach: attach starts 1,500 ms late (verifier-198, the probe that passes without the wait seen)",
+              "M10": "m10 of round 1: until looks at its fact once",
+              "NODROP": "a hold guard whose drop lets nothing go",
+          }
+
+          T6_SEAM_CALL = "            #[cfg(test)]\n            (self.removals.at_receive)();\n"
+          # id, the rule, old text (exactly once in the head's file), new text, what I expect
+          CHANGES = [
+              ("r01", "attach does not call at_receive", T6_SEAM_CALL, "", "hang"),
+              ("r02", "receive_met does not count its arrival",
+               "            RECEIVES_MET.fetch_add(1, std::sync::atomic::Ordering::SeqCst);\n", "", "hang"),
+              ("r03", "receive_met counts each arrival twice",
+               "RECEIVES_MET.fetch_add(1, std::sync::atomic::Ordering::SeqCst);", "RECEIVES_MET.fetch_add(2, std::sync::atomic::Ordering::SeqCst);", "hang"),
+              ("r04", "receive_met holds the attaching thread for one turn only",
+               "            while HOLD_RECEIVE.load(std::sync::atomic::Ordering::SeqCst) {",
+               "            if HOLD_RECEIVE.load(std::sync::atomic::Ordering::SeqCst) {", "green"),
+              ("r05", "T6 hands in no at_receive", "                at_receive: receive_met,\n", "", "hang"),
+              ("r06", "T6 does not hold the receive",
+               "            let receive = Hold::on(&HOLD_RECEIVE);", "            let receive = ();", "green"),
+              ("r07", "T6 never lets the receive go", "            drop(receive);\n", "", "hang"),
+              ("r08", "T6 does not reset the count of arrivals", "            RECEIVES_MET.store(0, Ordering::SeqCst);\n", "", "green"),
+              ("r09", "T6 waits for two arrivals",
+               "            until(|| RECEIVES_MET.load(Ordering::SeqCst) == 1);", "            until(|| RECEIVES_MET.load(Ordering::SeqCst) == 2);", "hang"),
+              ("r10", "T6 does not wait for the meeting", "            until(|| RECEIVES_MET.load(Ordering::SeqCst) == 1);\n", "", "green"),
+              ("r11", "T6 reads a held lock as free",
+               "            let free_during_the_wait = gate.detector.try_lock().is_ok();",
+               "            let free_during_the_wait = gate.detector.try_lock().is_err();", "red"),
+              ("r12", "the case of D2 expects 2 asks",
+               "            assert_eq!(asked.load(Ordering::SeqCst), 3);", "            assert_eq!(asked.load(Ordering::SeqCst), 2);", "red"),
+              ("r13", "the case of D2's fact holds at the second ask",
+               "            until(|| asked.fetch_add(1, Ordering::SeqCst) + 1 == 3);", "            until(|| asked.fetch_add(1, Ordering::SeqCst) + 1 == 2);", "red"),
+              ("r14", "Hold::on does not set its flag",
+               "                flag.store(true, std::sync::atomic::Ordering::SeqCst);\n                Hold(flag)",
+               "                flag.store(false, std::sync::atomic::Ordering::SeqCst);\n                Hold(flag)", "red"),
+              ("r15", "Hold's drop sets its flag",
+               "            fn drop(&mut self) {\n                self.0.store(false, std::sync::atomic::Ordering::SeqCst);\n",
+               "            fn drop(&mut self) {\n                self.0.store(true, std::sync::atomic::Ordering::SeqCst);\n", "hang"),
+              ("r16", "T4 does not reset HOLD_READS on entry",
+               "            let _serial = crate::windows::tests::serial();\n            HOLD_READS.store(false, Ordering::SeqCst);\n",
+               "            let _serial = crate::windows::tests::serial();\n", "green"),
+              ("r17", "T5 does not reset HOLD_REMOVAL on entry",
+               "            let _serial = crate::windows::tests::serial();\n            HOLD_REMOVAL.store(false, Ordering::SeqCst);\n",
+               "            let _serial = crate::windows::tests::serial();\n", "green"),
+              ("r18", "T6 does not reset HOLD_FIRST_READ on entry", "            HOLD_FIRST_READ.store(false, Ordering::SeqCst);\n", "", "green"),
+              ("r19", "T6 does not reset HOLD_RECEIVE on entry", "            HOLD_RECEIVE.store(false, Ordering::SeqCst);\n", "", "green"),
+              ("r20", "T4 never lets its reads go", "            drop(reads);\n", "", "hang"),
+              ("r21", "T5 never lets its removal go", "            drop(removal);\n", "", "hang"),
+              ("r22", "T6 never lets its first read go", "            drop(first_read);\n", "", "hang"),
+              ("r23", "the case of D4 does not unwind",
+               "                panic!(\"an unwind inside the hold\");\n", "", "red"),
+              ("r24", "the case of D4 reads the hold as set",
+               "                !HELD.load(std::sync::atomic::Ordering::SeqCst),", "                HELD.load(std::sync::atomic::Ordering::SeqCst),", "red"),
+          ]
+
+
+          def out(line):
+              sys.stdout.write(line + "\n")
+              sys.stdout.flush()
+
+
+          def apply(text, old, new, what):
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit("WDC %s: its old text is found %d times, not once" % (what, n))
+              return text.replace(old, new, 1)
+
+
+          def read(path):
+              with open(path, "rb") as f:
+                  data = f.read()
+              return data.decode("utf-8").replace("\r\n", "\n"), b"\r\n" in data
+
+
+          def write(path, text, crlf):
+              data = text.replace("\r\n", "\n")
+              if crlf:
+                  data = data.replace("\n", "\r\n")
+              with open(path, "wb") as f:
+                  f.write(data.encode("utf-8"))
+
+
+          def formed(text, *names):
+              for name in names:
+                  for i, (old, new) in enumerate(FORMS[name]):
+                      text = apply(text, old, new, "%s.%d" % (name, i))
+              return text
+
+
+          def changed(text, cid):
+              for c in CHANGES:
+                  if c[0] == cid:
+                      return apply(text, c[2], c[3], cid)
+              raise SystemExit("WDC no change " + cid)
+
+
+          def restore(root):
+              subprocess.run(["git", "checkout", "--", PATH], cwd=root, check=True)
+
+
+          def plan_forced(head, base):
+              return [
+                  ("head-plain", head, ["T6", "C2", "C4"]),
+                  ("head-control", formed(head, "CONTROL"), ["T6"]),
+                  ("base-slowslot", formed(base, "SLOWSLOT"), ["T6"]),
+                  ("head-slowslot", formed(head, "SLOWSLOT"), ["T6"]),
+                  ("base-late-control", formed(base, "LATE", "CONTROL"), ["T6"]),
+                  ("head-late", formed(head, "LATE"), ["T6"]),
+                  ("head-late-control", formed(head, "LATE", "CONTROL"), ["T6"]),
+                  ("head-m10", formed(head, "M10"), ["C2"]),
+                  ("head-nodrop", formed(head, "NODROP"), ["C4"]),
+              ]
+
+
+          def check(clone, outdir, ids):
+              os.makedirs(outdir, exist_ok=True)
+              env = dict(os.environ)
+              env["PATH"] = os.path.expanduser("~/.cargo/bin") + os.pathsep + env.get("PATH", "")
+              env["TMPDIR"] = "/private/tmp/r1-builder-134-scratch/tmp"
+              env["CARGO_BUILD_JOBS"] = "4"
+              env["CARGO_TARGET_DIR"] = "/private/tmp/r1-builder-134-scratch/target"
+              stub = os.path.expanduser("~/.wstack/runs/20261108-halvo-r1-capture/bin/static-analyzer/stub-cc.sh")
+              env["CC_x86_64_pc_windows_msvc"] = stub
+              env["AR_x86_64_pc_windows_msvc"] = stub
+              file = os.path.join(clone, PATH)
+              head, crlf = read(file)
+              base = subprocess.run(["git", "show", BASE + ":" + PATH], cwd=clone, capture_output=True, check=True).stdout.decode("utf-8")
+              plan = [(label, text) for label, text, _ in plan_forced(head, base)]
+              plan += [(c[0], changed(head, c[0])) for c in CHANGES]
+              if ids:
+                  plan = [p for p in plan if p[0] in ids]
+              rows = open(os.path.join(outdir, "check.tsv"), "a")
+              try:
+                  for pid, text in plan:
+                      write(file, text, crlf)
+                      start = time.time()
+                      r = subprocess.run(["cargo", "check", "--locked", "--target", "x86_64-pc-windows-msvc", "-p", "halvo-capture",
+                                          "--lib", "--tests"], cwd=clone, env=env, capture_output=True)
+                      log = r.stdout.decode("utf-8", "replace") + r.stderr.decode("utf-8", "replace")
+                      with open(os.path.join(outdir, pid + ".log"), "w") as f:
+                          f.write(log + "\ncheck_exit=%d\n" % r.returncode)
+                      errors = [l for l in log.splitlines() if l.startswith("error") or l.startswith("warning: unused")]
+                      checked = "Checking halvo-capture" in log
+                      row = "%s\t%d\t%s\t%d\t%s" % (pid, r.returncode, "checked" if checked else "NOT-REBUILT", round(time.time() - start),
+                                                    errors[0][:160] if errors else "-")
+                      rows.write(row + "\n")
+                      rows.flush()
+                      out(row)
+                      restore(clone)
+              finally:
+                  restore(clone)
+                  rows.close()
+
+
+          def build(root):
+              r = subprocess.run(["cargo", "test", "--locked", "-p", "halvo-capture", "--lib", "--no-run", "--message-format", "json"],
+                                 cwd=root, capture_output=True)
+              exe = None
+              for line in r.stdout.decode("utf-8", "replace").splitlines():
+                  if not line.startswith("{"):
+                      continue
+                  m = json.loads(line)
+                  if m.get("reason") == "compiler-artifact" and m.get("target", {}).get("name") == "halvo_capture" \
+                          and "lib" in m.get("target", {}).get("kind", []) and m.get("profile", {}).get("test") and m.get("executable"):
+                      exe = m["executable"]
+              err = r.stderr.decode("utf-8", "replace")
+              first = [l for l in err.splitlines() if l.startswith("error")]
+              return r.returncode, exe, first[:3], "Compiling halvo-capture" in err
+
+
+          def run_test(exe, name):
+              start = time.time()
+              try:
+                  r = subprocess.run([exe, "--exact", MOD + name, "--test-threads=1"], capture_output=True, timeout=TEST_LIMIT_S,
+                                     stdin=subprocess.DEVNULL)
+              except subprocess.TimeoutExpired:
+                  return "HANG", ["killed after %d s" % TEST_LIMIT_S], time.time() - start
+              text = (r.stdout + r.stderr).decode("utf-8", "replace").replace("\r\n", "\n")
+              lines = text.split("\n")
+              if "test result: ok. 1 passed; 0 failed" in text:
+                  return "ok", [l for l in lines if l.startswith("test result:")], time.time() - start
+              keep = [l for l in lines if "panicked at" in l or l.startswith("  left:") or l.startswith(" right:")
+                      or l.startswith("assertion") or l.startswith("test result:") or "running 0 tests" in l]
+              return "RED", keep[:8], time.time() - start
+
+
+          def some(exe, label, ids):
+              verdicts = {}
+              for tid in ids:
+                  v, keep, secs = run_test(exe, NAMES[tid])
+                  verdicts[tid] = (v, keep)
+                  out("WDC %s %s %s %s %.2f s" % (label, tid, NAMES[tid], v, secs))
+                  for l in keep:
+                      out("WDC   | " + l)
+              return verdicts
+
+
+          def hosted(part):
+              root = os.getcwd()
+              file = os.path.join(root, PATH)
+              head, crlf = read(file)
+              ok = True
+              try:
+                  if part == "loop":
+                      code, exe, first, _ = build(root)
+                      if code != 0 or not exe:
+                          out("WDC loop: the head's test build failed: exit %d %s" % (code, first))
+                          return 1
+                      for tid, name in TESTS:
+                          runs = LOOP[tid]
+                          passed, start, secs = 0, time.time(), []
+                          for i in range(runs):
+                              v, keep, s = run_test(exe, name)
+                              secs.append(s)
+                              if v == "ok":
+                                  passed += 1
+                              else:
+                                  out("WDC loop round %d of %s: %s" % (i + 1, name, v))
+                                  for l in keep:
+                                      out("WDC   | " + l)
+                          secs.sort()
+                          out("loop win-detector-clock: %s: passed %d of %d in %d s (median %.2f s, longest %.2f s a run)"
+                              % (name, passed, runs, round(time.time() - start), secs[len(secs) // 2], secs[-1]))
+                          ok = ok and passed == runs
+                      return 0 if ok else 1
+                  if part == "forced":
+                      have = subprocess.run(["git", "cat-file", "-e", BASE + "^{commit}"], cwd=root, capture_output=True).returncode == 0
+                      if have:
+                          out("WDC the base commit is in the checkout; no fetch")
+                      else:
+                          f = subprocess.run(["git", "fetch", "--no-tags", "--depth=1", "origin", BASE], cwd=root, capture_output=True)
+                          out("WDC fetch of the base exited %d" % f.returncode)
+                      base = subprocess.run(["git", "show", BASE + ":" + PATH], cwd=root, capture_output=True, check=True).stdout.decode("utf-8")
+                      for name, words in FORM_WORDS.items():
+                          out("WDC form %s: %s" % (name, words))
+                      r = {}
+                      for label, text, ids in plan_forced(head, base):
+                          write(file, text, crlf)
+                          code, exe, first, compiled = build(root)
+                          out("WDC %s build exit %d compiled=%s" % (label, code, compiled))
+                          if code != 0 or not exe:
+                              out("WDC %s: build failed %s" % (label, first))
+                              return 1
+                          r[label] = some(exe, label, ids)
+                      held = lambda v: v[0] == "RED" and any(HELD_WORDS in l for l in v[1])
+                      d1 = r["head-plain"]["T6"][0] == "ok" and held(r["head-control"]["T6"])
+                      d1_schedules = (r["base-slowslot"]["T6"][0] == "RED" and r["head-slowslot"]["T6"][0] == "ok"
+                                      and r["base-late-control"]["T6"][0] == "ok" and r["head-late"]["T6"][0] == "ok"
+                                      and held(r["head-late-control"]["T6"]))
+                      d2 = r["head-plain"]["C2"][0] == "ok" and r["head-m10"]["C2"][0] == "RED"
+                      d4 = r["head-plain"]["C4"][0] == "ok" and r["head-nodrop"]["C4"][0] == "RED"
+                      out("WDC failing_first D1 (the head's T6 ok; the control red with its words): %s" % ("PASS" if d1 else "FAIL"))
+                      out("WDC D1 schedules (base red and head ok under a slow slot check; base ok and head red under a late attach "
+                          "with the control; the head ok under a late attach alone): %s" % ("PASS" if d1_schedules else "FAIL"))
+                      out("WDC failing_first D2 (the case ok at the head, red under m10): %s" % ("PASS" if d2 else "FAIL"))
+                      out("WDC failing_first D4 (the case ok at the head, red with a guard that lets nothing go): %s" % ("PASS" if d4 else "FAIL"))
+                      return 0 if d1 and d2 and d4 else 1
+                  if part == "changes":
+                      code, exe, first, compiled = build(root)
+                      control = some(exe, "control-head", [t for t, _ in TESTS]) if code == 0 and exe else {}
+                      if not control or not all(v[0] == "ok" for v in control.values()):
+                          out("WDC the control (the head) is not green; the changes are not judged")
+                          return 1
+                      counts = {"red": 0, "hang": 0, "does-not-compile": 0, "green": 0}
+                      for c in CHANGES:
+                          write(file, changed(head, c[0]), crlf)
+                          code, exe, first, compiled = build(root)
+                          if code != 0 or not exe:
+                              out("WDC change %s expect=%s result=does-not-compile :: %s" % (c[0], c[4], c[1]))
+                              for l in first:
+                                  out("WDC   | " + l)
+                              counts["does-not-compile"] += 1
+                              continue
+                          v = some(exe, c[0], [t for t, _ in TESTS])
+                          hangs = [t for t in v if v[t][0] == "HANG"]
+                          reds = [t for t in v if v[t][0] == "RED"]
+                          result = "hang" if hangs and not reds else ("red" if reds else "green")
+                          counts[result] += 1
+                          out("WDC change %s expect=%s result=%s compiled=%s red=%s hang=%s :: %s" % (
+                              c[0], c[4], result, compiled, ",".join(reds) or "-", ",".join(hangs) or "-", c[1]))
+                      out("WDC changes: %d; red %d, hang %d, does-not-compile %d, green %d" % (
+                          len(CHANGES), counts["red"], counts["hang"], counts["does-not-compile"], counts["green"]))
+                      return 0
+                  out("WDC unknown part " + part)
+                  return 2
+              finally:
+                  restore(root)
+
+
+          if __name__ == "__main__":
+              try:
+                  sys.stdout.reconfigure(errors="backslashreplace")
+              except AttributeError:
+                  pass
+              if len(sys.argv) > 1 and sys.argv[1] == "check":
+                  check(sys.argv[2], sys.argv[3], sys.argv[4:])
+              else:
+                  sys.exit(hosted(os.environ.get("WDC_PART", "")))
+      - name: "win-detector-clock round 2 changed copies (each built and run against the nine tests)"
+        if: ${{ !cancelled() }}
+        shell: python
+        env:
+          WDC_PART: changes
+        run: |
+          """win-detector-clock, round 2 (builder-134, Addition 1): D1's meeting point, D2's case for until, D4's hold guard.
+
+          On this Mac:  python3 -I wdc2.py check <clone> <out dir> [id ...]
+              applies each form and each change to the clone's file (read with its line ends turned to LF, written back as it
+              was found), type-checks the Windows target's lib with its tests (cargo check, the run's stub C compiler), writes
+              <out dir>/<id>.log and one row of <out dir>/check.tsv, and restores the file with git checkout. No test runs here.
+          On the hosted windows job: python wdc2.py, with WDC_PART=loop, forced or changes, at the repo root.
+              loop     T6, T0, the case of D2 and the case of D4 200 times each; T1 to T5 20 times each.
+              forced   failing first: D1 (the head's T6 green, the control copy that holds the detector's lock across the wait
+                       red; and the two schedules of verifier-198: a slot check that holds the lock 600 ms, an attach that
+                       starts 1,500 ms late), D2 (the case against m10) and D4 (the case against a guard that lets nothing go).
+              changes  every one-rule change over the lines of this round, built and run against the nine tests.
+          Each part restores the file with git checkout and prints counts, verdicts and libtest's own lines only."""
+          import json, os, subprocess, sys, time
+
+          BASE = "ce6585fc35758cbf4d55194b99e20090449c0d00"
+          PATH = "crates/halvo-capture/src/windows/secure_input.rs"
+          MOD = "secure_input::windows::detector::tests::"
+          TESTS = [
+              ("T0", "a_desktop_hook_that_cannot_be_set_refuses_the_attach_and_removes_the_focus_handler"),
+              ("T1", "after_attach_the_first_mark_is_the_start_and_attach_returns_after_the_detectors_own_read"),
+              ("T2", "detach_ends_the_detectors_thread_and_a_new_attach_starts_one"),
+              ("T3", "detach_answers_the_first_of_its_removal_calls_that_failed"),
+              ("T4", "an_attach_after_a_timed_out_detach_is_refused_while_the_old_detector_runs"),
+              ("T5", "detach_answers_timeout_when_the_detector_does_not_end_in_time"),
+              ("T6", "an_attach_whose_first_read_does_not_answer_times_out_and_stops_that_detector"),
+              ("C2", "until_asks_its_fact_again_until_it_holds_and_then_no_more"),
+              ("C4", "a_hold_is_let_go_when_its_test_unwinds"),
+          ]
+          NAMES = dict(TESTS)
+          LOOP = {"T0": 200, "T1": 20, "T2": 20, "T3": 20, "T4": 20, "T5": 20, "T6": 200, "C2": 200, "C4": 200}
+          TEST_LIMIT_S = 60
+          HELD_WORDS = "the attach held the detector's lock across its wait"
+
+          SLOT = ("            if self\n                .detector\n                .lock()\n"
+                  "                .unwrap_or_else(std::sync::PoisonError::into_inner)\n                .is_some()\n"
+                  "            {\n                return Ok(());\n            }\n            self.wait_for_the_stale_detector()?;")
+          RECEIVE = "            match started.recv_timeout(deadline) {\n                Ok(Ok(())) => {"
+          ATTACH = "        pub(crate) fn attach(&self) -> Result<(), CaptureError> {\n"
+          FORMS = {
+              "CONTROL": [
+                  (SLOT, SLOT.replace("            if self\n", "            let held = self\n")
+                   .replace("into_inner)\n                .is_some()\n            {\n", "into_inner);\n            if held.is_some() {\n")),
+                  (RECEIVE, "            let answer = started.recv_timeout(deadline);\n            drop(held);\n"
+                            "            match answer {\n                Ok(Ok(())) => {"),
+              ],
+              "SLOWSLOT": [
+                  (SLOT, SLOT.replace("                .lock()\n",
+                                      "                .lock().map(|g| { std::thread::sleep(std::time::Duration::from_millis(600)); g })\n")),
+              ],
+              "LATE": [
+                  (ATTACH, ATTACH.rstrip("\n") + " std::thread::sleep(std::time::Duration::from_millis(1_500));\n"),
+              ],
+              "M10": [
+                  ("            while !fact() {", "            if !fact() {"),
+              ],
+              "NODROP": [
+                  ("            fn drop(&mut self) {\n                self.0.store(false, std::sync::atomic::Ordering::SeqCst);\n",
+                   "            fn drop(&mut self) {\n                let _ = self.0;\n"),
+              ],
+          }
+          FORM_WORDS = {
+              "CONTROL": "the control: attach keeps the guard of its slot check until its receive has answered (the detector's lock held across the wait)",
+              "SLOWSLOT": "a slow slot check: attach holds the detector's lock 600 ms in its slot check (verifier-198, the probe that fails on right code)",
+              "LATE": "a late attach: attach starts 1,500 ms late (verifier-198, the probe that passes without the wait seen)",
+              "M10": "m10 of round 1: until looks at its fact once",
+              "NODROP": "a hold guard whose drop lets nothing go",
+          }
+
+          T6_SEAM_CALL = "            #[cfg(test)]\n            (self.removals.at_receive)();\n"
+          # id, the rule, old text (exactly once in the head's file), new text, what I expect
+          CHANGES = [
+              ("r01", "attach does not call at_receive", T6_SEAM_CALL, "", "hang"),
+              ("r02", "receive_met does not count its arrival",
+               "            RECEIVES_MET.fetch_add(1, std::sync::atomic::Ordering::SeqCst);\n", "", "hang"),
+              ("r03", "receive_met counts each arrival twice",
+               "RECEIVES_MET.fetch_add(1, std::sync::atomic::Ordering::SeqCst);", "RECEIVES_MET.fetch_add(2, std::sync::atomic::Ordering::SeqCst);", "hang"),
+              ("r04", "receive_met holds the attaching thread for one turn only",
+               "            while HOLD_RECEIVE.load(std::sync::atomic::Ordering::SeqCst) {",
+               "            if HOLD_RECEIVE.load(std::sync::atomic::Ordering::SeqCst) {", "green"),
+              ("r05", "T6 hands in no at_receive", "                at_receive: receive_met,\n", "", "hang"),
+              ("r06", "T6 does not hold the receive",
+               "            let receive = Hold::on(&HOLD_RECEIVE);", "            let receive = ();", "green"),
+              ("r07", "T6 never lets the receive go", "            drop(receive);\n", "", "hang"),
+              ("r08", "T6 does not reset the count of arrivals", "            RECEIVES_MET.store(0, Ordering::SeqCst);\n", "", "green"),
+              ("r09", "T6 waits for two arrivals",
+               "            until(|| RECEIVES_MET.load(Ordering::SeqCst) == 1);", "            until(|| RECEIVES_MET.load(Ordering::SeqCst) == 2);", "hang"),
+              ("r10", "T6 does not wait for the meeting", "            until(|| RECEIVES_MET.load(Ordering::SeqCst) == 1);\n", "", "green"),
+              ("r11", "T6 reads a held lock as free",
+               "            let free_during_the_wait = gate.detector.try_lock().is_ok();",
+               "            let free_during_the_wait = gate.detector.try_lock().is_err();", "red"),
+              ("r12", "the case of D2 expects 2 asks",
+               "            assert_eq!(asked.load(Ordering::SeqCst), 3);", "            assert_eq!(asked.load(Ordering::SeqCst), 2);", "red"),
+              ("r13", "the case of D2's fact holds at the second ask",
+               "            until(|| asked.fetch_add(1, Ordering::SeqCst) + 1 == 3);", "            until(|| asked.fetch_add(1, Ordering::SeqCst) + 1 == 2);", "red"),
+              ("r14", "Hold::on does not set its flag",
+               "                flag.store(true, std::sync::atomic::Ordering::SeqCst);\n                Hold(flag)",
+               "                flag.store(false, std::sync::atomic::Ordering::SeqCst);\n                Hold(flag)", "red"),
+              ("r15", "Hold's drop sets its flag",
+               "            fn drop(&mut self) {\n                self.0.store(false, std::sync::atomic::Ordering::SeqCst);\n",
+               "            fn drop(&mut self) {\n                self.0.store(true, std::sync::atomic::Ordering::SeqCst);\n", "hang"),
+              ("r16", "T4 does not reset HOLD_READS on entry",
+               "            let _serial = crate::windows::tests::serial();\n            HOLD_READS.store(false, Ordering::SeqCst);\n",
+               "            let _serial = crate::windows::tests::serial();\n", "green"),
+              ("r17", "T5 does not reset HOLD_REMOVAL on entry",
+               "            let _serial = crate::windows::tests::serial();\n            HOLD_REMOVAL.store(false, Ordering::SeqCst);\n",
+               "            let _serial = crate::windows::tests::serial();\n", "green"),
+              ("r18", "T6 does not reset HOLD_FIRST_READ on entry", "            HOLD_FIRST_READ.store(false, Ordering::SeqCst);\n", "", "green"),
+              ("r19", "T6 does not reset HOLD_RECEIVE on entry", "            HOLD_RECEIVE.store(false, Ordering::SeqCst);\n", "", "green"),
+              ("r20", "T4 never lets its reads go", "            drop(reads);\n", "", "hang"),
+              ("r21", "T5 never lets its removal go", "            drop(removal);\n", "", "hang"),
+              ("r22", "T6 never lets its first read go", "            drop(first_read);\n", "", "hang"),
+              ("r23", "the case of D4 does not unwind",
+               "                panic!(\"an unwind inside the hold\");\n", "", "red"),
+              ("r24", "the case of D4 reads the hold as set",
+               "                !HELD.load(std::sync::atomic::Ordering::SeqCst),", "                HELD.load(std::sync::atomic::Ordering::SeqCst),", "red"),
+          ]
+
+
+          def out(line):
+              sys.stdout.write(line + "\n")
+              sys.stdout.flush()
+
+
+          def apply(text, old, new, what):
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit("WDC %s: its old text is found %d times, not once" % (what, n))
+              return text.replace(old, new, 1)
+
+
+          def read(path):
+              with open(path, "rb") as f:
+                  data = f.read()
+              return data.decode("utf-8").replace("\r\n", "\n"), b"\r\n" in data
+
+
+          def write(path, text, crlf):
+              data = text.replace("\r\n", "\n")
+              if crlf:
+                  data = data.replace("\n", "\r\n")
+              with open(path, "wb") as f:
+                  f.write(data.encode("utf-8"))
+
+
+          def formed(text, *names):
+              for name in names:
+                  for i, (old, new) in enumerate(FORMS[name]):
+                      text = apply(text, old, new, "%s.%d" % (name, i))
+              return text
+
+
+          def changed(text, cid):
+              for c in CHANGES:
+                  if c[0] == cid:
+                      return apply(text, c[2], c[3], cid)
+              raise SystemExit("WDC no change " + cid)
+
+
+          def restore(root):
+              subprocess.run(["git", "checkout", "--", PATH], cwd=root, check=True)
+
+
+          def plan_forced(head, base):
+              return [
+                  ("head-plain", head, ["T6", "C2", "C4"]),
+                  ("head-control", formed(head, "CONTROL"), ["T6"]),
+                  ("base-slowslot", formed(base, "SLOWSLOT"), ["T6"]),
+                  ("head-slowslot", formed(head, "SLOWSLOT"), ["T6"]),
+                  ("base-late-control", formed(base, "LATE", "CONTROL"), ["T6"]),
+                  ("head-late", formed(head, "LATE"), ["T6"]),
+                  ("head-late-control", formed(head, "LATE", "CONTROL"), ["T6"]),
+                  ("head-m10", formed(head, "M10"), ["C2"]),
+                  ("head-nodrop", formed(head, "NODROP"), ["C4"]),
+              ]
+
+
+          def check(clone, outdir, ids):
+              os.makedirs(outdir, exist_ok=True)
+              env = dict(os.environ)
+              env["PATH"] = os.path.expanduser("~/.cargo/bin") + os.pathsep + env.get("PATH", "")
+              env["TMPDIR"] = "/private/tmp/r1-builder-134-scratch/tmp"
+              env["CARGO_BUILD_JOBS"] = "4"
+              env["CARGO_TARGET_DIR"] = "/private/tmp/r1-builder-134-scratch/target"
+              stub = os.path.expanduser("~/.wstack/runs/20261108-halvo-r1-capture/bin/static-analyzer/stub-cc.sh")
+              env["CC_x86_64_pc_windows_msvc"] = stub
+              env["AR_x86_64_pc_windows_msvc"] = stub
+              file = os.path.join(clone, PATH)
+              head, crlf = read(file)
+              base = subprocess.run(["git", "show", BASE + ":" + PATH], cwd=clone, capture_output=True, check=True).stdout.decode("utf-8")
+              plan = [(label, text) for label, text, _ in plan_forced(head, base)]
+              plan += [(c[0], changed(head, c[0])) for c in CHANGES]
+              if ids:
+                  plan = [p for p in plan if p[0] in ids]
+              rows = open(os.path.join(outdir, "check.tsv"), "a")
+              try:
+                  for pid, text in plan:
+                      write(file, text, crlf)
+                      start = time.time()
+                      r = subprocess.run(["cargo", "check", "--locked", "--target", "x86_64-pc-windows-msvc", "-p", "halvo-capture",
+                                          "--lib", "--tests"], cwd=clone, env=env, capture_output=True)
+                      log = r.stdout.decode("utf-8", "replace") + r.stderr.decode("utf-8", "replace")
+                      with open(os.path.join(outdir, pid + ".log"), "w") as f:
+                          f.write(log + "\ncheck_exit=%d\n" % r.returncode)
+                      errors = [l for l in log.splitlines() if l.startswith("error") or l.startswith("warning: unused")]
+                      checked = "Checking halvo-capture" in log
+                      row = "%s\t%d\t%s\t%d\t%s" % (pid, r.returncode, "checked" if checked else "NOT-REBUILT", round(time.time() - start),
+                                                    errors[0][:160] if errors else "-")
+                      rows.write(row + "\n")
+                      rows.flush()
+                      out(row)
+                      restore(clone)
+              finally:
+                  restore(clone)
+                  rows.close()
+
+
+          def build(root):
+              r = subprocess.run(["cargo", "test", "--locked", "-p", "halvo-capture", "--lib", "--no-run", "--message-format", "json"],
+                                 cwd=root, capture_output=True)
+              exe = None
+              for line in r.stdout.decode("utf-8", "replace").splitlines():
+                  if not line.startswith("{"):
+                      continue
+                  m = json.loads(line)
+                  if m.get("reason") == "compiler-artifact" and m.get("target", {}).get("name") == "halvo_capture" \
+                          and "lib" in m.get("target", {}).get("kind", []) and m.get("profile", {}).get("test") and m.get("executable"):
+                      exe = m["executable"]
+              err = r.stderr.decode("utf-8", "replace")
+              first = [l for l in err.splitlines() if l.startswith("error")]
+              return r.returncode, exe, first[:3], "Compiling halvo-capture" in err
+
+
+          def run_test(exe, name):
+              start = time.time()
+              try:
+                  r = subprocess.run([exe, "--exact", MOD + name, "--test-threads=1"], capture_output=True, timeout=TEST_LIMIT_S,
+                                     stdin=subprocess.DEVNULL)
+              except subprocess.TimeoutExpired:
+                  return "HANG", ["killed after %d s" % TEST_LIMIT_S], time.time() - start
+              text = (r.stdout + r.stderr).decode("utf-8", "replace").replace("\r\n", "\n")
+              lines = text.split("\n")
+              if "test result: ok. 1 passed; 0 failed" in text:
+                  return "ok", [l for l in lines if l.startswith("test result:")], time.time() - start
+              keep = [l for l in lines if "panicked at" in l or l.startswith("  left:") or l.startswith(" right:")
+                      or l.startswith("assertion") or l.startswith("test result:") or "running 0 tests" in l]
+              return "RED", keep[:8], time.time() - start
+
+
+          def some(exe, label, ids):
+              verdicts = {}
+              for tid in ids:
+                  v, keep, secs = run_test(exe, NAMES[tid])
+                  verdicts[tid] = (v, keep)
+                  out("WDC %s %s %s %s %.2f s" % (label, tid, NAMES[tid], v, secs))
+                  for l in keep:
+                      out("WDC   | " + l)
+              return verdicts
+
+
+          def hosted(part):
+              root = os.getcwd()
+              file = os.path.join(root, PATH)
+              head, crlf = read(file)
+              ok = True
+              try:
+                  if part == "loop":
+                      code, exe, first, _ = build(root)
+                      if code != 0 or not exe:
+                          out("WDC loop: the head's test build failed: exit %d %s" % (code, first))
+                          return 1
+                      for tid, name in TESTS:
+                          runs = LOOP[tid]
+                          passed, start, secs = 0, time.time(), []
+                          for i in range(runs):
+                              v, keep, s = run_test(exe, name)
+                              secs.append(s)
+                              if v == "ok":
+                                  passed += 1
+                              else:
+                                  out("WDC loop round %d of %s: %s" % (i + 1, name, v))
+                                  for l in keep:
+                                      out("WDC   | " + l)
+                          secs.sort()
+                          out("loop win-detector-clock: %s: passed %d of %d in %d s (median %.2f s, longest %.2f s a run)"
+                              % (name, passed, runs, round(time.time() - start), secs[len(secs) // 2], secs[-1]))
+                          ok = ok and passed == runs
+                      return 0 if ok else 1
+                  if part == "forced":
+                      have = subprocess.run(["git", "cat-file", "-e", BASE + "^{commit}"], cwd=root, capture_output=True).returncode == 0
+                      if have:
+                          out("WDC the base commit is in the checkout; no fetch")
+                      else:
+                          f = subprocess.run(["git", "fetch", "--no-tags", "--depth=1", "origin", BASE], cwd=root, capture_output=True)
+                          out("WDC fetch of the base exited %d" % f.returncode)
+                      base = subprocess.run(["git", "show", BASE + ":" + PATH], cwd=root, capture_output=True, check=True).stdout.decode("utf-8")
+                      for name, words in FORM_WORDS.items():
+                          out("WDC form %s: %s" % (name, words))
+                      r = {}
+                      for label, text, ids in plan_forced(head, base):
+                          write(file, text, crlf)
+                          code, exe, first, compiled = build(root)
+                          out("WDC %s build exit %d compiled=%s" % (label, code, compiled))
+                          if code != 0 or not exe:
+                              out("WDC %s: build failed %s" % (label, first))
+                              return 1
+                          r[label] = some(exe, label, ids)
+                      held = lambda v: v[0] == "RED" and any(HELD_WORDS in l for l in v[1])
+                      d1 = r["head-plain"]["T6"][0] == "ok" and held(r["head-control"]["T6"])
+                      d1_schedules = (r["base-slowslot"]["T6"][0] == "RED" and r["head-slowslot"]["T6"][0] == "ok"
+                                      and r["base-late-control"]["T6"][0] == "ok" and r["head-late"]["T6"][0] == "ok"
+                                      and held(r["head-late-control"]["T6"]))
+                      d2 = r["head-plain"]["C2"][0] == "ok" and r["head-m10"]["C2"][0] == "RED"
+                      d4 = r["head-plain"]["C4"][0] == "ok" and r["head-nodrop"]["C4"][0] == "RED"
+                      out("WDC failing_first D1 (the head's T6 ok; the control red with its words): %s" % ("PASS" if d1 else "FAIL"))
+                      out("WDC D1 schedules (base red and head ok under a slow slot check; base ok and head red under a late attach "
+                          "with the control; the head ok under a late attach alone): %s" % ("PASS" if d1_schedules else "FAIL"))
+                      out("WDC failing_first D2 (the case ok at the head, red under m10): %s" % ("PASS" if d2 else "FAIL"))
+                      out("WDC failing_first D4 (the case ok at the head, red with a guard that lets nothing go): %s" % ("PASS" if d4 else "FAIL"))
+                      return 0 if d1 and d2 and d4 else 1
+                  if part == "changes":
+                      code, exe, first, compiled = build(root)
+                      control = some(exe, "control-head", [t for t, _ in TESTS]) if code == 0 and exe else {}
+                      if not control or not all(v[0] == "ok" for v in control.values()):
+                          out("WDC the control (the head) is not green; the changes are not judged")
+                          return 1
+                      counts = {"red": 0, "hang": 0, "does-not-compile": 0, "green": 0}
+                      for c in CHANGES:
+                          write(file, changed(head, c[0]), crlf)
+                          code, exe, first, compiled = build(root)
+                          if code != 0 or not exe:
+                              out("WDC change %s expect=%s result=does-not-compile :: %s" % (c[0], c[4], c[1]))
+                              for l in first:
+                                  out("WDC   | " + l)
+                              counts["does-not-compile"] += 1
+                              continue
+                          v = some(exe, c[0], [t for t, _ in TESTS])
+                          hangs = [t for t in v if v[t][0] == "HANG"]
+                          reds = [t for t in v if v[t][0] == "RED"]
+                          result = "hang" if hangs and not reds else ("red" if reds else "green")
+                          counts[result] += 1
+                          out("WDC change %s expect=%s result=%s compiled=%s red=%s hang=%s :: %s" % (
+                              c[0], c[4], result, compiled, ",".join(reds) or "-", ",".join(hangs) or "-", c[1]))
+                      out("WDC changes: %d; red %d, hang %d, does-not-compile %d, green %d" % (
+                          len(CHANGES), counts["red"], counts["hang"], counts["does-not-compile"], counts["green"]))
+                      return 0
+                  out("WDC unknown part " + part)
+                  return 2
+              finally:
+                  restore(root)
+
+
+          if __name__ == "__main__":
+              try:
+                  sys.stdout.reconfigure(errors="backslashreplace")
+              except AttributeError:
+                  pass
+              if len(sys.argv) > 1 and sys.argv[1] == "check":
+                  check(sys.argv[2], sys.argv[3], sys.argv[4:])
+              else:
+                  sys.exit(hosted(os.environ.get("WDC_PART", "")))
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
