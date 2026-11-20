@@ -193,6 +193,8 @@ fn member(sim: &Sim, n: usize) -> Member<Config> {
             slots: Vec::<Name>::new(),
             runs: sim.store_runs[n].clone(),
             store_ended: newest.is_none_or(|r| last.is_some_and(|l| l.run == r)),
+            replies: halvo_coord::types::Replies::NotAsked,
+            unknown: Vec::new(),
             events,
             today: sim.h.day,
             doing: Doing::Idle(None),
@@ -273,6 +275,7 @@ impl Sim {
                             What::RunEnded {
                                 run,
                                 cause: RunEnd::Completed,
+                                defers: None,
                             },
                         ),
                     ])
@@ -412,7 +415,11 @@ impl Sim {
         }
         if report.answer == Ok(Answer::Ok) {
             if let Move::SwitchOff { agent } = &mv {
-                self.h.off[index(agent)] = true;
+                let n = index(agent);
+                self.h.off[n] = true;
+                if self.h.waiting[n].take().is_some() {
+                    self.tally("dropped by the switch-off".into());
+                }
             }
             if let (Some(run), true) = (checked_run, matches!(mv, Move::Check { .. })) {
                 if went_through {
@@ -726,7 +733,11 @@ impl Sim {
                 self.h.run_slot.insert(run.to_string(), given);
                 self.h.run_agent.insert(run.to_string(), n);
             }
-            What::RunEnded { run, cause } => {
+            What::RunEnded {
+                run,
+                cause,
+                defers: _,
+            } => {
                 self.tally(format!("run_ended {cause}"));
                 if !self.listed(n) {
                     self.fault(format!(
@@ -890,6 +901,7 @@ impl Sim {
                         what: What::RunEnded {
                             run: run.clone(),
                             cause: RunEnd::Interrupted,
+                            defers: None,
                         },
                     }])
                     .unwrap();
@@ -1037,7 +1049,7 @@ const COVERED: [&str; 15] = [
     "run_ended cancelled",
     "ended deleted",
     "run_ended failed",
-    "left Err(Hold)",
+    "dropped by the switch-off",
     "end_run",
     "owed run_ended logged",
 ];

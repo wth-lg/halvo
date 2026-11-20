@@ -7,9 +7,9 @@ use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
 use halvo_coord::run::{recover, recover_step, Act, Earlier, StopBy};
 use halvo_coord::schedule::{Answer, Hold};
 use halvo_coord::types::{
-    Agent, AgentId, Answered, Body, Cause, Decision, DecisionEntry, Digest, EffectAnswer, EffectId,
-    Event, HandbackResult, ItemId, LapseCause, Lapsed, Limits, OtherLapse, Outcome, PastRun,
-    Raised, ReadyAnswer, Reply, RunEnd, RunId, RunSpec, Trigger, What, Workflow,
+    Agent, AgentId, Answered, Body, Cause, Class, Decision, DecisionEntry, Digest, EffectAnswer,
+    EffectId, Event, HandbackResult, ItemId, LapseCause, Lapsed, Limits, OtherLapse, Outcome,
+    PastRun, Raised, ReadyAnswer, Reply, RunEnd, RunId, RunSpec, Trigger, Unknown, What, Workflow,
 };
 use std::num::NonZeroU32;
 use support::{agent, flow, world, world_with, World, A, DAY, MANUAL, T0};
@@ -179,9 +179,24 @@ fn refusal_reap_alive() {
 }
 
 #[test]
-fn refusal_interrupted_no_retry() {
+fn refusal_interrupted_no_retry_holds_the_check_from_the_roster_key_that_end_run_leaves() {
     let mut w = world(&[MANUAL]);
     let run = started(&mut w, 0);
+    let effect = Unknown {
+        run: run.clone(),
+        effect: EffectId::parse(&format!("{:032x}", 0xe301)).unwrap(),
+        day: DAY,
+        class: Class::Send,
+        kept: vec![],
+    };
+    w.ports.release(effect.clone());
+    w.ports.release(Unknown {
+        run: RunId::parse(&format!("{:032x}", 0x0dd0)).unwrap(),
+        effect: EffectId::parse(&format!("{:032x}", 0xe302)).unwrap(),
+        day: DAY,
+        class: Class::Send,
+        kept: vec![],
+    });
     w.ports.refuse(Method::EndRun, PortError::NoService);
     relife(&mut w, &[(run.clone(), Reaped::Gone)]);
     assert_eq!(
@@ -194,18 +209,28 @@ fn refusal_interrupted_no_retry() {
     w.act(Act::Tick);
     assert_eq!(w.calls(), vec!["end_run refused"], "owed and sent again");
     w.ports.clear_refusals();
-    w.store_end(0, &run, Outcome::Failed, 1);
     w.set_clock(T0 + 20_000, DAY);
     w.act(Act::Tick);
-    assert!(
-        !w.calls().iter().any(|c| c.starts_with("end_run")),
-        "the store holds the run's record: nothing is owed"
+    assert_eq!(
+        w.calls(),
+        vec!["end_run"],
+        "the owed end_run is acknowledged"
     );
     assert!(w.board.owed.is_empty());
+    let entry = w.ports.agents.borrow()[0].clone();
     assert_eq!(
-        w.act(Act::Start { agent: agent(0) }).report.answer,
-        Err(Cause::Hold)
+        entry.last.map(|l| (l.run, l.unknown)),
+        Some((run.clone(), 0)),
+        "the store's record of end_run counts 0"
     );
+    assert_eq!(
+        entry.unknown,
+        vec![effect],
+        "and its key names the effect of that run alone"
+    );
+    let press = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(press.report.answer, Err(Cause::Hold));
+    assert_eq!(press.checked, vec![agent(0)]);
     assert!(holds(&w, 0).contains(&Hold::Check));
 }
 
@@ -352,6 +377,7 @@ fn recovery_loads_every_event_of_an_agent_with_more_than_64() {
             What::RunEnded {
                 run,
                 cause: RunEnd::Completed,
+                defers: None,
             },
         ] {
             seq += 1;
@@ -520,6 +546,7 @@ fn an_owed_run_ended_that_the_owner_stored_with_a_lost_acknowledgement_is_paid_a
         what: What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Interrupted,
+            defers: None,
         },
     });
     w.ports.clear_refusals();
@@ -609,6 +636,7 @@ fn recover_step_owes_end_run_from_the_events_and_the_stores_last_record_alone() 
             What::RunEnded {
                 run: run(1),
                 cause: RunEnd::Completed,
+                defers: None,
             },
         ),
         ev(3, started(2)),
@@ -783,7 +811,7 @@ impl<P: Owner> Owner for Late<'_, P> {
         self.ports.log(events)
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.ports.history(agent, after)
     }
 
@@ -797,6 +825,15 @@ impl<P: Owner> Owner for Late<'_, P> {
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.ports.send(body)
+    }
+
+    fn replies(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        self.ports.replies(workflow, agent, run)
     }
 }
 
@@ -850,10 +887,6 @@ impl<P: Clock> Clock for Late<'_, P> {
         self.ports.now()
     }
 
-    fn today(&self) -> Result<u32, PortError> {
-        self.ports.today()
-    }
-
     fn day(&self, at: u64) -> Result<u32, PortError> {
         self.ports.day(at)
     }
@@ -890,6 +923,7 @@ fn a_recovery_body_refused_with_seq_is_read_again_from_the_owners_events_and_log
         vec![Turn::Late(What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Completed,
+            defers: None,
         })],
     );
     let life = recover(&late, &w.limits).expect("recovery");
@@ -1262,6 +1296,7 @@ fn review_w9_an_owed_run_ended_that_the_checks_read_brought_in_is_stored_once() 
         What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Interrupted,
+            defers: None,
         },
     );
     w.ports.clear_refusals();
@@ -1323,6 +1358,7 @@ fn review_w5_owed_lapse_after_a_resync_of_its_body_is_stored_once() {
         What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Interrupted,
+            defers: None,
         },
     );
     stored_outside(
@@ -1541,8 +1577,8 @@ fn a_debts_read_takes_up_a_check_item_that_the_owner_stored_with_a_lost_acknowle
     let open = open_checks(&w);
     assert_eq!(
         open.len(),
-        2,
-        "the owner refused the body and stored the new check item"
+        1,
+        "the owner refused the body, and the new check's body lapsed the earlier check item first (RD-96 item 5 (b))"
     );
     let stored = open.iter().find(|i| !earlier.contains(i)).unwrap().clone();
     assert_eq!(
@@ -1587,6 +1623,7 @@ fn an_owed_run_ended_refused_with_seq_for_another_event_is_logged_after_it() {
         What::RunEnded {
             run: earlier.clone(),
             cause: RunEnd::Completed,
+            defers: None,
         },
         What::RunStarted {
             run: run.clone(),
@@ -1735,4 +1772,482 @@ fn the_rows_of_recovery_carry_the_day_of_their_at_across_midnight() {
         }
     }
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)));
+}
+
+fn refused(name: &str) -> PortError {
+    PortError::Refused(halvo_coord::types::Name::parse(name).unwrap())
+}
+
+#[test]
+fn an_agent_whose_history_is_refused_is_set_aside_and_every_other_agent_recovers() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    let first = started(&mut w, 0);
+    let second = started(&mut w, 1);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    let ended = relife(
+        &mut w,
+        &[
+            (first.clone(), Reaped::Gone),
+            (second.clone(), Reaped::Gone),
+        ],
+    );
+    assert_eq!(ended, vec![(second.clone(), RunEnd::Interrupted)]);
+    assert_eq!(w.board.members.len(), 2, "a board with both agents");
+    assert!(w.board.aside(&agent(0)));
+    assert!(!w.board.aside(&agent(1)));
+    assert!(w.facts(0).events.is_empty(), "no event read for it");
+    assert_eq!(w.events_of(0).last().unwrap(), "run_started");
+    assert_eq!(w.events_of(1).last().unwrap(), "run_ended interrupted");
+    assert_eq!(
+        w.calls(),
+        vec!["reap", "log run_ended interrupted", "end_run"],
+        "nothing of the agent set aside is logged or sent"
+    );
+    w.store_end(1, &second, Outcome::Failed, 0);
+    w.act(Act::Tick);
+    let done = w.act(Act::Start { agent: agent(1) });
+    assert_eq!(done.report.answer, Ok(Answer::Ok), "the other agent starts");
+    let run = done.report.run.unwrap();
+    w.act(Act::Stop {
+        run: run.clone(),
+        by: StopBy::Person,
+    });
+    assert!(w.calls().contains(&"cancel".to_string()), "and stops");
+    w.calls();
+    let refused_start = w.act(Act::Start { agent: agent(0) });
+    assert_eq!(refused_start.report.answer, Err(Cause::NoService));
+    assert_eq!(
+        w.calls(),
+        Vec::<String>::new(),
+        "a start of the agent set aside tries nothing"
+    );
+    w.ports.clear_refusals();
+    w.act(Act::Tick);
+    assert!(!w.board.aside(&agent(0)), "the first read that answers");
+    assert_eq!(w.events_of(0).last().unwrap(), "run_ended interrupted");
+    let calls = w.calls();
+    assert!(calls.contains(&"log run_ended interrupted".to_string()));
+    assert!(calls.contains(&"end_run".to_string()), "{calls:?}");
+}
+
+#[test]
+fn a_tick_starts_nothing_for_an_agent_set_aside_while_its_history_is_refused() {
+    let slotted = A {
+        person: false,
+        slotted: true,
+    };
+    let mut w = world_with(&[slotted, slotted], two_live());
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    relife(&mut w, &[]);
+    assert!(w.board.aside(&agent(0)));
+    let done = w.act(Act::Tick);
+    let started: Vec<AgentId> = done
+        .report
+        .started
+        .iter()
+        .map(|s| s.agent.clone())
+        .collect();
+    assert_eq!(
+        started,
+        vec![agent(1)],
+        "the tick starts the other agent alone"
+    );
+    assert!(w.board.aside(&agent(0)));
+}
+
+#[test]
+fn recovery_leaves_out_an_agent_whose_history_is_refused_with_no_workflow() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("no_workflow"));
+    relife(&mut w, &[]);
+    assert_eq!(w.board.members.len(), 1);
+    assert!(!w.board.aside(&agent(0)));
+}
+
+#[test]
+fn recovery_still_ends_with_no_board_when_the_owner_does_not_answer_a_history() {
+    let w = world(&[MANUAL, MANUAL]);
+    w.ports.new_life();
+    w.ports
+        .refuse_agent(Method::History, &agent(1), PortError::Busy);
+    assert_eq!(recover(&w.ports, &w.limits).err(), Some(Cause::Busy));
+}
+
+fn lost_start_beside_a_debt(w: &mut World, lost: &RunId) {
+    stored_outside(
+        w,
+        0,
+        What::RunStarted {
+            run: lost.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+    );
+    w.set_clock(T0 + 10_000, DAY);
+    w.forget();
+    w.act(Act::Tick);
+    assert_eq!(
+        ends_of(w, lost),
+        1,
+        "the debt's read brought the lost start, which the tick closes with interrupted"
+    );
+    assert!(
+        w.calls().iter().any(|c| c == "end_run"),
+        "the tick asks the store to end the lost start"
+    );
+    assert!(
+        !w.facts(0).store_ended,
+        "the agent's next start waits for the store's end of the lost start"
+    );
+}
+
+#[test]
+fn rd96_5c_an_owed_item_lapseds_read_after_seq_closes_the_lost_start_that_it_brings() {
+    let item = ItemId::parse(&format!("{:032x}", 0x7c01)).unwrap();
+    let lost = RunId::parse(&format!("{:032x}", 0x7c02)).unwrap();
+    let mut w = owed_lapse(&item);
+    lost_start_beside_a_debt(&mut w, &lost);
+    assert_eq!(lapses_of(&w, &item), 0, "the lapse is still owed");
+}
+
+#[test]
+fn rd96_5c_an_owed_run_endeds_read_after_seq_closes_the_lost_start_that_it_brings() {
+    let mut w = world(&[MANUAL]);
+    let run = RunId::parse(&format!("{:032x}", 0x7c03)).unwrap();
+    let lost = RunId::parse(&format!("{:032x}", 0x7c04)).unwrap();
+    stored_outside(
+        &w,
+        0,
+        What::RunStarted {
+            run: run.clone(),
+            trigger: Trigger::Person,
+            slot: None,
+        },
+    );
+    w.ports.refuse(Method::Log, PortError::NoService);
+    relife(&mut w, &[]);
+    w.ports.clear_refusals();
+    lost_start_beside_a_debt(&mut w, &lost);
+    assert_eq!(
+        ends_of(&w, &run),
+        0,
+        "the run_ended of the earlier run is still owed"
+    );
+}
+
+#[test]
+fn rd86_a_run_that_recovery_ends_holds_null() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    let ended = relife(&mut w, &[]);
+    assert_eq!(ended, vec![(run.clone(), RunEnd::Interrupted)]);
+    let defers: Vec<_> = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::RunEnded { run: r, defers, .. } if *r == run => Some(*defers),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(defers, vec![None]);
+}
+
+fn logs_of_agent(w: &World, n: usize, from: usize) -> Vec<halvo_coord::mem::Call> {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| {
+            matches!(&t.call, halvo_coord::mem::Call::Log(events)
+                if events.iter().any(|e| e.agent == agent(n)))
+        })
+        .map(|t| t.call.clone())
+        .collect()
+}
+
+fn record_with_unknown(w: &World, n: usize) {
+    let (record, _) = support::finished_run(n);
+    w.ports.store_end(
+        &agent(n),
+        PastRun {
+            unknown: 1,
+            ..record
+        },
+    );
+}
+
+fn check_raises(w: &World, n: usize) -> usize {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            e.agent == agent(n)
+                && matches!(
+                    e.what,
+                    What::ItemRaised {
+                        raised: Raised::Check(_),
+                        ..
+                    }
+                )
+        })
+        .count()
+}
+
+#[test]
+fn rd121_recovery_logs_no_check_for_an_agent_set_aside() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    record_with_unknown(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    let from = w.ports.tried.borrow().len();
+    relife(&mut w, &[]);
+    assert!(w.board.aside(&agent(0)));
+    assert_eq!(
+        logs_of_agent(&w, 0, from),
+        Vec::new(),
+        "nothing is logged for the agent set aside, no seq of it is given"
+    );
+    assert!(
+        matches!(w.facts(0).doing, halvo_coord::types::Doing::Idle(None)),
+        "it holds no item: {:?}",
+        w.facts(0).doing
+    );
+}
+
+#[test]
+fn rd121_a_tick_logs_no_check_for_an_agent_set_aside() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    record_with_unknown(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    relife(&mut w, &[]);
+    assert!(w.board.aside(&agent(0)));
+    for k in 1..3 {
+        w.set_clock(T0 + k * 10_000, DAY);
+        let from = w.ports.tried.borrow().len();
+        let done = w.act(Act::Tick);
+        assert!(w.board.aside(&agent(0)), "tick {k}");
+        assert!(!done.checked.contains(&agent(0)), "tick {k}");
+        assert_eq!(
+            logs_of_agent(&w, 0, from),
+            Vec::new(),
+            "tick {k} logs nothing for the agent set aside"
+        );
+    }
+}
+
+#[test]
+fn rd121_an_agent_set_aside_with_no_event_at_the_owner_gets_no_item_stored() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    w.ports.events.borrow_mut().retain(|e| e.agent != agent(0));
+    record_with_unknown(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    relife(&mut w, &[]);
+    assert!(w.board.aside(&agent(0)));
+    let raised = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0) && matches!(e.what, What::ItemRaised { .. }))
+        .count();
+    assert_eq!(raised, 0, "no item is raised for the agent set aside");
+    assert!(
+        matches!(w.facts(0).doing, halvo_coord::types::Doing::Idle(None)),
+        "it holds no item: {:?}",
+        w.facts(0).doing
+    );
+    w.ports.clear_refusals();
+    w.set_clock(T0 + 10_000, DAY);
+    w.act(Act::Tick);
+    assert!(!w.board.aside(&agent(0)), "the read answers");
+    let lapsed_app_ended = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            e.agent == agent(0)
+                && matches!(
+                    e.what,
+                    What::ItemLapsed {
+                        lapsed: Lapsed::Check(OtherLapse::AppEnded),
+                        ..
+                    }
+                )
+        })
+        .count();
+    assert_eq!(
+        lapsed_app_ended, 0,
+        "no item of this life lapses as one of an earlier life"
+    );
+}
+
+#[test]
+fn rd121_recovery_logs_nothing_for_the_agent_of_a_dismissed_workflow_under_binding() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    record_with_unknown(&w, 0);
+    w.ports.workflows.borrow_mut()[0] =
+        Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+            id: flow(0),
+            category: halvo_coord::types::Category::CalendarCleanup,
+            site: None,
+        });
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("binding"));
+    let from = w.ports.tried.borrow().len();
+    relife(&mut w, &[]);
+    assert!(!w.board.aside(&agent(0)), "kept, not set aside");
+    assert_eq!(
+        logs_of_agent(&w, 0, from),
+        Vec::new(),
+        "nothing is logged for it"
+    );
+}
+
+#[test]
+fn rd121_an_agent_whose_history_recovery_read_still_gets_its_check() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    record_with_unknown(&w, 0);
+    relife(&mut w, &[]);
+    assert!(!w.board.aside(&agent(0)));
+    assert_eq!(check_raises(&w, 0), 1, "the hold check raises its item");
+}
+
+#[test]
+fn rd121_an_agent_set_aside_in_an_earlier_life_and_read_whole_in_this_one_gets_its_check() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    record_with_unknown(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    relife(&mut w, &[]);
+    assert!(w.board.aside(&agent(0)));
+    w.ports.clear_refusals();
+    relife(&mut w, &[]);
+    assert!(!w.board.aside(&agent(0)));
+    assert_eq!(
+        check_raises(&w, 0),
+        1,
+        "the read whole life raises its check"
+    );
+}
+
+fn dismiss(w: &World, n: usize) {
+    w.ports.workflows.borrow_mut()[n] =
+        Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+            id: flow(n),
+            category: halvo_coord::types::Category::CalendarCleanup,
+            site: None,
+        });
+}
+
+#[test]
+fn rd122_c1_a_recovery_body_refused_binding_for_a_dismissed_workflow_ends_its_debt() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    dismiss(&w, 0);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refused("binding"));
+    relife(&mut w, &[(run, Reaped::Gone)]);
+    assert!(
+        w.board.owed.iter().all(|o| o.agent != agent(0)),
+        "recovery's body refused binding of a dismissed workflow owes nothing: {:?}",
+        w.board.owed
+    );
+    for _ in 0..3 {
+        w.act(Act::Tick);
+    }
+    let owed = w.board.owed.iter().filter(|o| o.agent == agent(0)).count();
+    assert_eq!(
+        owed, 0,
+        "class B: binding where the owner's list shows the workflow dismissed ends the debt"
+    );
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "no fault shown"
+    );
+}
+
+#[test]
+fn rd122_c1_an_agent_set_aside_whose_dismissed_workflow_then_answers_binding_is_kept_unread() {
+    let mut w = world_with(&[MANUAL, MANUAL], two_live());
+    let first = started(&mut w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("store"));
+    relife(&mut w, &[(first, Reaped::Gone)]);
+    assert!(w.board.aside(&agent(0)));
+    dismiss(&w, 0);
+    w.ports.clear_refusals();
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("binding"));
+    for _ in 0..4 {
+        w.act(Act::Tick);
+    }
+    assert_eq!(
+        w.board.members.len(),
+        2,
+        "the agent of a dismissed workflow is kept"
+    );
+    assert!(!w.board.aside(&agent(0)), "it leaves the aside list");
+    assert!(
+        w.board.dismissed_unread(&agent(0)),
+        "kept with no event read"
+    );
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "no fault shown"
+    );
+}
+
+#[test]
+fn rd122_c2_no_sender_logs_for_a_dismissed_agent_kept_unread() {
+    let slotted_person = A {
+        person: true,
+        slotted: true,
+    };
+    let mut w = world_with(&[slotted_person, MANUAL], two_live());
+    dismiss(&w, 0);
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refused("binding"));
+    relife(&mut w, &[]);
+    assert!(w.board.dismissed_unread(&agent(0)));
+    let from = w.ports.tried.borrow().len();
+    for k in 1..4 {
+        w.set_clock(T0 + k * 86_400_000, DAY + k as u32);
+        w.act(Act::Tick);
+    }
+    let start = w.act(Act::Start { agent: agent(0) });
+    let off = w.act(Act::SwitchOff { agent: agent(0) });
+    assert_eq!(
+        logs_of_agent(&w, 0, from),
+        Vec::new(),
+        "no tick, no Run now and no Switch off logs for it: start {:?}, switch-off {:?}",
+        start.report.answer,
+        off.report.answer
+    );
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "no fault shown"
+    );
+}
+
+#[test]
+fn rd122_t1_recovery_owes_no_end_run_that_the_owner_refuses_with_no_workflow() {
+    let mut w = world(&[MANUAL]);
+    let run = started(&mut w, 0);
+    w.ports.refuse(Method::EndRun, refused("no_workflow"));
+    relife(&mut w, &[(run, Reaped::Gone)]);
+    assert!(
+        !w.board
+            .owed
+            .iter()
+            .any(|o| matches!(o.what, halvo_coord::schedule::Owing::EndRun { .. })),
+        "class B ends the end_run: {:?}",
+        w.board.owed
+    );
 }

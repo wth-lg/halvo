@@ -47,6 +47,19 @@ pub struct Event {
     pub what: What,
 }
 
+/// What the coordinator saw of the defers of a run whose whole life it saw, the keys
+/// `defer_launch` and `defer_ticks_failed` of its `run_ended` (I7.1, ruling RD-86 items 1 and 2):
+/// whether the defer of its own launch was acknowledged, and the count of the ticks at which the
+/// run stood on the board and no defer was acknowledged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Defers {
+    /// `defer_launch`: whether the defer of the run's launch was acknowledged.
+    pub launch: bool,
+    /// `defer_ticks_failed`: the ticks at which the run stood on the board and no defer was
+    /// acknowledged.
+    pub ticks_failed: u32,
+}
+
 /// The events of I7.1 with the keys that each sets; every other key is null.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum What {
@@ -65,6 +78,9 @@ pub enum What {
         run: RunId,
         /// `cause`: the end of I5.6.
         cause: RunEnd,
+        /// `defer_launch` and `defer_ticks_failed`: what this life saw of the run's defers, or
+        /// none where it did not see the run whole, which the row writes as null (ruling RD-86).
+        defers: Option<Defers>,
     },
     /// `item_raised`.
     ItemRaised {
@@ -348,8 +364,9 @@ names! {
 }
 
 names! {
-    /// The `cause` of an `item_lapsed` row (I7.1): the six causes of I4.2 and `check`, which only
-    /// an item of another kind than `confirm` takes (ruling RD-35).
+    /// The `cause` of an `item_lapsed` row (I7.1): the seven causes of I4.2, `answer_lost` among
+    /// them (ruling RD-84), and `check`, which only an item of another kind than `confirm` takes
+    /// (ruling RD-35).
     ItemLapseCause {
         Digest = "digest",
         RunEnded = "run_ended",
@@ -357,6 +374,7 @@ names! {
         Cancelled = "cancelled",
         NoRecord = "no_record",
         AppEnded = "app_ended",
+        AnswerLost = "answer_lost",
         Check = "check",
     }
 }
@@ -371,6 +389,7 @@ impl ItemLapseCause {
             LapseCause::Cancelled => ItemLapseCause::Cancelled,
             LapseCause::NoRecord => ItemLapseCause::NoRecord,
             LapseCause::AppEnded => ItemLapseCause::AppEnded,
+            LapseCause::AnswerLost => ItemLapseCause::AnswerLost,
         }
     }
 }

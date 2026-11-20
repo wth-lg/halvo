@@ -314,6 +314,8 @@ fn socket_by_hand(dir: &Path, system_root: bool) -> String {
         .arg("socket")
         .arg("--browser")
         .arg(&script.path)
+        .arg("--utc-offset")
+        .arg("0")
         .env_clear()
         .stdin(Stdio::piped())
         .stdout(Stdio::null())

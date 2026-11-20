@@ -3793,6 +3793,37 @@ fn a_shredded_wrapped_key_is_gone_from_the_raw_database_pages_when_rows_expire_o
     );
 }
 
+#[test]
+fn a_shred_keeps_the_key_row_with_a_null_key_and_a_later_segment_takes_another_key_id() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let (shredded, shredded_key_id) = store
+        .write_segment_with_expiry(&mut Cursor::new(b"expired before the next write"), 0, 1)
+        .unwrap();
+    assert_eq!(store.crypto_shred_expired().unwrap().segments_shredded, 1);
+    let row = match store.db().unwrap().connection().query_row(
+        "SELECT id, wrapped_key FROM segment_keys WHERE segment_id = ?1",
+        [shredded.segment_id.simple().to_string()],
+        |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<Vec<u8>>>(1)?)),
+    ) {
+        Ok(row) => Some(row),
+        Err(halvo_sqlcipher::rusqlite::Error::QueryReturnedNoRows) => None,
+        Err(other) => panic!("the key row of the shredded segment could not be read: {other}"),
+    };
+    let (_, later_key_id) = store
+        .write_segment(&mut Cursor::new(b"written after the shred"))
+        .unwrap();
+    assert!(
+        row == Some((shredded_key_id.0, None)) && later_key_id != shredded_key_id,
+        "ADR 0005 (RD-21): a shred keeps the key row of its segment with a NULL key, and a later segment takes another key id; \
+         the key row of shredded segment {} with key id {}: {:?} (none: no row); the key id of the segment written after the shred: {}",
+        shredded.segment_id,
+        shredded_key_id.0,
+        row.map(|(id, key)| (id, key.map(|k| k.len()))),
+        later_key_id.0
+    );
+}
+
 fn tamper_pattern(len: usize, seed: u8) -> Vec<u8> {
     (0..len)
         .map(|i| ((i as u64 * 31 + seed as u64 * 7) % 251) as u8)
@@ -4593,9 +4624,66 @@ fn a_create_whose_custody_cannot_read_the_root_of_its_id_destroys_no_root() {
 
 #[test]
 fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_made() {
+    /// The creator's own custody, with its calls of destroy_root counted.
+    struct CountedDestroys<P> {
+        inner: FileRootCustody<P>,
+        destroy_calls: Arc<AtomicUsize>,
+    }
+    impl<P: Protector> KeyCustody for CountedDestroys<P> {
+        fn kind(&self) -> CustodyKind {
+            self.inner.kind()
+        }
+        fn root_id(&self) -> RootId {
+            self.inner.root_id()
+        }
+        fn roots(&self) -> Option<&std::path::Path> {
+            self.inner.roots()
+        }
+        fn wrap_store_key(
+            &self,
+            key: &StoreKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<WrappedKey, CustodyError> {
+            self.inner.wrap_store_key(key, label)
+        }
+        fn create_root(&self) -> Result<(), CustodyError> {
+            self.inner.create_root()
+        }
+        fn unwrap_store_key(
+            &self,
+            wrapped: &WrappedKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<StoreKey, CustodyError> {
+            self.inner.unwrap_store_key(wrapped, label)
+        }
+        fn destroy_root(&self) -> Result<(), CustodyError> {
+            self.destroy_calls.fetch_add(1, Ordering::SeqCst);
+            self.inner.destroy_root()
+        }
+
+        fn wrap_store_key_in(
+            &self,
+            roots: &crate::custody::RootsHandle,
+            key: &StoreKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+            self.inner.wrap_store_key_in(roots, key, label)
+        }
+        fn unwrap_store_key_in(
+            &self,
+            roots: &crate::custody::RootsHandle,
+            wrapped: &WrappedKey,
+            label: crate::custody::KeyLabel,
+        ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+            self.inner.unwrap_store_key_in(roots, wrapped, label)
+        }
+    }
     const ROUNDS: usize = 64;
     let mut missing = Vec::new();
     let mut replaced = 0;
+    let mut refused = 0;
+    let mut destroyed_by_a_refused_create = Vec::new();
+    let mut winner_root_not_listed = Vec::new();
     for round in 0..ROUNDS {
         let dir = tempfile::tempdir().unwrap();
         let roots_dir = dir.path().join("roots");
@@ -4608,20 +4696,38 @@ fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_ma
                 let roots_dir = roots_dir.clone();
                 let barrier = Arc::clone(&barrier);
                 std::thread::spawn(move || {
-                    let custody =
-                        file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+                    let destroy_calls = Arc::new(AtomicUsize::new(0));
+                    let custody = CountedDestroys {
+                        inner: file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id),
+                        destroy_calls: Arc::clone(&destroy_calls),
+                    };
                     barrier.wait();
-                    let made =
-                        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION)
-                            .is_ok();
-                    (store_dir, made)
+                    let created =
+                        EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION);
+                    let answer = created.as_ref().err().map(|e| format!("{e:?}"));
+                    drop(created);
+                    (store_dir, answer, destroy_calls.load(Ordering::SeqCst))
                 })
             })
             .collect();
         for creator in creators {
-            let (store_dir, made) = creator.join().unwrap();
-            if !made {
+            let (store_dir, answer, destroyed) = creator.join().unwrap();
+            if let Some(answer) = answer {
+                refused += 1;
+                if destroyed != 0 {
+                    destroyed_by_a_refused_create.push((round, answer, destroyed));
+                }
                 continue;
+            }
+            let root_name = format!("{root_id}.root");
+            let listed = std::fs::read_dir(&roots_dir).is_ok_and(|entries| {
+                entries.filter_map(Result::ok).any(|entry| {
+                    entry.file_name().to_str() == Some(root_name.as_str())
+                        && entry.file_type().is_ok_and(|kind| kind.is_file())
+                })
+            });
+            if !listed {
+                winner_root_not_listed.push(round);
             }
             let reopened = EncryptedStore::open_with(
                 &store_dir,
@@ -4642,6 +4748,19 @@ fn two_creates_at_one_instant_under_one_root_id_destroy_no_root_that_a_create_ma
             }
         }
     }
+    assert!(
+        destroyed_by_a_refused_create.is_empty() && refused > 0,
+        "a create that answered an error called destroy_root, so it destroyed a root that it \
+         did not make: {} of {refused} refused creates in {ROUNDS} rounds (round, answer, calls): \
+         {destroyed_by_a_refused_create:?}",
+        destroyed_by_a_refused_create.len()
+    );
+    assert!(
+        winner_root_not_listed.is_empty(),
+        "in {} of {ROUNDS} rounds the roots directory, read itself, holds no root file of the \
+         create that returned Ok (rounds {winner_root_not_listed:?}; ruling S-96 item 4)",
+        winner_root_not_listed.len()
+    );
     assert!(
         missing.is_empty(),
         "in {} of {ROUNDS} rounds a store whose create returned Ok answers that its root is \
@@ -6205,6 +6324,22 @@ fn windows_open_refuses_a_file_link_or_a_junction_at_each_database_name() {
     }
 }
 
+/// The tail on the closed layout that `store_dir` and `roots` spell: the
+/// data directory when they are `<dir>/store` and `<dir>/roots`, the scratch
+/// store when `roots` is `<store_dir>/roots`; any other pair is no layout of
+/// the tail.
+fn tail(store_dir: &Path, roots: &Path) -> StoreResult<super::DeleteReport> {
+    if roots == store_dir.join("roots") {
+        return EncryptedStore::delete_data_dir(store_dir, super::Layout::ScratchStore);
+    }
+    let data_dir = store_dir
+        .parent()
+        .filter(|_| store_dir.file_name() == Some(std::ffi::OsStr::new("store")))
+        .filter(|dir| dir.join("roots") == roots)
+        .expect("the store path and the roots path spell no closed layout of the tail");
+    EncryptedStore::delete_data_dir(data_dir, super::Layout::DataDirectory)
+}
+
 fn delete_report(answer: &StoreResult<super::DeleteReport>) -> super::DeleteReport {
     match answer {
         Ok(report) => report.clone(),
@@ -6339,7 +6474,7 @@ fn the_delete_tail_removes_a_link_at_the_store_name_and_then_sweeps_every_root_f
     std::os::unix::fs::symlink(&behind, data.join("store")).unwrap();
     let behind_before = files_with_bytes(&behind);
 
-    let answer = EncryptedStore::delete_store_dir(&data.join("store"), &roots_dir);
+    let answer = tail(&data.join("store"), &roots_dir);
     let report = delete_report(&answer);
 
     assert_eq!(
@@ -7157,7 +7292,7 @@ fn delete_all_with_a_blocked_shard_destroys_the_root_and_the_key_file_and_the_ta
     );
     assert!(store.write_segment(&mut Cursor::new(b"x")).is_err());
     drop(store);
-    let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let tail = tail(&store_dir, &roots_dir);
     assert!(tail.is_ok(), "{tail:?}");
     assert!(!segment_path(&store_dir, segment_id).exists());
 }
@@ -7259,7 +7394,7 @@ fn a_root_file_of_mode_000_is_root_denied_and_the_tail_removes_the_files_and_nam
     set_mode(&roots.root_path(root_id), 0o000);
     let opened = answer_text(&open_over_file_root(&store_dir, &roots_dir, root_id));
     set_mode(&roots_dir, 0o500);
-    let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let tail = tail(&store_dir, &roots_dir);
     set_mode(&roots_dir, 0o700);
     let report = delete_report(&tail);
     assert_eq!(opened, "Custody(RootDenied)");
@@ -7277,7 +7412,7 @@ fn the_tail_cleans_a_directory_with_a_zeroed_key_file_and_a_fresh_create_takes_i
     let (store_dir, roots_dir, _, segment_id) = file_root_store(dir.path());
     let len = std::fs::metadata(KeyFile::path(&store_dir)).unwrap().len() as usize;
     std::fs::write(KeyFile::path(&store_dir), vec![0u8; len]).unwrap();
-    let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let tail = tail(&store_dir, &roots_dir);
     assert!(tail.is_ok(), "{tail:?}");
     assert_eq!(delete_report(&tail).root, super::RootReading::Unnamed);
     assert_eq!(store_files_in(&store_dir), Vec::<String>::new());
@@ -7309,7 +7444,7 @@ fn the_tail_on_a_key_file_of_version_1_removes_the_files_and_reports_its_root_as
         ),
     )
     .unwrap();
-    let report = delete_report(&EncryptedStore::delete_store_dir(&store_dir, &roots_dir));
+    let report = delete_report(&tail(&store_dir, &roots_dir));
     assert_eq!(report.root_not_handled, Some(older), "{report:?}");
     assert_eq!(store_files_in(&store_dir), Vec::<String>::new());
     assert!(!report.root_destroyed());
@@ -7723,6 +7858,17 @@ fn the_golden_key_file_of_version_2_holds_five_fields_and_reads_with_the_store_l
     let read = KeyFile::read(dir.path()).unwrap();
     assert_eq!(read.root_id.to_string(), json["root_id"].as_str().unwrap());
     assert_eq!(read.wrapped_store_key().unwrap().0.len(), 72);
+    assert_eq!(
+        read.root_id.to_string(),
+        "0123456789abcdef0123456789abcdef",
+        "the root id of the golden key file changed"
+    );
+    assert_eq!(json["custody_kind"], "dev_fallback");
+    assert_eq!(
+        read.wrapped_store_key().unwrap().0,
+        (0u8..72).collect::<Vec<u8>>(),
+        "the bytes of the golden key file's wrap changed"
+    );
 }
 
 #[cfg(unix)]
@@ -8264,7 +8410,7 @@ fn a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_b
         states.under_the_limit_of_a_stopped_create && states.all_true(),
         "a create stopped between its create_root and the second write of its mark left {states:?}, not the named limit (i)"
     );
-    let tail = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let tail = tail(&store_dir, &roots_dir);
     let left = root_files_in(&roots_dir);
     println!(
         "KILL op=stopped_create then the tail: answer_ok={} root_files_left={}",
@@ -8357,6 +8503,22 @@ impl<C: KeyCustody> KeyCustody for StopsAfterItsRoot<C> {
     fn destroy_root(&self) -> Result<(), CustodyError> {
         self.0.destroy_root()
     }
+    fn wrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        key: &StoreKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+        self.0.wrap_store_key_in(roots, key, label)
+    }
+    fn unwrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        wrapped: &WrappedKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+        self.0.unwrap_store_key_in(roots, wrapped, label)
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -8427,7 +8589,7 @@ fn a_store_on_a_full_volume_ends_delete_all_with_no_root_and_no_key_file() {
                 Ok(mut reopened) => answer_text(&reopened.delete_all()),
                 Err(e) => {
                     println!("scenario=C open={e:?}");
-                    answer_text(&EncryptedStore::delete_store_dir(&store_dir, &roots_dir))
+                    answer_text(&tail(&store_dir, &roots_dir))
                 }
             }
         }
@@ -8848,13 +9010,13 @@ fn delete_all_counts_a_shard_that_it_cannot_list_as_left() {
 #[test]
 fn the_tail_counts_a_shard_that_it_cannot_list_as_left() {
     use std::os::unix::fs::PermissionsExt;
-    println!("CASE-NOTE: delete_store_dir must not answer Ok while a segment file under an unreadable shard is left");
+    println!("CASE-NOTE: delete_data_dir must not answer Ok while a segment file under an unreadable shard is left");
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, _root_id, segment_id) = file_root_store(dir.path());
     let file = segment_path(&store_dir, segment_id);
     let shard = file.parent().unwrap().to_path_buf();
     std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o000)).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     std::fs::set_permissions(&shard, std::fs::Permissions::from_mode(0o700)).unwrap();
     let left = file.exists();
     println!(
@@ -8863,7 +9025,7 @@ fn the_tail_counts_a_shard_that_it_cannot_list_as_left() {
     );
     assert!(
         !(answer.is_ok() && left),
-        "delete_store_dir answered Ok, but the segment file under an unreadable shard is still there"
+        "delete_data_dir answered Ok, but the segment file under an unreadable shard is still there"
     );
 }
 
@@ -9054,7 +9216,7 @@ fn a_create_answers_locked_before_it_clears_a_pending_create() {
     )
     .unwrap();
     std::fs::copy(&pending_file, store_dir.join("create.pending")).unwrap();
-    std::fs::copy(
+    std::fs::rename(
         &pending_root_file,
         roots_dir.join(format!("{pending_root}.root")),
     )
@@ -9176,7 +9338,7 @@ fn refused_open_case<G>(
     )
     .unwrap();
     if !pending_names_the_store_root {
-        std::fs::copy(
+        std::fs::rename(
             killed
                 .path()
                 .join("roots")
@@ -9511,7 +9673,7 @@ fn open_after_a_stopped_create(pending_names_the_store_root: bool) -> OpenAfterA
     )
     .unwrap();
     if !pending_names_the_store_root {
-        std::fs::copy(
+        std::fs::rename(
             killed
                 .path()
                 .join("roots")
@@ -9576,7 +9738,7 @@ fn an_open_whose_cleanup_of_a_stopped_create_fails_answers_ok_and_delete_all_cle
     )
     .unwrap();
     let pending_root_file = roots_dir.join(format!("{pending_root}.root"));
-    std::fs::copy(
+    std::fs::rename(
         killed
             .path()
             .join("roots")
@@ -9759,7 +9921,9 @@ fn a_delete_report_and_its_roots_left_print_each_root_id_in_its_one_text_form() 
         roots: super::RootsLeft {
             left: vec![left],
             names: vec![format!("{left}.root")],
+            others_left: Default::default(),
             listed: true,
+            at_its_path: true,
         },
         root_not_handled: Some(not_handled),
         key_file_gone: true,
@@ -9965,6 +10129,23 @@ impl KeyCustody for RootsWithAFailingDestroy {
     fn destroy_root(&self) -> Result<(), CustodyError> {
         Err(CustodyError::RootDenied)
     }
+
+    fn wrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        key: &StoreKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(WrappedKey, crate::custody::FileIdentity), CustodyError> {
+        self.inner.wrap_store_key_in(roots, key, label)
+    }
+    fn unwrap_store_key_in(
+        &self,
+        roots: &crate::custody::RootsHandle,
+        wrapped: &WrappedKey,
+        label: crate::custody::KeyLabel,
+    ) -> Result<(StoreKey, crate::custody::FileIdentity), CustodyError> {
+        self.inner.unwrap_store_key_in(roots, wrapped, label)
+    }
 }
 
 #[cfg(unix)]
@@ -10090,5 +10271,188 @@ mod closed_list;
 #[cfg(unix)]
 mod pass_two;
 
+#[cfg(unix)]
+mod held_roots;
+
+#[cfg(target_os = "macos")]
+mod full_flush;
+
 #[cfg(windows)]
 mod closed_list_windows;
+
+/// Ruling ST-48 U3: a delete that leaves a folder that the person named in the
+/// roots folder answers DeleteIncomplete, and neither the Display nor the
+/// Debug form of that answer holds the folder's name.
+#[test]
+fn st48_u3_no_form_of_the_answer_holds_the_name_of_a_folder_in_the_roots_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+    let named = "st48-account-diary-of-tax-returns";
+    std::fs::create_dir(roots_dir.join(named)).unwrap();
+
+    let answer = tail(&store_dir, &roots_dir);
+
+    let incomplete = matches!(answer, Err(StoreError::DeleteIncomplete(_)));
+    let display = match &answer {
+        Ok(_) => String::new(),
+        Err(e) => e.to_string(),
+    };
+    let debug = format!("{answer:?}");
+    println!(
+        "ST48-U3 incomplete={incomplete} display_holds_the_name={} debug_holds_the_name={}",
+        display.contains(named),
+        debug.contains(named)
+    );
+    assert!(
+        incomplete,
+        "the folder in the roots folder did not keep the delete unfinished"
+    );
+    assert_eq!(
+        delete_report(&answer).roots.others_left.directories,
+        1,
+        "the folder that stays is not counted as a directory"
+    );
+    assert!(
+        !display.contains(named) && !debug.contains(named),
+        "a form of the answer holds the name of a folder that the person named"
+    );
+}
+
+/// Ruling PR-30 PR9 (4): an open whose read-back of synchronous (OFF, NORMAL
+/// or EXTRA in place of FULL) or of fullfsync differs from what it set is
+/// refused by that setting's name, and the open in which both read back as
+/// set opens with synchronous FULL and fullfsync on.
+#[test]
+fn an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut answers = Vec::new();
+    for (statement, name) in [
+        ("PRAGMA synchronous = OFF;", "synchronous"),
+        ("PRAGMA synchronous = NORMAL;", "synchronous"),
+        ("PRAGMA synchronous = EXTRA;", "synchronous"),
+        ("PRAGMA fullfsync = OFF;", "fullfsync"),
+    ] {
+        let opened = {
+            let _seam = super::db::read_back_seam::before_the_read_backs(move |conn| {
+                conn.execute_batch(statement).unwrap();
+            });
+            open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+        };
+        println!("PR9-READ-BACK changed={statement} answer={opened:?}");
+        answers.push((name, opened));
+    }
+    let control = open_over_file_root(&store_dir, &roots_dir, root_id);
+    let settings = control.as_ref().ok().map(|store| {
+        let db = store.db().unwrap();
+        (
+            db.pragma_int("synchronous").unwrap(),
+            db.pragma_int("fullfsync").unwrap(),
+        )
+    });
+    println!(
+        "PR9-READ-BACK control answer={:?} synchronous_and_fullfsync={settings:?}",
+        control.as_ref().map(drop)
+    );
+    for (name, opened) in answers {
+        assert!(
+            matches!(&opened, Err(StoreError::SettingNotInEffect(read)) if *read == name),
+            "an open whose {name} read back otherwise answered {opened:?}"
+        );
+    }
+    assert_eq!(settings, Some((2, 1)));
+}
+
+/// A made mark of create.pending that records the identity of the file at
+/// `path`, written as another program could write it.
+#[cfg(unix)]
+fn a_made_mark_of_the_file_at(store_dir: &Path, root_id: RootId, path: &Path) {
+    use std::os::unix::fs::MetadataExt;
+    let meta = std::fs::symlink_metadata(path).unwrap();
+    std::fs::write(
+        store_dir.join("create.pending"),
+        format!(
+            "{{\"custody_kind\":\"dpapi\",\"root_id\":\"{root_id}\",\"reading\":\"made\",\"root_file\":{{\"volume\":{},\"file\":{}}}}}",
+            meta.dev(),
+            meta.ino()
+        ),
+    )
+    .unwrap();
+}
+
+/// The inbox entry of 2026-11-17T02:59:55Z (2), ruling ST-48 Addition 2 point
+/// 3: a file that gains a second name between the destroy step's read by its
+/// name and its write is not written through, because the kept handle's own
+/// test reads two names, and its name in the roots folder is removed unwritten.
+/// On the step by name (a file of another party with one name and a root
+/// file's length at a plain name, under the tail and under the handle's
+/// delete-all) and on the step by identity (the store's own root renamed to a
+/// plain name, under the handle's delete-all; and off Windows a file of
+/// another party whose identity a made mark records, under the tail), the
+/// second name keeps the bytes and no call reads that file as a destroyed
+/// root.
+#[test]
+fn a_file_that_gains_a_second_name_before_the_kept_open_is_not_written_through() {
+    let mut cases = vec![
+        "by name, the tail",
+        "by name, the handle's delete-all",
+        "by identity, the handle's delete-all",
+    ];
+    if cfg!(unix) {
+        cases.push("by identity, the tail by a made mark");
+    }
+    let mut problems = Vec::new();
+    for case in cases {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let plain = roots_dir.join("plain");
+        let second = dir.path().join("second-name");
+        let mut store = case
+            .ends_with("delete-all")
+            .then(|| open_over_file_root(&store_dir, &roots_dir, root_id).unwrap());
+        if case == "by identity, the handle's delete-all" {
+            std::fs::rename(roots_dir.join(format!("{root_id}.root")), &plain).unwrap();
+        } else {
+            std::fs::write(&plain, [0x61u8; 32]).unwrap();
+        }
+        #[cfg(unix)]
+        if case.ends_with("made mark") {
+            std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+            a_made_mark_of_the_file_at(&store_dir, RootId::fresh().unwrap(), &plain);
+        }
+        let bytes = std::fs::read(&plain).unwrap();
+        let (from, to) = (plain.clone(), second.clone());
+        let _seam = crate::custody::file_root::kept_open_seam::at(move |name| {
+            if name == "plain" && !to.exists() {
+                std::fs::hard_link(&from, &to).unwrap();
+            }
+        });
+        let answer = match store.as_mut() {
+            Some(store) => store.delete_all(),
+            None => tail(&store_dir, &roots_dir),
+        };
+        drop(_seam);
+        let second_bytes = std::fs::read(&second).ok();
+        let read_destroyed = case.starts_with("by identity")
+            && match &answer {
+                Ok(report) => report.root_destroyed(),
+                Err(StoreError::DeleteIncomplete(report)) => report.root_destroyed(),
+                Err(_) => false,
+            };
+        println!(
+            "KEPT-OPEN case={case} answer_ok={} second_name_stands={} second_keeps_the_bytes={} plain_stands={} identity_read_destroyed={read_destroyed}",
+            answer.is_ok(),
+            second_bytes.is_some(),
+            second_bytes.as_deref() == Some(bytes.as_slice()),
+            plain.exists()
+        );
+        if second_bytes.as_deref() != Some(bytes.as_slice()) || plain.exists() || read_destroyed {
+            problems.push(format!(
+                "{case}: the second name keeps the bytes {}, the plain name stands {}, the identity read destroyed {read_destroyed}",
+                second_bytes.as_deref() == Some(bytes.as_slice()),
+                plain.exists()
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}

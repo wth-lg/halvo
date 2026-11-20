@@ -1,17 +1,18 @@
 use std::collections::BTreeMap;
 
+use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::names::AgentState;
 use halvo_schema::kinds::{check_record, registry};
 use halvo_schema::{
-    AgentId, ErrorName, Origin, RowRead, Summary, SummaryRead, TypedRecord, Workflow, WorkflowId,
-    WorkflowItem, WorkflowState, WriterStep,
+    AgentId, ErrorName, Instant, Origin, RowRead, Summary, SummaryRead, TypedRecord, Workflow,
+    WorkflowId, WorkflowItem, WorkflowState, WriterStep,
 };
 
+use crate::day;
 use crate::host::Host;
 
-/// The eight kinds of the family `agent` with their origin (A7.3), each with the workflow id under the key
-/// `workflow`. The memory store takes rows of these kinds alone. Where the registry holds the entry of a kind, the
-/// store checks a record against it with `check_record` and takes the kind's origin from it; the six kinds of
+/// The kinds of the family `agent` with their origin (A7.3), each with the workflow id under the key `workflow`.
+/// The memory store takes rows of these kinds alone. Where the registry holds the entry of a kind, the store checks a record against it with `check_record` and takes the kind's origin from it; the six kinds of
 /// origin own have no entry until U3.3 adds them, and until then this table gives their origin.
 pub const AGENT_KINDS: &[(&str, Origin)] = &[
     ("agent_config", Origin::Capture),
@@ -22,6 +23,8 @@ pub const AGENT_KINDS: &[(&str, Origin)] = &[
     ("agent_log", Origin::Own),
     ("agent_session", Origin::Own),
     ("agent_checkpoint", Origin::Own),
+    ("agent_reply", Origin::Own),
+    ("agent_start", Origin::Own),
 ];
 
 /// Why the typed commit of the memory store refused a whole list (W-C25.3): the first record that breaks a rule.
@@ -53,18 +56,28 @@ impl SummaryRead for NoSummaries {
 /// The store in memory behind the handler calls (A7.6's `memory-store`): the workflows that a test host puts, the
 /// rows of the family `agent`, and the host's steps. Its typed commit is the commit of a handler; `after_batch`
 /// runs the steps as the derived store does after a committed batch, and refuses a record of origin own that a step
-/// returns. It removes no row.
+/// returns. It removes no row. Its local calendar is UTC shifted by a fixed offset, 0 unless `with_utc_offset` sets
+/// one.
 #[derive(Default)]
 pub struct MemoryStore {
     workflows: BTreeMap<WorkflowId, Workflow>,
     rows: BTreeMap<&'static str, Vec<String>>,
     steps: Vec<Box<dyn WriterStep>>,
+    utc_offset: i32,
+    clock: Option<Instant>,
 }
 
 impl MemoryStore {
     /// A store with no workflow, no row and no step.
     pub fn new() -> MemoryStore {
         MemoryStore::default()
+    }
+
+    /// The store whose local time is UTC plus `seconds`, a time zone with no change of offset: the day of an instant
+    /// is the day of the calendar of that zone.
+    pub fn with_utc_offset(mut self, seconds: i32) -> MemoryStore {
+        self.utc_offset = seconds;
+        self
     }
 
     /// The store with one more step after the steps that it has.
@@ -77,6 +90,20 @@ impl MemoryStore {
     /// workflow of its id.
     pub fn put_workflow(&mut self, workflow: Workflow) {
         self.workflows.insert(workflow.id().clone(), workflow);
+    }
+
+    /// Sets the clock of the store's reads to the instant: from this call on, a read hands out a row of a bounded
+    /// kind only while its day stands at the instant's day, from the kind's count of days back to two days ahead,
+    /// the rows that an expiry at that clock would leave, as the derived store's reads do (W-C2.5, W-C2.11, DS-4).
+    /// A store whose clock was never set hands out every row.
+    pub fn set_clock(&mut self, at: Instant) {
+        self.clock = Some(at);
+    }
+
+    /// Removes the stored workflow of the id and keeps its rows, as a store stands between the delete of a workflow
+    /// and the cascade that removes its rows.
+    pub fn remove_workflow(&mut self, id: &WorkflowId) {
+        self.workflows.remove(id);
     }
 
     /// Calls each step in order, after a batch of the analysis writer, with no summaries and the rows as they
@@ -136,12 +163,25 @@ fn workflow_of(json: &str) -> Option<WorkflowId> {
     WorkflowId::parse(value.as_object()?.get("workflow")?.as_str()?).ok()
 }
 
+impl MemoryStore {
+    fn stands(&self, kind: &str, row: &str) -> bool {
+        let (Some(clock), Some(days)) = (self.clock, day::bound(kind)) else {
+            return true;
+        };
+        let held = serde_json::from_str::<serde_json::Value>(row)
+            .ok()
+            .and_then(|v| v.get("day").and_then(serde_json::Value::as_u64))
+            .and_then(|d| u32::try_from(d).ok());
+        held.is_none_or(|d| day::stands(self.day(clock), days, d))
+    }
+}
+
 impl RowRead for MemoryStore {
     fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
         let Some(rows) = self.rows.get(kind) else {
             return;
         };
-        let mut sorted: Vec<&String> = rows.iter().collect();
+        let mut sorted: Vec<&String> = rows.iter().filter(|r| self.stands(kind, r)).collect();
         sorted.sort();
         for row in sorted {
             visit(row);
@@ -193,5 +233,9 @@ impl Host for MemoryStore {
             summaries: Vec::new(),
             hint: None,
         })
+    }
+
+    fn day(&self, at: Instant) -> u32 {
+        day_of(at, self.utc_offset)
     }
 }

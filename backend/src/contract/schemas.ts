@@ -26,7 +26,7 @@ export const CheckoutAnswer = z.strictObject({
   url: Url.optional(),
 });
 export const StatusAnswer = z.strictObject({
-  result: z.enum(["pending", "active", "payment-failed", "cancelled", "no-such-account", "credential-mismatch"]),
+  result: z.enum(["pending", "active", "payment-failed", "cancelled", "closing", "no-such-account", "credential-mismatch"]),
 });
 export const CapGetAnswer = z.strictObject({
   result: z.enum(["cap", "no-cap", "pending", "no-such-account", "credential-mismatch"]),

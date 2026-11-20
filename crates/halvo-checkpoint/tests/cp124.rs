@@ -151,7 +151,7 @@ fn the_removal_holds_the_lock_while_it_reads_and_removes_the_copy() {
     let run = run();
     let row = Row {
         folder: &folder,
-        workbook: Path::new("values.xlsx"),
+        workbook: &folder.join("values.xlsx"),
         run: &run,
         expect: made(&bytes),
     };
@@ -246,7 +246,7 @@ fn a_copy_of_other_bytes_in_a_directory_that_cannot_be_written_is_changed() {
     let run = run();
     let row = Row {
         folder: &folder,
-        workbook: Path::new("values.xlsx"),
+        workbook: &folder.join("values.xlsx"),
         run: &run,
         expect: made(&row_bytes),
     };

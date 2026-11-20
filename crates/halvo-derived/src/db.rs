@@ -52,6 +52,15 @@ impl Drop for WriterLock {
     }
 }
 
+/// How an open keys the database: by the host's key in every build, or by none in a build with the cargo feature
+/// `test-host` alone, so that a test reads the bytes of the rows in the files.
+#[derive(Clone, Copy)]
+pub(crate) enum Keying<'k> {
+    Key(&'k DbKey),
+    #[cfg(feature = "test-host")]
+    Keyless,
+}
+
 pub(crate) struct Paths {
     pub(crate) db: PathBuf,
     pub(crate) wal: PathBuf,
@@ -116,17 +125,28 @@ impl<'c> Tx<'c> {
     }
 }
 
-impl Tx<'_> {
-    pub(crate) fn exec<P: Params>(&self, sql: Sql, params: P) -> Result<usize, Fault> {
-        exec(self.conn, sql, params)
-    }
+/// The writer that `Db::write_checkpointed` hands out to its closure: the writer of the transaction with the function
+/// that removes rows by a selection, `Removes::remove`, which stands on this writer alone, so that a call of it under a
+/// plain write does not compile, and the rows that it removes go before the truncating checkpoint that follows the
+/// commit. A support row that a new proposal drops is removed under the plain write, as ruling S-80 allows.
+pub(crate) struct Checkpointed<'t, 'c>(&'t Tx<'c>);
 
-    pub(crate) fn changed(&self, family: &str) {
-        self.changed.borrow_mut().insert(family.to_owned());
-    }
+impl<'c> std::ops::Deref for Checkpointed<'_, 'c> {
+    type Target = Tx<'c>;
 
+    fn deref(&self) -> &Tx<'c> {
+        self.0
+    }
+}
+
+/// The removal of rows by a selection, which the checkpointed writer alone implements.
+pub(crate) trait Removes {
     /// Removes the rows that `select` names by their id and family, and returns how many went.
-    pub(crate) fn remove<P: Params>(&self, select: Sql, params: P) -> Result<u64, Fault> {
+    fn remove<P: Params>(&self, select: Sql, params: P) -> Result<u64, Fault>;
+}
+
+impl Removes for Checkpointed<'_, '_> {
+    fn remove<P: Params>(&self, select: Sql, params: P) -> Result<u64, Fault> {
         let doomed: Vec<(i64, String)> =
             rows(self.conn, select, params, |r| Ok((r.get(0)?, r.get(1)?)))?;
         let mut removed = 0;
@@ -137,6 +157,16 @@ impl Tx<'_> {
             }
         }
         Ok(removed)
+    }
+}
+
+impl Tx<'_> {
+    pub(crate) fn exec<P: Params>(&self, sql: Sql, params: P) -> Result<usize, Fault> {
+        exec(self.conn, sql, params)
+    }
+
+    pub(crate) fn changed(&self, family: &str) {
+        self.changed.borrow_mut().insert(family.to_owned());
     }
 
     /// The high-water mark of purges: every ordinal below it is purged.
@@ -210,6 +240,43 @@ impl Tx<'_> {
         Ok(id)
     }
 
+    /// Brings `gone` of every stored bounded row of a kind of `entries` to the bound that its entry gives now, where
+    /// that bound is the shorter: a row goes on the earlier of the day from the bound that was stored with it and the
+    /// day from the bound in force. A lengthened bound leaves `gone` as it was. A bounded row of a kind of `entries`
+    /// with a day and no `gone` gets its day plus the days of its entry. A row of a kind that no entry names keeps its
+    /// stored columns.
+    pub(crate) fn bound_gone(&self, entries: &[&KindEntry]) -> Result<(), Fault> {
+        for entry in entries {
+            if let RetentionClass::Bounded { days } = entry.class {
+                self.exec(sql::GONE_FILL, rusqlite::params![entry.name, days])?;
+                self.exec(sql::BOUND_GONE, rusqlite::params![entry.name, days])?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Fills the workflow column of every row of a kind whose entry gives a `workflow_key` and that holds none, from
+    /// the value under that key, so that a row stored before its entry gave the key goes with its workflow.
+    pub(crate) fn fill_workflow(&self, entries: &[&KindEntry]) -> Result<(), Fault> {
+        for entry in entries {
+            if let Some(key) = entry.workflow_key {
+                self.exec(
+                    sql::WORKFLOW_FILL,
+                    rusqlite::params![entry.name, format!("$.{key}")],
+                )?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'t, 'c> Checkpointed<'t, 'c> {
+    /// The checkpointed writer over `tx`, for the unit tests' own connections.
+    #[cfg(test)]
+    pub(crate) fn for_test(tx: &'t Tx<'c>) -> Checkpointed<'t, 'c> {
+        Checkpointed(tx)
+    }
+
     /// The expiry by class, from the store's own rows: every bounded row whose day of `gone` has come on the local day
     /// of the clock, or whose day lies more than two days after the clock's day, or that has no day, every window row
     /// whose expiry instant has passed, and then every row that names a summary or a workflow that is not stored. A
@@ -231,32 +298,6 @@ impl Tx<'_> {
                 rusqlite::named_params! {":now": now.now},
             )?;
         Ok(removed + self.sweep()?)
-    }
-
-    /// Brings `gone` of every stored bounded row of a kind of `entries` to the bound that its entry gives now, where
-    /// that bound is the shorter: a row goes on the earlier of the day from the bound that was stored with it and the
-    /// day from the bound in force. A lengthened bound leaves `gone` as it was.
-    pub(crate) fn bound_gone(&self, entries: &[&KindEntry]) -> Result<(), Fault> {
-        for entry in entries {
-            if let RetentionClass::Bounded { days } = entry.class {
-                self.exec(sql::BOUND_GONE, rusqlite::params![entry.name, days])?;
-            }
-        }
-        Ok(())
-    }
-
-    /// Fills the workflow column of every row of a kind whose entry gives a `workflow_key` and that holds none, from
-    /// the value under that key, so that a row stored before its entry gave the key goes with its workflow.
-    pub(crate) fn fill_workflow(&self, entries: &[&KindEntry]) -> Result<(), Fault> {
-        for entry in entries {
-            if let Some(key) = entry.workflow_key {
-                self.exec(
-                    sql::WORKFLOW_FILL,
-                    rusqlite::params![entry.name, format!("$.{key}")],
-                )?;
-            }
-        }
-        Ok(())
     }
 
     /// Removes every evidence or support row whose summary is not stored and every row of another kind than
@@ -423,7 +464,7 @@ impl Drop for Db {
 impl Db {
     pub(crate) fn open(
         data_dir: &Path,
-        key: &DbKey,
+        keying: Keying<'_>,
         entries: &[&'static KindEntry],
         clock: Box<dyn Clock>,
         sink: Option<ReportSink>,
@@ -431,6 +472,7 @@ impl Db {
     ) -> Result<Db, OpenError> {
         check_entries(entries)?;
         initialize_once();
+        require_mend(halvo_sqlcipher::page_gap_mend_linked())?;
         let dir = data_dir.join("derived");
         std::fs::create_dir_all(&dir).map_err(|e| OpenError::Fault(io_fault(e)))?;
         let lock = WriterLock::take(&dir)?;
@@ -438,7 +480,11 @@ impl Db {
         let mut conn = Connection::open(&paths.db).map_err(|e| OpenError::Fault(db_fault(e)))?;
         conn.busy_timeout(Duration::ZERO)
             .map_err(|e| OpenError::Fault(db_fault(e)))?;
-        set_key(&conn, key)?;
+        match keying {
+            Keying::Key(key) => set_key(&conn, key)?,
+            #[cfg(feature = "test-host")]
+            Keying::Keyless => {}
+        }
         pragma(&conn, "PRAGMA locking_mode = EXCLUSIVE;")?;
         conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
             r.get::<_, i64>(0)
@@ -454,15 +500,14 @@ impl Db {
                 "PRAGMA secure_delete = ON;\n\
                  PRAGMA temp_store = MEMORY;\n\
                  PRAGMA journal_mode = WAL;\n\
+                 PRAGMA synchronous = FULL;\n\
+                 PRAGMA fullfsync = ON;\n\
+                 PRAGMA checkpoint_fullfsync = ON;\n\
                  PRAGMA foreign_keys = ON;\n\
                  PRAGMA cache_size = -{PAGE_CACHE_KIB};"
             ),
         )?;
-        require(&conn, "secure_delete", "1")?;
-        require(&conn, "locking_mode", "exclusive")?;
-        require(&conn, "journal_mode", "wal")?;
-        require(&conn, "foreign_keys", "1")?;
-        require(&conn, "cache_size", &format!("-{PAGE_CACHE_KIB}"))?;
+        read_back(&conn)?;
         let progress = Progress::install(&mut conn, CALL_BUDGET)?;
         let families = families_of(entries);
         let mut db = Db {
@@ -548,10 +593,12 @@ impl Db {
         }
     }
 
-    /// Refuses the open, before anything is written, where stored rows of a kind cannot follow its entry: a row stored
-    /// under another retention class than the entry gives, or a row whose workflow column holds an id while its
-    /// record holds no id, or another one, under the entry's workflow key. A row whose workflow column is null is no
-    /// fault: reconcile fills it from the entry. It reads every entry, the four kinds of the workflow run among them.
+    /// Refuses the open, before it changes a row, where stored rows of a kind cannot follow its entry: a row stored
+    /// under another retention class or another family than the entry gives, a row whose workflow column holds an id
+    /// while its record holds no id, or another one, under the entry's workflow key, or, for an entry that gives no
+    /// workflow key, a row whose workflow column holds an id. A row whose workflow column is null is no fault under an
+    /// entry that gives a key: reconcile fills it from the entry. It reads every entry, the four kinds of the workflow
+    /// run among them.
     fn check_stored(&self) -> Result<(), OpenError> {
         for entry in &self.entries {
             let class = one(
@@ -566,19 +613,36 @@ impl Db {
                     fault: StoredFault::Class,
                 });
             }
-            if let Some(key) = entry.workflow_key {
-                let other = one(
+            let family = one(
+                &self.conn,
+                sql::STORED_OTHER_FAMILY,
+                rusqlite::params![entry.name, entry.family],
+                |r| r.get::<_, i64>(0),
+            )?;
+            if family.is_some() {
+                return Err(OpenError::Stored {
+                    kind: entry.name,
+                    fault: StoredFault::Family,
+                });
+            }
+            let found = match entry.workflow_key {
+                Some(key) => one(
                     &self.conn,
                     sql::STORED_OTHER_WORKFLOW,
                     rusqlite::params![entry.name, format!("$.{key}")],
                     |r| r.get::<_, i64>(0),
-                )?;
-                if other.is_some() {
-                    return Err(OpenError::Stored {
-                        kind: entry.name,
-                        fault: StoredFault::WorkflowKey,
-                    });
-                }
+                )?
+                .map(|_| StoredFault::WorkflowKey),
+                None => one(&self.conn, sql::STORED_WORKFLOW_HELD, [entry.name], |r| {
+                    r.get::<_, i64>(0)
+                })?
+                .map(|_| StoredFault::DroppedWorkflowKey),
+            };
+            if let Some(fault) = found {
+                return Err(OpenError::Stored {
+                    kind: entry.name,
+                    fault,
+                });
             }
         }
         Ok(())
@@ -610,12 +674,13 @@ impl Db {
         Ok(out)
     }
 
-    /// `write`, with the truncating checkpoint after the commit and before the report.
+    /// `write`, with the truncating checkpoint after the commit and before the report. Its closure gets the
+    /// checkpointed writer, the one writer that removes rows.
     pub(crate) fn write_checkpointed<T, E: From<Fault>>(
         &self,
-        f: impl FnOnce(&Tx<'_>) -> Result<T, E>,
+        f: impl FnOnce(&Checkpointed<'_, '_>) -> Result<T, E>,
     ) -> Result<T, E> {
-        let out = self.commit(f)?;
+        let out = self.commit(|tx| f(&Checkpointed(tx)))?;
         self.checkpoint()?;
         self.give_report()?;
         Ok(out)
@@ -711,7 +776,7 @@ impl Db {
 /// Runs SQLite's start-up, SQLCipher's included, to its end on one thread before any store of the process opens its
 /// database. SQLite marks itself started and lets other threads in before it runs SQLCipher's start-up hook, and a
 /// thread that sets a key in that gap is refused (crates/halvo-sqlcipher builds the hook).
-fn initialize_once() {
+pub(crate) fn initialize_once() {
     static START: Once = Once::new();
     START.call_once(|| {
         let _ = Connection::open_in_memory();
@@ -772,6 +837,33 @@ fn set_key(conn: &Connection, key: &DbKey) -> Result<(), OpenError> {
 fn pragma(conn: &Connection, text: &str) -> Result<(), OpenError> {
     conn.execute_batch(text)
         .map_err(|e| OpenError::Fault(db_fault(e)))
+}
+
+/// Reads back each setting that the open makes on the store's connection and refuses, by the name of the first one that
+/// reads otherwise than set, with `OpenError::Setting`.
+pub(crate) fn read_back(conn: &Connection) -> Result<(), OpenError> {
+    require(conn, "secure_delete", "1")?;
+    require(conn, "temp_store", "2")?;
+    require(conn, "locking_mode", "exclusive")?;
+    require(conn, "journal_mode", "wal")?;
+    require(conn, "synchronous", "2")?;
+    require(conn, "fullfsync", "1")?;
+    require(conn, "checkpoint_fullfsync", "1")?;
+    require(conn, "foreign_keys", "1")?;
+    require(conn, "cache_size", &format!("-{PAGE_CACHE_KIB}"))?;
+    require(conn, "auto_vacuum", "0")?;
+    require(conn, "page_size", "4096")
+}
+
+/// Refuses, by the name `page_gap_mend_linked`, a process whose linked database is not Halvo's build, which zeroes
+/// the gap of a page that it builds again or edits in place under secure delete (`linked` is the answer of
+/// `halvo_sqlcipher::page_gap_mend_linked`), before the open touches a file.
+pub(crate) fn require_mend(linked: bool) -> Result<(), OpenError> {
+    if linked {
+        Ok(())
+    } else {
+        Err(OpenError::Setting("page_gap_mend_linked"))
+    }
 }
 
 pub(crate) fn require(conn: &Connection, name: &'static str, want: &str) -> Result<(), OpenError> {

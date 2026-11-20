@@ -3,8 +3,8 @@ use crate::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, T
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, BindResult, Body, Category, ConfigView,
     Decision, DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome,
-    PastRun, Reply, RunHistory, RunId, RunSpec, Runtime, Slot, What, Workflow, WorkflowId,
-    WorkflowState,
+    PastRun, Reply, ReplyRow, RunHistory, RunId, RunSpec, Runtime, Slot, Unknown, What, Workflow,
+    WorkflowId, WorkflowState,
 };
 use std::cell::{Cell, RefCell};
 
@@ -24,6 +24,9 @@ struct Bound {
     slots: Vec<Slot>,
     rev: u32,
 }
+
+/// Whether a record is one that a test names for a refusal of `Owner::log`.
+pub type Names = fn(&Event) -> bool;
 
 /// A port method, by which a test makes it refuse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,6 +71,8 @@ pub enum Method {
     Changed,
     /// `Owner::agent_history`.
     AgentHistory,
+    /// `Owner::replies`.
+    Replies,
 }
 
 /// A call of a port that changes or reads the world outside the coordinator; the reads of the
@@ -194,7 +199,9 @@ pub struct Tried {
 /// next number for each later one (ruling IG-20). `start_run` is refused with `no_workflow` for a
 /// workflow that is not in `workflows`, with `binding` for an agent that is not the workflow's,
 /// and with `state` unless the workflow is `active`, or `approved` for the mode `compile`
-/// (A-A7.2). `history` answers at most 64 events for one call.
+/// (A-A7.2). `history` answers at most 64 events for one call. `replies` refuses as
+/// `agent_history` does and answers the rows of the field `replies` that name its run; each call
+/// stands in `reply_reads`.
 /// `Runs::answer_confirm` refuses answers that make no `Decision` (none, or two for one
 /// effect) with `malformed`, before it mints an id or calls `record`.
 pub struct Ports<C> {
@@ -210,6 +217,11 @@ pub struct Ports<C> {
     pub tried: RefCell<Vec<Tried>>,
     /// The runs that `Owner::agent_history` gives, each with its agent, newest first.
     pub histories: RefCell<Vec<(AgentId, RunHistory)>>,
+    /// The rows of `agent_reply` that `Owner::replies` gives, each with its run, in the order of
+    /// the store.
+    pub replies: RefCell<Vec<(RunId, ReplyRow)>>,
+    /// The run of each call of `Owner::replies`, in order, a refused one among them.
+    pub reply_reads: RefCell<Vec<RunId>>,
     now: Cell<u64>,
     zone: Cell<i64>,
     step: Cell<u64>,
@@ -217,11 +229,15 @@ pub struct Ports<C> {
     approvals: Cell<u128>,
     bound_slots: RefCell<Vec<Bound>>,
     refusals: RefCell<Vec<(Method, PortError)>>,
+    agent_refusals: RefCell<Vec<(Method, AgentId, PortError)>>,
+    record_refusals: RefCell<Vec<(Names, PortError)>>,
+    tie_days: Cell<bool>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
     marks: RefCell<Vec<(RunId, Reaped)>>,
     runners: RefCell<Vec<RunId>>,
     ended: RefCell<Vec<RunId>>,
+    releasing: RefCell<Vec<Unknown>>,
 }
 
 impl<C> Ports<C> {
@@ -240,6 +256,8 @@ impl<C> Ports<C> {
             calls: RefCell::new(Vec::new()),
             tried: RefCell::new(Vec::new()),
             histories: RefCell::new(Vec::new()),
+            replies: RefCell::new(Vec::new()),
+            reply_reads: RefCell::new(Vec::new()),
             now: Cell::new(now),
             zone: Cell::new(zone_of(now, today)),
             step: Cell::new(0),
@@ -247,11 +265,15 @@ impl<C> Ports<C> {
             approvals: Cell::new(0),
             bound_slots: RefCell::new(Vec::new()),
             refusals: RefCell::new(Vec::new()),
+            agent_refusals: RefCell::new(Vec::new()),
+            record_refusals: RefCell::new(Vec::new()),
+            tie_days: Cell::new(false),
             limits,
             created: RefCell::new(Vec::new()),
             marks: RefCell::new(Vec::new()),
             runners: RefCell::new(Vec::new()),
             ended: RefCell::new(Vec::new()),
+            releasing: RefCell::new(Vec::new()),
         }
     }
 
@@ -303,7 +325,31 @@ impl<C> Ports<C> {
                     unknown: 0,
                 },
             );
+            let lost: Vec<Unknown> = self
+                .releasing
+                .borrow()
+                .iter()
+                .filter(|u| &u.run == run)
+                .cloned()
+                .collect();
+            self.releasing.borrow_mut().retain(|u| &u.run != run);
+            if let Some(a) = self
+                .agents
+                .borrow_mut()
+                .iter_mut()
+                .find(|a| a.agent == agent)
+            {
+                a.unknown.extend(lost);
+            }
         }
+    }
+
+    /// Leaves the effect `effect` of its run in the state `releasing` in the agent store, as a
+    /// runner that died after the effect's begin leaves it. The store's `end_run` of that run
+    /// stores the record with `unknown` 0 and lists the effect in the agent's entry under the key
+    /// `unknown`, as the agent store's handler does (A-A7.4, A-A7.5; ruling RD-81 0.2, 0.3).
+    pub fn release(&self, effect: Unknown) {
+        self.releasing.borrow_mut().push(effect);
     }
 
     /// The slots that `set_bindings` stored for `agent` of `workflow`, in the order of their
@@ -423,9 +469,45 @@ impl<C> Ports<C> {
         r.push((method, error));
     }
 
+    /// Makes `method` answer `error` for the agent `agent` alone until `clear_refusals`:
+    /// `Owner::history` of that agent, and `Owner::log` of a body that holds a record of it.
+    pub fn refuse_agent(&self, method: Method, agent: &AgentId, error: PortError) {
+        let mut r = self.agent_refusals.borrow_mut();
+        r.retain(|(m, a, _)| *m != method || a != agent);
+        r.push((method, agent.clone(), error));
+    }
+
+    /// Makes `Owner::log` answer `error` for a body that holds a record that `names` names, until
+    /// `clear_refusals`.
+    pub fn refuse_record(&self, names: Names, error: PortError) {
+        self.record_refusals.borrow_mut().push((names, error));
+    }
+
+    /// Makes `Owner::log` refuse with `malformed` a body that holds a record whose `day` is not
+    /// the clock's day of its `at`, as the owner's handler ties them (the agent-setup run's
+    /// CP-122 (b)); a test sets it after its seed rows.
+    pub fn tie_days(&self, on: bool) {
+        self.tie_days.set(on);
+    }
+
     /// Makes every method do its work again.
     pub fn clear_refusals(&self) {
         self.refusals.borrow_mut().clear();
+        self.agent_refusals.borrow_mut().clear();
+        self.record_refusals.borrow_mut().clear();
+    }
+
+    fn checked_agent(&self, method: Method, agent: &AgentId, call: &Call) -> Result<(), PortError> {
+        let found = self
+            .agent_refusals
+            .borrow()
+            .iter()
+            .find(|(m, a, _)| *m == method && a == agent)
+            .map(|(_, _, e)| e.clone());
+        match found {
+            Some(e) => Err(self.note(call.clone(), e)),
+            None => Ok(()),
+        }
     }
 
     /// The decisions that `Runs::answer_confirm` sent, in order.
@@ -496,6 +578,13 @@ impl<C> Ports<C> {
                 .borrow()
                 .iter()
                 .any(|(w, a)| w == workflow && a == agent)
+    }
+
+    fn ties(&self, e: &Event) -> bool {
+        u64::try_from(e.at.div_euclid(1_000_000))
+            .ok()
+            .and_then(|ms| Clock::day(self, ms).ok())
+            == Some(e.day)
     }
 
     fn log_refusal(&self, events: &[Event]) -> Option<&'static str> {
@@ -677,6 +766,21 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         {
             self.checked(Method::LogRunStarted, &call)?;
         }
+        for agent in events.iter().map(|e| &e.agent) {
+            self.checked_agent(Method::Log, agent, &call)?;
+        }
+        let named = self
+            .record_refusals
+            .borrow()
+            .iter()
+            .find(|(names, _)| events.iter().any(names))
+            .map(|(_, e)| e.clone());
+        if let Some(e) = named {
+            return Err(self.note(call, e));
+        }
+        if self.tie_days.get() && events.iter().any(|e| !self.ties(e)) {
+            return Err(self.note(call, refusal("malformed")));
+        }
         if let Some(name) = self.log_refusal(events) {
             return Err(self.note(call, refusal(name)));
         }
@@ -685,19 +789,25 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         Ok(())
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         self.checked(Method::History, &Call::History(agent.clone(), after))?;
+        self.checked_agent(Method::History, agent, &Call::History(agent.clone(), after))?;
         self.record(Call::History(agent.clone(), after));
-        let mut found: Vec<Event> = self
-            .events
-            .borrow()
+        let events = self.events.borrow();
+        let last = events
+            .iter()
+            .filter(|e| &e.agent == agent)
+            .map(|e| e.seq.get())
+            .max()
+            .unwrap_or(0);
+        let mut found: Vec<Event> = events
             .iter()
             .filter(|e| &e.agent == agent && e.seq.get() > after)
             .cloned()
             .collect();
         found.sort_by_key(|e| e.seq);
         found.truncate(HISTORY_MAX);
-        Ok(found)
+        Ok((found, last))
     }
 
     fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
@@ -775,6 +885,29 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
             .filter(|(a, _)| a == agent)
             .map(|(_, h)| h.clone())
             .take(runs as usize)
+            .collect())
+    }
+
+    fn replies(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &RunId,
+    ) -> Result<Vec<ReplyRow>, PortError> {
+        self.reply_reads.borrow_mut().push(run.clone());
+        self.refused(Method::Replies)?;
+        if !self.workflows.borrow().iter().any(|w| w.id() == workflow) {
+            return Err(refusal("no_workflow"));
+        }
+        if !self.bound(workflow, agent) {
+            return Err(refusal("binding"));
+        }
+        Ok(self
+            .replies
+            .borrow()
+            .iter()
+            .filter(|(r, _)| r == run)
+            .map(|(_, row)| *row)
             .collect())
     }
 }

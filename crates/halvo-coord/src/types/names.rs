@@ -378,7 +378,8 @@ names! {
 }
 
 names! {
-    /// The six causes of a lapse of a confirmation (I4.2).
+    /// The seven causes of a lapse of a confirmation (I4.2): the six and `answer_lost`, taken
+    /// from `answered` alone after an answer's move that did not return (ruling RD-84).
     LapseCause {
         Digest = "digest",
         RunEnded = "run_ended",
@@ -386,6 +387,7 @@ names! {
         Cancelled = "cancelled",
         NoRecord = "no_record",
         AppEnded = "app_ended",
+        AnswerLost = "answer_lost",
     }
 }
 

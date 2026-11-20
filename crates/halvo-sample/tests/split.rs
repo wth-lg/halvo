@@ -398,3 +398,44 @@ fn an_output_that_cannot_be_written_is_refused_by_its_place_and_not_its_name() {
         assert_eq!(o.code, 0, "{}", o.stderr);
     }
 }
+
+#[cfg(unix)]
+#[test]
+fn a_side_directory_that_cannot_be_made_is_refused_by_the_out_argument_alone() {
+    let dir = scratch("split-side");
+    let a = stream_file(&dir.join("x"), "s1", "zz-mill.test", None, "Mill page");
+    let b = stream_file(&dir.join("y"), "s2", "zz-oak.test", None, "Weekly report");
+    let a2 = dir.join("x/zz-mill.test.jsonl");
+    let b2 = dir.join("y/zz-oak.test.jsonl");
+    fs::copy(&a, &a2).expect("copy");
+    fs::copy(&b, &b2).expect("copy");
+    let control = split(&dir, "4", "control", &[s(&a2), s(&b2)]);
+    assert_eq!(control.code, 0, "{}", control.stderr);
+    let out = dir.join("out");
+    let o = std::process::Command::new("/bin/sh")
+        .args([
+            "-c",
+            "umask 0277 && exec \"$0\" \"$@\"",
+            env!("CARGO_BIN_EXE_halvo-sample"),
+            "split",
+            "--sides",
+            "seen,unseen",
+            "--seed",
+            "4",
+            "--out",
+            &s(&out),
+            &s(&a2),
+            &s(&b2),
+        ])
+        .output()
+        .expect("sh runs");
+    let o = common::Out {
+        code: o.status.code().unwrap_or(-1),
+        stdout: String::from_utf8_lossy(&o.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&o.stderr).into_owned(),
+    };
+    refused(&o, "output");
+    assert_eq!(o.stderr, format!("REFUSED output: {}\n", s(&out)));
+    assert!(!o.stderr.contains("zz-"), "{}", o.stderr);
+    assert_eq!(fs::read_dir(&out).expect("the output place").count(), 0);
+}

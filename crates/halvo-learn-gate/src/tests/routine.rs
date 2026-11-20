@@ -4,8 +4,8 @@ use halvo_schema::learning::names::Mark;
 
 use crate::cli::Cause;
 use crate::routine::{
-    line, newest, play, play_all, read_sample, report, report_with, run, threads, Event, Played,
-    Stream, Train, LAST_DAY, REPLAY_FROM, SAMPLE_PATH, TRAINS,
+    line, newest, play, play_all, read_sample, report, report_with, run, threads, Event, Failure,
+    Played, Stream, Train, LAST_DAY, REPLAY_FROM, SAMPLE_PATH, TRAINS,
 };
 
 fn sample() -> Vec<Train> {
@@ -53,8 +53,7 @@ fn routine_gives_the_trials_figures_on_every_day_of_a_stale_train_in_both_stream
 fn routine_plays_each_train_in_both_streams_in_order_with_runs_from_day_120_and_expiry() {
     let train = sample().remove(0);
     let count = |keep: &dyn Fn(u32) -> bool| train.days.iter().filter(|d| keep(**d)).count() as u32;
-    let last = *train.days.last().expect("a day");
-    let gone = |d: u32| d + 93 <= last;
+    let gone = |d: u32| d + 93 <= LAST_DAY;
     assert!(train.days.contains(&REPLAY_FROM));
     let mut changed = train.clone();
     changed.events[0].period = changed.events[0].period.map(|p| p + 1);
@@ -85,6 +84,51 @@ fn routine_plays_each_train_in_both_streams_in_order_with_runs_from_day_120_and_
     assert_eq!(
         replay.expired_runs - summaries.expired_runs,
         2 * count(&|d| d >= REPLAY_FROM && gone(d))
+    );
+}
+
+#[test]
+fn routine_the_open_of_day_730_removes_the_rows_of_an_occurrence_on_day_637() {
+    let train = sample().remove(99);
+    assert!(train.days.contains(&637));
+    let gone = |d: u32| d + 93 <= LAST_DAY;
+    let count = |keep: &dyn Fn(u32) -> bool| train.days.iter().filter(|d| keep(**d)).count() as u32;
+    let summaries = play(&train, Stream::Summaries).expect("a play");
+    let replay = play(&train, Stream::Replay).expect("a play");
+    assert_eq!((summaries.differs_on, replay.differs_on), (None, None));
+    assert_eq!(summaries.expired_summaries, count(&gone));
+    assert_eq!(
+        replay.expired_summaries,
+        count(&|d| d < REPLAY_FROM && gone(d))
+    );
+    assert_eq!(
+        replay.expired_runs - summaries.expired_runs,
+        2 * count(&|d| d >= REPLAY_FROM && gone(d))
+    );
+}
+
+#[test]
+fn routine_opens_the_store_and_the_batches_on_every_day_also_after_a_stop_trains_last_occurrence() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join(SAMPLE_PATH);
+    let text = std::fs::read_to_string(path).expect("the sample file");
+    let third = text.lines().nth(2).expect("a third line");
+    assert!(third.starts_with(r#"{"cell":"7-0-0","train":101,"kind":"stop","#));
+    let train = sample().remove(2);
+    let last = *train.days.last().expect("a day");
+    assert!(last + 93 < LAST_DAY, "the last occurrence is on day {last}");
+    let all = train.days.len() as u32;
+    let early = train.days.iter().filter(|d| **d < REPLAY_FROM).count() as u32;
+    let summaries = play(&train, Stream::Summaries).expect("a play");
+    let replay = play(&train, Stream::Replay).expect("a play");
+    assert_eq!((summaries.differs_on, replay.differs_on), (None, None));
+    assert_eq!(summaries.expired_summaries, all);
+    assert_eq!(replay.expired_summaries, early);
+    assert!(summaries.expired_runs > 0);
+    assert_eq!(
+        replay.expired_runs - summaries.expired_runs,
+        2 * (all - early)
     );
 }
 
@@ -385,19 +429,78 @@ impl halvo_schema::RowRead for RoutineRows {
 
 const ROUTINE_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","rev":3,"day":20767,"category":"utility_bill_payment","site":{"key":"northwind-power.test","source":"address_field"},"app":"com.google.Chrome","period":30,"seen":3,"first":20705,"last":20765,"next":20795,"missed":0,"mark":"none","since":null}"#;
 const UNREADABLE_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","rev":4}"#;
+const LATER_DAY_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","rev":3,"day":20768,"category":"utility_bill_payment","site":{"key":"northwind-power.test","source":"address_field"},"app":"com.google.Chrome","period":14,"seen":3,"first":20705,"last":20765,"next":20779,"missed":0,"mark":"none","since":null}"#;
+
+const SAME_DAY_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","rev":3,"day":20767,"category":"utility_bill_payment","site":{"key":"northwind-power.test","source":"address_field"},"app":"com.google.Chrome","period":14,"seen":3,"first":20705,"last":20765,"next":20779,"missed":0,"mark":"none","since":null}"#;
+const OTHER_AGENT_ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f80a","rev":9,"day":20780,"category":"utility_bill_payment","site":{"key":"northwind-power.test","source":"address_field"},"app":"com.google.Chrome","period":7,"seen":3,"first":20705,"last":20765,"next":20772,"missed":0,"mark":"none","since":null}"#;
+
+#[test]
+fn routine_newest_row_of_two_rows_of_one_rev_and_one_day_is_the_one_later_in_the_read() {
+    assert_eq!(
+        newest_of(vec![ROUTINE_ROW, SAME_DAY_ROW]),
+        Ok(Some((Mark::None, Some(14))))
+    );
+    assert_eq!(
+        newest_of(vec![SAME_DAY_ROW, ROUTINE_ROW]),
+        Ok(Some((Mark::None, Some(30))))
+    );
+    assert_eq!(newest_of(vec![OTHER_AGENT_ROW]), Ok(None));
+}
+
+#[test]
+fn routine_newest_row_of_two_rows_of_one_rev_is_the_one_of_the_later_day_in_either_order() {
+    for rows in [
+        vec![LATER_DAY_ROW, ROUTINE_ROW],
+        vec![ROUTINE_ROW, LATER_DAY_ROW],
+    ] {
+        assert_eq!(
+            newest_of(rows.clone()),
+            Ok(Some((Mark::None, Some(14)))),
+            "{rows:?}"
+        );
+    }
+    let other_pair = ROUTINE_ROW
+        .replacen("\"rev\":3", "\"rev\":9", 1)
+        .replacen("\"period\":30", "\"period\":7", 1)
+        .replacen("\"next\":20795", "\"next\":20772", 1)
+        .replacen(
+            "1a2b3c4d5e6f708192a3b4c5d6e7f809",
+            "1a2b3c4d5e6f708192a3b4c5d6e7f80a",
+            1,
+        );
+    let other_pair: &'static str = Box::leak(other_pair.into_boxed_str());
+    assert_eq!(
+        newest_of(vec![other_pair, ROUTINE_ROW]),
+        Ok(Some((Mark::None, Some(30))))
+    );
+    assert_eq!(newest_of(vec![other_pair]), Ok(None));
+}
+
+fn pair() -> (halvo_schema::WorkflowId, halvo_schema::AgentId) {
+    (
+        halvo_schema::WorkflowId::parse("0f1e2d3c4b5a69788796a5b4c3d2e1f0").expect("a workflow id"),
+        halvo_schema::AgentId::parse("1a2b3c4d5e6f708192a3b4c5d6e7f809").expect("an agent id"),
+    )
+}
+
+fn newest_of(rows: Vec<&'static str>) -> Result<Option<crate::routine::Figures>, String> {
+    let (workflow, agent) = pair();
+    newest(&RoutineRows(rows), &workflow, &agent)
+}
 
 #[test]
 fn routine_newest_row_refuses_a_learn_routine_row_that_its_parser_refuses() {
     assert_eq!(
-        newest(&RoutineRows(vec![ROUTINE_ROW])),
-        Ok((Mark::None, Some(30)))
+        newest_of(vec![ROUTINE_ROW]),
+        Ok(Some((Mark::None, Some(30))))
     );
+    assert_eq!(newest_of(Vec::new()), Ok(None));
     for rows in [
         vec![ROUTINE_ROW, UNREADABLE_ROW],
         vec![UNREADABLE_ROW, ROUTINE_ROW],
     ] {
         assert_eq!(
-            newest(&RoutineRows(rows)),
+            newest_of(rows),
             Err("a learn_routine row that its parser refuses".to_owned())
         );
     }
@@ -414,7 +517,10 @@ fn routine_reader_refuses_each_line_that_is_not_l7_2s_form_byte_for_byte() {
         format!("{TRAIN}\n"),
         with("\"7-0-0\"", "\"30-3-20\""),
         with("\"7-0-0\"", "\"14-1-10\""),
-        with("\"train\":1,", "\"train\":200,"),
+        with(
+            "\"train\":1,\"kind\":\"same\"",
+            "\"train\":200,\"kind\":\"shift\"",
+        ),
     ] {
         assert!(one(taken.clone()).is_ok(), "{taken}");
     }
@@ -482,6 +588,44 @@ fn routine_reader_refuses_the_sample_with_cr_lf_at_the_end_of_line_1() {
     );
 }
 
+#[test]
+fn routine_reader_refuses_a_kind_that_is_not_the_kind_of_the_trains_number() {
+    let line = |train: u32, kind: &str| {
+        format!(
+            "{}\n",
+            TRAIN
+                .replacen("\"train\":1,", &format!("\"train\":{train},"), 1)
+                .replacen("\"kind\":\"same\"", &format!("\"kind\":\"{kind}\""), 1)
+        )
+    };
+    for (train, kind) in [(101, "same"), (151, "stop"), (100, "shift")] {
+        assert_eq!(
+            read_sample(line(train, kind).as_bytes()),
+            Err("line 1 of the sample is no train".to_owned()),
+            "{kind} {train}"
+        );
+    }
+    for train in 1..=200 {
+        let right = match train {
+            1..=100 => "same",
+            101..=150 => "stop",
+            _ => "shift",
+        };
+        for kind in ["same", "stop", "shift"] {
+            let read = read_sample(line(train, kind).as_bytes());
+            if kind == right {
+                assert!(read.is_ok(), "{kind} {train}");
+            } else {
+                assert_eq!(
+                    read,
+                    Err("line 1 of the sample is no train".to_owned()),
+                    "{kind} {train}"
+                );
+            }
+        }
+    }
+}
+
 fn marked_trains() -> Vec<Train> {
     (1..=u32::try_from(TRAINS).expect("a count"))
         .map(|n| Train {
@@ -499,7 +643,7 @@ fn marked(train: &Train, stream: Stream) -> Played {
     }
 }
 
-fn place_holds_its_own(train: &Train, stream: Stream, result: &Result<Played, String>) -> bool {
+fn place_holds_its_own(train: &Train, stream: Stream, result: &Result<Played, Failure>) -> bool {
     result.as_ref() == Ok(&marked(train, stream))
 }
 
@@ -525,17 +669,16 @@ fn routine_a_failed_play_names_its_own_train_at_an_even_and_an_odd_place() {
 #[test]
 fn routine_a_play_that_panics_names_its_own_train_and_every_other_place_keeps_its_result() {
     let trains = marked_trains();
-    let panicking = |train: &Train, stream: Stream| {
-        if train.days[0] == 120 && stream == Stream::Replay {
-            panic!("a play that panics");
-        }
-        Ok(marked(train, stream))
-    };
+    let panicking = panics_at_train_120_replay;
     for threads in [1, 4] {
         let refusal = report_with(&trains, threads, panicking).expect_err("a refusal");
         assert_eq!(refusal.cause, Cause::Store);
-        assert_eq!(refusal.detail, "train 120: the play panicked");
         let results = play_all(&trains, threads, panicking);
+        let Err(failure) = &results[2 * 119 + 1] else {
+            panic!("place {} holds a result", 2 * 119 + 1);
+        };
+        assert!(matches!(failure, Failure::Panic { file, .. } if file == file!()));
+        assert_eq!(refusal.detail, format!("train 120: {}", failure.detail()));
         assert_eq!(results.len(), 2 * TRAINS);
         let places: Vec<(&Train, Stream)> = trains
             .iter()
@@ -543,7 +686,7 @@ fn routine_a_play_that_panics_names_its_own_train_and_every_other_place_keeps_it
             .collect();
         for (at, ((train, stream), result)) in places.iter().zip(&results).enumerate() {
             if at == 2 * 119 + 1 {
-                assert_eq!(result, &Err("the play panicked".to_owned()));
+                assert_eq!(result.as_ref().err(), Some(failure));
             } else {
                 assert!(
                     place_holds_its_own(train, *stream, result),
@@ -551,5 +694,111 @@ fn routine_a_play_that_panics_names_its_own_train_and_every_other_place_keeps_it
                 );
             }
         }
+    }
+}
+
+const PANIC_CHILD: &str = "HALVO_LEARN_GATE_PANIC_CHILD";
+
+fn panics_at_train_120_replay(train: &Train, stream: Stream) -> Result<Played, String> {
+    if train.days[0] == 120 && stream == Stream::Replay {
+        panic!("a play that panics, on line {}", line!());
+    }
+    Ok(marked(train, stream))
+}
+
+fn in_a_child(
+    name: &str,
+    play_one: fn(&Train, Stream) -> Result<Played, String>,
+) -> (Option<i32>, String) {
+    if std::env::var_os(PANIC_CHILD).is_some() {
+        match report_with(&marked_trains(), 4, play_one) {
+            Ok(_) => std::process::exit(0),
+            Err(refusal) => {
+                eprintln!("{}", refusal.line());
+                std::process::exit(2);
+            }
+        }
+    }
+    let child = std::process::Command::new(std::env::current_exe().expect("the test binary"))
+        .args([name, "--exact", "--nocapture", "--test-threads=1"])
+        .env(PANIC_CHILD, "1")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child run");
+    (
+        child.status.code(),
+        String::from_utf8(child.stderr).expect("UTF-8 on standard error"),
+    )
+}
+
+fn panics_outside_a_play_at_train_7(train: &Train, stream: Stream) -> Result<Played, String> {
+    if train.days[0] == 7 && stream == Stream::Summaries {
+        let outside = std::thread::spawn(|| panic!("a panic outside the plays"));
+        assert!(outside.join().is_err());
+    }
+    panics_at_train_120_replay(train, stream)
+}
+
+#[test]
+fn routine_a_panic_outside_the_plays_while_they_run_goes_to_the_hook_that_was_there_before() {
+    let (code, err) = in_a_child(
+        "tests::routine::routine_a_panic_outside_the_plays_while_they_run_goes_to_the_hook_that_was_there_before",
+        panics_outside_a_play_at_train_7,
+    );
+    assert_eq!(code, Some(2), "{err}");
+    assert!(err.contains("a panic outside the plays"), "{err}");
+    assert_eq!(err.matches("a play that panics").count(), 1, "{err}");
+    assert!(
+        err.lines().last().is_some_and(|l| l.starts_with(
+            "REFUSED store: train 120: the play panicked: a play that panics, on line "
+        )),
+        "{err}"
+    );
+}
+
+#[test]
+fn routine_a_play_that_panics_gives_status_2_and_one_line_on_standard_error_with_the_train_and_the_message(
+) {
+    let (code, err) = in_a_child(
+        "tests::routine::routine_a_play_that_panics_gives_status_2_and_one_line_on_standard_error_with_the_train_and_the_message",
+        panics_at_train_120_replay,
+    );
+    assert_eq!(code, Some(2), "{err}");
+    let at = err
+        .split("on line ")
+        .nth(1)
+        .map(|rest| rest.chars().take_while(char::is_ascii_digit).collect())
+        .unwrap_or_else(|| "none".to_owned());
+    assert_eq!(
+        err,
+        format!(
+            "REFUSED store: train 120: the play panicked: a play that panics, on line {at} at {}:{at}\n",
+            file!()
+        )
+    );
+}
+
+#[test]
+fn routine_the_refusal_names_the_first_panic_in_place_order_before_an_earlier_error_on_one_line() {
+    let trains = marked_trains();
+    let failing = |train: &Train, stream: Stream| match (train.days[0], stream) {
+        (5, Stream::Summaries) => Err("broken".to_owned()),
+        (130, Stream::Summaries) => panic!("a later panic"),
+        (120, Stream::Replay) => panic!("the first panic\nof two lines\r, a \\ and a \"quote\""),
+        _ => Ok(marked(train, stream)),
+    };
+    for threads in [1, 4] {
+        let refusal = report_with(&trains, threads, failing).expect_err("a refusal");
+        assert_eq!(refusal.cause, Cause::Store);
+        let detail = refusal.detail.clone();
+        assert_eq!(
+            detail.split(" at ").next(),
+            Some(
+                r#"train 120: the play panicked: the first panic\nof two lines\r, a \ and a "quote""#
+            ),
+            "{detail}"
+        );
+        assert!(detail.contains(&format!(" at {}:", file!())), "{detail}");
+        assert!(!refusal.line().contains(['\n', '\r']), "{detail}");
     }
 }

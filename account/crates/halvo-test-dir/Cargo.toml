@@ -1,0 +1,6 @@
+[package]
+name = "halvo-test-dir"
+version = "0.0.0"
+description = "The one maker of the scratch directories of tests: a name from the process id and a counter of the process, made by create_dir, and the next number for a name that stands"
+edition = "2021"
+publish = false

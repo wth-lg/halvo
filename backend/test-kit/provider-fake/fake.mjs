@@ -11,6 +11,7 @@ const DELIVERY_TIMEOUT_MS = 30_000;
 const SESSION_MIN_SECONDS = 1_800;
 const SESSION_MAX_SECONDS = 86_400;
 const ACCOUNT_KEY = "halvo_account";
+const ENDED = ["canceled", "incomplete_expired"];
 const buyer = JSON.parse(readFileSync(new URL("./buyer.json", import.meta.url), "utf8"));
 
 function newId(prefix) {
@@ -74,6 +75,8 @@ async function readBody(request) {
 export async function startProviderFake({ port = 0, mockUrl, apiKey, signingSecret, entries, clock = () => Date.now() }) {
   const sessions = new Map();
   const subscriptions = new Map();
+  const customers = new Map();
+  const refusedCancels = new Set();
   const events = new Map();
   const requests = [];
   const templates = new Map();
@@ -188,6 +191,7 @@ export async function startProviderFake({ port = 0, mockUrl, apiKey, signingSecr
   }
 
   function completeSession(session, payment, subscriptionId, customer = newId("cus")) {
+    customers.set(customer, { id: customer, sessionId: session.id, created: seconds(), deleted: false });
     Object.assign(session.object, {
       status: "complete",
       payment_status: payment,
@@ -287,7 +291,63 @@ export async function startProviderFake({ port = 0, mockUrl, apiKey, signingSecr
       for (const id of ids) deliveries.push(await deliver(id));
       return { result: "delivered", deliveries };
     },
+    async subscribe({ customer, status = "active", count = 1, created = seconds() }) {
+      const found = customers.get(customer);
+      if (!found || found.deleted) return { result: "unknown" };
+      if (!["active", "past_due", "incomplete", "incomplete_expired", "trialing", "unpaid", "paused"].includes(status)) return { result: "bad-request" };
+      if (!Number.isSafeInteger(count) || count < 1 || count > 1000) return { result: "bad-request" };
+      const session = sessions.get(found.sessionId);
+      const made = [];
+      for (let each = 0; each < count; each += 1) {
+        const object = await subscriptionObject(session, created, customer);
+        object.status = status;
+        if (status === "incomplete_expired") Object.assign(object, { ended_at: created });
+        subscriptions.set(object.id, { object, sessionId: session.id });
+        made.push(object.id);
+      }
+      return { result: "subscribed", subscriptions: made };
+    },
+    async "delete-customer"({ customer }) {
+      const found = customers.get(customer);
+      if (!found) return { result: "unknown" };
+      if (found.deleted) return { result: "already-deleted" };
+      found.deleted = true;
+      const now = seconds();
+      for (const subscription of subscriptions.values()) {
+        if (subscription.object.customer === customer && !ENDED.includes(subscription.object.status)) {
+          Object.assign(subscription.object, { status: "canceled", canceled_at: now, ended_at: now });
+        }
+      }
+      return { result: "deleted" };
+    },
+    async "refuse-cancel"({ subscription }) {
+      if (!subscriptions.has(subscription)) return { result: "unknown" };
+      refusedCancels.add(subscription);
+      return { result: "refusing" };
+    },
   };
+
+  function listOf(values) {
+    const customer = values.get("customer");
+    const found = customer === undefined ? undefined : customers.get(customer);
+    if (!found) return providerError(400, `No such customer: '${customer ?? ""}'`, "customer");
+    const status = values.get("status");
+    const limit = Number(values.get("limit") ?? "10");
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) return providerError(400, "limit must be from 1 to 100", "limit");
+    const ordered = [...subscriptions.values()].filter((each) => each.object.customer === customer).reverse();
+    let from = 0;
+    const after = values.get("starting_after");
+    if (after !== undefined) {
+      const at = ordered.findIndex((each) => each.object.id === after);
+      if (at < 0) return providerError(400, `No such subscription: '${after}'`, "starting_after");
+      from = at + 1;
+    }
+    const shown = ordered.slice(from).filter((each) => (status === undefined ? each.object.status !== "canceled" : status === "all" || each.object.status === status));
+    return {
+      status: 200,
+      body: { object: "list", url: "/v1/subscriptions", has_more: shown.length > limit, data: shown.slice(0, limit).map((each) => structuredClone(each.object)) },
+    };
+  }
 
   function pageInputs(session) {
     return page.sessionCounts().find((each) => each.id === session.pageId)?.inputs ?? null;
@@ -318,6 +378,12 @@ export async function startProviderFake({ port = 0, mockUrl, apiKey, signingSecr
       const subscription = subscriptions.get(id);
       if (!subscription) return { result: "unknown" };
       return { result: "subscription", id, status: subscription.object.status, customer: subscription.object.customer, session: subscription.sessionId };
+    }
+    if (kind === "customers") {
+      const customer = customers.get(id);
+      if (!customer) return { result: "unknown" };
+      const held = [...subscriptions.values()].filter((each) => each.object.customer === id).map((each) => ({ id: each.object.id, status: each.object.status }));
+      return { result: "customer", id, deleted: customer.deleted, subscriptions: held };
     }
     const event = events.get(id);
     if (!event) return { result: "unknown" };
@@ -388,13 +454,23 @@ export async function startProviderFake({ port = 0, mockUrl, apiKey, signingSecr
         body: { ...mocked, id, object: "billing_portal.session", customer: values.get("customer") ?? null, return_url: values.get("return_url") ?? null, url: `${origin}/manage/${id}`, livemode: false },
       };
     }
+    const customerPath = /^\/v1\/customers\/([^/]+)$/.exec(path);
+    if (customerPath && method === "GET") {
+      const id = decodeURIComponent(customerPath[1]);
+      const customer = customers.get(id);
+      if (!customer) return providerError(404, `No such customer: '${id}'`, "id");
+      if (customer.deleted) return { status: 200, body: { id, object: "customer", deleted: true } };
+      return { status: 200, body: { ...mocked, id, object: "customer", created: customer.created, livemode: false } };
+    }
+    if (method === "GET" && path === "/v1/subscriptions") return listOf(values);
     const subscriptionPath = /^\/v1\/subscriptions\/([^/]+)$/.exec(path);
     if (subscriptionPath && (method === "GET" || method === "DELETE")) {
       const id = decodeURIComponent(subscriptionPath[1]);
       const subscription = subscriptions.get(id);
       if (!subscription) return providerError(404, `No such subscription: '${id}'`, "id");
       if (method === "GET") return { status: 200, body: structuredClone(subscription.object) };
-      if (subscription.object.status === "canceled") return providerError(400, "This subscription has already been canceled.", undefined);
+      if (ENDED.includes(subscription.object.status)) return providerError(400, "This subscription has already been canceled.", undefined);
+      if (refusedCancels.has(id)) return providerError(400, "the provider fake refuses every cancel of this subscription", undefined);
       const now = seconds();
       Object.assign(subscription.object, { status: "canceled", canceled_at: now, ended_at: now });
       return { status: 200, body: structuredClone(subscription.object) };
@@ -454,7 +530,7 @@ export async function startProviderFake({ port = 0, mockUrl, apiKey, signingSecr
     }
     if (request.method === "GET" && url.pathname === "/") return sendJson(200, { result: "provider-fake" });
     if (request.method === "GET" && url.pathname === "/test/requests") return sendJson(200, { result: "requests", requests });
-    const state = /^\/test\/(sessions|subscriptions|events)\/([^/]+)$/.exec(url.pathname);
+    const state = /^\/test\/(sessions|subscriptions|events|customers)\/([^/]+)$/.exec(url.pathname);
     if (request.method === "GET" && state) return sendJson(200, stateOf(state[1], decodeURIComponent(state[2])));
     const manage = /^\/manage\/([^/]+)$/.exec(url.pathname);
     if (request.method === "GET" && manage) {

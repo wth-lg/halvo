@@ -180,15 +180,17 @@ pub(crate) fn set_support(
 
 /// Applies the proposals of one call of the recurrence step by the table of the workflow record: a proposal whose key
 /// no stored workflow holds is stored as a new workflow in the state `proposed`; one whose key a dismissed workflow
-/// holds is dropped; one whose key a workflow in another state holds changes that row, which keeps its id, its state
-/// and its agent and takes the proposal's app, trigger, recurrence and confidence, and its support rows become those
-/// of the proposal's summaries. A proposal that names a summary stored under another key than its own is refused, so
-/// every summary that supports a workflow, or once did, holds the workflow's key. A step returns at most one proposal
-/// for a key in one call: where it returns more, the first that passes its checks is the call's proposal for that key,
-/// and each later one with that key is refused whole and counted in `refused`, with no workflow row, support row or
-/// revision of it; a proposal that another cause refuses holds no key. The five counts sum to the proposals. The ids
-/// of the new workflows are drawn from `ids` in the order of their category and then of their lowest supporting
-/// summary id.
+/// holds is dropped; one whose key a full workflow with an agent holds, in whatever state, is dropped and counted in
+/// `unchanged`, and that row, its support rows and the revision stay as they are, so that the plan of a workflow that
+/// an agent does moves by a decision alone; one whose key a full workflow with no agent holds changes that row, which
+/// keeps its id, its state and its agent and takes the proposal's app, trigger, recurrence and confidence, and its
+/// support rows become those of the proposal's summaries. A proposal that names a summary stored under another key than
+/// its own is refused, so every summary that supports a workflow, or once did, holds the workflow's key. A step returns
+/// at most one proposal for a key in one call: where it returns more, the first that passes its checks is the call's
+/// proposal for that key, and each later one with that key is refused whole and counted in `refused`, with no workflow
+/// row, support row or revision of it; a proposal that another cause refuses holds no key. The five counts sum to the
+/// proposals. The ids of the new workflows are drawn from `ids` in the order of their category and then of their lowest
+/// supporting summary id.
 pub(crate) fn apply(
     tx: &Tx<'_>,
     now: Now,
@@ -212,6 +214,7 @@ pub(crate) fn apply(
         match workflow_of_key(tx, &checked.key)? {
             None => new.push(checked),
             Some((_, Workflow::Dismissed(_))) => out.dismissed += 1,
+            Some((_, Workflow::Full(stored))) if stored.agent.is_some() => out.unchanged += 1,
             Some((row, Workflow::Full(stored))) => {
                 let updated = FullWorkflow {
                     app: checked.proposal.app.clone(),

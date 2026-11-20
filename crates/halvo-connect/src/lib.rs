@@ -8,12 +8,18 @@ mod answer;
 mod calendar;
 mod error;
 mod graph;
+mod list;
 mod mail;
 mod token;
 
-pub use address::{reply_senders, same_address, SendersError};
-pub use calendar::{Calendar, Event, EventToDelete, Events, RunDay};
-pub use error::{AnswerFault, BuildError, CallError, Effect};
+pub use address::{reply_senders, same_address, Senders, SendersError};
+pub use calendar::{Calendar, Event, EventCounts, EventToDelete, Events, RunDay};
+pub use error::{AnswerFault, BuildError, CallError, Effect, NotMade};
+#[cfg(feature = "loopback")]
+pub use graph::LOOPBACK_MARKER;
 pub use graph::{Graph, Route};
-pub use mail::{Draft, DraftToSend, Drafts, Mail, Message, Messages, ReplyRule};
+pub use mail::{
+    Draft, DraftFailure, DraftToSend, Drafted, Drafts, Mail, MailCounts, Marked, Message, Messages,
+    ReplyRule, Sent, Unfinished, Unsent, UnsentDraft,
+};
 pub use token::{Token, TokenError};

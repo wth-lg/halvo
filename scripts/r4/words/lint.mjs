@@ -28,6 +28,7 @@ const STATES = [
   'needs_sign_in_bind',
   'needs_confirm_mixed',
   'needs_confirm_changed',
+  'out_of_date',
 ];
 const FIXTURES = 'ui/tests/fixtures/coord';
 const WORDS = `${FIXTURES}/words.json`;
@@ -411,7 +412,26 @@ function readSentences(repo) {
   return { sentences, headingMissing, viewStrings };
 }
 
-const ORDER = ['usage', 'setup', 'node', 'list', 'allowed', 'input', 'glossary', 'heading', 'view', 'never_read', 'long', 'clash'];
+const ORDER = ['usage', 'setup', 'node', 'list', 'allowed', 'input', 'glossary', 'heading', 'view', 'never_read', 'long', 'clash', 'same'];
+
+const CONTROL_PAIR = /^confirm\.([a-z_]+)\.reject(_many)?$/u;
+
+function folded(text) {
+  return text.toLowerCase().replace(/\p{White_Space}+/gu, '');
+}
+
+function sameControls(words) {
+  const same = [];
+  let pairs = 0;
+  for (const [key, text] of Object.entries(words)) {
+    const m = CONTROL_PAIR.exec(key);
+    const other = m ? words[`confirm.${m[1]}.allow${m[2] ?? ''}`] : undefined;
+    if (typeof other !== 'string') continue;
+    pairs += 1;
+    if (folded(other) === folded(text)) same.push(key);
+  }
+  return { pairs, same };
+}
 
 function firstCause(causes) {
   return ORDER.find((c) => causes.has(c)) ?? null;
@@ -461,8 +481,12 @@ function check(repo) {
     }
   }
   for (const rule of ['never_read', 'long', 'clash']) if (counts[rule] > 0) causes.add(rule);
+  const controls = sameControls(parseJson(repo, WORDS));
+  for (const key of controls.same) findings.push(`finding file=${WORDS} line=1 rule=same class=- key=${key}`);
+  if (controls.same.length > 0) causes.add('same');
   const out = [
     `words sentences=${sentences.length} never_read=${counts.never_read} long=${counts.long} clash=${counts.clash}`,
+    `words controls pairs=${controls.pairs} same=${controls.same.length}`,
     `words other_views files=${views.length} findings=${viewFindings}`,
     ...viewStrings.map((v) => `words view file=${v.file} line=${v.line}`),
   ];
@@ -625,7 +649,7 @@ function selfTest(dir, repo) {
     for (const f of opts.findings ?? []) if (!findings.split('\n').includes(f)) ok = false;
     for (const t of opts.secret ?? []) if (findings.includes(t)) ok = false;
     for (const l of findings.split('\n').filter((x) => x !== '')) {
-      if (!/^finding file=\S+ line=[1-9][0-9]* rule=(?:never_read|long|clash) class=\S+ key=\S+$/u.test(l)) ok = false;
+      if (!/^finding file=\S+ line=[1-9][0-9]* rule=(?:never_read|long|clash|same) class=\S+ key=\S+$/u.test(l)) ok = false;
     }
     lines.push(`case ${fx.name} want=${want} got=${got}${ok ? '' : ' wrong'}`);
     if (!ok) wrong.push(fx.name);
@@ -740,6 +764,38 @@ function selfTest(dir, repo) {
     {
       findings: [`finding file=${FIXTURES}/state-off.json line=1 rule=clash class=- key=snapshot.rows.1.controls.1.text`],
     },
+  );
+  expect(
+    fixture('two-controls-of-a-class-that-differ-in-case-and-spacing', {
+      words: (w) => {
+        w['confirm.payment.allow'] = 'Pay now';
+        w['confirm.payment.reject'] = ' pay  NOW';
+      },
+    }),
+    'FAIL:same',
+    { findings: [wordsFinding('same', '-', 'confirm.payment.reject')] },
+  );
+  expect(
+    fixture('two-many-controls-of-a-class-that-differ-in-case', {
+      words: (w) => {
+        w['confirm.send.allow_many'] = 'Send all {count}';
+        w['confirm.send.reject_many'] = 'send ALL {count}';
+      },
+    }),
+    'FAIL:same',
+    { findings: [wordsFinding('same', '-', 'confirm.send.reject_many')] },
+  );
+  expect(
+    fixture('two-controls-of-a-class-that-differ-in-words', {
+      words: (w) => {
+        w['confirm.payment.allow'] = 'Pay';
+        w['confirm.payment.reject'] = "Don't pay";
+        w['confirm.send.allow'] = 'Pay';
+        w['confirm.payment.allow_many'] = 'Pay';
+      },
+    }),
+    'PASS',
+    { lines: ['words controls pairs=1 same=0'] },
   );
   expect(
     fixture('another-form-and-this-runs-own-terms-pass', {

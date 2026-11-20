@@ -22,7 +22,7 @@
 //! | | `spreadsheet_fill`: `all_set.nothing`; `run_now`, `switch_off`, `delete` | `active`, `schedule` every 7 days, `last` 20750, so `next` is 20764; its four slots; runs on 20750 `completed` and on 20757 `nothing_to_do`, started by the scheduler for the slot 20757 |
 //! | | `shop_order`: `all_set.done`; `run_now`, `switch_off`, `delete` | `active`; its three slots; a run on 20755 `completed` |
 //! | | `calendar_cleanup`: `all_set.done`; `run_now`, `switch_off`, `delete` | `active`, `schedule` every day, `last` 20759, so `next` is 20761; runs on 20759 `completed` and on 20760 `completed`, the second with the slot 20760 |
-//! | `card` | the agents of `ten` | the card of `utility_bill_payment`, the first agent made (agent id 2), whose two runs are the card's, the newer with one committed `payment` effect whose four kept fields are those of the item of `needs_check` (ruling H-8); the act `open_card` with its id is U3.3's |
+//! | `card` | the agents of `ten` | the card of `utility_bill_payment`, the first agent made (agent id 2), whose two runs are the card's, the newer with one committed `payment` effect whose four kept fields are those of the item of `needs_check` (ruling H-8), and after it the entry of a committed `payment` that the reader refuses, `run.effect.payment.unshown` (ruling RD-52 (f)); the act `open_card` with its id is U3.3's |
 //! | `needs_confirm_page` | `email`: `needs_you.confirm`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run in the phase `waiting` with an open `confirm` item of three effects of the class `send`, presenter `page`, `armed` `yes`, no `new_origin` |
 //! | `needs_confirm_native` | `utility_bill_payment`: `needs_you.confirm`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run `waiting` with an open `confirm` item of one effect of the class `payment`, presenter `native`, `armed` `no`, its one choice `present` |
 //! | `needs_sign_in` | `shop_order`: `needs_you.sign_in`; `stop`, `switch_off`, `delete` | `approved`, no playbook, no ended run, its three slots, a live first run `waiting` with an open `sign_in` item |
@@ -40,6 +40,7 @@
 //! | `working` | `utility_bill_payment`: `working.working`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run in the phase `working` |
 //! | `queue` | `utility_bill_payment` as in `working`; `email` and `shop_order`: `waiting_turn.queued`; `switch_off`, `delete` | `email` and `shop_order` as in `ten`, each with a start in the queue |
 //! | `no_service` | none | `note` the text of `note.no_service` |
+//! | `out_of_date` | `utility_bill_payment` as in `working` | `note` the text of `note.out_of_date`, the note while the mark of a tick that did not return stands (ruling RD-80 4.1, 4.3) |
 //! | `needs_confirm_mixed` | `email` as in `needs_confirm_page` | its `confirm` item asks for one effect of the class `send` and one of the class `delete`, so it takes the mixed title and controls, and the fields of each effect follow its action line (ruling RD-10 (b), IG-4) |
 //! | `needs_confirm_changed` | `email` as in `needs_confirm_page` | its `confirm` item asks for one effect of the class `send` whose newest released decision in the run is `allow_once`, so the line `confirm.changed` stands above its values (ruling RD-10 (b), IG-25) |
 //!
@@ -97,6 +98,7 @@ names! {
         NeedsSignInBind = "needs_sign_in_bind",
         NeedsConfirmMixed = "needs_confirm_mixed",
         NeedsConfirmChanged = "needs_confirm_changed",
+        OutOfDate = "out_of_date",
     }
 }
 
@@ -373,7 +375,7 @@ fn specs(state: State) -> Vec<Spec> {
             controls: vec![Control::SwitchOn, Control::Delete],
             ..email(StatusLine::Off)
         }],
-        State::Working => vec![Spec {
+        State::Working | State::OutOfDate => vec![Spec {
             live: Some(LivePhase::Working),
             controls: LIVE.to_vec(),
             ..utility(StatusLine::Working)
@@ -559,6 +561,7 @@ fn build(state: State) -> Vec<Built> {
                 What::RunEnded {
                     run: run.clone(),
                     cause: p.end.into(),
+                    defers: None,
                 },
             );
         }
@@ -625,6 +628,8 @@ fn build(state: State) -> Vec<Built> {
             runs: history,
             events,
             store_ended: !matches!(doing, Doing::Live(_)),
+            replies: crate::types::Replies::NotAsked,
+            unknown: Vec::new(),
             today: TODAY,
             doing,
         };
@@ -1041,6 +1046,9 @@ fn card(b: &Built) -> Card {
                     .committed
                     .map(|(class, bound)| committed(class, bound))
                     .into_iter()
+                    .chain(p.committed.map(|(class, _)| {
+                        CardEffect::unshown(class).expect("the words table holds the entry")
+                    }))
                     .collect(),
             })
             .collect(),
@@ -1061,7 +1069,11 @@ fn state_file(state: State) -> StateFile {
         (a.status, a.name.as_bytes(), &a.agent).cmp(&(b.status, b.name.as_bytes(), &b.agent))
     });
     let (rows, items): (Vec<Row>, Vec<Option<Item>>) = order.into_iter().unzip();
-    let note = (state == State::NoService).then(|| t("note.no_service"));
+    let note = match state {
+        State::NoService => Some(t("note.no_service")),
+        State::OutOfDate => Some(t("note.out_of_date")),
+        _ => None,
+    };
     let card = (state == State::Card).then(|| card(&built[0]));
     StateFile {
         snapshot: Snapshot {
@@ -1135,7 +1147,9 @@ mod tests {
             (newer.day.as_str(), newer.text.as_str()),
             ("24 October 2026", "It finished the task.")
         );
-        assert_eq!(newer.effects.len(), 1);
+        assert_eq!(newer.effects.len(), 2);
+        assert_eq!(newer.effects[1].key(), "run.effect.payment.unshown");
+        assert!(newer.effects[1].fields().is_empty());
         let paid = &newer.effects[0];
         assert_eq!(
             (paid.key().as_str(), paid.text()),

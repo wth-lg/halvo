@@ -4,7 +4,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use halvo_derived::{Clock, DbKey, Host, IdSource, OpenError, Store};
 use halvo_schema_core::category::SeedCategory;
@@ -27,12 +26,16 @@ pub struct Scratch {
 }
 
 impl Scratch {
+    /// A new, empty directory `derived-<name>-<process id>-<n>` under the target's tmp directory, made by
+    /// `halvo_test_dir::make`, which passes over a name that stands; removed when the value is dropped.
     pub fn new(name: &str) -> Scratch {
-        static COUNT: AtomicUsize = AtomicUsize::new(0);
-        let n = COUNT.fetch_add(1, Ordering::Relaxed);
-        let path = Path::new(env!("CARGO_TARGET_TMPDIR"))
-            .join(format!("derived-{name}-{}-{n}", std::process::id()));
-        std::fs::create_dir_all(&path).unwrap();
+        let parent = Path::new(env!("CARGO_TARGET_TMPDIR"));
+        let path = halvo_test_dir::make(parent, &format!("derived-{name}")).unwrap_or_else(|e| {
+            panic!(
+                "the scratch directory derived-{name} under {} cannot be made: {e}",
+                parent.display()
+            )
+        });
         Scratch { path }
     }
 
@@ -46,8 +49,15 @@ impl Scratch {
 }
 
 impl Drop for Scratch {
+    /// Removes the directory; where the removal fails it prints one line with the path to standard error and does not
+    /// panic.
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.path);
+        if let Err(e) = std::fs::remove_dir_all(&self.path) {
+            eprintln!(
+                "the scratch directory {} was not removed: {e}",
+                self.path.display()
+            );
+        }
     }
 }
 
@@ -289,6 +299,7 @@ pub fn open_with_ids(scratch: &Scratch, clock: &TestClock, seed: u64) -> Result<
 }
 
 pub fn raw(scratch: &Scratch) -> Connection {
+    halvo_derived::test_host::start_sqlite();
     let conn = Connection::open(scratch.db()).unwrap();
     conn.busy_timeout(std::time::Duration::ZERO).unwrap();
     conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", "07".repeat(32)))
@@ -457,5 +468,62 @@ pub fn raw_request(name: &str, body: &str) -> RawRequest {
     match request::decode(text.as_bytes()) {
         Ok(Decoded::Raw(raw)) => raw,
         other => panic!("the request decodes as {:?}", other.map(|d| d.role())),
+    }
+}
+
+/// A test handler that commits one record of the kind `test_own` from the body `{"workflow":<id>,"note":<text>}` of
+/// its request: `null` when the commit stores it, `role` when the store refuses it for its origin, and `state` for
+/// any other refusal.
+pub struct OwnNote;
+
+impl halvo_derived::Handler for OwnNote {
+    fn handle(
+        &self,
+        request: &RawRequest,
+        cx: &mut halvo_derived::HandlerCx<'_>,
+    ) -> Result<Box<serde_json::value::RawValue>, halvo_schema_core::request::ErrorName> {
+        use halvo_schema_core::request::ErrorName;
+        let body: serde_json::Value =
+            serde_json::from_str(request.body().get()).map_err(|_| ErrorName::Malformed)?;
+        let json = format!(
+            r#"{{"v":1,"workflow":{},"note":{},"at":1794339000000000000}}"#,
+            body["workflow"], body["note"]
+        );
+        let record = halvo_schema_core::record::TypedRecord {
+            kind: "test_own",
+            json,
+        };
+        match cx.commit(&[record]) {
+            Ok(_) => Ok(serde_json::value::RawValue::from_string("null".to_owned()).unwrap()),
+            Err(refusal) if refusal.cause == halvo_derived::Cause::OwnOrigin => {
+                Err(ErrorName::Role)
+            }
+            Err(_) => Err(ErrorName::State),
+        }
+    }
+}
+
+/// The body of a request to `OwnNote`, with the `op` that a `coordinator_write` to it names.
+pub fn own_note_body(workflow: &str, note: &str) -> String {
+    format!(r#"{{"op":"own_note","workflow":"{workflow}","note":"{note}"}}"#)
+}
+
+/// Every item of the interface read `workflows`, page by page.
+pub fn listed(store: &Store) -> Vec<halvo_schema_core::record::WorkflowItem> {
+    use halvo_schema_core::ids::RequestId;
+    use halvo_schema_core::request::{InterfaceRead, InterfaceRole, ReplyResult};
+    let role = InterfaceRole::claim();
+    let mut items = Vec::new();
+    let mut after = None;
+    loop {
+        let read = InterfaceRead::workflows(&role, RequestId::from_random([3; 16]), after);
+        let ReplyResult::Workflows(page) = store.interface_read(&read).unwrap() else {
+            panic!("the read of workflows answers another page");
+        };
+        items.extend(page.workflows);
+        match page.next {
+            Some(next) => after = Some(next),
+            None => return items,
+        }
     }
 }

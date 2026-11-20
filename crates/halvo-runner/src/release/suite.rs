@@ -28,8 +28,9 @@ use halvo_schema::executable::names::{
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, OwnValue, V1};
 use halvo_schema::executable::{
-    AgentConfig, AgentEffect, AgentLog, AgentRun, ApprovalId, Cause, Digest, EffectId, EffectState,
-    FromRunner, HandbackResult, Outcome, RunId, RunnerCall, RunnerReply, ToRunner, WebOrigin,
+    AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentRun, ApprovalId, Cause, Digest,
+    EffectId, EffectState, FromRunner, HandbackResult, Outcome, RunId, RunnerCall, RunnerReply,
+    ToRunner, WebOrigin,
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
 
@@ -314,6 +315,19 @@ impl Record {
             .collect()
     }
 
+    pub(crate) fn checkpoints(&self) -> Vec<AgentCheckpoint> {
+        self.frames
+            .iter()
+            .filter_map(|f| match f {
+                FromRunner::Store(s) => match s.request.body() {
+                    RunnerCall::Checkpoint(b) => Some(b.record.clone()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect()
+    }
+
     pub(crate) fn finish(&self) -> Option<AgentRun> {
         self.frames.iter().find_map(|f| match f {
             FromRunner::Store(s) => match s.request.body() {
@@ -322,6 +336,95 @@ impl Record {
             },
             _ => None,
         })
+    }
+}
+
+/// Runs one whole run of the fill task in this thread, as the binary carries one out, on a copy of the corpus
+/// workbook and seed 1's rows in a scratch folder of halvo_test_dir, with the data directory beside them, and
+/// answers it as `plan` says.
+pub(crate) fn run_fill(plan: Plan) -> Record {
+    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let exe = std::env::current_exe().expect("the test binary");
+    let target = exe
+        .ancestors()
+        .nth(3)
+        .expect("the target directory above deps");
+    let dir = halvo_test_dir::make(&target.join("tmp").join("halvo-runner-unit"), "fill")
+        .expect("make the scratch directory");
+    let workbook = dir.join("formulas.xlsx");
+    std::fs::copy(
+        crate_dir.join("../../tools/r3-trials/sheet/corpus/formulas.xlsx"),
+        &workbook,
+    )
+    .expect("copy the workbook");
+    let seed: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(crate_dir.join("../../tools/fixture-server/variants/data/seed-1.json"))
+            .expect("read the seed"),
+    )
+    .expect("json");
+    let mut text = String::new();
+    for row in seed["sheet"]["rows"].as_array().expect("rows") {
+        let cells: Vec<&str> = row
+            .as_array()
+            .expect("a row")
+            .iter()
+            .map(|cell| cell.as_str().expect("a text"))
+            .collect();
+        text.push_str(&cells.join(","));
+        text.push('\n');
+    }
+    let source = dir.join("source.csv");
+    std::fs::write(&source, text).expect("write the source");
+    let slots = vec![
+        slot("workbook", &workbook.to_string_lossy()),
+        slot("source", &source.to_string_lossy()),
+        slot("sheet", "Ledger"),
+        slot("range", "B2:D6"),
+    ];
+    let run = RunId::from_random([0x61; 16]);
+    let agent = AgentId::from_random([0x62; 16]);
+    let workflow = WorkflowId::from_random([0x63; 16]);
+    let config =
+        preset(Category::SpreadsheetFill, workflow.clone(), agent.clone()).expect("a preset");
+    let data = halvo_test_dir::make(&dir, "data")
+        .expect("make the data directory")
+        .to_string_lossy()
+        .into_owned();
+    let offset = plan.utc_offset_s.to_string();
+    let words = [
+        "--run",
+        run.as_str(),
+        "--agent",
+        agent.as_str(),
+        "--workflow",
+        workflow.as_str(),
+        "--mode",
+        "replay",
+        "--browser",
+        "none",
+        "--data-dir",
+        &data,
+        "--utc-offset",
+        &offset,
+    ];
+    let words: Vec<OsString> = words.iter().map(OsString::from).collect();
+    let args = crate::args::parse(&words).expect("the arguments");
+    let (to_runner_read, to_runner) = std::io::pipe().expect("a pipe");
+    let (from_runner, from_runner_write) = std::io::pipe().expect("a pipe");
+    let link = Link::start(
+        Box::new(to_runner_read),
+        Box::new(from_runner_write),
+        Box::new(|| {}),
+    );
+    let supervisor = std::thread::spawn(move || {
+        supervise(from_runner, to_runner, config, (Vec::new(), slots), plan)
+    });
+    let status = crate::run::run(args, link);
+    let (frames, after_end) = supervisor.join().expect("the supervisor");
+    Record {
+        frames,
+        after_end,
+        status,
     }
 }
 
@@ -370,6 +473,8 @@ pub(crate) struct Plan {
     pub(crate) cancel_before: Option<CancelBefore>,
     pub(crate) wall_s: Option<u32>,
     pub(crate) clock: Arc<AtomicU64>,
+    /// The run's `--utc-offset`.
+    pub(crate) utc_offset_s: i32,
 }
 
 impl Plan {
@@ -392,6 +497,7 @@ impl Plan {
             cancel_before: None,
             wall_s: None,
             clock: Arc::default(),
+            utc_offset_s: 0,
         }
     }
 }
@@ -601,6 +707,7 @@ pub(crate) fn run_many_path(
     let workflow = WorkflowId::from_random([0x53; 16]);
     let config = preset(category, workflow.clone(), agent.clone()).expect("a preset");
     let data = data_dir().to_string_lossy().into_owned();
+    let offset = plan.utc_offset_s.to_string();
     let words = [
         "--run",
         run.as_str(),
@@ -614,6 +721,8 @@ pub(crate) fn run_many_path(
         "none",
         "--data-dir",
         &data,
+        "--utc-offset",
+        &offset,
     ];
     let words: Vec<OsString> = words.iter().map(OsString::from).collect();
     let args = crate::args::parse(&words).expect("the arguments");

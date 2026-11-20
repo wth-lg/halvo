@@ -6,8 +6,9 @@ CONSTANTS Seed, Count, Depth, Config
 VARIABLE w
 
 RefusePct == 12
-KindSeq == <<"issue", "arm", "answer", "record", "release", "lapse", "stop", "guard", "other">>
-RefusalSeq == <<"stale", "presenter", "early", "state", "approval">>
+KindSeq == <<"issue", "arm", "answer", "record", "release", "lapse", "stop", "guard", "other",
+            "bind", "press", "bind_lapse", "kill", "bind_stopped">>
+RefusalSeq == <<"stale", "presenter", "early", "state", "approval", "no_service", "busy">>
 
 Weight(k) ==
     CASE k = "issue" -> 30
@@ -19,10 +20,16 @@ Weight(k) ==
       [] k = "stop" -> 2
       [] k = "guard" -> 12
       [] k = "other" -> 3
+      [] k = "bind" -> 30
+      [] k = "press" -> 40
+      [] k = "bind_lapse" -> 12
+      [] k = "kill" -> 8
+      [] k = "bind_stopped" -> 2
 
 KindOf(mv) ==
     IF mv.m = "guard" /\ (mv.state = "committed" \/ mv.approval = NoApproval) THEN "other" ELSE mv.m
-Fine(a) == a \in {"ok", "repeat"}
+Fine(a) == a \in {"ok", "repeat", "no_service", "busy"}
+KindIn(s, mv) == IF mv.m = "bind" /\ s.run = "stopped" THEN "bind_stopped" ELSE KindOf(mv)
 
 RECURSIVE WSum(_)
 WSum(ks) == IF Len(ks) = 0 THEN 0 ELSE Weight(ks[1]) + WSum(Tail(ks))
@@ -39,6 +46,10 @@ R(i) == [m |-> "record", item |-> i]
 L(i) == [m |-> "release", item |-> i]
 P(i, c, b) == [m |-> "lapse", item |-> i, cause |-> c, stored |-> b]
 Z == [m |-> "stop"]
+B == [m |-> "bind"]
+K(g) == [m |-> "kill", rows |-> g.rows]
+Y(j, c, x, y) == [m |-> "press", item |-> j, choice |-> c, store |-> x, runs |-> y]
+U(j, c) == [m |-> "bind_lapse", item |-> j, cause |-> c]
 G(e, x, d, p) == [m |-> "guard", effect |-> e, state |-> x, digest |-> d, approval |-> p,
                   policy |-> IF x = "releasing" THEN "confirm" ELSE "none"]
 GR(e, d, p) == [m |-> "guard", effect |-> e, state |-> "releasing", digest |-> d, approval |-> p,
@@ -82,7 +93,7 @@ LapseCands(s, i) ==
        ELSE IF x = "answered"
        THEN <<P(i, "wait_limit", FALSE), P(i, "cancelled", FALSE),
               P(i, "no_record", FALSE), P(i, "no_record", TRUE),
-              P(i, "run_ended", FALSE), P(i, "app_ended", FALSE)>>
+              P(i, "run_ended", FALSE), P(i, "app_ended", FALSE), P(i, "answer_lost", FALSE)>>
        ELSE IF x = "recorded"
        THEN <<P(i, "run_ended", FALSE), P(i, "app_ended", FALSE), P(i, "wait_limit", FALSE)>>
        ELSE <<P(i, "wait_limit", FALSE)>>
@@ -95,6 +106,14 @@ ItemCands(s, i) ==
       R(i), L(i)>>
     \o LapseCands(s, i)
 
+BindCands(s, j) ==
+    Cat([c \in 1..2 |->
+            LET ch == IF c = 1 THEN "allow" ELSE "decline"
+            IN <<Y(j, ch, "ack", "ok"), Y(j, ch, "ack", "ok"), Y(j, ch, "ack", "ended"),
+                 Y(j, ch, "ack", "busy"), Y(j, ch, "ack", "busy"), Y(j, ch, "lost", "ok"),
+                 Y(j, ch, "lost", "ok")>>])
+    \o <<U(j, "wait_limit"), U(j, "cancelled"), U(j, "run_ended"), U(j, "app_ended")>>
+
 GuardCands(s) ==
     Cat([e \in 1..NEffects |->
             Cat([d \in 1..(NRequests * NEffects) |->
@@ -106,14 +125,19 @@ GuardCands(s) ==
 
 Cands(s) ==
     IF s.app = "ended" THEN <<>>
-    ELSE IF s.run = "ended" /\ OpenItems(s) # {}
+    ELSE IF s.run = "ended" /\ Busy(s)
     THEN LET open == Sorted(OpenItems(s))
+             held == Sorted(OpenBinds(s))
          IN [k \in 1..Len(open) |-> P(open[k], "run_ended", FALSE)]
-    ELSE (IF s.run # "ended" /\ Len(s.items) < NRequests
+            \o [k \in 1..Len(held) |-> U(held[k], "run_ended")]
+    ELSE (IF s.run # "ended" /\ Len(s.items) < NRequests /\ Asked(s) < Requests
           THEN LET Sent(mv) == Offered(s, h, mv)
                IN SelectSeq(<<I(TRUE), I(TRUE), I(TRUE), I(TRUE), I(TRUE), I(FALSE)>>, Sent)
           ELSE <<>>)
+         \o (IF s.run # "ended" /\ Len(s.binds) < Binds /\ Asked(s) < Requests THEN <<B>> ELSE <<>>)
          \o Cat([i \in 1..Len(s.items) |-> ItemCands(s, i)])
+         \o Cat([j \in 1..Len(s.binds) |-> BindCands(s, j)])
+         \o (IF OpenItems(s) = {} /\ OpenBinds(s) # {} THEN <<K(h)>> ELSE <<>>)
          \o (IF s.run # "ended" THEN <<Z>> \o GuardCands(s) ELSE <<>>)
 
 RECURSIVE AnswersOf(_, _, _)
@@ -123,8 +147,8 @@ AnswersOf(s, cs, i) ==
 Choose(s, x0) ==
     LET cs == Cands(s)
         as == AnswersOf(s, cs, 1)
-        IsGood(i) == Fine(as[i])
-        IsBad(i) == ~Fine(as[i])
+        IsGood(i) == Fine(as[i]) \/ (cs[i].m = "bind" /\ s.run = "stopped")
+        IsBad(i) == ~IsGood(i)
         idx == [i \in 1..Len(cs) |-> i]
         good == SelectSeq(idx, IsGood)
         bad == SelectSeq(idx, IsBad)
@@ -136,13 +160,13 @@ Choose(s, x0) ==
         answers == SelectSeq(RefusalSeq, HasAnswer)
         answer == answers[1 + Draw(x2, Len(answers))]
         WithAnswer(i) == as[i] = answer
-        HasKind(k) == \E j \in 1..Len(good) : KindOf(cs[good[j]]) = k
+        HasKind(k) == \E j \in 1..Len(good) : KindIn(s, cs[good[j]]) = k
         kinds == SelectSeq(KindSeq, HasKind)
         kind == WPick(kinds, Draw(x2, WSum(kinds)))
-        OfKind(i) == KindOf(cs[i]) = kind
+        OfKind(i) == KindIn(s, cs[i]) = kind
         pool == IF refuse THEN SelectSeq(bad, WithAnswer) ELSE SelectSeq(good, OfKind)
     IN [mv |-> cs[pool[1 + Draw(x3, Len(pool))]], x |-> x3,
-        dead |-> \A j \in 1..Len(good) : KindOf(cs[good[j]]) = "other"]
+        dead |-> \A j \in 1..Len(good) : KindIn(s, cs[good[j]]) \in {"other", "bind_stopped"}]
 
 YesNo(b) == IF b THEN Str("yes") ELSE Str("no")
 
@@ -170,7 +194,8 @@ Snap(s) ==
     <<KV("items", Obj([i \in 1..Len(s.items) |-> KV("i" \o ToString(i), Str(s.items[i].st))])),
       KV("table", IdList("p", {t.row.approval : t \in s.table})),
       KV("used", IdList("p", {t.row.approval : t \in {u \in s.table : u.used}})),
-      KV("run", Str(s.run))>>
+      KV("run", Str(s.run)),
+      KV("binds", Obj([j \in 1..Len(s.binds) |-> KV("b" \o ToString(j), Str(s.binds[j].st))]))>>
 
 Args(s, mv) ==
     CASE mv.m = "issue" ->
@@ -181,7 +206,11 @@ Args(s, mv) ==
       [] mv.m = "lapse" ->
             <<KV("item", Id("i", mv.item)), KV("cause", Str(mv.cause)),
               KV("stored", IF mv.cause = "no_record" THEN YesNo(mv.stored) ELSE "null")>>
-      [] mv.m = "stop" -> <<>>
+      [] mv.m \in {"stop", "bind", "kill"} -> <<>>
+      [] mv.m = "press" ->
+            <<KV("item", Id("b", mv.item)), KV("choice", Str(mv.choice)), KV("store", Str(mv.store)),
+              KV("runs", Str(mv.runs))>>
+      [] mv.m = "bind_lapse" -> <<KV("item", Id("b", mv.item)), KV("cause", Str(mv.cause))>>
       [] mv.m = "guard" ->
             <<KV("effect", Id("e", mv.effect)), KV("class", Str(Class(mv.effect))),
               KV("state", Str(mv.state)), KV("digest", Id("d", mv.digest)),
@@ -197,6 +226,8 @@ Extra(s, mv, res) ==
                               THEN IdList("p", {d.approval : d \in res.st.items[mv.item].ids})
                               ELSE "[]")>>
       [] mv.m \in {"release", "lapse"} -> <<KV("sent", SentJson(res))>>
+      [] mv.m = "bind" ->
+            <<KV("item", IF Len(res.st.binds) > Len(s.binds) THEN Id("b", Len(res.st.binds)) ELSE "null")>>
       [] OTHER -> <<>>
 
 RowsJson(name, item, entries) ==
@@ -215,12 +246,19 @@ EventsOf(x, mv) ==
       [] x.k = "unacked_rows" ->
             IF mv.cause = "no_record" /\ mv.stored THEN RowsJson("item_answered", x.item, x.rows) ELSE <<>>
       [] x.k = "item_released" -> RowsJson(x.k, x.item, x.entries)
+      [] x.k = "bind_raised" -> <<Obj(<<KV("event", Str("item_raised")), KV("item", Id("b", x.item))>>)>>
+      [] x.k = "bind_row" ->
+            <<Obj(<<KV("event", Str("item_answered")), KV("item", Id("b", x.item)), KV("answer", Str(x.answer))>>)>>
+      [] x.k = "bind_lapsed" ->
+            <<Obj(<<KV("event", Str("item_lapsed")), KV("item", Id("b", x.item)), KV("cause", Str(x.cause))>>)>>
       [] OTHER -> <<>>
 
 CallsOf(x) ==
     CASE x.k = "answer_confirm" ->
             <<Obj(<<KV("call", Str(x.k)), KV("item", Id("i", x.item)), KV("answer", Str(x.answer))>>)>>
       [] x.k = "cancel" -> <<Obj(<<KV("call", Str(x.k))>>)>>
+      [] x.k = "answer_bind" ->
+            <<Obj(<<KV("call", Str(x.k)), KV("item", Id("b", x.item)), KV("answer", Str(x.answer))>>)>>
       [] OTHER -> <<>>
 
 MoveJson(s, mv, res) ==
@@ -234,7 +272,7 @@ Cases == Len(Directed)
 TraceInit ==
     /\ st = Init0
     /\ h = InitH
-    /\ w = [n |-> IF Config = "full" THEN 1 ELSE Count + 1, k |-> 0, z |-> 0,
+    /\ w = [n |-> IF Config = "bound" THEN 1 ELSE Count + 1, k |-> 0, z |-> 0,
             x |-> 1 + (Seed % 2147483646), acc |-> <<>>]
 
 Play(mv, x, dead) ==
@@ -266,7 +304,7 @@ TraceNext ==
                THEN Skip
                ELSE IF w.k = Len(d.moves)
                THEN Emit(<<KV("n", ToString(w.n)), KV("case", Str(d.case))>>)
-               ELSE /\ Assert(d.moves[w.k + 1] \in Moves(st) /\ Offered(st, h, d.moves[w.k + 1]),
+               ELSE /\ Assert(d.moves[w.k + 1] \in Moves(st) \cup KillMoves(st, h) /\ Offered(st, h, d.moves[w.k + 1]),
                               <<"a move that the configuration does not allow", d.case, w.k + 1>>)
                     /\ Play(d.moves[w.k + 1], w.x, FALSE)
 =============================================================================

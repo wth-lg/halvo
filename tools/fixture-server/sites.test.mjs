@@ -527,8 +527,8 @@ test('checker: counts per category, the password and card pages, and the paramet
     'services ride_order 0',
     'services daily_chart_check 0',
     'services other 1',
-    `password ${files[0]} sign-in`,
-    `card ${files[0]} pay`,
+    'password SITE_DATA 3 page 1',
+    'card SITE_DATA 3 page 3',
     'parameters names=3 missing=0',
   ]);
 });
@@ -542,7 +542,7 @@ test('checker: a name with no row is printed and makes the status 1', () => {
   const run = runChecker(['--parameters', rows, file]);
   assert.equal(run.status, 1);
   assert.match(run.stdout, /^parameters names=2 missing=1$/m);
-  assert.match(run.stdout, new RegExp(`^missing ${file.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')} shop_order size$`, 'm'));
+  assert.match(run.stdout, /^missing SITE_DATA 1 shop_order parameter 2$/m);
 });
 
 test('checker: without --parameters it compares no rows and prints no parameters line', () => {
@@ -556,7 +556,7 @@ test('checker: without --parameters it compares no rows and prints no parameters
 
 test('checker: a file not of C11.1 is refused with site-data naming the file, and nothing on standard output', () => {
   const dir = scratch();
-  const good = join(dir, 'acorn-news.json');
+  const good = join(dir, 'zz-news.json');
   writeFileSync(good, bytes(other()));
   const spaced = join(dir, 'spaced.json');
   writeFileSync(spaced, Buffer.from(bytes(shop()).toString('utf8').replace('"v":1,', '"v":1, '), 'utf8'));
@@ -569,8 +569,11 @@ test('checker: a file not of C11.1 is refused with site-data naming the file, an
     const run = runChecker([good, bad]);
     assert.equal(run.status, 2);
     assert.equal(run.stdout, '');
-    assert.equal(run.stderr, `REFUSED site-data: ${bad}\n`);
+    assert.equal(run.stderr, 'REFUSED site-data: SITE_DATA 1\n');
   }
+  const cased = runChecker([join(dir, 'a-x.json'), join(dir, 'B-x.json')]);
+  assert.equal(cased.status, 2);
+  assert.equal(cased.stderr, 'REFUSED site-data: SITE_DATA 2\n');
 });
 
 test('arguments: one optional flag with a value, then one or more files', () => {
@@ -580,6 +583,10 @@ test('arguments: one optional flag with a value, then one or more files', () => 
   for (const argv of [[], ['--parameters'], ['--parameters', 'r.md'], ['--port', '1', 'a.json'], ['--parameters', 'r.md', '--parameters', 'r.md', 'a.json'], ['-', '--x']]) {
     assert.equal(readArgs(argv, '--parameters', any), null, argv.join(' '));
   }
+  for (const argv of [['a\uD800.json'], ['a\uFFFD.json'], ['--parameters', 'r\uDC00.md', 'a.json'], ['a.json', 'b\uFFFD']]) {
+    assert.equal(readArgs(argv, '--parameters', any), null, JSON.stringify(argv));
+  }
+  assert.deepEqual(readArgs(['\u{1F600}.json'], '--parameters', any), { value: null, files: ['\u{1F600}.json'] });
   assert.deepEqual(readArgs(['--port', '0', 'a.json'], '--port', isPort), { value: '0', files: ['a.json'] });
   assert.equal(readArgs(['--port', 'x', 'a.json'], '--port', isPort), null);
   for (const port of ['0', '1', '18080', '65535', '00080']) assert.equal(isPort(port), true, port);
@@ -593,13 +600,18 @@ test('loading: a missing file, a directory and two files that name one service a
   writeFileSync(one, bytes(shop()));
   writeFileSync(two, bytes(shop()));
   assert.equal(loadSites([one]).sites.length, 1);
-  assert.deepEqual(loadSites([one, join(dir, 'missing.json')]), { refused: join(dir, 'missing.json') });
-  assert.deepEqual(loadSites([dir, one]), { refused: dir });
-  assert.deepEqual(loadSites([one, two]), { refused: two });
-  assert.deepEqual(loadSites([one, one]), { refused: one });
+  assert.deepEqual(loadSites([one, join(dir, 'missing.json')]), { refused: join(dir, 'missing.json'), number: 1 });
+  assert.deepEqual(loadSites([dir, one]), { refused: dir, number: 1 });
+  assert.deepEqual(loadSites([one, two]), { refused: two, number: 2 });
+  assert.deepEqual(loadSites([two, one]), { refused: one, number: 1 });
+  assert.deepEqual(loadSites([one, one]), { refused: one, number: 2 });
   const bad = join(dir, 'bad.json');
   writeFileSync(bad, changed(shop, (s) => { s.v = 2; }));
-  assert.deepEqual(loadSites([bad, join(dir, 'missing.json')]), { refused: bad });
+  assert.deepEqual(loadSites([bad, join(dir, 'missing.json')]), { refused: bad, number: 1 });
+  assert.deepEqual(loadSites([join(dir, 'zz.json'), bad]), { refused: join(dir, 'zz.json'), number: 2 });
+  const wide = join(dir, '\u{1F600}.json');
+  assert.deepEqual(loadSites([wide, join(dir, '\u{FF61}.json')]), { refused: wide, number: 2 });
+  assert.deepEqual(loadSites([join(dir, 'a-x.json'), join(dir, 'B-x.json')]), { refused: join(dir, 'a-x.json'), number: 2 });
 });
 
 test('checker: usage and parameters refusals', () => {

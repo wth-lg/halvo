@@ -12,5 +12,8 @@
   "GET /v1/checkout/sessions/{id}": [],
   "POST /v1/billing_portal/sessions": ["customer", "return_url"],
   "DELETE /v1/subscriptions/{id}": ["invoice_now"],
-  "GET /v1/subscriptions/{id}": []
+  "GET /v1/subscriptions/{id}": [],
+  "GET /v1/customers/{id}": [],
+  "GET /v1/subscriptions": ["customer", "limit"],
+  "GET /v1/subscriptions after the first page": ["customer", "limit", "starting_after"]
 }

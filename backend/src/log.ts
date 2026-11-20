@@ -12,7 +12,15 @@ export type LogEvent =
   | "completed-no-record"
   | "usage-not-billable"
   | "cancel-overrides-order"
-  | "usage-total-unexplained";
+  | "usage-total-unexplained"
+  | "destroy-error"
+  | "cancel-unanswered"
+  | "cancel-before-send"
+  | "cancel-call-unsettled"
+  | "removal-overdue"
+  | "cancel-customer-unknown"
+  | "cancel-list-fault"
+  | "cancel-stored-unknown";
 
 export interface LogFields {
   event: LogEvent;

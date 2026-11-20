@@ -4,7 +4,7 @@ use std::io::{Read, Write};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -17,22 +17,48 @@ use halvo_schema::executable::names::{HandbackOutcome, HandbackReason};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::{Name, OwnValue, V1};
 use halvo_schema::executable::{
-    AgentConfig, AgentEffect, AgentLog, AgentRun, EffectState, ExecutableStep, FromRunner,
-    HandbackResult, Outcome, RunId, ToRunner, WebOrigin,
+    AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentRun, CheckpointState, EffectState,
+    ExecutableStep, FromRunner, HandbackResult, Outcome, RunId, ToRunner, WebOrigin,
 };
 use halvo_schema::{AgentId, Category, WorkflowId};
 
 pub const RUNNER: &str = env!("CARGO_BIN_EXE_halvo-runner");
 
-static NEXT: AtomicU32 = AtomicU32::new(1);
+/// The instant now on the system's clock, in nanoseconds since 1970-01-01T00:00:00Z.
+pub fn now_nanos() -> i64 {
+    let since = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("a clock after 1970");
+    i64::try_from(since.as_nanos()).expect("an instant of i64")
+}
 
-/// A directory of its own under the target's temporary directory, made anew for each call.
+/// The offset that a binary test of the day gives a run that it starts now: [`offset_of_another_day_at`] of the
+/// system's clock.
+pub fn offset_of_another_day() -> i32 {
+    offset_of_another_day_at(now_nanos())
+}
+
+/// The offset for a run started at `utc_ns` nanoseconds since 1970-01-01T00:00:00Z: +50,400 s when the UTC hour is
+/// 12 or later, else -50,400 s (the coordinator's ruling CP-204 D7). From that instant the local day at the offset
+/// differs from the UTC day until 14:00 UTC for -50,400 s, at least 2 hours, and until the next 00:00 UTC for
+/// +50,400 s, which is 1 second for a call at 23:59:59 UTC. No offset of the range differs from the UTC day on both
+/// sides of 00:00 UTC, so a test asserts the difference from the UTC day only for a row at whose instant the two
+/// days differ (CP-212 V2).
+pub fn offset_of_another_day_at(utc_ns: i64) -> i32 {
+    let max = halvo_schema::executable::day::UTC_OFFSET_S_MAX;
+    if utc_ns.div_euclid(1_000_000_000).rem_euclid(86_400) >= 12 * 3_600 {
+        max
+    } else {
+        -max
+    }
+}
+
+/// A directory of its own under the target's temporary directory, made anew for each call by
+/// `halvo_test_dir::make` under the name `runner-<tag>`: a name that stands, left by an earlier process with the
+/// same process id, is passed over for the next count.
 pub fn scratch(tag: &str) -> PathBuf {
-    let n = NEXT.fetch_add(1, Ordering::SeqCst);
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("runner-{tag}-{}-{n}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("make the scratch directory");
-    dir
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    halvo_test_dir::make(root, &format!("runner-{tag}")).expect("make the scratch directory")
 }
 
 pub fn ids(n: u8) -> (RunId, AgentId, WorkflowId) {
@@ -199,6 +225,17 @@ impl Seen {
 
     pub fn states(&self) -> Vec<EffectState> {
         self.effects().iter().map(|e| e.state).collect()
+    }
+
+    /// The records of the `checkpoint` bodies, in the order that the runner sent them.
+    pub fn checkpoints(&self) -> Vec<AgentCheckpoint> {
+        self.calls()
+            .into_iter()
+            .filter_map(|c| match c {
+                RunnerCall::Checkpoint(b) => Some(b.record),
+                _ => None,
+            })
+            .collect()
     }
 
     pub fn logs(&self) -> Vec<AgentLog> {
@@ -449,6 +486,8 @@ pub struct Supervisor {
     pub slots: Vec<Slot>,
     pub steps: Vec<ExecutableStep>,
     pub mode: &'static str,
+    /// The run's `--utc-offset`, 0 unless a test sets it.
+    pub utc_offset_s: i32,
 }
 
 impl Supervisor {
@@ -464,6 +503,7 @@ impl Supervisor {
             slots,
             steps: Vec::new(),
             mode: "replay",
+            utc_offset_s: 0,
         }
     }
 
@@ -479,6 +519,8 @@ impl Supervisor {
             self.mode.into(),
             "--browser".into(),
             "no-browser-in-this-build".into(),
+            "--utc-offset".into(),
+            self.utc_offset_s.to_string(),
         ]
     }
 
@@ -669,6 +711,22 @@ pub fn is_effect(frame: &FromRunner, state: EffectState) -> bool {
     matches!(frame, FromRunner::Store(s) if matches!(s.request.body(), RunnerCall::Effect(b) if b.record.state == state))
 }
 
+pub fn is_checkpoint(frame: &FromRunner, state: CheckpointState) -> bool {
+    matches!(frame, FromRunner::Store(s) if matches!(s.request.body(), RunnerCall::Checkpoint(b) if b.record.state == state))
+}
+
+/// A frame by its tag, a `store` frame also by its call and, for an effect or a checkpoint row, by its state.
+pub fn named(frame: &FromRunner) -> String {
+    match frame {
+        FromRunner::Store(s) => match s.request.body() {
+            RunnerCall::Effect(b) => format!("store effect {:?}", b.record.state),
+            RunnerCall::Checkpoint(b) => format!("store checkpoint {:?}", b.record.state),
+            body => format!("store {}", body.op()),
+        },
+        other => tag(other).to_string(),
+    }
+}
+
 /// The cells of the fill range as the sheet executor reads them, each written as text.
 pub fn range_texts(dir: &Path, workbook: &Path) -> Vec<Vec<String>> {
     let data = scratch("read-data");
@@ -693,3 +751,69 @@ pub fn range_texts(dir: &Path, workbook: &Path) -> Vec<Vec<String>> {
 }
 
 pub const LONG: Duration = Duration::from_secs(60);
+
+/// The load reply that the supervisor gives with `change` applied to its configuration and slots.
+pub fn load_with(sup: &Supervisor, frame: &FromRunner, change: impl FnOnce(&mut LoadReply)) -> Act {
+    let FromRunner::Store(s) = frame else {
+        unreachable!("a load is a store frame")
+    };
+    let mut reply = sup.store_answer(s.request.body());
+    if let RunnerReply::Load(l) = &mut reply {
+        change(l);
+    }
+    Act::With(ToRunner::StoreReply(StoreReplyFrame {
+        reply: StoreReply {
+            id: Some(s.request.id().clone()),
+            outcome: Ok(reply),
+        },
+    }))
+}
+
+/// Serves a fill run in which `change` may alter the reply to each load, counted from 1 (the run's first load), and
+/// `at_load` runs before that load is answered.
+pub fn serve_loads(
+    sup: &Supervisor,
+    mut change: impl FnMut(u32, &mut LoadReply),
+    mut at_load: impl FnMut(u32),
+) -> Seen {
+    let mut loads = 0;
+    sup.serve(
+        |frame, _| {
+            if !is_op(frame, "load") {
+                return Act::Answer;
+            }
+            loads += 1;
+            at_load(loads);
+            load_with(sup, frame, |l| change(loads, l))
+        },
+        LONG,
+    )
+}
+
+pub fn set_slot(l: &mut LoadReply, name: &str, value: &str) {
+    let bindings = l.bindings.as_mut().expect("bindings");
+    let at = bindings
+        .slots
+        .iter()
+        .position(|s| s.name.as_str() == name)
+        .expect("the slot");
+    bindings.slots[at] = slot(name, value);
+}
+
+/// The person's own change of the workbook: one cell outside the fill range, written through the sheet executor
+/// under a data directory and a run of the test's own; the workbook's bytes after it.
+pub fn person_changes(files: &FillFiles) -> Vec<u8> {
+    let data = scratch("person-data");
+    let locks = halvo_sheet::Locks::open(&data, LONG).expect("locks");
+    let folder = halvo_sheet::Folder::new(&files.dir, locks).expect("a folder");
+    let run = halvo_sheet::RunId::parse(&"5e".repeat(16)).expect("a run id");
+    let range = halvo_sheet::Range::parse("F9:F9").expect("a range");
+    let values = vec![vec![halvo_sheet::Value::Text(
+        "the person's note".to_string(),
+    )]];
+    let prepared = folder
+        .prepare(&files.workbook, &run, "Ledger", range, &values)
+        .expect("prepare");
+    folder.replace(&prepared).expect("replace");
+    files.workbook_bytes()
+}

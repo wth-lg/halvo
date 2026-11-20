@@ -32,6 +32,8 @@ KEEP = ("load ", "attempt ", "drive ", "reply ", "notrun ")
 
 
 def load_verdict():
+    """verdict.py as a module, loaded with no bytecode written beside it into the checkout."""
+    sys.dont_write_bytecode = True
     spec = importlib.util.spec_from_file_location("verdict", os.path.join(HERE, "verdict.py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: In a tree whose formal/r3-confirm and this script are the commit's, TLC finds none of P1 to P11 violated under Confirm.cfg and Rebinds.cfg and reaches 1732182 and 70129 distinct states, the five configuration files are the texts this script holds, the model exports the committed table and traces byte for byte, and each of thirteen controls reports its invariant; what it does not see is in formal/r3-confirm/README.md, section The check in CI.
+# rule: In a tree whose formal/r3-confirm and this script are the commit's, the five configuration files are the texts this script holds and the model exports the committed table and traces byte for byte in every job, and in the macos job (and in a run with no CI_D_JOB) TLC finds none of P1 to P11 violated under Confirm.cfg and Rebinds.cfg and reaches 1732182 and 70129 distinct states and each of thirteen controls reports its invariant; what it does not see is in formal/r3-confirm/README.md, section The check in CI.
+# windows: with CI_D_JOB=windows the runs of Confirm.cfg, Rebinds.cfg and Control.cfg and the 12 control copies are left to the macos job, because the jar (its pinned sha256), the model and the configurations are the same bytes on both systems and both jobs printed the same distinct states; the export and every check of the files run in both jobs.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -24,6 +25,10 @@ control_slots=3
 fail() {
   printf 'FAIL %s (%s)\n' "$label" "$1"
   exit 1
+}
+
+models_here() {
+  [ "${CI_D_JOB:-}" != windows ]
 }
 
 sha256() {
@@ -440,12 +445,18 @@ check() {
   pin
   java_of
   jar
-  checked
+  if models_here; then
+    checked
+  fi
   exported
   table_same "$dir/policy-table.tsv" || fail table
   traces_same || fail traces
-  control
-  controls
+  if models_here; then
+    control
+    controls
+  else
+    printf 'formal left to the macos job: the runs of Confirm.cfg, Rebinds.cfg and Control.cfg and the 12 controls (CI_D_JOB=windows)\n'
+  fi
   finish
   printf 'PASS %s\n' "$name"
 }
@@ -469,8 +480,12 @@ for a in "$@"; do
   prev=$a
 done
 mode=${STUB_MODE:-ok}
+[ -z "${STUB_LOG:-}" ] || printf '%s %s\n' "$cfg" "$(sed -n '/^INVARIANTS$/,$p' "$cfg" | sed -n 's/^  //p' | tr '\n' ' ')" >>"$STUB_LOG"
 if [ "$cfg" = Export.cfg ]; then
   [ "$mode" != export-fails ] || exit 1
+  if [ "$mode" = writes-export ] && [ -n "${STUB_WRITE:-}" ]; then
+    printf 'written by the export\n' >>"$STUB_WRITE"
+  fi
   awk 'BEGIN { FS = "\t"; OFS = " " } { $1 = $1; printf "\"T %s\"\n", $0 }' "$STUB_DIR/policy-table.tsv"
   printf '"D 377"\n'
   awk '{ gsub(/"/, "\\\""); printf "\"J %04d %s\"\n", NR - 1, $0 }' "$STUB_DIR/traces.jsonl"
@@ -605,7 +620,8 @@ expect() {
     JAVA_HOME=$tmp/stub
     STUB_DIR=$dir
     TLA2TOOLS_JAR=${fixture_jar:-$tmp/tla2tools.jar}
-    export CI_D_REPO CI_D_ARTIFACTS JAVA_HOME STUB_DIR TLA2TOOLS_JAR
+    CI_D_JOB=macos
+    export CI_D_REPO CI_D_ARTIFACTS JAVA_HOME STUB_DIR TLA2TOOLS_JAR CI_D_JOB
     for assignment in "$@"; do
       export "${assignment?}"
     done
@@ -619,7 +635,7 @@ expect() {
       'formal java '*) java_ran=yes ;;
     esac
   done <"$tmp/fixture.out"
-  if [ "$want:$java_ran" = tracked:yes ] && [ "${fixture%-outside}" != step-writes ]; then
+  if [ "$want:$java_ran" = tracked:yes ] && case ${fixture%-outside} in step-writes*) false ;; *) true ;; esac; then
     cp "$tmp/fixture.out" "$art/fixture-$fixture.txt" || fail selftest
     fail "fixture $fixture looked for java before the cause tracked"
   fi
@@ -698,6 +714,82 @@ silent_fetch() {
   rejected=$((rejected + 1))
 }
 
+calls_case() {
+  fixture=$1
+  : >"$tmp/calls-$1.txt" || fail selftest
+  (
+    label=$name
+    CI_D_REPO=$fx
+    CI_D_ARTIFACTS=$tmp/fixture-artifacts
+    JAVA_HOME=$tmp/stub
+    STUB_DIR=$dir
+    TLA2TOOLS_JAR=$tmp/tla2tools.jar
+    STUB_LOG=$tmp/calls-$1.txt
+    export CI_D_REPO CI_D_ARTIFACTS JAVA_HOME STUB_DIR TLA2TOOLS_JAR STUB_LOG
+    if [ "$2" = - ]; then
+      unset CI_D_JOB
+    else
+      CI_D_JOB=$2
+      export CI_D_JOB
+    fi
+    check
+  ) >"$tmp/fixture.out" 2>&1
+  last=
+  left=0
+  while IFS= read -r line; do
+    last=$line
+    case $line in
+      'formal left to the macos job: '*) left=$((left + 1)) ;;
+    esac
+  done <"$tmp/fixture.out"
+  exports=$(grep -c '^Export\.cfg ' "$tmp/calls-$1.txt")
+  runs=$(grep -c -v '^Export\.cfg ' "$tmp/calls-$1.txt")
+  if [ "$last" != "PASS $name" ] || [ "$exports" -lt 1 ] || [ "$runs" -ne "$3" ] || [ "$left" -ne "$4" ]; then
+    cp "$tmp/fixture.out" "$art/fixture-$1.txt" || fail selftest
+    cp "$tmp/calls-$1.txt" "$art/fixture-$1-calls.txt" || fail selftest
+    fail "fixture $1 ended with: $last; export calls $exports, model calls $runs (want $3), lines that name the macos job $left (want $4)"
+  fi
+  printf 'fixture %s passed=yes export-calls=%s model-calls=%s\n' "$1" "$exports" "$runs"
+}
+
+windows_fixture() {
+  fixture_file "$1" || fail selftest
+  fx_commit "$base"
+  fixture=$1-windows
+  expect "$2" CI_D_JOB=windows
+  fx_reset
+  [ ! -f "$tmp/Rebinds.cfg.out" ] || mv "$tmp/Rebinds.cfg.out" "$fx/formal/r3-confirm/Rebinds.cfg" || fail selftest
+  fx_reset
+}
+
+windows_cases() {
+  calls_case calls-windows windows 0 1
+  calls_case calls-macos macos 15 0
+  calls_case calls-without-a-job - 15 0
+  calls_case calls-capital-windows Windows 15 0
+  calls_case calls-windows-and-a-blank 'windows ' 15 0
+  fixture='tracked-unstaged-windows'
+  printf '\\* changed\n' >>"$fx/formal/r3-confirm/Confirm.tla" || fail selftest
+  expect tracked CI_D_JOB=windows
+  fx_reset
+  windows_fixture no-rebinds-cfg 'missing formal/r3-confirm/Rebinds.cfg'
+  windows_fixture cfg-one-invariant-fewer configs
+  windows_fixture pin-http pin
+  fixture='java-11-windows'
+  expect java STUB_MAJOR=11 CI_D_JOB=windows
+  fixture='jar-one-bit-windows'
+  fixture_jar=$tmp/bit.jar
+  expect jar CI_D_JOB=windows
+  fixture_jar=
+  fixture='export-fails-windows'
+  expect export STUB_MODE=export-fails CI_D_JOB=windows
+  windows_fixture table-one-row-fewer table
+  windows_fixture traces-one-byte traces
+  fixture='step-writes-windows'
+  expect tracked STUB_MODE=writes-export "STUB_WRITE=$fx/formal/r3-confirm/README.md" CI_D_JOB=windows
+  fx_reset
+}
+
 self_test() {
   label=self-test:$name
   locate
@@ -745,7 +837,8 @@ P5 == TRUE\
     JAVA_HOME=$tmp/stub
     STUB_DIR=$dir
     TLA2TOOLS_JAR=$tmp/tla2tools.jar
-    export CI_D_REPO CI_D_ARTIFACTS JAVA_HOME STUB_DIR TLA2TOOLS_JAR
+    CI_D_JOB=macos
+    export CI_D_REPO CI_D_ARTIFACTS JAVA_HOME STUB_DIR TLA2TOOLS_JAR CI_D_JOB
     check
   ) >"$tmp/fixture.out" 2>&1 || {
     cp "$tmp/fixture.out" "$art/fixture-unchanged.txt"
@@ -785,7 +878,8 @@ P5 == TRUE\
     JAVA_HOME=$tmp/stub
     STUB_MODE=tool-options
     JAVA_TOOL_OPTIONS=-Dfixture=yes
-    export CI_D_REPO CI_D_ARTIFACTS JAVA_HOME STUB_MODE JAVA_TOOL_OPTIONS
+    CI_D_JOB=macos
+    export CI_D_REPO CI_D_ARTIFACTS JAVA_HOME STUB_MODE JAVA_TOOL_OPTIONS CI_D_JOB
     sh "$fx/$self_path"
   ) >"$tmp/fixture.out" 2>&1
   last=
@@ -849,6 +943,7 @@ P5 == TRUE\
   fixture='step-writes-outside'
   expect tracked STUB_MODE=writes "STUB_WRITE=$fx/outside.txt"
   fx_reset
+  windows_cases
   java=$real_java
   committed
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"

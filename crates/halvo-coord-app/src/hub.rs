@@ -276,10 +276,17 @@ where
             "agents_setup_typed" => item()
                 .and_then(|i| {
                     let param = Param::parse(args.text("param"))?;
-                    self.coord.setup_typed(&i, param, args.text("text"))
+                    let step = args.count("step").ok_or(Cause::Malformed)?;
+                    self.coord.setup_typed(&i, param, args.text("text"), step)
                 })
                 .into(),
             "agents_present" => item().and_then(|i| self.present(i)).into(),
+            "agents_shown" => item()
+                .and_then(|i| {
+                    let step = args.count("step").ok_or(Cause::Malformed)?;
+                    self.coord.shown_on_page(&i, step)
+                })
+                .into(),
             "agents_control" => agent()
                 .and_then(|a| {
                     let action = Action::parse(args.text("action"))?;
@@ -304,7 +311,8 @@ where
             }
             _ => None,
         };
-        self.coord.answer(&item, choice, pick)
+        let step = args.count("step").ok_or(Cause::Malformed)?;
+        self.coord.answer(&item, choice, pick, step)
     }
 
     fn present(&self, item: ItemId) -> Result<(), Cause> {

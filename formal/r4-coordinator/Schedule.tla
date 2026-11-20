@@ -4,7 +4,7 @@ EXTENDS Integers, Sequences, FiniteSets
 CONSTANTS NAgents, NeedsPerson, NeedsModel, Slotted, Finished, OffAgents, Deletable,
           FirstSlot, Period, MaxDay, Frames, StopCauses,
           MaxLive, QueueMax, StartsPerDay, FailsToPause, CatchUpDays,
-          MaxRestarts, MaxDeletes, MaxRuns, Lefts, MaxAlive, StoreWaits, Ports
+          MaxRestarts, MaxDeletes, MaxRuns, Lefts, MaxAlive, StoreWaits, Ports, OffPorts
 
 VARIABLES st, h
 
@@ -23,21 +23,25 @@ ASSUME /\ NeedsPerson \subseteq Agents
        /\ OffAgents \subseteq Agents
        /\ Deletable \subseteq Agents
        /\ Frames \subseteq Outcomes
-       /\ StopCauses \subseteq {"cancelled", "lapsed"}
+       /\ StopCauses \subseteq {"cancelled", "lapsed", "answer_lost"}
        /\ Lefts \subseteq BOOLEAN
        /\ Lefts # {}
        /\ StoreWaits \in BOOLEAN
        /\ Ports \subseteq {"ok", "no_ack", "no_store", "no_run"}
        /\ "ok" \in Ports
+       /\ OffPorts \subseteq {"ok", "lost"}
+       /\ "ok" \in OffPorts
 
-NoFacts == [open |-> [a \in Agents |-> 0], unknown |-> [a \in Agents |-> 0]]
+StopEnd(why) == IF why = "answer_lost" THEN "failed" ELSE why
+
+NoFacts == [open |-> [a \in Agents |-> 0], unknown |-> [a \in Agents |-> 0], offs |-> {}]
 NoMark == [run |-> 0, dead |-> FALSE, left |-> FALSE, sent |-> FALSE, by |-> "none"]
 
 Init0 ==
     [day |-> 1, life |-> 1, nrun |-> 0, dels |-> 0,
      runs |-> {}, queue |-> <<>>, ready |-> {}, off |-> {}, gone |-> {}, lost |-> {}, cleared |-> {},
      paused |-> {}, dying |-> {}, owing |-> {}, f |-> NoFacts,
-     fin |-> Finished,
+     fin |-> Finished, clean |-> Finished,
      starts |-> [a \in Agents |-> [d \in Days |-> 0]],
      fails |-> [a \in Agents |-> 0],
      done |-> [a \in Agents |-> 0],
@@ -49,7 +53,7 @@ InitH ==
      gone |-> [a \in Agents |-> "listed"],
      wait |-> [a \in Agents |-> [t \in Askers |-> 0]],
      count |-> [a \in Agents |-> [d \in Days |-> 0]],
-     done |-> Finished,
+     done |-> Finished, clean |-> Finished,
      served |-> [a \in Agents |-> 0],
      streak |-> [a \in Agents |-> 0],
      holds |-> [a \in Agents |-> {}],
@@ -61,7 +65,8 @@ InitH ==
      heldstarts |-> 0, unacked |-> 0, alone |-> 0, extra |-> 0, after |-> 0, gonestarts |-> 0,
      wrongend |-> 0, noslot |-> 0, openstarts |-> 0, wrongsend |-> 0, forgotten |-> 0]
 
-Facts(g) == [open |-> [a \in Agents |-> g.store[a].run], unknown |-> g.unknown]
+Facts(g) == [open |-> [a \in Agents |-> g.store[a].run], unknown |-> g.unknown,
+             offs |-> {a \in Agents : "off" \in g.holds[a]}]
 
 CurSlot(d) ==
     LET S == {x \in 1..d : x >= FirstSlot /\ (x - FirstSlot) % Period = 0}
@@ -75,6 +80,9 @@ Open(s, a) ==
 
 Checked(s, a) == s.f.unknown[a] # 0 /\ s.f.unknown[a] \notin s.cleared
 Held(s, a) == a \notin s.lost /\ (a \in s.off \/ a \in s.paused \/ Checked(s, a))
+Lag(s, a) == a \in s.f.offs /\ a \notin s.off
+Learn(s, a) == IF Lag(s, a) THEN [s EXCEPT !.off = @ \cup {a}] ELSE s
+
 Unready(s, read) == [s EXCEPT !.ready = {a \in @ : a \notin read \/ a \in s.gone \/ ~Checked(s, a)}]
 
 LiveOf(s, a) == {r \in s.runs : r.agent = a}
@@ -94,7 +102,7 @@ Decide(s, a) ==
 
 SlotOf(s, a, trig) ==
     IF trig = "schedule" THEN CurSlot(s.day)
-    ELSE IF a \in s.fin /\ Open(s, a) THEN CurSlot(s.day)
+    ELSE IF a \in s.clean /\ Open(s, a) THEN CurSlot(s.day)
     ELSE 0
 
 SlotDue(s, a) ==
@@ -111,12 +119,14 @@ Ended(s, a, cause, d) ==
     LET n == Streak(s, a, cause)
     IN IF a \in s.gone THEN s ELSE
        [s EXCEPT !.fin = IF cause = "completed" THEN @ \cup {a} ELSE @,
+                 !.clean = IF cause \in Served THEN @ \cup {a} ELSE @,
                  !.done[a] = IF cause \in Served /\ a \in Slotted /\ d > @ THEN d ELSE @,
                  !.fails[a] = n,
                  !.paused = IF cause \in FailureClass /\ n >= FailsToPause THEN @ \cup {a} ELSE @]
 
 Stored(run, a, cause) == [k |-> "run_ended", run |-> run, agent |-> a, cause |-> cause]
 State(a, x) == [k |-> "set_state", agent |-> a, state |-> x]
+Paused(s, a) == IF Lag(s, a) THEN <<State(a, "paused")>> ELSE <<>>
 
 EndOut(s, run, a, cause) ==
     IF a \in s.gone THEN <<>> ELSE
@@ -129,6 +139,10 @@ Launch(s, a, trig, port, q) ==
     IF port = "no_ack"
     THEN [r |-> "no_service", st |-> s, run |-> 0,
           out |-> <<[k |-> "defer"]>> \o (IF q THEN <<[k |-> "left", agent |-> a]>> ELSE <<>>)]
+    ELSE IF Lag(s, a)
+    THEN [r |-> Decide(Learn(s, a), a), st |-> Learn(s, a), run |-> 0,
+          out |-> <<[k |-> "defer"]>> \o (IF q THEN <<[k |-> "left", agent |-> a]>> ELSE <<>>)
+                  \o Paused(s, a)]
     ELSE LET slot == SlotOf(s, a, trig)
              id == s.nrun + 1
              s1 == [s EXCEPT !.nrun = id,
@@ -162,6 +176,8 @@ Start(s, a, trig, port) ==
     IN IF d = "go" THEN Launch(s, a, trig, port, FALSE)
        ELSE IF d # "wait" THEN [r |-> d, st |-> s, run |-> 0, out |-> <<>>]
        ELSE IF Len(s.queue) >= QueueMax THEN [r |-> "queue_full", st |-> s, run |-> 0, out |-> <<>>]
+       ELSE IF a \in s.ready /\ Lag(s, a)
+       THEN [r |-> Decide(Learn(s, a), a), st |-> Learn(s, a), run |-> 0, out |-> Paused(s, a)]
        ELSE [r |-> "queued", run |-> 0,
              out |-> <<[k |-> "queued", agent |-> a]>>,
              st |-> [s EXCEPT !.queue = Enqueue(@, [agent |-> a, trigger |-> trig]),
@@ -169,10 +185,12 @@ Start(s, a, trig, port) ==
 
 Pressed(s, a, port) ==
     LET ends == a \notin s.gone /\ a \in s.paused
-        x == Start(IF a \in s.gone THEN s ELSE [s EXCEPT !.paused = @ \ {a}], a, "person", port)
+        s1 == IF a \in s.gone THEN s ELSE [s EXCEPT !.paused = @ \ {a}]
+        x == Start(IF ends THEN Learn(s1, a) ELSE s1, a, "person", port)
     IN [x EXCEPT !.out = (IF ends THEN <<[k |-> "hold_cleared", agent |-> a, cause |-> "failures"]>> ELSE <<>>)
-                         \o (IF ends /\ a \notin s.off THEN <<State(a, "active")>> ELSE <<>>)
-                         \o @]
+                         \o (IF ends /\ a \notin Learn(s, a).off THEN <<State(a, "active")>> ELSE <<>>)
+                         \o @
+                         \o (IF ends THEN Paused(s, a) ELSE <<>>)]
 
 Press(s, a, port) ==
     IF a \in s.lost THEN [r |-> "unknown_agent", st |-> s, run |-> 0, out |-> <<>>]
@@ -218,9 +236,9 @@ Kill(acc, due, port) ==
              call == <<[k |-> "kill", run |-> id]>>
          IN IF S = {} THEN Kill([acc EXCEPT !.out = @ \o call], due \ {id}, port)
             ELSE LET run == CHOOSE x \in S : TRUE
-                     e == EndRun(acc.st, run, run.why, port, FALSE, FALSE)
+                     e == EndRun(acc.st, run, StopEnd(run.why), port, FALSE, FALSE)
                  IN Kill([st |-> e.st,
-                          ended |-> Append(acc.ended, [run |-> run.id, cause |-> run.why, next |-> e.next]),
+                          ended |-> Append(acc.ended, [run |-> run.id, cause |-> StopEnd(run.why), next |-> e.next]),
                           out |-> acc.out \o call \o e.out],
                          due \ {id}, port)
 
@@ -242,8 +260,9 @@ TickAgent(s, a, port) ==
     IF a \in s.gone \/ Held(s, a) \/ LiveOf(s, a) # {} \/ Queued(s, a) \/ a \in s.lost
     THEN [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF a \in NeedsPerson \/ a \notin s.fin
-    THEN IF (Open(s, a) \/ a \notin s.fin) /\ a \notin s.ready
-         THEN [st |-> [s EXCEPT !.ready = @ \cup {a}], raised |-> <<a>>, started |-> <<>>, out |-> <<>>]
+    THEN IF (Open(s, a) \/ a \notin s.clean) /\ a \notin s.ready
+         THEN IF Lag(s, a) THEN [st |-> Learn(s, a), raised |-> <<>>, started |-> <<>>, out |-> <<>>]
+              ELSE [st |-> [s EXCEPT !.ready = @ \cup {a}], raised |-> <<a>>, started |-> <<>>, out |-> <<>>]
          ELSE [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF SlotDue(s, a)
     THEN LET x == Start(s, a, "schedule", port)
@@ -301,25 +320,33 @@ Restart(s, d, alive) ==
         owed == Marks(s, alive)
     IN [r |-> "ok", ended |-> v.ended, out |-> v.out \o Sends(owed),
         st |-> [v.st EXCEPT !.life = @ + 1, !.day = d, !.queue = <<>>, !.ready = {}, !.dying = {},
-                            !.lost = @ \cup s.gone, !.gone = {}, !.off = @ \ s.gone, !.paused = @ \ s.gone,
+                            !.lost = @ \cup s.gone, !.gone = {}, !.off = (@ \cup s.f.offs) \ s.gone,
+                            !.paused = @ \ s.gone,
                             !.owing = owed]]
 
 Check(s, a) ==
     IF a \in s.gone \/ ~Checked(s, a) THEN [r |-> "state", st |-> s, out |-> <<>>]
     ELSE [r |-> "ok",
           out |-> <<[k |-> "hold_cleared", agent |-> a, cause |-> "check", run |-> s.f.unknown[a]]>>,
-          st |-> [Unready(s, {a}) EXCEPT !.cleared = @ \cup {s.f.unknown[a]}]]
+          st |-> [Unready(Learn(s, a), {a}) EXCEPT !.cleared = @ \cup {s.f.unknown[a]}]]
 
 Delete(s, a) ==
     [r |-> "ok", out |-> <<>>,
      st |-> [s EXCEPT !.gone = @ \cup {a}, !.dels = @ + 1]]
 
-Off(s, a) ==
+Off(s, a, port) ==
     LET hit == {r \in s.runs : r.agent = a /\ r.phase # "stopping"}
-    IN [r |-> "ok", stopped |-> {r.id : r \in hit},
-        out |-> <<[k |-> "hold_set", agent |-> a, cause |-> "person"]>>
+        Stays(e) == e.agent # a
+    IN IF port = "lost"
+       THEN [r |-> "no_service", stopped |-> {}, st |-> s,
+             out |-> <<[k |-> "hold_set", agent |-> a, cause |-> "person"]>>]
+       ELSE
+       [r |-> "ok", stopped |-> {r.id : r \in hit},
+        out |-> (IF Lag(s, a) THEN <<>> ELSE <<[k |-> "hold_set", agent |-> a, cause |-> "person"]>>)
+                \o (IF Queued(s, a) THEN <<[k |-> "left", agent |-> a]>> ELSE <<>>)
                 \o Cancels({r.id : r \in hit}) \o <<State(a, "paused")>>,
         st |-> [s EXCEPT !.off = @ \cup {a},
+                         !.queue = SelectSeq(@, Stays),
                          !.runs = (@ \ hit) \cup {[r EXCEPT !.phase = "stopping", !.why = "cancelled"] : r \in hit}]]
 
 RunStep(s, mv) ==
@@ -341,7 +368,7 @@ RunStep(s, mv) ==
 End(s, mv) ==
     IF \A r \in s.runs : r.id # mv.run THEN [r |-> "state", st |-> s, out |-> <<>>]
     ELSE LET run == CHOOSE r \in s.runs : r.id = mv.run
-             cause == IF run.phase = "stopping" THEN run.why
+             cause == IF run.phase = "stopping" THEN StopEnd(run.why)
                       ELSE IF mv.frame # "none" THEN mv.frame
                       ELSE "interrupted"
              e == EndRun(s, run, cause, mv.port, mv.frame # "none", mv.frame = "effect_unknown")
@@ -354,7 +381,7 @@ Read(s, mv) ==
       [] mv.m = "tick" -> Tick(s, mv.day, mv.grace, mv.port)
       [] mv.m = "restart" -> Restart(s, mv.day, mv.alive)
       [] mv.m = "delete" -> Delete(s, mv.agent)
-      [] mv.m = "off" -> Off(s, mv.agent)
+      [] mv.m = "off" -> Off(s, mv.agent, mv.port)
       [] mv.m = "end" -> End(s, mv)
       [] mv.m = "check" -> Check(s, mv.agent)
       [] mv.m = "ack" -> [r |-> "ok", st |-> s, out |-> <<>>]
@@ -395,7 +422,7 @@ Moves(s) ==
                     l \in IF s.runs = {} THEN {FALSE} ELSE Lefts}
           ELSE {})
     \cup (IF s.dels < MaxDeletes THEN {[m |-> "delete", agent |-> a] : a \in Deletable \ (s.gone \cup s.lost)} ELSE {})
-    \cup {[m |-> "off", agent |-> a] : a \in OffAgents \ s.off}
+    \cup {[m |-> "off", agent |-> a, port |-> "ok"] : a \in OffAgents \ s.off}
 
 Acked(g, a) == g.store[a].run # 0 /\ g.store[a].dead /\ g.store[a].sent /\ g.gone[a] = "listed"
 HCheck(g, a) == g.unknown[a] # 0 /\ g.unknown[a] \notin g.answered
@@ -403,6 +430,10 @@ HCheck(g, a) == g.unknown[a] # 0 /\ g.unknown[a] \notin g.answered
 EnvMoves(g) ==
     {[m |-> "ack", agent |-> a] : a \in {x \in Agents : Acked(g, x)}}
     \cup {[m |-> "check", agent |-> a] : a \in {x \in Agents : HCheck(g, x) /\ g.gone[x] = "listed"}}
+
+OffMoves(s, g) ==
+    {[m |-> "off", agent |-> a, port |-> "lost"] :
+        a \in {x \in OffAgents \ s.off : "lost" \in OffPorts /\ LiveOf(s, x) = {} /\ "off" \notin g.holds[x]}}
 
 PortOf(mv) == IF mv.m \in {"start", "tick", "end"} THEN mv.port ELSE "ok"
 
@@ -414,7 +445,7 @@ HOpen(g, a) ==
 
 HSlot(g, a, person) ==
     IF ~person THEN CurSlot(g.day)
-    ELSE IF a \in g.done /\ HOpen(g, a) THEN CurSlot(g.day)
+    ELSE IF a \in g.clean /\ HOpen(g, a) THEN CurSlot(g.day)
     ELSE 0
 
 HEnded(g, a, cause, d) ==
@@ -422,6 +453,7 @@ HEnded(g, a, cause, d) ==
              ELSE IF g.streak[a] < FailsToPause THEN g.streak[a] + 1
              ELSE g.streak[a]
     IN [g EXCEPT !.done = IF cause = "completed" THEN @ \cup {a} ELSE @,
+                 !.clean = IF cause \in Served THEN @ \cup {a} ELSE @,
                  !.served[a] = IF cause \in Served /\ a \in Slotted /\ d > @ THEN d ELSE @,
                  !.streak[a] = n,
                  !.holds[a] = IF cause \in FailureClass /\ n >= FailsToPause THEN @ \cup {"failures"} ELSE @]
@@ -476,7 +508,8 @@ HMove(g, mv) ==
       [] mv.m = "stop" -> HStopped(g, {mv.run}, mv.cause)
       [] OTHER -> g
 
-HOwes(r, cause) == [id |-> r.id, agent |-> r.agent, day |-> r.day, cause |-> cause]
+HOwes(r, cause) == [id |-> r.id, agent |-> r.agent, day |-> r.day,
+                    cause |-> IF cause = "answer_lost" THEN "failed" ELSE cause]
 
 HLeft(acc, S, reaped) ==
     [acc EXCEPT !.h.live = @ \ S,
@@ -599,7 +632,7 @@ Hist(g, mv, res) ==
     IN HAfter(g, IF StoreWaits THEN g2 ELSE HSettle(g2, 1), mv)
 
 Init == st = Init0 /\ h = InitH
-Next == \E mv \in Moves(st) \cup EnvMoves(h) :
+Next == \E mv \in Moves(st) \cup EnvMoves(h) \cup OffMoves(st, h) :
             LET res == Step(st, mv, Facts(h)) IN st' = res.st /\ h' = Hist(h, mv, res)
 Now == [st EXCEPT !.f = Facts(h)]
 Bound == st.nrun <= MaxRuns
@@ -667,9 +700,10 @@ ReachGoneQueued == [][~(\E a \in Agents : /\ h.gone[a] = "gone"
 ReachOffLive == [][~(\E r \in h.live : /\ ~r.stop
                                        /\ "off" \notin h.holds[r.agent]
                                        /\ "off" \in h'.holds[r.agent])]_vars
-ReachOffQueued == [][~(\E a \in Agents : /\ "off" \in h.holds[a]
-                                         /\ h.wait[a]["person"] = 1
-                                         /\ h'.wait[a]["person"] = 0
+ReachOffQueued == [][~(\E a \in Agents : /\ "off" \notin h.holds[a]
+                                         /\ h.wait[a]["person"] + h.wait[a]["schedule"] = 1
+                                         /\ "off" \in h'.holds[a]
+                                         /\ h'.wait[a]["person"] + h'.wait[a]["schedule"] = 0
                                          /\ h'.life = h.life
                                          /\ st'.nrun = st.nrun)]_vars
 ReachKillCancelled == [][~(\E r \in Stopping("cancelled") : r.agent \notin st.off /\ KilledAt(r))]_vars
@@ -705,6 +739,11 @@ ReachSentAgain == [][~(st.owing # {} /\ st'.owing = st.owing /\ st'.life = st.li
 ReachFailedOwed == ~(st.life = 1 /\ st.owing # {})
 ReachFailedSentAgain == [][~(st.life = 1 /\ st.owing # {} /\ st'.owing = st.owing /\ h'.day # h.day)]_vars
 ReachOwingEnds == [][~(st.owing # {} /\ st'.owing = {} /\ st'.life = st.life)]_vars
+
+ReachOffRead == [][~(\E a \in Agents : /\ a \notin st.off
+                                       /\ a \in st'.off
+                                       /\ "off" \in h.holds[a]
+                                       /\ st'.life = st.life)]_vars
 
 StaysLive == \A r \in h.live : h.gone[r.agent] = "listed"
 =============================================================================

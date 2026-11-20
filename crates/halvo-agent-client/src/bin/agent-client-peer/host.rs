@@ -100,7 +100,7 @@ impl Human for Yes {
 }
 
 impl Secrets for Yes {
-    fn read(&self, _name: &Name) -> SecretReply {
+    fn read(&self, _agent: &AgentId, _name: &Name) -> SecretReply {
         SecretReply::None
     }
 }
@@ -302,6 +302,7 @@ pub fn run(args: &[String]) {
         browser: PathBuf::from(script),
         model: None,
         headed: false,
+        utc_offset_s: 0,
     };
     let run = spec.run.clone();
     match sup.start(spec) {

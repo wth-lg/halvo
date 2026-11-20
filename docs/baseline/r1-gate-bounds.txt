@@ -32,12 +32,16 @@ cpu_max_pct_of_one_core=20
 # length to a day. No figure per event is written here: gate-4 measures it on
 # the real store.
 disk_max_bytes_per_day=2000000000
-# ci_job_timeout_min: 120 by ruling PR-31 item 1 of 2026-11-14: the macos job
-# reckons about 5,340 s after land-43 on a normal runner, 5,700 to 5,780 s by
-# projection on land-41's slow attempt, and store-3 adds 350 to 430 s. Before
-# it: 90 by ruling JB-6 (2), 60 (2026-11-11 08:25Z), 30 (RD-45). The workflow
-# lint compares each job's timeout with it.
-ci_job_timeout_min=120
+# ci_job_timeout_min: 180 by ruling WS-9 of 2026-11-18: main's push run
+# 44373816491 at 68c80599 read 8,342 s in its windows job of 9,000 s.
+# 150 before it, by ruling JB-52 of 2026-11-18: the macos job had
+# stood within minutes of 7,200 s for five landings, and land-56's push run
+# 44201520845 read 6,486 s with no dash pass of 15-gate-self-test and no
+# budget pass of 30-mutants; scripts/ci/README.md holds the arithmetic of the
+# margin. Before it: 120 by ruling PR-31 item 1 of 2026-11-14, 90 by ruling
+# JB-6 (2), 60 (2026-11-11 08:25Z), 30 (RD-45). The workflow lint compares
+# each job's timeout with it.
+ci_job_timeout_min=180
 # child_deadline_extra_s: the screen source's start waits of 10 s and 5 s and
 # its stop wait of 5 s, plus 5 s. Every measured child gets its duration plus
 # this many seconds before the gate ends it and prints FAIL: each timed run,

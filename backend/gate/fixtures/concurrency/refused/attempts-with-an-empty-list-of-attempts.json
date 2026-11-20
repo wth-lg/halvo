@@ -1,0 +1,38 @@
+{
+  "kind": "attempts",
+  "ruling": "P7-107 K3, on the planner's Addition 27",
+  "about": "an attempts record whose list of attempts is empty: no attempt is scripted; records.mjs refuses it",
+  "source": "by hand, after the review's B3 and the verifier's finding 4",
+  "cell": {
+    "name": "rollover@20",
+    "kind": "rollover",
+    "level": 20,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 1
+  },
+  "stopAtFirstViolation": true,
+  "attempts": [],
+  "expect": {
+    "halted": false,
+    "discarded": [
+      {
+        "key": "attempt-1",
+        "crossed": false,
+        "crossingBuilt": false,
+        "firstAdmissionMs": 152
+      }
+    ],
+    "runs": [
+      {
+        "key": "attempt-2",
+        "rigUnbuilt": false
+      }
+    ],
+    "reported": [
+      "attempt-1",
+      "attempt-2"
+    ]
+  },
+  "refusal": "its list attempts is empty"
+}

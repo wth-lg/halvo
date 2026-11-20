@@ -1,4 +1,5 @@
-use super::check::raise_checks;
+use super::check::{raise_checks, read_replies};
+use crate::items::drive::{class_of, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs, Stamp};
 use crate::schedule::{item_closed, resync, seq_refusal, Board, Ended, Member, Owed, Owing};
 use crate::types::{
@@ -116,16 +117,24 @@ fn cause(error: &PortError) -> Cause {
     }
 }
 
-fn history<P: Owner>(ports: &P, agent: &AgentId) -> Result<Vec<Event>, PortError> {
+fn history<P: Owner>(ports: &P, agent: &AgentId) -> Result<(Vec<Event>, u32), PortError> {
     let mut events: Vec<Event> = Vec::new();
-    resync(ports, agent, &mut events)?;
-    Ok(events)
+    let last = resync(ports, agent, &mut events)?;
+    Ok((events, last))
 }
 
 /// Stores recovery's body for one agent: `run_ended` with `interrupted` for each run that ends
 /// and `item_lapsed` with `app_ended` for each open item, after the agent's last event, which
-/// the agent's events take once the owner acknowledged them. An empty body calls no port.
-fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Result<(), PortError> {
+/// the agent's events take once the owner acknowledged them. The rows go in bodies of at most
+/// `request_records` records and `request_bytes` bytes, each row a debt of its own, so that a
+/// body is cut between the rows of two debts and never inside one (I7.2, ruling RD-64 2.2). An
+/// empty body calls no port.
+fn log_recovery_body<P: Owner, C>(
+    ports: &P,
+    f: &mut Found<C>,
+    (day, at): (u32, i64),
+    limits: &Limits,
+) -> Result<(), PortError> {
     let mut whats: Vec<What> = f
         .step
         .ended
@@ -133,6 +142,7 @@ fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Resu
         .map(|run| What::RunEnded {
             run: run.clone(),
             cause: RunEnd::Interrupted,
+            defers: None,
         })
         .collect();
     whats.extend(f.step.lapsed.iter().map(|(item, lapsed)| What::ItemLapsed {
@@ -142,7 +152,7 @@ fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Resu
     if whats.is_empty() {
         return Ok(());
     }
-    let last = f.events.last().map_or(0, |e| e.seq.get());
+    let last = f.last;
     let events: Vec<Event> = whats
         .into_iter()
         .zip(0u32..)
@@ -155,8 +165,14 @@ fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Resu
             what,
         })
         .collect();
-    ports.log(&events)?;
-    f.events.extend(events);
+    let mut sent = 0;
+    while sent < events.len() {
+        let n = crate::items::drive::body_len(&events[sent..], limits);
+        ports.log(&events[sent..sent + n])?;
+        f.events.extend_from_slice(&events[sent..sent + n]);
+        sent += n;
+        f.last = events[sent - 1].seq.get();
+    }
     Ok(())
 }
 
@@ -164,7 +180,7 @@ fn log_body<P: Owner, C>(ports: &P, f: &mut Found<C>, day: u32, at: i64) -> Resu
 /// full shape as it is, and the dismissed shape with its id, its category and its site, the
 /// state `paused`, the trigger `manual` and no period, so that no tick starts its agent or
 /// sends `active` for it.
-fn known(workflow: &Workflow, agent: &AgentId, day: u32) -> FullWorkflow {
+fn full_or_paused_manual(workflow: &Workflow, agent: &AgentId, day: u32) -> FullWorkflow {
     match workflow {
         Workflow::Full(f) => f.clone(),
         Workflow::Dismissed(d) => FullWorkflow {
@@ -178,6 +194,11 @@ fn known(workflow: &Workflow, agent: &AgentId, day: u32) -> FullWorkflow {
             agent: Some(agent.clone()),
         },
     }
+}
+
+fn dismissed_in(list: &[Workflow], id: &crate::types::WorkflowId) -> bool {
+    list.iter()
+        .any(|w| matches!(w, Workflow::Dismissed(d) if &d.id == id))
 }
 
 fn started_at(events: &[Event], run: &RunId) -> i64 {
@@ -194,6 +215,7 @@ struct Found<C> {
     agent: Agent<C>,
     workflow: FullWorkflow,
     events: Vec<Event>,
+    last: u32,
     step: Recovery,
 }
 
@@ -237,15 +259,28 @@ where
     let workflows = ports.workflows().map_err(|e| cause(&e))?;
     let agents = ports.agents().map_err(|e| cause(&e))?;
     let mut found: Vec<Found<P::Config>> = Vec::new();
+    let mut aside: Vec<AgentId> = Vec::new();
+    let mut unread: Vec<AgentId> = Vec::new();
     for agent in agents {
-        let Some(workflow) = workflows
-            .iter()
-            .find(|w| w.id() == &agent.workflow)
-            .map(|w| known(w, &agent.agent, day))
-        else {
+        let Some(listed) = workflows.iter().find(|w| w.id() == &agent.workflow) else {
             continue;
         };
-        let events = history(ports, &agent.agent).map_err(|e| cause(&e))?;
+        let workflow = full_or_paused_manual(listed, &agent.agent, day);
+        let (events, last) = match history(ports, &agent.agent) {
+            Ok(read) => read,
+            Err(PortError::Refused(name)) => match name.as_str() {
+                "no_workflow" => continue,
+                "binding" if matches!(listed, Workflow::Dismissed(_)) => {
+                    unread.push(agent.agent.clone());
+                    (Vec::new(), 0)
+                }
+                _ => {
+                    aside.push(agent.agent.clone());
+                    (Vec::new(), 0)
+                }
+            },
+            Err(e) => return Err(cause(&e)),
+        };
         let step = recover_step(
             &Earlier {
                 agent: &agent.agent,
@@ -258,6 +293,7 @@ where
             agent,
             workflow,
             events,
+            last,
             step,
         });
     }
@@ -277,19 +313,22 @@ where
     let mut owed: Vec<Owed> = Vec::new();
     let mut ended: Vec<Ended> = Vec::new();
     for f in &mut found {
-        let mut logged = log_body(ports, f, day, at);
-        if matches!(&logged, Err(e) if seq_refusal(e))
-            && resync(ports, &f.agent.agent, &mut f.events).is_ok()
-        {
+        let mut logged = log_recovery_body(ports, f, (day, at), limits);
+        let reread = matches!(&logged, Err(e) if seq_refusal(e))
+            .then(|| resync(ports, &f.agent.agent, &mut f.events));
+        if let Some(Ok(last)) = reread {
+            f.last = last;
             f.step = f.step(&reaped);
-            logged = log_body(ports, f, day, at);
+            logged = log_recovery_body(ports, f, (day, at), limits);
         }
+        let dismissed = dismissed_in(&workflows, &f.workflow.id);
+        let gone = matches!(&logged, Err(e) if class_of(e, dismissed) == Some(Class::Gone));
         ended.extend(f.step.ended.iter().map(|run| Ended {
             run: run.clone(),
             cause: RunEnd::Interrupted,
             next: Vec::new(),
         }));
-        if logged.is_err() {
+        if logged.is_err() && !gone {
             let runs = f.step.ended.iter().map(|run| Owing::RunEnded {
                 run: run.clone(),
                 cause: RunEnd::Interrupted,
@@ -315,7 +354,9 @@ where
     }
     for f in &found {
         if let Some(run) = &f.step.owed {
-            if ports.send(&Body::EndRun { run: run.clone() }).is_err() {
+            let sent = ports.send(&Body::EndRun { run: run.clone() });
+            let dismissed = dismissed_in(&workflows, &f.workflow.id);
+            if matches!(&sent, Err(e) if class_of(e, dismissed) != Some(Class::Gone)) {
                 owed.push(Owed {
                     agent: f.agent.agent.clone(),
                     workflow: f.workflow.id.clone(),
@@ -325,6 +366,11 @@ where
         }
     }
     let history_runs = limits.history_runs as usize;
+    let lasts: Vec<(AgentId, u32)> = found
+        .iter()
+        .filter(|f| !aside.contains(&f.agent.agent))
+        .map(|f| (f.agent.agent.clone(), f.last))
+        .collect();
     let members = found
         .into_iter()
         .map(|f| {
@@ -338,24 +384,41 @@ where
             };
             let mut runs: Vec<PastRun> = f.agent.last.clone().into_iter().collect();
             runs.truncate(history_runs);
+            let mut facts = Facts {
+                agent: f.agent.agent.clone(),
+                workflow: f.workflow,
+                config: f.agent.config,
+                slots: f.agent.slots,
+                runs,
+                unknown: Vec::new(),
+                events: f.events,
+                store_ended,
+                replies: crate::types::Replies::NotAsked,
+                today: day,
+                doing: Doing::Idle(None),
+            };
+            facts.take_unknown(&f.agent.unknown);
+            read_replies(ports, &mut facts);
             Member {
-                facts: Facts {
-                    agent: f.agent.agent.clone(),
-                    workflow: f.workflow,
-                    config: f.agent.config,
-                    slots: f.agent.slots,
-                    runs,
-                    events: f.events,
-                    store_ended,
-                    today: day,
-                    doing: Doing::Idle(None),
-                },
+                facts,
                 session: f.agent.session,
             }
         })
         .collect();
     let mut board = Board::new(day, members);
+    for (agent, last) in lasts {
+        if let Some(i) = board.members.iter().position(|m| m.facts.agent == agent) {
+            board.set_last(i, last);
+        }
+    }
     board.owed = owed;
+    for agent in &aside {
+        board.set_aside(agent, reaped.clone());
+    }
+    for agent in &unread {
+        board.keep_unread(agent);
+    }
+    board.note_list(&workflows);
     let checked = raise_checks(ports, &mut board, limits, None);
     Ok(Life {
         board,

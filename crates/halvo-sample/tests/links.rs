@@ -23,8 +23,8 @@ fn a_stream_directory_that_is_a_link_fails_with_its_line_first() {
         assert_eq!(o.code, 1, "{rule}: {}{}", o.stdout, o.stderr);
         let lines: Vec<&str> = o.stdout.lines().collect();
         assert_eq!(lines[0], format!("rule {rule}"));
-        assert_eq!(lines[1], "FAIL link golden-a", "{}", o.stdout);
-        assert_eq!(lines[2], "FAIL link golden-b", "{}", o.stdout);
+        assert_eq!(lines[1], "FAIL link s2", "{}", o.stdout);
+        assert_eq!(lines[2], "FAIL link s3", "{}", o.stdout);
         assert_eq!(
             o.stdout.lines().filter(|l| l.starts_with("FAIL")).count(),
             2,
@@ -57,7 +57,7 @@ fn a_streams_directory_with_links_alone_fails_and_is_not_refused() {
     link_dir(&elsewhere, &dir.join("streams/golden"));
     let o = run(&["check-labels", &s(&dir)]);
     assert_eq!(o.code, 1, "{}{}", o.stdout, o.stderr);
-    assert!(o.stdout.contains("FAIL link golden\n"), "{}", o.stdout);
+    assert!(o.stdout.contains("FAIL link s1\n"), "{}", o.stdout);
     assert!(
         o.stdout
             .contains("checked streams=0 episodes=0 ranges=0 title_events=0 failures=1\n"),
@@ -157,6 +157,91 @@ fn a_path_argument_through_a_link_and_dot_dot_is_refused_where_it_names_a_link()
         &["leak", &s(&t), &format!("lnk{sep}..{sep}x")],
     );
     refused(&o, "path");
+}
+
+#[test]
+fn a_tier_argument_that_is_a_link_is_refused_in_each_of_its_forms() {
+    let dir = scratch("link-tier");
+    let t = tier(&dir);
+    write(&dir.join("real/notes.md"), "nothing here\n");
+    let real = s(&dir.join("real"));
+    let o = run(&["leak", &s(&t), &real]);
+    assert_eq!(o.code, 0, "{}{}", o.stdout, o.stderr);
+    link_dir(&t, &dir.join("linked"));
+    let sep = std::path::MAIN_SEPARATOR;
+    let linked = s(&dir.join("linked"));
+    let refused_as_given = |o: &common::Out, form: &str| {
+        refused(o, "tier-manifest");
+        assert_eq!(o.stderr, format!("REFUSED tier-manifest: {form}\n"));
+    };
+    for form in [
+        linked.clone(),
+        format!("{linked}{sep}"),
+        format!("{linked}{sep}{sep}"),
+        format!("{linked}{sep}."),
+        format!("{linked}{sep}.{sep}"),
+        format!("{linked}{sep}streams{sep}.."),
+        format!("{linked}{sep}streams{sep}..{sep}"),
+    ] {
+        refused_as_given(&run(&["leak", &form, &real]), &form);
+    }
+    fs::create_dir_all(dir.join("below")).expect("a directory beside the link");
+    let form = format!("..{sep}linked{sep}");
+    refused_as_given(
+        &common::run_in(&dir.join("below"), &["leak", &form, &real]),
+        &form,
+    );
+    fs::create_dir_all(dir.join("phys/a/b")).expect("the physical target");
+    link_dir(&t, &dir.join("phys/a/x"));
+    fs::create_dir_all(dir.join("work")).expect("the working directory");
+    link_dir(&dir.join("phys/a/b"), &dir.join("work/lnk"));
+    assert!(!dir.join("work/x").exists());
+    let form = format!("lnk{sep}..{sep}x");
+    refused_as_given(
+        &common::run_in(&dir.join("work"), &["leak", &form, &real]),
+        &form,
+    );
+}
+
+#[test]
+fn a_tier_link_given_from_a_sibling_directory_with_a_name_and_dot_dot_after_it_is_refused() {
+    let dir = scratch("link-sibling");
+    let t = tier(&dir);
+    write(&dir.join("real/notes.md"), "nothing here\n");
+    let real = s(&dir.join("real"));
+    link_dir(&t, &dir.join("linked"));
+    fs::create_dir_all(dir.join("beside")).expect("a sibling directory");
+    let sep = std::path::MAIN_SEPARATOR;
+    let form = format!("..{sep}linked{sep}streams{sep}..");
+    let o = common::run_in(&dir.join("beside"), &["leak", &form, &real]);
+    refused(&o, "tier-manifest");
+    assert_eq!(o.stderr, format!("REFUSED tier-manifest: {form}\n"));
+}
+
+#[test]
+fn a_link_reached_through_a_linked_parent_and_a_trailing_separator_is_refused() {
+    let dir = scratch("link-parent-slash");
+    let t = tier(&dir);
+    write(&dir.join("real/notes.md"), "nothing here\n");
+    write(&dir.join("walked/notes.md"), "nothing here\n");
+    let real = s(&dir.join("real"));
+    fs::create_dir_all(dir.join("a/inner")).expect("the physical parent");
+    link_dir(&dir.join("a/inner"), &dir.join("x"));
+    link_dir(&t, &dir.join("a/t"));
+    link_dir(&dir.join("walked"), &dir.join("a/p"));
+    assert!(!dir.join("t").exists() && !dir.join("p").exists());
+    let sep = std::path::MAIN_SEPARATOR;
+    let x = s(&dir.join("x"));
+    for end in ["", &sep.to_string(), &format!("{sep}.")] {
+        let form = format!("{x}{sep}..{sep}t{end}");
+        let o = run(&["leak", &form, &real]);
+        refused(&o, "tier-manifest");
+        assert_eq!(o.stderr, format!("REFUSED tier-manifest: {form}\n"));
+        let form = format!("{x}{sep}..{sep}p{end}");
+        let o = run(&["leak", &s(&t), &form]);
+        refused(&o, "path");
+        assert_eq!(o.stderr, format!("REFUSED path: {form}\n"));
+    }
 }
 
 #[test]
@@ -293,8 +378,9 @@ fn the_link_lines_stand_in_byte_order_of_the_stream_id() {
         .lines()
         .filter(|l| l.starts_with("FAIL link"))
         .collect();
-    let mut want: Vec<String> = names.iter().map(|n| format!("FAIL link {n}")).collect();
-    want.sort();
+    let want: Vec<String> = (2..=names.len() + 1)
+        .map(|n| format!("FAIL link s{n}"))
+        .collect();
     assert_eq!(links, want, "{}", o.stdout);
 }
 

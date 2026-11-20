@@ -66,6 +66,12 @@ fn table() -> Vec<(Outcome, u8, String, &'static str)> {
             "answered",
         ),
         (
+            Outcome::Answered(Answer::Closing),
+            0,
+            "result=closing".into(),
+            "the account is closing",
+        ),
+        (
             Outcome::Failed(Failure::NoAnswer),
             1,
             "error=failed-call".into(),
@@ -237,5 +243,32 @@ fn each_kind_of_outcome_has_its_code_its_line_and_its_own_sentence() {
         .iter()
         .filter(|(outcome, ..)| matches!(outcome, Outcome::Failed(Failure::Unread(_))))
         .count();
-    assert_eq!(sentences.len(), rows.len() - (answered - 1) - (failed - 3));
+    assert_eq!(sentences.len(), rows.len() - (answered - 2) - (failed - 3));
+}
+
+#[test]
+fn the_sentence_of_closing_names_no_time_and_no_failure() {
+    let note = Outcome::Answered(Answer::Closing).note().to_lowercase();
+    assert!(!note.bytes().any(|byte| byte.is_ascii_digit()), "{note}");
+    let words: Vec<&str> = note
+        .split(|c: char| !c.is_ascii_alphabetic())
+        .filter(|word| !word.is_empty())
+        .collect();
+    for word in [
+        "soon", "shortly", "second", "seconds", "minute", "minutes", "hour", "hours", "day",
+        "days", "week", "weeks", "month", "months", "within", "until", "today", "tomorrow",
+        "tonight", "failed", "error",
+    ] {
+        assert!(!words.contains(&word), "{word}: {note}");
+    }
+    assert!(note.contains("not known"), "{note}");
+    assert!(
+        note.contains(
+            "waiting for the payment provider's answer to its request to cancel any paid plan"
+        ),
+        "{note}"
+    );
+    assert!(!note.contains("not yet ended"), "{note}");
+    assert!(!note.contains("plan is ended"), "{note}");
+    assert!(note.contains("nothing is asked of you"), "{note}");
 }

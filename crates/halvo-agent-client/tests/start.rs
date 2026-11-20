@@ -6,7 +6,9 @@ use std::time::Duration;
 
 use common::{gone, line_gone, wait_until, Rig};
 use halvo_agent_client::marks::Group;
-use halvo_agent_client::{process, CallError, EndRun};
+use halvo_agent_client::{
+    process, CallError, EndRun, NotStarted, RelativePath, RunnerExit, StartError,
+};
 use halvo_schema::executable::frame::HandbackResult;
 use halvo_schema::executable::names::{HandbackOutcome, Outcome};
 use halvo_schema::executable::text::V1;
@@ -30,7 +32,7 @@ fn a_start_that_answers_ok_has_a_complete_mark_and_a_runner_of_its_own_group_or_
         assert_eq!(runner.group, Group::Leader(runner.pid));
         assert_eq!(process::process_group(runner.pid.get()), Some(runner.pid));
     }
-    assert!(script.wait_log("args 10", SHORT), "{}", script.log());
+    assert!(script.wait_log("args 12", SHORT), "{}", script.log());
     assert_eq!(
         rig.rec.starts.lock().unwrap().as_slice(),
         std::slice::from_ref(&run)
@@ -49,7 +51,10 @@ fn a_runner_that_cannot_be_made_answers_not_started_and_leaves_no_mark() {
     let script = rig.script(&["hello", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert!(rig.mark(&run).is_none());
     let end = rig.rec.wait_end(&run, SHORT).expect("the end is reported");
     assert_eq!(end.end_run, EndRun::NoRunner);
@@ -58,13 +63,388 @@ fn a_runner_that_cannot_be_made_answers_not_started_and_leaves_no_mark() {
     assert_eq!(rig.sup.cancel(&run), Err(CallError::Ended));
 }
 
+fn relative_start(
+    name: &str,
+    set: impl FnOnce(&mut halvo_agent_client::Config),
+    spec: impl FnOnce(&mut halvo_agent_client::RunSpec),
+) -> (Result<(), StartError>, common::Script, Rig) {
+    let rig = Rig::configured(name, set);
+    let script = rig.script(&["hello", "idle"]);
+    let mut s = rig.spec(&script);
+    spec(&mut s);
+    (rig.sup.start(s), script, rig)
+}
+
+#[test]
+fn a_start_whose_runner_browser_model_or_data_directory_is_relative_answers_not_started_naming_it_before_any_process_or_mark(
+) {
+    let relative_data = std::path::PathBuf::from(format!("relative-data-{}", common::run_id()));
+    let cases = vec![
+        {
+            let (answer, script, rig) = relative_start(
+                "relative-runner",
+                |c| c.runner = std::path::PathBuf::from("agent-client-peer"),
+                |_| {},
+            );
+            ("runner", RelativePath::Runner, script, rig, answer)
+        },
+        {
+            let (answer, script, rig) = relative_start(
+                "relative-browser",
+                |_| {},
+                |s| s.browser = std::path::PathBuf::from("script"),
+            );
+            ("browser", RelativePath::Browser, script, rig, answer)
+        },
+        {
+            let (answer, script, rig) = relative_start(
+                "relative-model",
+                |_| {},
+                |s| s.model = Some(std::path::PathBuf::from("model.gguf")),
+            );
+            ("model", RelativePath::Model, script, rig, answer)
+        },
+        {
+            let data = relative_data.clone();
+            let (answer, script, rig) =
+                relative_start("relative-data", |c| c.data_dir = data, |_| {});
+            ("data directory", RelativePath::DataDir, script, rig, answer)
+        },
+    ];
+    std::thread::sleep(Duration::from_millis(500));
+    for (what, path, script, rig, answer) in &cases {
+        assert_eq!(
+            *answer,
+            Err(StartError::NotStarted(NotStarted::Relative(*path))),
+            "a start with a relative {what}"
+        );
+        assert!(
+            script.log().is_empty(),
+            "a runner was made for a start with a relative {what}: {}",
+            script.log()
+        );
+        assert!(
+            !rig.data().exists(),
+            "a start with a relative {what} wrote under the data directory"
+        );
+        assert!(
+            rig.rec.starts.lock().unwrap().is_empty() && rig.rec.ends.lock().unwrap().is_empty(),
+            "a start with a relative {what} called the mark sink"
+        );
+    }
+    assert!(
+        !relative_data.exists(),
+        "a start with a relative data directory made it"
+    );
+}
+
+#[test]
+fn a_start_whose_runner_exits_with_the_status_2_answers_not_started_with_that_exit() {
+    let rig = Rig::new("start-refused");
+    let script = rig.script(&["exit 2"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    assert_eq!(
+        rig.sup.start(spec),
+        Err(StartError::NotStarted(NotStarted::Runner {
+            exit: Some(RunnerExit::Status(2))
+        }))
+    );
+    assert!(script.wait_log("exit", SHORT), "{}", script.log());
+    assert_runner_gone(&script);
+    let end = rig.rec.wait_end(&run, SHORT).expect("the end is reported");
+    assert_eq!(
+        end.forced, None,
+        "a runner that left by itself was ended by force"
+    );
+}
+
+/// The lines `utc-offset <value>` of the stand-in's log.
+fn offsets_logged(script: &common::Script) -> Vec<String> {
+    script
+        .log()
+        .lines()
+        .filter_map(|l| l.strip_prefix("utc-offset ").map(str::to_owned))
+        .collect()
+}
+
+/// CP-204 D1 and D7: the command of a start holds `--utc-offset` with the caller's offset, once, as `i32` writes it.
+#[test]
+fn a_start_gives_the_runner_the_callers_offset_as_utc_offset() {
+    let rig = Rig::new("start-offset");
+    for offset in [-50_400, -1, 0, 19_800, 50_400] {
+        let script = rig.script(&["hello", "idle"]);
+        let mut spec = rig.spec(&script);
+        spec.utc_offset_s = offset;
+        let run = spec.run.clone();
+        assert_eq!(rig.sup.start(spec), Ok(()), "{offset}: {}", script.log());
+        assert!(script.wait_log("utc-offset", SHORT), "{}", script.log());
+        assert_eq!(
+            offsets_logged(&script),
+            [offset.to_string()],
+            "{offset}: {}",
+            script.log()
+        );
+        rig.sup.kill(&run).unwrap();
+    }
+}
+
+/// CP-204 D4 and D7: a start whose offset the runner refuses answers `not_started` with the runner's exit, the
+/// status 2, and leaves no runner; it never runs as UTC.
+#[test]
+fn a_start_whose_offset_the_runner_refuses_answers_not_started_with_the_runners_exit() {
+    let rig = Rig::new("start-offset-refused");
+    for offset in [50_401, -50_401, i32::MAX, i32::MIN] {
+        let script = rig.script(&["hello", "idle"]);
+        let mut spec = rig.spec(&script);
+        spec.utc_offset_s = offset;
+        let run = spec.run.clone();
+        assert_eq!(
+            rig.sup.start(spec),
+            Err(StartError::NotStarted(NotStarted::Runner {
+                exit: Some(RunnerExit::Status(2))
+            })),
+            "{offset}: {}",
+            script.log()
+        );
+        assert!(
+            script.wait_log("refused utc-offset", SHORT),
+            "{}",
+            script.log()
+        );
+        assert_eq!(offsets_logged(&script), [offset.to_string()], "{offset}");
+        assert_eq!(
+            script.log().lines().last(),
+            Some("refused utc-offset"),
+            "{offset}: the stand-in ran no line of its script"
+        );
+        assert_runner_gone(&script);
+        assert!(rig.rec.wait_end(&run, SHORT).is_some(), "{offset}: the end");
+    }
+}
+
+/// CP-212 V4: the stand-in runner reads `--utc-offset` as the runner does: started by hand without it, or with a value
+/// out of range or not in the form that `i32` writes (`+3600`, `007`, `-0`), it exits with the status 2 before it
+/// plays a line of its script, and with `3600` or `-50400` it plays it, so that no library test can pass on a start
+/// that the real runner refuses.
+#[test]
+fn the_stand_in_runner_refuses_an_offset_as_the_runner_does() {
+    let dir = common::scratch("stand-in-offset");
+    let cases: [(Option<&str>, bool); 7] = [
+        (None, true),
+        (Some("+3600"), true),
+        (Some("007"), true),
+        (Some("-0"), true),
+        (Some("50401"), true),
+        (Some("3600"), false),
+        (Some("-50400"), false),
+    ];
+    for (value, refused) in cases {
+        let script = common::Script::new(&dir, &["log played", "exit 0"]);
+        let mut cmd = std::process::Command::new(common::peer());
+        cmd.arg("--run")
+            .arg("offset")
+            .arg("--browser")
+            .arg(&script.path);
+        if let Some(value) = value {
+            cmd.arg("--utc-offset").arg(value);
+        }
+        let mut child = cmd
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut status = None;
+        assert!(
+            wait_until(SHORT, || {
+                status = child.try_wait().unwrap();
+                status.is_some()
+            }),
+            "{value:?}: the stand-in ended: {}",
+            script.log()
+        );
+        let code = status.and_then(|s| s.code());
+        let log = script.log();
+        if refused {
+            assert_eq!(code, Some(2), "{value:?}: {log}");
+            assert_eq!(log.lines().last(), Some("refused utc-offset"), "{value:?}");
+            assert!(!log.contains("played"), "{value:?}: {log}");
+        } else {
+            assert_eq!(code, Some(0), "{value:?}: {log}");
+            assert!(log.contains("played"), "{value:?}: {log}");
+        }
+    }
+}
+
+#[test]
+fn a_runner_that_exits_with_2_and_leaves_a_child_that_ends_by_itself_records_what_its_system_ended()
+{
+    let rig = Rig::new("start-refused-child");
+    let script = rig.script(&["child-brief 200", "exit 2"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let asked = std::time::Instant::now();
+    let answer = rig.sup.start(spec);
+    let waited = asked.elapsed();
+    let end = rig.rec.wait_end(&run, SHORT).expect("the end is reported");
+    eprintln!(
+        "u46 refused start with a brief child: start answered after {} ms, end reported after {} ms",
+        waited.as_millis(),
+        asked.elapsed().as_millis()
+    );
+    assert_eq!(
+        answer,
+        Err(StartError::NotStarted(NotStarted::Runner {
+            exit: Some(RunnerExit::Status(2))
+        }))
+    );
+    let children = script.logged("child");
+    assert_eq!(children.len(), 1, "{}", script.log());
+    if cfg!(windows) {
+        assert_eq!(
+            end.forced, None,
+            "the job's child ended by itself within the settle and was recorded as ended by force"
+        );
+    } else {
+        assert_eq!(
+            end.forced,
+            Some(halvo_agent_client::Forced {
+                path: halvo_agent_client::ForcedPath::LinkEnd,
+                browser: false
+            }),
+            "a child in the runner's group is ended with the group at the runner's exit"
+        );
+    }
+    assert!(wait_until(SHORT, || children
+        .iter()
+        .all(|(pid, created)| gone(*pid, *created))));
+}
+
+#[test]
+fn a_start_of_a_running_run_id_with_a_relative_path_answers_started_and_makes_nothing() {
+    let rig = Rig::new("start-running-relative");
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec.clone()).unwrap();
+    let mut again = spec;
+    again.browser = std::path::PathBuf::from("script");
+    assert_eq!(rig.sup.start(again), Err(StartError::Started));
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(script.logged("runner").len(), 1, "{}", script.log());
+    assert_eq!(rig.rec.starts.lock().unwrap().len(), 1);
+    rig.sup.kill(&run).unwrap();
+}
+
+static FAIL_READ: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn system_temp() -> Option<std::ffi::OsString> {
+    static TEMP: std::sync::OnceLock<Option<std::ffi::OsString>> = std::sync::OnceLock::new();
+    TEMP.get_or_init(|| {
+        let out = std::process::Command::new("/usr/bin/getconf")
+            .arg("DARWIN_USER_TEMP_DIR")
+            .output()
+            .ok()?;
+        let text = String::from_utf8(out.stdout).ok()?;
+        Some(text.trim().into())
+    })
+    .clone()
+}
+
+fn read_until_told(value: halvo_agent_client::SystemValue) -> Option<std::ffi::OsString> {
+    use halvo_agent_client::SystemValue;
+    if FAIL_READ.load(std::sync::atomic::Ordering::SeqCst) {
+        return None;
+    }
+    match value {
+        SystemValue::SystemRoot => std::env::var_os("SystemRoot"),
+        SystemValue::TmpDir => system_temp(),
+        SystemValue::Temp => Some(std::env::temp_dir().into_os_string()),
+    }
+}
+
+#[test]
+fn a_start_of_a_running_run_id_whose_value_read_fails_on_that_call_answers_started_and_makes_nothing(
+) {
+    let rig = Rig::reading("start-running-missing", read_until_told);
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let at = std::time::Instant::now();
+    let first = rig.sup.start(spec.clone());
+    assert_eq!(
+        first,
+        Ok(()),
+        "the first start after {:?}: {}",
+        at.elapsed(),
+        script.log()
+    );
+    FAIL_READ.store(true, std::sync::atomic::Ordering::SeqCst);
+    let again = rig.sup.start(spec);
+    FAIL_READ.store(false, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(again, Err(StartError::Started));
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(script.logged("runner").len(), 1, "{}", script.log());
+    assert_eq!(rig.rec.starts.lock().unwrap().len(), 1);
+    assert!(rig.rec.ends.lock().unwrap().is_empty());
+    rig.sup.kill(&run).unwrap();
+}
+
+#[test]
+fn a_start_with_a_relative_browser_of_a_run_id_whose_mark_of_an_earlier_life_stands_answers_started(
+) {
+    let rig = Rig::new("start-mark-relative");
+    let script = rig.script(&["hello", "idle"]);
+    let mut spec = rig.spec(&script);
+    let dir = halvo_agent_client::marks::marks_dir(&rig.data());
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join(spec.run.as_str()),
+        halvo_agent_client::marks::first_line(&spec.run),
+    )
+    .unwrap();
+    spec.browser = std::path::PathBuf::from("script");
+    assert_eq!(rig.sup.start(spec), Err(StartError::Started));
+    std::thread::sleep(Duration::from_millis(300));
+    assert!(
+        script.log().is_empty(),
+        "a runner was made: {}",
+        script.log()
+    );
+    assert!(rig.rec.starts.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_start_refused_for_a_relative_path_leaves_no_entry_and_the_same_run_id_then_starts() {
+    let rig = Rig::new("start-refused-then-absolute");
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let mut relative = spec.clone();
+    relative.browser = std::path::PathBuf::from("script");
+    assert_eq!(
+        rig.sup.start(relative),
+        Err(StartError::NotStarted(NotStarted::Relative(
+            RelativePath::Browser
+        )))
+    );
+    assert_eq!(rig.sup.kill(&run), Err(CallError::UnknownRun));
+    assert_eq!(rig.sup.start(spec), Ok(()));
+    assert_eq!(script.logged("runner").len(), 1, "{}", script.log());
+    rig.sup.kill(&run).unwrap();
+}
+
 #[test]
 fn a_runner_that_ends_before_the_start_answers_gives_not_started_and_leaves_no_process() {
     let rig = Rig::new("start-ends");
     let script = rig.script(&["child", "sleep 200", "exit 3"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     let children = script.logged("child");
     assert_eq!(children.len(), 1, "{}", script.log());
@@ -160,7 +540,10 @@ fn a_runner_that_does_not_answer_within_the_wait_is_ended_before_not_started() {
     let script = rig.script(&["child", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     let children = script.logged("child");
     assert_eq!(children.len(), 1, "{}", script.log());
@@ -174,7 +557,10 @@ fn a_hello_of_another_run_is_no_start() {
     let script = rig.script(&["hello-other", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     assert!(rig.rec.wait_end(&run, SHORT).is_some());
 }
@@ -188,7 +574,10 @@ fn a_second_start_of_a_run_id_is_refused_with_started_and_makes_no_runner() {
     rig.sup.start(spec.clone()).unwrap();
     let before =
         std::fs::read_to_string(rig.data().join("agents/marks").join(run.as_str())).unwrap();
-    assert_eq!(rig.sup.start(spec), Err(CallError::Started));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::Started)
+    );
     let after =
         std::fs::read_to_string(rig.data().join("agents/marks").join(run.as_str())).unwrap();
     assert_eq!(before, after);
@@ -205,7 +594,10 @@ fn a_start_of_a_run_whose_mark_of_an_earlier_life_stands_is_refused_with_started
     std::fs::create_dir_all(&dir).unwrap();
     let first = format!("mark run={}\n", spec.run);
     std::fs::write(dir.join(spec.run.as_str()), &first).unwrap();
-    assert_eq!(rig.sup.start(spec.clone()), Err(CallError::Started));
+    assert_eq!(
+        rig.sup.start(spec.clone()).map_err(StartError::call_error),
+        Err(CallError::Started)
+    );
     assert_eq!(
         std::fs::read_to_string(dir.join(spec.run.as_str())).unwrap(),
         first
@@ -278,7 +670,10 @@ fn a_browser_frame_before_hello_is_answered_and_its_browser_is_ended_by_a_start_
     );
     let script = rig.script(&["browser child", "idle"]);
     let spec = rig.spec(&script);
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert!(
         script.log().contains(r#"reply {"t":"browser_reply"}"#),
         "{}",
@@ -364,7 +759,10 @@ fn a_hello_of_another_agent_is_no_start() {
     let script = rig.script(&["hello-other-agent", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
-    assert_eq!(rig.sup.start(spec), Err(CallError::NotStarted));
+    assert_eq!(
+        rig.sup.start(spec).map_err(StartError::call_error),
+        Err(CallError::NotStarted)
+    );
     assert_runner_gone(&script);
     assert!(rig.rec.wait_end(&run, SHORT).is_some());
 }
@@ -483,6 +881,9 @@ fn exit_reported(pid: u32) -> bool {
 }
 
 #[cfg(target_os = "macos")]
+const PROBE_PIPE: &str = "the standard library makes the probe's pipe on macOS and then marks its ends close-on-exec, which is no one step; a process that another thread of the test binary starts in between holds the write end, so /bin/cat sees no end of its input and the probe fails at the wait for its exit, a failure of the probe and not of the read";
+
+#[cfg(target_os = "macos")]
 #[test]
 fn the_read_without_the_zombie_flag_finds_no_exited_child_reaped_or_not_and_the_read_with_it_finds_the_unreaped_one(
 ) {
@@ -518,6 +919,7 @@ fn the_read_without_the_zombie_flag_finds_no_exited_child_reaped_or_not_and_the_
         process::creation_time(pid),
         created.is_some_and(|c| process::is_running(pid, c)),
     );
+    println!("exit-read limit: {PROBE_PIPE}");
     println!(
         "exit-read running: arg0={:?} arg1={:?} public={} | exited unreaped: arg0={:?} arg1={:?} public={} | reaped: arg0={:?} arg1={:?} public={}",
         running.0,

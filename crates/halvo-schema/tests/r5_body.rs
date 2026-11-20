@@ -1,10 +1,11 @@
+use halvo_schema::executable::body::CHECKPOINTS_REPLY_MAX;
 use halvo_schema::learning::body::{LearnedRead, Refinement, Refinements};
 use halvo_schema::learning::names::RefinementKind;
 use halvo_schema::learning::record::Day;
 use halvo_schema::learning::Refusal;
 use halvo_schema::request::{
     decode, decode_reply, write_reply, CoordinatorBody, CoordinatorRole, CoordinatorWrite, Decoded,
-    ReplyResult,
+    ReplyResult, REPLY_MAX,
 };
 use halvo_schema::{AgentId, RequestId, WorkflowId};
 use serde_json::value::RawValue;
@@ -452,5 +453,143 @@ fn a_key_of_the_body_or_the_reply_in_another_letter_case_is_refused() {
             ("Refinement", Some("refinements"), "unknown_key"),
             "{to}"
         );
+    }
+}
+
+const ENTRY: &str = r#"{"day":20767,"what":"target_learned"}"#;
+
+const ESCAPED_ENTRY: &str =
+    r#"{"day":20767,"what":"\u0074\u0061\u0072\u0067\u0065\u0074_learned"}"#;
+
+const WHITE_SPACE: [char; 4] = [' ', '\n', '\t', '\r'];
+
+fn filled(len: usize, entry: &str) -> (String, usize) {
+    let frame = r#"{"refinements":[]}"#.len();
+    let entries = (len - frame + 1) / (entry.len() + 1);
+    let list = vec![entry; entries].join(",");
+    let pad: String = (0..len - frame - list.len())
+        .map(|i| WHITE_SPACE[i % WHITE_SPACE.len()])
+        .collect();
+    let line = format!(r#"{{{pad}"refinements":[{list}]}}"#);
+    assert_eq!(line.len(), len);
+    (line, entries)
+}
+
+fn outside(line: &str) -> [String; 2] {
+    let pad: String = line.chars().filter(|c| WHITE_SPACE.contains(c)).collect();
+    let compact = line.replace(WHITE_SPACE, "");
+    [format!("{pad}{compact}"), format!("{compact}{pad}")]
+}
+
+fn plain_reply(len: usize) -> String {
+    let kept = r#"{"day":20767,"what":"target_kept"}"#;
+    let room = len + 1 - r#"{"refinements":[]}"#.len();
+    let step = |entry: &str| entry.len() + 1;
+    let first = (0..step(ENTRY))
+        .find(|n| (room - n * step(kept)).is_multiple_of(step(ENTRY)))
+        .unwrap();
+    let second = (room - first * step(kept)) / step(ENTRY);
+    let list = [vec![kept; first], vec![ENTRY; second]].concat().join(",");
+    let line = format!(r#"{{"refinements":[{list}]}}"#);
+    assert_eq!(line.len(), len);
+    assert!(!line
+        .bytes()
+        .any(|b| b.is_ascii_whitespace() || b == b'\\' || b >= 0x80));
+    line
+}
+
+fn read_bytes(bytes: &[u8]) -> Result<usize, Want> {
+    Refinements::parse(bytes)
+        .map(|reply| reply.refinements.len())
+        .map_err(|refusal| parts(&refusal))
+}
+
+fn read(line: &str) -> Result<usize, Want> {
+    read_bytes(line.as_bytes())
+}
+
+#[test]
+fn a_reply_that_white_space_takes_past_the_bound_is_refused_before_it_is_read() {
+    let (line, entries) = filled(CHECKPOINTS_REPLY_MAX + 1, ENTRY);
+    let compact = line.replace(WHITE_SPACE, "");
+    assert!(compact.len() < line.len());
+    assert!(compact.len() <= CHECKPOINTS_REPLY_MAX);
+    assert_eq!(read(&compact), Ok(entries));
+    assert_eq!(read(&line), Err(("Refinements", None, "reply_bytes")));
+    let unread = format!("{}x", &line[..CHECKPOINTS_REPLY_MAX]);
+    assert_eq!(read(&unread), Err(("Refinements", None, "reply_bytes")));
+    for moved in outside(&line) {
+        assert_eq!(moved.len(), CHECKPOINTS_REPLY_MAX + 1);
+        assert_eq!(read(&moved), Err(("Refinements", None, "reply_bytes")));
+    }
+    let wide = String::from(char::from(0xe9_u8)).repeat(CHECKPOINTS_REPLY_MAX / 2 + 1);
+    assert!(wide.len() > CHECKPOINTS_REPLY_MAX);
+    assert!(wide.chars().count() <= CHECKPOINTS_REPLY_MAX);
+    assert_eq!(read(&wide), Err(("Refinements", None, "reply_bytes")));
+    assert!(read(&plain_reply(CHECKPOINTS_REPLY_MAX)).is_ok());
+    for len in [
+        CHECKPOINTS_REPLY_MAX + 1,
+        CHECKPOINTS_REPLY_MAX + 2,
+        REPLY_MAX + 1,
+        2 * REPLY_MAX,
+        4 << 20,
+    ] {
+        assert_eq!(
+            read(&plain_reply(len)),
+            Err(("Refinements", None, "reply_bytes")),
+            "{len}"
+        );
+    }
+    let mut not_utf8 = plain_reply(CHECKPOINTS_REPLY_MAX + 1).into_bytes();
+    not_utf8[CHECKPOINTS_REPLY_MAX] = 0xff;
+    assert!(std::str::from_utf8(&not_utf8).is_err());
+    assert_eq!(
+        read_bytes(&not_utf8),
+        Err(("Refinements", None, "reply_bytes"))
+    );
+    let four = char::from_u32(0x1f600).unwrap();
+    let high = String::from(four).repeat(CHECKPOINTS_REPLY_MAX / 4 + 1);
+    assert!(high.len() > CHECKPOINTS_REPLY_MAX && high.as_bytes()[0] >= 0xf0);
+    assert_eq!(read(&high), Err(("Refinements", None, "reply_bytes")));
+    let lines = format!(
+        "{}{}",
+        "\n".repeat(64),
+        plain_reply(CHECKPOINTS_REPLY_MAX + 1 - 64)
+    );
+    assert_eq!(lines.matches('\n').count(), 64);
+    assert_eq!(read(&lines), Err(("Refinements", None, "reply_bytes")));
+}
+
+#[test]
+fn a_reply_that_escapes_take_past_the_bound_is_refused_before_it_is_read() {
+    let (line, entries) = filled(CHECKPOINTS_REPLY_MAX + 1, ESCAPED_ENTRY);
+    let escapes = line.matches(r"\u00").count();
+    assert_eq!(escapes, 6 * entries);
+    assert!(line.len() - 5 * escapes <= CHECKPOINTS_REPLY_MAX);
+    let value: serde_json::Value = serde_json::from_str(&line).unwrap();
+    let decoded = value.to_string();
+    assert!(decoded.len() <= CHECKPOINTS_REPLY_MAX);
+    assert_eq!(read(&decoded), Ok(entries));
+    assert_eq!(read(&line), Err(("Refinements", None, "reply_bytes")));
+}
+
+#[test]
+fn a_reply_of_exactly_the_bound_with_white_space_or_escapes_is_read() {
+    assert_eq!(CHECKPOINTS_REPLY_MAX, 261_067);
+    let learned = Refinement {
+        day: day(20767),
+        what: RefinementKind::TargetLearned,
+    };
+    for entry in [ENTRY, ESCAPED_ENTRY] {
+        let (line, entries) = filled(CHECKPOINTS_REPLY_MAX, entry);
+        assert!(line.starts_with("{ \n"), "{entry}");
+        let reply = Refinements::parse(line.as_bytes()).map_err(|refusal| parts(&refusal));
+        let refinements = reply.unwrap().refinements;
+        assert_eq!(refinements.len(), entries);
+        assert!(refinements.iter().all(|r| *r == learned), "{entry}");
+        for moved in outside(&line) {
+            assert_eq!(moved.len(), CHECKPOINTS_REPLY_MAX);
+            assert_eq!(read(&moved), Ok(entries), "{entry}");
+        }
     }
 }

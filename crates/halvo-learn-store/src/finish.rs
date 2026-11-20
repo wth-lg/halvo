@@ -11,6 +11,7 @@ use halvo_schema::executable::{ExecutableStep, RunId, RunnerReply};
 use halvo_schema::learning::record::{
     EditId, EditState, LearnEdit, LearnRun, LearnedTarget, RunStatus, Verdict,
 };
+use halvo_schema::ErrorName;
 
 use crate::agent;
 use crate::convert;
@@ -99,9 +100,13 @@ impl LearnHandlers {
         let mut compiled = Vec::new();
         if let Some(facts) = seen {
             let held = !facts.candidates.is_empty();
-            newest = self.newest_of(host, &b.agent, &b.run)?;
-            if let (true, Some(number)) = (held, newest) {
-                compiled = agent::compiled(host, &b.agent, &b.run, number)?;
+            match self.read_ended(host, b, held) {
+                Ok(read) => (newest, compiled) = read,
+                Err(name) => {
+                    self.drop_run(&b.run);
+                    self.leave(Err(name.into()));
+                    return Ok(agent::runner(host, body)?);
+                }
             }
         }
         let reply = agent::runner(host, body)?;
@@ -121,6 +126,20 @@ impl LearnHandlers {
         Ok(reply)
     }
 
+    fn read_ended(
+        &mut self,
+        host: &mut dyn LearnHost,
+        b: &Finish,
+        held: bool,
+    ) -> Result<(Option<NonZeroU32>, Vec<ExecutableStep>), ErrorName> {
+        let newest = self.newest_of(host, &b.agent, &b.run)?;
+        let compiled = match (held, newest) {
+            (true, Some(number)) => agent::compiled(host, &b.agent, &b.run, number)?,
+            _ => Vec::new(),
+        };
+        Ok((newest, compiled))
+    }
+
     pub(crate) fn commit_ended(
         &mut self,
         host: &mut dyn LearnHost,
@@ -130,7 +149,7 @@ impl LearnHandlers {
         compiled: &[ExecutableStep],
         verdict: Result<(), RunCause>,
     ) -> Result<(), Fault> {
-        let Read::Rows(runs) = rows::runs(host.rows(), &facts.workflow) else {
+        let Read::Rows(runs) = rows::runs(host, &facts.workflow) else {
             return Ok(());
         };
         let Some(started) = rows::newest_run(&runs, run.as_str()).cloned() else {
@@ -147,7 +166,7 @@ impl LearnHandlers {
             verdict,
         };
         let mut records = Vec::new();
-        let run_row = match Edits::read(host.rows(), &facts.workflow) {
+        let run_row = match Edits::read(host, &facts.workflow) {
             Read::Rows(stored) => {
                 let (edits, run_row) =
                     ended.rows(&stored, || EditId::from_random(self.ids.bytes()))?;

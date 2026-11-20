@@ -1,0 +1,129 @@
+{
+  "kind": "attempts",
+  "ruling": "P7-83 (7) (c) N4, on B-37 as P7-69 F1 reads it",
+  "about": "the driver keeps, for each discarded attempt of a wave, whether the wave was held and the first hold that ended before the last answer, so that the line can say that the wave was held in none of them",
+  "source": "by hand",
+  "cell": {
+    "name": "wave@200",
+    "kind": "wave",
+    "level": 200,
+    "switch": "usage-last",
+    "k": 120,
+    "killRuns": 0,
+    "plainRuns": 1
+  },
+  "attempts": [
+    {
+      "counted": false,
+      "facts": {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        },
+        "slow": false
+      }
+    },
+    {
+      "counted": false,
+      "facts": {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        },
+        "slow": false
+      }
+    },
+    {
+      "counted": false,
+      "facts": {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        },
+        "slow": false
+      }
+    },
+    {
+      "counted": false,
+      "facts": {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        },
+        "slow": false
+      }
+    },
+    {
+      "counted": false,
+      "facts": {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        },
+        "slow": false
+      }
+    },
+    {
+      "counted": false,
+      "facts": {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        },
+        "slow": false
+      }
+    }
+  ],
+  "expect": {
+    "discarded": [
+      {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        }
+      },
+      {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        }
+      },
+      {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        }
+      },
+      {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        }
+      },
+      {
+        "held": false,
+        "firstEndBeforeTheLastAnswer": {
+          "state": "expired",
+          "ms": 412
+        }
+      }
+    ],
+    "runs": [
+      {
+        "key": "attempt-6",
+        "rigUnbuilt": false,
+        "discarded": 5
+      }
+    ]
+  }
+}

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -58,6 +58,20 @@ function readLostAttempt(record) {
   return { good: true, problems: isDeepStrictEqual(got, record.expect.entry) ? [] : [`the entry is ${JSON.stringify(got)}, expected ${JSON.stringify(record.expect.entry)}`] };
 }
 
+function readKeptBody(record) {
+  if (typeof driver.keptBodyOf !== "function") return { good: true, problems: ["stress/driver.mjs exports no keptBodyOf"] };
+  const kept = record.chunks.map((chunks) => chunks.reduce((kept, text) => driver.keptBodyOf(kept, text), ""));
+  const same = kept.map((got) => got === record.expect.body);
+  if (same.some((each) => each !== same[0])) return { good: null, problems: [`the chunk lists keep different bodies, of ${kept.map((got) => got.length).join(", ")} characters`] };
+  return { good: same[0], problems: [] };
+}
+
+function readKeptJudge(record) {
+  if (typeof driver.keptBodyOf !== "function") return { good: true, problems: ["stress/driver.mjs exports no keptBodyOf"] };
+  const results = record.chunks.map((chunks) => readJudge({ ...record, request: { ...record.request, body: chunks.reduce((kept, text) => driver.keptBodyOf(kept, text), "") } }));
+  return { good: results[0].good, problems: results.flatMap((result, at) => result.problems.map((problem) => `chunks ${at + 1}: ${problem}`)) };
+}
+
 function readReceipt(record) {
   const good = record.expect.now !== null;
   if (driver.Receipt === undefined) return { good, problems: ["stress/driver.mjs exports no Receipt"] };
@@ -75,7 +89,7 @@ function readGateway(record) {
 async function readAttempts(record) {
   const state = process.env.GATE_STATE ?? join(HERE, "..", "..", "..", ".tmp");
   mkdirSync(state, { recursive: true });
-  const attemptsOf = (runNo) => (record.attemptsByRun ? record.attemptsByRun[runNo - 1] : record.attempts);
+  const attemptsOf = (cell, runNo) => (record.attemptsByCell ? record.attemptsByCell[cell.name] : record.attemptsByRun ? record.attemptsByRun[runNo - 1] : record.attempts);
   const scripted = (_ctx, cell, variant, runNo, withKill, attempt) => ({
     key: `attempt-${attempt + 1}`,
     cell: cell.name,
@@ -85,9 +99,9 @@ async function readAttempts(record) {
     variant,
     withKill,
     runNo,
-    counted: attemptsOf(runNo)[attempt].counted,
+    counted: attemptsOf(cell, runNo)[attempt].counted,
     violations: [],
-    facts: attemptsOf(runNo)[attempt].facts,
+    facts: attemptsOf(cell, runNo)[attempt].facts,
     ms: 1,
     error: null,
   });
@@ -101,7 +115,7 @@ async function readAttempts(record) {
     progress: (result) => reported.push(result.key),
     runOnce: async (...args) => scripted(...args),
   };
-  const runs = await driver.runCells(ctx, [record.cell], "counts-open-holds");
+  const runs = await driver.runCells(ctx, record.cells ?? [record.cell], "counts-open-holds");
   const [run] = runs;
   const problems = [];
   const discarded = record.expect.discarded ?? [];
@@ -115,7 +129,7 @@ async function readAttempts(record) {
   });
   (record.expect.runs ?? []).forEach((want, at) => {
     const got = runs[at];
-    const facts = { key: got?.key, rigUnbuilt: got?.rigUnbuilt === true, discarded: got?.discarded.length };
+    const facts = { key: got?.key, rigUnbuilt: got?.rigUnbuilt === true, discarded: got?.discarded.length, countedAtTheDraw: got?.countedAtTheDraw };
     for (const [name, value] of Object.entries(want)) {
       if (!isDeepStrictEqual(facts[name], value)) problems.push(`run ${at + 1} has ${name} ${JSON.stringify(facts[name])}, expected ${JSON.stringify(value)}`);
     }
@@ -154,12 +168,13 @@ async function readExitCode(record) {
   return { good: true, problems };
 }
 
+const MAIN_GUARD_ARGV1 = { check: CHECK, records: fileURLToPath(import.meta.url), none: undefined };
+
 async function readMainGuard(record) {
   const check = await loadCheck();
   if (typeof check?.isMainScript !== "function") return { good: true, problems: ["stress/check.mjs exports no isMainScript"] };
-  const paths = { check: CHECK, records: fileURLToPath(import.meta.url), none: undefined };
   const problems = record.cases
-    .filter((each) => check.isMainScript(paths[each.argv1], pathToFileURL(CHECK).href) !== each.main)
+    .filter((each) => check.isMainScript(MAIN_GUARD_ARGV1[each.argv1], pathToFileURL(CHECK).href) !== each.main)
     .map((each) => `started as ${each.argv1}, main runs is ${!each.main}, expected ${each.main}`);
   return { good: true, problems };
 }
@@ -198,7 +213,130 @@ const READINGS = {
   "main-guard": readMainGuard,
   "server-options": readServerOptions,
   "script-run": readScriptRun,
-  "gateway-default": readGatewayDefault, judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine, "sends-again": readSendsAgain, "lost-attempt": readLostAttempt };
+  "gateway-default": readGatewayDefault, judge: readJudge, send: readSend, receipt: readReceipt, gateway: readGateway, attempts: readAttempts, line: readLine, "attempt-line": readAttemptLine, "sends-again": readSendsAgain, "lost-attempt": readLostAttempt, "kept-body": readKeptBody, "kept-judge": readKeptJudge };
+
+const EXPECT_KEYS = {
+  judge: ["counted", "violations", "facts"],
+  send: ["resend"],
+  "sends-again": ["sendsAgain"],
+  receipt: ["now"],
+  line: ["line", "lostInTransport"],
+  attempts: ["discarded", "reported", "halted", "runs"],
+  "lost-attempt": ["entry"],
+  "attempt-line": ["line"],
+  gateway: ["holdLifeMs", "deadlineMs", "marginMs"],
+  "kept-body": ["body"],
+  "kept-judge": ["counted", "violations", "facts"],
+  "server-options": ["holdLifeMs"],
+  "script-run": ["status", "text"],
+  "main-guard": [],
+  "gateway-default": [],
+  "exit-code": [],
+};
+const RUN_KEYS = ["key", "rigUnbuilt", "discarded", "countedAtTheDraw"];
+const READS_CASES = new Set(["main-guard", "gateway-default", "exit-code"]);
+const READS_CHUNKS = new Set(["kept-body", "kept-judge"]);
+const LISTS_OF_ATTEMPTS = ["cells", "attempts", "attemptsByRun"];
+
+function duplicateKeyOf(text) {
+  const open = [];
+  for (let at = 0; at < text.length; at++) {
+    const char = text[at];
+    if (char === "{") open.push({ keys: new Set(), wantsKey: true });
+    else if (char === "[") open.push(null);
+    else if (char === "}" || char === "]") open.pop();
+    else if (char === "," && open.at(-1)) open.at(-1).wantsKey = true;
+    else if (char === '"') {
+      let end = at + 1;
+      while (text[end] !== '"') end += text[end] === "\\" ? 2 : 1;
+      const object = open.at(-1);
+      if (object?.wantsKey) {
+        const key = JSON.parse(text.slice(at, end + 1));
+        if (object.keys.has(key)) return key;
+        object.keys.add(key);
+        object.wantsKey = false;
+      }
+      at = end;
+    }
+  }
+  return null;
+}
+
+const emptyList = (value) => !Array.isArray(value) || value.length === 0;
+
+function refusalsOf(record, text) {
+  const keys = EXPECT_KEYS[record.kind] ?? [];
+  const refusals = Object.keys(record.expect ?? {})
+    .filter((key) => !keys.includes(key))
+    .map((key) => `its expect holds the key ${key}, which the reading of ${record.kind} does not read`);
+  const duplicate = duplicateKeyOf(text);
+  if (duplicate !== null) refusals.push(`its JSON holds the key ${duplicate} twice in one object, and JSON.parse keeps the last`);
+  if (record.kind === "attempts") {
+    for (const name of LISTS_OF_ATTEMPTS.filter((each) => Object.hasOwn(record, each))) {
+      if (emptyList(record[name])) refusals.push(`its list ${name} is empty, so it pins nothing`);
+    }
+    for (const [cell, list] of Object.entries(record.attemptsByCell ?? {})) {
+      if (emptyList(list)) refusals.push(`its list attemptsByCell.${cell} is empty, so it pins nothing`);
+    }
+    if (Object.keys(record.expect ?? {}).length === 0) refusals.push("its expect holds no key, so the reading of attempts checks nothing");
+    if (Object.hasOwn(record.expect ?? {}, "runs") && emptyList(record.expect.runs)) refusals.push("its list expect.runs is empty, so it pins nothing");
+    for (const run of Array.isArray(record.expect?.runs) ? record.expect.runs : []) {
+      if (Object.keys(run).length === 0) refusals.push("a run of its expect holds no key, so it pins nothing");
+      for (const key of Object.keys(run).filter((each) => !RUN_KEYS.includes(each))) refusals.push(`a run of its expect holds the key ${key}, which the reading of attempts does not read`);
+    }
+  }
+  if (READS_CASES.has(record.kind) && emptyList(record.cases)) refusals.push("its list cases is empty, so it pins nothing");
+  if (READS_CHUNKS.has(record.kind)) {
+    if (emptyList(record.chunks)) refusals.push("its list chunks is empty, so it pins nothing");
+    else if (record.chunks.some((chunks) => emptyList(chunks) || chunks.every((chunk) => chunk === ""))) refusals.push("a list of its chunks is empty or holds only empty chunks, so it pins nothing");
+  }
+  if (record.kind === "main-guard") {
+    for (const each of record.cases ?? []) {
+      if (!Object.hasOwn(MAIN_GUARD_ARGV1, each.argv1)) refusals.push(`the argv1 ${JSON.stringify(each.argv1)} of a case is none of ${Object.keys(MAIN_GUARD_ARGV1).join(", ")}`);
+    }
+  }
+  if (record.kind === "script-run" && !(typeof record.expect?.text === "string" && record.expect.text.trim() !== "")) refusals.push("its expected text is empty or blank, and every output includes such a text");
+  return refusals;
+}
+
+const REFUSAL = "refused: ";
+async function resultOf(path) {
+  try {
+    const text = readFileSync(path, "utf8");
+    const record = JSON.parse(text);
+    const refusals = refusalsOf(record, text);
+    if (refusals.length > 0) return { record, good: null, problems: refusals.map((refusal) => `${REFUSAL}${refusal}`) };
+    const reading = READINGS[record.kind];
+    return { record, ...(reading ? await reading(record) : { good: null, problems: [`the kind ${record.kind} has no reading`] }) };
+  } catch (error) {
+    return { record: null, good: null, problems: [`it threw: ${String(error?.message ?? error).split("\n")[0]}`] };
+  }
+}
+
+const REFUSED = join(HERE, "refused");
+const refusedFiles = existsSync(REFUSED)
+  ? readdirSync(REFUSED)
+      .filter((name) => name.endsWith(".json"))
+      .sort()
+  : [];
+let failed = 0;
+let refusedAsExpected = 0;
+if (refusedFiles.length === 0) failed++;
+for (const file of refusedFiles) {
+  const name = file.slice(0, -".json".length);
+  const result = await resultOf(join(REFUSED, file));
+  const cause = result.record?.refusal;
+  const refused = result.problems.length > 0 && result.problems.every((problem) => problem.startsWith(REFUSAL));
+  if (refused && typeof cause === "string" && cause !== "" && result.problems.some((problem) => problem.includes(cause))) {
+    refusedAsExpected++;
+    console.log(`self-test concurrency: refused record-${name}: refused as expected: ${cause}`);
+  } else {
+    failed++;
+    const why = refused ? `refused, but not for its named cause ${JSON.stringify(cause)}: ` : "";
+    console.log(`self-test concurrency: refused record-${name}: not refused as expected: ${why}${result.problems.join("; ") || "accepted"}`);
+  }
+}
+console.log(`concurrency: refused records: ${refusedAsExpected} of ${refusedFiles.length} refused as expected`);
 
 const files = readdirSync(RECORDS)
   .filter((name) => name.endsWith(".json"))
@@ -207,18 +345,11 @@ if (files.length === 0) {
   console.log("self-test concurrency: records: no record under gate/fixtures/concurrency/records");
   process.exit(1);
 }
-let failed = 0;
+const failedRefusals = failed;
 for (const file of files) {
   const name = file.slice(0, -".json".length);
   const said = name.startsWith("good-") ? "good" : name.startsWith("bad-") ? "bad" : null;
-  let result;
-  try {
-    const record = JSON.parse(readFileSync(join(RECORDS, file), "utf8"));
-    const reading = READINGS[record.kind];
-    result = reading ? await reading(record) : { good: null, problems: [`the kind ${record.kind} has no reading`] };
-  } catch (error) {
-    result = { good: null, problems: [`it threw: ${String(error?.message ?? error).split("\n")[0]}`] };
-  }
+  const result = await resultOf(join(RECORDS, file));
   if (said === null) result.problems.push("its name starts with neither good- nor bad-");
   else if (result.good !== null && result.good !== (said === "good")) result.problems.push(`its expectation is ${result.good ? "good" : "bad"}, its name says ${said}`);
   if (result.problems.length === 0) {
@@ -228,5 +359,5 @@ for (const file of files) {
     console.log(`self-test concurrency: record ${name}: ${result.problems.join("; ")}`);
   }
 }
-console.log(`concurrency: records: ${files.length - failed} of ${files.length} as expected`);
+console.log(`concurrency: records: ${files.length - (failed - failedRefusals)} of ${files.length} as expected`);
 process.exit(failed === 0 ? 0 : 1);

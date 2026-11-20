@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The policy table equals both what route-gate derive writes and the first table of the contract, the router product passes the gate, docs/r6/bar.md holds the two constants, the default cap line is the contract's and a cap file that does not parse gives no cap, and no tracked file sets compiler flags or the test configuration for a build, except scripts/r6/ci.d/80-r6-absent.sh while HEAD holds it as a regular file reached through trees alone whose git blob id is the one that this script names and the work-tree file is that blob.
+# rule: The policy table equals both what route-gate derive writes and the first table of the contract, the router product passes the gate, docs/r6/bar.md holds the two constants, the default cap line is the contract's and a cap file that does not parse gives no cap, and no tracked file sets compiler flags or the test configuration for a build or the plain name of a variable that starts with CARGO_TARGET_ and ends with _RUNNER, or that name in the escapes that the scan decodes (a name built from parts or escaped another way, and a file that the scan does not read, pass it), except scripts/r6/ci.d/80-r6-absent.sh while HEAD holds it as a regular file reached through trees alone whose git blob id is the one that this script names and the work-tree file is that blob.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -22,7 +22,7 @@ q="'"
 word_flags=rust
 word_flags=${word_flags}flags
 word_cfg=cfg
-flag_pattern="${word_flags}|--${word_cfg}[[:space:]=,\"${q}]+test([^[:alnum:]_]|\$)|rustc-${word_cfg}=[\"${q}]?test([^[:alnum:]_]|\$)"
+flag_pattern="${word_flags}|--${word_cfg}[[:space:]=,\"${q}]+test([^[:alnum:]_]|\$)|rustc-${word_cfg}=[\"${q}]?test([^[:alnum:]_]|\$)|cargo_target_[[:alnum:]_]*runner"
 
 first_table() {
   tr ' ' '\t' <<'EOF'
@@ -661,6 +661,16 @@ PASS $name"
   flags_case workflow-env FAIL .github/workflows/ci.yml "    env:
       $setting: -D warnings"
   flags_case workflow-encoded FAIL .github/workflows/ci.yml "      $encoded: x"
+  runner=$(printf 'CARGO_TARGET_%s_%s' X86_64_PC_WINDOWS_MSVC RUNNER)
+  flags_case workflow-test-runner FAIL .github/workflows/ci.yml "    env:
+      $runner: x"
+  flags_case workflow-escaped-test-runner FAIL .github/workflows/ci.yml "    env:
+      $(printf '"CARGO_TARGET_X_%sUNNER": x' '\x52')"
+  flags_case workflow-long-escaped-test-runner FAIL .github/workflows/ci.yml "    env:
+      $(printf '"CARGO_TARGET_X_%sUNNER": x' '\U00000052')"
+  flags_case command-script-test-runner FAIL tools/r.cmd "set $runner=x"
+  flags_case workflow-target-directory PASS .github/workflows/ci.yml "    env:
+      CARGO_TARGET_DIR: target"
   flags_case script-cfg-test FAIL scripts/x.sh "cargo rustc -p halvo-route -- $cfg_test"
   flags_case script-cfg-equals FAIL scripts/x.sh "cargo rustc -p halvo-route -- $cfg_eq"
   flags_case toml-array FAIL ci/flags.toml "flags = [\"--$word_cfg\", \"test\"]"

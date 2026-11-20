@@ -3,11 +3,17 @@ mod common;
 use std::time::Duration;
 
 use common::stub::{Seen, Stub, HOLD};
-use halvo_connect::{AnswerFault, Calendar, CallError, Effect, Mail, ReplyRule, RunDay, Token};
+use halvo_connect::{
+    reply_senders, AnswerFault, Calendar, CallError, Effect, Mail, ReplyRule, RunDay, Token,
+};
+use halvo_schema::record::Instant;
 use serde_json::{json, Value};
 
-const INBOX: &str = "/v1.0/me/mailFolders/inbox/messages";
 const BEARER: &str = "Bearer stub-token-1";
+const PREFER: &str = "IdType=\"ImmutableId\"";
+const ANN: &str = "/v1.0/me/mailFolders/inbox/messages?$filter=isRead%20eq%20false%20and%20from%2FemailAddress%2Faddress%20eq%20%27ann%40people.test%27%20and%20receivedDateTime%20ge%201970-01-01T00%3A00%3A00Z&$top=25&$select=id%2CisRead%2Cfrom%2CtoRecipients%2CreplyTo%2CreceivedDateTime%2CconversationId%2Csubject%2Cbody%2CisReadReceiptRequested";
+const BOB: &str = "/v1.0/me/mailFolders/inbox/messages?$filter=isRead%20eq%20false%20and%20from%2FemailAddress%2Faddress%20eq%20%27bob%40people.test%27%20and%20receivedDateTime%20ge%201970-01-01T00%3A00%3A00Z&$top=25&$select=id%2CisRead%2Cfrom%2CtoRecipients%2CreplyTo%2CreceivedDateTime%2CconversationId%2Csubject%2Cbody%2CisReadReceiptRequested";
+const WINDOW: &str = "/v1.0/me/calendarView?startDateTime=2026-10-13T00%3A00%3A00Z&endDateTime=2026-11-13T00%3A00%3A00Z&$top=25&$select=id%2Csubject%2Cstart%2CisCancelled%2CresponseStatus%2CisOrganizer";
 
 fn token() -> Token {
     Token::new("stub-token-1".to_owned()).expect("a token")
@@ -22,12 +28,22 @@ fn message(id: &str, is_read: bool, from: &str, to: &[&str]) -> Value {
         "from": {"emailAddress": {"address": from}},
         "toRecipients": to.iter().map(|a| json!({"emailAddress": {"address": a}})).collect::<Vec<_>>(),
         "body": {"content": format!("b-{id}")},
+        "replyTo": [],
+        "receivedDateTime": "2026-11-18T10:00:00Z",
+        "isReadReceiptRequested": false,
     })
 }
 
 fn draft(id: &str, to: &str, subject: &str) -> String {
-    json!({"id": id, "subject": subject, "toRecipients": [{"emailAddress": {"address": to}}]})
-        .to_string()
+    json!({
+        "id": id,
+        "subject": subject,
+        "isDraft": true,
+        "toRecipients": [{"emailAddress": {"address": to}}],
+        "ccRecipients": [],
+        "bccRecipients": [],
+    })
+    .to_string()
 }
 
 fn seen(method: &str, path: &str, body: Option<Value>) -> Seen {
@@ -35,6 +51,7 @@ fn seen(method: &str, path: &str, body: Option<Value>) -> Seen {
         method: method.to_owned(),
         path: path.to_owned(),
         authorization: Some(BEARER.to_owned()),
+        prefer: Some(PREFER.to_owned()),
         body,
     }
 }
@@ -49,16 +66,17 @@ fn the_reply_task_makes_exactly_its_requests() {
         message("m5", false, "eve@people.test", &["me@home.test"]),
     ]});
     let stub = Stub::start(vec![
-        (format!("GET {INBOX}"), 200, inbox.to_string()),
+        (format!("GET {ANN}"), 200, inbox.to_string()),
+        (format!("GET {BOB}"), 200, json!({"value": []}).to_string()),
         (
             "POST /v1.0/me/messages/m1/createReply".to_owned(),
             201,
-            json!({"id": "d1"}).to_string(),
+            json!({"id": "d1", "isDraft": true}).to_string(),
         ),
         (
             "POST /v1.0/me/messages/m%2F3/createReply".to_owned(),
             201,
-            json!({"id": "d/3"}).to_string(),
+            json!({"id": "d/3", "isDraft": true}).to_string(),
         ),
         (
             "PATCH /v1.0/me/messages/d1".to_owned(),
@@ -84,12 +102,14 @@ fn the_reply_task_makes_exactly_its_requests() {
     let graph = stub.graph("mail");
     let rule = ReplyRule::new(
         "me@home.test".to_owned(),
-        vec!["ann@people.test".to_owned(), "bob@people.test".to_owned()],
+        reply_senders("ann@people.test, bob@people.test").expect("two senders"),
+        Instant(0),
     );
     let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
     let drafts = graph
         .mail_draft_reply(&token(), messages, "Thanks.")
-        .expect("mail_draft_reply answers");
+        .expect("mail_draft_reply answers")
+        .into_drafts();
     let kept: Vec<_> = drafts
         .iter()
         .map(|d| (d.id(), d.message(), d.to().to_vec(), d.subject()))
@@ -115,7 +135,8 @@ fn the_reply_task_makes_exactly_its_requests() {
     assert_eq!(
         stub.seen(),
         [
-            seen("GET", INBOX, None),
+            seen("GET", ANN, None),
+            seen("GET", BOB, None),
             seen("POST", "/v1.0/me/messages/m1/createReply", Some(json!({}))),
             seen("PATCH", "/v1.0/me/messages/d1", Some(patch.clone())),
             seen(
@@ -131,35 +152,17 @@ fn the_reply_task_makes_exactly_its_requests() {
 }
 
 #[test]
-fn a_paged_inbox_is_refused_after_one_request() {
-    let inbox = json!({
-        "value": [message("m1", false, "ann@people.test", &["me@home.test"])],
-        "@odata.nextLink": "http://mail.agent.test/v1.0/me/mailFolders/inbox/messages?$skip=1",
-    });
-    let stub = Stub::start(vec![(format!("GET {INBOX}"), 200, inbox.to_string())]);
-    let rule = ReplyRule::new(
-        "me@home.test".to_owned(),
-        vec!["ann@people.test".to_owned()],
-    );
-    assert_eq!(
-        stub.graph("mail").mail_list(&token(), &rule).err(),
-        Some(CallError::Answer(AnswerFault::Paged))
-    );
-    assert_eq!(stub.seen(), [seen("GET", INBOX, None)]);
-}
-
-#[test]
 fn draft_reply_stops_at_the_first_error() {
     let inbox = json!({"value": [
         message("m1", false, "ann@people.test", &["me@home.test"]),
         message("m2", false, "ann@people.test", &["me@home.test"]),
     ]});
     let stub = Stub::start(vec![
-        (format!("GET {INBOX}"), 200, inbox.to_string()),
+        (format!("GET {ANN}"), 200, inbox.to_string()),
         (
             "POST /v1.0/me/messages/m1/createReply".to_owned(),
             201,
-            json!({"id": "d1"}).to_string(),
+            json!({"id": "d1", "isDraft": true}).to_string(),
         ),
         (
             "PATCH /v1.0/me/messages/d1".to_owned(),
@@ -170,18 +173,22 @@ fn draft_reply_stops_at_the_first_error() {
     let graph = stub.graph("mail");
     let rule = ReplyRule::new(
         "me@home.test".to_owned(),
-        vec!["ann@people.test".to_owned()],
+        reply_senders("ann@people.test").expect("a sender"),
+        Instant(0),
     );
     let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
     assert_eq!(
-        graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
-        Some(CallError::Status(503))
+        graph
+            .mail_draft_reply(&token(), messages, "Thanks.")
+            .err()
+            .map(|f| f.error()),
+        Some(CallError::Status(503, None))
     );
     let patch = json!({"body": {"contentType": "text", "content": "Thanks."}});
     assert_eq!(
         stub.seen(),
         [
-            seen("GET", INBOX, None),
+            seen("GET", ANN, None),
             seen("POST", "/v1.0/me/messages/m1/createReply", Some(json!({}))),
             seen("PATCH", "/v1.0/me/messages/d1", Some(patch)),
         ]
@@ -196,13 +203,13 @@ fn event(id: &str, start: &str, cancelled: bool, response: &str) -> Value {
         "end": {"dateTime": start, "timeZone": "UTC"},
         "isCancelled": cancelled,
         "responseStatus": {"response": response},
+        "isOrganizer": false,
     })
 }
 
 #[test]
 fn the_cleanup_task_makes_exactly_its_requests() {
-    let window =
-        "/v1.0/me/calendarView?startDateTime=2026-10-13T00:00:00Z&endDateTime=2026-11-13T00:00:00Z";
+    let window = WINDOW;
     let view = json!({"value": [
         event("e1", "2026-10-12T23:59:59.9999999", true, "organizer"),
         event("e2", "2026-10-13T00:00:00.0000000", true, "organizer"),
@@ -251,8 +258,7 @@ fn the_cleanup_task_makes_exactly_its_requests() {
 
 #[test]
 fn an_effect_without_an_answer_is_unknown_and_not_sent_again() {
-    let window =
-        "/v1.0/me/calendarView?startDateTime=2026-10-13T00:00:00Z&endDateTime=2026-11-13T00:00:00Z";
+    let window = WINDOW;
     let view = json!({"value": [
         event("e1", "2026-11-01T10:00:00.0000000", true, "organizer"),
         event("e2", "2026-11-02T10:00:00.0000000", true, "organizer"),
@@ -295,16 +301,16 @@ fn a_draft_id_that_is_not_new_is_refused_before_its_patch() {
             message("m2", false, "ann@people.test", &["me@home.test"]),
         ]});
         let stub = Stub::start(vec![
-            (format!("GET {INBOX}"), 200, inbox.to_string()),
+            (format!("GET {ANN}"), 200, inbox.to_string()),
             (
                 "POST /v1.0/me/messages/m1/createReply".to_owned(),
                 201,
-                json!({"id": first}).to_string(),
+                json!({"id": first, "isDraft": true}).to_string(),
             ),
             (
                 "POST /v1.0/me/messages/m2/createReply".to_owned(),
                 201,
-                json!({"id": second}).to_string(),
+                json!({"id": second, "isDraft": true}).to_string(),
             ),
             (
                 "PATCH /v1.0/me/messages/d1".to_owned(),
@@ -320,16 +326,20 @@ fn a_draft_id_that_is_not_new_is_refused_before_its_patch() {
         let graph = stub.graph("mail");
         let rule = ReplyRule::new(
             "me@home.test".to_owned(),
-            vec!["ann@people.test".to_owned()],
+            reply_senders("ann@people.test").expect("a sender"),
+            Instant(0),
         );
         let messages = graph.mail_list(&token(), &rule).expect("mail_list answers");
         assert_eq!(
-            graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+            graph
+                .mail_draft_reply(&token(), messages, "Thanks.")
+                .err()
+                .map(|f| f.error()),
             Some(CallError::Answer(AnswerFault::Repeated)),
             "createReply answers {first} then {second}"
         );
         let mut want = vec![
-            seen("GET", INBOX, None),
+            seen("GET", ANN, None),
             seen("POST", "/v1.0/me/messages/m1/createReply", Some(json!({}))),
         ];
         if first_patched {
@@ -358,7 +368,8 @@ fn the_reply_body_reaches_the_patch_byte_for_byte() {
     let body = " Thanks,\n\tAnn. ";
     graph
         .mail_draft_reply(&token(), messages, body)
-        .expect("mail_draft_reply answers");
+        .expect("mail_draft_reply answers")
+        .into_drafts();
     let patched: Vec<_> = stub
         .seen()
         .into_iter()
@@ -374,11 +385,11 @@ fn the_reply_body_reaches_the_patch_byte_for_byte() {
 fn reply_stub(create: u16, patch: u16, send: u16) -> Stub {
     let inbox = json!({"value": [message("m1", false, "ann@people.test", &["me@home.test"])]});
     Stub::start(vec![
-        (format!("GET {INBOX}"), 200, inbox.to_string()),
+        (format!("GET {ANN}"), 200, inbox.to_string()),
         (
             "POST /v1.0/me/messages/m1/createReply".to_owned(),
             create,
-            json!({"id": "d1"}).to_string(),
+            json!({"id": "d1", "isDraft": true}).to_string(),
         ),
         (
             "PATCH /v1.0/me/messages/d1".to_owned(),
@@ -396,7 +407,8 @@ fn reply_stub(create: u16, patch: u16, send: u16) -> Stub {
 fn reply_rule() -> ReplyRule {
     ReplyRule::new(
         "me@home.test".to_owned(),
-        vec!["ann@people.test".to_owned()],
+        reply_senders("ann@people.test").expect("a sender"),
+        Instant(0),
     )
 }
 
@@ -410,10 +422,11 @@ fn each_request_takes_its_own_success_status_alone() {
             .expect("mail_list answers");
         let drafts = graph
             .mail_draft_reply(&token(), messages, "Thanks.")
-            .expect("mail_draft_reply answers");
+            .expect("mail_draft_reply answers")
+            .into_drafts();
         let handle = drafts.into_sends().next().expect("a draft");
         let error = graph.mail_send(&token(), handle).expect_err("not 202");
-        assert_eq!(error, CallError::Status(send));
+        assert_eq!(error, CallError::Status(send, None));
         assert_eq!(error.effect(), Effect::Unknown, "send answered {send}");
     }
     for (create, patch, status) in [(200, 200, 200), (201, 204, 204)] {
@@ -423,13 +436,15 @@ fn each_request_takes_its_own_success_status_alone() {
             .mail_list(&token(), &reply_rule())
             .expect("mail_list answers");
         assert_eq!(
-            graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
-            Some(CallError::Status(status)),
+            graph
+                .mail_draft_reply(&token(), messages, "Thanks.")
+                .err()
+                .map(|f| f.error()),
+            Some(CallError::Status(status, None)),
             "createReply answered {create}, the PATCH {patch}"
         );
     }
-    let window =
-        "/v1.0/me/calendarView?startDateTime=2026-10-13T00:00:00Z&endDateTime=2026-11-13T00:00:00Z";
+    let window = WINDOW;
     let view = json!({"value": [event("e1", "2026-11-01T10:00:00", true, "organizer")]});
     for delete in [200, 202] {
         let stub = Stub::start(vec![
@@ -448,7 +463,7 @@ fn each_request_takes_its_own_success_status_alone() {
         let error = graph
             .calendar_delete(&token(), handle)
             .expect_err("not 204");
-        assert_eq!(error, CallError::Status(delete));
+        assert_eq!(error, CallError::Status(delete, None));
         assert_eq!(error.effect(), Effect::Unknown, "DELETE answered {delete}");
     }
 }
@@ -460,11 +475,11 @@ fn a_create_reply_answer_that_names_a_listed_message_is_refused_before_its_patch
         message("m2", true, "ann@people.test", &["me@home.test"]),
     ]});
     let stub = Stub::start(vec![
-        (format!("GET {INBOX}"), 200, inbox.to_string()),
+        (format!("GET {ANN}"), 200, inbox.to_string()),
         (
             "POST /v1.0/me/messages/m1/createReply".to_owned(),
             201,
-            json!({"id": "m2"}).to_string(),
+            json!({"id": "m2", "isDraft": true}).to_string(),
         ),
         (
             "PATCH /v1.0/me/messages/m2".to_owned(),
@@ -478,13 +493,16 @@ fn a_create_reply_answer_that_names_a_listed_message_is_refused_before_its_patch
         .expect("mail_list answers");
     assert_eq!(messages.len(), 1, "m2 is read, so the rule keeps m1 alone");
     assert_eq!(
-        graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+        graph
+            .mail_draft_reply(&token(), messages, "Thanks.")
+            .err()
+            .map(|f| f.error()),
         Some(CallError::Answer(AnswerFault::Repeated))
     );
     assert_eq!(
         stub.seen(),
         [
-            seen("GET", INBOX, None),
+            seen("GET", ANN, None),
             seen("POST", "/v1.0/me/messages/m1/createReply", Some(json!({}))),
         ]
     );
@@ -494,11 +512,11 @@ fn a_create_reply_answer_that_names_a_listed_message_is_refused_before_its_patch
 fn a_patch_answer_that_names_another_item_is_refused() {
     let inbox = json!({"value": [message("m1", false, "ann@people.test", &["me@home.test"])]});
     let stub = Stub::start(vec![
-        (format!("GET {INBOX}"), 200, inbox.to_string()),
+        (format!("GET {ANN}"), 200, inbox.to_string()),
         (
             "POST /v1.0/me/messages/m1/createReply".to_owned(),
             201,
-            json!({"id": "d1"}).to_string(),
+            json!({"id": "d1", "isDraft": true}).to_string(),
         ),
         (
             "PATCH /v1.0/me/messages/d1".to_owned(),
@@ -511,14 +529,17 @@ fn a_patch_answer_that_names_another_item_is_refused() {
         .mail_list(&token(), &reply_rule())
         .expect("mail_list answers");
     assert_eq!(
-        graph.mail_draft_reply(&token(), messages, "Thanks.").err(),
+        graph
+            .mail_draft_reply(&token(), messages, "Thanks.")
+            .err()
+            .map(|f| f.error()),
         Some(CallError::Answer(AnswerFault::Item))
     );
     let patch = json!({"body": {"contentType": "text", "content": "Thanks."}});
     assert_eq!(
         stub.seen(),
         [
-            seen("GET", INBOX, None),
+            seen("GET", ANN, None),
             seen("POST", "/v1.0/me/messages/m1/createReply", Some(json!({}))),
             seen("PATCH", "/v1.0/me/messages/d1", Some(patch)),
         ]

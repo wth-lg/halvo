@@ -1,24 +1,34 @@
 use std::fmt;
 
+use halvo_schema::executable::names::YesNo;
 use reqwest::Method;
 use serde_json::Value;
 
-use crate::answer::{self, Ids, FORM};
+use crate::answer;
 use crate::error::CallError;
-use crate::graph::{segment, Graph};
+use crate::graph::{segment, Collection, Graph};
+use crate::list::{self, PAGE_SIZE};
+use crate::mail::yes_no;
 use crate::token::Token;
 
 const DAY_SECONDS: u64 = 86_400;
 const WINDOW_DAYS: i64 = 30;
+const BOUND: usize = 20;
+const FIELDS: &str = "id,subject,start,isCancelled,responseStatus,isOrganizer";
 
 /// The calendar operations of A11.2, each of the class of its row: `calendar_list` is `read` and
 /// `calendar_delete` is `delete`. Each takes the token for its call alone.
 pub trait Calendar {
-    /// GET of calendarView, once, for the window of the clean-up rule: from 00:00 UTC 30 days before `day` to
-    /// 00:00 UTC of the day after `day`. Then the rule: the events that start on one of those 31 days in UTC and
-    /// that are cancelled or that the user declined, in the order of the answer. Keeps `events`. Refuses an
-    /// answer that goes on in another page, that holds an id twice, whose start is not a Graph time in UTC, or
-    /// whose items lack a key of the face, with `Answer`.
+    /// One chain of GET requests of calendarView for the window of the clean-up rule, from 00:00 UTC 30 days before
+    /// `day` to 00:00 UTC of the day after `day`, with a page size of 25 and the fields that the rule and the face
+    /// read, `isOrganizer` among them; it names no order. The chain follows each next link as it stands when the
+    /// link is of the request's scheme, host and port and names calendarView without regard to ASCII case, and
+    /// ends with its pages or after 10 pages. Then the rule, applied to every item: the events that start on one
+    /// of those 31 days in UTC, that are cancelled or that the user declined, and that the user did not organize,
+    /// the first 20 in the order of the answers; it reads no further once it holds them. Keeps `events` with the
+    /// counts of what it left out. Refuses with `Answer` a page that is not the list's form, that holds more than
+    /// 25 items, an id twice or an id that is empty, `.` or `..`, and a link of another place, to which no
+    /// request is sent.
     fn calendar_list(&self, token: &Token, day: RunDay) -> Result<Events, CallError>;
 
     /// DELETE of the one event that `event` holds: one effect. `Events::into_deletes` gives one handle per event
@@ -77,35 +87,66 @@ impl Event {
     }
 }
 
-/// The kept list `events` of A11.2. Only `calendar_list` makes one. It has no `Clone`, so that one list gives its
-/// handles once:
+/// The kept list `events` of A11.2, with the counts of what the rule left out. Only `calendar_list` makes one. It
+/// has no `Clone`, so that one list gives its handles once:
 ///
 /// ```compile_fail
 /// fn copy(events: &halvo_connect::Events) -> halvo_connect::Events {
 ///     events.clone()
 /// }
 /// ```
-pub struct Events(Vec<Event>);
+pub struct Events {
+    kept: Vec<Event>,
+    counts: EventCounts,
+}
+
+/// What `calendar_list` left out and where it stopped, on the pages that it read, in the order of A11.2 and A7.4.
+/// Each event that it left out stands in one count, the first that fits in the order `no_key`, `organized`,
+/// `incomplete`; an event that the rule would not select if another person had organized it stands in none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EventCounts {
+    /// `yes` when the call stopped at its bound of 20 events with an item of a page or a link to a next page not
+    /// yet read.
+    pub cut: YesNo,
+    /// Items without an id or without a key that the rule reads: a `start` in UTC of the form of Graph,
+    /// `isCancelled`, the response of `responseStatus` and `isOrganizer`.
+    pub no_key: u32,
+    /// Events that start in the window, that are cancelled or declined, and that the user organized: deleting one
+    /// can send a cancellation to the people invited.
+    pub organized: u32,
+    /// Events that the rule selects and whose subject is neither text nor null.
+    pub incomplete: u32,
+    /// `yes` only when the chain read 10 pages without meeting the bound and its tenth page carried a link.
+    pub more_pages: YesNo,
+    /// Entries left out because an earlier page of the call gave their id; they stand outside the sum of the
+    /// counts above, and no value of it says that the list was read whole.
+    pub earlier_page: u32,
+}
 
 impl Events {
-    /// The events, in the order of the provider's answer.
+    /// The events, in the order of the provider's answers.
     pub fn iter(&self) -> std::slice::Iter<'_, Event> {
-        self.0.iter()
+        self.kept.iter()
     }
 
     /// The count of events.
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.kept.len()
     }
 
     /// Whether the rule selected no event.
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.kept.is_empty()
+    }
+
+    /// The counts of what the call left out and where it stopped.
+    pub fn counts(&self) -> EventCounts {
+        self.counts
     }
 
     /// One handle per event, in order, each for one `calendar_delete`.
     pub fn into_deletes(self) -> impl Iterator<Item = EventToDelete> {
-        self.0.into_iter().map(EventToDelete)
+        self.kept.into_iter().map(EventToDelete)
     }
 }
 
@@ -140,8 +181,40 @@ impl EventToDelete {
 
 impl Calendar for Graph {
     fn calendar_list(&self, token: &Token, day: RunDay) -> Result<Events, CallError> {
-        let answer = self.json(token, Method::GET, &window(day), None, 200)?;
-        listed(&answer, day).map(Events)
+        let mut counts = EventCounts {
+            cut: YesNo::No,
+            no_key: 0,
+            organized: 0,
+            incomplete: 0,
+            more_pages: YesNo::No,
+            earlier_page: 0,
+        };
+        let firsts = [window(day)];
+        let chains = list::read(
+            self,
+            token,
+            Collection::CalendarView,
+            &firsts,
+            BOUND,
+            |item| {
+                let count = match verdict(item, day) {
+                    Verdict::Kept(event) => return Some(event),
+                    Verdict::Other => return None,
+                    Verdict::NoKey => &mut counts.no_key,
+                    Verdict::Organized => &mut counts.organized,
+                    Verdict::Incomplete => &mut counts.incomplete,
+                };
+                *count = count.saturating_add(1);
+                None
+            },
+        )?;
+        counts.cut = yes_no(chains.cut);
+        counts.more_pages = yes_no(chains.more_pages);
+        counts.earlier_page = chains.earlier_page;
+        Ok(Events {
+            kept: chains.kept,
+            counts,
+        })
     }
 
     fn calendar_delete(&self, token: &Token, event: EventToDelete) -> Result<(), CallError> {
@@ -186,7 +259,22 @@ fn date(days: i64) -> String {
     format!("{year:04}-{month:02}-{day:02}")
 }
 
+pub(crate) fn instant_text(seconds: i64) -> String {
+    let second = seconds.rem_euclid(DAY_SECONDS as i64);
+    format!(
+        "{}T{:02}:{:02}:{:02}Z",
+        date(seconds.div_euclid(DAY_SECONDS as i64)),
+        second / 3_600,
+        second / 60 % 60,
+        second % 60
+    )
+}
+
 fn start_day(text: &str) -> Option<i64> {
+    seconds(text).map(|seconds| seconds.div_euclid(DAY_SECONDS as i64))
+}
+
+pub(crate) fn seconds(text: &str) -> Option<i64> {
     let bytes = text.as_bytes();
     let shape = (bytes.len() == 19 || (21..=27).contains(&bytes.len()))
         && bytes.iter().enumerate().all(|(i, &b)| match i {
@@ -201,50 +289,67 @@ fn start_day(text: &str) -> Option<i64> {
     }
     let number = |from: usize, to: usize| text[from..to].parse::<i64>().ok();
     let (year, month, day) = (number(0, 4)?, number(5, 7)?, number(8, 10)?);
-    if number(11, 13)? > 23 || number(14, 16)? > 59 || number(17, 19)? > 59 {
+    let (hour, minute, second) = (number(11, 13)?, number(14, 16)?, number(17, 19)?);
+    if hour > 23 || minute > 59 || second > 59 {
         return None;
     }
     let days = days_of(year, month, day);
-    (civil(days) == (year, month, day)).then_some(days)
+    (civil(days) == (year, month, day))
+        .then_some(days * DAY_SECONDS as i64 + hour * 3_600 + minute * 60 + second)
 }
 
 fn window(day: RunDay) -> String {
     format!(
-        "/v1.0/me/calendarView?startDateTime={}T00:00:00Z&endDateTime={}T00:00:00Z",
-        date(day.0 - WINDOW_DAYS),
-        date(day.0 + 1)
+        "/v1.0/me/calendarView?startDateTime={}&endDateTime={}&$top={PAGE_SIZE}&$select={}",
+        segment(&format!("{}T00:00:00Z", date(day.0 - WINDOW_DAYS))),
+        segment(&format!("{}T00:00:00Z", date(day.0 + 1))),
+        segment(FIELDS)
     )
 }
 
-fn listed(answer: &Value, day: RunDay) -> Result<Vec<Event>, CallError> {
-    let mut ids = Ids::default();
-    let mut kept = Vec::new();
-    for item in answer::page(answer)? {
-        let id = answer::id(item)?;
-        ids.first(&id)?;
-        let subject = answer::text(item, "subject")?;
-        let start = item.get("start").ok_or(FORM)?;
-        if start.get("timeZone").and_then(Value::as_str) != Some("UTC") {
-            return Err(FORM);
-        }
-        let start = answer::text(start, "dateTime")?;
-        let start_day = start_day(&start).ok_or(FORM)?;
-        let cancelled = item
-            .get("isCancelled")
-            .and_then(Value::as_bool)
-            .ok_or(FORM)?;
-        let response = item
-            .get("responseStatus")
+enum Verdict {
+    Kept(Event),
+    Other,
+    NoKey,
+    Organized,
+    Incomplete,
+}
+
+fn verdict(item: &Value, day: RunDay) -> Verdict {
+    let start = item
+        .get("start")
+        .filter(|start| start.get("timeZone").and_then(Value::as_str) == Some("UTC"))
+        .and_then(|start| start.get("dateTime"))
+        .and_then(Value::as_str);
+    let read = (
+        item.get("id").and_then(Value::as_str),
+        start.and_then(|text| start_day(text).map(|day| (text, day))),
+        item.get("isCancelled").and_then(Value::as_bool),
+        item.get("responseStatus")
             .and_then(|status| status.get("response"))
-            .and_then(Value::as_str)
-            .ok_or(FORM)?;
-        if (day.0 - WINDOW_DAYS..=day.0).contains(&start_day)
-            && (cancelled || response == "declined")
-        {
-            kept.push(Event { id, subject, start });
-        }
+            .and_then(Value::as_str),
+        item.get("isOrganizer").and_then(Value::as_bool),
+    );
+    let (Some(id), Some((start, start_day)), Some(cancelled), Some(response), Some(organizer)) =
+        read
+    else {
+        return Verdict::NoKey;
+    };
+    if !(day.0 - WINDOW_DAYS..=day.0).contains(&start_day) || !(cancelled || response == "declined")
+    {
+        return Verdict::Other;
     }
-    Ok(kept)
+    if organizer {
+        return Verdict::Organized;
+    }
+    let Some(subject) = answer::subject(item) else {
+        return Verdict::Incomplete;
+    };
+    Verdict::Kept(Event {
+        id: id.to_owned(),
+        subject,
+        start: start.to_owned(),
+    })
 }
 
 impl fmt::Debug for Event {
@@ -256,7 +361,7 @@ impl fmt::Debug for Event {
 impl fmt::Debug for Events {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Events")
-            .field("len", &self.0.len())
+            .field("len", &self.kept.len())
             .finish()
     }
 }

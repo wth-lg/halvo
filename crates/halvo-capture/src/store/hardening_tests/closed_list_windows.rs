@@ -76,7 +76,7 @@ fn delete_all_names_the_root_as_left_when_the_roots_directory_was_renamed_while_
         let renamed = std::fs::rename(&roots_dir, &moved);
         let answer = if tail {
             drop(store);
-            EncryptedStore::delete_store_dir(&store_dir, &roots_dir)
+            super::tail(&store_dir, &roots_dir)
         } else {
             let mut store = store;
             store.delete_all()
@@ -108,7 +108,7 @@ fn the_tail_destroys_the_root_or_reports_it_when_the_store_directory_or_its_lock
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let wrapped = wrapped_of(&store_dir);
     let held = hold_dir(&store_dir, 0);
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     drop(held);
     println!(
         "WIN-TAIL-HELD-DIR {} key_file_left={} root_unwraps={}",
@@ -131,7 +131,7 @@ fn the_tail_destroys_the_root_or_reports_it_when_the_store_directory_or_its_lock
     let wrapped = wrapped_of(&store_dir);
     let _ = std::fs::remove_file(store_dir.join("writer.lock"));
     std::fs::create_dir(store_dir.join("writer.lock")).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let alive = unwraps(&roots_dir, root_id, &wrapped);
     println!(
         "WIN-TAIL-LOCK-DIR {} root_unwraps={alive}",
@@ -166,9 +166,12 @@ fn a_create_in_a_directory_whose_name_is_not_unicode_leaves_only_the_lock_file_a
                 .collect()
         })
         .unwrap_or_default();
+    let opened = answer_text(&EncryptedStore::open(&odd, &roots, DEFAULT_RETENTION));
     println!(
-        "WIN-NON-UNICODE create={created} store_dir_now={left:?} roots_path_exists={}",
-        roots.exists()
+        "WIN-NON-UNICODE create={created} open={opened} store_dir_now={left:?} roots_path_exists={} \
+         steps={:?}",
+        roots.exists(),
+        crate::store::db::database_open_steps(&odd)
     );
     assert_eq!(left, vec!["writer.lock".to_string()]);
     assert!(
@@ -178,8 +181,9 @@ fn a_create_in_a_directory_whose_name_is_not_unicode_leaves_only_the_lock_file_a
 }
 
 /// Test 4 of the verify step: the tail given a verbatim name that ends in a
-/// dot, with a file, nothing or an empty directory at the trimmed name, and
-/// one case with such a name as the roots path.
+/// dot, with a file, nothing or an empty directory at the trimmed name; from
+/// store-3b the name is the data directory's, and a roots path of that form
+/// cannot be given to the tail any longer.
 #[test]
 fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_reports_what_stays() {
     for case in [
@@ -189,24 +193,26 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
     ] {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path().to_path_buf();
-        let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
+        let verbatim = PathBuf::from(format!(r"\\?\{}\data.", base.display()));
         std::fs::create_dir(&verbatim).unwrap();
-        std::fs::write(verbatim.join("held-file"), b"inside").unwrap();
-        let sibling = base.join("store");
+        std::fs::create_dir(verbatim.join("store")).unwrap();
+        std::fs::write(verbatim.join("store").join("held-file"), b"inside").unwrap();
+        let sibling = base.join("data");
         match case {
             "a file at the trimmed name" => std::fs::write(&sibling, b"sibling").unwrap(),
             "a directory at the trimmed name" => std::fs::create_dir(&sibling).unwrap(),
             _ => {}
         }
-        let answer = EncryptedStore::delete_store_dir(&verbatim, &base.join("roots"));
+        let answer =
+            EncryptedStore::delete_data_dir(&verbatim, crate::store::Layout::DataDirectory);
         let sibling_now = if sibling.is_dir() {
             Some(b"<dir>".to_vec())
         } else {
             std::fs::read(&sibling).ok()
         };
-        let inside_stays = verbatim.join("held-file").exists();
+        let inside_stays = verbatim.join("store").join("held-file").exists();
         println!(
-            "WIN-TRAILING-DOT case={case} {} sibling_now={:?} store_dot_holds_its_file={inside_stays}",
+            "WIN-TRAILING-DOT case={case} {} sibling_now={:?} data_dot_holds_its_file={inside_stays}",
             report_line(&answer),
             sibling_now.as_ref().map(|b| b.len())
         );
@@ -221,9 +227,9 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
         }
         assert!(
             !(answer.is_ok() && inside_stays),
-            "{case}: the tail answered Ok while store. holds a file"
+            "{case}: the tail answered Ok while data. holds a file"
         );
-        assert!(inside_stays, "{case}: the tail removed a file in store.");
+        assert!(inside_stays, "{case}: the tail removed a file in data.");
         if case == "nothing at the trimmed name" {
             assert!(
                 !sibling.exists(),
@@ -238,50 +244,30 @@ fn the_tail_given_a_verbatim_name_that_ends_in_a_dot_removes_no_sibling_and_repo
     }
     let dir = tempfile::tempdir().unwrap();
     let base = dir.path().to_path_buf();
-    let (made_at, roots_dir, root_id, _) = file_root_store(&base);
+    let (made_at, _, root_id, _) = file_root_store(&base.join("data"));
     let wrapped = wrapped_of(&made_at);
-    let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
-    std::fs::rename(&made_at, &verbatim).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&verbatim, &roots_dir);
+    let verbatim = PathBuf::from(format!(r"\\?\{}\data.", base.display()));
+    std::fs::rename(base.join("data"), &verbatim).unwrap();
+    let answer = EncryptedStore::delete_data_dir(&verbatim, crate::store::Layout::DataDirectory);
+    let store_dot = verbatim.join("store");
     println!(
-        "WIN-TRAILING-DOT case=a store under such a name {} store_dot_holds_its_key_file={} trimmed_name_exists={}",
+        "WIN-TRAILING-DOT case=a store under such a name {} data_dot_holds_its_key_file={} trimmed_name_exists={}",
         report_line(&answer),
-        verbatim.join("store.key").exists(),
-        base.join("store").exists()
+        store_dot.join("store.key").exists(),
+        base.join("data").exists()
     );
     let report = delete_report(&answer);
     assert!(
-        report.root_destroyed() && !unwraps(&roots_dir, root_id, &wrapped),
-        "the tail at a name that ends in a dot did not run the root step"
+        report.root_destroyed() && !unwraps(&verbatim.join("roots"), root_id, &wrapped),
+        "the tail at a data directory whose name ends in a dot did not run the root step"
     );
     assert!(
-        verbatim.join("store.key").exists() && !base.join("store").exists(),
+        store_dot.join("store.key").exists() && !base.join("data").exists(),
         "the tail removed a file at or beside the name that ends in a dot"
     );
     assert!(
         matches!(answer, Err(StoreError::DeleteIncomplete(_))) && report.not_followed == 1,
         "the tail at a store under such a name did not answer DeleteIncomplete with not_followed 1"
-    );
-    let dir = tempfile::tempdir().unwrap();
-    let base = dir.path().to_path_buf();
-    let (store_dir, _, _, _) = file_root_store(&base);
-    let roots_dot = PathBuf::from(format!(r"\\?\{}\roots.", base.display()));
-    std::fs::create_dir(&roots_dot).unwrap();
-    std::fs::write(roots_dot.join("held-file"), b"inside").unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dot);
-    println!(
-        "WIN-TRAILING-DOT case=such a name as the roots path {} roots_dot_holds_its_file={} sibling_roots_exists={}",
-        report_line(&answer),
-        roots_dot.join("held-file").exists(),
-        base.join("roots").exists()
-    );
-    assert!(
-        roots_dot.join("held-file").exists(),
-        "the tail removed a file under the roots path that ends in a dot"
-    );
-    assert!(
-        matches!(&answer, Err(StoreError::DeleteIncomplete(r)) if !r.root_destroyed()),
-        "the tail read the root as destroyed under a roots path that ends in a dot"
     );
 }
 
@@ -348,7 +334,7 @@ fn the_tail_destroys_a_root_file_whose_name_was_renamed_to_upper_case() {
     let lower = roots_dir.join(format!("{root_id}.root"));
     let upper = roots_dir.join(format!("{root_id}.root").to_uppercase());
     std::fs::rename(&lower, &upper).unwrap();
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &roots_dir);
+    let answer = tail(&store_dir, &roots_dir);
     let alive = unwraps(&roots_dir, root_id, &wrapped);
     println!(
         "WIN-UPPER-CASE {} root_unwraps={alive}",
@@ -450,38 +436,39 @@ fn an_open_while_another_handle_holds_the_lock_file_without_sharing_answers_lock
 }
 
 /// Ruling ST-45 H6 (a): verbatim_form builds its form from the path's parts.
-/// A real directory named `store.` holds a store, and the tail is given its
-/// path written with forward slashes, with a dot part and with a doubled
+/// A real data directory named `data.` holds a store, and the tail is given
+/// its path written with forward slashes, with a dot part and with a doubled
 /// separator: the root step runs (the root no longer unwraps), the other root
-/// stays (H1: the named root alone in this arm), and `store.` keeps its files.
+/// stays (H1: the named root alone in this arm), and `data.` keeps its files.
 #[test]
 fn the_tail_given_a_dotted_store_path_in_another_spelling_destroys_the_named_root_alone() {
     let mut problems = Vec::new();
     for spelling in ["forward slashes", "a dot part", "a doubled separator"] {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path().to_path_buf();
-        let (made_at, roots_dir, root_id, _) = file_root_store(&base);
+        let (made_at, roots_dir, root_id, _) = file_root_store(&base.join("data"));
         let wrapped = wrapped_of(&made_at);
         let other = RootId::fresh().unwrap();
         file_root_custody(&roots_dir, TestProtector::new(0x5a).0, other)
             .create_root()
             .unwrap();
-        let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
-        std::fs::rename(&made_at, &verbatim).unwrap();
+        let verbatim = PathBuf::from(format!(r"\\?\{}\data.", base.display()));
+        std::fs::rename(base.join("data"), &verbatim).unwrap();
         let text = base.display().to_string();
         let given = PathBuf::from(match spelling {
-            "forward slashes" => format!("{}/store.", text.replace('\\', "/")),
-            "a dot part" => format!(r"{text}\.\store."),
-            _ => format!(r"{text}\\store."),
+            "forward slashes" => format!("{}/data.", text.replace('\\', "/")),
+            "a dot part" => format!(r"{text}\.\data."),
+            _ => format!(r"{text}\\data."),
         });
-        let answer = EncryptedStore::delete_store_dir(&given, &roots_dir);
-        let destroyed = !unwraps(&roots_dir, root_id, &wrapped);
-        let other_stays = roots_dir.join(format!("{other}.root")).exists();
-        let key_file_stays = verbatim.join("store.key").exists();
+        let answer = EncryptedStore::delete_data_dir(&given, crate::store::Layout::DataDirectory);
+        let roots_now = verbatim.join("roots");
+        let destroyed = !unwraps(&roots_now, root_id, &wrapped);
+        let other_stays = roots_now.join(format!("{other}.root")).exists();
+        let key_file_stays = verbatim.join("store").join("store.key").exists();
         println!(
-            "WIN-ST45-H6A spelling={spelling} {} root_no_longer_unwraps={destroyed} other_root_stays={other_stays} store_dot_keeps_its_key_file={key_file_stays} trimmed_name_exists={}",
+            "WIN-ST45-H6A spelling={spelling} {} root_no_longer_unwraps={destroyed} other_root_stays={other_stays} data_dot_keeps_its_key_file={key_file_stays} trimmed_name_exists={}",
             report_line(&answer),
-            base.join("store").exists()
+            base.join("data").exists()
         );
         let incomplete =
             matches!(&answer, Err(StoreError::DeleteIncomplete(r)) if r.not_followed == 1);
@@ -502,24 +489,26 @@ fn the_tail_without_the_lock_destroys_the_named_root_alone() {
     for arm in ["a dotted name", "a directory at writer.lock"] {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path().to_path_buf();
-        let (made_at, roots_dir, root_id, _) = file_root_store(&base);
+        let (made_at, roots_dir, root_id, _) = file_root_store(&base.join("data"));
         let wrapped = wrapped_of(&made_at);
         let other = RootId::fresh().unwrap();
         file_root_custody(&roots_dir, TestProtector::new(0x5a).0, other)
             .create_root()
             .unwrap();
-        let store_at = if arm == "a dotted name" {
-            let verbatim = PathBuf::from(format!(r"\\?\{}\store.", base.display()));
-            std::fs::rename(&made_at, &verbatim).unwrap();
-            verbatim
+        let (answer, roots_now) = if arm == "a dotted name" {
+            let verbatim = PathBuf::from(format!(r"\\?\{}\data.", base.display()));
+            std::fs::rename(base.join("data"), &verbatim).unwrap();
+            (
+                EncryptedStore::delete_data_dir(&verbatim, crate::store::Layout::DataDirectory),
+                verbatim.join("roots"),
+            )
         } else {
             std::fs::remove_file(made_at.join("writer.lock")).unwrap();
             std::fs::create_dir(made_at.join("writer.lock")).unwrap();
-            made_at.clone()
+            (tail(&made_at, &roots_dir), roots_dir.clone())
         };
-        let answer = EncryptedStore::delete_store_dir(&store_at, &roots_dir);
-        let destroyed = !unwraps(&roots_dir, root_id, &wrapped);
-        let other_stays = roots_dir.join(format!("{other}.root")).exists();
+        let destroyed = !unwraps(&roots_now, root_id, &wrapped);
+        let other_stays = roots_now.join(format!("{other}.root")).exists();
         println!(
             "WIN-ST45-H1 arm={arm} {} root_no_longer_unwraps={destroyed} other_root_stays={other_stays}",
             report_line(&answer)
@@ -618,25 +607,28 @@ fn a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trim
     );
 }
 
-/// Ruling ST-46 K2 on Windows: a directory link in a part of the roots path
-/// below the directory that it shares with the store path: the tail runs no
-/// sweep and the other store opens after it. When the runner cannot make a
-/// directory link the test prints so and asserts nothing.
+/// Ruling ST-46 K2 on Windows with store-3b's closed layout: a directory
+/// link at the roots name of a data directory, to another store's roots. The
+/// tail opens the roots from the data directory's handle and follows no
+/// link there: it runs no sweep, and the other store's root unwraps after
+/// it. When the runner cannot make a directory link the test prints so and
+/// asserts nothing.
 #[test]
-fn the_tail_runs_no_sweep_through_a_directory_link_in_a_part_of_the_roots_path() {
+fn the_tail_follows_no_directory_link_at_the_roots_name_of_its_data_directory() {
     let dir = tempfile::tempdir().unwrap();
     let base = dir.path().to_path_buf();
     let (behind, behind_roots, behind_id, _) = file_root_store(&base.join("behind"));
     let wrapped = wrapped_of(&behind);
     let data = base.join("data");
     std::fs::create_dir(&data).unwrap();
-    let (store_dir, _, _, _) = file_root_store(&data);
-    let made = std::os::windows::fs::symlink_dir(base.join("behind"), data.join("alias"));
+    let (store_dir, roots_dir, _, _) = file_root_store(&data);
+    std::fs::rename(&roots_dir, data.join("roots-aside")).unwrap();
+    let made = std::os::windows::fs::symlink_dir(&behind_roots, &roots_dir);
     println!("WIN-ST46-K2 directory_link_made={}", made.is_ok());
     if made.is_err() {
         return;
     }
-    let answer = EncryptedStore::delete_store_dir(&store_dir, &data.join("alias").join("roots"));
+    let answer = tail(&store_dir, &roots_dir);
     let other_unwraps = unwraps(&behind_roots, behind_id, &wrapped);
     println!(
         "WIN-ST46-K2 {} the_other_root_unwraps={other_unwraps}",
@@ -644,7 +636,472 @@ fn the_tail_runs_no_sweep_through_a_directory_link_in_a_part_of_the_roots_path()
     );
     assert!(
         other_unwraps,
-        "the tail swept another store's roots through a directory link"
+        "the tail swept another store's roots through a directory link at its roots name"
     );
-    assert!(answer.is_err(), "{}", report_line(&answer));
+    assert!(
+        answer.is_err() && !delete_report(&answer).roots.listed,
+        "{}",
+        report_line(&answer)
+    );
+}
+
+/// store-3b, the share mode (ruling ST-44 F10): a store holds its roots
+/// directory without delete sharing, so the directory cannot be renamed
+/// while a handle of the store, from a create or from an open, is open;
+/// after the handle is dropped the rename goes through.
+#[test]
+fn a_roots_directory_that_a_store_holds_cannot_be_renamed_until_the_store_is_dropped() {
+    let mut problems = Vec::new();
+    for handle in ["the create's", "the open's"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+        let root_id = RootId::fresh().unwrap();
+        let store = if handle == "the create's" {
+            EncryptedStore::create(
+                &store_dir,
+                Box::new(file_root_custody(
+                    &roots_dir,
+                    TestProtector::new(0x5a).0,
+                    root_id,
+                )),
+                DEFAULT_RETENTION,
+            )
+            .unwrap()
+        } else {
+            drop(
+                EncryptedStore::create(
+                    &store_dir,
+                    Box::new(file_root_custody(
+                        &roots_dir,
+                        TestProtector::new(0x5a).0,
+                        root_id,
+                    )),
+                    DEFAULT_RETENTION,
+                )
+                .unwrap(),
+            );
+            open_over_file_root(&store_dir, &roots_dir, root_id).unwrap()
+        };
+        let moved = dir.path().join("roots-moved");
+        let while_held = std::fs::rename(&roots_dir, &moved);
+        let code = while_held.as_ref().err().and_then(|e| e.raw_os_error());
+        drop(store);
+        let after = std::fs::rename(&roots_dir, &moved);
+        println!(
+            "WIN-ROOTS-SHARE handle={handle} renamed_while_held={} code={code:?} renamed_after_drop={}",
+            while_held.is_ok(),
+            after.is_ok()
+        );
+        if while_held.is_ok() || after.is_err() {
+            problems.push(handle);
+        }
+    }
+    assert!(
+        problems.is_empty(),
+        "the roots directory was renamed while the store held it, or not after: {problems:?}"
+    );
+}
+
+/// store-3b (ruling ST-45 Addition 2 (c)): a real directory whose name ends
+/// in a space, made through its verbatim name, with a store below it. The
+/// create, the open and the tail refuse such a path, although Win32 would
+/// open it as written, which fails closed; nothing under the directory is
+/// written or destroyed, and nothing stands at the trimmed name.
+#[test]
+fn a_store_below_a_real_directory_whose_name_ends_in_a_space_is_refused_and_nothing_under_it_changes(
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let base = dir.path().to_path_buf();
+    let spaced = base.join("data ");
+    let verbatim = crate::store::durable::verbatim_form(&spaced)
+        .expect("the verbatim form of an absolute path");
+    std::fs::create_dir(&verbatim).unwrap();
+    std::fs::write(verbatim.join("left-as-it-was"), b"bytes").unwrap();
+    let (store_dir, roots_dir) = (spaced.join("store"), spaced.join("roots"));
+    let created = answer_text(&EncryptedStore::create(
+        &store_dir,
+        Box::new(file_root_custody(
+            &roots_dir,
+            TestProtector::new(0x5a).0,
+            RootId::fresh().unwrap(),
+        )),
+        DEFAULT_RETENTION,
+    ));
+    let opened = answer_text(&EncryptedStore::open(
+        &store_dir,
+        &roots_dir,
+        DEFAULT_RETENTION,
+    ));
+    let tail = EncryptedStore::delete_data_dir(&spaced, crate::store::Layout::DataDirectory);
+    let listing: Vec<String> = std::fs::read_dir(&verbatim)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    let kept = std::fs::read(verbatim.join("left-as-it-was"))
+        .ok()
+        .as_deref()
+        == Some(&b"bytes"[..]);
+    let at_the_trimmed_name = base.join("data").exists();
+    println!(
+        "WIN-SPACE create={created} open={opened} tail={} listing={listing:?} kept={kept} \
+         trimmed_name_exists={at_the_trimmed_name}",
+        report_line(&tail)
+    );
+    assert_eq!(created, "Io(InvalidInput)");
+    assert_eq!(opened, "Io(InvalidInput)");
+    assert_eq!(listing, vec!["left-as-it-was".to_string()]);
+    assert!(kept, "a call wrote into the file under the directory");
+    assert!(
+        !at_the_trimmed_name,
+        "a call made something at the trimmed name"
+    );
+    assert!(
+        tail.is_err() && delete_report(&tail).not_followed == 1,
+        "{}",
+        report_line(&tail)
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn a_root_file_moved_inside_the_held_roots_directory_is_destroyed_where_it_lies() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let wrapped = wrapped_of(&store_dir);
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let parked = roots_dir.join("parked.bin");
+    std::fs::rename(&root_file, &parked).unwrap();
+
+    let answer = store.delete_all();
+    drop(store);
+
+    let line = report_line(&answer);
+    let parked_exists = parked.exists();
+    let parked_bytes_left =
+        matches!(std::fs::read(&parked), Ok(bytes) if bytes.iter().any(|&b| b != 0));
+    let mut unwraps_when_put_back = false;
+    if parked_exists && !root_file.exists() {
+        std::fs::rename(&parked, &root_file).unwrap();
+        unwraps_when_put_back = unwraps(&roots_dir, root_id, &wrapped);
+    }
+    println!(
+        "REVIEW-WIN-01 {line} parked_exists={parked_exists} parked_bytes_left={parked_bytes_left} \
+         unwraps_when_put_back={unwraps_when_put_back}"
+    );
+    assert!(
+        !parked_bytes_left,
+        "the root file moved to another name inside the held roots directory kept its bytes: {line}"
+    );
+    assert!(
+        !unwraps_when_put_back,
+        "the moved root file still unwraps the store key after delete_all: {line}"
+    );
+    let report = delete_report(&answer);
+    assert!(
+        report.root_destroyed(),
+        "the root found by its identity does not read destroyed: {line}"
+    );
+    assert!(
+        answer.is_ok(),
+        "delete_all answered other than Ok after it destroyed the moved root: {line}"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn a_read_only_root_file_moved_inside_the_held_roots_directory_is_destroyed_where_it_lies() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let wrapped = wrapped_of(&store_dir);
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let root_file = roots_dir.join(format!("{root_id}.root"));
+    let parked = roots_dir.join("parked.bin");
+    std::fs::rename(&root_file, &parked).unwrap();
+    let mut permissions = std::fs::metadata(&parked).unwrap().permissions();
+    permissions.set_readonly(true);
+    std::fs::set_permissions(&parked, permissions).unwrap();
+
+    let answer = store.delete_all();
+    drop(store);
+
+    let line = report_line(&answer);
+    let parked_exists = parked.exists();
+    let parked_bytes_left =
+        matches!(std::fs::read(&parked), Ok(bytes) if bytes.iter().any(|&b| b != 0));
+    let mut unwraps_when_put_back = false;
+    if parked_exists && !root_file.exists() {
+        std::fs::rename(&parked, &root_file).unwrap();
+        unwraps_when_put_back = unwraps(&roots_dir, root_id, &wrapped);
+    }
+    if root_file.exists() {
+        if let Ok(meta) = std::fs::metadata(&root_file) {
+            let mut writable = meta.permissions();
+            #[expect(
+                clippy::permissions_set_readonly_false,
+                reason = "the test makes its own file removable for the temporary directory's cleanup"
+            )]
+            writable.set_readonly(false);
+            let _ = std::fs::set_permissions(&root_file, writable);
+        }
+    }
+    println!(
+        "REVIEW-WIN-04 {line} parked_exists={parked_exists} parked_bytes_left={parked_bytes_left} \
+         unwraps_when_put_back={unwraps_when_put_back}"
+    );
+    assert!(
+        !parked_bytes_left,
+        "the read-only root file moved inside the held roots directory kept its bytes: {line}"
+    );
+    assert!(
+        !unwraps_when_put_back,
+        "the read-only moved root file still unwraps the store key after delete_all: {line}"
+    );
+    assert!(
+        delete_report(&answer).root_destroyed() && answer.is_ok(),
+        "delete_all did not destroy a read-only root file found by its identity: {line}"
+    );
+}
+
+/// Ruling ST-47 T1 on Windows (M8): a root file renamed through its verbatim
+/// path to a name that ends in a dot, once while a store holds the roots
+/// folder and once before an open with a copy put at its name. No delete
+/// answers Ok while that file unwraps, and while it stands the report names
+/// it.
+#[test]
+fn st47_t1_a_root_renamed_to_a_name_that_ends_in_a_dot_is_seen_by_the_delete() {
+    let mut problems = Vec::new();
+    for case in ["while held", "before the open, with a copy at its name"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let wrapped = wrapped_of(&store_dir);
+        let root_file = roots_dir.join(format!("{root_id}.root"));
+        let verbatim_roots = crate::store::durable::verbatim_form(&roots_dir)
+            .expect("the verbatim form of an absolute path");
+        let dotted = verbatim_roots.join("kept-aside.");
+        let mut answers = Vec::new();
+        if case == "while held" {
+            let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+            std::fs::rename(&root_file, &dotted).unwrap();
+            answers.push(("held delete_all", store.delete_all()));
+            drop(store);
+        } else {
+            std::fs::rename(&root_file, &dotted).unwrap();
+            std::fs::copy(&dotted, &root_file).unwrap();
+            if let Ok(mut store) = open_over_file_root(&store_dir, &roots_dir, root_id) {
+                answers.push(("the open's delete_all", store.delete_all()));
+            }
+        }
+        answers.push(("tail 1", tail(&store_dir, &roots_dir)));
+        answers.push(("tail 2", tail(&store_dir, &roots_dir)));
+        for (n, (what, answer)) in answers.iter().enumerate() {
+            let check = dir.path().join(format!("check-{n}"));
+            std::fs::create_dir_all(&check).unwrap();
+            let unwraps = match std::fs::read(&dotted) {
+                Ok(bytes) => {
+                    std::fs::write(check.join(format!("{root_id}.root")), bytes).unwrap();
+                    unwraps(&check, root_id, &wrapped)
+                }
+                Err(_) => false,
+            };
+            let stands = std::fs::symlink_metadata(&dotted).is_ok();
+            let named = match answer {
+                Ok(report) => report.roots.others_left.root_shaped > 0,
+                Err(StoreError::DeleteIncomplete(report)) => {
+                    report.roots.others_left.root_shaped > 0
+                }
+                Err(_) => true,
+            };
+            println!(
+                "WIN-ST47-T1 case={case} {what}: {} dotted_stands={stands} dotted_unwraps={unwraps} named={named}",
+                report_line(answer)
+            );
+            if answer.is_ok() && unwraps {
+                problems.push(format!("{case}, {what}: Ok while the dotted root unwraps"));
+            }
+            if stands && !named {
+                problems.push(format!("{case}, {what}: the dotted file stands unnamed"));
+            }
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Ruling ST-47 T3 on Windows: a directory link to a scratch store, given as
+/// `link\`, `link\.`, `link/` and its verbatim form with a trailing
+/// separator. The tail of both layouts answers DeleteIncomplete with
+/// not_followed 1, the store's open and the roots handle's open refuse it,
+/// the link stands, and the store behind it opens and reads after every
+/// call. When the runner cannot make a directory link the test prints so and
+/// asserts nothing.
+#[test]
+fn st47_t3_a_directory_link_spelled_with_a_trailing_separator_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let base = dir.path().to_path_buf();
+    let real = base.join("real");
+    let roots = real.join("roots");
+    let root_id = RootId::fresh().unwrap();
+    let mut store = EncryptedStore::create(
+        &real,
+        Box::new(file_root_custody(
+            &roots,
+            TestProtector::new(0x5a).0,
+            root_id,
+        )),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (segment, _) = store
+        .write_segment(&mut Cursor::new(b"typed errors"))
+        .unwrap();
+    drop(store);
+    let link = base.join("link");
+    let roots_link = base.join("roots-link");
+    let made = std::os::windows::fs::symlink_dir(&real, &link)
+        .and_then(|()| std::os::windows::fs::symlink_dir(&roots, &roots_link));
+    println!("WIN-ST47-T3 directory_link_made={}", made.is_ok());
+    if made.is_err() {
+        return;
+    }
+    let spell = |path: &Path, tail: &str| {
+        let mut spelled = path.as_os_str().to_os_string();
+        spelled.push(tail);
+        PathBuf::from(spelled)
+    };
+    let verbatim = |path: &Path| {
+        let mut spelled = crate::store::durable::verbatim_form(path)
+            .expect("the verbatim form of an absolute path")
+            .into_os_string();
+        spelled.push("\\");
+        PathBuf::from(spelled)
+    };
+    let spellings = [
+        (r"link\", spell(&link, "\\"), spell(&roots_link, "\\")),
+        (r"link\.", spell(&link, "\\."), spell(&roots_link, "\\.")),
+        ("link/", spell(&link, "/"), spell(&roots_link, "/")),
+        (r"verbatim link\", verbatim(&link), verbatim(&roots_link)),
+    ];
+    let mut problems = Vec::new();
+    for (what, store_path, roots_path) in &spellings {
+        for layout in [
+            crate::store::Layout::ScratchStore,
+            crate::store::Layout::DataDirectory,
+        ] {
+            let answer = EncryptedStore::delete_data_dir(store_path, layout);
+            let not_followed = match &answer {
+                Err(StoreError::DeleteIncomplete(report)) => report.not_followed,
+                _ => u64::MAX,
+            };
+            let reads = open_over_file_root(&real, &roots, root_id).map(|store| {
+                store
+                    .read_segment(segment.segment_id, &mut Vec::new())
+                    .is_ok()
+            });
+            println!(
+                "WIN-ST47-T3 spelling={what} layout={layout:?} {} not_followed={not_followed} store_behind_reads={reads:?}",
+                report_line(&answer)
+            );
+            if not_followed != 1 || !matches!(reads, Ok(true)) {
+                problems.push(format!(
+                    "{what} {layout:?}: {} not_followed={not_followed} store_behind_reads={reads:?}",
+                    report_line(&answer)
+                ));
+            }
+        }
+        let opened = EncryptedStore::open_with(
+            store_path,
+            &roots,
+            DEFAULT_RETENTION,
+            |_: &crate::custody::CustodyLocator| {
+                Ok(Box::new(file_root_custody(
+                    &roots,
+                    TestProtector::new(0x5a).0,
+                    root_id,
+                )))
+            },
+        )
+        .map(drop);
+        let held = crate::custody::file_root::hold(roots_path).map(drop);
+        let links_stand = [&link, &roots_link].iter().all(|path| {
+            std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+        });
+        println!(
+            "WIN-ST47-T3 spelling={what} open={opened:?} roots_hold={held:?} links_stand={links_stand}"
+        );
+        if opened.is_ok() || held.is_ok() || !links_stand {
+            problems.push(format!(
+                "{what}: open={opened:?} roots_hold={held:?} links_stand={links_stand}"
+            ));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Ruling ST-48 U2 on Windows: a create.pending written by hand whose made
+/// mark records the identity of another party's read-only file of 100 bytes,
+/// which has a second name at a plain name of the roots folder. After the
+/// tail and after the next create, each in its own case, that file's bytes
+/// and its read-only attribute are unchanged, read through its outside name.
+#[test]
+fn st48_u2_a_hand_written_mark_writes_through_no_read_only_file_of_another_party() {
+    let mut problems = Vec::new();
+    for reader in ["the tail", "the next create"] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, _, _) = file_root_store(dir.path());
+        let outside = dir.path().join("outside");
+        let bytes: Vec<u8> = (0..100u8).map(|i| 0x41 + i % 26).collect();
+        std::fs::write(&outside, &bytes).unwrap();
+        let mut permissions = std::fs::metadata(&outside).unwrap().permissions();
+        permissions.set_readonly(true);
+        std::fs::set_permissions(&outside, permissions).unwrap();
+        std::fs::hard_link(&outside, roots_dir.join("plain")).unwrap();
+        let identity =
+            crate::store::durable::identity_of(&std::fs::File::open(&outside).unwrap()).unwrap();
+        std::fs::remove_file(KeyFile::path(&store_dir)).unwrap();
+        let marked = RootId::fresh().unwrap();
+        std::fs::write(
+            store_dir.join("create.pending"),
+            format!(
+                "{{\"custody_kind\":\"dpapi\",\"root_id\":\"{marked}\",\"reading\":\"made\",\"root_file\":{{\"volume\":{},\"file\":{}}}}}",
+                identity.volume, identity.file
+            ),
+        )
+        .unwrap();
+        let answer = match reader {
+            "the tail" => report_line(&tail(&store_dir, &roots_dir)),
+            _ => format!(
+                "{:?}",
+                EncryptedStore::create(
+                    &store_dir,
+                    Box::new(file_root_custody(
+                        &roots_dir,
+                        TestProtector::new(0x5a).0,
+                        RootId::fresh().unwrap(),
+                    )),
+                    DEFAULT_RETENTION,
+                )
+                .map(drop)
+            ),
+        };
+        let bytes_kept = std::fs::read(&outside).ok() == Some(bytes.clone());
+        let read_only = std::fs::metadata(&outside)
+            .map(|meta| meta.permissions().readonly())
+            .unwrap_or(false);
+        println!(
+            "WIN-ST48-U2 reader={reader} answer={answer} outside_bytes_kept={bytes_kept} outside_read_only={read_only}"
+        );
+        if !bytes_kept || !read_only {
+            problems.push(format!(
+                "{reader}: bytes kept {bytes_kept}, read-only {read_only}"
+            ));
+        }
+        let mut permissions = std::fs::metadata(&outside).unwrap().permissions();
+        #[expect(
+            clippy::permissions_set_readonly_false,
+            reason = "the test's own file is made writable so that its directory can be removed"
+        )]
+        permissions.set_readonly(false);
+        let _ = std::fs::set_permissions(&outside, permissions);
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }

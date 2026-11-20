@@ -286,6 +286,36 @@ fn rates_refusals() {
     assert!(!dir.join("o").exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn the_output_refusal_of_compose_names_the_out_argument_alone() {
+    let dir = scratch("compose-output");
+    let sites = services(&dir.join("sites"));
+    write(&dir.join("rates.toml"), &rates(20, 4).write());
+    let out = dir.join("out");
+    let o = std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg("umask 0277 && exec \"$0\" \"$@\"")
+        .arg(env!("CARGO_BIN_EXE_halvo-sample"))
+        .args([
+            "compose",
+            "--rates",
+            &s(&dir.join("rates.toml")),
+            "--out",
+            &s(&out),
+        ])
+        .args(sites.iter().map(|p| s(p)))
+        .output()
+        .expect("sh runs");
+    let o = common::Out {
+        code: o.status.code().unwrap_or(-1),
+        stdout: String::from_utf8_lossy(&o.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&o.stderr).into_owned(),
+    };
+    refused(&o, "output");
+    assert_eq!(o.stderr, format!("REFUSED output: {}\n", s(&out)));
+}
+
 #[test]
 fn compose_refusals() {
     let dir = scratch("refusals");
@@ -314,6 +344,65 @@ fn compose_refusals() {
     let o = compose(&dir, &rates(20, 4).write(), &sites, "o");
     assert_eq!(o.code, 0);
     refused(&compose(&dir, &rates(20, 4).write(), &sites, "o"), "exists");
+}
+
+#[test]
+fn the_site_data_refusal_names_a_file_by_its_number_in_byte_order_alone() {
+    let dir = scratch("site-number");
+    let sites = services(&dir.join("sites"));
+    let number = |args: &[PathBuf], k: usize| -> usize {
+        let mut order: Vec<usize> = (0..args.len()).collect();
+        order.sort_by_key(|i| s(&args[*i]));
+        order.iter().position(|i| *i == k).expect("given") + 1
+    };
+    let expect = |args: &[PathBuf], k: usize| {
+        let o = compose(&dir, &rates(20, 4).write(), args, "o");
+        refused(&o, "site-data");
+        assert_eq!(
+            o.stderr,
+            format!("REFUSED site-data: SITE_DATA {}\n", number(args, k))
+        );
+        assert!(!o.stderr.contains("zz-") && !o.stderr.contains(".json"));
+    };
+    let mut missing = sites.clone();
+    missing.push(dir.join("0-none.json"));
+    assert_eq!(number(&missing, sites.len()), 1);
+    expect(&missing, sites.len());
+    let mut deep = sites.clone();
+    deep.push(dir.join("q").join("x.json"));
+    deep.push(dir.join("q.json"));
+    assert_eq!(number(&deep, sites.len()), 2);
+    expect(&deep, sites.len());
+    let mut wide = sites.clone();
+    wide.push(dir.join("\u{1F600}.json"));
+    wide.push(dir.join("\u{FF61}.json"));
+    assert_eq!(number(&wide, sites.len()), sites.len() + 2);
+    expect(&wide, sites.len());
+    let mut cased = sites.clone();
+    cased.push(dir.join("a-x.json"));
+    cased.push(dir.join("B-x.json"));
+    assert_eq!(number(&cased, sites.len()), 2);
+    expect(&cased, sites.len());
+    let mut twice = sites.clone();
+    twice.push(sites[0].clone());
+    assert_eq!(number(&twice, sites.len()), 2);
+    let o = compose(&dir, &rates(20, 4).write(), &twice, "o");
+    assert_eq!(o.stderr, "REFUSED site-data: SITE_DATA 2\n");
+    let bad = dir.join("bad");
+    fs::create_dir_all(&bad).expect("dir");
+    let mut broken = Vec::new();
+    for p in &sites {
+        let q = bad.join(p.file_name().expect("name"));
+        fs::copy(p, &q).expect("copy");
+        broken.push(q);
+    }
+    let k = 2;
+    let text = fs::read_to_string(&broken[k]).expect("site");
+    write(&broken[k], &text.replacen("\"v\":1,", "\"v\":1, ", 1));
+    let n = number(&broken, k);
+    assert!(n != 1 && n != k + 1 && n != broken.len(), "{n}");
+    expect(&broken, k);
+    assert!(!dir.join("o").exists());
 }
 
 #[test]
@@ -591,4 +680,156 @@ fn compose_takes(o: &common::Out, k: usize) -> bool {
         2 if one_line && o.stderr.starts_with("REFUSED site-data: ") => false,
         code => panic!("compose on case {k}: exit {code}, {}", o.stderr),
     }
+}
+
+#[test]
+fn compose_late_n_writes_late_keys_in_that_stream_alone_and_its_built_stream_holds_late_keystrokes()
+{
+    let dir = scratch("compose-late");
+    let sites = services(&dir.join("sites"));
+    let plain = compose(&dir, &rates(20, 4).write(), &sites, "plain");
+    assert_eq!(plain.code, 0, "{}", plain.stderr);
+    let with = |late: &str, out: &str| {
+        let mut args = vec![
+            "compose".to_owned(),
+            "--rates".to_owned(),
+            s(&dir.join("rates.toml")),
+            "--late".to_owned(),
+            late.to_owned(),
+            "--out".to_owned(),
+            s(&dir.join(out)),
+        ];
+        args.extend(sites.iter().map(|p| s(p)));
+        let a: Vec<&str> = args.iter().map(String::as_str).collect();
+        run(&a)
+    };
+    let o = with("3", "late");
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    assert_eq!(o.stdout, plain.stdout);
+    let names = files_under(&dir.join("plain"));
+    assert_eq!(names, files_under(&dir.join("late")));
+    for f in &names {
+        let p = fs::read_to_string(dir.join("plain").join(f)).expect("plain");
+        let l = fs::read_to_string(dir.join("late").join(f)).expect("late");
+        if f.starts_with("s003.") {
+            assert!(l.contains(",\"late\":30000}"), "{f}");
+            assert_eq!(l.replace(",\"late\":30000}", "}"), p, "{f}");
+        } else {
+            assert_eq!(l, p, "{f}");
+        }
+    }
+    let (mut one_key, mut noise_keys) = (0, 0);
+    for f in ["s003.jsonl", "s003.marked.jsonl"] {
+        let text = fs::read_to_string(dir.join("late").join(f)).expect("late");
+        for l in text.lines() {
+            let line = halvo_sample::script::parse_line(l.as_bytes()).expect("a line");
+            let items: Vec<(&halvo_sample::script::Item, bool)> = match &line {
+                halvo_sample::script::Line::Episode(e) => {
+                    e.ranges.iter().map(|i| (i, false)).collect()
+                }
+                halvo_sample::script::Line::Noise(n) => vec![(&n.item, true)],
+                _ => Vec::new(),
+            };
+            for (i, noise) in items {
+                let want = (i.keys > 0).then_some(30_000);
+                assert_eq!(i.late, want, "{l}");
+                one_key += usize::from(i.keys == 1);
+                noise_keys += usize::from(noise && i.keys > 0);
+            }
+        }
+    }
+    assert!(one_key > 0 && noise_keys > 0, "{one_key} {noise_keys}");
+    let body = dir.join("body");
+    let o = run(&[
+        "build",
+        "--seed",
+        "5",
+        "--out",
+        &s(&body),
+        &s(&dir.join("late/s003.jsonl")),
+        &s(&dir.join("late/s003.marked.jsonl")),
+    ]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    let c = run(&["check-labels", &s(&body)]);
+    assert_eq!(c.code, 0, "{}", c.stdout);
+    let mut late_keys = 0;
+    for f in files_under(&body.join("streams/s003")) {
+        if !f.starts_with("day-") {
+            continue;
+        }
+        let text = fs::read_to_string(body.join("streams/s003").join(&f)).expect("day file");
+        let records: Vec<(i64, String)> = text
+            .lines()
+            .map(|l| {
+                let v: serde_json::Value = serde_json::from_str(l).expect("a record");
+                (
+                    v["at"].as_i64().expect("at"),
+                    v["kind"].as_str().expect("kind").to_owned(),
+                )
+            })
+            .collect();
+        let mut highest = i64::MIN;
+        for (at, kind) in &records {
+            if *at < highest {
+                assert_eq!(
+                    kind, "keystroke",
+                    "{f}: only a keystroke stands after a later record"
+                );
+                assert!(highest - at <= 30_000_000_000, "{f}");
+                late_keys += 1;
+            }
+            highest = highest.max(*at);
+        }
+    }
+    assert!(late_keys > 0, "a keystroke stands after a later record");
+    for bad in ["0", "21", "03", "x", "-1"] {
+        refused(&with(bad, &format!("bad-{bad}")), "usage");
+        assert!(!dir.join(format!("bad-{bad}")).exists(), "{bad}");
+    }
+    let last = with("20", "late-last");
+    assert_eq!(last.code, 0, "{}", last.stderr);
+    let text = fs::read_to_string(dir.join("late-last/s020.jsonl")).expect("s020");
+    assert!(text.contains(",\"late\":30000}"));
+}
+
+#[test]
+fn a_panic_of_the_command_ends_as_the_refusal_internal_and_prints_nothing_it_read() {
+    let dir = scratch("panic");
+    let repo = common::repo();
+    let rates = fs::read_to_string(repo.join("fixtures/r2/scripts/rates.toml")).expect("rates");
+    let huge: String = rates
+        .lines()
+        .map(|l| {
+            if l.starts_with("streams = ") {
+                "streams = 9223372036854775806".to_owned()
+            } else if l.starts_with("browser = ") {
+                "browser = \"org.qzmq.Chromium\"".to_owned()
+            } else {
+                l.to_owned()
+            }
+        })
+        .map(|l| format!("{l}\n"))
+        .collect();
+    assert!(huge.contains("9223372036854775806") && huge.contains("qzmq"));
+    write(&dir.join("rates.toml"), &huge);
+    let site = fs::read_dir(repo.join("tools/fixture-server/sites"))
+        .expect("the site files")
+        .map(|e| e.expect("entry").path())
+        .min()
+        .expect("a site file");
+    fs::copy(&site, dir.join("qzmq-site.json")).expect("copy");
+    let o = run(&[
+        "compose",
+        "--rates",
+        &s(&dir.join("rates.toml")),
+        "--out",
+        &s(&dir.join("out")),
+        &s(&dir.join("qzmq-site.json")),
+    ]);
+    refused(&o, "internal");
+    assert_eq!(
+        o.stderr,
+        "REFUSED internal: the command stopped at a fault of its own\n"
+    );
+    assert!(!dir.join("out").exists());
 }

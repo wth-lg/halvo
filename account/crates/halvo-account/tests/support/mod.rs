@@ -29,12 +29,23 @@ pub const CLEARED: [&str; 12] = [
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
+pub fn scratch_path(label: &str, n: usize) -> PathBuf {
+    Path::new(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("halvo-account-{}-{label}-{n}", std::process::id()))
+}
+
 pub fn scratch(label: &str) -> PathBuf {
-    let n = NEXT.fetch_add(1, Ordering::SeqCst);
-    let path = Path::new(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("halvo-account-{}-{label}-{n}", std::process::id()));
-    fs::create_dir_all(&path).expect("a scratch directory");
-    path
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    fs::create_dir_all(base).expect("the target's tmp directory");
+    loop {
+        let n = NEXT.fetch_add(1, Ordering::SeqCst);
+        let path = base.join(format!("halvo-account-{}-{label}-{n}", std::process::id()));
+        match fs::create_dir(&path) {
+            Ok(()) => return path,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => panic!("cannot make {}: {error}", path.display()),
+        }
+    }
 }
 
 pub fn store_at(dir: &Path) -> Store {

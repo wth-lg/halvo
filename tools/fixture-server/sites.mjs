@@ -39,9 +39,11 @@ export function isPort(value) {
  * Reads the arguments of a command that takes one optional flag with a value and one or more files; the flag may
  * stand before, between or after the files. Returns `{ value, files }`, with `value` null where the flag is absent,
  * or null for a usage error: an unknown flag, the flag twice or without a value, a value that `accepts` refuses,
- * or no file.
+ * no file, or an argument that is no UTF-8 (contracts.md C11.1). Node hands a byte that is no UTF-8 on as U+FFFD,
+ * so an argument that holds U+FFFD or a lone surrogate is refused, a path with a written U+FFFD among them.
  */
 export function readArgs(argv, flag, accepts) {
+  if (argv.some((arg) => !arg.isWellFormed() || arg.includes('\uFFFD'))) return null;
   let value = null;
   const files = [];
   for (let i = 0; i < argv.length; i += 1) {
@@ -280,21 +282,33 @@ export function parseSiteData(bytes) {
 }
 
 /**
- * Reads the site data files at the given paths, in order. Returns `{ sites }` or `{ refused: path }` for the first
- * file that is missing, is not of C11.1, or names a service that an earlier file names (D8).
+ * The number of the path at `index` among `paths` in byte order of their UTF-8 bytes, from 1; equal paths keep
+ * the order in which they are given (contracts.md C11.1).
+ */
+export function fileNumber(paths, index) {
+  const order = paths.map((path, i) => ({ key: Buffer.from(path, 'utf8'), i }));
+  order.sort((a, b) => Buffer.compare(a.key, b.key) || a.i - b.i);
+  return order.findIndex((entry) => entry.i === index) + 1;
+}
+
+/**
+ * Reads the site data files at the given paths, in order. Returns `{ sites }`, or `{ refused: path, number }` for
+ * the first file that is missing, is not of C11.1, or names a service that an earlier file names (D8), where
+ * `number` is the file's number of `fileNumber`, the one that a refusal prints.
  */
 export function loadSites(paths) {
   const sites = [];
   const services = new Set();
-  for (const path of paths) {
+  for (const [i, path] of paths.entries()) {
+    const refused = { refused: path, number: fileNumber(paths, i) };
     let site;
     try {
       site = parseSiteData(readFileSync(path));
     } catch (error) {
-      if (error instanceof SiteDataError || error.code !== undefined) return { refused: path };
+      if (error instanceof SiteDataError || error.code !== undefined) return refused;
       throw error;
     }
-    if (services.has(site.service)) return { refused: path };
+    if (services.has(site.service)) return refused;
     services.add(site.service);
     sites.push(site);
   }

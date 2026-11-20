@@ -172,6 +172,7 @@ version = "0.0.0"
 dependencies = [
  "getrandom",
  "halvo-secrets",
+ "halvo-test-dir",
  "halvo-wire",
  "reqwest",
  "rustls",
@@ -184,9 +185,14 @@ dependencies = [
 name = "halvo-secrets"
 version = "0.0.0"
 dependencies = [
+ "halvo-test-dir",
  "security-framework",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "halvo-test-dir"
+version = "0.0.0"
 
 [[package]]
 name = "halvo-wire"

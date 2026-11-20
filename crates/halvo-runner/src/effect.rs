@@ -2,6 +2,7 @@ use std::num::NonZeroU32;
 
 use halvo_policy::{digest, effect_step, Decided, Effect, EffectMove};
 use halvo_schema::executable::body::{PutEffect, Stored};
+use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::Approval;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
@@ -10,7 +11,7 @@ use halvo_schema::executable::{
 };
 use halvo_schema::{RequestId, RunnerRequest};
 
-use crate::clock::{day, now, random16};
+use crate::clock::{now, random16};
 use crate::run::{cause_of, Runner, Stop};
 
 /// How many times a row of an effect is sent when the store answers it with a fault (`store` or `internal`), each
@@ -226,7 +227,7 @@ impl Runner {
             run: self.args.run.clone(),
             effect: e.id.clone(),
             seq: NonZeroU32::new(e.seq + 1).unwrap_or(NonZeroU32::MAX),
-            day: day(when),
+            day: day_of(when, self.args.utc_offset_s),
             at: when,
             state,
             class: e.class,

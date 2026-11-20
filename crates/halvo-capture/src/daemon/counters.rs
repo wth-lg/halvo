@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::SystemTime;
 
+use super::port::EntryKind;
 use crate::event::Modality;
 use crate::floor::exclude::DropReason;
 
@@ -35,6 +36,81 @@ pub enum DiscardReason {
     OldPath,
 }
 
+/// The eight SQLite primary codes that set a batch aside at a write after
+/// three due tries, whatever mix of them the tries met (contracts.md C11.3,
+/// the write faults' bullet). A code is read by its primary code,
+/// `code & 0xff`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BatchCode {
+    Error,
+    Internal,
+    NotFound,
+    TooBig,
+    Constraint,
+    Mismatch,
+    Misuse,
+    Range,
+}
+
+impl BatchCode {
+    pub const ALL: [BatchCode; 8] = [
+        BatchCode::Error,
+        BatchCode::Internal,
+        BatchCode::NotFound,
+        BatchCode::TooBig,
+        BatchCode::Constraint,
+        BatchCode::Mismatch,
+        BatchCode::Misuse,
+        BatchCode::Range,
+    ];
+
+    /// The one of the eight whose primary code is that of `code`.
+    pub fn of(code: i32) -> Option<BatchCode> {
+        BatchCode::ALL
+            .into_iter()
+            .find(|batch_code| batch_code.primary() == code & 0xff)
+    }
+
+    /// SQLite's primary code.
+    pub const fn primary(self) -> i32 {
+        match self {
+            BatchCode::Error => 1,
+            BatchCode::Internal => 2,
+            BatchCode::NotFound => 12,
+            BatchCode::TooBig => 18,
+            BatchCode::Constraint => 19,
+            BatchCode::Mismatch => 20,
+            BatchCode::Misuse => 21,
+            BatchCode::Range => 25,
+        }
+    }
+
+    const fn index(self) -> usize {
+        match self {
+            BatchCode::Error => 0,
+            BatchCode::Internal => 1,
+            BatchCode::NotFound => 2,
+            BatchCode::TooBig => 3,
+            BatchCode::Constraint => 4,
+            BatchCode::Mismatch => 5,
+            BatchCode::Misuse => 6,
+            BatchCode::Range => 7,
+        }
+    }
+}
+
+/// The batches that the owner set aside, by the primary code of the last due
+/// try of each, one count for each [`BatchCode`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SetAsides([u64; 8]);
+
+impl SetAsides {
+    /// The batches set aside whose last due try ended with `code`.
+    pub fn of(&self, code: BatchCode) -> u64 {
+        self.0[code.index()]
+    }
+}
+
 /// The counters that sources fill: each handle is shared with its source.
 #[derive(Debug, Clone, Default)]
 pub struct SourceTallies {
@@ -62,11 +138,21 @@ impl SourceTallies {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Snapshot {
     received: [u64; KINDS],
+    received_other: u64,
     pub events_persisted: u64,
     pub discarded_by_barrier: u64,
     pub discarded_by_exclusion: u64,
     pub discarded_old_path: u64,
     pub events_lost: u64,
+    /// The events added to `events_lost` since the last acknowledged write.
+    pub lost_since_acknowledged: u64,
+    /// The first and the last capture instant, in signed unix nanoseconds, of
+    /// the events added to `events_lost` in this life.
+    pub lost_first_at: Option<i64>,
+    pub lost_last_at: Option<i64>,
+    /// The batches set aside in this life, by code; their events are in
+    /// `events_lost` alone.
+    pub batches_set_aside_by_code: SetAsides,
     pub events_pending: u64,
     pub segments_written: u64,
     pub tap_disabled_timeout: u64,
@@ -76,6 +162,10 @@ pub struct Snapshot {
     pub last_flush_at: Option<SystemTime>,
     pub last_expiry_at: Option<SystemTime>,
     pub last_eviction_at: Option<SystemTime>,
+    /// Whether the owner holds its batch after SET_ASIDES_BEFORE_STOP batches
+    /// set aside in a row, until a write is acknowledged. A Refused or Sealed
+    /// give-up inside the hold reports DrainHealthy and leaves this true.
+    pub drain_hold: bool,
 }
 
 impl Snapshot {
@@ -84,9 +174,10 @@ impl Snapshot {
         self.received[kind_index(kind)]
     }
 
-    /// The sum of the counts of every kind.
+    /// The sum of the counts of every kind, and of the records whose kind is
+    /// no `Modality`.
     pub fn events_received(&self) -> u64 {
-        self.received.iter().sum()
+        self.received.iter().sum::<u64>() + self.received_other
     }
 
     pub fn events_discarded(&self) -> u64 {
@@ -107,11 +198,16 @@ impl Snapshot {
 #[derive(Debug, Default)]
 pub struct Counters {
     received: [u64; KINDS],
+    received_by_key: Vec<(EntryKind, u64)>,
     persisted: u64,
     by_barrier: u64,
     by_exclusion: u64,
     old_path: u64,
     lost: u64,
+    lost_since_acknowledged: u64,
+    lost_first_at: Option<i64>,
+    lost_last_at: Option<i64>,
+    set_asides: SetAsides,
     segments: u64,
     disk_bytes: Option<u64>,
     last_flush_at: Option<SystemTime>,
@@ -125,8 +221,32 @@ impl Counters {
         &self.tallies
     }
 
-    pub fn received(&mut self, kind: Modality) {
-        self.received[kind_index(kind)] += 1;
+    /// One record of `kind` was received: an event of a `Modality`, or a
+    /// record of another kind that the owner appended, counted under its key.
+    pub fn received(&mut self, kind: EntryKind) {
+        match kind.modality() {
+            Some(modality) => self.received[kind_index(modality)] += 1,
+            None => match self
+                .received_by_key
+                .iter_mut()
+                .find(|(key, _)| *key == kind)
+            {
+                Some((_, count)) => *count += 1,
+                None => self.received_by_key.push((kind, 1)),
+            },
+        }
+    }
+
+    /// The count of the records received under `kind`.
+    pub fn received_under(&self, kind: EntryKind) -> u64 {
+        match kind.modality() {
+            Some(modality) => self.received[kind_index(modality)],
+            None => self
+                .received_by_key
+                .iter()
+                .find(|(key, _)| *key == kind)
+                .map_or(0, |(_, count)| *count),
+        }
     }
 
     pub fn discarded(&mut self, reason: DiscardReason) {
@@ -137,13 +257,24 @@ impl Counters {
         }
     }
 
-    pub fn lost(&mut self, events: u64) {
+    /// `events` events whose capture instants run from `first` to `last` were
+    /// lost.
+    pub fn lost(&mut self, events: u64, first: i64, last: i64) {
         self.lost += events;
+        self.lost_since_acknowledged += events;
+        self.lost_first_at = Some(self.lost_first_at.map_or(first, |at| at.min(first)));
+        self.lost_last_at = Some(self.lost_last_at.map_or(last, |at| at.max(last)));
+    }
+
+    /// A batch whose last due try ended with `code` was set aside.
+    pub fn set_aside(&mut self, code: BatchCode) {
+        self.set_asides.0[code.index()] += 1;
     }
 
     /// A segment of `events` events was acknowledged at `at`, `disk_bytes`
     /// more on disk.
     pub fn persisted(&mut self, events: u64, disk_bytes: u64, at: SystemTime) {
+        self.lost_since_acknowledged = 0;
         self.persisted += events;
         self.segments += 1;
         self.last_flush_at = Some(at);
@@ -162,16 +293,22 @@ impl Counters {
         self.last_eviction_at = Some(at);
     }
 
-    /// The snapshot with `pending` events held in the batch and the spill.
-    pub fn snapshot(&self, pending: u64) -> Snapshot {
+    /// The snapshot with `pending` events held in the batch and the spill,
+    /// and the owner's hold as `drain_hold`.
+    pub fn snapshot(&self, pending: u64, drain_hold: bool) -> Snapshot {
         let read = |count: &Arc<AtomicU64>| count.load(Ordering::Relaxed);
         Snapshot {
             received: self.received,
+            received_other: self.received_by_key.iter().map(|(_, count)| count).sum(),
             events_persisted: self.persisted,
             discarded_by_barrier: self.by_barrier,
             discarded_by_exclusion: self.by_exclusion,
             discarded_old_path: self.old_path,
             events_lost: self.lost,
+            lost_since_acknowledged: self.lost_since_acknowledged,
+            lost_first_at: self.lost_first_at,
+            lost_last_at: self.lost_last_at,
+            batches_set_aside_by_code: self.set_asides,
             events_pending: pending,
             segments_written: self.segments,
             tap_disabled_timeout: read(&self.tallies.tap_disabled_timeout),
@@ -181,6 +318,7 @@ impl Counters {
             last_flush_at: self.last_flush_at,
             last_expiry_at: self.last_expiry_at,
             last_eviction_at: self.last_eviction_at,
+            drain_hold,
         }
     }
 }
@@ -202,10 +340,10 @@ mod tests {
         let mut counters = Counters::default();
         for (n, kind) in Modality::ALL.into_iter().enumerate() {
             for _ in 0..=n {
-                counters.received(kind);
+                counters.received(EntryKind::of(kind));
             }
         }
-        let snapshot = counters.snapshot(0);
+        let snapshot = counters.snapshot(0, false);
         for (n, kind) in Modality::ALL.into_iter().enumerate() {
             assert_eq!(snapshot.received(kind), n as u64 + 1, "{kind:?}");
         }
@@ -227,7 +365,7 @@ mod tests {
             .tallies()
             .tap_disabled_user_input()
             .fetch_add(4, Ordering::Relaxed);
-        let snapshot = counters.snapshot(0);
+        let snapshot = counters.snapshot(0, false);
         assert_eq!(snapshot.secure_input_keystrokes, 2);
         assert_eq!(snapshot.tap_disabled_timeout, 3);
         assert_eq!(snapshot.tap_disabled_user_input, 4);

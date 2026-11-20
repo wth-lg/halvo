@@ -184,8 +184,8 @@ function stopServer(s) {
 
 const GONE_MS = 5000;
 const UNIX = process.platform !== 'win32';
-const CASES_UNIX = 198;
-const CASES_WINDOWS = 196;
+const CASES_UNIX = 225;
+const CASES_WINDOWS = 223;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -697,8 +697,19 @@ async function walkOrder(env, b, c, seed, vs, signin) {
   }
 }
 
-const MESSAGE_KEYS = ['id', 'conversationId', 'subject', 'isRead', 'from', 'toRecipients', 'body'];
-const EVENT_KEYS = ['id', 'subject', 'start', 'end', 'isCancelled', 'responseStatus'];
+const MESSAGE_KEYS = [
+  'id',
+  'conversationId',
+  'subject',
+  'isRead',
+  'from',
+  'toRecipients',
+  'body',
+  'replyTo',
+  'receivedDateTime',
+  'isReadReceiptRequested',
+];
+const EVENT_KEYS = ['id', 'subject', 'start', 'end', 'isCancelled', 'responseStatus', 'isOrganizer'];
 
 function messageShape(m) {
   return (
@@ -706,18 +717,104 @@ function messageShape(m) {
     typeof m.from.emailAddress.address === 'string' &&
     m.toRecipients.every((t) => typeof t.emailAddress.address === 'string') &&
     typeof m.body.content === 'string' &&
-    typeof m.isRead === 'boolean'
+    typeof m.isRead === 'boolean' &&
+    m.replyTo.every((t) => typeof t.emailAddress.address === 'string') &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(m.receivedDateTime) &&
+    typeof m.isReadReceiptRequested === 'boolean'
   );
 }
 
-function selectReplies(seed, messages) {
-  const senders = slot(seed.bindings.reply, 'reply_senders');
+// The received time of a served message, or of a seed's message counted from the instant 0.
+function receivedMs(m) {
+  return m.receivedDateTime === undefined ? m.received_minutes * 60000 : Date.parse(m.receivedDateTime);
+}
+
+// The second copy of the reader of the slot `reply_senders`, halvo_schema::executable's
+// `reply_senders` with its rule for a sender and `same_address` (CP-112, A11.2), which the cases
+// `reply-reader-*` hold to the reader's own tests.
+const SPECIALS = '"(),:;<>[\\]';
+const WHITE = new Set([
+  0x9, 0xa, 0xb, 0xc, 0xd, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005,
+  0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000,
+]);
+
+function asciiLower(text) {
+  return text.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+}
+
+function sameAddress(a, b) {
+  return asciiLower(a) === asciiLower(b);
+}
+
+function isSender(text) {
+  if (!/^[\x21-\x7e]*$/.test(text) || text.length > 320) return false;
+  if ([...text].some((c) => SPECIALS.includes(c))) return false;
+  const at = text.indexOf('@');
+  if (at < 1) return false;
+  const domain = text.slice(at + 1);
+  return domain.length > 0 && !domain.includes('@') && !domain.startsWith('.') && !domain.endsWith('.') && !domain.includes('..');
+}
+
+function trimWhite(piece) {
+  const chars = [...piece];
+  let from = 0;
+  let to = chars.length;
+  while (from < to && WHITE.has(chars[from].codePointAt(0))) from += 1;
+  while (to > from && WHITE.has(chars[to - 1].codePointAt(0))) to -= 1;
+  return chars.slice(from, to).join('');
+}
+
+// The senders of a slot's one text, or the first fault with the number of its piece counted from 1.
+function readSenders(text) {
+  const senders = [];
+  const pieces = text.split(',');
+  for (let i = 0; i < pieces.length; i += 1) {
+    const piece = trimWhite(pieces[i]);
+    if (piece === '') return { fault: 'empty', piece: i + 1 };
+    if (!/^[\x00-\x7f]*$/.test(piece)) return { fault: 'not_ascii', piece: i + 1 };
+    if (!isSender(piece)) return { fault: 'not_an_address', piece: i + 1 };
+    const earlier = senders.findIndex((sender) => sameAddress(sender, piece));
+    if (earlier >= 0) return { fault: 'twice', earlier: earlier + 1, piece: i + 1 };
+    senders.push(piece);
+  }
+  return { senders };
+}
+
+// The reply rule of A1.2 with the clauses of A11.2: unread, from a sender that the reader reads
+// from the seed's list joined by a comma and a space (none when it refuses the list), naming the
+// account, each held by `sameAddress`, received at the start's whole second or later, and no
+// reply-to other than the sender byte for byte. `since` is a start in milliseconds on the clock of
+// the messages' received times.
+function selectReplies(seed, messages, since) {
+  const read = readSenders(slot(seed.bindings.reply, 'reply_senders').join(', '));
+  if (!read.senders) return [];
+  const second = Math.floor(since / 1000) * 1000;
   return messages.filter(
     (m) =>
       !m.isRead &&
-      m.toRecipients.some((t) => t.emailAddress.address === seed.mail.address) &&
-      senders.includes(m.from.emailAddress.address),
+      m.toRecipients.some((t) => sameAddress(t.emailAddress.address, seed.mail.address)) &&
+      read.senders.some((sender) => sameAddress(sender, m.from.emailAddress.address)) &&
+      receivedMs(m) >= second &&
+      (m.replyTo || []).every((t) => t.emailAddress.address === m.from.emailAddress.address),
   );
+}
+
+// Follows the next links of one list from `path` and gives every item of every page, or null.
+async function walkPages(b, origin, path, headers) {
+  const items = [];
+  let url = `${origin}${path}`;
+  for (let n = 0; n < 50 && url; n += 1) {
+    const r = await b.get(url, { headers });
+    if (r.status !== 200) return null;
+    const page = JSON.parse(r.text);
+    items.push(...page.value);
+    url = page['@odata.nextLink'] || null;
+  }
+  return url ? null : items;
+}
+
+function sameIds(a, b) {
+  return equal(a.slice().sort(), b.slice().sort());
 }
 
 async function walkReply(env, b, c, seed, vs, expected) {
@@ -726,8 +823,8 @@ async function walkReply(env, b, c, seed, vs, expected) {
   const json = { ...auth, 'Content-Type': 'application/json' };
   let r = await b.get(`${o}/v1.0/me/mailFolders/inbox/messages`, { headers: auth });
   const list = r.status === 200 ? JSON.parse(r.text).value : [];
-  c.ok(r.status === 200 && list.length >= 4 && list.every(messageShape), 'inbox_list');
-  const chosen = selectReplies(seed, list);
+  c.ok(r.status === 200 && list.length >= 6 && list.every(messageShape), 'inbox_list');
+  const chosen = selectReplies(seed, list, Date.now());
   c.ok(chosen.length === expected, 'reply_rule_count');
   if (expected === 2) {
     c.ok(chosen[0]?.body.content.includes(seed.page_marker), 'marker_in_first_match');
@@ -752,6 +849,13 @@ async function walkReply(env, b, c, seed, vs, expected) {
     c.ok(r.status === 200 && JSON.parse(r.text).body.content === 'Thank you, noted.', 'patch_body');
     r = await b.post(`${o}/v1.0/me/messages/${encodeURIComponent(draft.id)}/send`, '', auth);
     c.ok(r.status === 202, 'send');
+    r = await b.get(`${o}/v1.0/me/mailFolders/inbox/messages`, { headers: auth });
+    c.ok(r.status === 200 && JSON.parse(r.text).value.find((x) => x.id === m.id)?.isRead === false, 'send_leaves_read_flag');
+    r = await b.send('PATCH', `${o}/v1.0/me/messages/${encodeURIComponent(m.id)}`, {
+      headers: json,
+      body: JSON.stringify({ isRead: true }),
+    });
+    c.ok(r.status === 200 && JSON.parse(r.text).id === m.id && JSON.parse(r.text).isRead === true, 'mark_read');
   }
   r = await b.get(`${o}/v1.0/me/mailFolders/inbox/messages`, { headers: auth });
   const again = r.status === 200 ? JSON.parse(r.text).value : [];
@@ -769,7 +873,7 @@ function isoDay(ms) {
 function selectCleanup(events, from, to) {
   return events.filter((e) => {
     const start = Date.parse(`${e.start.dateTime.slice(0, 19)}Z`);
-    return start >= from && start < to && (e.isCancelled || e.responseStatus.response === 'declined');
+    return start >= from && start < to && (e.isCancelled || e.responseStatus.response === 'declined') && !e.isOrganizer;
   });
 }
 
@@ -817,7 +921,8 @@ function laterEntry(seed, task) {
 
 async function checkEnd(env, c, task, expected) {
   const st = await env.state();
-  c.ok(equal(LISTS[task](st), expected), 'end_list');
+  const got = LISTS[task](st);
+  c.ok(task === 'cleanup' ? sameIds(got, expected) : equal(got, expected), 'end_list');
   for (const other of TASKS) if (other !== task) c.ok(LISTS[other](st).length === 0, `no_${other}_effect`);
   c.ok(st.requests.evil === 0, 'requests_evil_zero');
   c.ok(st.requests.unauthorized === 0, 'requests_unauthorized_zero');
@@ -885,19 +990,28 @@ async function dataCases() {
       const total = s.shop.items.reduce((sum, i) => sum + i.quantity * i.price, 0);
       c.ok(total === s.shop.total, 'shop_total');
       c.ok(equal(s.end.order, [{ items: s.shop.items.map((i) => ({ name: i.name, quantity: i.quantity })), total, instrument: instrumentOrder }]), 'end_order');
-      c.ok(s.mail.inbox.length === 4 && s.calendar.events.length === 6 && s.sheet.rows.length === 5, 'counts');
-      const replies = selectReplies(s, s.mail.inbox);
+      c.ok(s.mail.inbox.length === 6 && s.calendar.events.length === 8 && s.sheet.rows.length === 5, 'counts');
+      const replies = selectReplies(s, s.mail.inbox, 0);
       c.ok(replies.length === 2 && replies[0].body.content.includes(s.page_marker), 'reply_matches');
       c.ok(equal(s.end.reply, replies.map((m) => ({ to: m.from.emailAddress.address, conversation: m.conversationId, in_reply_to: m.id }))), 'end_reply');
-      const match = (e) => e.isCancelled || e.response === 'declined';
+      const match = (e) => (e.isCancelled || e.response === 'declined') && !e.isOrganizer;
       const inWindow = s.calendar.events.filter((e) => e.days_before >= 0 && e.days_before <= 30 && match(e));
       c.ok(inWindow.length === 2 && inWindow.every((e) => e.days_before >= 2 && e.days_before <= 20), 'cleanup_matches');
       c.ok(s.calendar.events.some((e) => e.isCancelled && e.days_before > 30), 'old_cancelled_event');
       const ordered = inWindow.slice().sort((a, b) => eventStart(a, 0) - eventStart(b, 0)).map((e) => e.id);
       c.ok(equal(s.end.cleanup, ordered), 'end_cleanup');
-      c.ok(selectReplies(s, [s.later.message]).length === 1, 'later_message_matches');
+      c.ok(selectReplies(s, [s.later.message], 0).length === 1, 'later_message_matches');
       const le = s.later.event;
       c.ok(match(le) && le.days_before >= 2 && le.days_before <= 20, 'later_event_matches');
+      const events = [...s.calendar.events, le];
+      c.ok(events.every((e) => e.isOrganizer === (e.response === 'organizer')), 'organizer_agrees_with_response');
+      const own = s.calendar.events.filter((e) => e.isOrganizer && e.days_before >= 0 && e.days_before <= 30);
+      c.ok(own.filter((e) => e.isCancelled).length === 1 && own.filter((e) => !e.isCancelled && e.response !== 'declined').length === 1, 'organized_events');
+      const senders = slot(s.bindings.reply, 'reply_senders');
+      const fromListed = s.mail.inbox.filter((m) => !m.isRead && senders.includes(m.from.emailAddress.address));
+      c.ok(fromListed.filter((m) => m.received_minutes < 0).length === 1, 'one_message_before_the_start');
+      c.ok(fromListed.filter((m) => (m.replyTo || []).some((t) => t.emailAddress.address !== m.from.emailAddress.address)).length === 1, 'one_reply_to_other');
+      c.ok(s.mail.inbox.filter((m) => m.isReadReceiptRequested === true).length === 1, 'one_receipt_request');
       c.ok(s.sheet.rows.every((r) => r.length === 3 && /^\d{4}-\d{2}-\d{2}$/.test(r[0]) && !r[1].includes(',') && /^\d+\.\d{2}$/.test(r[2])), 'sheet_rows');
     });
   }
@@ -922,6 +1036,137 @@ async function dataCases() {
     ];
     const [a, b2, d] = SEEDS.map((n) => read(seeds[n]));
     c.ok(a.every((v, i) => v !== b2[i] && v !== d[i] && b2[i] !== d[i]), 'every_task_value_differs');
+  });
+}
+
+function ofLength(length) {
+  const domain = '@people.test';
+  return `${'a'.repeat(length - domain.length)}${domain}`;
+}
+
+async function readerCases() {
+  const list = (senders) => ({ senders });
+  const fault = (name, piece, earlier) => (earlier === undefined ? { fault: name, piece } : { fault: name, earlier, piece });
+  const rows = (c, pairs, check) => {
+    for (const [slotText, want] of pairs) c.ok(equal(readSenders(slotText), want), check);
+  };
+  const white = [...WHITE].map((n) => String.fromCodePoint(n));
+  const ann = 'ann@people.test';
+  const bob = 'bob@people.test';
+  await run('reply-reader-cut-trimmed-in-order', async (c) => {
+    rows(c, [
+      [ann, list([ann])],
+      [`${ann}, ${bob}`, list([ann, bob])],
+      [`${bob},${ann}`, list([bob, ann])],
+      ['   cy@people.test  ,  Ann@People.test,bob@people.test   ', list(['cy@people.test', 'Ann@People.test', bob])],
+    ], 'cut_trimmed_in_order');
+  });
+  await run('reply-reader-seed-lists-read-back', async (c) => {
+    for (const n of SEEDS) {
+      const senders = slot(seeds[n].bindings.reply, 'reply_senders');
+      c.ok(senders.length === 2 && equal(readSenders(senders.join(', ')), list(senders)), 'seed_list_read_back');
+    }
+  });
+  await run('reply-reader-empty-piece', async (c) => {
+    rows(c, [
+      ['', fault('empty', 1)], [' ', fault('empty', 1)], [',', fault('empty', 1)], [`${ann},`, fault('empty', 2)],
+      [`${ann}, `, fault('empty', 2)], [`,${ann}`, fault('empty', 1)], [` , ${ann}`, fault('empty', 1)],
+      [`${ann},,${bob}`, fault('empty', 2)], [`${ann}, ,${bob}`, fault('empty', 2)],
+      ['a@people.test, b@people.test, c@people.test,', fault('empty', 4)],
+    ], 'empty_piece_numbered');
+  });
+  await run('reply-reader-no-address', async (c) => {
+    const pieces = ['Ann Berg', 'ann', '@people.test', 'ann@', '@', 'ann@@people.test', 'ann@people@test', 'ann people@test',
+      `${ann} ${bob}`, `${ann}; ${bob}`, `Ann <${ann}>`, 'ann\t@people.test', ofLength(321)];
+    rows(c, pieces.map((piece) => [piece, fault('not_an_address', 1)]), 'not_an_address_numbered');
+    rows(c, [[`${bob}, Ann Berg`, fault('not_an_address', 2)], ['a@people.test, b@people.test, ann', fault('not_an_address', 3)]], 'later_piece');
+    c.ok(equal(readSenders(ofLength(320)), list([ofLength(320)])), 'at_the_bound');
+  });
+  await run('reply-reader-outside-ascii', async (c) => {
+    rows(c, [
+      ['ännchen@people.test', fault('not_ascii', 1)], ['ann@péople.test', fault('not_ascii', 1)], ['Ann Bérg', fault('not_ascii', 1)],
+      ['é', fault('not_ascii', 1)], ['ann@people\u00a0.test', fault('not_ascii', 1)], ['ann@people.test\u00a0x', fault('not_ascii', 1)],
+      [`${bob}, élan@people.test`, fault('not_ascii', 2)], [`${bob}, ${ann}, \u{1f600}`, fault('not_ascii', 3)],
+      [`é${ofLength(320)}`, fault('not_ascii', 1)],
+    ], 'not_ascii_numbered');
+    for (const ch of ['\u0080', '\u00ff', '\u0100', '\u{10ffff}']) {
+      rows(c, [[`a${ch}@people.test`, fault('not_ascii', 1)], [`ann@peo${ch}ple.test`, fault('not_ascii', 1)]], 'not_ascii_bytes');
+    }
+  });
+  await run('reply-reader-white-space-at-the-ends', async (c) => {
+    c.ok(white.length === 25, 'twenty_five');
+    for (const ch of white) {
+      for (const piece of [`${ch}${ann}`, `${ann}${ch}`, `${ch}${ann}${ch}`, ` ${ch}${ch}${ann}${ch} `]) {
+        rows(c, [[piece, list([ann])], [`${piece}, ${bob}`, list([ann, bob])], [`${bob},${piece}`, list([bob, ann])]], 'trimmed');
+      }
+      rows(c, [[ch, fault('empty', 1)], [`${ann},${ch}`, fault('empty', 2)], [`${ch} ,${ann}`, fault('empty', 1)]], 'white_alone_is_empty');
+      rows(c, [[`${ch}${ofLength(320)}${ch}`, list([ofLength(320)])], [`${ch}${ofLength(321)}${ch}`, fault('not_an_address', 1)]], 'bound_after_trim');
+    }
+  });
+  await run('reply-reader-white-space-inside', async (c) => {
+    for (const ch of white) {
+      const want = ch.codePointAt(0) < 0x80 ? fault('not_an_address', 1) : fault('not_ascii', 1);
+      rows(c, [[`ann${ch}@people.test`, want], [`ann@people${ch}.test`, want]], 'inside_refused');
+    }
+    for (const [ch, want] of [['\u0000', fault('not_an_address', 1)], ['\u001f', fault('not_an_address', 1)], ['\u007f', fault('not_an_address', 1)],
+      ['\u200b', fault('not_ascii', 1)], ['\ufeff', fault('not_ascii', 1)]]) {
+      c.ok(!WHITE.has(ch.codePointAt(0)), 'not_white');
+      rows(c, [[`${ch}${ann}`, want], [`${ann}${ch}`, want]], 'other_bytes_at_the_ends');
+    }
+  });
+  await run('reply-reader-twice', async (c) => {
+    rows(c, [
+      [`${ann}, ${ann}`, fault('twice', 2, 1)], [`${ann}, ANN@People.TEST`, fault('twice', 2, 1)],
+      [`${ann}, ${bob}, Ann@people.test`, fault('twice', 3, 1)], [`${bob}, ${ann}, BOB@people.test`, fault('twice', 3, 1)],
+      ['a@people.test, b@people.test, c@people.test, B@people.test', fault('twice', 4, 2)],
+      ['élan@people.test, ÉLAN@people.test', fault('not_ascii', 1)],
+    ], 'twice_numbered');
+  });
+  await run('reply-reader-first-fault', async (c) => {
+    rows(c, [
+      [`Ann Berg, , ${ann}`, fault('not_an_address', 1)], [', Ann Berg', fault('empty', 1)],
+      [`${ann}, ANN@people.test, Ann Berg`, fault('twice', 2, 1)], [`${ann}, Ann Berg, ${ann}`, fault('not_an_address', 2)],
+      [`${ann}, ${ann},`, fault('twice', 2, 1)], [`${bob}, ännchen@people.test, Ann Berg`, fault('not_ascii', 2)],
+      [`${bob}, Ann Berg, ännchen@people.test`, fault('not_an_address', 2)], [`${bob}, , ännchen@people.test`, fault('empty', 2)],
+    ], 'first_fault');
+  });
+  await run('reply-reader-rule-for-a-sender', async (c) => {
+    const atext = "!#$%&'*+-/=?^_`{|}~.";
+    for (let byte = 0; byte < 128; byte += 1) {
+      const ch = String.fromCharCode(byte);
+      const taken = /[A-Za-z0-9]/.test(ch) || atext.includes(ch);
+      c.ok(isSender(`a${ch}b@people.test`) === taken && isSender(`ann@peo${ch}ple.test`) === taken, 'printable_but_specials');
+    }
+    c.ok(["a@b", "'@b", 'a.b@c.d', 'ann+x@people.test'].every(isSender), 'taken');
+    c.ok(!['', '@', 'a@', '@b', 'ab', 'a@b@c', 'é@b', 'a@é', 'a,b@c'].some(isSender), 'refused');
+    c.ok(isSender(ofLength(320)) && !isSender(ofLength(321)), 'bound');
+  });
+  await run('reply-reader-dots-after-the-at', async (c) => {
+    for (const text of ['ann@.people.test', 'ann@people.test.', 'ann@people..test', 'ann@.people.test.', 'ann@.', 'ann@..', 'ann@people...test', 'a@.b', 'a@b.']) {
+      c.ok(!isSender(text) && equal(readSenders(text), fault('not_an_address', 1)) && equal(readSenders(`${bob}, ${text}`), fault('not_an_address', 2)), 'dot_refused');
+    }
+    for (const text of ['ann@people', 'a@b', 'a@b.c', 'a@b.c.d', 'ann.@people.test', '.ann@people.test', 'a..b@people.test', 'a.b@c.d']) {
+      c.ok(isSender(text) && equal(readSenders(text), list([text])), 'dot_taken');
+    }
+  });
+  await run('reply-reader-same-address', async (c) => {
+    const read = readSenders(' Ann@People.test ,bob@people.test,k@people.test');
+    c.ok(equal(read, list(['Ann@People.test', bob, 'k@people.test'])), 'each_as_read');
+    const holds = (address) => read.senders.some((sender) => sameAddress(sender, address));
+    c.ok([ann, 'ANN@PEOPLE.TEST', 'Ann@People.test', 'BOB@people.test', 'K@people.test'].every(holds), 'held_without_ascii_case');
+    c.ok(!['eve@people.test', `${ann} `, ` ${ann}`, 'ann@people.tes', '', 'ann berg@people.test', '\u212a@people.test'].some(holds), 'nothing_else');
+  });
+  await run('reply-rule-uses-the-reader', async (c) => {
+    const s = seeds[1];
+    const [first, second] = slot(s.bindings.reply, 'reply_senders');
+    const withSenders = (senders) => ({ ...s, bindings: { ...s.bindings, reply: { ...s.bindings.reply, slots: [{ name: 'reply_senders', value: senders }] } } });
+    const mail = (from, to) => ({ ...s.mail.inbox[0], from: { emailAddress: { address: from } }, toRecipients: [{ emailAddress: { address: to } }] });
+    c.ok(selectReplies(s, [mail(first.toUpperCase(), s.mail.address)], 0).length === 1, 'sender_without_ascii_case');
+    c.ok(selectReplies(s, [mail(first, s.mail.address.toUpperCase())], 0).length === 1, 'account_without_ascii_case');
+    c.ok(selectReplies(withSenders([` ${first}\u00a0`, second]), [mail(first, s.mail.address)], 0).length === 1, 'trimmed_sender');
+    c.ok(selectReplies(withSenders([first, 'Ann Berg']), [mail(first, s.mail.address)], 0).length === 0, 'a_refused_list_selects_nothing');
+    c.ok(selectReplies(withSenders([first, first.toUpperCase()]), [mail(first, s.mail.address)], 0).length === 0, 'a_list_with_one_address_twice_selects_nothing');
+    c.ok(selectReplies(s, [mail(`\u212a${first.slice(1)}`, s.mail.address)], 0).length === 0, 'no_unicode_case');
   });
 }
 
@@ -950,7 +1195,7 @@ async function protocolCases(env) {
     return [q.total, q.state_changing, q.unauthorized];
   };
   const tokenOf = (u) => (u ? new URL(u).searchParams.get('token') : 'none');
-  const answered = selectReplies(s, s.mail.inbox)[0];
+  const answered = selectReplies(s, s.mail.inbox, 0)[0];
   async function createReply(fields) {
     const res = await http(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(answered.id)}/createReply`, { headers: mailJson, body: JSON.stringify(fields) });
     return res.status === 201 ? JSON.parse(res.text) : { id: 'none', subject: '' };
@@ -1213,7 +1458,7 @@ async function protocolCases(env) {
     c.ok((await http(env.port, 'GET', CONTROL, '/state', { headers: page })).status === 403, 'state_refused');
     c.ok(before.requests.evil === 1 && equal(await env.state(), before), 'counters_unchanged');
     r = await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth });
-    c.ok(r.status === 200 && JSON.parse(r.text).value.length === 4, 'not_advanced');
+    c.ok(r.status === 200 && JSON.parse(r.text).value.length === 6, 'not_advanced');
   });
 
   await run('sites-keep-apart', async (c) => {
@@ -1263,7 +1508,7 @@ async function protocolCases(env) {
     await env.advance();
     b = new env.Browser();
     r = await b.get(`${mail}/v1.0/me/mailFolders/inbox/messages`, { headers: auth });
-    c.ok(JSON.parse(r.text).value.length === 5, 'inbox_has_later_once');
+    c.ok(JSON.parse(r.text).value.length === 7, 'inbox_has_later_once');
     r = await b.get(`${cal}/v1.0/me/calendarView?startDateTime=2000-01-01T00:00:00&endDateTime=2100-01-01T00:00:00`, { headers: auth });
     c.ok(JSON.parse(r.text).value.filter((e) => e.id === s.later.event.id).length === 1, 'calendar_has_later_once');
   });
@@ -1352,7 +1597,7 @@ async function protocolCases(env) {
   await run('create-reply-message', async (c) => {
     await env.reset(1, ['inject_mail']);
     const inbox = JSON.parse((await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth })).text).value;
-    const [first, injected] = selectReplies(s, inbox);
+    const [first, injected] = selectReplies(s, inbox, Date.now());
     const evilTo = [{ emailAddress: { address: 'collector@evil.agent.test' } }];
     const reply = (m, fields) => http(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(m.id)}/createReply`, { headers: mailJson, body: JSON.stringify(fields) });
     c.ok(injected.body.content.includes('collector@evil.agent.test'), 'injected_text_served');
@@ -1370,10 +1615,111 @@ async function protocolCases(env) {
     c.ok(!equal(st.mail.sent, s.end.reply), 'sent_differs_from_end_reply');
   });
 
+  await run('lists-in-pages', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    const plain = '/v1.0/me/mailFolders/inbox/messages';
+    r = await b.get(`${mail}${plain}?$top=25`, { headers: auth });
+    const first = r.status === 200 ? JSON.parse(r.text) : { value: [] };
+    c.ok(first.value.length === 2 && typeof first['@odata.nextLink'] === 'string', 'a_page_shorter_than_asked');
+    const links = [];
+    let url = first['@odata.nextLink'];
+    const ids = first.value.map((m) => m.id);
+    while (url) {
+      links.push(new URL(url).pathname);
+      r = await b.get(url, { headers: auth });
+      const page = r.status === 200 ? JSON.parse(r.text) : { value: [] };
+      ids.push(...page.value.map((m) => m.id));
+      url = page['@odata.nextLink'];
+    }
+    c.ok(equal(ids, s.mail.inbox.map((m) => m.id)), 'the_pages_hold_the_inbox_once');
+    c.ok(links.includes("/v1.0/me/mailFolders('inbox')/messages") && links.includes(plain), 'links_in_both_spellings');
+    const sender = slot(s.bindings.reply, 'reply_senders')[0];
+    const since = new Date(Date.now()).toISOString().slice(0, 19) + 'Z';
+    const filter = `isRead eq false and from/emailAddress/address eq '${sender.toUpperCase()}' and receivedDateTime ge ${since}`;
+    const query = `$filter=${encodeURIComponent(filter)}&$top=25&$select=id`;
+    const chain = await walkPages(b, mail, `${plain}?${query}`, auth);
+    const want = s.mail.inbox.filter((m) => !m.isRead && m.from.emailAddress.address === sender && m.received_minutes >= 0);
+    c.ok(chain !== null && sameIds(chain.map((m) => m.id), want.map((m) => m.id)), 'the_filter_selects_the_sender_from_the_start');
+    r = await b.get(`${mail}${plain}?$filter=${encodeURIComponent('isRead eq true')}`, { headers: auth });
+    c.ok(r.status === 400, 'another_filter_400');
+    r = await b.get(`${mail}${plain}?$top=0`, { headers: auth });
+    c.ok(r.status === 400, 'a_page_size_of_0_400');
+  });
+
+  await run('view-in-seed-order', async (c) => {
+    await env.reset(1, []);
+    b = new env.Browser();
+    const all = await walkPages(b, cal, '/v1.0/me/calendarView?startDateTime=2000-01-01T00:00:00&endDateTime=2100-01-01T00:00:00&$top=25', auth);
+    const ids = all === null ? [] : all.map((e) => e.id);
+    c.ok(equal(ids, s.calendar.events.map((e) => e.id)), 'the_view_answers_in_the_order_of_the_seed');
+    const starts = all === null ? [] : all.map((e) => e.start.dateTime);
+    c.ok(!equal(starts, starts.slice().sort()), 'the_seed_is_not_in_order_of_start');
+    c.ok(all !== null && all.every((e) => e.isOrganizer === (e.responseStatus.response === 'organizer')), 'is_organizer_served');
+  });
+
+  await run('create-reply-is-a-draft', async (c) => {
+    await env.reset(1, []);
+    draft = await createReply({});
+    c.ok(draft.isDraft === true && equal(draft.ccRecipients, []) && equal(draft.bccRecipients, []), 'draft_keys');
+    r = await patch(draft.id, { body: { content: 'Thank you, noted.' } });
+    const patched = r.status === 200 ? JSON.parse(r.text) : {};
+    c.ok(patched.isDraft === true && equal(patched.ccRecipients, []) && equal(patched.bccRecipients, []), 'patch_answer_keys');
+  });
+
+  await run('mark-read', async (c) => {
+    await env.reset(1, []);
+    const before = await counters();
+    r = await patch(answered.id, { isRead: true });
+    const marked = r.status === 200 ? JSON.parse(r.text) : {};
+    c.ok(marked.id === answered.id && marked.isRead === true && messageShape(marked), 'mark_answer');
+    const after = await counters();
+    c.ok(after[0] === before[0] + 1 && after[1] === before[1] + 1, 'mark_counted_as_state_change');
+    c.ok((await patch(answered.id, { isRead: 'true' })).status === 400, 'mark_needs_a_boolean');
+    c.ok((await patch(answered.id, { isRead: false, subject: 'x' })).status === 400, 'mark_takes_one_key');
+    c.ok((await patch(answered.id, { isRead: false })).status === 200, 'mark_unread');
+    r = await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth });
+    c.ok(JSON.parse(r.text).value.find((m) => m.id === answered.id).isRead === false, 'unread_again');
+  });
+
+  await run('throttle-once', async (c) => {
+    await env.reset(1, []);
+    c.ok((await http(env.port, 'POST', CONTROL, '/throttle?seconds=30')).status === 200, 'throttle_set');
+    r = await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth });
+    c.ok(r.status === 429 && r.headers['retry-after'] === '30', 'answer_429_with_retry_after');
+    r = await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth });
+    c.ok(r.status === 200, 'once_alone');
+    await http(env.port, 'POST', CONTROL, '/throttle?seconds=7');
+    r = await http(env.port, 'DELETE', 'calendar.agent.test', `/v1.0/me/events/${encodeURIComponent(s.end.cleanup[0])}`, { headers: auth });
+    c.ok(r.status === 429 && r.headers['retry-after'] === '7' && (await env.state()).calendar.deleted.length === 0, 'a_throttled_delete_removes_nothing');
+    c.ok((await http(env.port, 'POST', CONTROL, '/throttle?seconds=x')).status === 400, 'bad_seconds_400');
+    c.ok((await http(env.port, 'POST', CONTROL, '/throttle?seconds=1&other=2')).status === 400, 'other_parameter_400');
+    c.ok((await http(env.port, 'GET', CONTROL, '/throttle?seconds=1')).status === 405, 'get_405');
+    c.ok((await env.reset(1, [])).status === 200 && (await http(env.port, 'GET', 'calendar.agent.test', '/v1.0/me/calendarView?startDateTime=2000-01-01T00:00:00&endDateTime=2100-01-01T00:00:00', { headers: auth })).status === 200, 'reset_ends_the_throttle');
+  });
+
+  await run('received-times', async (c) => {
+    const resetAt = Date.now();
+    await env.reset(1, []);
+    const doneAt = Date.now();
+    r = await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth });
+    const served = JSON.parse(r.text).value;
+    const second = (ms) => Math.floor(ms / 1000) * 1000;
+    c.ok(
+      served.every((m, i) => {
+        const at = Date.parse(m.receivedDateTime);
+        const minutes = s.mail.inbox[i].received_minutes * 60000;
+        return at >= second(resetAt + minutes) && at <= doneAt + minutes;
+      }),
+      'received_counted_from_the_reset',
+    );
+    c.ok(served.filter((m) => Date.parse(m.receivedDateTime) < resetAt).length === 1, 'one_before_the_reset');
+  });
+
   await run('patch-unknown-draft', async (c) => {
     await env.reset(1, []);
     draft = await createReply({ comment: 'Draft text.' });
-    c.ok((await patch(answered.id, { body: { content: 'Thank you, noted.' } })).status === 404, 'patch_message_id_404');
+    c.ok((await patch(answered.id, { body: { content: 'Thank you, noted.' } })).status === 400, 'patch_message_draft_keys_400');
     c.ok((await patch(`draft-${'0'.repeat(32)}`, { body: { content: 'Thank you, noted.' } })).status === 404, 'patch_other_draft_id_404');
     c.ok(bodyOf(await patch(draft.id, { subject: draft.subject })) === 'Draft text.', 'draft_unchanged');
   });
@@ -1466,25 +1812,81 @@ async function protocolCases(env) {
     }
   });
 
-  const replyPath = `/v1.0/me/messages/${encodeURIComponent(answered.id)}/createReply`;
-  const replyOnce = () => unanswered(env.port, 'POST', 'mail.agent.test', replyPath, { headers: mailJson, body: '{}' });
-
-  await run('no-reply-holds-the-first-state-changing-request', async (c) => {
+  await run('no-reply-holds-the-first-request-that-records-an-effect', async (c) => {
     await env.reset(1, ['no_reply']);
     c.ok((await http(env.port, 'GET', 'mail.agent.test', '/v1.0/me/mailFolders/inbox/messages', { headers: auth })).status === 200, 'read_answered');
-    r = await replyOnce();
-    c.ok(!r.replied, 'first_state_changing_unanswered_within_2000ms');
+    const first = await createReply({});
+    c.ok(first.id !== 'none', 'create_reply_answered');
+    c.ok((await patch(first.id, { body: { content: 'Thank you, noted.' } })).status === 200, 'patch_answered');
+    r = await unanswered(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(first.id)}/send`, { headers: auth, body: '' });
+    c.ok(!r.replied, 'send_unanswered_within_2000ms');
     st = await env.state();
-    c.ok(st.mail.drafts === 1 && st.requests.state_changing === 1, 'first_state_changing_recorded');
-    r = await replyOnce();
-    c.ok(r.replied && r.status === 201, 'second_state_changing_answered');
-    c.ok((await env.state()).mail.drafts === 2, 'second_recorded');
+    c.ok(st.mail.sent.length === 1 && st.mail.sent[0].in_reply_to === answered.id, 'held_send_recorded');
+    const second = await createReply({});
+    c.ok((await sendDraft(second.id)).status === 202 && (await env.state()).mail.sent.length === 2, 'second_send_answered');
     await http(env.port, 'POST', CONTROL, '/reset');
-    r = await replyOnce();
-    c.ok(!r.replied && (await env.state()).mail.drafts === 1, 'held_again_after_each_reset');
+    const third = await createReply({});
+    r = await unanswered(env.port, 'POST', 'mail.agent.test', `/v1.0/me/messages/${encodeURIComponent(third.id)}/send`, { headers: auth, body: '' });
+    c.ok(!r.replied && (await env.state()).mail.sent.length === 1, 'held_again_after_each_reset');
     await env.reset(1, []);
-    r = await replyOnce();
-    c.ok(r.replied && r.status === 201, 'answered_without_the_variant');
+    const fourth = await createReply({});
+    c.ok((await sendDraft(fourth.id)).status === 202, 'answered_without_the_variant');
+  });
+
+  const other = [{ emailAddress: { address: 'someone.else@people.agent.test' } }];
+  const sender = [{ emailAddress: { address: answered.from.emailAddress.address } }];
+  for (const [variant, want] of [
+    ['draft_no_recipient', { toRecipients: [] }],
+    ['draft_two_recipients', { toRecipients: [...sender, ...other] }],
+    ['draft_copy', { ccRecipients: other }],
+    ['draft_blind_copy', { bccRecipients: other }],
+    ['draft_other_conversation', { conversationId: `${answered.conversationId}-other` }],
+  ]) {
+    await run(`variant-${variant}`, async (c) => {
+      await env.reset(1, [variant]);
+      draft = await createReply({});
+      const base = { toRecipients: sender, ccRecipients: [], bccRecipients: [], conversationId: answered.conversationId, isDraft: true };
+      const expected = { ...base, ...want };
+      const keys = Object.keys(base);
+      c.ok(keys.every((k) => equal(draft[k], expected[k])), 'create_reply_answer');
+      r = await patch(draft.id, { body: { content: 'Thank you, noted.' } });
+      const patched = r.status === 200 ? JSON.parse(r.text) : {};
+      c.ok(keys.every((k) => equal(patched[k], expected[k])), 'patch_answer');
+      await env.reset(1, []);
+      draft = await createReply({});
+      c.ok(keys.every((k) => equal(draft[k], base[k])), 'reset_without_the_variant');
+    });
+  }
+
+  await run('variant-draft_not_yet', async (c) => {
+    await env.reset(1, ['draft_not_yet']);
+    draft = await createReply({});
+    c.ok(draft.isDraft === true, 'create_reply_answer');
+    const flag = async () => {
+      const res = await patch(draft.id, { body: { content: 'Thank you, noted.' } });
+      return res.status === 200 ? JSON.parse(res.text).isDraft : null;
+    };
+    c.ok((await flag()) === false, 'first_patch_not_a_draft');
+    c.ok((await flag()) === true && (await flag()) === true, 'later_patches_a_draft');
+    const second = await createReply({});
+    draft = second;
+    c.ok((await flag()) === false, 'once_for_each_draft');
+  });
+
+  await run('variant-reply_not_draft', async (c) => {
+    await env.reset(1, ['reply_not_draft']);
+    draft = await createReply({});
+    c.ok(draft.isDraft === false && draft.id.startsWith('draft-'), 'create_reply_answer');
+    c.ok((await env.state()).mail.drafts === 1, 'the_item_is_made');
+  });
+
+  await run('variant-reply_listed_id', async (c) => {
+    await env.reset(1, ['reply_listed_id']);
+    draft = await createReply({});
+    c.ok(draft.id === answered.id && draft.isDraft === true, 'create_reply_answers_the_listed_id');
+    st = await env.state();
+    c.ok(st.mail.drafts === 0 && st.requests.state_changing === 1, 'no_draft_is_made');
+    c.ok((await patch(draft.id, { body: { content: 'x' } })).status === 400, 'that_id_is_no_draft');
   });
 
   for (const [site, kind, page, amountOf] of [
@@ -1587,6 +1989,7 @@ async function main() {
   const env = makeEnv(server.port);
   try {
     await dataCases();
+    await readerCases();
     await walkCases(env);
     await protocolCases(env);
     await cliCases(env);

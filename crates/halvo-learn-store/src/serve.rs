@@ -102,7 +102,7 @@ impl LearnHandlers {
                 }
             }
             None => {
-                let readable = matches!(rows::runs(host.rows(), &start.workflow), Read::Rows(_));
+                let readable = matches!(rows::runs(host, &start.workflow), Read::Rows(_));
                 if start.row && readable {
                     let facts = RunFacts::new(&b.agent, loaded, mode);
                     self.facts.insert(b.run.clone(), facts);
@@ -130,12 +130,19 @@ impl LearnHandlers {
         else {
             return Ok(RunnerReply::Steps(StepsReply { steps }));
         };
-        if let Read::Stopped = rows::runs(host.rows(), &workflow) {
+        if let Read::Stopped = rows::runs(host, &workflow) {
             self.facts.remove(&b.run);
             return Ok(RunnerReply::Steps(StepsReply { steps }));
         }
-        let newest = self.newest_of(host, &b.agent, &b.run)?;
-        let edits = match Edits::read(host.rows(), &workflow) {
+        let newest = match self.newest_of(host, &b.agent, &b.run) {
+            Ok(newest) => newest,
+            Err(name) => {
+                self.drop_run(&b.run);
+                self.leave(Err(name.into()));
+                return Ok(RunnerReply::Steps(StepsReply { steps }));
+            }
+        };
+        let edits = match Edits::read(host, &workflow) {
             Read::Rows(edits) if newest == Some(b.number) => Some(edits),
             _ => None,
         };

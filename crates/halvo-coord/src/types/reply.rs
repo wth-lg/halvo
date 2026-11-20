@@ -222,14 +222,14 @@ pub struct CardRun {
     pub day: String,
     /// `text`: the sentence of `line.run.<end>`.
     pub text: String,
-    /// `effects`: one entry for each committed effect of the run, in the order of the reply of
-    /// `agent_history`; empty for a run with no committed effect.
+    /// `effects`: one entry for each committed effect of the run and for each effect whose last
+    /// row is `rejected` with a null cause, in the order of the reply of `agent_history`.
     pub effects: Vec<CardEffect>,
 }
 
-/// A committed effect of a past run on a card (I2.6, ruling H-8): the sentence of
-/// `run.effect.<class>`, which has no placeholder, and the kept fields of its class as fields of
-/// I3.4, made only by [`CardEffect::committed`].
+/// An effect of a past run on a card (I2.6, rulings H-8, RD-52 (f), RD-85): a sentence with no
+/// placeholder and kept fields of its class as fields of I3.4, made only by
+/// [`CardEffect::committed`], [`CardEffect::unshown`] and [`CardEffect::not_done`].
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CardEffect {
     #[serde(skip)]
@@ -283,6 +283,29 @@ fn file_name(kept: &[String]) -> Result<String, Cause> {
     }
 }
 
+/// The kept field `k` of an effect of `class` as a field of I3.4: the label
+/// `field.<class>.<name>`, the value as the row keeps it, an `origin` as the site's name and the
+/// `file` of a `local_edit` as the name of the file alone, and the `from` that A-A9.3 admits;
+/// `malformed` where a piece of the shown value would hold more than 1,024 bytes (I3.4).
+fn kept_field(class: Class, k: &Kept) -> Result<Field, Cause> {
+    let name = k.name.as_str();
+    let from = field_from(kept_source(class, name).ok_or(Cause::Malformed)?);
+    let value = match (class, name) {
+        (_, "origin") => vec![site_name(&k.value)?],
+        (Class::LocalEdit, "file") => vec![file_name(&k.value)?],
+        _ => k.value.clone(),
+    };
+    if value.iter().any(|piece| piece.len() > 1024) {
+        return Err(Cause::Malformed);
+    }
+    Ok(Field {
+        label: words::text(&format!("field.{}.{name}", class.name()), &[])?,
+        value,
+        from,
+        from_text: words::text(&format!("from.{}", from.name()), &[])?,
+    })
+}
+
 impl CardEffect {
     /// The entry of a committed effect of `class` whose effect row keeps `kept`: exactly the
     /// kept fields of the class in the order of A-A9.3, each shown with the label
@@ -297,31 +320,61 @@ impl CardEffect {
         if given != names {
             return Err(Cause::Malformed);
         }
-        let say = |key: &str| words::text(key, &[]);
         let mut fields = Vec::new();
         for k in kept {
-            let name = k.name.as_str();
-            if class == Class::Delete && name == "items" {
+            if class == Class::Delete && k.name.as_str() == "items" {
                 continue;
             }
-            let from = field_from(kept_source(class, name).ok_or(Cause::Malformed)?);
-            fields.push(Field {
-                label: say(&format!("field.{}.{name}", class.name()))?,
-                value: match (class, name) {
-                    (_, "origin") => vec![site_name(&k.value)?],
-                    (Class::LocalEdit, "file") => vec![file_name(&k.value)?],
-                    _ => k.value.clone(),
-                },
-                from,
-                from_text: say(&format!("from.{}", from.name()))?,
-            });
+            fields.push(kept_field(class, k)?);
         }
         let key = format!("run.effect.{}", class.name());
         Ok(CardEffect {
             class,
-            text: say(&key)?,
+            text: words::text(&key, &[])?,
             key,
             fields,
+        })
+    }
+
+    /// The entry of a committed effect that the card's reader refuses (I2.6, ruling RD-52 (f)):
+    /// `run.effect.<class>.unshown` for a class with an effect row and `run.effect.unshown` for
+    /// any other, with no field. It takes no kept value, so no byte of one reaches the reply.
+    pub fn unshown(class: Class) -> Result<CardEffect, Cause> {
+        let key = match kept_names(class) {
+            Some(_) => format!("run.effect.{}.unshown", class.name()),
+            None => "run.effect.unshown".to_owned(),
+        };
+        Ok(CardEffect {
+            class,
+            text: words::text(&key, &[])?,
+            key,
+            fields: Vec::new(),
+        })
+    }
+
+    /// The entry of an effect whose last row is `rejected` with a null cause (I2.6, ruling RD-85
+    /// items 1, 5 and 6): `run.effect.<class>.refused` where `refused`, the witness of a no that
+    /// the person pressed, and `run.effect.<class>.not_done` otherwise, or `run.effect.refused`
+    /// and `run.effect.not_done` for a class with no effect row; with the first kept field of
+    /// its class as `committed` shows it, and with no field for a `delete` or where that field
+    /// is not kept or does not read.
+    pub fn not_done(class: Class, kept: &[Kept], refused: bool) -> Result<CardEffect, Cause> {
+        let end = if refused { "refused" } else { "not_done" };
+        let names = kept_names(class);
+        let key = match names {
+            Some(_) => format!("run.effect.{}.{end}", class.name()),
+            None => format!("run.effect.{end}"),
+        };
+        let first = names
+            .and_then(|n| n.first())
+            .filter(|_| class != Class::Delete)
+            .and_then(|first| kept.iter().find(|k| k.name.as_str() == *first))
+            .and_then(|k| kept_field(class, k).ok());
+        Ok(CardEffect {
+            class,
+            text: words::text(&key, &[])?,
+            key,
+            fields: first.into_iter().collect(),
         })
     }
 
@@ -330,7 +383,7 @@ impl CardEffect {
         self.class
     }
 
-    /// `key`: `run.effect.<class>`.
+    /// `key`: of the family `run.effect.<class>` or its `unshown`, `not_done` or `refused` entry.
     pub fn key(&self) -> String {
         self.key.clone()
     }
@@ -417,6 +470,7 @@ pub struct Item {
     item: ItemId,
     agent: AgentId,
     kind: ItemKind,
+    step: u32,
     presenter: Option<Presenter>,
     armed: YesNo,
     say_new: String,
@@ -432,10 +486,35 @@ impl Item {
     /// The item with `say_new` and `say_gone`, the sentences of `say.item.new` and
     /// `say.item.gone` with `{name}`, the agent's name of I2.3, which the needs view adds to its
     /// status region when a reply brings the item and when a reply drops it (I3.4, I9.2).
+    /// A confirmation's `text` names the agent that asks, the sentence of `confirm.asked_by`
+    /// with `{name}` (I3.4).
     pub fn said_by(self, name: &str) -> Result<Item, Cause> {
+        let text = if self.kind == ItemKind::Confirm {
+            words::text("confirm.asked_by", &[("name", name)])?
+        } else {
+            self.text
+        };
         Ok(Item {
             say_new: words::text("say.item.new", &[("name", name)])?,
             say_gone: words::text("say.item.gone", &[("name", name)])?,
+            text,
+            ..self
+        })
+    }
+
+    /// A page confirmation, where the reply holds `count` of them, with the `text` of
+    /// `confirm.asked_by_place`: the agent's name and its place `n` among them in the reply's
+    /// order (I3.4, ruling RD-17); any other item as it is.
+    pub fn placed(self, name: &str, n: usize, count: usize) -> Result<Item, Cause> {
+        if self.kind != ItemKind::Confirm || self.presenter != Some(Presenter::Page) {
+            return Ok(self);
+        }
+        let (n, count) = (n.to_string(), count.to_string());
+        Ok(Item {
+            text: words::text(
+                "confirm.asked_by_place",
+                &[("name", name), ("n", &n), ("count", &count)],
+            )?,
             ..self
         })
     }
@@ -452,6 +531,7 @@ impl Item {
             item,
             agent,
             kind,
+            step: 0,
             presenter: None,
             armed,
             say_new: String::new(),
@@ -648,6 +728,18 @@ impl Item {
     /// `choices`: the safe one first.
     pub fn choices(&self) -> &[ChoiceText] {
         &self.choices
+    }
+
+    /// `step`: the item's step mark (I3.4, ruling RD-87 1), 0 at its first ask and one more at
+    /// each move after which the open item asks again; an answer carries the mark of the step
+    /// that the person saw.
+    pub fn step(&self) -> u32 {
+        self.step
+    }
+
+    /// The item at the step mark `step`.
+    pub fn at_step(self, step: u32) -> Item {
+        Item { step, ..self }
     }
 }
 

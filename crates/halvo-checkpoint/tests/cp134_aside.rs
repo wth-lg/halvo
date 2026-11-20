@@ -1,6 +1,5 @@
-//! CP-134 H1: the move aside of `remove` replaces no entry. This file holds one test alone, so
-//! that the count of the moves aside of this process starts at 0 and the removing name of the
-//! first move is known.
+//! CP-134 H1: the move aside of `remove` replaces no entry. The removing name is one name for
+//! each checkpoint (U2.4), so the test builds it with `removing_name`.
 mod common;
 
 use std::fs;
@@ -26,14 +25,13 @@ fn the_move_aside_replaces_no_file_at_the_removing_name() {
     scratch.write("folder/values.xlsx", b"the workbook now");
     let name = checkpoint_name(Path::new("values.xlsx"), &run).expect("a name");
     fs::write(folder.join(&name), COPY).expect("the checkpoint");
-    let first = u64::from(std::process::id()) << 32;
-    let moved = removing_name(&name, first);
+    let moved = removing_name(&name);
     fs::write(folder.join(&moved), MINE).expect("a file at the removing name");
     fs::create_dir_all(scratch.path("data")).expect("make the data directory");
     let locks = Locks::open(&scratch.path("data"), Duration::from_secs(5)).expect("the locks");
     let row = Row {
         folder: &folder,
-        workbook: Path::new("values.xlsx"),
+        workbook: &folder.join("values.xlsx"),
         run: &run,
         expect: Expect::Made {
             sha256: Sha256::of(COPY),

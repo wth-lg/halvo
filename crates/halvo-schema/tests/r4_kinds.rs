@@ -7,7 +7,7 @@ use halvo_schema::RequestId;
 
 use FieldType::{Count, Day, Hash, Id, Instant, Name, OwnText, Version};
 
-const FIELDS: [(&str, FieldType); 18] = [
+const FIELDS: [(&str, FieldType); 20] = [
     ("v", Version),
     ("workflow", Id),
     ("agent", Id),
@@ -26,9 +26,11 @@ const FIELDS: [(&str, FieldType); 18] = [
     ("cause", Name),
     ("trigger", Name),
     ("origin", OwnText),
+    ("defer_launch", Name),
+    ("defer_ticks_failed", Count),
 ];
 
-const ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","seq":1,"day":20767,"at":1794339000000000000,"event":"run_started","run":"9f8e7d6c5b4a39281706f5e4d3c2b1a0","slot":20767,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":null,"trigger":"schedule","origin":null}"#;
+const ROW: &str = r#"{"v":1,"workflow":"0f1e2d3c4b5a69788796a5b4c3d2e1f0","agent":"1a2b3c4d5e6f708192a3b4c5d6e7f809","seq":1,"day":20767,"at":1794339000000000000,"event":"run_started","run":"9f8e7d6c5b4a39281706f5e4d3c2b1a0","slot":20767,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":null,"trigger":"schedule","origin":null,"defer_launch":null,"defer_ticks_failed":null}"#;
 
 fn entry() -> &'static KindEntry {
     let found: Vec<&KindEntry> = registry().filter(|e| e.name == "coord_event").collect();
@@ -101,6 +103,10 @@ fn r4_kind_coord_event_refuses_a_row_without_its_workflow_its_day_or_with_a_text
     refused(
         ROW.replacen(r#","origin":null"#, "", 1),
         "coord_event: origin: missing_key",
+    );
+    refused(
+        ROW.replacen(r#","defer_launch":null,"defer_ticks_failed":null"#, "", 1),
+        "coord_event: defer_launch: missing_key",
     );
     refused(
         ROW.replacen(r#""at":1794339000000000000"#, r#""at":"19:30""#, 1),

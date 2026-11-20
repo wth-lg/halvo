@@ -1,5 +1,5 @@
 use super::names::names;
-use super::{AgentId, Event, FullWorkflow, ItemId, ItemKind, LivePhase, Name, PastRun};
+use super::{AgentId, Event, FullWorkflow, ItemId, ItemKind, LivePhase, Name, PastRun, Unknown};
 
 /// What the coordinator knows of one agent (I5.1), which `holds`, `start_step`, `status` and
 /// `fixtures::facts` share.
@@ -15,6 +15,10 @@ pub struct Facts<C> {
     pub slots: Vec<Name>,
     /// Its last `history_runs` run records, newest first (A-A7.4).
     pub runs: Vec<PastRun>,
+    /// The entries of the roster's key `unknown` that name the newest run of `runs`: the effects
+    /// of that run whose outcome the agent store does not know, taken from the entry of
+    /// `Owner::agents` where its `last` is taken (I5.1; ruling RD-81 8.1).
+    pub unknown: Vec<Unknown>,
     /// Its ledger events in ascending `seq` (I7.1).
     pub events: Vec<Event>,
     /// Whether the agent store has ended the agent's newest run: no run of the agent was
@@ -22,10 +26,26 @@ pub struct Facts<C> {
     /// coordinator reads it from the owner for each start, through `Owner::agents` (I5.1, I5.5
     /// step 3, ruling XB-2).
     pub store_ended: bool,
+    /// The move's read of the `agent_reply` rows of the newest run, asked for an agent of the
+    /// category `email` alone (I5.1, I5.4; rulings RD-67 3.3, RD-81 8.4).
+    pub replies: Replies,
     /// The day of the coordinator's `Clock` (I5.9).
     pub today: u32,
     /// Its run state and its open item.
     pub doing: Doing,
+}
+
+impl<C> Facts<C> {
+    /// Takes, of the entries of the roster's key `unknown` of one read, those that name the
+    /// newest run of `runs`, in place of the ones held (I5.1; ruling RD-81 8.1).
+    pub fn take_unknown(&mut self, entry: &[Unknown]) {
+        let newest = self.runs.first().map(|r| &r.run);
+        self.unknown = entry
+            .iter()
+            .filter(|u| Some(&u.run) == newest)
+            .cloned()
+            .collect();
+    }
 }
 
 /// What an agent does, of the coordinator's own state (I5.1): one run state, idle, queued or
@@ -189,6 +209,60 @@ impl Doing {
             }),
             Doing::Idle(None) | Doing::Queued(None) | Doing::Live(_) => None,
         }
+    }
+}
+
+names! {
+    /// The state of a row of `agent_reply`, the agent store's record of one state of the reply
+    /// to one message (the agent-setup run's A7.4).
+    ReplyState {
+        Drafted = "drafted",
+        Begun = "begun",
+        Committed = "committed",
+        Unknown = "unknown",
+        Lost = "lost",
+        Withheld = "withheld",
+    }
+}
+
+/// One row of `agent_reply` of a run, as `Owner::replies` gives it (ruling RD-67 3.4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReplyRow {
+    /// A row in a state that the port's reader knows.
+    Read(ReplyState),
+    /// A row that the port's reader could not read, such as one in a state that it does not
+    /// know; the read keeps it and answers the other rows (ruling RD-81 8.4).
+    Unreadable,
+}
+
+/// What one move learned of the `agent_reply` rows of an agent's newest run (I5.1; ruling RD-81
+/// 8.4). No answer is kept from one move to the next (ruling XB-9).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Replies {
+    /// Not asked in the move: the agent is not of the category `email`, the agent store has not
+    /// ended its newest run, or a `hold_cleared` of the cause `check` names that run.
+    NotAsked,
+    /// Asked, and the read did not answer.
+    NoAnswer,
+    /// The rows that the read answered.
+    Rows(Vec<ReplyRow>),
+}
+
+impl Replies {
+    /// Whether the read answered with a row that leaves the fate of its reply not known.
+    pub fn not_known(&self) -> bool {
+        matches!(self, Replies::Rows(rows) if rows.iter().any(|r| r.not_known()))
+    }
+}
+
+impl ReplyRow {
+    /// Whether the row leaves the fate of its reply not known: a row in the state `unknown`, or
+    /// one that the reader could not read (ruling RD-81 8.4).
+    pub const fn not_known(self) -> bool {
+        matches!(
+            self,
+            ReplyRow::Read(ReplyState::Unknown) | ReplyRow::Unreadable
+        )
     }
 }
 

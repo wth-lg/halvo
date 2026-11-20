@@ -125,6 +125,7 @@ pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
                 What::RunEnded {
                     run: run.clone(),
                     cause: end,
+                    defers: None,
                 },
             ),
         ]);
@@ -368,7 +369,7 @@ impl Owner for Shared {
         self.ports.log(events)
     }
 
-    fn history(&self, agent: &AgentId, after: u32) -> Result<Vec<Event>, PortError> {
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
         let _turn = self.enter();
         self.ports.history(agent, after)
     }
@@ -396,6 +397,16 @@ impl Owner for Shared {
     ) -> Result<Vec<RunHistory>, PortError> {
         let _turn = self.enter();
         self.ports.agent_history(workflow, agent, runs)
+    }
+
+    fn replies(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        let _turn = self.enter();
+        self.ports.replies(workflow, agent, run)
     }
 }
 

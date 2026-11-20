@@ -20,7 +20,11 @@ pub(crate) use by_path::Dir;
 impl Dir {
     /// The directory that holds the last name of `names`, walked from `folder` part by part.
     pub(crate) fn walk(folder: &Path, names: &[&OsStr]) -> io::Result<Dir> {
-        let mut dir = Dir::folder(folder)?;
+        Dir::folder(folder)?.below(names)
+    }
+
+    pub(crate) fn below(self, names: &[&OsStr]) -> io::Result<Dir> {
+        let mut dir = self;
         for name in names {
             dir = dir.child(name)?;
         }

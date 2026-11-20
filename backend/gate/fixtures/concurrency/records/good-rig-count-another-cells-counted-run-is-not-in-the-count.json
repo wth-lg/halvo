@@ -1,0 +1,100 @@
+{
+  "kind": "attempts",
+  "ruling": "P7-83 (7) (c), the two word points of the last readings (reports/verifier-21.md, Addition 2, points 1 and 2)",
+  "about": "a run of another cell counted before the rollover cell needed a sixth draw: the count of runs that had counted at the draw is the rollover cell's own, 0, not 1",
+  "source": "by hand",
+  "cells": [
+    {
+      "name": "usage-last@20",
+      "kind": "matrix",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    },
+    {
+      "name": "rollover@20",
+      "kind": "rollover",
+      "level": 20,
+      "switch": "usage-last",
+      "killRuns": 0,
+      "plainRuns": 1
+    }
+  ],
+  "attemptsByCell": {
+    "usage-last@20": [
+      {
+        "counted": true,
+        "facts": {
+          "crossed": null
+        }
+      }
+    ],
+    "rollover@20": [
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      },
+      {
+        "counted": false,
+        "facts": {
+          "crossed": false,
+          "crossingBuilt": false,
+          "firstAdmissionMs": 25
+        }
+      }
+    ]
+  },
+  "cfgAttempts": 6,
+  "expect": {
+    "runs": [
+      {
+        "key": "attempt-1",
+        "rigUnbuilt": false,
+        "discarded": 0
+      },
+      {
+        "key": "attempt-6",
+        "rigUnbuilt": true,
+        "discarded": 5,
+        "countedAtTheDraw": 0
+      }
+    ]
+  }
+}

@@ -297,9 +297,9 @@ impl What {
 /// "cause":..,"trigger":..,"origin":..}`, every key always written, those that the event does not set as null.
 /// The reader also takes a row with the keys `defer_launch` and `defer_ticks_failed`, both of them or neither, in
 /// any place among these, null on every event and set on `run_ended` alone (contracts.md I7.1, ruling RD-86), so
-/// that it reads a row of a sender that writes them; the writer writes them after `origin`, only on a `run_ended`
-/// whose `defers` is set, and the registry's entry lists neither key yet, so the store's commit refuses a row with
-/// their values until the entry and the writers change together. `seq` rises by 1 per agent from 1; `at` is nanoseconds since 1970-01-01T00:00:00Z. This reader is the guard of
+/// that it reads a row of a sender that writes them; the writer writes both after `origin` on every row, null where
+/// they are unset, and the registry's entry lists both, so the store's commit refuses a row without them (ruling
+/// RD-120). `seq` rises by 1 per agent from 1; `at` is nanoseconds since 1970-01-01T00:00:00Z. This reader is the guard of
 /// what a row holds: the registry's `check_record` takes free text under `origin` and free names for this kind, so
 /// a `coord_event` is committed only after `CoordEvent::parse` or `CoordLog::parse` has read it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -785,12 +785,7 @@ impl Serialize for CoordEvent {
             What::RunEnded { defers, .. } => *defers,
             _ => None,
         };
-        let len = if defers.is_some() {
-            KEYS_WITH_DEFERS.len()
-        } else {
-            KEYS.len()
-        };
-        let mut map = serializer.serialize_map(Some(len))?;
+        let mut map = serializer.serialize_map(Some(KEYS_WITH_DEFERS.len()))?;
         map.serialize_entry("v", &1u32)?;
         map.serialize_entry("workflow", &self.workflow)?;
         map.serialize_entry("agent", &self.agent)?;
@@ -806,10 +801,15 @@ impl Serialize for CoordEvent {
                 .map_or(Cell::Null, |(_, cell)| *cell);
             map.serialize_entry(key, &cell)?;
         }
-        if let Some(defers) = defers {
-            map.serialize_entry("defer_launch", &Cell::Text(defers.launch.as_str()))?;
-            map.serialize_entry("defer_ticks_failed", &Cell::Count(defers.ticks_failed))?;
-        }
+        let (launch, ticks_failed) = match defers {
+            Some(defers) => (
+                Cell::Text(defers.launch.as_str()),
+                Cell::Count(defers.ticks_failed),
+            ),
+            None => (Cell::Null, Cell::Null),
+        };
+        map.serialize_entry("defer_launch", &launch)?;
+        map.serialize_entry("defer_ticks_failed", &ticks_failed)?;
         map.end()
     }
 }

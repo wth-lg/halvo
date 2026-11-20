@@ -3,7 +3,8 @@ set -u
 ROOT=${HALVO_ROOT:-$(cd "$(dirname "$0")/../.." && pwd -P)}
 . "$ROOT/scripts/env.sh"
 FIXTURES="$ROOT/gate/fixtures/metering"
-SELF_TEST_ARGS=${METERING_SELF_TEST_ARGS:---seeds 1 --orderings 0 --settings 24,25,26,27,28,29,30}
+GOOD_SCOPE_ORDERINGS=1000
+SELF_TEST_ARGS=${METERING_SELF_TEST_ARGS:---seeds 1 --orderings $GOOD_SCOPE_ORDERINGS --settings 24,25,26,27,28,29,30}
 COPY_LINE="self-test copy, no git: "
 
 check_in() {
@@ -137,10 +138,12 @@ if [ -z "$(git -C "$ROOT" ls-files --cached --others --exclude-standard -- gate/
   exit 1
 fi
 want=
+[ -n "${METERING_SELF_TEST_ARGS:-}" ] || want="orderings=$GOOD_SCOPE_ORDERINGS of $GOOD_SCOPE_ORDERINGS "
 if [ -z "${METERING_SELF_TEST_ONLY:-}" ] || [ "$METERING_SELF_TEST_ONLY" = checkout ]; then
   # shellcheck disable=SC2086
   expect good checkout "$ROOT" $SELF_TEST_ARGS || failed=1
 fi
+want=
 for own in "$FIXTURES"/own-*.json; do
   [ -f "$own" ] || continue
   fixture=$(basename "$own" .json)

@@ -64,10 +64,97 @@ fn a_checkpoint_whose_checks_all_hold_is_removed() {
     let left = vec!["other.xlsx".to_string(), "values.xlsx".to_string()];
     assert_eq!(scratch.names("folder/sub"), left);
     assert_eq!(fs::read(&workbook).expect("read"), b"the workbook now");
-    let relative = with_checkpoint(&scratch, "values.xlsx");
-    let got = answer(&scratch, Path::new("values.xlsx"), made(COPY));
-    assert_eq!(got, Ok(Removal::Removed), "a path relative to the folder");
-    assert!(!relative.exists());
+}
+
+fn relative(from: &Path, to: &Path) -> Option<PathBuf> {
+    let from: Vec<_> = from.components().collect();
+    let to: Vec<_> = to.components().collect();
+    let shared = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    if shared == 0 {
+        return None;
+    }
+    let mut path = PathBuf::new();
+    for _ in shared..from.len() {
+        path.push("..");
+    }
+    for part in &to[shared..] {
+        path.push(part.as_os_str());
+    }
+    Some(path)
+}
+
+#[test]
+fn a_folder_that_is_a_link_or_a_relative_path_is_refused() {
+    let scratch = Scratch::new("remove-folder-form");
+    let copy = with_checkpoint(&scratch, "values.xlsx");
+    let run = run();
+    let locks = locks(&scratch);
+    let workbook = scratch.path("folder/values.xlsx");
+    let alias = scratch.path("alias");
+    link_dir(&scratch.path("folder"), &alias);
+    let through = alias.join("values.xlsx");
+    let here = std::env::current_dir().expect("the working directory");
+    let here = here
+        .canonicalize()
+        .expect("the canonical working directory");
+    let up = relative(&here, &scratch.path("folder"));
+    let mut trailing = alias.clone().into_os_string();
+    trailing.push(std::path::MAIN_SEPARATOR_STR);
+    let cases: [(&str, Option<PathBuf>, &Path, Left); 5] = [
+        (
+            "a folder that is a link",
+            Some(alias.clone()),
+            &through,
+            Left::Link,
+        ),
+        (
+            "a link folder with a trailing separator",
+            Some(PathBuf::from(trailing)),
+            &through,
+            Left::Link,
+        ),
+        (
+            "a link folder, the real path",
+            Some(alias.clone()),
+            &workbook,
+            Left::Link,
+        ),
+        ("a relative folder", up, &workbook, Left::NotFile),
+        (
+            "a relative path",
+            Some(scratch.path("folder")),
+            Path::new("values.xlsx"),
+            Left::NotFile,
+        ),
+    ];
+    for (label, folder, workbook, why) in cases {
+        let Some(folder) = folder else {
+            println!("{label}: no relative path from the working directory");
+            continue;
+        };
+        let row = Row {
+            folder: &folder,
+            workbook,
+            run: &run,
+            expect: made(COPY),
+        };
+        assert_eq!(remove(&locks, &row), Ok(Removal::Left(why)), "{label}");
+        assert_eq!(fs::read(&copy).expect("the copy stays"), COPY, "{label}");
+    }
+    link_dir(&scratch.dir, &scratch.path("up"));
+    let folder = scratch.path("up/folder");
+    let row = Row {
+        folder: &folder,
+        workbook: &folder.join("values.xlsx"),
+        run: &run,
+        expect: made(COPY),
+    };
+    assert_eq!(
+        remove(&locks, &row),
+        Ok(Removal::Removed),
+        "a link above the folder"
+    );
+    assert!(!copy.exists());
 }
 
 #[test]
@@ -92,12 +179,193 @@ fn an_absent_file_counts_as_removed() {
         expect: made(COPY),
     };
     assert_eq!(
-        remove(&locks(&scratch), &row),
-        Ok(Removal::Absent),
+        format!("{:?}", remove(&locks(&scratch), &row)),
+        "Err(Folder)",
         "no folder"
     );
     assert_eq!(Removal::Absent.state(), "gone");
     assert_eq!(Removal::Removed.state(), "gone");
+}
+
+#[test]
+fn an_absent_folder_as_on_a_volume_that_is_not_mounted_is_undecided() {
+    let scratch = Scratch::new("remove-unmounted");
+    let run = run();
+    let folder = scratch.path("volume/folder");
+    let workbook = folder.join("values.xlsx");
+    let row = Row {
+        folder: &folder,
+        workbook: &workbook,
+        run: &run,
+        expect: made(COPY),
+    };
+    let locks = locks(&scratch);
+    let never_there = remove(&locks, &row);
+    assert_eq!(format!("{never_there:?}"), "Err(Folder)", "never there");
+    scratch.write("volume/folder/values.xlsx", b"the workbook now");
+    let copy = folder.join(copy_name("values.xlsx"));
+    fs::write(&copy, COPY).expect("write the checkpoint");
+    fs::rename(scratch.path("volume"), scratch.path("unmounted")).expect("unmount");
+    let unmounted = remove(&locks, &row);
+    assert_eq!(format!("{unmounted:?}"), "Err(Folder)", "unmounted");
+    fs::rename(scratch.path("unmounted"), scratch.path("volume")).expect("mount again");
+    assert_eq!(remove(&locks, &row), Ok(Removal::Removed), "mounted again");
+    assert!(!copy.exists());
+}
+
+fn removing(checkpoint: &str) -> String {
+    let digest = Sha256::of(checkpoint.as_bytes()).hex();
+    format!("{checkpoint}.halvo-removing-{}", &digest[..16])
+}
+
+#[test]
+fn a_copy_that_a_killed_pass_left_under_its_removing_name_is_finished_or_reported() {
+    let scratch = Scratch::new("remove-killed-aside");
+    let workbook = scratch.path("folder/values.xlsx");
+    let name = copy_name("values.xlsx");
+    let moved = scratch.path("folder").join(removing(&name));
+    let only_the_workbook = vec!["values.xlsx".to_string()];
+
+    let copy = with_checkpoint(&scratch, "values.xlsx");
+    fs::rename(&copy, &moved).expect("the state that a kill after the move aside leaves");
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(got, Ok(Removal::Removed), "the later pass finishes it");
+    assert_eq!(scratch.names("folder"), only_the_workbook);
+
+    let copy = with_checkpoint(&scratch, "values.xlsx");
+    fs::hard_link(&copy, &moved).expect("the second name that a kill in the put back leaves");
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(got, Ok(Removal::Removed), "a second name of the copy");
+    assert_eq!(scratch.names("folder"), only_the_workbook);
+
+    let copy = with_checkpoint(&scratch, "values.xlsx");
+    fs::copy(&copy, &moved).expect("a file of the row's bytes under the removing name");
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(got, Ok(Removal::Removed), "both files of the row's bytes");
+    assert_eq!(scratch.names("folder"), only_the_workbook);
+
+    let theirs = b"other bytes than the row's";
+    fs::write(&moved, theirs).expect("other bytes under the removing name");
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(got, Ok(Removal::Left(Left::Changed)), "other bytes");
+    assert_eq!(fs::read(&moved).expect("the file stays"), theirs);
+
+    let outside = scratch.write("outside/kept.xlsx", COPY);
+    fs::rename(&moved, scratch.path("folder/theirs.xlsx")).expect("move it away");
+    link_file(&outside, &moved);
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(
+        got,
+        Ok(Removal::Left(Left::Link)),
+        "a link under the removing name"
+    );
+    assert_eq!(fs::read(&outside).expect("the file outside stays"), COPY);
+    assert!(fs::symlink_metadata(&moved).is_ok(), "the link stays");
+}
+
+#[test]
+fn a_checked_leftover_that_cannot_be_unlinked_with_the_copys_name_empty_is_never_gone() {
+    let scratch = Scratch::new("remove-leftover-kept");
+    let workbook = scratch.write("folder/values.xlsx", b"the workbook now");
+    let copy = workbook.with_file_name(copy_name("values.xlsx"));
+    let moved = workbook.with_file_name(removing(&copy_name("values.xlsx")));
+    fs::write(&moved, COPY).expect("what a kill after the move aside leaves");
+    let folder = scratch.path("folder");
+    let locks = locks(&scratch);
+    let run = run();
+    let row = Row {
+        folder: &folder,
+        workbook: &workbook,
+        run: &run,
+        expect: made(COPY),
+    };
+    #[cfg(unix)]
+    let got = {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |m: u32| fs::set_permissions(&folder, fs::Permissions::from_mode(m));
+        mode(0o555).expect("read-only");
+        let got = remove(&locks, &row);
+        mode(0o755).expect("writable again");
+        got
+    };
+    #[cfg(windows)]
+    let got = {
+        use std::os::windows::fs::OpenOptionsExt;
+        let held = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1)
+            .open(&moved)
+            .expect("an application holds the leftover open without delete sharing");
+        let got = remove(&locks, &row);
+        drop(held);
+        got
+    };
+    assert!(matches!(got, Err(Undecided::Remove(_))), "{got:?}");
+    assert_eq!(fs::read(&moved).expect("the bytes lie there"), COPY);
+    assert!(!copy.exists());
+}
+
+#[test]
+fn a_removal_whose_every_pass_finds_the_removing_name_is_undecided_and_leaves_both_files() {
+    let scratch = Scratch::new("remove-passes");
+    let copy = with_checkpoint(&scratch, "values.xlsx");
+    let moved = scratch
+        .path("folder")
+        .join(removing(&copy_name("values.xlsx")));
+    let theirs = b"a file of the person's own under the removing name";
+    fs::write(&moved, theirs).expect("a file at the removing name");
+    let got = answer(&scratch, &scratch.path("folder/values.xlsx"), made(COPY));
+    assert_eq!(
+        got,
+        Err(Undecided::Remove(std::io::ErrorKind::AlreadyExists))
+    );
+    assert_eq!(fs::read(&moved).expect("the person's file stays"), theirs);
+    assert_eq!(fs::read(&copy).expect("the checkpoint stays"), COPY);
+}
+
+#[test]
+fn a_folder_or_a_path_with_a_parent_step_is_refused() {
+    let scratch = Scratch::new("remove-parent-step");
+    fs::create_dir_all(scratch.path("folder")).expect("make the folder");
+    fs::create_dir_all(scratch.path("outside/deep")).expect("make the outside directory");
+    link_dir(&scratch.path("outside/deep"), &scratch.path("folder/inner"));
+    let theirs = scratch.path("outside").join(copy_name("values.xlsx"));
+    fs::write(&theirs, COPY).expect("a file outside with the copy's name and bytes");
+    let copy = scratch.write(&format!("real/{}", copy_name("values.xlsx")), COPY);
+    scratch.write("real/values.xlsx", b"the workbook now");
+    scratch.write("real/x/kept.txt", b"a file of the person's own");
+    link_dir(&scratch.path("real"), &scratch.path("alias"));
+    let run = run();
+    let locks = locks(&scratch);
+    let text = scratch.dir.to_string_lossy().into_owned();
+    let base = PathBuf::from(text.strip_prefix(r"\\?\").unwrap_or(&text));
+    let up =
+        |path: &[&str]| -> PathBuf { path.iter().fold(base.clone(), |dir, part| dir.join(part)) };
+    let rows = [
+        (
+            up(&["folder", "inner", ".."]),
+            up(&["folder", "inner", "..", "values.xlsx"]),
+        ),
+        (
+            up(&["alias", "x", ".."]),
+            up(&["alias", "x", "..", "values.xlsx"]),
+        ),
+        (up(&["real"]), up(&["real", "x", "..", "values.xlsx"])),
+    ];
+    for (folder, workbook) in rows {
+        let steps = |path: &Path| path.components().filter(|c| c.as_os_str() == "..").count();
+        assert!(steps(&folder) + steps(&workbook) > 0, "{workbook:?}");
+        let row = Row {
+            folder: &folder,
+            workbook: &workbook,
+            run: &run,
+            expect: made(COPY),
+        };
+        let got = remove(&locks, &row);
+        assert_eq!(got, Ok(Removal::Left(Left::NotFile)), "{workbook:?}");
+    }
+    assert_eq!(fs::read(&theirs).expect("the file outside stays"), COPY);
+    assert_eq!(fs::read(&copy).expect("the copy stays"), COPY);
 }
 
 #[test]

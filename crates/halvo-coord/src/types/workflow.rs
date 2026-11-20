@@ -1,4 +1,6 @@
-use super::{AgentId, AgentState, Category, Class, EffectId, Name, Outcome, RunId, WorkflowId};
+use super::{
+    AgentId, AgentState, Category, Class, Digest, EffectId, Name, Outcome, RunId, WorkflowId,
+};
 use super::{WorkflowState, WorkflowTrigger};
 use std::num::NonZeroU32;
 
@@ -155,10 +157,15 @@ pub struct RunHistory {
     pub effects: Vec<PastEffect>,
 }
 
-/// One effect of a run of the reply of `agent_history` (I6.1): its class, its state of A-A5.2,
-/// the cause of its last row or none, and its kept fields.
+/// One effect of a run of the reply of `agent_history` (I6.1): its effect id and the digest of
+/// its last row (ruling RD-85 item 4), its class, its state of A-A5.2, the cause of its last row
+/// or none, and its kept fields.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PastEffect {
+    /// `effect`.
+    pub effect: EffectId,
+    /// `digest`: of the effect's last row.
+    pub digest: Digest,
     /// `class`.
     pub class: Class,
     /// `state`.

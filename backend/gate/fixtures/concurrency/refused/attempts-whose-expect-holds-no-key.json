@@ -1,0 +1,39 @@
+{
+  "kind": "attempts",
+  "ruling": "P7-107 K3, on the planner's Addition 27",
+  "about": "an attempts record whose expect is an empty object: the reading checks nothing; records.mjs refuses it",
+  "source": "by hand, after the review's B3 and the verifier's finding 4",
+  "cell": {
+    "name": "rollover@20",
+    "kind": "rollover",
+    "level": 20,
+    "switch": "usage-last",
+    "killRuns": 0,
+    "plainRuns": 1
+  },
+  "stopAtFirstViolation": true,
+  "attempts": [
+    {
+      "counted": false,
+      "facts": {
+        "crossed": false,
+        "crossingBuilt": false,
+        "firstAdmissionMs": 152,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    },
+    {
+      "counted": true,
+      "facts": {
+        "crossed": true,
+        "crossingBuilt": true,
+        "firstAdmissionMs": -100,
+        "openAtKill": 0,
+        "streamAtKill": false
+      }
+    }
+  ],
+  "expect": {},
+  "refusal": "its expect holds no key"
+}

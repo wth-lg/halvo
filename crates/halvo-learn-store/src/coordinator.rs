@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use halvo_learn::RunCause;
 use halvo_schema::executable::body::{CreateAgent, EndRun, StartRun};
-use halvo_schema::executable::{CoordinatorCall, CoordinatorReply, RunId};
+use halvo_schema::executable::{CoordinatorCall, CoordinatorReply};
 use halvo_schema::learning::body::{LearnedRead, Refinement, Refinements};
 use halvo_schema::learning::names::{Mark, RefinementKind};
 use halvo_schema::learning::record::{Day, EditState, LearnRoutine, LearnRun, RunStatus};
@@ -42,8 +42,13 @@ impl LearnHandlers {
         let reply = halvo_agent_store::coordinator(host.agent_host(), now, body)?;
         match (&call, &reply) {
             (Some(CoordinatorCall::StartRun(b)), CoordinatorReply::Accepted(_)) => {
-                self.sweep(host)?;
-                let outcome = self.started(host, b);
+                let outcome = match self.sweep(host) {
+                    Ok(()) => self.started(host, b),
+                    Err(name) => {
+                        self.lose_start(b);
+                        Err(name.into())
+                    }
+                };
                 self.leave(outcome);
             }
             (Some(CoordinatorCall::CreateAgent(b)), CoordinatorReply::Rev(_)) => {
@@ -90,19 +95,15 @@ impl LearnHandlers {
         host: &mut dyn LearnHost,
         read: &LearnedRead,
     ) -> Result<Refinements, ErrorName> {
-        let probe = RunId::from_random(self.ids.bytes());
-        #[cfg(test)]
-        self.probes.push(probe.clone());
-        let Some(loaded) = agent::load(host, &read.agent, &probe)? else {
+        let Some(newest) = agent::newest_number(host, &read.agent)? else {
             return Ok(Refinements {
                 refinements: Vec::new(),
             });
         };
-        let newest = loaded.playbook.map(|p| p.number);
-        let Read::Rows(edits) = Edits::read(host.rows(), &read.workflow) else {
+        let Read::Rows(edits) = Edits::read(host, &read.workflow) else {
             return Err(ErrorName::Store);
         };
-        let Read::Rows(routines) = rows::routines(host.rows(), &read.workflow) else {
+        let Read::Rows(routines) = rows::routines(host, &read.workflow) else {
             return Err(ErrorName::Store);
         };
         let mut entries: Vec<(Refinement, String)> = Vec::new();
@@ -149,7 +150,7 @@ impl LearnHandlers {
 
 impl LearnHandlers {
     fn started(&mut self, host: &mut dyn LearnHost, b: &StartRun) -> Result<(), Fault> {
-        let Read::Rows(runs) = rows::runs(host.rows(), &b.workflow) else {
+        let Read::Rows(runs) = rows::runs(host, &b.workflow) else {
             if !self.starts.get(&b.run).is_some_and(|s| s.agent == b.agent) {
                 self.remember_start(b, false);
             }
@@ -196,7 +197,7 @@ fn routine_due(
     agent: &AgentId,
     day: Day,
 ) -> Option<LearnRoutine> {
-    let Read::Rows(routines) = rows::routines(host.rows(), workflow) else {
+    let Read::Rows(routines) = rows::routines(host, workflow) else {
         return None;
     };
     match rows::newest_routine(&routines, workflow, agent) {
@@ -246,7 +247,7 @@ fn first_routine(
 }
 
 fn created(host: &mut dyn LearnHost, b: &CreateAgent) -> Result<(), Fault> {
-    let Read::Rows(routines) = rows::routines(host.rows(), &b.workflow) else {
+    let Read::Rows(routines) = rows::routines(host, &b.workflow) else {
         return Ok(());
     };
     if rows::newest_routine(&routines, &b.workflow, &b.agent).is_some() {

@@ -3,7 +3,7 @@ use halvo_schema_core::record::{DismissedWorkflow, Workflow, WorkflowState};
 use halvo_schema_core::request::{Decision, ErrorName, InterfaceDecision};
 
 use crate::batch::this_run;
-use crate::db::{one, rows, Tx};
+use crate::db::{one, rows, Checkpointed, Removes, Tx};
 use crate::error::{Error, Fault};
 use crate::sql;
 use crate::Store;
@@ -44,7 +44,7 @@ fn approve(tx: &Tx<'_>, id: &WorkflowId) -> Result<(), Error> {
     }
 }
 
-fn dismiss(tx: &Tx<'_>, id: &WorkflowId) -> Result<(), Error> {
+fn dismiss(tx: &Checkpointed<'_, '_>, id: &WorkflowId) -> Result<(), Error> {
     match workflow_by_id(tx, id)? {
         None => Err(Error::Refused(ErrorName::NoWorkflow)),
         Some((row, Workflow::Full(full))) if full.state == WorkflowState::Proposed => {
@@ -67,7 +67,7 @@ fn dismiss(tx: &Tx<'_>, id: &WorkflowId) -> Result<(), Error> {
 /// summary whose key is the workflow's key, and every row that names one of those summaries (their evidence and
 /// their support rows). Every summary that supports a workflow, or once did, holds its key, because a proposal that
 /// names a summary of another key is refused.
-pub(crate) fn delete(tx: &Tx<'_>, id: &WorkflowId) -> Result<u64, Fault> {
+pub(crate) fn delete(tx: &Checkpointed<'_, '_>, id: &WorkflowId) -> Result<u64, Fault> {
     let Some(key) = one(tx.conn, sql::WORKFLOW_KEY, [id.as_str()], |r| {
         r.get::<_, String>(0)
     })?
