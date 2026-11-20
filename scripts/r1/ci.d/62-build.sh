@@ -710,6 +710,13 @@ if [ "$2" = -c ]; then "$fixture_python" "$@"; fi
 exit 1
 SH
   PATH="$standins:$PATH" expect_reader="$expect_second" rules_case probe-answer-with-failure FAIL "$need_profile"
+  stand_in python3.11 <<'SH'
+if [ "$2" = -c ]; then
+  exec "$fixture_python" -I -c 'import sys, tomllib; sys.version_info = (3, 10, 9); exec(sys.argv[1])' "$3"
+fi
+exit 1
+SH
+  PATH="$standins:$PATH" expect_reader="$expect_second" rules_case probe-requires-python-311 FAIL "$need_profile"
   for program in python3.11 python3 python; do
     stand_in "$program" <<'SH'
 exit 1
@@ -721,6 +728,12 @@ SH
   PATH="$standins:$PATH" expect_reader="$expect_third" rules_case third-interpreter-bad-profile FAIL "$need_profile"
   printf '%s\n' "$profile_off" >"$root_manifest"
   PATH="$standins:$PATH" expect_reader="$expect_third" rules_case third-interpreter-good-profile PASS ''
+  stand_in tr <<'SH'
+cat
+exit 1
+SH
+  PATH="$standins:$PATH" rules_case reader-output-filter-failed FAIL 'could not read the Cargo.toml reader output'
+  mv "$standins/tr" "$work/used-reader-filter" || exit 2
   mkdir "$rules_repo/below" || exit 2
   rules_directory="$rules_repo/below" rules_case good-root-from-subdirectory PASS ''
   printf '%s\n' '[profile.release]' 'debug-assertions = true' >"$root_manifest"
