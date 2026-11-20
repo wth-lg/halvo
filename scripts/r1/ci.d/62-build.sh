@@ -213,10 +213,13 @@ sys.stdout.write(f"{answer} {version}")' </dev/null 2>/dev/null) || continue
   done
   [ -n "$python" ] || fail "reading Cargo.toml requires Python 3.11 or later"
   printf 'manifest reader: %s %s\n' "$python" "$version" >&2
-  found=$("$python" -I - 2>&1 <<'PY' && printf '.'
+  found=$(
+    {
+      "$python" -I - 2>&1 <<'PY'
 import sys
 import tomllib
 
+sys.stderr.reconfigure(newline="\n")
 try:
     with open("Cargo.toml", "rb") as manifest:
         release = tomllib.load(manifest).get("profile", {}).get("release", {})
@@ -229,8 +232,14 @@ except (OSError, ValueError, AttributeError) as error:
     sys.exit(f"could not read the release profile in Cargo.toml: {error}")
 sys.stdout.write("profile-ok")
 PY
-  ) || fail "$found"
-  [ "$found" = profile-ok. ] || fail "unexpected Cargo.toml reader output: ${found%.}"
+      printf '/%s' "$?"
+    } | LC_ALL=C tr '\000' '?'
+  ) || fail "could not read the Cargo.toml reader output"
+  case $found in
+    profile-ok/0) ;;
+    */0) fail "unexpected Cargo.toml reader output: ${found%/0}" ;;
+    *) cause=$(printf '%s' "${found%/*}"); fail "$cause" ;;
+  esac
 
   set -- '.cargo/config' '.cargo/config.toml' '*/.cargo/config' '*/.cargo/config.toml'
   untracked_configurations=$(git ls-files --others -- "$@") || fail "git ls-files failed"
