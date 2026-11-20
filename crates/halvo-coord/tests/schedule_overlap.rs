@@ -906,3 +906,136 @@ fn d_a_raise_whose_read_brings_a_lost_switch_off_sends_paused_in_that_tick() {
     assert_eq!(holds_of(&board, 0), vec![OFF]);
     assert_eq!(listed(&p, 0), PAUSED);
 }
+
+/// The memory ports, whose owner answers `set_state` with the body `{"state":"approved"}`
+/// whatever state it was asked for, after it set the asked state, as an owner whose reply does
+/// not hold what it set.
+struct Misreply<'a>(&'a Ports<Config>);
+
+impl Owner for Misreply<'_> {
+    type Config = Config;
+    fn log(&self, events: &[Event]) -> Result<(), PortError> {
+        self.0.log(events)
+    }
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
+        self.0.history(agent, after)
+    }
+    fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
+        self.0.workflows()
+    }
+    fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+        self.0.agents()
+    }
+    fn send(&self, body: &Body) -> Result<halvo_coord::types::Reply, PortError> {
+        let reply = self.0.send(body)?;
+        Ok(match body {
+            Body::SetState { .. } => serde_json::json!({ "state": "approved" }),
+            _ => reply,
+        })
+    }
+    fn replies(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        self.0.replies(workflow, agent, run)
+    }
+}
+
+impl halvo_coord::ports::Runs for Misreply<'_> {
+    fn start(&self, spec: &halvo_coord::types::RunSpec) -> Result<(), PortError> {
+        self.0.start(spec)
+    }
+    fn answer_confirm(
+        &self,
+        run: &halvo_coord::types::RunId,
+        answers: &[halvo_coord::types::Answer],
+        record: &mut dyn FnMut(&halvo_coord::types::Decision) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        self.0.answer_confirm(run, answers, record)
+    }
+    fn answer_handback(
+        &self,
+        run: &halvo_coord::types::RunId,
+        result: halvo_coord::types::HandbackResult,
+    ) -> Result<(), PortError> {
+        self.0.answer_handback(run, result)
+    }
+    fn answer_bind(
+        &self,
+        run: &halvo_coord::types::RunId,
+        result: halvo_coord::types::BindResult,
+    ) -> Result<(), PortError> {
+        self.0.answer_bind(run, result)
+    }
+    fn cancel(&self, run: &halvo_coord::types::RunId) -> Result<(), PortError> {
+        self.0.cancel(run)
+    }
+    fn kill(&self, run: &halvo_coord::types::RunId) -> Result<(), PortError> {
+        self.0.kill(run)
+    }
+    fn reap(
+        &self,
+    ) -> Result<Vec<(halvo_coord::types::RunId, halvo_coord::ports::Reaped)>, PortError> {
+        self.0.reap()
+    }
+}
+
+impl halvo_coord::ports::Analysis for Misreply<'_> {
+    fn defer(&self, until: u64) -> Result<(), PortError> {
+        self.0.defer(until)
+    }
+}
+
+impl halvo_coord::ports::Clock for Misreply<'_> {
+    fn now(&self) -> Result<u64, PortError> {
+        self.0.now()
+    }
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.0.day(at)
+    }
+}
+
+impl halvo_coord::ports::Rng for Misreply<'_> {
+    fn bytes16(&self) -> Result<[u8; 16], PortError> {
+        self.0.bytes16()
+    }
+}
+
+#[test]
+fn b_a_set_state_reply_that_does_not_hold_the_state_sent_is_no_acknowledgement() {
+    let p = ports(&[(
+        PAUSED,
+        ACCOUNT,
+        &["ann@people.test"],
+        &[HoldSetCause::Person],
+    )]);
+    let mut board = life(&p);
+    let before = stored(&p, 0);
+    let m = Misreply(&p);
+    let r = halvo_coord::schedule::drive(&m, &mut board, &L, switch_on(0));
+    assert_eq!(r.answer, Err(halvo_coord::types::Cause::NoService));
+    assert_eq!(stored(&p, 0), before, "no hold_cleared");
+    assert_eq!(
+        board.members[0].facts.workflow.state, PAUSED,
+        "no state written"
+    );
+    assert_eq!(holds_of(&board, 0), vec![OFF]);
+}
+
+#[test]
+fn c_no_active_goes_under_the_mark_also_for_a_workflow_that_left_the_list() {
+    let p = ports(&[
+        (APPROVED, ACCOUNT, &["ann@people.test"], &[]),
+        (ACTIVE, ACCOUNT, &["ann@people.test"], &[]),
+    ]);
+    let mut board = life(&p);
+    go(&p, &mut board, tick());
+    assert!(board.active_refused(&agent(0)));
+    board.members[0].facts.workflow.state = APPROVED;
+    p.workflows.borrow_mut().remove(0);
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(states(&p), Vec::<String>::new());
+}
