@@ -2452,15 +2452,16 @@ where
         self.lock().board.as_ref().map_or(0, |b| b.runs.len())
     }
 
-    /// The runs that the quit has not ended, each with its agent, in the order of their starts
-    /// (ruling RD-147 (5)(i)): none before the first step of the quit; from then on the live
-    /// runs as the last publish found them, which each move writes again at its end, the first
-    /// step, the end of a run and the second step among them. So a run whose kill was refused
-    /// stays in the list, and while a kill of the second step has not returned the list is the
-    /// one from before the second step: a run whose kill returned before that kill stays named
-    /// until the second step returns. A dying tree, whose run has ended, is not in the list.
-    /// This read takes no lock that a port call holds, so it answers while a kill holds the
-    /// coordinator's lock.
+    /// The live runs, each with its agent, in the order of their starts, as the last publish
+    /// found them (ruling RD-147 (5)(i)). Every move writes the list again at its end, before
+    /// the quit as after it, the first step, the end of a run and the second step among them,
+    /// and a move that a port's panic ended leaves the list of the move before it. So a run
+    /// whose kill was refused stays in the list, and while a kill of a tick or of the second
+    /// step holds the coordinator's lock the list is the one from before that move: a run whose
+    /// kill returned earlier in that move stays named until the move returns. A run that the
+    /// move holding the lock has started is not in the list until that move returns, and a
+    /// dying tree, whose run has ended, is never in it. This read takes no lock that a port call
+    /// holds, so it answers while a kill holds the coordinator's lock.
     pub fn not_stopped(&self) -> Vec<(AgentId, RunId)> {
         self.unstopped
             .lock()
@@ -2612,18 +2613,16 @@ where
                 }
             }
         }
-        if st.quitting {
-            let live = st.board.as_ref().map_or_else(Vec::new, |b| {
-                b.runs
-                    .iter()
-                    .map(|r| (r.agent.clone(), r.run.clone()))
-                    .collect()
-            });
-            *self
-                .unstopped
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner) = live;
-        }
+        let live = st.board.as_ref().map_or_else(Vec::new, |b| {
+            b.runs
+                .iter()
+                .map(|r| (r.agent.clone(), r.run.clone()))
+                .collect()
+        });
+        *self
+            .unstopped
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = live;
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
         let changed = if st.mark.unpublished {

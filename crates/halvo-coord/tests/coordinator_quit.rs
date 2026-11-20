@@ -211,9 +211,11 @@ fn named(pairs: &[(usize, &RunId)]) -> Vec<(AgentId, RunId)> {
 #[test]
 fn u46_the_quit_names_each_live_run_with_its_agent_and_drops_a_run_that_ends_in_the_wait() {
     let (c, runs) = two_live();
-    assert!(
-        c.not_stopped().is_empty(),
-        "nothing is named before the quit"
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &runs[0]), (1, &runs[1])]),
+        "before the quit the list names the live runs too, so that a hook whose first step \
+         cannot take the lock names them"
     );
     c.quit_stop();
     assert_eq!(
