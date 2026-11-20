@@ -1439,6 +1439,11 @@ mod tests {
         (ivars, writer, fg_writer)
     }
 
+    /// Every output type that the stream declares but Screen, by its number.
+    fn every_output_type_but_screen() -> [SCStreamOutputType; 2] {
+        [SCStreamOutputType(1), SCStreamOutputType(2)]
+    }
+
     fn kinds_until_closed(writer: &SinkWriter) -> Vec<Modality> {
         std::iter::from_fn(|| writer.recv_timeout(Duration::from_secs(1)).ok())
             .map(|received| received.event().modality)
@@ -1917,7 +1922,7 @@ mod tests {
 
         #[test]
         fn adv1_a_complete_sample_of_another_output_type_gives_no_record() {
-            for ty in [SCStreamOutputType::Audio, SCStreamOutputType::Microphone] {
+            for ty in every_output_type_but_screen() {
                 let (ivars, writer, _front) = screen_ivars(inactive());
                 on_sample(&ivars, complete().sample(), ty);
                 assert_eq!(records(ivars, &writer), 0, "{ty:?}");
@@ -3298,7 +3303,9 @@ mod tests {
         on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
         fg_writer.set_for_test(Some(front(HalvoApp::BUNDLE_ID, 70)));
         on_sample(&ivars, frame.sample(), SCStreamOutputType::Screen);
-        on_sample(&ivars, complete().sample(), SCStreamOutputType::Audio);
+        for ty in every_output_type_but_screen() {
+            on_sample(&ivars, complete().sample(), ty);
+        }
         let counted = ivars.facts.dropped_at_stop.load(Ordering::SeqCst);
         assert_eq!(
             records(ivars, &writer),
