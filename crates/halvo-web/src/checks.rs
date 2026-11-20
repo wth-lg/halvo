@@ -81,7 +81,10 @@ pub fn tree_of_with(
 /// run's own. A switch with the key `user-data-dir` or `database` in any spelling that `switch_of`
 /// reads (a prefix `--`, `-` or `/`, any letter case, white space at its ends, with or without
 /// `=`) whose value is not the run's place takes the mark away, whichever value of a repeated
-/// switch the browser takes; such a switch that names the run's place bears no mark by itself. No
+/// switch the browser takes, and so does a switch whose key is another beginning of the word
+/// `database`, such as `--datab=` or `--d=` (U2.6b round 3, R6): that the crash handler's
+/// `getopt_long` takes a unique beginning of a long option is recalled and not run, and there the
+/// mark errs toward leaving. Such a switch that names the run's place bears no mark by itself. No
 /// bare argument bears it, no occurrence inside an argument does, the program's name (argument 0)
 /// does not, and no argument after the end of the switches does (U2.6b), though such an argument
 /// that names another place takes the mark away (U2.6b round 3, R2). The value and the profile
@@ -184,10 +187,14 @@ pub fn bears_profile_on(args: &[String], profile: &str, windows: bool) -> bool {
     let elsewhere = every
         .iter()
         .filter_map(|a| switch_of(a))
-        .any(|(key, value)| match key.as_str() {
-            "user-data-dir" => !same_path_on(value, profile, windows),
-            "database" => !same_path_on(value, &crashpad, windows),
-            _ => false,
+        .any(|(key, value)| {
+            if key == "user-data-dir" {
+                !same_path_on(value, profile, windows)
+            } else if !key.is_empty() && "database".starts_with(key.as_str()) {
+                !same_path_on(value, &crashpad, windows)
+            } else {
+                false
+            }
         });
     !elsewhere
         && switches.iter().any(|a| {

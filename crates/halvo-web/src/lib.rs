@@ -30,7 +30,9 @@
 //!   is trimmed and ends at its first NUL, the switches end at an argument `--` and, on Windows, at
 //!   the single-argument switch in the spellings `--`, `-` and `/` and any letter case, and a
 //!   switch of the profile's or the database's key that names another place takes the mark away,
-//!   whichever value of a repeated switch the browser takes. The mark finds the run's exact place
+//!   whichever value of a repeated switch the browser takes; a key that is another beginning of
+//!   the word `database` is read as the database's key, because the crash handler's `getopt_long`
+//!   may take a unique beginning of a long option, a reading that is recalled and not run. The mark finds the run's exact place
 //!   only before the end of its switches and reads a switch that names another place over every
 //!   argument after argument 0, so an end of its switches that the browser does not share can lose
 //!   a witness and cannot hide another place. Where the browser's own parser reads
