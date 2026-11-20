@@ -6,7 +6,7 @@ use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use halvo_control::exit;
 use halvo_control::onboarding::{GrantState, Permission};
@@ -538,7 +538,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
         if let Some(owner) = owner {
             if !owner.is_running() {
-                let answers = self.stop_every_source();
+                let answers = self.armed_for(Self::stop_every_source);
                 self.owner_gone_stops = Some(answers);
                 self.ending = Some(Ending::OwnerGone);
                 return self.ending;
@@ -566,7 +566,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         let stops = self.board.drain.stops_the_sources();
         if stops && !self.stopped_for_drain {
             self.stopped_for_drain = true;
-            for (name, answer) in self.sources.stop() {
+            for (name, answer) in self.armed_for(|supervisor| supervisor.sources.stop()) {
                 if let Err(error) = answer {
                     self.board.record_failure(name, error);
                 }
@@ -832,8 +832,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// stop bound in play plus SHUTDOWN_BUDGET_MS, at most
     /// [`ENTRY_DEADLINE_MS`]; then each source in the stop order until the
     /// first answer that is not a stop, a stop past its bound included (ruling
-    /// DM-25 N1). When every source stops the arm is taken back and the process
-    /// stays up. At the first answer that is not a stop the arm moves to
+    /// DM-25 N1). When every source stops the arm that it found is put back and
+    /// the process stays up. At the first answer that is not a stop the arm moves to
     /// SHUTDOWN_BUDGET_MS after that answer, or after the moment that a late
     /// stop's bound passed, the earlier deadline kept, and the end routine
     /// runs: `reply` gets the Board, the first record is written, the owner
@@ -855,6 +855,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if kind != StopKind::LostGrant {
             self.barrier(owner);
         }
+        let found = self.arm_found();
         let in_play = self.held(stop_order(self.platform));
         self.arm_entry(&in_play, exit::SOURCE_NOT_STOPPED);
         self.backoff.clear();
@@ -872,7 +873,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
         self.publish();
         if !unstopped {
-            self.disarm();
+            self.put_back(found);
             return Some(CaptureOff::Stopped);
         }
         Some(self.end_after_unstopped(owner, kind, reply))
@@ -947,6 +948,40 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if let Some(watchdog) = &self.watchdog {
             watchdog.arm(after, status);
         }
+    }
+
+    /// The arm that stands now, as the watchdog and the main loop's clock
+    /// hold it.
+    fn arm_found(&self) -> (Option<(Instant, i32)>, Option<Duration>) {
+        (
+            self.watchdog.as_ref().and_then(Watchdog::armed_until),
+            self.ends_by,
+        )
+    }
+
+    /// Puts back the arm that [`Supervisor::arm_found`] read: a stop that
+    /// armed for itself takes back its own arm and no other.
+    fn put_back(&mut self, found: (Option<(Instant, i32)>, Option<Duration>)) {
+        self.ends_by = found.1;
+        if let Some(watchdog) = &self.watchdog {
+            watchdog.put_back(found.0);
+        }
+    }
+
+    /// Runs `stops` under an arm with status 5 for the longest stop bound of
+    /// the sources held plus SHUTDOWN_BUDGET_MS, at most ENTRY_DEADLINE_MS,
+    /// so that a stop that never answers ends the process with 5, and puts
+    /// back the arm that it found once `stops` returns: the drain's stop pass
+    /// and the owner-gone pass.
+    fn armed_for<T>(&mut self, stops: impl FnOnce(&mut Self) -> T) -> T {
+        let found = self.arm_found();
+        let in_play = self.held(stop_order(self.platform));
+        if !in_play.is_empty() {
+            self.arm_entry(&in_play, exit::SOURCE_NOT_STOPPED);
+        }
+        let answers = stops(self);
+        self.put_back(found);
+        answers
     }
 
     /// Takes back the arm of an entry whose every stop answered within its
@@ -1169,21 +1204,25 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// [`ENTRY_DEADLINE_MS`], and carries 5 while each stop runs, so that a
     /// stop that never answers ends the process with 5 (ruling DM-26 F1). In
     /// the span after a stop answered within its bound and before the next
-    /// stop begins it carries `status` again: every source asked so far has
-    /// stopped, so a process that the watchdog ends there ends with the
-    /// status that the entry would answer itself. The owner settles the open batch (at most 1 s),
+    /// stop begins it carries `status` again, since every source asked so far
+    /// has stopped; a process that the watchdog ends there ends with `status`,
+    /// although the entry itself would answer 1 when its last settle reads the
+    /// drain still failing, gets no answer or finds events lost, which is known
+    /// only at that settle. The owner settles the open batch (at most 1 s),
     /// the sources stop in the stop order, and the owner settles once more
-    /// (at most 5 s). It runs once: a second trigger answers `None`. At the
+    /// (at most 5 s); with no owner, in a life that opened no store, no settle
+    /// is asked. It runs once: a second trigger answers `None`. At the
     /// first answer that is not a stop, a stop past its bound included, the
     /// arm moves to SHUTDOWN_BUDGET_MS after it with status 5, the earlier
     /// deadline kept; the owner settles, every source still held is asked
     /// once more when its stop bound fits before the deadline, the last
     /// settle follows, each cut to what is left before
     /// the deadline, and the entry makes the ending call with 5 and answers
-    /// 5 (ruling DM-25 N1 (c)). Otherwise the arm is taken back, and the
-    /// status is 1 when the drain still fails at the last settle, when the
-    /// last settle gets no answer or when the life lost events between the
-    /// two settles, else `status`.
+    /// 5 (ruling DM-25 N1 (c)). Otherwise the arm that the entry found is put
+    /// back, and with an owner the status is 1 when the drain still fails at
+    /// the last settle, when the last settle gets no answer or when the life
+    /// lost events between the two settles, else `status`; with no owner it
+    /// is `status`.
     pub fn shutdown_entry(
         &mut self,
         owner: Option<&dyn OwnerLink>,
@@ -1194,6 +1233,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         }
         self.entered = true;
         let started = self.main_loop.now();
+        let found = self.arm_found();
         let in_play = self.held(stop_order(self.platform));
         self.arm_entry(&in_play, status);
         self.entry_status = Some(status);
@@ -1252,7 +1292,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 end_call.end(exit::SOURCE_NOT_STOPPED);
             }
         } else {
-            self.disarm();
+            self.put_back(found);
         }
         Some(EntryOutcome {
             status,
@@ -4415,6 +4455,25 @@ mod tests {
         /// wake after its deadline (ruling DM-25 N1 (e)).
         const WAKE: u128 = 300;
 
+        /// The longest that a case on the real clock allows between the entry's
+        /// arm and the first stop's read of it, on a loaded machine.
+        const ARM_TO_THE_FIRST_READ_MS: u128 = 1_000;
+
+        /// The longest that a case on the real clock allows between its call of
+        /// a stop for capture off and the arm, which spans the owner's barrier.
+        const CALL_TO_THE_ARM_MS: u128 = 1_000;
+
+        /// How much earlier than its call a case's clock read may fall.
+        const READ_BEFORE_THE_CALL_MS: u128 = 50;
+
+        /// The longest that a case on the real clock allows between the moment
+        /// it read before a tick and the input stop's call inside that tick.
+        const READ_TO_THE_STOP_CALL_MS: u128 = 350;
+
+        /// How much earlier than 19,250 ms after the read a moved deadline may
+        /// fall: the stop's sleep of 2,500 ms may end that much early.
+        const MOVE_EARLY_MS: u128 = 100;
+
         /// A loop that stands in while a fixture's supervisor is rebuilt.
         fn placeholder() -> TestLoop {
             TestLoop {
@@ -6345,8 +6404,8 @@ mod tests {
             let at_stop = ahead(first.0, first.1);
             println!("dm26 f2-1 cap at_stop={at_stop:?}");
             assert!(
-                matches!(at_stop, Some((ms, 5)) if ms <= 19_250 && ms + 1_000 >= 19_250),
-                "the first arm read {at_stop:?}, not 19,250 ms ahead"
+                matches!(at_stop, Some((ms, 5)) if ms <= 19_250 && ms + ARM_TO_THE_FIRST_READ_MS >= 19_250),
+                "the first arm read {at_stop:?}, not 19,250 ms ahead within {ARM_TO_THE_FIRST_READ_MS} ms"
             );
         }
 
@@ -6431,8 +6490,8 @@ mod tests {
             assert_eq!(outcome, Some(CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)));
             let entry = u128::from(ENTRY_DEADLINE_MS);
             assert!(
-                matches!(armed, Some((ms, 5)) if ms + 50 >= entry && ms <= entry + 1_000),
-                "the deadline after a late Ok read {armed:?}, not about {entry} ms after the call"
+                matches!(armed, Some((ms, 5)) if ms + READ_BEFORE_THE_CALL_MS >= entry && ms <= entry + CALL_TO_THE_ARM_MS),
+                "the deadline after a late Ok read {armed:?}, not {entry} ms after the call within {READ_BEFORE_THE_CALL_MS} ms before and {CALL_TO_THE_ARM_MS} ms after"
             );
         }
 
@@ -6475,8 +6534,8 @@ mod tests {
             println!("dm26 f2-5 tick={tick:?} armed(ms_after_call,status)={armed:?}");
             assert_eq!(tick, Some(Ending::SourceNotStopped));
             assert!(
-                matches!(armed, Some((ms, 5)) if (19_150..=19_600).contains(&ms)),
-                "the move after a stop that answered 2,500 ms after its call read {armed:?}, not 19,250 ms after the call"
+                matches!(armed, Some((ms, 5)) if (19_250 - MOVE_EARLY_MS..=19_250 + READ_TO_THE_STOP_CALL_MS).contains(&ms)),
+                "the move after a stop that answered 2,500 ms after its call read {armed:?}, not 19,250 ms after the call within {MOVE_EARLY_MS} ms before and {READ_TO_THE_STOP_CALL_MS} ms after"
             );
         }
 
@@ -6881,6 +6940,109 @@ mod tests {
                 .collect();
             println!("dm26 f3-v30 steps_ms={steps:?}");
             assert_eq!(steps, [100, 100, 100, 100, 100]);
+        }
+        /// Pass 37 point (2), pr-review-58 finding 1: the owner-gone pass runs
+        /// its stops under an arm with 5 and takes that arm back after them.
+        #[test]
+        fn the_owner_gone_pass_runs_its_stops_armed_with_5_and_takes_its_arm_back() {
+            let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
+            let mut f = fixture_on_owner(
+                input_stop(Duration::ZERO, Ok(()), &peek, &seen),
+                ModelStore::new(),
+            );
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            *peek.borrow_mut() = f.supervisor.watchdog.clone();
+            f.start(&two());
+            f.tick();
+            f.link.as_ref().unwrap().running.set(false);
+            assert_eq!(f.tick(), Some(Ending::OwnerGone));
+            assert_eq!(*seen.borrow(), [Some(exit::SOURCE_NOT_STOPPED)]);
+            assert_eq!(f.supervisor.watchdog_armed(), None);
+            assert!(ending.statuses().is_empty());
+        }
+
+        /// Pass 37 point (2), pr-review-58 finding 1: the drain's stop pass runs
+        /// its stops under an arm with 5 and takes that arm back after them.
+        #[test]
+        fn the_drain_stop_pass_runs_its_stops_armed_with_5_and_takes_its_arm_back() {
+            let (peek, seen): (Peek, Rc<RefCell<Vec<Option<i32>>>>) = Default::default();
+            let store = ModelStore::new();
+            let mut f = fixture_on_owner(
+                input_stop(Duration::ZERO, Ok(()), &peek, &seen),
+                store.clone(),
+            );
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            *peek.borrow_mut() = f.supervisor.watchdog.clone();
+            f.start(&two());
+            f.tick();
+            drain_fails(&f, &store, WriteFault::Io(io::ErrorKind::Other));
+            f.tick();
+            assert_eq!(f.supervisor.board().capture, Capture::Stopped);
+            assert_eq!(*seen.borrow(), [Some(exit::SOURCE_NOT_STOPPED)]);
+            assert_eq!(f.supervisor.watchdog_armed(), None);
+            assert!(ending.statuses().is_empty());
+        }
+
+        /// Pass 37 point (2), pr-review-58 finding 3: a shutdown entry whose stops
+        /// all answer puts back the arm that it found, its deadline and its
+        /// status, and does not take it back.
+        #[test]
+        fn an_entry_whose_stops_answer_puts_back_the_arm_that_it_found() {
+            let mut f = fixture(Factory::new());
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            f.start(&two());
+            let watchdog = f.supervisor.watchdog.clone().expect("a watchdog");
+            watchdog.arm(Duration::from_secs(30), exit::TIMED_RUN_SOURCE_FAILED);
+            let found = watchdog.armed_until();
+            let outcome = f.supervisor.shutdown_entry(None, exit::CLEAN).unwrap();
+            let after = watchdog.armed_until();
+            watchdog.disarm();
+            assert_eq!(outcome.status, exit::CLEAN);
+            assert_eq!(after, found, "the entry did not put back the arm it found");
+        }
+
+        /// Pass 37 point (2), pr-review-58 finding 3: a stop for capture off whose
+        /// sources all stop puts back the arm that it found.
+        #[test]
+        fn a_stop_for_capture_off_whose_sources_stop_puts_back_the_arm_that_it_found() {
+            let mut f = fixture_on_owner(Factory::new(), ModelStore::new());
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            f.start(&two());
+            f.tick();
+            let watchdog = f.supervisor.watchdog.clone().expect("a watchdog");
+            watchdog.arm(Duration::from_secs(30), exit::TIMED_RUN_SOURCE_FAILED);
+            let found = watchdog.armed_until();
+            let link = f.link.take().unwrap();
+            let outcome = f
+                .supervisor
+                .stop_for_capture_off(&link, StopKind::Pause, &mut |_| {});
+            let after = watchdog.armed_until();
+            watchdog.disarm();
+            assert_eq!(outcome, Some(CaptureOff::Stopped));
+            assert_eq!(after, found, "the stop did not put back the arm it found");
+            assert!(ending.statuses().is_empty());
+        }
+
+        /// Pass 37 point (1), verifier-178's f6: the entry clears its status at
+        /// its end, so a stop after it leaves the arm of another site with that
+        /// site's status.
+        #[test]
+        fn a_stop_after_the_entry_leaves_the_arm_of_another_site_as_it_stands() {
+            let mut f = fixture(Factory::new());
+            let ending = Stamped::default();
+            ending_with(&mut f, Factory::new(), Arc::new(ending.clone()));
+            f.start(&two());
+            assert!(f.supervisor.shutdown_entry(None, exit::CLEAN).is_some());
+            let watchdog = f.supervisor.watchdog.clone().expect("a watchdog");
+            watchdog.arm(Duration::from_secs(30), exit::TIMED_RUN_SOURCE_FAILED);
+            let _ = f.supervisor.stop_every_source();
+            let armed = watchdog.armed();
+            watchdog.disarm();
+            assert_eq!(armed, Some(exit::TIMED_RUN_SOURCE_FAILED));
         }
     }
 }
