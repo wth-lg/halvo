@@ -19,6 +19,28 @@ const SERVER: &str = "daemon::process_tests::serve_for_parent";
 const READY_WITHIN: Duration = Duration::from_secs(60);
 const SECOND_START_WITHIN: Duration = Duration::from_secs(2);
 
+struct Service(Child);
+
+impl Drop for Service {
+    fn drop(&mut self) {
+        if self.0.try_wait().ok().flatten().is_some() {
+            return;
+        }
+        if let Ok(pid) = libc::pid_t::try_from(self.0.id()) {
+            unsafe { libc::kill(pid, libc::SIGTERM) };
+        }
+        let started = Instant::now();
+        while self.0.try_wait().ok().flatten().is_none() {
+            if started.elapsed() > Duration::from_secs(10) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+}
+
 struct SleepLoop(Instant);
 
 impl MainLoop for SleepLoop {
@@ -49,22 +71,25 @@ fn serve_for_parent() {
     std::process::exit(status);
 }
 
-fn service(dir: &Path) -> Child {
-    Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", SERVER, "--test-threads=1"])
-        .env(SERVE, dir)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .unwrap()
+fn service(dir: &Path) -> Service {
+    Service(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", SERVER, "--test-threads=1"])
+            .env(SERVE, dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap(),
+    )
 }
 
 fn data_dir(path: &Path) -> DataDir {
     DataDir::from_flag(path.to_str().unwrap()).unwrap()
 }
 
-fn ready(dir: &Path, child: &mut Child) {
+fn ready(dir: &Path, service: &mut Service) {
+    let child = &mut service.0;
     let named = data_dir(dir);
     let started = Instant::now();
     loop {
@@ -83,7 +108,8 @@ fn ready(dir: &Path, child: &mut Child) {
     }
 }
 
-fn terminate(mut child: Child) -> Option<i32> {
+fn terminate(mut service: Service) -> Option<i32> {
+    let child = &mut service.0;
     let pid = libc::pid_t::try_from(child.id()).unwrap();
     assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
     let started = Instant::now();
@@ -135,7 +161,7 @@ fn names(dir: &Path) -> Vec<String> {
 
 fn second_start(dir: &Path) -> (Option<i32>, Duration) {
     let started = Instant::now();
-    let status = service(dir).wait().unwrap();
+    let status = service(dir).0.wait().unwrap();
     (status.code(), started.elapsed())
 }
 
@@ -149,7 +175,7 @@ fn a_second_service_run_exits_0_within_2_s_and_changes_nothing_in_the_directory(
     assert_eq!(status, Some(0));
     assert!(took < SECOND_START_WITHIN, "the second start took {took:?}");
     assert_eq!(listing(&dir), before);
-    assert!(first.try_wait().unwrap().is_none(), "the first run ended");
+    assert!(first.0.try_wait().unwrap().is_none(), "the first run ended");
     assert_eq!(terminate(first), Some(0));
     assert_eq!(names(&dir), vec!["daemon-state.json".to_owned()]);
     assert_eq!(
@@ -199,7 +225,7 @@ fn a_second_service_run_while_a_loop_unlinks_daemon_lock_exits_0_and_the_first_s
     assert!(unlinks.join().unwrap() > 0);
     assert_eq!(status, Some(0));
     assert!(took < SECOND_START_WITHIN, "the second start took {took:?}");
-    assert!(first.try_wait().unwrap().is_none(), "the first run ended");
+    assert!(first.0.try_wait().unwrap().is_none(), "the first run ended");
     assert!(
         halvo_control::instance_lock::InstanceLock::try_take(&data_dir(&dir))
             .unwrap()
@@ -214,7 +240,7 @@ fn the_backup_mark_is_on_the_directory_within_2_s_of_the_start() {
     let started = Instant::now();
     let mut run = service(&dir);
     while backup_mark(&dir, false).is_none() && started.elapsed() < SECOND_START_WITHIN {
-        assert!(run.try_wait().unwrap().is_none(), "the run ended");
+        assert!(run.0.try_wait().unwrap().is_none(), "the run ended");
         std::thread::sleep(Duration::from_millis(5));
     }
     let took = started.elapsed();
