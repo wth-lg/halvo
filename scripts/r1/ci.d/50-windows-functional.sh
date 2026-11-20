@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended; the logs of the long form's loops reach the job log unread by the rule, a named limit), and a listed defect must fail with its marker; the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
+# rule: every Windows functional test runs in its own process, its log is read by the prints rule of scripts/r1/windows-prints-rule.sh (win-3b), whose vocabulary reads this check's lists macos_only_paths and expected_tests in their here-document form, and the check fails on any line that the rule prints and never prints such a log (the rule's standard error is read with its output, and the rule, the verdict and the printed lines read one copy of the log taken when the test ended; the logs of the long form's loops reach the job log unread by the rule, a named limit), and a listed defect must fail with its marker; a test's WF line carries the last rounds_decided_by_the_time_rule=N that a TF line of a log that the rule passed holds (ruling W3-32); the short page controls are summed by state, and a run that took more than one second control fails; the stall tests run the rounds that HALVO_WF_FORM names, a closed word that the check hands on alone (short or unset in the every-push job, long on a scratch push, which also loops the tests of its loop list by exact name); and in the short form the passing long-form run that docs/baseline/ledger.d/win-3.txt records ran on the trees, blobs and windows lock lines that the head has of the files whose change owes that run
 # lane: alone
 set -u
 group=${WF_GROUP:-native}
@@ -44,6 +44,21 @@ browser::a_renamed_copy_of_chrome_reads_unknown_and_records_nothing group=browse
 browser::a_renamed_copy_of_firefox_reads_unknown_and_records_nothing group=browser
 browser::after_a_start_behind_another_window_in_chrome group=browser
 browser::after_a_start_behind_another_window_in_edge group=browser
+browser::burst_rounds::a_burst_with_no_round_that_the_time_rule_decided_prints_a_count_of_zero group=browser
+browser::burst_rounds::a_counted_round_reaches_the_tally_with_its_four_counts_and_its_freed_at_ms group=browser
+browser::burst_rounds::a_counted_round_that_a_rule_of_the_swap_decided_with_nothing_recorded_passes group=browser
+browser::burst_rounds::a_counted_round_that_failed_fails_the_burst_in_both_forms group=browser
+browser::burst_rounds::a_counted_round_that_the_time_rule_decided_with_nothing_recorded_passes group=browser
+browser::burst_rounds::a_counted_round_whose_first_letter_no_rule_decided_fails group=browser
+browser::burst_rounds::a_counted_round_with_a_keystroke_event_fails_whatever_the_rule group=browser
+browser::burst_rounds::a_counted_round_with_a_recorded_letter_fails_whatever_the_rule group=browser
+browser::burst_rounds::a_counted_round_with_a_recorded_tab_fails_whatever_the_rule group=browser
+browser::burst_rounds::a_counted_round_with_another_recorded_key_fails_whatever_the_rule group=browser
+browser::burst_rounds::both_forms_fail_five_rounds_of_five_that_the_time_rule_decided group=browser
+browser::burst_rounds::both_forms_fail_two_rounds_of_five_that_the_time_rule_decided_with_their_freed_at_ms group=browser
+browser::burst_rounds::both_forms_take_one_round_of_five_that_the_time_rule_decided_and_print_its_count group=browser
+browser::burst_rounds::the_burst_of_a_browser_runs_five_rounds_in_both_forms group=browser
+browser::burst_rounds::the_burst_prints_the_count_of_its_counted_rounds_that_the_time_rule_decided_and_their_freed_at_ms group=browser
 browser::cold_and_warm_orders_in_chrome group=browser
 browser::cold_and_warm_orders_in_edge group=browser
 browser::stall_phases_of_the_page_in_chrome group=browser
@@ -603,8 +618,10 @@ measure() {
     cp "$log.run" "$log" || fail "the log of $test cannot be copied for its one read"
     rule_out=$(wpr_check_log "$test" "$log" "$work/vocabulary" 2>&1)
     rule_code=$?
+    time_rule=
     if [ "$rule_code" -eq 0 ]; then
       judge "$test" "$code" "$log" "$want_id"
+      time_rule=$(tr -d '\r' <"$log" | sed -E -n 's/^TF .* (rounds_decided_by_the_time_rule=[0-9]+)( .*)?$/\1/p' | tail -n 1)
     else
       rule_lines=$(printf '%s\n' "$rule_out" | grep -E "$prints_rule_line")
       [ -z "$rule_lines" ] || printf '%s\n' "$rule_lines"
@@ -622,7 +639,7 @@ measure() {
       *) failed=$((failed + 1)) ;;
     esac
     [ -z "$cause" ] || printf '%s: %s: %s\n' "$name" "$test" "$cause"
-    line="WF $test result=$verdict${id:+ id=$id}"
+    line="WF $test result=$verdict${id:+ id=$id}${time_rule:+ $time_rule}"
     printf '%s\n' "$line"
     printf '%s\n' "$line" >>"$artifacts/wf.txt" || fail "wf.txt cannot be written"
   done <"$work/names"
@@ -1015,6 +1032,26 @@ case $kind in
     printf 'TF %s browser=edge after_start_state=met\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
     exit 0
     ;;
+  time-rule)
+    printf 'TF %s phase=burst counted=5 rounds_decided_by_the_time_rule=0 freed_at_ms_of_those_rounds=-\r\n' "$test"
+    printf 'TF %s phase=burst counted=5 rounds_decided_by_the_time_rule=1\r\n' "$test"
+    printf 'TF %s phase=burst counted=5 rounds_decided_by_the_time_rule= freed_at_ms_of_those_rounds=-\r\n' "$test"
+    printf 'phase=burst rounds_decided_by_the_time_rule=7\r\n'
+    printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
+    exit 0
+    ;;
+  time-rule-break)
+    printf 'TF %s phase=burst counted=5 rounds_decided_by_the_time_rule=1 freed_at_ms_of_those_rounds=1564\n' "$test"
+    printf 'TF %s typed=BREAKS-THE-RULE hunter2-typed-text\n' "$test"
+    printf 'test %s ... ok\n\n%s\n\n' "$test" "$ok"
+    exit 0
+    ;;
+  time-rule-fail)
+    printf 'TF %s phase=burst counted=5 rounds_decided_by_the_time_rule=2 freed_at_ms_of_those_rounds=1564,1601\r\n' "$test"
+    panic "$thread" 'the long form takes at most 1 round of the burst five that the time rule decided'
+    printf 'test %s ... FAILED\n\n%s\n\n' "$test" "$failed"
+    exit 101
+    ;;
   after-start-not-met)
     printf 'TF %s browser=chrome after_start_state=not_met reason=a_letter_was_not_withheld_by_the_state_at_the_key\ntest %s ... ok\n\n%s\n\n' "$test" "$test" "$ok"
     exit 0
@@ -1232,7 +1269,7 @@ self_test() {
   right="c1_raw_input|pass${nl}helper_child_window|pass${nl}known_defect::x1_password|defect|RR-windows-01"
   if [ "$group" = browser ]; then
     set_of_fixtures=browser_fixtures
-    failing_fixtures=7
+    failing_fixtures=9
   else
     set_of_fixtures=fixtures
   fi
@@ -1351,6 +1388,19 @@ browser_fixtures() {
   check a-page-test-log-that-breaks-the-prints-rule FAIL "c1_raw_input|pass${nl}browser::a_page_test|rule-break${nl}known_defect::a_held_swap|defect|W3-7-Q2i" \
     "prints-rule browser::a_page_test line=3 length=" "${nl}prints_rule broken_lines=1 withheld_logs=1${nl}" \
     "FAIL 52-windows-browser (the logs of 1 tests hold 1 lines that break the prints rule" "!hunter2-typed-text"
+  expected="c1_raw_input${nl}browser::a_page_test group=browser${nl}browser::b_page_test group=browser"
+  check the-wf-line-carries-the-last-count-of-rounds-that-the-time-rule-decided PASS "c1_raw_input|pass${nl}browser::a_page_test|time-rule${nl}browser::b_page_test|pass" \
+    "${nl}WF browser::a_page_test result=pass rounds_decided_by_the_time_rule=1${nl}" \
+    "@WF browser::a_page_test result=pass rounds_decided_by_the_time_rule=1${nl}" \
+    "${nl}WF browser::b_page_test result=pass${nl}" "${nl}PASS 52-windows-browser"
+  expected="c1_raw_input${nl}browser::a_page_test group=browser${nl}browser::b_page_test group=browser"
+  check a-log-that-the-prints-rule-refused-is-not-read-for-the-count FAIL "c1_raw_input|pass${nl}browser::a_page_test|time-rule${nl}browser::b_page_test|time-rule-break" \
+    "${nl}WF browser::a_page_test result=pass rounds_decided_by_the_time_rule=1${nl}" \
+    "${nl}WF browser::b_page_test result=FAIL${nl}" "!hunter2-typed-text"
+  expected="c1_raw_input${nl}browser::a_page_test group=browser"
+  check a-failed-test-s-wf-line-carries-its-count-of-rounds-that-the-time-rule-decided FAIL "c1_raw_input|pass${nl}browser::a_page_test|time-rule-fail" \
+    "${nl}WF browser::a_page_test result=FAIL rounds_decided_by_the_time_rule=2${nl}" \
+    "@WF browser::a_page_test result=FAIL rounds_decided_by_the_time_rule=2${nl}" "FAIL 52-windows-browser (1 tests failed)"
 }
 
 fixtures() {
