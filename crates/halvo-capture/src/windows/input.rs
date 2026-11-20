@@ -1728,6 +1728,79 @@ mod tests {
         }
     }
 
+    fn count_of(events: u64) -> FoldCount {
+        let mut count = FoldCount::one();
+        for _ in 1..events {
+            count.add_one();
+        }
+        count
+    }
+
+    #[test]
+    fn the_folds_close_an_interval_after_1000_ms_and_take_a_handed_back_count() {
+        let front = test_front("C:\\apps\\editor.exe");
+        let mut folds = Folds::default();
+        for tick in [10_000, 10_400, 10_999] {
+            assert_eq!(folds.add(FoldClass::Move, &front, tick), None, "{tick}");
+        }
+        assert_eq!(folds.add(FoldClass::Scroll, &front, 10_500), None);
+        assert_eq!(folds.due(10_999, false), [None, None, None]);
+        let due = folds
+            .add(FoldClass::Move, &front, 11_000)
+            .expect("the first interval ended");
+        assert_eq!((due.class, due.count), (FoldClass::Move, count_of(3)));
+        let [scroll, drag, moved] = folds.due(11_500, false);
+        assert_eq!(scroll.map(|due| due.count), Some(FoldCount::one()));
+        assert_eq!((drag, moved), (None, None));
+        folds.hand_back(
+            PointerFold::new(FoldClass::Move, count_of(4)),
+            front.clone(),
+            11_600,
+        );
+        let [_, _, moved] = folds.due(0, true);
+        assert_eq!(moved.map(|due| due.count), Some(count_of(5)));
+        assert_eq!(folds.due(0, true), [None, None, None]);
+        folds.hand_back(
+            PointerFold::new(FoldClass::Drag, FoldCount::one()),
+            front.clone(),
+            20_000,
+        );
+        assert_eq!(folds.due(20_999, false), [None, None, None]);
+        let [_, drag, _] = folds.due(21_000, false);
+        assert_eq!(drag.map(|due| due.count), Some(FoldCount::one()));
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_switch_is_off_answers_off_and_installs_nothing() {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::{Switch, Switches};
+        for (device, switch) in [
+            (RawDevice::Keyboard, Switch::KeyClass),
+            (RawDevice::Pointer, Switch::PointerClass),
+        ] {
+            let mut switches = Switches::default();
+            switches.set(switch, false);
+            let (sink, _writer) = crate::sink::channel(4);
+            let ctx = SourceContext::with_floor(
+                sink,
+                FloorHandle::new(None, Arc::new(NoLineage), switches),
+            );
+            let mut source = match device {
+                RawDevice::Keyboard => {
+                    RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new())
+                }
+                RawDevice::Pointer => RawInputSource::pointer(Arc::new(Mutex::new(None))),
+            };
+            assert_eq!(source.begin(ctx), Ok(Started::Off), "{device:?}");
+            assert_eq!(
+                source.health().state,
+                crate::source::SourceState::Off,
+                "{device:?}"
+            );
+            assert_eq!(source.shutdown(), Ok(()), "{device:?}");
+        }
+    }
+
     #[test]
     fn one_key_of_each_class_maps_to_each_class_once() {
         let mut state = KeyState::default();

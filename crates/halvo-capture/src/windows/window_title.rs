@@ -409,6 +409,60 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_title_leaves_no_event_while_the_gate_reads_password_and_one_while_it_reads_unknown() {
+        use crate::floor::exclude::FloorHandle;
+        use crate::secure_input::windows::FieldState;
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(FloorHandle::default(), Arc::clone(&drops));
+        let front = FrontApp {
+            pid: 9,
+            path: Some("C:\\Apps\\mail.exe".to_string()),
+        };
+        let gate = PasswordGate::new();
+        let title = |gate: Option<&PasswordGate>| {
+            title_event(
+                &floor,
+                gate,
+                (&front, PrivateWindow::Unknown),
+                ("Inbox".to_string(), TitleWhy::TitleChange),
+                OsTick::new(super::super::now_tick()),
+            )
+            .is_some()
+        };
+        assert!(title(None), "a title with no keyboard source");
+        assert!(title(Some(&gate)), "a title while the gate reads Unknown");
+        gate.field_at(super::super::now_tick(), FieldState::Password);
+        assert!(!title(Some(&gate)), "a title while the gate reads Password");
+        gate.field_at(super::super::now_tick(), FieldState::Clear);
+        assert!(title(Some(&gate)), "a title while the gate reads Clear");
+        assert_eq!(drops.read().secure_input, 1);
+        let private = title_event(
+            &floor,
+            None,
+            (&front, PrivateWindow::Private),
+            ("Inbox".to_string(), TitleWhy::TitleChange),
+            OsTick::new(super::super::now_tick()),
+        );
+        assert!(private.is_none());
+        assert_eq!(drops.read().private_window, 1);
+    }
+
+    #[test]
+    fn a_title_source_whose_switch_is_off_answers_off() {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::Switches;
+        let mut switches = Switches::default();
+        switches.set(Switch::TitleText, false);
+        let (sink, _writer) = crate::sink::channel(4);
+        let ctx =
+            SourceContext::with_floor(sink, FloorHandle::new(None, Arc::new(NoLineage), switches));
+        let mut source = WindowTitleSource::new();
+        assert_eq!(source.begin(ctx), Ok(Started::Off));
+        assert_eq!(source.health().state, crate::source::SourceState::Off);
+        assert_eq!(source.shutdown(), Ok(()));
+    }
+
+    #[test]
     fn the_site_reader_point_gives_no_site_in_r1() {
         assert!(site_of(std::process::id()).is_none());
         assert!(site_of(0).is_none());

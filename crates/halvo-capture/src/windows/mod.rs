@@ -1022,6 +1022,71 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_listed_app_in_front_drops_every_kind_and_counts_each_drop() {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::{kind, Switches};
+        use crate::secure_input::windows::PasswordFieldProbe;
+        let mut switches = Switches::default();
+        switches.set(Switch::ScreenActivity, true);
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(
+            FloorHandle::new(None, Arc::new(NoLineage), switches),
+            Arc::clone(&drops),
+        );
+        let listed = FrontApp {
+            pid: 77,
+            path: Some("C:\\Program Files\\KeePassXC\\KeePassXC.exe".to_string()),
+        };
+        let other = FrontApp {
+            pid: 78,
+            path: Some("C:\\Program Files\\Notes\\notes.exe".to_string()),
+        };
+        let probe = PasswordFieldProbe::default();
+        let window = PrivateWindow::Unknown;
+        for front in [&listed, &other] {
+            let kept = [
+                floor
+                    .keep::<kind::ForegroundApp>(front, window, &probe)
+                    .is_some(),
+                floor
+                    .keep::<kind::WindowTitle>(front, window, &probe)
+                    .is_some(),
+                floor
+                    .keep::<kind::Keystroke>(front, window, &probe)
+                    .is_some(),
+                floor.keep::<kind::Pointer>(front, window, &probe).is_some(),
+                floor
+                    .keep::<kind::ScreenFrame>(front, window, &probe)
+                    .is_some(),
+            ];
+            assert_eq!(kept, [front == &other; 5], "{front:?}");
+        }
+        assert_eq!(
+            drops.read(),
+            Drops {
+                listed_app: 5,
+                ..Drops::default()
+            }
+        );
+        drops.count(DropReason::ExclusionTree);
+        drops.count(DropReason::UnknownLineage);
+        drops.count(DropReason::PrivateWindow);
+        drops.count(DropReason::SecureInput);
+        drops.count(DropReason::SwitchOff);
+        assert_eq!(
+            drops.read(),
+            Drops {
+                switch_off: 1,
+                listed_app: 5,
+                exclusion_tree: 1,
+                unknown_lineage: 1,
+                private_window: 1,
+                secure_input: 1,
+            }
+        );
+    }
+
+    #[test]
     fn timed_run_reports_the_deferral() {
         assert!(matches!(
             timed_run(600),
