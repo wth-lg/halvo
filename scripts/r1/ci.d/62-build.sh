@@ -483,7 +483,7 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
     output=$(
       xcrun() {
         [ "$#" = 3 ] && [ "$1" = dyld_info ] && [ "$2" = -imports ] || return 2
-        cat "$3"
+        cat "$3" 2>/dev/null
       }
       release_imports "$@"
     )
@@ -493,6 +493,11 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
       1:*"FAIL $name ($wanted_text)"*) got=FAIL ;;
       *) got="unexpected-exit-$code" ;;
     esac
+    if [ "$got" = "$want" ] && [ -n "${expect_row:-}" ]; then
+      grep -Fx -- "$expect_row" >/dev/null <<EOF || got=missing-row
+$output
+EOF
+    fi
     verdict "$case_name" "$want" "$got"
   }
   clean='halvo [arm64]:
@@ -502,12 +507,48 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   printf '%s\n' "$clean" >"$work/halvo-capture"
   imports_case clean-imports PASS 'dyld_info -imports halvo-capture: absent' "$work/halvo" "$work/halvo-capture"
   printf '%s\n' 'halvo-capture [x86_64]:' '    -imports:' "      $forbidden_import  (from Carbon)" >>"$work/halvo-capture"
-  imports_case capture-imports-hold FAIL "halvo-capture imports $forbidden_import" "$work/halvo" "$work/halvo-capture"
+  hold_row="      $forbidden_import  (from Carbon)"
+  expect_row="$hold_row" imports_case capture-imports-hold FAIL "halvo-capture imports $forbidden_import" "$work/halvo" "$work/halvo-capture"
   printf '%s\n' "      $forbidden_import  (from Carbon)" >>"$work/halvo"
-  imports_case app-imports-hold FAIL "halvo imports $forbidden_import" "$work/halvo" "$work/halvo-capture"
+  expect_row="$hold_row" imports_case app-imports-hold FAIL "halvo imports $forbidden_import" "$work/halvo" "$work/halvo-capture"
   printf '%s\n' 'unrecognized import listing' >"$work/halvo"
   imports_case unreadable-import-list FAIL 'dyld_info returned no import table for halvo' "$work/halvo"
   imports_case import-tool-failed FAIL 'dyld_info could not read the imports of missing' "$work/missing"
+  import_row_case() {
+    printf '%s\n' "$clean" "$2" >"$work/halvo"
+    expect_row="$2" imports_case "$1" FAIL "halvo imports $forbidden_import" "$work/halvo"
+  }
+  import_row_case address-before-import "      0x00001000 $forbidden_import  (from Carbon)"
+  import_row_case index-before-import "      1 $forbidden_import  (from Carbon)"
+  import_row_case star-after-import "      $forbidden_import*  (from Carbon)"
+  import_row_case comma-after-import "      $forbidden_import,  (from Carbon)"
+  cr=$(printf '\r')
+  import_row_case cr-after-import "      $forbidden_import$cr"
+  import_row_case dollar-after-import "      $forbidden_import\$suffix  (from Carbon)"
+  import_row_case dot-after-import "      $forbidden_import.suffix  (from Carbon)"
+  slice='halvo [arm64]:'
+  other_slice='halvo [x86_64]:'
+  header='    -imports:'
+  no_table='dyld_info returned no import table for halvo'
+  empty_table='dyld_info returned an empty import table for halvo'
+  bad_layout='dyld_info returned an unrecognized import listing for halvo'
+  printf '%s\n' "$slice" "$hold_row" "$header" '      _free  (from libSystem)' >"$work/halvo"
+  expect_row="$hold_row" imports_case import-before-header FAIL "$no_table" "$work/halvo"
+  printf '%s\n' "$slice" "$header" >"$work/halvo"
+  expect_row="$header" imports_case empty-import-table FAIL "$empty_table" "$work/halvo"
+  printf '%s\n' "$clean" "$other_slice" >"$work/halvo"
+  expect_row="$other_slice" imports_case last-slice-without-header FAIL "$no_table" "$work/halvo"
+  printf '%s\n' "$slice" "$header" "$clean" >"$work/halvo"
+  expect_row="$header" imports_case first-table-empty FAIL "$empty_table" "$work/halvo"
+  printf '%s\n' "$slice" "$other_slice" "$header" '      _free  (from libSystem)' >"$work/halvo"
+  expect_row="$slice" imports_case first-slice-without-header FAIL "$no_table" "$work/halvo"
+  other_layout='      0x00001000 _free  (from libSystem)'
+  printf '%s\n' "$slice" "$header" "$other_layout" >"$work/halvo"
+  expect_row="$other_layout" imports_case unexpected-import-layout FAIL "$bad_layout" "$work/halvo"
+  printf '%s\n' "$clean" "$header" >"$work/halvo"
+  expect_row="$header" imports_case repeated-import-header FAIL "$bad_layout" "$work/halvo"
+  printf '%s\n' "$clean" "$other_slice" "$header" "      other$forbidden_import  (from Carbon)" >"$work/halvo"
+  imports_case clean-imports-both-slices PASS 'dyld_info -imports halvo: absent' "$work/halvo"
 
   rules_repo=$work/rules
   mkdir -p "$rules_repo/crates/member" "$rules_repo/crates/member/.cargo" || exit 2
