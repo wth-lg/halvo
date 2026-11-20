@@ -2145,6 +2145,38 @@ mod proofs {
         crate::secure_input_macos::secure_input_active()
     }
 
+    #[cfg(halvo_proof = "hold_with_in_a_release_build")]
+    fn hold_with_in_a_release_build() -> bool {
+        crate::secure_input_macos::hold_with(|| 0, || 0).is_ok()
+    }
+
+    #[cfg(halvo_proof = "hold_with_in_a_release_build_twin")]
+    fn hold_with_in_a_release_build_twin() -> bool {
+        crate::secure_input_macos::secure_input_active()
+    }
+
+    #[cfg(halvo_proof = "secure_input_hold_in_a_release_build")]
+    fn secure_input_hold_in_a_release_build() -> Option<crate::secure_input_macos::SecureInputHold>
+    {
+        None
+    }
+
+    #[cfg(halvo_proof = "secure_input_hold_in_a_release_build_twin")]
+    fn secure_input_hold_in_a_release_build_twin(
+    ) -> Option<crate::secure_input_macos::SecureInputRefused> {
+        None
+    }
+
+    #[cfg(halvo_proof = "carbon_release_in_a_release_build")]
+    fn carbon_release_in_a_release_build() -> i32 {
+        crate::secure_input_macos::disable_secure_event_input()
+    }
+
+    #[cfg(halvo_proof = "carbon_release_in_a_release_build_twin")]
+    fn carbon_release_in_a_release_build_twin() -> bool {
+        crate::secure_input_macos::secure_input_active()
+    }
+
     #[cfg(halvo_proof = "hold_bound_in_a_release_build_twin")]
     fn hold_bound_in_a_release_build_twin(
         foreground: crate::macos::foreground::ForegroundReader,
