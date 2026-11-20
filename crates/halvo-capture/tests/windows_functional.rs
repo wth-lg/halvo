@@ -2980,6 +2980,76 @@ fn x9_screen_source_across_a_display_mode_change() {
 
 #[test]
 #[ignore = "functional: needs an interactive Windows desktop"]
+fn x13_frames_on_a_static_screen() {
+    with_deadline("x13", Duration::from_secs(90), || {
+        env_report("x13");
+        source_built_by_test("x13", "screen");
+        let cover = TestWindow::create(&magenta_popup("HalvoVerifyStatic", "halvo-verify-static"))
+            .expect("covering window");
+        cover.cover_screen();
+        pump_thread(Duration::from_secs(1));
+        let (sink, events) = capture(1024);
+        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let start = screen.begin(screen_on(sink.clone()));
+        let mut first_frame = false;
+        let began = Instant::now();
+        while !first_frame && began.elapsed() < FIRST_FRAME_WAIT {
+            pump_thread(Duration::from_millis(100));
+            first_frame = count(
+                &events.drain_for(Duration::from_millis(100)),
+                Modality::ScreenFrame,
+            ) > 0;
+        }
+        let mut records_while_static = 0;
+        let began = Instant::now();
+        while began.elapsed() < Duration::from_secs(8) {
+            pump_thread(Duration::from_millis(100));
+            records_while_static += count(
+                &events.drain_for(Duration::from_millis(100)),
+                Modality::ScreenFrame,
+            );
+        }
+        let covered = cover.is_foreground();
+        let mut records_while_moving = 0;
+        for step in 0..12 {
+            cover.move_to(if step % 2 == 0 { 40 } else { 0 }, 0);
+            pump_thread(Duration::from_millis(150));
+            records_while_moving += count(
+                &events.drain_for(Duration::from_millis(100)),
+                Modality::ScreenFrame,
+            );
+        }
+        drop(cover);
+        let frames = screen.frame_counts();
+        let _ = stop_counted(&mut screen, "screen");
+        say(
+            "x13",
+            format!(
+                "screen_start={} screen_activity=on first_frame={first_frame} \
+                 static_screen_secs=8 records_while_static={records_while_static} \
+                 cover_window_was_foreground={covered} records_while_moving={records_while_moving} \
+                 frames_delivered={} frames_with_changed_region={}",
+                show(&start),
+                frames.delivered,
+                frames.with_changed_region,
+            ),
+        );
+        assert!(start.is_ok(), "the screen source must start");
+        assert!(first_frame, "INCONCLUSIVE: no first frame");
+        assert!(
+            records_while_moving >= 1,
+            "no screen record while a window moved"
+        );
+        flipped!(
+            "VWF-10",
+            records_while_static <= 1,
+            format!("TF x13 records_while_static={records_while_static}")
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: needs an interactive Windows desktop"]
 fn pointer_moves_coalesce() {
     with_deadline("coalesce", Duration::from_secs(60), || {
         const MOVES: u32 = 100;
@@ -5361,77 +5431,6 @@ mod known_defect {
                 "W3-5-A2",
                 recorded == 0,
                 format!("TF stall-self-focus letters_recorded_that_landed_in_the_password_field={recorded}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: VWF issue 10, a screen record for each delivered frame of a static screen"]
-    fn x13_frames_on_a_static_screen() {
-        with_deadline("x13", Duration::from_secs(90), || {
-            env_report("x13");
-            source_built_by_test("x13", "screen");
-            let cover =
-                TestWindow::create(&magenta_popup("HalvoVerifyStatic", "halvo-verify-static"))
-                    .expect("covering window");
-            cover.cover_screen();
-            pump_thread(Duration::from_secs(1));
-            let (sink, events) = capture(1024);
-            let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-            let start = screen.begin(screen_on(sink.clone()));
-            let mut first_frame = false;
-            let began = Instant::now();
-            while !first_frame && began.elapsed() < FIRST_FRAME_WAIT {
-                pump_thread(Duration::from_millis(100));
-                first_frame = count(
-                    &events.drain_for(Duration::from_millis(100)),
-                    Modality::ScreenFrame,
-                ) > 0;
-            }
-            let mut records_while_static = 0;
-            let began = Instant::now();
-            while began.elapsed() < Duration::from_secs(8) {
-                pump_thread(Duration::from_millis(100));
-                records_while_static += count(
-                    &events.drain_for(Duration::from_millis(100)),
-                    Modality::ScreenFrame,
-                );
-            }
-            let covered = cover.is_foreground();
-            let mut records_while_moving = 0;
-            for step in 0..12 {
-                cover.move_to(if step % 2 == 0 { 40 } else { 0 }, 0);
-                pump_thread(Duration::from_millis(150));
-                records_while_moving += count(
-                    &events.drain_for(Duration::from_millis(100)),
-                    Modality::ScreenFrame,
-                );
-            }
-            drop(cover);
-            let frames = screen.frame_counts();
-            let _ = stop_counted(&mut screen, "screen");
-            say(
-                "x13",
-                format!(
-                    "screen_start={} screen_activity=on first_frame={first_frame} \
-                     static_screen_secs=8 records_while_static={records_while_static} \
-                     cover_window_was_foreground={covered} records_while_moving={records_while_moving} \
-                     frames_delivered={} frames_with_changed_region={}",
-                    show(&start),
-                    frames.delivered,
-                    frames.with_changed_region,
-                ),
-            );
-            assert!(start.is_ok(), "the screen source must start");
-            assert!(first_frame, "INCONCLUSIVE: no first frame");
-            assert!(
-                records_while_moving >= 1,
-                "no screen record while a window moved"
-            );
-            defect!(
-                "VWF-10",
-                records_while_static <= 1,
-                format!("TF x13 records_while_static={records_while_static}")
             );
         });
     }

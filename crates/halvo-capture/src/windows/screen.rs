@@ -142,7 +142,7 @@ pub(crate) enum RegionReport {
 impl RegionReport {
     fn settings(self) -> DirtyRegionSettings {
         match self {
-            RegionReport::Reported => DirtyRegionSettings::Default,
+            RegionReport::Reported => DirtyRegionSettings::ReportOnly,
             RegionReport::Missing => DirtyRegionSettings::Default,
         }
     }
@@ -159,8 +159,7 @@ fn probe_region_report() -> RegionReport {
 /// reports changed regions, a frame with none is idle; where it does not, or
 /// the regions of a frame cannot be read, every delivered frame counts.
 pub(crate) fn frame_is_activity(report: RegionReport, changed_regions: Option<usize>) -> bool {
-    let _ = (report, changed_regions);
-    true
+    !matches!((report, changed_regions), (RegionReport::Reported, Some(0)))
 }
 
 /// The frames that a screen source was handed and the frames among them that
@@ -327,8 +326,10 @@ impl CaptureSource for ScreenSource {
         if self.life.is_busy() {
             return Err(CaptureError::AlreadyStarted);
         }
-        let _ = (Switch::ScreenActivity, ctx.floor());
-        self.off = false;
+        self.off = !ctx.floor().switches().is_on(Switch::ScreenActivity);
+        if self.off {
+            return Ok(Started::Off);
+        }
         let mta = hold_process_mta()?;
         let choice = choose_settings(probe_support, self.min_interval)?;
         let monitor = Monitor::primary().map_err(monitor_error)?;

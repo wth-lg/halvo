@@ -86,7 +86,6 @@ known_defect::browser_swaps_on_a_held_main_thread_in_chrome W3-7-Q2i group=brows
 known_defect::browser_swaps_on_a_held_main_thread_in_edge W3-7-Q2i group=browser scope=long-only
 known_defect::stall_no_focus_key_and_the_program_moves_the_focus_itself W3-5-A2 group=browser scope=long-only
 known_defect::style_masked_input_in_chrome_and_edge W3-20-style-mask group=browser
-known_defect::x13_frames_on_a_static_screen VWF-10 group=native
 password_field_fixture_chrome group=browser
 password_field_fixture_edge group=browser
 password_field_fixture_firefox group=browser
@@ -126,6 +125,7 @@ the_fault_line_allocates_nothing group=native
 the_first_own_read_after_a_start_reads_the_focused_password_field group=native
 title_event_on_a_switch_to_a_window_with_a_fixed_title group=native
 x12_screen_source_fifteen_start_stop_cycles group=native
+x13_frames_on_a_static_screen group=native
 x14_foreground_app_of_a_hosted_app group=native
 x15_a_held_key group=native
 x16_packaged_apps_and_the_inventory group=native
