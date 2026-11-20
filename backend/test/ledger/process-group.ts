@@ -13,6 +13,9 @@ declare module "node:child_process" {
     options: { env?: Record<string, string | undefined>; stdio: ("ignore" | "pipe" | "inherit" | number)[]; detached: true },
   ): Child;
   export function execFileSync(command: string, args: string[], options: { encoding: "utf8"; env: Record<string, string | undefined> }): string;
+  interface Child {
+    on(event: "error", listener: (error: Error) => void): void;
+  }
 }
 
 declare module "node:fs" {
@@ -250,7 +253,8 @@ export function marksDir(): string {
  * zombies included, and sends KILL to the group id when that read shows the child's pid with a start time, or when ps
  * cannot be read: the one signal of the kit with no start time, sent while startGroup still runs, before node can reap
  * the child, so that no other process can have its pid. Then it removes the mark and throws; its errors name the
- * command by its file name. Until endGroup ends it, the owner ends the group when it gets TERM, INT or
+ * command by its file name, and a command that does not start throws that error alone, with node's own error event
+ * of the child caught. Until endGroup ends it, the owner ends the group when it gets TERM, INT or
  * HUP (and then dies by that signal), when its IPC channel to vitest's main process closes (and then exits with 1),
  * and when it exits: TERM to a group whose leader has the recorded pid and start time, and KILL after the grace to
  * the members that are left, also when the leader itself left on TERM. When vitest stops a fork it sends KILL 500 ms
@@ -272,7 +276,10 @@ export function startGroup(command: string, args: string[], options: Options): G
   const spawned = Math.floor(Date.now() / 1000);
   const child = state.processes.spawn(command, args, options);
   const name = basename(command);
-  if (child.pid === undefined) throw new Error(`${name} did not start`);
+  if (child.pid === undefined) {
+    child.on("error", () => {});
+    throw new Error(`${name} did not start`);
+  }
   const mark = join(dir, `group-${child.pid}.json`);
   const record: Mark = { pid: child.pid, started: null, spawned, owner, checkout };
   try {
