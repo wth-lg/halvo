@@ -1225,6 +1225,15 @@ pub(in crate::store) struct Db {
 enum LookFailure {
     Obstructed(Met),
     Unread(ErrorKind),
+    Checkpoint(CheckpointFailure),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CheckpointFailure {
+    Db(i32),
+    Io(ErrorKind),
+    Incomplete { busy: i64, wal_bytes: u64 },
+    Other,
 }
 
 impl LookFailure {
@@ -1236,10 +1245,30 @@ impl LookFailure {
         }
     }
 
+    fn of_a_checkpoint(e: &StoreError) -> Self {
+        LookFailure::Checkpoint(match e {
+            StoreError::Db(code) => CheckpointFailure::Db(*code),
+            StoreError::Io(kind) => CheckpointFailure::Io(*kind),
+            StoreError::CheckpointIncomplete { busy, wal_bytes } => CheckpointFailure::Incomplete {
+                busy: *busy,
+                wal_bytes: *wal_bytes,
+            },
+            _ => CheckpointFailure::Other,
+        })
+    }
+
     fn answer(self) -> StoreError {
         match self {
             LookFailure::Obstructed(met) => obstructed(StoreName::Log, met),
             LookFailure::Unread(kind) => StoreError::Io(kind),
+            LookFailure::Checkpoint(CheckpointFailure::Db(code)) => StoreError::Db(code),
+            LookFailure::Checkpoint(CheckpointFailure::Io(kind)) => StoreError::Io(kind),
+            LookFailure::Checkpoint(CheckpointFailure::Incomplete { busy, wal_bytes }) => {
+                StoreError::CheckpointIncomplete { busy, wal_bytes }
+            }
+            LookFailure::Checkpoint(CheckpointFailure::Other) => {
+                StoreError::Corrupt("the checkpoint after a shred failed".to_string())
+            }
         }
     }
 }
@@ -1709,11 +1738,37 @@ impl Db {
         Ok(())
     }
 
-    /// The answer of a failed look after this handle's first commit, which
-    /// the handle gives to every later call that reads or writes the
-    /// database; `None` while no look failed.
+    /// The answer of a failed look after this handle's first commit, or of a
+    /// checkpoint that failed after a shred's commit, which the handle gives
+    /// to every later call that reads or writes the database; `None` while
+    /// neither failed.
     pub(in crate::store) fn look_failure(&self) -> Option<StoreError> {
         self.look_failed.get().map(LookFailure::answer)
+    }
+
+    /// The answer of a shred's checkpoint that failed: when the shred's
+    /// commit changed a row (the connection's count of changed rows is not
+    /// `changes_before`), the shred is committed in the log and not in
+    /// `store.db`, so the handle keeps the failure as it keeps a failed look,
+    /// its close does not checkpoint, and nothing of it reports the shred;
+    /// the next open's drain brings the log into `store.db` before it
+    /// answers.
+    pub(in crate::store) fn kept_after_a_shred(
+        &self,
+        e: StoreError,
+        changes_before: u64,
+    ) -> StoreError {
+        if self.conn.total_changes() == changes_before || self.look_failed.get().is_some() {
+            return e;
+        }
+        self.look_failed.set(Some(LookFailure::of_a_checkpoint(&e)));
+        match self
+            .conn
+            .set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)
+        {
+            Ok(_) => e,
+            Err(config) => db_error(config),
+        }
     }
 
     /// Whether this handle's look after its first commit failed because it

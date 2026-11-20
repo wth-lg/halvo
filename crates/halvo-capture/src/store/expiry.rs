@@ -132,7 +132,8 @@ impl EncryptedStore {
         }
         tx.commit().map_err(db_error)?;
         db.look_after_the_first_commit(changes_before)?;
-        db.checkpoint_truncate()?;
+        db.checkpoint_truncate()
+            .map_err(|e| db.kept_after_a_shred(e, changes_before))?;
         Ok(shredded)
     }
 
