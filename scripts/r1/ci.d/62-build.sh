@@ -540,9 +540,12 @@ drwxr-xr-x  0 runner staff       0 Nov 14 06:00 Halvo.app/Contents/
   verdict untracked-cargo-configuration-below-the-root FAIL "$got"
 
   output_has_line() {
-    grep -Fx -- "$1" >/dev/null <<EOF
-$2
-EOF
+    line_feed='
+'
+    case "$line_feed$2$line_feed" in
+      *"$line_feed$1$line_feed"*) return 0 ;;
+      *) return 1 ;;
+    esac
   }
   got=FAIL
   output_has_line 'partial' 'partial row' && got=PASS
