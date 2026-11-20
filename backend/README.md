@@ -325,7 +325,8 @@ leaves. A stopped run can leave: a mark under `backend/.tmp/groups/` and, until 
 checkout, its group; and wrangler's build under `backend/.wrangler/tmp/`, which wrangler removes
 when it gets TERM from the kit and keeps when it gets KILL (git ignores both directories). These
 are left for good or until a later step: a group that outlives TERM by more than the 500 ms after
-which vitest sends KILL to a fork that it stops; a group whose owner gets KILL, until the next run
+which vitest sends KILL to a fork that it stops, or that ends on TERM when the kit's own read of ps
+before its TERM takes longer than those 500 ms; a group whose owner gets KILL, until the next run
 of the same checkout, and for good if none follows; one unmarked group when a KILL comes between
 the spawn and the first write of its mark; a group whose leader is gone while other processes
 keep its id, which the sweep and `endGroup` leave with a line (a group whose leader died before a

@@ -258,7 +258,8 @@ export function marksDir(): string {
  * HUP (and then dies by that signal), when its IPC channel to vitest's main process closes (and then exits with 1),
  * and when it exits: TERM to a group whose leader has the recorded pid and start time, and KILL after the grace to
  * the members that are left, also when the leader itself left on TERM. When vitest stops a fork it sends KILL 500 ms
- * after its TERM, so a group that outlives TERM by more than that keeps its mark. A KILL of the owner runs none of
+ * after its TERM, so a group that outlives TERM by more than that keeps its mark, as does a group that ends on TERM
+ * when the kit's own read of ps before its TERM takes longer than those 500 ms. A KILL of the owner runs none of
  * these: the group and its mark stay until sweepMarks.
  */
 export function startGroup(command: string, args: string[], options: Options): Group {
