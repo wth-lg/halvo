@@ -151,7 +151,7 @@ test("startGroup's errors name the command by its file name and not by the path 
   })();
   expect(thrown).toBe(`Error: x-server (pid ${nextPid}) does not lead its own process group`);
   const spawnOf = world.spawn;
-  world.spawn = () => ({ pid: undefined }) as unknown as ReturnType<Processes["spawn"]>;
+  world.spawn = () => ({ pid: undefined, on: () => {} }) as unknown as ReturnType<Processes["spawn"]>;
   try {
     expect(() => startGroup("/opt/kit-tools/bin/x-server", [], { stdio: ["ignore", "ignore", "ignore"] })).toThrow(/^x-server did not start$/);
   } finally {
@@ -226,4 +226,21 @@ test("a failed second write of startGroup leaves no group in the kit's list, so 
   laterMark(failed);
   fire("exit");
   expect(marksIn()).toEqual([`group-${failed}.json`]);
+});
+
+test('startGroup of a missing command throws "<name> did not start" and leaves no uncaught error', async () => {
+  useProcesses(null);
+  const missing = join(marks, "..", "no-such-binary");
+  const uncaught: string[] = [];
+  const listener = (error: unknown) => {
+    uncaught.push(String(error).replace(ROOT, "<backend>"));
+  };
+  process.on("uncaughtException", listener);
+  try {
+    expect(() => startGroup(missing, [], { stdio: ["ignore", "ignore", "ignore"] })).toThrow(/^no-such-binary did not start$/);
+    await pause(200);
+  } finally {
+    process.removeListener("uncaughtException", listener);
+  }
+  expect(uncaught).toEqual([]);
 });
