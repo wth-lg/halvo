@@ -77,6 +77,105 @@ impl AppIdentity {
             Self::Unknown => "",
         }
     }
+
+    /// The same identity in the form of a floor event.
+    pub fn to_event(&self) -> crate::event::AppIdentity {
+        match self {
+            Self::BundleId(text) => crate::event::AppIdentity::bundle_id(text.as_str().to_owned()),
+            Self::ExecutablePath(text) => {
+                crate::event::AppIdentity::executable_path(text.as_str().to_owned())
+            }
+            Self::Unknown => crate::event::AppIdentity::unknown(),
+        }
+    }
+}
+
+/// Halvo's own app, by one predicate for the screen filter and for the rule on
+/// the app in front: the bundle id [`HalvoApp::BUNDLE_ID`], or the executable
+/// `halvo` beside the daemon's own executable, which an unbundled build has in
+/// place of a bundle id.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HalvoApp {
+    sibling: Option<String>,
+}
+
+impl HalvoApp {
+    pub const BUNDLE_ID: &'static str = "com.halvo.desktop";
+
+    /// The app whose executable is the file `halvo` beside this process's own
+    /// executable, read through its links where the file exists.
+    pub fn beside_this_executable() -> Self {
+        let sibling = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(|dir| dir.join("halvo")))
+            .map(|path| std::fs::canonicalize(&path).unwrap_or(path))
+            .and_then(|path| path.to_str().map(str::to_owned));
+        Self { sibling }
+    }
+
+    /// The app whose executable is `sibling`.
+    pub fn with_sibling(sibling: &str) -> Self {
+        Self {
+            sibling: Some(sibling.to_owned()),
+        }
+    }
+
+    /// Whether an app with this bundle id (empty when it has none) and the
+    /// executable at `path` is Halvo's.
+    pub fn selects(&self, bundle_id: &str, path: Option<&str>) -> bool {
+        bundle_id == Self::BUNDLE_ID
+            || path.is_some_and(|path| self.sibling.as_deref() == Some(path))
+    }
+
+    /// Whether the app in front is Halvo's: its identity, else the path of its
+    /// process.
+    pub fn selects_front(&self, front: &Foreground) -> bool {
+        match &front.identity {
+            AppIdentity::BundleId(id) if id.as_str() == Self::BUNDLE_ID => true,
+            AppIdentity::ExecutablePath(path) => self.selects("", Some(path.as_str())),
+            AppIdentity::BundleId(_) | AppIdentity::Unknown => {
+                self.selects("", executable_path(front.pid).as_deref())
+            }
+        }
+    }
+}
+
+/// The parent of a process, read from this Mac's process table: the probe that
+/// the exclusion decision walks to place a process under the exclusion root.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ProcessLineage;
+
+impl crate::floor::exclude::Lineage for ProcessLineage {
+    fn parent_of(&self, pid: crate::floor::exclude::ProcessId) -> crate::floor::exclude::Parent {
+        use crate::floor::exclude::{Parent, ProcessId};
+        let Ok(pid) = libc::c_int::try_from(pid.get()) else {
+            return Parent::Unknown;
+        };
+        let mut info = std::mem::MaybeUninit::<libc::proc_bsdshortinfo>::zeroed();
+        let size = std::mem::size_of::<libc::proc_bsdshortinfo>();
+        // SAFETY: `info` is writable for `size` bytes, the size passed, and
+        // proc_pidinfo writes at most that many bytes and returns how many it
+        // wrote.
+        let written = unsafe {
+            libc::proc_pidinfo(
+                pid,
+                libc::PROC_PIDT_SHORTBSDINFO,
+                0,
+                info.as_mut_ptr().cast(),
+                size as libc::c_int,
+            )
+        };
+        if usize::try_from(written).ok() != Some(size) {
+            return Parent::Unknown;
+        }
+        // SAFETY: proc_pidinfo wrote the whole value, as the check above shows.
+        let parent = unsafe { info.assume_init() }.pbsi_ppid;
+        if parent == 0 || parent == pid.unsigned_abs() {
+            Parent::None
+        } else {
+            Parent::Of(ProcessId::new(parent))
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,6 +230,10 @@ pub(crate) mod tests_support {
             identity: AppIdentity::of(Some(bundle_id), None),
             pid,
         }
+    }
+
+    pub(crate) fn unbundled(path: &str) -> AppIdentity {
+        AppIdentity::of(None, Some(path))
     }
 }
 
@@ -203,7 +306,7 @@ pub(crate) fn emit_metadata_only(
     ))
 }
 
-fn executable_path(pid: libc::pid_t) -> Option<String> {
+pub(crate) fn executable_path(pid: libc::pid_t) -> Option<String> {
     let mut buffer = vec![0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
     // SAFETY: `buffer` is writable for the size passed, and proc_pidpath writes
     // at most that many bytes and returns how many it wrote.
@@ -278,6 +381,18 @@ struct TitleHealth {
     errors: AtomicU64,
     failing: AtomicBool,
     not_trusted: AtomicBool,
+    stop_asked: AtomicBool,
+    dropped_at_stop: AtomicU64,
+}
+
+impl TitleHealth {
+    fn emits(&self) -> bool {
+        if self.stop_asked.load(Ordering::SeqCst) {
+            self.dropped_at_stop.fetch_add(1, Ordering::Relaxed);
+            return false;
+        }
+        true
+    }
 }
 
 fn retry_ticks(interval: Duration) -> u32 {
@@ -317,6 +432,9 @@ impl Poller {
                 self.title = TitleState::Settled;
                 self.health.failing.store(false, Ordering::Relaxed);
                 self.health.not_trusted.store(false, Ordering::Relaxed);
+                if !self.health.emits() {
+                    return;
+                }
                 let _ = emit_metadata_only(
                     sink,
                     Modality::WindowTitle,
@@ -365,13 +483,15 @@ impl Poller {
             self.change += 1;
             self.front = Some(front.clone());
             self.writer.set(Some(front.clone()));
-            let _ = emit_metadata_only(
-                sink,
-                Modality::ForegroundApp,
-                Some(front.clone()),
-                Unpersisted::EMPTY,
-                SystemTime::now(),
-            );
+            if self.health.emits() {
+                let _ = emit_metadata_only(
+                    sink,
+                    Modality::ForegroundApp,
+                    Some(front.clone()),
+                    Unpersisted::EMPTY,
+                    SystemTime::now(),
+                );
+            }
             self.title = TitleState::Asked;
             self.retries_left = self.retry_ticks;
         } else if self.title == TitleState::AskAgain {
@@ -502,18 +622,27 @@ pub struct ForegroundSource {
     health: Arc<TitleHealth>,
     running: Option<Running>,
     failure: Option<CaptureError>,
+    unstopped: Option<CaptureError>,
     stopped: bool,
+    #[cfg(test)]
+    real: bool,
 }
 
 impl ForegroundSource {
     pub fn new(interval: Duration, foreground: ForegroundWriter, turns: RunLoopTurns) -> Self {
-        Self::with_readers(
+        #[cfg_attr(not(test), allow(unused_mut))]
+        let mut source = Self::with_readers(
             interval,
             foreground,
             turns,
             Box::new(read_frontmost),
             Box::new(window_title::focused_window_title),
-        )
+        );
+        #[cfg(test)]
+        {
+            source.real = true;
+        }
+        source
     }
 
     fn with_readers(
@@ -530,7 +659,10 @@ impl ForegroundSource {
             health: Arc::new(TitleHealth::default()),
             running: None,
             failure: None,
+            unstopped: None,
             stopped: false,
+            #[cfg(test)]
+            real: false,
         }
     }
 
@@ -590,18 +722,19 @@ impl CaptureSource for ForegroundSource {
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
         let Some(running) = self.running.as_mut() else {
-            return Ok(());
+            return self.unstopped.clone().map_or(Ok(()), Err);
         };
         let ended_before = !running.stop_sent && running.thread.is_finished();
+        self.health.stop_asked.store(true, Ordering::SeqCst);
         let _ = running.stop.send(());
         running.stop_sent = true;
         let called = Instant::now();
         while !running.ended() {
             if called.elapsed() >= FOREGROUND_STOP_DEADLINE {
-                return Err(CaptureError::Timeout {
+                return self.answered(Err(CaptureError::Timeout {
                     stage: "foreground_join",
                     ms: FOREGROUND_STOP_DEADLINE.as_millis() as u64,
-                });
+                }));
             }
             std::thread::sleep(Duration::from_millis(2));
         }
@@ -609,13 +742,12 @@ impl CaptureSource for ForegroundSource {
             .running
             .take()
             .map(|running| (running.thread.join(), running.title.join()));
-        if let (false, Some((Ok(()), Ok(())))) = (ended_before, joined) {
-            self.stopped = true;
+        let answer = if let (false, Some((Ok(()), Ok(())))) = (ended_before, joined) {
             Ok(())
         } else {
-            self.failure = Some(CaptureError::ThreadEnded);
             Err(CaptureError::ThreadEnded)
-        }
+        };
+        self.answered(answer)
     }
 
     fn health(&self) -> SourceHealth {
@@ -628,6 +760,7 @@ impl CaptureSource for ForegroundSource {
             (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
             (None, None) => SourceState::NotReported,
         };
+        let state = self.unstopped.clone().map_or(state, source_failure);
         SourceHealth {
             state,
             counters: SourceCounters {
@@ -638,10 +771,56 @@ impl CaptureSource for ForegroundSource {
     }
 }
 
+impl ForegroundSource {
+    fn answered(&mut self, answer: Result<(), CaptureError>) -> Result<(), CaptureError> {
+        match &answer {
+            Ok(()) => {
+                self.unstopped = None;
+                self.stopped = true;
+            }
+            Err(CaptureError::ThreadEnded) => {
+                self.unstopped = None;
+                self.failure = Some(CaptureError::ThreadEnded);
+            }
+            Err(error) => self.unstopped = Some(error.clone()),
+        }
+        #[cfg(test)]
+        note_shutdown_answer("foreground", self.real, &answer);
+        answer
+    }
+}
+
 impl Drop for ForegroundSource {
     fn drop(&mut self) {
+        if self.unstopped.is_some() {
+            return;
+        }
         let _ = self.shutdown();
     }
+}
+
+/// Appends one line for the `shutdown` answer of a source that was begun through
+/// its product path to the file that `HALVO_SHUTDOWN_ANSWERS` names, for the
+/// count that scripts/r1/ci.d/12-test.sh prints; nothing when the variable is
+/// unset or the source is a stand-in.
+#[cfg(test)]
+pub(crate) fn note_shutdown_answer(source: &str, real: bool, answer: &Result<(), CaptureError>) {
+    use std::io::Write;
+    let Some(path) = std::env::var_os("HALVO_SHUTDOWN_ANSWERS") else {
+        return;
+    };
+    if !real {
+        return;
+    }
+    let line = format!("shutdown source={source} ok={}\n", answer.is_ok());
+    let written = std::fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .and_then(|mut file| file.write_all(line.as_bytes()));
+    assert!(
+        written.is_ok(),
+        "the file of HALVO_SHUTDOWN_ANSWERS takes no line: {written:?}"
+    );
 }
 
 #[cfg(test)]
@@ -1020,6 +1199,124 @@ mod tests {
         assert_eq!(again, None);
         assert_eq!(health.errors.load(Ordering::Relaxed), 1);
         assert!(health.failing.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn the_lineage_reads_the_parent_of_this_process_and_none_for_launchd_and_unknown_for_no_process(
+    ) {
+        use crate::floor::exclude::{Lineage, Parent, ProcessId};
+        // SAFETY: getppid takes no argument and cannot fail.
+        let parent = unsafe { libc::getppid() };
+        assert_eq!(
+            ProcessLineage.parent_of(ProcessId::new(std::process::id())),
+            Parent::Of(ProcessId::new(parent as u32))
+        );
+        assert_eq!(ProcessLineage.parent_of(ProcessId::new(1)), Parent::None);
+        assert_eq!(
+            ProcessLineage.parent_of(ProcessId::new(i32::MAX as u32)),
+            Parent::Unknown
+        );
+        assert_eq!(
+            ProcessLineage.parent_of(ProcessId::new(u32::MAX)),
+            Parent::Unknown
+        );
+    }
+
+    #[test]
+    fn the_predicate_selects_halvo_by_bundle_id_or_by_the_sibling_executable_and_nothing_else() {
+        let own_path =
+            executable_path(std::process::id() as libc::pid_t).expect("the path of this process");
+        let halvo = HalvoApp::with_sibling(&own_path);
+        let own = std::process::id() as libc::pid_t;
+        let fronts = [
+            ("the bundle id", app(HalvoApp::BUNDLE_ID, 70), true),
+            ("the sibling by its path", unbundled(&own_path, 71), true),
+            (
+                "another bundle id with the sibling's process",
+                app("com.example.renamed", own),
+                true,
+            ),
+            ("another app", app("com.example.editor", 1), false),
+            ("another path", unbundled("/opt/elsewhere/halvo", 72), false),
+        ];
+        for (what, front, wanted) in fronts {
+            let front = front.expect("a front");
+            assert_eq!(halvo.selects_front(&front), wanted, "{what}");
+        }
+        assert!(halvo.selects(HalvoApp::BUNDLE_ID, None));
+        assert!(halvo.selects("", Some(&own_path)));
+        assert!(!halvo.selects("", None));
+        assert!(!halvo.selects("com.example.editor", Some("/opt/elsewhere/halvo")));
+        let sibling = HalvoApp::beside_this_executable();
+        let beside = std::env::current_exe()
+            .expect("the test's own executable")
+            .with_file_name("halvo");
+        assert!(sibling.selects("", beside.to_str()));
+    }
+
+    #[test]
+    fn an_identity_becomes_the_same_identity_of_a_floor_event() {
+        let bundle = AppIdentity::of(Some("com.example.editor"), Some("/x/Editor"));
+        assert!(bundle.to_event().is_listed(&["com.example.editor"], &[]));
+        let path = AppIdentity::of(None, Some("/opt/tools/Tool"));
+        assert!(path.to_event().is_listed(&[], &["Tool"]));
+        assert!(AppIdentity::Unknown.to_event().is_unknown());
+    }
+
+    #[test]
+    fn a_change_and_a_title_seen_after_a_stop_is_asked_are_counted_and_not_emitted() {
+        let (writer, _reader) = foreground_state_for_test();
+        let health: Arc<TitleHealth> = Arc::default();
+        let mut poller = Poller::new(writer, 5, health.clone());
+        let (handle, sink_writer) = sink::channel(64);
+        poller.step(app("com.example.a", 10), Vec::new(), &handle);
+        health.stop_asked.store(true, Ordering::SeqCst);
+        poller.step(app("com.example.b", 20), answer(1, title(9)), &handle);
+        drop(poller);
+        assert_eq!(events(handle, &sink_writer), [fg("com.example.a")]);
+        assert_eq!(health.dropped_at_stop.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn a_shutdown_that_answered_timeout_reads_failed_with_reason_timeout_and_its_drop_waits_nothing(
+    ) {
+        let (handle, _writer) = sink::channel(64);
+        let (release, released) = channel::<()>();
+        let read_front: FrontReader = Box::new(move || {
+            let _ = released.recv_timeout(Duration::from_secs(3));
+            app("a", 1)
+        });
+        let (mut source, _reader) = source_with(
+            FOREGROUND_POLL,
+            fresh_turns(),
+            read_front,
+            Box::new(|_| Ok(None)),
+        );
+        source
+            .begin(SourceContext::new(handle))
+            .expect("the source starts");
+        let shut = source.shutdown();
+        let state = source.health().state;
+        let dropped = Instant::now();
+        drop(source);
+        let drop_took = dropped.elapsed();
+        drop(release);
+        let timeout = CaptureError::Timeout {
+            stage: "foreground_join",
+            ms: 1000,
+        };
+        assert_eq!(shut, Err(timeout.clone()));
+        assert_eq!(
+            state,
+            SourceState::Failed {
+                reason: HealthReason::Timeout,
+                error: timeout
+            }
+        );
+        assert!(
+            drop_took < Duration::from_millis(100),
+            "the drop after a Timeout waited {drop_took:?}"
+        );
     }
 
     #[test]

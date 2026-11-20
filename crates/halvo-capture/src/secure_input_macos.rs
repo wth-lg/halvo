@@ -8,7 +8,9 @@ mod carbon {
     #[link(name = "Carbon", kind = "framework")]
     extern "C" {
         fn IsSecureEventInputEnabled() -> u8;
+        #[cfg(any(test, debug_assertions))]
         fn EnableSecureEventInput() -> i32;
+        #[cfg(any(test, debug_assertions))]
         fn DisableSecureEventInput() -> i32;
     }
 
@@ -62,6 +64,7 @@ mod carbon {
         unsafe { IsSecureEventInputEnabled() }
     }
 
+    #[cfg(any(test, debug_assertions))]
     pub(super) fn enable_secure_event_input(_one: &OneCall<'_>) -> i32 {
         // SAFETY: parameterless Carbon call that returns an OSStatus, as
         // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
@@ -72,6 +75,7 @@ mod carbon {
         unsafe { EnableSecureEventInput() }
     }
 
+    #[cfg(any(test, debug_assertions))]
     pub(super) fn disable_secure_event_input(_one: &OneCall<'_>) -> i32 {
         // SAFETY: parameterless Carbon call that returns an OSStatus, as
         // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
@@ -140,6 +144,50 @@ pub fn reading_under(session: Session, secure: impl FnOnce() -> bool) -> Reading
 
 pub fn secure_input_reading(session: Session) -> Reading {
     reading_under(session, secure_input_active)
+}
+
+/// The macOS probe of the exclusion decision: unknown unless this process's
+/// session is at the console, else the system's secure-input byte through the
+/// predicate of [`crate::macos::secure_input_byte`].
+#[derive(Debug, Clone, Copy)]
+pub struct SystemProbe {
+    session: fn() -> Session,
+    byte: fn() -> u8,
+}
+
+impl SystemProbe {
+    /// The probe over the system's session and secure-input byte.
+    pub fn new() -> Self {
+        Self {
+            session: read_session,
+            byte: || carbon::one_carbon_call_at_a_time(carbon::is_secure_event_input_enabled),
+        }
+    }
+}
+
+#[cfg(test)]
+impl SystemProbe {
+    pub(crate) fn with_readers(session: fn() -> Session, byte: fn() -> u8) -> Self {
+        Self { session, byte }
+    }
+}
+
+impl Default for SystemProbe {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl super::seal::Sealed for SystemProbe {}
+
+impl super::SecureInputProbe for SystemProbe {
+    fn read(&self) -> super::SecureInputReading {
+        match reading_under((self.session)(), || secure_input_on((self.byte)())) {
+            Reading::On => super::SecureInputReading::Active,
+            Reading::Off => super::SecureInputReading::Inactive,
+            Reading::Unknown => super::SecureInputReading::Unknown,
+        }
+    }
 }
 
 /// The queued notices of a focus change into a secure field of the program in
@@ -829,6 +877,7 @@ mod session {
     }
 }
 
+#[cfg(any(test, debug_assertions))]
 #[must_use = "dropping the hold releases secure input immediately"]
 pub struct SecureInputHold {
     #[cfg(test)]
@@ -841,14 +890,22 @@ pub struct SecureInputHold {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SecureInputRefused(pub i32);
 
+/// The status other than noErr with which `DisableSecureEventInput` refused the
+/// release of a hold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SecureInputReleaseRefused(pub i32);
+
+#[cfg(any(test, debug_assertions))]
 pub fn hold_secure_input() -> Result<SecureInputHold, SecureInputRefused> {
     hold_with(enable_secure_event_input, disable_secure_event_input)
 }
 
+#[cfg(any(test, debug_assertions))]
 fn enable_secure_event_input() -> i32 {
     carbon::one_carbon_call_at_a_time(carbon::enable_secure_event_input)
 }
 
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn hold_with(
     enable: fn() -> i32,
     release: fn() -> i32,
@@ -862,13 +919,25 @@ pub(crate) fn hold_with(
         .map_err(SecureInputRefused)
 }
 
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn disable_secure_event_input() -> i32 {
     carbon::one_carbon_call_at_a_time(carbon::disable_secure_event_input)
 }
 
+#[cfg(any(test, debug_assertions))]
+impl SecureInputHold {
+    /// Gives the hold back and answers the status of the system's release.
+    pub fn release(self) -> Result<(), SecureInputReleaseRefused> {
+        let hold = std::mem::ManuallyDrop::new(self);
+        crate::macos::secure_input_byte::release_hold(hold.release)
+            .map_err(SecureInputReleaseRefused)
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
 impl Drop for SecureInputHold {
     fn drop(&mut self) {
-        crate::macos::secure_input_byte::release_hold(self.release);
+        let _ = crate::macos::secure_input_byte::release_hold(self.release);
     }
 }
 
@@ -976,6 +1045,12 @@ pub(crate) mod test_support {
                     refused.0
                 );
             }
+            assert!(
+                skip_allowed(std::env::var_os(HOLD_REQUIRED).as_deref()),
+                "{test}: EnableSecureEventInput refused the hold with status {system} \
+                 ({maker}: {}), and {HOLD_REQUIRED}=1 asks that every hold test holds",
+                refused.0
+            );
             eprintln!(
                 "SKIP {test}: EnableSecureEventInput refused the hold with status {system} \
                  ({maker}: {})",
@@ -983,6 +1058,15 @@ pub(crate) mod test_support {
             );
             None
         }
+    }
+
+    /// The variable that the macos job of scripts/r1/ci.d/12-test.sh sets to 1,
+    /// so that a hold test whose hold the system refuses fails in place of its
+    /// skip (ruling PL-2 (1)).
+    pub(crate) const HOLD_REQUIRED: &str = "HALVO_SECURE_INPUT_HOLD_REQUIRED";
+
+    pub(crate) fn skip_allowed(required: Option<&std::ffi::OsStr>) -> bool {
+        required.is_none_or(|value| value != "1")
     }
 
     #[cfg(debug_assertions)]
@@ -1828,6 +1912,69 @@ mod tests {
             hold_with(|| -50, || 0),
             Err(SecureInputRefused(-50))
         ));
+    }
+
+    #[test]
+    fn the_probe_answers_active_for_byte_one_inactive_for_byte_zero_and_unknown_off_the_console() {
+        use crate::secure_input::{SecureInputProbe, SecureInputReading};
+        fn at_console() -> Session {
+            Session::AtConsole
+        }
+        fn not_at_console() -> Session {
+            Session::NotAtConsole
+        }
+        fn byte_one() -> u8 {
+            1
+        }
+        fn byte_zero() -> u8 {
+            0
+        }
+        assert_eq!(
+            SystemProbe::with_readers(at_console, byte_one).read(),
+            SecureInputReading::Active
+        );
+        assert_eq!(
+            SystemProbe::with_readers(at_console, byte_zero).read(),
+            SecureInputReading::Inactive
+        );
+        assert_eq!(
+            SystemProbe::with_readers(not_at_console, byte_one).read(),
+            SecureInputReading::Unknown
+        );
+    }
+
+    #[test]
+    fn a_hold_test_may_skip_only_while_the_variable_of_the_hold_tests_is_not_one() {
+        use super::test_support::{skip_allowed, HOLD_REQUIRED};
+        use std::ffi::OsStr;
+        assert_eq!(HOLD_REQUIRED, "HALVO_SECURE_INPUT_HOLD_REQUIRED");
+        assert!(skip_allowed(None));
+        assert!(!skip_allowed(Some(OsStr::new("1"))));
+        assert!(skip_allowed(Some(OsStr::new("0"))));
+        assert!(skip_allowed(Some(OsStr::new(""))));
+    }
+
+    #[test]
+    fn a_release_answers_the_status_of_the_system_and_makes_one_release_call() {
+        static RELEASES: AtomicUsize = AtomicUsize::new(0);
+        fn refused_release() -> i32 {
+            RELEASES.fetch_add(1, Ordering::SeqCst);
+            -50
+        }
+        fn accepted_release() -> i32 {
+            RELEASES.fetch_add(1, Ordering::SeqCst);
+            0
+        }
+        let refused = hold_with(|| 0, refused_release)
+            .expect("a hold with the status 0 is held")
+            .release();
+        assert_eq!(refused, Err(SecureInputReleaseRefused(-50)));
+        assert_eq!(RELEASES.load(Ordering::SeqCst), 1);
+        let accepted = hold_with(|| 0, accepted_release)
+            .expect("a hold with the status 0 is held")
+            .release();
+        assert_eq!(accepted, Ok(()));
+        assert_eq!(RELEASES.load(Ordering::SeqCst), 2);
     }
 
     #[test]

@@ -5,6 +5,7 @@ pub(crate) fn secure_input_on(byte: u8) -> bool {
     byte != 0
 }
 
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn hold_status(status: i32) -> Result<(), i32> {
     if status == 0 {
         Ok(())
@@ -13,12 +14,14 @@ pub(crate) fn hold_status(status: i32) -> Result<(), i32> {
     }
 }
 
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn take_hold(enable: fn() -> i32) -> Result<(), i32> {
     hold_status(enable())
 }
 
-pub(crate) fn release_hold(disable: fn() -> i32) {
-    disable();
+#[cfg(any(test, debug_assertions))]
+pub(crate) fn release_hold(disable: fn() -> i32) -> Result<(), i32> {
+    hold_status(disable())
 }
 
 #[cfg(any(debug_assertions, test))]
@@ -45,6 +48,12 @@ mod tests {
         for byte in [1, 2, 255] {
             assert!(secure_input_on(byte), "the byte {byte} reads as off");
         }
+    }
+
+    #[test]
+    fn a_release_answers_the_status_of_its_call() {
+        assert_eq!(release_hold(|| 0), Ok(()));
+        assert_eq!(release_hold(|| -50), Err(-50));
     }
 
     #[test]

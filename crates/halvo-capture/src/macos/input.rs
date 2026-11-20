@@ -28,9 +28,11 @@ use crate::secure_input_macos::notice::MarkKind;
 #[cfg(all(debug_assertions, feature = "stall-seam"))]
 use crate::secure_input_macos::notice::{Focus, Seen};
 use crate::secure_input_macos::notice::{NoticeMark, NoticeThread};
+#[cfg(any(test, debug_assertions))]
+use crate::secure_input_macos::{hold_secure_input, SecureInputHold};
 use crate::secure_input_macos::{
-    hold_secure_input, read_session, secure_input_reading, Reading, SecureInputHold,
-    SecureInputRefused, Session,
+    read_session, secure_input_reading, Reading, SecureInputRefused, SecureInputReleaseRefused,
+    Session,
 };
 use crate::sink::SinkHandle;
 use crate::source::{
@@ -58,6 +60,7 @@ type TapEnable = unsafe extern "C" fn(tap: *mut c_void, enable: bool);
 #[derive(Clone)]
 struct TapPort {
     port: Arc<AtomicPtr<c_void>>,
+    gate: Arc<Mutex<()>>,
     enable: TapEnable,
 }
 
@@ -69,12 +72,30 @@ impl TapPort {
     fn with_enable(enable: TapEnable) -> Self {
         Self {
             port: Arc::new(AtomicPtr::new(std::ptr::null_mut())),
+            gate: Arc::new(Mutex::new(())),
             enable,
         }
     }
 
     fn store(&self, port: *mut c_void) {
+        let _gate = self.gate.lock().unwrap_or_else(PoisonError::into_inner);
         self.port.store(port, Ordering::Relaxed);
+    }
+
+    fn disable(&self) {
+        let _gate = self.gate.lock().unwrap_or_else(PoisonError::into_inner);
+        let port = self.port.load(Ordering::Relaxed);
+        if !port.is_null() {
+            // SAFETY: outside tests `port` is set only by `SystemTapMaker::enable`,
+            // to the mach port of the tap that it returns inside a
+            // `PortClearedFirst`, whose Drop stores null through `store` before
+            // that tap drops. `store` takes the gate that this call holds from
+            // the load to the end of the call, so the tap of a port that is not
+            // null stays alive until the call has returned, on whichever thread
+            // it runs. `enable` is `CGEventTapEnable`, set by `unset`, or a
+            // test's function that only reads its arguments.
+            unsafe { (self.enable)(port, false) };
+        }
     }
 
     fn reenable(&self) {
@@ -120,6 +141,7 @@ struct InputFigures {
     late_events: AtomicU64,
     max_lag_ms: AtomicU64,
     pointer_coalesced: AtomicU64,
+    pointer_dropped_at_stop: AtomicU64,
     keys_withheld: AtomicBool,
     stalled: AtomicBool,
     secure_released_keystrokes: AtomicU64,
@@ -144,6 +166,17 @@ impl InputCounters {
 
     fn count_late_key(&self) {
         self.0.late_events.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn count_pointer_dropped_at_stop(&self) {
+        self.0
+            .pointer_dropped_at_stop
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[cfg(test)]
+    fn pointer_dropped_at_stop(&self) -> u64 {
+        self.0.pointer_dropped_at_stop.load(Ordering::Relaxed)
     }
 
     fn withhold(&self) {
@@ -479,6 +512,7 @@ fn lock(hold: &SharedHold) -> MutexGuard<'_, HoldState> {
     hold.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+#[cfg(any(test, debug_assertions))]
 struct OwnTake {
     hold: SharedHold,
     counters: InputCounters,
@@ -489,6 +523,7 @@ struct OwnTake {
     clock: fn() -> Monotonic,
 }
 
+#[cfg(any(test, debug_assertions))]
 impl OwnTake {
     fn taken(&self) {
         let dropped = lock(&self.hold).keys.drop_all();
@@ -1260,6 +1295,10 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
 }
 
 fn emit_pointer(ctx: &TapContext) {
+    if ctx.stop.load(Ordering::SeqCst) {
+        ctx.counters.count_pointer_dropped_at_stop();
+        return;
+    }
     let _ = emit_metadata_only(
         &ctx.sink,
         Modality::Pointer,
@@ -1387,12 +1426,17 @@ pub enum HoldPlan {
     /// The tap thread never holds secure input.
     Never,
     /// The tap thread holds secure input from this long after its tap is made
-    /// until its run loop has ended. Zero holds it before the tap is enabled.
+    /// until its tap is gone and the thread ends, or the process ends. Zero
+    /// holds it before the tap is enabled. A build without debug assertions and
+    /// without tests has no such plan (ruling MA-9 part (3)).
+    #[cfg(any(test, debug_assertions))]
     After(Duration),
 }
 
+#[cfg(any(test, debug_assertions))]
 type Hold = fn() -> Result<SecureInputHold, SecureInputRefused>;
 
+#[cfg(any(test, debug_assertions))]
 struct HoldSlot {
     hold: Hold,
     held: Option<SecureInputHold>,
@@ -1400,6 +1444,7 @@ struct HoldSlot {
     own_take: Option<OwnTake>,
 }
 
+#[cfg(any(test, debug_assertions))]
 impl HoldSlot {
     fn take(&mut self) {
         match (self.hold)() {
@@ -1418,12 +1463,14 @@ impl HoldSlot {
 
 /// A hold slot at a fixed address with the timer that holds that address. Its
 /// Drop invalidates the timer, and only then does the slot drop.
+#[cfg(any(test, debug_assertions))]
 struct TimedHold {
     slot: Box<HoldSlot>,
     timer: Option<CFRunLoopTimer>,
     invalidate: fn(&CFRunLoopTimer),
 }
 
+#[cfg(any(test, debug_assertions))]
 impl TimedHold {
     fn new(slot: HoldSlot) -> Self {
         Self {
@@ -1443,8 +1490,15 @@ impl TimedHold {
         add_to_this_run_loop(&timer);
         self.timer = Some(timer);
     }
+
+    fn give_back(mut self) -> Result<(), SecureInputReleaseRefused> {
+        let held = self.slot.held.take();
+        drop(self);
+        held.map_or(Ok(()), SecureInputHold::release)
+    }
 }
 
+#[cfg(any(test, debug_assertions))]
 impl Drop for TimedHold {
     fn drop(&mut self) {
         if let Some(timer) = self.timer.take() {
@@ -1453,6 +1507,7 @@ impl Drop for TimedHold {
     }
 }
 
+#[cfg(any(test, debug_assertions))]
 extern "C" fn hold_timer_fired(_timer: CFRunLoopTimerRef, info: *mut c_void) {
     // SAFETY: `info` is the boxed `HoldSlot` of a `TimedHold`, whose box keeps
     // it at one address and whose Drop invalidates this timer before the slot
@@ -1506,13 +1561,17 @@ fn spawn_failure(_error: std::io::Error) -> CaptureError {
 struct TapThread {
     run_loop: CFRunLoop,
     stop: Arc<AtomicBool>,
+    port: TapPort,
     thread: Option<JoinHandle<()>>,
 }
 
 struct TapPlan {
     plan: HoldPlan,
+    #[cfg(any(test, debug_assertions))]
     hold: Hold,
     refusal: Arc<Mutex<Option<SecureInputRefused>>>,
+    released: Arc<Mutex<Option<SecureInputReleaseRefused>>>,
+    #[cfg(any(test, debug_assertions))]
     own_take: Option<OwnTake>,
 }
 
@@ -1521,6 +1580,7 @@ impl TapThread {
         install: impl FnOnce() -> Result<K, CaptureError> + Send + 'static,
         tap_plan: TapPlan,
         stop: Arc<AtomicBool>,
+        port: TapPort,
         before_run: impl FnOnce() + Send + 'static,
     ) -> Result<Self, CaptureError> {
         let (loop_tx, loop_rx) = channel::<Result<CFRunLoop, CaptureError>>();
@@ -1531,16 +1591,23 @@ impl TapThread {
                 .spawn(move || {
                     let TapPlan {
                         plan,
+                        #[cfg(any(test, debug_assertions))]
                         hold,
                         refusal,
+                        released,
+                        #[cfg(any(test, debug_assertions))]
                         own_take,
                     } = tap_plan;
+                    #[cfg(not(any(test, debug_assertions)))]
+                    let _ = (plan, refusal);
+                    #[cfg(any(test, debug_assertions))]
                     let mut slot = TimedHold::new(HoldSlot {
                         hold,
                         held: None,
                         refusal,
                         own_take,
                     });
+                    #[cfg(any(test, debug_assertions))]
                     if plan == HoldPlan::After(Duration::ZERO) {
                         slot.take_now();
                     }
@@ -1551,6 +1618,7 @@ impl TapThread {
                             return;
                         }
                     };
+                    #[cfg(any(test, debug_assertions))]
                     if let HoldPlan::After(delay) = plan {
                         if !delay.is_zero() {
                             slot.take_after(delay);
@@ -1570,8 +1638,14 @@ impl TapThread {
                         CFRunLoop::run_in_mode(unsafe { kCFRunLoopDefaultMode }, RUN_SLICE, false);
                     }
                     drop(installed);
-                    drop(slot);
+                    #[cfg(any(test, debug_assertions))]
+                    let given_back = slot.give_back();
+                    #[cfg(not(any(test, debug_assertions)))]
+                    let given_back: Result<(), SecureInputReleaseRefused> = Ok(());
                     invalidate(&idle);
+                    if let Err(status) = given_back {
+                        *released.lock().unwrap_or_else(PoisonError::into_inner) = Some(status);
+                    }
                 })
                 .map_err(spawn_failure)?
         };
@@ -1580,6 +1654,7 @@ impl TapThread {
             Ok(Ok(run_loop)) => Ok(Self {
                 run_loop,
                 stop,
+                port,
                 thread: Some(thread),
             }),
             Ok(Err(e)) => {
@@ -1608,6 +1683,7 @@ impl TapThread {
         let called = Instant::now();
         while !self.ended() {
             if called.elapsed() >= deadline {
+                self.port.disable();
                 return Err(CaptureError::Timeout {
                     stage: "input_tap_join",
                     ms: deadline.as_millis() as u64,
@@ -1652,6 +1728,7 @@ pub struct InputSource {
     foreground: ForegroundReader,
     counters: InputCounters,
     plan: HoldPlan,
+    #[cfg(any(test, debug_assertions))]
     hold: Hold,
     bounds: Bounds,
     step: Duration,
@@ -1660,10 +1737,15 @@ pub struct InputSource {
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
     drops: Option<DropCounts>,
     refusal: Arc<Mutex<Option<SecureInputRefused>>>,
+    released: Arc<Mutex<Option<SecureInputReleaseRefused>>>,
+    tap_enable: TapEnable,
     tap: Option<TapThread>,
     notice: Option<NoticeThread>,
     failure: Option<CaptureError>,
+    unstopped: Option<CaptureError>,
     stopped: bool,
+    #[cfg(test)]
+    real: bool,
 }
 
 impl InputSource {
@@ -1728,6 +1810,7 @@ impl InputSource {
             foreground,
             counters,
             plan,
+            #[cfg(any(test, debug_assertions))]
             hold: hold_secure_input,
             bounds,
             step: READING_STEP,
@@ -1736,10 +1819,15 @@ impl InputSource {
             #[cfg(all(debug_assertions, feature = "stall-seam"))]
             drops: None,
             refusal: Arc::new(Mutex::new(None)),
+            released: Arc::new(Mutex::new(None)),
+            tap_enable: CGEventTapEnable,
             tap: None,
             notice: None,
             failure: None,
+            unstopped: None,
             stopped: false,
+            #[cfg(test)]
+            real: false,
         }
     }
 
@@ -1758,7 +1846,11 @@ impl InputSource {
         if self.tap.is_some() {
             return Err(CaptureError::AlreadyStarted);
         }
+        if self.unstopped.is_some() {
+            return Err(CaptureError::AlreadyStarted);
+        }
         *self.refusal.lock().unwrap_or_else(PoisonError::into_inner) = None;
+        *self.released.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.counters.set_stalled(false);
         let settings = TapSettings {
             session: self.session,
@@ -1775,6 +1867,8 @@ impl InputSource {
             stop.clone(),
         );
         ctx.step = self.step;
+        ctx.port = TapPort::with_enable(self.tap_enable);
+        let port = ctx.port.clone();
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
         {
             ctx.drops = self.drops.clone();
@@ -1790,6 +1884,7 @@ impl InputSource {
         } else {
             None
         };
+        #[cfg(any(test, debug_assertions))]
         let own_take = OwnTake {
             hold: ctx.hold.clone(),
             counters: self.counters.clone(),
@@ -1803,11 +1898,15 @@ impl InputSource {
             move || install_tap(ctx, settings, maker),
             TapPlan {
                 plan: self.plan,
+                #[cfg(any(test, debug_assertions))]
                 hold: self.hold,
                 refusal: self.refusal.clone(),
+                released: self.released.clone(),
+                #[cfg(any(test, debug_assertions))]
                 own_take: Some(own_take),
             },
             stop,
+            port,
             before_run,
         );
         match started {
@@ -1861,29 +1960,33 @@ fn notice_clock(settings: &TapSettings) -> fn() -> Uptime {
 
 impl CaptureSource for InputSource {
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        #[cfg(test)]
+        {
+            self.real = true;
+        }
         self.begin_with(ctx.sink().clone(), SystemTapMaker, || {})
     }
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
         let Some(tap) = self.tap.as_mut() else {
-            return Ok(());
+            return self.unstopped.clone().map_or(Ok(()), Err);
         };
-        let answer = tap.stop_within(INPUT_STOP_DEADLINE);
+        let joined = tap.stop_within(INPUT_STOP_DEADLINE);
         if let Some(mut notice) = self.notice.take() {
             notice.stop_within(INPUT_STOP_DEADLINE);
         }
-        match &answer {
+        let answer = match joined {
             Ok(()) => {
                 self.tap = None;
-                self.stopped = true;
+                self.release_answer()
             }
             Err(CaptureError::ThreadEnded) => {
                 self.tap = None;
-                self.failure = Some(CaptureError::ThreadEnded);
+                Err(CaptureError::ThreadEnded)
             }
-            Err(_) => {}
-        }
-        answer
+            Err(error) => Err(error),
+        };
+        self.answered(answer)
     }
 
     /// The state of the tap thread and the counters. A named limit (rulings
@@ -1909,6 +2012,7 @@ impl CaptureSource for InputSource {
             (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
             (None, None) => SourceState::NotReported,
         };
+        let state = self.unstopped.clone().map_or(state, source_failure);
         SourceHealth {
             state,
             counters: self.counters.figures(),
@@ -1916,8 +2020,40 @@ impl CaptureSource for InputSource {
     }
 }
 
+impl InputSource {
+    fn release_answer(&self) -> Result<(), CaptureError> {
+        match *self.released.lock().unwrap_or_else(PoisonError::into_inner) {
+            None => Ok(()),
+            Some(SecureInputReleaseRefused(code)) => Err(CaptureError::Os {
+                stage: "secure_input_release",
+                domain: "Carbon",
+                code: i64::from(code),
+            }),
+        }
+    }
+
+    fn answered(&mut self, answer: Result<(), CaptureError>) -> Result<(), CaptureError> {
+        match &answer {
+            Ok(()) => {
+                self.unstopped = None;
+                self.stopped = true;
+            }
+            Err(CaptureError::ThreadEnded) => {
+                self.failure = Some(CaptureError::ThreadEnded);
+            }
+            Err(error) => self.unstopped = Some(error.clone()),
+        }
+        #[cfg(test)]
+        crate::macos::foreground::note_shutdown_answer("input", self.real, &answer);
+        answer
+    }
+}
+
 impl Drop for InputSource {
     fn drop(&mut self) {
+        if self.unstopped.is_some() {
+            return;
+        }
         let _ = self.shutdown();
     }
 }
@@ -1987,6 +2123,26 @@ mod proofs {
             super::HoldPlan::Never,
             std::time::Duration::ZERO,
         )
+    }
+
+    #[cfg(halvo_proof = "hold_plan_after_in_a_release_build")]
+    fn hold_plan_after_in_a_release_build() -> super::HoldPlan {
+        super::HoldPlan::After(std::time::Duration::ZERO)
+    }
+
+    #[cfg(halvo_proof = "hold_plan_after_in_a_release_build_twin")]
+    fn hold_plan_after_in_a_release_build_twin() -> super::HoldPlan {
+        super::HoldPlan::Never
+    }
+
+    #[cfg(halvo_proof = "take_in_a_release_build")]
+    fn take_in_a_release_build() -> bool {
+        crate::secure_input_macos::hold_secure_input().is_ok()
+    }
+
+    #[cfg(halvo_proof = "take_in_a_release_build_twin")]
+    fn take_in_a_release_build_twin() -> bool {
+        crate::secure_input_macos::secure_input_active()
     }
 
     #[cfg(halvo_proof = "hold_bound_in_a_release_build_twin")]
@@ -5912,6 +6068,53 @@ mod tests {
         ENABLE_CALLS.with(|calls| assert_eq!(*calls.borrow(), [(tap as usize, true)]));
     }
 
+    static GATE_LOG: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+
+    extern "C" fn slow_enable(_tap: *mut c_void, _enable: bool) {
+        GATE_LOG
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push("call entered");
+        std::thread::sleep(Duration::from_millis(200));
+        GATE_LOG
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push("call left");
+    }
+
+    #[test]
+    fn the_port_disable_waits_for_a_store_that_holds_the_gate() {
+        let port = TapPort::with_enable(slow_enable);
+        port.store(std::ptr::NonNull::<c_void>::dangling().as_ptr());
+        let disabling = {
+            let port = port.clone();
+            std::thread::spawn(move || port.disable())
+        };
+        let started = Instant::now();
+        while !GATE_LOG
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .contains(&"call entered")
+        {
+            assert!(
+                started.elapsed() < Duration::from_secs(5),
+                "the disable made no call"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        port.store(std::ptr::null_mut());
+        GATE_LOG
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push("port cleared");
+        disabling.join().expect("the disabling thread ends");
+        let log = GATE_LOG
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        assert_eq!(log, ["call entered", "call left", "port cleared"]);
+    }
+
     #[test]
     fn a_clone_of_the_port_calls_nothing_once_the_port_guard_drops() {
         let port = TapPort::with_enable(record_enable);
@@ -5991,6 +6194,7 @@ mod tests {
             plan,
             hold: hold_secure_input,
             refusal: Arc::new(Mutex::new(None)),
+            released: Arc::new(Mutex::new(None)),
             own_take: None,
         }
     }
@@ -6016,6 +6220,7 @@ mod tests {
                 },
                 plan_of(HoldPlan::Never),
                 Arc::new(AtomicBool::new(false)),
+                TapPort::unset(),
                 || {},
             )
             .expect("the tap thread starts");
@@ -6131,6 +6336,7 @@ mod tests {
             move || Ok(ended_tx),
             plan_of(HoldPlan::Never),
             Arc::new(AtomicBool::new(false)),
+            TapPort::unset(),
             || std::thread::sleep(Duration::from_millis(200)),
         )
         .expect("the tap thread starts");
@@ -6176,31 +6382,40 @@ mod tests {
     }
 
     #[test]
-    fn shutdown_answers_timeout_at_the_deadline_and_the_source_stays_started() {
+    fn a_shutdown_that_answered_timeout_reads_failed_with_reason_timeout_and_its_drop_waits_nothing(
+    ) {
         let (handle, _writer) = sink::channel(8);
         let mut source = source_with(HoldPlan::Never);
         let (ended_tx, _ended_rx) = channel();
         source
             .begin_with(handle.clone(), FakeMaker(ended_tx), || {
-                std::thread::sleep(Duration::from_millis(1500))
+                std::thread::sleep(Duration::from_millis(3000))
             })
             .expect("the source starts with a fake tap");
         let called = Instant::now();
         let first = source.shutdown();
         let took = called.elapsed();
+        let state = source.health().state;
         let opened = Arc::new(AtomicUsize::new(0));
         let again = source.begin_with(handle, CountingMaker(opened.clone()), || {});
-        let second = source.shutdown();
-        assert_eq!(
-            first,
-            Err(CaptureError::Timeout {
-                stage: "input_tap_join",
-                ms: 1000
-            })
-        );
+        let dropped = Instant::now();
+        drop(source);
+        let drop_took = dropped.elapsed();
+        let timeout = CaptureError::Timeout {
+            stage: "input_tap_join",
+            ms: 1000,
+        };
+        assert_eq!(first, Err(timeout.clone()));
         assert!(
             took >= INPUT_STOP_DEADLINE && took < INPUT_STOP_DEADLINE + Duration::from_millis(500),
             "the first shutdown returned after {took:?}"
+        );
+        assert_eq!(
+            state,
+            SourceState::Failed {
+                reason: HealthReason::Timeout,
+                error: timeout
+            }
         );
         assert_eq!(again, Err(CaptureError::AlreadyStarted));
         assert_eq!(
@@ -6208,7 +6423,201 @@ mod tests {
             0,
             "a begin after the timeout made a tap"
         );
-        assert_eq!(second, Ok(()));
+        assert!(
+            drop_took < Duration::from_millis(100),
+            "the drop after a Timeout waited {drop_took:?}"
+        );
+    }
+
+    struct PortMaker(std::sync::mpsc::Sender<()>, *mut c_void);
+
+    // SAFETY: the pointer is a made-up address that only the recording enable
+    // function reads as a number.
+    unsafe impl Send for PortMaker {}
+
+    impl TapMaker for PortMaker {
+        type Tap = (std::sync::mpsc::Sender<()>, TapPortAddress);
+        type Enabled = PortClearedFirst<std::sync::mpsc::Sender<()>>;
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<Self::Tap, ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            Ok((self.0, TapPortAddress(self.1)))
+        }
+
+        fn listen_denied() -> bool {
+            false
+        }
+
+        fn enable(tap: Self::Tap, port: TapPort) -> Result<Self::Enabled, CaptureError> {
+            port.store(tap.1 .0);
+            Ok(PortClearedFirst { port, tap: tap.0 })
+        }
+    }
+
+    struct TapPortAddress(*mut c_void);
+
+    // SAFETY: as for PortMaker: a made-up address, read as a number alone.
+    unsafe impl Send for TapPortAddress {}
+
+    #[test]
+    fn the_tap_is_disabled_through_its_port_before_shutdown_answers_timeout() {
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::Never);
+        source.tap_enable = record_enable;
+        let address = std::ptr::NonNull::<c_void>::dangling().as_ptr();
+        let (ended_tx, _ended_rx) = channel();
+        source
+            .begin_with(handle, PortMaker(ended_tx, address), || {
+                std::thread::sleep(Duration::from_millis(3000))
+            })
+            .expect("the source starts with a fake tap");
+        let before = ENABLE_CALLS.with(|calls| calls.borrow().clone());
+        let first = source.shutdown();
+        let at_the_answer = ENABLE_CALLS.with(|calls| calls.borrow().clone());
+        drop(source);
+        assert_eq!(before, [], "the port was called before the shutdown");
+        assert_eq!(
+            first,
+            Err(CaptureError::Timeout {
+                stage: "input_tap_join",
+                ms: 1000
+            })
+        );
+        assert_eq!(
+            at_the_answer,
+            [(address as usize, false)],
+            "the calling thread did not disable the tap through its port before the Timeout answer"
+        );
+    }
+
+    #[test]
+    fn a_shutdown_that_joined_the_thread_calls_nothing_through_the_port() {
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::Never);
+        source.tap_enable = record_enable;
+        let address = std::ptr::NonNull::<c_void>::dangling().as_ptr();
+        let (ended_tx, _ended_rx) = channel();
+        source
+            .begin_with(handle, PortMaker(ended_tx, address), || {})
+            .expect("the source starts with a fake tap");
+        let shut = source.shutdown();
+        assert_eq!(shut, Ok(()));
+        ENABLE_CALLS.with(|calls| assert_eq!(*calls.borrow(), []));
+    }
+
+    #[test]
+    fn a_release_that_the_system_refuses_makes_shutdown_answer_its_os_error_and_health_read_failed()
+    {
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::After(Duration::ZERO));
+        source.hold = || crate::secure_input_macos::hold_with(|| 0, || -50);
+        let (ended_tx, _ended_rx) = channel();
+        source
+            .begin_with(handle.clone(), FakeMaker(ended_tx), || {})
+            .expect("the source starts with a fake tap");
+        let shut = source.shutdown();
+        let state = source.health().state;
+        let opened = Arc::new(AtomicUsize::new(0));
+        let again = source.begin_with(handle, CountingMaker(opened.clone()), || {});
+        let dropped = Instant::now();
+        drop(source);
+        let drop_took = dropped.elapsed();
+        let refused = CaptureError::Os {
+            stage: "secure_input_release",
+            domain: "Carbon",
+            code: -50,
+        };
+        assert_eq!(shut, Err(refused.clone()));
+        assert_eq!(
+            state,
+            SourceState::Failed {
+                reason: HealthReason::OsError,
+                error: refused
+            }
+        );
+        assert_eq!(again, Err(CaptureError::AlreadyStarted));
+        assert_eq!(opened.load(Ordering::SeqCst), 0);
+        assert!(
+            drop_took < Duration::from_millis(100),
+            "the drop after a refused release waited {drop_took:?}"
+        );
+    }
+
+    #[test]
+    fn a_release_that_the_system_accepts_lets_shutdown_answer_ok() {
+        let (handle, _writer) = sink::channel(8);
+        let mut source = source_with(HoldPlan::After(Duration::ZERO));
+        source.hold = || crate::secure_input_macos::hold_with(|| 0, || 0);
+        let (ended_tx, _ended_rx) = channel();
+        source
+            .begin_with(handle, FakeMaker(ended_tx), || {})
+            .expect("the source starts with a fake tap");
+        assert_eq!(source.shutdown(), Ok(()));
+        assert_eq!(
+            source.health().state,
+            SourceState::Stopped(StopCause::Request)
+        );
+    }
+
+    #[test]
+    fn a_pointer_event_after_a_stop_is_asked_is_counted_and_not_emitted() {
+        let held = held(1_000);
+        held.ctx.stop.store(true, Ordering::SeqCst);
+        advance(1);
+        on_tap_event(&held.ctx, event(CGEventType::LeftMouseDown));
+        let kinds: Vec<Modality> = received(&held.writer)
+            .iter()
+            .map(|received| received.event().modality)
+            .collect();
+        assert_eq!(kinds, [], "a pointer event went out after the stop");
+        assert_eq!(held.counters.pointer_dropped_at_stop(), 1);
+    }
+
+    #[test]
+    fn a_pointer_event_whose_own_reading_meets_a_stop_is_counted_and_not_emitted() {
+        let held = held(1_000);
+        STOP_AT_ASK.with(|at| *at.borrow_mut() = Some((asked() + 1, held.ctx.stop.clone())));
+        advance(1);
+        on_tap_event(&held.ctx, event(CGEventType::LeftMouseDown));
+        let kinds: Vec<Modality> = received(&held.writer)
+            .iter()
+            .map(|received| received.event().modality)
+            .collect();
+        assert_eq!(kinds, [], "a pointer event went out after the stop");
+        assert_eq!(held.counters.pointer_dropped_at_stop(), 1);
+    }
+
+    #[test]
+    fn a_pointer_event_with_no_stop_is_emitted_and_counts_no_drop() {
+        let held = held(1_000);
+        advance(1);
+        on_tap_event(&held.ctx, event(CGEventType::LeftMouseDown));
+        let kinds: Vec<Modality> = received(&held.writer)
+            .iter()
+            .map(|received| received.event().modality)
+            .collect();
+        assert_eq!(kinds, [Modality::Pointer]);
+        assert_eq!(held.counters.pointer_dropped_at_stop(), 0);
+    }
+
+    #[test]
+    fn the_figure_max_lag_ms_has_no_writer_on_a_mac_and_reads_zero_after_a_late_key() {
+        let held = held(1_000);
+        advance(1);
+        on_tap_event(
+            &held.ctx,
+            timed(
+                CGEventType::KeyDown,
+                Timing::Late {
+                    lag: Duration::from_millis(400),
+                },
+            ),
+        );
+        let figures = held.counters.figures();
+        assert_eq!(figures.late_events, 1, "the key was not judged late");
+        assert_eq!(figures.max_lag_ms, 0);
     }
 
     #[test]
@@ -7283,9 +7692,11 @@ mod granted_tests {
                 plan: HoldPlan::Never,
                 hold: hold_secure_input,
                 refusal: Arc::new(Mutex::new(None)),
+                released: Arc::new(Mutex::new(None)),
                 own_take: None,
             },
             stop,
+            port.clone(),
             || {},
         )
         .expect("the tap starts");
