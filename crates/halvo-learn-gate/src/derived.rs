@@ -63,10 +63,10 @@ pub const LEARN_OPS: &[&str] = &[
     "list_refinements",
 ];
 
-/// The key of the gate's derived stores (contracts.md L10.1; the coordinator's ruling LM-89): 32 bytes of the
-/// process's random keys, which `RandomState` takes from the operating system's generator, made once by a command,
-/// handed to `Store::open` alone, held in memory and never written, printed or logged (L0.9). A store that the gate
-/// made cannot be opened after its process has ended.
+/// The key of the gate's derived stores (contracts.md L10.1; the coordinator's ruling LM-89): the two 64-bit keys of
+/// a `RandomState`, which it takes from the operating system's generator, spread by `key_bytes` over 32 bytes, so
+/// 128 bits of that randomness in all; made once by a command, handed to `Store::open` alone, held in memory and never
+/// written, printed or logged (L0.9). A store that the gate made cannot be opened after its process has ended.
 pub fn process_key() -> DbKey {
     let mut bytes = key_bytes(&RandomState::new());
     let key = DbKey::new(bytes);
