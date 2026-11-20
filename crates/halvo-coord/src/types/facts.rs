@@ -33,6 +33,10 @@ pub struct Facts<C> {
     pub today: u32,
     /// Its run state and its open item.
     pub doing: Doing,
+    /// Whether `workflow` is the stand-in that a new life assumes for a workflow that the owner's
+    /// list holds in the dismissed shape, with the state `paused` (I5.8), which is no entry of
+    /// that list and gives no derived hold `off` (I5.4; ruling RD-67 1.2).
+    pub stand_in: bool,
 }
 
 impl<C> Facts<C> {

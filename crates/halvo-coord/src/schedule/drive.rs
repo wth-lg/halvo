@@ -248,12 +248,13 @@ fn listing<P: Owner, C>(
     board.note_list(&list);
     for (k, m) in board.members.iter_mut().enumerate() {
         if only.is_none_or(|i| i == k) {
-            let found = list.iter().find_map(|w| match w {
-                Workflow::Full(f) if f.id == m.facts.workflow.id => Some(f.clone()),
-                _ => None,
-            });
-            if let Some(f) = found {
-                m.facts.workflow = f;
+            match list.iter().find(|w| w.id() == &m.facts.workflow.id) {
+                Some(Workflow::Full(f)) => {
+                    m.facts.workflow = f.clone();
+                    m.facts.stand_in = false;
+                }
+                Some(Workflow::Dismissed(_)) => m.facts.stand_in = true,
+                None => {}
             }
         }
     }
@@ -1579,6 +1580,7 @@ where
                 replies: crate::types::Replies::NotAsked,
                 today: board.day,
                 doing: Doing::Idle(None),
+                stand_in: false,
             },
             session: a.session,
         };

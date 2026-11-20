@@ -214,6 +214,7 @@ fn started_at(events: &[Event], run: &RunId) -> i64 {
 struct Found<C> {
     agent: Agent<C>,
     workflow: FullWorkflow,
+    stand_in: bool,
     events: Vec<Event>,
     last: u32,
     step: Recovery,
@@ -292,6 +293,7 @@ where
         found.push(Found {
             agent,
             workflow,
+            stand_in: matches!(listed, Workflow::Dismissed(_)),
             events,
             last,
             step,
@@ -396,6 +398,7 @@ where
                 replies: crate::types::Replies::NotAsked,
                 today: day,
                 doing: Doing::Idle(None),
+                stand_in: f.stand_in,
             };
             facts.take_unknown(&f.agent.unknown);
             read_replies(ports, &mut facts);

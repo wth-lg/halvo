@@ -356,3 +356,34 @@ fn an_owner_that_does_not_read_overlaps_answers_no_service() {
         Err(PortError::NoService)
     );
 }
+
+fn life(p: &Ports<Config>) -> halvo_coord::schedule::Board<Config> {
+    halvo_coord::run::recover(p, &halvo_coord::types::Limits::PRODUCT)
+        .unwrap()
+        .board
+}
+
+#[test]
+fn a_new_life_gives_the_stand_in_of_a_dismissed_workflow_no_hold() {
+    let p = ports(&[(PAUSED, ACCOUNT, &["ann@people.test"], &[])]);
+    p.workflows.borrow_mut()[0] = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+        id: flow(0),
+        category: Category::Email,
+        site: None,
+    });
+    let board = life(&p);
+    let facts = &board.members[0].facts;
+    assert!(facts.stand_in);
+    assert_eq!(facts.workflow.state, PAUSED);
+    assert_eq!(
+        halvo_coord::schedule::holds(facts),
+        Vec::<halvo_coord::schedule::Hold>::new()
+    );
+    let listed_paused = ports(&[(PAUSED, ACCOUNT, &["ann@people.test"], &[])]);
+    let board = life(&listed_paused);
+    assert!(!board.members[0].facts.stand_in);
+    assert_eq!(
+        halvo_coord::schedule::holds(&board.members[0].facts),
+        vec![halvo_coord::schedule::Hold::Off]
+    );
+}

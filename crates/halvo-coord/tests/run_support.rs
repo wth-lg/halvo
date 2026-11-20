@@ -145,6 +145,7 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
                 unknown: Vec::new(),
                 today: DAY,
                 doing: Doing::Idle(None),
+                stand_in: false,
             },
             session: true,
         });

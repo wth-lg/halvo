@@ -10,6 +10,10 @@ pub enum StatusLine {
     NotYet,
     /// `off.person`: the hold `off`.
     Off,
+    /// `off.kept`: the derived hold `off` of I5.4, which `status` tells from `off.person` by the
+    /// events (ruling RD-67 1.3 (c)). `all` does not list it until its fixture state of I8.3 is
+    /// written.
+    Kept,
     /// `problem.failures`: the hold `failures`.
     Failures,
     /// `working.starting`: a live run in the phase `starting`.
@@ -78,6 +82,7 @@ impl StatusLine {
             StatusLine::NeedsYou(_) => Status::NeedsYou,
             StatusLine::NotYet => Status::NotYet,
             StatusLine::Off => Status::Off,
+            StatusLine::Kept => Status::Off,
             StatusLine::Failures | StatusLine::Problem(_) | StatusLine::Record => Status::Problem,
             StatusLine::Starting
             | StatusLine::Working
@@ -98,6 +103,7 @@ impl StatusLine {
             StatusLine::NeedsYou(kind) => kind.name(),
             StatusLine::NotYet => "category",
             StatusLine::Off => "person",
+            StatusLine::Kept => "kept",
             StatusLine::Failures => "failures",
             StatusLine::Starting => "starting",
             StatusLine::Working => "working",

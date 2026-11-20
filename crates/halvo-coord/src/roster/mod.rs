@@ -50,6 +50,9 @@ pub fn status_of<C: ConfigView>(
         }
     }
     let standing = holds(facts);
+    if crate::schedule::kept_off(facts) && !standing.contains(&Hold::NotYet) {
+        return StatusLine::Kept;
+    }
     for (hold, line) in [
         (Hold::NotYet, StatusLine::NotYet),
         (Hold::Off, StatusLine::Off),

@@ -113,6 +113,7 @@ fn facts(category: Category, runtime: &str, state: WorkflowState) -> Facts<Confi
             item: item_id(1),
             kind: OwnItemKind::Setup,
         })),
+        stand_in: false,
     }
 }
 

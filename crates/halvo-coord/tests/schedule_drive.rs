@@ -129,6 +129,7 @@ fn member(world: &World, n: usize) -> Member<Config> {
             events,
             today: world.board.day,
             doing: Doing::Idle(None),
+            stand_in: false,
         },
         session: true,
     }

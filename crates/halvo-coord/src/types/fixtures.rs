@@ -632,6 +632,7 @@ fn build(state: State) -> Vec<Built> {
             unknown: Vec::new(),
             today: TODAY,
             doing,
+            stand_in: false,
         };
         built.push(Built { spec, facts });
     }

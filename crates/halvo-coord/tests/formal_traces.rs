@@ -1364,6 +1364,7 @@ impl Conf {
             unknown: Vec::new(),
             today: DAY,
             doing,
+            stand_in: false,
         }
     }
 
