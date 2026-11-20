@@ -85,7 +85,14 @@ pub fn run(data_dir: PathBuf, within: Duration) -> i32 {
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
     let handle = app.handle().clone();
     std::thread::spawn(move || watch(handle, started));
-    app.run_return(|_, _| {})
+    app.run_return(move |_, event| {
+        if let tauri::RunEvent::Ready = event {
+            eprintln!(
+                "halvo: --check-page: the event loop was ready at {} ms",
+                started.elapsed().as_millis()
+            );
+        }
+    })
 }
 
 fn watch<R: Runtime>(app: AppHandle<R>, started: Instant) {

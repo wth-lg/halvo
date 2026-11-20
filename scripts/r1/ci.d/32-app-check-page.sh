@@ -104,9 +104,16 @@ watch_app() {
   run_check "$1" "$2" "$3" "$limit_s" "$4" "$5"
   printf 'check-page seconds: %s, bound: %s\n' "$check_seconds" "$3"
   printf 'check-page clock seconds: %s\n' "$check_clock"
+  ready_ms=$(plain <"$5" | sed -n 's/^halvo: --check-page: the event loop was ready at \([0-9][0-9]*\) ms$/\1/p' | head -n 1) || fail "the error output of halvo --check-page cannot be read"
+  printf 'check-page ready ms: %s\n' "${ready_ms:-none}"
   show_err "$5"
   show_data "$2"
-  [ "$ended" = false ] || fail "halvo --check-page ran past $limit_s s and was ended"
+  if [ -n "$ready_ms" ]; then
+    place="its event loop ready at $ready_ms ms"
+  else
+    place="its event loop not ready"
+  fi
+  [ "$ended" = false ] || fail "halvo --check-page ran past $limit_s s and was ended, $place"
 }
 
 verdict() {
@@ -212,7 +219,8 @@ self_test() {
 [ "$1" = --check-page ] && [ "$2" = --data-dir ] && [ -n "$3" ] && [ "$4" = --within-s ] && [ "$5" = 2 ] || exit 98
 case $STUB_MODE in
   loaded)
-    printf 'halvo: --check-page: done in 1 ms\n' >&2
+    printf 'halvo: --check-page: the event loop was ready at 5 ms\n' >&2
+    printf 'halvo: --check-page: done in 9 ms\n' >&2
     printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
     ;;
   two-commands) printf 'page=loaded commands_ok=2 version=0.0.0 service=not_running guard=installed\n' ;;
@@ -233,7 +241,8 @@ case $STUB_MODE in
     mkdir -p "$STUB_DATA/engine-rules" "$STUB_DATA/webview/EBWebView/Crashpad/reports"
     printf 'rules\n' >"$STUB_DATA/engine-rules/rules.txt"
     printf 'dump\n' >"$STUB_DATA/webview/EBWebView/Crashpad/reports/one.dmp"
-    printf 'halvo: --check-page: the page did not have the reply of its 4 read commands within 2 s\n' >&2
+    printf 'halvo: --check-page: the event loop was ready at 3 ms\n' >&2
+    printf 'halvo: --check-page: the page did not have the reply of its 4 read commands within 2 s after the event loop was ready\n' >&2
     exit 1
     ;;
   odd-err)
@@ -269,9 +278,17 @@ case $STUB_MODE in
     printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
     exit 101
     ;;
-  hangs)
+  engine-start-past-the-limit)
     printf 'halvo: --check-page: the stub waits\n' >&2
     exec sleep 30
+    ;;
+  page-past-the-limit)
+    printf 'halvo: --check-page: the event loop was ready at 7 ms\n' >&2
+    exec sleep 30
+    ;;
+  odd-ready)
+    printf 'halvo: --check-page: the event loop was ready at 7x ms\nhalvo: --check-page: the event loop was ready at 8 ms\nhalvo: --check-page: the event loop was ready at 9 ms\n' >&2
+    exit 1
     ;;
 esac
 EOF
@@ -280,8 +297,10 @@ EOF
   wrong=
   zeros=$(printf '%0200d' 0)
   check loaded PASS 'check-page exit: 0, lines: 1, line matched: true' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
-' 'check-page err lines: 1
-check-page err: halvo: --check-page: done in 1 ms
+' 'check-page ready ms: 5
+check-page err lines: 2
+check-page err: halvo: --check-page: the event loop was ready at 5 ms
+check-page err: halvo: --check-page: done in 9 ms
 check-page data: 0 files, 0 directories, 0 bytes, 0 dump files
 check-page exit: 0'
   check two-commands FAIL 'printed another line than' 'page=loaded commands_ok=2 version=0.0.0 service=not_running guard=installed
@@ -306,12 +325,15 @@ check-page exit: 0'
 ' 'check-page err: halvo: the window main is not opened, because its engine guard is not installed: the rule list did not compile
 '
   check no-line FAIL 'printed 0 lines)' '(none)
-' 'check-page err lines: 0
+' 'check-page ready ms: none
+check-page err lines: 0
 check-page data: 0 files, 0 directories, 0 bytes, 0 dump files
 check-page exit: 0'
   check times-out FAIL 'halvo --check-page exited 1)' '(none)
-' 'check-page err lines: 1
-check-page err: halvo: --check-page: the page did not have the reply of its 4 read commands within 2 s
+' 'check-page ready ms: 3
+check-page err lines: 2
+check-page err: halvo: --check-page: the event loop was ready at 3 ms
+check-page err: halvo: --check-page: the page did not have the reply of its 4 read commands within 2 s after the event loop was ready
 check-page data: 2 files, 5 directories, 11 bytes, 1 dump files
 check-page data entry: engine-rules
 check-page data entry: engine-rules/rules.txt
@@ -353,11 +375,22 @@ check-page data entry: f10
 check-page exit: 0'
   check setup-fails FAIL 'halvo --check-page exited 101)' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
 '
-  check hangs FAIL 'ran past 4 s and was ended)' '' 'check-page seconds: 4, bound: 2
-' 'check-page err lines: 1
+  check engine-start-past-the-limit FAIL 'ran past 4 s and was ended, its event loop not ready)' '' 'check-page seconds: 4, bound: 2
+' 'check-page ready ms: none
+check-page err lines: 1
 check-page err: halvo: --check-page: the stub waits
 check-page data: 0 files, 0 directories, 0 bytes, 0 dump files
-FAIL 32-app-check-page (halvo --check-page ran past 4 s and was ended)'
+FAIL 32-app-check-page (halvo --check-page ran past 4 s and was ended, its event loop not ready)'
+  check page-past-the-limit FAIL 'ran past 4 s and was ended, its event loop ready at 7 ms)' '' 'check-page seconds: 4, bound: 2
+' 'check-page ready ms: 7
+check-page err lines: 1
+check-page err: halvo: --check-page: the event loop was ready at 7 ms
+check-page data: 0 files, 0 directories, 0 bytes, 0 dump files
+FAIL 32-app-check-page (halvo --check-page ran past 4 s and was ended, its event loop ready at 7 ms)'
+  check odd-ready FAIL 'halvo --check-page exited 1)' '(none)
+' 'check-page ready ms: 8
+check-page err lines: 3
+'
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
