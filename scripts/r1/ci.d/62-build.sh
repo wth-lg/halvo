@@ -169,13 +169,22 @@ file_rules() {
   git ls-files --error-unmatch -- Cargo.toml >/dev/null 2>&1 || fail "the workspace Cargo.toml must be tracked"
   python=
   for candidate in python3.11 python3 python; do
-    if "$candidate" -I -c 'import tomllib' >/dev/null 2>&1; then
-      python=$candidate
-      break
-    fi
+    probe=$("$candidate" -I -c '
+import sys
+import tomllib
+
+if sys.version_info < (3, 11):
+    sys.exit(1)
+answer = sum(tomllib.loads("values = [19, 23]")["values"])
+version = ".".join(map(str, sys.version_info[:3]))
+sys.stdout.write(f"{answer} {version}")' </dev/null 2>/dev/null) || continue
+    version=$(expr "$probe" : '42 \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)$') || continue
+    python=$candidate
+    break
   done
   [ -n "$python" ] || fail "reading Cargo.toml requires Python 3.11 or later"
-  found=$("$python" -I - 2>&1 <<'PY'
+  printf 'manifest reader: %s %s\n' "$python" "$version" >&2
+  found=$("$python" -I - 2>&1 <<'PY' && printf '.'
 import sys
 import tomllib
 
@@ -189,8 +198,10 @@ try:
             sys.exit(f"Cargo.toml enables release debug assertions for package {package}")
 except (OSError, ValueError, AttributeError) as error:
     sys.exit(f"could not read the release profile in Cargo.toml: {error}")
+sys.stdout.write("profile-ok")
 PY
   ) || fail "$found"
+  [ "$found" = profile-ok. ] || fail "unexpected Cargo.toml reader output: ${found%.}"
 
   set -- '.cargo/config' '.cargo/config.toml' '*/.cargo/config' '*/.cargo/config.toml'
   untracked_configurations=$(git ls-files --others -- "$@") || fail "git ls-files failed"
