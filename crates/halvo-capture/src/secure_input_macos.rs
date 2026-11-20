@@ -1069,6 +1069,88 @@ pub(crate) mod test_support {
         required.is_none_or(|value| value != "1")
     }
 
+    /// Whether a test that takes the system's secure-input hold may run: on a
+    /// hosted runner of GitHub Actions alone, which sets `GITHUB_ACTIONS` to
+    /// `true` and `RUNNER_ENVIRONMENT` to `github-hosted`. Every other pair, a
+    /// missing variable among them, is another machine, where no hold is taken.
+    pub(crate) fn hosted(github_actions: Option<&str>, runner_environment: Option<&str>) -> bool {
+        github_actions == Some("true") && runner_environment == Some("github-hosted")
+    }
+
+    /// What a hold test does at its start.
+    #[derive(Debug, PartialEq, Eq)]
+    pub(crate) enum HoldStart {
+        /// The test takes the hold.
+        Run,
+        /// The test prints this line and returns before it touches the hold.
+        Off(String),
+        /// The test fails with this line.
+        Fail(String),
+    }
+
+    /// The decision at the early return of `test`, from a read of the
+    /// variables made at that return, apart from the read that chose the
+    /// branch: `Fail` when that read says hosted, `Fail` while
+    /// [`HOLD_REQUIRED`] reads `1`, and else `Off`; each line names the test
+    /// and what it read.
+    pub(crate) fn at_return(
+        test: &str,
+        github_actions: Option<&str>,
+        runner_environment: Option<&str>,
+        required: Option<&str>,
+    ) -> HoldStart {
+        let read = format!(
+            "GITHUB_ACTIONS={github_actions:?} RUNNER_ENVIRONMENT={runner_environment:?} \
+             {HOLD_REQUIRED}={required:?}"
+        );
+        if hosted(github_actions, runner_environment) {
+            HoldStart::Fail(format!(
+                "FAIL {test}: the first read said that this is no hosted runner and the read at \
+                 the return says that it is: {read}"
+            ))
+        } else if required == Some("1") {
+            HoldStart::Fail(format!(
+                "FAIL {test}: this is no hosted runner and {HOLD_REQUIRED}=1 asks that every \
+                 hold test holds: {read}"
+            ))
+        } else {
+            HoldStart::Off(format!(
+                "REFUSED {test}: the hold is taken on a hosted runner alone: {read}"
+            ))
+        }
+    }
+
+    /// The start of the hold test `test` over `read`, a reader of the process's
+    /// variables: `Run` when a first read says hosted, and else the decision
+    /// of [`at_return`] over a second read.
+    pub(crate) fn hold_start(test: &str, read: &dyn Fn(&str) -> Option<String>) -> HoldStart {
+        if hosted(
+            read("GITHUB_ACTIONS").as_deref(),
+            read("RUNNER_ENVIRONMENT").as_deref(),
+        ) {
+            return HoldStart::Run;
+        }
+        at_return(
+            test,
+            read("GITHUB_ACTIONS").as_deref(),
+            read("RUNNER_ENVIRONMENT").as_deref(),
+            read(HOLD_REQUIRED).as_deref(),
+        )
+    }
+
+    /// The guard of a hold test: true on a hosted runner; else it prints the
+    /// line of [`hold_start`] and answers false, or fails with it.
+    pub(crate) fn hosted_or_refuse(test: &str) -> bool {
+        match hold_start(test, &|name| std::env::var(name).ok()) {
+            HoldStart::Run => true,
+            HoldStart::Off(line) => {
+                println!("{line}");
+                false
+            }
+            HoldStart::Fail(line) => panic!("{line}"),
+        }
+    }
+
     #[cfg(debug_assertions)]
     pub(crate) fn reads_on_within(reader: impl Fn() -> bool, limit: Duration) -> bool {
         let started = Instant::now();
@@ -1869,7 +1951,7 @@ mod tests {
         }
     }
 
-    use super::test_support::{agreed_reading, one_hold_at_a_time};
+    use super::test_support::{agreed_reading, hosted_or_refuse, one_hold_at_a_time};
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
@@ -1944,6 +2026,89 @@ mod tests {
     }
 
     #[test]
+    fn a_hold_test_takes_the_hold_on_a_hosted_runner_alone_and_fails_its_refusal_while_the_hold_is_required(
+    ) {
+        use super::test_support::{at_return, hold_start, hosted, HoldStart};
+        fn reader(
+            pairs: &'static [(&'static str, &'static str)],
+        ) -> impl Fn(&str) -> Option<String> {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(n, _)| *n == name)
+                    .map(|(_, v)| v.to_string())
+            }
+        }
+        const T: &str = "a_hold_test";
+        assert!(hosted(Some("true"), Some("github-hosted")));
+        let not_hosted: [(Option<&str>, Option<&str>, &str); 9] = [
+            (None, None, "this Mac and every other machine"),
+            (Some("true"), None, "no runner environment"),
+            (None, Some("github-hosted"), "not in Actions"),
+            (
+                Some("true"),
+                Some("self-hosted"),
+                "a runner of the owner's own",
+            ),
+            (Some(""), Some("github-hosted"), "an empty value"),
+            (Some("true"), Some(""), "an empty environment"),
+            (Some("TRUE"), Some("github-hosted"), "another case"),
+            (
+                Some("true"),
+                Some("GitHub-Hosted"),
+                "another case of the environment",
+            ),
+            (Some("1"), Some("github-hosted"), "another word"),
+        ];
+        for (actions, environment, what) in not_hosted {
+            assert!(!hosted(actions, environment), "{what}");
+        }
+        assert_eq!(
+            hold_start(
+                T,
+                &reader(&[
+                    ("GITHUB_ACTIONS", "true"),
+                    ("RUNNER_ENVIRONMENT", "github-hosted"),
+                ])
+            ),
+            HoldStart::Run
+        );
+        for pairs in [
+            &[][..],
+            &[("GITHUB_ACTIONS", "true")][..],
+            &[("RUNNER_ENVIRONMENT", "github-hosted")][..],
+            &[
+                ("GITHUB_ACTIONS", "true"),
+                ("RUNNER_ENVIRONMENT", "self-hosted"),
+            ][..],
+        ] {
+            let start = hold_start(T, &reader(pairs));
+            let HoldStart::Off(line) = start else {
+                panic!("{pairs:?}: {start:?}");
+            };
+            assert!(line.starts_with("REFUSED a_hold_test: "), "{line}");
+            assert!(line.contains("GITHUB_ACTIONS="), "{line}");
+        }
+        let required = hold_start(T, &reader(&[("HALVO_SECURE_INPUT_HOLD_REQUIRED", "1")]));
+        let HoldStart::Fail(line) = required else {
+            panic!("a refusal while the hold is required: {required:?}");
+        };
+        assert!(line.starts_with("FAIL a_hold_test: "), "{line}");
+        assert!(matches!(
+            hold_start(T, &reader(&[("HALVO_SECURE_INPUT_HOLD_REQUIRED", "0")])),
+            HoldStart::Off(_)
+        ));
+        let late = at_return(T, Some("true"), Some("github-hosted"), None);
+        let HoldStart::Fail(line) = late else {
+            panic!("the read at the return said hosted: {late:?}");
+        };
+        assert!(
+            line.contains("RUNNER_ENVIRONMENT=Some(\"github-hosted\")"),
+            "{line}"
+        );
+    }
+
+    #[test]
     fn a_hold_test_may_skip_only_while_the_variable_of_the_hold_tests_is_not_one() {
         use super::test_support::{skip_allowed, HOLD_REQUIRED};
         use std::ffi::OsStr;
@@ -2009,6 +2174,11 @@ mod tests {
 
     #[test]
     fn the_production_hold_takes_and_gives_back_secure_input_through_the_system_calls() {
+        if !hosted_or_refuse(
+            "the_production_hold_takes_and_gives_back_secure_input_through_the_system_calls",
+        ) {
+            return;
+        }
         let one = one_hold_at_a_time();
         let Some(hold) = one.production_hold_or_skip(
             "the_production_hold_takes_and_gives_back_secure_input_through_the_system_calls",
@@ -2037,6 +2207,9 @@ mod tests {
 
     #[test]
     fn a_dropped_hold_gives_the_reading_of_before_back() {
+        if !hosted_or_refuse("a_dropped_hold_gives_the_reading_of_before_back") {
+            return;
+        }
         let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
         let before = agreed_reading(secure_input_active, limit);
@@ -2058,6 +2231,9 @@ mod tests {
 
     #[test]
     fn the_predicate_follows_the_session_reading_through_a_hold() {
+        if !hosted_or_refuse("the_predicate_follows_the_session_reading_through_a_hold") {
+            return;
+        }
         let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
         let before = agreed_reading(secure_input_active, limit);
