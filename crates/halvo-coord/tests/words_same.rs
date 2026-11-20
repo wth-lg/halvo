@@ -486,17 +486,59 @@ fn u24r_the_three_texts_stand_word_for_word() {
     }
 }
 
+const WORDS_OF_AN_END: [&str; 22] = [
+    "stop",
+    "stops",
+    "stopped",
+    "stopping",
+    "end",
+    "ends",
+    "ended",
+    "ending",
+    "finish",
+    "finishes",
+    "finished",
+    "finishing",
+    "done",
+    "complete",
+    "completes",
+    "completed",
+    "halt",
+    "halts",
+    "halted",
+    "cease",
+    "ceases",
+    "ceased",
+];
+
+const WORDS_OF_A_TIME: [&str; 15] = [
+    "second",
+    "seconds",
+    "minute",
+    "minutes",
+    "hour",
+    "hours",
+    "moment",
+    "moments",
+    "instant",
+    "instantly",
+    "immediately",
+    "quickly",
+    "soon",
+    "shortly",
+    "promptly",
+];
+
 fn promises_an_end_or_a_time(text: &str) -> Vec<String> {
-    let lower = text.to_lowercase();
-    let mut found: Vec<String> = ["stop", "end", "second", "minute", "hour"]
-        .iter()
-        .filter(|stem| lower.contains(**stem))
-        .map(|stem| stem.to_string())
-        .collect();
-    if lower.contains(|c: char| c.is_ascii_digit()) {
-        found.push("a number".to_string());
-    }
-    found
+    text.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| {
+            WORDS_OF_AN_END.contains(word)
+                || WORDS_OF_A_TIME.contains(word)
+                || word.contains(|c: char| c.is_ascii_digit())
+        })
+        .map(str::to_string)
+        .collect()
 }
 
 #[test]
