@@ -251,7 +251,7 @@ build() {
 
 depinfo_of() {
   tr -d '\r' | grep -F '"reason":"compiler-artifact"' | grep -F '"name":"halvo_capture"' |
-    grep -F '"kind":["lib"]' | sed -n 's/.*"filenames":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | tr -d '"' |
+    grep -F '"kind":["lib"]' | grep -F "${1:-}" | sed -n 's/.*"filenames":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | tr -d '"' |
     grep -F '/deps/' | awk 'NR == 1 {
       n = split($0, part, "/")
       file = part[n]
@@ -268,7 +268,7 @@ daemon_reads() {
 
 module_verdict() {
   product_d=$(depinfo_of <"$1")
-  test_d=$(depinfo_of <"$2")
+  test_d=$(depinfo_of '"test":true},"features"' <"$2")
   if [ ! -f "$product_d" ] || [ ! -f "$test_d" ]; then
     printf 'the builds name no dep-info file of the lib\n'
     return 1
@@ -481,13 +481,19 @@ source_output() {
 module_case() {
   dir=$work/$1
   mkdir -p "$dir" || exit 2
-  artifact='{"reason":"compiler-artifact","target":{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture"},"filenames":["'
+  artifact='{"reason":"compiler-artifact","target":{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture"},"profile":{"test":false},"features":[],"filenames":["'
+  harness='{"reason":"compiler-artifact","target":{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture"},"profile":{"test":true},"features":[],"filenames":["'
   if [ -n "${4:-}" ]; then
     printf '{"reason":"build-finished","success":true}\n' >"$dir/product.json"
   else
     printf '%s%s","%s"]}\n' "$artifact" "$dir/libhalvo_capture.rlib" "$dir/deps/libhalvo_capture-p.rmeta" >"$dir/product.json"
   fi
-  printf '%s%s"]}\n' "$artifact" "$dir/deps/halvo_capture-t" >"$dir/test.json"
+  : >"$dir/test.json"
+  if [ -n "${5:-}" ]; then
+    printf '%s%s","%s"]}\n' "$artifact" "$dir/deps/libhalvo_capture-d.rlib" "$dir/deps/libhalvo_capture-d.rmeta" >>"$dir/test.json"
+    plant "$dir/deps/halvo_capture-d.d" "$dir/deps/halvo_capture-d.d: $2"
+  fi
+  printf '%s%s"]}\n' "$harness" "$dir/deps/halvo_capture-t" >>"$dir/test.json"
   plant "$dir/deps/halvo_capture-p.d" "$dir/deps/halvo_capture-p.d: $2"
   plant "$dir/deps/halvo_capture-t.d" "$dir/deps/halvo_capture-t.d: $3"
   module_verdict "$dir/product.json" "$dir/test.json" "$dir"
@@ -573,6 +579,7 @@ impl Stored for Passthrough {}'
   case_of daemon-files-read-by-both-builds PASS module_case both "$product" "$product $d/model_store.rs $d/scripted.rs"
   case_of a-module-that-the-test-build-alone-reads FAIL module_case test-alone "$product" "$product $d/v10state_c.rs"
   case_of a-module-under-a-directory-that-the-test-build-alone-reads FAIL module_case test-alone-nested "$product" "$product $d/r2/mod.rs"
+  case_of a-test-build-whose-first-lib-is-the-dev-dependency FAIL module_case dev-dependency-first "$product" "$product $d/v10state_c.rs" "" yes
   case_of a-product-build-without-the-daemon FAIL module_case no-daemon "$src/lib.rs" "$product"
   case_of a-product-build-that-names-no-dep-info FAIL module_case no-dep-info "$product" "$product" yes
   if [ -n "$wrong" ]; then
