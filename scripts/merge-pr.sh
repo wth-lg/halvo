@@ -45,6 +45,13 @@ attribution line reaches the default branch.
         - the squash message (the subject, an empty line, the body file) passes
           sh scripts/check-commit-messages.sh --stored-message
         - the title and the description of the pull request pass it too
+        - the squash subject, squash body, title and description contain no
+          workflow skip marker: [skip ci], [ci skip], [no ci], [skip actions]
+          or [actions skip] anywhere, or skip-checks:true or skip-checks: true
+          at the start of a line. The check ignores letter case and allows
+          blanks after the colon. Take the marker out and run the script again.
+          Edit a title or description on GitHub; the marker check reads the
+          current text and needs no new workflow run for that edit.
       Then merge with
         gh pr merge <number> --squash --match-head-commit <sha> --subject <text> --body-file -
       which hands gh, on standard input, the body that was checked. Then read
@@ -294,6 +301,15 @@ read_stored_message() {
   esac
 }
 
+check_skip_marker() {
+  marker_line=$(printf '%s\n' "$2" | LC_ALL=C awk '
+    match(tolower($0), /\[(skip ci|ci skip|no ci|skip actions|actions skip)\]|^skip-checks:[[:blank:]]*true/) {
+      printf "line %d holds the skip marker %s: %s", NR, substr($0, RSTART, RLENGTH), $0
+      exit
+    }') || die "could not check $1 for a workflow skip marker"
+  [ -z "$marker_line" ] || refuse "$1 $marker_line. $3"
+}
+
 apply_gates() {
   refusals=0
   case $state in
@@ -338,6 +354,12 @@ apply_gates() {
 
   [ "$thread_unresolved" = 0 ] ||
     refuse "pull request #$number has unresolved review threads: $thread_unresolved of $thread_total. Answer each one and resolve it on GitHub, then run this script again."
+
+  check_skip_marker 'squash subject' "$subject" 'Take the marker out of --subject and run this script again.'
+  check_skip_marker 'squash body' "$body" 'Take the marker out of the body file and run this script again.'
+  pr_marker_fix='Take the marker out on GitHub and run this script again. Editing this text needs no new workflow run for the marker check.'
+  check_skip_marker 'title' "$title" "$pr_marker_fix"
+  check_skip_marker 'description' "$description" "$pr_marker_fix"
 
   read_stored_message 'the squash message' "$subject" "$body"
   [ "$stored_message_status" = 0 ] ||
@@ -1047,6 +1069,48 @@ EOF
   fields draft-with-an-unresolved-thread OPEN true MERGEABLE "$reviewed_head"
   printf 'false\n' >"$work/state/draft-with-an-unresolved-thread/threads"
   refused draft-with-an-unresolved-thread 'gates that refuse the merge of pull request #7: 2'
+
+  saved_subject=$subject
+  while IFS='|' read -r fixture marker; do
+    state_of "$fixture"
+    subject="Build $marker on Windows"
+    refused "$fixture" "squash subject line 1 holds the skip marker $marker"
+  done <<'EOF'
+subject-skip-ci|[skip ci]
+subject-ci-skip|[ci skip]
+subject-no-ci|[no ci]
+subject-skip-actions|[skip actions]
+subject-actions-skip|[actions skip]
+subject-mixed-case-marker|[Ci SkIp]
+EOF
+  subject=$saved_subject
+
+  while IFS='|' read -r fixture marker; do
+    state_of "$fixture"
+    printf 'First line\n%s\nAnother line\n' "$marker" >"$work/marker-body.txt"
+    refused "$fixture" "squash body line 2 holds the skip marker $marker" --body-file "$work/marker-body.txt"
+  done <<'EOF'
+body-bracketed-marker|[no ci]
+body-trailer-no-blank|skip-checks:true
+body-trailer-with-blank|skip-checks: true
+EOF
+  state_of title-with-skip-marker
+  printf 'Keep [actions skip] here\n' >"$work/state/title-with-skip-marker/title"
+  refused title-with-skip-marker 'title line 1 holds the skip marker [actions skip]'
+  state_of description-with-skip-marker
+  printf 'First line\nSecond line\nSee [SKIP ACTIONS].\n' >"$work/state/description-with-skip-marker/description"
+  refused description-with-skip-marker 'description line 3 holds the skip marker [SKIP ACTIONS]'
+  state_of dry-run-with-a-skip-marker
+  subject='Build [no ci]'
+  refused dry-run-with-a-skip-marker 'squash subject line 1 holds the skip marker [no ci]' --body-file "$work/body.txt" --dry-run
+
+  state_of subject-about-skipping
+  subject='Skip the cache step on Windows (#7)'
+  expect subject-about-skipping 0 called "merge-pr: merged as $clean_squash" --body-file "$work/body.txt"
+  state_of subject-with-ordinary-brackets
+  subject='Run tests [Windows]'
+  expect subject-with-ordinary-brackets 0 called "merge-pr: merged as $clean_squash" --body-file "$work/body.txt"
+  subject=$saved_subject
 
   state_of dry-run-of-a-draft
   fields dry-run-of-a-draft OPEN true MERGEABLE "$reviewed_head"
