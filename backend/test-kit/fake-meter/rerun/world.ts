@@ -566,13 +566,15 @@ class World {
 
   private explain(account: Account, from: number, widenedFrom: number, widenedTo: number, total: number): void {
     const rows = account.test.host.step((sql) =>
-      sql.exec("SELECT amount, timestamp, outcome FROM metering_interval WHERE sealed_at IS NOT NULL AND timestamp >= ? AND timestamp < ?", widenedFrom, widenedTo),
+      sql.exec("SELECT amount, timestamp, outcome, refusal, identifier FROM metering_interval WHERE sealed_at IS NOT NULL AND timestamp >= ? AND timestamp < ?", widenedFrom, widenedTo),
     );
     let others = 0;
     let own = Number.NaN;
+    const held = new Set(this.meter.recordedEvents(account.id).map((e) => e.identifier));
     for (const row of rows) {
       if (int(row, "timestamp") === from) own = int(row, "amount");
       else if (row.outcome === "acknowledged") others += int(row, "amount");
+      else if (row.outcome === "not-billable" && row.refusal === "unexplained-total" && held.has(String(row.identifier))) others += int(row, "amount");
     }
     let foreign = 0;
     for (const e of this.meter.recordedEvents(account.id)) {
