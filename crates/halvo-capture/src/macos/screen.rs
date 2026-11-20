@@ -612,6 +612,98 @@ impl StopStream for Retained<SCStream> {
     }
 }
 
+/// The start of a stream that is made: the add of its output and the ask of
+/// its start, whose reply carries the error code of a start that failed.
+trait StartStream: StopStream {
+    fn add_output(&self, output: &ScreenOutput, queue: &DispatchQueue) -> Result<(), i64>;
+    fn ask_start(&self, reply: Sender<Option<i64>>);
+}
+
+impl StartStream for Retained<SCStream> {
+    fn add_output(&self, output: &ScreenOutput, queue: &DispatchQueue) -> Result<(), i64> {
+        let proto: &ProtocolObject<dyn SCStreamOutput> = ProtocolObject::from_ref(output);
+        // SAFETY: the stream, `output` (which `proto` borrows) and the serial
+        // dispatch queue `queue` are live for the call. SCStream.h says that the
+        // start and the stop completions each carry an error that tells whether
+        // the start or the stop failed. The source releases `output` and `queue`
+        // only when the stream cannot run: after this call fails, after the
+        // start completion reports an error, or after the stop completion
+        // reports none. A start or a stop whose completion does not arrive in
+        // time, or a stop that reports an error, keeps both, and the output
+        // gives back its sink handle first. A second start answers
+        // AlreadyStarted, and dropping a started source stops it first.
+        unsafe {
+            self.addStreamOutput_type_sampleHandlerQueue_error(
+                proto,
+                SCStreamOutputType::Screen,
+                Some(queue),
+            )
+        }
+        .map_err(|e| e.code() as i64)
+    }
+
+    fn ask_start(&self, reply: Sender<Option<i64>>) {
+        let handler = RcBlock::new(move |err: *mut NSError| {
+            // SAFETY: a non-null `err` is a live NSError that the completion
+            // hands the handler for the length of the call; `code` is a
+            // property getter that takes no argument.
+            let code = (!err.is_null()).then(|| unsafe { (*err).code() } as i64);
+            reply.send(code).ok();
+        });
+        // SAFETY: the stream is live, and the handler has the completion
+        // signature `void (^)(NSError *)`.
+        unsafe { self.startCaptureWithCompletionHandler(Some(&handler)) };
+    }
+}
+
+/// Starts `stream` with `output` on `queue` and waits for its answer up to
+/// `wait`, counted from the ask; a reply channel that closes with no answer is
+/// no answer. A failed add or a start error lets the output and the queue go,
+/// the sink given back first; a start with no answer asks the stream to stop
+/// and keeps both for the life of the process.
+fn start_on<S: StartStream>(
+    stream: &S,
+    output: Retained<ScreenOutput>,
+    queue: DispatchRetained<DispatchQueue>,
+    wait: Duration,
+) -> Result<(Retained<ScreenOutput>, DispatchRetained<DispatchQueue>), CaptureError> {
+    if let Err(code) = stream.add_output(&output, &queue) {
+        release(Some(output), Some(queue));
+        return Err(CaptureError::Os {
+            stage: "add_stream_output",
+            domain: "ScreenCaptureKit",
+            code,
+        });
+    }
+    let (tx, rx) = channel();
+    let asked = Instant::now();
+    stream.ask_start(tx);
+    let mut answer = rx.recv_timeout(wait.saturating_sub(asked.elapsed()));
+    if answer == Err(RecvTimeoutError::Disconnected) {
+        std::thread::sleep(wait.saturating_sub(asked.elapsed()));
+        answer = Err(RecvTimeoutError::Timeout);
+    }
+    match answer {
+        Ok(None) => Ok((output, queue)),
+        Ok(Some(code)) => {
+            release(Some(output), Some(queue));
+            Err(CaptureError::Os {
+                stage: "start_capture",
+                domain: "ScreenCaptureKit",
+                code,
+            })
+        }
+        Err(_) => {
+            stream.ask_stop(channel().0);
+            keep_for_the_life_of_the_process(Some(output), Some(queue));
+            Err(CaptureError::Timeout {
+                stage: "start_capture",
+                ms: wait.as_millis() as u64,
+            })
+        }
+    }
+}
+
 /// When the filter is built again (B14-19 (2), ruling MA-35 R3): while Halvo's
 /// app runs under a pid that the current filter does not list, at once when
 /// the app comes in front, else after a wait of 1 s that doubles up to 60 s
@@ -1052,7 +1144,10 @@ fn fetch_shareable_content() -> Result<Retained<SCShareableContent>, CaptureErro
     // at once. What does not hold as a proof: neither objc2, SCShareableContent.h
     // nor the framework's Swift interface says that the class may be sent
     // between threads, and nothing documents a tie of the object to the queue
-    // that delivered it; this hand-over is a named limit (RR-macos-sources-20).
+    // that delivered it. So the content crosses a thread: a named limit of
+    // this unit by ruling MA-37 (RR-macos-sources-20). The unit macos-3b builds
+    // the start half of open_stream by reading B of ruling MA-7 (2), on which
+    // no object of ScreenCaptureKit crosses a thread.
     unsafe { SCShareableContent::getShareableContentWithCompletionHandler(&handler) };
     match rx.recv_timeout(SHAREABLE_CONTENT_WAIT) {
         Ok(Ok(content)) => Ok(content),
@@ -1100,68 +1195,16 @@ fn open_stream(
         )
     };
     let queue = DispatchQueue::new("com.halvo.capture.screen", None);
-    let proto: &ProtocolObject<dyn SCStreamOutput> = ProtocolObject::from_ref(&*output);
-    // SAFETY: `stream`, `output` (which `proto` borrows) and the serial
-    // dispatch queue `queue` are live for the call. SCStream.h says that the
-    // start and the stop completions each carry an error that tells whether
-    // the start or the stop failed. This source releases `output` and `queue`
-    // only when the stream cannot run: after this call fails, after the start
-    // completion reports an error, or after the stop completion reports none.
-    // A start or a stop whose completion does not arrive in time, or a stop
-    // that reports an error, keeps both for the life of the process, and the
-    // output gives back its sink handle first. A second start answers
-    // AlreadyStarted, and dropping a started source stops it first.
-    unsafe {
-        stream
-            .addStreamOutput_type_sampleHandlerQueue_error(
-                proto,
-                SCStreamOutputType::Screen,
-                Some(&queue),
-            )
-            .map_err(|e| CaptureError::Os {
-                stage: "add_stream_output",
-                domain: "ScreenCaptureKit",
-                code: e.code() as i64,
-            })?;
-    }
-
-    let (stx, srx) = channel();
-    let handler = RcBlock::new(move |err: *mut NSError| {
-        // SAFETY: a non-null `err` is a live NSError that the completion hands
-        // the handler for the length of the call; `code` is a property getter
-        // that takes no argument.
-        let code = (!err.is_null()).then(|| unsafe { (*err).code() } as i64);
-        stx.send(code).ok();
-    });
-    // SAFETY: `stream` is live, and the handler has the completion signature
-    // `void (^)(NSError *)`.
-    unsafe { stream.startCaptureWithCompletionHandler(Some(&handler)) };
-    match srx.recv_timeout(SCREEN_START_WAIT) {
-        Ok(None) => {
-            let rebuild = RebuildCell {
-                stream: stream.clone(),
-                display: ids[index],
-                selection,
-                foreground,
-                facts,
-                plan: RebuildPlan::new(),
-            };
-            Ok((Box::new(stream), output, queue, Some(rebuild)))
-        }
-        Ok(Some(code)) => Err(CaptureError::Os {
-            stage: "start_capture",
-            domain: "ScreenCaptureKit",
-            code,
-        }),
-        Err(_) => {
-            stream.ask_stop(channel().0);
-            keep_for_the_life_of_the_process(Some(output), Some(queue));
-            Err(CaptureError::Timeout {
-                stage: "start_capture",
-                ms: SCREEN_START_WAIT.as_millis() as u64,
-            })
-        }
-    }
+    let (output, queue) = start_on(&stream, output, queue, SCREEN_START_WAIT)?;
+    let rebuild = RebuildCell {
+        stream: stream.clone(),
+        display: ids[index],
+        selection,
+        foreground,
+        facts,
+        plan: RebuildPlan::new(),
+    };
+    Ok((Box::new(stream), output, queue, Some(rebuild)))
 }
 
 impl CaptureSource for ScreenSource {
@@ -3702,6 +3745,175 @@ mod tests {
             weak.load().is_some(),
             "the output of the failed stop was let go with no report"
         );
+    }
+
+    /// A stand-in for a stream's start: the answer of the add, the start's
+    /// reply (`Some` sends it, `None` keeps the reply channel unanswered, and
+    /// a closed channel drops it), a second retain of the output, the stops
+    /// asked and the reply channel held.
+    struct StartStandIn {
+        add: Result<(), i64>,
+        start: Option<Option<i64>>,
+        close: bool,
+        output: RefCell<Option<Retained<ScreenOutput>>>,
+        stops: Cell<u32>,
+        held: RefCell<Option<Sender<Option<i64>>>>,
+    }
+
+    impl StartStandIn {
+        fn new(add: Result<(), i64>, start: Option<Option<i64>>, close: bool) -> Self {
+            Self {
+                add,
+                start,
+                close,
+                output: RefCell::new(None),
+                stops: Cell::new(0),
+                held: RefCell::new(None),
+            }
+        }
+    }
+
+    impl StopStream for StartStandIn {
+        fn ask_stop(&self, _reply: Sender<StopReply>) {
+            self.stops.set(self.stops.get() + 1);
+        }
+    }
+
+    impl StartStream for StartStandIn {
+        fn add_output(&self, output: &ScreenOutput, _queue: &DispatchQueue) -> Result<(), i64> {
+            *self.output.borrow_mut() = Some(objc2::Message::retain(output));
+            self.add
+        }
+
+        fn ask_start(&self, reply: Sender<Option<i64>>) {
+            match self.start {
+                Some(answer) => {
+                    reply.send(answer).ok();
+                }
+                None if self.close => drop(reply),
+                None => *self.held.borrow_mut() = Some(reply),
+            }
+        }
+    }
+
+    const START_WAIT_IN_TESTS: Duration = Duration::from_millis(300);
+
+    /// Starts the stand-in with a new output and queue: the answer, the
+    /// writer of the output's sink, a weak reference of the output, whether
+    /// the queue was finalized within 1 s, and the time of the start.
+    fn failed_start(
+        stand_in: &StartStandIn,
+    ) -> (
+        Result<(), CaptureError>,
+        SinkWriter,
+        Weak<ScreenOutput>,
+        std::sync::mpsc::Receiver<()>,
+        Duration,
+    ) {
+        use dispatch2::DispatchObject;
+        let (handle, writer) = sink::channel(8);
+        let (_fg_writer, reader) = in_front_for_test();
+        let output = ScreenOutput::new(frames_of(handle, reader));
+        let weak = Weak::from_retained(&output);
+        let queue = DispatchQueue::new("start-stand-in", None);
+        let (gone, freed) = channel::<()>();
+        queue.set_finalizer(move || {
+            gone.send(()).ok();
+        });
+        let started = Instant::now();
+        let answer = start_on(stand_in, output, queue, START_WAIT_IN_TESTS).map(|_| ());
+        (answer, writer, weak, freed, started.elapsed())
+    }
+
+    fn sink_disconnected(writer: &SinkWriter) -> bool {
+        writer
+            .recv_timeout(Duration::from_secs(1))
+            .map(|r| r.event().modality)
+            == Err(RecvTimeoutError::Disconnected)
+    }
+
+    #[test]
+    fn a_failed_add_of_the_output_answers_its_stage_and_lets_the_output_and_the_queue_go() {
+        let stand_in = StartStandIn::new(Err(-3802), Some(None), false);
+        let (answer, writer, weak, freed, _took) = failed_start(&stand_in);
+        assert_eq!(
+            answer,
+            Err(CaptureError::Os {
+                stage: "add_stream_output",
+                domain: "ScreenCaptureKit",
+                code: -3802
+            })
+        );
+        assert!(
+            sink_disconnected(&writer),
+            "the sink is held while the stand-in holds the output"
+        );
+        assert_eq!(stand_in.stops.get(), 0, "a stop was asked");
+        drop(stand_in);
+        assert!(weak.load().is_none(), "the output was kept");
+        assert!(
+            freed.recv_timeout(Duration::from_secs(1)).is_ok(),
+            "the queue was kept"
+        );
+    }
+
+    #[test]
+    fn a_start_error_answers_its_stage_and_lets_the_output_and_the_queue_go() {
+        let stand_in = StartStandIn::new(Ok(()), Some(Some(-3805)), false);
+        let (answer, writer, weak, freed, _took) = failed_start(&stand_in);
+        assert_eq!(
+            answer,
+            Err(CaptureError::Os {
+                stage: "start_capture",
+                domain: "ScreenCaptureKit",
+                code: -3805
+            })
+        );
+        assert!(
+            sink_disconnected(&writer),
+            "the sink is held while the stand-in holds the output"
+        );
+        assert_eq!(stand_in.stops.get(), 0, "a stop was asked");
+        drop(stand_in);
+        assert!(weak.load().is_none(), "the output was kept");
+        assert!(
+            freed.recv_timeout(Duration::from_secs(1)).is_ok(),
+            "the queue was kept"
+        );
+    }
+
+    #[test]
+    fn a_start_with_no_answer_waits_its_wait_asks_a_stop_and_keeps_the_output_and_the_queue() {
+        for (close, what) in [
+            (false, "no answer"),
+            (true, "a reply channel closed unanswered"),
+        ] {
+            let stand_in = StartStandIn::new(Ok(()), None, close);
+            let (answer, writer, weak, freed, took) = failed_start(&stand_in);
+            assert_eq!(
+                answer,
+                Err(CaptureError::Timeout {
+                    stage: "start_capture",
+                    ms: START_WAIT_IN_TESTS.as_millis() as u64
+                }),
+                "{what}"
+            );
+            assert!(
+                took >= START_WAIT_IN_TESTS,
+                "{what}: Timeout after {took:?}, before the wait had run"
+            );
+            assert_eq!(stand_in.stops.get(), 1, "{what}: the stops asked");
+            assert!(
+                sink_disconnected(&writer),
+                "{what}: the kept output holds its sink"
+            );
+            drop(stand_in);
+            assert!(weak.load().is_some(), "{what}: the output was let go");
+            assert!(
+                freed.recv_timeout(Duration::from_millis(500)).is_err(),
+                "{what}: the queue was let go"
+            );
+        }
     }
 
     #[test]
