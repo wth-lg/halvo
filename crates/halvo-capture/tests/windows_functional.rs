@@ -5688,10 +5688,13 @@ fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
         env_report("classes");
         source_built_by_test("classes", "keyboard");
         let (sink, events) = capture(4096);
-        let _fields = FieldWindow::open(
-            "one_key_of_each_class_gives_one_keystroke_record_of_each_class",
-            Field::Plain,
-        );
+        let mut child = spawn_child("hold", 14);
+        let began = Instant::now();
+        let mut held_in_front = false;
+        while !held_in_front && began.elapsed() < Duration::from_secs(15) {
+            pump_thread(Duration::from_millis(100));
+            held_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
+        }
         let mut keyboard =
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
@@ -5701,15 +5704,18 @@ fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
             &[VIRTUAL_KEY(0x08)],
             &[VIRTUAL_KEY(0x25)],
             &[VIRTUAL_KEY(0x0D)],
-            &[VIRTUAL_KEY(0x09)],
             &[VIRTUAL_KEY(0x11), VIRTUAL_KEY(0x41)],
+            &[VIRTUAL_KEY(0x09)],
         ];
         let mut accepted = 0;
         for keys in presses {
             accepted += key_press(keys);
         }
         let seen = events.drain_for(Duration::from_secs(2));
+        let still_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
         let _ = stop_counted(&mut keyboard, "keyboard");
+        let _ = child.wait();
+        child.print_output();
         let classes: Vec<KeyClass> = payloads(&seen)
             .into_iter()
             .filter_map(|payload| match payload {
@@ -5730,13 +5736,18 @@ fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
         say(
             "classes",
             format!(
-                "keyboard_start={} sendinput_key_events_accepted={accepted} keystroke_events={} {}",
+                "keyboard_start={} held_in_front={held_in_front} still_in_front={still_in_front} \
+                 sendinput_key_events_accepted={accepted} keystroke_events={} {}",
                 show(&start),
                 count(&seen, Modality::Keystroke),
                 each.join(" ")
             ),
         );
         assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            held_in_front && still_in_front,
+            "INCONCLUSIVE: the child's window with its plain edit was not in front"
+        );
         assert_eq!(
             accepted, 14,
             "INCONCLUSIVE: SendInput did not insert every key"
@@ -5763,6 +5774,10 @@ fn pointer_events_fold_into_one_record_for_each_class_and_interval() {
         env_report("folds");
         source_built_by_test("folds", "pointer");
         let (sink, events) = capture(8192);
+        let cover = TestWindow::create(&magenta_popup("HalvoVerifyFolds", "halvo-verify-folds"))
+            .expect("covering window");
+        cover.cover_screen();
+        pump_thread(Duration::from_millis(500));
         let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
         let start = pointer.begin(SourceContext::new(sink.clone()));
         let _ = events.drain_for(Duration::from_secs(1));
@@ -5789,6 +5804,9 @@ fn pointer_events_fold_into_one_record_for_each_class_and_interval() {
             mouse(MOUSEEVENTF_LEFTUP, 0, 0),
         ]);
         let third = events.drain_for(Duration::from_millis(2_500));
+        let covered = cover.is_foreground();
+        pump_thread(Duration::from_millis(100));
+        drop(cover);
         let _ = stop_counted(&mut pointer, "pointer");
         let moves_first = folds(&first, FoldClass::Move);
         let drags = folds(&second, FoldClass::Drag);
@@ -5800,7 +5818,7 @@ fn pointer_events_fold_into_one_record_for_each_class_and_interval() {
         say(
             "folds",
             format!(
-                "pointer_start={} sendinput_move_events_accepted={moved} \
+                "pointer_start={} cover_window_was_foreground={covered} sendinput_move_events_accepted={moved} \
                  move_records={moves_first:?} pointer_events={} second_accepted={second_sent} \
                  clicks={} drag_records={drags:?} scroll_records={scrolls:?} \
                  move_records_of_the_second={moves_second:?} third_accepted={third_sent} \
@@ -5839,7 +5857,7 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
             source_built_by_test("tree", source);
         }
         let (sink, events) = capture(8192);
-        let mut root = spawn_child("root", 8);
+        let mut root = spawn_child("root", 14);
         let floor = FloorHandle::new(
             Some(ProcessId::new(root.id())),
             Arc::new(ProcessLineage::new()),
@@ -5859,7 +5877,7 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
         ];
         let began = Instant::now();
         let mut held_in_front = false;
-        while !held_in_front && began.elapsed() < Duration::from_secs(5) {
+        while !held_in_front && began.elapsed() < Duration::from_secs(15) {
             pump_thread(Duration::from_millis(100));
             held_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
         }
