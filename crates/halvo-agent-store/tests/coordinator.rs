@@ -754,6 +754,12 @@ fn list_overlaps_names_each_other_live_agent_with_the_senders_that_it_shares_in_
         ))
     );
     assert_eq!(held(&store), before);
+
+    let mut store = ten_revisions();
+    let ann = overlaps(&[(2, 2, &["ann@people.test"])], "no");
+    assert_eq!(list_overlaps(&mut store, 1, json!(null)), Ok(ann.clone()));
+    let unstored = reply_slots(Some(ME), Some("ann@people.test"));
+    assert_eq!(list_overlaps(&mut store, 3, unstored), Ok(ann));
 }
 
 #[test]
@@ -798,6 +804,27 @@ fn created(agents: &[u32]) -> MemoryStore {
     store
 }
 
+fn ten_revisions() -> MemoryStore {
+    let mut store = created(&[1, 2, 3]);
+    let ann = reply_slots(Some(ME), Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 2, ann), Ok(rev(1)));
+    assert_eq!(move_to(&mut store, 2, "paused"), Ok(state_reply("paused")));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    for n in 1..=10 {
+        let slots = match n {
+            1 => reply_slots(Some(ME), None),
+            10 => reply_slots(None, Some("ann@people.test")),
+            _ => reply_slots(None, Some("carl@people.test")),
+        };
+        assert_eq!(set_bindings(&mut store, 1, slots), Ok(rev(n)), "{n}");
+    }
+    assert_eq!(move_to(&mut store, 2, "active"), Ok(state_reply("active")));
+    store.put_workflow(workflow(&wf(8), "email", "approved", None));
+    let elsewhere = reply_slots(Some(ME), Some("zed@other.test"));
+    put_bindings(&mut store, 8, 1, 20, elsewhere);
+    store
+}
+
 #[test]
 fn set_bindings_that_would_overlap_a_live_agent_is_refused_with_overlap_and_stores_nothing() {
     let mut store = created(&[1, 2, 3]);
@@ -838,6 +865,11 @@ fn set_bindings_that_would_overlap_a_live_agent_is_refused_with_overlap_and_stor
     assert_eq!(move_to(&mut store, 1, "active"), Ok(state_reply("active")));
     refused(&mut store, 2, reply_slots(Some(ME), None));
     assert_eq!(bindings(&store).len(), 3);
+
+    let mut store = ten_revisions();
+    refused(&mut store, 1, json!([slot("signature", "Ann")]));
+    let carl = reply_slots(None, Some("carl@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, carl), Ok(rev(11)));
 }
 
 #[test]
@@ -952,6 +984,20 @@ fn set_state_to_approved_or_active_of_an_agent_that_overlaps_a_live_agent_is_ref
     }
     assert_eq!(move_to(&mut store, 2, "active"), Err(declared("overlap")));
     assert_eq!(state_of(&store, 2), (WorkflowState::Paused, Some(agent(2))));
+
+    let mut store = ten_revisions();
+    for target in ["active", "approved"] {
+        assert_eq!(
+            move_to(&mut store, 1, target),
+            Err(declared("overlap")),
+            "{target}"
+        );
+        assert_eq!(
+            state_of(&store, 1),
+            (WorkflowState::Paused, Some(agent(1))),
+            "{target}"
+        );
+    }
 }
 
 #[test]
