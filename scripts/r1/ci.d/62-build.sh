@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no system call that holds secure input in either built macOS executable as read by dyld_info regardless of build flags or the CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (Windows has no import check), and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the workspace manifest and Cargo configuration paths).
+# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which is empty (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no system call that holds secure input in either built macOS executable as read by dyld_info regardless of build flags or CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (Windows has no import check), and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the workspace manifest and Cargo configuration paths).
 set -u
 name=62-build
 forbidden_import=_EnableSecureEventInput
@@ -167,14 +167,18 @@ run_call() {
 
 file_rules() {
   git ls-files --error-unmatch -- Cargo.toml >/dev/null 2>&1 || fail "the workspace Cargo.toml must be tracked"
-  python=python3
-  if command -v python3.11 >/dev/null 2>&1; then python=python3.11; fi
+  python=
+  for candidate in python3.11 python3 python; do
+    if "$candidate" -I -c 'import tomllib' >/dev/null 2>&1; then
+      python=$candidate
+      break
+    fi
+  done
+  [ -n "$python" ] || fail "reading Cargo.toml requires Python 3.11 or later"
   found=$("$python" -I - 2>&1 <<'PY'
 import sys
-try:
-    import tomllib
-except ImportError:
-    sys.exit("reading Cargo.toml requires Python 3.11 or later")
+import tomllib
+
 try:
     with open("Cargo.toml", "rb") as manifest:
         release = tomllib.load(manifest).get("profile", {}).get("release", {})
