@@ -226,34 +226,71 @@ const KEY_REFUSAL: &str =
 /// The closed list of SQLCipher's own log lines that stand before KEY_REFUSAL on Windows, each after the library's
 /// time stamp, as sqlcipher-src 419.0.6+sqlcipher-4.19.0 writes them for a key that does not open the store
 /// (sqlcipher/sqlcipher.c): the texts at lines 112591, 114343 and 112257, with page 1, SQLITE_ERROR (1) and lock 0;
-/// the words ERROR and CORE at line 113474; the stamp and the line end at lines 113510 and 113511, which the text
-/// mode of Windows's standard error writes as CRLF. The library's default target is standard error on Windows and the
-/// device log on Apple systems (lines 111284 to 111302), so no other system prints them. A line that is one of the
-/// forms has no free field.
+/// the words ERROR and CORE at line 113474; the stamp and the line end at lines 113510 and 113511, the line end CRLF
+/// on the hosted Windows runner. The library's default target is the device log on Android and Apple systems and
+/// standard error on every other platform (lines 111284 to 111302). What varies in a line of the list is its time
+/// stamp alone, in its fixed form: seventeen digits, each any digit (a month 99 passes), between separators that stand
+/// fixed. The reading takes form lines in any number and in any order before the refusal line; on Windows the test
+/// holds that the second command printed three of them, as every key case of the hosted runs 3 and 5 printed three.
 const SQLCIPHER_FORMS: [&str; 3] = [
     ": ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1\r\n",
     ": ERROR CORE sqlite3Codec: error decrypting page 1 data: 1\r\n",
     ": ERROR CORE sqlcipher_codec_ctx_set_error: 1 lock=0\r\n",
 ];
 
-/// The rest of LINE after a time stamp of the library's fixed form (strftime's "%Y-%m-%d %H:%M:%S", then a full stop
-/// and three digits of the millisecond), or None.
-fn after_stamp(line: &str) -> Option<&str> {
+/// The bytes of LINE after a time stamp of the library's fixed form (strftime's "%Y-%m-%d %H:%M:%S", then a full stop
+/// and three digits of the millisecond), or None. It reads bytes and never cuts the text, so no line makes it panic.
+fn after_stamp(line: &str) -> Option<&[u8]> {
     let form = b"dddd-dd-dd dd:dd:dd.ddd";
-    let stamp = line.as_bytes().get(..form.len())?;
-    let fits = stamp.iter().zip(form).all(|(byte, want)| {
-        if *want == b'd' {
-            byte.is_ascii_digit()
-        } else {
-            byte == want
-        }
-    });
-    fits.then_some(&line[form.len()..])
+    let bytes = line.as_bytes();
+    let fits = bytes
+        .get(..form.len())?
+        .iter()
+        .zip(form)
+        .all(|(byte, want)| {
+            if *want == b'd' {
+                byte.is_ascii_digit()
+            } else {
+                byte == want
+            }
+        });
+    if fits {
+        bytes.get(form.len()..)
+    } else {
+        None
+    }
 }
 
-/// Reads the standard error ERR of a command that the key refused, on Windows when WINDOWS holds: the last line is
-/// exactly KEY_REFUSAL; on Windows every line before it is a time stamp and one form of SQLCIPHER_FORMS, and on every
-/// other system no line stands before it. The fault names a line by its place and its length alone, never by its text.
+/// The four sentences of read_key_refusal's faults, with `#` in each place of a number.
+const FAULT_SHAPES: [&str; 4] = [
+    "standard error is empty",
+    "line # of #, # bytes, is not the refusal line",
+    "lines before the refusal line: #, where none may stand on this system",
+    "line # of #, # bytes, is no form of the list",
+];
+
+/// FAULT with each run of ASCII digits put as one `#`.
+fn shape(fault: &str) -> String {
+    let mut out = String::new();
+    let mut in_number = false;
+    for c in fault.chars() {
+        if c.is_ascii_digit() {
+            if !in_number {
+                out.push('#');
+            }
+            in_number = true;
+        } else {
+            out.push(c);
+            in_number = false;
+        }
+    }
+    out
+}
+
+/// Reads the standard error ERR of a command that the key refused, read as on Windows when WINDOWS holds: the last line
+/// is exactly KEY_REFUSAL; when WINDOWS holds, every line before it is a time stamp and one form of SQLCIPHER_FORMS,
+/// and otherwise no line may stand before it on this system. The fault is one of the sentences of FAULT_SHAPES, with
+/// numbers alone for a line's place, the count of lines and a line's length, never a text of ERR.
 fn read_key_refusal(err: &str, windows: bool) -> Result<(), String> {
     let lines: Vec<&str> = err.split_inclusive('\n').collect();
     let Some((last, before)) = lines.split_last() else {
@@ -269,12 +306,14 @@ fn read_key_refusal(err: &str, windows: bool) -> Result<(), String> {
     }
     if !windows && !before.is_empty() {
         return Err(format!(
-            "lines before the refusal line: {}, where only Windows prints the library's log",
+            "lines before the refusal line: {}, where none may stand on this system",
             before.len()
         ));
     }
     for (at, line) in before.iter().enumerate() {
-        if !after_stamp(line).is_some_and(|rest| SQLCIPHER_FORMS.contains(&rest)) {
+        if !after_stamp(line)
+            .is_some_and(|rest| SQLCIPHER_FORMS.iter().any(|form| form.as_bytes() == rest))
+        {
             return Err(format!(
                 "line {} of {}, {} bytes, is no form of the list",
                 at + 1,
@@ -327,7 +366,7 @@ fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_o
     let decimal: Vec<String> = key.iter().map(u8::to_string).collect();
     let form = windows_lines[0].trim_end_matches("\r\n");
     let added = |text: &str| format!("{form} {text}\r\n");
-    let stand_ins: Vec<(u32, String)> = [
+    let mut stand_ins: Vec<(u32, String)> = [
         (1, added("3f")),
         (2, added(&base64(&key))),
         (3, added(&decimal.join(" "))),
@@ -350,10 +389,23 @@ fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_o
             16,
             "REFUSED store: the derived store does not open\n".to_owned(),
         ),
+        (
+            17,
+            format!("2026-11-19 18:54:08.55\u{e9}{}", SQLCIPHER_FORMS[0]),
+        ),
     ]
     .into_iter()
     .map(|(number, first)| (number, with_first(&first)))
     .collect();
+    let forms_alone = windows_lines.concat();
+    stand_ins.extend([
+        (18, forms_alone.clone()),
+        (19, seen_on_windows.trim_end_matches('\n').to_owned()),
+        (
+            20,
+            format!("{forms_alone}REFUSED store: the derived store is not in this build\n"),
+        ),
+    ]);
     let let_through: Vec<u32> = stand_ins
         .iter()
         .filter(|(_, err)| read_key_refusal(err, true).is_ok())
@@ -363,8 +415,21 @@ fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_o
         let_through.is_empty(),
         "the reading lets these stand-ins through: {let_through:?}"
     );
+    let off_shape: Vec<u32> = stand_ins
+        .iter()
+        .filter(|(_, err)| match read_key_refusal(err, true) {
+            Err(fault) => !FAULT_SHAPES.contains(&shape(&fault).as_str()),
+            Ok(()) => false,
+        })
+        .map(|(number, _)| *number)
+        .collect();
     assert!(
-        read_key_refusal(&seen_on_windows, false).is_err(),
+        off_shape.is_empty(),
+        "the fault of these stand-ins is none of the reading's sentences: {off_shape:?}"
+    );
+    assert_eq!(
+        read_key_refusal(&seen_on_windows, false).map_err(|fault| shape(&fault)),
+        Err(FAULT_SHAPES[2].to_owned()),
         "on a system other than Windows no line may stand before the refusal line"
     );
 
@@ -397,6 +462,13 @@ fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_o
     if let Err(fault) = read_key_refusal(&err, cfg!(windows)) {
         panic!(
             "each command makes a key of its own, so the second does not open the first one's store: {fault}"
+        );
+    }
+    if cfg!(windows) {
+        assert_eq!(
+            err.split_inclusive('\n').count() - 1,
+            3,
+            "the form lines before the refusal line, where every key case of the hosted runs 3 and 5 printed 3"
         );
     }
 }
