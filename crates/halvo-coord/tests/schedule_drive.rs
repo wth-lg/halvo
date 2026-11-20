@@ -3368,3 +3368,135 @@ fn u24e_a_stale_skip_of_a_queued_agent_keeps_the_open_check_that_its_read_brough
         w.facts(0).doing
     );
 }
+
+fn take_back(w: &mut World, n: usize) -> Report {
+    w.go(Move::TakeBack { agent: agent(n) })
+}
+
+fn port_calls(w: &World) -> usize {
+    w.ports.tried.borrow().len()
+}
+
+#[test]
+fn u24e_a_take_back_drops_the_queued_start_stores_no_hold_and_the_agent_asks_again() {
+    let mut w = world(&[person(), manual()]);
+    assert_eq!(w.tick().raised, vec![agent(0)]);
+    let other = ok_run(&w.start(1));
+    assert_eq!(w.start(0).answer, Ok(Answer::Queued));
+    let rows = w.stored().len();
+    let calls = port_calls(&w);
+    let r = take_back(&mut w, 0);
+    assert_eq!(r.answer, Ok(Answer::Ok), "{r:?}");
+    assert_eq!(r.dropped, vec![agent(0)], "{r:?}");
+    assert!(
+        r.stopped.is_empty() && r.started.is_empty() && r.next.is_empty(),
+        "{r:?}"
+    );
+    assert_eq!(r.read, None, "no read of the clock");
+    assert_eq!(port_calls(&w), calls, "no port is called");
+    assert_eq!(w.stored().len(), rows, "no row is stored");
+    assert!(w.board.queue.is_empty(), "the start left the queue");
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    assert!(holds(w.facts(0)).is_empty(), "no hold stands");
+    let end = w.end(&other, Some(Outcome::Completed));
+    assert!(
+        end.ended[0].next.is_empty(),
+        "the end takes no start: {end:?}"
+    );
+    assert_eq!(
+        w.tick().raised,
+        vec![agent(0)],
+        "the agent stays on and a later tick asks again (I5.3, ruling RD-55 (b))"
+    );
+}
+
+#[test]
+fn u24e_a_take_back_of_the_schedulers_start_stores_no_skip_so_a_later_tick_starts_its_due_slot() {
+    let mut w = world(&[manual(), AUTO]);
+    let other = ok_run(&w.start(0));
+    w.tick();
+    assert!(
+        w.board.queue.holds(&agent(1)),
+        "the scheduler queued its start"
+    );
+    let r = take_back(&mut w, 1);
+    assert_eq!((r.answer, r.dropped), (Ok(Answer::Ok), vec![agent(1)]));
+    assert_eq!(count(&w.stored(), "slot_skipped"), 0, "no slot is skipped");
+    let end = w.end(&other, Some(Outcome::Completed));
+    assert!(
+        end.ended[0].next.is_empty(),
+        "the end takes no start: {end:?}"
+    );
+    let tick = w.tick();
+    assert_eq!(
+        tick.started
+            .iter()
+            .map(|s| (s.agent.clone(), s.answer, s.run.is_some()))
+            .collect::<Vec<_>>(),
+        vec![(agent(1), Ok(Answer::Ok), true)],
+        "its slot stays open by I5.3's own rule (ruling RD-52 (d)): {tick:?}"
+    );
+}
+
+#[test]
+fn u24e_a_take_back_after_the_run_started_changes_nothing_as_a_stop_from_a_page_that_is_behind() {
+    let mut w = world(&[manual(), manual()]);
+    let first = ok_run(&w.start(0));
+    assert_eq!(w.start(1).answer, Ok(Answer::Queued));
+    let end = w.end(&first, Some(Outcome::Completed));
+    let run = end.ended[0].next[0]
+        .run
+        .clone()
+        .expect("the end started it");
+    let rows = w.stored().len();
+    let calls = port_calls(&w);
+    let r = take_back(&mut w, 1);
+    assert_eq!(r.answer, Ok(Answer::Ok), "{r:?}");
+    assert!(r.dropped.is_empty() && r.stopped.is_empty(), "{r:?}");
+    assert_eq!(port_calls(&w), calls, "no cancel and no other call");
+    assert_eq!(w.stored().len(), rows, "no row is stored");
+    assert_eq!(w.run_of(1), run);
+    assert!(
+        w.board.runs.iter().all(|r| r.stop.is_none()),
+        "the run goes on"
+    );
+    assert!(matches!(w.facts(1).doing, Doing::Live(_)));
+}
+
+#[test]
+fn u24e_a_take_back_reads_no_port_and_answers_ok_where_no_start_waits() {
+    let mut w = world(&[manual(), manual()]);
+    let live = ok_run(&w.start(0));
+    assert_eq!(w.start(1).answer, Ok(Answer::Queued));
+    w.clock(halvo_coord::ports::Stamp::LAST + 1, DAY);
+    for method in [
+        Method::History,
+        Method::Workflows,
+        Method::Agents,
+        Method::Log,
+        Method::Send,
+        Method::Cancel,
+    ] {
+        w.ports.refuse(method, PortError::NoService);
+    }
+    let calls = port_calls(&w);
+    let r = take_back(&mut w, 1);
+    assert_eq!(
+        (r.answer, r.dropped, r.unstamped),
+        (Ok(Answer::Ok), vec![agent(1)], false),
+        "no clock and no owner answer, and the start still leaves the queue"
+    );
+    let again = take_back(&mut w, 1);
+    assert_eq!((again.answer, again.dropped), (Ok(Answer::Ok), Vec::new()));
+    let running = take_back(&mut w, 0);
+    assert_eq!(
+        (running.answer, running.dropped, running.stopped),
+        (Ok(Answer::Ok), Vec::new(), Vec::new())
+    );
+    assert_eq!(port_calls(&w), calls, "no port is called");
+    assert_eq!(w.run_of(0), live);
+    assert_eq!(
+        w.go(Move::TakeBack { agent: agent(7) }).answer,
+        Err(Cause::UnknownAgent)
+    );
+}
