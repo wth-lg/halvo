@@ -1614,10 +1614,16 @@ impl Db {
     }
 
     /// The second instant of the log's check, at the first commit of a
-    /// handle whose open wrote nothing: the log in the store directory holds
-    /// the commit's frames, or the answer is the obstructed variant.
-    pub(in crate::store) fn look_after_the_first_commit(&self) -> StoreResult<()> {
-        if self.log_written.get() || self.conn.total_changes() == 0 {
+    /// handle whose open wrote nothing and whose statements changed a row:
+    /// the log in the store directory holds the commit's frames, or the
+    /// answer is the obstructed variant. `changes_before` is the connection's
+    /// count of changed rows before that commit's transaction began, so that
+    /// rows of a transaction that rolled back do not count.
+    pub(in crate::store) fn look_after_the_first_commit(
+        &self,
+        changes_before: u64,
+    ) -> StoreResult<()> {
+        if self.log_written.get() || self.conn.total_changes() == changes_before {
             return Ok(());
         }
         self.log_look()?;
@@ -1712,6 +1718,7 @@ impl Db {
         sizes: (u64, u64),
         kinds: &[KindTotal<'_>],
     ) -> StoreResult<Ordinal> {
+        let changes_before = self.conn.total_changes();
         let tx = self.conn.unchecked_transaction().map_err(db_error)?;
         tx.execute(
             "INSERT INTO segment_keys (segment_id, wrapped_key, day, first_capture, last_capture, \
@@ -1745,7 +1752,7 @@ impl Db {
         }
         failpoint::hit("batch_in_the_transaction")?;
         tx.commit().map_err(db_error)?;
-        self.look_after_the_first_commit()?;
+        self.look_after_the_first_commit(changes_before)?;
         Ok(Ordinal::of_row(ordinal))
     }
 

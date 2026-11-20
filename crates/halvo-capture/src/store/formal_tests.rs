@@ -2168,6 +2168,19 @@ fn no_failed_or_refused_move_leaves_a_half_store_in_a_fixed_order() {
 }
 
 #[test]
+fn a_failed_batch_on_a_reopened_handle_leaves_the_next_shred_pass_open() {
+    let moves = [Op::Reopen, Op::FailedWrite, Op::ShredExpired];
+    let dir = tempfile::tempdir().expect("a temp dir for the store");
+    let mut harness = Harness::create(dir.path());
+    hold(harness.check());
+    for (at, op) in moves.iter().enumerate() {
+        if let Err(failure) = harness.apply(op).and_then(|()| harness.check()) {
+            panic!("at move {} of {}, {op:?}: {failure}", at + 1, moves.len());
+        }
+    }
+}
+
+#[test]
 fn no_key_of_a_shredded_segment_is_left_when_three_in_four_expire_in_one_pass() {
     let dir = tempfile::tempdir().expect("a temp dir for the store");
     let mut harness = Harness::create(dir.path());

@@ -122,6 +122,7 @@ impl EncryptedStore {
 
     pub(in crate::store) fn destroy_segment_keys(&self, ids: &[Uuid]) -> StoreResult<u64> {
         let db = self.db()?;
+        let changes_before = db.connection().total_changes();
         let tx = db.connection().unchecked_transaction().map_err(db_error)?;
         let mut shredded = 0;
         for segment_id in ids {
@@ -130,7 +131,7 @@ impl EncryptedStore {
             }
         }
         tx.commit().map_err(db_error)?;
-        db.look_after_the_first_commit()?;
+        db.look_after_the_first_commit(changes_before)?;
         db.checkpoint_truncate()?;
         Ok(shredded)
     }
