@@ -2399,7 +2399,7 @@ This file describes the checks of the commit that holds it. Two runs keep
 that true for each merged commit, and neither needs a commit id that a
 squash merge would change:
 
-- On each pull request and each push, `scripts/r1/ci.d/30-mutants.sh` runs
+- In every run of the CI workflow, `scripts/r1/ci.d/30-mutants.sh` runs
   `sh scripts/r1-gate/mutation-test.sh --apply-only`, which applies each
   row that a run would apply here, the `formal-` rows among them, and
   compiles each mutant, except a row on code that the macOS build does not
@@ -2410,7 +2410,7 @@ squash merge would change:
   name another row file
   holds prints MOVED and is not applied. A covered function that changes
   shape under its row fails that run: the substitution no longer applies.
-- On each pull request and each push, `scripts/r1/ci.d/30-formal-covered.sh`
+- In every run of the CI workflow, `scripts/r1/ci.d/30-formal-covered.sh`
   runs `sh docs/verify/check-covered.sh`, and `12-test` runs the eight tests.
 
 On each push to main, `30-mutants.sh` also runs, in the full mode, the
