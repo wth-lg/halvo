@@ -825,7 +825,8 @@ where
         owed: board
             .owed
             .iter()
-            .any(|o| o.agent == agent && matches!(o.what, Owing::RunEnded { .. })),
+            .any(|o| o.agent == agent && matches!(o.what, Owing::RunEnded { .. }))
+            || board.alive_at_reap(&agent).is_some(),
     };
     let steps = |facts: &mut Facts<C>| {
         let kept = facts.store_ended;

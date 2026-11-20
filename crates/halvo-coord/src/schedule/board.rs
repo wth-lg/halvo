@@ -322,17 +322,20 @@ impl<C> Board<C> {
             .collect();
     }
 
-    /// The agent's newest run, where this life's `Runs::reap` answered `alive` for it and no
-    /// record of the agent store names it: a run of an earlier life that outlived that life, whose
-    /// task may still run (I5.8; ruling RD-147 (5)(i)). None for an agent that is no member.
+    /// The agent's newest run among those for which this life's `Runs::reap` answered `alive`
+    /// and that no record of the agent store names, whatever newer run another writer added: a
+    /// run of an earlier life that outlived that life, whose task may still run (I5.8; rulings
+    /// RD-147 (5)(i), RD-151 (b)). None for an agent that is no member.
     pub fn alive_at_reap(&self, agent: &AgentId) -> Option<&RunId> {
         let facts = &self.members[self.index(agent)?].facts;
-        let newest = facts.events.iter().rev().find_map(|e| match &e.what {
-            crate::types::What::RunStarted { run, .. } => Some(run),
+        facts.events.iter().rev().find_map(|e| match &e.what {
+            crate::types::What::RunStarted { run, .. }
+                if self.alive.contains(run) && !facts.runs.iter().any(|r| &r.run == run) =>
+            {
+                Some(run)
+            }
             _ => None,
-        })?;
-        (self.alive.contains(newest) && !facts.runs.iter().any(|r| &r.run == newest))
-            .then_some(newest)
+        })
     }
 
     /// Whether this life's `Runs::reap` answered `alive` for the run, for which no `end_run` is
