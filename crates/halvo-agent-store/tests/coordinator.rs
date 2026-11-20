@@ -688,6 +688,21 @@ fn list_overlaps_names_each_other_live_agent_with_the_senders_that_it_shares_in_
         "active",
         reply_slots(None, Some("ann@people.test")),
     );
+    let older = reply_slots(Some(ME), Some("dora@people.test"));
+    other_agent(&mut store, 11, "active", older);
+    let newer = reply_slots(Some(ME), Some("erik@people.test"));
+    put_bindings(&mut store, 11, 11, 2, newer);
+    store.put_workflow(workflow(&wf(12), "email", "active", Some(&agent(12))));
+    let newer = reply_slots(Some(ME), Some("bob@people.test"));
+    put_bindings(&mut store, 12, 12, 10, newer);
+    let older = reply_slots(Some(ME), Some("erik@people.test"));
+    put_bindings(&mut store, 12, 12, 9, older);
+    other_agent(
+        &mut store,
+        13,
+        "active",
+        reply_slots(None, Some("ANN@people.test")),
+    );
     let held = |store: &MemoryStore| (every_row(store), state_of(store, 1), state_of(store, 6));
     let before = held(&store);
 
@@ -696,6 +711,7 @@ fn list_overlaps_names_each_other_live_agent_with_the_senders_that_it_shares_in_
             (2, 2, &["Ann@People.test"]),
             (3, 3, &["Ann@People.test", "bob@people.test"]),
             (6, 7, &["dora@people.test"]),
+            (12, 12, &["bob@people.test"]),
         ],
         "no",
     );
@@ -732,7 +748,10 @@ fn list_overlaps_names_each_other_live_agent_with_the_senders_that_it_shares_in_
     );
     assert_eq!(
         list_overlaps(&mut store, 3, json!(null)),
-        Ok(overlaps(&[(2, 2, &["ANN@people.test"])], "no"))
+        Ok(overlaps(
+            &[(2, 2, &["ANN@people.test"]), (12, 12, &["BOB@PEOPLE.TEST"])],
+            "no"
+        ))
     );
     assert_eq!(held(&store), before);
 }
@@ -852,6 +871,10 @@ fn set_bindings_passes_where_no_live_agent_overlaps() {
         assert_eq!(set_bindings(&mut store, 1, slots), Ok(rev(1)));
         passes(&mut store, shared.clone());
     }
+    let mut store = created(&[1, 2]);
+    let no_account = reply_slots(None, Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, no_account), Ok(rev(1)));
+    passes(&mut store, reply_slots(None, Some("ANN@people.test")));
     for why in [
         "paused",
         "not stored",
