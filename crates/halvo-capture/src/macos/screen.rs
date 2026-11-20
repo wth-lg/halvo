@@ -727,7 +727,7 @@ struct RebuildCell {
     plan: RebuildPlan,
 }
 
-impl RebuildCell {
+impl Tick for RebuildCell {
     fn tick(&mut self, now: Instant) {
         let (running, app) = running_pids(&self.selection.halvo);
         let in_front = self
@@ -747,7 +747,9 @@ impl RebuildCell {
         let lists_app = self.rebuild().unwrap_or(false);
         self.plan.tried(now, lists_app);
     }
+}
 
+impl RebuildCell {
     /// Builds the filter again against the stored display, or the display that
     /// the chooser takes when the stored one has left the list, and hands it to
     /// the stream. Whether the new filter lists Halvo's app.
@@ -781,24 +783,29 @@ impl RebuildCell {
     }
 }
 
+/// What a rebuild's timer works on at each tick.
+trait Tick {
+    fn tick(&mut self, now: Instant);
+}
+
 /// A rebuild's cell with the timer that holds its address. Its Drop
 /// invalidates the timer, and only then does the cell drop.
-struct Rebuild {
-    cell: Box<RebuildCell>,
+struct Rebuild<C: Tick = RebuildCell> {
+    cell: Box<C>,
     timer: Option<CFRunLoopTimer>,
 }
 
-impl Rebuild {
+impl<C: Tick> Rebuild<C> {
     /// Adds the timer to the run loop of the calling thread: the thread that
     /// began the source, which owns it, since a source is not Send.
-    fn start(cell: RebuildCell) -> Self {
+    fn start(cell: C) -> Self {
         let mut rebuild = Self {
             cell: Box::new(cell),
             timer: None,
         };
         let mut context = CFRunLoopTimerContext {
             version: 0,
-            info: (&mut *rebuild.cell as *mut RebuildCell).cast::<c_void>(),
+            info: (&mut *rebuild.cell as *mut C).cast::<c_void>(),
             retain: None,
             release: None,
             copyDescription: None,
@@ -809,7 +816,7 @@ impl Rebuild {
             tick,
             0,
             0,
-            rebuild_timer_fired,
+            rebuild_timer_fired::<C>,
             &mut context,
         );
         // SAFETY: `kCFRunLoopCommonModes` is a constant CFString that
@@ -820,7 +827,7 @@ impl Rebuild {
     }
 }
 
-impl Drop for Rebuild {
+impl<C: Tick> Drop for Rebuild<C> {
     fn drop(&mut self) {
         if let Some(timer) = self.timer.take() {
             // SAFETY: `timer` is a live timer; invalidating it removes it from
@@ -830,13 +837,13 @@ impl Drop for Rebuild {
     }
 }
 
-extern "C" fn rebuild_timer_fired(_timer: CFRunLoopTimerRef, info: *mut c_void) {
-    // SAFETY: `info` is the boxed RebuildCell of a Rebuild, whose box keeps it
-    // at one address and whose Drop invalidates this timer before the box
-    // drops. The timer fires on the run loop of the thread that owns the source,
-    // which touches the cell only to drop it, so no other reference to the cell
-    // is used while the callout runs.
-    let cell = unsafe { &mut *info.cast::<RebuildCell>() };
+extern "C" fn rebuild_timer_fired<C: Tick>(_timer: CFRunLoopTimerRef, info: *mut c_void) {
+    // SAFETY: `info` is the boxed cell of a Rebuild<C>, whose box keeps it at
+    // one address and whose Drop invalidates this timer before the box drops.
+    // The timer fires on the run loop of the thread that owns the source, which
+    // touches the cell only to drop it, so no other reference to the cell is
+    // used while the callout runs.
+    let cell = unsafe { &mut *info.cast::<C>() };
     cell.tick(Instant::now());
 }
 
@@ -1274,6 +1281,7 @@ mod tests {
     use crate::sink::{self, SinkWriter};
     use core_foundation::base::{CFGetRetainCount, CFRelease};
     use core_foundation::number::CFNumber;
+    use core_foundation::runloop::{kCFRunLoopDefaultMode, CFRunLoopTimerIsValid};
     use objc2::rc::{Allocated, Weak};
     use objc2_core_media::{CMSampleTimingInfo, CMTimeFlags};
     use std::cell::{Cell, RefCell};
@@ -3203,6 +3211,143 @@ mod tests {
         assert_eq!(asks.get(), 0, "the stream was asked to stop");
         assert_eq!(source.health().state, SourceState::Stopped(StopCause::User));
         assert!(sink_closed(handle, &writer));
+    }
+
+    #[test]
+    fn begin_hands_its_opener_the_floor_with_its_root_and_lineage_and_this_process_as_its_own_pid()
+    {
+        let (handle, _writer) = sink::channel(8);
+        let floor = FloorHandle::new(Some(ProcessId::new(500)), Arc::new(DeepTree), switches_on());
+        let mut source = source();
+        let seen = Rc::new(RefCell::new(None));
+        let opener: Opener = {
+            let seen = seen.clone();
+            Box::new(move |frames: FrameContext, selection: Selection, _cap| {
+                let probe = inactive();
+                let holds = |floor: &FloorHandle| {
+                    [500, 502, 903].map(|pid| {
+                        RootTree {
+                            floor,
+                            probe: &probe,
+                        }
+                        .holds(pid)
+                    })
+                };
+                *seen.borrow_mut() = Some((
+                    holds(&frames.rule.floor),
+                    frames.rule.floor.switches(),
+                    holds(&selection.floor),
+                    selection.floor.switches(),
+                    selection.own,
+                ));
+                Err(CaptureError::Start(
+                    "the checking opener opens nothing".into(),
+                ))
+            })
+        };
+        let begun = source.begin_with(&SourceContext::with_floor(handle, floor), opener);
+        assert!(begun.is_err());
+        let own = std::process::id() as libc::pid_t;
+        assert_eq!(
+            *seen.borrow(),
+            Some((
+                [true, true, false],
+                switches_on(),
+                [true, true, false],
+                switches_on(),
+                own
+            )),
+            "the frame rule's floor and the selection's floor: the root, a grandchild and a pid outside; the switches; the own pid"
+        );
+    }
+
+    #[test]
+    fn a_front_with_an_unknown_identity_whose_process_is_halvos_sibling_gives_no_record() {
+        let own = std::process::id() as libc::pid_t;
+        let path = executable_path(own).expect("the path of this process");
+        let mut taken = Vec::new();
+        for sibling in [path.as_str(), SIBLING] {
+            let (handle, writer) = sink::channel(8);
+            let (fg_writer, reader) = foreground_state_for_test();
+            fg_writer.set_for_test(Some(Foreground {
+                identity: crate::macos::foreground::AppIdentity::Unknown,
+                pid: own,
+            }));
+            let ivars = ScreenIvars {
+                sink: Mutex::new(Some(handle)),
+                rule: FrameRule {
+                    foreground: reader,
+                    floor: floor_on(),
+                    halvo: HalvoApp::with_sibling(sibling),
+                    probe: inactive(),
+                },
+                facts: Arc::default(),
+            };
+            on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+            taken.push(records(ivars, &writer));
+        }
+        assert_eq!(taken, [0, 1], "Halvo's sibling, then another sibling");
+    }
+
+    struct CountingCell;
+
+    thread_local! {
+        static TICKS: Cell<u32> = const { Cell::new(0) };
+    }
+
+    impl Tick for CountingCell {
+        fn tick(&mut self, _now: Instant) {
+            TICKS.with(|ticks| ticks.set(ticks.get() + 1));
+        }
+    }
+
+    extern "C" fn keeps_the_loop_running(_timer: CFRunLoopTimerRef, _info: *mut c_void) {}
+
+    /// Turns the run loop of this thread for `time`, with a timer that does not
+    /// fire in that time, so that the loop runs the whole time; how long it ran.
+    fn turn_the_run_loop(time: Duration) -> Duration {
+        let keep = CFRunLoopTimer::new(
+            CFDate::now().abs_time() + 3600.0,
+            0.0,
+            0,
+            0,
+            keeps_the_loop_running,
+            std::ptr::null_mut(),
+        );
+        // SAFETY: `kCFRunLoopCommonModes` is a constant CFString that
+        // CoreFoundation exports and never writes.
+        CFRunLoop::get_current().add_timer(&keep, unsafe { kCFRunLoopCommonModes });
+        let started = Instant::now();
+        // SAFETY: `kCFRunLoopDefaultMode` is a constant CFString that
+        // CoreFoundation exports and never writes.
+        CFRunLoop::run_in_mode(unsafe { kCFRunLoopDefaultMode }, time, false);
+        let ran = started.elapsed();
+        // SAFETY: `keep` is a live timer; invalidating it removes it from the
+        // run loop.
+        unsafe { CFRunLoopTimerInvalidate(keep.as_concrete_TypeRef()) };
+        ran
+    }
+
+    #[test]
+    fn a_dropped_rebuild_invalidates_its_timer_and_the_run_loop_makes_no_callout_after_it() {
+        let rebuild = Rebuild::start(CountingCell);
+        let timer = rebuild
+            .timer
+            .clone()
+            .expect("a started rebuild holds its timer");
+        turn_the_run_loop(REBUILD_TICK + Duration::from_millis(300));
+        let before = TICKS.with(Cell::get);
+        drop(rebuild);
+        // SAFETY: `timer` is a live timer, which its clone keeps.
+        let valid = unsafe { CFRunLoopTimerIsValid(timer.as_concrete_TypeRef()) } != 0;
+        assert!(!valid, "the drop left the timer valid");
+        let ran = turn_the_run_loop(REBUILD_TICK * 2);
+        assert!(
+            before >= 1,
+            "the timer of a running rebuild made no callout"
+        );
+        assert!(ran >= REBUILD_TICK * 2, "the run loop ran {ran:?}");
+        assert_eq!(TICKS.with(Cell::get), before, "a callout after the drop");
     }
 
     #[test]

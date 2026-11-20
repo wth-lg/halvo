@@ -160,9 +160,14 @@ impl SystemProbe {
     pub fn new() -> Self {
         Self {
             session: read_session,
-            byte: || carbon::one_carbon_call_at_a_time(carbon::is_secure_event_input_enabled),
+            byte: system_byte,
         }
     }
+}
+
+/// The system's secure-input byte, read under the one lock of the Carbon calls.
+fn system_byte() -> u8 {
+    carbon::one_carbon_call_at_a_time(carbon::is_secure_event_input_enabled)
 }
 
 #[cfg(test)]
@@ -1190,6 +1195,19 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_system_probe_reads_the_session_reader_and_the_carbon_byte_reader_of_the_system() {
+        let probe = super::SystemProbe::new();
+        assert!(
+            std::ptr::fn_addr_eq(probe.session, super::read_session as fn() -> super::Session),
+            "the session reader"
+        );
+        assert!(
+            std::ptr::fn_addr_eq(probe.byte, super::system_byte as fn() -> u8),
+            "the Carbon byte reader"
+        );
+    }
+
     #[test]
     fn no_two_carbon_calls_run_at_the_same_time() {
         let inside = AtomicUsize::new(0);
