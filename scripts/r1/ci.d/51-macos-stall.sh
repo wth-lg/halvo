@@ -1689,6 +1689,7 @@ EOF
   rules_case carbon-a-binary-file-that-holds-none-of-the-names PASS 'carbon: in every tracked file but' \
     '\0000\0001\0002 an image with link name and dl sym in it\n' crates/other/icon.png
   check carbon-printed-limits-without-the-way-that-closed PASS "linker arguments from outside the tree, a tracked symbolic link, which no search reads, and in $held a macro" '' rules
+  check carbon-held-file-said-of-the-other-rust-paths PASS "and no other tracked file whose path ends in .rs, in small letters, holds the letters full_flush.rs, in any letter case" '' rules
   rules_case carbon-held-file-limit-s02-a-module-file-whose-extension-is-RS PASS "$held_store3c_text" \
     'include!("full_flush.rs");\npub(super) fn other() -> Option<*mut libc::c_void> {\n    symbol(c"getpid")\n}\n' \
     crates/halvo-capture/src/store/hardening_tests/full_flush_again.RS
