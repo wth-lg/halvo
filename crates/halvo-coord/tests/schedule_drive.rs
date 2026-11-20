@@ -3599,6 +3599,15 @@ fn u24e_the_controls_offer_take_back_while_the_persons_waiting_start_would_not_c
             "kind 3",
         ),
         (
+            0,
+            &queued,
+            "none",
+            schedule,
+            switch_off_alone.to_vec(),
+            vec![],
+            "a start of the scheduler, whatever its slot",
+        ),
+        (
             1,
             &queued,
             "none",
