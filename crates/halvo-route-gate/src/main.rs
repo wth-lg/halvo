@@ -397,6 +397,25 @@ mod tests {
         }
     }
 
+    struct Closed;
+
+    impl std::io::Write for Closed {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::ErrorKind::BrokenPipe.into())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::ErrorKind::BrokenPipe.into())
+        }
+    }
+
+    #[test]
+    fn a_printing_that_cannot_be_written_exits_1() {
+        let mut err = Vec::new();
+        let code = dispatch(&["commands".to_owned()], &mut Closed, &mut err);
+        assert_eq!((code, err.as_slice()), (1, &b""[..]));
+    }
+
     #[test]
     fn the_printing_takes_no_argument_and_no_command_is_refused() {
         let (code, out, err) = answer(&["commands", "--all"]);
