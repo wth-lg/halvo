@@ -909,6 +909,8 @@ pub(in crate::store) mod code_seams {
     pub(in crate::store) const PROBE_LOCKING_MODE: &str = "the live-holder probe's locking mode";
     pub(in crate::store) const HELD_LOOK_HAS_MOVED: &str =
         "the held look's question whether the file moved";
+    pub(in crate::store) const CHECKPOINT_QUERY: &str =
+        "the truncating checkpoint's query of checkpoint_truncate";
 
     thread_local! {
         static FORCED_AT: Cell<Option<(&'static str, i32)>> = const { Cell::new(None) };
@@ -1888,10 +1890,14 @@ impl Db {
     /// answered, it is the step that makes the shred last through a loss of
     /// power, before any file of the shred is removed (ruling PR-30 PR9 (2)).
     pub(crate) fn checkpoint_truncate(&self) -> StoreResult<Checkpoint> {
-        let busy: i64 = self
+        let busy = self
             .conn
-            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
-            .map_err(db_error)?;
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+                r.get::<_, i64>(0)
+            });
+        #[cfg(test)]
+        let busy = code_seams::or_forced_at(code_seams::CHECKPOINT_QUERY, busy);
+        let busy = busy.map_err(db_error)?;
         let checkpoint = Checkpoint {
             busy,
             wal_bytes: self.wal_bytes()?,

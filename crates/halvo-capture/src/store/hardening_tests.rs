@@ -10317,6 +10317,8 @@ mod wrapping_keys;
 #[cfg(unix)]
 mod refused_versions;
 
+mod checkpoint_after_the_shred;
+
 #[cfg(target_os = "macos")]
 mod full_flush;
 
