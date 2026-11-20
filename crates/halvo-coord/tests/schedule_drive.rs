@@ -3719,10 +3719,15 @@ fn u24s_g3_an_acknowledged_store_of_the_agent_ends_the_stop_for_the_life_of_a_st
     assert!(!w.board.stuck_for_life(&agent(0), &w.limits));
 }
 
-#[test]
-fn u24s_a_first_seq_refusal_whose_log_is_stored_after_the_read_counts_nothing() {
-    let mut w = world_with(&[manual()], u24s_one_tick());
-    let seq = w.facts(0).events.len() as u32 + 1;
+fn u24s_row_of_another_writer(w: &World) {
+    let seq = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0))
+        .count() as u32
+        + 1;
     w.ports.events.borrow_mut().push(Event {
         workflow: flow(0),
         agent: agent(0),
@@ -3731,6 +3736,30 @@ fn u24s_a_first_seq_refusal_whose_log_is_stored_after_the_read_counts_nothing() 
         at: 0,
         what: What::SlotSkipped { slot: None },
     });
+}
+
+#[test]
+fn u24s_a_first_seq_refusal_counts_nothing_also_where_the_read_after_it_fails() {
+    let mut w = world_with(&[manual()], u24s_one_tick());
+    u24s_row_of_another_writer(&w);
+    w.ports.refuse(Method::History, PortError::Busy);
+    let from = w.ports.tried.borrow().len();
+    assert_ne!(
+        w.go(Move::SwitchOff { agent: agent(0) }).answer,
+        Ok(Answer::Ok)
+    );
+    assert_eq!(
+        u24s_refused_since(&w, from),
+        vec!["log hold_set person".to_string()],
+        "the log meets seq once, and the read after it does not answer"
+    );
+    w.ports.clear_refusals();
+    w.tick();
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "RD-64 2.5: only a second seq for one log after its read counts, and a read that does not answer is no refusal by name"
+    );
+    u24s_row_of_another_writer(&w);
     let from = w.ports.tried.borrow().len();
     assert_eq!(
         w.go(Move::SwitchOff { agent: agent(0) }).answer,
@@ -3739,11 +3768,8 @@ fn u24s_a_first_seq_refusal_whose_log_is_stored_after_the_read_counts_nothing() 
     assert_eq!(
         u24s_refused_since(&w, from),
         vec!["log hold_set person".to_string()],
-        "the first log meets seq once, the read brings the other writer's row and the log is stored"
+        "the log meets seq once, the read brings the other writer's row and the log is stored"
     );
     w.tick();
-    assert!(
-        !w.board.record_stuck(&agent(0), &w.limits),
-        "RD-64 2.5: only a second seq for one log after its read counts"
-    );
+    assert!(!w.board.record_stuck(&agent(0), &w.limits));
 }
