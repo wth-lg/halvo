@@ -841,6 +841,11 @@ pub struct SecureInputHold {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SecureInputRefused(pub i32);
 
+/// The status other than noErr with which `DisableSecureEventInput` refused the
+/// release of a hold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SecureInputReleaseRefused(pub i32);
+
 pub fn hold_secure_input() -> Result<SecureInputHold, SecureInputRefused> {
     hold_with(enable_secure_event_input, disable_secure_event_input)
 }
@@ -866,9 +871,18 @@ pub(crate) fn disable_secure_event_input() -> i32 {
     carbon::one_carbon_call_at_a_time(carbon::disable_secure_event_input)
 }
 
+impl SecureInputHold {
+    /// Gives the hold back and answers the status of the system's release.
+    pub fn release(self) -> Result<(), SecureInputReleaseRefused> {
+        let hold = std::mem::ManuallyDrop::new(self);
+        crate::macos::secure_input_byte::release_hold(hold.release)
+            .map_err(SecureInputReleaseRefused)
+    }
+}
+
 impl Drop for SecureInputHold {
     fn drop(&mut self) {
-        crate::macos::secure_input_byte::release_hold(self.release);
+        let _ = crate::macos::secure_input_byte::release_hold(self.release);
     }
 }
 
@@ -1828,6 +1842,29 @@ mod tests {
             hold_with(|| -50, || 0),
             Err(SecureInputRefused(-50))
         ));
+    }
+
+    #[test]
+    fn a_release_answers_the_status_of_the_system_and_makes_one_release_call() {
+        static RELEASES: AtomicUsize = AtomicUsize::new(0);
+        fn refused_release() -> i32 {
+            RELEASES.fetch_add(1, Ordering::SeqCst);
+            -50
+        }
+        fn accepted_release() -> i32 {
+            RELEASES.fetch_add(1, Ordering::SeqCst);
+            0
+        }
+        let refused = hold_with(|| 0, refused_release)
+            .expect("a hold with the status 0 is held")
+            .release();
+        assert_eq!(refused, Err(SecureInputReleaseRefused(-50)));
+        assert_eq!(RELEASES.load(Ordering::SeqCst), 1);
+        let accepted = hold_with(|| 0, accepted_release)
+            .expect("a hold with the status 0 is held")
+            .release();
+        assert_eq!(accepted, Ok(()));
+        assert_eq!(RELEASES.load(Ordering::SeqCst), 2);
     }
 
     #[test]

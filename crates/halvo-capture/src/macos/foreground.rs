@@ -278,6 +278,18 @@ struct TitleHealth {
     errors: AtomicU64,
     failing: AtomicBool,
     not_trusted: AtomicBool,
+    stop_asked: AtomicBool,
+    dropped_at_stop: AtomicU64,
+}
+
+impl TitleHealth {
+    fn emits(&self) -> bool {
+        if self.stop_asked.load(Ordering::SeqCst) {
+            self.dropped_at_stop.fetch_add(1, Ordering::Relaxed);
+            return false;
+        }
+        true
+    }
 }
 
 fn retry_ticks(interval: Duration) -> u32 {
@@ -317,6 +329,9 @@ impl Poller {
                 self.title = TitleState::Settled;
                 self.health.failing.store(false, Ordering::Relaxed);
                 self.health.not_trusted.store(false, Ordering::Relaxed);
+                if !self.health.emits() {
+                    return;
+                }
                 let _ = emit_metadata_only(
                     sink,
                     Modality::WindowTitle,
@@ -365,13 +380,15 @@ impl Poller {
             self.change += 1;
             self.front = Some(front.clone());
             self.writer.set(Some(front.clone()));
-            let _ = emit_metadata_only(
-                sink,
-                Modality::ForegroundApp,
-                Some(front.clone()),
-                Unpersisted::EMPTY,
-                SystemTime::now(),
-            );
+            if self.health.emits() {
+                let _ = emit_metadata_only(
+                    sink,
+                    Modality::ForegroundApp,
+                    Some(front.clone()),
+                    Unpersisted::EMPTY,
+                    SystemTime::now(),
+                );
+            }
             self.title = TitleState::Asked;
             self.retries_left = self.retry_ticks;
         } else if self.title == TitleState::AskAgain {
@@ -502,18 +519,27 @@ pub struct ForegroundSource {
     health: Arc<TitleHealth>,
     running: Option<Running>,
     failure: Option<CaptureError>,
+    unstopped: Option<CaptureError>,
     stopped: bool,
+    #[cfg(test)]
+    real: bool,
 }
 
 impl ForegroundSource {
     pub fn new(interval: Duration, foreground: ForegroundWriter, turns: RunLoopTurns) -> Self {
-        Self::with_readers(
+        #[cfg_attr(not(test), allow(unused_mut))]
+        let mut source = Self::with_readers(
             interval,
             foreground,
             turns,
             Box::new(read_frontmost),
             Box::new(window_title::focused_window_title),
-        )
+        );
+        #[cfg(test)]
+        {
+            source.real = true;
+        }
+        source
     }
 
     fn with_readers(
@@ -530,7 +556,10 @@ impl ForegroundSource {
             health: Arc::new(TitleHealth::default()),
             running: None,
             failure: None,
+            unstopped: None,
             stopped: false,
+            #[cfg(test)]
+            real: false,
         }
     }
 
@@ -590,18 +619,19 @@ impl CaptureSource for ForegroundSource {
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
         let Some(running) = self.running.as_mut() else {
-            return Ok(());
+            return self.unstopped.clone().map_or(Ok(()), Err);
         };
         let ended_before = !running.stop_sent && running.thread.is_finished();
+        self.health.stop_asked.store(true, Ordering::SeqCst);
         let _ = running.stop.send(());
         running.stop_sent = true;
         let called = Instant::now();
         while !running.ended() {
             if called.elapsed() >= FOREGROUND_STOP_DEADLINE {
-                return Err(CaptureError::Timeout {
+                return self.answered(Err(CaptureError::Timeout {
                     stage: "foreground_join",
                     ms: FOREGROUND_STOP_DEADLINE.as_millis() as u64,
-                });
+                }));
             }
             std::thread::sleep(Duration::from_millis(2));
         }
@@ -609,13 +639,12 @@ impl CaptureSource for ForegroundSource {
             .running
             .take()
             .map(|running| (running.thread.join(), running.title.join()));
-        if let (false, Some((Ok(()), Ok(())))) = (ended_before, joined) {
-            self.stopped = true;
+        let answer = if let (false, Some((Ok(()), Ok(())))) = (ended_before, joined) {
             Ok(())
         } else {
-            self.failure = Some(CaptureError::ThreadEnded);
             Err(CaptureError::ThreadEnded)
-        }
+        };
+        self.answered(answer)
     }
 
     fn health(&self) -> SourceHealth {
@@ -628,6 +657,7 @@ impl CaptureSource for ForegroundSource {
             (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
             (None, None) => SourceState::NotReported,
         };
+        let state = self.unstopped.clone().map_or(state, source_failure);
         SourceHealth {
             state,
             counters: SourceCounters {
@@ -638,10 +668,56 @@ impl CaptureSource for ForegroundSource {
     }
 }
 
+impl ForegroundSource {
+    fn answered(&mut self, answer: Result<(), CaptureError>) -> Result<(), CaptureError> {
+        match &answer {
+            Ok(()) => {
+                self.unstopped = None;
+                self.stopped = true;
+            }
+            Err(CaptureError::ThreadEnded) => {
+                self.unstopped = None;
+                self.failure = Some(CaptureError::ThreadEnded);
+            }
+            Err(error) => self.unstopped = Some(error.clone()),
+        }
+        #[cfg(test)]
+        note_shutdown_answer("foreground", self.real, &answer);
+        answer
+    }
+}
+
 impl Drop for ForegroundSource {
     fn drop(&mut self) {
+        if self.unstopped.is_some() {
+            return;
+        }
         let _ = self.shutdown();
     }
+}
+
+/// Appends one line for the `shutdown` answer of a source that was begun through
+/// its product path to the file that `HALVO_SHUTDOWN_ANSWERS` names, for the
+/// count that scripts/r1/ci.d/12-test.sh prints; nothing when the variable is
+/// unset or the source is a stand-in.
+#[cfg(test)]
+pub(crate) fn note_shutdown_answer(source: &str, real: bool, answer: &Result<(), CaptureError>) {
+    use std::io::Write;
+    let Some(path) = std::env::var_os("HALVO_SHUTDOWN_ANSWERS") else {
+        return;
+    };
+    if !real {
+        return;
+    }
+    let line = format!("shutdown source={source} ok={}\n", answer.is_ok());
+    let written = std::fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .and_then(|mut file| file.write_all(line.as_bytes()));
+    assert!(
+        written.is_ok(),
+        "the file of HALVO_SHUTDOWN_ANSWERS takes no line: {written:?}"
+    );
 }
 
 #[cfg(test)]
@@ -1020,6 +1096,62 @@ mod tests {
         assert_eq!(again, None);
         assert_eq!(health.errors.load(Ordering::Relaxed), 1);
         assert!(health.failing.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn a_change_and_a_title_seen_after_a_stop_is_asked_are_counted_and_not_emitted() {
+        let (writer, _reader) = foreground_state_for_test();
+        let health: Arc<TitleHealth> = Arc::default();
+        let mut poller = Poller::new(writer, 5, health.clone());
+        let (handle, sink_writer) = sink::channel(64);
+        poller.step(app("com.example.a", 10), Vec::new(), &handle);
+        health.stop_asked.store(true, Ordering::SeqCst);
+        poller.step(app("com.example.b", 20), answer(1, title(9)), &handle);
+        drop(poller);
+        assert_eq!(events(handle, &sink_writer), [fg("com.example.a")]);
+        assert_eq!(health.dropped_at_stop.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn a_shutdown_that_answered_timeout_reads_failed_with_reason_timeout_and_its_drop_waits_nothing(
+    ) {
+        let (handle, _writer) = sink::channel(64);
+        let (release, released) = channel::<()>();
+        let read_front: FrontReader = Box::new(move || {
+            let _ = released.recv_timeout(Duration::from_secs(3));
+            app("a", 1)
+        });
+        let (mut source, _reader) = source_with(
+            FOREGROUND_POLL,
+            fresh_turns(),
+            read_front,
+            Box::new(|_| Ok(None)),
+        );
+        source
+            .begin(SourceContext::new(handle))
+            .expect("the source starts");
+        let shut = source.shutdown();
+        let state = source.health().state;
+        let dropped = Instant::now();
+        drop(source);
+        let drop_took = dropped.elapsed();
+        drop(release);
+        let timeout = CaptureError::Timeout {
+            stage: "foreground_join",
+            ms: 1000,
+        };
+        assert_eq!(shut, Err(timeout.clone()));
+        assert_eq!(
+            state,
+            SourceState::Failed {
+                reason: HealthReason::Timeout,
+                error: timeout
+            }
+        );
+        assert!(
+            drop_took < Duration::from_millis(100),
+            "the drop after a Timeout waited {drop_took:?}"
+        );
     }
 
     #[test]

@@ -227,7 +227,10 @@ pub struct ScreenSource {
     output: Option<Retained<ScreenOutput>>,
     queue: Option<DispatchRetained<DispatchQueue>>,
     failure: Option<CaptureError>,
+    unstopped: Option<CaptureError>,
     stopped: bool,
+    #[cfg(test)]
+    real: bool,
     _not_send: PhantomData<*const ()>,
 }
 
@@ -240,7 +243,10 @@ impl ScreenSource {
             output: None,
             queue: None,
             failure: None,
+            unstopped: None,
             stopped: false,
+            #[cfg(test)]
+            real: false,
             _not_send: PhantomData,
         }
     }
@@ -419,10 +425,45 @@ fn open_stream(
 
 impl CaptureSource for ScreenSource {
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
+        #[cfg(test)]
+        {
+            self.real = true;
+        }
         self.begin_with(ctx.sink().clone(), open_stream)
     }
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
+        if self.stream.is_none() {
+            return self.unstopped.clone().map_or(Ok(()), Err);
+        }
+        let answer = self.stop_stream();
+        self.answered(answer)
+    }
+
+    fn health(&self) -> SourceHealth {
+        let state = match (&self.stream, &self.failure) {
+            (Some(_), _) => SourceState::Running,
+            (None, Some(error)) => source_failure(error.clone()),
+            (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
+            (None, None) => SourceState::NotReported,
+        };
+        let state = self.unstopped.clone().map_or(state, source_failure);
+        SourceHealth {
+            state,
+            counters: SourceCounters::default(),
+        }
+    }
+}
+
+impl ScreenSource {
+    fn answered(&mut self, answer: Result<(), CaptureError>) -> Result<(), CaptureError> {
+        self.unstopped = answer.clone().err();
+        #[cfg(test)]
+        crate::macos::foreground::note_shutdown_answer("screen", self.real, &answer);
+        answer
+    }
+
+    fn stop_stream(&mut self) -> Result<(), CaptureError> {
         let Some(stream) = self.stream.as_ref() else {
             return Ok(());
         };
@@ -453,23 +494,13 @@ impl CaptureSource for ScreenSource {
             },
         })
     }
-
-    fn health(&self) -> SourceHealth {
-        let state = match (&self.stream, &self.failure) {
-            (Some(_), _) => SourceState::Running,
-            (None, Some(error)) => source_failure(error.clone()),
-            (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
-            (None, None) => SourceState::NotReported,
-        };
-        SourceHealth {
-            state,
-            counters: SourceCounters::default(),
-        }
-    }
 }
 
 impl Drop for ScreenSource {
     fn drop(&mut self) {
+        if self.unstopped.is_some() {
+            return;
+        }
         let _ = self.shutdown();
     }
 }
@@ -978,12 +1009,60 @@ mod tests {
             sink_closed(handle, &writer),
             "the kept output still holds the sink"
         );
-        drop(source);
         assert_eq!(
-            asks.get(),
-            2,
-            "the drop did not ask the stream to stop again"
+            source.health().state,
+            SourceState::Failed {
+                reason: crate::source::HealthReason::Timeout,
+                error: CaptureError::Timeout {
+                    stage: "stop_capture",
+                    ms: 5000
+                }
+            }
         );
+        let dropped = Instant::now();
+        drop(source);
+        let drop_took = dropped.elapsed();
+        assert_eq!(asks.get(), 1, "the drop asked the stream to stop again");
+        assert!(
+            drop_took < Duration::from_millis(100),
+            "the drop after a Timeout waited {drop_took:?}"
+        );
+    }
+
+    #[test]
+    fn a_stop_that_answered_an_error_reads_failed_os_error_and_its_drop_asks_nothing() {
+        let (mut source, handle, writer, asks, weak) = started(&[
+            Some(StopReply::Failed { code: -3808 }),
+            Some(StopReply::Stopped),
+        ]);
+        let shut = source.shutdown();
+        let state = source.health().state;
+        let dropped = Instant::now();
+        drop(source);
+        let drop_took = dropped.elapsed();
+        let error = CaptureError::Os {
+            stage: "stop_capture",
+            domain: "ScreenCaptureKit",
+            code: -3808,
+        };
+        assert_eq!(shut, Err(error.clone()));
+        assert_eq!(
+            state,
+            SourceState::Failed {
+                reason: crate::source::HealthReason::OsError,
+                error
+            }
+        );
+        assert_eq!(asks.get(), 1, "the drop asked the stream to stop again");
+        assert!(
+            drop_took < Duration::from_millis(100),
+            "the drop after a failed stop waited {drop_took:?}"
+        );
+        assert!(
+            weak.load().is_some(),
+            "the output of a failed stop was released"
+        );
+        assert!(sink_closed(handle, &writer));
     }
 
     struct SlowAskStream(RefCell<Vec<Sender<StopReply>>>);
