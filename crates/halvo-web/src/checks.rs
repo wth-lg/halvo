@@ -1313,6 +1313,11 @@ mod tests {
                 false,
             ),
             win(
+                "win_between_two_single_arguments",
+                r#""C:\P F\b.exe" --single-argument x --user-data-dir=C:\T\run\p --single-argument y"#,
+                false,
+            ),
+            win(
                 "win_single_argument_in_capitals",
                 r#""C:\P F\b.exe" --SINGLE-ARGUMENT --user-data-dir=C:\T\run\p"#,
                 false,
