@@ -202,8 +202,11 @@ pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
 
 /// The arguments of a Windows command line by the rule of `CommandLineToArgvW` of shell32. The
 /// program's name: when the line begins with a quote, up to the next quote, the quotes dropped;
-/// else up to the first space or tab, a quote kept as it stands. Each later argument runs to the
-/// next space or tab outside a quoted part; 2n backslashes before a quote give n backslashes and
+/// else up to the first character at or below U+0020 (a space, a tab or a control character),
+/// which is dropped, a quote kept as it stands (U2.6b: the system's own reading of control
+/// characters in hosted run 44774789907); after the name, spaces and tabs alone are skipped. Each
+/// later argument runs to the next space or tab outside a quoted part, a control character kept
+/// as it stands; 2n backslashes before a quote give n backslashes and
 /// the quote opens or closes a quoted part, 2n+1 give n backslashes and a quote; backslashes before
 /// any other character stand as they are; in a run of quotes each third one counted from the
 /// opening quote gives a quote, and a count that ends at two leaves the part closed (the review of
@@ -229,10 +232,11 @@ pub fn split_command_line(line: &str) -> Vec<String> {
         }
         i = (i + 1).min(c.len());
     } else {
-        while i < c.len() && !space(c[i]) {
+        while i < c.len() && c[i] > ' ' {
             name.push(c[i]);
             i += 1;
         }
+        i = (i + 1).min(c.len());
     }
     out.push(name);
     while i < c.len() && space(c[i]) {
@@ -1370,10 +1374,13 @@ mod tests {
     /// U2.6 (11), failing first: the review of U0.7d's cases 01 to 04, each a line on which the
     /// system's rule (`CommandLineToArgvW`) gives no argument `--user-data-dir=C:\P`: the program
     /// name ends at the next quote when the line begins with one and at the first space when it
-    /// does not, and a run of quotes is counted as the system counts it.
+    /// does not, and a run of quotes is counted as the system counts it. U2.6b, failing first:
+    /// the lines with a control character in the unquoted program name, each with the arguments
+    /// that the system gave in hosted run 44774789907 (windows), where the name ends at the first
+    /// character at or below U+0020 and that character is dropped.
     #[test]
     fn n11_the_split_follows_the_system_on_the_review_s_cases() {
-        let review: [(&str, &[&str]); 6] = [
+        let review: [(&str, &[&str]); 12] = [
             (
                 r#"ch"rome x" --user-data-dir=C:\P"#,
                 &[r#"ch"rome"#, r"x --user-data-dir=C:\P"],
@@ -1392,6 +1399,15 @@ mod tests {
             ),
             (r#""a b"c d"#, &["a b", "c", "d"]),
             ("b.exe a ", &["b.exe", "a"]),
+            (
+                "b.exe\n\" --user-data-dir=C:\\P",
+                &["b.exe", " --user-data-dir=C:\\P"],
+            ),
+            ("b.exe\r x", &["b.exe", "x"]),
+            ("b.exe\u{1f} x", &["b.exe", "x"]),
+            ("\nb.exe x", &["", "b.exe", "x"]),
+            ("b.exe\u{7f} x", &["b.exe\u{7f}", "x"]),
+            ("b.exe a\nb c", &["b.exe", "a\nb", "c"]),
         ];
         for (line, want) in review {
             assert_eq!(split_command_line(line), strings(want), "{line}");
@@ -1404,7 +1420,8 @@ mod tests {
 
     /// The review of U0.7d, on Windows: `split_command_line` gives the arguments that the
     /// system's own `CommandLineToArgvW` gives, line by line over a table of quotes, backslashes,
-    /// tabs and program names.
+    /// tabs, program names and control characters (U2.6b), and names every line that it splits
+    /// otherwise.
     #[cfg(windows)]
     #[test]
     fn the_split_is_the_system_s_own_on_a_table_of_lines() {
@@ -1432,7 +1449,22 @@ mod tests {
             r#"b.exe a\ "x y""#,
             r#""""#,
             "b.exe",
+            "b.exe\n\" --user-data-dir=C:\\P",
+            "b.exe\r x",
+            "b.exe\u{b} x",
+            "b.exe\u{c} x",
+            "b.exe\u{1} x",
+            "b.exe\u{1f} x",
+            "b.exe\u{7f} x",
+            "b.exe\u{a0} x",
+            "\nb.exe x",
+            "b.exe a\nb c",
+            "b.exe a\u{b}b c",
+            "b.exe\n\nx",
+            "b.exe\r\n x",
+            "b.exe\n",
         ];
+        let mut differ = Vec::new();
         for line in lines {
             let wide: Vec<u16> = line.encode_utf16().chain([0]).collect();
             let mut n = 0i32;
@@ -1456,8 +1488,12 @@ mod tests {
             }
             // SAFETY: `argv` was given by CommandLineToArgvW, is freed once and not used after.
             unsafe { LocalFree(argv.cast()) };
-            assert_eq!(split_command_line(line), system, "{line}");
+            let ours = split_command_line(line);
+            if ours != system {
+                differ.push((line, ours, system));
+            }
         }
+        assert!(differ.is_empty(), "lines split otherwise: {differ:?}");
     }
 
     /// U2.6 (12), failing first, from the web trial's hosted run 43741794346 (windows): `tree_of`
