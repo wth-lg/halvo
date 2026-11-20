@@ -533,10 +533,13 @@ class World {
     return this.now * 1000 >= firstAttempt + 86_400_000 - WINDOW_MARGIN * 1000 ? "send.resend-after-the-window" : "send.retry-inside-the-window";
   }
 
-  private lawfulRun(account: Account, timestamp: number): boolean {
+  private lawfulRun(account: Account, interval: Row): boolean {
     if (this.scenario.meter.readLagSeconds * 1000 >= LATE_READ_SPAN_MS) return true;
-    const minute = Math.floor(timestamp / READ_WIDTH_SECONDS);
-    return this.meter.recordedEvents(account.id).some((e) => account.foreign.has(e.identifier) && Math.floor(e.timestamp / READ_WIDTH_SECONDS) === minute);
+    const minute = Math.floor(int(interval, "timestamp") / READ_WIDTH_SECONDS);
+    const closedAt = int(interval, "closed_at") / 1000;
+    return this.meter
+      .recordedEvents(account.id)
+      .some((e) => account.foreign.has(e.identifier) && Math.floor(e.timestamp / READ_WIDTH_SECONDS) === minute && e.receivedAt + this.scenario.meter.readLagSeconds <= closedAt);
   }
 
   private ownTotal(account: Account, from: number, to: number): number {
@@ -979,7 +982,7 @@ class World {
     const intervals =
       rows ??
       account.test.host.step((sql) =>
-        ownTables(sql).length === 0 ? [] : sql.exec("SELECT start, identifier, outcome, refusal, amount, timestamp FROM metering_interval WHERE outcome = ?", "not-billable"),
+        ownTables(sql).length === 0 ? [] : sql.exec("SELECT start, identifier, outcome, refusal, amount, timestamp, closed_at FROM metering_interval WHERE outcome = ?", "not-billable"),
       );
     const held = new Set(this.meter.recordedEvents(account.id).map((e) => e.identifier));
     for (const interval of intervals) {
@@ -990,7 +993,7 @@ class World {
         account.deleteBound.set(identifier, { amountMinor: int(interval, "amount"), timestamp: int(interval, "timestamp") });
         continue;
       }
-      if (interval.outcome === "not-billable" && interval.refusal === "unexplained-total" && this.lawfulRun(account, int(interval, "timestamp"))) {
+      if (interval.outcome === "not-billable" && interval.refusal === "unexplained-total" && this.lawfulRun(account, interval)) {
         const identifier = String(interval.identifier);
         if (!account.unexplainedClosed.has(identifier)) this.count(held.has(identifier) ? "unexplained-total.closed-held-by-the-meter" : "unexplained-total.closed-not-at-the-meter");
         account.unexplainedClosed.set(identifier, { amountMinor: int(interval, "amount"), timestamp: int(interval, "timestamp") });
@@ -1182,7 +1185,7 @@ class World {
       if (intervals.some((i) => i.outcome === null)) this.fail("an ended interval is not acknowledged", account.id);
       this.readRecordAgainstTheProvider(account, intervals);
       const refusedByAFault = (i: Row) => i.outcome === "not-billable" && i.refusal === "unknown_account" && account.refused.has(String(i.identifier));
-      const closedByARun = (i: Row) => i.outcome === "not-billable" && i.refusal === "unexplained-total" && this.lawfulRun(account, int(i, "timestamp"));
+      const closedByARun = (i: Row) => i.outcome === "not-billable" && i.refusal === "unexplained-total" && this.lawfulRun(account, i);
       if (intervals.some((i) => i.outcome === "not-billable" && !refusedByAFault(i) && !closedByARun(i))) this.fail("an interval the provider refused", account.id);
       this.count("interval.not-billable-after-refusals", intervals.filter(refusedByAFault).length);
       this.count("interval.not-billable-after-an-unexplained-run", intervals.filter(closedByARun).length);
