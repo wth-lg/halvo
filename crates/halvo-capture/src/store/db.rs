@@ -1964,7 +1964,7 @@ fn require_setting(conn: &Connection, name: &'static str, wanted: i64) -> StoreR
 
 fn require_whole(conn: &Connection, length: u64) -> StoreResult<()> {
     match pragma_number(conn, "page_size").map_err(unreadable_or_db_error)? {
-        Some(size) if size > 0 && length > 0 && length % size as u64 == 0 => Ok(()),
+        Some(size) if size > 0 && length > 0 && length.is_multiple_of(size as u64) => Ok(()),
         _ => Err(StoreError::DatabaseUnreadable),
     }
 }

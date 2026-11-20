@@ -173,6 +173,14 @@ fn a_store_of_version_1_answers_older_store_and_its_directory_stays_as_it_was() 
             &older,
         );
     }
+    refused(
+        "v1-with-an-empty-log",
+        &|dir, store_key, _| {
+            older_at(dir, 1, store_key, false);
+            std::fs::write(dir.join("store.db-wal"), b"").unwrap();
+        },
+        &older,
+    );
 }
 
 #[test]
