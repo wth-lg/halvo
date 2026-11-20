@@ -202,33 +202,95 @@ pub struct Foreground {
     pub pid: libc::pid_t,
 }
 
+/// The read of the app in front that the poll makes, which a reader makes
+/// again at a frame, so that both go through the same reader.
+type FrontRead = Arc<dyn Fn() -> Option<Foreground> + Send + Sync>;
+
+/// The poll's last answer, and whether the poll has answered since it began
+/// and has not ended.
+#[derive(Debug, Default)]
+struct FrontState {
+    front: Option<Foreground>,
+    answered: bool,
+}
+
 /// The write side of the app in front.
 ///  Dropping it clears the value.
-#[derive(Debug)]
-pub struct ForegroundWriter(Arc<Mutex<Option<Foreground>>>);
+pub struct ForegroundWriter {
+    state: Arc<Mutex<FrontState>>,
+    read: FrontRead,
+}
 
-#[derive(Debug, Clone)]
-pub struct ForegroundReader(Arc<Mutex<Option<Foreground>>>);
+#[derive(Clone)]
+pub struct ForegroundReader {
+    state: Arc<Mutex<FrontState>>,
+    read: FrontRead,
+}
+
+impl std::fmt::Debug for ForegroundWriter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ForegroundWriter")
+            .field("state", &self.state)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for ForegroundReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ForegroundReader")
+            .field("state", &self.state)
+            .finish_non_exhaustive()
+    }
+}
 
 pub(crate) fn foreground_state(
     _one: crate::macos::run_loop::OneWriter,
 ) -> (ForegroundWriter, ForegroundReader) {
-    writer_and_reader()
+    writer_and_reader(Arc::new(read_frontmost))
 }
 
-fn writer_and_reader() -> (ForegroundWriter, ForegroundReader) {
-    let shared = Arc::new(Mutex::new(None));
-    (ForegroundWriter(shared.clone()), ForegroundReader(shared))
+fn writer_and_reader(read: FrontRead) -> (ForegroundWriter, ForegroundReader) {
+    let state = Arc::new(Mutex::new(FrontState::default()));
+    (
+        ForegroundWriter {
+            state: state.clone(),
+            read: read.clone(),
+        },
+        ForegroundReader { state, read },
+    )
 }
 
 #[cfg(test)]
 pub(crate) fn foreground_state_for_test() -> (ForegroundWriter, ForegroundReader) {
-    writer_and_reader()
+    let state = Arc::new(Mutex::new(FrontState::default()));
+    let last = state.clone();
+    let read: FrontRead = Arc::new(move || {
+        last.lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .front
+            .clone()
+    });
+    (
+        ForegroundWriter {
+            state: state.clone(),
+            read: read.clone(),
+        },
+        ForegroundReader { state, read },
+    )
 }
 
 impl ForegroundWriter {
     fn set(&self, front: Option<Foreground>) {
-        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = front;
+        *self.state.lock().unwrap_or_else(PoisonError::into_inner) = FrontState {
+            front,
+            answered: true,
+        };
+    }
+
+    /// The poll's reader: the same read that a reader makes at a frame.
+    fn poll_reader(&self) -> FrontReader {
+        let read = self.read.clone();
+        Box::new(move || read())
     }
 }
 
@@ -253,11 +315,35 @@ pub(crate) mod tests_support {
     pub(crate) fn unbundled(path: &str) -> AppIdentity {
         AppIdentity::of(None, Some(path))
     }
+
+    /// A foreground source with the product's poll interval whose poll reads
+    /// `system_front`, the stand-in of the system's app in front, through the
+    /// writer's read as the product's source does, and the reader of its value.
+    pub(crate) fn polled_source(
+        system_front: std::sync::Arc<std::sync::Mutex<Option<Foreground>>>,
+    ) -> (super::ForegroundSource, super::ForegroundReader) {
+        let read: super::FrontRead = std::sync::Arc::new(move || {
+            system_front
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone()
+        });
+        let (writer, reader) = super::writer_and_reader(read);
+        (
+            super::ForegroundSource::polling(
+                super::FOREGROUND_POLL,
+                writer,
+                super::RunLoopTurns::for_test(std::time::Instant::now()),
+                Box::new(|_| Ok(None)),
+            ),
+            reader,
+        )
+    }
 }
 
 impl Drop for ForegroundWriter {
     fn drop(&mut self) {
-        self.set(None);
+        *self.state.lock().unwrap_or_else(PoisonError::into_inner) = FrontState::default();
     }
 }
 
@@ -266,7 +352,7 @@ impl ForegroundReader {
     /// A reader with no writer, which reads nothing in front: for tests in a
     /// process of their own, which cannot claim the main run loop.
     pub fn nothing_in_front() -> Self {
-        writer_and_reader().1
+        writer_and_reader(Arc::new(|| None)).1
     }
 }
 
@@ -274,10 +360,26 @@ impl ForegroundReader {
     /// The app in front, or `None` before the first reading and while nothing is
     /// in front.
     pub fn get(&self) -> Option<Foreground> {
-        self.0
+        self.state
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+            .front
             .clone()
+    }
+
+    /// The app in front read now, through the reader that the poll uses; `None`
+    /// before the poll has answered once, after the poll has ended, and when
+    /// the read fails or names nothing in front.
+    pub(crate) fn read_now(&self) -> Option<Foreground> {
+        if !self
+            .state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .answered
+        {
+            return None;
+        }
+        (self.read)()
     }
 }
 
@@ -651,11 +753,10 @@ pub struct ForegroundSource {
 impl ForegroundSource {
     pub fn new(interval: Duration, foreground: ForegroundWriter, turns: RunLoopTurns) -> Self {
         #[cfg_attr(not(test), allow(unused_mut))]
-        let mut source = Self::with_readers(
+        let mut source = Self::polling(
             interval,
             foreground,
             turns,
-            Box::new(read_frontmost),
             Box::new(window_title::focused_window_title),
         );
         #[cfg(test)]
@@ -663,6 +764,18 @@ impl ForegroundSource {
             source.real = true;
         }
         source
+    }
+
+    /// A source whose poll reads the app in front through the writer's read,
+    /// the one that its readers make again at a frame.
+    fn polling(
+        interval: Duration,
+        foreground: ForegroundWriter,
+        turns: RunLoopTurns,
+        read_title: TitleReader,
+    ) -> Self {
+        let read_front = foreground.poll_reader();
+        Self::with_readers(interval, foreground, turns, read_front, read_title)
     }
 
     fn with_readers(

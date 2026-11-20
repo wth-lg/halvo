@@ -268,10 +268,12 @@ struct FrameRule {
 }
 
 impl FrameRule {
-    /// The keep verdict for a frame now. None while nothing is known to be in
-    /// front, while Halvo's app is in front, and when the decision drops.
+    /// The keep verdict for a frame that arrives now, on the app in front read
+    /// at its arrival through the reader that the poll uses. None before the
+    /// poll has answered once, when that read fails or names nothing in front,
+    /// while Halvo's app is in front, and when the decision drops.
     fn verdict(&self) -> Option<crate::floor::exclude::Keep<kind::ScreenFrame>> {
-        let front = self.foreground.get()?;
+        let front = self.foreground.read_now()?;
         if self.halvo.selects_front(&front) {
             return None;
         }
@@ -333,11 +335,11 @@ fn on_sample(ivars: &ScreenIvars, sample: &CMSampleBuffer, ty: SCStreamOutputTyp
 }
 
 fn record_frame(ivars: &ScreenIvars) {
-    let sink = ivars.sink.lock().unwrap_or_else(PoisonError::into_inner);
-    let Some(sink) = sink.as_ref() else {
+    let Some(keep) = ivars.rule.verdict() else {
         return;
     };
-    if let Some(keep) = ivars.rule.verdict() {
+    let sink = ivars.sink.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(sink) = sink.as_ref() {
         sink.emit_event(FloorEvent::screen_frame(keep, None, EventClock::system()));
     }
 }
@@ -1767,6 +1769,159 @@ mod tests {
                 ("Halvo again", false),
                 ("the editor again", true),
             ]
+        );
+    }
+
+    mod adversary1 {
+        use super::*;
+
+        #[test]
+        fn adv1_a_frame_after_the_front_became_a_password_manager_gives_no_record() {
+            use crate::macos::foreground::tests_support::polled_source;
+            use crate::macos::foreground::FOREGROUND_POLL;
+            let system_front = Arc::new(Mutex::new(Some(front("com.example.editor", 72))));
+            let (mut foreground, reader) = polled_source(system_front.clone());
+            let (fg_handle, _fg_sink) = sink::channel(64);
+            foreground
+                .begin(SourceContext::new(fg_handle))
+                .expect("the foreground source starts");
+            let started = Instant::now();
+            while reader.get().map(|front| front.pid) != Some(72) {
+                assert!(started.elapsed() < Duration::from_secs(5), "no first poll");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            let (handle, writer) = sink::channel(16);
+            let ivars = ScreenIvars {
+                sink: Mutex::new(Some(handle)),
+                rule: rule(reader.clone(), floor_on(), inactive()),
+                facts: Arc::default(),
+            };
+            *system_front.lock().unwrap_or_else(PoisonError::into_inner) =
+                Some(front("com.apple.Passwords", 71));
+            let switched = Instant::now();
+            on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+            let first = writer.try_recv().ok().map(|received| {
+                let floor = received.into_floor().expect("a floor value");
+                (
+                    floor.event().kind(),
+                    floor.event().pid(),
+                    floor.event().app().is_listed(&["com.example.editor"], &[]),
+                )
+            });
+            let first_at = switched.elapsed();
+            while reader.get().map(|front| front.pid) != Some(71) {
+                assert!(switched.elapsed() < Duration::from_secs(5), "no later poll");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            let seen_after = switched.elapsed();
+            on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+            let second = writer.try_recv().is_ok();
+            let shut = foreground.shutdown();
+            println!(
+                "adversary1 stale-front: frame_at={first_at:?} first_record={first:?} \
+                 reader_saw_the_password_manager_after={seen_after:?} second_record={second} \
+                 FOREGROUND_POLL={FOREGROUND_POLL:?} foreground_shutdown={shut:?}"
+            );
+            assert_eq!(
+                first, None,
+                "a screen_frame record was made while the password manager was in front"
+            );
+        }
+    }
+
+    /// Starts a foreground source that polls `system_front`, waits for its first
+    /// answer of `before`, makes `after` the system's app in front, and hands
+    /// one complete frame at once to an output whose rule decides on `floor`:
+    /// the pid of the record that the frame made, or None.
+    fn a_frame_right_after_a_switch(
+        before: Foreground,
+        after: Foreground,
+        floor: FloorHandle,
+    ) -> Option<ProcessId> {
+        use crate::macos::foreground::tests_support::polled_source;
+        let pid = before.pid;
+        let system_front = Arc::new(Mutex::new(Some(before)));
+        let (mut foreground, reader) = polled_source(system_front.clone());
+        let (fg_handle, _fg_sink) = sink::channel(64);
+        foreground
+            .begin(SourceContext::new(fg_handle))
+            .expect("the foreground source starts");
+        let started = Instant::now();
+        while reader.get().map(|front| front.pid) != Some(pid) {
+            assert!(started.elapsed() < Duration::from_secs(5), "no first poll");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let (handle, writer) = sink::channel(16);
+        let ivars = ScreenIvars {
+            sink: Mutex::new(Some(handle)),
+            rule: rule(reader.clone(), floor, inactive()),
+            facts: Arc::default(),
+        };
+        *system_front.lock().unwrap_or_else(PoisonError::into_inner) = Some(after);
+        on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+        let record = writer
+            .try_recv()
+            .ok()
+            .map(|received| received.into_floor().expect("a floor value").event().pid());
+        assert_eq!(
+            reader.get().map(|front| front.pid),
+            Some(pid),
+            "the poll had not read the switch when the frame came"
+        );
+        assert_eq!(foreground.shutdown(), Ok(()));
+        record
+    }
+
+    #[test]
+    fn a_frame_right_after_a_switch_to_halvos_app_or_to_a_process_under_the_root_gives_no_record() {
+        let editor = || front("com.example.editor", 72);
+        let rooted = FloorHandle::new(Some(ProcessId::new(500)), Arc::new(DeepTree), switches_on());
+        let sibling = Foreground {
+            identity: crate::macos::foreground::tests_support::unbundled(SIBLING),
+            pid: 77,
+        };
+        assert_eq!(
+            a_frame_right_after_a_switch(editor(), front(HalvoApp::BUNDLE_ID, 70), floor_on()),
+            None,
+            "Halvo's app by its bundle id"
+        );
+        assert_eq!(
+            a_frame_right_after_a_switch(editor(), sibling, floor_on()),
+            None,
+            "Halvo's app by its sibling executable"
+        );
+        assert_eq!(
+            a_frame_right_after_a_switch(editor(), front("com.example.helper", 502), rooted),
+            None,
+            "a process under the root"
+        );
+    }
+
+    #[test]
+    fn the_record_comes_again_when_the_read_at_the_frame_names_an_allowed_program() {
+        use crate::macos::foreground::tests_support::polled_source;
+        let system_front = Arc::new(Mutex::new(Some(front("com.example.editor", 72))));
+        let (_foreground, reader) = polled_source(system_front);
+        let (handle, writer) = sink::channel(16);
+        let ivars = ScreenIvars {
+            sink: Mutex::new(Some(handle)),
+            rule: rule(reader, floor_on(), inactive()),
+            facts: Arc::default(),
+        };
+        on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+        assert_eq!(
+            records(ivars, &writer),
+            0,
+            "a frame before the poll has answered once, while the read names an editor"
+        );
+        assert_eq!(
+            a_frame_right_after_a_switch(
+                front("com.apple.Passwords", 71),
+                front("com.example.editor", 72),
+                floor_on()
+            ),
+            Some(ProcessId::new(72)),
+            "the editor in front at the frame, the password manager at the last poll"
         );
     }
 
