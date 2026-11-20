@@ -33,12 +33,15 @@ attribution line reaches the default branch.
         - it targets the repository's default branch. If it should target that
           branch, change the base on GitHub, then close and reopen the pull
           request so a new pull_request run tests the merge with that base.
+          GitHub documents opened, synchronize and reopened as the default
+          pull_request activity types. By that list, changing the base alone
+          starts no run. Nobody has tested that here.
           This script only merges into the default branch.
         - its head is the commit given with --head, the one that was reviewed
-        - the newest pull_request run on that head completed with success and
-          the jobs macos and windows succeeded in it. The newest run is the
-          one created last, and of two runs created in one second the one with
-          the higher run id. The script prints older pull_request runs too.
+        - the newest pull_request run on that head from the pull request's own
+          head branch completed with success and its jobs macos and windows
+          succeeded. The newest matching run is the one created last. For
+          two runs created in one second, the higher run id comes first. The script prints older pull_request runs too.
           It reads no push run of the head. A failed push run of the head
           does not hold the merge back when the pull_request run is green.
         - it has 0 unresolved review threads
@@ -77,11 +80,12 @@ directly, and it sees one only when it lands between the facts that it reads
 and its own merge call. Only a ruleset on the default branch can stop it.
 After every merge, read the push run on main (gh run list --branch main).
 It is the second reading of the landed tree.
-The script finds pull_request runs by the head commit, whatever workflow file
-started them. So it cannot tell which pull request a run belongs to when two
-pull requests share a head, and it refuses when the newest pull_request run
-comes from a workflow file without the jobs macos and windows. It reads no
-check that an app other than GitHub Actions reports on the head.
+Two pull requests from the same branch and commit into different bases can
+share a run. Only the pull request targeting the default branch can merge,
+and the script cannot tell which base the run tested. Read the run it prints.
+It refuses when the newest matching run comes from a workflow file without
+the jobs macos and windows. It reads no check that an app other than
+GitHub Actions reports on the head.
 A refusal over a run that failed names the full re-run, gh run rerun <run>,
 and not gh run rerun <run> --failed: the gate reads the job list of the run,
 and nobody has seen what that list holds after only the failed jobs ran again.
@@ -219,7 +223,8 @@ EOF
     die "gh printed a workflow run that this script cannot read. It reads 8 fields divided by tabs, the third a run id of digits, and got:$nl$unread_runs"
   workflow_runs=$(printf '%s\n' "$workflow_runs" | LC_ALL=C sort -t "$tab" -k 2,2r -k 3,3nr) ||
     die 'sort could not order the workflow runs'
-  newest_run=$(printf '%s\n' "$workflow_runs" | head -n 1)
+  newest_run=$(printf '%s\n' "$workflow_runs" | awk -F '\t' -v branch="$head_branch" '(":" $7) == (":" branch) { print; exit }') ||
+    die 'awk could not select the newest pull_request run of the head branch'
   IFS=$tab read -r _ _ run_id run_status run_conclusion _ _ run_path <<EOF
 $newest_run
 EOF
@@ -255,8 +260,9 @@ print_facts() {
     say "the head branch of pull request #$number is in another repository."
   say "pull_request runs on $head, newest first (event, created, run, status, conclusion, attempt, head branch, workflow file): $(count_lines "$workflow_runs" .)"
   say_lines "$workflow_runs"
+  say "Only a pull_request run whose head branch is $head_branch counts."
   if [ -n "$run_id" ]; then
-    say "jobs of run $run_id, the newest pull_request run on $head (name, status, conclusion): $(count_lines "$jobs" .)"
+    say "jobs of run $run_id, the newest pull_request run on $head from branch $head_branch (name, status, conclusion): $(count_lines "$jobs" .)"
     say_lines "$jobs"
   fi
   say "review threads: $thread_total, unresolved: $thread_unresolved"
@@ -265,7 +271,7 @@ print_facts() {
 }
 
 refuse_a_run_without_success() {
-  run_fact="the newest pull_request run on $head, run $run_id,"
+  run_fact="for head branch $head_branch, the newest pull_request run on $head, run $run_id,"
   case $run_conclusion in
     action_required)
       refuse "$run_fact waits for an approval: its conclusion is action_required. GitHub can hold the run of a pull request from another repository until someone with write access approves it. Approve it on its page (gh run view $run_id --web), wait for it (gh run watch $run_id), then run this script again."
@@ -284,7 +290,7 @@ refuse_a_run_without_success() {
 }
 
 refuse_a_job_without_success() {
-  job_fact="the job $required did not succeed in pull_request run $run_id, the newest pull_request run on $head, although the run completed with success: no job of the run has that name, or a job of that name did not complete with success. Its jobs (name, status, conclusion):$nl$jobs$nl"
+  job_fact="the job $required did not succeed in pull_request run $run_id, the newest pull_request run on $head from branch $head_branch, although the run completed with success: no job of the run has that name, or a job of that name did not complete with success. Its jobs (name, status, conclusion):$nl$jobs$nl"
   if [ "$run_path" = "$CI_WORKFLOW" ]; then
     refuse "${job_fact}A job was renamed, removed or skipped, or it failed where the workflow lets a job fail. The workflow has to run the jobs macos and windows for every pull request, and both have to succeed: restore that in $CI_WORKFLOW and push. The new head needs a new review."
   else
@@ -339,9 +345,9 @@ apply_gates() {
     refuse "the head of pull request #$number is $head_on_github, and --head names $head. A push arrived after the review. Review and verify the new head, then pass it as --head."
 
   if [ -z "$run_id" ]; then
-    refuse "no pull_request run exists for $head. GitHub starts one when the pull request is opened or its head moves: wait a minute and run this script again. When none has started by then, close and reopen the pull request, which starts one: gh pr close $number && gh pr reopen $number. A head commit whose message says [skip ci] starts none that way either: push a new commit then, and the new head needs a new review."
+    refuse "no pull_request run exists for $head on $head_branch. For this pull request a run of another head branch does not count. GitHub starts one when the pull request is opened or its head moves: wait a minute and run this script again. When none has started by then, close and reopen the pull request, which starts one: gh pr close $number && gh pr reopen $number. A head commit whose message says [skip ci] starts none that way either: push a new commit then, and the new head needs a new review."
   elif [ "$run_status" != completed ]; then
-    refuse "the newest pull_request run on $head, run $run_id, has not completed: its status is $run_status. Wait for it: gh run watch $run_id. Then run this script again."
+    refuse "for head branch $head_branch, the newest pull_request run on $head, run $run_id, has not completed: its status is $run_status. Wait for it: gh run watch $run_id. Then run this script again."
   elif [ "$run_conclusion" != success ]; then
     refuse_a_run_without_success
   else
@@ -918,6 +924,25 @@ EOF
   state_of only-a-pull-request-run-exists
   runs only-a-pull-request-run-exists "$green_pull_request_run"
   expect only-a-pull-request-run-exists 0 not-called 'dry run: every gate holds' --body-file "$work/body.txt" --dry-run
+
+  state_of other-branch-run-alone
+  runs other-branch-run-alone "$(run_line pull_request 2026-11-10T09:10:00Z 102 completed success .github/workflows/ci.yml scratch/other)"
+  refused other-branch-run-alone 'a run of another head branch does not count'
+
+  state_of other-branch-green-above-own-failure
+  runs other-branch-green-above-own-failure "$(run_line pull_request 2026-11-10T09:00:00Z 102 completed failure)" "$(run_line pull_request 2026-11-10T09:10:00Z 103 completed success .github/workflows/ci.yml scratch/other)"
+  jobs other-branch-green-above-own-failure 103 "$green_jobs"
+  refused other-branch-green-above-own-failure 'run 102, completed with failure'
+
+  state_of other-branch-failure-above-own-green
+  runs other-branch-failure-above-own-green "$green_pull_request_run" "$(run_line pull_request 2026-11-10T09:10:00Z 103 completed failure .github/workflows/ci.yml scratch/other)"
+  jobs other-branch-failure-above-own-green 103 "$green_jobs"
+  expect other-branch-failure-above-own-green 0 called "merge-pr: merged as $clean_squash" --body-file "$work/body.txt"
+
+  state_of numeric-branch-names-are-distinct
+  fields numeric-branch-names-are-distinct OPEN false MERGEABLE "$reviewed_head" false none 01
+  runs numeric-branch-names-are-distinct "$(run_line pull_request 2026-11-10T09:00:00Z 102 completed success .github/workflows/ci.yml 1)"
+  refused numeric-branch-names-are-distinct 'a run of another head branch does not count'
 
   state_of failed-pull-request-run-below-a-newer-green-one
   runs failed-pull-request-run-below-a-newer-green-one "$(run_line pull_request 2026-11-10T09:00:04Z 102 completed failure)" "$green_push_run" "$(run_line pull_request 2026-11-10T09:10:00Z 103 completed success)"
