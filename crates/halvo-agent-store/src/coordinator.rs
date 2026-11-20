@@ -41,9 +41,11 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   moves by days, a read that no longer hands out the start row (a clock read three days back or 93 days on) lets
 ///   `start_run` store a new start row and open the run again (CP-227).
 /// - `set_bindings`: `no_workflow`; `binding`; `binding` for a slot `workbook` that `workbook_path` refuses in the
-///   system's form. It stores the next revision of the agent's bindings, revision 1 where none is stored: each slot
-///   of the body replaces the stored slot of its name in its place or is added at the end, and the other slots and
-///   the origins stay. It answers the revision stored.
+///   system's form; `overlap` where the revision that it would store overlaps another agent that is live, as
+///   `list_overlaps` reads it, whichever slots the body names and whatever the state of the agent's own workflow
+///   (CP-150 (1) (b)). It stores the next revision of the agent's bindings, revision 1 where none is stored: each
+///   slot of the body replaces the stored slot of its name in its place or is added at the end, and the other slots
+///   and the origins stay. It answers the revision stored.
 /// - `add_origin`: `no_workflow`; `binding`. Where the newest revision holds the origin it stores nothing and
 ///   answers that revision; else it stores the next revision with the origin added at the end and answers it.
 /// - `list_checkpoints`: over every agent, the newest row of each checkpoint (one run and one workbook path) whose

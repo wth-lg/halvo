@@ -21,6 +21,11 @@ use crate::workbook::{workbook_path, PathForm};
 const WORKBOOK: &str = "workbook";
 const ACCOUNT_ADDRESS: &str = "account_address";
 const REPLY_SENDERS: &str = "reply_senders";
+const OVERLAP: &str = "overlap";
+
+fn overlap() -> ErrorName {
+    ErrorName::read(OVERLAP).unwrap_or(ErrorName::Internal)
+}
 
 pub(crate) fn set_bindings(
     host: &mut dyn Host,
@@ -34,6 +39,9 @@ pub(crate) fn set_bindings(
     }
     let (rev, origins, slots) = next(newest(&*host, &b.workflow, &b.agent)?)?;
     let slots = merged(slots, &b.slots);
+    if !overlaps(&*host, &b.agent, &slots)?.is_empty() {
+        return Err(overlap());
+    }
     store(host, &b.workflow, &b.agent, (rev, origins, slots))
 }
 

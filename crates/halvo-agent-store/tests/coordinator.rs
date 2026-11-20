@@ -769,3 +769,116 @@ fn list_overlaps_names_the_first_16_by_workflow_id_and_more_yes_where_17_overlap
         Ok(overlaps(&first(3, 18), "no"))
     );
 }
+
+fn created(agents: &[u32]) -> MemoryStore {
+    let mut store = MemoryStore::new();
+    for &n in agents {
+        store.put_workflow(workflow(&wf(n), "email", "approved", None));
+        assert_eq!(create(&mut store, n, n), Ok(rev(1)), "{n}");
+    }
+    store
+}
+
+#[test]
+fn set_bindings_that_would_overlap_a_live_agent_is_refused_with_overlap_and_stores_nothing() {
+    let mut store = created(&[1, 2, 3]);
+    let first = reply_slots(Some(ME), Some("ann@people.test, bob@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, first), Ok(rev(1)));
+    let refused = |store: &mut MemoryStore, n: u32, slots: Value| {
+        let before = every_row(store);
+        assert_eq!(
+            set_bindings(store, n, slots.clone()),
+            Err(declared("overlap")),
+            "{n}: {slots}"
+        );
+        assert_eq!(every_row(store), before, "{n}: {slots}");
+    };
+    refused(
+        &mut store,
+        2,
+        reply_slots(Some(ME), Some("ann@people.test")),
+    );
+    let other_case = Some("carl@people.test, bob@people.test");
+    refused(&mut store, 2, reply_slots(Some("ME@Mail.TEST"), other_case));
+    refused(
+        &mut store,
+        2,
+        reply_slots(Some(ME), Some("ANN@People.Test")),
+    );
+
+    let list_alone = reply_slots(None, Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 2, list_alone), Ok(rev(1)));
+    refused(&mut store, 2, reply_slots(Some(ME), None));
+    let address_alone = reply_slots(Some(ME), None);
+    assert_eq!(set_bindings(&mut store, 3, address_alone), Ok(rev(1)));
+    let completes = Some("carl@people.test, Bob@People.test");
+    refused(&mut store, 3, reply_slots(None, completes));
+
+    assert_eq!(move_to(&mut store, 3, "paused"), Ok(state_reply("paused")));
+    refused(&mut store, 3, reply_slots(None, Some("bob@people.test")));
+    assert_eq!(move_to(&mut store, 1, "active"), Ok(state_reply("active")));
+    refused(&mut store, 2, reply_slots(Some(ME), None));
+    assert_eq!(bindings(&store).len(), 3);
+}
+
+#[test]
+fn set_bindings_passes_where_no_live_agent_overlaps() {
+    let first = reply_slots(Some(ME), Some("ann@people.test, bob@people.test"));
+    let passes = |store: &mut MemoryStore, slots: Value| {
+        let stored = bindings(store).len();
+        assert_eq!(set_bindings(store, 2, slots.clone()), Ok(rev(1)), "{slots}");
+        assert_eq!(bindings(store).len(), stored + 1, "{slots}");
+    };
+    for slots in [
+        reply_slots(Some(ME), Some("carl@people.test")),
+        reply_slots(Some("you@mail.test"), Some("ann@people.test")),
+        reply_slots(None, Some("ann@people.test")),
+        reply_slots(Some(ME), None),
+        reply_slots(Some(ME), Some("ann@people.test, Ann Berg")),
+        reply_slots(Some(ME), Some("ann@people.test,")),
+        reply_slots(Some(ME), Some("ann@people.test, ANN@people.test")),
+    ] {
+        let mut store = created(&[1, 2]);
+        assert_eq!(set_bindings(&mut store, 1, first.clone()), Ok(rev(1)));
+        passes(&mut store, slots);
+    }
+    let shared = reply_slots(Some(ME), Some("ann@people.test"));
+    for unread in [
+        "Ann Berg, ann@people.test",
+        "ann@people.test, ANN@people.test",
+    ] {
+        let mut store = created(&[1, 2]);
+        let slots = reply_slots(Some(ME), Some(unread));
+        assert_eq!(set_bindings(&mut store, 1, slots), Ok(rev(1)));
+        passes(&mut store, shared.clone());
+    }
+    for why in [
+        "paused",
+        "not stored",
+        "of another agent",
+        "proposed",
+        "dismissed",
+    ] {
+        let mut store = created(&[1, 2]);
+        assert_eq!(
+            set_bindings(&mut store, 1, first.clone()),
+            Ok(rev(1)),
+            "{why}"
+        );
+        match why {
+            "paused" => {
+                assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+            }
+            "not stored" => gone(&mut store, 1),
+            "of another agent" => {
+                store.put_workflow(workflow(&wf(1), "email", "active", Some(&agent(9))));
+            }
+            "proposed" => {
+                store.put_workflow(workflow(&wf(1), "email", "proposed", Some(&agent(1))));
+            }
+            _ => store.put_workflow(dismissed(&wf(1))),
+        }
+        assert_eq!(rows(&store, "agent_bindings").len(), 1, "{why}");
+        passes(&mut store, shared.clone());
+    }
+}
