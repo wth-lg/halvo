@@ -728,11 +728,11 @@ pub(super) const REPLACED: [(&str, Phase); 27] = [
 pub(super) const REPLACED_NATIVE: [(&str, (&str, &str)); 2] = [
     (
         "stall::an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask",
-        NATIVE_PHASES[0],
+        ("stall-mask", "mask"),
     ),
     (
         "stall::a_focus_notice_that_the_system_does_not_deliver_changes_nothing",
-        NATIVE_PHASES[1],
+        ("stall-stale-focus", "stale-focus"),
     ),
 ];
 
