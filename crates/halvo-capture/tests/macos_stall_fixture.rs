@@ -7116,6 +7116,18 @@ fn a_round_lost_to_a_late_marker_reads_by_its_rule_on_a_table() {
             None,
         ),
         (
+            "S2 a released key that arrived at the markers' posting time exactly still reads as lost",
+            beside_a_counted_retry(lost_with(vec![
+                arrived_at(2_450),
+                released_at(2_460),
+                arrived_at(2_462),
+                late_drop_at(2_464),
+            ])),
+            1,
+            true,
+            None,
+        ),
+        (
             "L2 a late drop entry of no key",
             beside_a_counted_retry(lost_with(vec![
                 arrived_at(2_457),
@@ -7348,6 +7360,15 @@ fn a_round_lost_to_a_late_marker_reads_by_its_rule_on_a_table() {
         if got.0 != want.0 || got.1 != [want.1] {
             wrong.push(what);
         }
+    }
+    let two_at_2000 = late_rule_line(
+        "stand-in",
+        &[lost_to_a_late_marker(2_000), lost_to_a_late_marker(2_000)],
+        &[2_000],
+    );
+    println!("late row: S2 two rounds lost at one wait count two: got={two_at_2000}");
+    if two_at_2000 != "stand-in rounds_lost_to_the_late_rule=2 by_wait=2000:2" {
+        wrong.push("S2 two rounds lost at one wait count two");
     }
     let counted_with_the_reason = Round {
         wait_ms: 1_500,
