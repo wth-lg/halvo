@@ -11861,10 +11861,11 @@ fn one_at_a_time() -> Limits {
     }
 }
 
-/// The row offers the take-back exactly while a start of the agent waits in the queue, whoever
-/// queued it (I2.5, I8.1; ruling RD-54 (h)).
+/// The row of an agent with no slot offers the take-back exactly while the person's start of it
+/// waits in the queue: not while it is idle, live or switched off, nor after its run has ended
+/// (I2.5, I8.1; rulings RD-54 (h), RD-149 (a)).
 #[test]
-fn u24e_the_row_offers_take_back_exactly_while_a_start_of_the_agent_is_queued() {
+fn u24e_the_row_offers_take_back_exactly_while_the_persons_start_waits_and_at_no_other_time() {
     use halvo_coord::types::Control;
     let c = coordinator(&[MANUAL, MANUAL], one_at_a_time());
     assert!(!controls_of(&c, 1).contains(&Control::TakeBack), "idle");
@@ -11993,4 +11994,123 @@ fn u24e_a_take_back_goes_on_without_the_clock_and_is_unknown_agent_for_a_gone_wo
         Err(Cause::UnknownAgent)
     );
     assert_eq!(events(&c).len(), stored, "nothing stored");
+}
+
+const ASKS_FIRST: support::A = support::A {
+    person: true,
+    slotted: true,
+};
+
+const ON_ITS_OWN: support::A = support::A {
+    person: false,
+    slotted: true,
+};
+
+/// A coordinator whose first tick reads the day before the first slot of every slotted agent,
+/// so that a slot falls due only when a test moves the clock to `DAY`.
+fn the_day_before(spec: &[support::A]) -> Coordinator<Both> {
+    let o = owner(spec, one_at_a_time());
+    o.ports.set_clock(T0 - 86_400_000, DAY - 1);
+    let c = Coordinator::new(o, one_at_a_time());
+    c.tick();
+    c
+}
+
+/// RD-149 (a), kind 1: a start that the person queued with Start now, for an agent with no
+/// slot, does not come back without the person, and the waiting row offers the take-back.
+#[test]
+fn u24e_rd149_kind_1_a_start_now_of_an_agent_with_no_slot_offers_take_back() {
+    use halvo_coord::types::Control::{Delete, SwitchOff, TakeBack};
+    let c = coordinator(&[MANUAL, MANUAL], one_at_a_time());
+    start(&c, 0);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    assert_eq!(c.queued(), vec![(agent(1), false)]);
+    assert_eq!(controls_of(&c, 1), [TakeBack, SwitchOff, Delete]);
+}
+
+/// RD-149 (a), kind 2: a start that follows the person's own answer to the agent's question;
+/// after a take-back a later tick asks again and nothing starts until the person answers
+/// (ruling RD-55 (b)), so the waiting row offers the take-back.
+#[test]
+fn u24e_rd149_kind_2_a_start_by_the_answer_to_the_ready_card_offers_take_back() {
+    use halvo_coord::types::Control::{Delete, SwitchOff, TakeBack};
+    use halvo_coord::types::{Answered, ReadyAnswer};
+    let c = coordinator(&[MANUAL, ASKS_FIRST], one_at_a_time());
+    start(&c, 0);
+    c.tick();
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Ready);
+    assert_eq!(c.answer(&item, Choice::Start, None, 0), Ok(()));
+    assert!(events(&c).contains(&What::ItemAnswered {
+        item,
+        answer: Answered::Ready(ReadyAnswer::Start),
+    }));
+    assert_eq!(c.queued(), vec![(agent(1), false)]);
+    assert_eq!(controls_of(&c, 1), [TakeBack, SwitchOff, Delete]);
+}
+
+/// RD-149 (a), kind 3: a start that the schedule queued by itself for an agent that does not ask
+/// first would come back at the next tick, so its waiting row offers Switch off alone, beside a
+/// waiting row of kind 1 that offers the take-back; a take-back that a page behind sends for it
+/// still drops the start, answers ok and stores nothing (RD-149 (b)).
+#[test]
+fn u24e_rd149_kind_3_a_start_that_the_schedule_queued_by_itself_offers_switch_off_alone() {
+    use halvo_coord::types::Control::{Delete, SwitchOff, TakeBack};
+    let c = the_day_before(&[MANUAL, ON_ITS_OWN, MANUAL]);
+    start(&c, 0);
+    assert_eq!(c.queued(), vec![]);
+    c.ports().ports.set_clock(T0, DAY);
+    c.tick();
+    assert_eq!(
+        c.queued(),
+        vec![(agent(1), false)],
+        "the schedule queued it"
+    );
+    assert_eq!(c.control(&agent(2), Action::RunNow), Ok(()));
+    assert_eq!(c.queued(), vec![(agent(2), false), (agent(1), false)]);
+    assert_eq!(controls_of(&c, 1), [SwitchOff, Delete], "kind 3");
+    assert_eq!(controls_of(&c, 2), [TakeBack, SwitchOff, Delete], "kind 1");
+    let stored = events(&c).len();
+    assert_eq!(c.control(&agent(1), Action::TakeBack), Ok(()));
+    assert_eq!(
+        c.queued(),
+        vec![(agent(2), false)],
+        "the start left the queue"
+    );
+    assert_eq!(events(&c).len(), stored, "nothing stored");
+}
+
+/// RD-149 (a), the coordinator's reading B: a start that the person queued with Start now, for
+/// an agent that does not ask first, offers the take-back while no slot of the agent is due, and
+/// Switch off alone while its current slot is due, because after a take-back the next tick
+/// would start that slot by itself. The named limit, not built: a take-back that a page behind
+/// sends then still drops the start, and the slot's own start follows at the next tick.
+#[test]
+fn u24e_rd149_a_start_now_of_an_agent_that_does_not_ask_first_offers_take_back_only_while_no_slot_is_due(
+) {
+    use halvo_coord::types::Control::{Delete, SwitchOff, TakeBack};
+    let c = the_day_before(&[MANUAL, ON_ITS_OWN]);
+    start(&c, 0);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    assert_eq!(c.queued(), vec![(agent(1), false)]);
+    assert_eq!(
+        controls_of(&c, 1),
+        [TakeBack, SwitchOff, Delete],
+        "no slot is due"
+    );
+    let c = the_day_before(&[MANUAL, ON_ITS_OWN]);
+    start(&c, 0);
+    c.ports().ports.set_clock(T0, DAY);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    assert_eq!(c.queued(), vec![(agent(1), false)]);
+    assert_eq!(controls_of(&c, 1), [SwitchOff, Delete], "its slot is due");
+    assert_eq!(c.control(&agent(1), Action::TakeBack), Ok(()));
+    assert_eq!(c.queued(), vec![], "a page behind still takes it back");
+    c.tick();
+    assert_eq!(
+        c.queued(),
+        vec![(agent(1), false)],
+        "the slot's own start follows"
+    );
+    assert_eq!(controls_of(&c, 1), [SwitchOff, Delete]);
 }

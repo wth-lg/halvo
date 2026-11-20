@@ -189,7 +189,8 @@ fn meet_r13_a_queued_agent_whose_refused_switch_off_reveals_a_ready_item_stays_q
     assert_eq!(waiting(&w), 1, "the queue holds the agent once");
     assert!(!w.events_of(1).iter().any(|e| e == "hold_set person"));
     assert!(
-        !halvo_coord::roster::controls(w.facts(1)).contains(&halvo_coord::types::Control::RunNow),
+        !halvo_coord::roster::controls(w.facts(1), None, &w.limits)
+            .contains(&halvo_coord::types::Control::RunNow),
         "the row offers no Start now"
     );
     w.ports.clear_refusals();

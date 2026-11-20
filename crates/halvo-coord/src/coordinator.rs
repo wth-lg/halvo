@@ -2667,7 +2667,13 @@ where
                 held.map(|h| h.confirmation().state()),
                 board.record_stuck(&facts.agent, &self.limits),
             );
-            let Ok(row) = roster::row(*facts, line, name) else {
+            let waiting = board
+                .queue
+                .entries()
+                .iter()
+                .find(|w| w.agent == facts.agent)
+                .map(|w| w.trigger);
+            let Ok(row) = roster::row(*facts, line, name, waiting, &self.limits) else {
                 continue;
             };
             let item = match (&open, line.status()) {

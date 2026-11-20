@@ -38,7 +38,7 @@
 //! | | `shop_order`: `problem.failures`; `run_now`, `switch_on`, `delete` | `paused`; runs on 20750 `completed` and on 20757, 20758 and 20759 `failed`; `hold_set` `failures` on 20759 |
 //! | `off` | `email`: `off.person`; `switch_on`, `delete` | `paused`; a run on 20758 `completed`; `hold_set` `person` on 20759 |
 //! | `working` | `utility_bill_payment`: `working.working`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run in the phase `working` |
-//! | `queue` | `utility_bill_payment` as in `working`; `email` and `shop_order`: `waiting_turn.queued`; `take_back`, `switch_off`, `delete` | `email` and `shop_order` as in `ten`, each with a start in the queue |
+//! | `queue` | `utility_bill_payment` as in `working`; `email` and `shop_order`: `waiting_turn.queued`; `take_back`, `switch_off`, `delete` | `email` and `shop_order` as in `ten`, each with a start that the person queued with Start now; both ask first, so they keep the take-back (ruling RD-149 (a)) |
 //! | `no_service` | none | `note` the text of `note.no_service` |
 //! | `out_of_date` | `utility_bill_payment` as in `working` | `note` the text of `note.out_of_date`, the note while the mark of a tick that did not return stands (ruling RD-80 4.1, 4.3) |
 //! | `needs_confirm_mixed` | `email` as in `needs_confirm_page` | its `confirm` item asks for one effect of the class `send` and one of the class `delete`, so it takes the mixed title and controls, and the fields of each effect follow its action line (ruling RD-10 (b), IG-4) |
@@ -134,7 +134,7 @@ struct Spec {
     runs: Vec<Past>,
     hold: Option<(HoldSetCause, u32)>,
     live: Option<LivePhase>,
-    queued: bool,
+    queued: Option<Trigger>,
     item: Option<ItemKind>,
     line: StatusLine,
     controls: Vec<Control>,
@@ -165,7 +165,7 @@ fn spec(category: Category, line: StatusLine) -> Spec {
         runs: vec![],
         hold: None,
         live: None,
-        queued: false,
+        queued: None,
         item: None,
         line,
         controls: vec![Control::RunNow, Control::SwitchOff, Control::Delete],
@@ -388,12 +388,12 @@ fn specs(state: State) -> Vec<Spec> {
                 ..utility(StatusLine::Working)
             },
             Spec {
-                queued: true,
+                queued: Some(Trigger::Person),
                 controls: WAITING.to_vec(),
                 ..email(StatusLine::Queued)
             },
             Spec {
-                queued: true,
+                queued: Some(Trigger::Person),
                 controls: WAITING.to_vec(),
                 ..shop(StatusLine::Queued)
             },
@@ -488,7 +488,7 @@ fn of_run(open: OpenItem) -> RunItem {
 }
 
 fn doing(spec: &Spec, open: Option<OpenItem>) -> Doing {
-    match (spec.live, spec.queued, open) {
+    match (spec.live, spec.queued.is_some(), open) {
         (None, false, open) => Doing::Idle(open.map(own)),
         (None, true, open) => Doing::Queued(open.map(own)),
         (Some(LivePhase::Starting), false, None) => Doing::Live(Live::Starting),
@@ -643,6 +643,12 @@ fn build(state: State) -> Vec<Built> {
 /// rows, the item and the card of `state-<state>.json` were written (I1.3).
 pub fn facts(state: State) -> Vec<Facts<Config>> {
     build(state).into_iter().map(|b| b.facts).collect()
+}
+
+/// For each agent of `facts(state)`, in its order, the trigger of its start that waits in the
+/// queue, or none: what `roster::row` reads from the queue beside the facts (ruling RD-149 (a)).
+pub fn waiting(state: State) -> Vec<Option<Trigger>> {
+    build(state).into_iter().map(|b| b.spec.queued).collect()
 }
 
 fn t(key: &str) -> String {

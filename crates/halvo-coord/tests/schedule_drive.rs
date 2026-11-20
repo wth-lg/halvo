@@ -3501,28 +3501,36 @@ fn u24e_a_take_back_reads_no_port_and_answers_ok_where_no_start_waits() {
     );
 }
 
-/// The row's controls offer the take-back exactly while a start of the agent is queued, whatever
-/// hold stands beside it: a hold that a later read brings, as `check` from a record whose effect
-/// is not known, leaves the start in the queue until it leaves it (I2.5, I5.5; ruling RD-54 (h)).
+/// The row's controls offer the take-back exactly while the agent's start that waits in the
+/// queue would not come back without the person once taken back, whatever hold stands beside
+/// it: a start of the person, but not one of an agent that does not ask first, has a finished
+/// run and has a slot due, and never a start of the scheduler; a hold that a later read brings,
+/// as `check` from a record whose effect is not known, leaves the start in the queue until it
+/// leaves it (I2.5, I5.3, I5.5; rulings RD-54 (h), RD-149 (a)).
 #[test]
-fn u24e_the_controls_offer_take_back_exactly_while_a_start_is_queued_whatever_hold_stands() {
+fn u24e_the_controls_offer_take_back_while_the_persons_waiting_start_would_not_come_back_whatever_hold_stands(
+) {
     use halvo_coord::roster::controls;
     use halvo_coord::types::Control::{Delete, RunNow, Stop, SwitchOff, SwitchOn, TakeBack};
     use halvo_coord::types::Live;
-    let w = world(&[manual()]);
-    let plain = w.facts(0).clone();
-    assert!(holds(&plain).is_empty());
-    let facts = |doing: &Doing, hold: &str| {
-        let mut f = plain.clone();
+    let first_run = A {
+        finished: false,
+        ..AUTO
+    };
+    let w = world(&[manual(), AUTO, person(), first_run]);
+    for n in 0..4 {
+        assert!(holds(w.facts(n)).is_empty(), "{n}");
+    }
+    let facts = |n: usize, doing: &Doing, hold: &str| {
+        let mut f = w.facts(n).clone();
         f.doing = doing.clone();
-        let first = f.events[0].clone();
-        let set = |cause| Event {
+        let set = |f: &Facts<halvo_coord::mem::Config>, cause| Event {
             what: What::HoldSet { cause },
-            ..first.clone()
+            ..f.events[0].clone()
         };
         match hold {
-            "off" => f.events.push(set(HoldSetCause::Person)),
-            "failures" => f.events.push(set(HoldSetCause::Failures)),
+            "off" => f.events.push(set(&f, HoldSetCause::Person)),
+            "failures" => f.events.push(set(&f, HoldSetCause::Failures)),
             "check" => f.runs[0].unknown = 1,
             _ => {}
         }
@@ -3531,32 +3539,122 @@ fn u24e_the_controls_offer_take_back_exactly_while_a_start_is_queued_whatever_ho
     let queued = Doing::Queued(None);
     let idle = Doing::Idle(None);
     let live = Doing::Live(Live::Working);
-    for (doing, hold, want, standing) in [
-        (&queued, "none", vec![TakeBack, SwitchOff, Delete], vec![]),
+    let person = Some(Trigger::Person);
+    let schedule = Some(Trigger::Schedule);
+    let waiting = [TakeBack, SwitchOff, Delete];
+    let switch_off_alone = [SwitchOff, Delete];
+    for (n, doing, hold, trigger, want, standing, case) in [
         (
+            0,
+            &queued,
+            "none",
+            person,
+            waiting.to_vec(),
+            vec![],
+            "kind 1, no slot",
+        ),
+        (
+            0,
             &queued,
             "check",
-            vec![TakeBack, SwitchOff, Delete],
+            person,
+            waiting.to_vec(),
             vec![Hold::Check],
+            "a check that a later read brought",
         ),
         (
+            0,
             &queued,
             "off",
+            person,
             vec![TakeBack, SwitchOn, Delete],
             vec![Hold::Off],
+            "off",
         ),
         (
+            0,
             &queued,
             "failures",
+            person,
             vec![TakeBack, SwitchOn, Delete],
             vec![Hold::Failures],
+            "failures",
         ),
-        (&idle, "none", vec![RunNow, SwitchOff, Delete], vec![]),
-        (&idle, "check", vec![SwitchOff, Delete], vec![Hold::Check]),
-        (&live, "none", vec![Stop, SwitchOff, Delete], vec![]),
+        (
+            0,
+            &queued,
+            "none",
+            None,
+            switch_off_alone.to_vec(),
+            vec![],
+            "no start in the queue",
+        ),
+        (
+            1,
+            &queued,
+            "none",
+            schedule,
+            switch_off_alone.to_vec(),
+            vec![],
+            "kind 3",
+        ),
+        (
+            1,
+            &queued,
+            "none",
+            person,
+            switch_off_alone.to_vec(),
+            vec![],
+            "Start now, does not ask first, slot due",
+        ),
+        (
+            2,
+            &queued,
+            "none",
+            person,
+            waiting.to_vec(),
+            vec![],
+            "asks first, slot due",
+        ),
+        (
+            3,
+            &queued,
+            "none",
+            person,
+            waiting.to_vec(),
+            vec![],
+            "does not ask first, no finished run",
+        ),
+        (
+            0,
+            &idle,
+            "none",
+            None,
+            vec![RunNow, SwitchOff, Delete],
+            vec![],
+            "idle",
+        ),
+        (
+            0,
+            &idle,
+            "check",
+            None,
+            switch_off_alone.to_vec(),
+            vec![Hold::Check],
+            "idle with a check",
+        ),
+        (
+            0,
+            &live,
+            "none",
+            None,
+            vec![Stop, SwitchOff, Delete],
+            vec![],
+            "live",
+        ),
     ] {
-        let f = facts(doing, hold);
-        assert_eq!(holds(&f), standing, "{doing:?} {hold}");
-        assert_eq!(controls(&f), want, "{doing:?} {hold}");
+        let f = facts(n, doing, hold);
+        assert_eq!(holds(&f), standing, "{case}");
+        assert_eq!(controls(&f, trigger, &w.limits), want, "{case}");
     }
 }

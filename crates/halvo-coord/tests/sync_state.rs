@@ -1,7 +1,7 @@
 use halvo_coord::items::{compose_plain, Plain};
 use halvo_coord::roster::{names, order, plain_site, row, status, Placed};
 use halvo_coord::sync::{Next, Sync};
-use halvo_coord::types::fixtures::{facts, State};
+use halvo_coord::types::fixtures::{facts, waiting, State};
 use halvo_coord::types::{Item, ItemKind, Limits, Row, Snapshot};
 
 /// The rows and the items of a state of the fixtures, built here from the roster's functions
@@ -14,8 +14,9 @@ fn state(s: State) -> (Vec<Row>, Vec<Item>, Option<String>) {
     let mut placed: Vec<Placed> = all
         .iter()
         .zip(&names)
-        .map(|(f, n)| Placed {
-            row: row(f, status(f, &Limits::PRODUCT, None), n).unwrap(),
+        .zip(waiting(s))
+        .map(|((f, n), w)| Placed {
+            row: row(f, status(f, &Limits::PRODUCT, None), n, w, &Limits::PRODUCT).unwrap(),
             raised: None,
         })
         .collect();
