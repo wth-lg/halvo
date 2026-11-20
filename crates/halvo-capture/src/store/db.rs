@@ -34,6 +34,7 @@ const KEY_FILE_VERSION: u32 = 2;
 #[cfg(target_os = "macos")]
 const STATS_AFTER_THE_FIRST: u32 = 2;
 const DATABASE_VERSION: i64 = 2;
+const PAGE_SIZE: i64 = 4096;
 /// The name of the store directory in a data directory (C3.5).
 const STORE_DIR_NAME: &str = "store";
 const KEY_FILE: &str = "store.key";
@@ -1579,8 +1580,14 @@ impl Db {
                 self.conn
                     .execute_batch(&format!("PRAGMA user_version = {DATABASE_VERSION};"))
                     .map_err(db_error)?;
+                require_setting(&self.conn, "auto_vacuum", 0)?;
+                require_setting(&self.conn, "page_size", PAGE_SIZE)?;
             }
-            Database::Existing => self.require_schema()?,
+            Database::Existing => {
+                self.require_schema()?;
+                require_setting(&self.conn, "auto_vacuum", 0)?;
+                require_setting(&self.conn, "page_size", PAGE_SIZE)?;
+            }
         }
         if database == Database::New {
             self.log_look()?;
@@ -1890,6 +1897,38 @@ fn unreadable_or_db_error(e: rusqlite::Error) -> StoreError {
     }
 }
 
+fn require_mend(linked: bool) -> StoreResult<()> {
+    if linked {
+        Ok(())
+    } else {
+        Err(StoreError::SettingNotInEffect("page_gap_mend_linked"))
+    }
+}
+
+fn setting_in_effect(name: &'static str, read: i64, wanted: i64) -> StoreResult<()> {
+    if read == wanted {
+        Ok(())
+    } else {
+        Err(StoreError::SettingNotInEffect(name))
+    }
+}
+
+fn require_setting(conn: &Connection, name: &'static str, wanted: i64) -> StoreResult<()> {
+    let read = conn
+        .query_row(&format!("PRAGMA {name}"), [], |r| {
+            Ok(match r.get::<_, rusqlite::types::Value>(0)? {
+                rusqlite::types::Value::Integer(n) => Some(n),
+                rusqlite::types::Value::Text(text) => text.trim().parse().ok(),
+                _ => None,
+            })
+        })
+        .map_err(db_error)?;
+    match read {
+        Some(read) => setting_in_effect(name, read, wanted),
+        None => Err(StoreError::SettingNotInEffect(name)),
+    }
+}
+
 fn require_secure_delete(conn: &Connection) -> StoreResult<()> {
     match pragma_int(conn, "secure_delete")? {
         1 => Ok(()),
@@ -2168,7 +2207,14 @@ impl EncryptedStore {
     /// files, every step attempted, and answers the step's error, or a
     /// removal's error when one failed. On Windows a store path or a roots
     /// path of which a part ends in a dot or a space answers
-    /// `Io(InvalidInput)` before anything is made.
+    /// `Io(InvalidInput)` before anything is made. Before every other answer,
+    /// and before anything is made, it answers
+    /// [`StoreError::SettingNotInEffect`] with `page_gap_mend_linked` when the
+    /// linked database does not zero the gap of a page that it builds again or
+    /// edits in place under secure delete; on the database that it has just
+    /// made it reads auto_vacuum and the page size back and answers the same
+    /// variant with `auto_vacuum` or `page_size` unless they read 0 and 4,096,
+    /// as a step that fails.
     pub fn create(
         dir: &Path,
         custody: Box<dyn KeyCustody + Send>,
@@ -2183,6 +2229,7 @@ impl EncryptedStore {
         retention: Duration,
         after_the_handle: &mut dyn FnMut(),
     ) -> StoreResult<Self> {
+        require_mend(halvo_sqlcipher::page_gap_mend_linked())?;
         #[cfg(windows)]
         refuse_a_part_that_windows_trims(&[Some(dir), custody.roots()])?;
         durable::create_private_dir_all(dir).map_err(io_error)?;
@@ -2396,6 +2443,13 @@ impl EncryptedStore {
     /// No call waits on a
     /// FIFO. On Windows a store path or a roots path of which a part ends in a
     /// dot or a space answers `Io(InvalidInput)` before anything is opened.
+    /// Before every other answer, and before it touches a file, it answers
+    /// [`StoreError::SettingNotInEffect`] with `page_gap_mend_linked` when the
+    /// linked database does not zero the gap of a page that it builds again or
+    /// edits in place under secure delete; on a database that the key opened
+    /// and whose version is this build's, it answers the same variant with
+    /// `auto_vacuum` when `store.db` does not read auto_vacuum 0, and with
+    /// `page_size` when it does not read a page size of 4,096.
     pub fn open(dir: &Path, roots: &Path, retention: Duration) -> StoreResult<Self> {
         Self::open_with(dir, roots, retention, custody_for)
     }
@@ -2406,6 +2460,7 @@ impl EncryptedStore {
         retention: Duration,
         custody_for: impl FnOnce(&CustodyLocator) -> Result<Box<dyn KeyCustody + Send>, CustodyError>,
     ) -> StoreResult<Self> {
+        require_mend(halvo_sqlcipher::page_gap_mend_linked())?;
         #[cfg(windows)]
         refuse_a_part_that_windows_trims(&[Some(dir), Some(roots)])?;
         let store = Dir::open(dir).map_err(store_dir_error)?;
@@ -3274,6 +3329,56 @@ pub(in crate::store) mod test_support {
 mod tests {
     use super::test_support::make_store;
     use super::*;
+
+    #[test]
+    fn the_open_and_the_create_refuse_a_library_without_the_mend_and_other_page_settings_by_name() {
+        assert!(matches!(
+            require_mend(false),
+            Err(StoreError::SettingNotInEffect("page_gap_mend_linked"))
+        ));
+        assert!(require_mend(true).is_ok());
+        assert!(halvo_sqlcipher::page_gap_mend_linked());
+        assert!(matches!(
+            setting_in_effect("auto_vacuum", 1, 0),
+            Err(StoreError::SettingNotInEffect("auto_vacuum"))
+        ));
+        assert!(matches!(
+            setting_in_effect("page_size", 8192, PAGE_SIZE),
+            Err(StoreError::SettingNotInEffect("page_size"))
+        ));
+        assert!(setting_in_effect("auto_vacuum", 0, 0).is_ok());
+        assert!(setting_in_effect("page_size", 4096, PAGE_SIZE).is_ok());
+        let source = std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src")
+                .join("store")
+                .join("db.rs"),
+        )
+        .unwrap()
+        .replace("\r\n", "\n");
+        let code = &source[..source.find("\n#[cfg(test)]\nmod tests {").unwrap()];
+        let call = "        require_mend(halvo_sqlcipher::page_gap_mend_linked())?;\n";
+        let signature_end = ") -> StoreResult<Self> {\n";
+        for function in ["fn open_with(", "fn create_with("] {
+            let start = code.find(function).unwrap();
+            let body = start + code[start..].find(signature_end).unwrap() + signature_end.len();
+            assert!(
+                code[body..].starts_with(call),
+                "{function} does not begin with the gate of the mend"
+            );
+        }
+        assert_eq!(code.matches(call).count(), 2);
+        for line in [
+            "require_setting(&self.conn, \"auto_vacuum\", 0)?;",
+            "require_setting(&self.conn, \"page_size\", PAGE_SIZE)?;",
+        ] {
+            assert_eq!(
+                code.matches(line).count(),
+                2,
+                "{line} stands once for a create and once for an open"
+            );
+        }
+    }
 
     #[test]
     fn the_code_table_reads_each_primary_code_and_no_code() {
