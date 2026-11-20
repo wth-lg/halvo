@@ -245,7 +245,8 @@ impl<C> Found<C> {
 /// them is logged once more (ruling XB-31). A body that the owner does not acknowledge, with its
 /// `run_ended` and its `item_lapsed` entries, and an `end_run` that it does not acknowledge, are
 /// owed on the board, which the schedule's tick sends again (XB-32). The board takes the facts so read, with the day of the clock, an idle agent
-/// with no item, an empty queue and no live run; then recovery raises the item `check` where
+/// with no item, an empty queue and no live run, and keeps the runs for which `reap` answered
+/// `alive` (`Board::alive_at_reap`; ruling RD-147 (5)(i)); then recovery raises the item `check` where
 /// `check_due` holds, since it read the store's records, and that raise lapses with the cause
 /// `check` each `ready` item whose `app_ended` lapse is owed (ruling RD-96).
 pub fn recover<P>(ports: &P, limits: &Limits) -> Result<Life<P::Config>, Cause>
@@ -412,6 +413,7 @@ where
         }
     }
     board.owed = owed;
+    board.keep_alive(&reaped);
     for agent in &aside {
         board.set_aside(agent, reaped.clone());
     }
