@@ -602,3 +602,17 @@ fn a_missing_data_directory_below_a_link_that_leads_nowhere_ends_the_run_with_th
     );
     assert!(!root.join("gone").exists());
 }
+
+#[test]
+fn a_first_state_write_that_fails_is_named_by_one_line_with_its_kind() {
+    let dir = kept_dir("service-tests-");
+    let writer = TestWrite::default();
+    writer.failing.store(true, Ordering::SeqCst);
+    let (status, err) = serve_with(&dir, Box::new(writer.clone()));
+    let line = format!(
+        "halvo-capture: state_file=write_failed error={}\n",
+        std::io::ErrorKind::StorageFull
+    );
+    assert_eq!((status, err), (0, line));
+    assert_eq!(writer.calls.load(Ordering::SeqCst), 1);
+}
