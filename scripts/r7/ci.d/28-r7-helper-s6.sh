@@ -563,6 +563,9 @@ def self_test():
         ("0", 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
         (running, 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
         (running, 0, "", (False, True), 1, "MISSED setup-or-cleanup"),
+        (json.dumps({"exit": 0, "pid": 7}), 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
+        (json.dumps({"exit": 0, "gone": "true"}), 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
+        (json.dumps({"exit": "0", "gone": True}), 0, "", (True, False), 1, "MISSED setup-or-cleanup"),
     ]:
         captured = io.StringIO()
         with patch("__main__.hosted", return_value=True), patch("__main__.KEY_EXIT") as witness, \
@@ -572,7 +575,10 @@ def self_test():
             witness.read_text.return_value = evidence
             faults.exists.return_value = bool(reasons)
             faults.read_text.return_value = reasons
-            result = finish(initial)
+            try:
+                result = finish(initial)
+            except Exception as exc:
+                raise RuntimeError("key-verdict-fixture") from exc
             clean.assert_called_once_with()
         lines = captured.getvalue().splitlines()
         if result != code or "S6 real-helper: " + expected not in lines:
@@ -720,6 +726,27 @@ def self_test():
             or json.loads(stub_record(os.getpid(), own + "1", 0))["gone"] is not True
             or json.loads(stub_record(os.getpid(), None, 0))["gone"] is not False):
         raise RuntimeError("process-read-fixture")
+    with patch("__main__.process_start", side_effect=RuntimeError("stub-process-read")):
+        if json.loads(stub_record(7, "1.000000", 0))["gone"] is not False:
+            raise RuntimeError("process-read-fixture")
+    ended = WORK / "key-ended-fixture"
+    ended.mkdir()
+    captured = io.StringIO()
+    with patch("__main__.hosted", return_value=True), patch("subprocess.Popen") as start, \
+         patch("__main__.KEY_EXIT", ended / "exit"), patch("__main__.REASONS") as faults, \
+         patch("__main__.undo", return_value=(True, False)), \
+         patch("__main__.process_start", side_effect=["1.000000", None]) as read, redirect_stdout(captured):
+        proc = start.return_value
+        proc.pid = 7
+        proc.wait.return_value = 0
+        proc.stdout.readline.return_value = b'{"app":"https://127.0.0.1:1","control":"http://127.0.0.1:2"}'
+        with stub(ended / "record", True):
+            pass
+        faults.exists.return_value = False
+        result = finish(0)
+    if (result != 0 or read.call_args_list != [call(7), call(7)]
+            or "S6 TLS stub-exit=0 key-gone=true" not in captured.getvalue().splitlines()):
+        raise RuntimeError("key-ended-fixture")
     answered_row = {"seq": 1, "connection": 1, "method": "POST", "target": "/v1/checkout", "status": 200,
                     "result": "session"}
     alert_row = {"seq": 1, "error": "ERR_SSL_TLSV1_ALERT_UNKNOWN_CA"}
