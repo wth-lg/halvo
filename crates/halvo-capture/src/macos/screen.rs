@@ -4575,6 +4575,21 @@ mod tests {
         assert_eq!(trial.facts.listed(), vec![41, 42], "the pids that crossed");
         assert_eq!(trial.facts.lists_app(), Some(true), "the fact that crossed");
         assert_eq!(seen.stops(), 0, "a stop was asked");
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream, &[5, 9], LONG_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        let Ok((_stream, _output, _queue, display)) = &trial.answer else {
+            panic!(
+                "the start with no main display answered {:?}",
+                trial.error()
+            );
+        };
+        assert_eq!(
+            *locked(&seen.made_on),
+            vec![(READER_THREAD.to_string(), 0)],
+            "the display that the chooser takes while the main display is not listed"
+        );
+        assert_eq!(*display, 5, "the id of the chosen display that crossed");
     }
 
     #[test]
