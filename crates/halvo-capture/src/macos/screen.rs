@@ -2107,6 +2107,37 @@ mod tests {
     }
 
     #[test]
+    fn a_frame_after_the_poll_has_ended_makes_no_record() {
+        use crate::macos::foreground::tests_support::polled_source;
+        let system_front = Arc::new(Mutex::new(Some(front("com.example.editor", 72))));
+        let (mut foreground, reader) = polled_source(system_front);
+        let (fg_handle, _fg_sink) = sink::channel(64);
+        foreground
+            .begin(SourceContext::new(fg_handle))
+            .expect("the foreground source starts");
+        let started = Instant::now();
+        while reader.get().map(|front| front.pid) != Some(72) {
+            assert!(started.elapsed() < Duration::from_secs(5), "no first poll");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let (handle, writer) = sink::channel(16);
+        let ivars = ScreenIvars {
+            sink: Mutex::new(Some(handle)),
+            rule: rule(reader, floor_on(), inactive()),
+            facts: Arc::default(),
+        };
+        on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+        assert!(writer.try_recv().is_ok(), "a record while the poll runs");
+        assert_eq!(foreground.shutdown(), Ok(()));
+        on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
+        assert_eq!(
+            records(ivars, &writer),
+            0,
+            "a record after the poll has ended, while the read names an editor"
+        );
+    }
+
+    #[test]
     fn a_record_carries_the_app_in_front_and_its_pid() {
         let (ivars, writer, _front) = screen_ivars(inactive());
         on_sample(&ivars, complete().sample(), SCStreamOutputType::Screen);
