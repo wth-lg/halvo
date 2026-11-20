@@ -333,6 +333,12 @@ impl<C> Board<C> {
             .then_some(newest)
     }
 
+    /// Whether this life's `Runs::reap` answered `alive` for the run, for which no `end_run` is
+    /// owed in this life (I5.8; ruling RD-151).
+    pub fn answered_alive(&self, run: &RunId) -> bool {
+        self.alive.contains(run)
+    }
+
     /// Whether the agent's start sends its request to defer only after its `run_started` is
     /// acknowledged: a `run_started` of it was refused with a name other than `seq`, and no store
     /// of it has been acknowledged since (I5.5, ruling RD-64 1.8).

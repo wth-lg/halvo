@@ -361,6 +361,8 @@ fn log_or_reread_once<P: Owner, C: ConfigView>(
 /// reads as not ended by the store, so that step 3 of I5.5 holds the agent's next start until
 /// the store has ended it. Such a row was never taken up: the start that logged it answered
 /// `no_service` and launched no runner. Whether it closed one.
+/// A run for which this life's `Runs::reap` answered `alive` is never closed here: no `end_run`
+/// is owed for it in this life (I5.8; ruling RD-151).
 fn close_lost_starts<P: Owner, C: ConfigView>(
     cx: &MoveContext<'_, P>,
     board: &mut Board<C>,
@@ -380,6 +382,7 @@ fn close_lost_starts<P: Owner, C: ConfigView>(
         .filter(|run| {
             !board.runs.iter().any(|r| &r.run == run) && !board.dying.iter().any(|d| &d.run == run)
         })
+        .filter(|run| !board.answered_alive(run))
         .filter(|run| {
             !board.owed.iter().any(|o| {
                 o.agent == facts.agent
