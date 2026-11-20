@@ -1629,26 +1629,30 @@ impl Db {
         require_pinned_cipher(conn)
     }
 
+    /// The last steps of an open or a create. For an existing database the
+    /// look at the tables, the two settings and a held look come first, read
+    /// through the log's frames with no write, so that a refusal leaves the
+    /// log and `store.db` as they were; then the drain; then, for a new
+    /// database, the tables, the version and their read-backs, the log's
+    /// look, a checkpoint and the page look; then the last held look, which a
+    /// `store.db` moved or exchanged at its name during the drain fails.
     fn finish(&self, database: Database) -> StoreResult<()> {
         #[cfg(test)]
         failpoint::seam(SEAM_BEFORE_THE_DRAIN);
-        self.log_drained()?;
-        match database {
-            Database::New => {
-                self.init_schema()?;
-                self.conn
-                    .execute_batch(&format!("PRAGMA user_version = {DATABASE_VERSION};"))
-                    .map_err(db_error)?;
-                require_setting(&self.conn, "auto_vacuum", 0)?;
-                require_setting(&self.conn, "page_size", PAGE_SIZE)?;
-            }
-            Database::Existing => {
-                self.require_schema()?;
-                require_setting(&self.conn, "auto_vacuum", 0)?;
-                require_setting(&self.conn, "page_size", PAGE_SIZE)?;
-            }
+        if database == Database::Existing {
+            self.require_schema()?;
+            require_setting(&self.conn, "auto_vacuum", 0)?;
+            require_setting(&self.conn, "page_size", PAGE_SIZE)?;
+            held_look(&self.conn, &self.store_dir, self.named.0)?;
         }
+        self.log_drained()?;
         if database == Database::New {
+            self.init_schema()?;
+            self.conn
+                .execute_batch(&format!("PRAGMA user_version = {DATABASE_VERSION};"))
+                .map_err(db_error)?;
+            require_setting(&self.conn, "auto_vacuum", 0)?;
+            require_setting(&self.conn, "page_size", PAGE_SIZE)?;
             self.log_look()?;
             self.checkpoint_truncate()?;
             #[cfg(test)]
@@ -2583,7 +2587,15 @@ impl EncryptedStore {
     /// edits in place under secure delete; on a database that the key opened
     /// and whose version is this build's, it answers the same variant with
     /// `auto_vacuum` when `store.db` does not read auto_vacuum 0, and with
-    /// `page_size` when it does not read a page size of 4,096.
+    /// `page_size` when it does not read a page size of 4,096. The look at the
+    /// tables, the two settings and a look that `store.db` at its name is
+    /// still the file that the open holds come before the open drains its log
+    /// into `store.db`, so an open that one of them refuses leaves every entry
+    /// of the store's directory with its name, length and bytes, and the log
+    /// with the frames that it held. The one refusal that can follow the
+    /// drain is that of a `store.db` that another program moves or exchanges
+    /// at its name during the drain, which is the obstructed variant and
+    /// never `Ok`.
     pub fn open(dir: &Path, roots: &Path, retention: Duration) -> StoreResult<Self> {
         Self::open_with(dir, roots, retention, custody_for)
     }

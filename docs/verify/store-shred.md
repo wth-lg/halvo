@@ -2080,7 +2080,14 @@ set, and the root's own volume name answers the root.
   which answers `NewerStore` or `OlderStore` leaves a log that was there
   before the call as it found it, whatever its length. Such an `open`
   neither checkpoints nor truncates, so a frame that the log held before
-  the call is in it after. A shred that returned `Ok` has left a log of 0
+  the call is in it after. Nor does an `open` that the look at the tables,
+  the auto_vacuum or page-size setting or the held look before its drain
+  refuses (`store::hardening_tests::refusals_before_the_drain` reads it
+  over a log with frames); the one refusal that can follow the drain is
+  that of a `store.db` that another program moves or exchanges at its name
+  during the drain (the named limit of T5), which the last look answers
+  with the obstructed variant and never with `Ok`. A shred that returned
+  `Ok` has left a log of 0
   bytes, so a log that holds a frame of a shredded key's page is the log
   of a shred that stopped between its commit and its checkpoint (the entry
   above on a process crash) or a file that was put there, and property 1
