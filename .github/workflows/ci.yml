@@ -106,6 +106,10 @@ jobs:
         if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: Long forms build
+        if: github.event.schedule == '17 3 * * 3'
+        shell: bash
+        run: cargo test --locked -p halvo-capture --lib --test macos_stall_fixture --no-run
       - name: Long forms
         if: github.event.schedule == '17 3 * * 3'
         shell: bash
@@ -162,6 +166,10 @@ jobs:
         if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: Long forms build
+        if: github.event.schedule == '17 3 * * 3'
+        shell: bash
+        run: cargo test --locked -p halvo-capture --test windows_functional --no-run
       - name: Long forms
         if: github.event.schedule == '17 3 * * 3'
         shell: bash
