@@ -159,6 +159,24 @@ fn assert_held(store: &EncryptedStore, store_dir: &Path, id: &Uuid, what: &str) 
     );
 }
 
+fn greatest_ordinal(store: &EncryptedStore) -> i64 {
+    store
+        .db()
+        .unwrap()
+        .connection()
+        .query_row("SELECT max(id) FROM segment_keys", [], |r| r.get(0))
+        .unwrap()
+}
+
+fn assert_ordinal_above(answer: &Result<Written, WriteFault>, named: i64, what: &str) {
+    let ordinal = answer.as_ref().map(|w| w.ordinal.get() as i64).unwrap();
+    println!("RC1 {what}: the retry's ordinal {ordinal}, the greatest ordinal that an answer named {named}");
+    assert!(
+        ordinal > named,
+        "{what}: the retry's ordinal {ordinal} is not above {named}, the greatest ordinal that an answer named"
+    );
+}
+
 enum Taken {
     Unlinked,
     MovedOut,
@@ -169,6 +187,7 @@ fn batch_after_the_log_left(name: &str, how: Taken) {
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     let key = *store.database_key().unwrap();
+    let named = greatest_ordinal(&store);
     let log = store_dir.join("store.db-wal");
     match how {
         Taken::Unlinked => std::fs::remove_file(&log).unwrap(),
@@ -233,6 +252,7 @@ fn batch_after_the_log_left(name: &str, how: Taken) {
             "after a kill the retry answered {}",
             said(&again)
         );
+        assert_ordinal_above(&again, named, "after a kill");
         assert_held(&left, &copy, &id, "after a kill and a retry");
     }
     drop(store);
@@ -256,6 +276,7 @@ fn batch_after_the_log_left(name: &str, how: Taken) {
         "after a clean close the retry answered {}",
         said(&again)
     );
+    assert_ordinal_above(&again, named, "after a clean close");
     assert_held(&reopened, &store_dir, &id, "the retry after a clean close");
     let at_the_answer = dir.path().join("after-the-retry-as-a-kill-leaves-it");
     copy_tree(&store_dir, &at_the_answer);
