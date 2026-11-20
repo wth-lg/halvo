@@ -538,3 +538,33 @@ fn every_item_says_its_coming_and_going_with_its_agents_name() {
     }
     assert!(items > 0);
 }
+
+/// The control that takes a queued start back stands on the two waiting rows of `queue` and on
+/// no other row of any state, before Switch off (U2.4e; ruling RD-54 (h)).
+#[test]
+fn u24e_the_take_back_stands_on_the_waiting_rows_of_the_queue_state_alone() {
+    let text = words::text("control.take_back", &[]).unwrap();
+    let mut offered = Vec::new();
+    for state in State::ALL {
+        for row in snapshot(state.name())["rows"].as_array().unwrap() {
+            let controls: Vec<&str> = row["controls"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c["control"].as_str().unwrap())
+                .collect();
+            if controls.contains(&"take_back") {
+                offered.push((state.name(), row["status"].as_str().unwrap().to_owned()));
+                assert_eq!(controls, ["take_back", "switch_off", "delete"]);
+                assert!(row["controls"][0]["text"] == text.as_str(), "{row}");
+            }
+        }
+    }
+    assert_eq!(
+        offered,
+        [
+            ("queue", "waiting_turn".to_owned()),
+            ("queue", "waiting_turn".to_owned())
+        ]
+    );
+}

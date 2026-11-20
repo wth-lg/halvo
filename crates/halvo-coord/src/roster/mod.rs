@@ -192,18 +192,23 @@ pub fn names<C>(
 
 /// The controls of a row (I2.5), in the order of `Control`: `run_now` while no hold but
 /// `failures` stands and no run is live or queued; `stop` exactly while a run is live;
-/// `switch_on` while the hold `off` or `failures` stands, and `switch_off` otherwise; `delete`
-/// always.
+/// `take_back` exactly while a start of the agent is queued, whoever queued it (ruling RD-54
+/// (h)); `switch_on` while the hold `off` or `failures` stands, and `switch_off` otherwise;
+/// `delete` always.
 pub fn controls<C: ConfigView>(facts: &Facts<C>) -> Vec<Control> {
     let standing = holds(facts);
     let idle = matches!(facts.doing, Doing::Idle(_));
     let live = matches!(facts.doing, Doing::Live(_));
+    let queued = matches!(facts.doing, Doing::Queued(_));
     let mut out = Vec::new();
     if idle && standing.iter().all(|h| *h == Hold::Failures) {
         out.push(Control::RunNow);
     }
     if live {
         out.push(Control::Stop);
+    }
+    if queued {
+        out.push(Control::TakeBack);
     }
     if standing.contains(&Hold::Off) || standing.contains(&Hold::Failures) {
         out.push(Control::SwitchOn);

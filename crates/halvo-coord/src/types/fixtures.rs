@@ -38,7 +38,7 @@
 //! | | `shop_order`: `problem.failures`; `run_now`, `switch_on`, `delete` | `paused`; runs on 20750 `completed` and on 20757, 20758 and 20759 `failed`; `hold_set` `failures` on 20759 |
 //! | `off` | `email`: `off.person`; `switch_on`, `delete` | `paused`; a run on 20758 `completed`; `hold_set` `person` on 20759 |
 //! | `working` | `utility_bill_payment`: `working.working`; `stop`, `switch_off`, `delete` | as in `ten`, and a live run in the phase `working` |
-//! | `queue` | `utility_bill_payment` as in `working`; `email` and `shop_order`: `waiting_turn.queued`; `switch_off`, `delete` | `email` and `shop_order` as in `ten`, each with a start in the queue |
+//! | `queue` | `utility_bill_payment` as in `working`; `email` and `shop_order`: `waiting_turn.queued`; `take_back`, `switch_off`, `delete` | `email` and `shop_order` as in `ten`, each with a start in the queue |
 //! | `no_service` | none | `note` the text of `note.no_service` |
 //! | `out_of_date` | `utility_bill_payment` as in `working` | `note` the text of `note.out_of_date`, the note while the mark of a tick that did not return stands (ruling RD-80 4.1, 4.3) |
 //! | `needs_confirm_mixed` | `email` as in `needs_confirm_page` | its `confirm` item asks for one effect of the class `send` and one of the class `delete`, so it takes the mixed title and controls, and the fields of each effect follow its action line (ruling RD-10 (b), IG-4) |
@@ -175,6 +175,7 @@ fn spec(category: Category, line: StatusLine) -> Spec {
 
 const LIVE: [Control; 3] = [Control::Stop, Control::SwitchOff, Control::Delete];
 const HELD: [Control; 2] = [Control::SwitchOff, Control::Delete];
+const WAITING: [Control; 3] = [Control::TakeBack, Control::SwitchOff, Control::Delete];
 
 fn utility(line: StatusLine) -> Spec {
     Spec {
@@ -388,12 +389,12 @@ fn specs(state: State) -> Vec<Spec> {
             },
             Spec {
                 queued: true,
-                controls: HELD.to_vec(),
+                controls: WAITING.to_vec(),
                 ..email(StatusLine::Queued)
             },
             Spec {
                 queued: true,
-                controls: HELD.to_vec(),
+                controls: WAITING.to_vec(),
                 ..shop(StatusLine::Queued)
             },
         ],

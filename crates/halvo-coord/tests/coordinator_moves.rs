@@ -11853,3 +11853,144 @@ fn rd140_r1_c08_a_switch_off_beside_another_agents_waiting_row_that_panics() {
         "(the press, cancels in the move, hold_set rows, Run now)"
     );
 }
+
+fn one_at_a_time() -> Limits {
+    Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    }
+}
+
+/// The row offers the take-back exactly while a start of the agent waits in the queue, whoever
+/// queued it (I2.5, I8.1; ruling RD-54 (h)).
+#[test]
+fn u24e_the_row_offers_take_back_exactly_while_a_start_of_the_agent_is_queued() {
+    use halvo_coord::types::Control;
+    let c = coordinator(&[MANUAL, MANUAL], one_at_a_time());
+    assert!(!controls_of(&c, 1).contains(&Control::TakeBack), "idle");
+    let first = start(&c, 0);
+    assert!(!controls_of(&c, 0).contains(&Control::TakeBack), "live");
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    assert_eq!(
+        controls_of(&c, 1),
+        [Control::TakeBack, Control::SwitchOff, Control::Delete],
+        "queued"
+    );
+    assert_eq!(row_line(&c.snapshot(), 1), text("line.waiting_turn.queued"));
+    assert_eq!(c.control(&agent(1), Action::SwitchOff), Ok(()));
+    assert!(!controls_of(&c, 1).contains(&Control::TakeBack), "off");
+    assert_eq!(c.control(&agent(1), Action::SwitchOn), Ok(()));
+    c.ports().ports.end_runner(&first);
+    c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    assert!(!controls_of(&c, 0).contains(&Control::TakeBack), "ended");
+}
+
+/// A take-back drops the queued start with nothing stored or sent and no hold; the ready item
+/// that the start answered stays closed, the next end takes no start of it, and a later tick
+/// asks again (I5.3; rulings RD-54 (h), RD-55 (b)).
+#[test]
+fn u24e_a_take_back_drops_the_queued_start_stores_nothing_and_a_later_tick_asks_again() {
+    use halvo_coord::types::Control;
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let c = coordinator(&[MANUAL, slotted], one_at_a_time());
+    let first = start(&c, 0);
+    c.tick();
+    let (asked, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Ready);
+    assert_eq!(c.answer(&asked, Choice::Start, None, 0), Ok(()));
+    assert_eq!(c.queued(), vec![(agent(1), false)], "queued by its card");
+    let stored = events(&c).len();
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::TakeBack), Ok(()));
+    assert_eq!(c.queued(), vec![], "the start left the queue");
+    assert_eq!(events(&c).len(), stored, "nothing stored");
+    assert_eq!(
+        calls_since(&c, m),
+        [Call::Changed, Call::Attention(0)],
+        "no call of the owner or of the runs, and the page hears the change"
+    );
+    let s = c.snapshot();
+    assert!(
+        s.items.is_empty(),
+        "the answered card does not come back at the press"
+    );
+    assert_eq!(row_line(&s, 1), text("line.all_set.done"));
+    assert_eq!(
+        controls_of(&c, 1),
+        [Control::RunNow, Control::SwitchOff, Control::Delete],
+        "the agent stays on"
+    );
+    c.ports().ports.end_runner(&first);
+    c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    assert_eq!(started(&c).len(), 1, "the next end takes no start of it");
+    c.tick();
+    let (again, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Ready, "a later tick asks again");
+    assert_ne!(again, asked, "a new item");
+}
+
+/// A take-back that arrives after the run started answers ok and changes nothing, as a Stop from
+/// a page that is behind (ruling RD-52 (d)): no cancel, no row, and the row offers Stop.
+#[test]
+fn u24e_a_take_back_after_the_run_started_answers_ok_and_stops_nothing() {
+    use halvo_coord::types::Control;
+    let c = coordinator(&[MANUAL, MANUAL], one_at_a_time());
+    let first = start(&c, 0);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    c.ports().ports.end_runner(&first);
+    c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)))
+        .unwrap();
+    let new = started(&c).last().cloned().unwrap();
+    assert_ne!(new, first, "the end started agent 1");
+    let stored = events(&c).len();
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(1), Action::TakeBack), Ok(()));
+    assert_eq!(cancels_of(&c, m, &new), 0, "no cancel");
+    assert!(calls_since(&c, m).is_empty(), "no call of any port");
+    assert_eq!(events(&c).len(), stored, "nothing stored");
+    assert_eq!(c.live(), 1, "the run goes on");
+    let controls = controls_of(&c, 1);
+    assert!(
+        controls.contains(&Control::Stop) && !controls.contains(&Control::TakeBack),
+        "{controls:?}"
+    );
+}
+
+/// The take-back reads no clock, so it goes on while the clock fails and under the mark of a tick
+/// that did not return, and it is `unknown_agent` with nothing stored once a tick saw the
+/// workflow gone (I5.7, ruling RD-52 (e)).
+#[test]
+fn u24e_a_take_back_goes_on_without_the_clock_and_is_unknown_agent_for_a_gone_workflow() {
+    for marked in [false, true] {
+        let c = coordinator(&[MANUAL, MANUAL], one_at_a_time());
+        start(&c, 0);
+        assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+        if marked {
+            tick_that_panics(&c);
+        }
+        let stored = events(&c).len();
+        clock_fails(&c);
+        assert_eq!(c.control(&agent(1), Action::TakeBack), Ok(()), "{marked}");
+        assert_eq!(c.queued(), vec![], "{marked}: out of the queue");
+        assert_eq!(events(&c).len(), stored, "{marked}: nothing stored");
+        clock_answers(&c);
+    }
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    c.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &support::flow(0));
+    c.tick();
+    let stored = events(&c).len();
+    assert_eq!(
+        c.control(&agent(0), Action::TakeBack),
+        Err(Cause::UnknownAgent)
+    );
+    assert_eq!(events(&c).len(), stored, "nothing stored");
+}

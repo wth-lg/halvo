@@ -609,6 +609,7 @@ A second limit (ruling RD-140 R5): the person's Stop of an agent whose start wai
 takes that start off the queue (RD-133 Addition 1 item 5), a queue move with no clock in it;
 Schedule.tla's `RunMoves` stops live runs alone, so in the model the start stays queued and is
 served at the next end. The tests of the code hold the move (`rd48h_turned_…`, `rd133_a_stop_of_a_queued_agent_…`).
+A third limit (ruling RD-54 (h), U2.4e): the take-back of a waiting row takes the agent's queued start off the queue with nothing stored and no clock, the same queue move as the Stop's, which the model does not hold either; the tests of the code hold it (`u24e_a_take_back_…` in tests/schedule_drive.rs and tests/coordinator_moves.rs).
 
 ## Confirm4
 

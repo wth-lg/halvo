@@ -2302,7 +2302,10 @@ where
     /// `stop` lapses the open item of a
     /// waiting run with `cancelled` and stops the run in one command, for every kind of item,
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
-    /// switch-off control lapses that item in the same way before its own move.
+    /// switch-off control lapses that item in the same way before its own move. The take-back
+    /// takes the agent's queued start out of the queue with no read of a port and nothing stored
+    /// or sent, and answers success also where no start of it waits, a run that started in the
+    /// meantime going on (rulings RD-54 (h), RD-52 (d)).
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
@@ -2346,6 +2349,12 @@ where
                 },
             ),
             Action::Stop => self.stop_in(st, i),
+            Action::TakeBack => self.schedule(
+                st,
+                Move::TakeBack {
+                    agent: agent.clone(),
+                },
+            ),
         }
     }
 
