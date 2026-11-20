@@ -4,8 +4,8 @@ use halvo_coord::ports::{Owner, PortError};
 use halvo_coord::roster::{card, names, plain_site};
 use halvo_coord::types::fixtures::{facts, State};
 use halvo_coord::types::{
-    Agent, AgentId, AgentState, Body, Class, Digest, EffectId, Event, Kept, Limits, Name, Outcome,
-    PastEffect, PastRun, Reply, RunHistory, RunId, Workflow, WorkflowId,
+    Agent, AgentId, AgentState, Body, CardEffect, Class, Digest, EffectId, Event, Kept, Limits,
+    Name, Outcome, PastEffect, PastRun, Reply, RunHistory, RunId, Workflow, WorkflowId,
 };
 use halvo_coord::types::{
     Answered, ApprovalId, DecisionEntry, EffectAnswer, ItemId, LapseCause, Lapsed, Raised, RunEnd,
@@ -37,11 +37,15 @@ fn payment() -> PastEffect {
     }
 }
 
-/// A committed payment whose kept origin is a number form, which the reader refuses, as the
-/// fixture of the state `card` holds it after the payment.
+/// A committed payment none of whose kept values the reader takes whole, so that its entry shows
+/// no field, as the fixture of the state `card` holds it after the payment: its payee, amount and
+/// card each a piece over 1,024 bytes and its origin a number form.
 fn unreadable_payment() -> PastEffect {
     let mut p = payment();
     p.effect = EffectId::parse(&format!("{:032x}", 0xe4)).unwrap();
+    for k in &mut p.kept[..3] {
+        k.value = vec!["Q".repeat(1025)];
+    }
     p.kept[3].value = vec!["http://2130706433:80".into()];
     p
 }
@@ -252,7 +256,8 @@ fn a_card_run_shows_its_committed_effects_alone_in_the_order_of_the_reply() {
         &Limits::PRODUCT,
     )
     .unwrap();
-    assert_eq!(keys(&c, 0), ["run.effect.payment.unshown"]);
+    assert_eq!(keys(&c, 0), ["run.effect.payment.partial"]);
+    assert_eq!(shown(&c.runs[0].effects[0]), paid_fields()[..3]);
     assert_eq!(
         keys(&c, 1),
         ["run.effect.payment"],
@@ -293,49 +298,110 @@ fn beside_a_good_run(bad: PastEffect) -> halvo_coord::types::Card {
     .unwrap()
 }
 
+/// The label and the value of each field of `e`.
+fn shown(e: &CardEffect) -> Vec<(String, Vec<String>)> {
+    e.fields()
+        .iter()
+        .map(|f| (f.label.clone(), f.value.clone()))
+        .collect()
+}
+
+fn pair(label: &str, value: &str) -> (String, Vec<String>) {
+    (label.to_owned(), vec![value.to_owned()])
+}
+
+/// The four fields of `payment()` as its committed entry shows them, in the table's order.
+fn paid_fields() -> Vec<(String, Vec<String>)> {
+    vec![
+        pair("Pay to", "City Power"),
+        pair("Amount", "42.10 USD"),
+        pair("Pay with", "Card ending 4242"),
+        pair("Site", "site1.example"),
+    ]
+}
+
+/// RD-52 (f) rule 1, turned by (h) 4 in U2.4q: each cause of a refused committed effect gives its
+/// entry in its place, with the fields that the reader took whole in the table's order, and the
+/// reply holds no byte of a value that it refused or could not tell apart.
 #[test]
-fn rd52f_each_cause_of_a_refused_committed_effect_gives_its_unshown_entry_and_no_kept_byte() {
+fn rd52f_each_cause_of_a_refused_committed_effect_gives_its_entry_and_no_refused_byte() {
     let secret = "Zq7 secret value";
     let mut swapped = payment();
     swapped.kept.swap(0, 1);
-    swapped.kept[0].value = vec![secret.into()];
     let mut extra = payment();
     extra.kept.push(one_kept("note", secret));
     let mut origin = payment();
-    origin.kept[0].value = vec![secret.into()];
-    origin.kept[3].value = vec!["https://Site1.example:443".into()];
+    origin.kept[3].value = vec!["https://Zq7.example:443".into()];
     let mut number = payment();
-    number.kept[0].value = vec![secret.into()];
     number.kept[3].value = vec!["http://127.1:80".into()];
+    let mut twice = payment();
+    twice.kept.insert(1, one_kept("payee", secret));
+    let three = paid_fields()[..3].to_vec();
     let causes = [
-        ("a refused origin", origin, "run.effect.payment.unshown"),
-        ("a number form", number, "run.effect.payment.unshown"),
+        (
+            "a refused origin",
+            origin,
+            "run.effect.payment.partial",
+            three.clone(),
+            "Zq7",
+        ),
+        (
+            "a number form",
+            number,
+            "run.effect.payment.partial",
+            three,
+            "127.1",
+        ),
         (
             "an empty file name",
             committed(
                 Class::LocalEdit,
-                vec![one_kept("file", "C:\\Books\\"), one_kept("range", secret)],
+                vec![
+                    one_kept("file", &format!("C:\\{secret}\\")),
+                    one_kept("range", "B2 to B9"),
+                ],
             ),
-            "run.effect.local_edit.unshown",
+            "run.effect.local_edit.partial",
+            vec![pair("Where in the file", "B2 to B9")],
+            secret,
         ),
         (
             "a class with no effect row",
             committed(Class::Read, vec![one_kept("source", secret)]),
             "run.effect.unshown",
+            vec![],
+            secret,
         ),
         (
             "kept names out of order",
             swapped,
-            "run.effect.payment.unshown",
+            "run.effect.payment.partial",
+            paid_fields(),
+            secret,
         ),
-        ("a kept name too many", extra, "run.effect.payment.unshown"),
+        (
+            "a kept name too many",
+            extra,
+            "run.effect.payment.partial",
+            paid_fields(),
+            secret,
+        ),
         (
             "a kept name missing",
-            committed(Class::Sign, vec![one_kept("document", secret)]),
-            "run.effect.sign.unshown",
+            committed(Class::Sign, vec![one_kept("document", "Lease")]),
+            "run.effect.sign.partial",
+            vec![pair("Document", "Lease")],
+            secret,
+        ),
+        (
+            "a kept name twice",
+            twice,
+            "run.effect.payment.partial",
+            paid_fields()[1..].to_vec(),
+            secret,
         ),
     ];
-    for (cause, bad, key) in causes {
+    for (cause, bad, key, fields, refused) in causes {
         let c = beside_a_good_run(bad);
         assert_eq!(
             keys(&c, 0),
@@ -343,15 +409,20 @@ fn rd52f_each_cause_of_a_refused_committed_effect_gives_its_unshown_entry_and_no
             "{cause}"
         );
         assert_eq!(keys(&c, 1), ["run.effect.payment"], "{cause}");
-        let entry = serde_json::to_value(&c.runs[0].effects[1]).unwrap();
-        assert_eq!(entry["fields"], serde_json::json!([]), "{cause}");
-        assert_eq!(
-            entry["text"].as_str(),
-            Some(halvo_coord::words::text(key, &[]).unwrap().as_str())
-        );
+        let entry = &c.runs[0].effects[1];
+        assert_eq!(entry.text(), line(key), "{cause}");
+        assert_eq!(shown(entry), fields, "{cause}");
         let all = serde_json::to_string(&c).unwrap();
-        assert!(!all.contains(secret), "{cause}: {all}");
+        assert!(!all.contains(refused), "{cause}: {all}");
     }
+    let mut twice = payment();
+    twice.kept.insert(1, one_kept("payee", secret));
+    let c = beside_a_good_run(twice);
+    let entry = serde_json::to_string(&c.runs[0].effects[1]).unwrap();
+    assert!(
+        !entry.contains("City Power"),
+        "neither payee of two stands: {entry}"
+    );
 }
 
 #[test]
@@ -671,18 +742,19 @@ fn no_piece_over_1024_bytes(c: &halvo_coord::types::Card) {
 }
 
 #[test]
-fn i34_a_committed_kept_piece_over_1024_bytes_gives_the_unshown_entry() {
+fn i34_a_committed_kept_piece_over_1024_bytes_never_stands_and_the_rest_do() {
     let long = "Q".repeat(1025);
     let mut p = payment();
     p.kept[0].value = vec![long.clone()];
     let c = beside_a_good_run(p);
     no_piece_over_1024_bytes(&c);
-    assert_eq!(keys(&c, 0)[1], "run.effect.payment.unshown");
+    assert_eq!(keys(&c, 0)[1], "run.effect.payment.partial");
+    assert_eq!(shown(&c.runs[0].effects[1]), paid_fields()[1..]);
     assert!(!serde_json::to_string(&c).unwrap().contains(&long));
 }
 
 #[test]
-fn i34_a_local_edit_file_name_longer_than_1024_bytes_gives_the_unshown_entry() {
+fn i34_a_local_edit_file_name_longer_than_1024_bytes_never_stands_and_its_range_does() {
     let bad = committed(
         Class::LocalEdit,
         vec![
@@ -695,7 +767,11 @@ fn i34_a_local_edit_file_name_longer_than_1024_bytes_gives_the_unshown_entry() {
     );
     let c = beside_a_good_run(bad);
     no_piece_over_1024_bytes(&c);
-    assert_eq!(keys(&c, 0)[1], "run.effect.local_edit.unshown");
+    assert_eq!(keys(&c, 0)[1], "run.effect.local_edit.partial");
+    assert_eq!(
+        shown(&c.runs[0].effects[1]),
+        [pair("Where in the file", "lines 1 to 2")]
+    );
 }
 
 #[test]
@@ -977,4 +1053,221 @@ fn u24r_the_dropped_line_says_its_count_and_no_record_taken_off_gives_no_line() 
             "{count}"
         );
     }
+}
+
+/// RD-52 (h) 4: an unshown payment shows the fields that the reader took whole, its payee, its
+/// amount and the card it was paid with, as its committed entry shows them, and not the origin
+/// that it refused; its run keeps its day and its line.
+#[test]
+fn u24q_an_unshown_payment_shows_the_fields_that_the_reader_took_whole_and_none_that_it_refused() {
+    let mut p = payment();
+    p.kept[3].value = vec!["http://2130706433:80".into()];
+    let c = beside_a_good_run(p);
+    assert_eq!(
+        keys(&c, 0),
+        [
+            "run.effect.payment",
+            "run.effect.payment.partial",
+            "run.effect.payment"
+        ]
+    );
+    let (good, unshown) = (&c.runs[0].effects[0], &c.runs[0].effects[1]);
+    assert_eq!(unshown.text(), line("run.effect.payment.partial"));
+    assert_eq!(unshown.fields(), &good.fields()[..3]);
+    assert_eq!(shown(unshown), paid_fields()[..3]);
+    assert_eq!(c.runs[0].day, halvo_coord::words::day(20_702));
+    assert_eq!(c.runs[0].text, line("line.run.completed"));
+    assert!(!serde_json::to_string(&c).unwrap().contains("2130706433"));
+}
+
+/// The key, the sentence and the fields of the entry of one committed effect of `class` that
+/// keeps `kept`, beside a good run, and the whole card as text.
+fn one_entry(
+    class: Class,
+    kept: Vec<Kept>,
+) -> (String, String, Vec<(String, Vec<String>)>, String) {
+    let c = beside_a_good_run(committed(class, kept));
+    let e = &c.runs[0].effects[1];
+    (
+        e.key(),
+        e.text().to_owned(),
+        shown(e),
+        serde_json::to_string(&c).unwrap(),
+    )
+}
+
+fn long() -> String {
+    "Q".repeat(1025)
+}
+
+fn partial(class: &str) -> (String, String) {
+    let key = format!("run.effect.{class}.partial");
+    (key.clone(), line(&key))
+}
+
+#[test]
+fn u24q_payment_a_field_that_the_reader_could_not_check_never_stands() {
+    let (key, text, fields, all) = one_entry(
+        Class::Payment,
+        vec![one_kept("payee", "City Power"), one_kept("amount", &long())],
+    );
+    assert_eq!(fields, [pair("Pay to", "City Power")]);
+    assert_eq!((key, text), partial("payment"));
+    assert!(!all.contains(&long()));
+}
+
+#[test]
+fn u24q_purchase_a_field_that_the_reader_could_not_check_never_stands() {
+    let (key, text, fields, all) = one_entry(
+        Class::Purchase,
+        vec![
+            one_kept("seller", "Shop One"),
+            one_kept("origin", "https://Zq7.example:443"),
+        ],
+    );
+    assert_eq!(fields, [pair("Shop", "Shop One")]);
+    assert_eq!((key, text), partial("purchase"));
+    assert!(!all.contains("Zq7"));
+}
+
+#[test]
+fn u24q_send_a_field_that_the_reader_could_not_check_never_stands() {
+    let (key, text, fields, all) = one_entry(
+        Class::Send,
+        vec![
+            one_kept("subject", "Zq7 subject"),
+            one_kept("to", "Ann Lee"),
+        ],
+    );
+    assert_eq!(fields, [pair("To", "Ann Lee")]);
+    assert_eq!((key, text), partial("send"));
+    assert!(!all.contains("Zq7"));
+}
+
+#[test]
+fn u24q_delete_a_field_that_the_reader_could_not_check_never_stands() {
+    let (key, text, fields, all) = one_entry(
+        Class::Delete,
+        vec![one_kept("items", "id-7"), one_kept("note", "Zq7 note")],
+    );
+    assert_eq!(key, "run.effect.delete.unshown");
+    assert_eq!(text, line("run.effect.delete.unshown"));
+    assert!(fields.is_empty(), "{fields:?}");
+    assert!(!all.contains("Zq7") && !all.contains("id-7"));
+}
+
+#[test]
+fn u24q_submit_a_field_that_the_reader_could_not_check_never_stands() {
+    let (key, text, fields, all) = one_entry(
+        Class::Submit,
+        vec![
+            one_kept("origin", "https://forms.site1.example:443"),
+            one_kept("fields", "Zq7 typed"),
+        ],
+    );
+    assert_eq!(fields, [pair("Site", "forms.site1.example")]);
+    assert_eq!((key, text), partial("submit"));
+    assert!(!all.contains("Zq7"));
+}
+
+#[test]
+fn u24q_sign_a_field_that_the_reader_could_not_check_never_stands() {
+    let (key, text, fields, all) = one_entry(
+        Class::Sign,
+        vec![one_kept("document", "Lease"), one_kept("party", &long())],
+    );
+    assert_eq!(fields, [pair("Document", "Lease")]);
+    assert_eq!((key, text), partial("sign"));
+    assert!(!all.contains(&long()));
+}
+
+#[test]
+fn u24q_local_edit_a_field_that_the_reader_could_not_check_never_stands() {
+    let (key, text, fields, all) = one_entry(
+        Class::LocalEdit,
+        vec![
+            one_kept("file", "Books/Zq7/.."),
+            one_kept("range", "B2 to B9"),
+        ],
+    );
+    assert_eq!(fields, [pair("Where in the file", "B2 to B9")]);
+    assert_eq!((key, text), partial("local_edit"));
+    assert!(!all.contains("Zq7"));
+}
+
+/// A class with no effect row has no table of kept fields, so the reader can check none, and a
+/// value that would read for a payment stands no more than one that reads for no class.
+fn no_row_class_shows_no_field(class: Class) {
+    let (key, text, fields, all) = one_entry(
+        class,
+        vec![one_kept("payee", "Zq7 payee"), one_kept("zz", "Zq7 zz")],
+    );
+    assert_eq!(key, "run.effect.unshown", "{class:?}");
+    assert_eq!(text, line("run.effect.unshown"), "{class:?}");
+    assert!(fields.is_empty(), "{class:?}: {fields:?}");
+    assert!(!all.contains("Zq7"), "{class:?}");
+}
+
+#[test]
+fn u24q_read_a_field_that_the_reader_could_not_check_never_stands() {
+    no_row_class_shows_no_field(Class::Read);
+}
+
+#[test]
+fn u24q_prepare_a_field_that_the_reader_could_not_check_never_stands() {
+    no_row_class_shows_no_field(Class::Prepare);
+}
+
+#[test]
+fn u24q_credential_a_field_that_the_reader_could_not_check_never_stands() {
+    no_row_class_shows_no_field(Class::Credential);
+}
+
+/// A kept field of `class` that the reader takes whole.
+fn readable(class: Class) -> Kept {
+    match class {
+        Class::Payment => one_kept("payee", "City Power"),
+        Class::Purchase => one_kept("seller", "Shop One"),
+        Class::Send => one_kept("to", "Ann Lee"),
+        Class::Delete => one_kept("items", "id-7"),
+        Class::Submit => one_kept("origin", "https://forms.site1.example:443"),
+        Class::Sign => one_kept("document", "Lease"),
+        Class::LocalEdit => one_kept("range", "B2 to B9"),
+        Class::Read | Class::Prepare | Class::Credential => one_kept("source", "Inbox"),
+    }
+}
+
+fn has_row(class: Class) -> bool {
+    !matches!(class, Class::Read | Class::Prepare | Class::Credential)
+}
+
+/// An entry with no field that the reader took whole keeps today's key and sentence,
+/// `run.effect.<class>.unshown`, and the same entry with one such field takes the partial one; a
+/// `delete`, which shows no field, keeps today's in both.
+#[test]
+fn u24q_an_unshown_entry_with_no_readable_field_keeps_todays_sentence() {
+    for class in Class::ALL.iter().copied().filter(|c| has_row(*c)) {
+        let today = format!("run.effect.{}.unshown", class.name());
+        let (key, text, fields, _) = one_entry(class, vec![one_kept("zz", "x")]);
+        assert_eq!((key, text), (today.clone(), line(&today)), "{class:?}");
+        assert!(fields.is_empty(), "{class:?}");
+        let (key, text, fields, _) = one_entry(class, vec![readable(class), one_kept("zz", "x")]);
+        let (want, count) = if class == Class::Delete {
+            (today, 0)
+        } else {
+            (partial(class.name()).0, 1)
+        };
+        assert_eq!((key, text), (want.clone(), line(&want)), "{class:?}");
+        assert_eq!(fields.len(), count, "{class:?}");
+    }
+    let c = beside_a_good_run(unreadable_payment());
+    let e = &c.runs[0].effects[1];
+    assert_eq!(
+        (e.key().as_str(), e.text()),
+        (
+            "run.effect.payment.unshown",
+            line("run.effect.payment.unshown").as_str()
+        )
+    );
+    assert!(e.fields().is_empty());
 }

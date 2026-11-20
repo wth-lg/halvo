@@ -250,6 +250,16 @@ fn expected_keys() -> BTreeSet<String> {
     for end in ["unshown", "not_done", "refused"] {
         k.insert(format!("run.effect.{end}"));
     }
+    for class in [
+        "payment",
+        "purchase",
+        "send",
+        "submit",
+        "sign",
+        "local_edit",
+    ] {
+        k.insert(format!("run.effect.{class}.partial"));
+    }
     k.insert("line.run.stopped".to_owned());
     for key in [
         "line.quitting",
@@ -292,7 +302,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 253);
+    assert_eq!(seen.len(), 259);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -473,6 +483,47 @@ fn u24r_the_three_texts_stand_word_for_word() {
         let words = t(key, &[("count", "3")]).split_whitespace().count();
         assert!(words <= 20, "{key}: {words} words");
     }
+}
+
+/// Each text of `texts` stands word for word under its key, in at most 20 words.
+fn pinned(texts: &[(&str, &str)]) {
+    for (key, text) in texts {
+        assert_eq!(words::text(key, &[]).unwrap(), *text, "{key}");
+        let words = text.split_whitespace().count();
+        assert!(words <= 20, "{key}: {words} words");
+    }
+}
+
+/// The texts of an entry that shows only the fields that the reader took whole (ruling RD-52 (h)
+/// 4), U2.4q.
+#[test]
+fn u24q_the_six_partial_texts_stand_word_for_word() {
+    pinned(&[
+        (
+            "run.effect.payment.partial",
+            "It made this payment, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.purchase.partial",
+            "It placed this order, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.send.partial",
+            "It sent this message, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.submit.partial",
+            "It sent this form, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.sign.partial",
+            "It signed this document, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.local_edit.partial",
+            "It changed this file, but Halvo shows only the details it could read.",
+        ),
+    ]);
 }
 
 /// The hold `failures` says what happened and its way out (ruling RD-81).

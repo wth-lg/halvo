@@ -434,6 +434,30 @@ pub const KEYS: &[(&str, &str)] = &[
         "run.effect.unshown",
         "It did one thing that Halvo cannot show.",
     ),
+    (
+        "run.effect.payment.partial",
+        "It made this payment, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.purchase.partial",
+        "It placed this order, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.send.partial",
+        "It sent this message, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.submit.partial",
+        "It sent this form, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.sign.partial",
+        "It signed this document, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.local_edit.partial",
+        "It changed this file, but Halvo shows only the details it could read.",
+    ),
     ("run.effect.payment.not_done", "This payment was not made."),
     ("run.effect.purchase.not_done", "This order was not placed."),
     ("run.effect.send.not_done", "This message was not sent."),

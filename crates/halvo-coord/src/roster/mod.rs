@@ -376,7 +376,7 @@ fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
         match (e.state, &e.cause) {
             (EffectState::Committed, _) => effects.push(
                 CardEffect::committed(e.class, &e.kept)
-                    .or_else(|_| CardEffect::unshown(e.class))?,
+                    .or_else(|_| CardEffect::unshown(e.class, &e.kept))?,
             ),
             (EffectState::Rejected, None) => {
                 effects.push(CardEffect::not_done(e.class, &e.kept, refused(e))?);
