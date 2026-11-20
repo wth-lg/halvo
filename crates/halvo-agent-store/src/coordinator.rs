@@ -64,8 +64,16 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   Else, in one commit, the run's record with the outcome `failed`, the mode null, every count 0, no playbook and
 ///   no model, on the request's day, and the moves of the run's end as `runner` makes them for `finish`. It answers
 ///   `{"ok":"yes"}`.
-/// - `list_overlaps`: not served yet. It is answered `malformed`, as the store answered the body before the schema
-///   read it, and it stores nothing and changes no state.
+/// - `list_overlaps`: `no_workflow`; `binding`. It stores nothing and changes no state, and answers every other agent
+///   that is live and overlaps the agent's slots as they would stand with the body's slots merged into its newest
+///   revision as `set_bindings` merges them, or as they stand where `slots` is null: each with its workflow, its
+///   agent and the senders that it shares, in the spelling and the order of the asking agent's list, in ascending
+///   order of workflow id; the first 16, and `more` `yes` where more overlap. Two agents overlap when their
+///   bindings hold one account address under `account_address` and their lists under `reply_senders`, each read
+///   by `reply_senders`, hold one sender in common, two addresses being one by `same_address`; a list that its
+///   reader refuses lists nobody, and bindings with no `account_address` overlap nobody. The other agent's bindings
+///   are its newest revision, and it is live where the stored workflow of those bindings names it as its agent and
+///   is `approved` or `active` (CP-150 (1)).
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -80,7 +88,7 @@ pub fn coordinator(
         CoordinatorCall::AddOrigin(b) => bindings::add_origin(host, &b),
         CoordinatorCall::ListCheckpoints(b) => checkpoint::list(&*host, &b),
         CoordinatorCall::MarkCheckpoint(b) => checkpoint::mark(host, now, &b),
-        CoordinatorCall::ListOverlaps(_) => Err(ErrorName::Malformed),
+        CoordinatorCall::ListOverlaps(b) => bindings::list_overlaps(&*host, &b),
     }
 }
 

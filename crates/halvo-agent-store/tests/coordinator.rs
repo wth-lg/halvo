@@ -8,7 +8,7 @@ use halvo_schema::executable::{AgentLog, CoordinatorReply};
 use halvo_schema::{
     AgentId, Category, ErrorName, SeedCategory, TypedRecord, Workflow, WorkflowId, WorkflowState,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 
 fn state_of(store: &MemoryStore, w: u32) -> (WorkflowState, Option<String>) {
     match stored_workflow(store, w) {
@@ -508,50 +508,264 @@ fn a_start_run_whose_start_row_lies_past_the_log_s_bound_does_not_open_the_run_a
     }
 }
 
+const ME: &str = "me@mail.test";
+
+fn slot(name: &str, value: &str) -> Value {
+    json!({"name": name, "value": [value]})
+}
+
+fn reply_slots(account: Option<&str>, senders: Option<&str>) -> Value {
+    let mut slots = Vec::new();
+    if let Some(account) = account {
+        slots.push(slot("account_address", account));
+    }
+    if let Some(senders) = senders {
+        slots.push(slot("reply_senders", senders));
+    }
+    Value::Array(slots)
+}
+
+fn put_bindings(store: &mut MemoryStore, w: u32, a: u32, rev: u32, slots: Value) {
+    let row = json!({
+        "v": 1, "workflow": wf(w), "agent": agent(a), "rev": rev, "origins": [], "slots": slots,
+    });
+    store
+        .commit(vec![TypedRecord {
+            kind: "agent_bindings",
+            json: row.to_string(),
+        }])
+        .expect("the bindings row is stored");
+}
+
+fn other_agent(store: &mut MemoryStore, n: u32, state: &str, slots: Value) {
+    store.put_workflow(workflow(&wf(n), "email", state, Some(&agent(n))));
+    put_bindings(store, n, n, 1, slots);
+}
+
+fn gone(store: &mut MemoryStore, n: u32) {
+    store.remove_workflow(&WorkflowId::parse(&wf(n)).expect("an id"));
+}
+
+fn move_to(store: &mut MemoryStore, n: u32, state: &str) -> Result<CoordinatorReply, ErrorName> {
+    coordinator(
+        store,
+        json!({"op": "set_state", "workflow": wf(n), "agent": agent(n), "state": state}),
+    )
+}
+
+fn set_bindings(
+    store: &mut MemoryStore,
+    n: u32,
+    slots: Value,
+) -> Result<CoordinatorReply, ErrorName> {
+    coordinator(
+        store,
+        json!({"op": "set_bindings", "workflow": wf(n), "agent": agent(n), "slots": slots}),
+    )
+}
+
+fn list_overlaps(
+    store: &mut MemoryStore,
+    n: u32,
+    slots: Value,
+) -> Result<CoordinatorReply, ErrorName> {
+    coordinator(
+        store,
+        json!({"op": "list_overlaps", "workflow": wf(n), "agent": agent(n), "slots": slots}),
+    )
+}
+
+fn overlaps(entries: &[(u32, u32, &[&str])], more: &str) -> CoordinatorReply {
+    let entries: Vec<Value> = entries
+        .iter()
+        .map(|(w, a, senders)| json!({"workflow": wf(*w), "agent": agent(*a), "senders": senders}))
+        .collect();
+    let reply = json!({"overlaps": entries, "more": more});
+    CoordinatorReply::parse(reply.to_string().as_bytes()).expect("an overlaps reply")
+}
+
+fn every_row(store: &MemoryStore) -> Vec<Vec<String>> {
+    AGENT_KINDS
+        .iter()
+        .map(|(kind, _)| rows(store, kind))
+        .collect()
+}
+
 #[test]
-fn list_overlaps_is_answered_malformed_and_stores_nothing_and_changes_no_state() {
+fn list_overlaps_stores_nothing_and_changes_no_state() {
     let mut store = MemoryStore::new();
     for n in [1, 2] {
         store.put_workflow(workflow(&wf(n), "email", "approved", None));
         assert_eq!(create(&mut store, n, n), Ok(rev(1)), "{n}");
-        let slots = json!([
-            {"name": "account_address", "value": ["me@mail.test"]},
-            {"name": "reply_senders", "value": ["ann@people.test"]}
-        ]);
+    }
+    let slots = reply_slots(Some(ME), Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, slots.clone()), Ok(rev(1)));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    assert_eq!(set_bindings(&mut store, 2, slots), Ok(rev(1)));
+    let held = |store: &MemoryStore| (every_row(store), state_of(store, 1), state_of(store, 2));
+    let before = held(&store);
+    for (slots, sender) in [
+        (json!(null), "ann@people.test"),
+        (json!([]), "ann@people.test"),
+        (
+            json!([{"name": "reply_senders", "value": ["ANN@people.test"]}]),
+            "ANN@people.test",
+        ),
+    ] {
         assert_eq!(
-            coordinator(
-                &mut store,
-                json!({"op": "set_bindings", "workflow": wf(n), "agent": agent(n), "slots": slots}),
-            ),
-            Ok(rev(1)),
-            "{n}"
+            list_overlaps(&mut store, 1, slots),
+            Ok(overlaps(&[(2, 2, &[sender])], "no"))
         );
     }
-    let held = |store: &MemoryStore| {
-        let rows: Vec<Vec<String>> = AGENT_KINDS
-            .iter()
-            .map(|(kind, _)| rows(store, kind))
-            .collect();
-        (rows, state_of(store, 1), state_of(store, 2))
-    };
-    let before = held(&store);
-    for slots in [
-        json!(null),
-        json!([]),
-        json!([{"name": "reply_senders", "value": ["ANN@people.test"]}]),
-    ] {
-        let body =
-            json!({"op": "list_overlaps", "workflow": wf(1), "agent": agent(1), "slots": slots});
-        assert_eq!(coordinator(&mut store, body), Err(ErrorName::Malformed));
-    }
-    for (w, a) in [(9, 1), (1, 2)] {
+    for (w, a, refusal) in [(9, 1, ErrorName::NoWorkflow), (1, 2, declared("binding"))] {
         let body =
             json!({"op": "list_overlaps", "workflow": wf(w), "agent": agent(a), "slots": null});
         assert_eq!(
             coordinator(&mut store, body),
-            Err(ErrorName::Malformed),
+            Err(refusal),
             "workflow {w}, agent {a}"
         );
     }
     assert_eq!(held(&store), before);
+}
+
+#[test]
+fn list_overlaps_names_each_other_live_agent_with_the_senders_that_it_shares_in_the_spelling_of_the_asking_list(
+) {
+    let mut store = MemoryStore::new();
+    let asking = "Ann@People.test, bob@people.test, dora@people.test";
+    other_agent(&mut store, 1, "paused", reply_slots(Some(ME), Some(asking)));
+    let zed = Some("zed@other.test, ann@people.test");
+    other_agent(
+        &mut store,
+        2,
+        "active",
+        reply_slots(Some("ME@mail.test"), zed),
+    );
+    let both = Some("BOB@PEOPLE.TEST, ANN@people.test");
+    other_agent(&mut store, 3, "approved", reply_slots(Some(ME), both));
+    other_agent(
+        &mut store,
+        4,
+        "paused",
+        reply_slots(Some(ME), Some("dora@people.test")),
+    );
+    other_agent(
+        &mut store,
+        5,
+        "active",
+        reply_slots(Some(ME), Some("dora@people.test")),
+    );
+    gone(&mut store, 5);
+    store.put_workflow(workflow(&wf(6), "email", "active", Some(&agent(6))));
+    put_bindings(
+        &mut store,
+        6,
+        6,
+        1,
+        reply_slots(Some(ME), Some("dora@people.test")),
+    );
+    store.put_workflow(workflow(&wf(6), "email", "active", Some(&agent(7))));
+    put_bindings(
+        &mut store,
+        6,
+        7,
+        1,
+        reply_slots(Some(ME), Some("Dora@people.test")),
+    );
+    let other = Some("other@mail.test");
+    other_agent(
+        &mut store,
+        8,
+        "active",
+        reply_slots(other, Some("ann@people.test")),
+    );
+    let refused = Some("Ann Berg, ann@people.test");
+    other_agent(&mut store, 9, "active", reply_slots(Some(ME), refused));
+    other_agent(
+        &mut store,
+        10,
+        "active",
+        reply_slots(None, Some("ann@people.test")),
+    );
+    let held = |store: &MemoryStore| (every_row(store), state_of(store, 1), state_of(store, 6));
+    let before = held(&store);
+
+    let named = overlaps(
+        &[
+            (2, 2, &["Ann@People.test"]),
+            (3, 3, &["Ann@People.test", "bob@people.test"]),
+            (6, 7, &["dora@people.test"]),
+        ],
+        "no",
+    );
+    assert_eq!(list_overlaps(&mut store, 1, json!(null)), Ok(named.clone()));
+    assert_eq!(list_overlaps(&mut store, 1, json!([])), Ok(named));
+    let shouted = json!([slot("reply_senders", "ANN@PEOPLE.TEST, carl@people.test")]);
+    assert_eq!(
+        list_overlaps(&mut store, 1, shouted),
+        Ok(overlaps(
+            &[(2, 2, &["ANN@PEOPLE.TEST"]), (3, 3, &["ANN@PEOPLE.TEST"])],
+            "no"
+        ))
+    );
+    let unread = json!([slot("reply_senders", "Ann Berg, ann@people.test")]);
+    assert_eq!(
+        list_overlaps(&mut store, 1, unread),
+        Ok(overlaps(&[], "no"))
+    );
+    let account = json!([slot("account_address", "Other@Mail.test")]);
+    assert_eq!(
+        list_overlaps(&mut store, 1, account),
+        Ok(overlaps(&[(8, 8, &["Ann@People.test"])], "no"))
+    );
+    for n in [9, 10] {
+        assert_eq!(
+            list_overlaps(&mut store, n, json!(null)),
+            Ok(overlaps(&[], "no")),
+            "{n}"
+        );
+    }
+    assert_eq!(
+        list_overlaps(&mut store, 8, json!(null)),
+        Ok(overlaps(&[], "no"))
+    );
+    assert_eq!(
+        list_overlaps(&mut store, 3, json!(null)),
+        Ok(overlaps(&[(2, 2, &["ANN@people.test"])], "no"))
+    );
+    assert_eq!(held(&store), before);
+}
+
+#[test]
+fn list_overlaps_names_the_first_16_by_workflow_id_and_more_yes_where_17_overlap() {
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), "email", "approved", None));
+    assert_eq!(create(&mut store, 1, 1), Ok(rev(1)));
+    put_bindings(
+        &mut store,
+        1,
+        1,
+        1,
+        reply_slots(Some(ME), Some("ann@people.test")),
+    );
+    for n in (2..=18).rev() {
+        other_agent(
+            &mut store,
+            n,
+            "active",
+            reply_slots(Some(ME), Some("ANN@people.test")),
+        );
+    }
+    const ANN: &[&str] = &["ann@people.test"];
+    let first = |from: u32, to: u32| (from..=to).map(|n| (n, n, ANN)).collect::<Vec<_>>();
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&first(2, 17), "yes"))
+    );
+    assert_eq!(move_to(&mut store, 2, "paused"), Ok(state_reply("paused")));
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&first(3, 18), "no"))
+    );
 }
