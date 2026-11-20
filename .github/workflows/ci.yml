@@ -1,4 +1,5 @@
 name: ci
+# scratch: main's own form with added steps; never merged
 
 on:
   push:
