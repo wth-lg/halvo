@@ -158,6 +158,17 @@ def undo():
 STUB = """
 import { startStub } from './account/stub/src/stub.mjs';
 const [record, tlsCa] = process.argv.slice(1);
+if (tlsCa) {
+  const {Server} = await import('node:tls');
+  const emit = Server.prototype.emit;
+  let secured = 0;
+  Server.prototype.emit = function(event, ...args) {
+    if (event === 'secureConnection' && ++secured === 2) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1100);
+    }
+    return emit.call(this, event, ...args);
+  };
+}
 const stub = await startStub({record, tlsCa});
 process.stdin.once('end', () => stub.close());
 process.stdin.resume();
