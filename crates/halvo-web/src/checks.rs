@@ -1547,6 +1547,257 @@ mod tests {
                 "\"C:\\P F\\b.exe\" --x=a\u{0} --user-data-dir=C:\\T\\run\\p",
                 false,
             ),
+            Line {
+                name: "mac_own_launch_line_profile_ends_in_space",
+                windows: false,
+                args: std::iter::once(b.to_string())
+                    .chain(own_launch_args("/t/run/p "))
+                    .collect(),
+                profile: "/t/run/p ",
+                bears: true,
+            },
+            Line {
+                name: "mac_own_launch_line_profile_ends_in_nbsp",
+                windows: false,
+                args: std::iter::once(b.to_string())
+                    .chain(own_launch_args("/t/run/p\u{a0}"))
+                    .collect(),
+                profile: "/t/run/p\u{a0}",
+                bears: true,
+            },
+            Line {
+                name: "win_own_launch_line_profile_ends_in_space",
+                windows: true,
+                args: vec![own_launch_line(r"C:\T\run\p ")],
+                profile: r"C:\T\run\p ",
+                bears: true,
+            },
+            Line {
+                name: "win_own_launch_line_profile_ends_in_nbsp",
+                windows: true,
+                args: vec![own_launch_line("C:\\T\\run\\p\u{a0}")],
+                profile: "C:\\T\\run\\p\u{a0}",
+                bears: true,
+            },
+            mac(
+                "mac_second_profile_switch_ends_in_space_after",
+                &[b, "--user-data-dir=/t/run/p", "--user-data-dir=/t/run/p "],
+                false,
+            ),
+            mac(
+                "mac_second_profile_switch_ends_in_space_before",
+                &[b, "--user-data-dir=/t/run/p ", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            mac(
+                "mac_second_profile_switch_ends_in_nbsp_after",
+                &[b, "--user-data-dir=/t/run/p", "--user-data-dir=/t/run/p\u{a0}"],
+                false,
+            ),
+            mac(
+                "mac_second_profile_switch_ends_in_nbsp_before",
+                &[b, "--user-data-dir=/t/run/p\u{a0}", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_ends_in_space_after",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--database=/t/run/p/Crashpad ",
+                ],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_ends_in_space_before",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad ",
+                    "--database=/t/run/p/Crashpad",
+                ],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_ends_in_nbsp_after",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--database=/t/run/p/Crashpad\u{a0}",
+                ],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_ends_in_nbsp_before",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad\u{a0}",
+                    "--database=/t/run/p/Crashpad",
+                ],
+                false,
+            ),
+            win(
+                "win_second_profile_switch_ends_in_space_after",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p "--user-data-dir=C:\T\run\p ""#,
+                false,
+            ),
+            win(
+                "win_second_profile_switch_ends_in_space_before",
+                r#""C:\P F\b.exe" "--user-data-dir=C:\T\run\p " --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_second_profile_switch_ends_in_nbsp_after",
+                "\"C:\\P F\\b.exe\" --user-data-dir=C:\\T\\run\\p --user-data-dir=C:\\T\\run\\p\u{a0}",
+                false,
+            ),
+            win(
+                "win_second_profile_switch_ends_in_nbsp_before",
+                "\"C:\\P F\\b.exe\" --user-data-dir=C:\\T\\run\\p\u{a0} --user-data-dir=C:\\T\\run\\p",
+                false,
+            ),
+            win(
+                "win_second_database_switch_ends_in_space_after",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad "--database=C:\T\run\p\Crashpad ""#,
+                false,
+            ),
+            win(
+                "win_second_database_switch_ends_in_space_before",
+                r#""C:\P F\crashpad_handler.exe" "--database=C:\T\run\p\Crashpad " --database=C:\T\run\p\Crashpad"#,
+                false,
+            ),
+            win(
+                "win_second_database_switch_ends_in_nbsp_after",
+                "\"C:\\P F\\crashpad_handler.exe\" --database=C:\\T\\run\\p\\Crashpad --database=C:\\T\\run\\p\\Crashpad\u{a0}",
+                false,
+            ),
+            win(
+                "win_second_database_switch_ends_in_nbsp_before",
+                "\"C:\\P F\\crashpad_handler.exe\" --database=C:\\T\\run\\p\\Crashpad\u{a0} --database=C:\\T\\run\\p\\Crashpad",
+                false,
+            ),
+            mac(
+                "mac_other_profile_after_double_dash",
+                &[b, "--user-data-dir=/t/run/p", "--", "--user-data-dir=/t/other"],
+                false,
+            ),
+            mac(
+                "mac_other_profile_after_nbsp_double_dash",
+                &[
+                    b,
+                    "--user-data-dir=/t/run/p",
+                    "\u{a0}--",
+                    "--user-data-dir=/t/other",
+                ],
+                false,
+            ),
+            mac(
+                "mac_other_profile_after_double_dash_ideographic_space",
+                &[
+                    b,
+                    "--user-data-dir=/t/run/p",
+                    "--\u{3000}",
+                    "--user-data-dir=/t/other",
+                ],
+                false,
+            ),
+            mac(
+                "mac_other_profile_after_nel_double_dash",
+                &[
+                    b,
+                    "--user-data-dir=/t/run/p",
+                    "\u{85}--",
+                    "--user-data-dir=/t/other",
+                ],
+                false,
+            ),
+            mac(
+                "mac_other_database_after_double_dash",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--",
+                    "--database=/t/other/Crashpad",
+                ],
+                false,
+            ),
+            mac(
+                "mac_other_database_after_spaced_double_dash",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    " --",
+                    "--database=/t/other/Crashpad",
+                ],
+                false,
+            ),
+            win(
+                "win_other_profile_after_double_dash",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p -- --user-data-dir=C:\T\other"#,
+                false,
+            ),
+            win(
+                "win_other_profile_after_single_argument",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p --single-argument --user-data-dir=C:\T\other"#,
+                false,
+            ),
+            win(
+                "win_other_profile_after_dash_single_argument",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p -single-argument --user-data-dir=C:\T\other"#,
+                false,
+            ),
+            win(
+                "win_other_profile_after_slash_single_argument",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p /single-argument --user-data-dir=C:\T\other"#,
+                false,
+            ),
+            win(
+                "win_other_profile_after_single_argument_in_capitals",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p --SINGLE-ARGUMENT "--user-data-dir=C:\T\other""#,
+                false,
+            ),
+            win(
+                "win_other_profile_after_single_argument_in_mixed_case",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p -Single-Argument "--user-data-dir=C:\T\other""#,
+                false,
+            ),
+            win(
+                "win_other_database_after_double_dash",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad -- --database=C:\T\other\Crashpad"#,
+                false,
+            ),
+            win(
+                "win_other_database_after_single_argument",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad --single-argument --database=C:\T\other\Crashpad"#,
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_abbreviated",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--datab=/t/other/Crashpad",
+                ],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_one_letter",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--d=/t/other/Crashpad",
+                ],
+                false,
+            ),
+            win(
+                "win_second_database_switch_abbreviated",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad --datab=C:\T\other\Crashpad"#,
+                false,
+            ),
+            win(
+                "win_second_database_switch_one_letter",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad --d=C:\T\other\Crashpad"#,
+                false,
+            ),
         ]
     }
 
@@ -1563,7 +1814,33 @@ mod tests {
     }
 
     fn own_launch_line(profile: &str) -> String {
-        format!(r#""C:\P F\b.exe" {}"#, own_launch_args(profile).join(" "))
+        let args: Vec<String> = own_launch_args(profile)
+            .iter()
+            .map(|a| windows_arg(a))
+            .collect();
+        format!(r#""C:\P F\b.exe" {}"#, args.join(" "))
+    }
+
+    fn windows_arg(arg: &str) -> String {
+        if !arg.is_empty() && !arg.contains([' ', '\t']) {
+            return arg.to_string();
+        }
+        let mut out = String::from("\"");
+        let mut backslashes = 0;
+        for c in arg.chars() {
+            if c == '\\' {
+                backslashes += 1;
+            } else {
+                if c == '"' {
+                    out.push_str(&"\\".repeat(backslashes + 1));
+                }
+                backslashes = 0;
+            }
+            out.push(c);
+        }
+        out.push_str(&"\\".repeat(backslashes));
+        out.push('"');
+        out
     }
 
     /// CP-189 G1: the Windows command line is split by the system's rule.
