@@ -769,3 +769,117 @@ fn d_no_paused_goes_for_the_stand_in_of_a_dismissed_workflow_or_a_workflow_off_t
     go(&p, &mut board, tick());
     assert_eq!(states(&p), Vec::<String>::new());
 }
+
+fn line_of(
+    board: &halvo_coord::schedule::Board<Config>,
+    n: usize,
+) -> halvo_coord::types::StatusLine {
+    halvo_coord::roster::status(&board.members[n].facts, &L, None)
+}
+
+/// The test of ruling RD-67 4.7, from a store state made by hand: two live agents with a shared
+/// sender, the tick's `active` refused once, `paused` follows, the row shows the derived hold's
+/// line, no `active` goes out at the ticks that follow, and a Start now stores no failed run.
+#[test]
+fn c_rd67_4_7_an_active_refused_with_overlap_is_followed_by_paused_and_no_active_again() {
+    let p = ports(&[
+        (APPROVED, ACCOUNT, &["ann@people.test"], &[]),
+        (ACTIVE, ACCOUNT, &["ann@people.test"], &[]),
+    ]);
+    let mut board = life(&p);
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(
+        states(&p),
+        ["set_state a0 active refused", "set_state a0 paused"]
+    );
+    assert_eq!(listed(&p, 0), PAUSED);
+    assert_eq!(line_of(&board, 0), halvo_coord::types::StatusLine::Kept);
+    for _ in 0..3 {
+        fresh(&p);
+        go(&p, &mut board, tick());
+        assert_eq!(
+            states(&p),
+            Vec::<String>::new(),
+            "no active at the ticks that follow"
+        );
+    }
+    let before = stored(&p, 0);
+    fresh(&p);
+    assert_eq!(
+        go(&p, &mut board, start(0)).answer,
+        Err(halvo_coord::types::Cause::Hold)
+    );
+    assert_eq!(stored(&p, 0), before, "a Start now stores no failed run");
+    assert_eq!(states(&p), Vec::<String>::new());
+}
+
+#[test]
+fn c_a_paused_that_does_not_reach_the_list_goes_again_at_each_tick_and_no_active() {
+    let p = ports(&[
+        (APPROVED, ACCOUNT, &["ann@people.test"], &[]),
+        (ACTIVE, ACCOUNT, &["ann@people.test"], &[]),
+    ]);
+    let mut board = life(&p);
+    go(&p, &mut board, tick());
+    for _ in 0..2 {
+        set_listed(&p, 0, APPROVED);
+        fresh(&p);
+        go(&p, &mut board, tick());
+        assert_eq!(
+            states(&p),
+            ["set_state a0 paused"],
+            "paused again, no active"
+        );
+    }
+}
+
+#[test]
+fn c_a_move_of_the_person_takes_the_mark_off_and_a_new_life_sends_active_once_more() {
+    let p = ports(&[
+        (APPROVED, ACCOUNT, &["ann@people.test"], &[]),
+        (ACTIVE, ACCOUNT, &["ann@people.test"], &[]),
+    ]);
+    let mut board = life(&p);
+    go(&p, &mut board, tick());
+    assert!(board.active_refused(&agent(0)));
+    let mut again = life(&p);
+    assert!(!again.active_refused(&agent(0)), "a new life holds no mark");
+    set_listed(&p, 0, APPROVED);
+    fresh(&p);
+    go(&p, &mut again, tick());
+    assert_eq!(
+        states(&p),
+        ["set_state a0 active refused", "set_state a0 paused"],
+        "a new life sends active once more and meets the same answer"
+    );
+    assert_eq!(
+        go(&p, &mut board, switch_on(0)).answer,
+        Err(halvo_coord::types::Cause::NoService),
+        "the store refuses the switch-on with overlap"
+    );
+    assert!(
+        !board.active_refused(&agent(0)),
+        "the person's move takes the mark off"
+    );
+    set_listed(&p, 1, PAUSED);
+    set_listed(&p, 0, APPROVED);
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(states(&p), ["set_state a0 active"]);
+}
+
+#[test]
+fn c_an_active_refused_by_another_name_leaves_no_mark_and_goes_again_at_the_next_tick() {
+    let p = ports(&[(APPROVED, ACCOUNT, &["ann@people.test"], &[])]);
+    let mut board = life(&p);
+    p.refuse(Method::Send, refused("busy"));
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(states(&p), ["set_state a0 active refused"]);
+    assert!(!board.active_refused(&agent(0)));
+    p.clear_refusals();
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(states(&p), ["set_state a0 active"]);
+}

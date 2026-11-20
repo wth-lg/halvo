@@ -154,6 +154,7 @@ pub struct Board<C> {
     unread: Vec<AgentId>,
     dismissed: Vec<WorkflowId>,
     queue_held: bool,
+    active_refused: Vec<AgentId>,
 }
 
 impl<C> Board<C> {
@@ -184,7 +185,30 @@ impl<C> Board<C> {
             unread: Vec::new(),
             dismissed: Vec::new(),
             queue_held: false,
+            active_refused: Vec::new(),
         }
+    }
+
+    /// Marks for the rest of this life an agent whose `set_state` `active`, sent by the tick's
+    /// rule or by `activate` after a set-up, the owner refused with `overlap`: until a move of the
+    /// person on it the tick sends it `paused` while the list shows another state, and no
+    /// `active` (ruling RD-67 4.3; I5.4). A new life holds no mark and may send `active` once
+    /// more.
+    pub fn refuse_active(&mut self, agent: &AgentId) {
+        if !self.active_refused.contains(agent) {
+            self.active_refused.push(agent.clone());
+        }
+    }
+
+    /// Whether this life marked the agent with `refuse_active` and no move of the person on it
+    /// has come since.
+    pub fn active_refused(&self, agent: &AgentId) -> bool {
+        self.active_refused.contains(agent)
+    }
+
+    /// Takes the mark of `refuse_active` off at a move of the person on the agent.
+    pub fn free_active(&mut self, agent: &AgentId) {
+        self.active_refused.retain(|a| a != agent);
     }
 
     /// Holds the queue or frees it: while held, the end of a run starts nothing from the queue,

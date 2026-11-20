@@ -526,16 +526,64 @@ fn take_open_item_from_read<C>(facts: &mut Facts<C>, before: usize) {
     }
 }
 
-/// Sends `set_state` and reads its answer: the owner's acknowledgement, `{"state":"<state>"}`
-/// with the state sent, writes that state into the agent's facts, so that every later step of the
-/// move reads it (ruling RD-67 1.3 (a); I5.1); any other reply is no acknowledgement and answers
-/// `no_service`, and a refusal or no answer changes nothing.
 fn send_state<P: Owner, C>(
     cx: &MoveContext<'_, P>,
     facts: &mut Facts<C>,
     state: AgentState,
 ) -> Result<(), PortError> {
-    let reply = cx.ports.send(&Body::SetState {
+    send_state_on(cx.ports, facts, state)
+}
+
+/// Whether the owner refused a call with `overlap`.
+fn refused_overlap(error: &PortError) -> bool {
+    matches!(error, PortError::Refused(name) if name.as_str() == "overlap")
+}
+
+/// Whether the board owes the agent of member `i` a `set_state` `paused` while the owner's list
+/// holds its workflow with another state: by the rule over the facts (`wants_paused`, ruling
+/// RD-67 1.3 (b)), or because this life marked its `active` refused with `overlap` (ruling
+/// RD-67 4.3).
+fn owes_paused<C>(board: &Board<C>, i: usize) -> bool {
+    let facts = &board.members[i].facts;
+    wants_paused(facts)
+        || (board.active_refused(&facts.agent)
+            && !facts.stand_in
+            && facts.workflow.state != WorkflowState::Paused)
+}
+
+/// What follows an `active` of the tick's rule or of `activate` after a set-up that the owner
+/// refused with `overlap` (ruling RD-67 4.3; I5.4): the agent of member `i` is marked for the
+/// rest of the life, and `set_state` `paused` goes in the same move, its acknowledged state
+/// written into the facts; a `paused` that gets no acknowledgement goes again at each tick.
+pub fn refused_active<P: Owner, C>(ports: &P, board: &mut Board<C>, i: usize) {
+    let agent = board.members[i].facts.agent.clone();
+    board.refuse_active(&agent);
+    let _ = send_state_on(ports, &mut board.members[i].facts, AgentState::Paused);
+}
+
+/// Sends `set_state` `paused` for every agent of a workflow that no tick saw gone to which the
+/// board owes it by the facts as they stand, as `owes_paused` gives it: the `paused` that the
+/// set-up flow sends before it shows the sentence of a refusal `overlap` (I3.5 (b); ruling RD-67
+/// 3.2 (b)).
+pub fn pause_owed<P: Owner, C>(ports: &P, board: &mut Board<C>) {
+    for i in 0..board.members.len() {
+        let gone = board.gone.contains(&board.members[i].facts.workflow.id);
+        if !gone && owes_paused(board, i) {
+            let _ = send_state_on(ports, &mut board.members[i].facts, AgentState::Paused);
+        }
+    }
+}
+
+/// Sends `set_state` and reads its answer: the owner's acknowledgement, `{"state":"<state>"}`
+/// with the state sent, writes that state into the agent's facts, so that every later step of the
+/// move reads it (ruling RD-67 1.3 (a); I5.1); any other reply is no acknowledgement and answers
+/// `no_service`, and a refusal or no answer changes nothing.
+fn send_state_on<P: Owner + ?Sized, C>(
+    ports: &P,
+    facts: &mut Facts<C>,
+    state: AgentState,
+) -> Result<(), PortError> {
+    let reply = ports.send(&Body::SetState {
         workflow: facts.workflow.id.clone(),
         agent: facts.agent.clone(),
         state,
@@ -1464,11 +1512,16 @@ where
     };
     recover_aside(cx, board);
     pay_owed(cx, board);
-    for m in &mut board.members {
-        if listed.contains(&m.facts.workflow.id) && wants_paused(&m.facts) {
-            let _ = send_state(cx, &mut m.facts, AgentState::Paused);
-        } else if starts && wants_active(&m.facts) {
-            let _ = send_state(cx, &mut m.facts, AgentState::Active);
+    for i in 0..board.members.len() {
+        let facts = &board.members[i].facts;
+        let marked = board.active_refused(&facts.agent);
+        if listed.contains(&facts.workflow.id) && owes_paused(board, i) {
+            let _ = send_state(cx, &mut board.members[i].facts, AgentState::Paused);
+        } else if starts && !marked && wants_active(facts) {
+            let sent = send_state(cx, &mut board.members[i].facts, AgentState::Active);
+            if sent.as_ref().is_err_and(refused_overlap) {
+                refused_active(cx.ports, board, i);
+            }
         }
     }
     if plan.serve && starts {
@@ -1765,6 +1818,9 @@ where
     }
     if board.dismissed_unread(&agent) {
         return refused(Cause::State);
+    }
+    if !matches!(mv, Move::Off { .. }) {
+        board.free_active(&agent);
     }
     let list = listing(cx, board, Some(i));
     let read = fresh(cx, board, Some(i));
