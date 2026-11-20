@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,38 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 30-mutants 39-store-no-analyze 54-tag-needs-store4 55-sqlcipher-unmended 51-macos-stall
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 30-mutants 39-store-no-analyze 54-tag-needs-store4 55-sqlcipher-unmended 51-macos-stall
+      - name: Loop (store4-fast-macos, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test -p halvo-capture --lib --locked -- --exact store::db::tests::append_event_is_refused_and_changes_no_byte_of_the_database store::db::tests::writes_and_reads_a_segment store::segment::tests::the_golden_segment_of_format_version_2_decrypts_to_its_plaintext store::segment::tests::a_segment_of_format_version_1_is_refused_with_its_version store::segment::tests::a_segment_file_renamed_to_the_name_of_another_segment_does_not_read store::segment::tests::a_header_holds_the_magic_the_version_and_the_segment_id_alone store::hardening_tests::a_live_key_without_its_file_reads_as_segment_missing_until_the_next_open_shreds_it store::hardening_tests::an_open_whose_log_is_unlinked_before_its_first_write_answers_obstructed_at_that_write store::formal_tests::the_marker_scan_finds_the_marker_when_a_batch_names_it_as_its_kind store::hardening_tests::measure::measure_for_the_report_of_store_4 store::hardening_tests::batch_write::a_batch_that_meets_a_full_database_stores_nothing_and_its_retry_commits_once store::hardening_tests::batch_write::a_batch_whose_transaction_meets_a_failing_trigger_stores_nothing_and_its_retry_commits_once store::hardening_tests::batch_write::a_batch_whose_transaction_meets_its_failpoint_stores_nothing_and_its_retry_commits_once store::hardening_tests::batch_write::a_clean_reopen_leaves_the_log_at_0_bytes_and_reconciles_nothing store::hardening_tests::batch_write::a_failed_write_leaves_no_key_row_and_no_file store::hardening_tests::batch_write::a_failpoint_named_in_the_environment_of_a_child_leaves_no_row_and_no_file_after_a_reopen store::hardening_tests::batch_write::a_first_capture_before_1970_round_trips_through_the_key_row store::hardening_tests::batch_write::a_fresh_store_holds_no_table_of_events_no_index_on_one_and_reads_database_version_2 store::hardening_tests::batch_write::a_repeated_shred_of_one_segment_takes_its_totals_out_once store::hardening_tests::batch_write::a_second_write_of_one_segment_id_answers_already_written_and_the_rollup_counts_it_once store::hardening_tests::batch_write::a_shred_takes_the_totals_out_of_the_rollup_and_keeps_the_rows_of_the_segment store::hardening_tests::batch_write::a_store_of_the_schema_before_this_one_answers_older_store_and_one_above_answers_newer_store store::hardening_tests::batch_write::an_open_whose_foreign_keys_read_back_off_is_refused_by_its_name store::hardening_tests::batch_write::batch_child_for_parent store::hardening_tests::batch_write::each_malformed_batch_is_refused_and_writes_nothing store::hardening_tests::batch_write::every_ordinal_is_above_every_ordinal_given_before_also_after_a_shred_of_the_newest_and_a_reopen store::hardening_tests::batch_write::no_fault_of_a_batch_write_leaves_its_batch_stored store::hardening_tests::batch_write::one_batch_with_one_event_of_each_of_8_kinds_lists_8_rows_with_the_texts_that_were_passed store::hardening_tests::batch_write::one_batch_write_stores_its_key_row_its_totals_and_the_rollup store::hardening_tests::batch_write::the_decrypted_pages_hold_no_copy_of_a_marker_written_in_a_batch_payload store::hardening_tests::batch_write::the_open_time_reconcile_removes_a_keyless_file_and_shreds_a_row_whose_file_is_missing store::hardening_tests::batch_write::the_store_key_and_the_wrapping_key_do_not_open_the_database store::hardening_tests::batch_write::the_store_payload_cap_is_the_ports_cap store::hardening_tests::page_gap_probe::the_rules_see_every_plant_on_the_decrypted_images_of_store_db >"$RUNNER_TEMP/s4-fm-halvo-capture.txt" 2>&1; grep -q 'test result: ok. 34 passed; 0 failed' "$RUNNER_TEMP/s4-fm-halvo-capture.txt" || { tail -n 30 "$RUNNER_TEMP/s4-fm-halvo-capture.txt"; false; } && { cargo test -p halvo-sqlcipher --lib --locked -- --exact page_gap::pins::a_table_of_the_full_text_modules_cannot_be_made_in_this_build >"$RUNNER_TEMP/s4-fm-halvo-sqlcipher.txt" 2>&1; grep -q 'test result: ok. 1 passed; 0 failed' "$RUNNER_TEMP/s4-fm-halvo-sqlcipher.txt" || { tail -n 30 "$RUNNER_TEMP/s4-fm-halvo-sqlcipher.txt"; false; }; } ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop store4-fast-macos: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: Loop (store4-slow, 20 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 20 ]; do
+            n=$((n + 1))
+            if ( cargo test -p halvo-capture --lib --locked -- --exact store::hardening_tests::batch_write::an_event_at_16_30_on_a_clock_8_hours_behind_utc_lands_on_the_next_utc_day store::hardening_tests::batch_write::new_segment_names_carry_no_time_spread_over_shards_and_their_header_holds_no_ordinal store::hardening_tests::batch_write::the_rollup_equals_the_totals_of_live_segments store::hardening_tests::page_gap_probe::single_shreds_of_keys_with_writes_between_leave_no_line_of_the_structural_check store::hardening_tests::page_gap_probe::with_secure_delete_off_the_draw_of_the_store_gives_lines >"$RUNNER_TEMP/s4-sl-halvo-capture.txt" 2>&1; grep -q 'test result: ok. 5 passed; 0 failed' "$RUNNER_TEMP/s4-sl-halvo-capture.txt" || { tail -n 30 "$RUNNER_TEMP/s4-sl-halvo-capture.txt"; false; } && { cargo test -p halvo-sqlcipher --lib --locked -- --exact page_gap::unmended::the_drawn_workloads_print_their_rows_their_integrity_and_the_lines_of_the_search >"$RUNNER_TEMP/s4-sl-halvo-sqlcipher.txt" 2>&1; grep -q 'test result: ok. 1 passed; 0 failed' "$RUNNER_TEMP/s4-sl-halvo-sqlcipher.txt" || { tail -n 30 "$RUNNER_TEMP/s4-sl-halvo-sqlcipher.txt"; false; }; } ) >"$RUNNER_TEMP/loop-store4-slow-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-store4-slow-$n.log"; fi
+          done
+          echo "loop store4-slow: passed $pass of 20"
+          [ "$pass" -eq 20 ]
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -154,14 +168,38 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 39-store-no-analyze 54-tag-needs-store4 55-sqlcipher-unmended 50-windows-functional
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 39-store-no-analyze 54-tag-needs-store4 55-sqlcipher-unmended 50-windows-functional
+      - name: Loop (store4-slow, 20 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 20 ]; do
+            n=$((n + 1))
+            if ( cargo test -p halvo-capture --lib --locked -- --exact store::hardening_tests::batch_write::an_event_at_16_30_on_a_clock_8_hours_behind_utc_lands_on_the_next_utc_day store::hardening_tests::batch_write::new_segment_names_carry_no_time_spread_over_shards_and_their_header_holds_no_ordinal store::hardening_tests::batch_write::the_rollup_equals_the_totals_of_live_segments store::hardening_tests::page_gap_probe::single_shreds_of_keys_with_writes_between_leave_no_line_of_the_structural_check store::hardening_tests::page_gap_probe::with_secure_delete_off_the_draw_of_the_store_gives_lines >"$RUNNER_TEMP/s4-sl-halvo-capture.txt" 2>&1; grep -q 'test result: ok. 5 passed; 0 failed' "$RUNNER_TEMP/s4-sl-halvo-capture.txt" || { tail -n 30 "$RUNNER_TEMP/s4-sl-halvo-capture.txt"; false; } && { cargo test -p halvo-sqlcipher --lib --locked -- --exact page_gap::unmended::the_drawn_workloads_print_their_rows_their_integrity_and_the_lines_of_the_search >"$RUNNER_TEMP/s4-sl-halvo-sqlcipher.txt" 2>&1; grep -q 'test result: ok. 1 passed; 0 failed' "$RUNNER_TEMP/s4-sl-halvo-sqlcipher.txt" || { tail -n 30 "$RUNNER_TEMP/s4-sl-halvo-sqlcipher.txt"; false; }; } ) >"$RUNNER_TEMP/loop-store4-slow-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-store4-slow-$n.log"; fi
+          done
+          echo "loop store4-slow: passed $pass of 20"
+          [ "$pass" -eq 20 ]
+      - name: Loop (store4-fast-windows, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test -p halvo-capture --lib --locked -- --exact store::db::tests::append_event_is_refused_and_changes_no_byte_of_the_database store::db::tests::writes_and_reads_a_segment store::segment::tests::the_golden_segment_of_format_version_2_decrypts_to_its_plaintext store::segment::tests::a_segment_of_format_version_1_is_refused_with_its_version store::segment::tests::a_segment_file_renamed_to_the_name_of_another_segment_does_not_read store::segment::tests::a_header_holds_the_magic_the_version_and_the_segment_id_alone store::hardening_tests::a_live_key_without_its_file_reads_as_segment_missing_until_the_next_open_shreds_it store::formal_tests::the_marker_scan_finds_the_marker_when_a_batch_names_it_as_its_kind store::hardening_tests::measure::measure_for_the_report_of_store_4 store::hardening_tests::batch_write::a_batch_that_meets_a_full_database_stores_nothing_and_its_retry_commits_once store::hardening_tests::batch_write::a_batch_whose_transaction_meets_a_failing_trigger_stores_nothing_and_its_retry_commits_once store::hardening_tests::batch_write::a_batch_whose_transaction_meets_its_failpoint_stores_nothing_and_its_retry_commits_once store::hardening_tests::batch_write::a_clean_reopen_leaves_the_log_at_0_bytes_and_reconciles_nothing store::hardening_tests::batch_write::a_failed_write_leaves_no_key_row_and_no_file store::hardening_tests::batch_write::a_failpoint_named_in_the_environment_of_a_child_leaves_no_row_and_no_file_after_a_reopen store::hardening_tests::batch_write::a_first_capture_before_1970_round_trips_through_the_key_row store::hardening_tests::batch_write::a_fresh_store_holds_no_table_of_events_no_index_on_one_and_reads_database_version_2 store::hardening_tests::batch_write::a_repeated_shred_of_one_segment_takes_its_totals_out_once store::hardening_tests::batch_write::a_second_write_of_one_segment_id_answers_already_written_and_the_rollup_counts_it_once store::hardening_tests::batch_write::a_shred_takes_the_totals_out_of_the_rollup_and_keeps_the_rows_of_the_segment store::hardening_tests::batch_write::a_store_of_the_schema_before_this_one_answers_older_store_and_one_above_answers_newer_store store::hardening_tests::batch_write::an_open_whose_foreign_keys_read_back_off_is_refused_by_its_name store::hardening_tests::batch_write::batch_child_for_parent store::hardening_tests::batch_write::each_malformed_batch_is_refused_and_writes_nothing store::hardening_tests::batch_write::every_ordinal_is_above_every_ordinal_given_before_also_after_a_shred_of_the_newest_and_a_reopen store::hardening_tests::batch_write::no_fault_of_a_batch_write_leaves_its_batch_stored store::hardening_tests::batch_write::one_batch_with_one_event_of_each_of_8_kinds_lists_8_rows_with_the_texts_that_were_passed store::hardening_tests::batch_write::one_batch_write_stores_its_key_row_its_totals_and_the_rollup store::hardening_tests::batch_write::the_decrypted_pages_hold_no_copy_of_a_marker_written_in_a_batch_payload store::hardening_tests::batch_write::the_open_time_reconcile_removes_a_keyless_file_and_shreds_a_row_whose_file_is_missing store::hardening_tests::batch_write::the_store_key_and_the_wrapping_key_do_not_open_the_database store::hardening_tests::batch_write::the_store_payload_cap_is_the_ports_cap store::hardening_tests::page_gap_probe::the_rules_see_every_plant_on_the_decrypted_images_of_store_db >"$RUNNER_TEMP/s4-fw-halvo-capture.txt" 2>&1; grep -q 'test result: ok. 33 passed; 0 failed' "$RUNNER_TEMP/s4-fw-halvo-capture.txt" || { tail -n 30 "$RUNNER_TEMP/s4-fw-halvo-capture.txt"; false; } && { cargo test -p halvo-sqlcipher --lib --locked -- --exact page_gap::pins::a_table_of_the_full_text_modules_cannot_be_made_in_this_build >"$RUNNER_TEMP/s4-fw-halvo-sqlcipher.txt" 2>&1; grep -q 'test result: ok. 1 passed; 0 failed' "$RUNNER_TEMP/s4-fw-halvo-sqlcipher.txt" || { tail -n 30 "$RUNNER_TEMP/s4-fw-halvo-sqlcipher.txt"; false; }; } ) >"$RUNNER_TEMP/loop-store4-fast-windows-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-store4-fast-windows-$n.log"; fi
+          done
+          echo "loop store4-fast-windows: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
