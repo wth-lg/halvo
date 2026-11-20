@@ -9,17 +9,10 @@ use super::super::db::test_support::key_statement;
 use super::super::db::SEAM_BEFORE_THE_DRAIN;
 use super::super::failpoint;
 use super::super::StoreError;
-use super::open_gates::tree;
+use super::open_gates::{names, tree};
 use super::{answer_text, file_root_store, nth_call, open_over_file_root, RootId};
 
 type Listed = Vec<(String, Option<Vec<u8>>)>;
-
-fn names(listed: &Listed) -> Vec<(String, Option<usize>)> {
-    listed
-        .iter()
-        .map(|(name, bytes)| (name.clone(), bytes.as_ref().map(Vec::len)))
-        .collect()
-}
 
 fn log_length(listed: &Listed) -> usize {
     listed
