@@ -13,6 +13,7 @@ pub(in crate::store) mod failpoint {
     }
 }
 pub(in crate::store) mod segment;
+pub mod state_file;
 pub(in crate::store) mod verify;
 
 #[cfg(test)]

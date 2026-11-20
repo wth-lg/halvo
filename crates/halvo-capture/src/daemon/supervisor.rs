@@ -23,6 +23,7 @@ use super::report::FailedSource;
 use super::sources::{
     is_a_stop, past_bound, stop_bound, stop_order, RunningSources, SourceFactory,
 };
+use super::state::{StateError, StateFile};
 use super::{DaemonError, RunSources, Waits};
 use crate::source::{
     CaptureError, HealthReason, SourceContext, SourceCounters, SourceState, StopCause,
@@ -396,6 +397,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     unstopped_in_life: Vec<(SourceName, CaptureError)>,
     owner_gone_stops: Option<Vec<(SourceName, Result<(), CaptureError>)>>,
     entry_status: Option<i32>,
+    state: Option<StateFile>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -429,7 +431,15 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             unstopped_in_life: Vec::new(),
             owner_gone_stops: None,
             entry_status: None,
+            state: None,
         }
+    }
+
+    /// The state file that the supervisor holds: it records there each
+    /// permission that its probe reads as granted.
+    pub fn with_state(mut self, state: StateFile) -> Supervisor<F, L> {
+        self.state = Some(state);
+        self
     }
 
     /// The probe runner whose answers the supervisor reads.
@@ -742,7 +752,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             .collect();
         self.board.permissions = answers;
         match self.board.granted_at_start.clone() {
-            None => self.board.granted_at_start = Some(granted),
+            None => self.board.granted_at_start = Some(granted.clone()),
             Some(at_start) => {
                 if granted
                     .iter()
@@ -750,6 +760,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 {
                     return Some(Ending::Restart);
                 }
+            }
+        }
+        if let Some(state) = self.state.as_mut() {
+            if let Err(StateError::NotWritten { kind, .. }) = state.record_granted(&granted) {
+                let _ = writeln!(
+                    self.err,
+                    "halvo-capture: the state file was not written: {kind}"
+                );
             }
         }
         if let Some(ending) = self.stop_without_permission(owner) {
@@ -2286,6 +2304,82 @@ mod tests {
         }
         assert_eq!(f.state(SourceName::Input), SourceState::Running);
         assert!(f.supervisor.factory().calls.of("stop input").is_empty());
+    }
+
+    fn with_state_file(
+        f: Fixture<Factory>,
+    ) -> (
+        Fixture<Factory>,
+        tempfile::TempDir,
+        crate::daemon::state::tests::TestWrite,
+    ) {
+        let dir = crate::daemon::state::tests::test_dir();
+        let writer = crate::daemon::state::tests::TestWrite::default();
+        let state = crate::daemon::state::StateFile::open(
+            dir.path().to_path_buf(),
+            Box::new(writer.clone()),
+        );
+        let mut f = f;
+        f.supervisor = f.supervisor.with_state(state);
+        (f, dir, writer)
+    }
+
+    fn once_granted(dir: &std::path::Path) -> Vec<Permission> {
+        crate::daemon::state::StateFile::open(
+            dir.to_path_buf(),
+            Box::new(crate::daemon::state::tests::TestWrite::default()),
+        )
+        .state()
+        .permissions_once_granted
+        .clone()
+    }
+
+    #[test]
+    fn a_permission_granted_at_the_first_answer_is_written_once_in_the_state_file() {
+        let (f, answers, _) = probed(fixture(Factory::new()));
+        let (mut f, dir, writer) = with_state_file(f);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        f.start(&two());
+        assert_eq!(f.tick(), None);
+        assert_eq!(once_granted(dir.path()), vec![Permission::InputMonitoring]);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        assert_eq!(f.later(PROBE_INTERVAL), None);
+        assert_eq!(writer.calls.load(Ordering::SeqCst), 2);
+        let (g, answers, _) = probed(fixture(Factory::new()));
+        let (mut g, _dir, failing) = with_state_file(g);
+        failing.failing.store(true, Ordering::SeqCst);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        g.start(&two());
+        assert_eq!(g.tick(), None);
+        assert_eq!(g.state(SourceName::Input), SourceState::Running);
+        assert!(
+            g.out.text().contains("the state file was not written"),
+            "{}",
+            g.out.text()
+        );
+    }
+
+    #[test]
+    fn a_grant_that_restarts_the_run_leaves_the_state_file_as_it_is() {
+        let (f, answers, _) = probed(fixture(Factory::new()));
+        let (mut f, dir, writer) = with_state_file(f);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::NotGranted));
+        f.start(&two());
+        assert_eq!(f.tick(), None);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        assert_eq!(f.later(PROBE_INTERVAL), Some(Ending::Restart));
+        assert!(once_granted(dir.path()).is_empty());
+        assert_eq!(writer.calls.load(Ordering::SeqCst), 1);
     }
 
     #[test]
