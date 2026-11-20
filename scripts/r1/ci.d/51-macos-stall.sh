@@ -1626,6 +1626,8 @@ EOF
     "$filler"'// fffffffffffffffffffffffffffffffffffff\0000\n'"$zz_body" "$zz"
   rules_case carbon-a-binary-file-of-another-name-that-a-rust-file-takes-as-a-module FAIL "${carbon_text}crates/halvo-capture/src/hold.bin (" \
     '// \0000 a module that a Rust file names by #[path = "hold.bin"]\n'"$zz_body" crates/halvo-capture/src/hold.bin
+  rules_case carbon-a-binary-rust-file-with-a-lookup-alone FAIL "$carbon_text$zz (" \
+    '// \0000 a lookup alone\nfn look() -> *mut libc::c_void {\n    unsafe { libc::dlsym(libc::RTLD_DEFAULT, c"getpid".as_ptr()) }\n}\n' "$zz"
   rules_case carbon-a-binary-objective-c-file FAIL "${carbon_text}crates/other/src/hold.m (" \
     'void hold(void) { /* \0000 */ EnableSecureEventInput(); }\n' crates/other/src/hold.m
   rules_case carbon-a-nul-byte-before-a-link-name-on-its-line FAIL "$carbon_text$zz (" \
