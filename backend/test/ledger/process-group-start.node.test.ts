@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeEach, expect, test } from "vitest";
-import { type Processes, startGroup, useProcesses } from "./process-group.ts";
+import { groupMembers, type Processes, startGroup, useProcesses } from "./process-group.ts";
 
 interface FRow {
   pid: number;
@@ -92,6 +92,23 @@ test("when ps cannot be read again either, startGroup sends KILL to the group of
   expect(() => startGroup("x", [], { stdio: ["ignore", "ignore", "ignore"] })).toThrow("ps was stopped");
   expect(events.slice(events.indexOf("spawn"))).toEqual(["spawn", "ps failed", "ps failed", `SIGKILL -${nextPid}`]);
   expect(marksIn()).toEqual([]);
+});
+
+test("groupMembers names each process that has the group's pid as its group id, with its start time, leaves out zombies, names none when the pid has another start time, and sends nothing", () => {
+  rows.push(
+    { pid: 300_001, pgid: 300_001, stat: "S", started: LATER },
+    { pid: 300_002, pgid: 300_001, stat: "S", started: OWNER },
+    { pid: 300_003, pgid: 300_001, stat: "Z", started: LATER },
+    { pid: 300_004, pgid: 300_004, stat: "S", started: LATER },
+    { pid: 300_005, pgid: 300_006, stat: "S", started: LATER },
+  );
+  expect(groupMembers({ pid: 300_001, started: LATER })).toEqual([
+    { pid: 300_001, started: LATER },
+    { pid: 300_002, started: OWNER },
+  ]);
+  expect(groupMembers({ pid: 300_001, started: OWNER })).toEqual([]);
+  expect(groupMembers({ pid: 300_006, started: LATER })).toEqual([{ pid: 300_005, started: LATER }]);
+  expect(events.filter((event) => event.startsWith("SIG"))).toEqual([]);
 });
 
 test("startGroup's errors name the command by its file name and not by the path that it was given", () => {
