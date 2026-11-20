@@ -281,8 +281,42 @@ pub(crate) mod tests {
             assert!(InstanceLock::take(&named).unwrap().is_some());
         }
 
+        const READER_HOLDS: Duration = Duration::from_millis(300);
+
+        const READS_APART: Duration = Duration::from_millis(1);
+
         #[test]
-        fn a_loop_of_lock_reads_never_makes_a_take_answer_held() {
+        fn a_take_waits_out_a_reader_that_holds_the_lock_for_300_ms() {
+            let dir = kept_dir("instance-tests-");
+            let named = data_dir(&dir);
+            let reader = std::fs::File::open(&dir).unwrap();
+            let shared = unsafe {
+                libc::flock(
+                    std::os::unix::io::AsRawFd::as_raw_fd(&reader),
+                    libc::LOCK_SH | libc::LOCK_NB,
+                )
+            };
+            assert_eq!(shared, 0);
+            let release = std::thread::spawn(move || {
+                std::thread::sleep(READER_HOLDS);
+                drop(reader);
+            });
+            let started = Instant::now();
+            let taken = InstanceLock::take(&named).unwrap();
+            let took = started.elapsed();
+            release.join().unwrap();
+            assert!(
+                taken.is_some(),
+                "a reader that held the shared lock for {READER_HOLDS:?} made the take answer held"
+            );
+            assert!(
+                took + Duration::from_millis(50) >= READER_HOLDS,
+                "the take did not wait for the reader: {took:?}"
+            );
+        }
+
+        #[test]
+        fn a_loop_of_lock_reads_a_millisecond_apart_never_makes_a_take_answer_held() {
             let dir = kept_dir("instance-tests-");
             let named = data_dir(&dir);
             let done = Arc::new(AtomicBool::new(false));
@@ -294,6 +328,7 @@ pub(crate) mod tests {
                     while !done.load(Ordering::SeqCst) {
                         let _ = instance_lock::read(&named).unwrap();
                         count += 1;
+                        std::thread::sleep(READS_APART);
                     }
                     count
                 })
@@ -301,7 +336,7 @@ pub(crate) mod tests {
             for round in 0..300 {
                 assert!(
                     InstanceLock::take(&named).unwrap().is_some(),
-                    "take {round} answered held while only reads ran"
+                    "take {round} answered held while reads {READS_APART:?} apart ran"
                 );
             }
             done.store(true, Ordering::SeqCst);
