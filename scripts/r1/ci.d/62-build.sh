@@ -619,7 +619,12 @@ debug-assertions = false'
   standins=$work/standins
   mkdir "$standins" || exit 2
   stand_in() {
-    printf '%s\n' '#!/bin/sh' "$2" >"$standins/$1" && chmod +x "$standins/$1" || exit 2
+    { printf '%s\n' '#!/bin/sh' && cat; } >"$standins/$1" && chmod +x "$standins/$1" || exit 2
+  }
+  forward_python() {
+    stand_in "$1" <<'SH'
+exec "$fixture_python" "$@"
+SH
   }
   fixture_python=
   for program in python3.11 python3 python; do
@@ -635,29 +640,42 @@ sys.stdout.write("%d:%d.%d.%d" % (value, *sys.version_info[:3]))' </dev/null 2>/
   [ -n "$fixture_python" ] || exit 2
   export fixture_python
   no_python='reading Cargo.toml requires Python 3.11 or later'
-  notice='printf "%s\n" "interpreter unavailable"'
-  for program in python3.11 python3 python; do stand_in "$program" "$notice"; done
+  for program in python3.11 python3 python; do
+    stand_in "$program" <<'SH'
+printf '%s\n' 'interpreter unavailable'
+SH
+  done
   PATH="$standins:$PATH" rules_case no-interpreter-behind-names FAIL "$no_python"
-  stand_in python3 'exec "$fixture_python" "$@"'
+  forward_python python3
   expect_second="manifest reader: python3 $fixture_version"
   PATH="$standins:$PATH" expect_reader="$expect_second" rules_case skip-notice-interpreter FAIL "$need_profile"
   probe_input=$work/probe-input
   export probe_input
-  stand_in python3.11 'IFS= read -r line && printf "%s\n" "$line" >"$probe_input"
-exit 0'
+  stand_in python3.11 <<'SH'
+IFS= read -r line && printf '%s\n' "$line" >"$probe_input"
+exit 0
+SH
   PATH="$standins:$PATH" expect_reader="$expect_second" rules_case probe-leaves-stdin-alone FAIL "$need_profile" <<'EOF'
 a line belonging to the caller
 EOF
   : >"$probe_input"
-  stand_in python3.11 'if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
-printf "%s\n" "reader notice"'
+  stand_in python3.11 <<'SH'
+if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
+printf '%s\n' 'reader notice'
+SH
   PATH="$standins:$PATH" rules_case reader-notice-with-success FAIL 'unexpected Cargo.toml reader output: reader notice'
-  stand_in python3.11 'if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
-exit 0'
+  stand_in python3.11 <<'SH'
+if [ "$2" = -c ]; then exec "$fixture_python" "$@"; fi
+exit 0
+SH
   PATH="$standins:$PATH" rules_case reader-silent-with-success FAIL 'unexpected Cargo.toml reader output: '
-  for program in python3.11 python3 python; do stand_in "$program" 'exit 1'; done
+  for program in python3.11 python3 python; do
+    stand_in "$program" <<'SH'
+exit 1
+SH
+  done
   PATH="$standins:$PATH" rules_case no-working-interpreter FAIL "$no_python"
-  stand_in python 'exec "$fixture_python" "$@"'
+  forward_python python
   expect_third="manifest reader: python $fixture_version"
   PATH="$standins:$PATH" expect_reader="$expect_third" rules_case third-interpreter-bad-profile FAIL "$need_profile"
   printf '%s\n' "$profile_off" >"$root_manifest"
@@ -710,8 +728,10 @@ exit 0'
   measure_trace=$work/measure-started
   export measure_trace
   for program in mktemp cargo npm rustc; do
-    stand_in "$program" 'printf "%s\n" "${0##*/}" >>"$measure_trace"
-exit 1'
+    stand_in "$program" <<'SH'
+printf '%s\n' "${0##*/}" >>"$measure_trace"
+exit 1
+SH
   done
   measure_fixture() (
     for input in node_modules scripts/r1/ci.d/61-version.sh src-tauri; do
