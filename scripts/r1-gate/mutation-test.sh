@@ -1888,6 +1888,8 @@ compiled_cases() {
 
 fallback_cases() {
   t stop-children-ends-a-wrapper-s-children-by-pkill-when-no-child-id-is-known PASS pkill_fallback_named
+  t stop-children-reaches-pkill-after-the-wrapper-has-its-child-when-its-fork-comes-late PASS pkill_fallback_late_fork
+  t the-start-of-the-wrapper-gives-up-when-the-wrapper-ends-before-it-has-a-child PASS pkill_fallback_wrapper_gone
   fallback_want=NO-INPUT
   [ "${GITHUB_ACTIONS:-}" != true ] || fallback_want=PASS
   t stop-children-ends-a-wrapper-s-child-by-the-real-pkill-on-the-hosted-job "$fallback_want" pkill_fallback_real
@@ -1914,12 +1916,71 @@ STUB
   return 1
 }
 
-pkill_fallback_real() {
-  [ "${GITHUB_ACTIONS:-}" = true ] || return 3
-  sh -c 'sleep 60 & wait' &
+start_wrapper_with_its_child() {
+  sh -c "sleep $1 & wait" &
   child_wrapper=$!
   child_pid=''
   fallback_wrapper=$child_wrapper
+  until fallback_child=$(pgrep -P "$fallback_wrapper"); do
+    kill -0 "$fallback_wrapper" 2> /dev/null || { printf 'the wrapper ended before it had a child\n'; return 1; }
+  done
+}
+
+pkill_fallback_late_fork() {
+  fallback_dir=$gate_scratch/pkill-late-fork
+  mkdir -p "$fallback_dir/bin"
+  mkfifo "$fallback_dir/bin/fork"
+  fallback_pgrep=$(command -v pgrep)
+  cat > "$fallback_dir/bin/sh" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$$" > "${0%/*}/wrapper"
+read -r go < "${0%/*}/fork"
+exec /bin/sh "$@"
+STUB
+  cat > "$fallback_dir/bin/pgrep" <<STUB
+#!/bin/sh
+"$fallback_pgrep" "\$@" > "\${0%/*}/pgrep.out"
+s=\$?
+cat "\${0%/*}/pgrep.out"
+printf 'pgrep %s\n' "\$(wc -l < "\${0%/*}/pgrep.out" | tr -d ' ')" >> "\${0%/*}/events"
+if mkdir "\${0%/*}/forked" 2> /dev/null; then printf 'go\n' > "\${0%/*}/fork"; fi
+exit "\$s"
+STUB
+  cat > "$fallback_dir/bin/pkill" <<'STUB'
+#!/bin/sh
+printf 'pkill %s\n' "$*" >> "${0%/*}/events"
+if mkdir "${0%/*}/forked" 2> /dev/null; then printf 'go\n' > "${0%/*}/fork"; fi
+exit 0
+STUB
+  chmod +x "$fallback_dir/bin/sh" "$fallback_dir/bin/pgrep" "$fallback_dir/bin/pkill"
+  PATH=$fallback_dir/bin:$PATH
+  start_wrapper_with_its_child 2 || return 1
+  stop_children
+  fallback_events=$(tr '\n' ';' < "$fallback_dir/bin/events")
+  fallback_started=$(cat "$fallback_dir/bin/wrapper")
+  case $fallback_events in
+    "pgrep 0;"*"pgrep 1;pkill -TERM -P $fallback_started;") return 0 ;;
+  esac
+  printf 'events: %s\n' "$fallback_events"
+  return 1
+}
+
+pkill_fallback_wrapper_gone() {
+  fallback_dir=$gate_scratch/pkill-wrapper-gone
+  mkdir -p "$fallback_dir/bin"
+  printf '#!/bin/sh\nexit 0\n' > "$fallback_dir/bin/sh"
+  chmod +x "$fallback_dir/bin/sh"
+  PATH=$fallback_dir/bin:$PATH
+  fallback_said=$(start_wrapper_with_its_child 2)
+  fallback_status=$?
+  [ "$fallback_status" -eq 1 ] && [ "$fallback_said" = 'the wrapper ended before it had a child' ] && return 0
+  printf 'the start returned %s and said: %s\n' "$fallback_status" "${fallback_said:-nothing}"
+  return 1
+}
+
+pkill_fallback_real() {
+  [ "${GITHUB_ACTIONS:-}" = true ] || return 3
+  start_wrapper_with_its_child 60 || return 1
   fallback_start=$(date +%s)
   stop_children
   fallback_end=$(date +%s)
