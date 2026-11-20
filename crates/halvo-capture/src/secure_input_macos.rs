@@ -990,6 +990,12 @@ pub(crate) mod test_support {
                     refused.0
                 );
             }
+            assert!(
+                skip_allowed(std::env::var_os(HOLD_REQUIRED).as_deref()),
+                "{test}: EnableSecureEventInput refused the hold with status {system} \
+                 ({maker}: {}), and {HOLD_REQUIRED}=1 asks that every hold test holds",
+                refused.0
+            );
             eprintln!(
                 "SKIP {test}: EnableSecureEventInput refused the hold with status {system} \
                  ({maker}: {})",
@@ -997,6 +1003,15 @@ pub(crate) mod test_support {
             );
             None
         }
+    }
+
+    /// The variable that the macos job of scripts/r1/ci.d/12-test.sh sets to 1,
+    /// so that a hold test whose hold the system refuses fails in place of its
+    /// skip (ruling PL-2 (1)).
+    pub(crate) const HOLD_REQUIRED: &str = "HALVO_SECURE_INPUT_HOLD_REQUIRED";
+
+    pub(crate) fn skip_allowed(required: Option<&std::ffi::OsStr>) -> bool {
+        required.is_none_or(|value| value != "1")
     }
 
     #[cfg(debug_assertions)]
@@ -1842,6 +1857,17 @@ mod tests {
             hold_with(|| -50, || 0),
             Err(SecureInputRefused(-50))
         ));
+    }
+
+    #[test]
+    fn a_hold_test_may_skip_only_while_the_variable_of_the_hold_tests_is_not_one() {
+        use super::test_support::{skip_allowed, HOLD_REQUIRED};
+        use std::ffi::OsStr;
+        assert_eq!(HOLD_REQUIRED, "HALVO_SECURE_INPUT_HOLD_REQUIRED");
+        assert!(skip_allowed(None));
+        assert!(!skip_allowed(Some(OsStr::new("1"))));
+        assert!(skip_allowed(Some(OsStr::new("0"))));
+        assert!(skip_allowed(Some(OsStr::new(""))));
     }
 
     #[test]
