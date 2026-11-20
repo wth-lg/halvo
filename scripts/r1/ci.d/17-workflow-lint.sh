@@ -772,7 +772,7 @@ EOF
   check on-comment-after-cron FAIL 'write the push filters and the pull_request and schedule events'
   for minutes in 90 5 expression; do
     value=$minutes
-    [ "$minutes" != expression ] || value='${{ 90 }}'
+    [ "$minutes" != expression ] || value="\${{ 90 }}"
     full "step-timeout-$minutes" macos "      - name: ci.d${nl}        shell: bash" \
       "      - name: ci.d${nl}        shell: bash${nl}        timeout-minutes: $value"
     check "step-timeout-$minutes" FAIL 'step 12.timeout-minutes'
