@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,179 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 51-macos-stall 30-mutants
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 51-macos-stall 30-mutants
+      - name: Loop (macos-3, 20 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 20 ]; do
+            n=$((n + 1))
+            if ( out=$(cargo test -p halvo-capture --lib --locked -- --exact macos::input::tests::a_shutdown_that_answered_timeout_reads_failed_with_reason_timeout_and_its_drop_waits_nothing macos::input::tests::the_tap_is_disabled_through_its_port_before_shutdown_answers_timeout macos::foreground::tests::a_shutdown_that_answered_timeout_reads_failed_with_reason_timeout_and_its_drop_waits_nothing macos::screen::tests::a_stop_whose_wait_gives_up_answers_timeout_inside_six_seconds_and_leaves_no_output_or_queue 2>&1); grep -q 'test result: ok. 4 passed; 0 failed' <<<"$out" || exit 1; for _ in 1 2 3 4 5 6 7 8 9 10; do out=$(cargo test -p halvo-capture --lib --locked -- --exact macos::input::tests::a_shutdown_that_joined_the_thread_calls_nothing_through_the_port macos::input::tests::a_release_that_the_system_refuses_makes_shutdown_answer_its_os_error_and_health_read_failed macos::input::tests::a_release_that_the_system_accepts_lets_shutdown_answer_ok macos::input::tests::a_pointer_event_after_a_stop_is_asked_is_counted_and_not_emitted macos::input::tests::a_pointer_event_whose_own_reading_meets_a_stop_is_counted_and_not_emitted macos::input::tests::a_pointer_event_with_no_stop_is_emitted_and_counts_no_drop macos::input::tests::the_figure_max_lag_ms_has_no_writer_on_a_mac_and_reads_zero_after_a_late_key macos::input::tests::the_port_disable_waits_for_a_store_that_holds_the_gate macos::foreground::tests::a_change_and_a_title_seen_after_a_stop_is_asked_are_counted_and_not_emitted macos::foreground::tests::the_lineage_reads_the_parent_of_this_process_and_none_for_launchd_and_unknown_for_no_process macos::foreground::tests::the_predicate_selects_halvo_by_bundle_id_or_by_the_sibling_executable_and_nothing_else macos::foreground::tests::an_identity_becomes_the_same_identity_of_a_floor_event macos::screen::tests::a_stop_that_answered_an_error_reads_failed_os_error_and_its_drop_asks_nothing macos::screen::tests::the_frame_cap_is_the_key_screen_frames_max_per_s_of_the_bounds_file macos::screen::tests::each_frame_status_maps_to_its_action macos::screen::tests::with_screen_activity_on_only_a_complete_or_started_frame_with_an_image_gives_one_record macos::screen::tests::a_complete_or_started_sample_with_no_image_buffer_gives_no_record macos::screen::tests::a_blank_or_suspended_frame_reads_impaired_and_the_next_idle_frame_reads_running macos::screen::tests::a_frame_while_secure_input_reads_active_gives_no_record_and_while_it_reads_unknown_one macos::screen::tests::a_frame_is_dropped_while_nothing_is_known_in_front_halvo_or_an_excluded_app_is_in_front macos::screen::tests::a_record_carries_the_app_in_front_and_its_pid macos::screen::tests::the_selection_excludes_halvo_the_own_process_and_the_root_tree_and_keeps_every_other_entry macos::screen::tests::the_chooser_takes_the_main_display_by_its_id_wherever_it_stands macos::screen::tests::a_rebuild_is_due_while_the_app_runs_unlisted_at_once_in_front_and_after_a_doubling_backoff macos::screen::tests::the_delegate_reads_stop_code_minus_3817_as_stopped_by_the_user_and_any_other_as_failed macos::screen::tests::a_started_source_reads_the_stop_code_of_its_delegate macos::screen::tests::with_the_switch_off_and_with_the_default_switches_begin_answers_off_and_opens_no_stream macos::screen::tests::the_filter_fact_reads_no_stream_before_a_start_and_after_a_stop_and_else_the_filters_answer secure_input::macos::tests::a_release_answers_the_status_of_the_system_and_makes_one_release_call secure_input::macos::tests::the_probe_answers_active_for_byte_one_inactive_for_byte_zero_and_unknown_off_the_console secure_input::macos::tests::a_hold_test_may_skip_only_while_the_variable_of_the_hold_tests_is_not_one macos::secure_input_byte::tests::a_release_answers_the_status_of_its_call 2>&1); grep -q 'test result: ok. 32 passed; 0 failed' <<<"$out" || exit 1; done ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop macos-3: passed $pass of 20"
+          [ "$pass" -eq 20 ]
+      - name: macos-3 exit probe (ruling MA-9 part (6))
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          printf 'exit_probe macos_version=%s\n' "$(sw_vers -productVersion)"
+          cat >"$RUNNER_TEMP/si-exit.c" <<'EOF'
+          /* si-exit: the exit fact of ruling MA-9 part (6), built from the S7 probe si-probe.c.
+           * Prints booleans and counts only.
+           *   si-exit watch <arm> <wait_ms>  reads the secure-input state by the state call and by the
+           *                                  session's key, starts "si-exit hold <arm>", reads both again
+           *                                  while the holder lives, ends the holder, and reads both until
+           *                                  they read off or the wait ends
+           *   si-exit hold <arm>             takes the hold, says so, waits for a line on stdin, then ends
+           * Arms: exit (_exit), return (a return from main), term (SIGTERM with no handler), kill (SIGKILL),
+           * abort (abort), control (gives the hold back, then returns).
+           * Build: cc -O2 -Wall -o si-exit si-exit.c -framework ApplicationServices -framework Carbon */
+          #include <ApplicationServices/ApplicationServices.h>
+          #include <Carbon/Carbon.h>
+          #include <signal.h>
+          #include <spawn.h>
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <string.h>
+          #include <sys/wait.h>
+          #include <time.h>
+          #include <unistd.h>
+
+          extern char **environ;
+
+          static int state_call(void) { return IsSecureEventInputEnabled() ? 1 : 0; }
+
+          static int session_key(void) {
+              CFDictionaryRef session = CGSessionCopyCurrentDictionary();
+              if (!session) return -1;
+              int on = CFDictionaryContainsKey(session, CFSTR("kCGSSessionSecureInputPID")) ? 1 : 0;
+              CFRelease(session);
+              return on;
+          }
+
+          static long now_ms(void) {
+              struct timespec t;
+              clock_gettime(CLOCK_MONOTONIC, &t);
+              return (long)t.tv_sec * 1000 + t.tv_nsec / 1000000;
+          }
+
+          static int hold(const char *arm) {
+              OSStatus taken = EnableSecureEventInput();
+              printf("held status=%d\n", (int)taken);
+              fflush(stdout);
+              char line[16];
+              if (!fgets(line, sizeof line, stdin)) line[0] = 0;
+              if (!strcmp(arm, "exit")) _exit(0);
+              if (!strcmp(arm, "return")) return 0;
+              if (!strcmp(arm, "term")) { signal(SIGTERM, SIG_DFL); raise(SIGTERM); }
+              if (!strcmp(arm, "kill")) raise(SIGKILL);
+              if (!strcmp(arm, "abort")) abort();
+              if (!strcmp(arm, "control")) {
+                  OSStatus given = DisableSecureEventInput();
+                  printf("given status=%d\n", (int)given);
+                  return 0;
+              }
+              return 64;
+          }
+
+          static int watch(const char *self, const char *arm, int wait_ms) {
+              int before_state = state_call(), before_key = session_key();
+              int to_holder[2], from_holder[2];
+              if (pipe(to_holder) || pipe(from_holder)) return 70;
+              posix_spawn_file_actions_t actions;
+              posix_spawn_file_actions_init(&actions);
+              posix_spawn_file_actions_adddup2(&actions, to_holder[0], 0);
+              posix_spawn_file_actions_adddup2(&actions, from_holder[1], 1);
+              posix_spawn_file_actions_addclose(&actions, to_holder[1]);
+              posix_spawn_file_actions_addclose(&actions, from_holder[0]);
+              char *argv[] = {(char *)self, "hold", (char *)arm, NULL};
+              pid_t pid;
+              if (posix_spawn(&pid, self, &actions, NULL, argv, environ)) return 71;
+              close(to_holder[0]);
+              close(from_holder[1]);
+              FILE *from = fdopen(from_holder[0], "r");
+              char line[64] = {0};
+              int held = from && fgets(line, sizeof line, from) && !strncmp(line, "held status=0", 13);
+              usleep(300000);
+              int during_state = state_call(), during_key = session_key();
+              if (write(to_holder[1], "end\n", 4) != 4) held = 0;
+              close(to_holder[1]);
+              int status = 0;
+              waitpid(pid, &status, 0);
+              long gone = now_ms();
+              long off_ms = -1;
+              int after_state = -1, after_key = -1;
+              for (;;) {
+                  after_state = state_call();
+                  after_key = session_key();
+                  if (!after_state && after_key != 1) { off_ms = now_ms() - gone; break; }
+                  if (now_ms() - gone > wait_ms) break;
+                  usleep(50000);
+              }
+              const char *verdict = (before_state || before_key == 1) ? "INCONCLUSIVE_ANOTHER_HOLDER"
+                                    : (!held || !during_state || during_key != 1) ? "INCONCLUSIVE_NOT_HELD"
+                                    : off_ms >= 0 ? "OFF_AFTER_THE_HOLDER_ENDED"
+                                                  : "LEFT_ON";
+              printf("exit_probe arm=%s before_state=%d before_key=%d held=%d during_state=%d during_key=%d "
+                     "ended_by_signal=%d signal=%d exit_code=%d after_state=%d after_key=%d off_after_ms=%ld "
+                     "wait_ms=%d verdict=%s\n",
+                     arm, before_state, before_key, held, during_state, during_key, WIFSIGNALED(status) ? 1 : 0,
+                     WIFSIGNALED(status) ? WTERMSIG(status) : 0, WIFEXITED(status) ? WEXITSTATUS(status) : -1,
+                     after_state, after_key, off_ms, wait_ms, verdict);
+              if (from) fclose(from);
+              return 0;
+          }
+
+          int main(int argc, char **argv) {
+              setvbuf(stdout, NULL, _IOLBF, 0);
+              if (argc == 3 && !strcmp(argv[1], "hold")) return hold(argv[2]);
+              if (argc == 4 && !strcmp(argv[1], "watch")) return watch(argv[0], argv[2], atoi(argv[3]));
+              return 64;
+          }
+          EOF
+          if ! cc -O2 -Wall -o "$RUNNER_TEMP/si-exit" "$RUNNER_TEMP/si-exit.c" -framework ApplicationServices -framework Carbon; then
+            echo 'exit_probe build=failed'
+            exit 1
+          fi
+          for arm in control exit return term kill abort; do
+            "$RUNNER_TEMP/si-exit" watch "$arm" 5000
+          done
+          echo 'exit_probe done'
+      - name: macos-3 rows by name
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          TMPDIR="$RUNNER_TEMP" sh scripts/r1-gate/mutation-test.sh --remove-scratch \
+            --only release-taken-out-of-the-drop --only ended-poll-thread-stops-cleanly \
+            --only foreground-drop-does-not-stop --only input-drop-does-not-join --only screen-drop-does-not-stop \
+            --only timeout-leaves-the-tap-enabled --only disable-straddles-the-tap-drop \
+            --only timed-out-input-reads-running --only input-drop-waits-after-a-timeout \
+            --only refused-release-answers-ok --only release-status-not-read --only pointer-emitted-after-a-stop \
+            --only foreground-emits-after-a-stop --only timed-out-foreground-reads-running \
+            --only foreground-drop-waits-after-a-timeout --only failed-screen-stop-reads-running \
+            --only screen-drop-asks-again-after-a-failed-stop --only counters-handle-not-shared \
+            --only filter-inverted --only selection-inverted --only camera-event-per-frame \
+            --only handler-retains-sample --only idle-frame-recorded --only frame-status-not-read \
+            --only image-buffer-not-read --only blank-frames-read-as-running --only screen-switch-not-read \
+            --only predicate-selects-every-app --only selection-misses-the-root-tree --only lineage-reads-no-parent \
+            --only halvo-in-front-recorded --only nothing-in-front-recorded --only frame-decision-reads-the-system \
+            --only filter-fact-inverted --only rebuild-due-while-the-app-is-listed --only rebuild-backoff-not-doubled \
+            --only user-stop-read-as-failed --only chooser-takes-the-first-display \
+            --only content-timeout-read-as-permission --only camera-event-in-the-stream-output-method
+          code=$?
+          echo "macos-3 rows by name: exit $code"
+          exit "$code"
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -147,21 +302,13 @@ jobs:
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
