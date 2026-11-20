@@ -25,7 +25,8 @@ compare() {
     fail "the rows by table and by index or the integrity answer differ between the build of the tree and the copy"
   seeds=$(grep -c ' search_lines=' "$1")
   [ "$seeds" -gt 0 ] || fail "the build of the tree printed no count of the search's lines"
-  [ "$(grep -c ' search_lines=' "$2")" -eq "$seeds" ] || fail "the two builds printed the search's lines of different workloads"
+  copy_seeds=$(grep -c ' search_lines=' "$2")
+  [ "$copy_seeds" -eq "$seeds" ] || fail "the two builds printed the search's lines of different workloads"
   mended=$(sed -n 's/^UNMENDED-PROBE .* search_lines=\([0-9][0-9]*\)$/\1/p' "$1" | awk '{ s += $1 } END { print s + 0 }')
   unmended=$(sed -n 's/^UNMENDED-PROBE .* search_lines=\([0-9][0-9]*\)$/\1/p' "$2" | awk '{ s += $1 } END { print s + 0 }')
   printf 'workloads %s rows_equal yes search_lines_of_the_tree %s search_lines_of_the_copy %s\n' "$seeds" "$mended" "$unmended"
@@ -170,7 +171,8 @@ self_test() {
   repo no-parent "$good_rows" "$good_build" none
   check no-parent FAIL 'HEAD has no first parent in this checkout'
 
-  repo row-missing "$(printf '%s\n' "$good_rows" | head -n 1)" "$good_build" sqlcipher
+  first_row=$(printf '%s\n' "$good_rows" | head -n 1)
+  repo row-missing "$first_row" "$good_build" sqlcipher
   outputs row-missing 5 ok 0 5 ok 7
   check row-missing FAIL 'the row edited-page-gap-not-zeroed does not stand once on build.rs'
 
