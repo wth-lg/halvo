@@ -127,14 +127,6 @@ impl<T: ProcessTable> ProcessLineage<T> {
 
 impl<T: ProcessTable> Lineage for ProcessLineage<T> {
     fn parent_of(&self, pid: ProcessId) -> Parent {
-        let _ = (Self::read, &self.table, &self.cache, pid, LINEAGE_CACHE_MAX);
-        Parent::None
-    }
-}
-
-impl<T: ProcessTable> ProcessLineage<T> {
-    #[allow(dead_code)]
-    fn walked(&self, pid: ProcessId) -> Parent {
         let pid = pid.get();
         let Some(created) = self.table.created(pid) else {
             return Parent::Unknown;
