@@ -92,11 +92,9 @@ fn tree(dir: &Path) -> Vec<(String, Option<Vec<u8>>)> {
     listed
 }
 
-fn refused(
-    name: &str,
-    shape: &dyn Fn(&Path, &[u8; 32], &[u8; 32]),
-    wanted: &dyn Fn(&StoreError) -> bool,
-) {
+type Shape<'a> = dyn Fn(&Path, &[u8; 32], &[u8; 32]) + 'a;
+
+fn refused(name: &str, shape: &Shape<'_>, wanted: &dyn Fn(&StoreError) -> bool) {
     let dir = tempfile::tempdir().unwrap();
     let root = RootGuard::fresh();
     let (store_key, database) = made(dir.path(), &root);
