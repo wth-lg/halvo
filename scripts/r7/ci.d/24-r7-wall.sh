@@ -1073,6 +1073,9 @@ index_put() {
 fixture() {
   case_repo=$scratch/base
   case_index=$scratch/index.$1
+  GIT_OBJECT_DIRECTORY=$scratch/objects.$((cases + 1))
+  export GIT_OBJECT_DIRECTORY
+  cp -R "$scratch/base-objects" "$GIT_OBJECT_DIRECTORY" || exit 2
   cp "$scratch/base.index" "$case_index" || exit 2
 }
 
@@ -1174,6 +1177,8 @@ ensure_backend "$HOME/.local"'
   put docs/r7/gate/10-subscription.txt 'tree of backend/ at HEAD'
   put CHANGELOG.md '- Added: backend/ under the app repository.'
   stage
+  mkdir -p "$scratch/base-objects/pack" || exit 2
+  git -C "$case_repo" pack-objects --revs --indexed-objects "$scratch/base-objects/pack/pack" </dev/null >/dev/null || exit 2
   cp "$case_index" "$scratch/base.index" || exit 2
   in_base=0
 }
@@ -1228,16 +1233,16 @@ EOF
 keep_case() {
   [ -n "${CI_D_ARTIFACTS:-}" ] || return 0
   mkdir -p "$CI_D_ARTIFACTS/case-$1" || exit 2
-  cp "$work/problems" "$work/stderr" "$CI_D_ARTIFACTS/case-$1/" 2>/dev/null
-  cp "$work/lines" "$CI_D_ARTIFACTS/case-$1/" 2>/dev/null
-  return 0
+  cp "$work/problems" "$work/stderr" "$work/lines" "$work/index" "$CI_D_ARTIFACTS/case-$1/" || exit 2
+  cp "$case_index" "$CI_D_ARTIFACTS/case-$1/git-index" || exit 2
 }
 
 expect() {
   cases=$((cases + 1))
   work=$scratch/work.$cases
   mkdir "$work" || exit 2
-  printf '%s\t%s\t%s\t%s\n' "$cases" "$1" "$2" "${3:-}" >>"$scratch/pending" || exit 2
+  : >"$work/lines" || exit 2
+  printf '%s\t%s\t%s\t%s\t%s\n' "$cases" "$1" "$2" "$case_index" "${3:-}" >>"$scratch/pending" || exit 2
   (
     if [ -n "$case_bin" ]; then
       PATH="$case_bin:$PATH"
@@ -1299,7 +1304,7 @@ verdict_of() {
 
 collect() {
   wait
-  while IFS="$tab" read -r index want case_name arg; do
+  while IFS="$tab" read -r index want case_name case_index arg; do
     work=$scratch/work.$index
     verdict_of "$want" "$case_name" "$arg"
   done <"$scratch/pending"
@@ -1376,6 +1381,7 @@ self_test() {
   jobs=1
   [ "${CI:-}" != true ] || jobs=4
   : >"$scratch/pending" || exit 2
+  unset GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
   wrong=
   seen_limits=
   case_bin=
@@ -1486,6 +1492,15 @@ cat "$server_dir/contract/routes/v1.json"' 'scripts/check-routes.sh:1: assigns t
   fake_git fail-blob
   case_bin=$scratch/fail-blob
   expect SETUP a-hidden-file-that-git-cannot-read
+
+  fixture owner-of-a-private-blob
+  put backend/scripts/private.sh 'echo object visible to its owner alone'
+  private_blob=$blob
+  expect PASS owner-of-a-private-blob
+
+  fixture a-case-cannot-read-another-cases-private-blob
+  GIT_INDEX_FILE=$case_index git -C "$case_repo" update-index --add --cacheinfo "100644,$private_blob,backend/scripts/private.sh" || exit 2
+  expect FAIL a-case-cannot-read-another-cases-private-blob "$private_blob"
 
   fixture a-blob-that-the-search-cannot-load
   missing=$(printf '%s\n' 'unwritten wall fixture' | git -C "$case_repo" hash-object --stdin) || exit 2
@@ -2017,10 +2032,12 @@ esac' 'read:scripts/b9.sh'
   esac
 }' 'scripts/esac-comment.sh:4: reads under backend/ by a glob'
 
+  unset GIT_OBJECT_DIRECTORY
   case_repo=$scratch/no-tracked-file
   case_index=$case_repo/.git/index
   mkdir -p "$case_repo" || exit 2
   git -C "$case_repo" init -q || exit 2
+  git -C "$case_repo" read-tree --empty || exit 2
   put_tree backend/src/types.ts 'export type Id = string;'
   expect FAIL no-tracked-file 'holds no tracked file'
 
