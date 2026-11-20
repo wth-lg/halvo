@@ -16,6 +16,8 @@ mod stamp_phases;
 use stamp_phases::{period_ms, phase_of, Phase, TICK_PERIOD_FALLBACK_MS};
 
 use halvo_capture::event::{CaptureStreamEvent, Modality};
+use halvo_capture::floor::exclude::{FloorHandle, NoLineage};
+use halvo_capture::floor::{Switch, Switches};
 use halvo_capture::secure_input::windows::PasswordGate;
 use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
 use halvo_capture::source::{CaptureError, CaptureSource, SourceContext};
@@ -350,6 +352,18 @@ const FIRST_FRAME_WAIT: Duration = Duration::from_secs(10);
 const FULL_SINK_STOP_LIMIT: Duration = Duration::from_secs(2);
 const BOUNDS_FILE: &str = "docs/baseline/r1-gate-bounds.txt";
 
+macro_rules! flipped {
+    ($id:literal, $wanted:expr, $evidence:expr) => {{
+        let evidence: String = $evidence;
+        println!("{evidence}");
+        assert!(
+            $wanted,
+            "{} is mended and its case fails again: {evidence}",
+            $id
+        );
+    }};
+}
+
 fn say(test: &str, message: impl AsRef<str>) {
     println!("TF {test} {}", message.as_ref());
 }
@@ -575,6 +589,17 @@ fn stop_counted<S: CaptureSource>(source: &mut S, name: &str) -> Result<(), Capt
 
 fn source_built_by_test(test: &str, source: &str) {
     say(test, format!("source_built_by_test={source}"));
+    if source == "screen" {
+        say(test, "screen_activity=on");
+    }
+}
+
+/// The context of a screen source that a test builds: the switch
+/// `screen_activity` is off by default, and the source starts only with it on.
+fn screen_on(sink: SinkHandle) -> SourceContext {
+    let mut switches = Switches::default();
+    switches.set(Switch::ScreenActivity, true);
+    SourceContext::with_floor(sink, FloorHandle::new(None, Arc::new(NoLineage), switches))
 }
 
 fn key_input(key: VIRTUAL_KEY, released: bool) -> INPUT {
@@ -1535,7 +1560,7 @@ fn c2_screen_source_delivers_a_frame() {
         let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
         let mut screen = ScreenSource::new(last_app);
         let started = Instant::now();
-        let start = screen.begin(SourceContext::new(sink.clone()));
+        let start = screen.begin(screen_on(sink.clone()));
         say(
             "c2",
             format!(
@@ -2200,7 +2225,7 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
                 keyboard.begin(SourceContext::new(sink.clone()))
             }),
             ("pointer", pointer.begin(SourceContext::new(sink.clone()))),
-            ("screen", screen.begin(SourceContext::new(sink.clone()))),
+            ("screen", screen.begin(screen_on(sink.clone()))),
         ];
         for (name, result) in &starts {
             say("c9", format!("source={name} start={}", show(result)));
@@ -2842,7 +2867,7 @@ fn x7_capture_border_on_the_screen() {
         let before = yellow_edge_pixels();
         let (sink, events) = capture(256);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let start = screen.begin(SourceContext::new(sink.clone()));
+        let start = screen.begin(screen_on(sink.clone()));
         let first = events.first_within(FIRST_FRAME_WAIT);
         let frame_before_sampling = first
             .as_ref()
@@ -2903,7 +2928,7 @@ fn x9_screen_source_across_a_display_mode_change() {
         };
         let (sink, events) = capture(1024);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let start = screen.begin(SourceContext::new(sink.clone()));
+        let start = screen.begin(screen_on(sink.clone()));
         let before = events.drain_for(Duration::from_secs(3));
         summarize("x9", "before-mode-change", &before);
 
@@ -2950,47 +2975,6 @@ fn x9_screen_source_across_a_display_mode_change() {
             with_new_size >= 1,
             "no frame of the new display size after the mode change"
         );
-    });
-}
-
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn x13_frames_on_a_static_screen() {
-    with_deadline("x13", Duration::from_secs(90), || {
-        env_report("x13");
-        source_built_by_test("x13", "screen");
-        let cover = TestWindow::create(&magenta_popup("HalvoVerifyStatic", "halvo-verify-static"))
-            .expect("covering window");
-        cover.cover_screen();
-        pump_thread(Duration::from_secs(1));
-        let (sink, events) = capture(1024);
-        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let start = screen.begin(SourceContext::new(sink.clone()));
-        let mut frames = 0;
-        let began = Instant::now();
-        while began.elapsed() < Duration::from_secs(8) {
-            pump_thread(Duration::from_millis(100));
-            frames += count(
-                &events.drain_for(Duration::from_millis(100)),
-                Modality::ScreenFrame,
-            );
-        }
-        let covered = cover.is_foreground();
-        drop(cover);
-        let after_uncover = count(
-            &events.drain_for(Duration::from_secs(2)),
-            Modality::ScreenFrame,
-        );
-        let _ = stop_counted(&mut screen, "screen");
-        say(
-            "x13",
-            format!(
-                "screen_start={} static_screen_secs=8 frames_while_static={frames} \
-                 cover_window_was_foreground={covered} frames_in_2s_after_uncover={after_uncover}",
-                show(&start)
-            ),
-        );
-        assert!(start.is_ok(), "the screen source must start");
     });
 }
 
@@ -3705,11 +3689,11 @@ fn x5_screen_source_stop_and_start_again() {
         source_built_by_test("x5", "screen");
         let (sink, events) = capture(256);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let first = screen.begin(SourceContext::new(sink.clone()));
+        let first = screen.begin(screen_on(sink.clone()));
         let first_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
         let first_stop = stop_counted(&mut screen, "screen");
         let _ = events.drain_for(Duration::from_millis(500));
-        let second = screen.begin(SourceContext::new(sink.clone()));
+        let second = screen.begin(screen_on(sink.clone()));
         let second_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
         let second_stop = stop_counted(&mut screen, "screen");
         say(
@@ -3750,7 +3734,7 @@ fn x12_screen_source_fifteen_start_stop_cycles() {
         for _ in 0..CYCLES {
             let (sink, events) = capture(256);
             let mut screen = ScreenSource::new(Arc::clone(&last_app));
-            if screen.begin(SourceContext::new(sink.clone())).is_ok() {
+            if screen.begin(screen_on(sink.clone())).is_ok() {
                 started += 1;
             }
             frames += screen_frames_within(&events, Duration::from_millis(700));
@@ -3785,7 +3769,7 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
         let session = |label: &str| {
             let (sink, events) = capture(256);
             let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-            let start = screen.begin(SourceContext::new(sink.clone()));
+            let start = screen.begin(screen_on(sink.clone()));
             let mut frames = 0;
             let began = Instant::now();
             while began.elapsed() < Duration::from_secs(3) {
@@ -5282,18 +5266,6 @@ fn x1_keystrokes_typed_into_a_password_field() {
     });
 }
 
-macro_rules! flipped {
-    ($id:literal, $wanted:expr, $evidence:expr) => {{
-        let evidence: String = $evidence;
-        println!("{evidence}");
-        assert!(
-            $wanted,
-            "{} is mended and its case fails again: {evidence}",
-            $id
-        );
-    }};
-}
-
 macro_rules! defect {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
@@ -5389,6 +5361,77 @@ mod known_defect {
                 "W3-5-A2",
                 recorded == 0,
                 format!("TF stall-self-focus letters_recorded_that_landed_in_the_password_field={recorded}")
+            );
+        });
+    }
+
+    #[test]
+    #[ignore = "known defect: VWF issue 10, a screen record for each delivered frame of a static screen"]
+    fn x13_frames_on_a_static_screen() {
+        with_deadline("x13", Duration::from_secs(90), || {
+            env_report("x13");
+            source_built_by_test("x13", "screen");
+            let cover =
+                TestWindow::create(&magenta_popup("HalvoVerifyStatic", "halvo-verify-static"))
+                    .expect("covering window");
+            cover.cover_screen();
+            pump_thread(Duration::from_secs(1));
+            let (sink, events) = capture(1024);
+            let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
+            let start = screen.begin(screen_on(sink.clone()));
+            let mut first_frame = false;
+            let began = Instant::now();
+            while !first_frame && began.elapsed() < FIRST_FRAME_WAIT {
+                pump_thread(Duration::from_millis(100));
+                first_frame = count(
+                    &events.drain_for(Duration::from_millis(100)),
+                    Modality::ScreenFrame,
+                ) > 0;
+            }
+            let mut records_while_static = 0;
+            let began = Instant::now();
+            while began.elapsed() < Duration::from_secs(8) {
+                pump_thread(Duration::from_millis(100));
+                records_while_static += count(
+                    &events.drain_for(Duration::from_millis(100)),
+                    Modality::ScreenFrame,
+                );
+            }
+            let covered = cover.is_foreground();
+            let mut records_while_moving = 0;
+            for step in 0..12 {
+                cover.move_to(if step % 2 == 0 { 40 } else { 0 }, 0);
+                pump_thread(Duration::from_millis(150));
+                records_while_moving += count(
+                    &events.drain_for(Duration::from_millis(100)),
+                    Modality::ScreenFrame,
+                );
+            }
+            drop(cover);
+            let frames = screen.frame_counts();
+            let _ = stop_counted(&mut screen, "screen");
+            say(
+                "x13",
+                format!(
+                    "screen_start={} screen_activity=on first_frame={first_frame} \
+                     static_screen_secs=8 records_while_static={records_while_static} \
+                     cover_window_was_foreground={covered} records_while_moving={records_while_moving} \
+                     frames_delivered={} frames_with_changed_region={}",
+                    show(&start),
+                    frames.delivered,
+                    frames.with_changed_region,
+                ),
+            );
+            assert!(start.is_ok(), "the screen source must start");
+            assert!(first_frame, "INCONCLUSIVE: no first frame");
+            assert!(
+                records_while_moving >= 1,
+                "no screen record while a window moved"
+            );
+            defect!(
+                "VWF-10",
+                records_while_static <= 1,
+                format!("TF x13 records_while_static={records_while_static}")
             );
         });
     }

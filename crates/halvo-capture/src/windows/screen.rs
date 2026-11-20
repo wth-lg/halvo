@@ -1,6 +1,6 @@
 //! Screen capture via Windows.Graphics.Capture (`FrameArrived`).
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -15,6 +15,7 @@ use windows_capture::settings::{
     MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
 };
 
+use crate::floor::Switch;
 use crate::source::{
     CaptureError, CaptureSource, HealthReason, SourceContext, SourceCounters, SourceHealth,
     SourceState, Started, StopCause,
@@ -131,6 +132,60 @@ fn keep_frame(
 }
 const SCREEN_START_FAILED: &str = "the screen capture could not start";
 
+/// Whether the system reports the changed regions of a frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RegionReport {
+    Reported,
+    Missing,
+}
+
+impl RegionReport {
+    fn settings(self) -> DirtyRegionSettings {
+        match self {
+            RegionReport::Reported => DirtyRegionSettings::Default,
+            RegionReport::Missing => DirtyRegionSettings::Default,
+        }
+    }
+}
+
+fn probe_region_report() -> RegionReport {
+    match GraphicsCaptureApi::is_dirty_region_supported() {
+        Ok(true) => RegionReport::Reported,
+        Ok(false) | Err(_) => RegionReport::Missing,
+    }
+}
+
+/// Whether a delivered frame is screen activity (RD-01): where the system
+/// reports changed regions, a frame with none is idle; where it does not, or
+/// the regions of a frame cannot be read, every delivered frame counts.
+pub(crate) fn frame_is_activity(report: RegionReport, changed_regions: Option<usize>) -> bool {
+    let _ = (report, changed_regions);
+    true
+}
+
+/// The frames that a screen source was handed and the frames among them that
+/// were screen activity, since it was made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FrameCounts {
+    pub delivered: u64,
+    pub with_changed_region: u64,
+}
+
+#[derive(Debug, Default)]
+struct FrameCounters {
+    delivered: AtomicU64,
+    with_changed_region: AtomicU64,
+}
+
+impl FrameCounters {
+    fn read(&self) -> FrameCounts {
+        FrameCounts {
+            delivered: self.delivered.load(Ordering::Relaxed),
+            with_changed_region: self.with_changed_region.load(Ordering::Relaxed),
+        }
+    }
+}
+
 pub(crate) fn frame_packet(
     width: u32,
     height: u32,
@@ -154,6 +209,8 @@ pub struct ScreenFlags {
     last_app: Arc<Mutex<Option<String>>>,
     drop_within: Option<Duration>,
     closed: Arc<AtomicBool>,
+    report: RegionReport,
+    frames: Arc<FrameCounters>,
 }
 
 /// The `windows-capture` frame handler: one packet for each frame that it
@@ -164,6 +221,8 @@ pub struct ScreenHandler {
     drop_within: Option<Duration>,
     last_kept: Option<Instant>,
     closed: Arc<AtomicBool>,
+    report: RegionReport,
+    frames: Arc<FrameCounters>,
 }
 
 impl GraphicsCaptureApiHandler for ScreenHandler {
@@ -177,6 +236,8 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
             drop_within: ctx.flags.drop_within,
             last_kept: None,
             closed: ctx.flags.closed,
+            report: ctx.flags.report,
+            frames: ctx.flags.frames,
         })
     }
 
@@ -185,6 +246,14 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
         frame: &mut Frame,
         _control: InternalCaptureControl,
     ) -> Result<(), Self::Error> {
+        self.frames.delivered.fetch_add(1, Ordering::Relaxed);
+        let changed = frame.dirty_regions().ok().map(|regions| regions.len());
+        if !frame_is_activity(self.report, changed) {
+            return Ok(());
+        }
+        self.frames
+            .with_changed_region
+            .fetch_add(1, Ordering::Relaxed);
         if !keep_frame(self.drop_within, &mut self.last_kept, Instant::now()) {
             return Ok(());
         }
@@ -218,6 +287,8 @@ pub struct ScreenSource {
     handoff: Option<HandOff>,
     counts: Arc<LossCounts>,
     closed: Arc<AtomicBool>,
+    frames: Arc<FrameCounters>,
+    off: bool,
 }
 
 impl ScreenSource {
@@ -229,6 +300,8 @@ impl ScreenSource {
             handoff: None,
             counts: Arc::default(),
             closed: Arc::default(),
+            frames: Arc::default(),
+            off: false,
         }
     }
 
@@ -242,6 +315,11 @@ impl ScreenSource {
     pub fn handoff_counts(&self) -> HandOffCounts {
         self.counts.read()
     }
+
+    /// The frames that this source was handed and those that were activity.
+    pub fn frame_counts(&self) -> FrameCounts {
+        self.frames.read()
+    }
 }
 
 impl CaptureSource for ScreenSource {
@@ -249,6 +327,8 @@ impl CaptureSource for ScreenSource {
         if self.life.is_busy() {
             return Err(CaptureError::AlreadyStarted);
         }
+        let _ = (Switch::ScreenActivity, ctx.floor());
+        self.off = false;
         let mta = hold_process_mta()?;
         let choice = choose_settings(probe_support, self.min_interval)?;
         let monitor = Monitor::primary().map_err(monitor_error)?;
@@ -258,11 +338,14 @@ impl CaptureSource for ScreenSource {
             Arc::clone(&self.counts),
         )?;
         let closed = Arc::new(AtomicBool::new(false));
+        let report = probe_region_report();
         let flags = ScreenFlags {
             producer: handoff.producer(),
             last_app: Arc::clone(&self.last_app),
             drop_within: choice.drop_within(),
             closed: Arc::clone(&closed),
+            report,
+            frames: Arc::clone(&self.frames),
         };
         let settings = Settings::new(
             monitor,
@@ -270,7 +353,7 @@ impl CaptureSource for ScreenSource {
             DrawBorderSettings::Default,
             SecondaryWindowSettings::Default,
             choice.interval(),
-            DirtyRegionSettings::Default,
+            report.settings(),
             ColorFormat::Bgra8,
             flags,
         );
@@ -290,6 +373,12 @@ impl CaptureSource for ScreenSource {
     }
 
     fn health(&self) -> SourceHealth {
+        if self.off && !self.life.is_busy() {
+            return SourceHealth {
+                state: SourceState::Off,
+                counters: SourceCounters::default(),
+            };
+        }
         SourceHealth {
             state: self.life.state(
                 self.closed.load(Ordering::Relaxed),
@@ -595,6 +684,47 @@ mod tests {
     }
 
     #[test]
+    fn a_frame_with_no_changed_region_is_idle_where_the_system_reports_regions() {
+        for (report, changed, activity) in [
+            (RegionReport::Reported, Some(0), false),
+            (RegionReport::Reported, Some(1), true),
+            (RegionReport::Reported, Some(7), true),
+            (RegionReport::Reported, None, true),
+            (RegionReport::Missing, Some(0), true),
+            (RegionReport::Missing, None, true),
+        ] {
+            assert_eq!(
+                frame_is_activity(report, changed),
+                activity,
+                "{report:?} {changed:?}"
+            );
+        }
+        assert_eq!(
+            RegionReport::Reported.settings(),
+            DirtyRegionSettings::ReportOnly
+        );
+        assert_eq!(
+            RegionReport::Missing.settings(),
+            DirtyRegionSettings::Default
+        );
+    }
+
+    #[test]
+    fn the_screen_source_with_the_default_switches_answers_off_and_delivers_no_frame() {
+        let (sink, writer) = crate::sink::channel(64);
+        let mut source = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let started = source.begin(SourceContext::new(sink));
+        let state = source.health().state;
+        let frame = writer.recv_timeout(Duration::from_millis(1_500));
+        let stopped = source.shutdown();
+        assert_eq!(started, Ok(Started::Off));
+        assert_eq!(state, SourceState::Off);
+        assert!(frame.is_err(), "a frame arrived");
+        assert_eq!(source.frame_counts(), FrameCounts::default());
+        assert_eq!(stopped, Ok(()));
+    }
+
+    #[test]
     fn the_settings_choice_passes_the_default_interval_when_the_probe_answers_no() {
         let (choice, calls) = asked(CaptureSupport {
             minimum_update_interval: false,
@@ -726,6 +856,8 @@ mod tests {
             drop_within: None,
             last_kept: None,
             closed: Arc::clone(&closed),
+            report: RegionReport::Reported,
+            frames: Arc::default(),
         };
         assert!(handler.on_closed().is_ok());
         let failed = crate::windows::thread_ended();
