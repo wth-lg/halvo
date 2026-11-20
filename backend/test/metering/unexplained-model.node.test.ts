@@ -143,4 +143,86 @@ describe("check 55's model with a foreign event at the meter in an interval's mi
       scripted.closesAnAcknowledgedRead = false;
     }
   });
+
+  test("a foreign event in another interval's minute cannot make a close lawful: the first interval acknowledged with a foreign event in its minute, the second closed with the cause by a scripted module", async () => {
+    const kept = behindAForeignEvent({ kind: "none" }, false);
+    const other: Scenario = {
+      ...kept,
+      commands: [
+        { kind: "reserve", account: 0, amountMicro: 30_000, dispatch: true },
+        { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+        { kind: "advance", seconds: HOUR },
+        { kind: "foreign-event", account: 0, amountMinor: 5 },
+        { kind: "reserve", account: 0, amountMicro: 20_000, dispatch: true },
+        { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+        { kind: "advance", seconds: HOUR },
+        { kind: "advance", seconds: 3 * DAY },
+      ],
+      faultsByProviderCall: [{ kind: "none" }, { kind: "response-lost" }, DOWN_PAST_THE_WINDOW],
+    };
+    scripted.closesAnAcknowledgedRead = true;
+    try {
+      const report = await runScenario(other, { downtimeBudgetSeconds: RULE_DOWNTIME_BUDGET, onFailedCheck: "list" });
+      const checks = report.findings.map((finding) => finding.check);
+      expect({ disagrees: checks.includes("the record disagrees with the provider"), facts: [report.facts["foreign-events"], report.facts["not-billable-unexplained-total"]] }).toEqual({
+        disagrees: true,
+        facts: [1, 0],
+      });
+    } finally {
+      scripted.closesAnAcknowledgedRead = false;
+    }
+  });
+
+  test("a read lag of LATE_READ_SPAN_MS or more makes a run's close lawful with no foreign event: a cut pair, the second held at the meter, every read short by the lag until the run closes", async () => {
+    const kept = behindAForeignEvent({ kind: "response-lost" }, false);
+    const lagged: Scenario = {
+      ...kept,
+      meter: { ...kept.meter, readLagSeconds: 200_000 },
+      commands: [
+        { kind: "advance-to-period-end", account: 0, secondsBeforePeriodEnd: 30 },
+        { kind: "reserve", account: 0, amountMicro: 30_000, dispatch: true },
+        { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+        { kind: "advance", seconds: 31 },
+        { kind: "reserve", account: 0, amountMicro: 20_000, dispatch: true },
+        { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+        { kind: "cancel", account: 0, form: "stated", lagSeconds: 0 },
+        { kind: "advance", seconds: 5 * DAY },
+      ],
+      faultsByProviderCall: [{ kind: "none" }, { kind: "response-lost" }, DOWN_PAST_THE_WINDOW],
+    };
+    const report = await runScenario(lagged, { downtimeBudgetSeconds: RULE_DOWNTIME_BUDGET, onFailedCheck: "list" });
+    expect({
+      findings: report.findings.map((finding) => finding.check),
+      facts: [report.facts["foreign-events"], report.facts["not-billable-unexplained-total"], report.facts["not-billable-unexplained-total-held-by-the-meter"]],
+      short: (report.coverage["read.short-by-the-lag"] ?? 0) > 0,
+    }).toEqual({ findings: [], facts: [0, 1, 1], short: true });
+  });
+
+  test("a foreign event that a read cannot see yet is not taken from its total: a cut pair under a lag of 23 hours, the second's answer lost, a foreign event received two hours before the read that acknowledges it", async () => {
+    const kept = behindAForeignEvent({ kind: "response-lost" }, false);
+    const unseen: Scenario = {
+      ...kept,
+      meter: { ...kept.meter, readLagSeconds: 23 * HOUR },
+      commands: [
+        { kind: "advance-to-period-end", account: 0, secondsBeforePeriodEnd: 30 },
+        { kind: "reserve", account: 0, amountMicro: 30_000, dispatch: true },
+        { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+        { kind: "advance", seconds: 31 },
+        { kind: "reserve", account: 0, amountMicro: 20_000, dispatch: true },
+        { kind: "settle", account: 0, holdsBackFromNewest: 0, percentOfHold: 100 },
+        { kind: "cancel", account: 0, form: "stated", lagSeconds: 0 },
+        { kind: "advance", seconds: DAY - 2 * HOUR },
+        { kind: "foreign-event", account: 0, amountMinor: 5 },
+        { kind: "advance", seconds: 5 * DAY },
+      ],
+      faultsByProviderCall: [{ kind: "none" }, { kind: "response-lost" }, DOWN_PAST_THE_WINDOW],
+    };
+    const report = await runScenario(unseen, { downtimeBudgetSeconds: RULE_DOWNTIME_BUDGET, onFailedCheck: "list" });
+    expect({
+      findings: report.findings.map((finding) => finding.check),
+      foreign: report.facts["foreign-events"],
+      holds: (report.coverage["read.holds-the-amount"] ?? 0) > 0,
+      short: report.coverage["read.short-by-the-lag"] ?? 0,
+    }).toEqual({ findings: [], foreign: 1, holds: true, short: 0 });
+  });
 });
