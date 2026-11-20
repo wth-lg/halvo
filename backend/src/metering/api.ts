@@ -27,7 +27,7 @@ export interface Metering {
   cut(sql: Sql, kind: "cancel" | "delete", at: Ms, now: Ms): void;
   oldestUnsealed(sql: Sql): { interval: Ms; end: Ms } | null;
   seal(sql: Sql, interval: Ms, reported: Micro, now: Ms): void;
-  send(sql: Sql, now: Ms): Next;
+  send(sql: Sql, now: Ms, due?: "stored" | "now"): Next;
   record(sql: Sql, call: UsageCall, answer: UsageAnswer, now: Ms): Next;
   nextSend(sql: Sql): Ms | null;
   settled(sql: Sql): boolean;

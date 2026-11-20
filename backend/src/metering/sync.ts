@@ -252,7 +252,7 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
     return { kind: "read", interval: interval.start, from: interval.timestamp, to: interval.timestamp + 1 };
   }
 
-  function plan(sql: Sql, now: Ms, notBillable: number, forced: "send" | "read" | null): Planned {
+  function plan(sql: Sql, now: Ms, notBillable: number, forced: "send" | "read" | null, due: "stored" | "now" = "stored"): Planned {
     let closed = notBillable;
     for (;;) {
       const interval = oldestPending(sql);
@@ -262,7 +262,7 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
         closed += 1;
         continue;
       }
-      if (forced === null && interval.nextAttempt !== null && now < interval.nextAttempt) return { call: null, notBillable: closed };
+      if (forced === null && due === "stored" && interval.nextAttempt !== null && now < interval.nextAttempt) return { call: null, notBillable: closed };
       const inWindow = inFirstWindow(interval, now);
       const kind = forced ?? (interval.pendingRefusal === null && inWindow ? "send" : "read");
       const unansweredAt = interval.answerDueFor ?? interval.unansweredAt;
@@ -474,8 +474,8 @@ export function makeMetering(config: { intervalSeconds: number; marginSeconds: n
       if (amount === 0) close(sql, interval, terminal ? "written-off" : "no-call", null, now);
     },
 
-    send(sql, now) {
-      return { ...plan(sql, now, 0, null), unexplained: 0 };
+    send(sql, now, due = "stored") {
+      return { ...plan(sql, now, 0, null, due), unexplained: 0 };
     },
 
     record(sql, made, answer, now) {
