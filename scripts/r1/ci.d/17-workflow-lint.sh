@@ -467,11 +467,30 @@ $pins
 EOF
 
   if [ "$findings" -eq 0 ]; then
-    policy=$(ruby -rpsych -e '
+    policy=$(ruby -rpsych - "$file" <<'RUBY'
       def pairs(mapping)
         mapping.children.each_slice(2)
       end
       workflow = Psych.parse_file(ARGV.fetch(0)).root
+      workflow_keys = %w[name on permissions concurrency jobs]
+      unless pairs(workflow).map { |key, _| key.value }.sort == workflow_keys.sort
+        puts "workflow keys must be exactly #{workflow_keys.join(", ")}"
+      end
+      name = pairs(workflow).find { |key, _| key.value == "name" }
+      unless name && name.last.is_a?(Psych::Nodes::Scalar) && name.last.value == "ci"
+        puts "workflow name must be ci"
+      end
+      concurrency = {
+        "group" => "ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}",
+        "cancel-in-progress" => "${{ github.event_name == 'pull_request' }}"
+      }
+      field = pairs(workflow).find { |key, _| key.value == "concurrency" }
+      settings = field && field.last
+      unless settings.is_a?(Psych::Nodes::Mapping) &&
+          pairs(settings).map { |key, _| key.value }.sort == concurrency.keys.sort &&
+          pairs(settings).all? { |key, value| value.is_a?(Psych::Nodes::Scalar) && value.value == concurrency.fetch(key.value) }
+        puts "workflow concurrency must use the pinned group and cancel-in-progress expressions"
+      end
       _, jobs = pairs(workflow).find { |key, _| key.value == "jobs" }
       pairs(jobs).each do |job, mapping|
         pairs(mapping).each do |key, value|
@@ -494,7 +513,8 @@ EOF
           end
         end
       end
-    ' "$file") || fail "could not read the job and step keys of ci.yml with Ruby's YAML parser"
+RUBY
+    ) || fail "could not read the workflow, job and step keys of ci.yml with Ruby's YAML parser"
     while IFS= read -r violation; do
       [ -z "$violation" ] || finding "$violation"
     done <<EOF
@@ -585,12 +605,36 @@ EOF
     '  macos:' '    runs-on: macos-15' '    timeout-minutes: 30' '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
     '  windows:' '    runs-on: windows-2025' '    timeout-minutes: 30' '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
     'permissions:' '  contents: read' 'name: ci' \
+    'concurrency:' \
+    "  group: ci-\${{ github.event_name }}-\${{ github.event_name == 'pull_request' && github.ref || github.sha }}" \
+    "  cancel-in-progress: \${{ github.event_name == 'pull_request' }}" \
     >"$work/ci.yml"
   rejected=0
   wrong=
   STUB_BOUND=30
   path=$PATH
   ci=
+
+  lines top-display-name 29 'name: CI checks'
+  check top-display-name FAIL 'workflow name'
+  lines top-name-absent 29 -
+  check top-name-absent FAIL 'workflow keys'
+  lines top-run-name 29 "name: ci${nl}run-name: checks"
+  check top-run-name FAIL 'workflow keys'
+  lines top-default-shell 29 "name: ci${nl}defaults: {run: {shell: bash}}"
+  check top-default-shell FAIL 'workflow keys'
+  lines top-env 29 "name: ci${nl}env: {TEST_LABEL: plain}"
+  check top-env FAIL 'workflow keys'
+  lines top-concurrency-absent 32 - 31 - 30 -
+  check top-concurrency-absent FAIL 'workflow keys'
+  lines concurrency-other-group 31 '  group: ci-fixture'
+  check concurrency-other-group FAIL 'workflow concurrency'
+  lines concurrency-cancel-false 32 '  cancel-in-progress: false'
+  check concurrency-cancel-false FAIL 'workflow concurrency'
+  lines concurrency-no-cancel 32 -
+  check concurrency-no-cancel FAIL 'workflow concurrency'
+  lines concurrency-scalar 32 - 31 - 30 'concurrency: ci-fixture'
+  check concurrency-scalar FAIL 'workflow concurrency'
 
   lines job-if-pr-only 18 "  windows:${nl}    if: github.event_name == 'pull_request'" 9 "  macos:${nl}    if: github.event_name == 'pull_request'"
   check job-if-pr-only FAIL 'use only runs-on, timeout-minutes and steps'
@@ -830,13 +874,13 @@ EOF
   tree explicit-key-hides-a-later-job "22s/.*/      - uses: foo\\/bar@3d3c42e5aac5ba805825da76410c181273ba90b1\\${nl}        with: { ? \"a}\\${nl}x\\${nl}        y\" : b }\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 600\\${nl}    steps:\\${nl}      - run: echo x/"
   check explicit-key-hides-a-later-job FAIL 'ci.yml line 23 starts a key with ? and a blank, one of the keys in the explicit form of YAML'
   tree second-document-holds-the-permissions "27,28d;\$s/\$/\\${nl}---\\${nl}permissions:\\${nl}  contents: read/"
-  check second-document-holds-the-permissions FAIL 'ci.yml line 28 begins a YAML document or a directive'
+  check second-document-holds-the-permissions FAIL 'ci.yml line 31 begins a YAML document or a directive'
   tree end-marker-then-a-document "27,28d;\$s/\$/\\${nl}...\\${nl}---\\${nl}permissions:\\${nl}  contents: read/"
-  check end-marker-then-a-document FAIL 'ci.yml line 28 begins a YAML document or a directive'
+  check end-marker-then-a-document FAIL 'ci.yml line 31 begins a YAML document or a directive'
   tree tagged-jobs-key-and-a-second-document "1s/^/permissions:\\${nl}  contents: read\\${nl}/;27,29d;8s/.*/!!str jobs:/;11d;26s/\$/\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 600\\${nl}    steps:\\${nl}      - run: echo x\\${nl}---\\${nl}jobs:\\${nl}  macos:\\${nl}    runs-on: macos-15\\${nl}    timeout-minutes: 30\\${nl}  windows:\\${nl}    runs-on: windows-2025\\${nl}    timeout-minutes: 30/"
   check tagged-jobs-key-and-a-second-document FAIL 'ci.yml line 33 begins a YAML document or a directive'
   tree quote-starts-a-second-document "27,28d;\$s/\$/\\${nl}--- \"x\\${nl}permissions:\\${nl}  contents: read\\${nl}\"/"
-  check quote-starts-a-second-document FAIL 'ci.yml line 28 begins a YAML document or a directive'
+  check quote-starts-a-second-document FAIL 'ci.yml line 31 begins a YAML document or a directive'
   tree directive-line "1s/^/%YAML 1.2\\${nl}---\\${nl}/"
   check directive-line FAIL 'ci.yml line 1 begins a YAML document or a directive'
   tree anchor-and-alias-as-a-uses-key "11s/\$/\\${nl}    env:\\${nl}      K: \\&k uses/;13s/\$/\\${nl}      - *k : actions\/setup-node@v4/"
@@ -999,9 +1043,9 @@ EOF
   check line-at-six-blanks-that-is-no-step FAIL ".github/workflows/ci.yml line 14: '      name: x' stands at six blanks in the steps of the job macos and is no step's first line; this lint reads a line at six blanks there as the first line of a step, with a dash and a blank; write it so"
   lines job-key-where-the-with-line-stands 17 - 16 - 15 "    continue-on-error: true"
   check job-key-where-the-with-line-stands FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 15: '    continue-on-error: true' stands where this lint reads line 2 of the Rust cache step of the job macos, '${pin_with}'; it differs from the line to write first at column 5, which holds the sign c where the line to write holds a blank; write '${pin_with}'; the pin holds the with line of the Rust cache step in the variable pin_with at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines cache-step-cut-by-the-end-of-the-file 29 - 28 - 27 - 26 - 25 - 1 "permissions:${nl}  contents: read${nl}on:"
+  lines cache-step-cut-by-the-end-of-the-file 32 - 31 - 30 - 29 - 28 - 27 - 26 - 25 - 1 "permissions:${nl}  contents: read${nl}on:"
   check cache-step-cut-by-the-end-of-the-file FAIL ".github/workflows/ci.yml line 25: the Rust cache step of the job windows ends with the file before its line 3; write after its last line the line '${pin_prefix}'; the pin holds the prefix-key line in the variable pin_prefix at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
-  lines schedule-line-at-the-end-of-the-file 29 "name: ci${nl}on:${nl}  push:${nl}  schedule:" 7 - 6 - 5 - 4 - 3 - 2 - 1 -
+  lines schedule-line-at-the-end-of-the-file 32 - 31 - 30 - 29 "name: ci${nl}on:${nl}  push:${nl}  schedule:" 7 - 6 - 5 - 4 - 3 - 2 - 1 -
   check schedule-line-at-the-end-of-the-file FAIL ".github/workflows/ci.yml line 25: the file ends where this lint reads the cron line under '  schedule:'; write '${pin_cron}'; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
   lines first-step-at-eight-blanks 13 "        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
   check first-step-at-eight-blanks FAIL ".github/workflows/ci.yml line 13: '        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' is the first line in the steps of the job macos and stands at 8 blanks; this lint reads a step as beginning at six blanks, a dash and a blank; write the step so"
