@@ -108,6 +108,7 @@ test("when the first read of ps after the spawn fails, startGroup reads ps again
 });
 
 test("when that second read shows no process with the child's pid, startGroup sends no signal, removes the mark and throws", () => {
+  rows.push({ pid: 300_900, pgid: 300_900, stat: "S", started: LATER });
   failReads = 1;
   goneAtRead = true;
   expect(() => startGroup("x", [], { stdio: ["ignore", "ignore", "ignore"] })).toThrow("ps was stopped");
