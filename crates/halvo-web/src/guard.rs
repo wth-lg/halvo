@@ -449,7 +449,7 @@ pub fn guard_loop(pid: u32, started_us: u64, trigger: Trigger, io: GuardIo<'_>) 
             continue;
         };
         unread_since = None;
-        if let Some(r) = table.iter().find(|t| timed_same(t, &root)) {
+        if let Some(r) = table.iter().find(|t| procs::same(t, &root)) {
             if !known.iter().any(|k| procs::same(k, r)) {
                 root = r.clone();
                 known.push(r.clone());
