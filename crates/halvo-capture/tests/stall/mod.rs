@@ -1606,61 +1606,6 @@ impl Session {
     }
 }
 
-fn verdicts(runs: &[PhaseRun], controls: &Controls) -> Vec<String> {
-    let (first, last) = (controls.before.recorded, controls.after.recorded);
-    let mut failures = Vec::new();
-    for run in runs {
-        match run.outcome {
-            Outcome::Rounds { totals, .. } => say(
-                run.test,
-                format!(
-                    "summary phase={} rounds={} counted_rounds={} letters_sent={} letters_landed={} \
-                     letters_recorded={} rounds_with_a_recorded_letter={} tabs_recorded={} other_recorded={} \
-                     late_events_moved_by={} rounds_that_set_keys_withheld={} keystroke_events={} \
-                     rounds_where_the_sink_differs_from_the_seam={} control_before={first} control_after={last}",
-                    run.name,
-                    totals.rounds,
-                    totals.counted,
-                    totals.letters_sent,
-                    totals.letters_landed,
-                    totals.letters_recorded,
-                    totals.rounds_with_a_recorded_letter,
-                    totals.tabs_recorded,
-                    totals.other_recorded,
-                    totals.late_moved,
-                    totals.withheld_set,
-                    totals.keystroke_events,
-                    totals.sink_differs,
-                ),
-            ),
-            Outcome::Native {
-                counted, recorded, ..
-            } => say(
-                run.test,
-                format!(
-                    "phase={} counted={counted} letters_recorded={recorded} control_before={first} control_after={last}",
-                    run.name
-                ),
-            ),
-        }
-        let verdict = kinds::verdict(run, controls);
-        say(
-            run.test,
-            format!(
-                "phase={} session={} step={} passed={}",
-                run.name,
-                run.step.session,
-                run.step.at,
-                flag(verdict.is_ok())
-            ),
-        );
-        if let Err(why) = verdict {
-            failures.push(why);
-        }
-    }
-    failures
-}
-
 fn run_kind(kind: Kind) -> Vec<PhaseRun> {
     let phases = kinds::refuse_an_empty_kind(kind.test(), kind.phases())
         .unwrap_or_else(|why| panic!("{why}"));
@@ -1670,7 +1615,7 @@ fn run_kind(kind: Kind) -> Vec<PhaseRun> {
         .map(|phase| session.rounds(phase))
         .collect();
     let controls = session.close();
-    let failures = verdicts(&runs, &controls);
+    let failures = kinds::verdicts(&runs, &controls, say);
     assert!(
         failures.is_empty(),
         "{} of the {} phases failed: {}",
@@ -1932,7 +1877,7 @@ fn a_masked_edit_and_a_focus_notice_that_the_system_does_not_deliver_record_no_l
             ),
         ];
         let controls = session.close();
-        let failures = verdicts(&runs, &controls);
+        let failures = kinds::verdicts(&runs, &controls, say);
         assert!(
             failures.is_empty(),
             "{} of the {} phases failed: {}",

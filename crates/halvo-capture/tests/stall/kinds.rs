@@ -447,6 +447,65 @@ pub(super) fn verdict(run: &PhaseRun, controls: &Controls) -> Result<(), String>
         .map_err(|why| format!("{} {} {:?}: {why}", run.test, run.name, run.wait))
 }
 
+pub(super) fn verdicts(
+    runs: &[PhaseRun],
+    controls: &Controls,
+    mut print: impl FnMut(&str, String),
+) -> Vec<String> {
+    let (first, last) = (controls.before.recorded, controls.after.recorded);
+    let mut failures = Vec::new();
+    for run in runs {
+        match run.outcome {
+            Outcome::Rounds { totals, .. } => print(
+                run.test,
+                format!(
+                    "summary phase={} rounds={} counted_rounds={} letters_sent={} letters_landed={} \
+                     letters_recorded={} rounds_with_a_recorded_letter={} tabs_recorded={} other_recorded={} \
+                     late_events_moved_by={} rounds_that_set_keys_withheld={} keystroke_events={} \
+                     rounds_where_the_sink_differs_from_the_seam={} control_before={first} control_after={last}",
+                    run.name,
+                    totals.rounds,
+                    totals.counted,
+                    totals.letters_sent,
+                    totals.letters_landed,
+                    totals.letters_recorded,
+                    totals.rounds_with_a_recorded_letter,
+                    totals.tabs_recorded,
+                    totals.other_recorded,
+                    totals.late_moved,
+                    totals.withheld_set,
+                    totals.keystroke_events,
+                    totals.sink_differs,
+                ),
+            ),
+            Outcome::Native {
+                counted, recorded, ..
+            } => print(
+                run.test,
+                format!(
+                    "phase={} counted={counted} letters_recorded={recorded} control_before={first} control_after={last}",
+                    run.name
+                ),
+            ),
+        }
+        let judged = verdict(run, controls);
+        print(
+            run.test,
+            format!(
+                "phase={} session={} step={} passed={}",
+                run.name,
+                run.step.session,
+                run.step.at,
+                u8::from(judged.is_ok())
+            ),
+        );
+        if let Err(why) = judged {
+            failures.push(why);
+        }
+    }
+    failures
+}
+
 pub(super) const REPLACED: [(&str, Kind, Phase); 27] = [
     (
         "stall::tab_then_letters_while_the_program_sleeps_150_ms",
@@ -1699,4 +1758,71 @@ fn a_phase_that_counted_more_rounds_than_it_ran_fails() {
         missed.is_empty(),
         "a family passed more counted rounds than rounds: {missed:?}"
     );
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn the_loop_over_the_phases_of_a_kind_prints_each_phase_and_keeps_each_failure() {
+    let pair = controls(control(OWN, 0), control(OWN, 4));
+    let latched = PhaseRun {
+        test: "stall-enter",
+        name: "enter_then_five_letters",
+        open_latches_at_the_start: 1,
+        ..rounds(OWN, 1)
+    };
+    let outside = PhaseRun {
+        test: "stall-tab-out",
+        name: "tab_out_then_a_letter",
+        ..rounds(OWN, 5)
+    };
+    let clean = PhaseRun {
+        test: "stall-two-step",
+        name: "two_step",
+        ..rounds(OWN, 3)
+    };
+    let mut printed: Vec<(String, String)> = Vec::new();
+    let failures = verdicts(&[latched, outside, clean], &pair, |test, line| {
+        printed.push((test.to_string(), line));
+    });
+    assert_eq!(failures.len(), 2, "{failures:?}");
+    assert!(
+        failures[0].starts_with("stall-enter enter_then_five_letters ")
+            && failures[0].contains("open_latches_at_the_start=1"),
+        "{failures:?}"
+    );
+    assert!(
+        failures[1].starts_with("stall-tab-out tab_out_then_a_letter ")
+            && failures[1].contains("do not bracket it"),
+        "{failures:?}"
+    );
+    assert!(
+        !failures.iter().any(|why| why.contains("two_step")),
+        "{failures:?}"
+    );
+    assert_eq!(printed.len(), 6, "{printed:?}");
+    for (run, passed) in [(latched, 0), (outside, 0), (clean, 1)] {
+        let own: Vec<&str> = printed
+            .iter()
+            .filter(|(test, _)| test == run.test)
+            .map(|(_, line)| line.as_str())
+            .collect();
+        assert_eq!(own.len(), 2, "{}: {own:?}", run.name);
+        assert!(
+            own[0].starts_with(&format!("summary phase={} rounds=", run.name))
+                && own[0].ends_with(&format!(
+                    " control_before={CONTROL_LETTERS} control_after={CONTROL_LETTERS}"
+                )),
+            "{}: {own:?}",
+            run.name
+        );
+        assert_eq!(
+            own[1],
+            format!(
+                "phase={} session={OWN} step={} passed={passed}",
+                run.name, run.step.at
+            ),
+            "{}",
+            run.name
+        );
+    }
 }
