@@ -365,3 +365,45 @@ fn u46_the_list_keeps_the_order_of_starts_when_a_later_agent_starts_first() {
         named(&[(2, &first), (0, &second), (1, &third)])
     );
 }
+
+#[test]
+fn u46_the_list_names_a_dying_tree_whose_kill_at_the_quit_was_refused() {
+    let c = coord::coordinator(&[coord::MANUAL], Limits::PRODUCT);
+    let run = run_now(&c, 0);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().ports.end_runner(&run);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    assert_eq!(c.live(), 0, "no run is live: the run's tree is dying");
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &run)]),
+        "from the move that ended the run on, before the quit too, the dying tree is named"
+    );
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    let kill_calls = c
+        .ports()
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| t.call == Call::Kill(run.clone()))
+        .count();
+    assert_eq!(
+        kill_calls, 1,
+        "the second step called the kill of the tree once"
+    );
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &run)]),
+        "after a refused kill the dying tree stays named"
+    );
+    c.ports().ports.clear_refusals();
+    c.quit_kill();
+    assert_eq!(
+        c.not_stopped(),
+        Vec::new(),
+        "once a second step whose kill of the tree is answered Ok has returned, it is not named"
+    );
+}
