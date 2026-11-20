@@ -135,13 +135,23 @@ function ready(): void {
 
 const hold = () => new Promise<never>(() => {});
 
-const STARTS: [string, string][] = [["gateway-chat", "the mock upstream of test/ledger/gateway-chat.node.test.ts"]];
+const STARTS: [string, string][] = [
+  ["gateway-chat", "the mock upstream of test/ledger/gateway-chat.node.test.ts"],
+  ["stripe-mock", "stripe-mock, which startStripeMock of test/billing/servers.ts starts"],
+];
 
 if (MODE !== undefined) {
   if (HERE === undefined) throw new Error("HALVO_SERVER_STOP_MODE is set and HALVO_SERVER_STOP_DIR is not");
   if (MODE === "gateway-chat") {
     await import("./gateway-chat.node.test.ts");
     test("holds the mock upstream of gateway-chat.node.test.ts up until the run is stopped", () => {
+      ready();
+      return hold();
+    }, 300_000);
+  } else if (MODE === "stripe-mock") {
+    test("holds stripe-mock up until the run is stopped", async () => {
+      const { startStripeMock } = await import("../billing/servers.ts");
+      await startStripeMock();
       ready();
       return hold();
     }, 300_000);
