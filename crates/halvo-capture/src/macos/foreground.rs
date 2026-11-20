@@ -1523,6 +1523,26 @@ mod tests {
     }
 
     #[test]
+    fn a_cut_that_backs_off_inside_a_character_is_decided_by_the_whole_path() {
+        fn the_sibling_with_an_e_acute(_pid: libc::pid_t) -> Option<String> {
+            Some(format!("/{}\u{e9}/halvo", "a".repeat(1022)))
+        }
+        let sibling = the_sibling_with_an_e_acute(0).expect("the sibling");
+        let front = unbundled(&sibling, 74).expect("a front");
+        assert_eq!(sibling.len(), 1031);
+        assert_eq!(
+            front.identity.text().len(),
+            IDENTITY_CAP_BYTES - 1,
+            "the cap backs off inside the e acute"
+        );
+        let halvo = HalvoApp::with_sibling(&sibling).reading_paths_by(the_sibling_with_an_e_acute);
+        assert!(
+            halvo.selects_front(&front),
+            "Halvo's own front, whose identity the cap cut inside a character"
+        );
+    }
+
+    #[test]
     fn a_sibling_that_is_itself_a_link_is_read_through_the_link() {
         let root = tempfile::tempdir().expect("a temporary directory");
         let dir = root.path().join("dir");
