@@ -7087,6 +7087,35 @@ fn a_round_lost_to_a_late_marker_reads_by_its_rule_on_a_table() {
             Some("rounds that did not count: wait 2000 ms: the markers were not recorded"),
         ),
         (
+            "L2 a late drop of a key that arrived at the markers' time exactly qualifies",
+            beside_a_counted_retry(lost_with(vec![arrived_at(2_450), late_drop_at(2_503)])),
+            1,
+            true,
+            None,
+        ),
+        (
+            "L1 MA-27 kept: a wait with no loss counts a round not driven in the long form, quota 3",
+            {
+                let mut rounds = held_three(2);
+                rounds.push(not_driven_round(2_000, 0));
+                rounds
+            },
+            3,
+            false,
+            None,
+        ),
+        (
+            "L3 a counted round with no verdict is passed over by the mended reader",
+            {
+                let mut rounds = held_at_each_wait();
+                rounds.push(stand_in_round(true, 0));
+                rounds
+            },
+            1,
+            true,
+            None,
+        ),
+        (
             "L2 a late drop entry of no key",
             beside_a_counted_retry(lost_with(vec![
                 arrived_at(2_457),

@@ -1358,6 +1358,7 @@ late-rule-phase_two'
   check count-line-missing FAIL 'phase_one: printed 0 lines of its count of rounds lost to the late rule, not one' ''
   check count-line-twice FAIL 'phase_one: printed 2 lines of its count of rounds lost to the late rule, not one' 'late-rule-twice-phase_one'
   check count-line-malformed FAIL 'phase_one: its count line of rounds lost to the late rule does not read' 'late-rule-empty-phase_one'
+  check count-line-missing-in-a-failed-phase-keeps-its-cause FAIL 'phase_one: exit 101' 'fail-phase_one'
   : >"$work/count-small" || exit 2
   printf '%s\n' 'phase_one gap_ms=190 form=short handed=HALVO_STALL_FIXTURE,HALVO_STALL_FORM,HALVO_STALL_GAP_MS,' \
     'phase_one round=0 wait_ms=150 bound_ms=1000 counted=1 ahead=0 markers=2 plain=2 secure=8 rv=held not_driven=- phase_counted=1 phase_not_driven=0' \
