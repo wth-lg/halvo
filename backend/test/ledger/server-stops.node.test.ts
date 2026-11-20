@@ -35,11 +35,40 @@ function made(): string {
   return mkdtempSync(join(ROOT, ".tmp", "server-stops."));
 }
 
+const CHILD_SIGNAL = `import { writeFileSync } from "node:fs";
+const file = process.env.HALVO_SERVER_STOP_SIGNAL;
+if (process.env.LOAD_METER !== undefined && file !== undefined) {
+  for (const name of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+    process.on(name, () => {
+      writeFileSync(file, name);
+      process.removeAllListeners(name);
+      process.kill(process.pid, name);
+    });
+  }
+  process.on("exit", (code) => writeFileSync(file, "exit " + code));
+}
+`;
+
+function childSignal(dir: string): string {
+  const file = join(dir, "child-signal.txt");
+  return existsSync(file) ? readFileSync(file, "utf8") : "none";
+}
+
 function startRun(dir: string, mode: string): Group {
   const log = openSync(join(dir, `${mode}-run.log`), "a");
+  const preload = join(dir, "child-signal.mjs");
+  writeFileSync(preload, CHILD_SIGNAL);
+  const options = [process.env.NODE_OPTIONS, `--import=file://${preload}`].filter((each) => each !== undefined && each !== "").join(" ");
   return startGroup(join(ROOT, "node_modules/.bin/vitest"), ["run", "--project", "node", "--hookTimeout", "60000", SELF], {
     stdio: ["ignore", log, log],
-    env: { ...process.env, HALVO_SERVER_STOP_MODE: mode, HALVO_SERVER_STOP_DIR: dir, HALVO_GROUP_MARKS: join(dir, "marks") },
+    env: {
+      ...process.env,
+      HALVO_SERVER_STOP_MODE: mode,
+      HALVO_SERVER_STOP_DIR: dir,
+      HALVO_GROUP_MARKS: join(dir, "marks"),
+      HALVO_SERVER_STOP_SIGNAL: join(dir, "child-signal.txt"),
+      NODE_OPTIONS: options,
+    },
   });
 }
 
@@ -178,10 +207,10 @@ async function holdGroup(code: string): Promise<never> {
   return hold();
 }
 
-const STARTS: [string, string][] = [
-  ["gateway-chat", "the mock upstream of test/ledger/gateway-chat.node.test.ts"],
-  ["stripe-mock", "stripe-mock, which startStripeMock of test/billing/servers.ts starts"],
-  ["stripe-meter-load", "the node child of test/metering/stripe-meter-load.node.test.ts"],
+const STARTS: [string, string, string][] = [
+  ["gateway-chat", "the mock upstream of test/ledger/gateway-chat.node.test.ts", ""],
+  ["stripe-mock", "stripe-mock, which startStripeMock of test/billing/servers.ts starts", ""],
+  ["stripe-meter-load", "the node child of test/metering/stripe-meter-load.node.test.ts", ", and the child ends by the kit's TERM"],
 ];
 
 if (MODE !== undefined) {
@@ -262,15 +291,17 @@ if (MODE !== undefined) {
     });
   });
 
-  for (const [mode, server] of STARTS) {
-    test(`${server}: a run whose main process alone gets INT while it is up leaves no process of the run's group or of a group that the run marked, and it runs in a group that the run marked`, () =>
+  for (const [mode, server, ending] of STARTS) {
+    test(`${server}: a run whose main process alone gets INT while it is up leaves no process of the run's group or of a group that the run marked, and it runs in a group that the run marked${ending}`, () =>
       withRun(mode, async (dir, run, watched) => {
         await waitReady(dir, mode, run);
         const groups = marked(dir);
         watched.push(...groups);
         const where = groups.some((id) => groupMembers(id).length > 0) ? "in a group that the run marked" : "in the run's own process group, which no mark names";
         signal(run, "SIGINT");
-        expect({ where, left: described(await settle([run, ...groups], STOP_MS)) }).toEqual({ where: "in a group that the run marked", left: [] });
+        const left = described(await settle([run, ...groups], STOP_MS));
+        const ended = ending === "" ? "not read" : childSignal(dir);
+        expect({ where, left, ended }).toEqual({ where: "in a group that the run marked", left: [], ended: ending === "" ? "not read" : "SIGTERM" });
       }), 180_000);
   }
 
