@@ -1695,6 +1695,32 @@ EOF
     'struct HoldState {\n    /* \0000 */ kept: Option<Reading>,\n}\n' crates/halvo-capture/src/macos/input.rs
   rules_case carbon-n4-a-binary-file-that-is-no-source-and-holds-a-name-by-chance FAIL \
     'a file that is no source and holds one of these names by chance' '\0000\0001 dlsym \0002\n' crates/other/icon-two.png
+  build62=scripts/r1/ci.d/62-build.sh
+  allowed='forbidden_import=_EnableSecureEventInput'
+  mkdir -p "$work/repo/scripts/r2/ci.d" || exit 2
+  rules_case carbon-s1-the-one-line-of-62-build-passes PASS "but the one whole line $allowed of $build62" \
+    '#!/bin/sh\n# jobs: macos windows\n'"$allowed"'\necho "$forbidden_import"\n' "$build62"
+  for pair in "a-leading-blank| $allowed" "a-leading-tab|\t$allowed" "a-blank-after-it|$allowed " \
+    "a-comment-after-it|$allowed # the import" "another-byte-after-it|$allowed;" \
+    'quotes-round-the-value|forbidden_import="_EnableSecureEventInput"' "export-before-it|export $allowed" \
+    "a-carriage-return-before-its-end|$allowed\r" 'another-name-on-the-left|allowed_import=_EnableSecureEventInput' \
+    "the-line-twice|$allowed\n$allowed" "the-name-in-a-comment-on-a-second-line|$allowed\n# the import is _EnableSecureEventInput" \
+    "the-name-in-a-here-document-on-a-second-line|$allowed\ncat <<EOF\n_EnableSecureEventInput\nEOF" \
+    "the-name-in-a-printf-on-a-second-line|$allowed\nprintf '%s\\\\n' _EnableSecureEventInput" \
+    'the-other-carbon-name-as-such-an-assignment|forbidden_import=_DisableSecureEventInput' \
+    "the-other-carbon-name-on-a-second-line|$allowed\ngiven=_DisableSecureEventInput" \
+    "a-nul-byte-after-the-name|$allowed\0000" "a-nul-byte-before-the-line|\0000$allowed"; do
+    rules_case "carbon-s1-refused-${pair%%|*}" FAIL "$carbon_text$build62 (" "${pair#*|}"'\n' "$build62"
+  done
+  rules_case carbon-s1-the-line-in-another-file-is-refused FAIL "${carbon_text}scripts/r1/ci.d/63-prerequisites.sh (" \
+    "$allowed"'\n' scripts/r1/ci.d/63-prerequisites.sh
+  rules_case carbon-s1-the-line-in-a-62-build-of-another-directory-is-refused FAIL "${carbon_text}scripts/r2/ci.d/62-build.sh (" \
+    "$allowed"'\n' scripts/r2/ci.d/62-build.sh
+  capital=scripts/r1/ci.d/62-Build.sh
+  blob=$(printf '%s\n' "$allowed" | git -C "$work/repo" hash-object -w --stdin) || exit 2
+  git -C "$work/repo" update-index --add --cacheinfo "100644,$blob,$capital" || exit 2
+  check carbon-s1-the-line-in-a-path-that-differs-by-a-capital-letter-is-refused FAIL "$carbon_text$capital (" '' rules
+  git -C "$work/repo" update-index --force-remove "$capital" || exit 2
   printf '%b' "$held_head$held_symbol"'fn loaded() -> Option<()> {\n    let pid = symbol(c"getpid")?;\n    Some(())\n}\n' >"$work/repo/$held" || exit 2
   git -C "$work/repo" add -A || exit 2
   check rules-form-refuses-a-lookup-by-another-name FAIL "$held: fn symbol gets a name that is no plain literal beginning r1_, or is named other than in such a call, at line 14" '' rules
