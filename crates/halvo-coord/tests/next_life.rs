@@ -1,12 +1,28 @@
 #[path = "coordinator_support.rs"]
 mod coord;
 
-use coord::{agent, Both, MANUAL};
+use coord::{agent, Both, MANUAL, T0};
 use halvo_coord::mem::Method;
 use halvo_coord::ports::{PortError, Reaped};
 use halvo_coord::run::recover;
-use halvo_coord::types::{Action, Limits, RunEnd, RunEvent, RunId};
-use halvo_coord::Coordinator;
+use halvo_coord::types::{
+    Action, Limits, Name, Outcome, PastRun, Row, RunEnd, RunEvent, RunId, Status, What,
+};
+use halvo_coord::{words, Coordinator};
+
+/// The line of a stuck kill on the system that runs the test, in U2.4r's words.
+fn kill_stuck() -> String {
+    let key = if cfg!(windows) {
+        "line.working.kill_stuck_windows"
+    } else {
+        "line.working.kill_stuck_mac"
+    };
+    words::text(key, &[]).unwrap()
+}
+
+fn text(key: &str) -> String {
+    words::text(key, &[]).unwrap()
+}
 
 fn two_live() -> Limits {
     Limits {
@@ -57,6 +73,19 @@ fn next_life(c: &Coordinator<Both>, marks: &[(RunId, Reaped)]) -> Both {
     next
 }
 
+fn row(c: &Coordinator<Both>, n: usize) -> Row {
+    c.snapshot()
+        .rows
+        .into_iter()
+        .find(|r| r.agent == agent(n))
+        .unwrap()
+}
+
+fn tick_at(c: &Coordinator<Both>, k: u64) {
+    c.ports().ports.set_now(T0 + k * 1_000);
+    c.tick();
+}
+
 #[test]
 fn u46b_recover_keeps_on_the_board_the_run_that_reap_answers_alive() {
     let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], two_live()));
@@ -90,5 +119,146 @@ fn u46b_recover_keeps_on_the_board_the_run_that_reap_answers_alive() {
         life.board.alive_at_reap(&agent(1)),
         None,
         "the board keeps no run that reap answered gone"
+    );
+}
+
+#[test]
+fn u46b_the_first_row_of_that_agent_in_the_next_life_reads_that_its_task_may_still_run() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL, MANUAL], two_live()));
+    let life = Coordinator::new(
+        next_life(
+            &c,
+            &[
+                (runs[0].clone(), Reaped::Alive),
+                (runs[1].clone(), Reaped::Gone),
+            ],
+        ),
+        Limits::PRODUCT,
+    );
+    life.tick();
+    let first = row(&life, 0);
+    assert_eq!(
+        (first.status, first.line),
+        (Status::Working, kill_stuck()),
+        "the run that reap answered alive may still run"
+    );
+    let other = row(&life, 1);
+    assert_ne!(
+        other.line,
+        kill_stuck(),
+        "a run that reap answered gone does not run"
+    );
+}
+
+#[test]
+fn u46b_a_switch_off_keeps_the_line_and_a_record_of_the_store_that_names_the_run_ends_it() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], two_live()));
+    let life = Coordinator::new(
+        next_life(&c, &[(runs[0].clone(), Reaped::Alive)]),
+        Limits::PRODUCT,
+    );
+    life.tick();
+    assert_eq!(row(&life, 0).line, kill_stuck());
+    assert_eq!(life.control(&agent(0), Action::SwitchOff), Ok(()));
+    tick_at(&life, 1);
+    assert_eq!(
+        row(&life, 0).line,
+        kill_stuck(),
+        "a hold that stops new starts does not stop the run that may still run"
+    );
+    life.ports().ports.agents.borrow_mut()[0].last = Some(PastRun {
+        run: runs[0].clone(),
+        day: coord::DAY,
+        outcome: Outcome::Failed,
+        unknown: 0,
+    });
+    tick_at(&life, 2);
+    assert_eq!(
+        row(&life, 0).line,
+        text("line.off.person"),
+        "once the store has ended the run, the row reads its own line again"
+    );
+}
+
+#[test]
+fn u46b_an_agent_with_no_clean_run_shows_no_ready_card_while_its_run_may_still_run() {
+    let owner = coord::owner(&[MANUAL], two_live());
+    for e in owner.ports.events.borrow_mut().iter_mut() {
+        if let What::RunEnded { cause, .. } = &mut e.what {
+            *cause = RunEnd::Failed;
+        }
+    }
+    if let Some(last) = owner.ports.agents.borrow_mut()[0].last.as_mut() {
+        last.outcome = Outcome::Failed;
+    }
+    let (c, runs) = outlived_quit(owner);
+    let life = Coordinator::new(
+        next_life(&c, &[(runs[0].clone(), Reaped::Alive)]),
+        Limits::PRODUCT,
+    );
+    life.tick();
+    assert!(
+        life.ports().ports.events.borrow().iter().any(|e| matches!(
+            e.what,
+            What::ItemRaised {
+                raised: halvo_coord::types::Raised::Ready,
+                ..
+            }
+        )),
+        "the tick raised ready for an agent with no clean run"
+    );
+    let s = life.snapshot();
+    let first = s.rows.iter().find(|r| r.agent == agent(0)).unwrap();
+    assert_eq!(
+        (first.status, first.line.clone()),
+        (Status::Working, kill_stuck())
+    );
+    assert!(
+        s.items.iter().all(|i| i.agent() != &agent(0)),
+        "no card invites a start while the run may still run"
+    );
+}
+
+#[test]
+fn u46b_a_stuck_record_keeps_its_line_before_the_line_of_a_run_that_may_still_run() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], two_live()));
+    let next = next_life(&c, &[(runs[0].clone(), Reaped::Alive)]);
+    next.ports.refuse_agent(
+        Method::Log,
+        &agent(0),
+        PortError::Refused(Name::parse("store").unwrap()),
+    );
+    let life = Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    for k in 1..=3 {
+        tick_at(&life, k);
+    }
+    assert!(life.record_stuck(&agent(0)));
+    let first = row(&life, 0);
+    assert_eq!(
+        (first.status, first.line),
+        (Status::Problem, text("line.problem.record"))
+    );
+}
+
+#[test]
+fn u46b_an_agent_set_aside_at_recover_reads_so_once_its_history_answers() {
+    let (c, runs) = outlived_quit(coord::owner(&[MANUAL], two_live()));
+    let next = next_life(&c, &[(runs[0].clone(), Reaped::Alive)]);
+    next.ports.refuse_agent(
+        Method::History,
+        &agent(0),
+        PortError::Refused(Name::parse("store").unwrap()),
+    );
+    let life = Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    assert_eq!(row(&life, 0).line, text("line.problem.record"));
+    life.ports().ports.clear_refusals();
+    tick_at(&life, 1);
+    let first = row(&life, 0);
+    assert_eq!(
+        (first.status, first.line),
+        (Status::Working, kill_stuck()),
+        "the tick that makes the agent's recovery reads the run that reap answered alive"
     );
 }

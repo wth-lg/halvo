@@ -2652,12 +2652,18 @@ where
             let held = open
                 .as_ref()
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
-            let line = roster::status_of(
+            let line = match roster::status_of(
                 *facts,
                 &self.limits,
                 held.map(|h| h.confirmation().state()),
                 board.record_stuck(&facts.agent, &self.limits),
-            );
+            ) {
+                line @ crate::types::StatusLine::Record => line,
+                _ if board.alive_at_reap(&facts.agent).is_some() => {
+                    crate::types::StatusLine::KillStuck(System::HOST)
+                }
+                line => line,
+            };
             let Ok(row) = roster::row(*facts, line, name) else {
                 continue;
             };
