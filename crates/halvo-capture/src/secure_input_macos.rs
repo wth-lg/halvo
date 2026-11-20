@@ -907,7 +907,20 @@ pub fn hold_secure_input() -> Result<SecureInputHold, SecureInputRefused> {
 
 #[cfg(any(test, debug_assertions))]
 fn enable_secure_event_input() -> i32 {
-    carbon::one_carbon_call_at_a_time(carbon::enable_secure_event_input)
+    take_in_this_build(|| carbon::one_carbon_call_at_a_time(carbon::enable_secure_event_input))
+}
+
+#[cfg(all(debug_assertions, not(test)))]
+fn take_in_this_build(take: fn() -> i32) -> i32 {
+    take()
+}
+
+/// In a test build the system's take asks the decision of the hold tests first:
+/// it is made on a hosted runner alone, and elsewhere no call of the system is
+/// made, whatever test or route reached it.
+#[cfg(test)]
+fn take_in_this_build(take: fn() -> i32) -> i32 {
+    test_support::take_where_hosted(&|name| std::env::var(name).ok(), take)
 }
 
 #[cfg(any(test, debug_assertions))]
@@ -1141,6 +1154,29 @@ pub(crate) mod test_support {
             read("RUNNER_ENVIRONMENT").as_deref(),
             read(HOLD_REQUIRED).as_deref(),
         )
+    }
+
+    /// The status with which the system's take answers in a test build off a
+    /// hosted runner, where it makes no call of the system.
+    pub(crate) const REFUSED_OFF_A_HOSTED_RUNNER: i32 = i32::MIN;
+
+    /// The take of the system's hold in a test build over `read`, a reader of
+    /// the process's variables: `take` is called when [`hold_start`] says
+    /// `Run`; else the line of the decision, which names the thread, is printed
+    /// and [`REFUSED_OFF_A_HOSTED_RUNNER`] answered, or the decision fails.
+    pub(crate) fn take_where_hosted(
+        read: &dyn Fn(&str) -> Option<String>,
+        take: fn() -> i32,
+    ) -> i32 {
+        let thread = std::thread::current();
+        match hold_start(thread.name().unwrap_or("a thread with no name"), read) {
+            HoldStart::Run => take(),
+            HoldStart::Off(line) => {
+                println!("{line}");
+                REFUSED_OFF_A_HOSTED_RUNNER
+            }
+            HoldStart::Fail(line) => panic!("{line}"),
+        }
     }
 
     /// The guard of a hold test: true on a hosted runner; else it prints the
@@ -2123,6 +2159,105 @@ mod tests {
         assert!(
             line.contains("RUNNER_ENVIRONMENT=Some(\"github-hosted\")"),
             "{line}"
+        );
+    }
+
+    #[test]
+    fn the_take_of_the_system_hold_calls_the_system_on_a_hosted_runner_alone_and_refuses_elsewhere()
+    {
+        use super::test_support::{take_where_hosted, REFUSED_OFF_A_HOSTED_RUNNER};
+        use std::panic::{catch_unwind, AssertUnwindSafe};
+        static TAKES: AtomicUsize = AtomicUsize::new(0);
+        fn counted_take() -> i32 {
+            TAKES.fetch_add(1, Ordering::SeqCst);
+            0
+        }
+        fn reads(
+            actions: Option<&'static str>,
+            environment: Option<&'static str>,
+            required: Option<&'static str>,
+        ) -> impl Fn(&str) -> Option<String> {
+            move |name: &str| match name {
+                "GITHUB_ACTIONS" => actions.map(str::to_owned),
+                "RUNNER_ENVIRONMENT" => environment.map(str::to_owned),
+                "HALVO_SECURE_INPUT_HOLD_REQUIRED" => required.map(str::to_owned),
+                _ => None,
+            }
+        }
+        let not_hosted: [(Option<&'static str>, Option<&'static str>, &str); 9] = [
+            (None, None, "this Mac and every other machine"),
+            (Some("true"), None, "no runner environment"),
+            (None, Some("github-hosted"), "not in Actions"),
+            (
+                Some("true"),
+                Some("self-hosted"),
+                "a runner of the owner's own",
+            ),
+            (Some(""), Some("github-hosted"), "an empty value"),
+            (Some("true"), Some(""), "an empty environment"),
+            (Some("TRUE"), Some("github-hosted"), "another case"),
+            (
+                Some("true"),
+                Some("GitHub-Hosted"),
+                "another case of the environment",
+            ),
+            (Some("1"), Some("github-hosted"), "another word"),
+        ];
+        for (actions, environment, what) in not_hosted {
+            for required in [None, Some("0")] {
+                let status =
+                    take_where_hosted(&reads(actions, environment, required), counted_take);
+                assert_eq!(
+                    (status, TAKES.load(Ordering::SeqCst)),
+                    (REFUSED_OFF_A_HOSTED_RUNNER, 0),
+                    "{what}, {required:?}"
+                );
+            }
+            let failed = catch_unwind(AssertUnwindSafe(|| {
+                take_where_hosted(&reads(actions, environment, Some("1")), counted_take)
+            }));
+            assert!(
+                failed.is_err(),
+                "{what}: the hold is required and no take failed"
+            );
+            assert_eq!(
+                TAKES.load(Ordering::SeqCst),
+                0,
+                "{what}: a take while required"
+            );
+        }
+        for (taken, required) in [None, Some("0"), Some("1")].into_iter().enumerate() {
+            let status = take_where_hosted(
+                &reads(Some("true"), Some("github-hosted"), required),
+                counted_take,
+            );
+            assert_eq!(
+                (status, TAKES.load(Ordering::SeqCst)),
+                (0, taken + 1),
+                "the hosted pair, {required:?}"
+            );
+        }
+        let before = TAKES.load(Ordering::SeqCst);
+        let reads_made = AtomicUsize::new(0);
+        let changing = |name: &str| {
+            let hosted_now = reads_made.fetch_add(1, Ordering::SeqCst) >= 2;
+            match name {
+                "GITHUB_ACTIONS" if hosted_now => Some("true".to_owned()),
+                "RUNNER_ENVIRONMENT" if hosted_now => Some("github-hosted".to_owned()),
+                _ => None,
+            }
+        };
+        let changed = catch_unwind(AssertUnwindSafe(|| {
+            take_where_hosted(&changing, counted_take)
+        }));
+        assert!(
+            changed.is_err(),
+            "the first read said no hosted runner and the second said one: no failure"
+        );
+        assert_eq!(
+            TAKES.load(Ordering::SeqCst),
+            before,
+            "a take after the values changed between the two reads"
         );
     }
 

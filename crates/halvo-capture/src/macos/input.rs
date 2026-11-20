@@ -2212,7 +2212,8 @@ mod tests {
     use crate::macos::foreground::foreground_state_for_test;
     use crate::secure_input_macos::hold::Timing;
     use crate::secure_input_macos::test_support::{
-        agreed_reading, one_hold_at_a_time, reads_on_within,
+        agreed_reading, hosted_or_refuse, one_hold_at_a_time, reads_on_within, skip_allowed,
+        HOLD_REQUIRED,
     };
     use crate::sink;
     use core_foundation::date::CFDate;
@@ -5536,6 +5537,9 @@ mod tests {
 
     #[test]
     fn the_production_reader_reads_a_real_hold_as_on() {
+        if !hosted_or_refuse("the_production_reader_reads_a_real_hold_as_on") {
+            return;
+        }
         let one = one_hold_at_a_time();
         let Some(hold) = one.hold_or_skip("the_production_reader_reads_a_real_hold_as_on") else {
             return;
@@ -5553,6 +5557,9 @@ mod tests {
 
     #[test]
     fn the_production_reader_reads_off_on_during_a_hold_and_off_again() {
+        if !hosted_or_refuse("the_production_reader_reads_off_on_during_a_hold_and_off_again") {
+            return;
+        }
         let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
         let session = read_session();
@@ -5679,6 +5686,11 @@ mod tests {
 
     #[test]
     fn a_new_source_with_a_hold_plan_holds_secure_input_through_the_system_while_it_runs() {
+        if !hosted_or_refuse(
+            "a_new_source_with_a_hold_plan_holds_secure_input_through_the_system_while_it_runs",
+        ) {
+            return;
+        }
         let _one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
         let on = || crate::secure_input_macos::secure_input_active();
@@ -5696,6 +5708,13 @@ mod tests {
             .expect("the source starts with a stand-in tap");
         if let Some(refused) = source.hold_refusal() {
             let _ = source.shutdown();
+            assert!(
+                skip_allowed(std::env::var_os(HOLD_REQUIRED).as_deref()),
+                "a_new_source_with_a_hold_plan_holds_secure_input_through_the_system_while_it_runs: \
+                 the system refused the hold with status {}, and {HOLD_REQUIRED}=1 asks that every \
+                 hold test holds",
+                refused.0
+            );
             eprintln!(
                 "SKIP a_new_source_with_a_hold_plan_holds_secure_input_through_the_system_while_it_runs: \
                  the system refused the hold with status {}",
@@ -5855,6 +5874,11 @@ mod tests {
 
     #[test]
     fn a_started_source_counts_a_key_under_a_real_hold_through_the_callback_that_it_installs() {
+        if !hosted_or_refuse(
+            "a_started_source_counts_a_key_under_a_real_hold_through_the_callback_that_it_installs",
+        ) {
+            return;
+        }
         let kept = Arc::new(Mutex::new(None));
         let (handle, writer) = sink::channel(8);
         let (_fg_writer, reader) = foreground_state_for_test();
