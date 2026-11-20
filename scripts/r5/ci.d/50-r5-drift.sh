@@ -147,7 +147,7 @@ lines_name_store() {
   awk -v want="store=$2" '
     $1 == "case" {
       if ($6 != want) bad = 1
-      for (i = 2; i <= NF; i++) if ($i ~ /^store=/ && $i != want) bad = 1
+      for (i = 2; i <= NF; i++) if ($i ~ /^store=/ && i != 6) bad = 1
     }
     END { exit bad }
   ' "$1"
@@ -787,6 +787,14 @@ self_test() {
   : >"$FX/derived"
   for play in first second; do
     sed 's/ occurrences=/ store=memory occurrences=/' "$FX/dev-$play.out" >"$FX/input" || broken
+    cp "$FX/input" "$FX/dev-$play.out" || broken
+  done
+  check FAIL-store "FAIL $name (store)"
+
+  fixture same-store-token-twice
+  : >"$FX/derived"
+  for play in first second; do
+    sed 's/ occurrences=/ store=derived occurrences=/' "$FX/dev-$play.out" >"$FX/input" || broken
     cp "$FX/input" "$FX/dev-$play.out" || broken
   done
   check FAIL-store "FAIL $name (store)"
