@@ -307,20 +307,25 @@ pub(super) struct PhaseRun {
     pub(super) open_latches_at_the_start: u32,
 }
 
+pub(super) const UNREAD_LATCHES: u32 = u32::MAX;
+
 pub(super) fn latches_of(text: Option<&str>) -> u32 {
     text.and_then(|text| text.strip_prefix("count="))
         .and_then(|rest| rest.split_whitespace().next())
         .and_then(|count| count.parse().ok())
-        .unwrap_or(u32::MAX)
+        .unwrap_or(UNREAD_LATCHES)
 }
 
 pub(super) fn began_with_no_open_latch(open: u32) -> Result<(), String> {
-    if open != 0 {
-        return Err(format!(
-            "an open latch of an earlier phase stood at its start: open_latches_at_the_start={open}"
-        ));
+    match open {
+        0 => Ok(()),
+        UNREAD_LATCHES => Err(format!(
+            "the text of the gate could not be read at its start: open_latches_at_the_start={open} stands for no count"
+        )),
+        held => Err(format!(
+            "the source held open latches at its start: open_latches_at_the_start={held}"
+        )),
     }
-    Ok(())
 }
 
 pub(super) fn bracketed(step: Step, controls: &Controls) -> Result<(), String> {
@@ -1936,4 +1941,43 @@ fn a_fault_of_the_first_batch_of_a_click_phase_still_fails_after_a_clean_second_
         missed.is_empty(),
         "a sum lost what the first batch carried after a clean second batch: {missed:?}"
     );
+}
+
+#[test]
+#[ignore = "a made-up phase of a shared session: 50-windows-functional runs it by its exact name"]
+fn a_phase_whose_text_of_open_latches_could_not_be_read_fails_by_those_words() {
+    let pair = controls(control(OWN, 0), control(OWN, 2));
+    let first_of_its_kind = rounds(OWN, 1);
+    let unread = verdict(
+        &PhaseRun {
+            open_latches_at_the_start: latches_of(None),
+            ..first_of_its_kind
+        },
+        &pair,
+    );
+    let held = verdict(
+        &PhaseRun {
+            open_latches_at_the_start: latches_of(Some("count=1 [seq4@100:Tab:based=1]")),
+            ..first_of_its_kind
+        },
+        &pair,
+    );
+    assert!(
+        unread.as_ref().is_err_and(|why| why.contains(&format!(
+            "the text of the gate could not be read at its start: open_latches_at_the_start={UNREAD_LATCHES} stands for no count"
+        )) && !why.contains("held")),
+        "{unread:?}"
+    );
+    assert!(
+        held.as_ref().is_err_and(|why| why
+            .contains("the source held open latches at its start: open_latches_at_the_start=1")
+            && !why.contains("could not be read")),
+        "{held:?}"
+    );
+    for got in [&unread, &held] {
+        assert!(
+            got.as_ref().is_err_and(|why| !why.contains("earlier")),
+            "{got:?}"
+        );
+    }
 }
