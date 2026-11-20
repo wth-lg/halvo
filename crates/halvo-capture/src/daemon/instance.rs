@@ -154,7 +154,7 @@ pub(crate) mod tests {
         use std::os::unix::ffi::OsStrExt;
         use std::path::{Path, PathBuf};
         use std::process::{Child, Command, Stdio};
-        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
         use std::sync::Arc;
         use std::time::{Duration, Instant};
 
@@ -282,6 +282,8 @@ pub(crate) mod tests {
         }
 
         const READS_APART: Duration = Duration::from_millis(1);
+        const TAKES: u64 = 300;
+        const READS_AMONG_THE_TAKES: u64 = 50;
 
         #[test]
         fn a_take_against_a_reader_that_never_lets_go_answers_held_after_its_whole_window() {
@@ -316,27 +318,41 @@ pub(crate) mod tests {
             let dir = kept_dir("instance-tests-");
             let named = data_dir(&dir);
             let done = Arc::new(AtomicBool::new(false));
-            let reads = {
+            let reads = Arc::new(AtomicU64::new(0));
+            let reader = {
                 let done = done.clone();
+                let reads = reads.clone();
                 let named = named.clone();
                 std::thread::spawn(move || {
-                    let mut count = 0u64;
                     while !done.load(Ordering::SeqCst) {
                         let _ = instance_lock::read(&named).unwrap();
-                        count += 1;
+                        reads.fetch_add(1, Ordering::SeqCst);
                         std::thread::sleep(READS_APART);
                     }
-                    count
                 })
             };
-            for round in 0..300 {
+            while reads.load(Ordering::SeqCst) == 0 {
+                assert!(
+                    !reader.is_finished(),
+                    "the reader ended before its first read"
+                );
+                std::thread::sleep(READS_APART);
+            }
+            let first = reads.load(Ordering::SeqCst);
+            let mut takes = 0u64;
+            while takes < TAKES || reads.load(Ordering::SeqCst) < first + READS_AMONG_THE_TAKES {
+                assert!(
+                    !reader.is_finished(),
+                    "the reader ended while the takes ran"
+                );
                 assert!(
                     InstanceLock::take(&named).unwrap().is_some(),
-                    "take {round} answered held while reads {READS_APART:?} apart ran"
+                    "take {takes} answered held while reads {READS_APART:?} apart ran"
                 );
+                takes += 1;
             }
             done.store(true, Ordering::SeqCst);
-            assert!(reads.join().unwrap() > 0);
+            reader.join().unwrap();
         }
 
         #[test]
