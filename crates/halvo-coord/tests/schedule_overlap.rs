@@ -616,3 +616,156 @@ fn b_the_derived_off_takes_switch_on_with_its_state_and_no_event() {
     assert_eq!(holds_of(&board, 0), vec![]);
     assert_eq!(stored(&p, 0), Vec::<&str>::new());
 }
+
+fn tick() -> halvo_coord::schedule::Move {
+    halvo_coord::schedule::Move::Tick
+}
+
+fn switch_off(n: usize) -> halvo_coord::schedule::Move {
+    halvo_coord::schedule::Move::SwitchOff { agent: agent(n) }
+}
+
+/// The `set_state` calls as tried, in order, each with `refused` where the owner refused it.
+fn states(p: &Ports<Config>) -> Vec<String> {
+    writes(p)
+        .into_iter()
+        .filter(|w| w.starts_with("set_state"))
+        .collect()
+}
+
+#[test]
+fn d_a_switch_off_whose_paused_is_lost_gets_paused_from_the_next_tick_and_none_once_listed_paused()
+{
+    let p = ports(&[(ACTIVE, ACCOUNT, &["ann@people.test"], &[])]);
+    let mut board = life(&p);
+    p.refuse(Method::Send, PortError::Busy);
+    assert_eq!(
+        go(&p, &mut board, switch_off(0)).answer,
+        Ok(halvo_coord::schedule::Answer::Ok)
+    );
+    assert_eq!(
+        listed(&p, 0),
+        ACTIVE,
+        "the paused of the switch-off is lost"
+    );
+    p.clear_refusals();
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(states(&p), ["set_state a0 paused"]);
+    assert_eq!(listed(&p, 0), PAUSED);
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(
+        states(&p),
+        Vec::<String>::new(),
+        "none once the list shows paused"
+    );
+}
+
+#[test]
+fn d_a_switch_off_whose_paused_is_lost_gets_paused_from_the_first_tick_of_a_new_life() {
+    let p = ports(&[(ACTIVE, ACCOUNT, &["ann@people.test"], &[])]);
+    let mut board = life(&p);
+    p.refuse(Method::Send, PortError::NoService);
+    go(&p, &mut board, switch_off(0));
+    p.clear_refusals();
+    assert_eq!(listed(&p, 0), ACTIVE);
+    let mut again = life(&p);
+    fresh(&p);
+    go(&p, &mut again, tick());
+    assert_eq!(states(&p), ["set_state a0 paused"]);
+    assert_eq!(listed(&p, 0), PAUSED);
+    fresh(&p);
+    go(&p, &mut again, tick());
+    assert_eq!(states(&p), Vec::<String>::new());
+}
+
+#[test]
+fn d_a_hold_failures_beside_an_active_list_gets_paused_at_each_tick_until_it_is_acknowledged() {
+    let p = ports(&[(
+        ACTIVE,
+        ACCOUNT,
+        &["ann@people.test"],
+        &[HoldSetCause::Failures],
+    )]);
+    let mut board = life(&p);
+    p.refuse(Method::Send, PortError::Busy);
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(states(&p), ["set_state a0 paused refused"]);
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(
+        states(&p),
+        ["set_state a0 paused refused"],
+        "again at the next tick"
+    );
+    p.clear_refusals();
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(states(&p), ["set_state a0 paused"]);
+    assert_eq!(
+        board.members[0].facts.workflow.state, PAUSED,
+        "the acknowledged state"
+    );
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(states(&p), Vec::<String>::new());
+}
+
+#[test]
+fn d_a_switch_on_whose_state_arrived_and_whose_hold_cleared_was_refused_gets_paused_at_the_next_tick(
+) {
+    let p = ports(&[(
+        PAUSED,
+        ACCOUNT,
+        &["ann@people.test"],
+        &[HoldSetCause::Person],
+    )]);
+    let mut board = life(&p);
+    p.refuse(Method::Log, refused("internal"));
+    fresh(&p);
+    assert_eq!(
+        go(&p, &mut board, switch_on(0)).answer,
+        Err(halvo_coord::types::Cause::NoService)
+    );
+    assert_eq!(listed(&p, 0), ACTIVE, "the state arrived");
+    assert_eq!(
+        holds_of(&board, 0),
+        vec![OFF],
+        "the hold stands by the events"
+    );
+    p.clear_refusals();
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(states(&p), ["set_state a0 paused"]);
+    assert_eq!(listed(&p, 0), PAUSED);
+}
+
+#[test]
+fn d_no_paused_goes_for_the_stand_in_of_a_dismissed_workflow_or_a_workflow_off_the_list() {
+    let p = ports(&[
+        (
+            ACTIVE,
+            ACCOUNT,
+            &["ann@people.test"],
+            &[HoldSetCause::Person],
+        ),
+        (
+            ACTIVE,
+            "two@home.test",
+            &["bob@people.test"],
+            &[HoldSetCause::Person],
+        ),
+    ]);
+    let mut board = life(&p);
+    p.workflows.borrow_mut()[0] = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+        id: flow(0),
+        category: Category::Email,
+        site: None,
+    });
+    p.workflows.borrow_mut().remove(1);
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert_eq!(states(&p), Vec::<String>::new());
+}

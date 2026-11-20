@@ -1,7 +1,7 @@
 use super::{
     clean, current_slot, holds, kept_off, slot_open, start_step, switch_on_state, tick_plan,
-    tick_step, wants_active, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member, Owed, Owing,
-    StartStep, Stop, Verdict, Waiting,
+    tick_step, wants_active, wants_paused, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member,
+    Owed, Owing, StartStep, Stop, Verdict, Waiting,
 };
 use crate::items::drive::{alone, class_of, lasts_the_life, Alone, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Stamp};
@@ -1465,7 +1465,9 @@ where
     recover_aside(cx, board);
     pay_owed(cx, board);
     for m in &mut board.members {
-        if starts && wants_active(&m.facts) {
+        if listed.contains(&m.facts.workflow.id) && wants_paused(&m.facts) {
+            let _ = send_state(cx, &mut m.facts, AgentState::Paused);
+        } else if starts && wants_active(&m.facts) {
             let _ = send_state(cx, &mut m.facts, AgentState::Active);
         }
     }
