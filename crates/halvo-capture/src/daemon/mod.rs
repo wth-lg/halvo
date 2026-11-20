@@ -25,7 +25,7 @@ pub mod permissions;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod port;
 #[rustfmt::skip]
-#[cfg(feature = "r2")] mod r2;
+#[cfg(feature = "r2")] pub(crate) mod r2;
 mod report;
 #[cfg(test)]
 mod scripted;

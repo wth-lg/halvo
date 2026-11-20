@@ -6,6 +6,7 @@ use crate::event::{EventClock, FloorEvent};
 use crate::floor::exclude::PrivateWindow;
 use crate::floor::kind;
 use crate::floor::payload::{Title, TitleWhy};
+use crate::floor::site::Site;
 use crate::floor::Switch;
 use crate::secure_input::windows::{PasswordFieldProbe, PasswordGate};
 use crate::source::{
@@ -31,6 +32,17 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 pub(crate) const TITLE_READ_UNITS: usize = crate::floor::text::TEXT_MAX_BYTES;
 
+/// The site of the browser window of process `_pid`: the site reader point of
+/// contracts.md C18 item 3, where a later run registers its reader; R1 reads no
+/// site.
+pub(crate) fn site_of(_pid: u32) -> Option<Site> {
+    #[cfg(feature = "r2")]
+    if let Some(address) = crate::daemon::r2::site_reader(_pid) {
+        return Site::cut(address);
+    }
+    None
+}
+
 /// The title event of the window in front: the floor's decision on its
 /// process, with the reading of the keyboard source's gate where one runs,
 /// then core-2's title constructor with its reason. Nothing of the text
@@ -46,7 +58,7 @@ pub(crate) fn title_event(
     let keep = floor.keep::<kind::WindowTitle>(front, window, &probe)?;
     Some(FloorEvent::window_title(
         keep,
-        Title::new(title, why, None),
+        Title::new(title, why, site_of(front.pid)),
         tick.age(),
         EventClock::system(),
     ))
@@ -395,6 +407,12 @@ fn run_title_hook(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_site_reader_point_gives_no_site_in_r1() {
+        assert!(site_of(std::process::id()).is_none());
+        assert!(site_of(0).is_none());
+    }
 
     fn handle(value: usize) -> HWND {
         HWND(value as *mut core::ffi::c_void)
