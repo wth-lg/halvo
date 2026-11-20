@@ -10309,6 +10309,11 @@ mod look_after_the_first_commit;
 
 mod open_gates;
 
+#[cfg(unix)]
+mod kept_segment_arms;
+
+mod wrapping_keys;
+
 #[cfg(target_os = "macos")]
 mod full_flush;
 

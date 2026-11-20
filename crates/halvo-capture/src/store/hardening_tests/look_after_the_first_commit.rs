@@ -585,3 +585,49 @@ fn a_pass_whose_first_commit_meets_an_unlinked_log_answers_obstructed_and_its_cl
         "the pass answered Ok with the wrapped key in {places:?}"
     );
 }
+
+#[test]
+fn a_batch_whose_first_commit_meets_an_empty_file_at_the_log_name_while_sqlite_logs_elsewhere_is_refused_and_its_row_and_file_agree(
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let key = *store.database_key().unwrap();
+    let log = store_dir.join("store.db-wal");
+    std::fs::rename(&log, dir.path().join("log-out-of-the-directory")).unwrap();
+    std::fs::write(&log, b"").unwrap();
+    let id = random_segment_id().unwrap();
+    let first = write(&mut store, &id, noon_today());
+    let handle_live = live_rows_of(&store, &id);
+    let file = segment_path(&store_dir, id).exists();
+    let retry = write(&mut store, &id, noon_today());
+    let copy = dir.path().join("as-a-kill-leaves-it");
+    copy_tree(&store_dir, &copy);
+    let copy_live = live_rows_in_the_files(&copy, &key, &id);
+    let copy_file = segment_path(&copy, id).exists();
+    println!(
+        "RC1-E first={} handle_live={handle_live:?} file={file} retry={} copy_live={copy_live} copy_file={copy_file}",
+        said(&first),
+        said(&retry)
+    );
+    assert!(
+        matches!(first, Err(WriteFault::Io(std::io::ErrorKind::Other))),
+        "the first answer: {}",
+        said(&first)
+    );
+    assert_eq!(
+        handle_live.map_or(file, |live| live == 1),
+        file,
+        "the handle shows a live key row {handle_live:?} and a file {file} that disagree"
+    );
+    assert!(
+        !held(&retry),
+        "a retry on the same handle answered {}",
+        said(&retry)
+    );
+    assert_eq!(
+        copy_live == 1,
+        copy_file,
+        "the files as a kill leaves them hold a live key row {copy_live} and a file {copy_file}"
+    );
+}
