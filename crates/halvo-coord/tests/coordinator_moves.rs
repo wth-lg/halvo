@@ -12214,3 +12214,54 @@ fn u24e_r1_the_place_that_a_kept_end_frees_serves_the_next_start_and_not_the_nam
     assert_eq!(c.queued(), vec![]);
     assert_eq!(c.live(), 1, "agent 2 runs");
 }
+
+/// R2 (the verifier's m05): a take-back of a queued agent whose Start answer failed to store
+/// keeps the agent's open ready card, the same card, still answerable; it reads no clock and
+/// stores nothing.
+#[test]
+fn u24e_r2_a_take_back_keeps_the_open_card_of_a_start_whose_answer_failed_to_store() {
+    let c = coordinator(&[MANUAL, ASKS_FIRST], one_at_a_time());
+    start(&c, 0);
+    c.tick();
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Ready);
+    c.ports().ports.refuse(Method::Log, PortError::NoService);
+    let _ = c.answer(&item, Choice::Start, None, 0);
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.queued(), vec![(agent(1), false)]);
+    let m = mark(&c);
+    let rows = events(&c);
+    c.ports().fail_reads_after.set(Some(4));
+    assert_eq!(c.control(&agent(1), Action::TakeBack), Ok(()));
+    assert_eq!(
+        c.ports().fail_reads_after.get(),
+        Some(4),
+        "no read of the clock"
+    );
+    let calls = calls_since(&c, m);
+    assert!(
+        calls
+            .iter()
+            .all(|call| matches!(call, Call::Changed | Call::Attention(_))),
+        "{calls:?}"
+    );
+    assert_eq!(events(&c), rows, "nothing stored");
+    assert_eq!(c.queued(), vec![]);
+    c.ports().fail_reads_after.set(None);
+    assert_eq!(
+        open_item(&c),
+        (item.clone(), ItemKind::Ready),
+        "the same card"
+    );
+    assert_eq!(
+        c.answer(
+            &item,
+            Choice::Start,
+            None,
+            shown_step_mark_or_zero(&c, &item)
+        ),
+        Ok(()),
+        "still answerable"
+    );
+    assert_eq!(c.queued(), vec![(agent(1), false)]);
+}
