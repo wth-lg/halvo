@@ -11968,3 +11968,78 @@ fn u24s_i58_no_setup_is_raised_at_the_recovery_of_an_agent_whose_workflow_the_li
         "as the first creation move, no setup for an agent of a dismissed workflow"
     );
 }
+
+#[test]
+fn u24s_n6_the_read_back_after_a_second_steps_raise_places_its_row_by_its_raise() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let first = start(&c, 0);
+    c.on_run(&first, bind(&first, 0)).unwrap();
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    let second = start(&c, 1);
+    c.on_run(&second, handback(&second, 1, HandbackReason::StepFailed))
+        .unwrap();
+    let s = c.snapshot();
+    let order: Vec<AgentId> = s.rows.iter().map(|r| r.agent.clone()).collect();
+    assert_eq!(
+        order,
+        [agent(0), agent(1)],
+        "the second step was raised first, and its row stands first because the board read its raise back (pr-review-32 N6): {s:?}"
+    );
+}
+
+#[test]
+fn u24s_n6_at_the_runners_end_a_second_step_whose_answer_the_run_did_not_take_lapses_once_and_is_forgotten(
+) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, bind(&run, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    c.ports()
+        .ports
+        .refuse(Method::AnswerBind, PortError::NoService);
+    assert!(
+        c.answer(
+            &item,
+            Choice::Allow,
+            None,
+            shown_step_mark_or_zero(&c, &item)
+        )
+        .is_err(),
+        "the answer's row is stored and the run did not take it"
+    );
+    c.ports().ports.clear_refusals();
+    let lapses = |c: &Coordinator<Both>| {
+        events(c)
+            .iter()
+            .filter(|w| matches!(w, What::ItemLapsed { item: i, .. } if *i == item))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed))),
+        Ok(())
+    );
+    assert_eq!(
+        lapses(&c),
+        vec![What::ItemLapsed {
+            item: item.clone(),
+            lapsed: Lapsed::SignIn(OtherLapse::RunEnded),
+        }],
+        "the step that the run waited on lapses with run_ended at its end"
+    );
+    let m = mark(&c);
+    let past = T0 + (Limits::PRODUCT.wait_limit_s + 1) * 1000;
+    c.ports().ports.set_clock(past, DAY);
+    c.tick();
+    assert!(
+        !calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::AnswerBind(..))),
+        "the coordinator holds no second step of the ended run"
+    );
+    assert_eq!(lapses(&c).len(), 1, "and lapses it no second time");
+}

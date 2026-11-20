@@ -1113,7 +1113,6 @@ where
                     self.act(st, Act::Resume { run: run.clone() })?;
                 }
                 self.lapse_held(st, i, run, LapseCause::RunEnded);
-                self.lapse_binds(st, i, run, OtherLapse::RunEnded);
                 st.handbacks.retain(|(_, a)| &a.run != run);
                 st.waits.retain(|w| &w.run != run);
                 self.end_of_run(st, run, *outcome)
