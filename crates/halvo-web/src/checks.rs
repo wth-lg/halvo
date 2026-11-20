@@ -141,15 +141,25 @@ pub fn bears_profile_on(args: &[String], profile: &str, windows: bool) -> bool {
         return false;
     }
     let crashpad = format!("{profile}/Crashpad");
-    switch_args(args, windows).iter().any(|a| {
-        if let Some(v) = a.strip_prefix("--user-data-dir=") {
-            same_path_on(v, profile, windows)
-        } else if let Some(v) = a.strip_prefix("--database=") {
-            same_path_on(v, &crashpad, windows)
-        } else {
-            false
-        }
-    })
+    let switches = switch_args(args, windows);
+    let elsewhere = switches
+        .iter()
+        .filter_map(|a| switch_of(a))
+        .any(|(key, value)| match key.as_str() {
+            "user-data-dir" => !same_path_on(value, profile, windows),
+            "database" => !same_path_on(value, &crashpad, windows),
+            _ => false,
+        });
+    !elsewhere
+        && switches.iter().any(|a| {
+            if let Some(v) = a.strip_prefix("--user-data-dir=") {
+                same_path_on(v, profile, windows)
+            } else if let Some(v) = a.strip_prefix("--database=") {
+                same_path_on(v, &crashpad, windows)
+            } else {
+                false
+            }
+        })
 }
 
 /// The forms of a process's two profile arguments, for the row `checks`'s report (CP-189 G1, the
