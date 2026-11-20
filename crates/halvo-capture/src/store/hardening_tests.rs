@@ -11904,3 +11904,120 @@ mod page_gap_probe {
         );
     }
 }
+
+mod measure {
+    use std::path::Path;
+    use std::time::SystemTime;
+
+    use super::super::db::{random_segment_id, EncryptedStore};
+    use super::super::{KindTotal, SegmentWrite, UtcDay, DEFAULT_RETENTION};
+    use crate::custody::dev_fallback::DevFallbackCustody;
+    use crate::custody::RootId;
+
+    const NANOS_PER_DAY: i64 = 86_400_000_000_000;
+    const KINDS: [&str; 5] = [
+        "screen_frame",
+        "keystroke",
+        "pointer",
+        "foreground_app",
+        "window_title",
+    ];
+
+    fn create(dir: &Path) -> EncryptedStore {
+        EncryptedStore::create(
+            &dir.join("store"),
+            Box::new(DevFallbackCustody::new(
+                RootId::fresh().unwrap(),
+                dir.join("roots"),
+            )),
+            DEFAULT_RETENTION,
+        )
+        .unwrap()
+    }
+
+    fn batch(store: &mut EncryptedStore, first: i64, per_kind: u64, kinds: usize) -> uuid::Uuid {
+        let totals: Vec<KindTotal<'_>> = KINDS[..kinds]
+            .iter()
+            .map(|kind| KindTotal {
+                kind,
+                events: per_kind,
+                bytes: per_kind * 60,
+            })
+            .collect();
+        let id = random_segment_id().unwrap();
+        store
+            .write_batch(SegmentWrite {
+                segment_id: &id,
+                day: UtcDay::of_instant(first),
+                first_capture: first,
+                last_capture: first,
+                kinds: &totals,
+                payload: &[0x61; 256],
+            })
+            .unwrap();
+        id
+    }
+
+    #[test]
+    fn measure_for_the_report_of_store_4() {
+        let Ok(dir) = std::env::var("HALVO_STORE4_MEASURE_DIR") else {
+            println!("measure_for_the_report_of_store_4: HALVO_STORE4_MEASURE_DIR is not set, so nothing is measured");
+            return;
+        };
+        let dir = Path::new(&dir);
+        let now = crate::event::unix_nanos(SystemTime::now());
+        match std::env::var("HALVO_STORE4_MEASURE_FORM").as_deref() {
+            Ok("fill") => {
+                let mut store = create(dir);
+                for i in 0..4_000i64 {
+                    batch(&mut store, now - (i % 13) * NANOS_PER_DAY, 100, 5);
+                }
+                println!("MEASURE fill events=2000000 segments=4000");
+            }
+            Ok("list") => {
+                let store =
+                    EncryptedStore::open(&dir.join("store"), &dir.join("roots"), DEFAULT_RETENTION)
+                        .unwrap();
+                let rows = store.inventory().unwrap();
+                let events: u64 = rows.iter().map(|row| row.events).sum();
+                println!("MEASURE list rows={} events={events}", rows.len());
+            }
+            Ok("idle") => println!("MEASURE idle"),
+            Ok("shredded-bytes") => {
+                let mut store = create(dir);
+                let ids: Vec<uuid::Uuid> = (0..10_000)
+                    .map(|_| batch(&mut store, now, 100, 1))
+                    .collect();
+                let conn = store.db().unwrap().connection();
+                let bytes = |label: &str| {
+                    let total: i64 = conn
+                        .query_row(
+                            "SELECT sum(pgsize) FROM dbstat WHERE name IN ('segment_keys', \
+                             'sqlite_autoindex_segment_keys_1', 'segment_keys_live_by_first_capture', \
+                             'segment_totals')",
+                            [],
+                            |r| r.get(0),
+                        )
+                        .unwrap();
+                    println!("MEASURE {label} bytes_of_the_key_and_totals_tables={total}");
+                    total
+                };
+                store.db().unwrap().checkpoint_truncate().unwrap();
+                let live = bytes("live");
+                for chunk in ids.chunks(64) {
+                    store.destroy_segment_keys(chunk).unwrap();
+                }
+                store.db().unwrap().checkpoint_truncate().unwrap();
+                let shredded = bytes("shredded");
+                println!(
+                    "MEASURE shredded segments=10000 bytes_per_shredded_segment={} bytes_per_live_segment={}",
+                    shredded / 10_000,
+                    live / 10_000
+                );
+            }
+            other => panic!(
+                "HALVO_STORE4_MEASURE_FORM is {other:?}, not fill, list, idle or shredded-bytes"
+            ),
+        }
+    }
+}
