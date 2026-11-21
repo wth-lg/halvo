@@ -464,7 +464,7 @@ impl Harness {
             store: store.clone(),
             clocks: clocks.clone(),
             floor,
-            cap: StorageCap::DEFAULT,
+            cap: Some(ByteBound::of_cap(StorageCap::DEFAULT)),
             shred_chunk: super::maintenance::SHRED_CHUNK,
         });
         Harness {
