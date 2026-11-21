@@ -190,6 +190,43 @@ pub fn hold_set(w: u32, a: u32, seq: u32, day: u32, at: i64) -> String {
     )
 }
 
+/// A row `run_started` of workflow `w` and agent `a` at noon of `TODAY` for run `run_n`, started by the person.
+pub fn run_started(w: u32, a: u32, seq: u32, run_n: u32) -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"run_started","run":"{}","slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":null,"trigger":"person","origin":null,"defer_launch":null,"defer_ticks_failed":null}}"#,
+        wf(w),
+        agent(a),
+        noon(TODAY),
+        run(run_n)
+    )
+}
+
+/// A row `run_ended` of workflow `w` and agent `a` at noon of `TODAY` for run `run_n`, with the cause `completed`
+/// and no defer values.
+pub fn run_ended(w: u32, a: u32, seq: u32, run_n: u32) -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"run_ended","run":"{}","slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"completed","trigger":null,"origin":null,"defer_launch":null,"defer_ticks_failed":null}}"#,
+        wf(w),
+        agent(a),
+        noon(TODAY),
+        run(run_n)
+    )
+}
+
+/// The id of workflow `n`.
+pub fn wid(n: u32) -> WorkflowId {
+    WorkflowId::parse(&wf(n)).expect("a workflow id")
+}
+
+/// The read of the family `coord` that the guard of a delete gets: the keyed read of the host under one workflow.
+pub struct Under<'a>(pub &'a dyn Host, pub WorkflowId);
+
+impl RowRead for Under<'_> {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        self.0.rows_under(kind, &self.1, visit);
+    }
+}
+
 /// A row of workflow 1 and agent 1 at noon of its day.
 pub fn row(seq: u32, day: u32) -> String {
     hold_set(1, 1, seq, day, noon(day))

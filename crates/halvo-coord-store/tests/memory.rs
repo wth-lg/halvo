@@ -220,10 +220,6 @@ fn the_store_reads_the_workflow_it_holds() {
     );
 }
 
-fn wid(n: u32) -> halvo_schema::WorkflowId {
-    halvo_schema::WorkflowId::parse(&wf(n)).unwrap()
-}
-
 #[test]
 fn the_fifth_call_is_yes_for_a_row_more_than_two_days_ahead_under_its_workflow_alone() {
     let (mut store, clock) = store_at(noon(TODAY), 0);

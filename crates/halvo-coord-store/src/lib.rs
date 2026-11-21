@@ -9,6 +9,6 @@ mod handler;
 mod host;
 mod memory;
 
-pub use handler::{coordinator, CoordReply, HISTORY_PAGE, OPS};
+pub use handler::{coordinator, delete_guard, CoordReply, DeleteGuard, HISTORY_PAGE, OPS};
 pub use host::{Clock, CommitRefused, DayFault, HeldRefused, Host};
 pub use memory::MemoryStore;

@@ -1,9 +1,11 @@
 use halvo_schema::coordinator::body::{CoordHistory, CoordLog, History, Stored};
-use halvo_schema::coordinator::record::CoordEvent;
+use halvo_schema::coordinator::record::{CoordEvent, What};
 use halvo_schema::coordinator::Refusal;
-use halvo_schema::{AgentId, ErrorName, RawRequest, Role, TypedRecord, Workflow, WorkflowId};
+use halvo_schema::{
+    AgentId, ErrorName, RawRequest, Role, RowRead, TypedRecord, Workflow, WorkflowId,
+};
 
-use crate::host::{CommitRefused, Host};
+use crate::host::{CommitRefused, HeldRefused, Host};
 
 const KIND: &str = "coord_event";
 
@@ -33,6 +35,60 @@ impl CoordReply {
 
 fn declared(name: &str) -> ErrorName {
     ErrorName::read(name).unwrap_or(ErrorName::Internal)
+}
+
+/// What the guard of a delete answers (W-C25.5; RD-64 1.6 (a)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DeleteGuard {
+    /// The delete may go.
+    Go,
+    /// The delete must wait: the owner removes nothing and answers the decision with `state`.
+    Wait,
+}
+
+/// The owner's guard of the delete of a workflow for the family `coord` (RD-64 1.6 (a); the guard of the workflow
+/// run's planner-13, Addition 21, point 5 (a)), in the form of W-C25.5: the store calls it inside the transaction of
+/// W-C3.10, under an interface decision, with `rows`, the read of the family `coord` over the rows held under the
+/// workflow's key, and with `held`, the fifth call's yes or no for the kind `coord_event` and that workflow. It
+/// answers `Wait` while a `run_started` among the rows that name `workflow`, of any agent, has no `run_ended` of the
+/// same agent and run with a higher `seq`, and `Go` otherwise. It answers `Go` wherever `coordinator` answers `store`
+/// to both bodies of that workflow by its step 6: for a row that the typed reader refuses or whose text names another
+/// workflow, for a yes and for a refusal of `held`. No `run_ended` can be stored in that state, so a wait would shut
+/// the one control that ends it, and the tick that sees the workflow gone stops a run of it that is still live
+/// (I5.7). No host calls it until halvo-derived offers the seam of the guard (the workflow run's U5.1c).
+pub fn delete_guard(
+    workflow: &WorkflowId,
+    rows: &dyn RowRead,
+    held: Result<bool, HeldRefused>,
+) -> DeleteGuard {
+    if held != Ok(false) {
+        return DeleteGuard::Go;
+    }
+    let mut events = Vec::new();
+    let mut unfit = false;
+    rows.for_each(KIND, &mut |row| match CoordEvent::parse(row.as_bytes()) {
+        Ok(e) if &e.workflow == workflow => events.push(e),
+        _ => unfit = true,
+    });
+    if unfit {
+        return DeleteGuard::Go;
+    }
+    let ended = |start: &CoordEvent, run: &_| {
+        events.iter().any(|e| {
+            e.agent == start.agent
+                && e.seq > start.seq
+                && matches!(&e.what, What::RunEnded { run: r, .. } if r == run)
+        })
+    };
+    let live = events.iter().any(|e| match &e.what {
+        What::RunStarted { run, .. } => !ended(e, run),
+        _ => false,
+    });
+    if live {
+        DeleteGuard::Wait
+    } else {
+        DeleteGuard::Go
+    }
 }
 
 /// Answers one request of the owner whose body is a coordinator body of the interface run (contracts.md I7.2,

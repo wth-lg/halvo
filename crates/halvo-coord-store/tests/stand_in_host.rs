@@ -1,8 +1,10 @@
 mod common;
 
 use common::*;
-use halvo_coord_store::{coordinator, CommitRefused, DayFault, HeldRefused, Host};
-use halvo_schema::ErrorName;
+use halvo_coord_store::{
+    coordinator, delete_guard, CommitRefused, DayFault, DeleteGuard, HeldRefused, Host, MemoryStore,
+};
+use halvo_schema::{ErrorName, RowRead};
 
 #[test]
 fn each_refusal_of_the_commit_has_its_error_name() {
@@ -157,6 +159,134 @@ fn the_handler_asks_the_fifth_call_of_coord_event_under_the_askers_workflow() {
             ("coord_event".to_owned(), wf(2))
         ]
     );
+}
+
+struct Given(Vec<String>);
+
+impl RowRead for Given {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        if kind == "coord_event" {
+            for row in &self.0 {
+                visit(row);
+            }
+        }
+    }
+}
+
+fn guard(rows: &[String], held: Result<bool, HeldRefused>) -> DeleteGuard {
+    delete_guard(&wid(1), &Given(rows.to_vec()), held)
+}
+
+#[test]
+fn the_delete_guard_waits_while_a_run_started_has_no_later_run_ended_of_its_run() {
+    for (rows, answer) in [
+        (vec![], DeleteGuard::Go),
+        (vec![row(1, TODAY)], DeleteGuard::Go),
+        (vec![run_started(1, 1, 1, 1)], DeleteGuard::Wait),
+        (
+            vec![run_started(1, 1, 1, 1), run_ended(1, 1, 2, 1)],
+            DeleteGuard::Go,
+        ),
+        (
+            vec![run_ended(1, 1, 2, 1), run_started(1, 1, 1, 1)],
+            DeleteGuard::Go,
+        ),
+        (
+            vec![run_ended(1, 1, 1, 1), run_started(1, 1, 2, 1)],
+            DeleteGuard::Wait,
+        ),
+        (
+            vec![run_started(1, 1, 1, 1), run_ended(1, 1, 2, 2)],
+            DeleteGuard::Wait,
+        ),
+        (
+            vec![run_started(1, 1, 1, 1), run_ended(1, 2, 2, 1)],
+            DeleteGuard::Wait,
+        ),
+        (vec![run_started(1, 2, 1, 1)], DeleteGuard::Wait),
+        (
+            vec![
+                run_started(1, 1, 1, 1),
+                run_ended(1, 1, 2, 1),
+                run_started(1, 1, 3, 2),
+            ],
+            DeleteGuard::Wait,
+        ),
+        (
+            vec![
+                run_started(1, 1, 1, 1),
+                run_ended(1, 1, 2, 1),
+                run_started(1, 1, 3, 2),
+                run_ended(1, 1, 4, 2),
+            ],
+            DeleteGuard::Go,
+        ),
+    ] {
+        assert_eq!(guard(&rows, Ok(false)), answer, "{rows:?}");
+    }
+}
+
+#[test]
+fn the_delete_guard_lets_the_delete_go_where_both_bodies_answer_store() {
+    let live = run_started(1, 1, 1, 1);
+    for held in [
+        Ok(true),
+        Err(HeldRefused::Role),
+        Err(HeldRefused::UnknownKind),
+        Err(HeldRefused::WorkflowRun),
+        Err(HeldRefused::OtherFamily),
+        Err(HeldRefused::NoWorkflowKey),
+        Err(HeldRefused::Fault),
+    ] {
+        assert_eq!(
+            guard(std::slice::from_ref(&live), held),
+            DeleteGuard::Go,
+            "{held:?}"
+        );
+    }
+    let unread = row(2, TODAY).replacen(r#""v":1"#, r#""v":2"#, 1);
+    let theirs = run_ended(2, 1, 2, 1);
+    for other in [unread, theirs] {
+        assert_eq!(
+            guard(&[live.clone(), other.clone()], Ok(false)),
+            DeleteGuard::Go,
+            "{other}"
+        );
+        let mut host = stand_in(vec![(1, live.clone()), (1, other.clone())], None);
+        assert_eq!(
+            coordinator(&mut host, &history(None)),
+            Err(ErrorName::Store),
+            "{other}"
+        );
+    }
+}
+
+#[test]
+fn the_delete_guard_reads_the_keyed_rows_and_the_fifth_call_of_the_store() {
+    let (mut store, clock) = store_at(noon(TODAY), 0);
+    let at_guard = |store: &MemoryStore, n: u32| {
+        delete_guard(
+            &wid(n),
+            &Under(store, wid(n)),
+            Host::held_ahead(store, "coord_event", &wid(n)),
+        )
+    };
+    assert_eq!(at_guard(&store, 1), DeleteGuard::Go);
+    assert_eq!(
+        coordinator(&mut store, &log(&[run_started(1, 1, 1, 1)])),
+        stored(1)
+    );
+    assert_eq!(at_guard(&store, 1), DeleteGuard::Wait);
+    assert_eq!(at_guard(&store, 2), DeleteGuard::Go);
+    clock.set(noon(TODAY - 3));
+    assert_eq!(at_guard(&store, 1), DeleteGuard::Go);
+    clock.set(noon(TODAY));
+    assert_eq!(at_guard(&store, 1), DeleteGuard::Wait);
+    assert_eq!(
+        coordinator(&mut store, &log(&[run_ended(1, 1, 2, 1)])),
+        stored(1)
+    );
+    assert_eq!(at_guard(&store, 1), DeleteGuard::Go);
 }
 
 #[test]
