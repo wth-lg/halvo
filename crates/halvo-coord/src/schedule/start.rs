@@ -45,6 +45,8 @@ pub struct Around {
     pub from_queue: bool,
     /// Whether a `run_ended` of the agent that the owner did not acknowledge is owed (ruling
     /// XB-17): the agent takes no start while it is.
+    /// It also holds while a run of the agent that this life's `Runs::reap` answered `alive` has
+    /// no record of the store, whatever newer run another writer added (RD-151 (b)).
     pub owed: bool,
 }
 

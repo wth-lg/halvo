@@ -80,6 +80,8 @@ pub fn slot_due<C>(facts: &Facts<C>, limits: &Limits) -> Option<u32> {
 /// its `run_ended` event, the pair of `slot_open` (I5.3, ruling RD-67 5.2): the raise of `ready`,
 /// the slot of a skip and the slot of a start by the person read it, and the scheduler reads
 /// `finished`.
+/// A move reads it on the facts with the ends that the row reads, where a record that names a
+/// run `completed` or `nothing_to_do` wins over an `interrupted` row of that run (RD-156 (1)).
 pub fn clean<C>(facts: &Facts<C>) -> bool {
     facts.events.iter().any(|e| {
         matches!(
@@ -94,6 +96,8 @@ pub fn clean<C>(facts: &Facts<C>) -> bool {
 
 /// Whether the agent has a finished run, that is a run of it that ended `completed` by its
 /// `run_ended` event (I5.3); every run of an agent with none is a first run.
+/// A move reads it on the facts with the ends that the row reads, where a record that names a
+/// run `completed` wins over an `interrupted` row of that run (RD-156 (1)).
 pub fn finished<C>(facts: &Facts<C>) -> bool {
     facts.events.iter().any(|e| {
         matches!(
