@@ -345,3 +345,50 @@ fn no_row_written_on_the_runner_output_after_the_library_closed_its_input_reache
         "a row written on the runner's output after the close reached the owner"
     );
 }
+
+#[test]
+fn a_steps_or_session_reply_of_another_agent_is_not_handed_on() {
+    let rig = Rig::new("relay-other-agent");
+    rig.store.other_agent_runner.store(2, Ordering::SeqCst);
+    let steps = r#"{"op":"load_steps","agent":"{agent}","run":"{run}","number":1,"from":1}"#;
+    let session = r#"{"op":"load_session","agent":"{agent}","run":"{run}","origin":"https://pay.test:443","rev":1,"part":1}"#;
+    let script = rig.script(&[
+        "hello",
+        &ask_store(&id(0x40), steps),
+        &ask_store(&id(0x41), session),
+        &ask_store(&id(0x42), steps),
+        &ask_store(&id(0x43), session),
+        "log asked",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    let agent = spec.agent.as_str().to_owned();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("asked", SHORT), "{}", script.log());
+    assert_eq!(sent_by_runner(&script, &rig).len(), 4);
+    let replies = script.replies();
+    assert_eq!(replies.len(), 4, "{}", script.log());
+    for (n, reply) in [0x40u8, 0x41].iter().zip(&replies) {
+        assert_eq!(
+            reply,
+            &format!(
+                r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","error":"internal"}}}}"#,
+                id(*n)
+            )
+        );
+    }
+    assert_eq!(
+        replies[2],
+        format!(
+            r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","ok":{{"agent":"{agent}","steps":[]}}}}}}"#,
+            id(0x42)
+        )
+    );
+    let session_reply = format!(
+        r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","ok":{{"agent":"{agent}","origin":"#,
+        id(0x43)
+    );
+    assert!(replies[3].starts_with(&session_reply), "{}", replies[3]);
+    rig.sup.kill(&run).unwrap();
+}

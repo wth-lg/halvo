@@ -36,10 +36,10 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   of the bindings; for each origin, in byte order, the newest session revision whose parts 1 to `of` are all
 ///   stored, with `of` as its count of parts; the agent's start row of the configuration's workflow, the earliest by
 ///   `at` where more than one is stored, or null where none is.
-/// - `load_steps`: `playbook` where the number is not finished, by `finished`, or no step of it is stored; else at
-///   most 16 stored steps from the one numbered `from`, in order and with no gap, none past the count of steps that
-///   the compile finished.
-/// - `load_session`: `binding` where the part is not stored.
+/// - `load_steps`: `playbook` where the number is not finished, by `finished`, or no step of it is stored; else the
+///   agent of the stored steps of that number, read before the cut by `from`, and at most 16 stored steps from the
+///   one numbered `from`, in order and with no gap, none past the count of steps that the compile finished.
+/// - `load_session`: `binding` where the part is not stored; else the part with the agent of its row.
 /// - `put_playbook`: `playbook` unless the number is the newest stored number or the next one (1 for the first),
 ///   for a first step after a gap in the steps of that number, and for a step whose number and `n` hold another
 ///   stored step; where `check_playbook` refuses the steps of that number that would be held, `playbook` for its
@@ -57,14 +57,15 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   the checkpoint `yes` for a `cleared` row and `no` for any other. A later row has the next seq and the effect's
 ///   class, and its state names the move: `held` a `rebind` with the row's digest and class; `approved` an
 ///   `approve` whose entry is the row's effect, with the row's digest and `used` when any stored row of any
-///   effect holds the row's approval; `rejected` with the cause `ended` an `end`, else a `reject`; `releasing` a
-///   `begin` with the row's digest; `committed` a `commit`; `refused`, `cleared` and `unknown` no move. A row of a
+///   effect holds the row's approval; `rejected` with the cause `ended` an `end`, with the cause `reproposed` an
+///   `end` after a `cleared` row alone, else a `reject`; `releasing` a `begin` with the row's digest; `committed` a
+///   `commit`; `not_made` a `not_made` with the row's cause; `refused`, `cleared` and `unknown` no move. A row of a
 ///   move other than `rebind` keeps the digest and the kept fields of the last row. `effect_step` takes the effect
 ///   as its last row stands, with its count of `held` rows after the first as its count of rebinds, and must give
-///   the row's state. A `releasing` or `committed` row holds the approval of the effect's last `approved` row, or
-///   none where the effect has no `approved` row, else `effect` (CP-132 (a)). A `releasing` row is refused with
-///   `effect` when `decide` for the agent's newest stored configuration and the effect's class, with the checkpoint
-///   of its first row, gives `refuse` (CP-143 (4) (ii)).
+///   the row's state. A `releasing`, `committed` or `not_made` row holds the approval of the effect's last
+///   `approved` row, or none where the effect has no `approved` row, else `effect` (CP-132 (a)). A `releasing` row
+///   is refused with `effect` when `decide` for the agent's newest stored configuration and the effect's class,
+///   with the checkpoint of its first row, gives `refuse` (CP-143 (4) (ii)).
 /// - `checkpoint`: a row equal to the checkpoint's newest row (its run and workbook) in every key but `day` and
 ///   `at` is answered as the first and stores nothing; else `effect` unless the row is a `planned` first row of the
 ///   checkpoint or a `made` row after its `planned` row with the same workflow, agent, folder and copy and an `at`
@@ -79,12 +80,12 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   request's instant and its day. A repeat that stores nothing is answered before the day is read.
 /// - `finish`: where the run's record is stored, `{"stored":1}` for the same record and `effect` for another.
 ///   Else `effect` for a record with the outcome `completed` while an effect of the run is `held`, `cleared`,
-///   `approved` or `releasing`, and for one whose `unknown` is below the count of the run's effects that are
-///   `unknown` after the moves (CP-132 (b)); the keys of the run's list are stored as given, with no relation over
-///   them. Else `playbook` for a record of the mode `compile` with the outcome `completed` whose `playbook` is not
-///   the agent's newest stored playbook number (CP-182 (2)). Else, in one commit, the record; for such a compile the
-///   row `agent_finished` of that number with its count of stored steps and the run's id, unless a row of the
-///   number stands; and the moves of the run's end: for each effect of the run whose last row is
+///   `approved`, `releasing` or `not_made`, and for one whose `unknown` is below the count of the run's effects
+///   that are `unknown` after the moves (CP-132 (b)); the keys of the run's list are stored as given, with no
+///   relation over them. Else `playbook` for a record of the mode `compile` with the outcome `completed` whose
+///   `playbook` is not the agent's newest stored playbook number (CP-182 (2)). Else, in one commit, the record; for
+///   such a compile the row `agent_finished` of that number with its count of stored steps and the run's id, unless
+///   a row of the number stands; and the moves of the run's end: for each effect of the run whose last row is
 ///   `held`, `cleared` or `approved` a row `rejected` with the cause `ended` and no approval, and for each one that
 ///   is `releasing` a row `unknown` that keeps its approval, each with the next seq and the request's day and
 ///   instant; and for each message whose newest reply row of its agent names the run and is `begun`, a reply row
@@ -96,8 +97,8 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 ///   its draft or as `lost` after `drafted`; as `withheld` with its draft and run after a `drafted` row that is
 ///   the first row or follows `lost`; as `drafted` with a draft that no row of the message holds and no effect
 ///   after `lost`; as `committed` or `unknown` with its draft, run and effect after `begun`; as `drafted` after
-///   `begun` with its draft and effect only when that effect's newest row of the row's run is `not_made`, a state
-///   that the schema does not hold before U1.8 (b); nothing follows `committed`, `unknown` or `withheld`. Then
+///   `begun` with its draft and effect only when that effect's newest row of the row's run is `not_made`, which the
+///   runner alone writes; nothing follows `committed`, `unknown` or `withheld`. Then
 ///   `effect` for a `begun` row while another agent's newest row of the message is `begun`, `committed` or
 ///   `unknown`, by the same function that gives the list `blocked` of `load_replies`. It stores the row. A named
 ///   limit: a clock set back more than two days past the day of a run's end record leaves that record out of the
@@ -256,9 +257,9 @@ fn load_steps(host: &dyn Host, now: Now, b: &LoadSteps) -> Result<RunnerReply, E
         .into_iter()
         .filter(|p| p.number == b.number && p.n <= *count)
         .collect();
-    if steps.is_empty() {
+    let Some(agent) = steps.first().map(|p| p.agent.clone()) else {
         return Err(Own::Playbook.into());
-    }
+    };
     steps.sort_by_key(|p| p.n);
     let steps = steps
         .into_iter()
@@ -268,7 +269,7 @@ fn load_steps(host: &dyn Host, now: Now, b: &LoadSteps) -> Result<RunnerReply, E
         .map(|(p, _)| p.step)
         .take(STEPS_PER_REQUEST_MAX)
         .collect();
-    Ok(RunnerReply::Steps(StepsReply { steps }))
+    Ok(RunnerReply::Steps(StepsReply { agent, steps }))
 }
 
 fn load_session(host: &dyn Host, now: Now, b: &LoadSession) -> Result<RunnerReply, ErrorName> {
@@ -280,6 +281,7 @@ fn load_session(host: &dyn Host, now: Now, b: &LoadSession) -> Result<RunnerRepl
         .find(|s| s.origin == b.origin && s.rev == b.rev && s.part == b.part)
         .ok_or(Own::Binding)?;
     Ok(RunnerReply::Session(SessionReply {
+        agent: row.agent,
         origin: row.origin,
         rev: row.rev,
         part: row.part,

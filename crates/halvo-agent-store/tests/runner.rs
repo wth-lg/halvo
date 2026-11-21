@@ -269,7 +269,7 @@ fn load_session_reads_one_stored_part() {
     assert_eq!(
         reply,
         RunnerReply::parse(
-            br#"{"origin":"https://pay.test:443","rev":1,"part":2,"of":2,"data":["QUJD"]}"#
+            br#"{"agent":"40000000000000000000000000000001","origin":"https://pay.test:443","rev":1,"part":2,"of":2,"data":["QUJD"]}"#
         )
         .expect("a session reply")
     );
@@ -1014,4 +1014,30 @@ fn a_repeat_of_a_stored_stopped_row_stores_nothing_and_is_answered_with_its_coun
         Ok(stored(2))
     );
     assert_eq!(rows(&store, "agent_log").len(), 3);
+}
+
+#[test]
+fn the_two_replies_name_the_agent_of_their_rows() {
+    let mut store = store_with("utility_bill_payment");
+    let origin = "https://pay.test:443";
+    assert_eq!(put_steps(&mut store, 1, navs(1, 3)), Ok(stored(3)));
+    put_session(&mut store, origin, 1, 1, 1, vec!["QUJD".into()]).expect("a part");
+    let text = |reply: Result<RunnerReply, ErrorName>| {
+        reply.expect("a reply").to_json().expect("its text")
+    };
+    for from in [1, 4] {
+        let steps = text(runner(
+            &mut store,
+            json!({"op": "load_steps", "agent": agent(1), "run": run(1), "number": 1, "from": from}),
+        ));
+        let named = format!(r#"{{"agent":"{}","steps":["#, agent(1));
+        assert!(steps.starts_with(&named), "from {from}: {steps}");
+    }
+    assert_eq!(
+        text(load_session(&mut store, origin, 1, 1)),
+        format!(
+            r#"{{"agent":"{}","origin":"{origin}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#,
+            agent(1)
+        )
+    );
 }
