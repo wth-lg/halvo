@@ -156,7 +156,7 @@ helper_cases() {
   rejected=$((rejected + right))
   bad=$(sed -n 's/^case [^ /]*\/\([^ ]*\) .* wrong$/\1/p' "$work/helper-cases.txt" | paste -s -d ' ' -)
   [ -z "$bad" ] || wrong="$wrong $bad"
-  if [ "$code" != 0 ] || [ "$right" != 8 ]; then wrong="$wrong helper-cases"; fi
+  if [ "$code" != 0 ] || [ "$right" != 9 ]; then wrong="$wrong helper-cases"; fi
   shown=$(verdict "$work/helper/judged.txt" macos)
   got=green
   [ "$shown" = "FAIL $name (s03-ip:open-or-unread s18-ip:open-or-unread)" ] && got=red
@@ -212,16 +212,22 @@ held = {"127.0.0.1", "::1", "10.0.0.5"}
 route = ["10.0.0.5"]
 reads = []
 refused = {}
+denied = set()
+binds = []
 
 
 class MadeUpSocket:
     def __init__(self, family=socket.AF_INET, kind=socket.SOCK_STREAM, *rest):
         self.family = family
+        self.kind = kind
 
     def setsockopt(self, *rest):
         pass
 
     def bind(self, address):
+        binds.append((self.kind, address[0], address[1]))
+        if (address[0], address[1]) in denied:
+            raise PermissionError(13, "Permission denied")
         if address[1] in refused:
             raise OSError(*refused[address[1]])
         if address[0] not in held:
@@ -322,6 +328,26 @@ def one_refused_bind_is_told_with_the_interfaces():
         del refused[port]
     want = [f"resolver port {port}: [Errno 48] Address already in use", "asked 203.0.113.9"] + [f"interface {line}" for line in MAC_LINES]
     return "told" if lines == want else f"lines-{len(lines)}"
+
+
+def each_refused_bind_is_asked_once():
+    denied.add(("203.0.113.9", 443))
+    del binds[:]
+    machine("true")
+    try:
+        listen("once-steps")
+    finally:
+        denied.discard(("203.0.113.9", 443))
+    asked = {}
+    for call in binds:
+        if call[2] != 0:
+            asked[call] = asked.get(call, 0) + 1
+    twice = [call for call, n in asked.items() if n > 1]
+    if twice:
+        return f"asked-twice-{len(twice)}"
+    if asked.get((socket.SOCK_STREAM, "203.0.113.9", 443)) != 1 or asked.get((socket.SOCK_STREAM, "0.0.0.0", 443)) != 1:
+        return "permission-branch-misread"
+    return "once"
 
 
 def refused_binds_elsewhere_are_told_by_counts():
@@ -435,6 +461,7 @@ case("refused-binds-written-and-told", "told", refused_binds_are_written_and_tol
 case("taken-binds-tell-the-address-alone", "asked-alone", taken_binds_tell_the_address_alone)
 case("one-refused-bind-told-with-the-interfaces", "told", one_refused_bind_is_told_with_the_interfaces)
 case("refused-binds-elsewhere-told-by-counts", "counted", refused_binds_elsewhere_are_told_by_counts)
+case("each-refused-bind-asked-once", "once", each_refused_bind_is_asked_once)
 case("windows-interfaces-read", "read", windows_interfaces_are_read)
 case("unread-interfaces-told", "told", an_unread_list_is_told)
 case("unbound-listener-reads-not-measured", "not-measured", an_unbound_listener_reads_not_measured)
