@@ -1,8 +1,12 @@
 //! The runner's link to the connect adapters of halvo-connect (A11.2): the reads of mail and calendar and the drafts
 //! of replies, through one `Graph` for the origin of the agent's bindings; the rows of answered messages (A7.4
 //! `agent_reply`), read for each page of the mail list by `load_replies` and written by `reply_row`; and the keys
-//! of the run's list for the record of `finish`. A send and a delete are not linked: their steps fail with the
-//! cause `adapter`.
+//! of the run's list for the record of `finish`. The send of a reply is linked in a build with the feature
+//! `loopback` alone, which only the runner's own tests turn on (`send`); in every other build its step fails with
+//! the cause `adapter`, and so does a delete in every build.
+
+#[cfg(feature = "loopback")]
+mod send;
 
 use std::collections::HashMap;
 use std::num::NonZeroU32;
@@ -17,8 +21,8 @@ use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::names::{ApiOp, LogEvent};
 use halvo_schema::executable::text::{SecretText, V1};
 use halvo_schema::executable::{
-    AgentReply, AgentRun, Cause, ExecutableStep, Outcome, ProviderId, ReplyState, RunnerCall,
-    RunnerReply, WebOrigin,
+    AgentReply, AgentRun, Cause, EffectId, ExecutableStep, Outcome, ProviderId, ReplyState,
+    RunnerCall, RunnerReply, WebOrigin,
 };
 use halvo_schema::{RequestId, RunnerRequest};
 
@@ -28,6 +32,11 @@ use crate::run::{cause_of, Failure, Runner, Stop};
 
 /// The one time limit of a request of the adapter, from its start to the end of its answer's body.
 const CALL_LIMIT: Duration = Duration::from_secs(30);
+
+/// The body of each reply: the fallback line without its line end.
+fn body() -> &'static str {
+    FALLBACK.strip_suffix('\n').unwrap_or(FALLBACK)
+}
 
 /// The body of a reply when no model is given (A11.4): the one line of the fallback file, without its line end.
 const FALLBACK: &str = include_str!("../playbooks/reply-fallback.txt");
@@ -58,6 +67,12 @@ pub(crate) struct Lists {
     events: Option<EventCounts>,
     answered: Option<(u32, u32)>,
     held_recipient: Option<u32>,
+    /// The drafts with a send handle that the draft step kept, until the send step takes them.
+    #[cfg(feature = "loopback")]
+    drafts: Option<halvo_connect::Drafts>,
+    /// The id and the sender of each message that the list kept, in its order, as `mail_list` gave them.
+    #[cfg(feature = "loopback")]
+    senders: Vec<(String, String)>,
 }
 
 impl Lists {
@@ -104,7 +119,7 @@ fn route(origin: &WebOrigin) -> Route {
 }
 
 /// The text of the slot `name` of the load's bindings, its pieces joined with no trim.
-fn slot(loaded: &LoadReply, name: &str) -> Option<String> {
+pub(crate) fn slot(loaded: &LoadReply, name: &str) -> Option<String> {
     let bindings = loaded.bindings.as_ref()?;
     let slot = bindings.slots.iter().find(|s| s.name.as_str() == name)?;
     Some(slot.value.joined())
@@ -112,7 +127,8 @@ fn slot(loaded: &LoadReply, name: &str) -> Option<String> {
 
 impl Runner {
     /// Carries out the operation `op` with the adapter's token `secret`. The mail list, the drafts and the calendar
-    /// list are linked; a send and a delete fail with the cause `adapter`.
+    /// list are linked; a send is linked in a build with the feature `loopback` alone, and fails with the cause
+    /// `adapter` in every other build; a delete fails with the cause `adapter`.
     pub(crate) fn connect(
         &mut self,
         step: &ExecutableStep,
@@ -127,7 +143,11 @@ impl Runner {
             ApiOp::MailList => self.mail_list(step, &token, loaded),
             ApiOp::MailDraftReply => self.draft_replies(step, &token, loaded),
             ApiOp::CalendarList => self.calendar_list(step, &token, loaded),
-            ApiOp::MailSend | ApiOp::CalendarDelete => Err(Failure::Step(Cause::Adapter)),
+            #[cfg(feature = "loopback")]
+            ApiOp::MailSend => self.send_replies(step, token, loaded),
+            #[cfg(not(feature = "loopback"))]
+            ApiOp::MailSend => Err(Failure::Step(Cause::Adapter)),
+            ApiOp::CalendarDelete => Err(Failure::Step(Cause::Adapter)),
         }
     }
 
@@ -284,10 +304,20 @@ impl Runner {
             .take()
             .ok_or(Failure::Step(Cause::Adapter))?;
         let graph = self.graph(loaded)?;
-        let body = FALLBACK.strip_suffix('\n').unwrap_or(FALLBACK);
-        match graph.mail_draft_reply_each(token, messages, body, |made| self.rows_of(made)) {
+        #[cfg(feature = "loopback")]
+        {
+            self.lists.senders = messages
+                .iter()
+                .map(|m| (m.id().to_owned(), m.sender().to_owned()))
+                .collect();
+        }
+        match graph.mail_draft_reply_each(token, messages, body(), |made| self.rows_of(made)) {
             Ok(drafted) => {
                 self.lists.held_recipient = Some(drafted.held_recipient());
+                #[cfg(feature = "loopback")]
+                {
+                    self.lists.drafts = Some(drafted.into_drafts());
+                }
                 Ok(())
             }
             Err(DraftStop::Each(stop)) => Err(Failure::Stop(stop)),
@@ -307,11 +337,12 @@ impl Runner {
             Drafting::Unsent(unsent) => {
                 self.new_draft(unsent.message(), unsent.draft())?;
                 if unsent.why().is_held() {
-                    self.reply_row(unsent.message(), ReplyState::Withheld, Some(unsent.draft()))?;
+                    let draft = Some(unsent.draft());
+                    self.reply_row(unsent.message(), ReplyState::Withheld, draft, None)?;
                 }
                 Ok(())
             }
-            Drafting::Lost(message) => self.reply_row(message, ReplyState::Lost, None),
+            Drafting::Lost(message) => self.reply_row(message, ReplyState::Lost, None, None),
         }
     }
 
@@ -325,17 +356,19 @@ impl Runner {
         if reused {
             return Ok(());
         }
-        self.reply_row(message, ReplyState::Drafted, Some(draft))
+        self.reply_row(message, ReplyState::Drafted, Some(draft), None)
     }
 
-    /// Stores one row of the reply to `message` by `reply_row`, numbered after the agent's own newest row of it, and
-    /// sends it as a row of an effect is sent: at most three times, on `store` and `internal` alone, after which the
-    /// run ends `failed` with the cause `step_failed`; any other refusal ends it with its cause.
-    fn reply_row(
+    /// Stores one row of the reply to `message` by `reply_row`, numbered after the agent's own newest row of it, with
+    /// `effect`, the effect of the send of the reply, and sends it as a row of an effect is sent: at most three
+    /// times, on `store` and `internal` alone, after which the run ends `failed` with the cause `step_failed`; any
+    /// other refusal ends it with its cause. It returns once the store has answered the row with a stored count of 1.
+    pub(crate) fn reply_row(
         &mut self,
         message: &str,
         state: ReplyState,
         draft: Option<&str>,
+        effect: Option<&EffectId>,
     ) -> Result<(), Stop> {
         let failed = |cause| Stop::End(Outcome::Failed, Some(cause));
         let seq = self
@@ -359,7 +392,7 @@ impl Runner {
             at,
             message: message_id,
             draft,
-            effect: None,
+            effect: effect.cloned(),
             state,
         };
         let call = RunnerCall::ReplyRow(PutReplyRow {

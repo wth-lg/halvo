@@ -1,0 +1,2 @@
+- Added: In test builds alone, the runner sends an agent's reply to a mail only after the person allows it on its card: it stores the reply's `begun` row and waits for its answer before the send, refuses a send that the policy cleared without asking, and keeps the draft when the send was not made.
+- Changed: A send whose answer the runner reads as not made (the adapter's `not_sent` or `throttled`) lets the next allowed reply of the run through, and an effect of a batch that a later load refuses is ended and counted instead of being proposed again.

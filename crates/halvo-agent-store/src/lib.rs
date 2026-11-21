@@ -20,6 +20,7 @@ mod runner;
 mod workbook;
 
 pub use coordinator::coordinator;
+pub use effect::allowed_not_done;
 pub use host::{Host, Now};
 pub use memory::{CommitRefused, MemoryStore, AGENT_KINDS};
 pub use runner::{newest_playbook, runner};

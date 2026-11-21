@@ -456,6 +456,28 @@ pub fn system_connector(data_dir: &crate::paths::DataDir) -> Result<SystemConnec
     Ok(UnsupportedConnector)
 }
 
+#[cfg(windows)]
+pub type CtlConnector = crate::client_windows::PipeConnector;
+
+#[cfg(not(windows))]
+pub type CtlConnector = SystemConnector;
+
+/// The connector that `ctl` takes to the daemon of `data_dir`: on Windows the named pipe of the
+/// data directory, which [`system_connector`], the app's, does not give until a daemon runs on
+/// Windows; elsewhere the connector of [`system_connector`].
+#[cfg(windows)]
+pub fn ctl_connector(data_dir: &crate::paths::DataDir) -> Result<CtlConnector, ClientError> {
+    crate::client_windows::PipeConnector::for_data_dir(data_dir)
+}
+
+/// The connector that `ctl` takes to the daemon of `data_dir`: on Windows the named pipe of the
+/// data directory, which [`system_connector`], the app's, does not give until a daemon runs on
+/// Windows; elsewhere the connector of [`system_connector`].
+#[cfg(not(windows))]
+pub fn ctl_connector(data_dir: &crate::paths::DataDir) -> Result<CtlConnector, ClientError> {
+    system_connector(data_dir)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

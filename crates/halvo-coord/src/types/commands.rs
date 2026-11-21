@@ -232,6 +232,7 @@ pub const LIST: [Command; 9] = [
             Cause::UnknownAgent,
             Cause::NoService,
             Cause::Busy,
+            Cause::Overlap,
             Cause::Malformed,
         ],
     },

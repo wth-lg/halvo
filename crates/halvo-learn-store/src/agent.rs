@@ -6,10 +6,15 @@ use halvo_schema::{AgentId, ErrorName};
 
 use crate::host::LearnHost;
 
-/// Passes a runner body on to the agent store's handler, with the calls of the family `agent`.
+/// Passes a runner body on to the agent store's handler, with the calls of the family `agent`; a call in which a read
+/// met a fault of the store is refused `store` (`LearnHost::agent_faulted`).
 pub(crate) fn runner(host: &mut dyn LearnHost, body: &[u8]) -> Result<RunnerReply, ErrorName> {
     let now = host.agent_now();
-    halvo_agent_store::runner(host.agent_host(), now, body)
+    let reply = halvo_agent_store::runner(host.agent_host(), now, body);
+    if host.agent_faulted() {
+        return Err(ErrorName::Store);
+    }
+    reply
 }
 
 fn ask(host: &mut dyn LearnHost, call: RunnerCall) -> Result<Option<RunnerReply>, ErrorName> {
@@ -41,12 +46,17 @@ pub(crate) fn load(
 
 /// The agent's newest finished compile number as the agent store's `load` would give it, by the agent store's read
 /// that needs no runner body (CP-135 (5) refuses a runner body of a run with no start row): `Some(None)` for an
-/// agent with no finished compile number, and none where the agent store refuses the agent.
+/// agent with no finished compile number, and none where the agent store refuses the agent; `store` where a read of
+/// the call met a fault of the store.
 pub(crate) fn newest_number(
     host: &mut dyn LearnHost,
     agent: &AgentId,
 ) -> Result<Option<Option<NonZeroU32>>, ErrorName> {
-    match halvo_agent_store::newest_playbook(&*host.agent_host(), agent) {
+    let read = halvo_agent_store::newest_playbook(&*host.agent_host(), agent);
+    if host.agent_faulted() {
+        return Err(ErrorName::Store);
+    }
+    match read {
         Ok(playbook) => Ok(Some(playbook.map(|p| p.number))),
         Err(e @ (ErrorName::Store | ErrorName::Internal)) => Err(e),
         Err(_) => Ok(None),

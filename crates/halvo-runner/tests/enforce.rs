@@ -162,9 +162,9 @@ fn a_workbook_slot_changed_after_the_first_load_edits_the_file_of_the_edits_load
     );
 }
 
-/// CP-135 (3) (ii), (iii), A11.3: the range changed between the `propose` and the `begin`: no `begin` row and no
-/// `replace` for the first effect, which is ended with the cause `ended`; a new effect is proposed from that load,
-/// with its own `prepare`, and goes on when the next load gives the same values.
+/// CP-135 (3) (ii), (iii), A11.3, CP-181: the range changed between the `propose` and the `begin`: no `begin` row
+/// and no `replace` for the first effect, which is ended with the cause `reproposed`; a new effect is proposed from
+/// that load, with its own `prepare`, and goes on when the next load gives the same values.
 #[test]
 fn a_range_changed_between_the_propose_and_the_begin_ends_the_effect_and_proposes_again() {
     let files = FillFiles::new("two-loads-range", 2);
@@ -190,7 +190,11 @@ fn a_range_changed_between_the_propose_and_the_begin_ends_the_effect_and_propose
             EffectState::Committed
         ]
     );
-    assert_eq!(effects[1].cause, Some(Cause::Ended), "the ended row");
+    assert_eq!(
+        effects[1].cause,
+        Some(Cause::Reproposed),
+        "the reproposed row"
+    );
     assert_eq!(effects[0].effect, effects[1].effect);
     assert_ne!(effects[1].effect, effects[2].effect, "a new effect");
     assert_eq!(
@@ -661,8 +665,8 @@ fn sheet_texts(dir: &Path, workbook: &Path, sheet: &str, range: &str) -> Vec<Vec
 }
 
 /// The ruling CP-159 G2: the slot `sheet` names another sheet at the load before the `begin` than at the load
-/// before the `prepare`. No cell of the first sheet is written; the first effect is ended, and a new effect with its
-/// own `prepare` and rows writes the second sheet.
+/// before the `prepare`. No cell of the first sheet is written; the first effect is ended with the cause
+/// `reproposed` (CP-181), and a new effect with its own `prepare` and rows writes the second sheet.
 #[test]
 fn a_sheet_changed_at_the_load_before_the_begin_is_written_by_a_new_effect() {
     let files = FillFiles::new("sheet-changed", 1);
@@ -700,8 +704,8 @@ fn a_sheet_changed_at_the_load_before_the_begin_is_written_by_a_new_effect() {
     );
     assert_eq!(
         effects[1].cause,
-        Some(Cause::Ended),
-        "the first effect's ended row"
+        Some(Cause::Reproposed),
+        "the first effect's reproposed row"
     );
     assert_ne!(effects[1].effect, effects[2].effect, "a new effect");
     assert_eq!(

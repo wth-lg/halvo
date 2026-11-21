@@ -1,11 +1,18 @@
+use std::collections::VecDeque;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use halvo_control::client::{ClientError, Connector, NoTransport};
+use halvo_control::client::{ClientError, Connector, DeleteOutcome, NoTransport};
+use halvo_control::model::{StorageCap, StoreId};
+use halvo_control::onboarding::{Permission, RequestOutcome};
+use halvo_control::proto::{CapSet, DaemonStatus, ErrorCode, ErrorReply, InventoryReply};
+use halvo_schema_core::request::{decode, Decoded, Read};
+use halvo_schema_core::{Decision, WorkflowId};
+use serde_json::{json, Value};
 
-use super::control::{Control, Gated, MAX_CALLS_IN_FLIGHT, REPLY_BYTES_IN_FLIGHT};
-use super::workflows::{proposals, Listed};
+use super::control::{Control, Gated, Made, Places, MAX_CALLS_IN_FLIGHT, REPLY_BYTES_IN_FLIGHT};
+use super::workflows::{decide, proposals, read, Listed, Row, WorkflowsView};
 
 const STEP_TIMEOUT: Duration = Duration::from_secs(20);
 const ABSENT_STEP_WAIT: Duration = Duration::from_millis(300);
@@ -271,4 +278,286 @@ fn the_list_holds_at_most_four_proposed_workflows_in_the_ruled_order() {
     ];
     let ids: Vec<String> = proposals(&six).iter().map(|w| w.id.clone()).collect();
     assert_eq!(ids, [hex(0x55), hex(0x66), hex(0x22), hex(0x44)]);
+}
+
+/// A control whose relay hands out the answers that a test gave it, in order, and keeps the
+/// bytes of each request.
+#[derive(Default)]
+struct Relayed {
+    places: Arc<Places>,
+    answers: Mutex<VecDeque<Result<Vec<u8>, ClientError>>>,
+    requests: Mutex<Vec<Vec<u8>>>,
+}
+
+impl Relayed {
+    fn answering(answers: Vec<Result<Vec<u8>, ClientError>>) -> Self {
+        Relayed {
+            answers: Mutex::new(answers.into()),
+            ..Relayed::default()
+        }
+    }
+
+    fn requests(&self) -> Vec<Vec<u8>> {
+        self.requests.lock().expect("the requests").clone()
+    }
+}
+
+impl Control for Relayed {
+    fn places(&self) -> &Arc<Places> {
+        &self.places
+    }
+
+    fn status(&self, _: Made, _: bool) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    fn inventory(&self, _: Made) -> Result<InventoryReply, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    fn delete_all(&self, _: Made, _: Option<StoreId>) -> Result<DeleteOutcome, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    fn set_storage_cap(&self, _: Made, _: StorageCap) -> Result<CapSet, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    fn request_permission(&self, _: Made, _: Permission) -> Result<RequestOutcome, ClientError> {
+        Err(ClientError::Unsupported)
+    }
+
+    fn relay(&self, _: Made, request: &[u8]) -> Result<Vec<u8>, ClientError> {
+        self.requests
+            .lock()
+            .expect("the requests")
+            .push(request.to_vec());
+        self.answers
+            .lock()
+            .expect("the answers")
+            .pop_front()
+            .unwrap_or(Err(ClientError::Unsupported))
+    }
+}
+
+fn owner_reply(key: &str, value: Value) -> Result<Vec<u8>, ClientError> {
+    let mut reply = json!({"v": 1, "id": hex(0xaa)});
+    reply[key] = value;
+    Ok(serde_json::to_vec(&reply).expect("a reply serializes"))
+}
+
+fn page_item(id: u8, state: &str, category: &str, app: &str, summaries: &[u8]) -> Value {
+    json!({
+        "workflow": {
+            "v": 1,
+            "id": hex(id),
+            "state": state,
+            "category": category,
+            "site": null,
+            "app": app,
+            "trigger": "schedule",
+            "recurrence": {"count": 3, "period": 31, "first": 20705, "last": 20767},
+            "confidence": 87,
+            "agent": null,
+        },
+        "summaries": summaries.iter().copied().map(hex).collect::<Vec<_>>(),
+        "hint": null,
+    })
+}
+
+fn page(items: Vec<Value>, next: Option<u8>) -> Result<Vec<u8>, ClientError> {
+    owner_reply("ok", json!({"workflows": items, "next": next.map(hex)}))
+}
+
+fn daemon_refuses(code: ErrorCode) -> Result<Vec<u8>, ClientError> {
+    Err(ClientError::Daemon(ErrorReply::new(code, "refused")))
+}
+
+/// The reply of a command as the page gets it.
+fn as_the_page_gets_it<T: serde::Serialize, E: serde::Serialize>(reply: Result<T, E>) -> Value {
+    match reply {
+        Ok(value) => serde_json::to_value(value),
+        Err(error) => serde_json::to_value(error),
+    }
+    .expect("a reply serializes")
+}
+
+#[test]
+fn workflows_reads_every_page_and_lists_what_the_owner_holds() {
+    let control = Relayed::answering(vec![
+        page(
+            vec![page_item(
+                0x11,
+                "proposed",
+                "email",
+                "com.example.mail",
+                &[0x50, 0x51],
+            )],
+            Some(0x11),
+        ),
+        page(
+            vec![page_item(
+                0x22,
+                "approved",
+                "shop_order",
+                "com.example.browser",
+                &[0x60],
+            )],
+            None,
+        ),
+    ]);
+    let reply = read(&control);
+    let afters: Vec<Option<WorkflowId>> = control
+        .requests()
+        .iter()
+        .map(|bytes| match decode(bytes) {
+            Ok(Decoded::InterfaceRead(request)) => match request.read() {
+                Read::Workflows { after } => after.clone(),
+                other => panic!("the request reads {other:?}"),
+            },
+            other => panic!("the request is no interface read: {other:?}"),
+        })
+        .collect();
+    let next_of_the_first_page = WorkflowId::parse(&hex(0x11)).expect("a workflow id");
+    assert_eq!(afters, [None, Some(next_of_the_first_page)]);
+    let row = |id, category, count| Row {
+        id: hex(id),
+        category,
+        app: None,
+        site: None,
+        count,
+    };
+    assert_eq!(
+        reply,
+        Ok(WorkflowsView::Running {
+            proposals: vec![row(0x11, "email", 2)],
+            stored: vec![row(0x11, "email", 2), row(0x22, "shop_order", 1)],
+        })
+    );
+}
+
+#[test]
+fn each_answer_without_a_list_gives_its_state() {
+    let cases = [
+        (
+            Err(ClientError::Unreachable {
+                endpoint: "none".to_string(),
+            }),
+            json!({"state": "not_running"}),
+        ),
+        (
+            Err(ClientError::Unsupported),
+            json!({"state": "not_running"}),
+        ),
+        (
+            daemon_refuses(ErrorCode::UnsupportedOp),
+            json!({"state": "not_running"}),
+        ),
+        (
+            daemon_refuses(ErrorCode::UnsupportedVersion),
+            json!({"state": "not_running"}),
+        ),
+        (
+            daemon_refuses(ErrorCode::StoreUnavailable),
+            json!({"state": "store_unavailable"}),
+        ),
+        (
+            daemon_refuses(ErrorCode::Busy),
+            json!({"state": "deleting"}),
+        ),
+        (
+            Ok(b"no reply of the owner".to_vec()),
+            json!({"error": "broken_reply"}),
+        ),
+    ];
+    for (answer, reply) in cases {
+        let case = format!("{answer:?}");
+        let control = Relayed::answering(vec![answer]);
+        assert_eq!(as_the_page_gets_it(read(&control)), reply, "{case}");
+        assert_eq!(control.requests().len(), 1, "{case}");
+    }
+}
+
+#[test]
+fn a_decision_sends_one_request_with_the_workflow_id_alone() {
+    let workflow = hex(0x33);
+    for decision in [Decision::Approve, Decision::Dismiss, Decision::Delete] {
+        let control = Relayed::answering(vec![owner_reply("ok", Value::Null)]);
+        assert_eq!(decide(&control, decision, &workflow), Ok(()), "{decision}");
+        let requests = control.requests();
+        assert_eq!(requests.len(), 1, "{decision}");
+        let request: Value = serde_json::from_slice(&requests[0]).expect("a request is JSON");
+        assert_eq!(request["request"], json!("interface_decision"));
+        assert_eq!(
+            request["body"],
+            json!({"decision": decision.as_str(), "workflow": workflow}),
+        );
+    }
+    let gone = Relayed::answering(vec![owner_reply("error", json!("no_workflow"))]);
+    assert_eq!(decide(&gone, Decision::Approve, &workflow), Ok(()));
+    let held = Relayed::answering(vec![owner_reply("error", json!("state"))]);
+    assert_eq!(
+        as_the_page_gets_it(decide(&held, Decision::Delete, &workflow)),
+        json!({"error": "in_use"}),
+    );
+    for decision in [Decision::Approve, Decision::Dismiss] {
+        let no_longer_proposed = Relayed::answering(vec![owner_reply("error", json!("state"))]);
+        assert_eq!(
+            decide(&no_longer_proposed, decision, &workflow),
+            Ok(()),
+            "{decision}"
+        );
+    }
+    let no_daemon = Err(ClientError::Unreachable {
+        endpoint: "none".to_string(),
+    });
+    for answer in [no_daemon, daemon_refuses(ErrorCode::UnsupportedOp)] {
+        let case = format!("{answer:?}");
+        let control = Relayed::answering(vec![answer]);
+        assert_eq!(
+            as_the_page_gets_it(decide(&control, Decision::Approve, &workflow)),
+            json!({"error": "not_running"}),
+            "{case}"
+        );
+    }
+}
+
+#[test]
+fn a_row_names_no_app_id_and_no_day() {
+    let control = Relayed::answering(vec![page(
+        vec![page_item(
+            0x44,
+            "proposed",
+            "ride_order",
+            "com.apple.Safari",
+            &[0x70],
+        )],
+        None,
+    )]);
+    let reply = as_the_page_gets_it(read(&control));
+    assert!(!reply.to_string().contains("com.apple.Safari"), "{reply}");
+    let rows: Vec<&Value> = ["proposals", "stored"]
+        .iter()
+        .flat_map(|list| reply[*list].as_array().expect("a list of rows"))
+        .collect();
+    assert_eq!(rows.len(), 2, "{reply}");
+    for row in rows {
+        let mut keys: Vec<&str> = row
+            .as_object()
+            .expect("a row is an object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["app", "category", "count", "id", "site"]);
+        assert_eq!(row["app"], Value::Null);
+    }
 }

@@ -1,0 +1,1 @@
+- Added: The test coord_delete_all, which shows that delete-all leaves no coordinator row under the data directory and that a store opened there again holds none.

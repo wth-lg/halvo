@@ -49,6 +49,10 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 Answer::ShutDown(snapshot)
             }
             Command::Inventory => Answer::Inventory(self.store.inventory()),
+            Command::SetBound(bound) => {
+                self.schedule.set_bound(bound);
+                Answer::BoundSet
+            }
             #[cfg(feature = "r2")]
             Command::Mark(edge) => {
                 let at = self.clocks.wall();

@@ -31,7 +31,8 @@ pub enum Reply {
     /// `{"error":"<cause>"}`.
     Error(Cause),
     /// A refused control of a row whose sentence says more than its cause
-    /// (`Refusal::SwitchNotSaved`); a refusal with the sentence of its cause alone is `Error`.
+    /// (`Refusal::SwitchNotSaved`, `Refusal::Overlap`); a refusal with the sentence of its cause
+    /// alone is `Error`.
     Refused(halvo_coord::types::Refusal),
 }
 

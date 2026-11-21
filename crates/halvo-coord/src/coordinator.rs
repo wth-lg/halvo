@@ -2647,11 +2647,7 @@ where
     /// that goes, a switch-off or a stop (I3.5 (c), (f); rulings RD-67 3.2 (f), 4.3, RD-160 (3)).
     /// It keeps its name for the page that reads it.
     pub fn switch_on_overlap(&self, agent: &AgentId) -> Option<crate::ports::Shared> {
-        let st = self.lock();
-        st.refused_on
-            .iter()
-            .find(|(a, _)| a == agent)
-            .map(|(_, s)| s.clone())
+        Self::switch_on_shared(&self.lock(), agent)
     }
 
     /// A start by the person, `run_now` or the `start` of a `ready` item: `state` after the first
@@ -2720,15 +2716,18 @@ where
     /// answer of `control_reply` says both, that the task was stopped and that the switch-off
     /// could not be saved (ruling RD-155 (1); term (5) of RD-161 R1).
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
-        self.control_reply(agent, action)
-            .map_err(crate::types::Refusal::cause)
+        self.control_reply(agent, action).map_err(|r| r.cause())
     }
 
     /// `control`, with its refusal as the reply of `agents_control` writes it: a switch-off whose
     /// `hold_set` the owner refused under class B after it stopped the agent's live run is
     /// `Refusal::SwitchNotSaved`, whose sentence the page shows beside the control, while the
-    /// owner's list does not show the agent's workflow dismissed (ruling RD-168); every other
-    /// refusal is its cause alone.
+    /// owner's list does not show the agent's workflow dismissed (ruling RD-168); a switch-on
+    /// whose state the owner refused with `overlap` is `Refusal::Overlap`, the cause `overlap`
+    /// and not `no_service`, the cause of a lost call, with the sentence of what
+    /// `switch_on_overlap` holds and the names of the rows of the state that the call publishes
+    /// (ruling RD-161 R4, WAY A; I3.5 (f)); every other refusal is its cause alone. A start of
+    /// the person that the owner refuses so keeps its cause.
     pub fn control_reply(
         &self,
         agent: &AgentId,
@@ -2741,6 +2740,9 @@ where
         let kept = Self::still_on(&st, agent);
         let out = self.control_in(&mut st, agent, action);
         let stopped = off && out.is_err() && !kept && Self::still_on(&st, agent);
+        let shared = (matches!(action, Action::SwitchOn) && out.is_err())
+            .then(|| Self::switch_on_shared(&st, agent))
+            .flatten();
         if off && out.is_ok() {
             // Every owed `paused` before a freed body, where a set-up keeps one (ruling RD-160
             // (2)); a switch-off that waits for a read of the clock sends its own with the rest
@@ -2754,13 +2756,33 @@ where
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.deletes_due(&mut st);
         self.publish(&mut st);
-        out.map_err(|cause| {
-            if stopped {
-                crate::types::Refusal::SwitchNotSaved(cause)
-            } else {
-                crate::types::Refusal::Cause(cause)
-            }
+        let overlap = shared.map(|shared| {
+            let rows = st.sync.snapshot().rows;
+            crate::types::Overlapping::of(&shared, |a| {
+                rows.iter().find(|r| &r.agent == a).map(|r| r.name.clone())
+            })
+        });
+        out.map_err(|cause| match overlap {
+            _ if stopped => crate::types::Refusal::SwitchNotSaved(cause),
+            Some(say) => crate::types::Refusal::Overlap(say),
+            None => crate::types::Refusal::Cause(cause),
         })
+    }
+
+    /// What `switch_on_overlap` holds for `agent`, read under a lock already held.
+    fn switch_on_shared(st: &State<Cfg<P>>, agent: &AgentId) -> Option<crate::ports::Shared> {
+        st.refused_on
+            .iter()
+            .find(|(a, _)| a == agent)
+            .map(|(_, s)| s.clone())
+    }
+
+    /// The name of the row of `agent` among `listed`, the agents of the rows with their names.
+    fn row_name(listed: &[(&AgentId, &str)], agent: &AgentId) -> Option<String> {
+        listed
+            .iter()
+            .find(|(a, _)| *a == agent)
+            .map(|(_, name)| (*name).to_owned())
     }
 
     /// Whether the board marks the agent kept on after a switch-off that could not be saved
@@ -3499,6 +3521,11 @@ where
                 .flatten();
             return (Vec::new(), Vec::new(), note);
         };
+        let listed: Vec<(&AgentId, &str)> = shown
+            .iter()
+            .map(|f| &f.agent)
+            .zip(names.iter().map(String::as_str))
+            .collect();
         let mut placed: Vec<(Placed, Option<Item>)> = Vec::new();
         for (facts, name) in shown.iter().zip(&names) {
             if still.iter().any(|f| f.agent == facts.agent) {
@@ -3596,15 +3623,16 @@ where
                 }
             }
             // While the raise of its setup is owed the row has no card, so its line says that the
-            // questions could not be shown yet (U3.12 (B); RD-155 (2), way B).
-            if owed && !st.deleting.iter().any(|d| d.agent == facts.agent) {
+            // questions could not be shown yet (U3.12 (B); RD-155 (2), way B), unless the row is
+            // the quit row, whose line says to check outside Halvo first (r4 U3.13).
+            if owed && !quit_line && !st.deleting.iter().any(|d| d.agent == facts.agent) {
                 if let Ok(text) = words::text("line.needs_you.setup_owed", &[]) {
                     row.line = text;
                 }
             }
             let item = match (&open, line.status()) {
                 (Some(o), Status::NeedsYou) if !quit_line => {
-                    self.item_of(st, facts, held, o.kind, &o.item, name)
+                    self.item_of(st, facts, held, (o.kind, &o.item), name, &listed)
                 }
                 _ => None,
             };
@@ -3676,14 +3704,17 @@ where
             && (!new_slot || !schedule::holds(facts).is_empty())
     }
 
+    /// The open item `item` of the kind `kind` of the agent of `facts`, whose row has the name
+    /// `name`, as the page gets it; `listed` holds the name of every row, which the sentence of a
+    /// set-up refused with `overlap` reads for the other agent (I3.5 (c)).
     fn item_of(
         &self,
         st: &State<Cfg<P>>,
         facts: &Facts<Cfg<P>>,
         held: Option<&Held>,
-        kind: ItemKind,
-        item: &ItemId,
+        (kind, item): (ItemKind, &ItemId),
         name: &str,
+        listed: &[(&AgentId, &str)],
     ) -> Option<Item> {
         let agent = &facts.agent;
         let plain = |p: Plain| compose_plain(item, agent, p, name).ok();
@@ -3704,11 +3735,10 @@ where
             ItemKind::Stuck => plain(Plain::Stuck),
             ItemKind::Ready => plain(Plain::Ready),
             ItemKind::Show => plain(Plain::Show),
-            ItemKind::Setup => st
-                .setups
-                .iter()
-                .find(|s| s.item() == item)
-                .and_then(|s| s.page_item(name, &self.limits).ok()),
+            ItemKind::Setup => st.setups.iter().find(|s| s.item() == item).and_then(|s| {
+                s.page_item(name, |a| Self::row_name(listed, a), &self.limits)
+                    .ok()
+            }),
             ItemKind::Check => {
                 let kept = st
                     .checks

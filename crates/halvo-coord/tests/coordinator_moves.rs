@@ -14980,3 +14980,51 @@ fn u312_b_while_a_setup_raise_is_owed_the_row_says_so_in_a_line_of_its_own() {
         "with its card open"
     );
 }
+
+/// r4 U3.13, the third sentence (the coordinator's word on the reread of r4 U3.12): where a Quit
+/// named an agent's newest run as not stopped with no recorded end, the row keeps the quit line
+/// also while the raise of that agent's set-up is owed; the line of the owed raise stands under
+/// the guard `!quit_line`, as the two neighbouring overrides of the row do.
+#[test]
+fn u313_a_row_whose_setup_raise_is_owed_keeps_the_quit_line_of_a_run_that_quit_did_not_stop() {
+    let both = owner(&[MANUAL], Limits::PRODUCT);
+    if let Workflow::Full(f) = &mut both.ports.workflows.borrow_mut()[0] {
+        f.category = Category::Email;
+    }
+    {
+        let mut agents = both.ports.agents.borrow_mut();
+        agents[0].config = halvo_coord::mem::Config::parse(&format!(
+            "{{\"v\":1,\"workflow\":\"{}\",\"agent\":\"{}\",\"rev\":1,\"category\":\"email\",\"tier\":\"on_device\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"no\"}},\"limits\":{{\"steps\":20,\"wall_s\":120,\"model_tokens\":0}},\"budget\":null,\"permissions\":[],\"runtime\":\"graph_mail\",\"playbook\":1}}",
+            support::flow(0),
+            agent(0)
+        ))
+        .unwrap();
+        agents[0].slots = ["account_address", "reply_senders"]
+            .iter()
+            .map(|s| Name::parse(s).unwrap())
+            .collect();
+    }
+    let c = Coordinator::new(both, Limits::PRODUCT);
+    c.tick();
+    assert_eq!(c.control(&agent(0), Action::RunNow), Ok(()));
+    let run = started(&c).pop().unwrap();
+    assert_eq!(c.on_run(&run, RunEvent::Hello), Ok(()));
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    c.quit_write();
+    let life = next_life(&c, move |o| {
+        o.ports
+            .leave_marks(&[(run, halvo_coord::ports::Reaped::Gone)]);
+        for a in o.ports.agents.borrow_mut().iter_mut() {
+            a.slots.retain(|s| s.as_str() != "reply_senders");
+        }
+        o.ports
+            .refuse_record(u24s_r4_setup_raise, PortError::NoService);
+    });
+    assert_eq!(
+        u24s_r4_status(&life, &agent(0)),
+        (Status::Problem, text("line.problem.quit")),
+        "the row says to check outside Halvo, not that the questions could not be shown yet"
+    );
+}

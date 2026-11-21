@@ -1548,6 +1548,7 @@ dependencies = [
  "halvo-control",
  "halvo-coord",
  "halvo-coord-app",
+ "halvo-schema-core",
  "halvo-test-dir",
  "objc2",
  "objc2-foundation",
@@ -1768,13 +1769,18 @@ dependencies = [
 name = "halvo-learn-gate"
 version = "0.0.0"
 dependencies = [
+ "getrandom 0.3.4",
+ "halvo-agent-client",
  "halvo-agent-store",
+ "halvo-control",
  "halvo-derived",
  "halvo-learn",
  "halvo-learn-store",
  "halvo-policy",
  "halvo-schema",
+ "halvo-seam",
  "halvo-test-dir",
+ "rustix",
  "serde_json",
 ]
 
@@ -1802,6 +1808,7 @@ dependencies = [
  "halvo-control",
  "halvo-derived",
  "halvo-identify",
+ "halvo-learn-store",
  "halvo-schema",
  "halvo-schema-core",
  "halvo-seam",

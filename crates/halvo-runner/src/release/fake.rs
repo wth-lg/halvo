@@ -2,6 +2,7 @@
 //! counts what it lets leave; no fixture runs. Beside them, the tests of the day that each row of a run carries,
 //! through the seam of the wall clock, for the confirm path and for a whole fill run in this thread.
 
+use std::cell::Cell;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -37,6 +38,10 @@ struct Fake {
     fixed_reads: Vec<Bound>,
     no_reply: bool,
     not_made: Option<NotMade>,
+    /// A bound object of another class that the request reports, class and values, once the facts of its first
+    /// `propose` have been read: a maker whose class changes, for the one test of a batch's `refuse`.
+    turns_to: Option<Bound>,
+    proposed: Cell<bool>,
 }
 
 struct Answers;
@@ -68,6 +73,9 @@ impl Left for Unmade {
 
 impl Paused for Fake {
     fn class(&self) -> ActionClass {
+        if let Some(turned) = self.turns_to.as_ref().filter(|_| self.proposed.get()) {
+            return turned.class();
+        }
         if let Some(fixed) = self.fixed.as_ref().or(self.fixed_reads.first()) {
             return fixed.class();
         }
@@ -79,6 +87,9 @@ impl Paused for Fake {
     }
 
     fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause> {
+        if let Some(turned) = self.turns_to.as_ref().filter(|_| self.proposed.get()) {
+            return Ok(turned.clone());
+        }
         if let Some(fixed) = &self.fixed {
             return Ok(fixed.clone());
         }
@@ -119,6 +130,7 @@ impl Paused for Fake {
     }
 
     fn facts(&self) -> MakerFacts {
+        self.proposed.set(true);
         if self.submit || self.fixed.is_some() || !self.fixed_reads.is_empty() {
             return MakerFacts {
                 request_origin: Some(form_origin()),
@@ -650,8 +662,8 @@ fn a_decision_with_another_digest_is_a_frame_refusal() {
 }
 
 /// CP-143 (4) (iv), the review's case confirm-1: a later load that gives `confirm` for a `cleared` effect asks more
-/// than the load under which it was cleared; the effect is ended and proposed again as `held`, and its request
-/// leaves only after the person's answer.
+/// than the load under which it was cleared; the effect is ended with the cause `reproposed` and proposed again as
+/// `held` (CP-181), and its request leaves only after the person's answer.
 #[test]
 fn a_later_load_that_asks_a_confirmation_for_a_cleared_effect_is_answered_before_anything_leaves() {
     let plan = Plan {
@@ -671,7 +683,7 @@ fn a_later_load_that_asks_a_confirmation_for_a_cleared_effect_is_answered_before
             EffectState::Committed
         ]
     );
-    assert_eq!(record.effects()[1].cause, Some(Cause::Ended));
+    assert_eq!(record.effects()[1].cause, Some(Cause::Reproposed));
     assert_eq!(record.confirms().len(), 1);
     let confirm = record
         .frames
@@ -718,6 +730,78 @@ fn the_times_that_one_step_proposes_again_are_at_most_two() {
     assert_eq!(
         stopped(&record),
         Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
+}
+
+/// The coordinator's ruling of 2026-11-21T22:03:07Z (log line 12316 (1)): an effect of a batch of case (iv) for which
+/// the later load gives `refuse` is ended as `let_through` ends one, with the cause `ended` and no new proposal, so
+/// that the count of what was allowed and not done holds it, and the run ends `refused`. Through the real table no
+/// input reaches that arm: `decide_row` gives `confirm` for one class and `refuse` for another in one load only for
+/// `local_edit`, which the runner's `Checkpoint::No` refuses at its first `propose`, so no batch holds it. The second
+/// request here therefore reports `delete` until its first `propose` and `local_edit` after it; the turned arm keeps
+/// the count true for a table that later gives such a pair.
+#[test]
+fn a_batch_effect_that_a_later_load_refuses_is_ended_and_not_proposed_again() {
+    let released = Arc::new(AtomicU32::new(0));
+    let file = |name, value: &str| BoundField {
+        name,
+        from: Source::Slot,
+        origin: None,
+        value: OwnValue::new(value),
+    };
+    let edit = Bound::new(
+        ActionClass::LocalEdit,
+        vec![
+            file(FieldName::File, "/f.xlsx"),
+            file(FieldName::Range, "B2:D6"),
+        ],
+    )
+    .expect("a bound object");
+    let first = Fake {
+        reads: vec![delete("a", Source::Extract)],
+        released: Arc::clone(&released),
+        ..Fake::default()
+    };
+    let second = Fake {
+        reads: vec![delete("b", Source::Extract)],
+        released: Arc::clone(&released),
+        turns_to: Some(edit),
+        ..Fake::default()
+    };
+    let plan = Plan {
+        runs_at: Some(|load| load == 1),
+        ..Plan::plain()
+    };
+    let record = run_many_path(
+        Category::CalendarCleanup,
+        (Vec::new(), Vec::new()),
+        vec![Box::new(first), Box::new(second)],
+        plan,
+    );
+    assert_eq!(released.load(Ordering::SeqCst), 0, "nothing left");
+    let effects = record.effects();
+    let second = effects[1].effect.clone();
+    assert_eq!(
+        effects
+            .iter()
+            .filter(|e| e.effect == second)
+            .map(|e| (e.state, e.cause))
+            .collect::<Vec<_>>(),
+        [
+            (EffectState::Cleared, None),
+            (EffectState::Rejected, Some(Cause::Ended))
+        ],
+        "the refused effect of the batch is ended"
+    );
+    assert_eq!(
+        effects.last().map(|e| (&e.effect, e.state, e.cause)),
+        Some((&second, EffectState::Rejected, Some(Cause::Ended))),
+        "and no row follows it: no new proposal"
+    );
+    assert_eq!(record.done(), Some(Outcome::Refused));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Checkpoint)))
     );
 }
 
@@ -796,11 +880,6 @@ fn run_many(reads: Vec<Vec<Bound>>, spend_ms: u64, plan: Plan) -> (Record, u32) 
     (record, released.load(Ordering::SeqCst))
 }
 
-fn is_ended_row(frame: &FromRunner) -> bool {
-    matches!(frame, FromRunner::Store(s)
-        if matches!(s.request.body(), RunnerCall::Effect(b) if b.record.state == EffectState::Rejected))
-}
-
 /// Every effect of the record is ended with the cause `ended` or still as its first row stood, and none is `held`.
 fn ended_or_as_it_stood(record: &Record) {
     let effects = record.effects();
@@ -822,8 +901,10 @@ fn ended_or_as_it_stood(record: &Record) {
     }
 }
 
-/// A6.2, CP-157 E3: a `cancel` that the link holds before the `propose` of a batch that case (iv) proposes again
-/// is read before it: no `held` row and no confirmation; the run ends `declined`.
+/// A6.2, CP-157 E3, CP-181: a `cancel` that the link holds at the `reproposed` row of the first effect of a batch
+/// that case (iv) proposes again is read before the `propose` of the next: that effect is ended with `ended` and
+/// proposed nowhere, and no confirmation request follows; the first effect's new proposal stands `held` for the
+/// handler of the run's end, and the run ends `declined`.
 #[test]
 fn a_cancel_held_before_the_batch_propose_is_read_before_it() {
     let reads = vec![
@@ -832,35 +913,50 @@ fn a_cancel_held_before_the_batch_propose_is_read_before_it() {
     ];
     let plan = Plan {
         runs_at: Some(|load| load == 1),
-        cancel_before: Some(Box::new(is_ended_row)),
+        cancel_before: Some(Box::new(is_rejected_row)),
         ..Plan::plain()
     };
     let (record, released) = run_many(reads, 0, plan);
     assert_eq!(released, 0);
     assert!(record.confirms().is_empty(), "no confirmation request");
-    ended_or_as_it_stood(&record);
+    assert_eq!(
+        last_rows(&record),
+        [
+            (EffectState::Rejected, Some(Cause::Reproposed)),
+            (EffectState::Rejected, Some(Cause::Ended)),
+            (EffectState::Held, None)
+        ],
+        "the first effect proposed again, the second ended before its propose"
+    );
     assert_eq!(record.done(), Some(Outcome::Declined));
 }
 
-/// A6.2, CP-157 E3: a `cancel` that the link holds before the `propose` of a new effect for a `cleared` effect whose
-/// values changed is read before it: no second `cleared` row; the run ends `declined`.
+/// A6.2, CP-157 E3, CP-181: the runner reads a held `cancel` before it ends a `cleared` effect whose values changed
+/// with the cause `reproposed`, and nothing but the store's answer stands between that row and the new `propose`.
+/// So a `cancel` that the link holds at the `reproposed` row is read at the next check, after the new `propose` and
+/// its load: the new effect stands `cleared` for the handler of the run's end, nothing leaves, and the run ends
+/// `declined`.
 #[test]
-fn a_cancel_held_before_the_renewed_propose_is_read_before_it() {
+fn a_cancel_held_at_the_reproposed_row_is_read_after_the_new_propose() {
     let reads = vec![vec![
         delete("a", Source::Extract),
         delete("b", Source::Extract),
     ]];
     let plan = Plan {
         runs_at: Some(|_| true),
-        cancel_before: Some(Box::new(is_ended_row)),
+        cancel_before: Some(Box::new(is_rejected_row)),
         ..Plan::plain()
     };
     let (record, released) = run_many(reads, 0, plan);
     assert_eq!(released, 0);
     assert_eq!(
-        record.states(),
-        [EffectState::Cleared, EffectState::Rejected],
-        "no propose after the cancel"
+        rows_with_causes(&record),
+        [
+            (EffectState::Cleared, None),
+            (EffectState::Rejected, Some(Cause::Reproposed)),
+            (EffectState::Cleared, None)
+        ],
+        "the new propose follows the reproposed row"
     );
     assert_eq!(record.done(), Some(Outcome::Declined));
 }
@@ -935,7 +1031,8 @@ fn one_change_and_a_batch_of_three_are_two_times_and_the_run_goes_on() {
 
 /// CP-157 E4 (b), adversary 1's case adv_c1_three_cleared_then_confirm widened: two changes of a `cleared`
 /// effect's value and then a load that gives `confirm` would be a third time; every open effect of the step is
-/// ended with `ended`, and the run ends `failed` with `changed`.
+/// ended with `ended`, and the run ends `failed` with `changed`. The two effects that the runner proposed again
+/// end with `reproposed` (CP-181).
 #[test]
 fn a_third_time_ends_every_open_effect_and_the_run_fails_changed() {
     let reads = vec![
@@ -956,19 +1053,14 @@ fn a_third_time_ends_every_open_effect_and_the_run_fails_changed() {
     assert!(record.confirms().is_empty());
     let effects = record.effects();
     let ids: std::collections::BTreeSet<_> = effects.iter().map(|e| e.effect.clone()).collect();
-    for id in &ids {
-        let last = effects
-            .iter()
-            .rev()
-            .find(|e| &e.effect == id)
-            .expect("a row");
-        assert_eq!(
-            (last.state, last.cause),
-            (EffectState::Rejected, Some(Cause::Ended)),
-            "every effect ended: {:?}",
-            record.states()
-        );
-    }
+    let ended = (EffectState::Rejected, Some(Cause::Ended));
+    let reproposed = (EffectState::Rejected, Some(Cause::Reproposed));
+    assert_eq!(
+        last_rows(&record),
+        [reproposed, ended, ended, reproposed, ended],
+        "the first effect and its first new one proposed again, every open effect ended: {:?}",
+        record.states()
+    );
     assert_eq!(ids.len(), 5, "three effects and two new ones");
     assert_eq!(record.done(), Some(Outcome::Failed));
     assert_eq!(
@@ -1564,11 +1656,11 @@ fn a_reject_on_the_card_of_a_batch_ends_that_effect_alone_and_the_effect_behind_
     assert_eq!(
         last_rows(&record),
         [
-            (EffectState::Rejected, Some(Cause::Ended)),
+            (EffectState::Rejected, Some(Cause::Reproposed)),
             (EffectState::Committed, None),
             (EffectState::Rejected, None)
         ],
-        "A ended for the batch, B committed, A's new effect rejected"
+        "A ended for the batch with reproposed, B committed, A's new effect rejected"
     );
     let confirms = record.confirms();
     assert_eq!(confirms.len(), 2, "the first card and the batch's");
@@ -1682,8 +1774,9 @@ fn after_a_reject_a_later_load_that_refuses_ends_the_run_refused() {
 }
 
 /// CP-174 Part 1, F1 (e): a `cleared` effect whose value changed is ended by the runner, which leaves a `rejected`
-/// row with the cause `ended`, proposed again as `cleared` and `committed`. No `reject_once` came, so the run does
-/// not end `declined`: the flag of a reject is not read from the state `rejected`.
+/// row with the cause `reproposed` (CP-181), proposed again as `cleared` and `committed`. No `reject_once` came, so
+/// the run does not end `declined`: the row is no refusal, and the flag of a reject is not read from the state
+/// `rejected`.
 #[test]
 fn an_effect_that_the_runner_ended_and_proposed_again_does_not_end_the_run_declined() {
     let plan = Plan {
@@ -1706,7 +1799,7 @@ fn an_effect_that_the_runner_ended_and_proposed_again_does_not_end_the_run_decli
     assert_eq!(
         last_rows(&record),
         [
-            (EffectState::Rejected, Some(Cause::Ended)),
+            (EffectState::Rejected, Some(Cause::Reproposed)),
             (EffectState::Committed, None)
         ]
     );

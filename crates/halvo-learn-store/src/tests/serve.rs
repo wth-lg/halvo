@@ -1,8 +1,8 @@
-use halvo_schema::executable::RunnerReply;
+use halvo_schema::executable::{RunId, RunnerReply};
 use serde_json::{json, Value};
 
 use super::coordinator::edit_row;
-use super::host::{active_world, agent, compiled, locator, run, with_locators, World, DAY};
+use super::host::{active_world, agent, compiled, locator, run, wf, with_locators, World, DAY};
 use crate::LearnHost;
 
 fn loc(name: &str) -> Value {
@@ -161,4 +161,54 @@ fn load_steps_of_a_run_that_the_handlers_did_not_see_load_lays_no_edit() {
     let reply = halvo_agent_store::runner(&mut w.host.agent, now, body.to_string().as_bytes());
     assert!(reply.is_ok());
     assert_eq!(w.load_steps(2, 1, 1), compiled());
+}
+
+/// A `learn_run` row of workflow 1 that its parser refuses (rev 3 in the state `started`), of the day 92 days before
+/// `DAY`, so that it leaves by its 93-day bound one day after `DAY`.
+fn refused_run_row() -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","run":"9f8e7d6c5b4a39281706f5e4d3c2b1a0","rev":3,"day":{},"mode":"replay","state":"started","cause":null,"base":null,"assisted":0,"kept":0,"failed_step":null}}"#,
+        wf(1),
+        agent(1),
+        DAY - 92
+    )
+}
+
+/// R4 (L4.2, LM-90's form): a run whose facts go at a refused `learn_run` row of its workflow keeps its start
+/// remembered with no row, so after that row leaves by its 93-day bound a new `load` of the run makes no facts and
+/// its steps carry no learned target.
+#[test]
+fn a_dropped_run_is_served_no_learned_target_after_its_refused_row_leaves() {
+    let mut w = active_world();
+    w.learn(2, 2, "button Pay now", vec![loc("A"), pay()]);
+    w.start(3, "replay");
+    w.load(3);
+    assert_eq!(w.load_steps(3, 1, 1)[1], laid(vec![loc("A")]));
+    w.host.put_raw("learn_run", &refused_run_row());
+    assert_eq!(w.load_steps(3, 1, 1), compiled());
+    w.host.day = DAY + 1;
+    w.load(3);
+    assert_eq!(w.load_steps(3, 1, 1), compiled());
+    let id = RunId::parse(&run(3)).expect("a run id");
+    assert!(!w.handlers.facts.contains_key(&id));
+    assert!(w.handlers.starts.get(&id).is_some_and(|start| !start.row));
+}
+
+/// R4 at the door of `load` (the round of pr-review-25 F1 and static-analyzer-25): a run whose first `load` meets a
+/// refused `learn_run` row of its workflow makes no facts and keeps its start remembered with no row, so after that
+/// row leaves by its bound its next `load` makes no facts and its steps carry no learned target.
+#[test]
+fn a_run_lost_at_its_load_is_served_no_learned_target_after_its_refused_row_leaves() {
+    let mut w = active_world();
+    w.learn(2, 2, "button Pay now", vec![loc("A"), pay()]);
+    w.start(3, "replay");
+    w.host.put_raw("learn_run", &refused_run_row());
+    w.load(3);
+    assert_eq!(w.load_steps(3, 1, 1), compiled());
+    w.host.day = DAY + 1;
+    w.load(3);
+    assert_eq!(w.load_steps(3, 1, 1), compiled());
+    let id = RunId::parse(&run(3)).expect("a run id");
+    assert!(!w.handlers.facts.contains_key(&id));
+    assert!(w.handlers.starts.get(&id).is_some_and(|start| !start.row));
 }

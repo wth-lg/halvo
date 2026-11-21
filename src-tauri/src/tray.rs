@@ -72,11 +72,34 @@ pub fn without_window(labels: TrayLabels, restart_cures: bool) -> TrayLabels {
     }
 }
 
+/// The app's one quit, which main manages on a system where the app starts its daemon; without
+/// it the tray's Quit exits at once.
+pub type QuitWith<R> = fn(&AppHandle<R>);
+
+/// The sentence that a quit which did not exit puts in the tray's status line and tooltip
+/// until the next quit.
+#[derive(Default)]
+pub struct QuitNotice(pub std::sync::Mutex<Option<&'static str>>);
+
 pub fn shown<R: Runtime>(app: &AppHandle<R>, view: &StatusView) -> TrayLabels {
-    if let Some(missing) = app.try_state::<crate::app::WindowMissing>() {
+    let labels = if let Some(missing) = app.try_state::<crate::app::WindowMissing>() {
         without_window(labels(view), missing.restart_cures)
     } else {
         labels(view)
+    };
+    let notice = app.try_state::<QuitNotice>().and_then(|notice| {
+        *notice
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    });
+    match notice {
+        Some(sentence) => TrayLabels {
+            status_text: sentence,
+            tooltip: sentence,
+            ..labels
+        },
+        None => labels,
     }
 }
 
@@ -356,7 +379,7 @@ fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
             show_main_window(app);
         }
         OPEN_ID => show_main_window(app),
-        QUIT_ID => quit(app, |app| app.exit(crate::launch::Exit::Quit.code())),
+        QUIT_ID => quit_after_the_hook(app),
         _ => {}
     }
 }
@@ -378,6 +401,24 @@ pub fn quit<R: Runtime>(app: &AppHandle<R>, exit: impl FnOnce(&AppHandle<R>) + S
         }
         exit(&handle);
     });
+}
+
+/// The tray's Quit and the app menu's Quit. The first runs `quit`, which calls the Core's quit
+/// hook and then the app's own quit; a later one, once that hook has run, runs the app's own
+/// quit alone, so that a quit that stayed can be tried again and the Core is not called again.
+pub fn quit_after_the_hook<R: Runtime>(app: &AppHandle<R>) {
+    if crate::app::quitting(app) {
+        quit_of_the_app(app);
+    } else {
+        quit(app, quit_of_the_app);
+    }
+}
+
+fn quit_of_the_app<R: Runtime>(app: &AppHandle<R>) {
+    match app.try_state::<QuitWith<R>>() {
+        Some(quit) => (*quit)(app),
+        None => app.exit(crate::launch::Exit::Quit.code()),
+    }
 }
 
 pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {

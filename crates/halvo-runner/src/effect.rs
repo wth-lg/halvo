@@ -40,10 +40,10 @@ pub(crate) struct Tracked {
 impl Tracked {
     /// The id of the effect.
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "loopback")),
         expect(
             dead_code,
-            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+            reason = "the confirm path has no request maker in a build without the feature loopback until the adapters and the browser are linked (CP-142)"
         )
     )]
     pub(crate) fn id(&self) -> &EffectId {
@@ -58,10 +58,10 @@ impl Tracked {
     /// The `new_origin` of the confirmation whose `allow_once` approved the effect last; none before an approval
     /// and after a `rebind`.
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "loopback")),
         expect(
             dead_code,
-            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+            reason = "the confirm path has no request maker in a build without the feature loopback until the adapters and the browser are linked (CP-142)"
         )
     )]
     pub(crate) fn allowed_origin(&self) -> Option<&WebOrigin> {
@@ -70,10 +70,10 @@ impl Tracked {
 
     /// The count of the effect's `rebind` rows.
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "loopback")),
         expect(
             dead_code,
-            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+            reason = "the confirm path has no request maker in a build without the feature loopback until the adapters and the browser are linked (CP-142)"
         )
     )]
     pub(crate) fn rebinds(&self) -> u32 {
@@ -98,26 +98,58 @@ fn kept_of(bound: &Bound) -> Vec<KeptField> {
         .collect()
 }
 
+/// The effect that `bound` makes with the `Decided` that `decide` gave for it, before its first row is stored: the
+/// runner's own part of a `propose`.
+fn proposal(decided: Decided, bound: &Bound) -> Result<Tracked, Stop> {
+    let class = decided.class();
+    let digest = digest(bound).map_err(|_| failed(Cause::StepFailed))?;
+    let state =
+        effect_step(None, EffectMove::Propose(decided)).map_err(|cause| failed(cause.cause()))?;
+    Ok(Tracked {
+        id: EffectId::from_random(random16()),
+        class,
+        digest,
+        kept: kept_of(bound),
+        fields: bound.fields().len() as u32,
+        seq: 0,
+        rebinds: 0,
+        approval: None,
+        allowed_origin: None,
+        state,
+    })
+}
+
 impl Runner {
     /// Makes an effect of `bound` with the `Decided` that `decide` gave for it, and stores its first row: the
     /// index of the effect, whose state is `refused`, `cleared` or `held`.
     pub(crate) fn propose(&mut self, decided: Decided, bound: &Bound) -> Result<usize, Stop> {
-        let class = decided.class();
-        let digest = digest(bound).map_err(|_| failed(Cause::StepFailed))?;
-        let state = effect_step(None, EffectMove::Propose(decided))
-            .map_err(|cause| failed(cause.cause()))?;
-        self.effects.push(Tracked {
-            id: EffectId::from_random(random16()),
-            class,
-            digest,
-            kept: kept_of(bound),
-            fields: bound.fields().len() as u32,
-            seq: 0,
-            rebinds: 0,
-            approval: None,
-            allowed_origin: None,
-            state,
-        });
+        let made = proposal(decided, bound)?;
+        self.first_row(made)
+    }
+
+    /// Ends the `cleared` effect at `ended` with the cause `reproposed` and makes an effect of `bound` in its place,
+    /// as `propose` makes one (A5.2, CP-181). The caller has passed every check of its own that can end the run
+    /// before the new proposal: the renewal of the values, the bound object, `admit`, the read of a `cancel` and the
+    /// wall bound. Here the new effect is made before the `reproposed` row, and a failure of that part ends the old
+    /// effect with the cause `ended`, so that nothing but the store's answer to the new `propose` stands between the
+    /// two rows.
+    pub(crate) fn propose_again(
+        &mut self,
+        ended: usize,
+        decided: Decided,
+        bound: &Bound,
+    ) -> Result<usize, Stop> {
+        let made = proposal(decided, bound);
+        let made = self.or_ended(ended, made)?;
+        self.end_reproposed(ended)?;
+        self.first_row(made)
+    }
+
+    /// Stores the first row of the effect `made` and gives its index; an effect whose row the store did not take
+    /// and that met no fault is no effect of the run.
+    fn first_row(&mut self, made: Tracked) -> Result<usize, Stop> {
+        let state = made.state;
+        self.effects.push(made);
         let at = self.effects.len() - 1;
         match self.store_row(at, state, None) {
             Ok(()) => Ok(at),
@@ -130,9 +162,48 @@ impl Runner {
         }
     }
 
+    /// `checked` when it holds a value; otherwise the move `end` of the effect at `at`, with the cause `ended`, and
+    /// then the error of `checked`, unless the row of that move fails first. It ends an effect that the runner was
+    /// about to propose again and does not: every exit before the new `propose` leaves the effect `ended`.
+    pub(crate) fn or_ended<T, E: From<Stop>>(
+        &mut self,
+        at: usize,
+        checked: Result<T, E>,
+    ) -> Result<T, E> {
+        match checked {
+            Ok(value) => Ok(value),
+            Err(error) => {
+                self.advance(at, EffectMove::End)?;
+                Err(error)
+            }
+        }
+    }
+
     /// One move of the effect at `at` through the step relation and, when it takes it, the row that the move
     /// stores, with the cause `ended` for `end` and the move's own cause for `not_made`: the next state.
     pub(crate) fn advance(&mut self, at: usize, step: EffectMove) -> Result<EffectState, Stop> {
+        let cause = match &step {
+            EffectMove::End => Some(Cause::Ended),
+            EffectMove::NotMade { cause } => Some(*cause),
+            _ => None,
+        };
+        self.moved(at, step, cause)
+    }
+
+    /// The move `end` of the `cleared` effect at `at`, whose row holds the cause `reproposed` and a null approval
+    /// (CP-181): the runner proposes the effect again at once, so the store's count of what a person allowed and
+    /// Halvo did not do leaves it out. `propose_again` alone writes it.
+    fn end_reproposed(&mut self, at: usize) -> Result<EffectState, Stop> {
+        self.moved(at, EffectMove::End, Some(Cause::Reproposed))
+    }
+
+    /// The move `step` of the effect at `at` and, when the step relation takes it, its row with the cause `cause`.
+    fn moved(
+        &mut self,
+        at: usize,
+        step: EffectMove,
+        cause: Option<Cause>,
+    ) -> Result<EffectState, Stop> {
         let e = &self.effects[at];
         let now = Effect {
             id: e.id.clone(),
@@ -140,11 +211,6 @@ impl Runner {
             class: e.class,
             digest: e.digest.clone(),
             rebinds: e.rebinds,
-        };
-        let cause = match &step {
-            EffectMove::End => Some(Cause::Ended),
-            EffectMove::NotMade { cause } => Some(*cause),
-            _ => None,
         };
         let next = effect_step(Some(&now), step).map_err(|cause| failed(cause.cause()))?;
         self.store_row(at, next, cause)?;
@@ -183,10 +249,10 @@ impl Runner {
     /// counts as used when any row of this run held it before (A5.2; the store's handler decides `used` from every
     /// row of the family).
     #[cfg_attr(
-        not(test),
+        not(any(test, feature = "loopback")),
         expect(
             dead_code,
-            reason = "the confirm path has no request maker in the binary until the adapters and the browser are linked (CP-142)"
+            reason = "the confirm path has no request maker in a build without the feature loopback until the adapters and the browser are linked (CP-142)"
         )
     )]
     pub(crate) fn approve(
@@ -240,7 +306,11 @@ impl Runner {
             fields: e.fields,
             approval: match state {
                 EffectState::Held | EffectState::Cleared | EffectState::Refused => None,
-                EffectState::Rejected if row_cause == Some(Cause::Ended) => None,
+                EffectState::Rejected
+                    if matches!(row_cause, Some(Cause::Ended | Cause::Reproposed)) =>
+                {
+                    None
+                }
                 _ => e.approval.clone(),
             },
             cause: row_cause,

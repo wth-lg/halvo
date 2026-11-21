@@ -445,10 +445,7 @@ fn ports_on() -> Ports<Config> {
 fn a_switch_on_refused_with_overlap_holds_the_names_that_its_read_gave() {
     let c = Coordinator::new(both(ports_on()), Limits::PRODUCT);
     c.tick();
-    assert_eq!(
-        c.control(&asking(), Action::SwitchOn),
-        Err(Cause::NoService)
-    );
+    assert_eq!(c.control(&asking(), Action::SwitchOn), Err(Cause::Overlap));
     assert_eq!(
         c.switch_on_overlap(&asking()),
         Some(named(&[(other(0), other_flow(0), ANN)], false))
@@ -463,10 +460,7 @@ fn a_switch_on_refused_with_overlap_whose_read_did_not_answer_holds_the_half_tha
     let c = Coordinator::new(both(ports_on()), Limits::PRODUCT);
     c.tick();
     c.ports().ports.refuse(Method::Overlaps, PortError::Busy);
-    assert_eq!(
-        c.control(&asking(), Action::SwitchOn),
-        Err(Cause::NoService)
-    );
+    assert_eq!(c.control(&asking(), Action::SwitchOn), Err(Cause::Overlap));
     assert_eq!(
         c.switch_on_overlap(&asking()),
         Some(Shared::Unread { again: true })
@@ -920,4 +914,84 @@ fn a_waiting_body_goes_when_the_switched_off_task_is_dismissed() {
     c.tick();
     assert_eq!(bindings_sent(&c, m), ["set_bindings ann@people.test"]);
     assert_eq!(setup_item(&c), None);
+}
+
+/// r4 U3.13, the first sentence (I3.5 (c)): where the owner refuses a set-up's answers with
+/// `overlap`, the item of the published state says why in the place of the line
+/// `item.setup.not_taken`, in the form that the read after the refusal gives: the other agent by
+/// the name of its row with the senders that both would read; that further agents share senders
+/// where the read says more; and nobody where the read did not answer.
+#[test]
+fn u313_a_set_up_refused_with_overlap_says_why_in_the_form_that_its_read_gives() {
+    const BOB: &str = "bob@people.test";
+    let line = |c: &Coordinator<Both>, item: &ItemId| -> Vec<Result<String, Cause>> {
+        let s = c.snapshot();
+        let item = s.items.iter().find(|i| i.item() == item).expect("the item");
+        item.fields()
+            .iter()
+            .filter(|f| f.from == halvo_coord::types::FieldFrom::Halvo)
+            .map(|f| Ok(f.label.clone()))
+            .collect()
+    };
+    let name_of = |c: &Coordinator<Both>, agent: &AgentId| -> String {
+        let s = c.snapshot();
+        s.rows
+            .iter()
+            .find(|r| &r.agent == agent)
+            .unwrap()
+            .name
+            .clone()
+    };
+    let say = |key: &str, pairs: &[(&str, &str)]| halvo_coord::words::text(key, pairs);
+
+    let (c, item) = coordinator(ports(&[ANN]));
+    *c.ports().overlaps_answer.borrow_mut() = Some(Overlaps {
+        entries: vec![Overlap {
+            workflow: other_flow(0),
+            agent: other(0),
+            senders: vec![ANN.to_owned(), BOB.to_owned()],
+        }],
+        more: false,
+    });
+    answer(&c, &item, ANN).unwrap();
+    let name = name_of(&c, &other(0));
+    let senders = format!("{ANN}, {BOB}");
+    let named = say(
+        "item.setup.overlap",
+        &[("name", &name), ("senders", &senders)],
+    );
+    assert_eq!(
+        line(&c, &item),
+        std::slice::from_ref(&named),
+        "the read names one agent"
+    );
+    let named = named.unwrap();
+    assert!(
+        named.contains(&name) && named.contains(ANN) && named.contains(BOB),
+        "{named}"
+    );
+
+    let (c, item) = coordinator(ports(&[ANN; 17]));
+    answer(&c, &item, ANN).unwrap();
+    let name = name_of(&c, &other(0));
+    assert_eq!(
+        line(&c, &item),
+        [say(
+            "item.setup.overlap_more",
+            &[("name", &name), ("senders", ANN)]
+        )],
+        "the read says more"
+    );
+
+    let (c, item) = coordinator(ports(&[ANN]));
+    c.ports().ports.refuse(Method::Overlaps, PortError::Busy);
+    answer(&c, &item, ANN).unwrap();
+    let name = name_of(&c, &other(0));
+    let unread = say("item.setup.overlap_unread", &[]);
+    assert_eq!(
+        line(&c, &item),
+        std::slice::from_ref(&unread),
+        "the read did not answer"
+    );
+    assert!(!unread.unwrap().contains(&name), "it names nobody");
 }

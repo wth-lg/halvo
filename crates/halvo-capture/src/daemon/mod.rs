@@ -1,28 +1,28 @@
 //! The capture daemon: the store owner, which is the one thread that holds the
 //! capture store, and the gate's timed run on that owner.
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub mod barrier;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub mod batch;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub mod board;
 pub mod children;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub mod counters;
 pub mod custody_policy;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub mod delete_all;
 pub mod instance;
 pub mod lease;
 pub mod main_loop;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub mod maintenance;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 mod mask;
 #[cfg(test)]
 pub(crate) mod model_store;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub mod owner;
 pub mod owner_pid;
 #[cfg(test)]
@@ -34,20 +34,20 @@ mod process_tests;
 #[rustfmt::skip]
 #[cfg(feature = "r2")] pub mod r2;
 mod report;
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 mod run_marker;
 #[cfg(test)]
 mod scripted;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub mod server;
 pub mod signal;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub mod slot;
 pub mod sources;
 pub mod state;
 #[cfg(test)]
 mod stop_tests;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub mod supervisor;
 
 use std::ffi::OsString;
@@ -170,15 +170,15 @@ pub enum Mode {
     DeleteAll {
         store_dir: PathBuf,
     },
-    /// `--service-run [--data-dir DIR]` (contracts.md C3.2): built with debug
-    /// assertions alone until daemon-3e, so a release build answers usage.
-    #[cfg(debug_assertions)]
+    /// `--service-run [--data-dir DIR]` (contracts.md C3.2), which a release
+    /// build has on a Mac alone (contracts.md C3.1).
+    #[cfg(any(debug_assertions, target_os = "macos"))]
     ServiceRun {
         data_dir: halvo_control::paths::DataDir,
     },
     /// `--service-run --lifeline [--data-dir DIR]` (contracts.md C3.2 item 4,
     /// C14 item 2): the service run that ends with the app that started it.
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, target_os = "macos"))]
     LifelineServiceRun {
         data_dir: halvo_control::paths::DataDir,
     },
@@ -186,14 +186,14 @@ pub enum Mode {
     /// (contracts.md C3.3), with DIR absolute. A macOS build runs it; a build
     /// of another system answers it with usage until the service run comes
     /// to that system.
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, target_os = "macos"))]
     DeleteAllOfADataDir {
         data_dir: halvo_control::paths::DataDir,
     },
     /// `ctl [--data-dir DIR] VERB` (contracts.md C2.2 to C2.7): one request
     /// to the service run of the data directory, through halvo-control's
     /// client and its text.
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, target_os = "macos"))]
     Ctl(halvo_control::ctl_text::Ctl),
     /// `--service-run [--data-dir DIR] --scripted-sources`, in a build with
     /// the feature test-seam alone: the service run with the scripted sources
@@ -209,20 +209,25 @@ impl Mode {
     /// installs: the timed run, which stops its sources, settles and reports
     /// on it, and the service run, which ends on it through the shutdown
     /// entry.
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, target_os = "macos"))]
     pub fn reads_the_signal_flag(&self) -> bool {
-        #[cfg(feature = "test-seam")]
+        #[cfg(all(debug_assertions, feature = "test-seam"))]
         if matches!(self, Mode::ScriptedServiceRun { .. }) {
+            return true;
+        }
+        #[cfg(debug_assertions)]
+        if matches!(self, Mode::TimedRun(_)) {
             return true;
         }
         matches!(
             self,
-            Mode::TimedRun(_) | Mode::ServiceRun { .. } | Mode::LifelineServiceRun { .. }
+            Mode::ServiceRun { .. } | Mode::LifelineServiceRun { .. }
         )
     }
 
-    /// Whether the mode reads the signal flag: no mode of a release build does.
-    #[cfg(not(debug_assertions))]
+    /// Whether the mode reads the signal flag: no mode of a release build
+    /// on a system without the service run does.
+    #[cfg(not(any(debug_assertions, target_os = "macos")))]
     pub fn reads_the_signal_flag(&self) -> bool {
         false
     }
@@ -274,7 +279,7 @@ pub enum Refusal {
     NoServiceDir(PathError),
     /// A refused line of `ctl`, with the reason and ctl's own usage; it exits
     /// 64.
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, target_os = "macos"))]
     #[error("halvo-capture: {0}\n{usage}", usage = halvo_control::ctl_text::USAGE)]
     Ctl(String),
 }
@@ -289,7 +294,7 @@ pub fn usage_answer<R: Clone + Into<Refusal>>(refused: &R, err: &mut dyn std::io
         Refusal::Usage(_) | Refusal::DataDirLayout(_) | Refusal::DataDirUnread(_) => {
             halvo_control::exit::USAGE
         }
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, target_os = "macos"))]
         Refusal::Ctl(_) => halvo_control::exit::USAGE,
         Refusal::NoDataDir(_) | Refusal::NoServiceDir(_) => halvo_control::exit::ERROR,
     }
@@ -652,7 +657,7 @@ pub fn parse(
         .map(OsString::into_string)
         .collect::<Result<Vec<String>, OsString>>()
         .map_err(|_| Usage("an argument is not valid UTF-8"))?;
-    #[cfg(not(debug_assertions))]
+    #[cfg(not(any(debug_assertions, target_os = "macos")))]
     let _ = account;
     match args.first().map(String::as_str) {
         Some("--version") if args.len() == 1 => Ok(Mode::Version),
@@ -692,7 +697,7 @@ pub fn parse(
             let store_dir = gate::store_dir(flags.store_dir, account)?.without_store_key()?;
             Ok(Mode::VerifyDeletion { store_dir })
         }
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, target_os = "macos"))]
         Some("--delete-all") if args.get(1).is_some_and(|flag| flag == "--data-dir") => {
             match &args[1..] {
                 [_, dir] => halvo_control::paths::DataDir::from_flag(dir.as_str())
@@ -709,7 +714,7 @@ pub fn parse(
                 gate::store_dir(flags.store_dir, account)?.without_a_data_directory_layout()?;
             Ok(Mode::DeleteAll { store_dir })
         }
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, target_os = "macos"))]
         Some("ctl") => {
             let words: Vec<OsString> = args[1..].iter().map(OsString::from).collect();
             halvo_control::ctl_text::parse(&words)
@@ -722,13 +727,13 @@ pub fn parse(
                 data_dir: service_dir(&args[1..args.len() - 1], account)?,
             })
         }
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, target_os = "macos"))]
         Some("--service-run") if args.get(1).is_some_and(|flag| flag == "--lifeline") => {
             Ok(Mode::LifelineServiceRun {
                 data_dir: service_dir(&args[2..], account)?,
             })
         }
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, target_os = "macos"))]
         Some("--service-run") => Ok(Mode::ServiceRun {
             data_dir: service_dir(&args[1..], account)?,
         }),
@@ -736,7 +741,7 @@ pub fn parse(
     }
 }
 
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, target_os = "macos"))]
 fn service_dir(
     args: &[String],
     account: &dyn AccountLookup,
@@ -984,7 +989,7 @@ pub trait RunSources {
     fn hold_refusal(&self) -> Option<DaemonError>;
 
     /// Waits as [`RunSources::wait`] does while the supervisor reads `owner`.
-    #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+    #[cfg(any(test, target_os = "macos"))]
     fn supervise(
         &mut self,
         window: Duration,
@@ -1003,7 +1008,7 @@ pub trait RunSources {
 
     /// The clock and the waits of the stop path, when the sources keep their
     /// own: the supervisor's main loop. `None` gives the real clock.
-    #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+    #[cfg(any(test, target_os = "macos"))]
     fn waits(&mut self) -> Option<&mut dyn Waits> {
         None
     }
@@ -1053,7 +1058,7 @@ pub fn finish_run(
 }
 
 /// The clock and the waits of a timed run's stop path.
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub trait Waits {
     /// The time since a fixed start.
     fn clock(&self) -> Duration;
@@ -1066,10 +1071,10 @@ pub trait Waits {
 }
 
 /// The process's own clock and blocking waits.
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 pub struct RealWaits;
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 impl Waits for RealWaits {
     fn clock(&self) -> Duration {
         static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
@@ -1349,7 +1354,7 @@ fn let_go_of<P: RunSources>(sources: &P) -> Vec<&'static str> {
 /// The loss line of a run whose owner thread ended before it answered the
 /// stop: the events that the sink accepted and no write stored (contracts.md
 /// C3.2).
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 fn owner_ended(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) -> Loss {
     let accepted: u64 = crate::event::Modality::ALL
         .into_iter()
@@ -1487,7 +1492,7 @@ fn with_the_drain_short(
     }
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 fn loss_line(settled: &counters::Snapshot, count: u64, reports: &[owner::Report]) -> String {
     let kind = reports
         .iter()
@@ -1743,7 +1748,7 @@ pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
     }
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 impl<'a> port::SegmentWrite<'a> {
     fn new(
         segment_id: &'a port::SegmentId,
@@ -1815,7 +1820,7 @@ pub struct DurableState;
 /// run; a SIGTERM closes it. This cut starts no source and binds no socket.
 /// On Windows it answers that the service run is not built yet (win-5) with
 /// status 1.
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, target_os = "macos"))]
 pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::StateWrite>) -> i32 {
     #[cfg(target_os = "macos")]
     {
@@ -1838,7 +1843,7 @@ pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::S
 /// lifeline reaches its end of file or its parent is gone, with 0, or 1 when
 /// the final flush failed. The parent's pid is the exclusion root of the
 /// floor. On Windows it answers as [`service_run`] does (win-5).
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, target_os = "macos"))]
 pub fn lifeline_service_run(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
@@ -1859,7 +1864,7 @@ pub fn lifeline_service_run(
 /// Runs `ctl` (contracts.md C2.2 to C2.7): the request of its verb to the
 /// service run of its data directory through halvo-control's client, the
 /// text of the answer on `out` and `err`, and the exit status of C2.7.
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, target_os = "macos"))]
 pub fn ctl(
     ctl: &halvo_control::ctl_text::Ctl,
     out: &mut dyn std::io::Write,
@@ -1867,7 +1872,7 @@ pub fn ctl(
 ) -> i32 {
     let printed = match ctl.data_dir() {
         Ok(dir) => {
-            let result = halvo_control::client::system_connector(&dir).and_then(|connector| {
+            let result = halvo_control::client::ctl_connector(&dir).and_then(|connector| {
                 halvo_control::client::Client::new(connector).send(&ctl.verb.request())
             });
             halvo_control::ctl_text::print(&ctl.verb, result, &dir)
@@ -1990,7 +1995,7 @@ pub mod seam {
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn serve_the_mac(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
@@ -2001,14 +2006,14 @@ fn serve_the_mac(
     })
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 type FrontParts = (
     crate::macos::foreground::ForegroundWriter,
     crate::macos::foreground::ForegroundReader,
     crate::macos::run_loop::RunLoopTurns,
 );
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn serve_the_mac_with<F: supervisor::SystemSources>(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
@@ -2049,13 +2054,13 @@ fn serve_the_mac_with<F: supervisor::SystemSources>(
     )
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 struct ServiceLoop {
     run_loop: crate::macos::run_loop::MainRunLoop,
     started: std::time::Instant,
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 impl main_loop::MainLoop for ServiceLoop {
     fn turn(&mut self, wait: Duration) {
         self.run_loop.turn_for(wait);
@@ -2079,7 +2084,7 @@ impl sources::SourceFactory for NoSources {
 #[cfg(all(target_os = "macos", debug_assertions))]
 impl supervisor::SystemSources for NoSources {}
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 const SERVICE_WAIT: Duration = Duration::from_secs(60);
 
 /// The service run of contracts.md C3.2 up to its wait, on the data directory
@@ -2112,7 +2117,7 @@ pub(crate) fn serve<L: main_loop::MainLoop>(
 /// a run started with `--lifeline`, and in a test build the lease that the
 /// run starts with and a call that gets the last settle of its shutdown
 /// entry.
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 pub(crate) struct ServiceParts<F> {
     pub(crate) factory: F,
     pub(crate) lifeline: Option<lease::lifeline::Lifeline>,
@@ -2124,11 +2129,11 @@ pub(crate) struct ServiceParts<F> {
     pub(crate) wrap_store: Option<WrapStore>,
 }
 
-#[cfg(all(test, target_os = "macos", debug_assertions))]
+#[cfg(all(test, target_os = "macos"))]
 pub(crate) type WrapStore =
     Box<dyn FnOnce(Box<dyn port::CaptureStore + Send>) -> Box<dyn port::CaptureStore + Send>>;
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 impl<F: supervisor::SystemSources> ServiceParts<F> {
     pub(crate) fn of(factory: F) -> ServiceParts<F> {
         ServiceParts {
@@ -2145,7 +2150,7 @@ impl<F: supervisor::SystemSources> ServiceParts<F> {
 }
 
 /// [`serve`] with the sources, the lifeline and the lease of `parts`.
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 pub(crate) fn serve_on<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
@@ -2185,7 +2190,7 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
 /// once the store is open for capture, the supervisor serves the sources of
 /// [`sources::starting`] for the switches of the state file, each begun on
 /// the owner's sink and floor.
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     lock: instance::InstanceLock,
@@ -2249,7 +2254,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     if let Some(line) = state_line(state.health()) {
         let _ = writeln!(err, "{line}");
     }
-    let rule = owner::open::CreateRule::of(state.health(), state.state().store_made);
+    let mut rule = owner::open::CreateRule::of(state.health(), state.state().store_made);
     let held_cap = cap_bound(state.state().storage_cap);
     let switches = state.state().switches;
     if let Err(error) = lock.exclude_from_backup() {
@@ -2293,6 +2298,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     };
     let mut status = halvo_control::exit::CLEAN;
     let mut stop_asked = None;
+    let mut deleted = None;
     #[cfg(test)]
     let mut wrap_store = parts.wrap_store;
     loop {
@@ -2321,6 +2327,63 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 stop_asked = Some(asked);
                 break;
             }
+            Waited::Delete(asked) => {
+                match delete_on_request(
+                    asked,
+                    &mut supervisor,
+                    &serving,
+                    (&mut store, &mut opener),
+                    dir,
+                    err,
+                ) {
+                    DeleteAsked::Answered => {}
+                    DeleteAsked::Reopen => {
+                        mark = Mark::NotYet;
+                        let health = supervisor.status_parts(None).health;
+                        supervisor.set_slot(slot::Slot::Opening, None);
+                        opener = if dir_shut.is_none() {
+                            start_the_opener(dir, owner::open::CreateRule::of(health, true), err)
+                        } else {
+                            None
+                        };
+                    }
+                    DeleteAsked::Ran {
+                        asked,
+                        report,
+                        whole,
+                    } => {
+                        mark = Mark::NotYet;
+                        opener = None;
+                        match report {
+                            None => {
+                                let _ = asked.answer(halvo_control::proto::Reply::Error(
+                                    halvo_control::proto::ErrorReply::new(
+                                        halvo_control::proto::ErrorCode::Internal,
+                                        "the delete did not finish and its report could not be read; delete-all.intent stays",
+                                    ),
+                                ));
+                            }
+                            Some(report) if !whole => {
+                                answer_the_delete(&mut Some((asked, report)), None)
+                            }
+                            Some(report) => {
+                                rule = owner::open::CreateRule::of(
+                                    supervisor.status_parts(None).health,
+                                    false,
+                                );
+                                supervisor.set_slot(slot::Slot::Opening, None);
+                                if dir_shut.is_none() {
+                                    opener = start_the_opener(dir, rule, err);
+                                }
+                                deleted = Some((asked, report));
+                                if opener.is_none() {
+                                    answer_the_delete(&mut deleted, None);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         if RunSources::restart_asked(&supervisor) {
             status = halvo_control::exit::RESTART;
@@ -2344,14 +2407,28 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             continue;
         }
         say_the_notes(opener.as_ref(), err);
+        if let (HeldStore::None, Some(opener)) = (&store, &opener) {
+            let read = opener.slot();
+            if *supervisor.slot() != read {
+                supervisor.set_slot(read, None);
+            }
+        }
         mark = mark_the_store_made(mark, &mut supervisor, err);
         if let HeldStore::Maintenance(upkeep) = &mut store {
             upkeep.turn();
         }
         let Some(held) = opener.as_ref().and_then(owner::open::Opener::take) else {
+            if opener.as_ref().is_some_and(made_none) {
+                answer_the_delete(&mut deleted, None);
+            }
             continue;
         };
         mark = mark_the_store_made(mark.at_the_answer(), &mut supervisor, err);
+        let made = match &held {
+            owner::open::Held::Capture { id, .. } | owner::open::Held::Maintenance { id, .. } => {
+                *id
+            }
+        };
         store = match held {
             owner::open::Held::Capture { store, id } => {
                 #[cfg(test)]
@@ -2385,11 +2462,18 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                     }
                 }
             }
-            owner::open::Held::Maintenance { store, .. } => HeldStore::Maintenance(Box::new(
-                maintenance::Upkeep::new(store, maintenance::SystemClocks::new(), held_cap),
-            )),
+            owner::open::Held::Maintenance { store, id } => {
+                supervisor.set_slot(slot::Slot::Maintenance { id: Some(id) }, None);
+                HeldStore::Maintenance(Box::new(maintenance::Upkeep::new(
+                    store,
+                    maintenance::SystemClocks::new(),
+                    held_cap,
+                )))
+            }
         };
+        answer_the_delete(&mut deleted, Some(made));
     }
+    answer_the_delete(&mut deleted, None);
     #[cfg(feature = "r2")]
     listening.admitting().hold_owner(None);
     if let Some(opener) = &opener {
@@ -2449,7 +2533,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     status
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn second_now() -> halvo_control::model::UtcSecond {
     let seconds = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2461,21 +2545,22 @@ fn second_now() -> halvo_control::model::UtcSecond {
         })
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 struct Serving<'a> {
     listening: &'a server::unix::Listening,
     facts: &'a server::RunFacts,
     obstructed: Option<Duration>,
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 enum Waited {
     Window,
     Ended,
     Stop(server::Asked),
+    Delete(server::Asked),
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn wait_serving<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     supervisor: &mut supervisor::Supervisor<F, L>,
     serving: &Serving<'_>,
@@ -2484,17 +2569,27 @@ fn wait_serving<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     store: &HeldStore,
 ) -> Waited {
     let until = supervisor.main_loop().now() + window;
+    let mut first = true;
     loop {
         let began = supervisor.main_loop().now();
-        let Some(slice) = main_loop::slice(began, until) else {
-            return Waited::Window;
+        let slice = match main_loop::slice(began, until) {
+            Some(slice) => slice,
+            None if first => Duration::ZERO,
+            None => return Waited::Window,
         };
+        first = false;
         if supervisor.wait_on(slice, stop, store.link()) {
             return Waited::Ended;
         }
         while let Some(asked) = serving.listening.next() {
             if matches!(asked.request, halvo_control::proto::Request::Stop) {
                 return Waited::Stop(asked);
+            }
+            if matches!(
+                asked.request,
+                halvo_control::proto::Request::DeleteAll { .. }
+            ) {
+                return Waited::Delete(asked);
             }
             serve_request(asked, supervisor, serving, store);
         }
@@ -2504,7 +2599,7 @@ fn wait_serving<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     asked: server::Asked,
     supervisor: &mut supervisor::Supervisor<F, L>,
@@ -2521,6 +2616,7 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
             Reply::Status,
         ),
         Request::Inventory => inventory_reply(supervisor, store),
+        Request::SetStorageCap { bytes } => cap_set_reply(bytes, supervisor, serving, store),
         Request::Pause | Request::Resume => {
             capture_change(asked, supervisor, serving, store);
             return;
@@ -2533,10 +2629,206 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     let _ = asked.answer(reply);
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 const WRITTEN_WAIT: Duration = Duration::from_millis(2_500);
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
+enum DeleteAsked {
+    Answered,
+    Reopen,
+    Ran {
+        asked: server::Asked,
+        report: Option<halvo_control::proto::DeleteReport>,
+        whole: bool,
+    },
+}
+
+#[cfg(target_os = "macos")]
+fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    asked: server::Asked,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+    (store, opener): (&mut HeldStore, &mut Option<owner::open::Opener>),
+    dir: &halvo_control::paths::DataDir,
+    err: &mut dyn std::io::Write,
+) -> DeleteAsked {
+    use halvo_control::proto::{AlreadyDeleted, DeleteDecision, ErrorCode, ErrorReply, Reply};
+    let armed = match &asked.request {
+        halvo_control::proto::Request::DeleteAll { store } => *store,
+        _ => None,
+    };
+    let status = match status_reply(supervisor, serving) {
+        Ok(status) => status,
+        Err(broken) => {
+            let _ = asked.answer(Reply::Error(ErrorReply::new(
+                ErrorCode::Internal,
+                broken.rule(),
+            )));
+            return DeleteAsked::Answered;
+        }
+    };
+    let fields = status.fields();
+    let refused = match halvo_control::proto::delete_decision(
+        serving.listening.admitting().life(),
+        fields.capture,
+        fields.store,
+        fields.store_error,
+        fields.store_id,
+        armed,
+    ) {
+        DeleteDecision::Accept => None,
+        DeleteDecision::Busy => Some(Reply::Error(ErrorReply::new(
+            ErrorCode::Busy,
+            "the delete cannot start now; this request deleted nothing",
+        ))),
+        DeleteDecision::Ending => Some(Reply::Error(ErrorReply::busy_of_an_ending_life())),
+        DeleteDecision::Refused => Some(Reply::DeleteRefused),
+        DeleteDecision::AlreadyDeleted { current } => {
+            Some(Reply::AlreadyDeleted(AlreadyDeleted { current }))
+        }
+    };
+    if let Some(reply) = refused {
+        let _ = asked.answer(reply);
+        return DeleteAsked::Answered;
+    }
+    let mut pending = Some(asked);
+    supervisor.set_slot_answering(slot::Slot::Deleting, store.link(), &mut |_| {
+        if let Some(asked) = pending.take() {
+            serving.listening.admitting().end_the_life();
+            let _ = asked
+                .answer(Reply::Error(ErrorReply::new(
+                    ErrorCode::Busy,
+                    "a source did not stop in time; this request deleted nothing, and the capture service is ending",
+                )))
+                .wait(WRITTEN_WAIT);
+        }
+    });
+    let Some(asked) = pending else {
+        return DeleteAsked::Answered;
+    };
+    if let Some(tries) = opener.take() {
+        tries.stop();
+        tries.wait_for_its_call(CLOSE_WAIT);
+        drop(tries.take());
+    }
+    #[cfg(feature = "r2")]
+    serving.listening.admitting().hold_owner(None);
+    if let HeldStore::Capture(owner) = std::mem::replace(store, HeldStore::None) {
+        let _ = close_the_store(*owner, halvo_control::exit::CLEAN, err);
+    }
+    let rows = delete_all::rows();
+    let how = delete_all::Offline {
+        rows: &rows,
+        select: custody_policy::of_this_build,
+        hands: &delete_all::SystemHands,
+    };
+    let mut clear = || {
+        match supervisor.update_state(|state| state.store_made = false) {
+        None | Some(Ok(())) | Some(Err(state::StateError::LeftAsItIs { .. })) => None,
+        Some(Err(_)) => Some(
+            "halvo-capture: state_file=write_failed: the mark store_made was not cleared in daemon-state.json"
+                .to_owned(),
+        ),
+    }
+    };
+    #[cfg(feature = "r2")]
+    r2::marks::handler().drop_held();
+    match delete_all::steps_of_the_delete(dir.path(), &how, &mut clear) {
+        delete_all::Steps::Busy => {
+            let line = "another process holds the store; this request deleted nothing";
+            let _ = writeln!(err, "halvo-capture: {line}");
+            let _ = asked.answer(Reply::Error(ErrorReply::new(ErrorCode::Busy, line)));
+            DeleteAsked::Reopen
+        }
+        delete_all::Steps::Ran(ran) => {
+            for cause in &ran.causes {
+                let _ = writeln!(err, "{cause}");
+            }
+            let report = ran
+                .report
+                .as_ref()
+                .and_then(|report| delete_report(&ran, report).ok());
+            let whole = ran.whole && ran.synced;
+            let unloaded = matches!(
+                supervisor.status_parts(None).health,
+                state::StateHealth::Corrupt | state::StateHealth::NewerVersion(_)
+            );
+            if whole && unloaded {
+                if let Some(Err(error)) = supervisor.state_mut().map(state::StateFile::reset) {
+                    let _ = writeln!(
+                        err,
+                        "halvo-capture: state_file=write_failed: the defaults were not written over daemon-state.json after the delete: {}",
+                        error.kind()
+                    );
+                }
+            }
+            DeleteAsked::Ran {
+                asked,
+                report,
+                whole,
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn delete_report(
+    ran: &delete_all::Ran,
+    report: &TailReport,
+) -> Result<halvo_control::proto::DeleteReport, halvo_control::proto::DeleteReportError> {
+    use halvo_control::proto::{DeleteFields, DeleteReport, IntentState, RootDestroyed};
+    let (root_destroyed, root_id) = match &report.root {
+        TailRoot::Destroyed => (RootDestroyed::Yes, None),
+        TailRoot::Left(Some(hex)) => match hex.parse() {
+            Ok(id) => (RootDestroyed::No, Some(id)),
+            Err(_) => (RootDestroyed::Unknown, None),
+        },
+        TailRoot::Left(None) | TailRoot::Unnamed => (RootDestroyed::Unknown, None),
+    };
+    DeleteReport::new(DeleteFields {
+        segments_shredded: report.keyed_segments,
+        keys_destroyed: report.keyed_segments.map(|n| n.saturating_add(1)),
+        root_destroyed,
+        root_id,
+        files_left: report.files_left,
+        database_left: report.database_left,
+        not_followed: report.not_followed,
+        entries_removed: ran.entries_removed,
+        entries_left: ran.entries_left,
+        unknown_entries: ran.unknown_entries,
+        intent: if ran.intent_written {
+            IntentState::Written
+        } else {
+            IntentState::Failed
+        },
+    })
+}
+
+#[cfg(target_os = "macos")]
+type DeletedReply = Option<(server::Asked, halvo_control::proto::DeleteReport)>;
+
+#[cfg(target_os = "macos")]
+fn answer_the_delete(deleted: &mut DeletedReply, store: Option<port::StoreId>) {
+    if let Some((asked, report)) = deleted.take() {
+        let _ = asked.answer(halvo_control::proto::Reply::Deleted(
+            halvo_control::proto::Deleted {
+                report,
+                store: store.map(|id| halvo_control::model::StoreId::from_bytes(*id.as_bytes())),
+            },
+        ));
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn made_none(opener: &owner::open::Opener) -> bool {
+    opener.tries() > 0
+        && !matches!(
+            opener.slot(),
+            slot::Slot::Open { .. } | slot::Slot::Maintenance { id: Some(_) }
+        )
+}
+
+#[cfg(target_os = "macos")]
 fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     asked: server::Asked,
     supervisor: &mut supervisor::Supervisor<F, L>,
@@ -2575,10 +2867,76 @@ fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 const INVENTORY_WAIT: Duration = Duration::from_millis(1_500);
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+/// Writes `cap` through the state file's one writer (contracts.md C2.1,
+/// C2.5) and answers the write's answer with the bound of the cap that the
+/// state holds after it, which the owner evicts to: none for a cap that is
+/// not known, as after a write into a state file that does not load, which
+/// writes nothing.
+#[cfg(target_os = "macos")]
+fn set_cap(
+    state: &mut state::StateFile,
+    cap: halvo_control::model::StorageCap,
+) -> (Result<(), state::StateError>, Option<port::ByteBound>) {
+    let written = state.update(|state| state.storage_cap = state::Cap::Known(cap));
+    (written, cap_bound(state.state().storage_cap))
+}
+
+/// The answer of a set-cap of `cap` whose write answered `written`, on a
+/// store whose disk total reads `disk_bytes`: whether that total stands above
+/// the cap, which the reply says as `evicting`, or the error `state_file`
+/// that names the file when the write did not land.
+#[cfg(target_os = "macos")]
+fn cap_set_answer(
+    written: &Result<(), state::StateError>,
+    cap: halvo_control::model::StorageCap,
+    disk_bytes: Option<u64>,
+) -> Result<bool, halvo_control::proto::ErrorReply> {
+    match written {
+        Ok(()) => Ok(disk_bytes.is_some_and(|disk| disk > cap.bytes())),
+        Err(error) => Err(halvo_control::proto::ErrorReply::new(
+            halvo_control::proto::ErrorCode::StateFile,
+            format!("the cap was not changed: {error}"),
+        )),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn cap_set_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    cap: halvo_control::model::StorageCap,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+    store: &HeldStore,
+) -> halvo_control::proto::Reply {
+    use halvo_control::proto::{CapSet, ErrorCode, ErrorReply, Reply};
+    let Some((written, bound)) = supervisor.state_mut().map(|state| set_cap(state, cap)) else {
+        return Reply::Error(ErrorReply::new(
+            ErrorCode::Internal,
+            "the capture service holds no state file",
+        ));
+    };
+    if let Some(owner) = store.link() {
+        if let Ok(pending) = owner.ask(owner::Command::SetBound(bound)) {
+            let _ = supervisor.answer_within(&pending, INVENTORY_WAIT);
+        }
+    }
+    let disk_bytes = supervisor
+        .status_parts(serving.obstructed)
+        .board
+        .snapshot
+        .and_then(|snapshot| snapshot.disk_bytes);
+    match cap_set_answer(&written, cap, disk_bytes) {
+        Err(refused) => Reply::Error(refused),
+        Ok(evicting) => status_reply(supervisor, serving).map_or_else(
+            |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+            |status| Reply::CapSet(CapSet { status, evicting }),
+        ),
+    }
+}
+
+#[cfg(target_os = "macos")]
 fn inventory_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     supervisor: &mut supervisor::Supervisor<F, L>,
     store: &HeldStore,
@@ -2632,7 +2990,7 @@ fn inventory_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     )
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn status_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     supervisor: &supervisor::Supervisor<F, L>,
     serving: &Serving<'_>,
@@ -2644,10 +3002,10 @@ fn status_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     server::status_of(&supervisor.status_parts(serving.obstructed), &facts)
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 const CLOSE_WAIT: Duration = Duration::from_secs(1);
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn close_the_store(owner: CaptureOwner, status: i32, err: &mut dyn std::io::Write) -> i32 {
     let answered = owner
         .watched
@@ -2675,18 +3033,18 @@ fn close_the_store(owner: CaptureOwner, status: i32, err: &mut dyn std::io::Writ
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 enum HeldStore {
     None,
     Capture(Box<CaptureOwner>),
     Maintenance(Box<MaintenanceUpkeep>),
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 type MaintenanceUpkeep =
     maintenance::Upkeep<Box<dyn port::MaintainStore + Send>, maintenance::SystemClocks>;
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 impl HeldStore {
     fn link(&self) -> Option<&dyn supervisor::OwnerLink> {
         match self {
@@ -2696,29 +3054,29 @@ impl HeldStore {
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn cap_bound(cap: state::Cap) -> Option<port::ByteBound> {
     match cap {
         state::Cap::Known(cap) => Some(port::ByteBound::of_cap(cap)),
-        state::Cap::OutOfRange(_) => None,
+        state::Cap::OutOfRange(_) | state::Cap::Unread => None,
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 struct CaptureOwner {
     watched: supervisor::Watched,
     sink: crate::sink::SinkHandle,
     floor: crate::floor::exclude::FloorHandle,
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 impl CaptureOwner {
     fn context(&self) -> SourceContext {
         SourceContext::with_floor(self.sink.clone(), self.floor.clone())
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn capture_owner(
     store: Box<dyn port::CaptureStore + Send>,
     cap: Option<port::ByteBound>,
@@ -2744,20 +3102,20 @@ fn capture_owner(
     })
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 const MARK_RETRY: Duration = Duration::from_secs(1);
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 const DIR_SHUT_LINE: &str = "halvo-capture: store=unavailable store_error=obstructed: the data directory failed its check; no store was made or opened in it";
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 #[derive(Debug, Clone, Copy)]
 struct DirShut {
     next: std::time::Instant,
     delay: Duration,
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 impl DirShut {
     fn first() -> DirShut {
         DirShut {
@@ -2780,7 +3138,7 @@ impl DirShut {
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn start_the_opener(
     dir: &halvo_control::paths::DataDir,
     rule: owner::open::CreateRule,
@@ -2808,7 +3166,7 @@ fn start_the_opener(
 /// check, with no open after it: a failed check never gates a delete
 /// (contracts.md C3.2 step 3). The open starts once the check passes and
 /// this finish has ended.
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn finish_the_intent_alone(
     dir: &halvo_control::paths::DataDir,
     err: &mut dyn std::io::Write,
@@ -2829,7 +3187,7 @@ fn finish_the_intent_alone(
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mark {
     NotYet,
@@ -2837,7 +3195,7 @@ enum Mark {
     Settled,
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 impl Mark {
     fn at_the_answer(self) -> Mark {
         match self {
@@ -2847,14 +3205,14 @@ impl Mark {
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn say_the_notes(opener: Option<&owner::open::Opener>, err: &mut dyn std::io::Write) {
     while let Some(note) = opener.and_then(owner::open::Opener::take_note) {
         let _ = writeln!(err, "{}", note.line());
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn mark_the_store_made<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     mark: Mark,
     supervisor: &mut supervisor::Supervisor<F, L>,
@@ -2878,7 +3236,7 @@ fn mark_the_store_made<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     Mark::Pending { said: true }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn take_the_data_dir(
     dir: &halvo_control::paths::DataDir,
     err: &mut dyn std::io::Write,
@@ -2922,7 +3280,7 @@ fn take_the_data_dir(
     })
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn obstructed_line(fault: halvo_control::paths::DataDirFault) -> String {
     use halvo_control::paths::{DataDirFault, EntryAtDataDir};
     let cause = match fault {
@@ -2943,7 +3301,7 @@ fn obstructed_line(fault: halvo_control::paths::DataDirFault) -> String {
     format!("halvo-capture: data_dir=obstructed cause={cause}")
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 fn state_line(health: state::StateHealth) -> Option<String> {
     use state::StateHealth;
     match health {
@@ -4194,8 +4552,8 @@ mod tests {
             ][..],
             &["--verify-deletion", "--store-dir", d][..],
             &["--delete-all", "--store-dir", d][..],
-            &["--service-run", "--data-dir", d][..],
-            &["--service-run"][..],
+            &["--service-run", "--data-dir", d, "--scripted-sources"][..],
+            &["--self-check", "run-loop"][..],
         ] {
             let without_a_data_dir = parse(args(line), &FailedLookup(Ok(None)));
             assert!(
