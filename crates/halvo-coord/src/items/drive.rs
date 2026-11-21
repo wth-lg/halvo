@@ -2306,8 +2306,8 @@ pub fn answer_setup<P: Owner + Clock, C: ConfigView + Clone>(
 /// body again, with what `answer_setup` does at the owner's answer; an open item sends nothing,
 /// but one that keeps a body refused with `overlap` whose read failed in a way that waiting can
 /// change asks the read once more, holds an answer with entries or a new failure, and on an
-/// answer with no entry sends the kept body once, as `again_setup` does (I3.5 (d); ruling RD-67
-/// 3.2 (d)).
+/// answer with no entry takes the sentence away and then sends the kept body once, as
+/// `again_setup` does, whatever the owner answers to it (I3.5 (d); ruling RD-67 3.2 (d)).
 /// `state` for the facts or the ledger of another agent, and `stale` for an item that closed or
 /// is gone.
 pub fn tick_setup<P: Owner + Clock, C: ConfigView + Clone>(
@@ -2324,7 +2324,10 @@ pub fn tick_setup<P: Owner + Clock, C: ConfigView + Clone>(
             (Some(body), Some(Shared::Unread { again: true })) => {
                 let read = ports.overlaps(setup.workflow(), setup.agent(), Some(body.slots()));
                 match Shared::of(read) {
-                    None => again_setup(ports, ledger, limits, setup, facts),
+                    None => {
+                        setup.take_shared(None);
+                        again_setup(ports, ledger, limits, setup, facts)
+                    }
                     shared => {
                         setup.take_shared(shared);
                         Ok(SetupDone::Open)
