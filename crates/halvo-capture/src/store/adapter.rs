@@ -5,11 +5,13 @@
 //! the port's [`OpenFault`] by the store's own variants, and gives a scratch
 //! directory the gate's calls.
 
+use std::ffi::OsStr;
 use std::io;
 use std::path::Path;
 use std::time::SystemTime;
 
 use super::db::{EncryptedStore, KeyFile};
+use super::durable::{self, Dir, OsFs};
 use super::KindTotal;
 use super::{Layout, RootReading, SegmentStore, StoreError, DEFAULT_RETENTION};
 use crate::custody::dev_fallback::DevFallbackCustody;
@@ -271,6 +273,39 @@ impl StoreHost for DataDirStore {
     fn create(&self, custody: Custody) -> Opened {
         create_at(&self.store_dir(), &self.roots(), custody)
     }
+
+    fn delete(&self) -> TailAnswer {
+        tail_answer(EncryptedStore::delete_data_dir(
+            self.path(),
+            Layout::DataDirectory,
+        ))
+    }
+}
+
+impl DataDirStore {
+    /// Flushes the folder `folder` of the data directory to the drive
+    /// through the store's durable-write helper, whose directory flush makes
+    /// no call on Windows.
+    pub fn sync_folder(&self, folder: &Path) -> io::Result<()> {
+        Dir::open(&self.path().join(folder))?.sync()
+    }
+
+    /// Removes the file `name` of the data directory, when it stands, and
+    /// flushes the data directory to the drive.
+    pub fn remove_durably(&self, name: &str) -> io::Result<()> {
+        durable::remove_durably(&OsFs, &Dir::open(self.path())?, OsStr::new(name))
+    }
+
+    /// Destroys the key file at `file`, a path inside the data directory,
+    /// through the store's key-file helper: its zero-fill, then its removal.
+    /// True when no entry stands at its name after the call.
+    pub fn destroy_key_file(&self, file: &Path) -> bool {
+        let path = self.path().join(file);
+        if let Ok(place) = KeyFile::at(&path) {
+            let _ = place.destroy();
+        }
+        std::fs::symlink_metadata(&path).is_err_and(|e| e.kind() == io::ErrorKind::NotFound)
+    }
 }
 
 impl crate::daemon::DurableState {
@@ -297,14 +332,10 @@ impl ScratchDir {
     /// The delete tail of `--delete-all --store-dir` (contracts.md C4 item
     /// 9) on this directory, with the path as the command line gave it.
     pub fn delete_tail(&self) -> TailAnswer {
-        match EncryptedStore::delete_data_dir(self.path(), Layout::ScratchStore) {
-            Ok(report) => TailAnswer::Finished(tail_report(&report)),
-            Err(StoreError::DeleteIncomplete(report)) => {
-                TailAnswer::NotFinished(tail_report(&report))
-            }
-            Err(StoreError::Locked) => TailAnswer::Held,
-            Err(error) => TailAnswer::Failed(error.to_string()),
-        }
+        tail_answer(EncryptedStore::delete_data_dir(
+            self.path(),
+            Layout::ScratchStore,
+        ))
     }
 
     /// Makes a store in this directory under this system's own custody, with
@@ -339,6 +370,15 @@ fn destroy_root(custody: Custody, root_id: RootId, roots: &Path) -> io::Result<(
         Custody::SecureEnclave => Ok(()),
     };
     destroyed.map_err(|e| io::Error::other(e.to_string()))
+}
+
+fn tail_answer(deleted: super::StoreResult<super::DeleteReport>) -> TailAnswer {
+    match deleted {
+        Ok(report) => TailAnswer::Finished(tail_report(&report)),
+        Err(StoreError::DeleteIncomplete(report)) => TailAnswer::NotFinished(tail_report(&report)),
+        Err(StoreError::Locked) => TailAnswer::Held,
+        Err(error) => TailAnswer::Failed(error.to_string()),
+    }
 }
 
 fn tail_report(report: &super::DeleteReport) -> TailReport {
