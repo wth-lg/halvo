@@ -12373,6 +12373,42 @@ fn u24s_i58_a_setup_raise_that_fails_at_the_first_creation_move_is_made_again_in
     assert_eq!(setups_raised(&life), 2);
 }
 
+#[test]
+fn u24s_i58_an_owed_setup_raise_ends_where_the_hold_setup_has_ended() {
+    let (life, made, _, _) = u24s_aside_with_setup();
+    life.ports()
+        .ports
+        .refuse_record(u24s_r4_setup_raise, PortError::NoService);
+    life.tick();
+    assert_eq!(
+        u24s_r4_status(&life, &made),
+        (Status::NeedsYou, text("line.needs_you.setup")),
+        "the raise is owed"
+    );
+    for a in life.ports().ports.agents.borrow_mut().iter_mut() {
+        if a.agent == made {
+            a.slots = ["start", "payee", "instrument"]
+                .iter()
+                .map(|s| Name::parse(s).unwrap())
+                .collect();
+        }
+    }
+    let raised = setups_raised(&life);
+    life.tick();
+    life.tick();
+    assert_ne!(
+        u24s_r4_status(&life, &made).1,
+        text("line.needs_you.setup"),
+        "the bindings came by another way: the hold setup has ended, and so has the debt"
+    );
+    assert_eq!(u24s_r4_open_setups(&life), 0);
+    assert_eq!(
+        setups_raised(&life),
+        raised,
+        "no raise after the hold has ended"
+    );
+}
+
 fn u24s_r4_aside(quit: bool) -> (Coordinator<Both>, AgentId) {
     let (c, made, _) = setup_agent();
     if quit {
