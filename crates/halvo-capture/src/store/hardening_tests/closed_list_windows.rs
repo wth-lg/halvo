@@ -166,7 +166,12 @@ fn a_create_in_a_directory_whose_name_is_not_unicode_leaves_only_the_lock_file_a
                 .collect()
         })
         .unwrap_or_default();
-    let opened = answer_text(&EncryptedStore::open(&odd, &roots, DEFAULT_RETENTION));
+    let opened = answer_text(&EncryptedStore::open(
+        &odd,
+        &roots,
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    ));
     println!(
         "WIN-NON-UNICODE create={created} open={opened} store_dir_now={left:?} roots_path_exists={} \
          steps={:?}",
@@ -578,6 +583,7 @@ fn a_create_and_an_open_at_a_dotted_store_or_roots_path_make_nothing_at_the_trim
             &store_dir,
             &roots_dir,
             DEFAULT_RETENTION,
+            crate::store::OpenFor::Write,
         ));
         let trimmed_store = base.join(store_name.trim_end_matches(['.', ' ']));
         let trimmed_roots = base.join(roots_name.trim_end_matches(['.', ' ']));
@@ -731,6 +737,7 @@ fn a_store_below_a_real_directory_whose_name_ends_in_a_space_is_refused_and_noth
         &store_dir,
         &roots_dir,
         DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
     ));
     let tail = EncryptedStore::delete_data_dir(&spaced, crate::store::Layout::DataDirectory);
     let listing: Vec<String> = std::fs::read_dir(&verbatim)

@@ -63,6 +63,8 @@ fn facts(category: Category, runtime: &str, whats: Vec<(u32, What)>) -> Facts<Co
         unknown: Vec::new(),
         today: 107,
         doing: Doing::Idle(None),
+        stand_in: false,
+        active_refused: false,
     }
 }
 
@@ -177,7 +179,121 @@ fn the_state_of_the_workflow_is_no_part_of_off_or_failures() {
     assert_eq!(holds(&f), vec![Hold::Off]);
     let mut g = calendar(vec![]);
     g.workflow.state = WorkflowState::Paused;
-    assert_eq!(holds(&g), Vec::<Hold>::new());
+    assert_eq!(
+        holds(&g),
+        vec![Hold::Off],
+        "turned by ruling RD-67 1.2: the derived off is the one test that reads the state"
+    );
+}
+
+fn listed_paused(whats: Vec<(u32, What)>) -> Facts<Config> {
+    let mut f = calendar(whats);
+    f.workflow.state = WorkflowState::Paused;
+    f
+}
+
+fn start_answer(f: &Facts<Config>) -> halvo_coord::schedule::StartStep {
+    let around = halvo_coord::schedule::Around {
+        listed: true,
+        live: 0,
+        model_held: false,
+        queued: 0,
+        session: true,
+        from_queue: false,
+        owed: false,
+    };
+    halvo_coord::schedule::start_step(f, Trigger::Person, &Limits::PRODUCT, &around)
+}
+
+#[test]
+fn an_agent_listed_paused_with_no_hold_in_its_events_holds_the_derived_off() {
+    let f = listed_paused(vec![]);
+    assert_eq!(holds(&f), vec![Hold::Off]);
+    assert!(halvo_coord::schedule::kept_off(&f));
+    for state in [WorkflowState::Approved, WorkflowState::Active] {
+        let mut g = f.clone();
+        g.workflow.state = state;
+        assert_eq!(holds(&g), Vec::<Hold>::new(), "{state:?}");
+    }
+}
+
+#[test]
+fn the_derived_off_shows_the_line_off_kept_takes_switch_on_and_refuses_a_start_with_hold() {
+    let f = listed_paused(vec![]);
+    let line = halvo_coord::roster::status(&f, &Limits::PRODUCT, None);
+    assert_eq!(line, halvo_coord::types::StatusLine::Kept);
+    assert_eq!(line.key(), "line.off.kept");
+    assert_eq!(line.status(), halvo_coord::types::Status::Off);
+    assert!(halvo_coord::words::text(&line.key(), &[]).is_ok());
+    assert_eq!(
+        halvo_coord::roster::controls(&f, None, &halvo_coord::types::Limits::PRODUCT),
+        vec![
+            halvo_coord::types::Control::SwitchOn,
+            halvo_coord::types::Control::Delete
+        ]
+    );
+    let step = start_answer(&f);
+    assert_eq!(
+        step.verdict,
+        halvo_coord::schedule::Verdict::Refused(halvo_coord::types::Cause::Hold)
+    );
+    assert_eq!(step.clear, None, "a start ends no derived off");
+}
+
+#[test]
+fn a_switch_off_by_the_events_keeps_the_line_off_person_beside_a_paused_list() {
+    let f = listed_paused(vec![(100, set(HoldSetCause::Person))]);
+    assert_eq!(holds(&f), vec![Hold::Off]);
+    assert!(!halvo_coord::schedule::kept_off(&f));
+    assert_eq!(
+        halvo_coord::roster::status(&f, &Limits::PRODUCT, None),
+        halvo_coord::types::StatusLine::Off
+    );
+}
+
+#[test]
+fn the_derived_off_does_not_stand_beside_a_hold_failures_by_the_events() {
+    let f = listed_paused(vec![(100, set(HoldSetCause::Failures))]);
+    assert_eq!(holds(&f), vec![Hold::Failures]);
+    let step = start_answer(&f);
+    assert!(step.clear.is_some(), "a start by the person ends failures");
+}
+
+#[test]
+fn a_hold_failures_whose_rows_have_left_stands_as_the_derived_off_and_no_start_ends_it() {
+    let before = listed_paused(vec![(10, set(HoldSetCause::Failures))]);
+    assert_eq!(holds(&before), vec![Hold::Failures]);
+    let after = listed_paused(vec![]);
+    assert_eq!(
+        holds(&after),
+        vec![Hold::Off],
+        "the rows of day 10 have left"
+    );
+    let step = start_answer(&after);
+    assert_eq!(
+        step.verdict,
+        halvo_coord::schedule::Verdict::Refused(halvo_coord::types::Cause::Hold)
+    );
+    assert_eq!(step.clear, None);
+}
+
+#[test]
+fn the_stand_in_of_a_dismissed_workflow_gives_no_hold() {
+    let mut f = listed_paused(vec![]);
+    f.stand_in = true;
+    assert_eq!(holds(&f), Vec::<Hold>::new());
+    assert!(!halvo_coord::schedule::kept_off(&f));
+}
+
+#[test]
+fn the_derived_off_comes_after_not_yet_in_the_line() {
+    let mut f = facts(Category::RideOrder, "none", vec![]);
+    f.workflow.state = WorkflowState::Paused;
+    assert_eq!(holds(&f), vec![Hold::NotYet, Hold::Off]);
+    assert_eq!(
+        halvo_coord::roster::status(&f, &Limits::PRODUCT, None),
+        halvo_coord::types::StatusLine::NotYet
+    );
 }
 
 fn past(n: u32, day: u32, outcome: Outcome, unknown: u32) -> PastRun {

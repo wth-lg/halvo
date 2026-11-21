@@ -10,7 +10,7 @@ use std::time::Duration;
 use halvo_schema_core::ids::Position;
 use halvo_schema_core::kinds::{self, KindEntry, RetentionClass};
 use halvo_schema_core::record::Instant;
-use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, Params, Row};
+use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags, Params, Row};
 
 use crate::error::{db_fault, io_fault, Fault, OpenError, StoredFault};
 use crate::handler::DayFault;
@@ -475,8 +475,13 @@ impl Db {
         require_mend(halvo_sqlcipher::page_gap_mend_linked())?;
         let dir = data_dir.join("derived");
         std::fs::create_dir_all(&dir).map_err(|e| OpenError::Fault(io_fault(e)))?;
-        let lock = WriterLock::take(&dir)?;
         let paths = Paths::of(&dir);
+        match keying {
+            Keying::Key(key) => test_key_read_only(&paths.db, key)?,
+            #[cfg(feature = "test-host")]
+            Keying::Keyless => {}
+        }
+        let lock = WriterLock::take(&dir)?;
         let mut conn = Connection::open(&paths.db).map_err(|e| OpenError::Fault(db_fault(e)))?;
         conn.busy_timeout(Duration::ZERO)
             .map_err(|e| OpenError::Fault(db_fault(e)))?;
@@ -489,11 +494,9 @@ impl Db {
         conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
             r.get::<_, i64>(0)
         })
-        .map_err(|e| match e.sqlite_error_code() {
-            Some(ErrorCode::NotADatabase) => OpenError::Sealed,
-            Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked) => OpenError::Locked,
-            _ => OpenError::Fault(db_fault(e)),
-        })?;
+        .map_err(|e| key_refusal(e).unwrap_or_else(|e| OpenError::Fault(db_fault(e))))?;
+        require_file(&conn)?;
+        let new = stored_schema(&conn)?;
         pragma(
             &conn,
             &format!(
@@ -521,7 +524,9 @@ impl Db {
             progress,
             _lock: lock,
         };
-        db.schema(ids)?;
+        if new {
+            db.create_schema(ids)?;
+        }
         let site_key: Vec<u8> =
             one(&db.conn, sql::META_SITE_KEY, [], |r| r.get(0))?.unwrap_or_default();
         db.site_key = site_key.try_into().map_err(|_| OpenError::Schema)?;
@@ -564,33 +569,25 @@ impl Db {
         self.progress.arm(CALL_BUDGET);
     }
 
-    fn schema(&self, ids: &mut dyn IdSource) -> Result<(), OpenError> {
-        let objects = master(&self.conn).map_err(OpenError::Fault)?;
-        if objects.is_empty() {
-            let mut site_key = [0u8; 32];
-            ids.fill(&mut site_key);
-            let tx = self
-                .conn
-                .unchecked_transaction()
-                .map_err(|e| OpenError::Fault(db_fault(e)))?;
-            tx.execute_batch(sql::SCHEMA)
-                .map_err(|e| OpenError::Fault(db_fault(e)))?;
-            exec(
-                &tx,
-                sql::META_INSERT,
-                rusqlite::params![sql::SCHEMA_VERSION, &site_key[..]],
-            )?;
-            site_key.fill(0);
-            tx.commit().map_err(|e| OpenError::Fault(db_fault(e)))?;
-            return Ok(());
-        }
-        if objects != reference_schema().map_err(OpenError::Fault)? {
-            return Err(OpenError::Schema);
-        }
-        match one(&self.conn, sql::META_SCHEMA, [], |r| r.get::<_, i64>(0))? {
-            Some(sql::SCHEMA_VERSION) => Ok(()),
-            _ => Err(OpenError::Schema),
-        }
+    /// Creates the tables, their indexes and the row of `meta`, with a new key of the site hash from `ids`, in one
+    /// transaction, in a database that `stored_schema` read as holding no object.
+    fn create_schema(&self, ids: &mut dyn IdSource) -> Result<(), OpenError> {
+        let mut site_key = [0u8; 32];
+        ids.fill(&mut site_key);
+        let tx = self
+            .conn
+            .unchecked_transaction()
+            .map_err(|e| OpenError::Fault(db_fault(e)))?;
+        tx.execute_batch(sql::SCHEMA)
+            .map_err(|e| OpenError::Fault(db_fault(e)))?;
+        exec(
+            &tx,
+            sql::META_INSERT,
+            rusqlite::params![sql::SCHEMA_VERSION, &site_key[..]],
+        )?;
+        site_key.fill(0);
+        tx.commit().map_err(|e| OpenError::Fault(db_fault(e)))?;
+        Ok(())
     }
 
     /// Refuses the open, before it changes a row, where stored rows of a kind cannot follow its entry: a row stored
@@ -834,6 +831,50 @@ fn set_key(conn: &Connection, key: &DbKey) -> Result<(), OpenError> {
     result
 }
 
+/// The refusal that the first read of a keyed connection answers for `e`: `Sealed` where the key does not open the
+/// database, `Locked` where another connection holds it, and `e` itself for any other error.
+fn key_refusal(e: rusqlite::Error) -> Result<OpenError, rusqlite::Error> {
+    match e.sqlite_error_code() {
+        Some(ErrorCode::NotADatabase) => Ok(OpenError::Sealed),
+        Some(ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked) => Ok(OpenError::Locked),
+        _ => Err(e),
+    }
+}
+
+/// The read-only test of the key, which the open makes in front of the writer lock where `db` exists and is not empty
+/// (a new store has no key to test). A connection of its own opens the file read-only, never creating it, sets `key`
+/// and exclusive locking, and reads the count of the schema's objects. Where the key does not open the database it
+/// answers `Sealed`, and where another connection holds the database `Locked`, before the open takes the writer lock and
+/// with no byte of the file changed. Every other answer, the key's success among them, goes on to the open behind the
+/// writer lock, whose own test of the key decides as before. Exclusive locking, set before the first read, keeps the
+/// read of a file in write-ahead-log mode from making a shared-memory file.
+fn test_key_read_only(db: &Path, key: &DbKey) -> Result<(), OpenError> {
+    if file_len(db).map_err(OpenError::Fault)? == 0 {
+        return Ok(());
+    }
+    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX;
+    let Ok(conn) = Connection::open_with_flags(db, flags) else {
+        return Ok(());
+    };
+    let ready = conn.busy_timeout(Duration::ZERO).is_ok()
+        && set_key(&conn, key).is_ok()
+        && conn
+            .execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
+            .is_ok();
+    if !ready {
+        return Ok(());
+    }
+    match conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+        r.get::<_, i64>(0)
+    }) {
+        Ok(_) => Ok(()),
+        Err(e) => match key_refusal(e) {
+            Ok(refusal) => Err(refusal),
+            Err(_) => Ok(()),
+        },
+    }
+}
+
 fn pragma(conn: &Connection, text: &str) -> Result<(), OpenError> {
     conn.execute_batch(text)
         .map_err(|e| OpenError::Fault(db_fault(e)))
@@ -850,7 +891,13 @@ pub(crate) fn read_back(conn: &Connection) -> Result<(), OpenError> {
     require(conn, "fullfsync", "1")?;
     require(conn, "checkpoint_fullfsync", "1")?;
     require(conn, "foreign_keys", "1")?;
-    require(conn, "cache_size", &format!("-{PAGE_CACHE_KIB}"))?;
+    require(conn, "cache_size", &format!("-{PAGE_CACHE_KIB}"))
+}
+
+/// Refuses by name, with `OpenError::Setting`, a database file whose `auto_vacuum` reads otherwise than 0 or whose page
+/// size reads otherwise than 4,096. The open reads both before it changes a byte of the file, so a refused file, in
+/// rollback-journal mode as well, stays as it was.
+fn require_file(conn: &Connection) -> Result<(), OpenError> {
     require(conn, "auto_vacuum", "0")?;
     require(conn, "page_size", "4096")
 }
@@ -881,6 +928,24 @@ pub(crate) fn require(conn: &Connection, name: &'static str, want: &str) -> Resu
         Ok(())
     } else {
         Err(OpenError::Setting(name))
+    }
+}
+
+/// Reads the schema of the database before the open changes a byte of the file: true for a database that holds no
+/// object, in which the open creates the schema after its settings; false for one whose objects are those of the
+/// store's schema and whose version is the store's; and the refusal `OpenError::Schema` for any other, a file in
+/// rollback-journal mode as well, which stays as it was.
+fn stored_schema(conn: &Connection) -> Result<bool, OpenError> {
+    let objects = master(conn).map_err(OpenError::Fault)?;
+    if objects.is_empty() {
+        return Ok(true);
+    }
+    if objects != reference_schema().map_err(OpenError::Fault)? {
+        return Err(OpenError::Schema);
+    }
+    match one(conn, sql::META_SCHEMA, [], |r| r.get::<_, i64>(0))? {
+        Some(sql::SCHEMA_VERSION) => Ok(false),
+        _ => Err(OpenError::Schema),
     }
 }
 

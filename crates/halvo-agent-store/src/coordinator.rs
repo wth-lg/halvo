@@ -25,10 +25,14 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   it stores the preset of the workflow's category as revision 1 unless the agent's configuration is stored, and
 ///   the agent's start row (`agent_start`) with the request's instant and day unless one of the agent is stored; a
 ///   later configuration never moves that row (CP-143 (2)). Then it makes the state call (`approved`, the agent)
-///   unless the workflow's agent is this agent, and answers `{"rev":1}`.
+///   unless the workflow's agent is this agent, and answers `{"rev":1}`. Its state call goes through the function
+///   of the overlap, as that of `set_state` does: `overlap` where the agent's stored bindings overlap another agent
+///   that is live, as `list_overlaps` reads them (CP-150 (1) (b)).
 /// - `set_state`: `no_workflow`; `binding` unless the workflow's agent is the body's, and for `active` where no
 ///   configuration of the agent is stored; `playbook` for `active` while
-///   the agent's runtime is `web` and no playbook step of the agent is stored; then the state call and its own
+///   the agent's runtime is `web` and no playbook step of the agent is stored; `overlap` for `approved` and
+///   `active`, never for `paused`, where the agent's stored bindings overlap another agent that is live, as
+///   `list_overlaps` reads them, and then no state changes (CP-150 (1) (b)); then the state call and its own
 ///   refusal.
 /// - `start_run`: `no_workflow`; `binding`; `state` unless the workflow is `approved` or `active` for `compile`
 ///   and `active` for `replay`; `binding` for a run of which a stored effect row, log line or `agent_run` record
@@ -41,9 +45,11 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   moves by days, a read that no longer hands out the start row (a clock read three days back or 93 days on) lets
 ///   `start_run` store a new start row and open the run again (CP-227).
 /// - `set_bindings`: `no_workflow`; `binding`; `binding` for a slot `workbook` that `workbook_path` refuses in the
-///   system's form. It stores the next revision of the agent's bindings, revision 1 where none is stored: each slot
-///   of the body replaces the stored slot of its name in its place or is added at the end, and the other slots and
-///   the origins stay. It answers the revision stored.
+///   system's form; `overlap` where the revision that it would store overlaps another agent that is live, as
+///   `list_overlaps` reads it, whichever slots the body names and whatever the state of the agent's own workflow
+///   (CP-150 (1) (b)). It stores the next revision of the agent's bindings, revision 1 where none is stored: each
+///   slot of the body replaces the stored slot of its name in its place or is added at the end, and the other slots
+///   and the origins stay. It answers the revision stored.
 /// - `add_origin`: `no_workflow`; `binding`. Where the newest revision holds the origin it stores nothing and
 ///   answers that revision; else it stores the next revision with the origin added at the end and answers it.
 /// - `list_checkpoints`: over every agent, the newest row of each checkpoint (one run and one workbook path) whose
@@ -64,8 +70,16 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   Else, in one commit, the run's record with the outcome `failed`, the mode null, every count 0, no playbook and
 ///   no model, on the request's day, and the moves of the run's end as `runner` makes them for `finish`. It answers
 ///   `{"ok":"yes"}`.
-/// - `list_overlaps`: not served yet. It is answered `malformed`, as the store answered the body before the schema
-///   read it, and it stores nothing and changes no state.
+/// - `list_overlaps`: `no_workflow`; `binding`. It stores nothing and changes no state, and answers every other agent
+///   that is live and overlaps the agent's slots as they would stand with the body's slots merged into its newest
+///   revision as `set_bindings` merges them, or as they stand where `slots` is null: each with its workflow, its
+///   agent and the senders that it shares, in the spelling and the order of the asking agent's list, in ascending
+///   order of workflow id; the first 16, and `more` `yes` where more overlap. Two agents overlap when their
+///   bindings hold one account address under `account_address` and their lists under `reply_senders`, each read
+///   by `reply_senders`, hold one sender in common, two addresses being one by `same_address`; a list that its
+///   reader refuses lists nobody, and bindings with no `account_address` overlap nobody. The other agent's bindings
+///   are its newest revision, and it is live where the stored workflow of those bindings names it as its agent and
+///   is `approved` or `active` (CP-150 (1)).
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -80,7 +94,7 @@ pub fn coordinator(
         CoordinatorCall::AddOrigin(b) => bindings::add_origin(host, &b),
         CoordinatorCall::ListCheckpoints(b) => checkpoint::list(&*host, &b),
         CoordinatorCall::MarkCheckpoint(b) => checkpoint::mark(host, now, &b),
-        CoordinatorCall::ListOverlaps(_) => Err(ErrorName::Malformed),
+        CoordinatorCall::ListOverlaps(b) => bindings::list_overlaps(&*host, &b),
     }
 }
 
@@ -126,7 +140,7 @@ fn create_agent(
         day::commit(host, now, records)?;
     }
     if w.agent.is_none() {
-        host.set_state(&b.workflow, AgentState::Approved, Some(&b.agent))?;
+        bindings::state_call(host, &b.workflow, AgentState::Approved, &b.agent)?;
     }
     Ok(CoordinatorReply::Rev(RevReply {
         rev: NonZeroU32::MIN,
@@ -144,7 +158,7 @@ fn set_state(host: &mut dyn Host, b: &SetState) -> Result<CoordinatorReply, Erro
             return Err(Own::Playbook.into());
         }
     }
-    host.set_state(&b.workflow, b.state, Some(&b.agent))?;
+    bindings::state_call(host, &b.workflow, b.state, &b.agent)?;
     Ok(CoordinatorReply::State(StateReply { state: b.state }))
 }
 
