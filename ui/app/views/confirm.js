@@ -1,20 +1,4 @@
 (function () {
-  const CSS = [
-    '.hc-dialog{border-width:2px;border-style:solid;border-color:#1a1a1a;padding:16px;max-width:28rem;background-color:#ffffff;color:#1a1a1a;overflow-wrap:anywhere}',
-    '.hc-dialog:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
-    '.hc-dialog::backdrop{background-color:rgba(0,0,0,0.4)}',
-    '.hc-title{font-size:1.1rem;margin-top:0;margin-bottom:8px}',
-    '.hc-text{margin-top:4px;margin-bottom:8px}',
-    '.hc-did{font-weight:bold;margin-top:8px;margin-bottom:4px}',
-    '.hc-fields{margin-top:4px;margin-bottom:8px}',
-    '.hc-label{font-weight:bold}',
-    '.hc-value{margin-left:0;white-space:pre-wrap;overflow-wrap:anywhere}',
-    '.hc-from{margin-left:0;margin-bottom:8px;font-style:italic}',
-    '.hc-controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}',
-    '.hc-button{-webkit-appearance:none;appearance:none;min-width:44px;min-height:44px;padding:8px;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:4px;background-color:#f2f2f2;color:#1a1a1a;font:inherit;overflow-wrap:anywhere}',
-    '.hc-button:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}'
-  ];
-
   let tick = 0;
   let press = null;
   let pointer = null;
@@ -22,7 +6,6 @@
   const keys = new Map();
   let shown = null;
   let serial = 0;
-  let styled = false;
   const free = [];
 
   function fresh() {
@@ -153,14 +136,6 @@
     };
   }
 
-  function style() {
-    if (styled) return;
-    styled = true;
-    const node = document.createElement('style');
-    node.appendChild(document.createTextNode(CSS.join('')));
-    document.head.appendChild(node);
-  }
-
   function fields(box, list) {
     if (list.length === 0) return;
     const dl = el('dl', 'hc-fields', '');
@@ -177,7 +152,6 @@
   }
 
   function ask(parent, o) {
-    style();
     const box = el('dialog', 'hc-dialog', '');
     const title = el('h3', 'hc-title', o.title);
     title.id = fresh();

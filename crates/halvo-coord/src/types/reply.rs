@@ -107,7 +107,7 @@ impl AskEffect {
             if class == Class::Delete && k.name.as_str() == "items" {
                 continue;
             }
-            fields.push(kept_field(class, k)?);
+            fields.extend(kept_field(class, k)?);
         }
         Ok(AskEffect {
             text: words::text(&key, &[])?,
@@ -125,7 +125,7 @@ impl AskEffect {
                 if *class == Class::Delete && k.name.as_str() == "items" {
                     continue;
                 }
-                fields.push(kept_field(*class, k)?);
+                fields.extend(kept_field(*class, k)?);
             }
         }
         Ok(AskEffect {
@@ -405,50 +405,74 @@ fn file_name(kept: &[String]) -> Result<String, Cause> {
     }
 }
 
+/// Whether a value shows nothing that a person can see (ruling RD-161 R6, widened by the
+/// coordinator): no piece, or pieces of white space, control characters (general category Cc)
+/// and the zero-width signs U+200B, U+200C, U+200D, U+2060 and U+FEFF alone.
+fn shows_nothing(value: &[String]) -> bool {
+    value.iter().flat_map(|piece| piece.chars()).all(|c| {
+        c.is_whitespace()
+            || c.is_control()
+            || matches!(
+                c,
+                '\u{200b}' | '\u{200c}' | '\u{200d}' | '\u{2060}' | '\u{feff}'
+            )
+    })
+}
+
 /// The kept field `k` of an effect of `class` as a field of I3.4: the label
 /// `field.<class>.<name>`, the value as the row keeps it, an `origin` as the site's name and the
 /// `file` of a `local_edit` as the name of the file alone, and the `from` that A-A9.3 admits;
-/// `malformed` where a piece of the shown value would hold more than 1,024 bytes (I3.4).
-fn kept_field(class: Class, k: &Kept) -> Result<Field, Cause> {
+/// none where the kept value or its shown part shows nothing (`shows_nothing`), which is no
+/// value; `malformed` where a piece of the shown value would hold more than 1,024 bytes (I3.4).
+fn kept_field(class: Class, k: &Kept) -> Result<Option<Field>, Cause> {
     let name = k.name.as_str();
     let from = field_from(kept_source(class, name).ok_or(Cause::Malformed)?);
+    if shows_nothing(&k.value) {
+        return Ok(None);
+    }
     let value = match (class, name) {
         (_, "origin") => vec![site_name(&k.value)?],
         (Class::LocalEdit, "file") => vec![file_name(&k.value)?],
         _ => k.value.clone(),
     };
+    if shows_nothing(&value) {
+        return Ok(None);
+    }
     if value.iter().any(|piece| piece.len() > 1024) {
         return Err(Cause::Malformed);
     }
-    Ok(Field {
+    Ok(Some(Field {
         label: words::text(&format!("field.{}.{name}", class.name()), &[])?,
         value,
         from,
         from_text: words::text(&format!("from.{}", from.name()), &[])?,
-    })
+    }))
+}
+
+/// The one kept field of the name `name` where the row keeps that name exactly once; none where
+/// it keeps it twice or more, as no entry shows such a name (ruling RD-161 R5).
+fn once<'a>(kept: &'a [Kept], name: &str) -> Option<&'a Kept> {
+    let mut named = kept.iter().filter(|k| k.name.as_str() == name);
+    match (named.next(), named.next()) {
+        (Some(k), None) => Some(k),
+        _ => None,
+    }
 }
 
 /// The one rule for which kept fields stand on an entry that the reader cannot fully show (I2.6,
-/// ruling RD-52 (h) 4): a field of the table of A-A9.3 for `class` stands where the row keeps its
-/// name exactly once and `kept_field` takes its value whole, shown as `committed` shows it and in
-/// the table's order; never the `items` of a `delete`, a name that the table does not hold for
-/// the class, a name kept twice, a value that holds no byte (no piece, or pieces that are all
-/// empty; ruling RD-158 (3)), or any field of a class with no effect row.
+/// ruling RD-52 (h) 4), and on the item `check` (ruling RD-158 (5)): a field of the table of
+/// A-A9.3 for `class` stands where the row keeps its name exactly once (`once`) and `kept_field`
+/// takes its value whole, shown as `committed` shows it and in the table's order; never the
+/// `items` of a `delete`, a name that the table does not hold for the class, a name kept twice, a
+/// value that shows nothing (`shows_nothing`; rulings RD-158 (3), RD-161 R6), or any field of a
+/// class with no effect row.
 fn standing(class: Class, kept: &[Kept]) -> Vec<Field> {
-    let once = |name: &str| {
-        let mut named = kept.iter().filter(|k| k.name.as_str() == name);
-        match (named.next(), named.next()) {
-            (Some(k), None) => Some(k),
-            _ => None,
-        }
-    };
     kept_names(class)
         .unwrap_or_default()
         .iter()
         .filter(|name| !(class == Class::Delete && **name == "items"))
-        .filter_map(|name| once(name))
-        .filter(|k| k.value.iter().any(|piece| !piece.is_empty()))
-        .filter_map(|k| kept_field(class, k).ok())
+        .filter_map(|name| once(kept, name))
+        .filter_map(|k| kept_field(class, k).ok().flatten())
         .collect()
 }
 
@@ -456,8 +480,9 @@ impl CardEffect {
     /// The entry of a committed effect of `class` whose effect row keeps `kept`: exactly the
     /// kept fields of the class in the order of A-A9.3, each shown with the label
     /// `field.<class>.<name>`, its value as the row keeps it and the `from` that A-A9.3 admits,
-    /// except the `items` of a `delete`, which a person cannot read; an `origin` shows the
-    /// site's name and the `file` of a `local_edit` the name of the file alone (I2.6).
+    /// except the `items` of a `delete`, which a person cannot read, and a value that shows
+    /// nothing, which is no value (ruling RD-161 R6); an `origin` shows the site's name and the
+    /// `file` of a `local_edit` the name of the file alone (I2.6).
     /// `malformed` for a class with no effect row, for kept fields other than those, for an
     /// `origin` that is no origin and for a `file` with no name.
     pub fn committed(class: Class, kept: &[Kept]) -> Result<CardEffect, Cause> {
@@ -471,7 +496,7 @@ impl CardEffect {
             if class == Class::Delete && k.name.as_str() == "items" {
                 continue;
             }
-            fields.push(kept_field(class, k)?);
+            fields.extend(kept_field(class, k)?);
         }
         let key = format!("run.effect.{}", class.name());
         Ok(CardEffect {
@@ -524,7 +549,7 @@ impl CardEffect {
     /// the person pressed, and `run.effect.<class>.not_done` otherwise, or `run.effect.refused`
     /// and `run.effect.not_done` for a class with no effect row; with the first kept field of
     /// its class as `committed` shows it, and with no field for a `delete` or where that field
-    /// is not kept or does not read.
+    /// is not kept, is kept twice or more (ruling RD-161 R5), shows nothing or does not read.
     pub fn not_done(class: Class, kept: &[Kept], refused: bool) -> Result<CardEffect, Cause> {
         let end = if refused { "refused" } else { "not_done" };
         let names = kept_names(class);
@@ -535,8 +560,8 @@ impl CardEffect {
         let first = names
             .and_then(|n| n.first())
             .filter(|_| class != Class::Delete)
-            .and_then(|first| kept.iter().find(|k| k.name.as_str() == *first))
-            .and_then(|k| kept_field(class, k).ok());
+            .and_then(|first| once(kept, first))
+            .and_then(|k| kept_field(class, k).ok().flatten());
         Ok(CardEffect {
             class,
             text: words::text(&key, &[])?,

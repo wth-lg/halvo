@@ -1,0 +1,1 @@
+- Added: the owner's store answers an agent's requests: its step list links the agent store's handler of every runner request and of the coordinator_write bodies of the nine op names of CoordinatorCall, with the instant and the day of the host's clock.

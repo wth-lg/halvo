@@ -67,6 +67,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "Halvo can't read or save this agent's record. The agent starts nothing new. Stop works if shown.",
     ),
     (
+        "line.problem.quit",
+        "Its task was still running when Halvo quit and may have gone on. Check outside Halvo before repeating it.",
+    ),
+    (
         "card.records_dropped",
         "After Halvo started, {count} of this agent's records went unsaved. Its steps may have happened; check outside Halvo before repeating.",
     ),
@@ -141,7 +145,7 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.all_set.tried_today",
         "It has started as often as it may today, so it waits until tomorrow.",
     ),
-    ("line.all_set.new", "It has not done its task yet."),
+    ("line.all_set.new", "It has not done its task yet, or not for a long time."),
     ("line.all_set.done", "Last time, it finished its task."),
     ("line.all_set.nothing", "Last time, it found nothing to do."),
     (
@@ -311,7 +315,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("confirm.payment.allow", "Pay"),
     ("confirm.payment.reject", "Don't pay"),
     ("confirm.payment.allow_many", "Pay all {count}"),
-    ("confirm.payment.reject_many", "Don't pay these {count}"),
+    ("confirm.payment.reject_many", "Don't pay any of these {count}"),
     ("confirm.payment.action", "It will make this payment"),
     ("confirm.purchase.title", "Place this order?"),
     ("confirm.purchase.allow", "Order"),

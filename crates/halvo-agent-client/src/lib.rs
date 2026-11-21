@@ -6,6 +6,7 @@
 mod acts;
 mod api;
 mod checkpoints;
+pub mod link;
 pub mod marks;
 mod owner;
 mod proc;

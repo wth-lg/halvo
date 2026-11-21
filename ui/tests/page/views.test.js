@@ -10,7 +10,8 @@ const { parse } = require("../lib/dom.js");
 
 const VIEWS = path.join(APP, "views");
 const SIX = ["status.js", "keeps.js", "permissions.js", "stored.js", "cap.js", "delete.js"];
-const NOT_LOADED = ["agents.js", "confirm.js", "needs.js"];
+const TWO = ["needs.js", "agents.js"];
+const BEFORE_TWO = ["confirm.js"].filter((f) => fs.existsSync(path.join(VIEWS, f)));
 
 const filesUnder = (dir) =>
   fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? filesUnder(path.join(dir, e.name)) : [path.join(dir, e.name)]));
@@ -24,12 +25,13 @@ test("index.html holds markup only: no inline script, no style block and no styl
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i);
 });
 
-test("views/ holds the six views of SIX and the three of NOT_LOADED, and the page loads ipc.js, the words, the frame and each of the six once, and nothing else", async () => {
+test("views/ holds the six views of SIX, the two of TWO and confirm.js where it stands, and the page loads ipc.js, the words, the frame, each of the six once, then confirm.js where it stands and the needs view and the agents view once each, and nothing else", async () => {
   const page = await openPage();
   const views = fs.readdirSync(VIEWS).filter((f) => f.endsWith(".js")).sort();
-  assert.deepEqual(views, [...SIX, ...NOT_LOADED].sort());
+  assert.deepEqual(views, [...SIX, ...BEFORE_TWO, ...TWO].sort());
   assert.deepEqual(page.loaded.slice(0, 3), ["ipc.js", "words.js", "frame.js"]);
-  assert.deepEqual([...page.loaded.slice(3)].sort(), SIX.map((f) => `views/${f}`).sort());
+  assert.deepEqual([...page.loaded.slice(3, 3 + SIX.length)].sort(), SIX.map((f) => `views/${f}`).sort());
+  assert.deepEqual(page.loaded.slice(3 + SIX.length), [...BEFORE_TWO, ...TWO].map((f) => `views/${f}`));
 });
 
 test("the frame renders one section per view in ascending order, each under a level-2 heading", async () => {
@@ -37,7 +39,7 @@ test("the frame renders one section per view in ascending order, each under a le
   const sections = page.document.querySelectorAll("section");
   assert.deepEqual(
     sections.map((s) => s.id),
-    ["status-section", "keeps-section", "permissions-section", "stored-section", "storage-cap-section", "delete-everything-section"],
+    ["status-section", "keeps-section", "permissions-section", "stored-section", "storage-cap-section", "delete-everything-section", "needs-section", "agents-section"],
   );
   for (const section of sections) {
     const heading = section.firstElementChild;
@@ -46,7 +48,7 @@ test("the frame renders one section per view in ascending order, each under a le
   }
   assert.deepEqual(
     sections.map((s) => s.firstElementChild.textContent),
-    ["Capture", "What Halvo keeps", "Permissions", "Stored on this computer", "Storage cap", "Delete everything"],
+    ["Capture", "What Halvo keeps", "Permissions", "Stored on this computer", "Storage cap", "Delete everything", "What needs you", "Your agents"],
   );
 });
 
@@ -57,13 +59,13 @@ test("ipc.js is the only file under ui/app that names the Tauri object", () => {
   assert.deepEqual(naming, ["ipc.js"]);
 });
 
-test("a seventh view file renders with one line added to the view list and no edit to the six views", async (t) => {
+test("a ninth view file renders with one line added to the view list and no edit to the eight views", async (t) => {
   const copy = fs.mkdtempSync(path.join(os.tmpdir(), "r1-app-views-"));
   t.after(() => fs.rmSync(copy, { recursive: true, force: true }));
   fs.cpSync(APP, copy, { recursive: true });
   fs.writeFileSync(
     path.join(copy, "views", "extra.js"),
-    'Halvo.views.add({ id: "extra", order: 9, heading: "An extra view.", mount: function (el) { el.textContent = "extra body"; }, show: function () {}, hide: function () {} });\n',
+    'Halvo.views.add({ id: "extra", order: 30, heading: "An extra view.", mount: function (el) { el.textContent = "extra body"; }, show: function () {}, hide: function () {} });\n',
   );
   const index = path.join(copy, "index.html");
   const lines = fs.readFileSync(index, "utf8").split("\n");
@@ -75,8 +77,8 @@ test("a seventh view file renders with one line added to the view list and no ed
   assert.equal(sections.at(-1).id, "extra-section");
   assert.equal(sections.at(-1).firstElementChild.textContent, "An extra view.");
   assert.equal(page.byId("extra-section").textContent.endsWith("extra body"), true);
-  assert.equal(sections.length, 7);
-  for (const file of SIX) {
+  assert.equal(sections.length, 9);
+  for (const file of [...SIX, ...TWO]) {
     assert.equal(fs.readFileSync(path.join(copy, "views", file), "utf8"), fs.readFileSync(path.join(VIEWS, file), "utf8"), file);
   }
   const original = fs.readFileSync(path.join(APP, "index.html"), "utf8").split("\n");

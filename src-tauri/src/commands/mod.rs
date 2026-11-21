@@ -2,6 +2,7 @@
 //! any script that runs in the page of the window main can call every command
 //! that its capability allows.
 
+pub mod agents;
 pub mod capture;
 pub mod control;
 pub mod names;
@@ -35,10 +36,16 @@ impl<R: Runtime> Module<R> {
 }
 
 pub fn table<R: Runtime>() -> Vec<Module<R>> {
-    vec![Module {
-        registration: &capture::Capture,
-        handler: capture::handler::<R>,
-    }]
+    vec![
+        Module {
+            registration: &capture::Capture,
+            handler: capture::handler::<R>,
+        },
+        Module {
+            registration: &agents::Module,
+            handler: agents::handler::<R>,
+        },
+    ]
 }
 
 /// The answer to a call of a module's command that does not come from the

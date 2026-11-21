@@ -2,37 +2,6 @@
   var ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
   var CONTROL = { run_now: true, stop: true, take_back: true, switch_off: true, switch_on: true, delete: true };
   var CARD_TRIES = 3;
-  var CSS = [
-    '.r4a{overflow-wrap:anywhere}',
-    '.r4a-group{margin-top:16px}',
-    '.r4a-group>h3{font-size:1.1rem;margin-top:0;margin-bottom:8px}',
-    '.r4a-list{list-style:none;margin:0;padding:0}',
-    '.r4a-row{padding-top:8px;padding-bottom:8px;border-bottom-width:1px;border-bottom-style:solid;border-bottom-color:#6b6b6b}',
-    '.r4a-name{margin:0;font-size:1rem}',
-    '.r4a-status,.r4a-level,.r4a-line,.r4a-next,.r4a-note,.r4a-did{margin-top:4px;margin-bottom:4px}',
-    '.r4a-word{font-weight:bold}',
-    '.r4a-icon{display:inline-block;width:10px;height:10px;margin-right:8px;border-radius:50%;border-width:2px;border-style:solid;border-color:#1a1a1a;vertical-align:middle}',
-    '.r4a-icon-needs_you{background-color:#b3261e}',
-    '.r4a-icon-problem{background-color:#8c1d18;border-radius:0}',
-    '.r4a-icon-working{background-color:#0b57d0}',
-    '.r4a-icon-waiting_turn{background-color:#ffffff}',
-    '.r4a-icon-all_set{background-color:#146c2e}',
-    '.r4a-icon-off{background-color:#6b6b6b;border-radius:0}',
-    '.r4a-icon-not_yet{background-color:#ffffff;border-style:dashed}',
-    '.r4a-controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}',
-    '.r4a-button{-webkit-appearance:none;appearance:none;min-width:44px;min-height:44px;padding:8px;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:4px;background-color:#f2f2f2;color:#1a1a1a;font:inherit;text-align:left;overflow-wrap:anywhere}',
-    '.r4a-name>.r4a-button{width:100%;font-weight:bold}',
-    '.r4a-button:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
-    '.r4a-card{margin-top:8px;padding-left:12px;border-left-width:4px;border-left-style:solid;border-left-color:#6b6b6b}',
-    '.r4a-lines,.r4a-runs,.r4a-effects{margin-top:4px;margin-bottom:4px;padding-left:16px}',
-    '.r4a-day{font-weight:bold;margin-top:8px;margin-bottom:0}',
-    '.r4a-ran{margin-top:0;margin-bottom:4px}',
-    '.r4a-fields{margin-top:4px;margin-bottom:4px}',
-    '.r4a-fields>div{margin-bottom:4px}',
-    '.r4a-fields>div>dt{font-weight:bold}',
-    '.r4a-fields>div>dd{margin-left:0}',
-    '.r4a-from{display:block;font-size:0.875rem}'
-  ];
 
   var root = null;
   var status = null;
@@ -454,9 +423,6 @@
     mount: function (element) {
       root = element;
       root.className = 'r4a';
-      var style = document.createElement('style');
-      style.appendChild(document.createTextNode(CSS.join('')));
-      root.appendChild(style);
       say = Halvo.confirm.region('r4a-say');
       status = say.element;
       root.appendChild(status);
