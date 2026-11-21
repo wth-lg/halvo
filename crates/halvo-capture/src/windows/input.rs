@@ -1494,7 +1494,7 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                 seam::pointer_message_handled(tick, super::now_tick());
                 click_from_the_pointer_pump(sample.button_flags, tick);
                 pointer_forwarded(tick);
-                let front = state.front.now();
+                let front = state.front.under_pointer();
                 let parts = pointer_parts(&mut state.buttons, sample.moved, sample.button_flags);
                 pointer_records(
                     (&state.floor, &state.producer, &mut state.folds),

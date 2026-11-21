@@ -689,11 +689,14 @@ impl Drop for Lifecycle {
 }
 
 /// The process of the window in front, read again only when the window in
-/// front changes.
+/// front changes, and the process of the top-level window under the pointer,
+/// read again only when that window changes.
 #[derive(Debug, Default)]
 pub(crate) struct FrontCache {
     window: usize,
     front: FrontApp,
+    under: usize,
+    under_front: FrontApp,
 }
 
 impl FrontCache {
@@ -705,6 +708,32 @@ impl FrontCache {
             self.front = foreground::resolve_front(window).unwrap_or_default();
         }
         self.front.clone()
+    }
+
+    /// The process of the top-level window under the pointer, which a pointer
+    /// sample belongs to; where the pointer's place or the window there cannot
+    /// be read, the process of the window in front.
+    pub(crate) fn under_pointer(&mut self) -> FrontApp {
+        use windows::Win32::Foundation::POINT;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetAncestor, GetCursorPos, WindowFromPoint, GA_ROOT,
+        };
+        let mut place = POINT::default();
+        // SAFETY: `place` is a live POINT that the call writes into.
+        if unsafe { GetCursorPos(&mut place) }.is_err() {
+            return self.now();
+        }
+        // SAFETY: WindowFromPoint and GetAncestor take plain values and
+        // return handle values.
+        let window = unsafe { GetAncestor(WindowFromPoint(place), GA_ROOT) };
+        if window.0.is_null() {
+            return self.now();
+        }
+        if window.0 as usize != self.under {
+            self.under = window.0 as usize;
+            self.under_front = foreground::resolve_front(window).unwrap_or_default();
+        }
+        self.under_front.clone()
     }
 }
 
