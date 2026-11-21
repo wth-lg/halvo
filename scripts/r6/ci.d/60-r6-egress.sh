@@ -111,7 +111,9 @@ A signal INT, TERM or HUP stops the control's listener and ends the check with F
 (signal).
 When a rule or a forbid run has refused before a later step fails to set up, the cause is check.
 Prints: egress checks=<n> denied=<n> entries=<n>, with checks the number of wrapped runs of the first
-list that were made and whose egress line was read; a job with none fails.
+list that were made and whose egress line was read; a job with none fails. A run of the first list
+whose denied is not 0 prints each line of its own denied.log after its line, as "egress run=<command>
+denied at=...", so that a red says what was denied.
 The limits that stay:
 1. a socket or a process start inside a third-party crate, also when code of the three crates calls
    it; the check prints their names from the lock on its line "egress limit third-party crates=".
