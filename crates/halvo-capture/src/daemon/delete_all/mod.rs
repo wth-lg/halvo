@@ -13,6 +13,7 @@ use halvo_control::exit;
 use halvo_control::paths::{one_line, DataDir, Entry, INTENT_FILE, STATE_FILE};
 
 use super::custody_policy::{Custody, Selection};
+use super::instance::InstanceLock;
 use super::port::{DataDirStore, Probe, StoreHost};
 use super::state::{StateDir, StateFile, StateHealth};
 use super::{DurableState, TailAnswer, TailReport};
@@ -275,11 +276,17 @@ impl Finished {
     }
 }
 
+/// The line of a delete that another process holds back.
+const BUSY_LINE: &str =
+    "halvo-capture: another process holds the data directory or its store; this request deleted nothing";
+
 /// The offline delete of `dir` with `how` (contracts.md C3.3): it prints
 /// `data_dir=` and then `no_store`, or the `deleted` line of C2.6 without
-/// `store_id=`, on `out`, and on `err` what stays. It answers 0 once the
-/// root and store.key are gone and every row was handled, 1 when something
-/// stays or the directory cannot be used.
+/// `store_id=`, on `out`, and on `err` what stays. It takes the instance
+/// lock first. It answers 0 once the root and store.key are gone and every
+/// row was handled, 75 when another process holds the directory's instance
+/// lock or its store, which this request then leaves as it found it, and 1
+/// when something stays or the directory cannot be used.
 pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let path = dir.path();
     let mut text = format!("data_dir={}\n", one_line(&path.to_string_lossy()));
@@ -292,9 +299,22 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
             exit::ERROR,
         );
     }
-    if std::fs::symlink_metadata(path).is_err_and(|e| e.kind() == io::ErrorKind::NotFound)
-        || nothing_stands(path, how.rows)
-    {
+    if std::fs::symlink_metadata(path).is_err_and(|e| e.kind() == io::ErrorKind::NotFound) {
+        text.push_str("no_store\n");
+        return print(out, err, &text, None, exit::CLEAN);
+    }
+    let _held = match InstanceLock::take(dir) {
+        Ok(Some(lock)) => lock,
+        Ok(None) => return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY),
+        Err(error) => {
+            let cause = format!(
+                "halvo-capture: the data directory could not be opened: {}",
+                error.kind()
+            );
+            return print(out, err, &text, Some(cause), exit::ERROR);
+        }
+    };
+    if nothing_stands(path, how.rows) {
         text.push_str("no_store\n");
         return print(out, err, &text, None, exit::CLEAN);
     }
@@ -304,7 +324,12 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
     if let Some(line) = clear_the_mark(path) {
         causes.push(line);
     }
-    let finished = steps_3_to_5(path, how.rows, how.hands, host.delete());
+    let store = host.delete();
+    if matches!(store, TailAnswer::Held) {
+        let _ = host.remove_durably(INTENT_FILE);
+        return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY);
+    }
+    let finished = steps_3_to_5(path, how.rows, how.hands, store);
     let Some(report) = finished.store_report() else {
         if let TailAnswer::Failed(error) = &finished.store {
             causes.push(format!("halvo-capture: {error}"));

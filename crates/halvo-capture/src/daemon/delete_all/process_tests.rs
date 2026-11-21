@@ -1,8 +1,11 @@
 #![cfg(all(target_os = "macos", debug_assertions))]
 
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -14,11 +17,16 @@ use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{KeyCustody, KeyLabel, RootId, WrappedKey};
 use crate::daemon::custody_policy::{self, Custody};
 use crate::daemon::instance::tests::kept_dir;
+use crate::daemon::instance::InstanceLock;
 use crate::daemon::port::{
     DataDirStore, EntryKind, KindEntry, Opened, SegmentId, SegmentWrite, StoreHost,
 };
 use crate::daemon::{parse, Mode};
 use crate::event::Modality;
+
+const HOLD: &str = "HALVO_DELETE_ALL_HOLD";
+const HELD_TEST: &str =
+    "daemon::delete_all::process_tests::a_held_store_answers_busy_and_removes_nothing";
 
 fn data_dir(path: &Path) -> DataDir {
     DataDir::from_flag(path.to_str().unwrap()).unwrap()
@@ -59,6 +67,16 @@ fn files_under(dir: &Path) -> Vec<PathBuf> {
     }
     found.sort();
     found
+}
+
+fn snapshot(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+    files_under(dir)
+        .into_iter()
+        .map(|file| {
+            let bytes = std::fs::read(&file).unwrap();
+            (file, bytes)
+        })
+        .collect()
 }
 
 fn segment_files(dir: &Path) -> Vec<PathBuf> {
@@ -246,4 +264,56 @@ fn the_offline_delete_leaves_no_store() {
     let (again, out, err) = offline_run(&dir, &how);
     assert_eq!(again, 0, "err: {err}");
     assert_eq!(out, format!("data_dir={shown}\nno_store\n"));
+}
+
+#[test]
+fn a_held_store_answers_busy_and_removes_nothing() {
+    if let Some(dir) = std::env::var_os(HOLD) {
+        let held = InstanceLock::take(&data_dir(Path::new(&dir)))
+            .unwrap()
+            .unwrap();
+        let mut out = std::io::stdout().lock();
+        writeln!(out, "delete-all-holder: held").unwrap();
+        out.flush().unwrap();
+        let mut rest = Vec::new();
+        let _ = std::io::stdin().read_to_end(&mut rest);
+        drop(held);
+        return;
+    }
+    let dir = kept_dir("delete-all-held-");
+    a_store_with_a_segment(&dir);
+    let before = snapshot(&dir);
+    let mut holder = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", HELD_TEST, "--nocapture", "--test-threads=1"])
+        .env(HOLD, &dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(holder.stdout.take().unwrap()).lines();
+    let started = Instant::now();
+    loop {
+        let line = lines.next().expect("the holder ended early").unwrap();
+        if line.contains("delete-all-holder: held") {
+            break;
+        }
+        assert!(started.elapsed() < Duration::from_secs(60));
+    }
+    let table = rows();
+    let how = Offline {
+        rows: &table,
+        select: custody_policy::of_this_build,
+        hands: &SystemHands,
+    };
+
+    let (status, out, err) = offline_run(&dir, &how);
+
+    drop(holder.stdin.take());
+    for line in lines.by_ref() {
+        line.unwrap();
+    }
+    assert!(holder.wait().unwrap().success(), "the holder failed");
+    assert_eq!(status, 75, "out: {out} err: {err}");
+    assert_eq!(snapshot(&dir), before, "a held directory was touched");
 }
