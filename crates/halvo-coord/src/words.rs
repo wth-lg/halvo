@@ -311,7 +311,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("confirm.payment.allow", "Pay"),
     ("confirm.payment.reject", "Don't pay"),
     ("confirm.payment.allow_many", "Pay all {count}"),
-    ("confirm.payment.reject_many", "Don't pay these {count}"),
+    ("confirm.payment.reject_many", "Don't pay any of these {count}"),
     ("confirm.payment.action", "It will make this payment"),
     ("confirm.purchase.title", "Place this order?"),
     ("confirm.purchase.allow", "Order"),
