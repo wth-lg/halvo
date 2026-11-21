@@ -68,7 +68,7 @@ run_check() {
 }
 
 plain() {
-  LC_ALL=C tr -c ' -~\n' '?'
+  LC_ALL=C tr -c ' -~\n' '?' | LC_ALL=C tr '#' '?'
 }
 
 show_err() {
@@ -215,6 +215,9 @@ check() {
   done
   [ "$printed" = true ] || got=$got-without-the-print
   [ "$real_turns" = 0 ] || got=$got-with-a-real-turn
+  case $out in
+    *'##['*) got=$got-with-a-runner-command ;;
+  esac
   printf 'case %s/%s want=%s got=%s\n' "$name" "$mode" "$want" "$got"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $mode"
@@ -301,6 +304,11 @@ case $STUB_MODE in
     printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
     ;;
   no-ready) printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n' ;;
+  runner-commands)
+    printf 'halvo: --check-page: the event loop was ready at 4 ms\n##[error]forged by the app\n::error::forged by the app\n' >&2
+    : >"$STUB_DATA/##[warning]name"
+    printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
+    ;;
   setup-fails)
     printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
     exit 101
@@ -406,6 +414,15 @@ check-page exit: 0'
   check no-ready FAIL 'printed no time of the Ready of its event loop)' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
 ' 'check-page ready ms: none
 '
+  check runner-commands PASS 'check-page exit: 0, lines: 1, line matched: true' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
+' 'check-page ready ms: 4
+check-page err lines: 3
+check-page err: halvo: --check-page: the event loop was ready at 4 ms
+check-page err: ??[error]forged by the app
+check-page err: ::error::forged by the app
+check-page data: 1 files, 0 directories, 0 bytes, 0 dump files
+check-page data entry: ??[warning]name
+check-page exit: 0'
   check setup-fails FAIL 'halvo --check-page exited 101)' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
 '
   check engine-start-past-the-limit FAIL 'ran past 4 s and was ended, its event loop not ready)' '' 'check-page seconds: 4, bound: 2
