@@ -217,13 +217,6 @@ impl Cursor {
     /// ends. The cursor of the connection ends with it. While it waits in a
     /// read of `input`, nothing but a frame or the end of the stream wakes
     /// it.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the worker's supervisor of the workflows run calls it"
-        )
-    )]
     pub(in crate::daemon) fn serve<R: Read, W: Write>(&self, mut input: R, mut output: W) -> Ended {
         {
             let mut state = self.state();
@@ -425,10 +418,6 @@ impl Cursor {
     /// it returns at once when it waits for a pass, and at its next frame or
     /// at the end of its stream when it waits in a read. A reply that it took
     /// from a pass before this call it may still write.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the delete call site of the capture run calls it")
-    )]
     pub(in crate::daemon) fn drop_open(&self) {
         let mut state = self.state();
         state.open = None;
