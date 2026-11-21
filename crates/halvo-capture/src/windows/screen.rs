@@ -170,12 +170,15 @@ pub(crate) fn frame_is_activity(report: RegionReport, changed_regions: Option<us
 pub struct FrameCounts {
     pub delivered: u64,
     pub with_changed_region: u64,
+    /// Whether the last start found the system's report of changed regions.
+    pub regions_reported: bool,
 }
 
 #[derive(Debug, Default)]
 struct FrameCounters {
     delivered: AtomicU64,
     with_changed_region: AtomicU64,
+    regions_reported: AtomicBool,
 }
 
 impl FrameCounters {
@@ -183,6 +186,7 @@ impl FrameCounters {
         FrameCounts {
             delivered: self.delivered.load(Ordering::Relaxed),
             with_changed_region: self.with_changed_region.load(Ordering::Relaxed),
+            regions_reported: self.regions_reported.load(Ordering::Relaxed),
         }
     }
 }
@@ -359,6 +363,9 @@ impl CaptureSource for ScreenSource {
         )?;
         let closed = Arc::new(AtomicBool::new(false));
         let report = probe_region_report();
+        self.frames
+            .regions_reported
+            .store(report == RegionReport::Reported, Ordering::Relaxed);
         let flags = ScreenFlags {
             producer: handoff.producer(),
             floor: Floor::new(ctx.floor().clone(), Arc::clone(&self.drops)),

@@ -688,6 +688,9 @@ fn move_pointer(moves: u32) -> u32 {
 struct Seen {
     event: CaptureStreamEvent,
     view: Option<seam::FloorView>,
+    /// The OS time of a keystroke, which the seam keeps in the order of the
+    /// keys that the source handed on; its record holds the second alone.
+    key_time: Option<SystemTime>,
 }
 
 impl std::ops::Deref for Seen {
@@ -740,7 +743,19 @@ fn seen(received: halvo_capture::sink::Received, apps: &[String], titles: &[Stri
             event.segment_ref.byte_len = titles[index].len() as u64;
         }
     }
-    Seen { event, view }
+    let key_time = (event.modality == Modality::Keystroke)
+        .then(seam::next_recorded_tick)
+        .flatten()
+        .map(|tick| {
+            // SAFETY: GetTickCount takes no argument and reads a counter.
+            let age = unsafe { GetTickCount() }.wrapping_sub(tick);
+            SystemTime::now() - Duration::from_millis(u64::from(age.min(i32::MAX as u32)))
+        });
+    Seen {
+        event,
+        view,
+        key_time,
+    }
 }
 
 struct Events(mpsc::Receiver<Seen>);
@@ -3100,6 +3115,7 @@ fn x13_frames_on_a_static_screen() {
         let cover = TestWindow::create(&magenta_popup("HalvoVerifyStatic", "halvo-verify-static"))
             .expect("covering window");
         cover.cover_screen();
+        let (in_front, method) = cover.activate();
         pump_thread(Duration::from_secs(1));
         let (sink, events) = capture(1024);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
@@ -3138,17 +3154,23 @@ fn x13_frames_on_a_static_screen() {
         say(
             "x13",
             format!(
-                "screen_start={} screen_activity=on first_frame={first_frame} \
+                "screen_start={} screen_activity=on cover_activated={in_front} method={method} \
+                 regions_reported={} first_frame={first_frame} \
                  static_screen_secs=8 records_while_static={records_while_static} \
                  cover_window_was_foreground={covered} records_while_moving={records_while_moving} \
                  frames_delivered={} frames_with_changed_region={}",
                 show(&start),
+                frames.regions_reported,
                 frames.delivered,
                 frames.with_changed_region,
             ),
         );
         assert!(start.is_ok(), "the screen source must start");
         assert!(first_frame, "INCONCLUSIVE: no first frame");
+        assert!(
+            covered,
+            "INCONCLUSIVE: the covering window was not in front, so the screen was not static"
+        );
         assert!(
             records_while_moving >= 1,
             "no screen record while a window moved"
@@ -4496,8 +4518,8 @@ fn x15_a_held_key() {
     });
 }
 
-fn unix_millis_of(event: &CaptureStreamEvent) -> u128 {
-    unix_millis(event.captured_at.wall_clock)
+fn unix_millis_of(event: &Seen) -> u128 {
+    unix_millis(event.key_time.unwrap_or(event.captured_at.wall_clock))
 }
 
 fn keystrokes_inside(events: &[Seen], intervals: &[(u128, u128)], margin: u128) -> usize {

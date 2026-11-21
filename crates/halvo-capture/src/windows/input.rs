@@ -646,6 +646,8 @@ fn release_held_at(
                     &PasswordFieldProbe::default(),
                 );
                 if let Some(keep) = keep {
+                    #[cfg(feature = "test-seam")]
+                    seam::note_recorded(_key.tick());
                     producer.push(FloorEvent::keystroke(
                         keep,
                         clearance,
@@ -963,6 +965,27 @@ pub mod seam {
             Observation::ForegroundApp | Observation::ScreenFrame => {}
         }
         view
+    }
+
+    static RECORDED: Mutex<std::collections::VecDeque<u32>> =
+        Mutex::new(std::collections::VecDeque::new());
+
+    pub(super) fn note_recorded(os_tick: u32) {
+        let mut recorded = RECORDED.lock().unwrap_or_else(PoisonError::into_inner);
+        if recorded.len() == KEPT {
+            recorded.pop_front();
+        }
+        recorded.push_back(os_tick);
+    }
+
+    /// The OS tick of the oldest keystroke that a keyboard source handed to
+    /// its sink and that no call has taken yet: the fine time that a keystroke
+    /// record, stored at the resolution of a second, does not hold.
+    pub fn next_recorded_tick() -> Option<u32> {
+        RECORDED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pop_front()
     }
 
     static PUMPS: Mutex<()> = Mutex::new(());
