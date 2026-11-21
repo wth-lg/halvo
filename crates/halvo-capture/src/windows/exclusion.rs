@@ -83,8 +83,11 @@ impl ProcessTable for SystemTable {
 
 /// The parent of a process id for the floor's lineage walk. A parent whose
 /// creation is later than its child's is a reused id: the real parent is gone
-/// and the walk ends outside the tree. Each answer is kept for the process as
-/// long as the process keeps its creation time.
+/// and the walk ends outside the tree. A process that runs and cannot be opened
+/// ends the walk outside the tree too, since a process under the root runs as
+/// the root's user and opens; a process that is gone has an unknown parent.
+/// Each answer is kept for the process as long as the process keeps its
+/// creation time.
 pub struct ProcessLineage<T = SystemTable> {
     table: T,
     cache: Mutex<HashMap<u32, (u64, Parent)>>,
@@ -129,7 +132,11 @@ impl<T: ProcessTable> Lineage for ProcessLineage<T> {
     fn parent_of(&self, pid: ProcessId) -> Parent {
         let pid = pid.get();
         let Some(created) = self.table.created(pid) else {
-            return Parent::Unknown;
+            return if self.table.parent(pid).is_some() {
+                Parent::None
+            } else {
+                Parent::Unknown
+            };
         };
         let mut cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some((at, parent)) = cache.get(&pid) {
