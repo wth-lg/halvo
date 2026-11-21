@@ -6116,13 +6116,13 @@ fn a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event() {
         let _ = stop_counted(&mut title, "window_title");
         let _ = stop_counted(&mut keyboard, "keyboard");
         child.print_output();
-        let secret = titles_with(&seen, PASSWORD_EDIT_TITLE);
+        let in_password_edit = titles_with(&seen, PASSWORD_EDIT_TITLE);
         let plain = titles_with(&seen, PLAIN_TITLE);
         let drops = title.drops();
         say(
             "password-title",
             format!(
-                "keyboard_start={} title_start={} title_events_with_the_password_edit_focused={secret} \
+                "keyboard_start={} title_start={} title_events_with_the_password_edit_focused={in_password_edit} \
                  title_events_with_the_plain_edit_focused={plain} secure_input_drops={}",
                 show(&keyboard_start),
                 show(&title_start),
@@ -6135,8 +6135,8 @@ fn a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event() {
         );
         flipped!(
             "E4",
-            secret == 0 && plain >= 1,
-            format!("TF password-title secret={secret} plain={plain}")
+            in_password_edit == 0 && plain >= 1,
+            format!("TF password-title in_password_edit={in_password_edit} plain={plain}")
         );
     });
 }

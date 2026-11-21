@@ -17,7 +17,7 @@ use crate::floor::exclude::{
 use crate::floor::kind::Recorded;
 use crate::floor::payload::PointerFold;
 use crate::floor::Switch;
-use crate::secure_input::SecureInputProbe;
+use crate::secure_input::windows::PasswordFieldProbe;
 use crate::sink::{Emitted, FoldEmitted, SinkHandle};
 use crate::source::{
     CaptureError, HealthReason, SourceContext, SourceCounters, SourceHealth, SourceState, Started,
@@ -146,7 +146,7 @@ impl Floor {
         &self,
         front: &FrontApp,
         window: PrivateWindow,
-        probe: &dyn SecureInputProbe,
+        probe: &PasswordFieldProbe,
     ) -> Option<Keep<K>> {
         match self.handle.decide::<K>(front.subject(), window, probe) {
             Verdict::Keep(keep) => Some(keep),
@@ -1006,10 +1006,15 @@ pub(crate) mod tests {
     #[test]
     fn the_content_probe_of_a_gate_reads_its_field_state() {
         use crate::secure_input::windows::{FieldState, PasswordGate};
-        use crate::secure_input::{SecureInputProbe, SecureInputReading};
+        use crate::secure_input::{check, SecureInputReading, Withheld};
+        let reading = |gate: &PasswordGate| match check(&gate.content_probe(), None) {
+            Ok(_) => SecureInputReading::Inactive,
+            Err(Withheld::Active) => SecureInputReading::Active,
+            Err(Withheld::Unknown | Withheld::Late) => SecureInputReading::Unknown,
+        };
         let gate = PasswordGate::new();
-        assert_eq!(gate.content_probe().read(), SecureInputReading::Unknown);
-        for (state, reading) in [
+        assert_eq!(reading(&gate), SecureInputReading::Unknown);
+        for (state, wanted) in [
             (FieldState::Password, SecureInputReading::Active),
             (FieldState::Clear, SecureInputReading::Inactive),
             (FieldState::Unknown, SecureInputReading::Unknown),
@@ -1017,7 +1022,7 @@ pub(crate) mod tests {
         ] {
             gate.field_at(now_tick(), state);
             assert_eq!(gate.field_now(), state);
-            assert_eq!(gate.content_probe().read(), reading, "{state:?}");
+            assert_eq!(reading(&gate), wanted, "{state:?}");
         }
     }
 
