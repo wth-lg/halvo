@@ -45,6 +45,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.needs_you.setup",
         "It needs a few answers from you before it can start.",
     ),
+    (
+        "line.needs_you.setup_owed",
+        "It needs a few answers from you, but Halvo could not show the questions yet. Halvo tries again soon.",
+    ),
     ("line.needs_you.ready", "It is ready to start when you are."),
     (
         "line.needs_you.show",

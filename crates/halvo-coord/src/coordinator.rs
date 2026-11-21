@@ -3523,10 +3523,10 @@ where
                 }
                 line => line,
             };
-            if board.setup_owed(&facts.agent)
+            let owed = board.setup_owed(&facts.agent)
                 && !board.workflow_dismissed(&facts.workflow.id)
-                && line.status() == Status::AllSet
-            {
+                && line.status() == Status::AllSet;
+            if owed {
                 line = crate::types::StatusLine::NeedsYou(ItemKind::Setup);
             }
             let waiting = board
@@ -3560,6 +3560,13 @@ where
             });
             if asks_again && !quit_line && line == StatusLine::NeedsYou(ItemKind::Ready) {
                 if let Ok(text) = words::text("line.needs_you.asks_again", &[]) {
+                    row.line = text;
+                }
+            }
+            // While the raise of its setup is owed the row has no card, so its line says that the
+            // questions could not be shown yet (U3.12 (B); RD-155 (2), way B).
+            if owed && !st.deleting.iter().any(|d| d.agent == facts.agent) {
+                if let Ok(text) = words::text("line.needs_you.setup_owed", &[]) {
                     row.line = text;
                 }
             }

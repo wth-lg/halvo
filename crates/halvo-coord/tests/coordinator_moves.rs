@@ -13899,7 +13899,7 @@ fn u24s_i58_a_setup_raise_that_fails_at_the_recovery_tick_is_made_again_in_that_
         assert_eq!(u24s_r4_open_setups(&life), 0, "{error:?}: the raise failed");
         assert_eq!(
             u24s_r4_status(&life, &made),
-            (Status::NeedsYou, text("line.needs_you.setup")),
+            (Status::NeedsYou, text("line.needs_you.setup_owed")),
             "{error:?}: while the raise is owed the row does not say All set"
         );
         life.ports().ports.clear_refusals();
@@ -13932,7 +13932,7 @@ fn u24s_i58_a_setup_raise_that_fails_at_the_first_creation_move_is_made_again_in
     );
     assert_eq!(
         u24s_r4_status(&life, &made),
-        (Status::NeedsYou, text("line.needs_you.setup"))
+        (Status::NeedsYou, text("line.needs_you.setup_owed"))
     );
     life.ports().ports.clear_refusals();
     life.tick();
@@ -13957,7 +13957,7 @@ fn u24s_i58_an_owed_setup_raise_ends_where_the_hold_setup_has_ended() {
     life.tick();
     assert_eq!(
         u24s_r4_status(&life, &made),
-        (Status::NeedsYou, text("line.needs_you.setup")),
+        (Status::NeedsYou, text("line.needs_you.setup_owed")),
         "the raise is owed"
     );
     for a in life.ports().ports.agents.borrow_mut().iter_mut() {
@@ -13973,7 +13973,7 @@ fn u24s_i58_an_owed_setup_raise_ends_where_the_hold_setup_has_ended() {
     life.tick();
     assert_ne!(
         u24s_r4_status(&life, &made).1,
-        text("line.needs_you.setup"),
+        text("line.needs_you.setup_owed"),
         "the bindings came by another way: the hold setup has ended, and so has the debt"
     );
     assert_eq!(u24s_r4_open_setups(&life), 0);
@@ -13997,7 +13997,7 @@ fn u24s_i58_an_owed_setup_raise_ends_where_the_hold_setup_has_ended() {
     }
     assert_ne!(
         u24s_r4_status(&life, &made),
-        (Status::NeedsYou, text("line.needs_you.setup")),
+        (Status::NeedsYou, text("line.needs_you.setup_owed")),
         "with no item open the row is not made needs you by a debt that has ended"
     );
     assert_eq!(
@@ -14073,7 +14073,7 @@ fn u24s_i58_a_setup_raise_refused_at_every_tick_ends_in_the_record_line_and_neve
         life.tick();
         assert_eq!(
             u24s_r4_status(&life, &made),
-            (Status::NeedsYou, text("line.needs_you.setup")),
+            (Status::NeedsYou, text("line.needs_you.setup_owed")),
             "a lost reply at every tick: tick {k} does not say All set"
         );
         assert!(!life.record_stuck(&made), "no_service counts nothing");
@@ -14251,7 +14251,7 @@ fn u24s_rd168_an_owed_setup_raise_does_not_say_needs_you_while_the_list_shows_it
         .ports
         .refuse_record(u24s_r4_setup_raise, PortError::NoService);
     life.tick();
-    let owed = (Status::NeedsYou, text("line.needs_you.setup"));
+    let owed = (Status::NeedsYou, text("line.needs_you.setup_owed"));
     assert_eq!(u24s_r4_status(&life, &made), owed, "the raise is owed");
     life.ports().ports.clear_refusals();
     for w in life.ports().ports.workflows.borrow_mut().iter_mut() {
@@ -14983,5 +14983,35 @@ fn u24t_r6_a_history_read_refused_otherwise_keeps_its_cause() {
         ),
         (Err(Cause::NoService), Err(Cause::NoService)),
         "no_service and a refusal of the owner answer the cause, as before"
+    );
+}
+
+/// U3.12 (B), RD-155 (2) way B: while a setup raise is owed the row says so in a line of its own,
+/// in place of the line of a card that is not there; once the raise is stored the card is open
+/// and the row says the standing line again.
+#[test]
+fn u312_b_while_a_setup_raise_is_owed_the_row_says_so_in_a_line_of_its_own() {
+    let (life, made, _, _) = u24s_aside_with_setup();
+    life.ports()
+        .ports
+        .refuse_record(u24s_r4_setup_raise, PortError::NoService);
+    life.tick();
+    assert_eq!(
+        u24s_r4_open_setups(&life),
+        0,
+        "the raise failed: it is owed"
+    );
+    assert_eq!(
+        u24s_r4_status(&life, &made),
+        (Status::NeedsYou, text("line.needs_you.setup_owed")),
+        "while the raise is owed"
+    );
+    life.ports().ports.clear_refusals();
+    life.tick();
+    assert_eq!(u24s_r4_open_setups(&life), 1, "the raise is stored");
+    assert_eq!(
+        u24s_r4_status(&life, &made),
+        (Status::NeedsYou, text("line.needs_you.setup")),
+        "with its card open"
     );
 }

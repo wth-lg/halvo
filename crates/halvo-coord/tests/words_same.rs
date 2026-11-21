@@ -315,7 +315,11 @@ fn expected_keys() -> BTreeSet<String> {
     for c in Cause::ALL {
         k.insert(format!("refused.{}", c.name()));
     }
-    for key in ["card.history_busy", "card.read_again"] {
+    for key in [
+        "card.history_busy",
+        "card.read_again",
+        "line.needs_you.setup_owed",
+    ] {
         k.insert(key.to_owned());
     }
     k
@@ -445,7 +449,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 312);
+    assert_eq!(seen.len(), 313);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
