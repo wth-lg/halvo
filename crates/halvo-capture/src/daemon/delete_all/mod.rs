@@ -68,7 +68,8 @@ pub struct Owner {
 /// Reads the owner pid file at `file`, one line
 /// `pid=<n> started=<start time in microseconds since the epoch>`: `None`
 /// when no file stands there, an error of the kind InvalidData when the
-/// file does not hold that line.
+/// file does not hold that line or names the pid 0 or 1, which no signal may
+/// reach.
 pub fn owner_of(file: &Path) -> io::Result<Option<Owner>> {
     let text = match std::fs::read_to_string(file) {
         Ok(text) => text,
@@ -81,7 +82,7 @@ pub fn owner_of(file: &Path) -> io::Result<Option<Owner>> {
     let pid = pid.strip_prefix("pid=").ok_or_else(unreadable)?;
     let started = started.strip_prefix("started=").ok_or_else(unreadable)?;
     match (pid.parse(), started.parse()) {
-        (Ok(pid), Ok(started)) => Ok(Some(Owner { pid, started })),
+        (Ok(pid), Ok(started)) if pid > 1 => Ok(Some(Owner { pid, started })),
         _ => Err(unreadable()),
     }
 }
@@ -114,7 +115,7 @@ const OWNER_KILL_WAIT: std::time::Duration = std::time::Duration::from_secs(1);
 
 impl Hands for SystemHands {
     fn end_owner(&self, owner: Owner) -> bool {
-        end_by_signal(owner)
+        owner.pid > 1 && end_by_signal(owner)
     }
 
     fn destroy_key_file(&self, data_dir: &Path, file: &str) -> bool {
