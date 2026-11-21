@@ -1369,14 +1369,21 @@ fn refilter_on<R: ContentRead>(
     selection: &Selection,
     facts: &Arc<StreamFacts>,
 ) -> Result<(u32, bool), CaptureError> {
-    let stream = stream.clone();
+    let lent = Arc::new(Mutex::new(Some(stream.clone())));
+    let handler_lent = lent.clone();
     let selection = selection.clone();
     let facts = facts.clone();
     let main = reader.main_display();
-    read_on(reader, move |content| {
-        refiltered(content, &stream, stored, main, &selection, facts)
+    let answer = read_on(reader, move |content| {
+        let lent = handler_lent.lock().unwrap_or_else(PoisonError::into_inner);
+        let stream = lent
+            .as_ref()
+            .ok_or_else(|| CaptureError::Start("the stream was taken back".into()))?;
+        refiltered(content, stream, stored, main, &selection, facts)
     })
-    .and_then(|answer| answer)
+    .and_then(|answer| answer);
+    drop(lent.lock().unwrap_or_else(PoisonError::into_inner).take());
+    answer
 }
 
 fn refiltered<C: Shareable>(
@@ -4279,6 +4286,7 @@ mod tests {
         selections: Mutex<Vec<(bool, bool, bool)>>,
         ids_read_on: Mutex<Vec<String>>,
         caps: Mutex<Vec<FrameRateCap>>,
+        stream_dropped_on: Mutex<Vec<String>>,
     }
 
     impl Seen {
@@ -4320,6 +4328,12 @@ mod tests {
         fn starting() -> (Self, Arc<Seen>) {
             let (stream, seen, _freed) = Self::new(Ok(()), Some(None), false);
             (stream, seen)
+        }
+    }
+
+    impl Drop for StreamStandIn {
+        fn drop(&mut self) {
+            locked(&self.seen.stream_dropped_on).push(thread_name());
         }
     }
 
@@ -5032,6 +5046,53 @@ mod tests {
             *locked(&seen.caps),
             vec![SCREEN_FRAME_CAP],
             "the cap that reached new_stream"
+        );
+    }
+
+    #[test]
+    fn a_rebuild_whose_read_gave_up_leaves_no_clone_of_the_stream_in_its_handler() {
+        let (tracked, seen) = StreamStandIn::starting();
+        let (parts_stream, parts_seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Never, parts_stream, &[7], SHORT_WAIT);
+        let facts: Arc<StreamFacts> = Arc::default();
+        let selection = selection_under(None);
+        let base = Arc::strong_count(&seen);
+        let mut held = Vec::new();
+        for _ in 0..3 {
+            let rebuilt = refilter_on(&reader, &tracked, 7, &selection, &facts);
+            assert!(
+                matches!(
+                    rebuilt,
+                    Err(CaptureError::Timeout {
+                        stage: "shareable_content",
+                        ..
+                    })
+                ),
+                "the rebuild's read answered {rebuilt:?}"
+            );
+            held.push(Arc::strong_count(&seen) - base);
+        }
+        assert_eq!(
+            held,
+            vec![0, 0, 0],
+            "clones of the stream held by unanswered handlers after each give-up"
+        );
+        drop(tracked);
+        reader.answer_late();
+        reader.join();
+        assert_eq!(
+            Arc::strong_count(&seen),
+            1,
+            "clones of the stream after the late handlers ran"
+        );
+        assert!(
+            locked(&parts_seen.updated_on).is_empty(),
+            "a late handler asked a new filter"
+        );
+        let dropped_on = locked(&seen.stream_dropped_on).clone();
+        assert!(
+            !dropped_on.is_empty() && dropped_on.iter().all(|name| name != READER_THREAD),
+            "the threads of every release of the stream: {dropped_on:?}"
         );
     }
 
