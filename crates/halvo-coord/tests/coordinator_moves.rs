@@ -12197,3 +12197,153 @@ fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_a
         );
     }
 }
+
+fn u24s_r4_setup_raise(e: &halvo_coord::types::Event) -> bool {
+    matches!(
+        e.what,
+        What::ItemRaised {
+            raised: halvo_coord::types::Raised::Setup,
+            ..
+        }
+    )
+}
+
+fn u24s_r4_open_setups(c: &Coordinator<Both>) -> usize {
+    c.snapshot()
+        .items
+        .iter()
+        .filter(|i| i.kind() == ItemKind::Setup)
+        .count()
+}
+
+fn u24s_r4_status(c: &Coordinator<Both>, made: &AgentId) -> (Status, String) {
+    let s = c.snapshot();
+    let row = s.rows.iter().find(|r| &r.agent == made).unwrap();
+    (row.status, row.line.clone())
+}
+
+#[test]
+fn u24s_i58_a_setup_raise_that_fails_at_the_recovery_tick_is_made_again_in_that_life() {
+    for error in [refused_name("store"), PortError::NoService] {
+        let (life, made, _, _) = u24s_aside_with_setup();
+        life.ports()
+            .ports
+            .refuse_record(u24s_r4_setup_raise, error.clone());
+        life.tick();
+        assert_eq!(u24s_r4_open_setups(&life), 0, "{error:?}: the raise failed");
+        assert_eq!(
+            u24s_r4_status(&life, &made),
+            (Status::NeedsYou, text("line.needs_you.setup")),
+            "{error:?}: while the raise is owed the row does not say All set"
+        );
+        life.ports().ports.clear_refusals();
+        life.tick();
+        assert_eq!(
+            u24s_r4_open_setups(&life),
+            1,
+            "{error:?}: a later tick makes the raise again (RD-155 (2))"
+        );
+        assert_eq!(u24s_r4_status(&life, &made).0, Status::NeedsYou);
+        for _ in 0..3 {
+            life.tick();
+        }
+        assert_eq!(u24s_r4_open_setups(&life), 1, "{error:?}: one item");
+        assert_eq!(setups_raised(&life), 2, "{error:?}: one raise in each life");
+    }
+}
+
+#[test]
+fn u24s_i58_a_setup_raise_that_fails_at_the_first_creation_move_is_made_again_in_that_life() {
+    let (c, made, _) = setup_agent();
+    let life = next_life(&c, |o| {
+        o.ports
+            .refuse_record(u24s_r4_setup_raise, refused_name("store"))
+    });
+    assert_eq!(
+        u24s_r4_open_setups(&life),
+        0,
+        "the first creation move's raise failed"
+    );
+    assert_eq!(
+        u24s_r4_status(&life, &made),
+        (Status::NeedsYou, text("line.needs_you.setup"))
+    );
+    life.ports().ports.clear_refusals();
+    life.tick();
+    assert_eq!(
+        u24s_r4_open_setups(&life),
+        1,
+        "a later tick makes the raise again"
+    );
+    for _ in 0..3 {
+        life.tick();
+    }
+    assert_eq!(u24s_r4_open_setups(&life), 1);
+    assert_eq!(setups_raised(&life), 2);
+}
+
+fn u24s_r4_aside(quit: bool) -> (Coordinator<Both>, AgentId) {
+    let (c, made, _) = setup_agent();
+    if quit {
+        let _ = c.quit_stop();
+        c.quit_kill();
+    }
+    let aside = made.clone();
+    let life = next_life(&c, move |o| {
+        o.ports
+            .refuse_agent(Method::History, &aside, refused_name("store"))
+    });
+    assert!(life.record_stuck(&made), "set aside");
+    life.ports().ports.clear_refusals();
+    (life, made)
+}
+
+#[test]
+fn u24s_i58_a_setup_raise_refused_at_every_tick_ends_in_the_record_line_and_never_says_all_set() {
+    for (quit, owed_lapse, expected) in [(false, true, 4), (true, false, 3)] {
+        let (life, made) = u24s_r4_aside(quit);
+        life.ports()
+            .ports
+            .refuse_record(u24s_r4_setup_raise, refused_name("store"));
+        let mut shown = None;
+        for k in 1..=10 {
+            let from = life.ports().ports.tried.borrow().len();
+            life.tick();
+            let tried = u24s_setup_raises_tried(&life, from, &made);
+            if shown.is_some() {
+                assert_eq!(
+                    tried, 0,
+                    "owed lapse {owed_lapse}: no raise after the record line, tick {k}"
+                );
+            } else {
+                assert_eq!(tried, 1, "owed lapse {owed_lapse}: one raise at tick {k}");
+            }
+            if shown.is_none() && life.record_stuck(&made) {
+                shown = Some(k);
+            }
+            assert_ne!(
+                u24s_r4_status(&life, &made).0,
+                Status::AllSet,
+                "owed lapse {owed_lapse}: tick {k}"
+            );
+        }
+        assert_eq!(
+            shown,
+            Some(expected),
+            "owed lapse {owed_lapse}: the record line shows after this many ticks (I5.7)"
+        );
+    }
+    let (life, made) = u24s_r4_aside(false);
+    life.ports()
+        .ports
+        .refuse_record(u24s_r4_setup_raise, PortError::NoService);
+    for k in 1..=10 {
+        life.tick();
+        assert_eq!(
+            u24s_r4_status(&life, &made),
+            (Status::NeedsYou, text("line.needs_you.setup")),
+            "a lost reply at every tick: tick {k} does not say All set"
+        );
+        assert!(!life.record_stuck(&made), "no_service counts nothing");
+    }
+}
