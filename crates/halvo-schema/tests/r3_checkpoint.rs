@@ -348,7 +348,9 @@ fn a_checkpoint_body_reads_writes_back_and_travels_in_a_runner_request() {
         );
         let stored = RunnerReply::parse(br#"{"stored":1}"#).unwrap();
         assert!(stored.answers(&call));
-        let load = RunnerReply::parse(br#"{"steps":[]}"#).unwrap();
+        let load =
+            RunnerReply::parse(br#"{"agent":"40000000000000000000000000000001","steps":[]}"#)
+                .unwrap();
         assert!(!load.answers(&call));
     }
 }

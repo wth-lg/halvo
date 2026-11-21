@@ -1417,13 +1417,15 @@ fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
     let empty_load = format!(
         r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[],"start":null}}"#
     );
-    let steps = format!(r#"{{"steps":[{},{}]}}"#, wait(3), wait(4));
-    let session_reply = format!(r#"{{"origin":"{U}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#);
+    let steps = format!(r#"{{"agent":"{A}","steps":[{},{}]}}"#, wait(3), wait(4));
+    let no_steps = format!(r#"{{"agent":"{A}","steps":[]}}"#);
+    let session_reply =
+        format!(r#"{{"agent":"{A}","origin":"{U}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#);
     for text in [
         load.as_str(),
         empty_load.as_str(),
         steps.as_str(),
-        r#"{"steps":[]}"#,
+        no_steps.as_str(),
         session_reply.as_str(),
         r#"{"stored":3}"#,
         r#"{"stored":0}"#,
@@ -1452,7 +1454,7 @@ fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
         ["put_playbook", "put_session", "effect", "log", "finish"]
     );
     expect(
-        RunnerReply::parse(br#"{"stored":1,"steps":[]}"#),
+        RunnerReply::parse(format!(r#"{{"agent":"{A}","stored":1,"steps":[]}}"#).as_bytes()),
         "StepsReply",
         "unknown_key",
         "-",
@@ -1476,7 +1478,9 @@ fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
         "stored",
     );
     expect(
-        RunnerReply::parse(format!(r#"{{"steps":[{},{}]}}"#, wait(3), wait(5)).as_bytes()),
+        RunnerReply::parse(
+            format!(r#"{{"agent":"{A}","steps":[{},{}]}}"#, wait(3), wait(5)).as_bytes(),
+        ),
         "StepsReply",
         "number_order",
         "steps",
@@ -1484,7 +1488,7 @@ fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
     expect(
         RunnerReply::parse(
             format!(
-                r#"{{"steps":[{}]}}"#,
+                r#"{{"agent":"{A}","steps":[{}]}}"#,
                 (1..=17).map(wait).collect::<Vec<_>>().join(",")
             )
             .as_bytes(),
@@ -1958,8 +1962,9 @@ fn every_reply_of_a_runner_body_is_counted_on_the_bytes_given_by_its_own_parse_a
     let load = format!(
         r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[],"start":null}}"#
     );
-    let steps = format!(r#"{{"steps":[{}]}}"#, wait(3));
-    let session = format!(r#"{{"origin":"{U}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#);
+    let steps = format!(r#"{{"agent":"{A}","steps":[{}]}}"#, wait(3));
+    let session =
+        format!(r#"{{"agent":"{A}","origin":"{U}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#);
     let cases: [(&str, &str, Parse); 4] = [
         (&load, "LoadReply", |b| LoadReply::parse(b).map(drop)),
         (&steps, "StepsReply", |b| StepsReply::parse(b).map(drop)),

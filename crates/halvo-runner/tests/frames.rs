@@ -349,7 +349,10 @@ fn a_reply_of_another_form_with_the_requests_id_is_refused_with_frame() {
                 reply: StoreReply {
                     id: Some(s.request.id().clone()),
                     outcome: Ok(halvo_schema::executable::RunnerReply::Steps(
-                        halvo_schema::executable::body::StepsReply { steps: Vec::new() },
+                        halvo_schema::executable::body::StepsReply {
+                            agent: s.request.body().agent().clone(),
+                            steps: Vec::new(),
+                        },
                     )),
                 },
             }))

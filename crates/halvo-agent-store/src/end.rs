@@ -48,6 +48,7 @@ fn agrees(host: &dyn Host, record: &AgentRun) -> Result<(), ErrorName> {
                 | EffectState::Cleared
                 | EffectState::Approved
                 | EffectState::Releasing
+                | EffectState::NotMade
         )
     });
     if record.outcome == Outcome::Completed && open {
