@@ -52,6 +52,7 @@ store units halvo-capture::store::hardening_tests::a_shredded_wrapped_key_is_gon
 store units halvo-capture::store::hardening_tests::a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind scheduled sun in the macos job and fri in the windows job, the group C; 5 s
 store units halvo-capture::store::hardening_tests::page_gap_probe scheduled sun in the macos job and fri in the windows job, the group C; 26 s in the windows job, 2 s in the macos job
 store units halvo-capture::custody gate
+store units halvo-capture::daemon::delete_all::process_tests gate macos job
 store units halvo-sqlcipher scheduled mon the group A; 27 s in the macos job, 32 s in the windows job
 store target halvo-derived/crash_model gate
 store target halvo-learn-gate/delete_cli gate

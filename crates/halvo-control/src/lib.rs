@@ -10,6 +10,7 @@ pub mod client_windows;
 pub mod ctl_text;
 #[cfg(target_os = "macos")]
 pub mod instance_lock;
+pub mod marks;
 pub mod model;
 pub mod onboarding;
 pub mod paths;
