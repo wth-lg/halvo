@@ -82,6 +82,7 @@ tool tools/r5-trials/Cargo.toml
 tool tools/r5-trials/drift/Cargo.toml
 tool tools/r5-trials/routine/Cargo.toml
 tool tools/r5-trials/stat/Cargo.toml
+tool ui/tests/r4/page/package.json
 wall backend
 EOF
 }
