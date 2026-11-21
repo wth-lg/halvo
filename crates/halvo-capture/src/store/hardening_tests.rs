@@ -12102,18 +12102,22 @@ fn log_of_another_page_size(log: &[u8], size: usize) -> Vec<u8> {
     let word = |bytes: &[u8], at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
     let big_endian = word(log, 0) & 1 == 1;
     let sum = |state: [u32; 2], bytes: &[u8]| -> [u32; 2] {
-        bytes.chunks_exact(8).fold(state, |[s1, s2], pair| {
-            let read = |half: &[u8]| {
-                let half: [u8; 4] = half.try_into().unwrap();
-                if big_endian {
-                    u32::from_be_bytes(half)
-                } else {
-                    u32::from_le_bytes(half)
-                }
-            };
-            let s1 = s1.wrapping_add(read(&pair[..4])).wrapping_add(s2);
-            [s1, s2.wrapping_add(read(&pair[4..])).wrapping_add(s1)]
-        })
+        bytes
+            .as_chunks::<8>()
+            .0
+            .iter()
+            .fold(state, |[s1, s2], pair| {
+                let read = |half: &[u8]| {
+                    let half: [u8; 4] = half.try_into().unwrap();
+                    if big_endian {
+                        u32::from_be_bytes(half)
+                    } else {
+                        u32::from_le_bytes(half)
+                    }
+                };
+                let s1 = s1.wrapping_add(read(&pair[..4])).wrapping_add(s2);
+                [s1, s2.wrapping_add(read(&pair[4..])).wrapping_add(s1)]
+            })
     };
     let put = |bytes: &mut [u8], [s1, s2]: [u32; 2]| {
         bytes[..4].copy_from_slice(&s1.to_be_bytes());
@@ -12259,7 +12263,7 @@ fn a_page_cache_of_stale_bytes_for_parent() {
     const SLOTS: usize = 64;
     let stale_page = std::fs::read(dir.join("stale-page")).unwrap();
     let cache: &mut [u8] = Box::leak(vec![0u8; SLOT * SLOTS].into_boxed_slice());
-    for slot in cache.chunks_exact_mut(SLOT) {
+    for slot in cache.as_chunks_mut::<SLOT>().0 {
         slot[..stale_page.len()].copy_from_slice(&stale_page);
     }
     let config = unsafe {
