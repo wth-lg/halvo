@@ -8640,6 +8640,32 @@ mod tests {
     }
 
     #[test]
+    fn a_click_gives_no_record_when_the_front_read_at_the_click_is_listed_or_under_the_root() {
+        for under_root in [false, true] {
+            let mut held = held(100);
+            let (stored, read) = if under_root {
+                held.ctx.floor = FloorHandle::new(
+                    Some(ProcessId::new(500)),
+                    Arc::new(UnderRoot),
+                    crate::floor::Switches::default(),
+                );
+                (TestApp("com.example.other", 4444).front(), APP.front())
+            } else {
+                (APP.front(), LISTED.front())
+            };
+            let (_front_writer, reader) =
+                crate::macos::foreground::tests_support::stored_and_read(stored, read);
+            held.ctx.foreground = reader;
+            pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+            assert_eq!(
+                pointer_records(&held.writer),
+                [],
+                "under the root: {under_root}"
+            );
+        }
+    }
+
+    #[test]
     fn each_type_of_the_table_has_its_class() {
         use TapClass::{
             ContinuousPointer as C, DiscretePointer as D, KeyPress as K, OtherKey as O,

@@ -351,6 +351,16 @@ pub(crate) mod tests_support {
         AppIdentity::of(None, Some(path))
     }
 
+    pub(crate) fn stored_and_read(
+        stored: Foreground,
+        read: Foreground,
+    ) -> (super::ForegroundWriter, super::ForegroundReader) {
+        let (writer, reader) =
+            super::writer_and_reader(std::sync::Arc::new(move || Some(read.clone())));
+        writer.set(Some(stored));
+        (writer, reader)
+    }
+
     /// A foreground source with the product's poll interval whose poll reads
     /// `system_front`, the stand-in of the system's app in front, through the
     /// writer's read as the product's source does, and the reader of its value.
