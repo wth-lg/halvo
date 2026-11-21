@@ -713,3 +713,72 @@ where
     done.report.read = now;
     done
 }
+
+#[cfg(test)]
+mod watch {
+    use super::Watch;
+    use crate::guard::Table;
+    use crate::mem::Config;
+    use crate::ports::{Owner, PortError};
+    use crate::types::{Agent, AgentId, Body, Event, Reply, ReplyRow, RunId, Workflow, WorkflowId};
+    use std::cell::RefCell;
+
+    #[derive(Default)]
+    struct Recording {
+        deletes: RefCell<Vec<WorkflowId>>,
+    }
+
+    impl Owner for Recording {
+        type Config = Config;
+
+        fn log(&self, _: &[Event]) -> Result<(), PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn history(&self, _: &AgentId, _: u32) -> Result<(Vec<Event>, u32), PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn send(&self, _: &Body) -> Result<Reply, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn replies(
+            &self,
+            _: &WorkflowId,
+            _: &AgentId,
+            _: &RunId,
+        ) -> Result<Vec<ReplyRow>, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+            self.deletes.borrow_mut().push(workflow.clone());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_delete_through_the_watch_reaches_the_owner_that_it_wraps() {
+        let owner = Recording::default();
+        let mut table = Table::new();
+        let watch = Watch {
+            ports: &owner,
+            kill_refused_unknown_run: RefCell::new(Vec::new()),
+            listed: RefCell::new(None),
+            cancel_already_sent: Vec::new(),
+            table: RefCell::new(&mut table),
+        };
+        let workflow = WorkflowId::parse(&format!("{:032x}", 0x51)).unwrap();
+        assert_eq!(watch.delete(&workflow), Ok(()));
+        assert_eq!(*owner.deletes.borrow(), [workflow]);
+    }
+}
