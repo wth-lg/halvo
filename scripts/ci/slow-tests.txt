@@ -1,38 +1,56 @@
 # What 12-test skips in the merge gate (sh scripts/ci/run-ci-d.sh <job> --merge-gate).
 # The whole table, in the Sunday run and in a run by hand, runs every test of the workspace.
 #
-# A line is one of three words, a blank, a name, and then a note:
-#   target <name>    every test target of that name, in whatever package has one
-#   units <package>  the unit tests of that package's library and binaries
-#   test <part>      every test whose name holds the part (cargo test -- --skip <part>)
-# The note names the package and the seconds that libtest printed for the target in the macos job
-# and in the windows job of the pull request run 44877874023. A target is here when it took about
-# 6 s or more in one of the two jobs.
-target later_file_builds halvo-schema: 61 s macos, 43 s windows
+# A line is one of five words, then for the first four a blank and a name, and then a note:
+#   targets <package>  every test target of that package; its unit tests stay
+#   target <name>      every test target of that name, in whatever package has one
+#   units <package>    the unit tests of that package's library and binaries
+#   test <part>        every test whose name holds the part (cargo test -- --skip <part>)
+#   doc-tests          the doc-tests of every package
+# The merge gate keeps the unit tests of every package that no units line names, and the test
+# targets of the packages that hold a core promise (scripts/ci/core-promises.txt): halvo,
+# halvo-capture, halvo-derived, halvo-learn, halvo-learn-gate, halvo-learn-store, halvo-redact,
+# halvo-route, halvo-route-gate and halvo-route-wire. In those, a target or a group of unit tests
+# is here when it took about 6 s or more in one of the two jobs.
+# The seconds of a target and of a package's test targets are the ones that libtest printed in
+# the macos job and in the windows job of the pull request run 44877874023, which ran every test.
+# The seconds of a test line are the gaps before the test's lines in the macos job of the push
+# run 44893237714 (its artifact ci-artifacts-macos, 12-test/line-seconds.txt), where the unit
+# tests of halvo-capture took 273 s.
+targets halvo-agent-client 12 test targets: 57 s macos, 42 s windows
+targets halvo-agent-gate 2 test targets: 3 s macos, 2 s windows
+targets halvo-agent-store 10 test targets: 6 s macos, 5 s windows
+targets halvo-cap 4 test targets: 6 s macos, 6 s windows
+targets halvo-checkpoint 10 test targets: 13 s macos, 3 s windows
+targets halvo-connect 8 test targets: 24 s macos, 19 s windows
+targets halvo-coord 40 test targets: 17 s macos, 11 s windows
+targets halvo-coord-app 12 test targets: 21 s macos, 16 s windows
+targets halvo-coord-store 8 test targets: under 1 s in each job
+targets halvo-policy 10 test targets: under 1 s in each job
+targets halvo-runner 10 test targets: 9 s macos, 9 s windows
+targets halvo-sample 9 test targets: 8 s macos, 5 s windows
+targets halvo-schema 43 test targets: 78 s macos, 56 s windows
+targets halvo-schema-core 1 test target: under 1 s in each job
+targets halvo-seam 11 test targets: 46 s macos, 28 s windows
+targets halvo-sheet 19 test targets: 42 s macos, 23 s windows
+targets halvo-test-dir 1 test target: under 1 s in each job
+targets halvo-web 1 test target: 33 s macos, 33 s windows
 target privacy halvo-derived: 52 s macos, 60 s windows
-target failed_start halvo-web: 33 s macos, 33 s windows
-target conformance halvo-seam: 30 s macos, 20 s windows
-target bounds halvo-sheet: 26 s macos, 16 s windows
-target formal_traces halvo-route: 15 s macos, 10 s windows; halvo-coord and halvo-learn hold a target of the same name, under 1 s each
-target acts halvo-agent-client: 16 s macos, 8 s windows
-target handles halvo-agent-client: 13 s macos, 10 s windows
-target start halvo-agent-client: 5 s macos, 13 s windows
-target locked_files halvo-schema: 12 s macos, 9 s windows
-target derive_rules halvo-route-gate: 12 s macos, 8 s windows
-target waiting halvo-coord-app: 11 s macos, 9 s windows
-target suite_controls halvo-seam: 11 s macos, 7 s windows
-target macos_stall_fixture halvo-capture: 10 s macos, every test ignored on windows
-target drift_cli halvo-learn-gate: 9 s macos, 5 s windows
 target replaced halvo-derived: 8 s macos, 7 s windows
-target run_end halvo-agent-client: 8 s macos, 8 s windows
-target fixture halvo-connect: 8 s macos, 8 s windows
-target reap halvo-agent-client: 6 s macos, 2 s windows
-target coordinator_moves halvo-coord: 6 s macos, 5 s windows
 target page_gap_check halvo-derived: 6 s macos, 4 s windows
-target quit halvo-coord-app: 6 s macos, 5 s windows
+target formal_traces halvo-route: 15 s macos, 10 s windows; halvo-learn holds a target of the same name, under 1 s
+target derive_rules halvo-route-gate: 12 s macos, 8 s windows
+target drift_cli halvo-learn-gate: 9 s macos, 5 s windows
+target macos_stall_fixture halvo-capture: 10 s macos, every test ignored on windows
 units halvo-learn-gate 42 s macos, 24 s windows
 units halvo-sqlcipher 27 s macos, 32 s windows
 units halvo-web 24 s macos, 7 s windows
 units halvo-control 16 s macos, 10 s windows
 units halvo-route-gate 13 s macos, 9 s windows
 units halvo-learn-store 7 s macos, 5 s windows
+test daemon::supervisor::tests::stress_cases halvo-capture: 88 s macos, 48 tests
+test daemon::supervisor::tests::the_stop_path_with_every_wait_at_its_limit_ends_inside_the_budget halvo-capture: 13 s macos
+test store::formal_tests halvo-capture: 37 s macos, 16 tests
+test store::hardening_tests::a_shredded_wrapped_key_is_gone_from_the_raw_database_pages halvo-capture: 9 s macos
+test store::hardening_tests::a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind halvo-capture: 5 s macos
+doc-tests 12 s macos after a build of 29 s, in the push run 44893237714
