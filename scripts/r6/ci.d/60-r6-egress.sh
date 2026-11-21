@@ -40,10 +40,12 @@ on lints and a wrapper that silence the canary as they silence the crates. The e
 no cargo configuration file: the compiler flags keys of its build and target tables and its wrapper
 keys reach the forbid runs and the build alike.
 From the first wrapped call on, the check decides nothing from a file that a wrapped program can
-write: the run list with its arguments, the printed names of the commands, the list's blob id, the
-hashes of the tracked files, git's configuration and the untracked paths of the checkout are read into
-the shell before the control; the egress check's last line comes through a pipe; and a command's --out
-directory is one of its own, outside the checkout. After every wrapped call the check reads the
+write: the run list with its arguments, the list's blob id, the hashes of the tracked files, git's
+configuration and the untracked paths of the checkout are read into the shell before the control,
+before any run of the built route-gate; the printed names of the commands are read into the shell
+once, right after the printing's own wrapped call, and from nowhere after it; the egress check's
+last line comes through a pipe; and a command's --out directory is one of its own, outside the
+checkout. After every wrapped call the check reads the
 tracked files, git's configuration and the untracked paths outside target/ again (git ls-files --others
 --directory, which names a directory that holds no tracked file by its name alone) and fails on any
 difference: an untracked path that is new by "a wrapped run left a new path: <path>", and one that is
@@ -79,11 +81,12 @@ arguments variable that holds an allow flag, a cap on lints, a cfg flag or a wor
 variable that is set; it reads a name without regard to letter case, as Windows does. Text in a
 comment or a string is read as code, so a doc comment that writes cfg(feature) is refused: write such
 text without the parenthesis after cfg.
-The printing: after the build and before the control, in the macos job and in the windows job, the
-check runs the built route-gate once, outside the egress check, as "route-gate commands", which prints
-the names of its commands from the one table that dispatches them, one per line in the table's
-order, so that a name that it does not print is a command that route-gate does not dispatch; a
-printing that does not exit 0 fails the check by "egress printing exit=<n>".
+The printing: after the control, in the macos job and in the windows job, the check runs the built
+route-gate under the egress check as "route-gate commands", a wrapped call like every other, with its
+own line "egress printing mode=<mode> command=<n> denied=<n> exit=<n>", whose denied adds to denied;
+route-gate prints the names of its commands from the one table that dispatches them, one per line in
+the table's order, so that a name that it does not print is a command that route-gate does not
+dispatch; a printing that does not exit 0 fails the check by "egress printing exit=<n>".
 The two lists: the commands that the check runs under the egress check, each with its arguments,
 and the commands that it cannot run on files of the repository alone, each with its reason. At this
 commit every command stands on the first list, import among them on the repository's two trial files
@@ -1039,12 +1042,35 @@ control() {
 }
 
 printing() {
-  found_commands=$("$exe" commands 2>"$artifacts/printing.err" </dev/null)
-  printed_exit=$?
-  printf '%s\n' "$found_commands" >"$artifacts/printing.out" || fail setup
-  if [ "$printed_exit" -ne 0 ]; then
-    printf 'egress printing exit=%s (route-gate commands printed no names)\n' "$printed_exit"
+  wrapped_call "$work/printing.out" "$exe" commands
+  found_commands=$(cat "$work/printing.out" && printf x) || found_commands=x
+  found_commands=${found_commands%x}
+  printf '%s' "$found_commands" >"$artifacts/printing.out" || fail setup
+  list_after printing
+  read_wrapped
+  case $wrapped in
+    refused)
+      refused_mode=yes
+      ran=no
+      printf 'egress printing refused=mode\n'
+      return
+      ;;
+    missing)
+      ran=no
+      printf 'egress printing line=missing exit=%s\n' "$code"
+      return
+      ;;
+  esac
+  denied=$((denied + count))
+  printf 'egress printing mode=%s command=%s denied=%s exit=%s\n' "$run_mode" "$status" "$count" "$code"
+  if [ "$status" != 0 ]; then
+    printf 'egress printing exit=%s (route-gate commands printed no names)\n' "$status"
     fail check
+  fi
+  wrapped_holds "$code" || ran=no
+  if ! log_holds; then
+    printf 'egress printing log=not-new-or-not-its-own\n'
+    ran=no
   fi
 }
 
@@ -1270,9 +1296,9 @@ check() {
   ran=yes
   refused_mode=no
   read_graph
-  printing
   state_before_calls
   control
+  printing
   compare_lists
   run_checks
 
@@ -1456,10 +1482,22 @@ EOF
   cat >"$work/route-gate" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
 [ -z "$STUB_MARKER" ] || printf 'run %s\n' "$*" >>"$STUB_MARKER"
+if [ -n "$STUB_LEAVE" ] && [ "$1" = "$STUB_LEAVE" ]; then
+  printf 'x\n' >left-behind.txt
+fi
 if [ "$#" -eq 1 ] && [ "$1" = commands ]; then
   if [ -n "$STUB_PRINT_EXIT" ]; then
     printf 'REFUSED usage: unknown command\n' >&2
     exit "$STUB_PRINT_EXIT"
+  fi
+  if [ -n "$STUB_PRINT_FILTER" ]; then
+    trial=docs/r2/trials/egress.md
+    blob=$(git ls-files -s -- "$trial" | awk '{ print $2 }')
+    git config filter.r6same.clean "cat >/dev/null; git cat-file blob $blob"
+    attributes=$(git rev-parse --git-path info/attributes)
+    mkdir -p "${attributes%/*}"
+    printf '%s filter=r6same\n' "$trial" >"$attributes"
+    tr o O <"$trial" >"$trial.new" && mv "$trial.new" "$trial"
   fi
   for known in $STUB_COMMANDS; do
     printf '%s\n' "$known"
@@ -1468,7 +1506,6 @@ if [ "$#" -eq 1 ] && [ "$1" = commands ]; then
 fi
 for known in $STUB_COMMANDS; do
   if [ "$1" = "$known" ]; then
-    [ "$1" != "$STUB_LEAVE" ] || printf 'x\n' >left-behind.txt
     [ "$1" != "$STUB_TAKE" ] || mv untracked-before.txt target/untracked-before.txt
     exit "$STUB_RUN_EXIT"
   fi
@@ -1676,6 +1713,7 @@ case_reset() {
   STUB_HELD_PORT=
   STUB_LEAVE=
   STUB_TAKE=
+  STUB_PRINT_FILTER=
   STUB_CHECK=pass
   STUB_TOUCH=
   STUB_FRESH=true
@@ -1736,6 +1774,8 @@ windows-imports import-listing-printed
 printing-names printed-command-on-neither-list
 printing-entries entry-that-is-no-command
 printing-exit printing-that-does-not-exit-0
+printing-wrapped printing-leaves-a-file-in-the-checkout
+printing-state-first printing-rewrites-a-file-behind-a-clean-filter
 tree-new-path import-leaves-a-file-in-the-checkout
 checks-count job-with-no-run
 windows-sentence sentence-on-a-hosted-runner
@@ -1801,6 +1841,8 @@ import-listing-printed
 printed-command-on-neither-list
 entry-that-is-no-command
 printing-that-does-not-exit-0
+printing-leaves-a-file-in-the-checkout
+printing-rewrites-a-file-behind-a-clean-filter
 import-leaves-a-file-in-the-checkout
 job-with-no-run
 sentence-on-a-hosted-runner
@@ -1931,7 +1973,7 @@ case_run() {
   fi
   case_started=$(date +%s)
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE STUB_TAKE=$STUB_TAKE \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE STUB_TAKE=$STUB_TAKE STUB_PRINT_FILTER=$STUB_PRINT_FILTER \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
@@ -2236,6 +2278,8 @@ self_test() {
   gitlink_tree=$(odd_repo "$work/repo-gitlink" gitlink) || self_failed "setup at line $LINENO"
   leave_tree=$(write_repo "$work/repo-leave" '') || self_failed "setup at line $LINENO"
   take_tree=$(write_repo "$work/repo-take" '') || self_failed "setup at line $LINENO"
+  print_leave_tree=$(write_repo "$work/repo-print-leave" '') || self_failed "setup at line $LINENO"
+  print_filter_tree=$(write_repo "$work/repo-print-filter" '') || self_failed "setup at line $LINENO"
   for dir in repo-leave repo-take; do
     printf 'x\n' >"$work/$dir/untracked-before.txt" || self_failed "setup at line $LINENO"
   done
@@ -2365,6 +2409,8 @@ windows-imports import-listing-printed
 printing-names printed-command-on-neither-list
 printing-entries entry-that-is-no-command
 printing-exit printing-that-does-not-exit-0
+printing-wrapped printing-leaves-a-file-in-the-checkout
+printing-state-first printing-rewrites-a-file-behind-a-clean-filter
 tree-new-path import-leaves-a-file-in-the-checkout
 checks-count job-with-no-run
 windows-sentence sentence-on-a-hosted-runner
@@ -2468,7 +2514,15 @@ EOF
   STUB_COMMANDS="$STUB_COMMANDS export"
   case_run printed-command-on-neither-list FAIL check 'egress on-neither-list=export'
   STUB_PRINT_EXIT=2
-  case_run printing-that-does-not-exit-0 FAIL check 'egress printing exit=2 (route-gate commands printed no names)' 'egress control'
+  case_run printing-that-does-not-exit-0 FAIL check 'egress printing exit=2 (route-gate commands printed no names)' 'egress run='
+  case_repo=$work/repo-print-leave
+  case_tree=$print_leave_tree
+  STUB_LEAVE=commands
+  case_run printing-leaves-a-file-in-the-checkout FAIL check 'egress printing: a wrapped run left a new path: left-behind.txt'
+  case_repo=$work/repo-print-filter
+  case_tree=$print_filter_tree
+  STUB_PRINT_FILTER=1
+  case_run printing-rewrites-a-file-behind-a-clean-filter FAIL check "tree changed=after M docs/r2/trials/egress.md${nl}egress printing: a wrapped run changed git's configuration"
   case_repo=$work/repo-leave
   case_tree=$leave_tree
   STUB_LEAVE=import
@@ -2665,7 +2719,7 @@ EOF
   STUB_COMMANDS='generate import derive score self-test spend-sim commands'
   case_run entry-that-is-no-command FAIL check 'egress no-command=probe'
   STUB_CHECK=denied
-  case_run denied-in-each-run FAIL denied 'egress checks=8 denied=8 entries=0' 'denied=0 proves'
+  case_run denied-in-each-run FAIL denied 'egress checks=8 denied=9 entries=0' 'denied=0 proves'
   STUB_CHECK=denied0
   case_run check-exits-0-with-a-denial FAIL check 'egress run=probe mode=sandbox command=0 denied=1 exit=0'
   STUB_CHECK=denied
@@ -2822,7 +2876,7 @@ help_sentences() {
     'what a process did after the command ended, in the egress check' \
     'the egress check'"'"'s writes under target/egress/' \
     'the forbid list and its canary come from one table of this script: a commit that changes 60-r6-egress.sh can take an entry out of the list and its canary line together, and only the readers of that guarded script see it' \
-    'which prints the names of its commands from the one table that dispatches them, one per line in the table'"'"'s order, so that a name that it does not print is a command that route-gate does not dispatch' \
+    'prints the names of its commands from the one table that dispatches them, one per line in the table'"'"'s order, so that a name that it does not print is a command that route-gate does not dispatch' \
     'and the second list has no entry; the count line prints cannot=0' \
     'A file written under target/, or inside a directory that held no tracked file before the first call, is not seen there' \
     'the control holds against an egress check that wraps nothing; an egress check changed in the same commit can pass it, and scripts/egress/ is held by its own run'"'"'s checks and by the landing'"'"'s readers'; do
