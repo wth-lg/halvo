@@ -2569,11 +2569,15 @@ fn wait_serving<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     store: &HeldStore,
 ) -> Waited {
     let until = supervisor.main_loop().now() + window;
+    let mut first = true;
     loop {
         let began = supervisor.main_loop().now();
-        let Some(slice) = main_loop::slice(began, until) else {
-            return Waited::Window;
+        let slice = match main_loop::slice(began, until) {
+            Some(slice) => slice,
+            None if first => Duration::ZERO,
+            None => return Waited::Window,
         };
+        first = false;
         if supervisor.wait_on(slice, stop, store.link()) {
             return Waited::Ended;
         }

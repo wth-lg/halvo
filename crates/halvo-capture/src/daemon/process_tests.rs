@@ -1439,6 +1439,58 @@ fn a_state_file_that_does_not_load_gives_no_bound_until_a_valid_cap_is_set() {
     }
 }
 
+#[test]
+fn a_wait_with_no_window_reads_the_stop_flag_and_serves_a_queued_request() {
+    let dir = kept_dir("wait-tests-");
+    let listening = super::server::unix::Listening::bind(&data_dir(&dir)).unwrap();
+    let facts = super::server::RunFacts {
+        started_at: halvo_control::model::UtcSecond::from_unix_seconds(0).unwrap(),
+        parent: halvo_control::proto::Parent::None,
+        last_stop: halvo_control::proto::LastStop::None,
+        rss_peak_bytes: 0,
+    };
+    let serving = super::Serving {
+        listening: &listening,
+        facts: &facts,
+        obstructed: None,
+    };
+    let mut supervisor = super::supervisor::Supervisor::new(
+        halvo_control::proto::Platform::Macos,
+        super::NoSources,
+        SleepLoop(Instant::now()),
+    );
+    let stop = AtomicBool::new(true);
+    let none = super::HeldStore::None;
+    assert!(
+        matches!(
+            super::wait_serving(&mut supervisor, &serving, Duration::ZERO, &stop, &none),
+            super::Waited::Ended
+        ),
+        "a wait with no window did not read the stop flag"
+    );
+
+    stop.store(false, Ordering::SeqCst);
+    let asking = {
+        let dir = data_dir(&dir);
+        std::thread::spawn(move || {
+            halvo_control::client::system_connector(&dir).and_then(|connector| {
+                halvo_control::client::Client::new(connector)
+                    .send(&halvo_control::proto::Request::Status { indicator: false })
+            })
+        })
+    };
+    let end = Instant::now() + Duration::from_secs(5);
+    while !asking.is_finished() && Instant::now() < end {
+        let _ = super::wait_serving(&mut supervisor, &serving, Duration::ZERO, &stop, &none);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let answer = asking.join().unwrap();
+    assert!(
+        matches!(answer, Ok(halvo_control::proto::Reply::Status(_))),
+        "a request queued behind waits with no window was not served: {answer:?}"
+    );
+}
+
 struct PanicsAtWrite {
     inner: Box<dyn super::port::CaptureStore + Send>,
     died: Arc<std::sync::Mutex<Option<Instant>>>,
