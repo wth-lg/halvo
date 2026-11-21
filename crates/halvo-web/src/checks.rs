@@ -71,80 +71,185 @@ pub fn tree_of_with(
     tree
 }
 
-/// Whether a process with the arguments `args` bears the run's `profile` (CP-189 G1): one of its
-/// arguments is one of two exact forms, and nothing else does it. `--user-data-dir=` followed by
-/// the profile and nothing more (the value after the first `=`), or `--database=` followed by the
+/// Whether a process with the arguments `args` bears the run's `profile` (CP-189 G1, CP-239): one
+/// of its switches (`switch_args`) is one of two exact forms, and no argument after the program's
+/// name that the browser may read as a switch under the key of either form names another place,
+/// before the end of the switches or after it. The exact forms: `--user-data-dir=` followed by the
+/// profile and nothing more (the value after the first `=`), or `--database=` followed by the
 /// profile's own Crashpad directory and nothing more, the place that the executor's flag
-/// `--breakpad-dump-location` names, so that the run's crash handler stays the run's own. No bare
-/// argument bears it and no occurrence inside an argument does. The value and the profile are
-/// compared as paths (`same_path_on`). On Windows the system gives a process's command line as one
-/// argument (`command_args`), which this function, and no other reader of the arguments, splits
-/// by the system's rule (`split_command_line`).
+/// `--breakpad-dump-location` names, so that the run's crash handler stays the run's own. A switch
+/// with the key `user-data-dir` or `database` in any spelling that `switch_of` reads (white space
+/// before a prefix `--`, `-` or `/`, any letter case, with or without `=`) whose value, as the
+/// argument holds it, is not the run's place takes the mark away, whichever value of a repeated
+/// switch the browser takes, and so does a switch whose key is another beginning of the word
+/// `database`, such as `--datab=` or `--d=` (U2.6b round 3, R6): that the crash handler's
+/// `getopt_long` takes a unique beginning of a long option is recalled and not run, and there the
+/// mark errs toward leaving. Such a switch that names the run's place bears no mark by itself. No
+/// bare argument bears it, no occurrence inside an argument does, the program's name (argument 0)
+/// does not, and no argument after the end of the switches does (U2.6b), though such an argument
+/// that names another place takes the mark away (U2.6b round 3, R2). The value and the profile
+/// are compared as paths (`same_path_on`). On Windows the system gives a process's command line as
+/// one argument (`command_args`), which `switch_args` splits by the system's rule
+/// (`split_command_line`); beside the mark, the row `database_class` of web-rows
+/// (`bin/web-rows.rs`) splits it too, for its report alone. The browser's own reading of a
+/// repeated switch, of the spellings of a switch, of argument 0, of white space and of the end of
+/// its switches is recalled and not run; against it each of these clauses errs toward leaving a
+/// process, but for the two cases on the ending side that the crate's doc names: an end of the
+/// switches that the browser does not share can lose a witness and cannot hide another place.
 pub fn bears_profile(args: &[String], profile: &str) -> bool {
     bears_profile_on(args, profile, cfg!(windows))
 }
 
-/// The profile that the browser's first process names: the value of its first argument
-/// `--user-data-dir=`, none when it is empty or absent; on Windows the one command line is split
-/// as the mark splits it, so that `tree_of` reads the same arguments as `bears_profile` (U2.6
-/// (12): it read the line by its prefix and so found no profile on Windows).
+/// The arguments of a process that the mark reads as switches (U2.6b, CP-231 (6), CP-239). On
+/// Windows each command line, with white space at its start set aside (the signs that
+/// `char::is_whitespace` counts; its end is kept, so that its last value stands as the line holds
+/// it), is split by the system's rule (`split_command_line`, which reads it up to its first
+/// U+0000), and the parts of all of them stand in one list (the system gives one line); on macOS
+/// the arguments stand as they are. On both, argument 0 of that list, the program's name, is no
+/// switch, and the switches end at the first argument that ends them: `--` once white space at
+/// its ends is set aside, and on Windows the switch with the key `single-argument` in any spelling
+/// that `switch_of` reads (a prefix `--`, `-` or `/`, any letter case), after which the browser
+/// takes the rest of the line as one argument. A text such as `--single-argument` inside an
+/// argument ends nothing.
+/// The mark's witness (`bears_profile`), `profile_of` and `profile_forms` read these alone; the
+/// mark reads a switch that names another place over every argument after argument 0, wherever
+/// the switches end (`bears_profile_on`). The browser's own skip of argument 0, its trim of the
+/// line, its end of the line at a NUL and its spellings of the single-argument switch are recalled
+/// and not run: where the mark ends its switches at an argument that the browser does not end at,
+/// it reads fewer witnesses and errs toward leaving a process, and it still reads each switch
+/// behind that argument that names another place, so that an earlier end can lose a witness and
+/// cannot hide another place; where the browser sets aside white space at the end of its line,
+/// the mark keeps it in the last value: it reads a value that differs from the run's place by such
+/// a sign alone as another place and errs toward leaving, and for a run whose own place ends in
+/// such a sign it bears where the browser takes the place without the sign, a case that cannot
+/// arise in a run of ours for a sign that `char::is_whitespace` counts, because the start refuses
+/// such a directory (`Executor::start`), and a case on the ending side for a sign that the browser
+/// alone sets aside. The crate's doc names the class of the cases on the ending side by its rule,
+/// and the known cases as examples of it; two more of them are: where the browser would end at a
+/// text inside an argument, the mark reads as witnesses switches that the browser does not; and
+/// where the browser keeps at the start of its line a sign that the mark sets aside, the browser's
+/// argument 0 ends before the mark's, and the browser reads as a switch what the mark takes for
+/// argument 0.
+fn switch_args(args: &[String], windows: bool) -> Vec<String> {
+    let split: Vec<String> = if windows {
+        args.iter()
+            .flat_map(|a| split_command_line(a.trim_start()))
+            .skip(1)
+            .collect()
+    } else {
+        args.iter().skip(1).cloned().collect()
+    };
+    let ends = |a: &str| {
+        a.trim() == "--" || windows && switch_of(a).is_some_and(|(key, _)| key == "single-argument")
+    };
+    split.into_iter().take_while(|a| !ends(a)).collect()
+}
+
+/// An argument as the browser may read it as a switch, on either system: white space before it
+/// set aside (the signs that `char::is_whitespace` counts), a prefix `--`, `-` or `/`, then the
+/// key up to the first `=`, in lower case, and the value after it as the argument holds it, white
+/// space at its end kept (U2.6b round 3, R1); with no `=`, the key with white space at its end
+/// set aside and an empty value; none for an argument with no such prefix. It takes more
+/// spellings than the browser of one system reads (a slash and other letter case on macOS), so
+/// that the mark reads more switches as naming another place and errs toward leaving. That the
+/// browser sets white space aside at both ends of an argument before it reads a switch, and which
+/// signs it counts (recalled: the signs of `char::is_whitespace` on Windows, the ASCII ones among
+/// them on macOS), is recalled and not run. Where the browser sets aside white space at the end
+/// of a value, the mark reads a value that differs from the run's place by such a sign alone as
+/// another place and errs toward leaving, and for a run whose own place ends in such a sign it
+/// bears where the browser takes the place without the sign, a case that cannot arise in a run of
+/// ours for a sign that `char::is_whitespace` counts, because the start refuses such a directory
+/// (`Executor::start`), and a case on the ending side that the crate's doc names for a sign that
+/// the browser alone sets aside. Where the browser keeps a sign before the dashes that the mark
+/// sets aside, the mark reads a switch that the browser does not and errs toward leaving. Where it
+/// sets aside there a sign that `char::is_whitespace` does not count, it reads a switch that the
+/// mark does not, a case on the ending side that the crate's doc names.
+fn switch_of(arg: &str) -> Option<(String, &str)> {
+    let a = arg.trim_start();
+    let rest = a
+        .strip_prefix("--")
+        .or_else(|| a.strip_prefix('-'))
+        .or_else(|| a.strip_prefix('/'))?;
+    let (key, value) = rest.split_once('=').unwrap_or((rest.trim_end(), ""));
+    Some((key.to_ascii_lowercase(), value))
+}
+
+/// The profile that the browser's first process names: the value of its first exact switch
+/// `--user-data-dir=` among `switch_args`, none when it is empty or absent; on Windows the one
+/// command line is split as the mark splits it, so that `tree_of` reads the same arguments as
+/// `bears_profile` (U2.6 (12): it read the line by its prefix and so found no profile on Windows).
+/// `tree_of` reads it of the run's first process, whose line is the executor's own
+/// (`cdp::launch_args`: one profile switch, no terminator, the program at argument 0), so the
+/// first value is its one value. For a line with two profile switches it gives the first value:
+/// where the two name one directory (`same_path_on`) they keep the mark, and where they name
+/// different directories the mark is not borne and `profile_of` gives the first value all the
+/// same.
 pub fn profile_of(args: &[String]) -> Option<String> {
     profile_of_on(args, cfg!(windows))
 }
 
 /// `profile_of` with the system's rule given.
 pub fn profile_of_on(args: &[String], windows: bool) -> Option<String> {
-    let split: Vec<String> = if windows {
-        args.iter().flat_map(|a| split_command_line(a)).collect()
-    } else {
-        args.to_vec()
-    };
-    split
+    switch_args(args, windows)
         .iter()
         .find_map(|a| a.strip_prefix("--user-data-dir="))
         .filter(|p| !p.is_empty())
         .map(str::to_string)
 }
 
-/// `bears_profile` with the system's rules given: `windows` splits each argument as a command line
+/// `bears_profile` with the system's rules given: `windows` reads each argument as a command line
 /// and compares paths with `/` and `\` as one and the letter case ignored.
 pub fn bears_profile_on(args: &[String], profile: &str, windows: bool) -> bool {
     if profile.is_empty() {
         return false;
     }
     let crashpad = format!("{profile}/Crashpad");
-    let split: Vec<String> = if windows {
-        args.iter().flat_map(|a| split_command_line(a)).collect()
+    let switches = switch_args(args, windows);
+    let every: Vec<String> = if windows {
+        args.iter()
+            .flat_map(|a| split_command_line(a.trim_start()))
+            .skip(1)
+            .collect()
     } else {
-        args.to_vec()
+        args.iter().skip(1).cloned().collect()
     };
-    split.iter().any(|a| {
-        if let Some(v) = a.strip_prefix("--user-data-dir=") {
-            same_path_on(v, profile, windows)
-        } else if let Some(v) = a.strip_prefix("--database=") {
-            same_path_on(v, &crashpad, windows)
-        } else {
-            false
-        }
-    })
+    let elsewhere = every
+        .iter()
+        .filter_map(|a| switch_of(a))
+        .any(|(key, value)| {
+            if key == "user-data-dir" {
+                !same_path_on(value, profile, windows)
+            } else if !key.is_empty() && "database".starts_with(key.as_str()) {
+                !same_path_on(value, &crashpad, windows)
+            } else {
+                false
+            }
+        });
+    !elsewhere
+        && switches.iter().any(|a| {
+            if let Some(v) = a.strip_prefix("--user-data-dir=") {
+                same_path_on(v, profile, windows)
+            } else if let Some(v) = a.strip_prefix("--database=") {
+                same_path_on(v, &crashpad, windows)
+            } else {
+                false
+            }
+        })
 }
 
 /// The forms of a process's two profile arguments, for the row `checks`'s report (CP-189 G1, the
 /// coordinator's answer to the stop-and-ask of run 43543209046): for `--database=` and then for
 /// `--user-data-dir=`, `exact` when a value is the form that bears the mark (`<profile>/Crashpad`
 /// and `<profile>`, by `same_path_on`), `other` when the argument is there with no such value, and
-/// `absent` when it is not there. On Windows the one command line is split as the mark splits it.
-/// It never gives a value, and the mark does not call it.
+/// `absent` when it is not there, among the switches that the mark reads (`switch_args`), so that
+/// on Windows the one command line is split as the mark splits it. It never gives a value, and the
+/// mark does not call it.
 pub fn profile_forms(
     args: &[String],
     profile: &str,
     windows: bool,
 ) -> (&'static str, &'static str) {
-    let split: Vec<String> = if windows {
-        args.iter().flat_map(|a| split_command_line(a)).collect()
-    } else {
-        args.to_vec()
-    };
+    let split = switch_args(args, windows);
     let form = |prefix: &str, want: &str| {
         let values: Vec<&str> = split
             .iter()
@@ -188,18 +293,27 @@ pub fn same_path_on(a: &str, b: &str, windows: bool) -> bool {
 }
 
 /// The arguments of a Windows command line by the rule of `CommandLineToArgvW` of shell32. The
-/// program's name: when the line begins with a quote, up to the next quote, the quotes dropped;
-/// else up to the first space or tab, a quote kept as it stands. Each later argument runs to the
-/// next space or tab outside a quoted part; 2n backslashes before a quote give n backslashes and
+/// line ends at its first U+0000, as the system's function reads a string that ends there; the
+/// system can hold a line with a NUL in it, and that the browser's own line ends there too is
+/// recalled and not run (U2.6b round 2, R5). The program's name: when the line begins with a
+/// quote, up to the next quote, the quotes dropped;
+/// else up to the first character at or below U+0020 (a space, a tab or a control character),
+/// which is dropped, a quote kept as it stands (U2.6b: the system's own reading of control
+/// characters in hosted run 44774789907); after the name, spaces and tabs alone are skipped. Each
+/// later argument runs to the next space or tab outside a quoted part, a control character kept
+/// as it stands; 2n backslashes before a quote give n backslashes and
 /// the quote opens or closes a quoted part, 2n+1 give n backslashes and a quote; backslashes before
 /// any other character stand as they are; in a run of quotes each third one counted from the
 /// opening quote gives a quote, and a count that ends at two leaves the part closed (the review of
 /// U0.7d, its cases 01 to 04). One bound: an empty line gives no argument, where the system's
 /// function gives the path of the calling program; the split before U2.6 had the same rule, and
-/// for the mark both mean no profile. The mark calls it (`bears_profile`, and `profile_of` for
-/// `tree_of`), and beside the mark only the row's report of the profile's forms (`profile_forms`);
+/// for the mark both mean no profile. The mark calls it through `switch_args` (`bears_profile`, and
+/// `profile_of` for `tree_of`) and in `bears_profile_on` for the switches that name another place;
+/// beside the mark, the row's report of the profile's forms (`profile_forms`) calls it through
+/// `switch_args`, and the row `database_class` of web-rows (`bin/web-rows.rs`) calls it itself;
 /// `command_args` and `command_line` stay as they are for the six rules.
 pub fn split_command_line(line: &str) -> Vec<String> {
+    let line = line.split('\0').next().unwrap_or_default();
     let c: Vec<char> = line.chars().collect();
     let space = |x: char| x == ' ' || x == '\t';
     let mut out = Vec::new();
@@ -216,10 +330,11 @@ pub fn split_command_line(line: &str) -> Vec<String> {
         }
         i = (i + 1).min(c.len());
     } else {
-        while i < c.len() && !space(c[i]) {
+        while i < c.len() && c[i] > ' ' {
             name.push(c[i]);
             i += 1;
         }
+        i = (i + 1).min(c.len());
     }
     out.push(name);
     while i < c.len() && space(c[i]) {
@@ -1123,6 +1238,22 @@ mod tests {
         assert_eq!(profile_forms(&v(&["h"]), "/p", false), ("absent", "absent"));
         assert_eq!(
             profile_forms(
+                &v(&["h", "--", "--database=/p/Crashpad", "--user-data-dir=/p"]),
+                "/p",
+                false
+            ),
+            ("absent", "absent")
+        );
+        assert_eq!(
+            profile_forms(
+                &v(&[r"h.exe --single-argument x --database=C:\p\Crashpad"]),
+                "C:/p",
+                true
+            ),
+            ("absent", "absent")
+        );
+        assert_eq!(
+            profile_forms(
                 &v(&[r#""C:\B.exe" --database="C:\P\Crashpad" --user-data-dir=C:\Q"#]),
                 "C:/p",
                 true
@@ -1134,7 +1265,10 @@ mod tests {
     #[test]
     fn a_profile_is_borne_by_the_two_exact_forms_alone() {
         let mac = |args: &[&str], profile: &str| {
-            let args: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+            let args: Vec<String> = std::iter::once("/B.app/Contents/MacOS/b")
+                .chain(args.iter().copied())
+                .map(|a| a.to_string())
+                .collect();
             bears_profile_on(&args, profile, false)
         };
         let win = |line: &str, profile: &str| bears_profile_on(&[line.to_string()], profile, true);
@@ -1172,6 +1306,609 @@ mod tests {
             r"C:\a b\p"
         ));
         assert!(!win(r"chrome.exe C:\a\p\Downloads\x.pdf", r"C:\a\p"));
+        let mut wrong = Vec::new();
+        for row in terminator_table() {
+            let read = bears_profile_on(&row.args, row.profile, row.windows);
+            let system = if row.windows { "windows" } else { "macos" };
+            println!("u26b mark case={} system={system} bears={read}", row.name);
+            if read != row.bears {
+                wrong.push((row.name, "bears_profile_on", read));
+            }
+            if row.windows == cfg!(windows) && bears_profile(&row.args, row.profile) != row.bears {
+                wrong.push((row.name, "bears_profile", !row.bears));
+            }
+        }
+        assert!(wrong.is_empty(), "rows read otherwise: {wrong:?}");
+    }
+
+    struct Line {
+        name: &'static str,
+        windows: bool,
+        args: Vec<String>,
+        profile: &'static str,
+        bears: bool,
+    }
+
+    fn terminator_table() -> Vec<Line> {
+        let mac = |name, args: &[&str], bears| Line {
+            name,
+            windows: false,
+            args: strings(args),
+            profile: "/t/run/p",
+            bears,
+        };
+        let win = |name, line: &str, bears| Line {
+            name,
+            windows: true,
+            args: strings(&[line]),
+            profile: r"C:\T\run\p",
+            bears,
+        };
+        let b = "/B.app/Contents/MacOS/b";
+        vec![
+            mac("mac_plain", &[b, "--user-data-dir=/t/run/p"], true),
+            mac(
+                "mac_after_double_dash",
+                &[b, "--", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            mac(
+                "mac_database_after_double_dash",
+                &[b, "--", "--database=/t/run/p/Crashpad"],
+                false,
+            ),
+            mac(
+                "mac_after_double_dash_with_spaces",
+                &[b, " -- ", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            mac(
+                "mac_before_double_dash",
+                &[b, "--user-data-dir=/t/run/p", "--", "x"],
+                true,
+            ),
+            mac(
+                "mac_after_three_dashes",
+                &[b, "---", "--user-data-dir=/t/run/p"],
+                true,
+            ),
+            mac(
+                "mac_after_double_dash_and_a_word",
+                &[b, "-- x", "--user-data-dir=/t/run/p"],
+                true,
+            ),
+            mac(
+                "mac_after_single_argument",
+                &[b, "--single-argument", "--user-data-dir=/t/run/p"],
+                true,
+            ),
+            mac(
+                "mac_inside_one_argument",
+                &[b, "--app=x --user-data-dir=/t/run/p"],
+                false,
+            ),
+            win(
+                "win_plain",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p"#,
+                true,
+            ),
+            win(
+                "win_after_single_argument",
+                r#""C:\P F\b.exe" --single-argument https://example.test/ --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_after_double_dash",
+                r#""C:\P F\b.exe" -- --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_database_after_single_argument",
+                r#""C:\P F\crashpad_handler.exe" --single-argument x --database=C:\T\run\p\Crashpad"#,
+                false,
+            ),
+            win(
+                "win_after_quoted_double_dash",
+                r#""C:\P F\b.exe" "--" --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_single_argument_inside_quotes",
+                r#""C:\P F\b.exe" "--app=x --single-argument" --user-data-dir=C:\T\run\p"#,
+                true,
+            ),
+            win(
+                "win_between_two_single_arguments",
+                r#""C:\P F\b.exe" --single-argument x --user-data-dir=C:\T\run\p --single-argument y"#,
+                false,
+            ),
+            win(
+                "win_single_argument_in_capitals",
+                r#""C:\P F\b.exe" --SINGLE-ARGUMENT --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_before_single_argument",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p --single-argument https://example.test/"#,
+                true,
+            ),
+            win(
+                "win_before_double_dash",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p -- x"#,
+                true,
+            ),
+            win(
+                "win_after_double_dash_and_a_word",
+                r#""C:\P F\b.exe" "-- x" --user-data-dir=C:\T\run\p"#,
+                true,
+            ),
+            win(
+                "win_inside_quotes",
+                r#""C:\P F\b.exe" "--app=x --user-data-dir=C:\T\run\p""#,
+                false,
+            ),
+            win(
+                "win_cut_inside_an_argument",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p\--single-argument\personal"#,
+                false,
+            ),
+            win(
+                "win_cut_inside_an_argument_glued",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p--single-argument"#,
+                false,
+            ),
+            win(
+                "win_cut_inside_an_argument_database",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad\--single-argument"#,
+                false,
+            ),
+            Line {
+                name: "win_own_launch_line_with_single_argument_in_the_profile",
+                windows: true,
+                args: vec![own_launch_line(r"C:\T\own-run\--single-argument")],
+                profile: r"C:\T\own-run\--single-argument",
+                bears: true,
+            },
+            Line {
+                name: "win_own_launch_line_with_single_argument_in_the_profile_parent",
+                windows: true,
+                args: vec![own_launch_line(r"C:\T\own-run\--single-argument")],
+                profile: r"C:\T\own-run",
+                bears: false,
+            },
+            win(
+                "win_dash_single_argument",
+                r#""C:\P F\b.exe" -single-argument x --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_slash_single_argument",
+                r#""C:\P F\b.exe" /single-argument x --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_single_argument_split_by_empty_quotes",
+                r#""C:\P F\b.exe" --single-""argument x --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            mac(
+                "mac_second_profile_switch_wins",
+                &[b, "--user-data-dir=/t/run/p", "--user-data-dir=/t/own"],
+                false,
+            ),
+            mac(
+                "mac_run_profile_last",
+                &[b, "--user-data-dir=/t/own", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            mac(
+                "mac_second_profile_switch_one_dash",
+                &[b, "--user-data-dir=/t/run/p", "-user-data-dir=/t/own"],
+                false,
+            ),
+            mac(
+                "mac_second_profile_switch_empty",
+                &[b, "--user-data-dir=/t/run/p", "--user-data-dir="],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_wins",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--database=/t/own/Crashpad",
+                ],
+                false,
+            ),
+            mac(
+                "mac_run_database_last",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/own/Crashpad",
+                    "--database=/t/run/p/Crashpad",
+                ],
+                false,
+            ),
+            win(
+                "win_second_profile_switch_wins",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p --user-data-dir=C:\T\own"#,
+                false,
+            ),
+            win(
+                "win_second_profile_switch_capitals",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p --USER-DATA-DIR=C:\T\own"#,
+                false,
+            ),
+            win(
+                "win_second_profile_switch_slash",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p /user-data-dir=C:\T\own"#,
+                false,
+            ),
+            win(
+                "win_second_database_switch_wins",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad --database=C:\T\own\Crashpad"#,
+                false,
+            ),
+            Line {
+                name: "mac_own_launch_line",
+                windows: false,
+                args: std::iter::once(b.to_string())
+                    .chain(own_launch_args("/t/run/p"))
+                    .collect(),
+                profile: "/t/run/p",
+                bears: true,
+            },
+            mac(
+                "mac_profile_as_program_name",
+                &["--user-data-dir=/t/run/p", "https://example.test/"],
+                false,
+            ),
+            win(
+                "win_profile_as_program_name",
+                r"--user-data-dir=C:\T\run\p https://example.test/",
+                false,
+            ),
+            Line {
+                name: "win_program_and_profile_as_two_elements",
+                windows: true,
+                args: strings(&[r"C:\P F\b.exe", r"--user-data-dir=C:\T\run\p"]),
+                profile: r"C:\T\run\p",
+                bears: true,
+            },
+            win(
+                "win_leading_space_then_profile",
+                r" --user-data-dir=C:\T\run\p https://example.test/",
+                false,
+            ),
+            win(
+                "win_nul_after_program_name",
+                "\"C:\\P F\\b.exe\"\u{0} --user-data-dir=C:\\T\\run\\p",
+                false,
+            ),
+            mac(
+                "mac_after_tab_double_dash",
+                &[b, "\t--", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            win(
+                "win_after_spaced_double_dash",
+                r#""C:\P F\b.exe" " -- " --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_nul_inside_an_argument",
+                "\"C:\\P F\\b.exe\" --x=a\u{0} --user-data-dir=C:\\T\\run\\p",
+                false,
+            ),
+            Line {
+                name: "mac_own_launch_line_profile_ends_in_space",
+                windows: false,
+                args: std::iter::once(b.to_string())
+                    .chain(own_launch_args("/t/run/p "))
+                    .collect(),
+                profile: "/t/run/p ",
+                bears: true,
+            },
+            Line {
+                name: "mac_own_launch_line_profile_ends_in_nbsp",
+                windows: false,
+                args: std::iter::once(b.to_string())
+                    .chain(own_launch_args("/t/run/p\u{a0}"))
+                    .collect(),
+                profile: "/t/run/p\u{a0}",
+                bears: true,
+            },
+            Line {
+                name: "win_own_launch_line_profile_ends_in_space",
+                windows: true,
+                args: vec![own_launch_line(r"C:\T\run\p ")],
+                profile: r"C:\T\run\p ",
+                bears: true,
+            },
+            Line {
+                name: "win_own_launch_line_profile_ends_in_nbsp",
+                windows: true,
+                args: vec![own_launch_line("C:\\T\\run\\p\u{a0}")],
+                profile: "C:\\T\\run\\p\u{a0}",
+                bears: true,
+            },
+            mac(
+                "mac_second_profile_switch_ends_in_space_after",
+                &[b, "--user-data-dir=/t/run/p", "--user-data-dir=/t/run/p "],
+                false,
+            ),
+            mac(
+                "mac_second_profile_switch_ends_in_space_before",
+                &[b, "--user-data-dir=/t/run/p ", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            mac(
+                "mac_second_profile_switch_ends_in_nbsp_after",
+                &[b, "--user-data-dir=/t/run/p", "--user-data-dir=/t/run/p\u{a0}"],
+                false,
+            ),
+            mac(
+                "mac_second_profile_switch_ends_in_nbsp_before",
+                &[b, "--user-data-dir=/t/run/p\u{a0}", "--user-data-dir=/t/run/p"],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_ends_in_space_after",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--database=/t/run/p/Crashpad ",
+                ],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_ends_in_space_before",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad ",
+                    "--database=/t/run/p/Crashpad",
+                ],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_ends_in_nbsp_after",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--database=/t/run/p/Crashpad\u{a0}",
+                ],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_ends_in_nbsp_before",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad\u{a0}",
+                    "--database=/t/run/p/Crashpad",
+                ],
+                false,
+            ),
+            win(
+                "win_second_profile_switch_ends_in_space_after",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p "--user-data-dir=C:\T\run\p ""#,
+                false,
+            ),
+            win(
+                "win_second_profile_switch_ends_in_space_before",
+                r#""C:\P F\b.exe" "--user-data-dir=C:\T\run\p " --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+            win(
+                "win_second_profile_switch_ends_in_nbsp_after",
+                "\"C:\\P F\\b.exe\" --user-data-dir=C:\\T\\run\\p --user-data-dir=C:\\T\\run\\p\u{a0}",
+                false,
+            ),
+            win(
+                "win_second_profile_switch_ends_in_nbsp_before",
+                "\"C:\\P F\\b.exe\" --user-data-dir=C:\\T\\run\\p\u{a0} --user-data-dir=C:\\T\\run\\p",
+                false,
+            ),
+            win(
+                "win_second_database_switch_ends_in_space_after",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad "--database=C:\T\run\p\Crashpad ""#,
+                false,
+            ),
+            win(
+                "win_second_database_switch_ends_in_space_before",
+                r#""C:\P F\crashpad_handler.exe" "--database=C:\T\run\p\Crashpad " --database=C:\T\run\p\Crashpad"#,
+                false,
+            ),
+            win(
+                "win_second_database_switch_ends_in_nbsp_after",
+                "\"C:\\P F\\crashpad_handler.exe\" --database=C:\\T\\run\\p\\Crashpad --database=C:\\T\\run\\p\\Crashpad\u{a0}",
+                false,
+            ),
+            win(
+                "win_second_database_switch_ends_in_nbsp_before",
+                "\"C:\\P F\\crashpad_handler.exe\" --database=C:\\T\\run\\p\\Crashpad\u{a0} --database=C:\\T\\run\\p\\Crashpad",
+                false,
+            ),
+            mac(
+                "mac_other_profile_after_double_dash",
+                &[b, "--user-data-dir=/t/run/p", "--", "--user-data-dir=/t/other"],
+                false,
+            ),
+            mac(
+                "mac_other_profile_after_nbsp_double_dash",
+                &[
+                    b,
+                    "--user-data-dir=/t/run/p",
+                    "\u{a0}--",
+                    "--user-data-dir=/t/other",
+                ],
+                false,
+            ),
+            mac(
+                "mac_other_profile_after_double_dash_ideographic_space",
+                &[
+                    b,
+                    "--user-data-dir=/t/run/p",
+                    "--\u{3000}",
+                    "--user-data-dir=/t/other",
+                ],
+                false,
+            ),
+            mac(
+                "mac_other_profile_after_nel_double_dash",
+                &[
+                    b,
+                    "--user-data-dir=/t/run/p",
+                    "\u{85}--",
+                    "--user-data-dir=/t/other",
+                ],
+                false,
+            ),
+            mac(
+                "mac_other_database_after_double_dash",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--",
+                    "--database=/t/other/Crashpad",
+                ],
+                false,
+            ),
+            mac(
+                "mac_other_database_after_spaced_double_dash",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    " --",
+                    "--database=/t/other/Crashpad",
+                ],
+                false,
+            ),
+            win(
+                "win_other_profile_after_double_dash",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p -- --user-data-dir=C:\T\other"#,
+                false,
+            ),
+            win(
+                "win_other_profile_after_single_argument",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p --single-argument --user-data-dir=C:\T\other"#,
+                false,
+            ),
+            win(
+                "win_other_profile_after_dash_single_argument",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p -single-argument --user-data-dir=C:\T\other"#,
+                false,
+            ),
+            win(
+                "win_other_profile_after_slash_single_argument",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p /single-argument --user-data-dir=C:\T\other"#,
+                false,
+            ),
+            win(
+                "win_other_profile_after_single_argument_in_capitals",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p --SINGLE-ARGUMENT "--user-data-dir=C:\T\other""#,
+                false,
+            ),
+            win(
+                "win_other_profile_after_single_argument_in_mixed_case",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p -Single-Argument "--user-data-dir=C:\T\other""#,
+                false,
+            ),
+            win(
+                "win_other_database_after_double_dash",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad -- --database=C:\T\other\Crashpad"#,
+                false,
+            ),
+            win(
+                "win_other_database_after_single_argument",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad --single-argument --database=C:\T\other\Crashpad"#,
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_abbreviated",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--datab=/t/other/Crashpad",
+                ],
+                false,
+            ),
+            mac(
+                "mac_second_database_switch_one_letter",
+                &[
+                    "/B.app/Contents/Frameworks/chrome_crashpad_handler",
+                    "--database=/t/run/p/Crashpad",
+                    "--d=/t/other/Crashpad",
+                ],
+                false,
+            ),
+            win(
+                "win_second_database_switch_abbreviated",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad --datab=C:\T\other\Crashpad"#,
+                false,
+            ),
+            win(
+                "win_second_database_switch_one_letter",
+                r#""C:\P F\crashpad_handler.exe" --database=C:\T\run\p\Crashpad --d=C:\T\other\Crashpad"#,
+                false,
+            ),
+            mac(
+                "mac_other_profile_after_a_leading_blank",
+                &[b, "--user-data-dir=/t/run/p", " --user-data-dir=/t/other"],
+                false,
+            ),
+            win(
+                "win_other_profile_after_a_leading_blank",
+                r#""C:\P F\b.exe" --user-data-dir=C:\T\run\p " --user-data-dir=C:\T\other""#,
+                false,
+            ),
+            win(
+                "win_single_argument_after_a_leading_blank_before_the_profile",
+                r#""C:\P F\b.exe" " --single-argument" --user-data-dir=C:\T\run\p"#,
+                false,
+            ),
+        ]
+    }
+
+    fn own_launch_args(profile: &str) -> Vec<String> {
+        let mut args: Vec<String> = crate::PRODUCT_FLAGS.iter().map(|f| f.to_string()).collect();
+        args.extend(crate::relay::relay_flags(18999));
+        args.extend([
+            "--headless=new".to_string(),
+            format!("--user-data-dir={profile}"),
+            "--remote-debugging-pipe".to_string(),
+            "about:blank".to_string(),
+        ]);
+        args
+    }
+
+    fn own_launch_line(profile: &str) -> String {
+        let args: Vec<String> = own_launch_args(profile)
+            .iter()
+            .map(|a| windows_arg(a))
+            .collect();
+        format!(r#""C:\P F\b.exe" {}"#, args.join(" "))
+    }
+
+    fn windows_arg(arg: &str) -> String {
+        if !arg.is_empty() && !arg.contains([' ', '\t']) {
+            return arg.to_string();
+        }
+        let mut out = String::from("\"");
+        let mut backslashes = 0;
+        for c in arg.chars() {
+            if c == '\\' {
+                backslashes += 1;
+            } else {
+                if c == '"' {
+                    out.push_str(&"\\".repeat(backslashes + 1));
+                }
+                backslashes = 0;
+            }
+            out.push(c);
+        }
+        out.push_str(&"\\".repeat(backslashes));
+        out.push('"');
+        out
     }
 
     /// CP-189 G1: the Windows command line is split by the system's rule.
@@ -1199,10 +1936,13 @@ mod tests {
     /// U2.6 (11), failing first: the review of U0.7d's cases 01 to 04, each a line on which the
     /// system's rule (`CommandLineToArgvW`) gives no argument `--user-data-dir=C:\P`: the program
     /// name ends at the next quote when the line begins with one and at the first space when it
-    /// does not, and a run of quotes is counted as the system counts it.
+    /// does not, and a run of quotes is counted as the system counts it. U2.6b, failing first:
+    /// the lines with a control character in the unquoted program name, each with the arguments
+    /// that the system gave in hosted run 44774789907 (windows), where the name ends at the first
+    /// character at or below U+0020 and that character is dropped.
     #[test]
     fn n11_the_split_follows_the_system_on_the_review_s_cases() {
-        let review: [(&str, &[&str]); 6] = [
+        let review: [(&str, &[&str]); 12] = [
             (
                 r#"ch"rome x" --user-data-dir=C:\P"#,
                 &[r#"ch"rome"#, r"x --user-data-dir=C:\P"],
@@ -1221,6 +1961,15 @@ mod tests {
             ),
             (r#""a b"c d"#, &["a b", "c", "d"]),
             ("b.exe a ", &["b.exe", "a"]),
+            (
+                "b.exe\n\" --user-data-dir=C:\\P",
+                &["b.exe", " --user-data-dir=C:\\P"],
+            ),
+            ("b.exe\r x", &["b.exe", "x"]),
+            ("b.exe\u{1f} x", &["b.exe", "x"]),
+            ("\nb.exe x", &["", "b.exe", "x"]),
+            ("b.exe\u{7f} x", &["b.exe\u{7f}", "x"]),
+            ("b.exe a\nb c", &["b.exe", "a\nb", "c"]),
         ];
         for (line, want) in review {
             assert_eq!(split_command_line(line), strings(want), "{line}");
@@ -1233,7 +1982,8 @@ mod tests {
 
     /// The review of U0.7d, on Windows: `split_command_line` gives the arguments that the
     /// system's own `CommandLineToArgvW` gives, line by line over a table of quotes, backslashes,
-    /// tabs and program names.
+    /// tabs, program names and control characters (U2.6b), and names every line that it splits
+    /// otherwise.
     #[cfg(windows)]
     #[test]
     fn the_split_is_the_system_s_own_on_a_table_of_lines() {
@@ -1261,7 +2011,24 @@ mod tests {
             r#"b.exe a\ "x y""#,
             r#""""#,
             "b.exe",
+            "b.exe\n\" --user-data-dir=C:\\P",
+            "b.exe\r x",
+            "b.exe\u{b} x",
+            "b.exe\u{c} x",
+            "b.exe\u{1} x",
+            "b.exe\u{1f} x",
+            "b.exe\u{7f} x",
+            "b.exe\u{a0} x",
+            "\nb.exe x",
+            "b.exe a\nb c",
+            "b.exe a\u{b}b c",
+            "b.exe\n\nx",
+            "b.exe\r\n x",
+            "b.exe\n",
+            "\"C:\\P F\\b.exe\"\u{0} --user-data-dir=C:\\P",
+            "b.exe --x=a\u{0} --user-data-dir=C:\\P",
         ];
+        let mut differ = Vec::new();
         for line in lines {
             let wide: Vec<u16> = line.encode_utf16().chain([0]).collect();
             let mut n = 0i32;
@@ -1285,8 +2052,12 @@ mod tests {
             }
             // SAFETY: `argv` was given by CommandLineToArgvW, is freed once and not used after.
             unsafe { LocalFree(argv.cast()) };
-            assert_eq!(split_command_line(line), system, "{line}");
+            let ours = split_command_line(line);
+            if ours != system {
+                differ.push((line, ours, system));
+            }
         }
+        assert!(differ.is_empty(), "lines split otherwise: {differ:?}");
     }
 
     /// U2.6 (12), failing first, from the web trial's hosted run 43741794346 (windows): `tree_of`
@@ -1305,6 +2076,11 @@ mod tests {
         );
         assert_eq!(win(r"b.exe --user-data-dir= --x"), None);
         assert_eq!(win(r#"b.exe "x --user-data-dir=C:\t\p""#), None);
+        assert_eq!(win(r"b.exe -- --user-data-dir=C:\t\p"), None);
+        assert_eq!(
+            win(r"b.exe --single-argument x --user-data-dir=C:\t\p"),
+            None
+        );
         let mac = |args: &[&str]| profile_of_on(&strings(args), false);
         assert_eq!(mac(&["b", "--user-data-dir=/t/p"]).as_deref(), Some("/t/p"));
         assert_eq!(
@@ -1312,6 +2088,11 @@ mod tests {
             Some("/t/p")
         );
         assert_eq!(mac(&["b --user-data-dir=/t/p"]), None);
+        assert_eq!(mac(&["b", "--", "--user-data-dir=/t/p"]), None);
+        assert_eq!(
+            mac(&["b", "--user-data-dir=/t/p", "--", "x"]).as_deref(),
+            Some("/t/p")
+        );
     }
 
     /// U2.6 (12), failing first on Windows: with the one command line that Windows gives for each
@@ -1367,7 +2148,7 @@ mod tests {
         ));
         assert!(win(r"b.exe --user-data-dir=C:\WORK\KP", r"C:\work\kp"));
         assert!(!bears_profile_on(
-            &strings(&["--user-data-dir=//t/p"]),
+            &strings(&["b", "--user-data-dir=//t/p"]),
             "/t/p",
             false
         ));
@@ -1464,7 +2245,12 @@ mod tests {
         let ended = end_runs_own_with(
             &mark,
             &|| Ok(vec![read.clone()]),
-            &|_| Some(vec!["--user-data-dir=/t/p".to_string()]),
+            &|_| {
+                Some(vec![
+                    "/bin/sleep".to_string(),
+                    "--user-data-dir=/t/p".to_string(),
+                ])
+            },
             &|_| true,
             &procs::kill,
         );
@@ -2045,12 +2831,15 @@ mod tests {
             row(400, 1, "/b/App.app/Contents/Frameworks/handler"),
         ];
         let args = |pid: u32| -> Option<Vec<String>> {
-            Some(vec![match pid {
-                100 => "--user-data-dir=/t/p-1".into(),
-                200 => "--database=/t/p-1/Crashpad".into(),
-                300 => "--user-data-dir=/t/p-10".into(),
-                _ => "--other".into(),
-            }])
+            Some(vec![
+                "/B.app/Contents/MacOS/App".into(),
+                match pid {
+                    100 => "--user-data-dir=/t/p-1".into(),
+                    200 => "--database=/t/p-1/Crashpad".into(),
+                    300 => "--user-data-dir=/t/p-10".into(),
+                    _ => "--other".into(),
+                },
+            ])
         };
         let tree: Vec<u32> = tree_of_with(&table, &table[0], &args)
             .iter()
@@ -2092,7 +2881,12 @@ mod tests {
                     Vec::new()
                 })
             },
-            &|_| Some(vec!["--user-data-dir=/t/p".to_string()]),
+            &|_| {
+                Some(vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--user-data-dir=/t/p".to_string(),
+                ])
+            },
             &|_| true,
             &|q| {
                 killed.borrow_mut().push(q.pid);
@@ -2278,6 +3072,10 @@ mod tests {
             &|_| Some(args.clone()),
             &|_| !gone.get(),
             &|p| {
+                println!(
+                    "recorder would_end pid={} started_us={}",
+                    p.pid, p.started_us
+                );
                 killed.borrow_mut().push(p.pid);
                 gone.set(true);
                 true
@@ -2289,8 +3087,9 @@ mod tests {
     /// CP-189 G1: a process bears the run's mark by its profile only through `--user-data-dir=`
     /// with the profile, or `--database=` with the profile's Crashpad directory, each as the whole
     /// value. The end of a run's own processes hands none of these to its kill: the profile with a
-    /// word after it, a profile that ends with the run's (`/q/p` for `/p`), and a file below the
-    /// profile with no profile argument.
+    /// word after it, a profile that ends with the run's (`/q/p` for `/p`), a file below the
+    /// profile with no profile argument, and, by the table of U2.6b, a profile after a switch
+    /// terminator; it hands the table's rows that bear the mark to its recorder.
     #[test]
     fn g1_a_process_that_names_the_profile_otherwise_is_not_the_run_s() {
         // On Windows the system gives a process's command line as one argument, with the quotes
@@ -2303,8 +3102,14 @@ mod tests {
             ]
         } else {
             vec![
-                vec!["--user-data-dir=/base/agent 2".to_string()],
-                vec!["--user-data-dir=/q/base/agent".to_string()],
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--user-data-dir=/base/agent 2".to_string(),
+                ],
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--user-data-dir=/q/base/agent".to_string(),
+                ],
                 vec![
                     "/B.app/Contents/MacOS/b".to_string(),
                     "/base/agent/Downloads/report.pdf".to_string(),
@@ -2322,6 +3127,18 @@ mod tests {
         // after it is another profile.
         let line = vec![r#"chrome.exe "--user-data-dir=C:\a b\p 2" --type=gpu"#.to_string()];
         assert_eq!(g1_kills(r"C:\a b\p", line), Vec::<u32>::new());
+        let mut wrong = Vec::new();
+        for row in terminator_table()
+            .into_iter()
+            .filter(|r| r.windows == cfg!(windows))
+        {
+            let ended = g1_kills(row.profile, row.args);
+            println!("u26b end case={} ended={ended:?}", row.name);
+            if ended != if row.bears { vec![40] } else { Vec::new() } {
+                wrong.push((row.name, ended));
+            }
+        }
+        assert!(wrong.is_empty(), "rows ended otherwise: {wrong:?}");
     }
 
     /// CP-189 G1, the control of the Windows line: the run's own process, whose command line is
@@ -2339,20 +3156,29 @@ mod tests {
     fn g1_the_run_s_own_forms_are_the_run_s_and_another_profile_is_not() {
         assert!(g1_kills(
             "/base/agent",
-            vec!["--user-data-dir=/base/agent2".to_string()]
+            vec![
+                "/B.app/Contents/MacOS/b".to_string(),
+                "--user-data-dir=/base/agent2".to_string()
+            ]
         )
         .is_empty());
         assert_eq!(
             g1_kills(
                 "/base/agent",
-                vec!["--user-data-dir=/base/agent".to_string()]
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--user-data-dir=/base/agent".to_string()
+                ]
             ),
             vec![40]
         );
         assert_eq!(
             g1_kills(
                 "/base/agent",
-                vec!["--database=/base/agent/Crashpad".to_string()]
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--database=/base/agent/Crashpad".to_string()
+                ]
             ),
             vec![40]
         );
@@ -2383,11 +3209,14 @@ mod tests {
         let profile = "/private/var/f/p";
         let args_with = |database: &'static str| {
             move |pid: u32| {
-                Some(vec![if pid == 30 {
-                    format!("--user-data-dir={profile}")
-                } else {
-                    format!("--database={database}")
-                }])
+                Some(vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    if pid == 30 {
+                        format!("--user-data-dir={profile}")
+                    } else {
+                        format!("--database={database}")
+                    },
+                ])
             }
         };
         let before = tree_of_with(&table, &root, &args_with("/var/f/p/Crashpad"));
@@ -2395,13 +3224,22 @@ mod tests {
         let after = tree_of_with(&table, &root, &args_with("/private/var/f/p/Crashpad"));
         assert!(after.iter().any(|p| p.pid == 41), "{after:?}");
         assert_eq!(
-            g1_kills(profile, vec!["--database=/var/f/p/Crashpad".to_string()]),
+            g1_kills(
+                profile,
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--database=/var/f/p/Crashpad".to_string()
+                ]
+            ),
             Vec::<u32>::new()
         );
         assert_eq!(
             g1_kills(
                 profile,
-                vec!["--database=/private/var/f/p/Crashpad".to_string()]
+                vec![
+                    "/B.app/Contents/MacOS/b".to_string(),
+                    "--database=/private/var/f/p/Crashpad".to_string()
+                ]
             ),
             vec![40]
         );

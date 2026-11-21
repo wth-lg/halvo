@@ -1,5 +1,6 @@
 #![deny(clippy::let_underscore_must_use)]
 
+use std::cell::Cell;
 use std::ffi::c_void;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
@@ -410,6 +411,7 @@ impl ScreenOutput {
 /// one predicate, and every process that the exclusion decision places under
 /// the exclusion root. Every other application is kept, a password manager
 /// too, whose frames the decision drops while it is in front.
+#[derive(Clone)]
 struct Selection {
     own: libc::pid_t,
     halvo: HalvoApp,
@@ -592,7 +594,23 @@ trait StopStream {
     fn ask_stop(&self, reply: Sender<StopReply>);
 }
 
-impl StopStream for Retained<SCStream> {
+#[derive(Clone)]
+struct ScreenStream(Retained<SCStream>);
+
+// SAFETY: one thread at a time uses the stream. The handler of the start's
+// content read makes it on ScreenCaptureKit's queue and lets go of it when it
+// hands it to the source's thread, which adds the output, starts, stops and
+// drops it; the handler of a rebuild's read hands it a new filter only while
+// the source's thread waits for that handler (`read_on`). Retain and release
+// are atomic. What does not hold as a proof: neither objc2, SCStream.h nor the
+// framework's Swift interface marks the class as safe to send between threads,
+// and that the framework ties the stream to no delivery queue is assumed: no
+// document says so.
+// So the stream is the one object of ScreenCaptureKit that crosses a thread:
+// the named limit RR-macos-sources-20.
+unsafe impl Send for ScreenStream {}
+
+impl StopStream for ScreenStream {
     fn ask_stop(&self, reply: Sender<StopReply>) {
         let handler = RcBlock::new(move |err: *mut NSError| {
             let answer = if err.is_null() {
@@ -608,7 +626,7 @@ impl StopStream for Retained<SCStream> {
         });
         // SAFETY: the stream is live, and the handler has the completion
         // signature `void (^)(NSError *)`.
-        unsafe { self.stopCaptureWithCompletionHandler(Some(&handler)) };
+        unsafe { self.0.stopCaptureWithCompletionHandler(Some(&handler)) };
     }
 }
 
@@ -619,21 +637,26 @@ trait StartStream: StopStream {
     fn ask_start(&self, reply: Sender<Option<i64>>);
 }
 
-impl StartStream for Retained<SCStream> {
+impl StartStream for ScreenStream {
     fn add_output(&self, output: &ScreenOutput, queue: &DispatchQueue) -> Result<(), i64> {
         let proto: &ProtocolObject<dyn SCStreamOutput> = ProtocolObject::from_ref(output);
         // SAFETY: the stream, `output` (which `proto` borrows) and the serial
         // dispatch queue `queue` are live for the call. SCStream.h says that the
         // start and the stop completions each carry an error that tells whether
-        // the start or the stop failed. The source releases `output` and `queue`
-        // only when the stream cannot run: after this call fails, after the
-        // start completion reports an error, or after the stop completion
-        // reports none. A start or a stop whose completion does not arrive in
-        // time, or a stop that reports an error, keeps both, and the output
-        // gives back its sink handle first. A second start answers
-        // AlreadyStarted, and dropping a started source stops it first.
+        // the start or the stop failed. The source releases `output` and `queue`,
+        // the output's sink given back first, only when the stream cannot run:
+        // after this call fails, after the start completion reports an error,
+        // after a stop completion that reports none, and after the delegate
+        // reports the stream's stop; the last two also release what an earlier
+        // failed stop of the same stream kept. A start whose completion does not
+        // arrive in time keeps both for the life of the process. A stop that
+        // reports an error, or whose completion does not arrive in time, holds
+        // both with the sink given back until one of those two lets them go, and
+        // they are kept for the life of the process when the source drops
+        // first. A second start answers AlreadyStarted, and dropping a started
+        // source shuts it down first unless a stop of it has failed.
         unsafe {
-            self.addStreamOutput_type_sampleHandlerQueue_error(
+            self.0.addStreamOutput_type_sampleHandlerQueue_error(
                 proto,
                 SCStreamOutputType::Screen,
                 Some(queue),
@@ -652,7 +675,7 @@ impl StartStream for Retained<SCStream> {
         });
         // SAFETY: the stream is live, and the handler has the completion
         // signature `void (^)(NSError *)`.
-        unsafe { self.startCaptureWithCompletionHandler(Some(&handler)) };
+        unsafe { self.0.startCaptureWithCompletionHandler(Some(&handler)) };
     }
 }
 
@@ -834,7 +857,7 @@ fn halvo_pid_of(
 /// What the rebuild's timer works on. It lives in a box whose address the
 /// timer holds, and only that timer's callout reads it.
 struct RebuildCell {
-    stream: Retained<SCStream>,
+    stream: ScreenStream,
     display: u32,
     selection: Selection,
     foreground: ForegroundReader,
@@ -869,31 +892,14 @@ impl RebuildCell {
     /// the chooser takes when the stored one has left the list, and hands it to
     /// the stream. Whether the new filter lists Halvo's app.
     fn rebuild(&mut self) -> Result<bool, CaptureError> {
-        let content = fetch_shareable_content()?;
-        // SAFETY: `content` is a live, retained SCShareableContent, and
-        // `displays` is a property getter that takes no argument.
-        let displays = unsafe { content.displays() };
-        let ids = display_ids(&displays);
-        let index = match ids.iter().position(|&id| id == self.display) {
-            Some(index) => index,
-            None => chosen_display(&ids, main_display_id())
-                .ok_or_else(|| CaptureError::Start("no display to capture".into()))?,
-        };
-        let display = displays.objectAtIndex(index);
-        self.display = ids[index];
-        let (filter, listed, lists_app) = filter_for(&content, &display, &self.selection);
-        let facts = self.facts.clone();
-        let handler = RcBlock::new(move |err: *mut NSError| {
-            if err.is_null() {
-                facts.filter(listed.clone(), lists_app);
-            }
-        });
-        // SAFETY: the stream is live and runs; `filter` lives past the call, and
-        // the handler has the completion signature `void (^)(NSError *)`.
-        unsafe {
-            self.stream
-                .updateContentFilter_completionHandler(&filter, Some(&handler))
-        };
+        let (display, lists_app) = refilter_on(
+            &SystemContent,
+            &self.stream,
+            self.display,
+            &self.selection,
+            &self.facts,
+        )?;
+        self.display = display;
         Ok(lists_app)
     }
 }
@@ -1115,45 +1121,292 @@ fn content_refusal(denied: bool, answer: Result<i64, RecvTimeoutError>) -> Captu
     }
 }
 
-fn fetch_shareable_content() -> Result<Retained<SCShareableContent>, CaptureError> {
-    let (tx, rx): (Sender<Result<Retained<SCShareableContent>, i64>>, _) = channel();
-    let handler = RcBlock::new(move |content: *mut SCShareableContent, err: *mut NSError| {
-        let answer = if content.is_null() && err.is_null() {
-            Err(0)
-        } else if content.is_null() {
-            // SAFETY: `err` is not null: a live NSError that the completion
-            // hands the handler for the length of the call; `code` is a
-            // property getter that takes no argument.
-            Err(unsafe { (*err).code() } as i64)
-        } else {
-            // SAFETY: `content` is not null, and ScreenCaptureKit hands the
-            // handler a +0 reference to a live SCShareableContent; retaining
-            // it takes ownership.
-            unsafe { Retained::retain(content) }.ok_or(0)
-        };
-        tx.send(answer).ok();
-    });
-    // SAFETY: the handler has the completion signature
-    // `void (^)(SCShareableContent *, NSError *)`. ScreenCaptureKit calls it on
-    // a queue of its own, possibly after the wait below gave up. It holds
-    // nothing but `tx`; a send to a receiver that is gone returns an error,
-    // which the handler ignores, and the retained content drops with it. What
-    // holds: the content is retained on ScreenCaptureKit's queue and crosses
-    // to the calling thread once, through the channel, after the handler has
-    // let go of it, so one thread at a time holds it and no two threads use it
-    // at once. What does not hold as a proof: neither objc2, SCShareableContent.h
-    // nor the framework's Swift interface says that the class may be sent
-    // between threads, and nothing documents a tie of the object to the queue
-    // that delivered it. So the content crosses a thread: a named limit of
-    // this unit by ruling MA-37 (RR-macos-sources-20). The unit macos-3b builds
-    // the start half of open_stream by reading B of ruling MA-7 (2), on which
-    // no object of ScreenCaptureKit crosses a thread.
-    unsafe { SCShareableContent::getShareableContentWithCompletionHandler(&handler) };
-    match rx.recv_timeout(SHAREABLE_CONTENT_WAIT) {
-        Ok(Ok(content)) => Ok(content),
-        Ok(Err(code)) => Err(content_refusal(screen_access_denied(), Ok(code))),
-        Err(waited) => Err(content_refusal(screen_access_denied(), Err(waited))),
+type ContentHandler<C> = Box<dyn FnOnce(Result<&C, i64>) + Send>;
+
+trait ContentRead {
+    type Content: Shareable;
+
+    fn ask(&self, handler: ContentHandler<Self::Content>);
+
+    fn wait(&self) -> Duration;
+
+    fn denied(&self) -> bool;
+
+    fn main_display(&self) -> u32;
+}
+
+trait Shareable {
+    type Stream: StartStream + Clone + Send + 'static;
+
+    fn display_ids(&self) -> Vec<u32>;
+
+    fn new_stream(
+        &self,
+        display: usize,
+        selection: &Selection,
+        cap: FrameRateCap,
+        delegate: &ScreenOutput,
+    ) -> (Self::Stream, Vec<libc::pid_t>, bool);
+
+    fn update_filter(
+        &self,
+        stream: &Self::Stream,
+        display: usize,
+        selection: &Selection,
+        facts: Arc<StreamFacts>,
+    ) -> bool;
+}
+
+type StreamOf<R> = <<R as ContentRead>::Content as Shareable>::Stream;
+
+struct SystemContent;
+
+impl ContentRead for SystemContent {
+    type Content = SCShareableContent;
+
+    fn ask(&self, handler: ContentHandler<SCShareableContent>) {
+        let handler = Cell::new(Some(handler));
+        let block = RcBlock::new(move |content: *mut SCShareableContent, err: *mut NSError| {
+            let Some(handler) = handler.take() else {
+                return;
+            };
+            // SAFETY: a non-null `content` is a live SCShareableContent and a
+            // non-null `err` a live NSError, which the completion hands the
+            // handler for the length of the call; neither is kept past it.
+            let answer = match unsafe { (content.as_ref(), err.as_ref()) } {
+                (Some(content), _) => Ok(content),
+                (None, Some(err)) => Err(err.code() as i64),
+                (None, None) => Err(0),
+            };
+            handler(answer);
+        });
+        // SAFETY: the handler has the completion signature
+        // `void (^)(SCShareableContent *, NSError *)`. ScreenCaptureKit calls it
+        // on a queue of its own, and what it calls is Send, which no class of
+        // ScreenCaptureKit is but the stream through `ScreenStream`: the
+        // content and every object made from it but the stream stay on that
+        // queue, and the stream crosses to the source's thread, with the filter
+        // and the configuration that it retains (by reading): the named limit
+        // RR-macos-sources-20.
+        unsafe { SCShareableContent::getShareableContentWithCompletionHandler(&block) };
     }
+
+    fn wait(&self) -> Duration {
+        SHAREABLE_CONTENT_WAIT
+    }
+
+    fn denied(&self) -> bool {
+        screen_access_denied()
+    }
+
+    fn main_display(&self) -> u32 {
+        main_display_id()
+    }
+}
+
+impl Shareable for SCShareableContent {
+    type Stream = ScreenStream;
+
+    fn display_ids(&self) -> Vec<u32> {
+        // SAFETY: the content is live for the handler's call, and `displays`
+        // is a property getter that takes no argument.
+        let displays = unsafe { self.displays() };
+        display_ids(&displays)
+    }
+
+    fn new_stream(
+        &self,
+        display: usize,
+        selection: &Selection,
+        cap: FrameRateCap,
+        delegate: &ScreenOutput,
+    ) -> (ScreenStream, Vec<libc::pid_t>, bool) {
+        // SAFETY: the content is live for the handler's call, and `displays`
+        // is a property getter that takes no argument.
+        let display = unsafe { self.displays() }.objectAtIndex(display);
+        let (filter, listed, lists_app) = filter_for(self, &display, selection);
+        // SAFETY: `display` is a live, retained SCDisplay, and `width` and
+        // `height` are property getters that take no argument.
+        let (width, height) = unsafe { (display.width() as usize, display.height() as usize) };
+        let config = stream_configuration(width, height, cap);
+        let delegate: &ProtocolObject<dyn SCStreamDelegate> = ProtocolObject::from_ref(delegate);
+        // SAFETY: the receiver is a fresh allocation of SCStream; `filter` and
+        // `config` live past the call. The delegate is the source's output,
+        // which the source stores until the stream cannot run, or keeps for
+        // the life of the process.
+        let stream = unsafe {
+            SCStream::initWithFilter_configuration_delegate(
+                SCStream::alloc(),
+                &filter,
+                &config,
+                Some(delegate),
+            )
+        };
+        (ScreenStream(stream), listed, lists_app)
+    }
+
+    fn update_filter(
+        &self,
+        stream: &ScreenStream,
+        display: usize,
+        selection: &Selection,
+        facts: Arc<StreamFacts>,
+    ) -> bool {
+        // SAFETY: the content is live for the handler's call, and `displays`
+        // is a property getter that takes no argument.
+        let display = unsafe { self.displays() }.objectAtIndex(display);
+        let (filter, listed, lists_app) = filter_for(self, &display, selection);
+        let handler = RcBlock::new(move |err: *mut NSError| {
+            if err.is_null() {
+                facts.filter(listed.clone(), lists_app);
+            }
+        });
+        // SAFETY: the stream is live and runs; `filter` lives past the call, and
+        // the handler has the completion signature `void (^)(NSError *)`.
+        unsafe {
+            stream
+                .0
+                .updateContentFilter_completionHandler(&filter, Some(&handler))
+        };
+        lists_app
+    }
+}
+
+const READ_WAITING: u8 = 0;
+const READ_ANSWERING: u8 = 1;
+const READ_GAVE_UP: u8 = 2;
+
+fn claimed(turn: &AtomicU8, by: u8) -> bool {
+    turn.compare_exchange(READ_WAITING, by, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+}
+
+fn read_on<R: ContentRead, T: Send + 'static>(
+    reader: &R,
+    on_content: impl FnOnce(&R::Content) -> T + Send + 'static,
+) -> Result<T, CaptureError> {
+    let turn = Arc::new(AtomicU8::new(READ_WAITING));
+    let (tx, rx) = channel();
+    let handler_turn = turn.clone();
+    reader.ask(Box::new(move |answer| {
+        if claimed(&handler_turn, READ_ANSWERING) {
+            tx.send(answer.map(on_content)).ok();
+        }
+    }));
+    let answer = match rx.recv_timeout(reader.wait()) {
+        Err(RecvTimeoutError::Timeout) if !claimed(&turn, READ_GAVE_UP) => {
+            rx.recv().map_err(|_| RecvTimeoutError::Disconnected)
+        }
+        answer => answer,
+    };
+    match answer {
+        Ok(Ok(made)) => Ok(made),
+        Ok(Err(code)) => Err(content_refusal(reader.denied(), Ok(code))),
+        Err(waited) => Err(content_refusal(reader.denied(), Err(waited))),
+    }
+}
+
+struct Made<S> {
+    stream: S,
+    display: u32,
+    listed: Vec<libc::pid_t>,
+    lists_app: bool,
+}
+
+fn made_stream<C: Shareable>(
+    content: &C,
+    main: u32,
+    selection: &Selection,
+    cap: FrameRateCap,
+    delegate: &ScreenOutput,
+) -> Result<Made<C::Stream>, CaptureError> {
+    let ids = content.display_ids();
+    let index = chosen_display(&ids, main)
+        .ok_or_else(|| CaptureError::Start("no display to capture".into()))?;
+    let (stream, listed, lists_app) = content.new_stream(index, selection, cap, delegate);
+    Ok(Made {
+        stream,
+        display: ids[index],
+        listed,
+        lists_app,
+    })
+}
+
+type Opening<S> = (
+    S,
+    Retained<ScreenOutput>,
+    DispatchRetained<DispatchQueue>,
+    u32,
+);
+
+fn open_on<R: ContentRead>(
+    reader: &R,
+    frames: FrameContext,
+    selection: Selection,
+    cap: FrameRateCap,
+    start_wait: Duration,
+) -> Result<Opening<StreamOf<R>>, CaptureError> {
+    let facts = frames.facts.clone();
+    let output = ScreenOutput::new(frames);
+    let delegate = output.clone();
+    let main = reader.main_display();
+    let made = read_on(reader, move |content| {
+        made_stream(content, main, &selection, cap, &delegate)
+    })
+    .and_then(|made| made);
+    let made = match made {
+        Ok(made) => made,
+        Err(error) => {
+            release(Some(output), None);
+            return Err(error);
+        }
+    };
+    facts.filter(made.listed, made.lists_app);
+    let queue = DispatchQueue::new("com.halvo.capture.screen", None);
+    let (output, queue) = start_on(&made.stream, output, queue, start_wait)?;
+    Ok((made.stream, output, queue, made.display))
+}
+
+fn refilter_on<R: ContentRead>(
+    reader: &R,
+    stream: &StreamOf<R>,
+    stored: u32,
+    selection: &Selection,
+    facts: &Arc<StreamFacts>,
+) -> Result<(u32, bool), CaptureError> {
+    let lent = Arc::new(Mutex::new(Some(stream.clone())));
+    let handler_lent = lent.clone();
+    let selection = selection.clone();
+    let facts = facts.clone();
+    let main = reader.main_display();
+    let answer = read_on(reader, move |content| {
+        let lent = handler_lent.lock().unwrap_or_else(PoisonError::into_inner);
+        let stream = lent
+            .as_ref()
+            .ok_or_else(|| CaptureError::Start("the stream was taken back".into()))?;
+        refiltered(content, stream, stored, main, &selection, facts)
+    })
+    .and_then(|answer| answer);
+    drop(lent.lock().unwrap_or_else(PoisonError::into_inner).take());
+    answer
+}
+
+fn refiltered<C: Shareable>(
+    content: &C,
+    stream: &C::Stream,
+    stored: u32,
+    main: u32,
+    selection: &Selection,
+    facts: Arc<StreamFacts>,
+) -> Result<(u32, bool), CaptureError> {
+    let ids = content.display_ids();
+    let index = match ids.iter().position(|&id| id == stored) {
+        Some(index) => index,
+        None => chosen_display(&ids, main)
+            .ok_or_else(|| CaptureError::Start("no display to capture".into()))?,
+    };
+    let lists_app = content.update_filter(stream, index, selection, facts);
+    Ok((ids[index], lists_app))
 }
 
 fn open_stream(
@@ -1161,44 +1414,18 @@ fn open_stream(
     selection: Selection,
     cap: FrameRateCap,
 ) -> Result<Opened, CaptureError> {
-    let content = fetch_shareable_content()?;
-
-    // SAFETY: `content` is a live, retained SCShareableContent, and
-    // `displays` is a property getter that takes no argument.
-    let displays = unsafe { content.displays() };
-    let ids = display_ids(&displays);
-    let index = chosen_display(&ids, main_display_id())
-        .ok_or_else(|| CaptureError::Start("no display to capture".into()))?;
-    let display = displays.objectAtIndex(index);
-
-    let (filter, listed, lists_app) = filter_for(&content, &display, &selection);
-    frames.facts.filter(listed, lists_app);
-
-    // SAFETY: `display` is a live, retained SCDisplay, and `width` and
-    // `height` are property getters that take no argument.
-    let (width, height) = unsafe { (display.width() as usize, display.height() as usize) };
-    let config = stream_configuration(width, height, cap);
-
     let foreground = frames.rule.foreground.clone();
     let facts = frames.facts.clone();
-    let output = ScreenOutput::new(frames);
-    let delegate: &ProtocolObject<dyn SCStreamDelegate> = ProtocolObject::from_ref(&*output);
-    // SAFETY: the receiver is a fresh allocation of SCStream; `filter` and
-    // `config` live past the call. The delegate is `output`, which the source
-    // stores until the stream cannot run, or keeps for the life of the process.
-    let stream = unsafe {
-        SCStream::initWithFilter_configuration_delegate(
-            SCStream::alloc(),
-            &filter,
-            &config,
-            Some(delegate),
-        )
-    };
-    let queue = DispatchQueue::new("com.halvo.capture.screen", None);
-    let (output, queue) = start_on(&stream, output, queue, SCREEN_START_WAIT)?;
+    let (stream, output, queue, display) = open_on(
+        &SystemContent,
+        frames,
+        selection.clone(),
+        cap,
+        SCREEN_START_WAIT,
+    )?;
     let rebuild = RebuildCell {
         stream: stream.clone(),
-        display: ids[index],
+        display,
         selection,
         foreground,
         facts,
@@ -4016,5 +4243,1046 @@ mod tests {
                 ms: 10_000
             }
         );
+    }
+
+    trait AmbiguousIfSend<A> {
+        fn some_item() {}
+    }
+
+    impl<T: ?Sized> AmbiguousIfSend<()> for T {}
+
+    impl<T: ?Sized + Send> AmbiguousIfSend<u8> for T {}
+
+    const _: fn() = || {
+        let _ = <Retained<SCShareableContent> as AmbiguousIfSend<_>>::some_item;
+        let _ = <Retained<SCDisplay> as AmbiguousIfSend<_>>::some_item;
+        let _ = <Retained<SCContentFilter> as AmbiguousIfSend<_>>::some_item;
+        let _ = <Retained<SCStreamConfiguration> as AmbiguousIfSend<_>>::some_item;
+        let _ = <Retained<SCStream> as AmbiguousIfSend<_>>::some_item;
+        let _ = <&SCShareableContent as AmbiguousIfSend<_>>::some_item;
+    };
+
+    const READER_THREAD: &str = "content-reader-stand-in";
+    const LONG_WAIT: Duration = Duration::from_secs(5);
+    const SHORT_WAIT: Duration = Duration::from_millis(100);
+
+    fn locked<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+        mutex.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn thread_name() -> String {
+        std::thread::current()
+            .name()
+            .unwrap_or("unnamed")
+            .to_string()
+    }
+
+    #[derive(Default)]
+    struct Seen {
+        output: Mutex<Option<Retained<ScreenOutput>>>,
+        delegate: Mutex<Option<usize>>,
+        queue_gone: Mutex<Option<Sender<()>>>,
+        stops: std::sync::atomic::AtomicU32,
+        asked_at: Mutex<Option<Instant>>,
+        held: Mutex<Option<Sender<Option<i64>>>>,
+        made_on: Mutex<Vec<(String, usize)>>,
+        updated_on: Mutex<Vec<(String, usize)>>,
+        content_dropped_on: Mutex<Vec<String>>,
+        selections: Mutex<Vec<(bool, bool, bool)>>,
+        ids_read_on: Mutex<Vec<String>>,
+        caps: Mutex<Vec<FrameRateCap>>,
+        stream_dropped_on: Mutex<Vec<String>>,
+    }
+
+    impl Seen {
+        fn stops(&self) -> u32 {
+            self.stops.load(Ordering::SeqCst)
+        }
+
+        fn weak_output(&self) -> Option<Weak<ScreenOutput>> {
+            locked(&self.output).as_ref().map(Weak::from_retained)
+        }
+    }
+
+    #[derive(Clone)]
+    struct StreamStandIn {
+        add: Result<(), i64>,
+        start: Option<Option<i64>>,
+        close: bool,
+        seen: Arc<Seen>,
+    }
+
+    impl StreamStandIn {
+        fn new(
+            add: Result<(), i64>,
+            start: Option<Option<i64>>,
+            close: bool,
+        ) -> (Self, Arc<Seen>, std::sync::mpsc::Receiver<()>) {
+            let seen = Arc::new(Seen::default());
+            let (gone, freed) = channel();
+            *locked(&seen.queue_gone) = Some(gone);
+            let stream = Self {
+                add,
+                start,
+                close,
+                seen: seen.clone(),
+            };
+            (stream, seen, freed)
+        }
+
+        fn starting() -> (Self, Arc<Seen>) {
+            let (stream, seen, _freed) = Self::new(Ok(()), Some(None), false);
+            (stream, seen)
+        }
+    }
+
+    impl Drop for StreamStandIn {
+        fn drop(&mut self) {
+            locked(&self.seen.stream_dropped_on).push(thread_name());
+        }
+    }
+
+    impl StopStream for StreamStandIn {
+        fn ask_stop(&self, _reply: Sender<StopReply>) {
+            self.seen.stops.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    impl StartStream for StreamStandIn {
+        fn add_output(&self, output: &ScreenOutput, queue: &DispatchQueue) -> Result<(), i64> {
+            use dispatch2::DispatchObject;
+            *locked(&self.seen.output) = Some(objc2::Message::retain(output));
+            if let Some(gone) = locked(&self.seen.queue_gone).take() {
+                queue.set_finalizer(move || {
+                    gone.send(()).ok();
+                });
+            }
+            self.add
+        }
+
+        fn ask_start(&self, reply: Sender<Option<i64>>) {
+            *locked(&self.seen.asked_at) = Some(Instant::now());
+            match self.start {
+                Some(answer) => {
+                    reply.send(answer).ok();
+                }
+                None if self.close => drop(reply),
+                None => *locked(&self.seen.held) = Some(reply),
+            }
+        }
+    }
+
+    #[derive(Clone)]
+    struct ContentParts {
+        ids: Vec<u32>,
+        stream: StreamStandIn,
+        listed: Vec<libc::pid_t>,
+        lists_app: bool,
+        makes_in: Duration,
+    }
+
+    struct ContentStandIn {
+        parts: ContentParts,
+        _on_its_queue: PhantomData<*const ()>,
+    }
+
+    impl Drop for ContentStandIn {
+        fn drop(&mut self) {
+            locked(&self.parts.stream.seen.content_dropped_on).push(thread_name());
+        }
+    }
+
+    impl Shareable for ContentStandIn {
+        type Stream = StreamStandIn;
+
+        fn display_ids(&self) -> Vec<u32> {
+            locked(&self.parts.stream.seen.ids_read_on).push(thread_name());
+            self.parts.ids.clone()
+        }
+
+        fn new_stream(
+            &self,
+            display: usize,
+            selection: &Selection,
+            cap: FrameRateCap,
+            delegate: &ScreenOutput,
+        ) -> (StreamStandIn, Vec<libc::pid_t>, bool) {
+            std::thread::sleep(self.parts.makes_in);
+            let seen = &self.parts.stream.seen;
+            locked(&seen.selections).push(excludes_of(selection));
+            locked(&seen.caps).push(cap);
+            locked(&seen.made_on).push((thread_name(), display));
+            *locked(&seen.delegate) = Some(delegate as *const ScreenOutput as usize);
+            (
+                self.parts.stream.clone(),
+                self.parts.listed.clone(),
+                self.parts.lists_app,
+            )
+        }
+
+        fn update_filter(
+            &self,
+            _stream: &StreamStandIn,
+            display: usize,
+            selection: &Selection,
+            facts: Arc<StreamFacts>,
+        ) -> bool {
+            locked(&self.parts.stream.seen.selections).push(excludes_of(selection));
+            locked(&self.parts.stream.seen.updated_on).push((thread_name(), display));
+            facts.filter(self.parts.listed.clone(), self.parts.lists_app);
+            self.parts.lists_app
+        }
+    }
+
+    type Handler = ContentHandler<ContentStandIn>;
+
+    enum Answer {
+        Code(i64),
+        Content,
+        Never,
+    }
+
+    struct ReaderStandIn {
+        answer: Answer,
+        parts: ContentParts,
+        wait: Duration,
+        denied: bool,
+        unanswered: Mutex<Vec<Handler>>,
+        threads: Mutex<Vec<std::thread::JoinHandle<()>>>,
+    }
+
+    impl ReaderStandIn {
+        fn new(answer: Answer, stream: StreamStandIn, ids: &[u32], wait: Duration) -> Self {
+            Self {
+                answer,
+                parts: ContentParts {
+                    ids: ids.to_vec(),
+                    stream,
+                    listed: vec![41, 42],
+                    lists_app: true,
+                    makes_in: Duration::ZERO,
+                },
+                wait,
+                denied: false,
+                unanswered: Mutex::default(),
+                threads: Mutex::default(),
+            }
+        }
+
+        fn on_its_thread(&self, handler: Handler, code: Option<i64>) {
+            let parts = self.parts.clone();
+            let (entered, has_entered) = channel::<()>();
+            let thread = std::thread::Builder::new()
+                .name(READER_THREAD.into())
+                .spawn(move || {
+                    entered.send(()).ok();
+                    match code {
+                        Some(code) => handler(Err(code)),
+                        None => {
+                            let content = ContentStandIn {
+                                parts,
+                                _on_its_queue: PhantomData,
+                            };
+                            handler(Ok(&content));
+                        }
+                    }
+                })
+                .expect("the reader's thread");
+            has_entered.recv().ok();
+            locked(&self.threads).push(thread);
+        }
+
+        fn answer_late(&self) {
+            let handlers = std::mem::take(&mut *locked(&self.unanswered));
+            for handler in handlers {
+                self.on_its_thread(handler, None);
+            }
+        }
+
+        fn join(&self) {
+            let threads = std::mem::take(&mut *locked(&self.threads));
+            for thread in threads {
+                thread.join().expect("the reader's thread ended");
+            }
+        }
+    }
+
+    impl ContentRead for ReaderStandIn {
+        type Content = ContentStandIn;
+
+        fn ask(&self, handler: Handler) {
+            match self.answer {
+                Answer::Code(code) => self.on_its_thread(handler, Some(code)),
+                Answer::Content => self.on_its_thread(handler, None),
+                Answer::Never => locked(&self.unanswered).push(handler),
+            }
+        }
+
+        fn wait(&self) -> Duration {
+            self.wait
+        }
+
+        fn denied(&self) -> bool {
+            self.denied
+        }
+
+        fn main_display(&self) -> u32 {
+            7
+        }
+    }
+
+    struct Trial {
+        answer: Result<Opening<StreamStandIn>, CaptureError>,
+        writer: SinkWriter,
+        facts: Arc<StreamFacts>,
+        returned: Instant,
+        _front: crate::macos::foreground::ForegroundWriter,
+    }
+
+    impl Trial {
+        fn error(&self) -> Option<CaptureError> {
+            self.answer.as_ref().err().cloned()
+        }
+    }
+
+    fn open_stand_in(reader: &ReaderStandIn, start_wait: Duration) -> Trial {
+        let (handle, writer) = sink::channel(8);
+        let (front, foreground) = in_front_for_test();
+        let frames = frames_of(handle, foreground);
+        let facts = frames.facts.clone();
+        let answer = open_on(
+            reader,
+            frames,
+            selection_under(None),
+            SCREEN_FRAME_CAP,
+            start_wait,
+        );
+        let returned = Instant::now();
+        reader.join();
+        Trial {
+            answer,
+            writer,
+            facts,
+            returned,
+            _front: front,
+        }
+    }
+
+    #[test]
+    fn the_stream_and_its_filter_are_made_on_the_readers_queue_and_only_data_and_the_stream_cross()
+    {
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream, &[5, 7, 9], LONG_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        let Ok((_stream, output, _queue, display)) = &trial.answer else {
+            panic!("the start answered {:?}", trial.error());
+        };
+        assert_ne!(
+            thread_name(),
+            READER_THREAD,
+            "the test runs on the reader's thread"
+        );
+        assert_eq!(
+            *locked(&seen.made_on),
+            vec![(READER_THREAD.to_string(), 1)],
+            "the threads and the displays on which the stream and its filter were made"
+        );
+        assert_eq!(
+            *locked(&seen.content_dropped_on),
+            vec![READER_THREAD.to_string()],
+            "the threads on which the content was let go"
+        );
+        assert_eq!(*display, 7, "the id of the display that crossed");
+        assert_eq!(
+            *locked(&seen.delegate),
+            Some(&**output as *const ScreenOutput as usize),
+            "the stream's delegate is not the output that the start answers"
+        );
+        assert_eq!(trial.facts.listed(), vec![41, 42], "the pids that crossed");
+        assert_eq!(trial.facts.lists_app(), Some(true), "the fact that crossed");
+        assert_eq!(seen.stops(), 0, "a stop was asked");
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream, &[5, 9], LONG_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        let Ok((_stream, _output, _queue, display)) = &trial.answer else {
+            panic!(
+                "the start with no main display answered {:?}",
+                trial.error()
+            );
+        };
+        assert_eq!(
+            *locked(&seen.made_on),
+            vec![(READER_THREAD.to_string(), 0)],
+            "the display that the chooser takes while the main display is not listed"
+        );
+        assert_eq!(*display, 5, "the id of the chosen display that crossed");
+    }
+
+    #[test]
+    fn on_the_new_path_a_failed_add_of_the_output_answers_its_stage_and_lets_the_output_and_the_queue_go(
+    ) {
+        let (stream, seen, freed) = StreamStandIn::new(Err(-3802), Some(None), false);
+        let reader = ReaderStandIn::new(Answer::Content, stream, &[7], LONG_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert_eq!(
+            trial.error(),
+            Some(CaptureError::Os {
+                stage: "add_stream_output",
+                domain: "ScreenCaptureKit",
+                code: -3802
+            })
+        );
+        assert!(
+            sink_disconnected(&trial.writer),
+            "the sink is held while the stand-in holds the output"
+        );
+        assert_eq!(seen.stops(), 0, "a stop was asked");
+        let weak = seen.weak_output().expect("the output that the add got");
+        locked(&seen.output).take();
+        assert!(weak.load().is_none(), "the output was kept");
+        assert!(
+            freed.recv_timeout(Duration::from_secs(1)).is_ok(),
+            "the queue was kept"
+        );
+    }
+
+    #[test]
+    fn on_the_new_path_a_start_error_answers_its_stage_and_lets_the_output_and_the_queue_go() {
+        let (stream, seen, freed) = StreamStandIn::new(Ok(()), Some(Some(-3805)), false);
+        let reader = ReaderStandIn::new(Answer::Content, stream, &[7], LONG_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert_eq!(
+            trial.error(),
+            Some(CaptureError::Os {
+                stage: "start_capture",
+                domain: "ScreenCaptureKit",
+                code: -3805
+            })
+        );
+        assert!(
+            sink_disconnected(&trial.writer),
+            "the sink is held while the stand-in holds the output"
+        );
+        assert_eq!(seen.stops(), 0, "a stop was asked");
+        let weak = seen.weak_output().expect("the output that the add got");
+        locked(&seen.output).take();
+        assert!(weak.load().is_none(), "the output was kept");
+        assert!(
+            freed.recv_timeout(Duration::from_secs(1)).is_ok(),
+            "the queue was kept"
+        );
+    }
+
+    #[test]
+    fn on_the_new_path_a_start_with_no_answer_waits_its_wait_from_the_ask_asks_a_stop_and_keeps_the_output_and_the_queue(
+    ) {
+        for (close, what) in [
+            (false, "no answer"),
+            (true, "a reply channel closed unanswered"),
+        ] {
+            let (stream, seen, freed) = StreamStandIn::new(Ok(()), None, close);
+            let reader = ReaderStandIn::new(Answer::Content, stream, &[7], LONG_WAIT);
+            let trial = open_stand_in(&reader, SHORT_WAIT);
+            assert_eq!(
+                trial.error(),
+                Some(CaptureError::Timeout {
+                    stage: "start_capture",
+                    ms: SHORT_WAIT.as_millis() as u64
+                }),
+                "{what}"
+            );
+            let asked = locked(&seen.asked_at).expect("the start was asked");
+            let waited = trial.returned.duration_since(asked);
+            assert!(
+                waited >= SHORT_WAIT,
+                "{what}: Timeout {waited:?} after the ask, before the wait had run"
+            );
+            assert_eq!(seen.stops(), 1, "{what}: the stops asked");
+            assert!(
+                sink_disconnected(&trial.writer),
+                "{what}: the kept output holds its sink"
+            );
+            let weak = seen.weak_output().expect("the output that the add got");
+            locked(&seen.output).take();
+            assert!(weak.load().is_some(), "{what}: the output was let go");
+            assert!(
+                freed.recv_timeout(Duration::from_millis(200)).is_err(),
+                "{what}: the queue was let go"
+            );
+        }
+    }
+
+    #[test]
+    fn a_refused_read_or_no_display_answers_its_error_makes_no_stream_and_gives_back_the_sink() {
+        let refusals = [
+            (
+                Answer::Code(-3801),
+                false,
+                &[7][..],
+                CaptureError::Os {
+                    stage: "shareable_content",
+                    domain: "ScreenCaptureKit",
+                    code: -3801,
+                },
+            ),
+            (
+                Answer::Code(-3801),
+                true,
+                &[7][..],
+                CaptureError::PermissionDenied(Modality::ScreenFrame),
+            ),
+            (
+                Answer::Content,
+                false,
+                &[][..],
+                CaptureError::Start("no display to capture".into()),
+            ),
+        ];
+        for (answer, denied, ids, error) in refusals {
+            let (stream, seen) = StreamStandIn::starting();
+            let mut reader = ReaderStandIn::new(answer, stream, ids, LONG_WAIT);
+            reader.denied = denied;
+            let trial = open_stand_in(&reader, LONG_WAIT);
+            assert_eq!(trial.error(), Some(error.clone()));
+            assert!(sink_disconnected(&trial.writer), "{error:?}: the sink");
+            assert!(
+                locked(&seen.made_on).is_empty(),
+                "{error:?}: a stream was made"
+            );
+            assert!(
+                locked(&seen.output).is_none(),
+                "{error:?}: an output was added"
+            );
+        }
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Never, stream, &[7], SHORT_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert!(
+            matches!(
+                trial.error(),
+                Some(CaptureError::Timeout {
+                    stage: "shareable_content",
+                    ..
+                })
+            ),
+            "a read with no answer answered {:?}",
+            trial.error()
+        );
+        assert_eq!(
+            locked(&reader.unanswered).len(),
+            1,
+            "the handler that holds the output"
+        );
+        assert!(
+            sink_disconnected(&trial.writer),
+            "the output that the unanswered handler holds keeps its sink"
+        );
+        assert!(locked(&seen.made_on).is_empty(), "a stream was made");
+    }
+
+    #[test]
+    fn a_handler_that_runs_after_the_read_gave_up_makes_no_stream_and_asks_no_new_filter() {
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Never, stream.clone(), &[7], SHORT_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert!(
+            matches!(
+                trial.error(),
+                Some(CaptureError::Timeout {
+                    stage: "shareable_content",
+                    ..
+                })
+            ),
+            "the start's read answered {:?}",
+            trial.error()
+        );
+        reader.answer_late();
+        reader.join();
+        assert_eq!(
+            *locked(&seen.content_dropped_on),
+            vec![READER_THREAD.to_string()],
+            "the late handler did not run"
+        );
+        assert!(
+            locked(&seen.made_on).is_empty(),
+            "a late handler made a stream"
+        );
+        assert!(locked(&seen.output).is_none(), "an output was added");
+        let facts = Arc::default();
+        let rebuilt = refilter_on(&reader, &stream, 7, &selection_under(None), &facts);
+        assert!(
+            matches!(
+                rebuilt,
+                Err(CaptureError::Timeout {
+                    stage: "shareable_content",
+                    ..
+                })
+            ),
+            "the rebuild's read answered {rebuilt:?}"
+        );
+        reader.answer_late();
+        reader.join();
+        assert_eq!(
+            locked(&seen.content_dropped_on).len(),
+            2,
+            "the second late handler did not run"
+        );
+        assert!(
+            locked(&seen.updated_on).is_empty(),
+            "a late handler asked a new filter"
+        );
+        assert_eq!(facts.lists_app(), None, "the filter fact moved");
+    }
+
+    #[test]
+    fn a_handler_that_began_inside_the_reads_wait_is_waited_for_and_its_stream_is_started() {
+        let (stream, seen) = StreamStandIn::starting();
+        let mut reader = ReaderStandIn::new(Answer::Content, stream, &[7], SHORT_WAIT);
+        reader.parts.makes_in = SHORT_WAIT * 3;
+        let begun = Instant::now();
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert!(
+            trial.answer.is_ok(),
+            "the start answered {:?}",
+            trial.error()
+        );
+        assert!(
+            trial.returned.duration_since(begun) >= SHORT_WAIT * 3,
+            "the start answered before the handler had made the stream"
+        );
+        assert_eq!(locked(&seen.made_on).len(), 1, "the streams made");
+        assert!(locked(&seen.output).is_some(), "the output was not added");
+    }
+
+    #[test]
+    fn a_rebuild_makes_its_filter_on_the_readers_queue_for_the_stored_display_while_it_is_listed_else_the_chosen_one(
+    ) {
+        let (stream, seen) = StreamStandIn::starting();
+        let mut reader = ReaderStandIn::new(Answer::Content, stream.clone(), &[3, 5, 7], LONG_WAIT);
+        reader.parts.lists_app = false;
+        let selection = selection_under(None);
+        let facts = Arc::default();
+        assert_eq!(
+            refilter_on(&reader, &stream, 5, &selection, &facts),
+            Ok((5, false)),
+            "the stored display, listed"
+        );
+        assert_eq!(
+            refilter_on(&reader, &stream, 9, &selection, &facts),
+            Ok((7, false)),
+            "the stored display gone, the main display chosen"
+        );
+        reader.join();
+        assert_eq!(
+            *locked(&seen.updated_on),
+            vec![
+                (READER_THREAD.to_string(), 1),
+                (READER_THREAD.to_string(), 2)
+            ],
+            "the threads and the displays on which the new filters were made"
+        );
+        assert_eq!(facts.listed(), vec![41, 42], "the pids of the new filter");
+        assert_eq!(facts.lists_app(), Some(false), "the fact of the new filter");
+        reader.parts.ids.clear();
+        assert_eq!(
+            refilter_on(&reader, &stream, 5, &selection, &facts),
+            Err(CaptureError::Start("no display to capture".into()))
+        );
+        reader.join();
+        assert_eq!(
+            locked(&seen.updated_on).len(),
+            2,
+            "a filter with no display"
+        );
+        assert!(locked(&seen.made_on).is_empty(), "a rebuild made a stream");
+    }
+
+    fn excludes_of(selection: &Selection) -> (bool, bool, bool) {
+        (
+            selection.excludes(std::process::id() as libc::pid_t, "com.example.own", None),
+            selection.excludes(900, "", Some(SIBLING)),
+            selection.excludes(
+                502,
+                "com.example.other",
+                Some("/Applications/Other.app/Contents/MacOS/Other"),
+            ),
+        )
+    }
+
+    #[test]
+    fn the_start_and_the_rebuild_hand_the_filter_maker_the_callers_selection() {
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream, &[5, 7, 9], LONG_WAIT);
+        let (handle, _writer) = sink::channel(8);
+        let (_front, foreground) = in_front_for_test();
+        let frames = frames_of(handle, foreground);
+        let facts = frames.facts.clone();
+        let opened = open_on(
+            &reader,
+            frames,
+            selection_under(Some(500)),
+            SCREEN_FRAME_CAP,
+            LONG_WAIT,
+        );
+        reader.join();
+        let Ok((made, _output, _queue, display)) = &opened else {
+            panic!("the start answered {:?}", opened.as_ref().err());
+        };
+        let rebuilt = refilter_on(&reader, made, *display, &selection_under(Some(500)), &facts);
+        reader.join();
+        assert_eq!(rebuilt, Ok((7, true)), "the rebuild's answer");
+        assert_eq!(
+            *locked(&seen.selections),
+            vec![(true, true, true), (true, true, true)],
+            "what the selection that reached the filter maker excludes (this process, Halvo's app, pid 502 under root 500), at the start and at the rebuild"
+        );
+    }
+
+    #[test]
+    fn a_start_whose_filter_lacks_the_app_writes_that_fact() {
+        let (stream, _seen) = StreamStandIn::starting();
+        let mut reader = ReaderStandIn::new(Answer::Content, stream, &[5, 7, 9], LONG_WAIT);
+        reader.parts.lists_app = false;
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert!(
+            trial.answer.is_ok(),
+            "the start answered {:?}",
+            trial.error()
+        );
+        assert_eq!(trial.facts.lists_app(), Some(false), "the start's fact");
+        assert_eq!(trial.facts.listed(), vec![41, 42], "the pids of the filter");
+    }
+
+    #[test]
+    fn a_rebuild_whose_filter_lists_the_app_answers_that_it_lists_it() {
+        let (stream, _seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream.clone(), &[3, 5, 7], LONG_WAIT);
+        let facts = Arc::default();
+        let rebuilt = refilter_on(&reader, &stream, 5, &selection_under(None), &facts);
+        reader.join();
+        assert_eq!(rebuilt, Ok((5, true)), "the rebuild's answer");
+        assert_eq!(facts.lists_app(), Some(true), "the rebuild's fact");
+    }
+
+    #[test]
+    fn every_read_of_the_content_runs_on_the_readers_thread() {
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream.clone(), &[5, 7, 9], LONG_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert!(
+            trial.answer.is_ok(),
+            "the start answered {:?}",
+            trial.error()
+        );
+        let facts = Arc::default();
+        let rebuilt = refilter_on(&reader, &stream, 7, &selection_under(None), &facts);
+        reader.join();
+        assert_eq!(rebuilt, Ok((7, true)), "the rebuild's answer");
+        assert_eq!(
+            *locked(&seen.ids_read_on),
+            vec![READER_THREAD.to_string(), READER_THREAD.to_string()],
+            "the threads of every read of the content's displays, at the start and at the rebuild"
+        );
+    }
+
+    #[test]
+    fn a_handler_that_began_is_waited_for_beyond_four_more_waits() {
+        let (stream, seen) = StreamStandIn::starting();
+        let mut reader = ReaderStandIn::new(Answer::Content, stream, &[7], SHORT_WAIT);
+        reader.parts.makes_in = SHORT_WAIT * 10;
+        let begun = Instant::now();
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        let took = trial.returned.duration_since(begun);
+        assert!(
+            trial.answer.is_ok(),
+            "a begun handler is waited for: the start answered {:?} after {took:?}; the read's wait {SHORT_WAIT:?}, the handler's work {:?}",
+            trial.error(),
+            SHORT_WAIT * 10
+        );
+        assert!(
+            took >= SHORT_WAIT * 10,
+            "the start answered after {took:?}, before the handler had made the stream"
+        );
+        assert_eq!(locked(&seen.made_on).len(), 1, "the streams made");
+    }
+
+    #[test]
+    fn a_failed_read_lets_go_of_the_output_made_before_it() {
+        for answer in [Answer::Code(-3801), Answer::Never] {
+            let (stream, _seen) = StreamStandIn::starting();
+            let reader = ReaderStandIn::new(answer, stream, &[7], SHORT_WAIT);
+            let trial = open_stand_in(&reader, LONG_WAIT);
+            let error = trial.error();
+            assert!(error.is_some(), "the read did not fail");
+            reader.answer_late();
+            reader.join();
+            assert_eq!(
+                Arc::strong_count(&trial.facts),
+                1,
+                "{error:?}: the holders of the facts once the late handler has run"
+            );
+        }
+    }
+
+    #[test]
+    fn a_read_that_gave_up_while_access_is_denied_answers_the_denial() {
+        let (stream, _seen) = StreamStandIn::starting();
+        let mut reader = ReaderStandIn::new(Answer::Never, stream, &[7], SHORT_WAIT);
+        reader.denied = true;
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert_eq!(
+            trial.error(),
+            Some(CaptureError::PermissionDenied(Modality::ScreenFrame)),
+            "a read that gave up while access is denied"
+        );
+    }
+
+    #[test]
+    fn the_handler_makes_the_stream_with_the_cap_that_the_caller_hands_in() {
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream, &[5, 7, 9], LONG_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert!(
+            trial.answer.is_ok(),
+            "the start answered {:?}",
+            trial.error()
+        );
+        assert_eq!(
+            *locked(&seen.caps),
+            vec![SCREEN_FRAME_CAP],
+            "the cap that reached new_stream"
+        );
+    }
+
+    #[test]
+    fn a_rebuild_whose_read_gave_up_leaves_no_clone_of_the_stream_in_its_handler() {
+        let (tracked, seen) = StreamStandIn::starting();
+        let (parts_stream, parts_seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Never, parts_stream, &[7], SHORT_WAIT);
+        let facts: Arc<StreamFacts> = Arc::default();
+        let selection = selection_under(None);
+        let base = Arc::strong_count(&seen);
+        let mut held = Vec::new();
+        for _ in 0..3 {
+            let rebuilt = refilter_on(&reader, &tracked, 7, &selection, &facts);
+            assert!(
+                matches!(
+                    rebuilt,
+                    Err(CaptureError::Timeout {
+                        stage: "shareable_content",
+                        ..
+                    })
+                ),
+                "the rebuild's read answered {rebuilt:?}"
+            );
+            held.push(Arc::strong_count(&seen) - base);
+        }
+        assert_eq!(
+            held,
+            vec![0, 0, 0],
+            "clones of the stream held by unanswered handlers after each give-up"
+        );
+        drop(tracked);
+        reader.answer_late();
+        reader.join();
+        assert_eq!(
+            Arc::strong_count(&seen),
+            1,
+            "clones of the stream after the late handlers ran"
+        );
+        assert!(
+            locked(&parts_seen.updated_on).is_empty(),
+            "a late handler asked a new filter"
+        );
+        let dropped_on = locked(&seen.stream_dropped_on).clone();
+        assert!(
+            !dropped_on.is_empty() && dropped_on.iter().all(|name| name != READER_THREAD),
+            "the threads of every release of the stream: {dropped_on:?}"
+        );
+    }
+
+    #[test]
+    fn an_answered_rebuild_releases_the_lent_clone_on_the_callers_thread() {
+        let (tracked, seen) = StreamStandIn::starting();
+        let (parts_stream, parts_seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, parts_stream, &[7], LONG_WAIT);
+        let facts: Arc<StreamFacts> = Arc::default();
+        let rebuilt = refilter_on(&reader, &tracked, 7, &selection_under(None), &facts);
+        reader.join();
+        assert_eq!(rebuilt, Ok((7, true)), "the rebuild's answer");
+        assert_eq!(
+            locked(&parts_seen.updated_on).len(),
+            1,
+            "the new filters asked"
+        );
+        let dropped_on = locked(&seen.stream_dropped_on).clone();
+        let on_the_readers_thread = dropped_on
+            .iter()
+            .filter(|name| name.as_str() == READER_THREAD)
+            .count();
+        assert_eq!(
+            (dropped_on.len(), on_the_readers_thread),
+            (1, 0),
+            "the releases of the lent clone, and those on the reader's thread: {dropped_on:?}"
+        );
+    }
+
+    fn probe_code(error: &CaptureError) -> String {
+        match error {
+            CaptureError::Os { code, .. } => code.to_string(),
+            CaptureError::Timeout { stage, .. } => format!("timeout-{stage}"),
+            CaptureError::PermissionDenied(_) => "permission".into(),
+            CaptureError::Start(_) => "start".into(),
+            _ => "other".into(),
+        }
+    }
+
+    #[test]
+    #[ignore = "a hosted probe: it starts a real screen stream"]
+    fn the_hosted_probe_prints_whether_a_stream_starts() {
+        if std::env::var("HALVO_SCREEN_START_PROBE").as_deref() != Ok("1") {
+            return;
+        }
+        let (handle, writer) = sink::channel(64);
+        let (_front, foreground) = in_front_for_test();
+        let opened = open_on(
+            &SystemContent,
+            frames_of(handle, foreground),
+            selection_under(None),
+            SCREEN_FRAME_CAP,
+            SCREEN_START_WAIT,
+        );
+        let (started, code, frames) = match opened {
+            Ok((stream, output, queue, _display)) => {
+                let until = Instant::now() + Duration::from_secs(4);
+                let mut frames = 0;
+                while writer
+                    .recv_timeout(until.saturating_duration_since(Instant::now()))
+                    .is_ok()
+                {
+                    frames += 1;
+                }
+                let (tx, rx) = channel();
+                stream.ask_stop(tx);
+                if rx.recv_timeout(SCREEN_STOP_WAIT) == Ok(StopReply::Stopped) {
+                    release(Some(output), Some(queue));
+                } else {
+                    keep_for_the_life_of_the_process(Some(output), Some(queue));
+                }
+                ("yes", "none".to_string(), frames)
+            }
+            Err(error) => ("no", probe_code(&error), 0),
+        };
+        println!("screen-start-probe started={started} code={code} frames={frames}");
+    }
+
+    #[test]
+    #[ignore = "a hosted test: it starts a real screen stream"]
+    fn a_live_start_through_the_handler_reads_frames_and_stops() {
+        if std::env::var("HALVO_SCREEN_LIVE_START").as_deref() != Ok("1") {
+            return;
+        }
+        let (handle, writer) = sink::channel(64);
+        let (_front, foreground) = in_front_for_test();
+        let mut source = ScreenSource::new(SCREEN_FRAME_CAP, foreground);
+        let begun = source.begin_with(&context_on(handle), open_stream);
+        let mut frames = 0;
+        if begun == Ok(Started::Running) {
+            let until = Instant::now() + Duration::from_secs(4);
+            while writer
+                .recv_timeout(until.saturating_duration_since(Instant::now()))
+                .is_ok()
+            {
+                frames += 1;
+            }
+        }
+        let stopped = source.shutdown();
+        println!(
+            "screen-live-start started={} frames={frames} stopped={}",
+            begun == Ok(Started::Running),
+            stopped.is_ok()
+        );
+        assert_eq!(begun, Ok(Started::Running), "the start's answer");
+        assert!(frames > 0, "no frame record in four seconds");
+        assert_eq!(stopped, Ok(()), "the stop's answer");
+    }
+
+    #[test]
+    #[ignore = "a hosted test: it starts a real screen stream"]
+    fn a_live_rebuild_hands_a_real_stream_its_new_filter() {
+        if std::env::var("HALVO_SCREEN_LIVE_REBUILD").as_deref() != Ok("1") {
+            return;
+        }
+        let (handle, _writer) = sink::channel(64);
+        let (_front, foreground) = in_front_for_test();
+        let frames = frames_of(handle, foreground);
+        let facts = frames.facts.clone();
+        let opened = open_on(
+            &SystemContent,
+            frames,
+            selection_under(None),
+            SCREEN_FRAME_CAP,
+            SCREEN_START_WAIT,
+        );
+        let (stream, output, queue, display) = match opened {
+            Ok(opened) => opened,
+            Err(error) => {
+                println!(
+                    "screen-live-rebuild answered=start-{} waited_ms=0 fact_written=false stopped=false",
+                    probe_code(&error)
+                );
+                panic!("the start failed");
+            }
+        };
+        facts.lists_app.store(NO_FILTER, Ordering::SeqCst);
+        locked(&facts.listed).clear();
+        let (tx, rx) = channel();
+        let rebuild_stream = stream.clone();
+        let rebuild_facts = facts.clone();
+        let asked = Instant::now();
+        std::thread::spawn(move || {
+            let answer = refilter_on(
+                &SystemContent,
+                &rebuild_stream,
+                display,
+                &selection_under(None),
+                &rebuild_facts,
+            );
+            drop(rebuild_stream);
+            tx.send(answer).ok();
+        });
+        let answer = rx.recv_timeout(Duration::from_secs(30));
+        let waited_ms = asked.elapsed().as_millis();
+        let answered = match &answer {
+            Ok(Ok(_)) => "ok".to_string(),
+            Ok(Err(error)) => probe_code(error),
+            Err(_) => "none".to_string(),
+        };
+        let until = Instant::now() + Duration::from_secs(5);
+        while facts.lists_app().is_none() && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let fact_written = facts.lists_app().is_some();
+        let stopped = if answer.is_ok() {
+            let (tx, rx) = channel();
+            stream.ask_stop(tx);
+            let stopped = rx.recv_timeout(SCREEN_STOP_WAIT) == Ok(StopReply::Stopped);
+            if stopped {
+                release(Some(output), Some(queue));
+            } else {
+                keep_for_the_life_of_the_process(Some(output), Some(queue));
+            }
+            stopped
+        } else {
+            keep_for_the_life_of_the_process(Some(output), Some(queue));
+            std::mem::forget(stream);
+            false
+        };
+        println!(
+            "screen-live-rebuild answered={answered} waited_ms={waited_ms} fact_written={fact_written} stopped={stopped}"
+        );
+        assert_eq!(answered, "ok", "the rebuild's answer");
+        assert!(fact_written, "the new filter's fact was not written");
+        assert!(stopped, "the stream did not stop");
     }
 }
