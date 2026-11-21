@@ -939,6 +939,7 @@ fn runner_replies() -> Vec<RunnerReply> {
                 number: n(1),
                 steps: n(9),
             }),
+            next_playbook: n(3),
             bindings: Some(LoadedBindings {
                 rev: n(1),
                 origins: vec![origin(UTILITY), origin(PAY)],
@@ -1340,7 +1341,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length", "overlap"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 10);
+    assert_eq!(executable::KINDS.len(), 11);
 }
 
 #[test]

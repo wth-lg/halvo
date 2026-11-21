@@ -160,7 +160,8 @@ pub struct Rows {
 }
 
 /// The owner behind the link, in memory: it records each request, answers each runner body as stored, `add_origin`
-/// with the next revision, `end_run` with `{"ok":"yes"}` and `list_checkpoints` with a page of `pages`, and makes
+/// with the next revision, `end_run` with `{"ok":"yes"}`, `list_checkpoints` with a page of `pages` and
+/// `mark_checkpoint` with `{"stored":1}`, and makes
 /// the moves of the run's end of A7.5 for the effects of a run whose `end_run` it gets: `end` for `held`, `cleared`
 /// and `approved`, `lose` for `releasing`.
 #[derive(Default)]
@@ -184,6 +185,8 @@ pub struct Store {
     /// the test wrote it, white space included. A body whose `after` names no page is answered `unsupported`.
     pub pages: Mutex<Vec<(Option<RunId>, String)>>,
     pub other_agent_runner: AtomicUsize,
+    /// The count of the next `mark_checkpoint` bodies that get a link error and no reply, as when the link is cut.
+    pub fail_mark: AtomicUsize,
 }
 
 impl Store {
@@ -381,6 +384,8 @@ impl Store {
                     None => Store::error(&id, "unsupported"),
                 })
             }
+            CoordinatorCall::MarkCheckpoint(_) if take_one(&self.fail_mark) => Err(LinkError),
+            CoordinatorCall::MarkCheckpoint(_) => Ok(Store::reply(&id, r#"{"stored":1}"#)),
             _ => Ok(Store::error(&id, "unsupported")),
         }
     }
@@ -402,7 +407,7 @@ const CONFIG: &str = r#"{"v":1,"workflow":"30303030303030303030303030303030","ag
 fn load_reply(bindings: &str, agent: &str) -> String {
     let config = CONFIG.replacen("40404040404040404040404040404040", agent, 1);
     format!(
-        r#"{{"config":{config},"playbook":null,"bindings":{bindings},"sessions":[],"start":null}}"#
+        r#"{{"config":{config},"playbook":null,"next_playbook":1,"bindings":{bindings},"sessions":[],"start":null}}"#
     )
 }
 

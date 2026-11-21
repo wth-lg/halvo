@@ -646,6 +646,11 @@ impl Owner for Shared {
         let _turn = self.enter();
         self.ports.overlaps(workflow, agent, slots)
     }
+
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        let _turn = self.enter();
+        self.ports.delete(workflow)
+    }
 }
 
 impl Runs for Shared {

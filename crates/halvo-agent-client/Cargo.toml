@@ -5,6 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
+halvo-checkpoint = { path = "../halvo-checkpoint" }
 halvo-schema = { path = "../halvo-schema" }
 halvo-seam = { path = "../halvo-seam" }
 

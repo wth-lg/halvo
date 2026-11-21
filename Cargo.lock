@@ -1562,6 +1562,7 @@ dependencies = [
 name = "halvo-agent-client"
 version = "0.0.0"
 dependencies = [
+ "halvo-checkpoint",
  "halvo-schema",
  "halvo-seam",
  "halvo-test-dir",
@@ -1584,6 +1585,21 @@ dependencies = [
  "halvo-policy",
  "halvo-schema",
  "serde_json",
+]
+
+[[package]]
+name = "halvo-analysis"
+version = "0.0.0"
+dependencies = [
+ "getrandom 0.3.4",
+ "halvo-identify",
+ "halvo-owner",
+ "halvo-sample",
+ "halvo-schema-core",
+ "halvo-seam",
+ "halvo-test-dir",
+ "libc",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1767,6 +1783,7 @@ dependencies = [
  "getrandom 0.3.4",
  "halvo-agent-client",
  "halvo-agent-store",
+ "halvo-control",
  "halvo-derived",
  "halvo-identify",
  "halvo-schema",

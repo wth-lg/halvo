@@ -1151,7 +1151,7 @@ where
             store,
             clocks,
             floor: floor.clone(),
-            cap: StorageCap::DEFAULT,
+            cap: Some(port::ByteBound::of_cap(StorageCap::DEFAULT)),
             shred_chunk: maintenance::SHRED_CHUNK,
         })
         .map_err(|error| DaemonError::Store(error.to_string()))?,
@@ -1894,10 +1894,7 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         let _ = writeln!(err, "{line}");
     }
     let rule = owner::open::CreateRule::of(state.health(), state.state().store_made);
-    let held_cap = match state.state().storage_cap {
-        state::Cap::Known(cap) => cap,
-        state::Cap::OutOfRange(_) => halvo_control::model::StorageCap::DEFAULT,
-    };
+    let held_cap = cap_bound(state.state().storage_cap);
     let switches = state.state().switches;
     if let Err(error) = lock.exclude_from_backup() {
         let _ = writeln!(
@@ -1936,6 +1933,10 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
             (None, false, Mark::Pending { .. }) => MARK_RETRY,
             (None, false, Mark::NotYet | Mark::Settled) => SERVICE_WAIT,
         };
+        let window = match &store {
+            HeldStore::Maintenance(upkeep) => window.min(upkeep.wait()),
+            HeldStore::None | HeldStore::Capture(_) => window,
+        };
         if supervisor.wait_on(window, stop, store.link()) {
             break;
         }
@@ -1958,6 +1959,9 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         }
         say_the_notes(opener.as_ref(), err);
         mark = mark_the_store_made(mark, &mut supervisor, err);
+        if let HeldStore::Maintenance(upkeep) = &mut store {
+            upkeep.turn();
+        }
         let Some(held) = opener.as_ref().and_then(owner::open::Opener::take) else {
             continue;
         };
@@ -1976,9 +1980,9 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
                     }
                 }
             }
-            owner::open::Held::Maintenance { store, .. } => {
-                HeldStore::Maintenance { _store: store }
-            }
+            owner::open::Held::Maintenance { store, .. } => HeldStore::Maintenance(Box::new(
+                maintenance::Upkeep::new(store, maintenance::SystemClocks::new(), held_cap),
+            )),
         };
     }
     if let Some(opener) = &opener {
@@ -1995,7 +1999,7 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         .map_or(status, |outcome| outcome.status);
     let status = match store {
         HeldStore::Capture(owner) => close_the_store(*owner, status, err),
-        HeldStore::None | HeldStore::Maintenance { .. } => status,
+        HeldStore::None | HeldStore::Maintenance(_) => status,
     };
     drop(lock);
     status
@@ -2036,18 +2040,28 @@ fn close_the_store(owner: CaptureOwner, status: i32, err: &mut dyn std::io::Writ
 enum HeldStore {
     None,
     Capture(Box<CaptureOwner>),
-    Maintenance {
-        _store: Box<dyn port::MaintainStore + Send>,
-    },
+    Maintenance(Box<MaintenanceUpkeep>),
 }
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+type MaintenanceUpkeep =
+    maintenance::Upkeep<Box<dyn port::MaintainStore + Send>, maintenance::SystemClocks>;
 
 #[cfg(all(target_os = "macos", debug_assertions))]
 impl HeldStore {
     fn link(&self) -> Option<&dyn supervisor::OwnerLink> {
         match self {
             HeldStore::Capture(owner) => Some(&owner.watched),
-            HeldStore::None | HeldStore::Maintenance { .. } => None,
+            HeldStore::None | HeldStore::Maintenance(_) => None,
         }
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn cap_bound(cap: state::Cap) -> Option<port::ByteBound> {
+    match cap {
+        state::Cap::Known(cap) => Some(port::ByteBound::of_cap(cap)),
+        state::Cap::OutOfRange(_) => None,
     }
 }
 
@@ -2060,7 +2074,7 @@ struct CaptureOwner {
 #[cfg(all(target_os = "macos", debug_assertions))]
 fn capture_owner(
     store: Box<dyn port::CaptureStore + Send>,
-    cap: halvo_control::model::StorageCap,
+    cap: Option<port::ByteBound>,
     switches: crate::floor::Switches,
 ) -> std::io::Result<CaptureOwner> {
     use crate::floor::exclude::{FloorHandle, NoLineage};

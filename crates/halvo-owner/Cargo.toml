@@ -32,4 +32,5 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage
 
 [dev-dependencies]
 halvo-agent-client = { path = "../halvo-agent-client" }
+halvo-control = { path = "../halvo-control", features = ["r2"] }
 halvo-test-dir = { path = "../halvo-test-dir" }
