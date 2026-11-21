@@ -12318,3 +12318,29 @@ fn u24v_7_a_refused_press_publishes_what_its_entry_took_up() {
         "(case, the press, seq raised by the press, agent 1's row after the press is the next tick's, decisions to agent 0's run, agent 0's rows unchanged)"
     );
 }
+
+#[test]
+fn u24v_8_the_card_of_a_page_confirmation_keeps_its_cause_while_the_record_is_stuck() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("store"));
+    c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+    let item = u24v_page_item_of(&c, 0);
+    let before = (c.present(&item), c.native_card(&item).map(|_| ()));
+    assert_eq!(
+        before,
+        (Err(Cause::Presenter), Err(Cause::Presenter)),
+        "before the spell"
+    );
+    for k in 1..=3u64 {
+        u24v_tick(&c, k);
+    }
+    assert!(c.record_stuck(&agent(0)));
+    assert_eq!(
+        (c.present(&item), c.native_card(&item).map(|_| ())),
+        before,
+        "(present, native_card) of a page confirmation while the record is stuck: its own cause first"
+    );
+}
