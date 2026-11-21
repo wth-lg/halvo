@@ -127,11 +127,13 @@ impl DropCounts {
 
 /// Whether a source cannot place `front` against the rules: a process whose
 /// image it could not read, which no list entry and no tree rule can match,
-/// gives no event of any kind, and with no app known to be in front a screen
-/// frame is dropped (contracts.md C13.7). Such a drop is counted under
-/// unknown_lineage.
+/// gives no event of any kind; with no app known to be in front a screen frame
+/// is dropped (contracts.md C13.7), and so is a title whose process was not
+/// resolved, as of a window that closed between the read of its text and of
+/// its process. Such a drop is counted under unknown_lineage.
 fn unplaced<K: Recorded>(front: &FrontApp) -> bool {
-    front.path.is_none() && (front.pid != 0 || K::KIND == Modality::ScreenFrame)
+    front.path.is_none()
+        && (front.pid != 0 || matches!(K::KIND, Modality::ScreenFrame | Modality::WindowTitle))
 }
 
 /// The floor's decision as a source asks it: the keep verdict of one event, or
