@@ -1,11 +1,20 @@
 #[path = "run_support.rs"]
 mod support;
 
+#[allow(clippy::duplicate_mod)]
+#[path = "coordinator_support.rs"]
+mod coord;
+
 use halvo_coord::mem::{Call, Method};
-use halvo_coord::ports::PortError;
+use halvo_coord::ports::{PortError, Reaped};
 use halvo_coord::run::{Act, StopBy};
 use halvo_coord::schedule::{Answer, Stop};
-use halvo_coord::types::{Body, Doing, Limits, Live, Outcome, RunEnd, RunId, What};
+use halvo_coord::types::{
+    Action, AgentId, Body, Doing, HandbackAsk, HandbackReason, Limits, Live, Outcome, RunEnd,
+    RunEvent, RunId, What,
+};
+use halvo_coord::{words, Coordinator};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use support::{agent, world_with, World, MANUAL, T0};
 
 fn four() -> (World, Vec<RunId>) {
@@ -173,4 +182,251 @@ fn a_kill_that_fails_at_the_second_step_leaves_its_run_live() {
     assert!(done.killed.is_empty());
     assert_eq!(w.board.runs.len(), 3);
     assert_eq!(killed(&w), runs);
+}
+
+fn run_now(c: &Coordinator<coord::Both>, n: usize) -> RunId {
+    assert_eq!(c.control(&agent(n), Action::RunNow), Ok(()));
+    let run = coord::started(c).last().cloned().unwrap();
+    assert_eq!(c.on_run(&run, RunEvent::Hello), Ok(()));
+    run
+}
+
+fn two_live() -> (Coordinator<coord::Both>, [RunId; 2]) {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coord::coordinator(&[coord::MANUAL, coord::MANUAL], limits);
+    let runs = [run_now(&c, 0), run_now(&c, 1)];
+    (c, runs)
+}
+
+fn named(pairs: &[(usize, &RunId)]) -> Vec<(AgentId, RunId)> {
+    pairs
+        .iter()
+        .map(|(n, run)| (agent(*n), (*run).clone()))
+        .collect()
+}
+
+#[test]
+fn u46_the_quit_names_each_live_run_with_its_agent_and_a_run_that_ends_in_the_wait_until_its_tree_is_killed(
+) {
+    let (c, runs) = two_live();
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &runs[0]), (1, &runs[1])]),
+        "before the quit the list names the live runs too, so that a hook whose first step \
+         cannot take the lock names them"
+    );
+    c.quit_stop();
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &runs[0]), (1, &runs[1])]),
+        "after the first step every live run, in the order of the starts"
+    );
+    c.ports().ports.end_runner(&runs[0]);
+    assert_eq!(
+        c.on_run(&runs[0], RunEvent::Ended(Some(Outcome::Completed))),
+        Ok(())
+    );
+    assert_eq!(c.live(), 1);
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &runs[0]), (1, &runs[1])]),
+        "a run that ended after its stop keeps its dying tree named (RD-151)"
+    );
+    c.quit_kill();
+    assert_eq!(c.not_stopped(), Vec::new());
+}
+
+#[test]
+fn u46_a_refused_kill_leaves_its_run_named_and_kills_that_succeed_name_none() {
+    let (c, runs) = two_live();
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    assert_eq!(c.live(), 2);
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &runs[0]), (1, &runs[1])]),
+        "both kills were refused"
+    );
+    let (c, _) = two_live();
+    c.quit_stop();
+    c.quit_kill();
+    assert_eq!(c.live(), 0);
+    assert!(c.not_stopped().is_empty(), "{:?}", c.not_stopped());
+}
+
+#[test]
+fn u46_limit_the_next_life_shows_a_run_that_outlived_quit_as_if_nothing_ran() {
+    let c = coord::coordinator(&[coord::MANUAL], Limits::PRODUCT);
+    let run = run_now(&c, 0);
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    assert_eq!(c.not_stopped(), named(&[(0, &run)]));
+    let next = coord::owner(&[], Limits::PRODUCT);
+    *next.ports.workflows.borrow_mut() = c.ports().ports.workflows.borrow().clone();
+    *next.ports.agents.borrow_mut() = c.ports().ports.agents.borrow().clone();
+    *next.ports.events.borrow_mut() = c.ports().ports.events.borrow().clone();
+    next.ports.leave_marks(&[(run.clone(), Reaped::Alive)]);
+    let life = Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    let row = life.snapshot().rows[0].clone();
+    println!("NEXT LIFE ROW {:?}: {}", row.status, row.line);
+    let ended: Vec<RunEnd> = life
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::RunEnded { run: r, cause, .. } if r == &run => Some(*cause),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(ended, [RunEnd::Interrupted]);
+    assert_eq!(
+        row.line,
+        words::text("line.waiting_turn.store", &[]).unwrap(),
+        "a named limit of U4.6: the next life ends the run that outlived Quit as interrupted, \
+         keeps reap's answer alive for an agent set aside alone (run/recover.rs, recover; \
+         schedule/board.rs, set_aside) and its row says that Halvo wraps up the task and the \
+         person needs to do nothing, with no word that the task may have run on after Quit"
+    );
+}
+
+fn hand_back(c: &Coordinator<coord::Both>, n: usize, run: &RunId) {
+    assert_eq!(
+        c.on_run(
+            run,
+            RunEvent::Handback(HandbackAsk {
+                run: run.clone(),
+                agent: agent(n),
+                reason: HandbackReason::StepFailed,
+                origin: None,
+            })
+        ),
+        Ok(())
+    );
+}
+
+fn first_step_panics_at_its_lapse(c: &Coordinator<coord::Both>) {
+    c.ports().panics.set(Some("log_lapsed"));
+    let unwound = catch_unwind(AssertUnwindSafe(|| c.quit_stop())).is_err();
+    c.ports().panics.set(None);
+    assert!(
+        unwound,
+        "the owner's log panicked at the first step's lapse"
+    );
+}
+
+#[test]
+fn u46_no_queued_run_starts_after_a_quit_whose_first_step_panicked_in_a_lapse() {
+    let limits = Limits {
+        max_live_runs: 1,
+        ..Limits::PRODUCT
+    };
+    let c = coord::coordinator(&[coord::MANUAL, coord::MANUAL], limits);
+    let run = run_now(&c, 0);
+    hand_back(&c, 0, &run);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    assert_eq!(c.queued().len(), 1);
+    first_step_panics_at_its_lapse(&c);
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed)));
+    assert_eq!(
+        coord::started(&c),
+        [run],
+        "I5.7: from the first step of the quit on, no start leaves the queue"
+    );
+}
+
+#[test]
+fn u46_the_list_names_every_live_run_after_a_panic_in_the_first_step() {
+    let (c, runs) = two_live();
+    hand_back(&c, 0, &runs[0]);
+    first_step_panics_at_its_lapse(&c);
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &runs[0]), (1, &runs[1])]),
+        "read before any other call takes the coordinator's lock"
+    );
+}
+
+#[test]
+fn u46_the_list_keeps_the_order_of_starts_when_a_later_agent_starts_first() {
+    let limits = Limits {
+        max_live_runs: 3,
+        ..Limits::PRODUCT
+    };
+    let c = coord::coordinator(&[coord::MANUAL, coord::MANUAL, coord::MANUAL], limits);
+    let first = run_now(&c, 2);
+    let second = run_now(&c, 0);
+    let third = run_now(&c, 1);
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(2, &first), (0, &second), (1, &third)])
+    );
+}
+
+#[test]
+fn u46_the_list_names_a_dying_tree_whose_kill_at_the_quit_was_refused() {
+    let c = coord::coordinator(&[coord::MANUAL], Limits::PRODUCT);
+    let run = run_now(&c, 0);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    c.ports().ports.end_runner(&run);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    assert_eq!(c.live(), 0, "no run is live: the run's tree is dying");
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &run)]),
+        "from the move that ended the run on, before the quit too, the dying tree is named"
+    );
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    let kill_calls = c
+        .ports()
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter(|t| t.call == Call::Kill(run.clone()))
+        .count();
+    assert_eq!(
+        kill_calls, 1,
+        "the second step called the kill of the tree once"
+    );
+    assert_eq!(
+        c.not_stopped(),
+        named(&[(0, &run)]),
+        "after a refused kill the dying tree stays named"
+    );
+    c.ports().ports.clear_refusals();
+    c.quit_kill();
+    assert_eq!(
+        c.not_stopped(),
+        Vec::new(),
+        "once a second step whose kill of the tree is answered Ok has returned, it is not named"
+    );
+}
+
+#[test]
+fn u46_a_panic_in_a_notification_after_the_write_leaves_the_list_that_the_move_wrote() {
+    let (c, runs) = two_live();
+    c.quit_stop();
+    assert_eq!(c.not_stopped(), named(&[(0, &runs[0]), (1, &runs[1])]));
+    c.ports().panics.set(Some("changed_once"));
+    let unwound = catch_unwind(AssertUnwindSafe(|| c.quit_kill())).is_err();
+    assert!(unwound, "the second step's notification panicked");
+    assert_eq!(
+        c.not_stopped(),
+        Vec::new(),
+        "both kills were answered Ok and the move wrote its list before its notification panicked"
+    );
 }
