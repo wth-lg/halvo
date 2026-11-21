@@ -627,6 +627,12 @@ fn release_held(gate: &mut GateState, (producer, floor): (&Producer, &Floor), at
     );
 }
 
+/// Lets the held keys that the gate has decided go, in input order: a key
+/// cleared by the gate is recorded, a withheld one sets the withheld flag, and
+/// the first undecided key stops the release. At a stop (`at_stop`) every held
+/// key, cleared or not, is dropped with no record, no flag and no count, since
+/// nothing is written after a person has stopped the capture: a stop can drop
+/// the keys of the last poll interval, about 15 ms, and nothing tells of them.
 fn release_held_at(
     gate: &mut GateState,
     (producer, floor): (&Producer, &Floor),
@@ -634,12 +640,19 @@ fn release_held_at(
     (now, front): (u32, u32),
     password_edit_now: fn() -> bool,
 ) {
+    if at_stop {
+        while let Some((_key, _stroke, ..)) = gate.held.pop_front() {
+            #[cfg(feature = "test-seam")]
+            seam::note(_stroke.vkey, &None, _key.tick(), now);
+        }
+        return;
+    }
     while let Some((key, ..)) = gate.held.front() {
         let held_out =
             now.wrapping_sub(key.tick()) >= ms_of(crate::secure_input::windows::KEY_HOLD);
         let edit_now = held_out && password_edit_now();
         let answer = gate.gate.decide(key, now, front, edit_now);
-        if answer.is_none() && !at_stop {
+        if answer.is_none() {
             break;
         }
         let Some((_key, _stroke, class, front)) = gate.held.pop_front() else {
@@ -2756,7 +2769,7 @@ mod tests {
     }
 
     #[test]
-    fn decided_keys_go_out_in_input_order_and_a_key_undecided_at_the_stop_is_withheld_uncounted() {
+    fn decided_keys_go_out_in_input_order_and_a_key_undecided_at_the_stop_is_dropped_unflagged() {
         let (sink, writer) = crate::sink::channel(8);
         let handoff = super::super::HandOff::start(sink, "halvo-test-forward", Arc::default())
             .expect("hand-off");
@@ -2809,7 +2822,7 @@ mod tests {
         assert_eq!(apps, vec!["first".to_string(), "second".to_string()]);
         assert!(state.held.is_empty());
         assert_eq!(handoff.counts().lost, 0);
-        assert!(state.counts.withheld.load(Ordering::Relaxed));
+        assert!(!state.counts.withheld.load(Ordering::Relaxed));
     }
 
     fn lag_rig() -> (GateState, super::super::HandOff, crate::sink::SinkWriter) {
