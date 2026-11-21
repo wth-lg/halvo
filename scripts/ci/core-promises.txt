@@ -42,7 +42,7 @@ secure-input check 18-hook-scan gate macos job, which alone has the check
 secure-input check 62-build scheduled thu and sun the macos job, 68 s there as a check of the merge gate in the push run 44895970784; neither built executable may import the call that holds secure input
 secure-input check 62-build scheduled sun the windows job, 153 s there as a check of the merge gate in the push run 44893237714; it is the one build in the release profile
 secure-input check 24-hook-imports scheduled mon 28 s in the windows job, which alone has the check; it makes debug builds of two executables
-secure-input target halvo-capture/macos_stall_fixture scheduled sat the group D; 10 s in the macos job; its phases belong to 51-macos-stall
+secure-input target halvo-capture/macos_stall_fixture scheduled wed the macos job, the group E; 10 s there; 51-macos-stall runs after it in that slice and reads from the list of 12-test that its launch-path test ran
 secure-input check 51-macos-stall scheduled wed 197 s in the macos job
 secure-input check 30-core-boundary-proofs scheduled wed 104 s in the macos job, which holds every proof; the windows job no longer runs it
 
@@ -99,7 +99,7 @@ egress check 60-r6-egress gate macos job, 69 s there in the push run 44895970784
 egress check 60-r6-egress scheduled sun the windows job, 123 s there as a check of the merge gate in the push run 44893237714
 egress check 21-tree-bans gate
 egress check 10-egress scheduled thu the macos job, 33 s there in the push run 44895970784
-egress check 10-egress scheduled sat the windows job, 142 s there
+egress check 10-egress scheduled sun the windows job, 206 s there in the run 44930942501
 egress check 80-r6-absent scheduled thu the macos job, 20 s there in the push run 44895970784
 egress check 80-r6-absent scheduled sat the windows job, 22 s there
 egress check 38-app-engine-routes scheduled thu the macos job, 127 s there; the engine of the window opens no connection

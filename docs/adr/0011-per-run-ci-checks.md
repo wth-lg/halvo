@@ -14,8 +14,10 @@ structure over edits to shared files, and an earlier row keeps one workflow file
 
 - One workflow file, .github/workflows/ci.yml, with exactly two jobs, `macos` and
   `windows`.
-- Each job holds the driver call, the steps `ci.d self-test` and `ci.d`, beside the
-  check steps that the two correction runs added. Format, Clippy and Test are ci.d
+- Each job holds the driver call beside the check steps that the two correction
+  runs added: at first the steps `ci.d self-test` and `ci.d`, and since
+  2026-11-21 the steps `ci.d merge gate` and `ci.d slice`
+  (scripts/ci/README.md). Format, Clippy and Test are ci.d
   scripts of gate-1.
 - The driver `sh scripts/ci/run-ci-d.sh <job>` runs every `scripts/*/ci.d/*.sh`
   whose `# jobs:` line names the job, in byte order of the path. It refuses a script
@@ -38,12 +40,13 @@ structure over edits to shared files, and an earlier row keeps one workflow file
 - The job timeout was 30 minutes at this commit; jobtime-1 made it 60 (contract
   C16 item 11), jobtime-4 made it 90 (ruling JB-6), jobtime-9 made it 120
   (ruling PR-31 item 1), jobtime-11 made it 150 (ruling JB-52) and citime-w1
-  made it 180 (ruling WS-9). Its value lives in the bounds key
-  `ci_job_timeout_min` of docs/baseline/r1-gate-bounds.txt.
+  made it 180 (ruling WS-9). Since 2026-11-21 every job has the limit of the
+  bounds key `ci_gate_job_timeout_min` of docs/baseline/r1-gate-bounds.txt, 45
+  minutes; the key `ci_job_timeout_min`, which held the older values, is gone.
 - Each job's limit is 180 minutes since citime-w1 (ruling WS-9), because main's
   push run 44373816491 at 68c80599 read 8,342 s in its windows job of 9,000 s.
-  The same unit runs the step `ci.d self-test` in two parts, which took about
-  320 to 397 s off that step of the windows job (verifier-1 of the CI-time run:
+  The same unit ran the step `ci.d self-test`, which the workflow held then,
+  in two parts, which took about 320 to 397 s off that step of the windows job (verifier-1 of the CI-time run:
   387 s on the one pair of one processor model, across runs, with the runner's
   speed taken out, and 292 to 397 s over all pairs; pr-review-1: about 320 to
   370 s against each run's own self-test seconds; the raw fall on that pair is
