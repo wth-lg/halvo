@@ -5,6 +5,7 @@
 
 mod acts;
 mod api;
+pub mod link;
 pub mod marks;
 mod owner;
 mod proc;
