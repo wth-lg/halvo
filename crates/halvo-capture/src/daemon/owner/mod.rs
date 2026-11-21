@@ -3838,4 +3838,46 @@ mod tests {
             std::thread::sleep(POLL);
         }
     }
+
+    #[test]
+    fn a_life_that_made_a_store_and_finds_no_key_file_creates_nothing_and_reads_obstructed() {
+        use crate::daemon::state::StateHealth;
+        assert_eq!(CreateRule::of(StateHealth::Ok, false), CreateRule::FirstRun);
+        assert_eq!(CreateRule::of(StateHealth::Ok, true), CreateRule::StoreMade);
+        assert_eq!(
+            CreateRule::of(StateHealth::WriteFailed(std::io::ErrorKind::Other), false),
+            CreateRule::FirstRun
+        );
+        assert_eq!(CreateRule::of(StateHealth::Corrupt, false), CreateRule::StateNotLoaded);
+        assert_eq!(
+            CreateRule::of(StateHealth::NewerVersion(2), false),
+            CreateRule::StateNotLoaded
+        );
+        let retry = Duration::from_secs(1);
+        for rule in [CreateRule::StoreMade, CreateRule::StateNotLoaded] {
+            let host = ModelHost::new(Probe::NoKeyFile, Ok(()));
+            let (slot, held) = try_open(&host, root_file_build, rule, retry);
+            assert!(held.is_none(), "{rule:?}");
+            assert_eq!(
+                slot,
+                Slot::Unavailable {
+                    cause: StoreErrorKind::Obstructed,
+                    id: None,
+                    retry_in: Some(retry),
+                },
+                "{rule:?}"
+            );
+            assert_eq!(host.calls(), ["probe"], "{rule:?} made a store");
+        }
+        let mut failing = ModelHost::new(Probe::NoKeyFile, Ok(()));
+        failing.creates = Err(OpenFault::Io);
+        let (slot, held) = try_open(&failing, root_file_build, CreateRule::FirstRun, retry);
+        assert!(held.is_none(), "a failed create handed a store, so the mark would be set");
+        assert_eq!(slot.cause(), Some(StoreErrorKind::Io));
+        let first = ModelHost::new(Probe::NoKeyFile, Ok(()));
+        let (slot, held) = try_open(&first, root_file_build, CreateRule::FirstRun, retry);
+        assert_eq!(slot, Slot::Open { id: HOST_ID });
+        assert!(matches!(held, Some(Held::Capture { .. })));
+        assert_eq!(first.calls(), ["probe", "create"]);
+    }
 }

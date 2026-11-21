@@ -69,9 +69,11 @@ pub fn try_open(
     rule: CreateRule,
     retry: Duration,
 ) -> (Slot, Option<Held>) {
-    let _ = rule;
     let opened = match host.probe() {
         Probe::Fault { fault, id } => return (Slot::of_fault(fault, id, retry), None),
+        Probe::NoKeyFile if rule != CreateRule::FirstRun => {
+            return (Slot::of_fault(OpenFault::Obstructed, None, retry), None)
+        }
         Probe::NoKeyFile => match select(None) {
             Selection::Create(Some(custody)) => host.create(custody),
             Selection::Create(None) | Selection::Open(_) => {
