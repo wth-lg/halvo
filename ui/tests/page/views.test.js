@@ -10,7 +10,7 @@ const { parse } = require("../lib/dom.js");
 
 const VIEWS = path.join(APP, "views");
 const SIX = ["status.js", "keeps.js", "permissions.js", "stored.js", "cap.js", "delete.js"];
-const NOT_LOADED = ["agents.js", "needs.js"];
+const NOT_LOADED = ["agents.js", "confirm.js", "needs.js"];
 
 const filesUnder = (dir) =>
   fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? filesUnder(path.join(dir, e.name)) : [path.join(dir, e.name)]));
@@ -24,7 +24,7 @@ test("index.html holds markup only: no inline script, no style block and no styl
   assert.doesNotMatch(html, /\son[a-z]+\s*=/i);
 });
 
-test("views/ holds the six views of SIX and the two of NOT_LOADED, and the page loads ipc.js, the words, the frame and each of the six once, and nothing else", async () => {
+test("views/ holds the six views of SIX and the three of NOT_LOADED, and the page loads ipc.js, the words, the frame and each of the six once, and nothing else", async () => {
   const page = await openPage();
   const views = fs.readdirSync(VIEWS).filter((f) => f.endsWith(".js")).sort();
   assert.deepEqual(views, [...SIX, ...NOT_LOADED].sort());

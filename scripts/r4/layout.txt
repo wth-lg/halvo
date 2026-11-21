@@ -67,6 +67,7 @@ U2.4	scripts/r4/ci.d/20-r4-core.sh
 U3.1	ui/tests/r4/needs/**
 U3.1	docs/r4/page-features.txt
 U3.2	ui/tests/r4/agents/**
+U3.4	ui/tests/r4/confirm/**
 U3.3	ui/tests/r4/page/**
 U3.3	ui/tests/r4/snapshots/**
 U3.3	scripts/r4/ci.d/40-r4-page.sh
