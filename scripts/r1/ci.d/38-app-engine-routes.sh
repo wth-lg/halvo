@@ -156,7 +156,7 @@ helper_cases() {
   rejected=$((rejected + right))
   bad=$(sed -n 's/^case [^ /]*\/\([^ ]*\) .* wrong$/\1/p' "$work/helper-cases.txt" | paste -s -d ' ' -)
   [ -z "$bad" ] || wrong="$wrong $bad"
-  if [ "$code" != 0 ] || [ "$right" != 10 ]; then wrong="$wrong helper-cases"; fi
+  if [ "$code" != 0 ] || [ "$right" != 11 ]; then wrong="$wrong helper-cases"; fi
   shown=$(verdict "$work/helper/judged.txt" macos)
   got=green
   [ "$shown" = "FAIL $name (s03-ip:open-or-unread s18-ip:open-or-unread)" ] && got=red
@@ -458,6 +458,49 @@ def an_unbound_listener_reads_not_measured():
     return "not-measured" if rows == want else "measured"
 
 
+def two_plans_with_two_addresses_read_alike():
+    made_up = {
+        "engine-alone-steps": {"s03-ip": {"connections": 1}},
+        "no-layer-steps": {"s03-ip": {"connections": 1, "requests": 1}, "s18-ip": {"packets": 21, "marked": 21}},
+    }
+    rows = {}
+    held.add("10.0.0.6")
+    try:
+        for name, second in (("one", "10.0.0.5"), ("two", "10.0.0.6")):
+            where = os.path.join(directory, f"plans-{name}")
+            asked = []
+            for label, address in (("engine-alone-steps", "10.0.0.5"), ("no-layer-steps", second)):
+                os.environ["HALVO_MEASURE_TEST_IP"] = address
+                quiet(measure.plan, where)
+                os.environ.pop("HALVO_MEASURE_TEST_IP")
+                asked += [line for line in listen(label, where) if line.startswith("asked ")]
+                path = os.path.join(where, f"counts-{label}.json")
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                data["counts"] = made_up[label]
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f)
+                with open(os.path.join(where, f"{label}.err"), "w", encoding="utf-8") as f:
+                    f.write("".join(f"halvo-measure {key} at-app-origin=true\n" for key in ("s03-ip", "s05-ip", "s18-ip")) + "halvo-measure done\n")
+            if asked != ["asked 10.0.0.5", f"asked {second}"]:
+                return f"{name}-asked-{len(asked)}"
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                measure.judge(where, "macos")
+            rows[name] = [line for line in out.getvalue().splitlines() if line.startswith(("measure row: s03 ip ", "measure row: s18 ip "))]
+    finally:
+        held.discard("10.0.0.6")
+    want = [
+        "measure row: s03 ip engine-alone 1 0 0 0 0 true UNEXPECTED above 0",
+        "measure row: s03 ip no-layer 1 1 0 0 0 true control above 0",
+        "measure row: s18 ip engine-alone 0 0 0 0 0 true ok 0 beside its control",
+        "measure row: s18 ip no-layer 0 0 0 21 21 true control above 0",
+    ]
+    if rows["one"] != want:
+        return "one-address-misread"
+    return "alike" if rows["two"] == want else "two-addresses-misread"
+
+
 def a_loopback_read_is_refused():
     elsewhere = os.path.join(directory, "loopback")
     route[0] = "127.0.0.1"
@@ -494,6 +537,7 @@ case("windows-interfaces-read", "read", windows_interfaces_are_read)
 case("unread-interfaces-told", "told", an_unread_list_is_told)
 case("unbound-listener-reads-not-measured", "not-measured", an_unbound_listener_reads_not_measured)
 case("loopback-read-refused", "refused", a_loopback_read_is_refused)
+case("two-plans-with-two-addresses-read-alike", "alike", two_plans_with_two_addresses_read_alike)
 CASESEOF
 }
 
