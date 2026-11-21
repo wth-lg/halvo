@@ -545,35 +545,35 @@ fn u24q_the_eight_unknown_texts_stand_word_for_word() {
     pinned(&[
         (
             "run.effect.payment.unknown",
-            "Halvo could not tell whether this payment was made.",
+            "A payment may have been made; Halvo could not tell. Check your bank or the site before you pay again.",
         ),
         (
             "run.effect.purchase.unknown",
-            "Halvo could not tell whether this order was placed.",
+            "An order may have been placed; Halvo could not tell. Check the shop's order page before you order again.",
         ),
         (
             "run.effect.send.unknown",
-            "Halvo could not tell whether this message was sent.",
+            "A message may have been sent; Halvo could not tell. Look in your sent messages before you send it again.",
         ),
         (
             "run.effect.delete.unknown",
-            "Halvo could not tell whether something it was going to remove was removed.",
+            "Something may have been removed; Halvo could not tell. Check that the things you need are still there.",
         ),
         (
             "run.effect.submit.unknown",
-            "Halvo could not tell whether this form was sent.",
+            "A form may have been sent; Halvo could not tell. Check the site before you send it again.",
         ),
         (
             "run.effect.sign.unknown",
-            "Halvo could not tell whether this document was signed.",
+            "A document may have been signed for you; Halvo could not tell. Check your email before you sign it again.",
         ),
         (
             "run.effect.local_edit.unknown",
-            "Halvo could not tell whether this file was changed.",
+            "A file may have been changed; Halvo could not tell. Open it and look before you change it again.",
         ),
         (
             "run.effect.unknown",
-            "Halvo could not tell whether one step of this task was done.",
+            "One step of this task may have been done; Halvo could not tell. Check its results before running it again.",
         ),
     ]);
 }
