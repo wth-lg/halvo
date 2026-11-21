@@ -261,6 +261,7 @@ mod tests {
     #[derive(Default)]
     struct Table {
         processes: HashMap<u32, (u32, u64)>,
+        unopened: Vec<u32>,
         snapshots: AtomicUsize,
     }
 
@@ -269,10 +270,18 @@ mod tests {
             self.processes.insert(pid, (parent, created));
             self
         }
+
+        fn unopen(mut self, pid: u32) -> Table {
+            self.unopened.push(pid);
+            self
+        }
     }
 
     impl ProcessTable for Table {
         fn created(&self, pid: u32) -> Option<u64> {
+            if self.unopened.contains(&pid) {
+                return None;
+            }
             self.processes.get(&pid).map(|(_, created)| *created)
         }
 
@@ -289,6 +298,8 @@ mod tests {
     const REUSED: u32 = 500;
     const LOOP_A: u32 = 600;
     const LOOP_B: u32 = 700;
+    const UNOPENED: u32 = 800;
+    const UNDER_UNOPENED: u32 = 900;
 
     fn table() -> Table {
         Table::default()
@@ -300,6 +311,9 @@ mod tests {
             .with(REUSED, ROOT, 5)
             .with(LOOP_A, LOOP_B, 40)
             .with(LOOP_B, LOOP_A, 40)
+            .with(UNOPENED, 4, 2)
+            .with(UNDER_UNOPENED, UNOPENED, 60)
+            .unopen(UNOPENED)
     }
 
     fn decide(lineage: Arc<dyn Lineage>, pid: u32) -> Option<DropReason> {
@@ -325,6 +339,8 @@ mod tests {
             (REUSED, None),
             (LOOP_A, Some(DropReason::UnknownLineage)),
             (999, Some(DropReason::UnknownLineage)),
+            (UNOPENED, None),
+            (UNDER_UNOPENED, None),
         ] {
             assert_eq!(decide(Arc::clone(&lineage), pid), expected, "pid {pid}");
         }
