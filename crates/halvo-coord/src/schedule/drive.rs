@@ -790,7 +790,7 @@ fn start<P, C>(
 ) -> Served
 where
     P: Owner + Runs + Analysis + Rng,
-    C: ConfigView,
+    C: ConfigView + Clone,
 {
     let off = holds(&board.members[i].facts).contains(&Hold::Off);
     let served = start_steps(cx, board, i, trigger, listed, from_queue, unread);
@@ -811,7 +811,7 @@ fn start_steps<P, C>(
 ) -> Served
 where
     P: Owner + Runs + Analysis + Rng,
-    C: ConfigView,
+    C: ConfigView + Clone,
 {
     let agent = board.members[i].facts.agent.clone();
     let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
@@ -829,16 +829,18 @@ where
             .any(|o| o.agent == agent && matches!(o.what, Owing::RunEnded { .. }))
             || board.alive_at_reap(&agent).is_some(),
     };
+    let ends = board.ends();
     let steps = |facts: &mut Facts<C>| {
         let kept = facts.store_ended;
         if unread.is_some() {
             facts.store_ended = true;
         }
-        let step = start_step(facts, trigger, cx.limits, &around);
+        let step = start_step(&ends.read(facts), trigger, cx.limits, &around);
         facts.store_ended = kept;
         step
     };
-    let decide = |facts: &Facts<C>| match start_step(facts, trigger, cx.limits, &around) {
+    let decide = |facts: &Facts<C>| match start_step(&ends.read(facts), trigger, cx.limits, &around)
+    {
         StartStep {
             verdict: Verdict::Refused(cause),
             ..
@@ -912,7 +914,7 @@ fn serve<P, C>(
 ) -> Option<Served>
 where
     P: Owner + Runs + Analysis + Rng,
-    C: ConfigView,
+    C: ConfigView + Clone,
 {
     let head = board.queue.head()?.clone();
     let Some(i) = board.index(&head.agent) else {
@@ -957,7 +959,7 @@ fn end_run<P, C>(
 ) -> Ended
 where
     P: Owner + Runs + Analysis + Rng,
-    C: ConfigView,
+    C: ConfigView + Clone,
 {
     if let Some(k) = board.runs.iter().position(|r| &r.run == run) {
         let live = board.runs.remove(k);
@@ -1453,6 +1455,7 @@ where
     if plan.serve && starts {
         report.next.extend(serve(cx, board, &listed));
     }
+    let ends = board.ends();
     for i in 0..board.members.len() {
         let facts = &board.members[i].facts;
         let agent = facts.agent.clone();
@@ -1460,10 +1463,12 @@ where
             && !board.place_held(&agent)
             && !board.stuck_for_life(&agent, cx.limits)
             && !board.dismissed_unread(&agent);
-        match tick_step(facts, on_list, cx.limits) {
+        let ask = tick_step(&ends.read(facts), on_list, cx.limits);
+        match ask {
             Ask::Ready if starts => {
                 let still = |f: &Facts<C>| {
-                    (tick_step(f, on_list, cx.limits) != Ask::Ready).then_some(Cause::Hold)
+                    (tick_step(&ends.read(f), on_list, cx.limits) != Ask::Ready)
+                        .then_some(Cause::Hold)
                 };
                 if let Ok(true) = raise_own_item(
                     cx,
@@ -1769,8 +1774,10 @@ where
             let Some(item) = own(&facts.doing, OwnItemKind::Ready) else {
                 return refused(Cause::State);
             };
+            let after = board.ended_after_reap(facts, &facts.runs);
+            let ended = after.as_ref().unwrap_or(facts);
             let slot = current_slot(&facts.workflow, facts.today)
-                .filter(|s| clean(facts) && slot_open(facts, *s));
+                .filter(|s| clean(ended) && slot_open(ended, *s));
             let whats = vec![
                 What::ItemAnswered {
                     item: item.clone(),

@@ -2669,7 +2669,12 @@ where
             let held = open
                 .as_ref()
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
-            let after = board.ended_after_reap(facts, &facts.runs);
+            let mut after = board.ended_after_reap(facts, &facts.runs);
+            if let Some(read) = after.as_mut() {
+                if Self::ready_only_by_interrupted(facts, read, &self.limits) {
+                    read.doing = Doing::Idle(None);
+                }
+            }
             let line = match roster::status_of(
                 after.as_ref().unwrap_or(*facts),
                 &self.limits,
@@ -2734,6 +2739,28 @@ where
             None
         };
         (rows.into_iter().map(|p| p.row).collect(), items, note)
+    }
+
+    /// Whether the open `ready` item of `facts` is offered only by an `interrupted` row that a
+    /// record of the store overrides: a tick would raise it from the facts as stored and would
+    /// not from `read`, the facts with the ends that the row reads (`Board::ended_after_reap`).
+    /// Such an item is not shown and the row reads that end, so that a task that the record
+    /// names `completed` or `nothing_to_do` is never offered as if it had not run; nothing is
+    /// stored, and the item stays open until a start of the person or the next life's recovery
+    /// ends it (RD-156 (1)).
+    fn ready_only_by_interrupted(
+        facts: &Facts<Cfg<P>>,
+        read: &Facts<Cfg<P>>,
+        limits: &Limits,
+    ) -> bool {
+        let raises = |f: &Facts<Cfg<P>>| {
+            let mut idle = f.clone();
+            idle.doing = Doing::Idle(None);
+            schedule::tick_step(&idle, true, limits) == schedule::Ask::Ready
+        };
+        matches!(facts.doing.item(), Some(o) if o.kind == ItemKind::Ready)
+            && raises(facts)
+            && !raises(read)
     }
 
     fn item_of(

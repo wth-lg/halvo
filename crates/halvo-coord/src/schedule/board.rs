@@ -6,6 +6,96 @@ use crate::types::{AgentId, Defers, Facts, ItemId, Lapsed, RunEnd, RunId, Workfl
 /// answers of `Runs::reap`.
 type GoneAside<C> = (crate::types::Agent<C>, Vec<(RunId, Reaped)>);
 
+/// What `Board::ended_after_reap` reads beside an agent's facts and records: the runs for which
+/// this life's `Runs::reap` answered `alive` and the records that `note_records` kept, held apart
+/// from the board, so that a move that decides again while it holds the board reads the ends as
+/// the row reads them (RD-156 (1)).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Ends {
+    alive: Vec<RunId>,
+    noted: Vec<crate::types::PastRun>,
+}
+
+impl Ends {
+    /// The facts with the ends that the row reads: the copy of `Board::ended_after_reap` for the
+    /// facts' own records, else the facts themselves. The raise of `ready` and the slot rules of
+    /// a start and of a skip read `clean`, `finished` and `slot_open` from it, so that a task
+    /// that the record names finished is never offered as if it had not run (RD-156 (1)).
+    pub(crate) fn read<'a, C: Clone>(&self, facts: &'a Facts<C>) -> std::borrow::Cow<'a, Facts<C>> {
+        self.ended_after_reap(facts, &facts.runs)
+            .map_or(std::borrow::Cow::Borrowed(facts), std::borrow::Cow::Owned)
+    }
+
+    /// The copy of `Board::ended_after_reap`.
+    fn ended_after_reap<C: Clone>(
+        &self,
+        facts: &Facts<C>,
+        records: &[crate::types::PastRun],
+    ) -> Option<Facts<C>> {
+        let end_of = |run: &RunId| {
+            records
+                .iter()
+                .chain(&self.noted)
+                .find(|r| &r.run == run)
+                .and_then(|r| {
+                    let end = RunEnd::from(r.outcome);
+                    (self.alive.contains(run)
+                        || matches!(end, RunEnd::Completed | RunEnd::NothingToDo))
+                    .then_some(end)
+                })
+        };
+        let stands = |what: &crate::types::What| {
+            matches!(what, crate::types::What::RunEnded { run, cause: RunEnd::Interrupted, .. }
+                if end_of(run).is_some())
+        };
+        let unended = |what: &crate::types::What| match what {
+            crate::types::What::RunStarted { run, .. } => {
+                let ended = facts.events.iter().any(
+                    |e| matches!(&e.what, crate::types::What::RunEnded { run: r, .. } if r == run),
+                );
+                (!ended).then(|| end_of(run)).flatten()
+            }
+            _ => None,
+        };
+        if !facts
+            .events
+            .iter()
+            .any(|e| stands(&e.what) || unended(&e.what).is_some())
+        {
+            return None;
+        }
+        let mut read = facts.clone();
+        for e in &mut read.events {
+            if let crate::types::What::RunEnded { run, cause, .. } = &mut e.what {
+                if *cause == RunEnd::Interrupted {
+                    if let Some(end) = end_of(run) {
+                        *cause = end;
+                    }
+                }
+            }
+        }
+        let mut k = 0;
+        while k < read.events.len() {
+            if let (Some(end), crate::types::What::RunStarted { run, .. }) =
+                (unended(&read.events[k].what), &read.events[k].what)
+            {
+                let ended = crate::types::Event {
+                    what: crate::types::What::RunEnded {
+                        run: run.clone(),
+                        cause: end,
+                        defers: None,
+                    },
+                    ..read.events[k].clone()
+                };
+                read.events.insert(k + 1, ended);
+                k += 1;
+            }
+            k += 1;
+        }
+        Some(read)
+    }
+}
+
 /// What the coordinator owes the owner for an agent, sent again at each tick until the owner
 /// acknowledges it (I5.8, I5.9, rulings XB-14, XB-17 and XB-32).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -487,10 +577,12 @@ impl<C> Board<C> {
     /// because recovery's row never reached the ledger, the copy holds one of that end after
     /// its `run_started`, so that the row reads the end of that run and not of an earlier one
     /// (RD-151 (b)). The same `interrupted` row of any run, in any life and whatever reap
-    /// answered, holds the end of a record that names that run `completed` or `nothing_to_do`:
-    /// the runner's own word that its task ended wins over what recovery concluded without it,
-    /// while a record `failed` or no record leaves `interrupted` standing (the coordinator's word
-    /// on RD-151 (b) of 2026-11-20). None where neither stands.
+    /// answered, holds the end of a record that names that run `completed` or `nothing_to_do`,
+    /// and where no `run_ended` row of such a run stands the copy holds one of that end: the
+    /// runner's own word that its task ended wins over every `interrupted` row of that run,
+    /// whoever wrote it, while a record `failed` or no record leaves `interrupted` standing (the
+    /// coordinator's word on RD-151 (b) of 2026-11-20; RD-156 (1) and (a)). None where neither
+    /// stands.
     pub fn ended_after_reap(
         &self,
         facts: &Facts<C>,
@@ -499,67 +591,16 @@ impl<C> Board<C> {
     where
         C: Clone,
     {
-        let end_of = |run: &RunId| {
-            records
-                .iter()
-                .chain(&self.noted)
-                .find(|r| &r.run == run)
-                .and_then(|r| {
-                    let end = RunEnd::from(r.outcome);
-                    (self.alive.contains(run)
-                        || matches!(end, RunEnd::Completed | RunEnd::NothingToDo))
-                    .then_some(end)
-                })
-        };
-        let stands = |what: &crate::types::What| {
-            matches!(what, crate::types::What::RunEnded { run, cause: RunEnd::Interrupted, .. }
-                if end_of(run).is_some())
-        };
-        let unended = |what: &crate::types::What| match what {
-            crate::types::What::RunStarted { run, .. } if self.alive.contains(run) => {
-                let ended = facts.events.iter().any(
-                    |e| matches!(&e.what, crate::types::What::RunEnded { run: r, .. } if r == run),
-                );
-                (!ended).then(|| end_of(run)).flatten()
-            }
-            _ => None,
-        };
-        if !facts
-            .events
-            .iter()
-            .any(|e| stands(&e.what) || unended(&e.what).is_some())
-        {
-            return None;
+        self.ends().ended_after_reap(facts, records)
+    }
+
+    /// What `ended_after_reap` reads beside the facts and the records, held apart from the board
+    /// (RD-156 (1)).
+    pub(crate) fn ends(&self) -> Ends {
+        Ends {
+            alive: self.alive.clone(),
+            noted: self.noted.clone(),
         }
-        let mut read = facts.clone();
-        for e in &mut read.events {
-            if let crate::types::What::RunEnded { run, cause, .. } = &mut e.what {
-                if *cause == RunEnd::Interrupted {
-                    if let Some(end) = end_of(run) {
-                        *cause = end;
-                    }
-                }
-            }
-        }
-        let mut k = 0;
-        while k < read.events.len() {
-            if let (Some(end), crate::types::What::RunStarted { run, .. }) =
-                (unended(&read.events[k].what), &read.events[k].what)
-            {
-                let ended = crate::types::Event {
-                    what: crate::types::What::RunEnded {
-                        run: run.clone(),
-                        cause: end,
-                        defers: None,
-                    },
-                    ..read.events[k].clone()
-                };
-                read.events.insert(k + 1, ended);
-                k += 1;
-            }
-            k += 1;
-        }
-        Some(read)
     }
 
     /// Whether the agent's start sends its request to defer only after its `run_started` is
