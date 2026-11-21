@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive), no line of a target's start that ended it before its first case (a line start FAIL of either target or the inconclusive line of dialog_hosted, failed with the cause start) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help, no report taken at a press and no report made before its window was visible, and its count of slipped schedules, each case run again by the target at most three times in all) and no case of guard_hosted whose schedule slipped in each of its runs (too few runs kept the schedule) and no line of the loop mode (a case SLIPPED), the targets run with GUARD_HOSTED_SCHEDULE and GUARD_HOSTED_TALLY unset and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
+# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive), no line of a target's start that ended it before its first case (a line start FAIL of either target or the inconclusive line of dialog_hosted, failed with the cause start) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help, no report taken at a press and no report made before its window was visible, and its count of slipped schedules, each case run again by the target at most three times in all) and no case of guard_hosted whose schedule slipped in each of its runs (too few runs kept the schedule) and no line of the loop mode (a case SLIPPED), the targets run with GUARD_HOSTED_SCHEDULE and GUARD_HOSTED_TALLY unset and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD, and it prints into the job's log, above its verdict, the own lines of each failed case and of each start, watchdog or cut-short run that ended a target, with their line numbers in dialog-targets.txt; off a hosted runner it skips.
 # lane: alone
 set -u
 name=46-r4-dialog-ran
@@ -58,6 +58,31 @@ EOF
   [ "$looped" = 0 ] || broke "guard_hosted printed $looped lines of the loop mode (a case SLIPPED) in this check's own run, which runs each case once and again after a slip; GUARD_HOSTED_SCHEDULE reached the run"
 }
 
+told() {
+  awk '
+    function flush(what, i) {
+      printf "%s %s: its own lines, from line %d to line %d of dialog-targets.txt\n", t, what, at[1], at[n]
+      for (i = 1; i <= n; i++) printf "  %s\n", kept[i]
+      n = 0
+    }
+    /^(dialog_hosted|guard_hosted) / {
+      if ($1 != t) {
+        if (n > 0) flush("printed no end line after these lines")
+        t = $1
+      }
+      n++
+      at[n] = NR
+      kept[n] = $0
+      s = substr($0, length(t) + 2)
+      if (s ~ /^end: / || s ~ /^((bound|ink) )?case [^ ]+ [^ ]+ (PASS$|SLIPPED: )/) n = 0
+      else if (s ~ /^((bound|ink) )?case [^ ]+ [^ ]+ FAIL: /) flush("failed " substr(s, 1, index(s, " FAIL: ") - 1))
+      else if (s ~ /^(start FAIL|inconclusive): /) flush("start ended before its first case")
+      else if (s ~ /^watchdog FAIL: /) flush("ended at its watchdog")
+    }
+    END { if (n > 0) flush("printed no end line after these lines") }
+  ' "$1"
+}
+
 started() {
   awk '
     /^(dialog_hosted|guard_hosted) start FAIL: / { ended = $1 "\047s start ended before its first case: " substr($0, length($1) + 14) }
@@ -99,6 +124,7 @@ measure() {
   tr -d '\r' <"$work/out" >"$file" || fail "the output of the run cannot be written to the artifacts directory"
   broken=
   decide "$file" "$code" "$want"
+  told "$file" || fail "the lines of the targets cannot be read from the artifacts directory"
   if grep -q '^guard_hosted inconclusive: ' "$file"; then
     fail "inconclusive: guard_hosted's app did not become active within 20 s on this runner, so the run is no result; run the job again"
   fi
@@ -136,6 +162,11 @@ check() {
     *"$text"*) ;;
     *) got=$got-without-the-text ;;
   esac
+  if [ -n "$absent" ]; then
+    case $out in
+      *"$absent"*) got=$got-with-the-absent-text ;;
+    esac
+  fi
   if [ "$want" = SKIP ] && [ -s "$work/calls.$label" ]; then
     got=$got-after-cargo-ran
   fi
@@ -147,6 +178,7 @@ check() {
   fi
   STUB_EXIT=0
   STUB_WRITES=no
+  absent=
 }
 
 output() {
@@ -181,6 +213,7 @@ EOF
   git -C "$work/repo" commit -q -m fixture || exit 2
   STUB_EXIT=0
   STUB_WRITES=no
+  absent=
   rejected=0
   wrong=
   running='     Running tests/dialog_hosted.rs (target/debug/deps/dialog_hosted-0123456789abcdef)'
@@ -191,6 +224,7 @@ EOF
   win_guard="guard_hosted end: cases ran 8 of 8, failed 0$counts 2, reports before visible 0"
 
   output macos "$running" 'dialog_hosted case macos press_allow PASS' "$mac_dialog" "$mac_guard"
+  absent='its own lines'
   check macos-own-lines PASS 'guard_hosted: end lines 1, of them the line of 7 of 7 with none failed 1' macos
   output windows "$running" "$win_dialog" "$win_guard"
   check windows-own-lines PASS 'dialog_hosted: end lines 1, of them the line of 5 of 5 with none failed 1' windows
@@ -242,6 +276,59 @@ EOF
   check macos-inconclusive-before-a-start-that-ended FAIL "FAIL $name (inconclusive: guard_hosted's app did not become active within 20 s" macos
   output start-in-a-line "$mac_dialog" "x guard_hosted start FAIL: $bound_line" "$mac_guard"
   check macos-a-start-line-inside-another-line PASS 'the line of 7 of 7 with none failed 1' macos
+  sign="guard_hosted start: the test runtime's run loop gave its sign after 1 ms, and the first show goes out after it"
+  output first-case "$running" "$mac_dialog" "$sign" \
+    'guard_hosted reading macos reject_action_at_100ms: the show returned after 1 ms with no report and answered reject' \
+    'guard_hosted reading macos reject_action_at_100ms: report made by no report' \
+    'guard_hosted unreported macos reject_action_at_100ms +4024 ms: no report after 2 s; the main thread ran no read in 2 s; the show had returned=true' \
+    'guard_hosted reading macos reject_action_at_100ms: reports=0 active_at_report=false visible_at_report=false answer=reject' \
+    'guard_hosted case macos reject_action_at_100ms FAIL: macos reject_action_at_100ms: no report in 3 s with no press and no help' \
+    'guard_hosted reading macos allow_action_at_100ms: reports=1 active_at_report=true visible_at_report=true answer=allow' \
+    'guard_hosted case macos allow_action_at_100ms PASS' \
+    'guard_hosted end: cases ran 7 of 7, failed 1, schedule slipped 0, helped 0, moments at a press 0, retries 0, reports before visible 0'
+  STUB_EXIT=101
+  absent='answer=allow'
+  check macos-a-failed-case-prints-its-lines-into-the-log FAIL "guard_hosted failed case macos reject_action_at_100ms: its own lines, from line 3 to line 8 of dialog-targets.txt
+  $sign
+  guard_hosted reading macos reject_action_at_100ms: the show returned after 1 ms with no report and answered reject" macos
+  output first-case-again "$running" "$mac_dialog" "$sign" \
+    'guard_hosted unreported macos reject_action_at_100ms +4024 ms: no report after 2 s; the main thread ran no read in 2 s; the show had returned=true' \
+    'guard_hosted case macos reject_action_at_100ms FAIL: macos reject_action_at_100ms: no report in 3 s with no press and no help' \
+    'guard_hosted end: cases ran 7 of 7, failed 1, schedule slipped 0, helped 0, moments at a press 0, retries 0, reports before visible 0'
+  STUB_EXIT=101
+  check macos-the-last-line-of-a-failed-case-in-the-log FAIL '  guard_hosted case macos reject_action_at_100ms FAIL: macos reject_action_at_100ms: no report in 3 s with no press and no help
+FAIL 46-r4-dialog-ran (' macos
+  output win-failed-case "$running" 'dialog_hosted case windows press_reject PASS' \
+    'dialog_hosted timing windows press_allow: report_to_visible_ms=2400' \
+    'dialog_hosted case windows press_allow FAIL: windows press_allow: the answer was reject, not allow' \
+    'dialog_hosted end: cases ran 5 of 5, failed 1' "$win_guard"
+  STUB_EXIT=101
+  absent='dialog_hosted case windows press_reject PASS'
+  check windows-a-failed-case-prints-its-lines-into-the-log FAIL "dialog_hosted failed case windows press_allow: its own lines, from line 3 to line 4 of dialog-targets.txt
+  dialog_hosted timing windows press_allow: report_to_visible_ms=2400" windows
+  output bound-case "$running" 'dialog_hosted case macos press_allow PASS' \
+    'dialog_hosted bound reading narrow: lines=13 window=520x615 seen_h=480 controls=2' \
+    'dialog_hosted bound case macos narrow FAIL: narrow: the field was cut' \
+    'dialog_hosted bounds: cases ran 3 of 3, failed 1' "$mac_dialog" "$mac_guard"
+  STUB_EXIT=101
+  check macos-a-failed-bound-case-prints-its-lines-into-the-log FAIL "dialog_hosted failed bound case macos narrow: its own lines, from line 3 to line 4 of dialog-targets.txt
+  dialog_hosted bound reading narrow: lines=13 window=520x615 seen_h=480 controls=2" macos
+  output watchdog "$mac_dialog" "$sign" 'guard_hosted case macos reject_action_at_100ms PASS' \
+    'guard_hosted notice macos allow_action_at_100ms +1104 ms: became key active=true key=true modal_window=true object_is_the_alert=true' \
+    'guard_hosted watchdog FAIL: the cases did not end in time'
+  STUB_EXIT=101
+  check macos-a-run-that-its-watchdog-ended-prints-its-last-lines FAIL "guard_hosted ended at its watchdog: its own lines, from line 4 to line 5 of dialog-targets.txt
+  guard_hosted notice macos allow_action_at_100ms +1104 ms" macos
+  output cut-short "$mac_dialog" "$sign" 'guard_hosted notice macos reject_action_at_100ms +1129 ms: became key active=true key=true modal_window=true object_is_the_alert=true'
+  STUB_EXIT=101
+  check macos-a-run-cut-short-prints-its-last-lines FAIL "guard_hosted printed no end line after these lines: its own lines, from line 2 to line 3 of dialog-targets.txt" macos
+  output dialog-cut-short "$running" 'dialog_hosted timing macos press_allow: report_to_visible_ms=913' "$mac_guard"
+  STUB_EXIT=101
+  check macos-a-target-cut-short-before-the-next-target FAIL "dialog_hosted printed no end line after these lines: its own lines, from line 2 to line 2 of dialog-targets.txt" macos
+  output start-lines "$running" 'dialog_hosted start: brought its own panel to the front once, the app read active after 2 asks, and the panel is ordered out' "dialog_hosted start FAIL: $bound_line" "$mac_guard"
+  STUB_EXIT=101
+  check macos-the-lines-of-a-start-that-ended-in-the-log FAIL "dialog_hosted start ended before its first case: its own lines, from line 2 to line 3 of dialog-targets.txt
+  dialog_hosted start: brought its own panel" macos
   output tail "$mac_dialog, FAIL: not every case ran" "$mac_guard"
   check macos-own-line-with-a-tail FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output helped "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 0, helped 1, moments at a press 0, retries 0'
@@ -253,6 +340,7 @@ EOF
   output no-slipped-count "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, helped 0, moments at a press 0, retries 0'
   check macos-a-guard-line-with-no-count-of-slipped-schedules FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 0, helped 0' macos
   output slipped-twice "$mac_dialog" 'guard_hosted case macos allow_click_at_300ms_and_250ms_after_it schedule slipped in run 1 of 3: the schedule slipped: the press ran 528 ms after the press before it, and arm_ms is 500; the case runs again' 'guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 2, helped 0, moments at a press 0, retries 0, reports before visible 0'
+  absent='its own lines'
   check macos-slipped-twice-then-kept-and-passed PASS 'the line of 7 of 7 with none failed 1' macos
   output too-few-kept "$mac_dialog" 'guard_hosted case macos allow_click_at_300ms_and_250ms_after_it FAIL: too few runs kept the schedule: the schedule slipped in 3 runs of 3; the last: macos allow_click_at_300ms_and_250ms_after_it: the schedule slipped: the press ran 539 ms after the press before it, and arm_ms is 500' 'guard_hosted end: cases ran 7 of 7, failed 1, schedule slipped 3, helped 0, moments at a press 0, retries 0'
   STUB_EXIT=101
