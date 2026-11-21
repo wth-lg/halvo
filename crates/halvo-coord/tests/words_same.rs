@@ -463,7 +463,7 @@ fn u24r_the_three_texts_stand_word_for_word() {
         "U4.6: text 2 promises no end and no time at Quit (ruling RD-147 (5)(i))"
     );
     assert!(
-        !windows.contains("open Halvo again"),
+        !sends_the_person_to_reopen(&windows),
         "RD-148, RD-150: no text tells a person to quit and reopen Halvo while Quit can leave a \
          run live"
     );
@@ -557,6 +557,116 @@ fn u46_the_guard_of_text_2_reads_words_not_letters() {
         Vec::<String>::new(),
         "{warning}"
     );
+}
+
+fn sends_the_person_to_reopen(text: &str) -> bool {
+    text.contains("open Halvo again")
+}
+
+const TEXT_2: &str =
+    "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo.";
+
+fn named_by_the_guard(added: &str) -> Vec<String> {
+    let text = format!("{TEXT_2} {added}");
+    assert_eq!(promises_an_end_or_a_time(TEXT_2), Vec::<String>::new());
+    promises_an_end_or_a_time(&text)
+}
+
+fn refused_as_a_reopen(added: &str) -> bool {
+    assert!(!sends_the_person_to_reopen(TEXT_2));
+    sends_the_person_to_reopen(&format!("{TEXT_2} {added}"))
+}
+
+#[test]
+fn u46_the_guard_names_a_word_that_holds_a_digit() {
+    assert_eq!(named_by_the_guard("Then r7."), ["r7"]);
+}
+
+#[test]
+fn u46_the_guard_names_an_end_word_alone() {
+    assert_eq!(named_by_the_guard("Then it finished."), ["finished"]);
+}
+
+#[test]
+fn u46_the_guard_names_a_time_word_alone() {
+    assert_eq!(named_by_the_guard("It is read promptly."), ["promptly"]);
+}
+
+#[test]
+fn u46_the_guard_reads_a_word_beside_punctuation() {
+    assert_eq!(named_by_the_guard("Then finish!"), ["finish"]);
+}
+
+#[test]
+fn u46_the_guard_reads_a_word_in_capitals() {
+    assert_eq!(named_by_the_guard("Then FINISH."), ["finish"]);
+}
+
+#[test]
+fn u46_the_refusal_names_open_halvo_again() {
+    assert!(refused_as_a_reopen("Then open Halvo again."));
+}
+
+#[test]
+fn u46_the_guard_names_a_task_cancelled_right_away() {
+    assert_ne!(
+        named_by_the_guard("Every task is cancelled right away."),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn u46_the_guard_names_halvo_closing_all_tasks_at_once() {
+    assert_ne!(
+        named_by_the_guard("Halvo closes all tasks at once."),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn u46_the_guard_names_a_task_killed_when_you_quit() {
+    assert_ne!(
+        named_by_the_guard("Its task is killed when you quit."),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn u46_the_guard_names_completing() {
+    assert_eq!(
+        named_by_the_guard("Its task is completing."),
+        ["completing"]
+    );
+}
+
+#[test]
+fn u46_the_guard_names_halting() {
+    assert_eq!(named_by_the_guard("Its task is halting."), ["halting"]);
+}
+
+#[test]
+fn u46_the_guard_names_ceasing() {
+    assert_eq!(named_by_the_guard("Its task is ceasing."), ["ceasing"]);
+}
+
+#[test]
+fn u46_the_guard_names_a_full_width_digit() {
+    assert_eq!(named_by_the_guard("Then r\u{ff15}."), ["r\u{ff15}"]);
+}
+
+#[test]
+fn u46_the_refusal_names_open_halvo_again_with_a_capital() {
+    assert!(refused_as_a_reopen("Open Halvo again."));
+}
+
+#[test]
+fn u46_the_refusal_names_reopen_halvo() {
+    assert!(refused_as_a_reopen("Then reopen Halvo."));
+}
+
+#[test]
+fn u46_the_refusal_names_start_halvo_again() {
+    assert!(refused_as_a_reopen("Then start Halvo again."));
 }
 
 /// The hold `failures` says what happened and its way out (ruling RD-81).

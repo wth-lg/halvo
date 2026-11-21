@@ -415,3 +415,18 @@ fn u46_the_list_names_a_dying_tree_whose_kill_at_the_quit_was_refused() {
         "once a second step whose kill of the tree is answered Ok has returned, it is not named"
     );
 }
+
+#[test]
+fn u46_a_panic_in_a_notification_after_the_write_leaves_the_list_that_the_move_wrote() {
+    let (c, runs) = two_live();
+    c.quit_stop();
+    assert_eq!(c.not_stopped(), named(&[(0, &runs[0]), (1, &runs[1])]));
+    c.ports().panics.set(Some("changed_once"));
+    let unwound = catch_unwind(AssertUnwindSafe(|| c.quit_kill())).is_err();
+    assert!(unwound, "the second step's notification panicked");
+    assert_eq!(
+        c.not_stopped(),
+        Vec::new(),
+        "both kills were answered Ok and the move wrote its list before its notification panicked"
+    );
+}

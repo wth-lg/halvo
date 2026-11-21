@@ -8,7 +8,8 @@ use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
 use support::{
-    agent, calls_since, events, mark, started, world, Counts, Dialogs, Hold, Shared, T0,
+    agent, calls_since, events, mark, started, world, Counts, Dialogs, Hold, Shared,
+    QUIT_HOOK_THREAD, T0,
 };
 
 fn ms(n: u64) -> Duration {
@@ -538,4 +539,228 @@ fn u46_a_hub_taken_out_of_its_arc_still_bounds_the_second_step() {
     assert!(took < ms(1_900), "{took:?}");
     assert_eq!(named, [(agent(0), run)]);
     assert!(!unwound, "a kill's panic does not unwind through the hook");
+}
+
+fn wait_until_a_kill_holds(ports: &Shared) {
+    let waited = Instant::now();
+    while ports.kills_holding() == 0 && waited.elapsed() < ms(5_000) {
+        sleep(ms(1));
+    }
+    assert_eq!(ports.kills_holding(), 1, "a kill holds");
+}
+
+#[test]
+fn u46_no_queued_run_starts_after_the_hooks_call_while_a_ticks_kill_holds_and_then_answers_ok() {
+    let hub = hub_of(2, 1, 1);
+    let _release = Release(hub.clone());
+    let c = hub.coordinator();
+    let first = live_run_of(&hub, 0);
+    assert_eq!(c.control(&agent(1), Action::RunNow), Ok(()));
+    assert_eq!(c.queued().len(), 1, "agent 1 waits in the queue");
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    let ports = c.ports().inner();
+    ports.with(|p| p.set_now(T0 + 1_000));
+    ports.hold_kills(Hold::ReleasedThenOk);
+    let ticker = {
+        let hub = hub.clone();
+        std::thread::spawn(move || hub.tick())
+    };
+    wait_until_a_kill_holds(ports);
+    let (took, named) = quit_named(&hub, None).join().unwrap();
+    ports.release_kills();
+    ticker.join().unwrap();
+    assert!(
+        took < ms(1_900),
+        "cancel_grace_s = 1 s for the first step: {took:?}"
+    );
+    assert_eq!(named, [(agent(0), first.clone())]);
+    assert_eq!(
+        started(&hub),
+        [first],
+        "no run starts after the call of the hook, though the tick's kill answered Ok and its \
+         end served the queue"
+    );
+}
+
+#[test]
+fn u46_no_queued_run_starts_after_a_panic_at_the_entry_of_the_first_step() {
+    let panics = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let armed = panics.clone();
+    let limits = Limits {
+        max_live_runs: 1,
+        cancel_grace_s: 1,
+        ..Limits::PRODUCT
+    };
+    let hub = Hub::new(
+        world(2, limits),
+        limits,
+        Box::new(move |_| {
+            if armed.load(std::sync::atomic::Ordering::SeqCst) > 0 {
+                armed.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                panic!("the tray's notification panics");
+            }
+        }),
+        Dialogs::default().boxed(),
+    );
+    hub.tick();
+    let c = hub.coordinator();
+    let first = live_run_of(&hub, 0);
+    panics.store(2, std::sync::atomic::Ordering::SeqCst);
+    let queued = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(1), Action::RunNow)
+    }));
+    assert!(
+        queued.is_err(),
+        "the move that queued agent 1 panicked at its notification"
+    );
+    let named = hub.quit(Some(ms(100)));
+    assert_eq!(
+        panics.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "the entry of the first step panicked at its notification too"
+    );
+    assert_eq!(named, [(agent(0), first.clone())]);
+    c.ports().inner().with(|p| p.end_runner(&first));
+    let _ = c.on_run(&first, RunEvent::Ended(None));
+    assert_eq!(
+        started(&hub),
+        [first],
+        "the end of the live run starts no queued run after the call of the hook"
+    );
+}
+
+fn quit_on_the_hook_thread(
+    hub: &Arc<Hub<Shared>>,
+    budget: Option<Duration>,
+) -> JoinHandle<(Duration, Named)> {
+    let hub = hub.clone();
+    std::thread::Builder::new()
+        .name(QUIT_HOOK_THREAD.to_string())
+        .spawn(move || {
+            let start = Instant::now();
+            let named = hub.quit(budget);
+            (start.elapsed(), named)
+        })
+        .unwrap()
+}
+
+#[test]
+fn u46_a_ticks_kill_held_inside_the_ports_turn_does_not_hold_quit() {
+    let mut late = Vec::new();
+    for (budget, bound) in [(None, ms(2_900)), (Some(ms(45)), ms(1_900))] {
+        let hub = hub_of(2, 2, 1);
+        let _release = Release(hub.clone());
+        let c = hub.coordinator();
+        let a = live_run_of(&hub, 0);
+        let b = live_run_of(&hub, 1);
+        c.control(&agent(0), Action::Stop).unwrap();
+        c.ports().inner().with(|p| p.end_runner(&a));
+        c.on_run(&a, RunEvent::Ended(None)).unwrap();
+        let ports = c.ports().inner();
+        ports.with(|p| p.set_now(T0 + 1_000));
+        ports.hold_kills(Hold::Released);
+        ports.hold_kills_inside_the_turn();
+        ports.gate_the_hooks_clock_read();
+        let cancels = ports.cancels_made();
+        let called = Instant::now();
+        let quitting = quit_on_the_hook_thread(&hub, budget);
+        let waited = Instant::now();
+        while !ports.hook_at_its_clock_read()
+            && ports.cancels_made() == cancels
+            && waited.elapsed() < ms(3_000)
+        {
+            sleep(ms(1));
+        }
+        assert!(
+            ports.cancels_made() > cancels,
+            "the first step sent its cancel"
+        );
+        let ticker = {
+            let hub = hub.clone();
+            std::thread::spawn(move || hub.tick())
+        };
+        wait_until_a_kill_holds(ports);
+        ports.let_the_hooks_clock_read_go();
+        let returned = finished_by(&quitting, called, bound);
+        ports.release_kills();
+        let (took, named) = quitting.join().unwrap();
+        ticker.join().unwrap();
+        if !returned || took >= bound {
+            late.push(format!("budget {budget:?}: past {bound:?}, took {took:?}"));
+        }
+        assert_eq!(named, [(agent(0), a), (agent(1), b)], "budget {budget:?}");
+    }
+    assert!(
+        late.is_empty(),
+        "a kill held inside the ports' turn held the hook: {late:?}"
+    );
+}
+
+#[test]
+fn u46_a_port_panic_in_the_first_step_returns_at_once_through_the_hook_with_the_live_runs() {
+    let hub = hub(5);
+    let run = live_run(&hub);
+    hub.coordinator().ports().inner().panic_at_the_next_cancel();
+    let called = Instant::now();
+    let answer = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| hub.quit(None)));
+    let took = called.elapsed();
+    let Ok(named) = answer else {
+        panic!("the first step's panic unwound through the hook");
+    };
+    assert!(
+        took < ms(1_000),
+        "at once, not after cancel_grace_s = 5 s: {took:?}"
+    );
+    assert_eq!(named, [(agent(0), run)]);
+}
+
+#[test]
+fn u46_a_quit_whose_first_step_cannot_take_the_lock_sends_no_kill_and_names_every_run() {
+    let hub = hub_of(3, 3, 1);
+    let _release = Release(hub.clone());
+    let c = hub.coordinator();
+    let stopped = live_run_of(&hub, 0);
+    let dying = live_run_of(&hub, 1);
+    let unstopped = live_run_of(&hub, 2);
+    c.control(&agent(0), Action::Stop).unwrap();
+    c.control(&agent(1), Action::Stop).unwrap();
+    c.ports().inner().with(|p| p.end_runner(&dying));
+    c.on_run(&dying, RunEvent::Ended(None)).unwrap();
+    let ports = c.ports().inner();
+    ports.with(|p| {
+        p.set_now(T0 + 1_000);
+        p.refuse(Method::Kill, PortError::NoService);
+    });
+    hub.tick();
+    ports.with(|p| p.clear_refusals());
+    ports.hold_kills(Hold::Released);
+    let ticker = {
+        let hub = hub.clone();
+        std::thread::spawn(move || hub.tick())
+    };
+    wait_until_a_kill_holds(ports);
+    let before = ports.recorded_kills().len();
+    let called = Instant::now();
+    let quitting = quit_named(&hub, None);
+    let returned = finished_by(&quitting, called, ms(1_900));
+    let kills = ports.recorded_kills().len() - before;
+    ports.release_kills();
+    let (took, named) = quitting.join().unwrap();
+    ticker.join().unwrap();
+    assert!(
+        returned,
+        "cancel_grace_s = 1 s for the first step and a margin: the hook had not returned"
+    );
+    assert!(took < ms(1_900), "{took:?}");
+    assert_eq!(kills, 0, "that call of the hook sent no kill to all");
+    assert_eq!(
+        named,
+        [
+            (agent(0), stopped),
+            (agent(1), dying),
+            (agent(2), unstopped)
+        ],
+        "a stopped run whose kill holds, a dying tree whose kill was refused and a live run that \
+         no stop reached, in the order of their starts"
+    );
 }
