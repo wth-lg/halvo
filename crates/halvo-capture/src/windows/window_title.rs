@@ -193,8 +193,10 @@ struct TitleState {
 /// The most answers of the Chrome query that the title thread keeps.
 const CHROME_ANSWERS_KEPT: usize = 256;
 
-/// The answer of the Chrome query for `window`: a kept answer, or `query`,
-/// whose answer is kept for the window.
+/// The answer of the Chrome query for `window`: a kept answer, or `query`. Only
+/// an answer of private is kept for the window's life; an answer of not
+/// private is asked again at the next title, since a window may show its
+/// Incognito button after its first title.
 pub(crate) fn kept_answer(
     answers: &mut std::collections::HashMap<usize, bool>,
     window: usize,
@@ -204,10 +206,12 @@ pub(crate) fn kept_answer(
         return Some(*answer);
     }
     let answer = query()?;
-    if answers.len() >= CHROME_ANSWERS_KEPT {
-        answers.clear();
+    if answer {
+        if answers.len() >= CHROME_ANSWERS_KEPT {
+            answers.clear();
+        }
+        answers.insert(window, answer);
     }
-    answers.insert(window, answer);
     Some(answer)
 }
 

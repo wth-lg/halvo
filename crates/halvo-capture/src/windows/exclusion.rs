@@ -227,24 +227,33 @@ pub(crate) fn private_window(
     }
 }
 
+/// The English names of Chrome's toolbar buttons by which the query knows that
+/// a window's interface is English.
+const ENGLISH_TOOLBAR_NAMES: [&str; 3] = ["Back", "Forward", "Reload"];
+
 /// What the names of a Chrome window's buttons tell of it: `Some(true)` when
-/// one is named Incognito, `Some(false)` when there are buttons and none is,
-/// and `None` when there is none.
+/// one holds the word Incognito, `Some(false)` when the window is known to
+/// have an English interface (a button named Back, Forward or Reload) and none
+/// holds that word, and `None` for every other window, a window in another
+/// language among them, so that its title is dropped.
 pub(crate) fn incognito_of_names<S: AsRef<str>>(names: &[S]) -> Option<bool> {
-    if names.is_empty() {
-        return None;
+    if names
+        .iter()
+        .any(|name| name.as_ref().to_ascii_lowercase().contains("incognito"))
+    {
+        return Some(true);
     }
-    Some(
-        names
+    let english = names.iter().any(|name| {
+        ENGLISH_TOOLBAR_NAMES
             .iter()
-            .any(|name| name.as_ref().to_ascii_lowercase().contains("incognito")),
-    )
+            .any(|english| name.as_ref().trim().eq_ignore_ascii_case(english))
+    });
+    english.then_some(false)
 }
 
-/// What the UI Automation query tells of a Chrome window: `Some(true)` when a
-/// button of the window is named Incognito, `Some(false)` when the window holds
-/// buttons and none is, and `None` when the query gives no answer. The calling
-/// thread must be in an apartment of COM.
+/// What the UI Automation query tells of a Chrome window, by the names of its
+/// buttons ([`incognito_of_names`]), and `None` when the query gives no answer.
+/// The calling thread must be in an apartment of COM.
 #[cfg(target_os = "windows")]
 pub(crate) fn chrome_window_is_incognito(
     automation: &windows::Win32::UI::Accessibility::IUIAutomation,
