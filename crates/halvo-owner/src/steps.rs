@@ -679,6 +679,19 @@ mod tests {
         assert_eq!(routines[0]["mark"], "none");
     }
 
+    /// pr-review-25 F2: a fault of the store at the agent store's read of the workflow, made behind `LearnHandlers`,
+    /// is answered `store` through the owner, as the agent store's handler of the list answers it, and never as the
+    /// refusal that the empty read would give.
+    #[test]
+    fn a_store_fault_at_the_workflow_read_is_answered_store_through_the_owner() {
+        let scratch = Scratch::new("owner-learn-fault");
+        let mut owner = Owner::open(&scratch);
+        crate::learn::tests::FAULTED_WORKFLOW_READS.with(|on| on.set(true));
+        let answer = owner.coordinator("create_agent", "");
+        crate::learn::tests::FAULTED_WORKFLOW_READS.with(|on| on.set(false));
+        assert_eq!(answer, Err(Error::Refused(ErrorName::Store)));
+    }
+
     /// U8.1 sentence 4 (L2.2): `list_refinements` through the owner answers the learned list: empty while nothing
     /// proposes, and after a replay run whose proposal for step 2 was taken, the one edit that it learned.
     #[test]

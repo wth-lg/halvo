@@ -143,13 +143,22 @@ impl Handler for Behind {
                     .for_each(&kind, &mut |row| rows.push(row.to_owned()));
                 Answer::Rows(rows)
             }
-            Call::Workflow(id) => match cx.workflow(&id) {
-                Ok(item) => Answer::Workflow(item),
-                Err(_) => Answer::Failed,
-            },
+            Call::Workflow(id) => read_workflow(cx, &id),
         };
         *self.channel.answer.borrow_mut() = Some(answer);
         RawValue::from_string("null".to_owned()).map_err(|_| ErrorName::Internal)
+    }
+}
+
+/// The read of one stored workflow behind: its item, or `Failed` at a fault of the store.
+fn read_workflow(cx: &HandlerCx<'_>, id: &WorkflowId) -> Answer {
+    #[cfg(test)]
+    if tests::FAULTED_WORKFLOW_READS.with(Cell::get) {
+        return Answer::Failed;
+    }
+    match cx.workflow(id) {
+        Ok(item) => Answer::Workflow(item),
+        Err(_) => Answer::Failed,
     }
 }
 
@@ -331,13 +340,12 @@ impl Handler for Front {
         let json = match request.name() {
             "runner" => handlers
                 .runner(&mut host, body)
-                .map_err(|e| e.error_name())?
-                .to_json()
-                .map_err(|_| ErrorName::Internal)?,
+                .map_err(|e| e.error_name())
+                .and_then(|reply| reply.to_json().map_err(|_| ErrorName::Internal)),
             "coordinator_write" => handlers
                 .coordinator(&mut host, body)
-                .map_err(|e| e.error_name())?
-                .to_json()?,
+                .map_err(|e| e.error_name())
+                .and_then(|answer| answer.to_json()),
             _ => return Err(ErrorName::Unsupported),
         };
         if self.channel.broken.get() {
@@ -346,6 +354,16 @@ impl Handler for Front {
         if host.agent.fault.get() {
             return Err(ErrorName::Store);
         }
-        RawValue::from_string(json).map_err(|_| ErrorName::Internal)
+        RawValue::from_string(json?).map_err(|_| ErrorName::Internal)
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use std::cell::Cell;
+
+    thread_local! {
+        /// In a test alone: every read of a workflow behind answers as a fault of the store does, on this thread.
+        pub(crate) static FAULTED_WORKFLOW_READS: Cell<bool> = const { Cell::new(false) };
     }
 }
