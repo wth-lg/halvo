@@ -804,6 +804,13 @@ impl RunMark {
     }
 
     /// The record of the mark with the number that the receiver gave it.
+    #[cfg_attr(
+        not(any(test, all(target_os = "macos", debug_assertions))),
+        expect(
+            dead_code,
+            reason = "Owner::append_run_mark, its one caller, is built in tests and in macOS debug builds alone"
+        )
+    )]
     pub(crate) fn encode(&self, number: crate::sink::ArrivalNumber) -> EncodedRecord {
         EncodedRecord(self.line(number.get()))
     }

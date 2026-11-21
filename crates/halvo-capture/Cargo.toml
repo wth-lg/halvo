@@ -7,7 +7,7 @@ publish = false
 
 [features]
 secure-enclave = []
-r2 = []
+r2 = ["halvo-control/r2"]
 stall-seam = []
 test-seam = []
 
