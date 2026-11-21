@@ -2328,7 +2328,14 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 break;
             }
             Waited::Delete(asked) => {
-                match delete_on_request(asked, &mut supervisor, &serving, &mut store, dir, err) {
+                match delete_on_request(
+                    asked,
+                    &mut supervisor,
+                    &serving,
+                    (&mut store, &mut opener),
+                    dir,
+                    err,
+                ) {
                     DeleteAsked::Answered => {}
                     DeleteAsked::Reopen => {
                         mark = Mark::NotYet;
@@ -2400,6 +2407,12 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             continue;
         }
         say_the_notes(opener.as_ref(), err);
+        if let (HeldStore::None, Some(opener)) = (&store, &opener) {
+            let read = opener.slot();
+            if *supervisor.slot() != read {
+                supervisor.set_slot(read, None);
+            }
+        }
         mark = mark_the_store_made(mark, &mut supervisor, err);
         if let HeldStore::Maintenance(upkeep) = &mut store {
             upkeep.turn();
@@ -2449,9 +2462,14 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                     }
                 }
             }
-            owner::open::Held::Maintenance { store, .. } => HeldStore::Maintenance(Box::new(
-                maintenance::Upkeep::new(store, maintenance::SystemClocks::new(), held_cap),
-            )),
+            owner::open::Held::Maintenance { store, id } => {
+                supervisor.set_slot(slot::Slot::Maintenance { id: Some(id) }, None);
+                HeldStore::Maintenance(Box::new(maintenance::Upkeep::new(
+                    store,
+                    maintenance::SystemClocks::new(),
+                    held_cap,
+                )))
+            }
         };
         answer_the_delete(&mut deleted, Some(made));
     }
@@ -2626,7 +2644,7 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     asked: server::Asked,
     supervisor: &mut supervisor::Supervisor<F, L>,
     serving: &Serving<'_>,
-    store: &mut HeldStore,
+    (store, opener): (&mut HeldStore, &mut Option<owner::open::Opener>),
     dir: &halvo_control::paths::DataDir,
     err: &mut dyn std::io::Write,
 ) -> DeleteAsked {
@@ -2684,6 +2702,11 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     let Some(asked) = pending else {
         return DeleteAsked::Answered;
     };
+    if let Some(tries) = opener.take() {
+        tries.stop();
+        tries.wait_for_its_call(CLOSE_WAIT);
+        drop(tries.take());
+    }
     #[cfg(feature = "r2")]
     serving.listening.admitting().hold_owner(None);
     if let HeldStore::Capture(owner) = std::mem::replace(store, HeldStore::None) {

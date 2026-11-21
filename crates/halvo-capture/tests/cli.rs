@@ -199,6 +199,49 @@ fn holds(haystack: &[u8], needle: &[u8]) -> bool {
 }
 
 #[cfg(debug_assertions)]
+fn stop_the_run(dir: &Path, daemon: &mut Daemon, case: &str) {
+    let stopped = ctl(dir, &["stop"]);
+    assert_eq!(stopped.status.code(), Some(0), "{case}: {}", text(&stopped));
+    let ended = until(Duration::from_secs(20), || {
+        daemon.child.try_wait().ok().flatten()
+    });
+    assert_eq!(
+        ended.and_then(|status| status.code()),
+        Some(0),
+        "{case}: {:?}",
+        daemon.stderr.lock().unwrap()
+    );
+}
+
+#[cfg(debug_assertions)]
+fn status_until(dir: &Path, case: &str, lines: &[&str]) -> String {
+    until(Duration::from_secs(20), || {
+        let output = ctl(dir, &["status"]);
+        let shown = String::from_utf8_lossy(&output.stdout).into_owned();
+        lines
+            .iter()
+            .all(|line| shown.contains(&format!("\n{line}\n")))
+            .then_some(shown)
+    })
+    .unwrap_or_else(|| {
+        let output = ctl(dir, &["status"]);
+        panic!(
+            "{case}: the status does not read {lines:?}: {}",
+            text(&output)
+        )
+    })
+}
+
+#[cfg(debug_assertions)]
+fn store_id_of(deleted: &str) -> String {
+    deleted
+        .trim_end()
+        .rsplit_once(" store_id=")
+        .map(|(_, id)| id.to_owned())
+        .unwrap_or_default()
+}
+
+#[cfg(debug_assertions)]
 fn equal_twice(dir: &Path) {
     let first = total_events(dir);
     std::thread::sleep(Duration::from_millis(1_500));
@@ -485,4 +528,46 @@ fn release_service_run() {
     );
     let deleted = offline_delete(&dir);
     assert_eq!(deleted.status.code(), Some(0), "case R: {}", text(&deleted));
+}
+
+#[cfg(debug_assertions)]
+#[test]
+fn a_store_that_cannot_open_is_deleted_on_request_and_a_fresh_store_stands() {
+    use std::os::unix::fs::DirBuilderExt;
+    let dir = scratch_data_dir().with_extension("unopened");
+    std::fs::DirBuilder::new()
+        .mode(0o700)
+        .recursive(true)
+        .create(dir.join("store"))
+        .unwrap();
+    let planted = b"a store.db of the cli test that no key file names".to_vec();
+    std::fs::write(dir.join("store").join("store.db"), &planted).unwrap();
+    let mut daemon = start(&dir, &["--scripted-sources"]);
+    status_until(
+        &dir,
+        "case O",
+        &["store=unavailable", "store_error=obstructed"],
+    );
+    let deleted = ctl(&dir, &["delete-all", "-"]);
+    assert_eq!(deleted.status.code(), Some(0), "case O: {}", text(&deleted));
+    let deleted = String::from_utf8_lossy(&deleted.stdout).into_owned();
+    assert!(deleted.starts_with("deleted "), "case O: {deleted}");
+    let fresh = store_id_of(&deleted);
+    assert!(
+        !fresh.is_empty() && fresh != "-",
+        "case O: no fresh store was made: {deleted}"
+    );
+    status_until(
+        &dir,
+        "case O",
+        &["store=open", &format!("store_id={fresh}")],
+    );
+    for (path, bytes) in files_under(&dir) {
+        assert!(
+            !holds(&bytes, &planted),
+            "case O: {} holds the bytes of the store that could not open",
+            path.display()
+        );
+    }
+    stop_the_run(&dir, &mut daemon, "case O");
 }

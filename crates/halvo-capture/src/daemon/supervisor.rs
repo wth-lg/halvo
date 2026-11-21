@@ -633,6 +633,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.served = Some((ctx, wanted));
     }
 
+    /// The slot of the store as the supervisor holds it.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn slot(&self) -> &Slot {
+        &self.slot
+    }
+
     /// The slot of the store as the owner holds it now; the run condition is
     /// read at once.
     pub fn set_slot(&mut self, slot: Slot, owner: Option<&dyn OwnerLink>) {
