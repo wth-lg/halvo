@@ -374,6 +374,8 @@ pub(crate) struct DueFold {
     pub(crate) class: FoldClass,
     pub(crate) count: FoldCount,
     pub(crate) front: FrontApp,
+    /// The OS time of the first event of the interval, which stamps the record.
+    pub(crate) since: u32,
 }
 
 #[derive(Debug)]
@@ -404,6 +406,7 @@ impl Folds {
             class,
             count: open.count,
             front: open.front,
+            since: open.since,
         })
     }
 
@@ -450,13 +453,19 @@ impl Folds {
     }
 
     /// Adds the count of a fold that a full sink handed back to the open
-    /// interval of its class, or opens one at `now` with it.
-    pub(crate) fn hand_back(&mut self, fold: PointerFold, front: FrontApp, now: u32) {
+    /// interval of its class, which keeps the earlier first event of the two,
+    /// or opens one with it at `since`, the time of its first event.
+    pub(crate) fn hand_back(&mut self, fold: PointerFold, front: FrontApp, since: u32) {
         match &mut self.open[Self::slot(fold.class())] {
-            Some(open) => open.count.add(fold.count()),
+            Some(open) => {
+                open.count.add(fold.count());
+                if ms_since(since, open.since) > 0 {
+                    open.since = since;
+                }
+            }
             slot @ None => {
                 *slot = Some(OpenFold {
-                    since: now,
+                    since,
                     count: fold.count(),
                     front,
                 });
@@ -476,9 +485,10 @@ pub(crate) fn emit_due(floor: &Floor, producer: &Producer, folds: &mut Folds, du
         return;
     };
     let fold = PointerFold::new(due.class, due.count);
-    let record = FoldEvent::new(keep, fold, None, EventClock::system());
+    let age = OsTick::new(due.since).age();
+    let record = FoldEvent::new(keep, fold, age, EventClock::system());
     if let Some(back) = producer.emit_fold(record) {
-        folds.hand_back(back, due.front, super::now_tick());
+        folds.hand_back(back, due.front, due.since);
     }
 }
 
@@ -890,6 +900,18 @@ pub mod seam {
         )
     }
 
+    static PUMPS: Mutex<()> = Mutex::new(());
+
+    /// Holds the pump of every raw-input source of the process before it
+    /// handles its next input, until the guard drops.
+    pub fn hold_the_pumps() -> std::sync::MutexGuard<'static, ()> {
+        PUMPS.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(super) fn wait_while_the_pumps_are_held() {
+        drop(hold_the_pumps());
+    }
+
     /// The file name of a process's image, for a test's prints.
     pub fn process_file_of(pid: u32) -> Option<String> {
         crate::windows::foreground::process_path(pid)
@@ -1217,6 +1239,8 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
 
 #[cfg(target_os = "windows")]
 fn emit_from_raw(packet: RawInputPacket, tick: u32) {
+    #[cfg(feature = "test-seam")]
+    seam::wait_while_the_pumps_are_held();
     INPUT_CTX.with(|cell| {
         let mut borrow = cell.borrow_mut();
         let Some(state) = borrow.as_mut() else {
@@ -1769,6 +1793,15 @@ mod tests {
         assert_eq!(folds.due(20_999, false), [None, None, None]);
         let [_, drag, _] = folds.due(21_000, false);
         assert_eq!(drag.map(|due| due.count), Some(FoldCount::one()));
+        assert_eq!(folds.add(FoldClass::Move, &front, 30_000), None);
+        folds.hand_back(
+            PointerFold::new(FoldClass::Move, count_of(2)),
+            front.clone(),
+            29_500,
+        );
+        let [_, _, moved] = folds.due(30_500, false);
+        let moved = moved.expect("the interval keeps the earlier first event");
+        assert_eq!((moved.count, moved.since), (count_of(3), 29_500));
     }
 
     #[test]

@@ -1340,7 +1340,7 @@ pub(crate) mod tests {
         });
         producer.push(pointer("after"));
         assert!(handoff.writer_gone());
-        assert_eq!(handoff.counts().lost, 2);
+        assert_eq!(handoff.counts().lost, 1, "the push after the gone writer");
     }
 
     #[test]

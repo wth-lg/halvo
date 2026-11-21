@@ -16,7 +16,7 @@ mod stamp_phases;
 use stamp_phases::{period_ms, phase_of, Phase, TICK_PERIOD_FALLBACK_MS};
 
 use halvo_capture::event::{CaptureStreamEvent, Modality};
-use halvo_capture::floor::exclude::{FloorHandle, NoLineage, ProcessId};
+use halvo_capture::floor::exclude::{FloorHandle, Lineage, NoLineage, Parent, ProcessId};
 use halvo_capture::floor::payload::{Button, FoldClass, KeyClass};
 use halvo_capture::floor::record::{decode, encode, DecodedPayload, DecodedRecord};
 use halvo_capture::floor::text::{TextField, TextFilterPoint};
@@ -361,7 +361,8 @@ macro_rules! flipped {
     ($id:literal, $wanted:expr, $evidence:expr) => {{
         let evidence: String = $evidence;
         println!("{evidence}");
-        assert!($wanted, "{} failed: {evidence}", $id);
+        let _ = $id;
+        assert!($wanted, "{evidence}");
     }};
 }
 
@@ -3437,49 +3438,65 @@ fn capture_times_follow_the_input_order() {
         let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
         let pointer_start = pointer.begin(SourceContext::new(sink.clone()));
         gate_reads_clear("order", Some(&fields), &keyboard);
-        let mut injected = Vec::new();
+        let mut keys_sent = Vec::new();
+        let mut turns_sent = Vec::new();
         let mut accepted = 0;
         for _ in 0..ROUNDS {
             accepted += send(&[key_input(VK_F15, false)]);
-            injected.push((Modality::Keystroke, SystemTime::now()));
+            keys_sent.push(SystemTime::now());
             accepted += send(&[key_input(VK_F15, true)]);
             std::thread::sleep(Duration::from_millis(100));
             accepted += send(&[wheel_notch()]);
-            injected.push((Modality::Pointer, SystemTime::now()));
+            turns_sent.push(SystemTime::now());
             std::thread::sleep(Duration::from_millis(100));
         }
         std::thread::sleep(Duration::from_millis(1500));
-        let events = forward(writer).drain_for(Duration::from_secs(2));
+        let events = forward(writer).drain_for(Duration::from_secs(3));
         let _ = stop_counted(&mut keyboard, "keyboard");
         let _ = stop_counted(&mut pointer, "pointer");
-        let mut stamped: Vec<(Modality, SystemTime)> = events
+        let mut key_times: Vec<SystemTime> = events
             .iter()
-            .map(|e| (e.modality, e.captured_at.wall_clock))
+            .filter(|e| e.modality == Modality::Keystroke)
+            .map(|e| e.captured_at.wall_clock)
             .collect();
-        stamped.sort_by_key(|(_, at)| *at);
-        let kinds: Vec<Modality> = stamped.iter().map(|(kind, _)| *kind).collect();
-        let wanted: Vec<Modality> = injected.iter().map(|(kind, _)| *kind).collect();
-        let worst_ms = stamped
+        key_times.sort();
+        let scrolls: Vec<(u64, SystemTime)> = events
             .iter()
-            .zip(&injected)
-            .map(|((_, at), (_, sent))| {
-                at.duration_since(*sent)
-                    .or_else(|e| Ok::<Duration, ()>(e.duration()))
-                    .unwrap_or_default()
-                    .as_millis()
+            .filter_map(|e| match e.record.as_ref().map(DecodedRecord::payload) {
+                Some(DecodedPayload::Fold {
+                    class: FoldClass::Scroll,
+                    count,
+                }) => Some((*count, e.captured_at.wall_clock)),
+                _ => None,
             })
-            .max()
-            .unwrap_or(0);
+            .collect();
+        let distance_ms = |at: SystemTime, sent: SystemTime| {
+            at.duration_since(sent)
+                .or_else(|e| Ok::<Duration, ()>(e.duration()))
+                .unwrap_or_default()
+                .as_millis()
+        };
+        let keys_in_their_second = key_times.len() == ROUNDS
+            && key_times.iter().zip(&keys_sent).all(|(at, sent)| {
+                sent.duration_since(*at)
+                    .is_ok_and(|before| before < Duration::from_millis(1_250))
+            });
+        let scroll_distance_ms = scrolls
+            .first()
+            .map_or(u128::MAX, |(_, at)| distance_ms(*at, turns_sent[0]));
         say(
             "order",
             format!(
                 "keyboard_start={} pointer_start={} sink_capacity=1 draining_stopped_ms=1500 \
-                 sendinput_events_accepted={accepted} events={} order_matches={} \
-                 worst_distance_from_input_ms={worst_ms}",
+                 sendinput_events_accepted={accepted} events={} keystroke_events={} \
+                 keys_in_their_second={keys_in_their_second} scroll_records={} scroll_count={} \
+                 scroll_distance_from_the_first_turn_ms={scroll_distance_ms}",
                 show(&keyboard_start),
                 show(&pointer_start),
                 events.len(),
-                kinds == wanted,
+                key_times.len(),
+                scrolls.len(),
+                scrolls.first().map_or(0, |(count, _)| *count),
             ),
         );
         assert!(keyboard_start.is_ok(), "the keyboard source must start");
@@ -3489,13 +3506,22 @@ fn capture_times_follow_the_input_order() {
             3 * ROUNDS as u32,
             "INCONCLUSIVE: SendInput did not insert every key and wheel event"
         );
+        assert!(
+            keys_in_their_second,
+            "a keystroke record is not stamped at the second of its input"
+        );
         assert_eq!(
-            kinds, wanted,
-            "the capture times do not follow the input order"
+            scrolls.len(),
+            1,
+            "the wheel turns are not one scroll record"
+        );
+        assert_eq!(
+            scrolls[0].0, ROUNDS as u64,
+            "the scroll record does not count every turn"
         );
         assert!(
-            worst_ms <= 250,
-            "a capture time is {worst_ms} ms away from its input"
+            scroll_distance_ms <= 250,
+            "the scroll record is {scroll_distance_ms} ms away from its first turn"
         );
     });
 }
@@ -3631,7 +3657,7 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         std::thread::sleep(Duration::from_millis(200));
         let _ = seam::take();
-        let held = last_app.lock().expect("the last-app cell");
+        let held = seam::hold_the_pumps();
         let accepted = press_keys(5);
         std::thread::sleep(Duration::from_millis(300));
         let (done, returned) = mpsc::channel();
@@ -3716,7 +3742,7 @@ fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         std::thread::sleep(Duration::from_millis(200));
         let _ = seam::take();
-        let held = last_app.lock().expect("the last-app cell");
+        let held = seam::hold_the_pumps();
         let accepted_before = press_keys(1);
         std::thread::sleep(Duration::from_millis(300));
         let (done, returned) = mpsc::channel();
@@ -5887,9 +5913,34 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
             Field::Plain,
         );
         let _ = events.drain_for(Duration::from_millis(500));
+        let outside_pid = foreground_pid();
         let outside_keys = press_keys(5);
         let outside_moves = move_pointer(10);
         let outside = events.drain_for(Duration::from_millis(2_000));
+        let lineage = ProcessLineage::new();
+        let mut walked = ProcessId::new(outside_pid);
+        let mut walk_steps = 0;
+        let mut walk_end = "steps";
+        for _ in 0..64 {
+            if walked.get() == root.id() {
+                walk_end = "root";
+                break;
+            }
+            match lineage.parent_of(walked) {
+                Parent::Of(parent) => {
+                    walked = parent;
+                    walk_steps += 1;
+                }
+                Parent::None => {
+                    walk_end = "none";
+                    break;
+                }
+                Parent::Unknown => {
+                    walk_end = "unknown";
+                    break;
+                }
+            }
+        }
         drop(fields);
         for (source, name) in [
             (&mut foreground as &mut dyn CaptureSource, "foreground"),
@@ -5901,16 +5952,28 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
         }
         let _ = root.wait();
         root.print_output();
-        let tree_drops = foreground.drops().exclusion_tree
-            + title.drops().exclusion_tree
-            + keyboard.drops().exclusion_tree
-            + pointer.drops().exclusion_tree;
+        let drops = [
+            foreground.drops(),
+            title.drops(),
+            keyboard.drops(),
+            pointer.drops(),
+        ];
+        let tree_drops: u64 = drops.iter().map(|drops| drops.exclusion_tree).sum();
+        let unknown_lineage_drops: u64 = drops.iter().map(|drops| drops.unknown_lineage).sum();
+        let other_drops: u64 = drops
+            .iter()
+            .map(|drops| {
+                drops.switch_off + drops.listed_app + drops.private_window + drops.secure_input
+            })
+            .sum();
         say(
             "tree",
             format!(
                 "starts_ok={} grandchild_window_in_front={held_in_front} still_in_front={still_in_front} \
                  sendinput_key_events_accepted={in_tree_keys} sendinput_move_events_accepted={in_tree_moves} \
                  events_in_the_tree={} exclusion_tree_drops={tree_drops} \
+                 unknown_lineage_drops={unknown_lineage_drops} other_drops={other_drops} \
+                 outside_walk_steps={walk_steps} outside_walk_end={walk_end} \
                  outside_keys={outside_keys} outside_moves={outside_moves} events_outside={} \
                  keystroke_events_outside={} pointer_events_outside={}",
                 starts.iter().all(Result::is_ok),

@@ -694,6 +694,15 @@ mod tests {
         (choice, calls)
     }
 
+    /// The context of a screen source that a test starts: the switch
+    /// screen_activity is off by default.
+    fn screen_on(sink: crate::sink::SinkHandle) -> SourceContext {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        let mut switches = crate::floor::Switches::default();
+        switches.set(Switch::ScreenActivity, true);
+        SourceContext::with_floor(sink, FloorHandle::new(None, Arc::new(NoLineage), switches))
+    }
+
     #[test]
     fn a_frame_with_no_changed_region_is_idle_where_the_system_reports_regions() {
         for (report, changed, activity) in [
@@ -1124,7 +1133,7 @@ mod tests {
         let (sink, writer) = crate::sink::channel(64);
         let mut source = ScreenSource::new(Arc::default());
         source.life = ScreenLife::with_spawner(always_refuses);
-        let started = source.begin(crate::source::SourceContext::new(sink));
+        let started = source.begin(screen_on(sink));
         let first = writer.recv_timeout(Duration::from_secs(10)).is_ok();
         drop(source);
         let dropped = Instant::now();
