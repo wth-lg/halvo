@@ -2671,7 +2671,7 @@ where
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
             let mut after = board.ended_after_reap(facts, &facts.runs);
             if let Some(read) = after.as_mut() {
-                if Self::ready_only_by_interrupted(facts, read, &self.limits) {
+                if Self::ready_only_by_interrupted(facts, read) {
                     read.doing = Doing::Idle(None);
                 }
             }
@@ -2741,26 +2741,42 @@ where
         (rows.into_iter().map(|p| p.row).collect(), items, note)
     }
 
-    /// Whether the open `ready` item of `facts` is offered only by an `interrupted` row that a
-    /// record of the store overrides: a tick would raise it from the facts as stored and would
-    /// not from `read`, the facts with the ends that the row reads (`Board::ended_after_reap`).
-    /// Such an item is not shown and the row reads that end, so that a task that the record
-    /// names `completed` or `nothing_to_do` is never offered as if it had not run; nothing is
-    /// stored, and the item stays open until a start of the person or the next life's recovery
-    /// ends it (RD-156 (1)).
-    fn ready_only_by_interrupted(
-        facts: &Facts<Cfg<P>>,
-        read: &Facts<Cfg<P>>,
-        limits: &Limits,
-    ) -> bool {
-        let raises = |f: &Facts<Cfg<P>>| {
-            let mut idle = f.clone();
-            idle.doing = Doing::Idle(None);
-            schedule::tick_step(&idle, true, limits) == schedule::Ask::Ready
+    /// Whether the open `ready` item of `facts` is the stored raise of a run that a record of the
+    /// store names `completed` or `nothing_to_do`, while no new slot has opened for it. The
+    /// item's run is the run of the newest `run_started` before the item's `item_raised` event;
+    /// the stored events end it `interrupted` or with no `run_ended`, and `read`, the facts with
+    /// the ends that the row reads (`Board::ended_after_reap`), ends it `completed` or
+    /// `nothing_to_do`. A new slot has opened when the agent's current slot is open by
+    /// `slot_open` on `read`, where that run's own end serves the slot in which it started. Such
+    /// an item is not shown, not counted and not given to a page, in every state of the agent,
+    /// so that a task that the record names finished is never offered as if it had not run until
+    /// a new slot opens for it; at that slot it stands for the ordinary ask of I5.3 for the next
+    /// run and reads as the ordinary way's own item. The rule asks no tick. Nothing is stored,
+    /// and the item stays open until a start of the person or the next life's recovery ends it
+    /// (RD-156 (1), RD-162 (1)).
+    fn ready_only_by_interrupted(facts: &Facts<Cfg<P>>, read: &Facts<Cfg<P>>) -> bool {
+        let Some(open) = facts.doing.item().filter(|o| o.kind == ItemKind::Ready) else {
+            return false;
         };
-        matches!(facts.doing.item(), Some(o) if o.kind == ItemKind::Ready)
-            && raises(facts)
-            && !raises(read)
+        let raised = facts.events.iter().position(|e| {
+            matches!(&e.what, crate::types::What::ItemRaised { item, .. } if *item == open.item)
+        });
+        let Some(run) = raised.and_then(|at| {
+            facts.events[..at].iter().rev().find_map(|e| match &e.what {
+                crate::types::What::RunStarted { run, .. } => Some(run),
+                _ => None,
+            })
+        }) else {
+            return false;
+        };
+        let finished = |f: &Facts<Cfg<P>>| {
+            f.events.iter().any(|e| {
+                matches!(&e.what, crate::types::What::RunEnded { run: r, cause: RunEnd::Completed | RunEnd::NothingToDo, .. } if r == run)
+            })
+        };
+        let new_slot = schedule::current_slot(&read.workflow, read.today)
+            .is_some_and(|s| schedule::slot_open(read, s));
+        finished(read) && !finished(facts) && !new_slot
     }
 
     fn item_of(
