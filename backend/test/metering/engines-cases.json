@@ -24,7 +24,8 @@
         "send before any seal",
         {
           "call": null,
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
@@ -56,21 +57,24 @@
             "amountMinor": 250,
             "timestamp": 1800005416
           },
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
         "send again before the retry",
         {
           "call": null,
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
         "record failed",
         {
           "call": null,
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
@@ -82,14 +86,16 @@
             "from": 1800005416,
             "to": 1800005417
           },
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
         "record a read that explains nothing",
         {
           "call": null,
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 1
         }
       ],
       [
@@ -102,42 +108,48 @@
             "amountMinor": 250,
             "timestamp": 1800005416
           },
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
         "record a refusal",
         {
           "call": null,
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
         "send after the retry",
         {
           "call": null,
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
         "record duplicate",
         {
           "call": null,
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
         "record after the outcome",
         {
           "call": null,
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
         "record a stale refusal after the outcome",
         {
           "call": null,
-          "notBillable": 0
+          "notBillable": 0,
+          "unexplained": 0
         }
       ],
       [
@@ -152,7 +164,8 @@
         "send past the limit",
         {
           "call": null,
-          "notBillable": 1
+          "notBillable": 1,
+          "unexplained": 0
         }
       ],
       [
@@ -196,7 +209,11 @@
           "pending_refusal": null,
           "outcome": "no-call",
           "refusal": null,
-          "closed_at": 1800001817000
+          "closed_at": 1800001817000,
+          "unexplained_since": null,
+          "unexplained_logged": 0,
+          "unexplained_total": null,
+          "unexplained_neighbours": null
         },
         {
           "start": 1800001817000,
@@ -220,7 +237,11 @@
           "pending_refusal": null,
           "outcome": "acknowledged",
           "refusal": null,
-          "closed_at": 1800005537000
+          "closed_at": 1800005537000,
+          "unexplained_since": null,
+          "unexplained_logged": 1,
+          "unexplained_total": null,
+          "unexplained_neighbours": null
         },
         {
           "start": 1800005417000,
@@ -244,7 +265,11 @@
           "pending_refusal": null,
           "outcome": "not-billable",
           "refusal": "send_limit",
-          "closed_at": 1803029717000
+          "closed_at": 1803029717000,
+          "unexplained_since": null,
+          "unexplained_logged": 0,
+          "unexplained_total": null,
+          "unexplained_neighbours": null
         }
       ]
     }
@@ -389,5 +414,89 @@
         "m2_newest": null
       }
     ]
+  },
+  "the run of unexplained totals: the stored time of its first read, a read at the late point less than a span after it, and the close with the cause unexplained-total and its two sums": {
+    "seen": [
+      [
+        "record failed",
+        {
+          "call": null,
+          "notBillable": 0,
+          "unexplained": 0
+        }
+      ],
+      [
+        "an unexplained read before the late point",
+        {
+          "call": null,
+          "notBillable": 0,
+          "unexplained": 1
+        }
+      ],
+      [
+        "an unexplained read at the late point",
+        {
+          "call": null,
+          "notBillable": 0,
+          "unexplained": 0
+        }
+      ],
+      [
+        "an unexplained read one span after the first",
+        {
+          "call": null,
+          "notBillable": 1,
+          "unexplained": 0
+        }
+      ],
+      [
+        "settled",
+        true
+      ]
+    ],
+    "tables": {
+      "account": [
+        {
+          "account_id": "00000000-0000-4000-8000-0000000000e1",
+          "origin": 1800000017000,
+          "period_start": null,
+          "period_end": null,
+          "carry": 0,
+          "written_off": null,
+          "cut_kind": null,
+          "cut_at": null
+        }
+      ],
+      "intervals": [
+        {
+          "start": 1800000017000,
+          "end_at": 1800003617000,
+          "sealed_at": 1800003617000,
+          "reported": 30000,
+          "carry_in": 0,
+          "amount": 3,
+          "carry_out": 0,
+          "identifier": "00000000-0000-4000-8000-0000000000e1:1800000017",
+          "timestamp": 1800003616,
+          "first_attempt": 1800003617000,
+          "next_attempt": 1800003677000,
+          "delay": 60000,
+          "attempts": 1,
+          "refusals": 0,
+          "unanswered": 1,
+          "unanswered_at": 1800003617000,
+          "answer_due": 0,
+          "sent_at": null,
+          "pending_refusal": null,
+          "outcome": "not-billable",
+          "refusal": "unexplained-total",
+          "closed_at": 1800093317000,
+          "unexplained_since": 1800007217000,
+          "unexplained_logged": 1,
+          "unexplained_total": 8,
+          "unexplained_neighbours": 0
+        }
+      ]
+    }
   }
 }
