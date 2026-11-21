@@ -12416,3 +12416,102 @@ fn u24t_pr42_probe_2_a_clockless_switch_off_whose_record_the_store_refuses_enter
         "(the clockless Switch off, the count with the event and the refusal)"
     );
 }
+
+fn u24t_with_a_past_run(dropped: bool) -> Coordinator<Both> {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    c.ports().ports.histories.borrow_mut().push((
+        agent(0),
+        halvo_coord::types::RunHistory {
+            run: PastRun {
+                run: RunId::parse(&format!("{:032x}", 0x3e1)).unwrap(),
+                day: DAY,
+                outcome: Outcome::Completed,
+                unknown: 0,
+            },
+            effects: Vec::new(),
+        },
+    ));
+    if dropped {
+        let run = start(&c, 0);
+        c.ports()
+            .ports
+            .refuse_record(is_item_raise, refused_name("too_large"));
+        let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+        c.ports().ports.set_clock(T0 + 3 * 86_400_000, DAY + 3);
+        c.tick();
+        c.ports().ports.clear_refusals();
+    }
+    c
+}
+
+fn u24t_card_json(
+    c: &Coordinator<Both>,
+    history: Option<PortError>,
+) -> Result<serde_json::Value, Cause> {
+    if let Some(e) = history {
+        c.ports().ports.refuse(Method::AgentHistory, e);
+    }
+    let card = c.card(&agent(0));
+    c.ports().ports.clear_refusals();
+    card.map(|card| serde_json::to_value(card).unwrap())
+}
+
+#[test]
+fn u24t_r6_a_busy_history_read_shows_the_count_line_alone_and_a_later_good_read_shows_the_entries()
+{
+    let c = u24t_with_a_past_run(true);
+    let good = u24t_card_json(&c, None).unwrap();
+    assert_eq!(
+        (good.get("history"), good["runs"].as_array().map(Vec::len)),
+        (None, Some(1)),
+        "a read that answers: no key, the past run"
+    );
+    let busy = u24t_card_json(&c, Some(PortError::Busy));
+    let again = u24t_card_json(&c, None);
+    let count = words::text("card.records_dropped", &[("count", "1")]).unwrap();
+    assert_eq!(
+        busy.map(|b| (b["history"].clone(), b["lines"].clone(), b["runs"].clone())),
+        Ok((
+            serde_json::json!("busy"),
+            serde_json::json!([{ "key": "records_dropped", "text": count }]),
+            serde_json::json!([])
+        )),
+        "a busy read: (the key, the count's line alone, no run)"
+    );
+    assert_eq!(
+        again,
+        Ok(good),
+        "the next read that answers shows the card with its entries"
+    );
+}
+
+#[test]
+fn u24t_r6_a_busy_history_read_with_no_record_taken_off_gives_the_key_and_no_line() {
+    let c = u24t_with_a_past_run(false);
+    assert_eq!(
+        u24t_card_json(&c, Some(PortError::Busy)).map(|b| (
+            b["history"].clone(),
+            b["lines"].clone(),
+            b["runs"].clone()
+        )),
+        Ok((
+            serde_json::json!("busy"),
+            serde_json::json!([]),
+            serde_json::json!([])
+        )),
+        "(the key, no line, no run)"
+    );
+}
+
+#[test]
+fn u24t_r6_a_history_read_refused_otherwise_keeps_its_cause() {
+    let c = u24t_with_a_past_run(true);
+    assert_eq!(
+        (
+            u24t_card_json(&c, Some(PortError::NoService)),
+            u24t_card_json(&c, Some(refused_name("internal")))
+        ),
+        (Err(Cause::NoService), Err(Cause::NoService)),
+        "no_service and a refusal of the owner answer the cause, as before"
+    );
+}

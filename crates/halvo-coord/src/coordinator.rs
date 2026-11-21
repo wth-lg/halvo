@@ -12,9 +12,9 @@ use crate::schedule::{self, Board, Move, Report};
 use crate::sync::{Next, Sync};
 use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
-    FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
-    OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind, Snapshot,
-    Status, System, Unknown,
+    FullWorkflow, HandbackAsk, HistoryRead, Item, ItemId, ItemKind, LapseCause, Limits, Live,
+    OtherLapse, OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind,
+    Snapshot, Status, System, Unknown,
 };
 use crate::words;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -2537,9 +2537,12 @@ where
     /// The card of an agent (I8.1 `agents_card`, I2.6), read through `Owner::agent_history`,
     /// with the name of its row: two agents of one name get their ordinal among the agents whose
     /// rows the page shows (I2.3). Its first line is `card.records_dropped` with the count of
-    /// `records_dropped` where the board took off a record of the agent in this life. An agent
-    /// that has no row, whose workflow a tick saw gone or whose setup body the owner ended, is
-    /// `unknown_agent`, as for every control.
+    /// `records_dropped` where the board took off a record of the agent in this life. Where the
+    /// history read answers busy, the card holds that line alone, where the count is at least
+    /// 1, no run, and the key `history` with `busy`, so that the page asks again and never shows
+    /// it as a card with no history; any other refusal of the read answers its cause (the
+    /// coordinator's word on R6 of U2.4t). An agent that has no row, whose workflow a tick saw
+    /// gone or whose setup body the owner ended, is `unknown_agent`, as for every control.
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
         let st = self.lock();
         let board = st
@@ -2554,13 +2557,27 @@ where
             .ok_or(Cause::UnknownAgent)?;
         let facts = shown[k];
         let name = roster::names(&shown, self.label)?.swap_remove(k);
-        let history = self
-            .ports
-            .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
-            .map_err(|e| cause_of(&e))?;
-        let mut card = roster::card(facts, &name, &history, &self.limits)?;
         let count = board.dropped(agent).map_or(0, |(n, _, _)| n);
-        if let Some(line) = roster::dropped_line(count)? {
+        let dropped = roster::dropped_line(count)?;
+        let history =
+            match self
+                .ports
+                .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
+            {
+                Ok(history) => history,
+                Err(PortError::Busy) => {
+                    return Ok(Card {
+                        agent: agent.clone(),
+                        name,
+                        lines: dropped.into_iter().collect(),
+                        runs: Vec::new(),
+                        history: Some(HistoryRead::Busy),
+                    })
+                }
+                Err(e) => return Err(cause_of(&e)),
+            };
+        let mut card = roster::card(facts, &name, &history, &self.limits)?;
+        if let Some(line) = dropped {
             card.lines.insert(0, line);
         }
         Ok(card)

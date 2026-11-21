@@ -136,9 +136,27 @@ fn each_refusal_is_written_as_its_fixture_and_never_rejects() {
         .ports()
         .inner()
         .with(|p| p.refuse(Method::AgentHistory, PortError::Busy));
+    let card: serde_json::Value = serde_json::from_str(
+        &invoke(&main, "agents_card", json!({"agent": agent(0).to_string()})).unwrap(),
+    )
+    .unwrap();
     assert_eq!(
-        invoke(&main, "agents_card", json!({"agent": agent(0).to_string()})),
-        Ok(fixture("reply-error-busy"))
+        (card["history"].clone(), card["runs"].clone()),
+        (json!("busy"), json!([])),
+        "a busy history read gives the card with the key history busy and no run"
+    );
+    hub.coordinator()
+        .ports()
+        .inner()
+        .with(|p| p.refuse(Method::Agents, PortError::Busy));
+    assert_eq!(
+        invoke(
+            &main,
+            "agents_control",
+            json!({"agent": agent(0).to_string(), "action": "run_now"})
+        ),
+        Ok(fixture("reply-error-busy")),
+        "a start whose roster read answers busy is written as the fixture of busy"
     );
     let fresh = Hub::new(
         world(1, Limits::PRODUCT),
