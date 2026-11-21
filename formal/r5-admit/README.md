@@ -5,7 +5,8 @@ TLC checks it. The model says how one learned repair of a step, which the contra
 an edit, is admitted, served, counted, taken back and withdrawn (items L3.2 to L3.8 and
 L4.2), and it states the properties Q1 to Q14 of L3.8. Two files come from it:
 `edit-table.tsv`, which the test `edit_table` compares with `edit_step`, and
-`traces.jsonl`, which the test `formal_traces` replays.
+`traces.jsonl`. Since the commit that removed the crate's trace test `formal_traces`, no test
+holds the code to the traces of this model, so the model no longer follows the code.
 
 ## The checker
 

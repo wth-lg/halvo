@@ -4,8 +4,10 @@ This directory holds the model of the confirm policy of the agent run (items A5.
 of that run's contracts): the table that decides whether an action runs, waits for the
 person, is handed back or is refused, and the state machine of one effect. A model checker
 searches every order of moves of a small system that is built from both. Two files come
-from the model, and the code is compared with them: `policy-table.tsv` with `decide_row`,
-row by row, and `traces.jsonl` with `effect_step`, move by move.
+from the model: `policy-table.tsv`, which the code's `decide_row` is compared with row by
+row, and `traces.jsonl`, which `export.sh` writes and which is not committed. Since the commit
+that removed the trace tests of halvo-policy, no test holds the code to the traces of this
+model, so the model no longer follows the code.
 
 | File | What it holds |
 |---|---|
@@ -17,7 +19,7 @@ row by row, and `traces.jsonl` with `effect_step`, move by move.
 | `Export.cfg` | The export, with the seed 20261113 and the count 400 of the committed traces. |
 | `export.sh` | Writes the two files below. A person runs it. |
 | `policy-table.tsv` | The 3,840 rows of `Decide`. |
-| `traces.jsonl` | 400 traces of `Step`. |
+| `traces.jsonl` | Not committed: `export.sh` writes 400 traces of `Step` into it. |
 
 The two exported files are never edited by hand. A change of the table or of the machine is
 made in `Confirm.tla`, checked, and exported again.
@@ -166,8 +168,7 @@ made has `not_replaced`, and `not_sent` stands for an effect that has a request.
 
 The decision of a `propose` is a free value here: the step relation makes a `cleared`
 effect of the class `payment` when it is told `run`, and then refuses its `begin`. In the
-code `effect_step` takes the decision from a `Decided`, and the test `formal_traces` makes
-a free one with `Decided::free`. The limit of two rebinds is a value of the step relation
+code `effect_step` takes the decision from a `Decided`. The limit of two rebinds is a value of the step relation
 itself (`Limit`), whatever bound a configuration sets for the search.
 
 ## The traces
@@ -207,23 +208,17 @@ digest, the kept count) and with the move built from `move`, `decision`, `entry`
 `bound_class`, `used` and `cause`. The call must accept exactly when `answer` is `ok`, and
 the next state must be `state`. Then keep `state` and the move's `bound`, and add one to the count
 when the move is a `rebind` with the answer `ok`. No key holds the count: it is the number
-of the trace's earlier accepted rebinds. The test `formal_traces` compares no causes
-(A5.6); the file holds the model's cause.
+of the trace's earlier accepted rebinds. The file holds the model's cause (A5.6).
 
-Until U1.8 (b), no replay holds the code's own step for `not_made`, because `effect_step` has
-no such move and the schema no such state yet (the coordinator's ruling CP-144). The tests
-`formal_traces` and `step_traces` give no `not_made` move to `effect_step`, and no move of a
-trace after its first accepted `not_made`. `formal_traces` checks those moves against the row
-of `not_made` in the table above instead: accepted only from `releasing` and for a cause that
-can be true for the class, and every later move refused with the state `not_made`. An ignored
-test, `not_made_has_no_stand_in_left`, fails while that stop or the crate's stand-in for the
-four causes is left, and (b) takes its ignore away.
+Until U1.8 (b), `effect_step` has no move `not_made` and the schema no such state (the
+coordinator's ruling CP-144). An ignored test, `not_made_has_no_stand_in_left`, fails until
+(b) gives them, and (b) takes its ignore away.
 
 `Step` compares the class of a `rebind` with the effect's, a digest and an effect id only
 for equality, and the count only in `x.reb >= Limit`; it reads the effect's class only for
 membership in the classes that need an approval and those that make no effect, and for
 `not_made` in `local_edit` and in `send` and `delete`, and the directed traces try every class
-at every place. So `formal_traces` gives `d1`, `d2`, `e1`
+at every place. So a replay should give `d1`, `d2`, `e1`
 and `e2` 134 sets of values: three that differ in every digit, in the first digit and in the
 last digit, and for each of the 64 digits of a digest one pair that differs there alone,
 with a pair of effect ids that differs in one of their 32 digits alone, each set in both
@@ -240,7 +235,7 @@ the cause fits: `not_sent` for `submit`, `not_replaced` for `local_edit`, `unaut
 `not_made` again are refused, and the state stays `not_made`. Trace 5 is the end of a run:
 `end` is refused while the effect is `releasing`, `lose` moves it to `unknown`, and then
 `not_made` with each of the four causes is refused, so the moves of a run's end never make
-`not_made`. The test `formal_traces` requires a trace of each of these shapes.
+`not_made`.
 
 The other 372 directed traces try every move at every place. For each of the seven classes
 that can make an effect there are twelve places: no effect, the nine states, and `held` and
@@ -414,15 +409,12 @@ is stored before the request is let through; one request leaves per effect, and 
 the run's end; `commit` is stored after the reply; `used` is read in the step that stores
 the approve; `lose` comes at the run's end and at no other time; no row is ever removed). A
 change of one of them, or of A5.1 to A5.3, is a change of the model. The model was written
-before the code. The crate halvo-policy compares the code with the two files in every CI run:
-its test `policy_table` compares `decide_row` with each row of `policy-table.tsv`, and its
-test `formal_traces` follows each trace of `traces.jsonl` with `effect_step`, which must
-accept and refuse each move as the model does and reach the same next state, with each of
-the 134 sets of values and with the derived moves that the section "The traces" names.
+before the code. The crate halvo-policy compares the code with `policy-table.tsv`: its test `policy_table`
+compares `decide_row` with each row. No test follows the traces.
 
 1. Change `Confirm.tla` first. Run the check and the control copy, and `Full.cfg` by hand.
-2. Run `export.sh` and commit the model and the two files together. The tests that read
-   the two files then show where the code differs.
+2. Run `export.sh` and commit the model and `policy-table.tsv` together. The test
+   `policy_table` then shows where the code differs.
 3. When TLC reports an invariant, read its behaviour: each state names the move that made
    it. Follow the moves in the code. If the code can make every one of them, the code
    breaks the property, and that is a fault of the code. A move that the code cannot make

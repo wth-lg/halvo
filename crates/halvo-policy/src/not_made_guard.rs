@@ -15,13 +15,4 @@ fn not_made_has_no_stand_in_left() {
         !include_str!("lib.rs").contains("mod not_made;"),
         "the stand-in NotMadeCause is still a module of the crate"
     );
-    for (file, text) in [
-        ("formal_traces.rs", include_str!("formal_traces.rs")),
-        ("step_traces.rs", include_str!("step_traces.rs")),
-    ] {
-        assert!(
-            !text.contains("not_made::"),
-            "{file} still stops at a not_made move instead of giving it to effect_step"
-        );
-    }
 }

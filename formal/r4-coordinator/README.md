@@ -1,7 +1,9 @@
 # The coordinator's models
 
 This directory holds two TLA+ models of the coordinator that the crate `halvo-coord` will
-implement, and the traces that the crate's tests replay. `Schedule` is the machine that
+implement, and the traces of `Schedule`. Since the commit that removed the crate's trace test
+`formal_traces`, no test holds the code to the traces of these models, so the models no longer
+follow the code. `Schedule` is the machine that
 decides when a run starts, how it moves and how it ends. `Confirm4` is the life of a
 confirmation and the guard on the runner's effect records. The models were written before
 the code. A change to a rule changes the model first; then the traces are exported again
@@ -15,7 +17,7 @@ and committed. Nobody edits a trace file by hand.
 | `ScheduleTrace.tla`, `Confirm4Trace.tla`, `TraceText.tla` | the modules that walk a model and print one JSON line per trace |
 | `limits.json` | the limits of the models, with the field names of the struct `Limits` |
 | `export.sh` | the command that writes the two trace files |
-| `traces-schedule.jsonl`, `traces-confirm.jsonl` | 200 random walks of each model, then 14 and 15 directed traces |
+| `traces-schedule.jsonl` | the walks and the directed traces of `Schedule`; `export.sh` reads its first line and also writes `traces-confirm.jsonl`, which is not committed |
 
 ## The checker
 
@@ -139,9 +141,8 @@ every fixture and took 70 s and 301 s.
 
 ## What CI runs
 
-No check of CI runs TLC on these models or the export, and no gate record is kept. The crate's
-test `formal_traces` replays the committed traces against the code (section "Keep the models
-true to the code").
+No check of CI runs TLC on these models or the export, no gate record is kept, and no test
+replays the traces against the code.
 
 ## What a property is read from
 
@@ -937,8 +938,7 @@ with CRLF line ends gives the same stamp. The digest joins the files with nothin
 them, so it does not say where one file ends. Both files of one export hold the same stamp, and
 the export prints it. Whoever reads the two files compares the two stamps first and refuses
 a pair in which they differ: such a pair holds the traces of two versions of the models.
-The test
-`formal_traces` fails. A reader that has the model files can compute the stamp again and
+A reader that has the model files can compute the stamp again and
 so tell traces that were exported from other model files. Each further line is one trace,
 `{"n":<number>,"moves":[{"m":"<move>","a":{...},"r":"<answer>","e":[...],"p":[...],"s":{...}}...]}`. The walks
 have the numbers 1 to `count`. The directed traces follow them, with one more key after
@@ -991,7 +991,7 @@ only reads (`Owner::workflows`, `history` and `agents`, `Clock`, `Rng`) and no n
 (`Tray`, `Page`). A record that the guard passes on is the answer `ok` of its line.
 
 The two lists do not say which entry of `e` came before which entry of `p`. The model
-makes them in this order, and `formal_traces` holds the code to it on the memory ports:
+makes them in this order:
 
 - one start: `defer`; `run_started`; `start_run`; `start`, but for `no_store`; under
   `no_store` and `no_run` then `run_ended` with `failed`, `hold_set` with `set_state` when
@@ -1120,7 +1120,7 @@ runner ended with `left` `yes`, and an agent's entry goes at its next stored sta
 | `ack` | `agent`, whose run the agent store ends: the owner's acknowledgement of `end_run` | `ok` | none | none: it changes what `Owner::agents` gives |
 | `check` | `agent`, whose item `check` the person answers with `try_again` | `ok`, `state` | none | the answer to a `check` (I5.4) |
 | `delete` | `agent`, whose workflow leaves the owner's list | `ok` | none | none: it changes the list that `Owner::workflows` gives |
-| `off` | `agent`, `port` (`ok`, `lost`). Of the three forms of a lost acknowledgement of its `hold_set`, the model holds as `lost` the one whose read right after fails (the crate's form `Unread`); one whose read answers is the switch-off in order, `ok` (RD-52 (b) rule 1), which the test `formal_traces_a_lost_switch_off_whose_read_answers_moves_as_the_switch_off_in_order` replays against the code for every `lost` line of the traces; and the one whose rows land at the owner after the move (`Later`) only the crate's tests hold (tests/coordinator_moves.rs, `NO_SERVICE_ROW_UNSEEN_ORDERS`) | `ok`, `no_service` | `stopped`, the run that the control stopped | `holds` with `run_step` |
+| `off` | `agent`, `port` (`ok`, `lost`). Of the three forms of a lost acknowledgement of its `hold_set`, the model holds as `lost` the one whose read right after fails (the crate's form `Unread`); one whose read answers is the switch-off in order, `ok` (RD-52 (b) rule 1); and the one whose rows land at the owner after the move (`Later`) only the crate's tests hold (tests/coordinator_moves.rs, `NO_SERVICE_ROW_UNSEEN_ORDERS`) | `ok`, `no_service` | `stopped`, the run that the control stopped | `holds` with `run_step` |
 
 A `start` with `ok` holds the move `spawn` of I5.6: the run is `starting` in `s`. A start
 of an agent whose workflow is gone is answered `state`. `port` says what the ports do
@@ -1277,10 +1277,7 @@ with its own effect and its own digest.
 
 The models cover `holds`, `start_step` and `tick_step`, `run_step`, `recover_step` and
 `delete_step`, `confirm_step` and `guard_step` of `halvo-coord`. None of them existed at
-the commit that added this file. No check of CI runs TLC on them: whoever
-changes a model file runs the small configurations and `export.sh` by hand and commits the
-new traces. The crate's test `formal_traces` replays every committed
-line. When TLC reports an invariant violated, read its trace against I4 and I5: a step
+the commit that added this file. No check of CI runs TLC on them, and no test replays their traces:
+whoever changes a model file runs the small configurations and `export.sh` by hand. When TLC reports an invariant violated, read its trace against I4 and I5: a step
 that the contract does not allow is a fault of the model, and a trace of allowed steps is
-a finding about the design. When the test fails, the code and the model differ: decide
-which one the contract supports, and change the other.
+a finding about the design.
