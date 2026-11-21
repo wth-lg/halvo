@@ -4333,3 +4333,25 @@ fn rd73_a_move_after_94_days_in_one_life_holds_the_board_that_recovery_builds() 
     }
     assert_eq!(count(&w.facts(0).events, "run_started"), 1, "the rows of day 50");
 }
+
+/// RD-73 2.1 with the derived `off` of I5.4: the row of a switch-off passes its day in one life;
+/// after one move the row shows `off.kept`, no start passes, and Switch on ends the hold.
+#[test]
+fn rd73_a_switch_off_whose_row_passed_its_day_shows_off_kept_until_switch_on() {
+    use halvo_coord::roster::status_of;
+    use halvo_coord::types::StatusLine;
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    let off = w.go(Move::SwitchOff { agent: agent(0) });
+    assert_eq!(off.answer, Ok(Answer::Ok));
+    assert_eq!(status_of(w.facts(0), &w.limits, None, false), StatusLine::Off);
+    days_on(&w, 94);
+    w.tick();
+    assert_eq!(status_of(w.facts(0), &w.limits, None, false), StatusLine::Kept);
+    w.forget();
+    assert_eq!(w.start(0).answer, Err(Cause::Hold));
+    assert_eq!(w.starts(), 0);
+    let on = w.go(Move::SwitchOn { agent: agent(0) });
+    assert_eq!(on.answer, Ok(Answer::Ok));
+    assert!(!holds(w.facts(0)).contains(&Hold::Off));
+}
