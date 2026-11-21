@@ -1,9 +1,11 @@
 use halvo_schema::coordinator::body::{CoordHistory, CoordLog, History, Stored};
-use halvo_schema::coordinator::record::CoordEvent;
+use halvo_schema::coordinator::record::{CoordEvent, What};
 use halvo_schema::coordinator::Refusal;
-use halvo_schema::{AgentId, ErrorName, RawRequest, Role, TypedRecord, Workflow, WorkflowId};
+use halvo_schema::{
+    AgentId, ErrorName, RawRequest, Role, RowRead, TypedRecord, Workflow, WorkflowId,
+};
 
-use crate::host::{CommitRefused, Host};
+use crate::host::{CommitRefused, HeldRefused, Host};
 
 const KIND: &str = "coord_event";
 
@@ -35,6 +37,60 @@ fn declared(name: &str) -> ErrorName {
     ErrorName::read(name).unwrap_or(ErrorName::Internal)
 }
 
+/// What the guard of a delete answers (W-C25.5; RD-64 1.6 (a)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DeleteGuard {
+    /// The delete may go.
+    Go,
+    /// The delete must wait: the owner removes nothing and answers the decision with `state`.
+    Wait,
+}
+
+/// The owner's guard of the delete of a workflow for the family `coord` (RD-64 1.6 (a); the guard of the workflow
+/// run's planner-13, Addition 21, point 5 (a)), in the form of W-C25.5: the store calls it inside the transaction of
+/// W-C3.10, under an interface decision, with `rows`, the read of the family `coord` over the rows held under the
+/// workflow's key, and with `held`, the fifth call's yes or no for the kind `coord_event` and that workflow. It
+/// answers `Wait` while a `run_started` among the rows that name `workflow`, of any agent, has no `run_ended` of the
+/// same agent and run with a higher `seq`, and `Go` otherwise. It answers `Go` wherever `coordinator` answers `store`
+/// to both bodies of that workflow by its step 6: for a row that the typed reader refuses or whose text names another
+/// workflow, for a yes and for a refusal of `held`. No `run_ended` can be stored in that state, so a wait would shut
+/// the one control that ends it, and the tick that sees the workflow gone stops a run of it that is still live
+/// (I5.7). No host calls it until halvo-derived offers the seam of the guard (the workflow run's U5.1c).
+pub fn delete_guard(
+    workflow: &WorkflowId,
+    rows: &dyn RowRead,
+    held: Result<bool, HeldRefused>,
+) -> DeleteGuard {
+    if held != Ok(false) {
+        return DeleteGuard::Go;
+    }
+    let mut events = Vec::new();
+    let mut unfit = false;
+    rows.for_each(KIND, &mut |row| match CoordEvent::parse(row.as_bytes()) {
+        Ok(e) if &e.workflow == workflow => events.push(e),
+        _ => unfit = true,
+    });
+    if unfit {
+        return DeleteGuard::Go;
+    }
+    let ended = |start: &CoordEvent, run: &_| {
+        events.iter().any(|e| {
+            e.agent == start.agent
+                && e.seq > start.seq
+                && matches!(&e.what, What::RunEnded { run: r, .. } if r == run)
+        })
+    };
+    let live = events.iter().any(|e| match &e.what {
+        What::RunStarted { run, .. } => !ended(e, run),
+        _ => false,
+    });
+    if live {
+        DeleteGuard::Wait
+    } else {
+        DeleteGuard::Go
+    }
+}
+
 /// Answers one request of the owner whose body is a coordinator body of the interface run (contracts.md I7.2,
 /// I7.3): the reply, or the error name of the first check that refuses it. A refused request stores nothing. The
 /// checks run in this order, and the first that refuses answers:
@@ -42,14 +98,19 @@ fn declared(name: &str) -> ErrorName {
 /// 1. Any request that is not a `coordinator_write` is `role`, whatever its body.
 /// 2. A body that `CoordLog::parse` and `CoordHistory::parse` both refuse, as read from the bytes of the body as
 ///    they arrived, is `malformed`; so is a body whose `op` is neither of `OPS`.
-/// 3. `no_workflow` for a workflow that is not stored.
+/// 3. `store` for a fault of the host's read of the workflow, and `no_workflow` for a workflow that is not stored.
 /// 4. `binding` unless the stored workflow's agent is the body's agent.
 /// 5. `coord_log` alone: `malformed` for a record whose `at` is below 0 (CP-122 (b)), and then `malformed` for a
 ///    record whose `day` is not the local day of its `at` by the store's clock. This tie is the handler's alone;
 ///    the store's commit holds the two clock bounds and no tie (CP-122 (b), (e), (j)).
-/// 6. `store` where the typed reader refuses one stored row of the kind `coord_event`, of any workflow and agent:
-///    such a row answers `store` to both bodies for every workflow and agent, because the seq rule and `last` rest
-///    on every row of the asker's pair and an unreadable row cannot be put to its pair.
+/// 6. `store` where the keyed read under the asker's workflow key hands out a row of the kind `coord_event` that the
+///    typed reader refuses or whose text names another workflow: such a row answers `store` to both bodies for every
+///    agent of that workflow, because the seq rule and `last` rest on every row of the asker's pair and such a row
+///    cannot be put to its pair. The handler reads no row held under another workflow's key, so a row of another
+///    workflow stops nothing (RD-64 1.1). Then `store` unless the fifth call of the host answers no for the kind
+///    `coord_event` and the body's workflow: a yes, a row of that workflow held back more than two days after the
+///    clock's day, which the keyed read does not hand out, and any refusal of the call answer `store` to both bodies
+///    (RD-64 3.3), so that nothing is numbered over the rows that a clock set back hides.
 /// 7. `coord_log` alone: `seq` unless the records' `seq` are the stored last `seq` of the workflow and agent plus 1,
 ///    2 and on, the last being 0 where none is stored.
 /// 8. `coord_log` alone: one typed commit of the text that `CoordEvent::to_json` writes for each record, never the
@@ -61,7 +122,7 @@ fn declared(name: &str) -> ErrorName {
 /// `coord_log` answers `{"stored":n}`, n the number of records stored. `coord_history` answers the stored records of
 /// the workflow and agent whose `seq` is above `after`, or every one where it is null, at most `HISTORY_PAGE` in
 /// ascending `seq`, gaps allowed, with `last` the largest stored `seq` of the workflow and agent, or 0 where none is
-/// stored; it stores nothing. Both read the rows that the host's row read hands out.
+/// stored; it stores nothing. Both read the rows that the host's keyed read hands out under the body's workflow.
 pub fn coordinator(host: &mut dyn Host, request: &RawRequest) -> Result<CoordReply, ErrorName> {
     if request.role() != Some(Role::Coordinator) {
         return Err(ErrorName::Role);
@@ -77,7 +138,10 @@ pub fn coordinator(host: &mut dyn Host, request: &RawRequest) -> Result<CoordRep
 }
 
 fn bound(host: &dyn Host, workflow: &WorkflowId, agent: &AgentId) -> Result<(), ErrorName> {
-    let item = host.workflow(workflow).ok_or(ErrorName::NoWorkflow)?;
+    let item = host
+        .workflow(workflow)
+        .map_err(|_| ErrorName::Store)?
+        .ok_or(ErrorName::NoWorkflow)?;
     match item.workflow {
         Workflow::Full(w) if w.agent.as_ref() == Some(agent) => Ok(()),
         _ => Err(declared("binding")),
@@ -90,25 +154,32 @@ fn stored_of(
     agent: &AgentId,
 ) -> Result<Vec<CoordEvent>, ErrorName> {
     let mut out = Vec::new();
-    let mut unread = false;
-    host.rows()
-        .for_each(KIND, &mut |row| match CoordEvent::parse(row.as_bytes()) {
-            Ok(e) if &e.workflow == workflow && &e.agent == agent => out.push(e),
+    let mut unfit = false;
+    host.rows_under(
+        KIND,
+        workflow,
+        &mut |row| match CoordEvent::parse(row.as_bytes()) {
+            Ok(e) if &e.workflow != workflow => unfit = true,
+            Ok(e) if &e.agent == agent => out.push(e),
             Ok(_) => {}
-            Err(_) => unread = true,
-        });
-    if unread {
+            Err(_) => unfit = true,
+        },
+    );
+    if unfit {
+        return Err(ErrorName::Store);
+    }
+    if host.held_ahead(KIND, workflow) != Ok(false) {
         return Err(ErrorName::Store);
     }
     out.sort_by_key(|e| e.seq);
     Ok(out)
 }
 
-fn commit_error(refused: CommitRefused) -> ErrorName {
+pub(crate) fn commit_error(refused: CommitRefused) -> ErrorName {
     match refused {
         CommitRefused::Day(_) | CommitRefused::Record => ErrorName::Malformed,
         CommitRefused::Workflow => ErrorName::NoWorkflow,
-        CommitRefused::Kind | CommitRefused::OwnFromStep => ErrorName::Store,
+        CommitRefused::Kind | CommitRefused::OwnFromStep | CommitRefused::Fault => ErrorName::Store,
     }
 }
 
