@@ -12985,36 +12985,6 @@ fn a_full_database_at_the_commit_still_loses_the_key() {
     );
 }
 
-#[test]
-fn a_segment_stamped_in_the_future_is_shredded_within_one_window() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut store = super::db::test_support::make_store(dir.path());
-    let (ahead, ordinal) = batch_first_captured_at(
-        &mut store,
-        (NOW_SECONDS + 30 * DAY_SECONDS) * SECOND,
-        b"a segment stamped 30 days ahead",
-    );
-
-    let first_seen = store.expire_due(at_second(NOW_SECONDS), 64).unwrap();
-    let before_one_window = store
-        .expire_due(at_second(NOW_SECONDS + window_seconds() - 1), 64)
-        .unwrap();
-    let one_window_after = store
-        .expire_due(at_second(NOW_SECONDS + window_seconds()), 64)
-        .unwrap();
-
-    assert!(
-        first_seen.shredded.is_empty() && before_one_window.shredded.is_empty(),
-        "the segment went before one window had passed: {first_seen:?} {before_one_window:?}"
-    );
-    assert_eq!(
-        one_window_after.shredded,
-        vec![ordinal],
-        "a pass one window after the pass that first saw the segment answered {one_window_after:?}"
-    );
-    assert!(reads_sealed(&store, ahead), "the segment still reads");
-}
-
 fn allocated_bytes_under(dir: &Path) -> u64 {
     files_under(dir)
         .iter()
@@ -13180,5 +13150,74 @@ fn a_maintenance_handle_expires_and_deletes_and_refuses_a_batch() {
             .iter()
             .any(|path| path.extension() == Some(std::ffi::OsStr::new("seg"))),
         "a segment file stays"
+    );
+}
+
+type SegmentKeyRow = (i64, String, Option<Vec<u8>>, i64, i64, i64);
+
+fn segment_key_rows(store: &EncryptedStore) -> Vec<SegmentKeyRow> {
+    store
+        .db()
+        .unwrap()
+        .connection()
+        .prepare(
+            "SELECT id, segment_id, wrapped_key, day, first_capture, last_capture \
+             FROM segment_keys ORDER BY id",
+        )
+        .unwrap()
+        .query_map([], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+            ))
+        })
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+#[test]
+fn a_call_whose_now_is_behind_the_clock_moves_no_first_capture_and_makes_nothing_due() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let segments: Vec<Uuid> = (0..3)
+        .map(|k| {
+            batch_first_captured_at(
+                &mut store,
+                (NOW_SECONDS + k) * SECOND,
+                b"a record written at the true time",
+            )
+            .0
+        })
+        .collect();
+    let before = segment_key_rows(&store);
+
+    let early = store
+        .expire_due(at_second(NOW_SECONDS - 30 * DAY_SECONDS), 64)
+        .unwrap();
+    let after_the_early_call = segment_key_rows(&store);
+    let on_time = store.expire_due(at_second(NOW_SECONDS + 3), 64).unwrap();
+
+    assert_eq!(
+        after_the_early_call, before,
+        "a call whose now was 30 days behind changed a row of segment_keys"
+    );
+    assert!(
+        early.shredded.is_empty(),
+        "the early call shredded {early:?}"
+    );
+    assert!(
+        on_time.shredded.is_empty() && !on_time.more_due,
+        "the next call with the right now found a record due: {on_time:?}"
+    );
+    assert!(
+        segments
+            .iter()
+            .all(|id| store.read_segment(*id, &mut Vec::new()).is_ok()),
+        "a record no longer reads"
     );
 }
