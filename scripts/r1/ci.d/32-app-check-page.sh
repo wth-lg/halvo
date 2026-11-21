@@ -161,6 +161,16 @@ fixture() {
   exe=$1
   root=$2
   grace_s=2
+  turn_now=1000
+  sleep() {
+    while kill -0 "$pid" 2>/dev/null && [ ! -f "$root/held" ]; do
+      env true
+    done
+    turn_now=$((turn_now + 1))
+  }
+  date() {
+    printf '%s\n' "$turn_now"
+  }
   watch_app "$exe" "$root/data" 2 "$root/out" "$root/err"
   verdict "$root/out" "$check_code" 0.0.0 not_running "$ready_ms"
   printf 'PASS %s\n' "$name"
@@ -170,8 +180,10 @@ check() {
   mode=$1
   want=$2
   mkdir -p "$work/$mode/data"
-  out=$(STUB_MODE=$mode STUB_DATA=$work/$mode/data sh "$self" --fixture "$work/bin/halvo" "$work/$mode" 2>&1)
+  out=$(PATH=$work/realbin:$PATH REAL_SLEEP=$real_sleep REAL_TURNS=$work/$mode/real-turns STUB_MODE=$mode STUB_DATA=$work/$mode/data sh "$self" --fixture "$work/bin/halvo" "$work/$mode" 2>&1)
   code=$?
+  real_turns=0
+  [ -f "$work/$mode/real-turns" ] && real_turns=$(wc -l <"$work/$mode/real-turns" | tr -d ' ')
   last=$(printf '%s\n' "$out" | tail -n 1)
   case $code:$last in
     "0:PASS $name") got=PASS ;;
@@ -202,6 +214,7 @@ check() {
     esac
   done
   [ "$printed" = true ] || got=$got-without-the-print
+  [ "$real_turns" = 0 ] || got=$got-with-a-real-turn
   printf 'case %s/%s want=%s got=%s\n' "$name" "$mode" "$want" "$got"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $mode"
@@ -214,7 +227,16 @@ self_test() {
   dir=$(cd "$(dirname "$0")" && pwd) || exit 2
   self=$dir/$(basename "$0")
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
-  mkdir -p "$work/bin"
+  mkdir -p "$work/bin" "$work/realbin"
+  real_sleep=$(command -v sleep) || exit 2
+  cat >"$work/realbin/sleep" <<'EOF'
+#!/bin/sh
+if [ "$1" = 1 ]; then
+  printf 'turn\n' >>"$REAL_TURNS"
+fi
+exec "$REAL_SLEEP" "$@"
+EOF
+  chmod +x "$work/realbin/sleep"
   cat >"$work/bin/halvo" <<'EOF'
 #!/bin/sh
 [ "$1" = --check-page ] && [ "$2" = --data-dir ] && [ -n "$3" ] && [ "$4" = --within-s ] && [ "$5" = 2 ] || exit 98
@@ -285,10 +307,12 @@ case $STUB_MODE in
     ;;
   engine-start-past-the-limit)
     printf 'halvo: --check-page: the stub waits\n' >&2
+    : >"$STUB_DATA/../held"
     exec sleep 30
     ;;
   page-past-the-limit)
     printf 'halvo: --check-page: the event loop was ready at 7 ms\n' >&2
+    : >"$STUB_DATA/../held"
     exec sleep 30
     ;;
   odd-ready)
