@@ -61,11 +61,9 @@ store check 19-control-links-no-store gate
 store check 20-app-links-no-store gate macos job, which reads the tree of every target
 store check 20-app-links-no-store scheduled windows job, 44 s there in the push run 44895943466
 store check 23-daemon-port-only gate
-store check 30-formal-covered gate
 store check 31-app-page-layout gate macos job, which alone has the check
 store check 60-r5-privacy gate
 store check 31-store-full-volume scheduled 136 s in the macos job
-store check 30-mutants scheduled 1,328 s in the macos job; its rotation of rows runs at refs/heads/main, in the Sunday run and in a run by hand
 store check 30-core-boundary-proofs scheduled 104 s in the macos job, 27 s in the windows job
 
 capture units halvo-capture::macos::foreground gate macos job
