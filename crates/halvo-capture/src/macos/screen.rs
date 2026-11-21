@@ -4964,6 +4964,27 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_handler_that_began_is_waited_for_beyond_four_more_waits() {
+        let (stream, seen) = StreamStandIn::starting();
+        let mut reader = ReaderStandIn::new(Answer::Content, stream, &[7], SHORT_WAIT);
+        reader.parts.makes_in = SHORT_WAIT * 10;
+        let begun = Instant::now();
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        let took = trial.returned.duration_since(begun);
+        assert!(
+            trial.answer.is_ok(),
+            "a begun handler is waited for: the start answered {:?} after {took:?}; the read's wait {SHORT_WAIT:?}, the handler's work {:?}",
+            trial.error(),
+            SHORT_WAIT * 10
+        );
+        assert!(
+            took >= SHORT_WAIT * 10,
+            "the start answered after {took:?}, before the handler had made the stream"
+        );
+        assert_eq!(locked(&seen.made_on).len(), 1, "the streams made");
+    }
+
     fn probe_code(error: &CaptureError) -> String {
         match error {
             CaptureError::Os { code, .. } => code.to_string(),
