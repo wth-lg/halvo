@@ -12521,3 +12521,116 @@ fn u24e_rd157_a_take_up_that_unwinds_puts_the_named_start_back_in_its_place() {
     assert_eq!(starts_of_agent(1), 1, "the next tick serves it");
     assert_eq!(c.queued(), vec![(agent(2), false)]);
 }
+
+/// RD-157 (2c) T-a, state (a) of pr-review-43's Reread 1: the order of the queue behind
+/// `put_back`. Agent 3's start waits behind the person's starts of agents 1 and 2 and ahead of
+/// the schedule's start of agent 4, and a control of agent 3 is the first call after agent 0's
+/// end was kept for want of the clock. The take-up stores that end and serves agent 1 in the
+/// place that it frees; behind the call agents 2 and 4 wait in their old order, agent 4's start
+/// is still the schedule's, and agent 3's start is gone after a take-back or a Stop and stands
+/// in its old place after a switch-off that the owner refuses.
+#[test]
+fn u24e_rd157_t_a_the_queue_keeps_its_order_behind_a_control_of_a_start_in_its_middle() {
+    use halvo_coord::types::Control::{Delete, SwitchOff};
+    for action in [Action::TakeBack, Action::Stop, Action::SwitchOff] {
+        let c = the_day_before(&[MANUAL, MANUAL, MANUAL, MANUAL, ON_ITS_OWN]);
+        let first = start(&c, 0);
+        for n in [1, 2, 3] {
+            assert_eq!(
+                c.control(&agent(n), Action::RunNow),
+                Ok(()),
+                "{action}: {n}"
+            );
+        }
+        c.ports().ports.set_clock(T0, DAY);
+        c.tick();
+        assert_eq!(
+            c.queued(),
+            [1, 2, 3, 4].map(|n| (agent(n), false)),
+            "{action}: the schedule queued agent 4 behind"
+        );
+        clock_fails(&c);
+        c.ports().ports.end_runner(&first);
+        let _ = c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)));
+        assert_eq!(started(&c).len(), 1, "{action}: the end is kept");
+        clock_answers(&c);
+        let refused = action == Action::SwitchOff;
+        if refused {
+            c.ports()
+                .ports
+                .refuse_agent(Method::Log, &agent(3), PortError::NoService);
+        }
+        let m = mark(&c);
+        let reply = c.control(&agent(3), action);
+        let calls = calls_since(&c, m);
+        assert!(logs_end_of(&calls, &first), "{action}: {calls:?}");
+        assert_eq!(starts_of(&calls, 1).len(), 3, "{action}: {calls:?}");
+        assert_eq!(starts_of(&calls, 3), [], "{action}: {calls:?}");
+        let (answer, rest) = if refused {
+            (Err(Cause::NoService), vec![2, 3, 4])
+        } else {
+            (Ok(()), vec![2, 4])
+        };
+        assert_eq!(reply, answer, "{action}");
+        assert_eq!(
+            c.queued(),
+            rest.into_iter()
+                .map(|n| (agent(n), false))
+                .collect::<Vec<_>>(),
+            "{action}"
+        );
+        assert_eq!(controls_of(&c, 4), [SwitchOff, Delete], "{action}");
+    }
+}
+
+/// RD-157 (2c) T-b, state (b) of pr-review-43's Reread 1: a switch-off that the owner refuses
+/// in its own move, after the take-up freed a place. Agent 3's start waits at the head, ahead of
+/// those of agents 2 and 1, and the switch-off of agent 3 is the first call after agent 0's end
+/// was kept for want of the clock. The take-up stores that end and serves agent 2 in the freed
+/// place; the owner refuses agent 3's hold, so the call answers `no_service`, agent 3's start
+/// stands at the head again, its row offers what it offered before, no hold of it is stored, and
+/// the next end starts it.
+#[test]
+fn u24e_rd157_t_b_a_refused_switch_off_after_the_take_up_freed_a_place_keeps_the_start() {
+    let c = coordinator(&[MANUAL; 4], one_at_a_time());
+    let first = start(&c, 0);
+    for n in [3, 2, 1] {
+        assert_eq!(c.control(&agent(n), Action::RunNow), Ok(()), "{n}");
+    }
+    let offered = controls_of(&c, 3);
+    clock_fails(&c);
+    c.ports().ports.end_runner(&first);
+    let _ = c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)));
+    assert_eq!(started(&c).len(), 1, "the end is kept");
+    clock_answers(&c);
+    c.ports()
+        .ports
+        .refuse_agent(Method::Log, &agent(3), PortError::NoService);
+    let m = mark(&c);
+    assert_eq!(
+        c.control(&agent(3), Action::SwitchOff),
+        Err(Cause::NoService)
+    );
+    let calls = calls_since(&c, m);
+    assert!(logs_end_of(&calls, &first), "{calls:?}");
+    assert_eq!(starts_of(&calls, 2).len(), 3, "{calls:?}");
+    assert_eq!(starts_of(&calls, 3), [], "{calls:?}");
+    assert_eq!(c.queued(), [3, 1].map(|n| (agent(n), false)));
+    assert!(person_holds(&c, 3).is_empty());
+    assert_eq!(controls_of(&c, 3), offered, "nothing of the start is lost");
+    c.ports().ports.clear_refusals();
+    let second = started(&c).last().cloned().unwrap();
+    assert_eq!(c.on_run(&second, RunEvent::Hello), Ok(()));
+    c.ports().ports.end_runner(&second);
+    let m = mark(&c);
+    assert_eq!(
+        c.on_run(&second, RunEvent::Ended(Some(Outcome::Completed))),
+        Ok(())
+    );
+    assert_eq!(
+        starts_of(&calls_since(&c, m), 3).len(),
+        3,
+        "the next end starts it"
+    );
+    assert_eq!(c.queued(), [(agent(1), false)]);
+}
