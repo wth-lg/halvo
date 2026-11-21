@@ -1873,6 +1873,9 @@ where
     }
 
     /// The answer of the native dialog of a confirmation (I4.5), whose item keeps its one step.
+    /// While the board holds the record of the item's agent stuck, a press of either control
+    /// answers `no_service`, calls no port and stores nothing, and the item stays held with its
+    /// own time, to be presented again once the record can be saved (ruling RD-147 (5)(ii)).
     pub fn answer_native(&self, item: &ItemId, answer: ConfirmAnswer) -> Result<(), Cause> {
         let choice = match answer {
             ConfirmAnswer::Allow => Choice::Allow,
@@ -1881,6 +1884,14 @@ where
         let now = self.clock_now().ok();
         let mut st = self.enter(Entry::Move);
         if Self::waits_on_item(&st, item) {
+            return Err(Cause::NoService);
+        }
+        if st
+            .held
+            .iter()
+            .find(|h| h.item() == item)
+            .is_some_and(|h| self.withdrawn(&st, h))
+        {
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);

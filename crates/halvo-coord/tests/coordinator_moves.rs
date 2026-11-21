@@ -11920,6 +11920,57 @@ fn u24v_1_a_native_confirmation_held_before_the_third_refusal_is_not_presented_w
 }
 
 #[test]
+fn u24v_2_a_press_on_a_dialog_shown_before_the_record_stuck_allows_nothing_and_answers_no_service()
+{
+    let mut got = Vec::new();
+    let mut want = Vec::new();
+    for takes_rows_again in [false, true] {
+        for answer in [ConfirmAnswer::Allow, ConfirmAnswer::Reject] {
+            let case = format!("the store takes rows again: {takes_rows_again}, {answer:?}");
+            let (c, run, item) = u24v_native_held_while_its_raise_is_refused(Limits::PRODUCT);
+            u24v_tick(&c, 1);
+            u24v_tick(&c, 2);
+            assert_eq!(c.present(&item), Ok(()), "{case}");
+            c.on_screen(&item);
+            u24v_tick(&c, 3);
+            assert!(c.record_stuck(&agent(0)), "{case}");
+            if takes_rows_again {
+                c.ports().ports.clear_refusals();
+            }
+            assert_eq!(
+                row_line(&c.snapshot(), 0),
+                text("line.problem.record"),
+                "{case}"
+            );
+            let (m, before) = (mark(&c), events(&c));
+            let pressed = c.answer_native(&item, answer);
+            got.push((
+                case.clone(),
+                pressed,
+                calls_since(&c, m),
+                events(&c) == before,
+                cancels_of(&c, m, &run),
+                c.live(),
+                c.present(&item),
+            ));
+            want.push((
+                case,
+                Err(Cause::NoService),
+                Vec::new(),
+                true,
+                0,
+                1,
+                Err(Cause::NoService),
+            ));
+        }
+    }
+    assert_eq!(
+        got, want,
+        "(case, the press, the port calls of the press, nothing stored, stops, live runs, present after)"
+    );
+}
+
+#[test]
 fn u24v_3_when_the_record_saves_again_the_held_confirmation_is_presented_again_with_its_own_time_left(
 ) {
     let limit = T0 + Limits::PRODUCT.wait_limit_s * 1000;
@@ -11975,4 +12026,47 @@ fn u24v_3_when_the_record_saves_again_the_held_confirmation_is_presented_again_w
         assert_eq!(cancels_of(&c, m, &run), 1, "{case}");
         assert_eq!(c.present(&item), Err(Cause::UnknownItem), "{case}");
     }
+}
+
+#[test]
+fn u24v_4_one_agents_stuck_record_withdraws_its_own_confirmation_and_no_other_agents() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run1 = start(&c, 1);
+    c.on_run(&run1, ask_confirm_native_signature(&run1, 1))
+        .unwrap();
+    let other = u24v_item_of(&c, 1);
+    c.on_screen(&other);
+    let run0 = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_agent(Method::Log, &agent(0), refused_name("store"));
+    c.on_run(&run0, ask_confirm_native_signature(&run0, 0))
+        .unwrap();
+    let own = u24v_item_of(&c, 0);
+    c.on_screen(&own);
+    for k in 1..=3u64 {
+        u24v_tick(&c, k);
+    }
+    assert!(c.record_stuck(&agent(0)));
+    assert!(!c.record_stuck(&agent(1)));
+    assert_eq!(c.present(&own), Err(Cause::NoService));
+    assert_eq!(c.native_card(&own), Err(Cause::NoService));
+    assert_eq!(c.present(&other), Ok(()), "the other agent's is presented");
+    assert!(c.native_card(&other).is_ok());
+    let m = mark(&c);
+    assert_eq!(
+        c.answer_native(&own, ConfirmAnswer::Allow),
+        Err(Cause::NoService)
+    );
+    assert_eq!(calls_since(&c, m), Vec::new());
+    assert_eq!(
+        c.answer_native(&other, ConfirmAnswer::Allow),
+        Ok(()),
+        "and a press on it is taken"
+    );
+    assert_eq!(decisions_since(&c, m).len(), 1);
 }
