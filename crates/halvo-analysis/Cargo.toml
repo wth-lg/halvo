@@ -23,6 +23,7 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_
 
 [dev-dependencies]
 halvo-capture = { path = "../halvo-capture", features = ["r2"] }
+halvo-control = { path = "../halvo-control" }
 halvo-owner = { path = "../halvo-owner" }
 halvo-sample = { path = "../halvo-sample" }
 halvo-test-dir = { path = "../halvo-test-dir" }

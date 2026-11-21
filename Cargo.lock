@@ -1601,6 +1601,7 @@ version = "0.0.0"
 dependencies = [
  "getrandom 0.3.4",
  "halvo-capture",
+ "halvo-control",
  "halvo-identify",
  "halvo-owner",
  "halvo-sample",
