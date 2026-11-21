@@ -1531,3 +1531,31 @@ fn u24q_a_class_with_no_effect_row_shows_no_field_even_with_another_tables_names
         }
     }
 }
+
+/// The verify step's M3: a kept value in two pieces, each of which the reader takes, stands with
+/// both pieces in order on the unknown entry and on the partial entry.
+#[test]
+fn u24q_a_value_in_pieces_that_each_read_stands_on_partial_and_unknown_entries() {
+    let to = Kept {
+        name: Name::parse("to").unwrap(),
+        value: vec!["Ann Lee, ".into(), "Bob Ray".into()],
+    };
+    let both = vec!["Ann Lee, ".to_owned(), "Bob Ray".to_owned()];
+    for (effect, want) in [
+        (
+            unknown(Class::Send, vec![to.clone()]),
+            "run.effect.send.unknown",
+        ),
+        (
+            committed(Class::Send, vec![to.clone(), one_kept("note", "zqr9")]),
+            "run.effect.send.partial",
+        ),
+    ] {
+        let c = beside_a_good_run(effect);
+        let e = &c.runs[0].effects[1];
+        assert_eq!(e.key(), want);
+        assert_eq!(shown(e), [("To".to_owned(), both.clone())], "{want}");
+        let all = serde_json::to_string(&c).unwrap();
+        assert!(!all.contains("zqr9"), "{want}: {all}");
+    }
+}
