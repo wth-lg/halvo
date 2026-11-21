@@ -13,7 +13,7 @@ use std::time::SystemTime;
 use super::db::{EncryptedStore, KeyFile};
 use super::durable::{self, Dir, OsFs};
 use super::KindTotal;
-use super::{Layout, OpenFor, RootReading, SegmentStore, StoreError, DEFAULT_RETENTION};
+use super::{Layout, OpenFor, RootReading, StoreError, DEFAULT_RETENTION};
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId};
 use crate::daemon::custody_policy::Custody;
@@ -36,16 +36,19 @@ impl MaintainStore for Adapter {
             .map_err(maint_fault)
     }
 
-    fn evict_to(&mut self, _bound: ByteBound, _max_segments: usize) -> Result<Pass, MaintFault> {
-        Ok(Pass::default())
+    fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.store
+            .evict_to(bound.bytes(), max_segments)
+            .map(pass)
+            .map_err(maint_fault)
     }
 
     fn usage(&mut self) -> Result<Usage, MaintFault> {
         self.store
-            .size_bytes()
-            .map(|disk_bytes| Usage {
-                disk_bytes,
-                logical_bytes: 0,
+            .usage()
+            .map(|usage| Usage {
+                disk_bytes: usage.disk_bytes,
+                logical_bytes: usage.logical_bytes,
             })
             .map_err(maint_fault)
     }

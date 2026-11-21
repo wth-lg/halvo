@@ -77,17 +77,16 @@ pub struct Instants {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Job {
     /// Expire what is due at the wall time `now`.
-    Expire {
-        now: SystemTime,
-    },
-    Evict,
+    Expire { now: SystemTime },
+    /// Evict the oldest segments until the disk total is at or under `bound`.
+    Evict { bound: ByteBound },
 }
 
 /// When the owner calls the shred passes.
 #[derive(Debug)]
 pub struct Schedule {
     chunk: usize,
-    bound: ByteBound,
+    bound: Option<ByteBound>,
     expiry_at: Duration,
     expiry_more: bool,
     evict_due: bool,
@@ -106,8 +105,9 @@ fn reached(now: Instants, deadline: Duration) -> bool {
 }
 
 impl Schedule {
-    /// A schedule of shred calls of `chunk` segments that evicts to `bound`.
-    pub fn new(chunk: usize, bound: ByteBound) -> Schedule {
+    /// A schedule of shred calls of `chunk` segments that evicts to `bound`,
+    /// or evicts nothing when there is no bound.
+    pub fn new(chunk: usize, bound: Option<ByteBound>) -> Schedule {
         Schedule {
             chunk,
             bound,
@@ -121,9 +121,17 @@ impl Schedule {
         }
     }
 
-    /// A flush landed: eviction is due.
+    /// A flush landed: eviction is due when there is a bound.
     pub fn flushed(&mut self) {
-        self.evict_due = true;
+        self.evict_due = self.bound.is_some();
+    }
+
+    /// The disk total read at a start: eviction is due when it is above the
+    /// bound.
+    pub fn measured(&mut self, disk_bytes: u64) {
+        if self.bound.is_some_and(|bound| disk_bytes > bound.bytes()) {
+            self.evict_due = true;
+        }
     }
 
     /// The monotonic reading at which the next shred call is due, or `None`
@@ -146,9 +154,9 @@ impl Schedule {
             self.expiry_more = false;
             return Some(Job::Expire { now: expiry_wall });
         }
-        if self.evict_due {
+        if let (true, Some(bound)) = (self.evict_due, self.bound) {
             self.evict_due = false;
-            return Some(Job::Evict);
+            return Some(Job::Evict { bound });
         }
         None
     }
@@ -163,7 +171,7 @@ impl Schedule {
                 self.expiry_more = again;
                 self.expiry_failed = answer.is_err();
             }
-            Job::Evict => {
+            Job::Evict { .. } => {
                 self.evict_due = again;
                 self.evict_failed = answer.is_err();
             }
@@ -227,7 +235,7 @@ impl Schedule {
     pub fn run<S: MaintainStore>(&self, store: &mut S, job: Job) -> Result<Pass, MaintFault> {
         match job {
             Job::Expire { now } => store.expire_due(now, self.chunk),
-            Job::Evict => store.evict_to(self.bound, self.chunk),
+            Job::Evict { bound } => store.evict_to(bound, self.chunk),
         }
     }
 }
@@ -400,7 +408,7 @@ mod tests {
 
     #[test]
     fn a_step_in_either_direction_makes_expiry_due() {
-        let mut schedule = Schedule::new(2, ByteBound::raw(0));
+        let mut schedule = Schedule::new(2, Some(ByteBound::raw(0)));
         let mut now = Instants {
             monotonic: Duration::from_secs(1),
             wall: UNIX_EPOCH + Duration::from_secs(1_000_000),

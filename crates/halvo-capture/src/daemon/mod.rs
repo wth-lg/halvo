@@ -1151,7 +1151,7 @@ where
             store,
             clocks,
             floor: floor.clone(),
-            cap: StorageCap::DEFAULT,
+            cap: Some(port::ByteBound::of_cap(StorageCap::DEFAULT)),
             shred_chunk: maintenance::SHRED_CHUNK,
         })
         .map_err(|error| DaemonError::Store(error.to_string()))?,
@@ -1894,10 +1894,7 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         let _ = writeln!(err, "{line}");
     }
     let rule = owner::open::CreateRule::of(state.health(), state.state().store_made);
-    let held_cap = match state.state().storage_cap {
-        state::Cap::Known(cap) => cap,
-        state::Cap::OutOfRange(_) => halvo_control::model::StorageCap::DEFAULT,
-    };
+    let held_cap = cap_bound(state.state().storage_cap);
     let switches = state.state().switches;
     if let Err(error) = lock.exclude_from_backup() {
         let _ = writeln!(
@@ -2052,6 +2049,14 @@ impl HeldStore {
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]
+fn cap_bound(cap: state::Cap) -> Option<port::ByteBound> {
+    match cap {
+        state::Cap::Known(cap) => Some(port::ByteBound::of_cap(cap)),
+        state::Cap::OutOfRange(_) => None,
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
 struct CaptureOwner {
     watched: supervisor::Watched,
     _sink: crate::sink::SinkHandle,
@@ -2060,7 +2065,7 @@ struct CaptureOwner {
 #[cfg(all(target_os = "macos", debug_assertions))]
 fn capture_owner(
     store: Box<dyn port::CaptureStore + Send>,
-    cap: halvo_control::model::StorageCap,
+    cap: Option<port::ByteBound>,
     switches: crate::floor::Switches,
 ) -> std::io::Result<CaptureOwner> {
     use crate::floor::exclude::{FloorHandle, NoLineage};

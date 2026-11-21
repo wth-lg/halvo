@@ -17,7 +17,7 @@ use super::model_store::{
     WriteScript,
 };
 use super::owner::{spawn, Answer, Command, OwnerParts, Report, QUEUE_SLOTS};
-use super::port::WriteFault;
+use super::port::{ByteBound, WriteFault};
 use crate::event::FloorEvent;
 use crate::sink;
 
@@ -427,7 +427,7 @@ fn keystrokes_outside_the_pause_survive_a_frame_flood_once_each() {
         store: store.clone(),
         clocks: SystemClocks::new(),
         floor: open_floor(),
-        cap: StorageCap::DEFAULT,
+        cap: Some(ByteBound::of_cap(StorageCap::DEFAULT)),
         shred_chunk: SHRED_CHUNK,
     })
     .unwrap();

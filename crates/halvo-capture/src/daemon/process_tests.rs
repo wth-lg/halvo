@@ -16,17 +16,17 @@ use super::instance::tests::{backup_mark, kept_dir};
 use super::instance::InstanceLock;
 use super::main_loop::{self, MainLoop};
 use super::maintenance::{Clocks, MAINTENANCE_INTERVAL, SHRED_CHUNK};
-use super::model_store::{noon, open_floor, ManualClocks};
-use super::owner::{Owner, OwnerHandle, OwnerParts};
+use super::model_store::{foreground, noon, open_floor, ManualClocks, APP, AT_NOON};
+use super::owner::{Answer, Owner, OwnerHandle, OwnerParts};
 use super::port::{
-    ByteBound, CaptureStore, DataDirStore, EntryKind, KindEntry, MaintFault, MaintainStore, Opened,
-    Pass, SegmentId, SegmentWrite, StoreHost, Usage, WriteFault, Written,
+    Access, ByteBound, CaptureStore, DataDirStore, EntryKind, KindEntry, MaintFault, MaintainStore,
+    Opened, Pass, SegmentId, SegmentWrite, StoreHost, Usage, WriteFault, Written,
 };
 use super::state::tests::TestWrite;
-use super::state::{DaemonState, StateDir, StateFile, StateWrite};
+use super::state::{Cap, DaemonState, StateDir, StateFile, StateWrite};
 use super::{serve, serve_held, signal};
 use crate::event::Modality;
-use crate::sink::SinkHandle;
+use crate::sink::{Emitted, SinkHandle};
 
 const SERVE: &str = "HALVO_DAEMON_SERVE_DIR";
 const SERVER: &str = "daemon::process_tests::serve_for_parent";
@@ -1011,7 +1011,7 @@ fn segment_at<S: CaptureStore + ?Sized>(store: &mut S, at: SystemTime, payload: 
 fn owner_over<S: CaptureStore>(
     store: S,
     clocks: &ManualClocks,
-    cap: StorageCap,
+    cap: Option<ByteBound>,
 ) -> (Owner<S, ManualClocks>, OwnerHandle, SinkHandle) {
     let (sink, writer) = crate::sink::channel(64);
     let (owner, handle, _reports) = Owner::open(OwnerParts {
@@ -1037,7 +1037,8 @@ fn a_record_past_its_window_is_unreadable_within_one_deadline_on_the_real_store(
     );
     segment_at(&mut *store, noon() - 13 * DAY, b"thirteen days\n");
     let clocks = ManualClocks::at(noon());
-    let (mut owner, _handle, _sink) = owner_over(store, &clocks, StorageCap::DEFAULT);
+    let (mut owner, _handle, _sink) =
+        owner_over(store, &clocks, Some(ByteBound::of_cap(StorageCap::DEFAULT)));
     clocks.advance(MAINTENANCE_INTERVAL + SECOND);
     assert!(owner.pass(Duration::ZERO), "the owner stopped");
     let stamped = owner.snapshot().last_expiry_at;
@@ -1054,11 +1055,13 @@ fn a_record_past_its_window_is_unreadable_within_one_deadline_on_the_real_store(
     );
 }
 
+type Expiry = Result<(usize, bool), MaintFault>;
+
 #[derive(Clone, Default)]
-struct Expiries(Arc<Mutex<Vec<Result<(usize, bool), MaintFault>>>>);
+struct Expiries(Arc<Mutex<Vec<Expiry>>>);
 
 impl Expiries {
-    fn taken(&self) -> Vec<Result<(usize, bool), MaintFault>> {
+    fn taken(&self) -> Vec<Expiry> {
         self.0.lock().unwrap().clone()
     }
 }
@@ -1112,7 +1115,11 @@ fn a_start_over_a_backlog_expires_all_of_it_in_chunks() {
         expiries: expiries.clone(),
     };
     let clocks = ManualClocks::at(noon());
-    let (mut owner, _handle, _sink) = owner_over(counted, &clocks, StorageCap::DEFAULT);
+    let (mut owner, _handle, _sink) = owner_over(
+        counted,
+        &clocks,
+        Some(ByteBound::of_cap(StorageCap::DEFAULT)),
+    );
     for _ in 0..3 {
         assert!(owner.pass(Duration::ZERO), "the owner stopped");
     }
@@ -1127,5 +1134,113 @@ fn a_start_over_a_backlog_expires_all_of_it_in_chunks() {
     assert!(
         read.iter().all(Option::is_none),
         "a segment of the backlog still decrypts"
+    );
+}
+
+fn asked<S: CaptureStore>(
+    owner: &mut Owner<S, ManualClocks>,
+    handle: &OwnerHandle,
+    command: super::owner::Command,
+) -> Answer {
+    let pending = handle.ask(command).unwrap();
+    assert!(owner.pass(Duration::ZERO), "the owner stopped");
+    pending
+        .try_answer()
+        .expect("the owner did not answer in one pass")
+}
+
+fn flushed_once<S: CaptureStore>(
+    owner: &mut Owner<S, ManualClocks>,
+    handle: &OwnerHandle,
+    sink: &SinkHandle,
+) {
+    assert!(matches!(
+        asked(owner, handle, super::owner::Command::ClosePause),
+        Answer::Resumed(_)
+    ));
+    assert_eq!(
+        sink.emit_event(foreground(&AT_NOON, Duration::ZERO)),
+        Emitted::Queued
+    );
+    assert!(matches!(
+        asked(owner, handle, super::owner::Command::Settle),
+        Answer::Settled(_)
+    ));
+    for _ in 0..2 {
+        assert!(owner.pass(Duration::ZERO), "the owner stopped");
+    }
+}
+
+fn reopened(dir: &Path) -> Box<dyn CaptureStore + Send> {
+    let Opened::ReadWrite { store, .. } = DataDirStore::at(dir).open(Access::ReadWrite) else {
+        panic!("the store did not open again in {}", dir.display());
+    };
+    store
+}
+
+fn holds_the_flushed_record(segment: &Option<Vec<u8>>) -> bool {
+    segment
+        .as_ref()
+        .is_some_and(|plaintext| plaintext.windows(APP.len()).any(|at| at == APP.as_bytes()))
+}
+
+#[test]
+fn an_eviction_after_a_flush_brings_the_disk_total_under_the_cap() {
+    let old = vec![b'o'; 256 * 1024];
+    let dir = kept_dir("upkeep-tests-");
+    let mut store = made_store(&dir);
+    for hours in (1..=4).rev() {
+        segment_at(&mut *store, noon() - hours * 3600 * SECOND, &old);
+    }
+    let at_the_start = store.usage().unwrap().disk_bytes;
+    let bound = ByteBound::raw(at_the_start);
+    let clocks = ManualClocks::at(noon());
+    let (mut owner, handle, sink) = owner_over(store, &clocks, Some(bound));
+    flushed_once(&mut owner, &handle, &sink);
+    let after_the_flush = owner.snapshot().disk_bytes;
+    drop(owner);
+    let read = DataDirStore::at(&dir).read_back();
+    assert_eq!(read.len(), 5, "the flush stored no segment");
+    assert!(
+        read[0].is_none(),
+        "the oldest segment still decrypts after a flush took the total over the bound"
+    );
+    assert!(
+        read[1..4].iter().all(Option::is_some) && holds_the_flushed_record(&read[4]),
+        "eviction went on past the bound or took the youngest segment"
+    );
+    assert!(
+        after_the_flush.is_some_and(|disk| disk <= bound.bytes()),
+        "the disk total after the eviction is {after_the_flush:?}, over the bound {bound:?}"
+    );
+
+    let mut store = reopened(&dir);
+    let under = ByteBound::raw(store.usage().unwrap().disk_bytes - 1);
+    let (mut owner, _handle, _sink) = owner_over(store, &clocks, Some(under));
+    for _ in 0..2 {
+        assert!(owner.pass(Duration::ZERO), "the owner stopped");
+    }
+    let after_the_start = owner.snapshot().disk_bytes;
+    drop(owner);
+    let read = DataDirStore::at(&dir).read_back();
+    assert!(
+        read[1].is_none() && read[2..].iter().all(Option::is_some),
+        "a start over the bound did not evict the oldest live segment alone"
+    );
+    assert!(
+        after_the_start.is_some_and(|disk| disk <= under.bytes()),
+        "the disk total after the start's eviction is {after_the_start:?}, over the bound {under:?}"
+    );
+
+    let unknown = super::cap_bound(Cap::OutOfRange(StorageCap::MAX.bytes() + 1));
+    assert_eq!(unknown, None, "a stored cap out of range gave a bound");
+    let (mut owner, handle, sink) = owner_over(reopened(&dir), &clocks, unknown);
+    flushed_once(&mut owner, &handle, &sink);
+    drop(owner);
+    let read = DataDirStore::at(&dir).read_back();
+    assert_eq!(read.len(), 6, "the flush stored no segment");
+    assert!(
+        read[2..].iter().all(Option::is_some),
+        "a segment was shredded under a stored cap out of range"
     );
 }

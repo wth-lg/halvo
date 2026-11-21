@@ -233,6 +233,13 @@ pub(in crate::store) trait SegmentStore {
     /// The summed lengths of the files under the store directory, for the cost
     /// bound. A directory that cannot be read is an error; one that
     /// went away is skipped.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests: the adapter's usage reads usage(), and core-3 deletes this call"
+        )
+    )]
     fn size_bytes(&self) -> StoreResult<u64>;
 }
 
