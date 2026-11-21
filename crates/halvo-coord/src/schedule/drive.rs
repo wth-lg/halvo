@@ -3,7 +3,7 @@ use super::{
     tick_step, wants_active, wants_paused, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member,
     Owed, Owing, StartStep, Stop, Verdict, Waiting,
 };
-use crate::items::drive::{alone, class_of, lasts_the_life, Alone, Class};
+use crate::items::drive::{alone, class_of, Alone, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Shared, Stamp};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answered, Body, Cause, CheckAnswer, Cleared, ConfigView,
@@ -333,10 +333,16 @@ fn log_or_reread_once<P: Owner, C: ConfigView>(
         Err(e) if seq_refusal(&e) => e,
         other => return other.map(|()| Stored::LoggedOrFound),
     };
+    let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
     let facts = &mut board.members[i].facts;
     let before = facts.events.len();
-    let Ok(last) = resync(cx.ports, &facts.agent, &mut facts.events) else {
-        return Err(refusal);
+    let last = match resync(cx.ports, &facts.agent, &mut facts.events) {
+        Ok(last) => last,
+        Err(e) => {
+            let agent = facts.agent.clone();
+            board.note_refusal(&agent, &e, dismissed, false);
+            return Err(refusal);
+        }
     };
     board.set_last(i, last);
     let facts = &mut board.members[i].facts;
@@ -468,15 +474,7 @@ fn log_at<P: Owner, C>(
     let agent = facts.agent.clone();
     if let Err(e) = cx.ports.log(&events) {
         let start = whats.iter().any(|w| matches!(w, What::RunStarted { .. }));
-        if lasts_the_life(&e, dismissed) {
-            if start && class_of(&e, dismissed) == Some(Class::Gone) {
-                board.start_gone(&agent);
-            } else {
-                board.refused_for_life(&agent);
-            }
-        } else if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
-            board.refused(&agent);
-        }
+        board.note_refusal(&agent, &e, dismissed, start);
         return Err(e);
     }
     let sent = u32::try_from(events.len()).unwrap_or(u32::MAX);
@@ -1159,11 +1157,7 @@ fn send_owed<P: Owner, C: ConfigView>(
             Ok(_) => true,
             Err(e) => {
                 let dismissed = board.workflow_dismissed(&owed.workflow);
-                if lasts_the_life(&e, dismissed) {
-                    board.refused_for_life(&owed.agent);
-                } else if matches!(class_of(&e, dismissed), Some(Class::One | Class::Whole)) {
-                    board.refused(&owed.agent);
-                }
+                board.note_refusal(&owed.agent, &e, dismissed, false);
                 gone_refusal(&e, dismissed)
             }
         },
@@ -1375,8 +1369,17 @@ fn store_record_shows_ended<C>(board: &Board<C>, agent: &AgentId, run: &RunId) -
 /// history answers, before any start of it (I5.8, ruling RD-64 1.4): the agent takes the events
 /// so read, and what `recover_step` gives with this life's answers of `Runs::reap` becomes owed
 /// on the board, its `run_ended` with `interrupted` and its `item_lapsed` with `app_ended` at the
-/// tick's day and instant and its `end_run`, which the tick's payment then sends.
-fn recover_aside<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut Board<C>) {
+/// tick's day and instant and its `end_run`, which the tick's payment then sends. The same tick
+/// then raises the agent's `setup` again as the life's first creation move does (`setup_again`,
+/// I5.8): where its workflow is in the list of the tick, `listed`, and not dismissed, its hold
+/// `setup` stands and it holds no open item, the raise lapsing an earlier life's `setup` item that
+/// recovery owes in its own body (ruling RD-122; the inbox of 2026-11-17T08:19:17Z (f)). A raise
+/// that the owner does not store is owed, as at the first creation move (ruling RD-155 (2)).
+fn recover_aside<P: Owner + Rng, C: ConfigView>(
+    cx: &MoveContext<'_, P>,
+    board: &mut Board<C>,
+    listed: &[WorkflowId],
+) {
     for (agent, reaped) in board.aside_agents() {
         let Some(i) = board.index(&agent) else {
             board.take_aside(&agent);
@@ -1437,6 +1440,8 @@ fn recover_aside<P: Owner, C: ConfigView>(cx: &MoveContext<'_, P>, board: &mut B
                 what,
             });
         }
+        let full = listed.contains(&workflow) && !board.workflow_dismissed(&workflow);
+        setup_again(cx, board, i, full);
     }
 }
 
@@ -1570,9 +1575,11 @@ where
         }
     }
     let Some(listed) = listed else {
+        board.count_tick();
         return report;
     };
-    recover_aside(cx, board);
+    setups_owed(cx, board, &listed);
+    recover_aside(cx, board, &listed);
     board.reread_gone(cx.ports, cx.move_stamp.day());
     pay_owed(cx, board);
     for i in 0..board.members.len() {
@@ -1636,7 +1643,9 @@ where
 /// The new life's raise of `setup` for every agent of the list whose hold `setup` stands and that
 /// holds no open item, one whose item recovery lapsed with `app_ended` among them (I5.8, K7). No
 /// run is live and the queue is empty before the life's first creation move, so that an agent
-/// with no open item is `idle`.
+/// with no open item is `idle`. A raise that the owner does not store is owed
+/// (`Board::setup_owed`): each later tick makes it again until the owner stores it or the
+/// agent's record is stuck (ruling RD-155 (2)).
 fn setups_again<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>, list: &[Workflow])
 where
     P: Owner + Rng,
@@ -1647,13 +1656,50 @@ where
         let listed = list
             .iter()
             .any(|w| matches!(w, Workflow::Full(f) if f.id == facts.workflow.id));
-        if listed
-            && !board.aside(&facts.agent)
-            && facts.doing == Doing::Idle(None)
-            && holds(facts).contains(&Hold::Setup)
-        {
-            let _ = raise_own_item(cx, board, i, Raised::Setup, OwnItemKind::Setup, None);
+        setup_again(cx, board, i, listed);
+    }
+}
+
+fn setup_again<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>, i: usize, listed: bool)
+where
+    P: Owner + Rng,
+    C: ConfigView,
+{
+    let facts = &board.members[i].facts;
+    if listed
+        && !board.aside(&facts.agent)
+        && facts.doing == Doing::Idle(None)
+        && holds(facts).contains(&Hold::Setup)
+    {
+        let agent = facts.agent.clone();
+        let _ = raise_own_item(cx, board, i, Raised::Setup, OwnItemKind::Setup, None);
+        let held = matches!(
+            &board.members[i].facts.doing,
+            Doing::Idle(Some(own)) if own.kind == OwnItemKind::Setup
+        );
+        board.owe_setup(&agent, !held);
+    }
+}
+
+fn setups_owed<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>, listed: &[WorkflowId])
+where
+    P: Owner + Rng,
+    C: ConfigView,
+{
+    for i in 0..board.members.len() {
+        let agent = board.members[i].facts.agent.clone();
+        if !board.setup_owed(&agent) {
+            continue;
         }
+        if board.record_stuck(&agent, cx.limits)
+            || !holds(&board.members[i].facts).contains(&Hold::Setup)
+        {
+            board.owe_setup(&agent, false);
+            continue;
+        }
+        let workflow = board.members[i].facts.workflow.id.clone();
+        let full = listed.contains(&workflow) && !board.workflow_dismissed(&workflow);
+        setup_again(cx, board, i, full);
     }
 }
 
@@ -2035,6 +2081,15 @@ where
                     cause: HoldSetCause::Person,
                 };
                 if let Err(e) = store(cx, board, i, vec![set]) {
+                    let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
+                    if reachable && class_of(&e, dismissed) == Some(Class::Gone) {
+                        let stopped = stop_live(cx, board, i, halt);
+                        board.keep_on(&agent);
+                        return Report {
+                            stopped: stopped.into_iter().collect(),
+                            ..refused(port_cause(&e))
+                        };
+                    }
                     let shown = !seq_refusal(&e)
                         && read_once(cx, board, i).is_ok()
                         && holds(&board.members[i].facts).contains(&Hold::Off);
@@ -2080,21 +2135,30 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
     let agent = board.members[i].facts.agent.clone();
     let mut report = Report::default();
     leave_queue(board, i);
-    let live = board
-        .runs
-        .iter()
-        .find(|r| r.agent == agent && r.stop.is_none())
-        .map(|r| r.run.clone());
-    if let Some(run) = live {
-        stop_run(board, &run, cx.move_stamp.now(), RunEnd::Cancelled);
-        let sent = halt.is_some_and(|halt| halt(board, i, &run));
-        if !sent {
-            let _ = cx.ports.cancel(&run);
-        }
-        report.stopped.push(run);
-    }
+    report.stopped.extend(stop_live(cx, board, i, halt));
+    board.switched_off(&agent);
     let _ = send_state(cx, &mut board.members[i].facts, AgentState::Paused);
     report
+}
+
+fn stop_live<P: Owner + Runs, C: ConfigView>(
+    cx: &MoveContext<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    halt: Option<Halt<'_, C>>,
+) -> Option<RunId> {
+    let agent = &board.members[i].facts.agent;
+    let run = board
+        .runs
+        .iter()
+        .find(|r| &r.agent == agent && r.stop.is_none())
+        .map(|r| r.run.clone())?;
+    stop_run(board, &run, cx.move_stamp.now(), RunEnd::Cancelled);
+    let sent = halt.is_some_and(|halt| halt(board, i, &run));
+    if !sent {
+        let _ = cx.ports.cancel(&run);
+    }
+    Some(run)
 }
 
 /// Carries out a move on the ports and the board (I5.10).
@@ -2165,6 +2229,11 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
 /// and answers ok also where no start of the agent waits, a live run among them, which goes on
 /// (ruling RD-52 (d)). No hold stands after it, so a later tick raises `ready` or starts the
 /// agent again where I5.3 asks for it (ruling RD-55 (b)).
+///
+/// Where the owner refuses the `hold_set` with a name of class B
+/// and a live run of the agent stands that a stop can reach, the switch-off stops that run as
+/// the person's stop does, sends no `set_state`, stores no hold and answers the store's cause,
+/// and the board marks the agent kept on (`Board::kept_on`; ruling RD-155 (1)).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,

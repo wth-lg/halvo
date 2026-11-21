@@ -1397,7 +1397,6 @@ where
                     self.act(st, Act::Resume { run: run.clone() })?;
                 }
                 self.lapse_held(st, i, run, LapseCause::RunEnded);
-                self.lapse_binds(st, i, run, OtherLapse::RunEnded);
                 st.handbacks.retain(|(_, a)| &a.run != run);
                 st.waits.retain(|w| &w.run != run);
                 self.end_of_run(st, run, *outcome)
@@ -2495,11 +2494,14 @@ where
 
     /// The card of the native dialog of the confirmation `item` (I8.1 `agents_present`, ruling
     /// RD-77 12.1): `items::native_card` of the confirmation that the coordinator holds for that
-    /// id, read under the lock; it calls no port and stores nothing. `unknown_item` for an id that
-    /// is no held confirmation, an item of another kind and no item among them, the causes of
-    /// `items::native_card` otherwise, and then `no_service` while the board holds stuck the
-    /// record of the agent whose row shows the item, the agent of the run that raised it (rulings
-    /// RD-147 (5)(ii), RD-164).
+    /// id, read under the lock. As the first call after a move or a tick that did not return it
+    /// publishes before it reads, as every call does then (rulings RD-80 3.4, 4.2): the snapshot's
+    /// `seq` rises, the page's bell rings (`Page::changed`) and the tray's count is set
+    /// (`Tray::attention`); any other call of it calls no port. It logs no row and sends no body.
+    /// `unknown_item` for an id that is no held confirmation, an item of another kind and no item
+    /// among them, the causes of `items::native_card` otherwise, and then `no_service` while the
+    /// board holds stuck the record of the agent whose row shows the item, the agent of the run
+    /// that raised it (rulings RD-147 (5)(ii), RD-164).
     pub fn native_card(&self, item: &ItemId) -> Result<NativeCard, Cause> {
         let st = self.lock();
         let h = st
@@ -2688,6 +2690,12 @@ where
     /// no start of the agent waits, a run that started before the call going on (rulings RD-54
     /// (h), RD-52 (d)). The call ends, as every control does, by publishing the state, which
     /// tells the page and the tray when it changed.
+    /// A switch-off
+    /// whose `hold_set` the owner refuses with a name of class B stops the agent's live run as
+    /// the stop does, stores no hold and answers the store's cause; the agent stays on, and its
+    /// row says both, that the task was stopped and that the switch-off could not be saved, until
+    /// a later run of it starts or a later switch-off of it is stored (ruling RD-155 (1)), while
+    /// the owner's list does not show its workflow dismissed (ruling RD-168).
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter_control(agent, Some(action));
         let before = Self::agents_held_off(&st);
@@ -3353,7 +3361,7 @@ where
                     read.doing = Doing::Idle(None);
                 }
             }
-            let line = match roster::status_of(
+            let mut line = match roster::status_of(
                 after.as_ref().unwrap_or(*facts),
                 &self.limits,
                 held.map(|h| h.confirmation().state()),
@@ -3365,6 +3373,12 @@ where
                 }
                 line => line,
             };
+            if board.setup_owed(&facts.agent)
+                && !board.workflow_dismissed(&facts.workflow.id)
+                && line.status() == Status::AllSet
+            {
+                line = crate::types::StatusLine::NeedsYou(ItemKind::Setup);
+            }
             let waiting = board
                 .queue
                 .entries()
@@ -3386,6 +3400,22 @@ where
             });
             if asks_again && line == StatusLine::NeedsYou(ItemKind::Ready) {
                 if let Ok(text) = words::text("line.needs_you.asks_again", &[]) {
+                    row.line = text;
+                }
+            }
+            if board.kept_on(&facts.agent)
+                && !board.workflow_dismissed(&facts.workflow.id)
+                && matches!(
+                    row.status,
+                    Status::Working | Status::WaitingTurn | Status::AllSet
+                )
+            {
+                let key = if board.runs.iter().any(|r| r.agent == facts.agent) {
+                    "line.working.switch_not_saved"
+                } else {
+                    "line.all_set.switch_not_saved"
+                };
+                if let Ok(text) = words::text(key, &[]) {
                     row.line = text;
                 }
             }
