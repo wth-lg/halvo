@@ -1,4 +1,3 @@
-pub mod consent;
 pub mod custody;
 pub mod daemon;
 pub mod event;

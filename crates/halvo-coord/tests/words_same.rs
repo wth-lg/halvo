@@ -99,6 +99,7 @@ fn expected_keys() -> BTreeSet<String> {
         "working.stopping",
         "working.kill_stuck_mac",
         "working.kill_stuck_windows",
+        "working.deleting",
         "waiting_turn.queued",
         "waiting_turn.store",
         "problem.failed",
@@ -259,6 +260,28 @@ fn expected_keys() -> BTreeSet<String> {
     for end in ["unshown", "not_done", "refused"] {
         k.insert(format!("run.effect.{end}"));
     }
+    for class in [
+        "payment",
+        "purchase",
+        "send",
+        "submit",
+        "sign",
+        "local_edit",
+    ] {
+        k.insert(format!("run.effect.{class}.partial"));
+    }
+    for class in [
+        "payment",
+        "purchase",
+        "send",
+        "delete",
+        "submit",
+        "sign",
+        "local_edit",
+    ] {
+        k.insert(format!("run.effect.{class}.unknown"));
+    }
+    k.insert("run.effect.unknown".to_owned());
     k.insert("line.run.stopped".to_owned());
     for key in [
         "line.quitting",
@@ -283,7 +306,121 @@ fn expected_keys() -> BTreeSet<String> {
     ] {
         k.insert(key.to_owned());
     }
+    for key in U34_TEXTS.iter().map(|(k, _)| *k) {
+        if key != "line.working.deleting" {
+            k.insert(key.to_owned());
+        }
+    }
     k
+}
+
+/// The texts of the question of a row's Delete, of its two notices and of the line of a delete
+/// that waits for its run to end (U3.4; ruling RD-19 (c), (d) (3), (6)), each as it stands; the
+/// texts of the closed list that the unit's plain readers read.
+const U34_TEXTS: [(&str, &str); 27] = [
+    (
+        "line.working.deleting",
+        "Halvo is stopping this agent and will then remove it.",
+    ),
+    ("ask.delete.title", "Remove “{name}” from Halvo?"),
+    ("ask.delete.next", "Its next task is set for {day}."),
+    (
+        "ask.delete.setup",
+        "Halvo removes what you set up and answered for it, and what it learned.",
+    ),
+    (
+        "ask.delete.sign_in",
+        "It also removes its schedule and what it kept on this computer to sign in.",
+    ),
+    (
+        "ask.delete.records",
+        "It removes the record of each task and of what it did.",
+    ),
+    ("ask.delete.final", "You cannot bring it back."),
+    (
+        "ask.delete.done",
+        "Nothing it already paid, ordered or sent is taken back, and nothing at a website is cancelled.",
+    ),
+    (
+        "ask.delete.copies",
+        "The copies that Halvo made beside your workbooks stay.",
+    ),
+    (
+        "ask.delete.starts",
+        "If it starts a task before you answer, Halvo stops it first and removes it once it has stopped.",
+    ),
+    (
+        "ask.delete.record",
+        "Halvo keeps no record of this once the agent is removed.",
+    ),
+    ("ask.delete.keep", "Keep it"),
+    (
+        "ask.effect.payment",
+        "Halvo does not know whether it made this payment.",
+    ),
+    (
+        "ask.effect.purchase",
+        "Halvo does not know whether it placed this order.",
+    ),
+    (
+        "ask.effect.send",
+        "Halvo does not know whether it sent this message.",
+    ),
+    (
+        "ask.effect.delete",
+        "Halvo does not know whether it removed this.",
+    ),
+    (
+        "ask.effect.submit",
+        "Halvo does not know whether it sent this form.",
+    ),
+    (
+        "ask.effect.sign",
+        "Halvo does not know whether it signed this document.",
+    ),
+    (
+        "ask.effect.local_edit",
+        "Halvo does not know whether it changed this file.",
+    ),
+    (
+        "ask.effect.other",
+        "Halvo does not know whether one step of its last task happened.",
+    ),
+    ("ask.working.title", "“{name}” is working now"),
+    (
+        "ask.working.text",
+        "Stop it first, and you can remove it once it has stopped.",
+    ),
+    ("ask.working.keep", "Let it work"),
+    ("ask.stopping.title", "“{name}” is stopping"),
+    ("ask.stopping.text", "You can remove it once it has stopped."),
+    ("ask.stopping.done", "OK"),
+    (
+        "line.needs_you.asks_again",
+        "You cancelled its start, so it asks you again before it starts.",
+    ),
+];
+
+/// Each text of U3.4 stands word for word, holds at most 20 words, and names neither the
+/// workflow nor the word delete, which the glossary reserves for the workflow run (I1.6); the
+/// question says no more than that the agent is removed from Halvo (the workflow run's S-82 and
+/// S-83) and promises nothing at Quit (ruling RD-147 (5)(i)).
+#[test]
+fn u34_the_texts_of_the_delete_stand_word_for_word() {
+    for (key, want) in U34_TEXTS {
+        let got = KEYS.iter().find(|(k, _)| *k == key).map(|(_, t)| *t);
+        assert_eq!(got, Some(want), "{key}");
+        assert!(want.split_whitespace().count() <= 20, "{key}");
+        let lower = want.to_lowercase();
+        for word in ["delete", "deleted", "workflow", "quit"] {
+            assert!(
+                !lower
+                    .split(|c: char| !c.is_alphanumeric())
+                    .any(|w| w == word),
+                "{key}: {want}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -301,7 +438,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 256);
+    assert_eq!(seen.len(), 297);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -342,6 +479,14 @@ fn placeholders_are_the_ones_that_the_contract_names() {
     want.insert("card.records_dropped".into(), vec!["count"]);
     want.insert("say_again".into(), vec!["name"]);
     want.insert("confirm.asked_by_place".into(), vec!["count", "n", "name"]);
+    for key in [
+        "ask.delete.title",
+        "ask.working.title",
+        "ask.stopping.title",
+    ] {
+        want.insert(key.into(), vec!["name"]);
+    }
+    want.insert("ask.delete.next".into(), vec!["day"]);
     for (key, text) in KEYS {
         let got: Vec<String> = placeholders(text).into_iter().collect();
         let expect: Vec<String> = want
@@ -463,7 +608,18 @@ fn u24r_the_three_texts_stand_word_for_word() {
     );
     assert_eq!(
         t("line.working.kill_stuck_windows", &[]),
-        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo. All tasks stop."
+        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo."
+    );
+    let windows = t("line.working.kill_stuck_windows", &[]);
+    assert_eq!(
+        promises_an_end_or_a_time(&windows),
+        Vec::<String>::new(),
+        "U4.6: text 2 promises no end and no time at Quit (ruling RD-147 (5)(i))"
+    );
+    assert!(
+        !sends_the_person_to_reopen(&windows),
+        "RD-148, RD-150: no text tells a person to quit and reopen Halvo while Quit can leave a \
+         run live"
     );
     assert_eq!(
         t("line.problem.record", &[]),
@@ -505,6 +661,299 @@ fn u24e_the_take_back_stands_word_for_word_and_apart_from_every_other_control_an
     );
 }
 
+/// Each text of `texts` stands word for word under its key, in at most 20 words.
+fn pinned(texts: &[(&str, &str)]) {
+    for (key, text) in texts {
+        assert_eq!(words::text(key, &[]).unwrap(), *text, "{key}");
+        let words = text.split_whitespace().count();
+        assert!(words <= 20, "{key}: {words} words");
+    }
+}
+
+/// The texts of an entry that shows only the fields that the reader took whole (ruling RD-52 (h)
+/// 4), U2.4q.
+#[test]
+fn u24q_the_six_partial_texts_stand_word_for_word() {
+    pinned(&[
+        (
+            "run.effect.payment.partial",
+            "It made this payment, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.purchase.partial",
+            "It placed this order, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.send.partial",
+            "It sent this message, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.submit.partial",
+            "It sent this form, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.sign.partial",
+            "It signed this document, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.local_edit.partial",
+            "It changed a file, but Halvo shows only the details it could read.",
+        ),
+    ]);
+}
+
+/// The texts of the entry of an effect whose last state is unknown (ruling RD-126 item 10),
+/// U2.4q.
+#[test]
+fn u24q_the_eight_unknown_texts_stand_word_for_word() {
+    pinned(&[
+        (
+            "run.effect.payment.unknown",
+            "A payment may have been made; Halvo could not tell. Check your bank or the site before you pay again.",
+        ),
+        (
+            "run.effect.purchase.unknown",
+            "An order may have been placed; Halvo could not tell. Check the shop's order page before you order again.",
+        ),
+        (
+            "run.effect.send.unknown",
+            "A message may have been sent; Halvo could not tell. Look in your sent messages before you send it again.",
+        ),
+        (
+            "run.effect.delete.unknown",
+            "Something may have been removed; Halvo could not tell. Look where this agent works for anything missing.",
+        ),
+        (
+            "run.effect.submit.unknown",
+            "A form may have been sent; Halvo could not tell. Check the site before you send it again.",
+        ),
+        (
+            "run.effect.sign.unknown",
+            "A document may have been signed for you; Halvo could not tell. Check your email before you sign it again.",
+        ),
+        (
+            "run.effect.local_edit.unknown",
+            "A file may have been changed; Halvo could not tell. Open it and look before you change it again.",
+        ),
+        (
+            "run.effect.unknown",
+            "One step may have been done; Halvo could not tell. Check where this agent works before you run it again.",
+        ),
+    ]);
+}
+
+const WORDS_OF_AN_END: [&str; 41] = [
+    "stop",
+    "stops",
+    "stopped",
+    "stopping",
+    "end",
+    "ends",
+    "ended",
+    "ending",
+    "finish",
+    "finishes",
+    "finished",
+    "finishing",
+    "done",
+    "complete",
+    "completes",
+    "completed",
+    "completing",
+    "halt",
+    "halts",
+    "halted",
+    "halting",
+    "cease",
+    "ceases",
+    "ceased",
+    "ceasing",
+    "cancel",
+    "cancels",
+    "cancelled",
+    "canceled",
+    "cancelling",
+    "canceling",
+    "kill",
+    "kills",
+    "killed",
+    "killing",
+    "close",
+    "closes",
+    "closed",
+    "closing",
+    "terminate",
+    "terminated",
+];
+
+const WORDS_OF_A_TIME: [&str; 15] = [
+    "second",
+    "seconds",
+    "minute",
+    "minutes",
+    "hour",
+    "hours",
+    "moment",
+    "moments",
+    "instant",
+    "instantly",
+    "immediately",
+    "quickly",
+    "soon",
+    "shortly",
+    "promptly",
+];
+
+fn promises_an_end_or_a_time(text: &str) -> Vec<String> {
+    text.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|word| {
+            WORDS_OF_AN_END.contains(word)
+                || WORDS_OF_A_TIME.contains(word)
+                || word.contains(|c: char| c.is_numeric())
+        })
+        .map(str::to_string)
+        .collect()
+}
+
+#[test]
+fn u46_the_guard_of_text_2_reads_words_not_letters() {
+    let text =
+        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo.";
+    let promise = format!("{text} All tasks finish quickly.");
+    let warning = format!("{text} Check what it did before you repeat a send.");
+    assert_ne!(
+        promises_an_end_or_a_time(&promise),
+        Vec::<String>::new(),
+        "{promise}"
+    );
+    assert_eq!(
+        promises_an_end_or_a_time(&warning),
+        Vec::<String>::new(),
+        "{warning}"
+    );
+}
+
+const WORDS_OF_A_REOPEN: [&str; 4] = ["reopen", "reopens", "restart", "restarts"];
+
+const PHRASES_OF_A_REOPEN: [&str; 2] = ["open halvo again", "start halvo again"];
+
+fn sends_the_person_to_reopen(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    PHRASES_OF_A_REOPEN
+        .iter()
+        .any(|phrase| lower.contains(phrase))
+        || lower
+            .split(|c: char| !c.is_alphanumeric())
+            .any(|word| WORDS_OF_A_REOPEN.contains(&word))
+}
+
+const TEXT_2: &str =
+    "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo.";
+
+fn named_by_the_guard(added: &str) -> Vec<String> {
+    let text = format!("{TEXT_2} {added}");
+    assert_eq!(promises_an_end_or_a_time(TEXT_2), Vec::<String>::new());
+    promises_an_end_or_a_time(&text)
+}
+
+fn refused_as_a_reopen(added: &str) -> bool {
+    assert!(!sends_the_person_to_reopen(TEXT_2));
+    sends_the_person_to_reopen(&format!("{TEXT_2} {added}"))
+}
+
+#[test]
+fn u46_the_guard_names_a_word_that_holds_a_digit() {
+    assert_eq!(named_by_the_guard("Then r7."), ["r7"]);
+}
+
+#[test]
+fn u46_the_guard_names_an_end_word_alone() {
+    assert_eq!(named_by_the_guard("Then it finished."), ["finished"]);
+}
+
+#[test]
+fn u46_the_guard_names_a_time_word_alone() {
+    assert_eq!(named_by_the_guard("It is read promptly."), ["promptly"]);
+}
+
+#[test]
+fn u46_the_guard_reads_a_word_beside_punctuation() {
+    assert_eq!(named_by_the_guard("Then finish!"), ["finish"]);
+}
+
+#[test]
+fn u46_the_guard_reads_a_word_in_capitals() {
+    assert_eq!(named_by_the_guard("Then FINISH."), ["finish"]);
+}
+
+#[test]
+fn u46_the_refusal_names_open_halvo_again() {
+    assert!(refused_as_a_reopen("Then open Halvo again."));
+}
+
+#[test]
+fn u46_the_guard_names_a_task_cancelled_right_away() {
+    assert_ne!(
+        named_by_the_guard("Every task is cancelled right away."),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn u46_the_guard_names_halvo_closing_all_tasks_at_once() {
+    assert_ne!(
+        named_by_the_guard("Halvo closes all tasks at once."),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn u46_the_guard_names_a_task_killed_when_you_quit() {
+    assert_ne!(
+        named_by_the_guard("Its task is killed when you quit."),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn u46_the_guard_names_completing() {
+    assert_eq!(
+        named_by_the_guard("Its task is completing."),
+        ["completing"]
+    );
+}
+
+#[test]
+fn u46_the_guard_names_halting() {
+    assert_eq!(named_by_the_guard("Its task is halting."), ["halting"]);
+}
+
+#[test]
+fn u46_the_guard_names_ceasing() {
+    assert_eq!(named_by_the_guard("Its task is ceasing."), ["ceasing"]);
+}
+
+#[test]
+fn u46_the_guard_names_a_full_width_digit() {
+    assert_eq!(named_by_the_guard("Then r\u{ff15}."), ["r\u{ff15}"]);
+}
+
+#[test]
+fn u46_the_refusal_names_open_halvo_again_with_a_capital() {
+    assert!(refused_as_a_reopen("Open Halvo again."));
+}
+
+#[test]
+fn u46_the_refusal_names_reopen_halvo() {
+    assert!(refused_as_a_reopen("Then reopen Halvo."));
+}
+
+#[test]
+fn u46_the_refusal_names_start_halvo_again() {
+    assert!(refused_as_a_reopen("Then start Halvo again."));
+}
+
 /// The hold `failures` says what happened and its way out (ruling RD-81).
 #[test]
 fn rd81_the_line_of_the_hold_failures_names_its_way_out() {
@@ -542,7 +991,7 @@ fn every_status_line_has_its_key_and_its_status() {
         assert_eq!(line.status().name(), status, "{key}");
         assert!(keys.insert(key));
     }
-    assert_eq!(keys.len(), 30);
+    assert_eq!(keys.len(), 31);
 }
 
 #[test]

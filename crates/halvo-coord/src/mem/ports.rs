@@ -1,5 +1,8 @@
 use crate::items::drive::log_bytes;
-use crate::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
+use crate::ports::{
+    Analysis, Clock, Overlap, Overlaps, Owner, Page, PortError, Reaped, Rng, Runs, Tray,
+    OVERLAPS_MAX,
+};
 use crate::types::{
     hex, Agent, AgentId, AgentState, Answer, ApprovalId, BindResult, Body, Category, ConfigView,
     Decision, DecisionEntry, EffectAnswer, Event, HandbackResult, Limits, Mode, Name, Outcome,
@@ -73,6 +76,10 @@ pub enum Method {
     AgentHistory,
     /// `Owner::replies`.
     Replies,
+    /// `Owner::overlaps`.
+    Overlaps,
+    /// `Owner::delete`.
+    Delete,
 }
 
 /// A call of a port that changes or reads the world outside the coordinator; the reads of the
@@ -190,8 +197,12 @@ pub struct Tried {
 /// `proposed` or dismissed. `set_state` is refused with `no_workflow` first, then with
 /// `playbook` for `active` and an agent whose runtime is `web` and which has no playbook (an
 /// agent of `agents` by its configuration, and an agent that only a `create_agent` made by the
-/// preset of its workflow's category, A-A1.3), then with `state`. `set_bindings` refuses
-/// nothing, as A-A7.2 gives it no refusal, and merges its slots by name into the slots stored
+/// preset of its workflow's category, A-A1.3), then with `state`, then, for `approved` and
+/// `active` and never for `paused`, with `overlap` where the agent's stored slots share a sender
+/// with a live agent on its mailbox (`Owner::overlaps` says who, CP-150 (1) (b)); its
+/// acknowledgement sets the state of the workflow in `workflows` (ruling RD-67 1.7).
+/// `set_bindings` refuses with `overlap`, and stores nothing, where the slots that it would store
+/// share a sender in that way, and otherwise merges its slots by name into the slots stored
 /// for its workflow and agent, as the agent-setup run's handler does (its CP-36): a slot of the
 /// body replaces the stored slot of its name or is added, and a slot that the body does not name
 /// stays; the agent's entry of `agents` then lists each name, and the answer is the revision
@@ -204,6 +215,10 @@ pub struct Tried {
 /// stands in `reply_reads`.
 /// `Runs::answer_confirm` refuses answers that make no `Decision` (none, or two for one
 /// effect) with `malformed`, before it mints an id or calls `record`.
+/// `Owner::delete` refuses a workflow that is not in `workflows` with `no_workflow`, and one
+/// with a `run_started` that no `run_ended` follows with `state`, the guard of W-C3.10 (ruling
+/// RD-19 (d) (1)); else it removes the workflow, its entries of `agents` and every event that
+/// names it, and the workflow stands in `deletes`.
 pub struct Ports<C> {
     /// The owner's list of workflows.
     pub workflows: RefCell<Vec<Workflow>>,
@@ -222,6 +237,11 @@ pub struct Ports<C> {
     pub replies: RefCell<Vec<(RunId, ReplyRow)>>,
     /// The run of each call of `Owner::replies`, in order, a refused one among them.
     pub reply_reads: RefCell<Vec<RunId>>,
+    /// The agent and the slots of each call of `Owner::overlaps`, in order, a refused one among
+    /// them.
+    pub overlap_reads: RefCell<Vec<(AgentId, Option<Vec<Slot>>)>>,
+    /// The workflow of each decision `delete` that `Owner::delete` acknowledged, in order.
+    pub deletes: RefCell<Vec<WorkflowId>>,
     now: Cell<u64>,
     zone: Cell<i64>,
     step: Cell<u64>,
@@ -258,6 +278,8 @@ impl<C> Ports<C> {
             histories: RefCell::new(Vec::new()),
             replies: RefCell::new(Vec::new()),
             reply_reads: RefCell::new(Vec::new()),
+            overlap_reads: RefCell::new(Vec::new()),
+            deletes: RefCell::new(Vec::new()),
             now: Cell::new(now),
             zone: Cell::new(zone_of(now, today)),
             step: Cell::new(0),
@@ -710,6 +732,71 @@ impl<C: ConfigView> Ports<C> {
                 .any(|(w, a)| w == workflow && a != agent)
     }
 
+    fn live(&self, workflow: &WorkflowId, agent: &AgentId) -> bool {
+        self.workflows.borrow().iter().any(|w| match w {
+            Workflow::Full(f) => {
+                &f.id == workflow
+                    && f.agent.as_ref() == Some(agent)
+                    && matches!(f.state, WorkflowState::Approved | WorkflowState::Active)
+            }
+            Workflow::Dismissed(_) => false,
+        })
+    }
+
+    /// The other live agents that share a sender with `agent` on its mailbox, with its slots as
+    /// they would stand with `slots` merged by name into the stored ones, in ascending order of
+    /// workflow id: two agents share when both bindings hold the same `account_address` and their
+    /// `reply_senders` hold one piece in common, compared without regard to ASCII case; a live
+    /// agent is one whose full workflow in `workflows` names it and is `approved` or `active`.
+    fn sharing(&self, workflow: &WorkflowId, agent: &AgentId, slots: &[Slot]) -> Vec<Overlap> {
+        let mut own = self.slots(workflow, agent);
+        for slot in slots {
+            match own.iter_mut().find(|s| s.name == slot.name) {
+                Some(s) => s.value.clone_from(&slot.value),
+                None => own.push(slot.clone()),
+            }
+        }
+        let value = |slots: &[Slot], name: &str| -> Option<Vec<String>> {
+            slots.iter().find(|s| s.name.as_str() == name).map(|s| {
+                s.value
+                    .iter()
+                    .map(|v| v.trim().to_ascii_lowercase())
+                    .collect()
+            })
+        };
+        let Some(account) = value(&own, "account_address") else {
+            return Vec::new();
+        };
+        let senders = own
+            .iter()
+            .find(|s| s.name.as_str() == "reply_senders")
+            .map(|s| s.value.clone())
+            .unwrap_or_default();
+        let mut out: Vec<Overlap> = self
+            .bound_slots
+            .borrow()
+            .iter()
+            .filter(|b| &b.agent != agent && &b.workflow != workflow)
+            .filter(|b| self.live(&b.workflow, &b.agent))
+            .filter(|b| value(&b.slots, "account_address").as_ref() == Some(&account))
+            .filter_map(|b| {
+                let theirs = value(&b.slots, "reply_senders").unwrap_or_default();
+                let shared: Vec<String> = senders
+                    .iter()
+                    .filter(|s| theirs.contains(&s.trim().to_ascii_lowercase()))
+                    .cloned()
+                    .collect();
+                (!shared.is_empty()).then(|| Overlap {
+                    workflow: b.workflow.clone(),
+                    agent: b.agent.clone(),
+                    senders: shared,
+                })
+            })
+            .collect();
+        out.sort_by(|a, b| a.workflow.cmp(&b.workflow));
+        out
+    }
+
     fn send_refusal(&self, body: &Body) -> Option<&'static str> {
         match body {
             Body::CreateAgent { workflow, agent } => self
@@ -726,8 +813,16 @@ impl<C: ConfigView> Ports<C> {
                 if *state == AgentState::Active && self.web_with_no_playbook(workflow, agent) {
                     return Some("playbook");
                 }
-                self.state_call_refusal(workflow)
+                self.state_call_refusal(workflow).or_else(|| {
+                    (*state != AgentState::Paused && !self.sharing(workflow, agent, &[]).is_empty())
+                        .then_some("overlap")
+                })
             }
+            Body::SetBindings {
+                workflow,
+                agent,
+                slots,
+            } => (!self.sharing(workflow, agent, slots).is_empty()).then_some("overlap"),
             Body::StartRun {
                 workflow,
                 agent,
@@ -856,7 +951,23 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
                 let rev = self.merge_slots(workflow, agent, slots);
                 serde_json::json!({ "rev": rev })
             }
-            Body::SetState { state, .. } => serde_json::json!({ "state": state.name() }),
+            Body::SetState {
+                workflow, state, ..
+            } => {
+                let kept = match state {
+                    AgentState::Approved => WorkflowState::Approved,
+                    AgentState::Active => WorkflowState::Active,
+                    AgentState::Paused => WorkflowState::Paused,
+                };
+                for w in self.workflows.borrow_mut().iter_mut() {
+                    if let Workflow::Full(f) = w {
+                        if &f.id == workflow {
+                            f.state = kept;
+                        }
+                    }
+                }
+                serde_json::json!({ "state": state.name() })
+            }
             Body::StartRun { .. } => serde_json::json!({ "ok": "yes" }),
             Body::EndRun { run } => {
                 self.end_in_store(run);
@@ -909,6 +1020,54 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
             .filter(|(r, _)| r == run)
             .map(|(_, row)| *row)
             .collect())
+    }
+
+    fn overlaps(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        slots: Option<&[Slot]>,
+    ) -> Result<Overlaps, PortError> {
+        self.overlap_reads
+            .borrow_mut()
+            .push((agent.clone(), slots.map(<[Slot]>::to_vec)));
+        self.refused(Method::Overlaps)?;
+        if !self.workflows.borrow().iter().any(|w| w.id() == workflow) {
+            return Err(refusal("no_workflow"));
+        }
+        if !self.bound(workflow, agent) {
+            return Err(refusal("binding"));
+        }
+        let mut entries = self.sharing(workflow, agent, slots.unwrap_or(&[]));
+        let more = entries.len() > OVERLAPS_MAX;
+        entries.truncate(OVERLAPS_MAX);
+        Ok(Overlaps { entries, more })
+    }
+
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        self.refused(Method::Delete)?;
+        if !self.workflows.borrow().iter().any(|w| w.id() == workflow) {
+            return Err(refusal("no_workflow"));
+        }
+        let events = self.events.borrow();
+        let live = events.iter().any(|e| match &e.what {
+            What::RunStarted { run, .. } => {
+                &e.workflow == workflow
+                    && !events
+                        .iter()
+                        .any(|f| matches!(&f.what, What::RunEnded { run: r, .. } if r == run))
+            }
+            _ => false,
+        });
+        drop(events);
+        if live {
+            return Err(refusal("state"));
+        }
+        self.workflows.borrow_mut().retain(|w| w.id() != workflow);
+        self.agents.borrow_mut().retain(|a| &a.workflow != workflow);
+        self.events.borrow_mut().retain(|e| &e.workflow != workflow);
+        self.deletes.borrow_mut().push(workflow.clone());
+        Ok(())
     }
 }
 

@@ -129,6 +129,8 @@ fn member(world: &World, n: usize) -> Member<Config> {
             events,
             today: world.board.day,
             doing: Doing::Idle(None),
+            stand_in: false,
+            active_refused: false,
         },
         session: true,
     }
@@ -595,8 +597,8 @@ fn refusal_hold_start() {
     assert_eq!(
         w.calls(),
         vec![
-            "log hold_cleared failures".to_string(),
-            "set_state active".into(),
+            "set_state active".to_string(),
+            "log hold_cleared failures".into(),
             "defer".into(),
             "log run_started".into(),
             "start_run".into(),
@@ -1411,7 +1413,7 @@ impl IntoReport for Served {
 }
 
 #[test]
-fn switch_on_ends_off_and_failures_with_one_event_each_and_then_sends_the_state() {
+fn switch_on_sends_the_state_first_and_then_ends_off_and_failures_with_one_event_each() {
     let mut w = world(&[manual()]);
     w.ports.refuse(Method::Start, PortError::NoService);
     for _ in 0..3 {
@@ -1431,8 +1433,8 @@ fn switch_on_ends_off_and_failures_with_one_event_each_and_then_sends_the_state(
     assert_eq!(
         w.calls(),
         vec![
-            "log hold_cleared person, hold_cleared failures".to_string(),
-            "set_state active".into()
+            "set_state active".to_string(),
+            "log hold_cleared person, hold_cleared failures".into()
         ]
     );
     assert_eq!(halvo_coord::schedule::holds(w.facts(0)), Vec::<Hold>::new());
@@ -1453,8 +1455,8 @@ fn switch_on_ends_off_and_failures_with_one_event_each_and_then_sends_the_state(
     assert_eq!(
         web.calls(),
         vec![
-            "log hold_cleared person".to_string(),
-            "set_state approved".into()
+            "set_state approved".to_string(),
+            "log hold_cleared person".into()
         ]
     );
 }
@@ -2583,6 +2585,7 @@ fn a_lost_acknowledgement_of_active_is_followed_by_a_second_send_at_the_next_tic
     w.forget();
     w.tick();
     assert_eq!(set_states(&w), ["set_state active"]);
+    approved_listed(&w, 0);
     w.forget();
     w.tick();
     assert_eq!(
@@ -2858,6 +2861,7 @@ fn refusal_active_tick() {
         "none at the end of a run"
     );
     for _ in 0..2 {
+        approved_listed(&w, 3);
         w.forget();
         w.tick();
         let sent: Vec<_> = w

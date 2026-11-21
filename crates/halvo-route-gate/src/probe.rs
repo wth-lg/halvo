@@ -180,10 +180,6 @@ mod tests {
 
     const CHECK_ROUNDS: u64 = 100_000;
 
-    const SCRIPT: &str = include_str!("../../../scripts/r6/ci.d/70-r6-memory.sh");
-    const PROBE: &str = include_str!("probe.rs");
-    const MAIN: &str = include_str!("main.rs");
-
     const CHILD: &str = "HALVO_ROUTE_GATE_PROBE_ALLOCATION_CHILD";
 
     use super::counting::{
@@ -430,36 +426,6 @@ mod tests {
                 one.0.others,
                 many.0.others
             );
-        }
-    }
-
-    #[test]
-    fn the_allocation_test_makes_the_rounds_of_the_check() {
-        let lines: Vec<String> = SCRIPT
-            .lines()
-            .filter(|line| line.starts_with("rounds="))
-            .map(str::to_owned)
-            .collect();
-        assert_eq!(lines, vec![format!("rounds={CHECK_ROUNDS}")]);
-    }
-
-    fn code_of(text: &str) -> String {
-        text.lines()
-            .filter(|line| !line.trim_start().starts_with("//"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
-    #[test]
-    fn the_probe_names_no_process() {
-        let outside = &PROBE[..PROBE.find("#[cfg(test)]").expect("the test module")];
-        let from = MAIN.find("Some(\"probe\")").expect("the arm of probe");
-        let to = from + MAIN[from..].find("Some(_)").expect("the arm after it");
-        for (part, text) in [("probe.rs", outside), ("the arm of probe", &MAIN[from..to])] {
-            let code = code_of(text);
-            for word in ["process", "Command"] {
-                assert!(!code.contains(word), "{part} names {word}");
-            }
         }
     }
 

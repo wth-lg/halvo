@@ -31,6 +31,12 @@ fn main() -> ExitCode {
             status(daemon::self_check_run_loop(&mut std::io::stdout().lock()))
         }
         #[cfg(debug_assertions)]
+        Ok(Mode::SelfCheckServiceRun { data_dir }) => status(daemon::self_check_service_run(
+            &data_dir,
+            daemon::DurableState::writer(),
+            &mut std::io::stdout().lock(),
+        )),
+        #[cfg(debug_assertions)]
         Ok(Mode::TimedRun(run)) => match daemon::timed_run(&run) {
             Ok(outcome) => status(daemon::outcome_answer(
                 &outcome,
@@ -40,17 +46,24 @@ fn main() -> ExitCode {
             Err(error) => fail(format_args!("{error}")),
         },
         #[cfg(debug_assertions)]
-        Ok(mode @ (Mode::VerifyStore { .. } | Mode::VerifyDeletion { .. })) => run_verify(
-            mode,
-            halvo_capture::store::measure_store,
-            halvo_capture::store::measure_deletion,
-        ),
+        Ok(mode @ (Mode::VerifyStore { .. } | Mode::VerifyDeletion { .. })) => {
+            run_verify(mode, measure_store, measure_deletion)
+        }
         #[cfg(debug_assertions)]
         Ok(Mode::DeleteAll { store_dir }) => status(delete_all(
             &store_dir,
             &mut std::io::stdout().lock(),
             &mut std::io::stderr(),
         )),
+        #[cfg(debug_assertions)]
+        Ok(Mode::ServiceRun { data_dir }) => status(daemon::service_run(
+            &data_dir,
+            daemon::DurableState::writer(),
+        )),
+        #[cfg(debug_assertions)]
+        Ok(Mode::Lease) => status(exit::USAGE),
+        #[cfg(debug_assertions)]
+        Ok(Mode::DeleteAllOfADataDir) => status(exit::USAGE),
         Err(usage) => status(daemon::usage_answer(&usage, &mut std::io::stderr())),
     }
 }
@@ -62,43 +75,17 @@ fn delete_all(store_dir: &std::path::Path, out: &mut dyn Write, err: &mut dyn Wr
 
 #[cfg(debug_assertions)]
 fn scratch_tail(store_dir: &std::path::Path) -> daemon::TailAnswer {
-    use halvo_capture::store::db::EncryptedStore;
-    use halvo_capture::store::{Layout, StoreError};
-
-    match EncryptedStore::delete_data_dir(store_dir, Layout::ScratchStore) {
-        Ok(report) => daemon::TailAnswer::Finished(tail_report(&report)),
-        Err(StoreError::DeleteIncomplete(report)) => {
-            daemon::TailAnswer::NotFinished(tail_report(&report))
-        }
-        Err(StoreError::Locked) => daemon::TailAnswer::Held,
-        Err(error) => daemon::TailAnswer::Failed(error.to_string()),
-    }
+    daemon::port::ScratchDir::at(store_dir).delete_tail()
 }
 
 #[cfg(debug_assertions)]
-fn tail_report(report: &halvo_capture::store::DeleteReport) -> daemon::TailReport {
-    use halvo_capture::store::RootReading;
+fn measure_store(store_dir: &std::path::Path, marker: &str) -> Result<String, String> {
+    daemon::port::ScratchDir::at(store_dir).measure_store(marker)
+}
 
-    daemon::TailReport {
-        keyed_segments: report.keyed_segments,
-        root: match report.root {
-            RootReading::Destroyed => daemon::TailRoot::Destroyed,
-            RootReading::Left(id) => daemon::TailRoot::Left(id.map(|id| id.to_string())),
-            RootReading::Unnamed => daemon::TailRoot::Unnamed,
-        },
-        root_files_left: report.roots.names.clone(),
-        others_left: daemon::EntriesLeft {
-            root_shaped: report.roots.others_left.root_shaped,
-            directories: report.roots.others_left.directories,
-            other: report.roots.others_left.other,
-        },
-        roots_listed: report.roots.listed,
-        roots_at_their_path: report.roots.at_its_path,
-        key_file_gone: report.key_file_gone,
-        database_left: report.database_left,
-        files_left: report.files_left,
-        not_followed: report.not_followed,
-    }
+#[cfg(debug_assertions)]
+fn measure_deletion(store_dir: &std::path::Path) -> Result<String, String> {
+    daemon::port::ScratchDir::at(store_dir).measure_deletion()
 }
 
 fn print_or_exit_error(out: &mut dyn Write, text: &str) -> ExitCode {
@@ -109,10 +96,10 @@ fn print_or_exit_error(out: &mut dyn Write, text: &str) -> ExitCode {
 }
 
 #[cfg(debug_assertions)]
-type MeasureStore = fn(&std::path::Path, &str) -> halvo_capture::store::StoreResult<String>;
+type MeasureStore = fn(&std::path::Path, &str) -> Result<String, String>;
 
 #[cfg(debug_assertions)]
-type MeasureDeletion = fn(&std::path::Path) -> halvo_capture::store::StoreResult<String>;
+type MeasureDeletion = fn(&std::path::Path) -> Result<String, String>;
 
 #[cfg(debug_assertions)]
 fn run_verify(mode: Mode, store: MeasureStore, deletion: MeasureDeletion) -> ExitCode {
@@ -151,7 +138,7 @@ mod tests {
         static CALLS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     }
 
-    fn recorded_store(dir: &Path, marker: &str) -> halvo_capture::store::StoreResult<String> {
+    fn recorded_store(dir: &Path, marker: &str) -> Result<String, String> {
         CALLS.with(|calls| {
             calls
                 .borrow_mut()
@@ -160,7 +147,7 @@ mod tests {
         Ok(String::new())
     }
 
-    fn recorded_deletion(dir: &Path) -> halvo_capture::store::StoreResult<String> {
+    fn recorded_deletion(dir: &Path) -> Result<String, String> {
         CALLS.with(|calls| {
             calls
                 .borrow_mut()
@@ -280,17 +267,10 @@ mod tests {
         }
     }
 
-    fn live_store(dir: &Path) -> halvo_capture::store::db::EncryptedStore {
-        use halvo_capture::custody::{dev_fallback::DevFallbackCustody, RootId};
-        halvo_capture::store::db::EncryptedStore::create(
-            dir,
-            Box::new(DevFallbackCustody::new(
-                RootId::fresh().unwrap(),
-                dir.join("roots"),
-            )),
-            std::time::Duration::from_secs(60),
-        )
-        .unwrap()
+    fn live_store(dir: &Path) -> Box<dyn daemon::port::CaptureStore + Send> {
+        let made = daemon::port::ScratchDir::at(dir).create().unwrap();
+        std::mem::forget(made.root);
+        made.store
     }
 
     fn deleted_line(out: &str) -> &str {
@@ -345,7 +325,7 @@ mod tests {
     fn a_store_whose_root_verify_store_destroyed_loses_its_files_with_1_and_then_reads_no_store() {
         let scratch = scratch();
         let dir = scratch.dir("verified");
-        halvo_capture::store::measure_store(&dir, "gate-marker-01").unwrap();
+        measure_store(&dir, "gate-marker-01").unwrap();
         assert!(dir.join("store.key").exists());
         assert_eq!(root_files(&dir), Vec::<String>::new());
         let (status, out, err) = scratch.delete(&text(&dir));

@@ -139,9 +139,8 @@ as a name. In the name of a tracked file, which it prints as line
 or `Users` is a common name in a source tree. The gate runs it before its checks, so the gate
 needs a git checkout.
 With `--staged` it reads only the files that the index adds or changes against the last
-commit, for a pre-commit or a pre-merge-commit hook; no hook of the app repository runs it, and
-in CI `scripts/r7/ci.d/23-r7-machine-paths.sh` runs it over the tracked files under `backend/`
-and `formal/r7-ledger/`. Write such a path relative to the repository, take the location from an environment
+commit, for a pre-commit or a pre-merge-commit hook; no hook of the app repository and no CI
+job runs it. Write such a path relative to the repository, take the location from an environment
 variable, or write the name as one of those placeholders.
 
 The gate has 13 checks. Four are stubs that print FAIL until their unit replaces the file:
@@ -302,18 +301,16 @@ What it cannot see:
   on an address outside loopback, such as 192.0.2.1, ends its process. A connection to such a
   listener from another host was not tried.
 
-## Checks in CI and the gate's records
+## Checks in CI
 
 The one workflow of the app repository runs the backend's checks through its driver,
-`scripts/ci/run-ci-d.sh`, as five scripts under `scripts/r7/ci.d/`: 10-r7-layout (every tracked
-file under `backend/` and `formal/r7-ledger/` matches a line of `scripts/r7/layout.txt`, which
-names its owner), 20-r7-backend-static (the typecheck and the lint), 21-r7-backend-test (the test
-script, in the macos job alone: on windows-2025 the stack needs lsof and `ps -o`, which Git Bash
-lacks, and the test script does not end, so the windows job runs no test of the backend),
-22-r7-backend-records and 23-r7-machine-paths (`scripts/check-machine-paths.sh` over
-`backend/` and `formal/r7-ledger/`). 21-r7-backend-test runs the test script, whose vitest run
-holds the workerd tests and the node tests (`test/**/*.node.test.ts`), and then the records of
-check 50, `gate/fixtures/concurrency/records.mjs` run on `backend/` as the commit holds it.
+`scripts/ci/run-ci-d.sh`, as scripts under `scripts/r7/ci.d/`, among them 20-r7-backend-static
+(the typecheck and the lint) and 21-r7-backend-test (the test script, in the macos job alone: on
+windows-2025 the stack needs lsof and `ps -o`, which Git Bash lacks, and the test script does not
+end, so the windows job runs no test of the backend). 21-r7-backend-test runs the test script,
+whose vitest run holds the workerd tests and the node tests (`test/**/*.node.test.ts`), and then
+the records of check 50, `gate/fixtures/concurrency/records.mjs` run on `backend/` as the commit
+holds it.
 
 A node test starts a server through the test kit, `test/ledger/process-group.ts`, in a process
 group of its own, and marks it in `backend/.tmp/groups/` (a test can name another directory with
@@ -325,41 +322,36 @@ leaves. A stopped run can leave: a mark under `backend/.tmp/groups/` and, until 
 checkout, its group; and wrangler's build under `backend/.wrangler/tmp/`, which wrangler removes
 when it gets TERM from the kit and keeps when it gets KILL (git ignores both directories). These
 are left for good or until a later step: a group that outlives TERM by more than the 500 ms after
-which vitest sends KILL to a fork that it stops; a group whose owner gets KILL, until the next run
+which vitest sends KILL to a fork that it stops, or that ends on TERM when the kit's own read of ps
+before its TERM takes longer than those 500 ms; a group whose owner gets KILL, until the next run
 of the same checkout, and for good if none follows; one unmarked group when a KILL comes between
 the spawn and the first write of its mark; a group whose leader is gone while other processes
 keep its id, which the sweep and `endGroup` leave with a line (a group whose leader died before a
-test calls `endGroup` is left to the sweep); a group marked under a test's own
-`HALVO_GROUP_MARKS` directory, which no sweep reads; and the servers that
-`test/ledger/gateway-chat.node.test.ts`, `test/metering/stripe-meter-load.node.test.ts` and
-`test/billing/servers.ts` start outside the kit, which end only with the processes that own them.
+test calls `endGroup` is left to the sweep; a group whose leader left on the TERM of an `endGroup`
+that is still waiting gets KILL from the kit's handlers for its members after the grace; one whose
+leader left on the TERM of an `endGroup` that then threw, on a failed read of ps or on a member left
+after KILL, is left by the handlers too); and a
+group marked under a test's own
+`HALVO_GROUP_MARKS` directory, which no sweep reads. The kit signals a group only after it has
+read the pid and start time of the group's leader, with one exception: when `startGroup` cannot
+read ps after a start fails, it sends KILL to the group of the child that it has just spawned and
+still holds, before node can reap that child, so that no other process can have its pid.
+`endGroup` and the kit's handlers remove a mark only while it reads as the text that the kit wrote
+for the group; where a mark of another text stands at the group's path, `endGroup` sends no
+signal, forgets the group and prints one line.
 The sweep ends a group only by a mark of this checkout whose leader started at or after the mark's
 owner; a mark that a person writes by hand in the checkout's own marks directory, naming a leader
 that started after a dead owner, is trusted. Nothing empties `backend/.tmp/`: each run of the node
 tests adds the state directories of the wrangler, gateway and stop-case tests; remove them by
 hand when no run of the checkout is going.
 
-The gate runs in no CI job: it needs the stack and the sandbox of macOS. Its lines are kept as
-records, `docs/r7/gate/NN-name.txt`, one for each check: the line that the gate printed, the UTC
-time and the 1-minute load at which it came, and the trees of `backend/` and of
-`formal/r7-ledger/` that it ran on. 22-r7-backend-records fails in both jobs when a record names
-other trees than HEAD's, so any commit that changes `backend/` or `formal/r7-ledger/` makes all 13
-stale. Stamp them again at the top of the repository, on macOS, with nothing uncommitted under
-either directory, and commit them with that change:
-
-```sh
-sh scripts/r7/stamp-gate-records.sh
-```
-
-It brings the stack up, runs `sh backend/scripts/gate.sh` once, brings the stack down and writes
-the 13 records, and nothing else in the repository; the gate's logs stay under `.tmp/`. It takes
-about half an hour: 1,684 to 1,911 s in the three runs of the fold, under a 1-minute load of 16 to
-46. It writes no record when the trees are not clean, the stack does not come up, the trees change
-during the run, or a check prints no line or more than one.
+The gate runs in no CI job: it needs the stack and the sandbox of macOS. The repository keeps no
+record of the lines that it prints.
 
 ## Commits
 
 The rules of the app repository, its `AGENTS.md`, bind every commit here. A commit is made by
 the configured git user, and its message carries no attribution line: the app's commit-msg and
-pre-push hooks and its CI read every message. A pull request adds one line for each type of
-change that it makes at the end of the list under Unreleased in the app's `CHANGELOG.md`.
+pre-push hooks and its CI read every message. A pull request adds one new file under the app's
+`changelog.d/`, with one line for each type of change that it makes, and leaves the list under
+Unreleased in the app's `CHANGELOG.md` as it is.

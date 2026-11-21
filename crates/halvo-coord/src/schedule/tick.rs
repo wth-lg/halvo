@@ -1,7 +1,10 @@
-use super::{clean, current_slot, finished, holds, needs_person, slot_due, slot_open, Board};
+use super::{
+    clean, current_slot, finished, held_by_events, holds, needs_person, slot_due, slot_open, Board,
+    Hold,
+};
 use crate::types::{
-    AgentId, ConfigView, Doing, Facts, Limits, Outcome, RunEnd, RunId, Runtime, What, WorkflowId,
-    WorkflowState,
+    AgentId, AgentState, ConfigView, Doing, Facts, Limits, Outcome, RunEnd, RunId, Runtime, What,
+    WorkflowId, WorkflowState,
 };
 
 /// Whether a tick sends `set_state` `active` for the agent (ruling IG-6a): the owner's list
@@ -18,12 +21,36 @@ pub fn wants_active<C: ConfigView>(facts: &Facts<C>) -> bool {
 /// `switch_on` sends `active` where it holds and `approved` otherwise (ruling IG-6a, IG-7 to
 /// IG-12).
 pub fn gives_active<C: ConfigView>(facts: &Facts<C>) -> bool {
-    holds(facts).is_empty()
-        && (facts.config.runtime() != Runtime::Web
-            || facts
-                .runs
-                .first()
-                .is_some_and(|r| r.outcome == Outcome::Completed))
+    holds(facts).is_empty() && web_ready(facts)
+}
+
+fn web_ready<C: ConfigView>(facts: &Facts<C>) -> bool {
+    facts.config.runtime() != Runtime::Web
+        || facts
+            .runs
+            .first()
+            .is_some_and(|r| r.outcome == Outcome::Completed)
+}
+
+/// The state that the control `switch_on` sends, before it stores anything (ruling RD-67 1.3
+/// (a)): `active` where the rule of `active` gives it once the holds `off` and `failures` that
+/// the switch-on ends are gone, the derived `off` among them, and `approved` otherwise.
+pub fn switch_on_state<C: ConfigView>(facts: &Facts<C>) -> AgentState {
+    let others = holds(facts)
+        .iter()
+        .all(|h| matches!(h, Hold::Off | Hold::Failures));
+    if others && web_ready(facts) {
+        AgentState::Active
+    } else {
+        AgentState::Approved
+    }
+}
+
+/// Whether a tick sends `set_state` `paused` for the agent by the rule over the facts of ruling
+/// RD-67 1.3 (b), in every life: the hold `off` or `failures` stands by the stored events while
+/// the owner's list holds the workflow in the full shape with another state than `paused`.
+pub fn wants_paused<C>(facts: &Facts<C>) -> bool {
+    !facts.stand_in && facts.workflow.state != WorkflowState::Paused && held_by_events(facts)
 }
 
 /// What one tick raises or starts for an agent (I5.3).
@@ -44,6 +71,9 @@ pub enum Ask {
 /// a `slot_skipped` event with a null slot stands: until a slot opens after that event's day,
 /// and for an agent with no slot while the event is handed out (rulings RD-67 5.2, RD-73 1.2);
 /// for any other agent a start when its slot is due (`slot_due`).
+/// The tick of `drive` reads it on the facts with the ends that the row reads (`Ends::read`),
+/// so that a run that a record names `completed` or `nothing_to_do` counts so here whatever
+/// `interrupted` row it has (RD-156 (1)).
 pub fn tick_step<C: ConfigView>(facts: &Facts<C>, listed: bool, limits: &Limits) -> Ask {
     if !listed || !holds(facts).is_empty() || facts.doing != Doing::Idle(None) {
         return Ask::Nothing;

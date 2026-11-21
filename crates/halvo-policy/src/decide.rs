@@ -14,15 +14,6 @@ use halvo_schema::executable::{ActionClass, AgentConfig, AllowedClass, Autonomy,
 /// let _ = EffectMove::Propose(own);
 /// ```
 ///
-/// Nor through the constructor of the crate's own test build:
-///
-/// ```compile_fail
-/// use halvo_policy::{Decided, Decision, EffectMove};
-/// use halvo_schema::executable::ActionClass;
-/// let own = Decided::free(ActionClass::Payment, Decision::Run);
-/// let _ = EffectMove::Propose(own);
-/// ```
-///
 /// Nor by a default value:
 ///
 /// ```compile_fail
@@ -118,13 +109,6 @@ impl Decided {
     /// The decision that `decide_row` gave for the configuration and the class.
     pub fn decision(&self) -> Decision {
         self.decision
-    }
-
-    /// A `Decided` with a free decision, for the tests that follow the model's traces, whose moves take the
-    /// decision as a free value. It exists in the crate's own test build alone.
-    #[cfg(test)]
-    pub(crate) fn free(class: ActionClass, decision: Decision) -> Decided {
-        Decided { class, decision }
     }
 }
 

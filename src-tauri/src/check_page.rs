@@ -50,17 +50,39 @@ pub fn line(seen: &str, version: &str, guard: Option<&GuardInstalled>) -> Option
     })
 }
 
-pub fn run(data_dir: PathBuf, within: Duration) -> i32 {
-    let started = Instant::now();
-    std::thread::spawn(move || {
-        std::thread::sleep(within);
-        eprintln!(
-            "halvo: --check-page: the page did not have the reply of its {} read commands within {} s",
-            reads().len(),
-            within.as_secs()
-        );
-        std::process::exit(Exit::PageNotLoaded.code());
-    });
+/// When the check mode gives up, as a time after its start: `within` after
+/// its event loop was ready at `ready`, and never while the loop is not ready,
+/// so that the start of the engine before Ready does not count in `within`.
+pub fn gives_up_after(ready: Option<Duration>, within: Duration) -> Option<Duration> {
+    ready.map(|ready| ready + within)
+}
+
+fn give_up(started: Instant, within: Duration, ready: &mpsc::Receiver<Duration>) {
+    let mut ready_at = None;
+    loop {
+        let heard = match gives_up_after(ready_at, within) {
+            Some(at) => ready.recv_timeout(at.saturating_sub(started.elapsed())),
+            None => ready
+                .recv()
+                .map_err(|_| mpsc::RecvTimeoutError::Disconnected),
+        };
+        match heard {
+            Ok(at) => ready_at = Some(at),
+            Err(mpsc::RecvTimeoutError::Timeout) => break,
+            Err(mpsc::RecvTimeoutError::Disconnected) => return,
+        }
+    }
+    eprintln!(
+        "halvo: --check-page: the page did not have the reply of its {} read commands within {} s after the event loop was ready",
+        reads().len(),
+        within.as_secs()
+    );
+    std::process::exit(Exit::PageNotLoaded.code());
+}
+
+pub fn run(data_dir: PathBuf, within: Duration, started: Instant) -> i32 {
+    let (ready_tx, ready_rx) = mpsc::channel();
+    std::thread::spawn(move || give_up(started, within, &ready_rx));
     let engine_rules_dir = Some(data_dir.join(app::ENGINE_RULES_DIR));
     let parts = app::Parts {
         #[cfg(windows)]
@@ -85,7 +107,16 @@ pub fn run(data_dir: PathBuf, within: Duration) -> i32 {
     app.set_activation_policy(tauri::ActivationPolicy::Accessory);
     let handle = app.handle().clone();
     std::thread::spawn(move || watch(handle, started));
-    app.run_return(|_, _| {})
+    app.run_return(move |_, event| {
+        if let tauri::RunEvent::Ready = event {
+            let ready = started.elapsed();
+            eprintln!(
+                "halvo: --check-page: the event loop was ready at {} ms",
+                ready.as_millis()
+            );
+            let _ = ready_tx.send(ready);
+        }
+    })
 }
 
 fn watch<R: Runtime>(app: AppHandle<R>, started: Instant) {
@@ -286,5 +317,145 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn the_timer_of_the_check_mode_runs_from_the_ready_of_its_event_loop() {
+        let within = Duration::from_secs(60);
+        assert_eq!(gives_up_after(None, within), None);
+        assert_eq!(
+            gives_up_after(Some(Duration::from_millis(8_086)), within),
+            Some(Duration::from_millis(68_086))
+        );
+        assert_eq!(
+            gives_up_after(Some(Duration::from_secs(75)), within),
+            Some(Duration::from_secs(135))
+        );
+        assert_eq!(gives_up_after(Some(Duration::ZERO), within), Some(within));
+    }
+
+    const GIVE_UP_CHILD: &str = "HALVO_CHECK_PAGE_GIVE_UP_CHILD";
+    const WITHIN: Duration = Duration::from_millis(50);
+    const SENTENCE: &str = "the page did not have the reply of its";
+
+    fn give_up_child(test: &str) -> std::process::Child {
+        std::process::Command::new(std::env::current_exe().expect("the test binary has a path"))
+            .args(["--exact", test, "--nocapture", "--test-threads=1"])
+            .env(GIVE_UP_CHILD, "1")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("the test binary starts again")
+    }
+
+    fn ended_within(
+        child: &mut std::process::Child,
+        bound: Duration,
+    ) -> Option<std::process::ExitStatus> {
+        let start = Instant::now();
+        loop {
+            if let Some(status) = child.try_wait().expect("the child can be read") {
+                return Some(status);
+            }
+            if start.elapsed() >= bound {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    fn stderr_of(child: &mut std::process::Child) -> String {
+        let mut text = String::new();
+        if let Some(mut err) = child.stderr.take() {
+            let _ = std::io::Read::read_to_string(&mut err, &mut text);
+        }
+        text
+    }
+
+    fn give_up_in_this_child(started: Instant, send_ready: bool, close_first: bool) {
+        let (ready, heard) = mpsc::channel();
+        if send_ready {
+            ready.send(Duration::ZERO).expect("the Ready is sent");
+        }
+        if close_first {
+            drop(ready);
+            give_up(started, WITHIN, &heard);
+            return;
+        }
+        give_up(started, WITHIN, &heard);
+        drop(ready);
+    }
+
+    #[test]
+    fn give_up_ends_the_process_with_its_sentence_when_ready_has_no_answer() {
+        if std::env::var_os(GIVE_UP_CHILD).is_some() {
+            give_up_in_this_child(Instant::now(), true, false);
+            return;
+        }
+        let mut child = give_up_child(
+            "check_page::tests::give_up_ends_the_process_with_its_sentence_when_ready_has_no_answer",
+        );
+        let status = ended_within(&mut child, Duration::from_secs(20));
+        let err = stderr_of(&mut child);
+        assert_eq!(
+            status.and_then(|s| s.code()),
+            Some(Exit::PageNotLoaded.code()),
+            "{err}"
+        );
+        assert!(err.contains(SENTENCE), "{err}");
+    }
+
+    #[test]
+    fn give_up_returns_with_no_sentence_when_the_channel_closes_before_ready() {
+        if std::env::var_os(GIVE_UP_CHILD).is_some() {
+            give_up_in_this_child(Instant::now(), false, true);
+            return;
+        }
+        let mut child = give_up_child(
+            "check_page::tests::give_up_returns_with_no_sentence_when_the_channel_closes_before_ready",
+        );
+        let status = ended_within(&mut child, Duration::from_secs(20));
+        let err = stderr_of(&mut child);
+        assert_eq!(status.and_then(|s| s.code()), Some(0), "{err}");
+        assert!(!err.contains(SENTENCE), "{err}");
+    }
+
+    #[test]
+    fn give_up_ends_the_process_when_a_ready_is_heard_after_its_deadline() {
+        if std::env::var_os(GIVE_UP_CHILD).is_some() {
+            let started = Instant::now()
+                .checked_sub(Duration::from_secs(10))
+                .expect("an instant 10 s back");
+            give_up_in_this_child(started, true, false);
+            return;
+        }
+        let mut child = give_up_child(
+            "check_page::tests::give_up_ends_the_process_when_a_ready_is_heard_after_its_deadline",
+        );
+        let status = ended_within(&mut child, Duration::from_secs(20));
+        let err = stderr_of(&mut child);
+        assert_eq!(
+            status.and_then(|s| s.code()),
+            Some(Exit::PageNotLoaded.code()),
+            "{err}"
+        );
+        assert!(err.contains(SENTENCE), "{err}");
+        assert!(!err.contains("panicked"), "{err}");
+    }
+
+    #[test]
+    fn give_up_never_ends_the_process_before_ready() {
+        if std::env::var_os(GIVE_UP_CHILD).is_some() {
+            give_up_in_this_child(Instant::now(), false, false);
+            return;
+        }
+        let mut child =
+            give_up_child("check_page::tests::give_up_never_ends_the_process_before_ready");
+        let status = ended_within(&mut child, WITHIN * 10);
+        let err = stderr_of(&mut child);
+        assert!(status.is_none(), "{err}");
+        assert!(!err.contains(SENTENCE), "{err}");
     }
 }

@@ -856,7 +856,9 @@ object_type! {
 object_type! {
     /// One other live agent of the reply of `list_overlaps`: its workflow, its agent and the senders that it shares
     /// with the asking agent, at least one, in the spelling of the asking agent's list. Each sender is a piece that
-    /// the reader of the slot `reply_senders` takes, and no two are one address by `same_address`.
+    /// the reader of the slot `reply_senders` takes, and no two are one address by `same_address`. Which senders an
+    /// entry names, their spelling and their order are those of the asking agent's list, and the store's handler of
+    /// `list_overlaps` holds them for every body; this type checks the form of each sender alone (CP-232 (1)).
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Overlap {
         pub workflow: WorkflowId = "workflow" => json::workflow_id,

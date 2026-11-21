@@ -9,14 +9,7 @@ use std::path::{Path, PathBuf};
 const TRACKED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../ui/tests/fixtures/coord");
 
 fn fresh_dir(name: &str) -> PathBuf {
-    let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
-    for n in 0.. {
-        let dir = base.join(format!("{name}-{}-{n}", std::process::id()));
-        if std::fs::create_dir_all(base).is_ok() && std::fs::create_dir(&dir).is_ok() {
-            return dir;
-        }
-    }
-    unreachable!()
+    halvo_test_dir::make(Path::new(env!("CARGO_TARGET_TMPDIR")), name).unwrap()
 }
 
 fn names(dir: &Path) -> BTreeSet<String> {
@@ -196,8 +189,11 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                 Some("seq") => &["seq", "rows", "items", "note"],
                 Some("agent") if keys.get(1).map(String::as_str) == Some("workflow") => &[
                     "agent", "workflow", "name", "status", "word", "line", "say", "level", "next",
-                    "controls",
+                    "controls", "ask",
                 ],
+                Some("kind") => &["kind", "title", "text", "effects", "record", "controls"],
+                Some("act") => &["act", "text"],
+                Some("text") => &["text", "fields"],
                 Some("agent") => &["agent", "name", "lines", "runs"],
                 Some("control") => &["control", "text"],
                 Some("item") => &[

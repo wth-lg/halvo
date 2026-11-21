@@ -33,6 +33,16 @@ pub struct Facts<C> {
     pub today: u32,
     /// Its run state and its open item.
     pub doing: Doing,
+    /// Whether `workflow` is the stand-in that a new life assumes for a workflow that the owner's
+    /// list holds in the dismissed shape, with the state `paused` (I5.8), which is no entry of
+    /// that list and gives no derived hold `off` (I5.4; ruling RD-67 1.2).
+    pub stand_in: bool,
+    /// Whether this life marked the agent because the owner refused with `overlap` a
+    /// `set_state` `active` of the tick's rule or of `activate` after a set-up, and no
+    /// acknowledged switch-on came since: the agent then stands as off by the derived hold, also
+    /// while the `paused` that follows has no acknowledgement (rulings RD-67 4.3, RD-160 (1)). A
+    /// new life holds no mark; the state of `workflow` stays the owner's acknowledged answer.
+    pub active_refused: bool,
 }
 
 impl<C> Facts<C> {

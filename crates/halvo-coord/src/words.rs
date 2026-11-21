@@ -107,7 +107,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.working.kill_stuck_windows",
-        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo. All tasks stop.",
+        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo.",
     ),
     (
         "line.waiting_turn.queued",
@@ -443,6 +443,30 @@ pub const KEYS: &[(&str, &str)] = &[
         "run.effect.unshown",
         "It did one thing that Halvo cannot show.",
     ),
+    (
+        "run.effect.payment.partial",
+        "It made this payment, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.purchase.partial",
+        "It placed this order, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.send.partial",
+        "It sent this message, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.submit.partial",
+        "It sent this form, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.sign.partial",
+        "It signed this document, but Halvo shows only the details it could read.",
+    ),
+    (
+        "run.effect.local_edit.partial",
+        "It changed a file, but Halvo shows only the details it could read.",
+    ),
     ("run.effect.payment.not_done", "This payment was not made."),
     ("run.effect.purchase.not_done", "This order was not placed."),
     ("run.effect.send.not_done", "This message was not sent."),
@@ -486,6 +510,38 @@ pub const KEYS: &[(&str, &str)] = &[
         "run.effect.refused",
         "You said no, so one step of this task was not done.",
     ),
+    (
+        "run.effect.payment.unknown",
+        "A payment may have been made; Halvo could not tell. Check your bank or the site before you pay again.",
+    ),
+    (
+        "run.effect.purchase.unknown",
+        "An order may have been placed; Halvo could not tell. Check the shop's order page before you order again.",
+    ),
+    (
+        "run.effect.send.unknown",
+        "A message may have been sent; Halvo could not tell. Look in your sent messages before you send it again.",
+    ),
+    (
+        "run.effect.delete.unknown",
+        "Something may have been removed; Halvo could not tell. Look where this agent works for anything missing.",
+    ),
+    (
+        "run.effect.submit.unknown",
+        "A form may have been sent; Halvo could not tell. Check the site before you send it again.",
+    ),
+    (
+        "run.effect.sign.unknown",
+        "A document may have been signed for you; Halvo could not tell. Check your email before you sign it again.",
+    ),
+    (
+        "run.effect.local_edit.unknown",
+        "A file may have been changed; Halvo could not tell. Open it and look before you change it again.",
+    ),
+    (
+        "run.effect.unknown",
+        "One step may have been done; Halvo could not tell. Check where this agent works before you run it again.",
+    ),
     ("line.run.stopped", "It stopped before the task was done."),
     ("field.local_edit.file", "File"),
     ("field.local_edit.range", "Where in the file"),
@@ -505,6 +561,90 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "param_typed.too_long",
         "Something you added was too long to fit, so none of it was added. Read your answer before sending.",
+    ),
+    (
+        "line.working.deleting",
+        "Halvo is stopping this agent and will then remove it.",
+    ),
+    ("ask.delete.title", "Remove “{name}” from Halvo?"),
+    ("ask.delete.next", "Its next task is set for {day}."),
+    (
+        "ask.delete.setup",
+        "Halvo removes what you set up and answered for it, and what it learned.",
+    ),
+    (
+        "ask.delete.sign_in",
+        "It also removes its schedule and what it kept on this computer to sign in.",
+    ),
+    (
+        "ask.delete.records",
+        "It removes the record of each task and of what it did.",
+    ),
+    ("ask.delete.final", "You cannot bring it back."),
+    (
+        "ask.delete.done",
+        "Nothing it already paid, ordered or sent is taken back, and nothing at a website is cancelled.",
+    ),
+    (
+        "ask.delete.copies",
+        "The copies that Halvo made beside your workbooks stay.",
+    ),
+    (
+        "ask.delete.starts",
+        "If it starts a task before you answer, Halvo stops it first and removes it once it has stopped.",
+    ),
+    (
+        "ask.delete.record",
+        "Halvo keeps no record of this once the agent is removed.",
+    ),
+    ("ask.delete.keep", "Keep it"),
+    (
+        "ask.effect.payment",
+        "Halvo does not know whether it made this payment.",
+    ),
+    (
+        "ask.effect.purchase",
+        "Halvo does not know whether it placed this order.",
+    ),
+    (
+        "ask.effect.send",
+        "Halvo does not know whether it sent this message.",
+    ),
+    (
+        "ask.effect.delete",
+        "Halvo does not know whether it removed this.",
+    ),
+    (
+        "ask.effect.submit",
+        "Halvo does not know whether it sent this form.",
+    ),
+    (
+        "ask.effect.sign",
+        "Halvo does not know whether it signed this document.",
+    ),
+    (
+        "ask.effect.local_edit",
+        "Halvo does not know whether it changed this file.",
+    ),
+    (
+        "ask.effect.other",
+        "Halvo does not know whether one step of its last task happened.",
+    ),
+    ("ask.working.title", "“{name}” is working now"),
+    (
+        "ask.working.text",
+        "Stop it first, and you can remove it once it has stopped.",
+    ),
+    ("ask.working.keep", "Let it work"),
+    ("ask.stopping.title", "“{name}” is stopping"),
+    (
+        "ask.stopping.text",
+        "You can remove it once it has stopped.",
+    ),
+    ("ask.stopping.done", "OK"),
+    (
+        "line.needs_you.asks_again",
+        "You cancelled its start, so it asks you again before it starts.",
     ),
 ];
 
