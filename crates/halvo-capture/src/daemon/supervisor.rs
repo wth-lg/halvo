@@ -932,7 +932,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 }
             }
             self.backoff.clear();
-        } else if !stops && self.stopped_for_drain {
+        } else if !stops && self.stopped_for_drain && !self.pausing {
             self.stopped_for_drain = false;
             self.start_wanted(now);
         }
