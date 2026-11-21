@@ -332,6 +332,47 @@ describe("a run of unexplained totals is closed as not billable with the cause u
       w.close();
     });
   }
+
+  test("no run younger than the span is closed with the cause at the removal: the delete answered 360 s before the run's first unexplained read, so the removal's bound comes 60 s before the run's; the removal reads once at its bound, that read decides nothing, and the stuck interval closes delete-bound at the bound", async () => {
+    const w = await world({ meter: MINUTE, faults: [{ kind: "response-lost" }, LOST, LOST] });
+    await w.use("r1", 30_000);
+    foreign(w, 5);
+    await w.clock(END);
+    await w.use("r2", 5_000_000);
+    const late = END + SPAN;
+    await w.clock(late);
+    await quiet(w.lines, () => w.entries().destroy(HASH));
+    const run = late + 360_000;
+    let stuck: Row | undefined;
+    const removeAll = w.host.deleteAll.bind(w.host);
+    w.host.deleteAll = async () => {
+      stuck = w.host.step((sql) => sql.exec("SELECT outcome, refusal, unexplained_since FROM metering_interval ORDER BY start")[0]) as Row | undefined;
+      return removeAll();
+    };
+    let due: number | null = null;
+    for (let step = 0; step < 100; step += 1) {
+      const snapshot = await w.entries().testInspect();
+      if (snapshot.result !== "snapshot" || snapshot.due === null || snapshot.due === due) break;
+      due = snapshot.due;
+      await restartOnAStop(w, due);
+    }
+    const removedAt = w.now();
+    const reads = w.calls.filter((each) => each.kind === "read");
+    expect({
+      removed: (await w.entries().testInspect()).result,
+      at: removedAt - late,
+      runAgeAtTheRemoval: removedAt - run,
+      stuck: [stuck?.outcome, stuck?.refusal, stuck?.unexplained_since],
+      readsAtTheRemoval: reads.filter((each) => each.at === removedAt).map((each) => each.answer),
+    }).toEqual({
+      removed: "no-such-account",
+      at: DAY,
+      runAgeAtTheRemoval: SPAN - 60_000,
+      stuck: ["not-billable", "delete-bound", run],
+      readsAtTheRemoval: ["total 8"],
+    });
+    w.close();
+  });
 });
 
 /** Sets the clock; a stop of the object on the way is followed by a restart, as the platform starts the object again. */
