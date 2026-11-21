@@ -334,6 +334,7 @@
     box.appendChild(about);
     addParams(box, item, card.answers);
     const controls = el('div', 'hn-controls', '');
+    const buttons = [];
     item.choices.forEach(function (c) {
       const b = el('button', 'hn-button', c.text);
       b.type = 'button';
@@ -346,6 +347,7 @@
         answer(item, c, card, event);
       });
       controls.appendChild(b);
+      buttons.push(b);
     });
     box.appendChild(controls);
     if (page) {
@@ -353,6 +355,7 @@
       card.handle.again = function () {
         modal(card);
       };
+      card.handle.hold = buttons;
       card.dialog = box;
       card.li.appendChild(box);
     }

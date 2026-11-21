@@ -25,18 +25,39 @@
     const type = event.type;
     if (type === 'keydown') {
       if (!event.repeat) keys.set(event.key, { at: tick, target: event.target });
-      press = { target: event.target, repeat: event.repeat, at: event.repeat ? null : tick, from: event.target, raise: false, end: false };
+      press = { target: event.target, repeat: event.repeat, at: event.repeat ? null : tick, from: event.target, raise: false, held: false, end: false };
     } else if (type === 'keyup') {
       const down = keys.get(event.key) || null;
       keys.delete(event.key);
-      press = { target: event.target, repeat: false, at: down ? down.at : null, from: down ? down.target : null, raise: false, end: true };
+      press = { target: event.target, repeat: false, at: down ? down.at : null, from: down ? down.target : null, raise: false, held: false, end: true };
     } else if (type === 'pointerdown') {
-      pointer = { at: tick, target: event.target, raise: raising };
+      pointer = { at: tick, target: event.target, raise: raising, held: holding(event.target) };
       raising = false;
-      press = { target: event.target, repeat: false, at: tick, from: event.target, raise: pointer.raise, end: false };
+      press = { target: event.target, repeat: false, at: tick, from: event.target, raise: pointer.raise, held: pointer.held, end: false };
     } else {
-      press = { target: event.target, repeat: false, at: pointer ? pointer.at : null, from: pointer ? pointer.target : null, raise: pointer ? pointer.raise : false, end: true };
+      press = { target: event.target, repeat: false, at: pointer ? pointer.at : null, from: pointer ? pointer.target : null, raise: pointer ? pointer.raise : false, held: pointer ? pointer.held : false, end: true };
     }
+  }
+
+  // The hold of a control is the CSS animation hc-hold of confirm.css, which also draws its look.
+  // The engine alone keeps its time: a pointer press refuses its click when the animation was
+  // running at the press, read here at pointerdown, and nothing waits for the animation to end.
+  function holding(node) {
+    if (!node || typeof node.getAnimations !== 'function') return false;
+    return node.getAnimations().some(function (a) {
+      return a.animationName === 'hc-hold' && a.playState === 'running';
+    });
+  }
+
+  // Starts the hold of the handle's controls anew: the class goes and comes back across the style
+  // change that getAnimations() makes, so the engine starts the animation from its beginning.
+  function hold(handle) {
+    if (!handle.hold) return;
+    handle.hold.forEach(function (control) {
+      control.classList.remove('hc-hold');
+      control.getAnimations();
+      control.classList.add('hc-hold');
+    });
   }
 
   function raised(event) {
@@ -53,7 +74,7 @@
     press = null;
     if (!p) return true;
     if (p.target !== event.currentTarget) return !(p.end && (p.at === null || p.at <= handle.opened));
-    if (p.repeat || p.raise || p.at === null || p.at <= handle.opened) return false;
+    if (p.repeat || p.raise || p.held || p.at === null || p.at <= handle.opened) return false;
     return Boolean(p.from && handle.dialog.contains(p.from));
   }
 
@@ -70,7 +91,7 @@
   }
 
   function dress(box, labelledby, describedby, closed) {
-    const handle = { dialog: box, opened: 0, gone: false, closed: closed, again: null };
+    const handle = { dialog: box, opened: 0, gone: false, closed: closed, again: null, hold: null };
     box.setAttribute('role', 'alertdialog');
     box.setAttribute('tabindex', '-1');
     box.autofocus = true;
@@ -97,6 +118,7 @@
     if (shown !== null && shown !== handle && shown.dialog.open) return false;
     shown = handle;
     handle.opened = tick;
+    hold(handle);
     handle.dialog.showModal();
     handle.dialog.scrollTop = 0;
     handle.dialog.focus();

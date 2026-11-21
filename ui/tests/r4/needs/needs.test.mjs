@@ -2596,17 +2596,24 @@ async function again(origin, dir) {
  * from agents_snapshot, the test hands it each later state (`window.r4next`), and each call that
  * the view makes is kept in `window.r4calls`. agents_answer is answered from `window.r4answers`
  * in order, `'hold'` keeps the reply back until `window.r4held` gives it, and every other call is
- * answered ok. */
-async function standIn(origin, first) {
+ * answered ok. With `slow`, each animation of a control of an open dialog runs a thousand times
+ * slower from the moment the dialog opens, so that the time of a hold moves only when the test
+ * moves it through the animation itself. */
+async function standIn(origin, first, slow) {
   const src = readFileSync(VIEW_FILE, 'utf8');
   const h = await open({ origin, state: 'empty', views: [CONFIRM] });
   await h.page.evaluate(
-    ([code, state]) => {
+    ([code, state, slowed]) => {
       window.r4calls = [];
       window.r4afters = [];
       window.r4answers = [];
       const waits = [];
       window.r4next = (next) => waits.splice(0).forEach((wake) => wake(next));
+      if (slowed) {
+        new MutationObserver(() => {
+          for (const control of document.querySelectorAll('dialog[open] [data-act]')) for (const a of control.getAnimations()) a.playbackRate = 0.001;
+        }).observe(document, { subtree: true, attributes: true, attributeFilter: ['open', 'class'] });
+      }
       let view = null;
       const fake = {
         views: { add: (v) => (view = v) },
@@ -2638,9 +2645,14 @@ async function standIn(origin, first) {
       window.r4view = view;
       view.show();
     },
-    [src, first],
+    [src, first, Boolean(slow)],
   );
   return h;
+}
+
+/** Two frames of the page with no settle of the harness, which would end every running animation. */
+async function paint(h) {
+  await h.page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
 }
 
 function reportsOf(h) {
@@ -2698,6 +2710,48 @@ async function shownReports(origin, dir) {
   return faults;
 }
 
+/** RD-80 5.4 with 2.2, 2.4 and 2.6: from each show the two controls of a page confirmation take no
+ * pointer press that begins inside the hold, also when it is released after the hold; a press
+ * after the hold acts, and so does a key inside it. The pointer is driven by raw events, and the
+ * time of the hold moves only through its own animation. */
+async function guard(origin, dir) {
+  const faults = [];
+  const item = withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'a'.repeat(32));
+  const control = (h) => h.page.locator(sel(item.choices[0].choice, item.item));
+  const holds = (h) => control(h).evaluate((b) => b.getAnimations().some((a) => a.playState === 'running'));
+  const answers = (h) => h.page.evaluate(() => window.r4calls.filter((c) => c.call === 'agents_answer').length);
+  const h = await standIn(origin, snap(1, [item]), true);
+  try {
+    await paint(h);
+    if (!(await holds(h))) faults.push('no_hold_at_the_show');
+    await control(h).scrollIntoViewIfNeeded();
+    const box = await control(h).boundingBox();
+    await h.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await h.page.mouse.down();
+    await control(h).evaluate((b) => b.getAnimations().forEach((a) => a.finish()));
+    await h.page.mouse.up();
+    await paint(h);
+    if ((await answers(h)) !== 0) faults.push('a_press_begun_in_the_hold_acts=' + (await answers(h)));
+    await h.page.evaluate(() => window.r4answers.push({ error: 'early' }));
+    await h.page.mouse.down();
+    await h.page.mouse.up();
+    await paint(h);
+    if ((await answers(h)) !== 1) faults.push('a_press_after_the_hold=' + (await answers(h)));
+    await paint(h);
+    if ((await control(h).count()) !== 1) throw new Error('not shown again');
+    if (!(await holds(h))) faults.push('no_hold_at_the_later_show');
+    await control(h).focus();
+    await h.page.keyboard.press('Enter');
+    await paint(h);
+    if ((await answers(h)) !== 2) faults.push('a_key_in_the_hold=' + (await answers(h)));
+  } catch (err) {
+    faults.push('throws_' + String((err && err.message) || err).split('\n')[0].replace(/\s+/g, '_'));
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
 const FEATURES = join(ROOT, 'docs', 'r4', 'page-features.txt');
 
 async function features(origin) {
@@ -2735,7 +2789,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again', 'shown'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again', 'shown', 'guard'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -2763,6 +2817,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('step')) report('step', await steps(origin, dir));
     if (want('again')) report('again', await again(origin, dir));
     if (want('shown')) report('shown', await shownReports(origin, dir));
+    if (want('guard')) report('guard', await guard(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;
