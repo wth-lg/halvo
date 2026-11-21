@@ -2308,7 +2308,7 @@ where
     /// whose `hold_set` the owner refuses with a name of class B stops the agent's live run as
     /// the stop does, stores no hold and answers the store's cause; the agent stays on, and its
     /// row says both, that the task was stopped and that the switch-off could not be saved, until
-    /// a later run of it starts (ruling RD-155 (1)).
+    /// a later run of it starts or a later switch-off of it is stored (ruling RD-155 (1)).
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
