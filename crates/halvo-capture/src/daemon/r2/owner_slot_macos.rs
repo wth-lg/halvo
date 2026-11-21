@@ -1,9 +1,9 @@
 //! The owner slot on macOS: the channel is one socket pair, so that an end of a stream travels beside a frame, and
-//! the owner gets its end at the descriptors 3 and 4; the start time of a process is the delete walk's reading
-//! alone; an orphan is ended by signals.
+//! the owner gets its end at the descriptors 3 and 4, and its two ends of a worker's channel at 5 and 6; the start
+//! time of a process is the delete walk's reading alone; an orphan is ended by signals.
 
 use std::fs::{self, DirBuilder, File, Metadata, OpenOptions, Permissions};
-use std::io::{self, ErrorKind};
+use std::io::{self, ErrorKind, PipeReader, PipeWriter};
 use std::net::Shutdown;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
@@ -38,29 +38,43 @@ fn descriptor_limit() -> libc::c_int {
 }
 
 /// Starts `command` with the owner's end of a new socket pair at the descriptors 3 and 4, named by `--channel=3,4`,
-/// and close-on-exec on every other descriptor above the standard streams. A write of the slot on the channel blocks
-/// at most as long as a call waits for its reply.
-pub(super) fn launch(command: &mut Command) -> io::Result<(Child, Channel)> {
+/// with the two ends of `worker`, where it holds them, at 5 and 6, named by `--worker=5,6`, and close-on-exec on
+/// every other descriptor above the standard streams. A write of the slot on the channel blocks at most as long as a
+/// call waits for its reply.
+pub(super) fn launch(
+    command: &mut Command,
+    worker: Option<(PipeReader, PipeWriter)>,
+) -> io::Result<(Child, Channel)> {
     let (owners, writes) = UnixStream::pair()?;
     writes.set_write_timeout(Some(REPLY_WAIT))?;
     let reads = writes.try_clone()?;
     let end = owners.as_raw_fd();
     let limit = descriptor_limit();
     command.arg("--channel=3,4");
+    let mut ends = vec![end, end];
+    if let Some((worker_reads, worker_writes)) = &worker {
+        command.arg("--worker=5,6");
+        ends.extend([worker_reads.as_raw_fd(), worker_writes.as_raw_fd()]);
+    }
+    let first_free = 3 + libc::c_int::try_from(ends.len()).unwrap_or(4);
+    let mut high: Vec<libc::c_int> = vec![-1; ends.len()];
     // SAFETY: the closure runs in the child between fork and exec and calls fcntl and dup2 alone, which are
-    // async-signal-safe. It first copies the owner's end above 9, so that no dup2 writes over it before it is copied.
+    // async-signal-safe; it writes into `high`, which was allocated before the fork. It first copies each end above
+    // 9, so that no dup2 writes over an end before it is copied.
     unsafe {
         command.pre_exec(move || {
-            let high = libc::fcntl(end, libc::F_DUPFD_CLOEXEC, 10);
-            if high < 0 {
-                return Err(io::Error::last_os_error());
-            }
-            for place in [3, 4] {
-                if libc::dup2(high, place) < 0 {
+            for (copy, end) in high.iter_mut().zip(&ends) {
+                *copy = libc::fcntl(*end, libc::F_DUPFD_CLOEXEC, 10);
+                if *copy < 0 {
                     return Err(io::Error::last_os_error());
                 }
             }
-            for descriptor in 5..limit {
+            for (place, copy) in (3..).zip(&high) {
+                if libc::dup2(*copy, place) < 0 {
+                    return Err(io::Error::last_os_error());
+                }
+            }
+            for descriptor in first_free..limit {
                 let flags = libc::fcntl(descriptor, libc::F_GETFD);
                 if flags >= 0 && flags & libc::FD_CLOEXEC == 0 {
                     libc::fcntl(descriptor, libc::F_SETFD, flags | libc::FD_CLOEXEC);
@@ -71,6 +85,7 @@ pub(super) fn launch(command: &mut Command) -> io::Result<(Child, Channel)> {
     }
     let child = command.spawn();
     drop(owners);
+    drop(worker);
     Ok((child?, Channel { writes, reads }))
 }
 

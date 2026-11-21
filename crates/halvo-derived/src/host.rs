@@ -83,7 +83,7 @@ impl Host {
     }
 
     /// Hands the host the report after each committed transaction of the store: the revision of every family, the
-    /// count per retention class, the database's bytes on disk and its next expiry deadline.
+    /// count per retention class, the database's bytes on disk, its next expiry deadline and its committed position.
     pub fn on_report(mut self, sink: ReportSink) -> Host {
         self.report = Some(sink);
         self

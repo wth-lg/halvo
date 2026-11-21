@@ -7,15 +7,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Once};
 use std::time::Duration;
 
-use halvo_schema_core::ids::Position;
+use halvo_schema_core::ids::{Position, StoreId};
 use halvo_schema_core::kinds::{self, KindEntry, RetentionClass};
 use halvo_schema_core::record::Instant;
+use halvo_sqlcipher::rusqlite::types::ValueRef;
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags, Params, Row};
 
 use crate::error::{db_fault, io_fault, Fault, OpenError, StoredFault};
 use crate::handler::DayFault;
 use crate::host::{Clock, DbKey, IdSource, ReportSink};
-use crate::report::{Counts, Report};
+use crate::report::{CommittedPosition, Counts, PositionState, Report};
 use crate::sql::{self, Sql};
 
 pub(crate) const PAGE_CACHE_KIB: i64 = 4096;
@@ -394,6 +395,28 @@ pub(crate) struct Meta {
     pub(crate) position: Option<Position>,
 }
 
+/// The state of the store id and the committed position from the three columns of the row of `meta`, as SQLite holds
+/// them, with no conversion that can fail: three nulls are `Unbound`; a text that is UTF-8 and a store id beside two
+/// integers from 0 up is `Committed`; every other value is `Malformed`, a text that is not UTF-8 among them.
+fn position_state(store: ValueRef<'_>, seg: ValueRef<'_>, idx: ValueRef<'_>) -> PositionState {
+    match (store, seg, idx) {
+        (ValueRef::Null, ValueRef::Null, ValueRef::Null) => PositionState::Unbound,
+        (ValueRef::Text(store), ValueRef::Integer(seg), ValueRef::Integer(idx)) => {
+            let store = std::str::from_utf8(store)
+                .ok()
+                .and_then(|text| StoreId::parse(text).ok());
+            match (store, u64::try_from(seg), u64::try_from(idx)) {
+                (Some(store), Ok(seg), Ok(idx)) => PositionState::Committed(CommittedPosition {
+                    store,
+                    position: Position { seg, idx },
+                }),
+                _ => PositionState::Malformed,
+            }
+        }
+        _ => PositionState::Malformed,
+    }
+}
+
 pub(crate) fn exec<P: Params>(conn: &Connection, sql: Sql, params: P) -> Result<usize, Fault> {
     let mut statement = conn.prepare_cached(sql.text()).map_err(db_fault)?;
     statement.execute(params).map_err(db_fault)
@@ -694,9 +717,10 @@ impl Db {
         Ok(())
     }
 
-    /// The four values of the owner's report: the revision of every family of the entries in their order, the count
-    /// of rows per retention class, the bytes on disk of the database with its log and its shared-memory file, and
-    /// the next expiry deadline.
+    /// The five values of the owner's report: the revision of every family of the entries in their order, the count
+    /// of rows per retention class, the bytes on disk of the database with its log and its shared-memory file, the
+    /// next expiry deadline, and the state of the store id and the committed position in the one row of `meta`
+    /// (`position_state`; no row is `Malformed`). A fault of the statement that reads the row stays a fault.
     pub(crate) fn report(&self) -> Result<Report, Fault> {
         let mut revisions = Vec::new();
         for family in &self.families {
@@ -736,11 +760,16 @@ impl Db {
             .into_iter()
             .flatten()
             .min();
+        let position = one(&self.conn, sql::META_READ, [], |r| {
+            Ok(position_state(r.get_ref(0)?, r.get_ref(1)?, r.get_ref(2)?))
+        })?
+        .unwrap_or(PositionState::Malformed);
         Ok(Report {
             revisions,
             counts,
             disk_bytes,
             expiry,
+            position,
         })
     }
 

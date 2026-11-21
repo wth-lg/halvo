@@ -1599,6 +1599,7 @@ name = "halvo-analysis"
 version = "0.0.0"
 dependencies = [
  "getrandom 0.3.4",
+ "halvo-capture",
  "halvo-identify",
  "halvo-owner",
  "halvo-sample",
@@ -1631,6 +1632,7 @@ dependencies = [
  "core-graphics",
  "dispatch2",
  "getrandom 0.2.17",
+ "halvo-cap",
  "halvo-capture",
  "halvo-control",
  "halvo-redact",
@@ -1800,6 +1802,7 @@ dependencies = [
  "halvo-schema",
  "halvo-schema-core",
  "halvo-seam",
+ "halvo-sqlcipher",
  "halvo-test-dir",
  "libc",
  "serde",
