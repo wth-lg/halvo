@@ -54,7 +54,7 @@ use halvo_sheet::{Cell, Folder, Locks, Range, Value};
 use serde_json::value::RawValue;
 
 use crate::host::{minted, GateHost};
-use crate::seed::{bind, Binding};
+use crate::seed::{bind, Binding, StopCause};
 use crate::standin::{self, Standin};
 use crate::STORE;
 
@@ -294,11 +294,13 @@ pub fn play(fill: &Fill) -> Result<Line, Refused> {
     let workbook = dir.join(WORKBOOK);
     let source = dir.join(SOURCE);
     let data = dir.join(DATA);
-    fs::copy(repo().join(CORPUS), &workbook)
-        .map_err(|e| fixture(format!("the corpus workbook cannot be copied: {e}")))?;
-    fs::write(&source, rows).map_err(|e| fixture(format!("{SOURCE} cannot be written: {e}")))?;
+    fs::copy(repo().join(CORPUS), &workbook).map_err(|_| {
+        fixture("the corpus workbook cannot be copied into the command's directory")
+    })?;
+    fs::write(&source, rows)
+        .map_err(|_| fixture("source.csv cannot be written in the command's directory"))?;
     fs::create_dir(&data)
-        .map_err(|e| fixture(format!("the data directory cannot be made: {e}")))?;
+        .map_err(|_| fixture("the data directory cannot be made in the command's directory"))?;
     let before = holds_rows(&dir, &data, &workbook, &source);
 
     let mut host = GateHost::new();
@@ -437,11 +439,7 @@ fn make_dir() -> Result<PathBuf, Refused> {
         match fs::create_dir(&path) {
             Ok(()) => return Ok(path),
             Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
-            Err(e) => {
-                return Err(fixture(format!(
-                    "the command's directory cannot be made: {e}"
-                )))
-            }
+            Err(_) => break,
         }
     }
     Err(fixture("the command's directory cannot be made"))
@@ -481,15 +479,8 @@ fn set_up(
     let agent = AgentId::from_random(minted());
     let send = |host: &mut GateHost, call: CoordinatorCall| match host.send(&call) {
         Ok(reply) if reply.answers(&call) => Ok(()),
-        Ok(_) => Err(format!(
-            "the gate host answered {} with another form",
-            call.op()
-        )),
-        Err(e) => Err(format!(
-            "the gate host refused {} with {}",
-            call.op(),
-            e.as_str()
-        )),
+        Ok(_) => Err(other_form(call.op())),
+        Err(error) => Err(refused_body(call.op(), &error)),
     };
     send(
         host,
@@ -502,7 +493,10 @@ fn set_up(
         origins: Vec::new(),
         slots,
     };
-    bind(host, &workflow, &agent, run, &binding).map_err(|stopped| stopped.to_string())?;
+    bind(host, &workflow, &agent, run, &binding).map_err(|stopped| match stopped.cause {
+        StopCause::Refused(error) => refused_body(stopped.op, &error),
+        StopCause::Reply => other_form(stopped.op),
+    })?;
     send(
         host,
         CoordinatorCall::SetState(SetState {
@@ -521,6 +515,19 @@ fn set_up(
         }),
     )?;
     Ok((workflow, agent))
+}
+
+/// The detail of a set-up body that the gate host refused: the body's op and the handler's refusal, no value.
+fn refused_body(op: &str, error: &ErrorName) -> String {
+    format!(
+        "the gate host refused the set-up body {op} with {}",
+        error.as_str()
+    )
+}
+
+/// The detail of a set-up body that the gate host answered with a reply of another form than its call's.
+fn other_form(op: &str) -> String {
+    format!("the gate host answered the set-up body {op} with another form")
 }
 
 /// Whether the range of the workbook holds the rows of the source, cell for cell, as the sheet executor reads both.
