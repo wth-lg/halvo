@@ -37,6 +37,8 @@ esac
 #= tests/open.rs open_creates_the_database_and_opens_it_again
 #= tests/open.rs open_refuses_a_store_whose_auto_vacuum_is_not_0
 #= tests/open.rs open_refuses_a_keyless_store_whose_page_size_is_not_4096
+#= tests/open.rs a_refused_open_of_a_rollback_journal_file_changes_no_byte
+#= tests/open.rs a_wrong_key_under_a_held_writer_lock_is_sealed_and_changes_no_byte
 #= tests/commit.rs commit_batch_stores_each_summary_and_its_evidence_with_the_position
 #= tests/commit.rs commit_batch_hashes_the_title_token_with_the_key_of_its_own_database
 #= tests/commit.rs commit_batch_refuses_a_batch_read_from_another_store
@@ -193,6 +195,8 @@ esac
 #= tests/privacy.rs the_indexes_over_the_body_are_rows_read_and_rows_read_workflow
 #= tests/page_gap_check.rs small_rows_removed_one_at_a_time_leave_no_line_of_the_structural_check
 #= tests/page_gap_check.rs the_same_draw_with_secure_delete_off_leaves_lines_of_the_structural_check
+#= tests/page_gap_check.rs each_removal_leaves_no_line_of_the_structural_check
+#= tests/page_gap_check.rs the_delete_the_purge_and_the_expiry_take_rows_under_both_indexes
 #= tests/crash_model.rs no_window_row_names_a_shredded_ordinal_at_any_step_or_crash_of_commit_purge_and_delete_all
 
 fail() {
