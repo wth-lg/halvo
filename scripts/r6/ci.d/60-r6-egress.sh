@@ -1498,7 +1498,12 @@ EOF
 #!/bin/sh
 [ -z "$STUB_MARKER" ] || printf 'run %s\n' "$*" >>"$STUB_MARKER"
 if [ -n "$STUB_LEAVE" ] && [ "$1" = "$STUB_LEAVE" ]; then
-  printf 'x\n' >left-behind.txt
+  if [ -n "$STUB_LEAVE_AT" ]; then
+    printf 'x\n' >>"$STUB_LEAVE_COUNT"
+    [ "$(awk 'END { print NR }' "$STUB_LEAVE_COUNT")" != "$STUB_LEAVE_AT" ] || printf 'x\n' >left-behind.txt
+  else
+    printf 'x\n' >left-behind.txt
+  fi
 fi
 if [ "$#" -eq 1 ] && [ "$1" = commands ]; then
   if [ -n "$STUB_PRINT_EXIT" ]; then
@@ -1703,6 +1708,7 @@ SPAWN
     exit 0
     ;;
   loopback)
+    [ -z "$STUB_CONTROL_LEAVE" ] || printf 'x\n' >left-behind.txt
     [ "$STUB_CONTROL" = through ] && exit 0
     exit 1
     ;;
@@ -1731,6 +1737,8 @@ case_reset() {
   STUB_TAKE=
   STUB_PRINT_FILTER=
   STUB_PRINT_HIDDEN=
+  STUB_LEAVE_AT=
+  STUB_CONTROL_LEAVE=
   STUB_CHECK=pass
   STUB_TOUCH=
   STUB_FRESH=true
@@ -1946,6 +1954,9 @@ control-without-an-egress-line
 port-47202-held-by-another-process
 untracked-path-before-the-run
 import-takes-away-an-untracked-path
+derive-leaves-a-file-in-the-checkout
+control-leaves-a-file-in-the-checkout
+last-entry-leaves-a-file-in-the-checkout
 EOF
 }
 
@@ -1992,7 +2003,7 @@ case_run() {
   fi
   case_started=$(date +%s)
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE STUB_TAKE=$STUB_TAKE STUB_PRINT_FILTER=$STUB_PRINT_FILTER STUB_PRINT_HIDDEN=$STUB_PRINT_HIDDEN \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE STUB_TAKE=$STUB_TAKE STUB_PRINT_FILTER=$STUB_PRINT_FILTER STUB_PRINT_HIDDEN=$STUB_PRINT_HIDDEN STUB_LEAVE_AT=$STUB_LEAVE_AT STUB_LEAVE_COUNT=$work/leave-count STUB_CONTROL_LEAVE=$STUB_CONTROL_LEAVE \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
@@ -2299,6 +2310,9 @@ self_test() {
   take_tree=$(write_repo "$work/repo-take" '') || self_failed "setup at line $LINENO"
   print_leave_tree=$(write_repo "$work/repo-print-leave" '') || self_failed "setup at line $LINENO"
   print_filter_tree=$(write_repo "$work/repo-print-filter" '') || self_failed "setup at line $LINENO"
+  leave_derive_tree=$(write_repo "$work/repo-leave-derive" '') || self_failed "setup at line $LINENO"
+  leave_control_tree=$(write_repo "$work/repo-leave-control" '') || self_failed "setup at line $LINENO"
+  leave_last_tree=$(write_repo "$work/repo-leave-last" '') || self_failed "setup at line $LINENO"
   for dir in repo-leave repo-take; do
     printf 'x\n' >"$work/$dir/untracked-before.txt" || self_failed "setup at line $LINENO"
   done
@@ -2556,6 +2570,19 @@ EOF
   case_tree=$take_tree
   STUB_TAKE=import
   case_run import-takes-away-an-untracked-path FAIL check 'egress run=import: a wrapped run took away a path: untracked-before.txt'
+  case_repo=$work/repo-leave-derive
+  case_tree=$leave_derive_tree
+  STUB_LEAVE=derive
+  case_run derive-leaves-a-file-in-the-checkout FAIL check 'egress run=derive: a wrapped run left a new path: left-behind.txt'
+  case_repo=$work/repo-leave-control
+  case_tree=$leave_control_tree
+  STUB_CONTROL_LEAVE=1
+  case_run control-leaves-a-file-in-the-checkout FAIL check 'egress control: a wrapped run left a new path: left-behind.txt'
+  case_repo=$work/repo-leave-last
+  case_tree=$leave_last_tree
+  STUB_LEAVE=commands
+  STUB_LEAVE_AT=2
+  case_run last-entry-leaves-a-file-in-the-checkout FAIL check 'egress run=commands: a wrapped run left a new path: left-behind.txt'
   case_run graph-closed PASS - 'egress graph paths=3 linked=6 build=5 holds=yes'
   case_run rules-allowed-forms PASS - 'egress rules files='
   case_env="$v_flags=-Dwarnings"
