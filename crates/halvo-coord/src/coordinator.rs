@@ -2510,15 +2510,18 @@ where
     /// the order of their starts, as the last publish found them (ruling RD-147 (5)(i), RD-151):
     /// each live run, and each dying tree that the board still holds, a run that ended after
     /// its stop and whose tree no kill has ended yet, named with the agent that the list gave
-    /// its run while it lived. Every move writes the list again at its end, before the quit as
-    /// after it, the first step, the end of a run and the second step among them, and a move
-    /// that a port's panic ended leaves the list of the move before it. So a run or a tree whose
-    /// kill was refused stays in the list, and a tree leaves it with the move whose kill of it
-    /// was answered Ok. While a kill of a tick or of the second step holds the coordinator's
-    /// lock the list is the one from before that move: a run whose kill returned earlier in
-    /// that move stays named until the move returns. A run that the move holding the lock has
-    /// started is not in the list until that move returns. This read takes no lock that a port
-    /// call holds, so it answers while a kill holds the coordinator's lock.
+    /// its run while it lived. The publish at the end of a move writes the list, before the quit
+    /// as after it, the first step, the end of a run and the second step among them, and it
+    /// writes it before it calls the notification ports: a port's panic before the write
+    /// leaves the list of the move before, a panic in a notification after the write leaves the
+    /// list as that move wrote it, and a move that returns before any change, such as a move
+    /// refused while a settle waits, writes none. So a run or a tree whose kill was refused stays
+    /// in the list, and a tree leaves it with the move whose kill of it was answered Ok. While a
+    /// kill of a tick or of the second step holds the coordinator's lock the list is the one from
+    /// before that move: a run whose kill returned earlier in that move stays named until the
+    /// move returns. A run that the move holding the lock has started is not in the list until
+    /// that move returns, a named limit of U4.6. This read takes no lock that a port call holds,
+    /// so it answers while a kill holds the coordinator's lock.
     pub fn not_stopped(&self) -> Vec<(AgentId, RunId)> {
         self.unstopped
             .lock()

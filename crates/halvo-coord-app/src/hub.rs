@@ -116,34 +116,44 @@ pub trait Core: Send + Sync {
     fn tick(&self);
 
     /// The hook before the capture run's quit function sends its pause (I5.7, I5.9, ruling
-    /// RD-8): the first step of the coordinator's quit, then a wait in which no move of the
-    /// coordinator is held open, until no run is live, at most until `cancel_grace_s` after the
-    /// stop of each live run, counted from its stop for a run that was stopped before the quit,
-    /// never longer than `cancel_grace_s` whatever the clock reads (RD-28 (e)), and at most
-    /// `budget`, the time that the system gives the quit at a logout or a shutdown; then the
-    /// second step. The grace counts from the stop that the first step reads on the clock once
-    /// it holds the coordinator's lock, and for a run stopped before the quit from its own stop;
-    /// the budget counts from the hook's start. Each step runs on a thread of its own and the
-    /// hook waits for it at most `cancel_grace_s` after it called it, and the wait reads
-    /// `Coordinator::live`, which takes no lock. So the
-    /// hook stands behind the coordinator's lock nowhere, and a kill that holds or never
-    /// returns, of a tick or of either step, does not hold Quit (ruling RD-147 (5)(i)): the hook
-    /// returns at the latest `cancel_grace_s` after its call when its first step has not
-    /// returned by then, and otherwise at the latest `cancel_grace_s` after the end of its wait,
-    /// which ends at the latest `cancel_grace_s` after the first step returned. It returns the
-    /// live runs and the dying trees that the board still holds, each with its agent, in the
-    /// order of their starts, as the last move that returned left them
-    /// (`Coordinator::not_stopped`): a run or a tree whose kill was refused, every run and tree
-    /// that the board held before a move whose kill has not returned, and, where the first step
-    /// could not take the lock in time, every one that the board held when the move that holds
-    /// the lock began. A second call, during the wait or after a kill that holds, takes its own steps
-    /// under the same bounds, returns at its own end and does not hold the first call. A step
-    /// that has not returned goes on in its thread until the app's process ends, and closing the
-    /// link ends the runner with the processes of its mark within the agent-setup run's
-    /// `LINK_END` of 20 s; neither a step nor a kill starts that clock. A port's panic in a step
-    /// ends that step's thread, and the hook then returns at once; where no thread can be
-    /// started for a step, the hook takes that step no further and returns. The next life's
-    /// reap is then the kill (RD-34 (e)).
+    /// RD-8). It first marks the quit (`Coordinator::mark_quit`), with no lock and no port call,
+    /// so that from its call on every start is refused, the person's, the queue's and a tick's,
+    /// also in a move that holds the coordinator's lock then. Then the first step of the
+    /// coordinator's quit, then a wait in which no move of the coordinator is held open, until
+    /// no run is live, at most until `cancel_grace_s` after the stop of each live run, counted
+    /// from its stop for a run that was stopped before the quit, never longer than
+    /// `cancel_grace_s` whatever the clock reads (RD-28 (e)), and at most `budget`, the time that
+    /// the system gives the quit at a logout or a shutdown; then the second step. The grace
+    /// counts from the stop that the first step reads on the clock once it holds the
+    /// coordinator's lock, and for a run stopped before the quit from its own stop; the hook
+    /// counts the wait from the time that the first step read (`QuitWait::at`), so that a clock
+    /// that fails after the first step leaves the whole grace and a step of the clock back adds
+    /// nothing; the budget counts from the hook's start. Each step runs on a thread of its own
+    /// and the hook waits for it at most `cancel_grace_s` after it called it; the wait reads
+    /// `Coordinator::live`, which takes no lock, and the hook's own thread calls no port, the
+    /// clock included. So the hook stands behind the coordinator's lock and behind a port
+    /// nowhere, and a kill that holds or never returns, of a tick or of either step, does not
+    /// hold Quit (ruling RD-147 (5)(i)): the hook returns at the latest `cancel_grace_s` after
+    /// its call when its first step has not returned by then, and otherwise at the latest
+    /// `cancel_grace_s` after the end of its wait, which ends at the latest `cancel_grace_s`
+    /// after the first step returned. When the first step has not returned within
+    /// `cancel_grace_s`, that call sends no kill to all; and every run that got no kill stands in
+    /// the list that it returns, so the answer stays true, but for a run that the move holding
+    /// the lock started before the hook's call, which joins the list only when that move
+    /// returns. At a `cancel_grace_s` of 0, which the product does not set (`Limits::PRODUCT`
+    /// holds 5), neither step is waited for. It returns the live runs and the dying trees that
+    /// the board still holds, each with its agent, in the order of their starts, as the last
+    /// write of the list left them (`Coordinator::not_stopped`): a run or a tree whose kill was
+    /// refused, every run and tree that the board held before a move whose kill has not
+    /// returned, and, where the first step could not take the lock in time, every one that the
+    /// board held when the move that holds the lock began. A second call, during the wait or
+    /// after a kill that holds, takes its own steps under the same bounds, returns at its own
+    /// end and does not hold the first call. A step that has not returned goes on in its thread
+    /// until the app's process ends, and closing the link ends the runner with the processes of
+    /// its mark within the agent-setup run's `LINK_END` of 20 s; neither a step nor a kill starts
+    /// that clock. A port's panic in a step ends that step's thread, and the hook then returns
+    /// at once; where no thread can be started for a step, the hook takes that step no further
+    /// and returns. The next life's reap is then the kill (RD-34 (e)).
     fn quit(&self, budget: Option<Duration>) -> Vec<(AgentId, RunId)>;
 
     /// The native dialog's report that the item is on screen (I4.2).
