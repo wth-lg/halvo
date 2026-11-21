@@ -364,6 +364,20 @@ impl StateFile {
         }
     }
 
+    /// Writes the defaults over the state file, also over one that does not
+    /// load, and takes them into memory once the write succeeded: the reset
+    /// of a whole delete of everything, the person's own word that the file
+    /// goes (contracts.md C17 item 3), so that a store is made after it. It
+    /// is the one write over a file that did not load.
+    pub fn reset(&mut self) -> io::Result<()> {
+        let fresh = DaemonState::default();
+        self.save(&fresh)?;
+        self.state = fresh;
+        self.loaded = Loaded::Readable;
+        self.last_write = None;
+        Ok(())
+    }
+
     /// Adds to `permissions_once_granted` each permission of `granted` that it
     /// does not hold, through [`StateFile::update`]; when it holds them all,
     /// nothing is written.

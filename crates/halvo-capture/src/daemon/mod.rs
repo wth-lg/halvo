@@ -2744,10 +2744,24 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
                 .report
                 .as_ref()
                 .and_then(|report| delete_report(&ran, report).ok());
+            let whole = ran.whole && ran.synced;
+            let unloaded = matches!(
+                supervisor.status_parts(None).health,
+                state::StateHealth::Corrupt | state::StateHealth::NewerVersion(_)
+            );
+            if whole && unloaded {
+                if let Some(Err(error)) = supervisor.state_mut().map(state::StateFile::reset) {
+                    let _ = writeln!(
+                        err,
+                        "halvo-capture: state_file=write_failed: the defaults were not written over daemon-state.json after the delete: {}",
+                        error.kind()
+                    );
+                }
+            }
             DeleteAsked::Ran {
                 asked,
                 report,
-                whole: ran.whole && ran.synced,
+                whole,
             }
         }
     }

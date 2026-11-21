@@ -570,4 +570,27 @@ fn a_store_that_cannot_open_is_deleted_on_request_and_a_fresh_store_stands() {
         );
     }
     stop_the_run(&dir, &mut daemon, "case O");
+
+    let dir = scratch_data_dir().with_extension("unread");
+    std::fs::DirBuilder::new().mode(0o700).create(&dir).unwrap();
+    std::fs::write(dir.join("daemon-state.json"), "{\"v\":").unwrap();
+    let mut daemon = start(&dir, &["--scripted-sources"]);
+    status_until(&dir, "case U", &["state_file=corrupt", "store=unavailable"]);
+    let deleted = ctl(&dir, &["delete-all", "-"]);
+    assert_eq!(deleted.status.code(), Some(0), "case U: {}", text(&deleted));
+    let fresh = store_id_of(&String::from_utf8_lossy(&deleted.stdout));
+    assert!(
+        !fresh.is_empty() && fresh != "-",
+        "case U: no fresh store was made: {}",
+        text(&deleted)
+    );
+    status_until(&dir, "case U", &["state_file=ok", "store=open"]);
+    stop_the_run(&dir, &mut daemon, "case U");
+    let mut daemon = start(&dir, &["--scripted-sources"]);
+    status_until(
+        &dir,
+        "case U, the next life",
+        &["state_file=ok", "store=open", &format!("store_id={fresh}")],
+    );
+    stop_the_run(&dir, &mut daemon, "case U, the next life");
 }
