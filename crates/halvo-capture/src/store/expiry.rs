@@ -271,6 +271,61 @@ impl EncryptedStore {
         }
     }
 
+    fn oldest_live(&self) -> StoreResult<Option<(Uuid, Ordinal)>> {
+        self.db()?
+            .connection()
+            .query_row(
+                "SELECT segment_id, id FROM segment_keys WHERE wrapped_key IS NOT NULL \
+                 ORDER BY first_capture, id LIMIT 1",
+                [],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)),
+            )
+            .optional()
+            .map_err(db_error)?
+            .map(|(id, ordinal)| Ok((parse_segment_id(&id)?, Ordinal::of_row(ordinal))))
+            .transpose()
+    }
+
+    /// One eviction chunk against a raw byte bound. It first finishes what
+    /// an earlier call owes, as [`EncryptedStore::expire_due`] does. Then,
+    /// while the disk total of [`EncryptedStore::usage`] is above `bound`,
+    /// it shreds the live segment of the oldest first capture, one segment
+    /// at a time, each as an expiry chunk of one segment, at most
+    /// `max_segments` of them; at or under the bound it shreds nothing. It
+    /// ends when the disk total is at or under the bound or no live segment
+    /// is left, with `more_due` false, or at `max_segments` with `more_due`
+    /// true. The rows of shredded segments stay in the database, so a bound
+    /// under the database's own bytes ends with no live segment and a disk
+    /// total that `usage` still reads above it.
+    pub fn evict_to(&mut self, bound: u64, max_segments: usize) -> StoreResult<Pass> {
+        let owed_failure = self.finish_owed()?;
+        let mut shredded = Vec::new();
+        let more_due = loop {
+            if self.usage()?.disk_bytes <= bound {
+                break false;
+            }
+            let Some(oldest) = self.oldest_live()? else {
+                break false;
+            };
+            if shredded.len() >= max_segments {
+                break true;
+            }
+            match self.shred_chunk(&[oldest]) {
+                Ok(one) => shredded.extend(one),
+                Err(e) => return Err(owed_failure.unwrap_or(e)),
+            }
+        };
+        if let Some(first) = owed_failure {
+            return Err(first);
+        }
+        shredded.sort_unstable();
+        Ok(Pass {
+            shredded,
+            more_due,
+            owed: self.owes_work(),
+        })
+    }
+
     pub(in crate::store) fn destroy_segment_keys(&self, ids: &[Uuid]) -> StoreResult<u64> {
         let db = self.db()?;
         let changes_before = db.connection().total_changes();

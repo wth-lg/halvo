@@ -13036,3 +13036,67 @@ fn usage_reports_the_bytes_that_the_files_take_on_disk() {
     );
     assert_eq!(usage.logical_bytes, 50 * 1_000, "{usage:?}");
 }
+
+#[test]
+fn eviction_shreds_the_oldest_until_the_disk_bytes_are_under_the_bound() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let payload = vec![0xa5; 20_000];
+    let segments: Vec<(i64, Uuid, super::Ordinal)> = [3, 7, 1, 9, 0, 5, 2, 8, 4, 6]
+        .into_iter()
+        .map(|k| {
+            let first = (NOW_SECONDS - 100 + k) * SECOND;
+            let (id, ordinal) = batch_first_captured_at(&mut store, first, &payload);
+            (first, id, ordinal)
+        })
+        .collect();
+    store.db().unwrap().checkpoint_truncate().unwrap();
+    let bound = store.usage().unwrap().disk_bytes - 70_000;
+
+    let pass = store.evict_to(bound, 64).unwrap();
+    let after = store.usage().unwrap();
+    let again = store.evict_to(bound, 64).unwrap();
+
+    let (shredded, kept): (Vec<_>, Vec<_>) = segments
+        .iter()
+        .partition(|(_, id, _)| reads_sealed(&store, *id));
+    let mut sealed: Vec<super::Ordinal> = shredded.iter().map(|(_, _, o)| *o).collect();
+    sealed.sort_unstable();
+    assert!(
+        after.disk_bytes <= bound,
+        "the store ends at {after:?} above the bound {bound}"
+    );
+    assert!(
+        !shredded.is_empty() && !kept.is_empty(),
+        "the eviction shredded {} of 10 segments",
+        shredded.len()
+    );
+    assert_eq!(
+        pass.shredded, sealed,
+        "the returned ordinals are not the segments that read sealed"
+    );
+    assert!(!pass.more_due, "{pass:?}");
+    assert!(
+        shredded.iter().map(|s| s.0).max() <= kept.iter().map(|s| s.0).min(),
+        "a shredded segment is newer than a kept one"
+    );
+    assert!(
+        again.shredded.is_empty(),
+        "a call at or under the bound shredded {again:?}"
+    );
+
+    let to_zero = store.evict_to(0, 64).unwrap();
+
+    assert!(
+        !to_zero.more_due,
+        "an eviction to 0 that left no live segment answered {to_zero:?}"
+    );
+    assert!(
+        segments.iter().all(|(_, id, _)| reads_sealed(&store, *id)),
+        "an eviction to 0 left a live segment"
+    );
+    assert!(
+        store.usage().unwrap().disk_bytes > 0,
+        "the database alone stays above a bound of 0"
+    );
+}
