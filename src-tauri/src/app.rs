@@ -4,6 +4,7 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
 use std::sync::Arc;
 use std::time::Duration;
 
+use halvo_coord_app::Agents;
 use tauri::webview::PageLoadEvent;
 use tauri::{
     AppHandle, Builder, Context, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder,
@@ -93,6 +94,9 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
             let views = Arc::clone(&parts.state.views);
             app.manage(parts.state);
             app.manage(PageLoads::default());
+            if app.try_state::<Agents>().is_none() {
+                app.manage(commands::agents::core());
+            }
             let (sender, answer) = mpsc::channel();
             match main_window(
                 app.handle(),

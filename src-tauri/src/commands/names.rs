@@ -29,4 +29,20 @@ pub const CAPTURE: Names = Names {
     ],
 };
 
-pub const MODULES: &[&Names] = &[&CAPTURE];
+pub const AGENTS: Names = Names {
+    #[cfg(test)]
+    module: "agents",
+    commands: &[
+        "agents_snapshot",
+        "agents_next",
+        "agents_card",
+        "agents_answer",
+        "agents_setup_typed",
+        "agents_present",
+        "agents_control",
+        "agents_shown",
+    ],
+    reads: &[],
+};
+
+pub const MODULES: &[&Names] = &[&CAPTURE, &AGENTS];

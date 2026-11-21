@@ -469,6 +469,34 @@ fn the_handler_names_the_manifest_and_the_capabilities_are_one_set() {
             line.names().module
         );
     }
+    let list: BTreeSet<String> = halvo_coord::types::commands::LIST
+        .iter()
+        .map(|command| command.name.to_string())
+        .collect();
+    let table = commands::table::<MockRuntime>();
+    let agents = table
+        .iter()
+        .find(|line| line.names().module == "agents")
+        .expect("the module table holds the module agents");
+    let names: BTreeSet<String> = agents
+        .names()
+        .commands
+        .iter()
+        .map(|c| c.to_string())
+        .collect();
+    assert_eq!(names, list, "the names of the module agents");
+    let allowed: BTreeSet<String> =
+        permission_names(&read_json(&src_tauri().join("capabilities/agents.json"))["permissions"])
+            .iter()
+            .filter_map(|name| name.strip_prefix("allow-"))
+            .map(|command| command.replace('-', "_"))
+            .collect();
+    assert_eq!(allowed, list, "capabilities/agents.json");
+    assert_eq!(
+        answered_by(agents.handler, "three-lists-agents"),
+        list,
+        "the handler of the module agents"
+    );
 }
 
 #[test]
@@ -641,9 +669,13 @@ fn the_built_context_holds_the_capability_file_and_no_other_capability() {
         .collect();
     assert_eq!(
         identifiers,
-        ["capture"],
-        "the build holds the capabilities {identifiers:?} beside capture"
+        ["agents", "capture"],
+        "the build holds the capabilities {identifiers:?} beside agents and capture"
     );
+    let agents = &built["agents"];
+    assert_eq!(agents["windows"], serde_json::json!(["main"]), "{agents}");
+    assert!(agents.get("webviews").is_none(), "{agents}");
+    assert!(agents.get("remote").is_none_or(Value::is_null), "{agents}");
     let capture = &built["capture"];
     assert_eq!(capture["windows"], serde_json::json!(["main"]), "{capture}");
     assert!(capture.get("webviews").is_none(), "{capture}");
@@ -690,7 +722,7 @@ fn is_refused(reply: &Result<Value, Value>) -> bool {
 #[test]
 fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin_alone() {
     let commands = manifest_commands();
-    assert_eq!(commands.len(), 174, "commands of the generated manifests");
+    assert_eq!(commands.len(), 182, "commands of the generated manifests");
     let test = test_app(scratch_dir("every-command"));
     let main = main_window(&test.app);
     let other = WebviewWindowBuilder::new(
@@ -760,7 +792,13 @@ fn widening(labels: &[&str], identifier: &str) -> String {
     serde_json::json!({
         "identifier": identifier,
         "windows": labels,
-        "permissions": UNIT_PERMISSIONS,
+        "permissions": UNIT_PERMISSIONS
+            .iter()
+            .map(|p| p.to_string())
+            .chain(permission_names(
+                &read_json(&src_tauri().join("capabilities/agents.json"))["permissions"],
+            ))
+            .collect::<Vec<String>>(),
     })
     .to_string()
 }
