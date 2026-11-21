@@ -27,11 +27,13 @@
 //!   goes to [`Caller::report`]. [`OwnerSlot::turn`] gives the owner's channel to `dispatch_unknown`.
 //! - [`OwnerSlot::stop`], and the drop of the slot, close the channel, wait 2 s for the owner's exit, then kill it,
 //!   reap it and remove its pid file.
+//! - [`OwnerSlot::start_with_worker`] stops the owner that runs and starts one with `--worker=<r>,<w>`, the owner's
+//!   two ends of a worker's channel, which that child holds beside its standard streams and its channel.
 
 use std::ffi::OsString;
 use std::fmt;
 use std::fs::{self, File};
-use std::io::{self, ErrorKind, Write};
+use std::io::{self, ErrorKind, PipeReader, PipeWriter, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
@@ -277,7 +279,7 @@ impl OwnerSlot {
             }
         }
         if self.running.is_none() {
-            self.running = Some(self.start()?);
+            self.running = Some(self.start(None)?);
         }
         match self.running.as_mut() {
             Some(running) => Ok(Turn {
@@ -295,8 +297,31 @@ impl OwnerSlot {
         }
     }
 
-    /// Starts the owner: the child, its pid file, its reader thread, and then its key.
-    fn start(&self) -> Result<Running, ErrorReply> {
+    /// Stops the owner that runs and starts one that holds `worker`, the owner's two ends of a worker's channel: the
+    /// end that it reads and the end that it writes, which it gets as `--worker=<r>,<w>`. An owner gets its ends at
+    /// its start alone, so the owner of a worker is one that this call started for it. The refusals are those of
+    /// [`OwnerSlot::relay`], and after a refusal no owner runs.
+    pub fn start_with_worker(
+        &mut self,
+        worker: (PipeReader, PipeWriter),
+    ) -> Result<(), ErrorReply> {
+        if self.caller.deleting() {
+            return Err(ErrorReply::new(
+                ErrorCode::Busy,
+                "the delete of everything runs",
+            ));
+        }
+        if let Some(distrust) = self.distrust {
+            return Err(unavailable(distrust.text()));
+        }
+        self.stop();
+        self.running = Some(self.start(Some(worker))?);
+        Ok(())
+    }
+
+    /// Starts the owner: the child, with its ends of a worker's channel where `worker` holds them, its pid file,
+    /// its reader thread, and then its key.
+    fn start(&self, worker: Option<(PipeReader, PipeWriter)>) -> Result<Running, ErrorReply> {
         sys::private_dir(&self.derived)
             .map_err(|_| unavailable("the folder derived cannot be made private"))?;
         let mut data_dir = OsString::from("--data-dir=");
@@ -312,7 +337,7 @@ impl OwnerSlot {
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::inherit());
-        let (mut child, channel) = sys::launch(&mut command)
+        let (mut child, channel) = sys::launch(&mut command, worker)
             .map_err(|_| unavailable("the owner of the derived store does not start"))?;
         let pid = child.id();
         let (Some(mut stdin), Some(started)) = (child.stdin.take(), start_time(pid)) else {

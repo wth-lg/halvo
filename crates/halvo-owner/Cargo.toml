@@ -35,4 +35,5 @@ base64 = "0.22"
 halvo-agent-client = { path = "../halvo-agent-client" }
 halvo-capture = { path = "../halvo-capture", features = ["r2"] }
 halvo-control = { path = "../halvo-control", features = ["r2"] }
+halvo-sqlcipher = { path = "../halvo-sqlcipher" }
 halvo-test-dir = { path = "../halvo-test-dir" }
