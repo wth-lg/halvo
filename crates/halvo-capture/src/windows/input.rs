@@ -2983,6 +2983,79 @@ mod tests {
     }
 
     #[test]
+    fn a_timer_due_at_the_stop_makes_no_record_in_the_drain() {
+        use windows::Win32::UI::WindowsAndMessaging::{KillTimer, SetTimer};
+        let _serial = crate::windows::tests::serial();
+        let (sink, writer) = crate::sink::channel(8);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-drain", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let mut gate = GateState {
+            gate: Arc::new(clear_gate()),
+            held: VecDeque::new(),
+            counts: Arc::default(),
+        };
+        let now = super::super::now_tick();
+        let stroke = KeyStroke {
+            vkey: 0x41,
+            released: false,
+        };
+        let front = foreground_thread();
+        gate.gate.read_at(
+            now.wrapping_sub(200),
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::NotCompared,
+        );
+        let held = gate.gate.hold(now.wrapping_sub(160), false, front);
+        gate.held
+            .push_back((held, stroke, KeyClass::Printable, test_front("queued")));
+        gate.gate.read_at(
+            now.wrapping_sub(25),
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::Same,
+        );
+        std::thread::spawn(move || {
+            super::super::ensure_message_queue();
+            INPUT_CTX.with(|cell| {
+                *cell.borrow_mut() = Some(InputState {
+                    device: RawDevice::Keyboard,
+                    producer,
+                    floor: test_floor(),
+                    front: FrontCache::default(),
+                    keys: KeyState::default(),
+                    buttons: 0,
+                    folds: Folds::default(),
+                    gate: Some(gate),
+                });
+            });
+            // SAFETY: SetTimer takes plain values and this module's timer
+            // procedure; the timer is this thread's and is killed below.
+            let timer = unsafe { SetTimer(None, 0, 1, Some(gate_poll)) };
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            super::super::post_quit_to(super::super::PumpThreadId::current());
+            let signal = super::super::StopSignal::new().expect("the stop event");
+            super::super::pump_messages(&signal);
+            // SAFETY: KillTimer takes the id of this thread's timer above.
+            unsafe {
+                let _ = KillTimer(None, timer);
+            }
+            INPUT_CTX.with(|cell| *cell.borrow_mut() = None);
+        })
+        .join()
+        .expect("the pump thread");
+        let records = std::iter::from_fn(|| {
+            writer
+                .recv_timeout(std::time::Duration::from_millis(300))
+                .ok()
+        })
+        .count();
+        assert_eq!(
+            records, 0,
+            "records made by the drain after the stop was asked"
+        );
+    }
+
+    #[test]
     fn a_cleared_key_held_at_the_stop_leaves_no_record_flag_or_count() {
         let (sink, writer) = crate::sink::channel(8);
         let handoff = super::super::HandOff::start(sink, "halvo-test-stop-keys", Arc::default())
