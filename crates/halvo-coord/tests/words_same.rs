@@ -293,7 +293,7 @@ fn expected_keys() -> BTreeSet<String> {
 /// The texts of the question of a row's Delete, of its two notices and of the line of a delete
 /// that waits for its run to end (U3.4; ruling RD-19 (c), (d) (3), (6)), each as it stands; the
 /// texts of the closed list that the unit's plain readers read.
-const U34_TEXTS: [(&str, &str); 26] = [
+const U34_TEXTS: [(&str, &str); 27] = [
     (
         "line.working.deleting",
         "Halvo is stopping this agent and will then remove it.",
@@ -371,6 +371,10 @@ const U34_TEXTS: [(&str, &str); 26] = [
     ("ask.stopping.title", "“{name}” is stopping"),
     ("ask.stopping.text", "You can remove it once it has stopped."),
     ("ask.stopping.done", "OK"),
+    (
+        "line.needs_you.asks_again",
+        "You cancelled its start, so it asks you again before it starts.",
+    ),
 ];
 
 /// Each text of U3.4 stands word for word, holds at most 20 words, and names neither the
@@ -410,7 +414,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 280);
+    assert_eq!(seen.len(), 281);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {

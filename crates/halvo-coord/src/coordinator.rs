@@ -14,7 +14,7 @@ use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
     FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
     OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind, Snapshot,
-    Status, System, WorkflowId,
+    Status, StatusLine, System, WorkflowId,
 };
 use crate::words;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -134,6 +134,11 @@ struct State<C> {
     marked: Vec<RunId>,
     held_off: Vec<AgentId>,
     deleting: Vec<Deleting>,
+    /// The agents that ask first whose queued start the person took back, each with the `ready`
+    /// item that a later tick raised for it since, or none until then: that item's row says
+    /// that the start was cancelled and that the agent asks again, in this life alone (the
+    /// gates of U2.4e, ruling RD-152 (4)).
+    taken_back: Vec<(AgentId, Option<ItemId>)>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -409,6 +414,7 @@ where
                 marked: Vec::new(),
                 held_off: Vec::new(),
                 deleting: Vec::new(),
+                taken_back: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
@@ -2606,13 +2612,51 @@ where
                 },
             ),
             Action::Stop => self.stop_in(st, i),
-            Action::TakeBack => self.schedule(
-                st,
-                Move::TakeBack {
-                    agent: agent.clone(),
-                },
-            ),
+            Action::TakeBack => {
+                self.schedule(
+                    st,
+                    Move::TakeBack {
+                        agent: agent.clone(),
+                    },
+                )?;
+                let asks = st.board.as_ref().is_some_and(|b| {
+                    index(b, agent)
+                        .is_some_and(|i| schedule::needs_person(&b.members[i].facts.config))
+                });
+                st.taken_back.retain(|(a, _)| a != agent);
+                if asks {
+                    st.taken_back.push((agent.clone(), None));
+                }
+                Ok(())
+            }
         }
+    }
+
+    /// Follows each agent whose start the person took back: the first `ready` item that the
+    /// agent holds after it is that mark's item; the mark ends once the agent holds no item of
+    /// its own any more after that item, holds another one, runs or waits in the queue.
+    fn follow_taken_back(st: &mut State<Cfg<P>>) {
+        let Some(board) = st.board.as_ref() else {
+            return;
+        };
+        let mut kept = Vec::new();
+        for (agent, item) in std::mem::take(&mut st.taken_back) {
+            let Some(i) = index(board, &agent) else {
+                continue;
+            };
+            let facts = &board.members[i].facts;
+            let open = facts
+                .doing
+                .item()
+                .filter(|o| o.kind == ItemKind::Ready && matches!(facts.doing, Doing::Idle(_)));
+            match (open, item) {
+                (Some(o), None) => kept.push((agent, Some(o.item))),
+                (Some(o), Some(was)) if o.item == was => kept.push((agent, Some(was))),
+                (None, None) if matches!(facts.doing, Doing::Idle(_)) => kept.push((agent, None)),
+                _ => {}
+            }
+        }
+        st.taken_back = kept;
     }
 
     /// The person's Stop (I5.7). It is refused by no read of the clock (ruling RD-133 1): where
@@ -2850,6 +2894,7 @@ where
     }
 
     fn publish(&self, st: &mut State<Cfg<P>>) {
+        Self::follow_taken_back(st);
         let State { board, ledgers, .. } = &mut *st;
         if let Some(board) = board.as_mut() {
             for (agent, l) in ledgers.iter_mut() {
@@ -2936,9 +2981,19 @@ where
             } else {
                 roster::row(*facts, line, name, waiting, &self.limits)
             };
-            let Ok(row) = row else {
+            let Ok(mut row) = row else {
                 continue;
             };
+            let asks_again = st.taken_back.iter().any(|(a, item)| {
+                a == &facts.agent
+                    && item.is_some()
+                    && open.as_ref().map(|o| &o.item) == item.as_ref()
+            });
+            if asks_again && line == StatusLine::NeedsYou(ItemKind::Ready) {
+                if let Ok(text) = words::text("line.needs_you.asks_again", &[]) {
+                    row.line = text;
+                }
+            }
             let item = match (&open, line.status()) {
                 (Some(o), Status::NeedsYou) => self.item_of(st, facts, held, o.kind, &o.item, name),
                 _ => None,

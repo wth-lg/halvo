@@ -578,6 +578,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "You can remove it once it has stopped.",
     ),
     ("ask.stopping.done", "OK"),
+    (
+        "line.needs_you.asks_again",
+        "You cancelled its start, so it asks you again before it starts.",
+    ),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {
