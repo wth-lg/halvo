@@ -14,10 +14,11 @@ use super::{Layout, RootReading, SegmentStore, StoreError, DEFAULT_RETENTION};
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId};
 use crate::daemon::custody_policy::Custody;
+use super::KindTotal;
 use crate::daemon::port::{
-    Access, ByteBound, CaptureStore, DataDirStore, MaintFault, MaintainStore, OpenFault, Opened,
-    Pass, Probe, RootGuard, ScratchDir, ScratchStore, SegmentWrite, StoreHost, StoreId, Usage,
-    WriteFault, Written,
+    Access, ByteBound, CaptureStore, DataDirStore, EntryKind, MaintFault, MaintainStore,
+    OpenFault, Opened, Ordinal, Pass, Probe, RootGuard, ScratchDir, ScratchStore, SegmentWrite,
+    StoreHost, StoreId, Usage, WriteFault, Written,
 };
 use crate::daemon::{EntriesLeft, TailAnswer, TailReport, TailRoot};
 
@@ -46,12 +47,57 @@ impl MaintainStore for Adapter {
 }
 
 impl CaptureStore for Adapter {
-    fn write_batch(&mut self, _write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
-        Err(WriteFault::Io(io::ErrorKind::Unsupported))
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        let kinds: Vec<KindTotal<'static>> = write
+            .entries()
+            .iter()
+            .map(|entry| KindTotal {
+                kind: kind_text(entry.kind),
+                events: entry.events,
+                bytes: entry.bytes,
+            })
+            .collect();
+        let segment_id = write.segment_id().uuid();
+        let stored = super::SegmentWrite {
+            segment_id: &segment_id,
+            day: super::UtcDay::from_days_since_epoch(write.day().days_since_epoch()),
+            first_capture: write.first_capture(),
+            last_capture: write.last_capture(),
+            kinds: &kinds,
+            payload: write.payload(),
+        };
+        match self.store.write_batch(stored) {
+            Ok(written) => Ok(Written {
+                ordinal: Ordinal::new(written.ordinal.get()),
+                logical_bytes: written.logical_bytes,
+                disk_bytes: written.disk_bytes,
+            }),
+            Err(fault) => Err(write_fault(fault)),
+        }
     }
 
     fn volume_free_bytes(&self) -> io::Result<u64> {
         free_bytes(self.store.dir())
+    }
+}
+
+fn kind_text(kind: EntryKind) -> &'static str {
+    #[cfg(feature = "r2")]
+    if kind == EntryKind::RUN_MARK {
+        return crate::floor::record::RUN_MARK_KIND;
+    }
+    kind.as_str()
+}
+
+fn write_fault(fault: super::WriteFault) -> WriteFault {
+    match fault {
+        super::WriteFault::AlreadyWritten { ordinal } => WriteFault::AlreadyWritten {
+            ordinal: Ordinal::new(ordinal.get()),
+        },
+        super::WriteFault::Refused(_) => WriteFault::Refused,
+        super::WriteFault::Io(kind) => WriteFault::Io(kind),
+        super::WriteFault::Db(code) => WriteFault::Db(code),
+        super::WriteFault::Sealed => WriteFault::Sealed,
     }
 }
 

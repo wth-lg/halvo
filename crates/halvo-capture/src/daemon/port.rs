@@ -593,4 +593,44 @@ pub(crate) mod tests {
         assert!(!WriteFault::Io(io::ErrorKind::Other).is_no_space());
         assert!(!WriteFault::Refused.is_no_space());
     }
+
+    #[test]
+    fn a_second_write_of_one_segment_id_answers_already_written_with_the_first_ordinal() {
+        let dir = tempfile::Builder::new()
+            .prefix("adapter-tests-")
+            .tempdir()
+            .unwrap()
+            .keep();
+        let made = ScratchDir::at(&dir).create().unwrap();
+        let mut store = made.store;
+        let day = UtcDay::from_days_since_epoch(20_000).unwrap();
+        let at = 20_000 * 86_400 * 1_000_000_000_i64;
+        let entries = [KindEntry {
+            kind: EntryKind::of(Modality::Keystroke),
+            events: 2,
+            bytes: 6,
+        }];
+        let id = SegmentId::mint().unwrap();
+        let write = |id| SegmentWrite::new(id, day, at, at + 1, &entries, b"{}\n{}\n");
+        let first = store.write_batch(write(&id)).unwrap();
+        assert_eq!(first.logical_bytes, 6);
+        assert!(first.disk_bytes > 0);
+        assert_eq!(
+            store.write_batch(write(&id)),
+            Err(WriteFault::AlreadyWritten {
+                ordinal: first.ordinal
+            })
+        );
+        let other = SegmentId::mint().unwrap();
+        let next = store.write_batch(write(&other)).unwrap();
+        assert!(next.ordinal > first.ordinal);
+        assert_eq!(
+            store.write_batch(write(&id)),
+            Err(WriteFault::AlreadyWritten {
+                ordinal: first.ordinal
+            })
+        );
+        drop(store);
+        made.root.finish().unwrap();
+    }
 }
