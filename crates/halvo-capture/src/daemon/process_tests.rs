@@ -797,6 +797,9 @@ const STOP_AT: Duration = Duration::from_secs(1_000);
 
 impl MainLoop for LongLoop {
     fn turn(&mut self, wait: Duration) {
+        if self.stop.load(Ordering::SeqCst) {
+            std::thread::sleep(wait);
+        }
         let mut now = self.now.lock().unwrap();
         *now += wait;
         if *now >= STOP_AT {

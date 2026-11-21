@@ -1974,7 +1974,7 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         .shutdown_entry(store.link(), status)
         .map_or(status, |outcome| outcome.status);
     let status = match store {
-        HeldStore::Capture(owner) => close_the_store(*owner, status),
+        HeldStore::Capture(owner) => close_the_store(*owner, status, err),
         HeldStore::None | HeldStore::Maintenance { .. } => status,
     };
     drop(lock);
@@ -1985,19 +1985,30 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
 const CLOSE_WAIT: Duration = Duration::from_secs(1);
 
 #[cfg(all(target_os = "macos", debug_assertions))]
-fn close_the_store(owner: CaptureOwner, status: i32) -> i32 {
+fn close_the_store(owner: CaptureOwner, status: i32, err: &mut dyn std::io::Write) -> i32 {
     let answered = owner
         .watched
         .handle
         .ask(owner::Command::Shutdown)
         .ok()
         .and_then(|pending| pending.wait_for(CLOSE_WAIT));
-    let closed =
-        matches!(answered, Some(owner::Answer::ShutDown(_))) && owner.watched.join().is_ok();
-    match (closed, status) {
-        (true, _) => status,
-        (false, halvo_control::exit::CLEAN) => halvo_control::exit::ERROR,
-        (false, status) => status,
+    let unclosed = if !matches!(answered, Some(owner::Answer::ShutDown(_))) {
+        Some("the store owner did not answer the Shutdown within 1 s")
+    } else if owner.watched.join().is_err() {
+        Some("the store owner's thread ended by a panic")
+    } else {
+        None
+    };
+    let Some(why) = unclosed else {
+        return status;
+    };
+    let _ = writeln!(
+        err,
+        "halvo-capture: {why}; the store was not closed in order"
+    );
+    match status {
+        halvo_control::exit::CLEAN => halvo_control::exit::ERROR,
+        status => status,
     }
 }
 
