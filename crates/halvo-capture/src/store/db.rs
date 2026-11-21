@@ -1015,6 +1015,54 @@ pub(in crate::store) mod read_back_seam {
     }
 }
 
+#[cfg(test)]
+pub(in crate::store) mod pinned_cipher_seam {
+    use std::cell::RefCell;
+
+    /// What a test hands the open in place of the library's answer. A field
+    /// left `None` is read from the library.
+    #[derive(Clone, Copy, Default)]
+    pub(in crate::store) struct Answers {
+        pub(in crate::store) provider: Option<&'static str>,
+        pub(in crate::store) version: Option<&'static str>,
+        pub(in crate::store) os_entropy_hook: Option<bool>,
+    }
+
+    thread_local! {
+        static ANSWERS: RefCell<Option<Answers>> = const { RefCell::new(None) };
+    }
+
+    /// Hands each open and create of this thread `answers` where it reads the
+    /// cipher provider, the cipher version and the entropy hook of the
+    /// library, until the guard is dropped.
+    pub(in crate::store) fn instead_of_the_library(answers: Answers) -> Guard {
+        ANSWERS.with(|slot| *slot.borrow_mut() = Some(answers));
+        Guard
+    }
+
+    pub(in crate::store) struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            ANSWERS.with(|slot| *slot.borrow_mut() = None);
+        }
+    }
+
+    pub(super) fn text(pragma: &str) -> Option<String> {
+        let answers = ANSWERS.with(|slot| *slot.borrow())?;
+        match pragma {
+            "PRAGMA cipher_provider" => answers.provider,
+            "PRAGMA cipher_version" => answers.version,
+            _ => None,
+        }
+        .map(str::to_string)
+    }
+
+    pub(super) fn os_entropy_hook() -> Option<bool> {
+        ANSWERS.with(|slot| *slot.borrow())?.os_entropy_hook
+    }
+}
+
 fn after_a_code(store_dir: &Dir, e: &rusqlite::Error) -> StoreError {
     let code = match e {
         rusqlite::Error::SqliteFailure(failure, _) => Some(failure.extended_code),
@@ -1633,6 +1681,8 @@ impl Db {
         conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_was_there)
             .map_err(db_error)?;
         conn.busy_timeout(Duration::ZERO).map_err(db_error)?;
+        conn.execute_batch("PRAGMA cipher_log_level = NONE;")
+            .map_err(db_error)?;
         conn.execute_batch(&key_pragma(key)).map_err(db_error)?;
         conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
             .map_err(db_error)?;
@@ -1651,8 +1701,7 @@ impl Db {
              PRAGMA foreign_keys = ON;\n\
              PRAGMA synchronous = FULL;\n\
              PRAGMA fullfsync = ON;\n\
-             PRAGMA checkpoint_fullfsync = ON;\n\
-             PRAGMA cipher_log_level = NONE;",
+             PRAGMA checkpoint_fullfsync = ON;",
         )
         .map_err(db_error)?;
         #[cfg(test)]
@@ -2121,16 +2170,27 @@ fn require_write_ahead_log(conn: &Connection) -> StoreResult<()> {
 }
 
 const CIPHER_PROVIDER: &str = "libtomcrypt";
-const CIPHER_VERSION: &str = "4.19.0";
+const CIPHER_VERSION: &str = "4.20.0";
 
 fn require_pinned_cipher(conn: &Connection) -> StoreResult<()> {
     let text = |pragma: &str| -> StoreResult<String> {
+        #[cfg(test)]
+        if let Some(answer) = pinned_cipher_seam::text(pragma) {
+            return Ok(answer);
+        }
         conn.query_row(pragma, [], |r| r.get(0)).map_err(db_error)
+    };
+    let os_entropy_hook = || {
+        #[cfg(test)]
+        if let Some(answer) = pinned_cipher_seam::os_entropy_hook() {
+            return answer;
+        }
+        halvo_sqlcipher::os_entropy_hook_installed()
     };
     cipher_in_effect(
         &text("PRAGMA cipher_provider")?,
         &text("PRAGMA cipher_version")?,
-        halvo_sqlcipher::os_entropy_hook_installed(),
+        os_entropy_hook(),
     )
 }
 
@@ -3791,7 +3851,7 @@ mod tests {
         assert_eq!(text("PRAGMA cipher_log_level"), "NONE");
         assert_eq!(db.cipher_provider().unwrap(), "libtomcrypt");
         assert!(
-            text("PRAGMA cipher_version").starts_with("4.19.0"),
+            text("PRAGMA cipher_version").starts_with("4.20.0"),
             "{}",
             text("PRAGMA cipher_version")
         );
@@ -3804,8 +3864,14 @@ mod tests {
     #[test]
     fn a_cipher_other_than_the_pinned_one_is_refused() {
         let cases = [
-            ("libtomcrypt", "4.19.0 community", true, None),
-            ("openssl", "4.19.0 community", true, Some("cipher_provider")),
+            ("libtomcrypt", "4.20.0 community", true, None),
+            ("openssl", "4.20.0 community", true, Some("cipher_provider")),
+            (
+                "libtomcrypt",
+                "4.19.0 community",
+                true,
+                Some("cipher_version"),
+            ),
             (
                 "libtomcrypt",
                 "4.6.1 community",
@@ -3814,13 +3880,13 @@ mod tests {
             ),
             (
                 "libtomcrypt",
-                "4.19.01 community",
+                "4.20.01 community",
                 true,
                 Some("cipher_version"),
             ),
             (
                 "libtomcrypt",
-                "4.19.0 community",
+                "4.20.0 community",
                 false,
                 Some("os_entropy_hook"),
             ),

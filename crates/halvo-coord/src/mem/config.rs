@@ -178,4 +178,7 @@ impl ConfigView for Config {
     fn rev(&self) -> u32 {
         self.rev
     }
+    fn category(&self) -> Category {
+        self.category
+    }
 }

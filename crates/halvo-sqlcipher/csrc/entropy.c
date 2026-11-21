@@ -1,6 +1,10 @@
 #include <stdlib.h>
 #include <tomcrypt.h>
 
+#if !defined(LTC_CLEAN_STACK)
+#error "halvo-sqlcipher: the build stops: LTC_CLEAN_STACK is not defined, so LibTomCrypt leaves its stack and its HMAC state unwiped"
+#endif
+
 int sqlcipher_extra_init(const char *arg);
 
 #if defined(_WIN32)

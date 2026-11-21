@@ -39,9 +39,9 @@ const SQLITE_SWITCHES: &[(&str, Option<&str>)] = &[
 
 const ENTROPY_SHIM: &str = "csrc/entropy.c";
 
-const PINNED: &str = "sqlcipher-src 419.0.6 (SQLCipher 4.19.0 on SQLite 3.53.4)";
+const PINNED: &str = "sqlcipher-src 420.0.0 (SQLCipher 4.20.0 on SQLite 3.54.1)";
 
-const PINNED_SHA256: &str = "838b2ed8a586b8b77f03e82c5a25b97e1a55e524ebac0de05354193865703072";
+const PINNED_SHA256: &str = "8cd2347d18886fee4651153fabeeeffb7cec008700987dab1c00261febc4220f";
 
 const FIX: &str = "read rebuildPage, editPage, pageInsertArray, pageFreeArray, balance_quick and \
     balance_nonroot from its divider loop again in the new source, with every row of the table of \

@@ -14,7 +14,6 @@ macos 20-app-links-no-store
 macos 21-tree-bans
 macos 23-daemon-port-only
 macos 23-licences
-macos 30-formal-covered
 macos 31-app-page-layout
 macos 39-store-no-analyze
 macos 55-sqlcipher-unmended
@@ -35,7 +34,6 @@ windows 12-test
 windows 19-control-links-no-store
 windows 21-tree-bans
 windows 23-daemon-port-only
-windows 30-formal-covered
 windows 39-store-no-analyze
 windows 55-sqlcipher-unmended
 windows 22-redact
