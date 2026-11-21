@@ -381,8 +381,24 @@ export function fileCases({ repo, acorn: acornDir, work, report }) {
   report('packages-a-version-differs', 'browser', packagesCheck(repo, versionDiffers).cause || 'pass');
 }
 
-/** The cases that run the views in the browser of the machine: an unchanged control and one planted fault per check and per region rule. */
-export async function pageCases({ repo, work, report, log }) {
+/** The one browser case of the self-test in the macos job: the planted fault that WebKit rejects fastest (the coordinator's word of 2026-11-21T01:30:04Z); the windows job runs every browser case. */
+export const MACOS_BROWSER_CASE = 'check-3-another-heading';
+
+async function plantedCase(harness, c, { repo, work, agents, fx, snapshots, acts, log, state }) {
+  const ui = join(work, 'ui-' + c.name);
+  try {
+    cpSync(join(repo, 'ui', 'app'), join(ui, 'app'), { recursive: true });
+    writeFileSync(join(ui, 'app', 'views', 'agents.js'), c.plant(agents));
+    const origin = await harness.serve({ ui, fixtures: fx });
+    const [r] = await runStates(harness, { origin, runs: plan(fx, [state]), snapshots, acts, write: false, log, checks: c.checks, region: Boolean(c.region) });
+    return !r.ok && c.want(r) ? 'caught' : 'missed';
+  } catch (err) {
+    return 'error_' + String((err && (err.code || err.name)) || 'unknown').replace(/[^A-Za-z0-9_]/g, '_');
+  }
+}
+
+/** The cases that run the views in the browser of the machine: an unchanged control and one planted fault per check and per region rule; with `only`, the one planted fault of PAGE_CASES of that name and nothing else. */
+export async function pageCases({ repo, work, report, log, only = null }) {
   const fx = join(repo, FIXTURES_DIR);
   const views = join(repo, VIEWS_DIR);
   const harness = await loadHarness(repo);
@@ -390,6 +406,13 @@ export async function pageCases({ repo, work, report, log }) {
   const acts = JSON.parse(readFileSync(join(repo, ACTS_FILE), 'utf8'));
   const snapshots = join(repo, SNAPSHOTS_DIR);
   const state = 'ten';
+  const planted = { repo, work, agents, fx, snapshots, acts, log, state };
+  if (only !== null) {
+    const c = PAGE_CASES.find((x) => x.name === only);
+    if (!c) throw new Error('no browser case ' + only);
+    report(c.name, 'caught', await plantedCase(harness, c, planted));
+    return;
+  }
   const control = join(work, 'ui-control');
   cpSync(join(repo, 'ui', 'app'), join(control, 'app'), { recursive: true });
   const controlOrigin = await harness.serve({ ui: control, fixtures: fx });
@@ -406,20 +429,7 @@ export async function pageCases({ repo, work, report, log }) {
   const text = readFileSync(written, 'utf8');
   const whole = text.split('\n').filter((l) => /^ *- "/.test(l)).length;
   report('structure-writer-keeps-a-text-node-whole', 'pass', whole > 0 && spreadCount(text) === 0 ? 'pass' : 'fail');
-  for (const c of PAGE_CASES) {
-    const ui = join(work, 'ui-' + c.name);
-    let got;
-    try {
-      cpSync(join(repo, 'ui', 'app'), join(ui, 'app'), { recursive: true });
-      writeFileSync(join(ui, 'app', 'views', 'agents.js'), c.plant(agents));
-      const origin = await harness.serve({ ui, fixtures: fx });
-      const [r] = await runStates(harness, { origin, runs: plan(fx, [state]), snapshots, acts, write: false, log, checks: c.checks, region: Boolean(c.region) });
-      got = !r.ok && c.want(r) ? 'caught' : 'missed';
-    } catch (err) {
-      got = 'error_' + String((err && (err.code || err.name)) || 'unknown').replace(/[^A-Za-z0-9_]/g, '_');
-    }
-    report(c.name, 'caught', got);
-  }
+  for (const c of PAGE_CASES) report(c.name, 'caught', await plantedCase(harness, c, planted));
   const quiet = join(work, 'ui-a-status-change-that-adds-no-say');
   let said;
   try {
@@ -558,12 +568,18 @@ export async function wholeCases({ repo, work, report }) {
   report('whole-a-record-one-byte-away', 'record', runCheck(repo, ['whole', '--repo', oneByte, '--out', join(work, 'fresh-b.txt')]).cause);
 }
 
-/** The self-test of 40-r4-page: every planted fault is rejected by its rule or check, and the unchanged copies pass. */
-export async function selfTest({ repo, acorn, work, log }) {
+/** The self-test of 40-r4-page: every planted fault is rejected by its rule or check, and the unchanged copies pass; with the form `one`, the browser cases are MACOS_BROWSER_CASE alone. */
+export async function selfTest({ repo, acorn, work, log, form }) {
   mkdirSync(work, { recursive: true });
   const r = reporter(log);
   fileCases({ repo, acorn, work, report: r.report });
-  await pageCases({ repo, work, report: r.report, log });
+  let browser = 0;
+  const counted = (...a) => {
+    browser++;
+    r.report(...a);
+  };
+  await pageCases({ repo, work, report: counted, log, only: form === 'one' ? MACOS_BROWSER_CASE : null });
+  log('self-test browser_cases=' + browser + ' form=' + form);
   log('self-test rejected=' + r.rejected + ' wrong=' + r.wrong);
   return r.wrong === 0 && r.rejected > 0;
 }

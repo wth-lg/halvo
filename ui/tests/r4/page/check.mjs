@@ -5,7 +5,7 @@ import { RECORD_FILE, committedRecord, factsOf, firstDiff, packagesCheck, readRe
 import { forwardSignals, pageCheck, stage } from './run.mjs';
 
 const USAGE =
-  'usage: node ui/tests/r4/page/check.mjs files --repo DIR --acorn DIR | page --repo DIR [--write] | whole --repo DIR --out FILE | record --repo DIR | selftest --repo DIR --acorn DIR --work DIR';
+  'usage: node ui/tests/r4/page/check.mjs files --repo DIR --acorn DIR | page --repo DIR [--write] | whole --repo DIR --out FILE | record --repo DIR | selftest --repo DIR --acorn DIR --work DIR --form one|all';
 const FIX = 'fix: sh scripts/r4/ci.d/40-r4-page.sh --record, run through the helper for timed runs, and commit ui/tests/r4/page/record.txt';
 
 function arg(list, name) {
@@ -130,9 +130,10 @@ if (command === 'files') {
 } else if (command === 'selftest') {
   const acorn = arg(rest, '--acorn');
   const work = arg(rest, '--work');
-  if (!acorn || !work || rest.length !== 6) refuse();
+  const form = arg(rest, '--form');
+  if (!acorn || !work || !['one', 'all'].includes(form) || rest.length !== 8) refuse();
   const { selfTest } = await import('./selftest.mjs');
-  const ok = await selfTest({ repo, acorn, work, log });
+  const ok = await selfTest({ repo, acorn, work, log, form });
   process.exit(ok ? 0 : 1);
 } else {
   refuse();

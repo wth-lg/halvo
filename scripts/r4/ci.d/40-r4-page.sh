@@ -1,6 +1,7 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every view file of this run keeps to the rules of a view file, and each job makes the whole run of the six checks, the status-region rule and page.mjs on every state of ui/tests/fixtures/coord/ in its own browser; the macos job also requires the committed record to be the record of its run byte for byte.
+# rule: Every view file of this run keeps to the rules of a view file, and each job makes the whole run of the six checks, the status-region rule and page.mjs on every state of ui/tests/fixtures/coord/ in its own browser; the macos job also requires the committed record to be the record of its run byte for byte, and its self-test runs one browser case and leaves the others to the windows job.
+# macos: with CI_D_JOB=macos the self-test runs its shell cases, its cases that need no browser and one browser case, the planted fault that WebKit rejects fastest (MACOS_BROWSER_CASE of ui/tests/r4/page/selftest.mjs), and leaves its other browser cases to the windows job, which runs every case in Chromium; a call with no CI_D_JOB runs every case in the browser of its machine.
 set -u
 name=40-r4-page
 nested=self-test-of-$name
@@ -23,6 +24,12 @@ driver's job name, reads ui/tests/r4/page/record.txt first and then requires
 it to be the record of its run byte for byte. The job windows compares nothing
 with the record. --record writes the committed record and is run through the
 helper for timed runs.
+
+--self-test runs its shell cases and its cases that need no browser in every
+job. The job windows, and a call without the driver's job name, run all its
+browser cases; the job macos runs one, the planted fault that WebKit rejects
+fastest (MACOS_BROWSER_CASE of ui/tests/r4/page/selftest.mjs), and leaves the
+others to the job windows.
 
 The rules of a view file read the view files of this run under ui/app/views/.
 The capture run's view files there, which ui/tests/r4/page/files.mjs names,
@@ -268,6 +275,15 @@ case ${R4_STUB:-} in
     printf '%s\n' "$$" >"$R4_STUB_PID"
     exec sleep 60
     ;;
+  form)
+    prev=
+    for a in "$@"; do
+      [ "$prev" = --form ] && printf '%s\n' "$a" >"$R4_STUB_FORM"
+      prev=$a
+    done
+    echo 'self-test rejected=0 wrong=1'
+    exit 1
+    ;;
 esac
 exit 3
 EOF
@@ -361,6 +377,20 @@ EOF
   case_line "$1" pass "$got"
 }
 
+form_case() {
+  mkdir -p "$work/form-tmp-$2" "$work/form-art-$2" || fail setup
+  cp -R "$artifacts/acorn" "$work/form-art-$2/" || fail setup
+  if [ "$2" = none ]; then
+    env -u CI_D_JOB TMPDIR="$work/form-tmp-$2" R4_STUB=form R4_STUB_FORM="$work/form-$2.txt" R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_ARTIFACTS="$work/form-art-$2" "$shell" "$me" --self-test >/dev/null 2>&1
+  else
+    env CI_D_JOB="$2" TMPDIR="$work/form-tmp-$2" R4_STUB=form R4_STUB_FORM="$work/form-$2.txt" R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_ARTIFACTS="$work/form-art-$2" "$shell" "$me" --self-test >/dev/null 2>&1
+  fi
+  got=$(cat "$work/form-$2.txt" 2>/dev/null)
+  got=form-${got:-none}
+  [ "$got" = "form-$3" ] && got=pass
+  case_line "$1" pass "$got"
+}
+
 signal_case() {
   mkdir -p "$work/sig-tmp" || fail setup
   env TMPDIR="$work/sig-tmp" CI_D_JOB="$nested" R4_STUB=hang R4_STUB_PID="$work/sig.pid" R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-pass" CI_D_ARTIFACTS="$artifacts" "$shell" "$me" >/dev/null 2>&1 &
@@ -389,9 +419,11 @@ signal_case() {
 self_test() {
   [ "${CI_D_JOB:-}" = "$nested" ] && fail nested
   node_ok || fail node
+  form=all
+  [ "${CI_D_JOB:-}" = macos ] && form=one
   acorn
   browsers
-  node_to "$work/page-cases.txt" "$page/check.mjs" selftest --repo "$repo" --acorn "$artifacts/acorn" --work "$work/cases"
+  node_to "$work/page-cases.txt" "$page/check.mjs" selftest --repo "$repo" --acorn "$artifacts/acorn" --work "$work/cases" --form "$form"
   cat "$work/page-cases.txt"
   cp "$work/page-cases.txt.stderr" "$artifacts/selftest-stderr.txt" 2>/dev/null
   last=$(last_of "$work/page-cases.txt")
@@ -404,6 +436,13 @@ self_test() {
   counted=$(grep -c ' want=[a-z_]* got=[a-z_]*$' "$work/page-cases.txt")
   passing=$(grep -c ' want=pass got=pass$' "$work/page-cases.txt")
   [ "$((counted - passing))" = "$k" ] || fail count
+  ran=$(sed -n 's/^self-test browser_cases=\([0-9][0-9]*\) form=[a-z]*$/\1/p' "$work/page-cases.txt")
+  case $form:$ran in
+    one:1) ;;
+    all: | all:*[!0123456789]*) fail count ;;
+    all:*) [ "$ran" -ge 2 ] || fail count ;;
+    *) fail count ;;
+  esac
   rejected=0
   wrong=0
   shell=$(command -v sh) || fail setup
@@ -447,6 +486,9 @@ self_test() {
   fetch_case a-hosted-run-fetches-under-runner-temp rt
   fetch_case a-run-without-runner-temp-fetches-into-its-artifacts local
   empty_after a-run-that-passes-leaves-no-temporary-directory pass-tmp R4_STUB=pass R4_PAGE_BROWSERS="$work" PATH="$work/bin-stub:$PATH" CI_D_REPO="$work/fx-pass" CI_D_ARTIFACTS="$artifacts"
+  form_case the-macos-job-runs-one-browser-case macos one
+  form_case the-windows-job-runs-every-browser-case windows all
+  form_case a-call-without-a-job-runs-every-browser-case none all
   signal_case
   [ "$wrong" -eq 0 ] || fail cases
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$((k + rejected))"
