@@ -1,38 +1,65 @@
-//! One development persona of the generated sample, fed through the episode step one scripted day per call and
-//! then through the recurrence step: its repeated task is proposed, the work between its run marks is not, and
-//! no step holds the card number of its card page.
+//! One development persona of the generated sample, fed through the episode step with stage A, one scripted day
+//! per call, and then through the recurrence step: each of its planted routines is proposed and no other task,
+//! the work between its run marks is not, and no step holds the card number of its card page.
 
 use std::path::{Path, PathBuf};
 
-use halvo_identify::{episode_step, Call, Proposer, Stage};
+use halvo_identify::{episode_step, Call, Proposer, StageA};
 use halvo_sample::build::render_stream;
 use halvo_sample::script::Script;
 use halvo_schema::{
-    Category, DomainSource, Episode, Instant, ObservedSite, ObservedStep, Position, RecurrenceStep,
-    SeedCategory, SiteDomain, SiteHash, SiteValue, Summary, SummaryId, SummaryRead,
+    DomainSource, Episode, Instant, ObservedSite, Position, RecurrenceStep, SeedCategory,
+    SiteDomain, SiteHash, SiteValue, Summary, SummaryId, SummaryRead,
 };
 use halvo_seam::message::{Entry, Expiry};
 use halvo_seam::record::CaptureRecord;
 
 const DAY: i64 = 86_400 * 1_000_000_000;
 
-/// The persona's stage: a category by the site of the episode's first step that holds one.
-struct BySite;
+/// The app of the persona's documents, which hold no site.
+const OFFICE: &str = "org.libreoffice.script";
 
-impl Stage for BySite {
-    fn classify(&self, steps: &[ObservedStep]) -> Category {
-        match steps
-            .iter()
-            .find_map(|s| s.site.as_ref())
-            .map(|s| s.value.as_str())
-        {
-            Some("pinecart.test") => Category::ShopOrder,
-            Some("cobblestone-rentals.test") => Category::TenantRent,
-            Some("oakhollow-leasing.test") => Category::LeaseRenewalOrChange,
-            _ => Category::Other,
-        }
-    }
-}
+/// The persona's 12 planted routines on a site: the category, the site and the times that the script plants it.
+const ON_A_SITE: [(SeedCategory, &str, u32); 12] = [
+    (
+        SeedCategory::UtilityBillPayment,
+        "netherby-broadband.test",
+        3,
+    ),
+    (SeedCategory::TenantRent, "larkspur-lettings.test", 4),
+    (
+        SeedCategory::TenantApplicationReview,
+        "holloway-tenant-check.test",
+        5,
+    ),
+    (SeedCategory::Email, "corvid-post.test", 6),
+    (SeedCategory::Email, "lanternbox-mail.test", 5),
+    (SeedCategory::SpreadsheetFill, "gridwell-sheets.test", 4),
+    (SeedCategory::ShopOrder, "bramble-goods.test", 6),
+    (SeedCategory::ShopOrder, "pinecart.test", 6),
+    (SeedCategory::CalendarCleanup, "ledgerline-calendar.test", 6),
+    (SeedCategory::CalendarCleanup, "tickmark-planner.test", 6),
+    (SeedCategory::RideOrder, "swiftfare-rides.test", 4),
+    (SeedCategory::DailyChartCheck, "steadypulse-health.test", 6),
+];
+
+/// Its two planted routines in documents, proposed by the category and the app, each 3 times or more.
+const IN_A_DOCUMENT: [SeedCategory; 2] = [
+    SeedCategory::LeaseRenewalOrChange,
+    SeedCategory::SpreadsheetFill,
+];
+
+/// The sites of the tasks that are no routine: opened with the task not done (3, 3 and 4 times), no seed task
+/// (6 times), rent paid twice, a bill paid once, and the work between the run marks.
+const NO_ROUTINE: [&str; 7] = [
+    "drysdale-leasing-desk.test",
+    "hailcomet.test",
+    "cinder-markets.test",
+    "mossbank-weather.test",
+    "cobblestone-rentals.test",
+    "brightkiln-gas.test",
+    "oakhollow-leasing.test",
+];
 
 struct Stored(Vec<Summary>);
 
@@ -125,7 +152,7 @@ fn persona_s001() {
             expiry: &expiry,
             utc_offset_s: 0,
         };
-        let outcome = episode_step(&call, &BySite, &mut ids);
+        let outcome = episode_step(&call, &StageA, &mut ids);
         assert!(!outcome.run_open, "day {day} ends inside a run");
         episodes.extend(outcome.episodes);
     }
@@ -147,21 +174,30 @@ fn persona_s001() {
     let mut summaries: Vec<Summary> = episodes.iter().map(summary_of).collect();
     summaries.sort_by(|a, b| (a.day, &a.id).cmp(&(b.day, &b.id)));
     let proposals = Proposer.propose(&Stored(summaries));
-    assert!(
-        proposals
-            .iter()
-            .all(|p| p.category != SeedCategory::TenantRent),
-        "the rent task seen twice was proposed: {proposals:?}"
-    );
-    assert_eq!(proposals.len(), 1, "proposals: {proposals:?}");
-    let p = &proposals[0];
-    assert_eq!(p.category, SeedCategory::ShopOrder);
-    assert_eq!(
-        p.site,
-        Some(SiteValue::Domain {
-            key: SiteDomain::parse("pinecart.test").unwrap(),
-            source: DomainSource::AddressField,
-        })
-    );
-    assert_eq!(p.recurrence.count, 6);
+    let mut on_a_site: Vec<(SeedCategory, &str, u32)> = Vec::new();
+    let mut in_a_document: Vec<SeedCategory> = Vec::new();
+    for p in &proposals {
+        match &p.site {
+            Some(SiteValue::Domain {
+                key,
+                source: DomainSource::AddressField,
+            }) => on_a_site.push((p.category, key.as_str(), p.recurrence.count)),
+            None => {
+                assert_eq!(p.app.as_str(), OFFICE, "proposal: {p:?}");
+                assert!(p.recurrence.count >= 3, "proposal: {p:?}");
+                in_a_document.push(p.category);
+            }
+            other => panic!("a proposal with the site {other:?}"),
+        }
+    }
+    for site in NO_ROUTINE {
+        assert!(
+            on_a_site.iter().all(|(_, proposed, _)| *proposed != site),
+            "a task at {site} that is no routine was proposed: {on_a_site:?}"
+        );
+    }
+    on_a_site.sort_unstable();
+    in_a_document.sort_unstable();
+    assert_eq!(on_a_site, ON_A_SITE);
+    assert_eq!(in_a_document, IN_A_DOCUMENT);
 }
