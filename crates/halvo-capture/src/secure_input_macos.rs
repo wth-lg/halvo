@@ -8,7 +8,9 @@ mod carbon {
     #[link(name = "Carbon", kind = "framework")]
     extern "C" {
         fn IsSecureEventInputEnabled() -> u8;
+        #[cfg(any(test, debug_assertions))]
         fn EnableSecureEventInput() -> i32;
+        #[cfg(any(test, debug_assertions))]
         fn DisableSecureEventInput() -> i32;
     }
 
@@ -62,6 +64,7 @@ mod carbon {
         unsafe { IsSecureEventInputEnabled() }
     }
 
+    #[cfg(any(test, debug_assertions))]
     pub(super) fn enable_secure_event_input(_one: &OneCall<'_>) -> i32 {
         // SAFETY: parameterless Carbon call that returns an OSStatus, as
         // CarbonEventsCore.h declares it (line 3004). The header marks it "Not
@@ -72,6 +75,7 @@ mod carbon {
         unsafe { EnableSecureEventInput() }
     }
 
+    #[cfg(any(test, debug_assertions))]
     pub(super) fn disable_secure_event_input(_one: &OneCall<'_>) -> i32 {
         // SAFETY: parameterless Carbon call that returns an OSStatus, as
         // CarbonEventsCore.h declares it (line 3040). The header marks it "Not
@@ -140,6 +144,55 @@ pub fn reading_under(session: Session, secure: impl FnOnce() -> bool) -> Reading
 
 pub fn secure_input_reading(session: Session) -> Reading {
     reading_under(session, secure_input_active)
+}
+
+/// The macOS probe of the exclusion decision: unknown unless this process's
+/// session is at the console, else the system's secure-input byte through the
+/// predicate of [`crate::macos::secure_input_byte`].
+#[derive(Debug, Clone, Copy)]
+pub struct SystemProbe {
+    session: fn() -> Session,
+    byte: fn() -> u8,
+}
+
+impl SystemProbe {
+    /// The probe over the system's session and secure-input byte.
+    pub fn new() -> Self {
+        Self {
+            session: read_session,
+            byte: system_byte,
+        }
+    }
+}
+
+/// The system's secure-input byte, read under the one lock of the Carbon calls.
+fn system_byte() -> u8 {
+    carbon::one_carbon_call_at_a_time(carbon::is_secure_event_input_enabled)
+}
+
+#[cfg(test)]
+impl SystemProbe {
+    pub(crate) fn with_readers(session: fn() -> Session, byte: fn() -> u8) -> Self {
+        Self { session, byte }
+    }
+}
+
+impl Default for SystemProbe {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl super::seal::Sealed for SystemProbe {}
+
+impl super::SecureInputProbe for SystemProbe {
+    fn read(&self) -> super::SecureInputReading {
+        match reading_under((self.session)(), || secure_input_on((self.byte)())) {
+            Reading::On => super::SecureInputReading::Active,
+            Reading::Off => super::SecureInputReading::Inactive,
+            Reading::Unknown => super::SecureInputReading::Unknown,
+        }
+    }
 }
 
 /// The queued notices of a focus change into a secure field of the program in
@@ -861,6 +914,7 @@ mod session {
     }
 }
 
+#[cfg(any(test, debug_assertions))]
 #[must_use = "dropping the hold releases secure input immediately"]
 pub struct SecureInputHold {
     #[cfg(test)]
@@ -873,14 +927,35 @@ pub struct SecureInputHold {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SecureInputRefused(pub i32);
 
+/// The status other than noErr with which `DisableSecureEventInput` refused the
+/// release of a hold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SecureInputReleaseRefused(pub i32);
+
+#[cfg(any(test, debug_assertions))]
 pub fn hold_secure_input() -> Result<SecureInputHold, SecureInputRefused> {
     hold_with(enable_secure_event_input, disable_secure_event_input)
 }
 
+#[cfg(any(test, debug_assertions))]
 fn enable_secure_event_input() -> i32 {
-    carbon::one_carbon_call_at_a_time(carbon::enable_secure_event_input)
+    take_in_this_build(|| carbon::one_carbon_call_at_a_time(carbon::enable_secure_event_input))
 }
 
+#[cfg(all(debug_assertions, not(test)))]
+fn take_in_this_build(take: fn() -> i32) -> i32 {
+    take()
+}
+
+/// In a test build the system's take asks the decision of the hold tests first:
+/// it is made on a hosted runner alone, and elsewhere no call of the system is
+/// made, whatever test or route reached it.
+#[cfg(test)]
+fn take_in_this_build(take: fn() -> i32) -> i32 {
+    test_support::take_where_hosted(&|name| std::env::var(name).ok(), take)
+}
+
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn hold_with(
     enable: fn() -> i32,
     release: fn() -> i32,
@@ -894,13 +969,25 @@ pub(crate) fn hold_with(
         .map_err(SecureInputRefused)
 }
 
+#[cfg(any(test, debug_assertions))]
 pub(crate) fn disable_secure_event_input() -> i32 {
     carbon::one_carbon_call_at_a_time(carbon::disable_secure_event_input)
 }
 
+#[cfg(any(test, debug_assertions))]
+impl SecureInputHold {
+    /// Gives the hold back and answers the status of the system's release.
+    pub fn release(self) -> Result<(), SecureInputReleaseRefused> {
+        let hold = std::mem::ManuallyDrop::new(self);
+        crate::macos::secure_input_byte::release_hold(hold.release)
+            .map_err(SecureInputReleaseRefused)
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
 impl Drop for SecureInputHold {
     fn drop(&mut self) {
-        crate::macos::secure_input_byte::release_hold(self.release);
+        let _ = crate::macos::secure_input_byte::release_hold(self.release);
     }
 }
 
@@ -1008,12 +1095,132 @@ pub(crate) mod test_support {
                     refused.0
                 );
             }
+            assert!(
+                skip_allowed(std::env::var_os(HOLD_REQUIRED).as_deref()),
+                "{test}: EnableSecureEventInput refused the hold with status {system} \
+                 ({maker}: {}), and {HOLD_REQUIRED}=1 asks that every hold test holds",
+                refused.0
+            );
             eprintln!(
                 "SKIP {test}: EnableSecureEventInput refused the hold with status {system} \
                  ({maker}: {})",
                 refused.0
             );
             None
+        }
+    }
+
+    /// The variable that the macos job of scripts/r1/ci.d/12-test.sh sets to 1,
+    /// so that a hold test whose hold the system refuses fails in place of its
+    /// skip (ruling PL-2 (1)).
+    pub(crate) const HOLD_REQUIRED: &str = "HALVO_SECURE_INPUT_HOLD_REQUIRED";
+
+    pub(crate) fn skip_allowed(required: Option<&std::ffi::OsStr>) -> bool {
+        required.is_none_or(|value| value != "1")
+    }
+
+    /// Whether a test that takes the system's secure-input hold may run: on a
+    /// hosted runner of GitHub Actions alone, which sets `GITHUB_ACTIONS` to
+    /// `true` and `RUNNER_ENVIRONMENT` to `github-hosted`. Every other pair, a
+    /// missing variable among them, is another machine, where no hold is taken.
+    pub(crate) fn hosted(github_actions: Option<&str>, runner_environment: Option<&str>) -> bool {
+        github_actions == Some("true") && runner_environment == Some("github-hosted")
+    }
+
+    /// What a hold test does at its start.
+    #[derive(Debug, PartialEq, Eq)]
+    pub(crate) enum HoldStart {
+        /// The test takes the hold.
+        Run,
+        /// The test prints this line and returns before it touches the hold.
+        Off(String),
+        /// The test fails with this line.
+        Fail(String),
+    }
+
+    /// The decision at the early return of `test`, from a read of the
+    /// variables made at that return, apart from the read that chose the
+    /// branch: `Fail` when that read says hosted, `Fail` while
+    /// [`HOLD_REQUIRED`] reads `1`, and else `Off`; each line names the test
+    /// and what it read.
+    pub(crate) fn at_return(
+        test: &str,
+        github_actions: Option<&str>,
+        runner_environment: Option<&str>,
+        required: Option<&str>,
+    ) -> HoldStart {
+        let read = format!(
+            "GITHUB_ACTIONS={github_actions:?} RUNNER_ENVIRONMENT={runner_environment:?} \
+             {HOLD_REQUIRED}={required:?}"
+        );
+        if hosted(github_actions, runner_environment) {
+            HoldStart::Fail(format!(
+                "FAIL {test}: the first read said that this is no hosted runner and the read at \
+                 the return says that it is: {read}"
+            ))
+        } else if required == Some("1") {
+            HoldStart::Fail(format!(
+                "FAIL {test}: this is no hosted runner and {HOLD_REQUIRED}=1 asks that every \
+                 hold test holds: {read}"
+            ))
+        } else {
+            HoldStart::Off(format!(
+                "REFUSED {test}: the hold is taken on a hosted runner alone: {read}"
+            ))
+        }
+    }
+
+    /// The start of the hold test `test` over `read`, a reader of the process's
+    /// variables: `Run` when a first read says hosted, and else the decision
+    /// of [`at_return`] over a second read.
+    pub(crate) fn hold_start(test: &str, read: &dyn Fn(&str) -> Option<String>) -> HoldStart {
+        if hosted(
+            read("GITHUB_ACTIONS").as_deref(),
+            read("RUNNER_ENVIRONMENT").as_deref(),
+        ) {
+            return HoldStart::Run;
+        }
+        at_return(
+            test,
+            read("GITHUB_ACTIONS").as_deref(),
+            read("RUNNER_ENVIRONMENT").as_deref(),
+            read(HOLD_REQUIRED).as_deref(),
+        )
+    }
+
+    /// The status with which the system's take answers in a test build off a
+    /// hosted runner, where it makes no call of the system.
+    pub(crate) const REFUSED_OFF_A_HOSTED_RUNNER: i32 = i32::MIN;
+
+    /// The take of the system's hold in a test build over `read`, a reader of
+    /// the process's variables: `take` is called when [`hold_start`] says
+    /// `Run`; else the line of the decision, which names the thread, is printed
+    /// and [`REFUSED_OFF_A_HOSTED_RUNNER`] answered, or the decision fails.
+    pub(crate) fn take_where_hosted(
+        read: &dyn Fn(&str) -> Option<String>,
+        take: fn() -> i32,
+    ) -> i32 {
+        let thread = std::thread::current();
+        match hold_start(thread.name().unwrap_or("a thread with no name"), read) {
+            HoldStart::Run => take(),
+            HoldStart::Off(line) => {
+                println!("{line}");
+                REFUSED_OFF_A_HOSTED_RUNNER
+            }
+            HoldStart::Fail(line) => panic!("{line}"),
+        }
+    }
+
+    /// The guard of a hold test: true on a hosted runner; else it prints the
+    /// line of [`hold_start`] and answers false, or fails with it.
+    pub(crate) fn hosted_or_refuse(test: &str) -> bool {
+        match hold_start(test, &|name| std::env::var(name).ok()) {
+            HoldStart::Run => true,
+            HoldStart::Off(line) => {
+                println!("{line}");
+                false
+            }
+            HoldStart::Fail(line) => panic!("{line}"),
         }
     }
 
@@ -1056,6 +1263,19 @@ pub(crate) mod test_support {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_system_probe_reads_the_session_reader_and_the_carbon_byte_reader_of_the_system() {
+        let probe = super::SystemProbe::new();
+        assert!(
+            std::ptr::fn_addr_eq(probe.session, super::read_session as fn() -> super::Session),
+            "the session reader"
+        );
+        assert!(
+            std::ptr::fn_addr_eq(probe.byte, super::system_byte as fn() -> u8),
+            "the Carbon byte reader"
+        );
+    }
+
     #[test]
     fn no_two_carbon_calls_run_at_the_same_time() {
         let inside = AtomicUsize::new(0);
@@ -1974,7 +2194,7 @@ mod tests {
         }
     }
 
-    use super::test_support::{agreed_reading, one_hold_at_a_time};
+    use super::test_support::{agreed_reading, hosted_or_refuse, one_hold_at_a_time};
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
@@ -2020,6 +2240,275 @@ mod tests {
     }
 
     #[test]
+    fn the_probe_answers_active_for_byte_one_inactive_for_byte_zero_and_unknown_off_the_console() {
+        use crate::secure_input::{SecureInputProbe, SecureInputReading};
+        fn at_console() -> Session {
+            Session::AtConsole
+        }
+        fn not_at_console() -> Session {
+            Session::NotAtConsole
+        }
+        fn byte_one() -> u8 {
+            1
+        }
+        fn byte_zero() -> u8 {
+            0
+        }
+        assert_eq!(
+            SystemProbe::with_readers(at_console, byte_one).read(),
+            SecureInputReading::Active
+        );
+        assert_eq!(
+            SystemProbe::with_readers(at_console, byte_zero).read(),
+            SecureInputReading::Inactive
+        );
+        assert_eq!(
+            SystemProbe::with_readers(not_at_console, byte_one).read(),
+            SecureInputReading::Unknown
+        );
+    }
+
+    #[test]
+    fn a_hold_test_takes_the_hold_on_a_hosted_runner_alone_and_fails_its_refusal_while_the_hold_is_required(
+    ) {
+        use super::test_support::{at_return, hold_start, hosted, HoldStart};
+        fn reader(
+            pairs: &'static [(&'static str, &'static str)],
+        ) -> impl Fn(&str) -> Option<String> {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(n, _)| *n == name)
+                    .map(|(_, v)| v.to_string())
+            }
+        }
+        const T: &str = "a_hold_test";
+        assert!(hosted(Some("true"), Some("github-hosted")));
+        let not_hosted: [(Option<&str>, Option<&str>, &str); 9] = [
+            (None, None, "this Mac and every other machine"),
+            (Some("true"), None, "no runner environment"),
+            (None, Some("github-hosted"), "not in Actions"),
+            (
+                Some("true"),
+                Some("self-hosted"),
+                "a runner of the owner's own",
+            ),
+            (Some(""), Some("github-hosted"), "an empty value"),
+            (Some("true"), Some(""), "an empty environment"),
+            (Some("TRUE"), Some("github-hosted"), "another case"),
+            (
+                Some("true"),
+                Some("GitHub-Hosted"),
+                "another case of the environment",
+            ),
+            (Some("1"), Some("github-hosted"), "another word"),
+        ];
+        for (actions, environment, what) in not_hosted {
+            assert!(!hosted(actions, environment), "{what}");
+        }
+        assert_eq!(
+            hold_start(
+                T,
+                &reader(&[
+                    ("GITHUB_ACTIONS", "true"),
+                    ("RUNNER_ENVIRONMENT", "github-hosted"),
+                ])
+            ),
+            HoldStart::Run
+        );
+        for pairs in [
+            &[][..],
+            &[("GITHUB_ACTIONS", "true")][..],
+            &[("RUNNER_ENVIRONMENT", "github-hosted")][..],
+            &[
+                ("GITHUB_ACTIONS", "true"),
+                ("RUNNER_ENVIRONMENT", "self-hosted"),
+            ][..],
+        ] {
+            let start = hold_start(T, &reader(pairs));
+            let HoldStart::Off(line) = start else {
+                panic!("{pairs:?}: {start:?}");
+            };
+            assert!(line.starts_with("REFUSED a_hold_test: "), "{line}");
+            assert!(line.contains("GITHUB_ACTIONS="), "{line}");
+        }
+        let required = hold_start(T, &reader(&[("HALVO_SECURE_INPUT_HOLD_REQUIRED", "1")]));
+        let HoldStart::Fail(line) = required else {
+            panic!("a refusal while the hold is required: {required:?}");
+        };
+        assert!(line.starts_with("FAIL a_hold_test: "), "{line}");
+        assert!(matches!(
+            hold_start(T, &reader(&[("HALVO_SECURE_INPUT_HOLD_REQUIRED", "0")])),
+            HoldStart::Off(_)
+        ));
+        let late = at_return(T, Some("true"), Some("github-hosted"), None);
+        let HoldStart::Fail(line) = late else {
+            panic!("the read at the return said hosted: {late:?}");
+        };
+        assert!(
+            line.contains("RUNNER_ENVIRONMENT=Some(\"github-hosted\")"),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn the_take_of_the_system_hold_calls_the_system_on_a_hosted_runner_alone_and_refuses_elsewhere()
+    {
+        use super::test_support::{take_where_hosted, REFUSED_OFF_A_HOSTED_RUNNER};
+        use std::panic::{catch_unwind, AssertUnwindSafe};
+        assert_ne!(
+            REFUSED_OFF_A_HOSTED_RUNNER, 0,
+            "the refusal's status would read as a hold that the system took"
+        );
+        static TAKES: AtomicUsize = AtomicUsize::new(0);
+        fn counted_take() -> i32 {
+            TAKES.fetch_add(1, Ordering::SeqCst);
+            0
+        }
+        fn reads(
+            actions: Option<&'static str>,
+            environment: Option<&'static str>,
+            required: Option<&'static str>,
+        ) -> impl Fn(&str) -> Option<String> {
+            move |name: &str| match name {
+                "GITHUB_ACTIONS" => actions.map(str::to_owned),
+                "RUNNER_ENVIRONMENT" => environment.map(str::to_owned),
+                "HALVO_SECURE_INPUT_HOLD_REQUIRED" => required.map(str::to_owned),
+                _ => None,
+            }
+        }
+        let not_hosted: [(Option<&'static str>, Option<&'static str>, &str); 9] = [
+            (None, None, "this Mac and every other machine"),
+            (Some("true"), None, "no runner environment"),
+            (None, Some("github-hosted"), "not in Actions"),
+            (
+                Some("true"),
+                Some("self-hosted"),
+                "a runner of the owner's own",
+            ),
+            (Some(""), Some("github-hosted"), "an empty value"),
+            (Some("true"), Some(""), "an empty environment"),
+            (Some("TRUE"), Some("github-hosted"), "another case"),
+            (
+                Some("true"),
+                Some("GitHub-Hosted"),
+                "another case of the environment",
+            ),
+            (Some("1"), Some("github-hosted"), "another word"),
+        ];
+        for (actions, environment, what) in not_hosted {
+            for required in [None, Some("0")] {
+                let status =
+                    take_where_hosted(&reads(actions, environment, required), counted_take);
+                assert_eq!(
+                    (status, TAKES.load(Ordering::SeqCst)),
+                    (REFUSED_OFF_A_HOSTED_RUNNER, 0),
+                    "{what}, {required:?}"
+                );
+            }
+            let failed = catch_unwind(AssertUnwindSafe(|| {
+                take_where_hosted(&reads(actions, environment, Some("1")), counted_take)
+            }));
+            assert!(
+                failed.is_err(),
+                "{what}: the hold is required and no take failed"
+            );
+            assert_eq!(
+                TAKES.load(Ordering::SeqCst),
+                0,
+                "{what}: a take while required"
+            );
+        }
+        for (taken, required) in [None, Some("0"), Some("1")].into_iter().enumerate() {
+            let status = take_where_hosted(
+                &reads(Some("true"), Some("github-hosted"), required),
+                counted_take,
+            );
+            assert_eq!(
+                (status, TAKES.load(Ordering::SeqCst)),
+                (0, taken + 1),
+                "the hosted pair, {required:?}"
+            );
+        }
+        let before = TAKES.load(Ordering::SeqCst);
+        let reads_made = AtomicUsize::new(0);
+        let changing = |name: &str| {
+            let hosted_now = reads_made.fetch_add(1, Ordering::SeqCst) >= 2;
+            match name {
+                "GITHUB_ACTIONS" if hosted_now => Some("true".to_owned()),
+                "RUNNER_ENVIRONMENT" if hosted_now => Some("github-hosted".to_owned()),
+                _ => None,
+            }
+        };
+        let changed = catch_unwind(AssertUnwindSafe(|| {
+            take_where_hosted(&changing, counted_take)
+        }));
+        assert!(
+            changed.is_err(),
+            "the first read said no hosted runner and the second said one: no failure"
+        );
+        assert_eq!(
+            TAKES.load(Ordering::SeqCst),
+            before,
+            "a take after the values changed between the two reads"
+        );
+    }
+
+    #[test]
+    fn the_wait_seam_notes_the_duration_that_each_call_hands_it() {
+        use super::notice::wait_seam::{CFRunLoop, HANDED};
+        for millis in [7, 13] {
+            let duration = std::time::Duration::from_millis(millis);
+            // SAFETY: `kCFRunLoopDefaultMode` is a constant CFString that
+            // CoreFoundation exports and never writes.
+            CFRunLoop::run_in_mode(
+                unsafe { core_foundation::runloop::kCFRunLoopDefaultMode },
+                duration,
+                true,
+            );
+            assert_eq!(
+                HANDED.with(std::cell::Cell::get),
+                Some(duration),
+                "the duration that the call of {millis} ms handed"
+            );
+        }
+    }
+
+    #[test]
+    fn a_hold_test_may_skip_only_while_the_variable_of_the_hold_tests_is_not_one() {
+        use super::test_support::{skip_allowed, HOLD_REQUIRED};
+        use std::ffi::OsStr;
+        assert_eq!(HOLD_REQUIRED, "HALVO_SECURE_INPUT_HOLD_REQUIRED");
+        assert!(skip_allowed(None));
+        assert!(!skip_allowed(Some(OsStr::new("1"))));
+        assert!(skip_allowed(Some(OsStr::new("0"))));
+        assert!(skip_allowed(Some(OsStr::new(""))));
+    }
+
+    #[test]
+    fn a_release_answers_the_status_of_the_system_and_makes_one_release_call() {
+        static RELEASES: AtomicUsize = AtomicUsize::new(0);
+        fn refused_release() -> i32 {
+            RELEASES.fetch_add(1, Ordering::SeqCst);
+            -50
+        }
+        fn accepted_release() -> i32 {
+            RELEASES.fetch_add(1, Ordering::SeqCst);
+            0
+        }
+        let refused = hold_with(|| 0, refused_release)
+            .expect("a hold with the status 0 is held")
+            .release();
+        assert_eq!(refused, Err(SecureInputReleaseRefused(-50)));
+        assert_eq!(RELEASES.load(Ordering::SeqCst), 1);
+        let accepted = hold_with(|| 0, accepted_release)
+            .expect("a hold with the status 0 is held")
+            .release();
+        assert_eq!(accepted, Ok(()));
+        assert_eq!(RELEASES.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
     fn each_held_hold_makes_one_release_call_on_its_drop_and_a_refused_hold_none() {
         static RELEASES: AtomicUsize = AtomicUsize::new(0);
         fn counted_release() -> i32 {
@@ -2051,6 +2540,11 @@ mod tests {
 
     #[test]
     fn the_production_hold_takes_and_gives_back_secure_input_through_the_system_calls() {
+        if !hosted_or_refuse(
+            "the_production_hold_takes_and_gives_back_secure_input_through_the_system_calls",
+        ) {
+            return;
+        }
         let one = one_hold_at_a_time();
         let Some(hold) = one.production_hold_or_skip(
             "the_production_hold_takes_and_gives_back_secure_input_through_the_system_calls",
@@ -2079,6 +2573,9 @@ mod tests {
 
     #[test]
     fn a_dropped_hold_gives_the_reading_of_before_back() {
+        if !hosted_or_refuse("a_dropped_hold_gives_the_reading_of_before_back") {
+            return;
+        }
         let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
         let before = agreed_reading(secure_input_active, limit);
@@ -2100,6 +2597,9 @@ mod tests {
 
     #[test]
     fn the_predicate_follows_the_session_reading_through_a_hold() {
+        if !hosted_or_refuse("the_predicate_follows_the_session_reading_through_a_hold") {
+            return;
+        }
         let one = one_hold_at_a_time();
         let limit = Duration::from_secs(2);
         let before = agreed_reading(secure_input_active, limit);

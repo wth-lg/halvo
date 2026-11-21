@@ -68,6 +68,15 @@ impl<P: Owner> Owner for Wired<P> {
         self.ports.replies(workflow, agent, run)
     }
 
+    fn overlaps(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        slots: Option<&[halvo_coord::types::Slot]>,
+    ) -> Result<halvo_coord::ports::Overlaps, PortError> {
+        self.ports.overlaps(workflow, agent, slots)
+    }
+
     fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
         self.ports.delete(workflow)
     }

@@ -336,14 +336,16 @@ pub struct CardRun {
     pub day: String,
     /// `text`: the sentence of `line.run.<end>`.
     pub text: String,
-    /// `effects`: one entry for each committed effect of the run and for each effect whose last
-    /// row is `rejected` with a null cause, in the order of the reply of `agent_history`.
+    /// `effects`: one entry for each committed effect of the run, for each effect whose last row
+    /// is `rejected` with a null cause, and for each effect whose last state is `unknown`, in the
+    /// order of the reply of `agent_history`.
     pub effects: Vec<CardEffect>,
 }
 
-/// An effect of a past run on a card (I2.6, rulings H-8, RD-52 (f), RD-85): a sentence with no
-/// placeholder and kept fields of its class as fields of I3.4, made only by
-/// [`CardEffect::committed`], [`CardEffect::unshown`] and [`CardEffect::not_done`].
+/// An effect of a past run on a card (I2.6, rulings H-8, RD-52 (f) and (h) 4, RD-85, RD-126 item
+/// 10): a sentence with no placeholder and kept fields of its class as fields of I3.4, made only by
+/// [`CardEffect::committed`], [`CardEffect::unshown`], [`CardEffect::not_done`] and
+/// [`CardEffect::unknown`].
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CardEffect {
     #[serde(skip)]
@@ -420,6 +422,30 @@ fn kept_field(class: Class, k: &Kept) -> Result<Field, Cause> {
     })
 }
 
+/// The one rule for which kept fields stand on an entry that the reader cannot fully show (I2.6,
+/// ruling RD-52 (h) 4): a field of the table of A-A9.3 for `class` stands where the row keeps its
+/// name exactly once and `kept_field` takes its value whole, shown as `committed` shows it and in
+/// the table's order; never the `items` of a `delete`, a name that the table does not hold for
+/// the class, a name kept twice, a value that holds no byte (no piece, or pieces that are all
+/// empty; ruling RD-158 (3)), or any field of a class with no effect row.
+fn standing(class: Class, kept: &[Kept]) -> Vec<Field> {
+    let once = |name: &str| {
+        let mut named = kept.iter().filter(|k| k.name.as_str() == name);
+        match (named.next(), named.next()) {
+            (Some(k), None) => Some(k),
+            _ => None,
+        }
+    };
+    kept_names(class)
+        .unwrap_or_default()
+        .iter()
+        .filter(|name| !(class == Class::Delete && **name == "items"))
+        .filter_map(|name| once(name))
+        .filter(|k| k.value.iter().any(|piece| !piece.is_empty()))
+        .filter_map(|k| kept_field(class, k).ok())
+        .collect()
+}
+
 impl CardEffect {
     /// The entry of a committed effect of `class` whose effect row keeps `kept`: exactly the
     /// kept fields of the class in the order of A-A9.3, each shown with the label
@@ -450,11 +476,15 @@ impl CardEffect {
         })
     }
 
-    /// The entry of a committed effect that the card's reader refuses (I2.6, ruling RD-52 (f)):
-    /// `run.effect.<class>.unshown` for a class with an effect row and `run.effect.unshown` for
-    /// any other, with no field. It takes no kept value, so no byte of one reaches the reply.
-    pub fn unshown(class: Class) -> Result<CardEffect, Cause> {
+    /// The entry of a committed effect that the card's reader refuses (I2.6, rulings RD-52 (f)
+    /// and (h) 4): the kept fields of `kept` that the one rule lets stand, and
+    /// `run.effect.<class>.partial` where one stands; with none, `run.effect.<class>.unshown`
+    /// for a class with an effect row and `run.effect.unshown` for any other. No byte of a kept
+    /// value that does not stand reaches the reply.
+    pub fn unshown(class: Class, kept: &[Kept]) -> Result<CardEffect, Cause> {
+        let fields = standing(class, kept);
         let key = match kept_names(class) {
+            Some(_) if !fields.is_empty() => format!("run.effect.{}.partial", class.name()),
             Some(_) => format!("run.effect.{}.unshown", class.name()),
             None => "run.effect.unshown".to_owned(),
         };
@@ -462,7 +492,24 @@ impl CardEffect {
             class,
             text: words::text(&key, &[])?,
             key,
-            fields: Vec::new(),
+            fields,
+        })
+    }
+
+    /// The entry of an effect whose last state is `unknown` (I2.6, ruling RD-126 item 10), which
+    /// says that Halvo could not tell whether it went through: `run.effect.<class>.unknown` for
+    /// a class with an effect row and `run.effect.unknown` for any other, with the kept fields of
+    /// `kept` that the one rule lets stand.
+    pub fn unknown(class: Class, kept: &[Kept]) -> Result<CardEffect, Cause> {
+        let key = match kept_names(class) {
+            Some(_) => format!("run.effect.{}.unknown", class.name()),
+            None => "run.effect.unknown".to_owned(),
+        };
+        Ok(CardEffect {
+            class,
+            text: words::text(&key, &[])?,
+            key,
+            fields: standing(class, kept),
         })
     }
 
@@ -497,7 +544,9 @@ impl CardEffect {
         self.class
     }
 
-    /// `key`: of the family `run.effect.<class>` or its `unshown`, `not_done` or `refused` entry.
+    /// `key`: of the family `run.effect.<class>` or its `unshown`, `partial`, `unknown`,
+    /// `not_done` or `refused` entry, or the plain `run.effect.unshown`, `run.effect.unknown`,
+    /// `run.effect.not_done` or `run.effect.refused` of a class with no effect row.
     pub fn key(&self) -> String {
         self.key.clone()
     }

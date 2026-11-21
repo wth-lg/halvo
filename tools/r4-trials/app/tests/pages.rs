@@ -1,18 +1,29 @@
 use r4_trial_app::pages::*;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn scratch(name: &str) -> PathBuf {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("pages-{name}-{}", std::process::id()));
-    if !dir.exists() {
-        fs::create_dir_all(dir.join("pages/sub")).unwrap();
-        fs::write(dir.join("pages/index.html"), "<p>index</p>").unwrap();
-        fs::write(dir.join("pages/sub/view.js"), "let a = 1;").unwrap();
-        fs::write(dir.join("pages/data.bin"), [0u8, 1, 2]).unwrap();
-        fs::write(dir.join("outside.html"), "outside").unwrap();
-    }
+    let base = Path::new(env!("CARGO_TARGET_TMPDIR")).join("pages");
+    let dir = halvo_test_dir::make(&base, name).unwrap();
+    fs::create_dir_all(dir.join("pages/sub")).unwrap();
+    fs::write(dir.join("pages/index.html"), "<p>index</p>").unwrap();
+    fs::write(dir.join("pages/sub/view.js"), "let a = 1;").unwrap();
+    fs::write(dir.join("pages/data.bin"), [0u8, 1, 2]).unwrap();
+    fs::write(dir.join("outside.html"), "outside").unwrap();
     dir
+}
+
+#[test]
+fn a_scratch_name_used_twice_gives_two_new_directories() {
+    let first = scratch("twice");
+    fs::write(first.join("pages/left.html"), "left").unwrap();
+    let second = scratch("twice");
+    assert_ne!(first, second);
+    assert!(!second.join("pages/left.html").exists());
+    assert_eq!(
+        fs::read(second.join("pages/index.html")).unwrap(),
+        b"<p>index</p>"
+    );
 }
 
 #[test]
@@ -71,9 +82,7 @@ fn missing_and_malformed_paths_are_404() {
 fn a_link_that_leaves_the_directory_is_403() {
     let dir = scratch("link");
     let link = dir.join("pages/away.html");
-    if !link.exists() {
-        std::os::unix::fs::symlink(dir.join("outside.html"), &link).unwrap();
-    }
+    std::os::unix::fs::symlink(dir.join("outside.html"), &link).unwrap();
     assert_eq!(serve(&dir.join("pages"), "/away.html").status, 403);
 }
 
@@ -154,9 +163,7 @@ fn every_response_of_the_scheme_carries_the_policy() {
 fn a_403_carries_the_policy_too() {
     let dir = scratch("policy403");
     let link = dir.join("pages/away.html");
-    if !link.exists() {
-        std::os::unix::fs::symlink(dir.join("outside.html"), &link).unwrap();
-    }
+    std::os::unix::fs::symlink(dir.join("outside.html"), &link).unwrap();
     let response = respond(&dir.join("pages"), "/away.html");
     assert_eq!(response.status().as_u16(), 403);
     assert_eq!(

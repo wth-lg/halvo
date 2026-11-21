@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the bound ci_job_timeout_min, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag; pull_request and the pinned schedule are the other events. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the pinned cron line below it and no other line under it and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes and steps at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at six blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, and the letters rust-cache stand on no other line. A step condition must be always() and a step must have no continue-on-error key. Review each changed step command in the diff; this pin does not read what a step runs. The push filters are pin_branches and pin_tags. The schedule and cache lines are pin_cron, pin_uses, pin_with, pin_prefix and pin_save below; on the event schedule they make the step find no saved Rust build cache and save none.
+# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the one line that gives the events push and pull_request the bound ci_gate_job_timeout_min and every other event the bound ci_job_timeout_min, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag; pull_request and the pinned schedule are the other events, and the event workflow_dispatch is taken when it is its line and the six lines of pin_dispatch under it, and is not required. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the two pinned cron lines below it, the Sunday line and then the Wednesday line of the long forms, and no other line under them and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes and steps at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at six blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, and the letters rust-cache stand on no other line. A step condition must be always(), or github.event.schedule != '17 3 * * 3' on a step that is not a Long forms step; the steps Long forms build and Long forms carry github.event.schedule == '17 3 * * 3' and no other step does; the steps of the whole table (Self-tests that commit in throwaway repositories, ci.d self-test and ci.d) carry github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0' and no other step does, and the step ci.d merge gate carries github.event_name == 'push' || github.event_name == 'pull_request' and no other step does, so a push and a pull request run the merge gate and never the whole table; the step Long forms sets in its env HALVO_STALL_FORM: long in the job macos or HALVO_WF_FORM: long in the job windows, then CI_D_SCRIPT_LIMIT_S: 3600, and nothing else; a step must have no continue-on-error key. The lint reads a condition by the value that YAML decodes from a plain scalar, so lines folded into one, a comment behind it and blanks around it change nothing, refuses a condition in quotes or in a block, and reads a step's name by its value in any style. Review each changed step command in the diff; this pin does not read what a step runs. The push filters are pin_branches and pin_tags. The schedule and cache lines are pin_cron, pin_cron_long, pin_uses, pin_with, pin_prefix and pin_save below; on the event schedule they make the step find no saved Rust build cache and save none.
 set -u
 name=17-workflow-lint
 pinned_version=1.7.12
@@ -9,10 +9,12 @@ nl='
 pin_branches="    branches-ignore: ['land-*', 'land-*/**']"
 pin_tags="    tags: ['**']"
 pin_cron="    - cron: '17 3 * * 0'"
+pin_cron_long="    - cron: '17 3 * * 3'"
 pin_uses="      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3"
 pin_with="        with:"
 pin_prefix="          prefix-key: \${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}"
 pin_save="          save-if: \${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}"
+pin_dispatch="    inputs:${nl}      table:${nl}        description: The whole table with every self-test, as the Sunday run${nl}        type: choice${nl}        options: [whole]${nl}        default: whole"
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -144,7 +146,9 @@ EOF
   export GATE_ROOT
   . scripts/r1-gate/lib.sh
   bound=$(gate_bound ci_job_timeout_min) || bound=
-  job_facts=$(awk -v q="'" -v bound="$bound" '
+  gate=$(gate_bound ci_gate_job_timeout_min) || gate=
+  timeout_line="    timeout-minutes: \${{ (github.event_name == 'push' || github.event_name == 'pull_request') && $gate || $bound }}"
+  job_facts=$(TIMEOUT_LINE=$timeout_line awk -v q="'" -v bound="$bound" -v gate="$gate" '
     function finish() {
       if (job == "") return
       jobs++; names = names " " job
@@ -156,7 +160,7 @@ EOF
     in_jobs && /^[^[:space:]#]/ { finish(); in_jobs = 0 }
     $0 ~ key { blocks++; rest = $0; sub(key, "", rest); if (rest !~ /^[[:space:]]*(#.*)?$/) inline = 1; in_jobs = 1; next }
     in_jobs && /^  [^[:space:]#]/ { finish(); job = $0; sub(/^  /, "", job); sub(/[[:space:]]*:.*$/, "", job); gsub(q, "", job); gsub(/"/, "", job); timed = 0; next }
-    in_jobs && job != "" && bound != "" && $0 == "    timeout-minutes: " bound { timed++ }
+    in_jobs && job != "" && bound != "" && gate != "" && $0 == ENVIRON["TIMEOUT_LINE"] { timed++ }
     END { finish(); print blocks + 0, inline + 0, jobs + 0, good + 0, macos + 0, windows + 0, others + 0, names }' "$file")
   read -r blocks inline jobs timed macos windows others names <<EOF
 $job_facts
@@ -168,16 +172,19 @@ EOF
   elif [ "$macos" -ne 1 ] || [ "$windows" -ne 1 ] || [ "$others" -ne 0 ]; then
     finding "the jobs of ci.yml must be exactly macos and windows, and it holds: $names"
   fi
-  case $bound in
-    '') finding "the bound ci_job_timeout_min cannot be read with gate_bound of scripts/r1-gate/lib.sh" ;;
-    *[!0-9]*) finding "the bound ci_job_timeout_min is no number" ;;
+  case $bound:$gate in
+    :*) finding "the bound ci_job_timeout_min cannot be read with gate_bound of scripts/r1-gate/lib.sh" ;;
+    *[!0-9]*:*) finding "the bound ci_job_timeout_min is no number" ;;
+    *:) finding "the bound ci_gate_job_timeout_min cannot be read with gate_bound of scripts/r1-gate/lib.sh" ;;
+    *:*[!0-9]*) finding "the bound ci_gate_job_timeout_min is no number" ;;
+    0*:* | *:0*) finding "a job limit of 0 minutes, or one written with a leading zero, is no limit: the bounds ci_job_timeout_min=$bound and ci_gate_job_timeout_min=$gate are whole numbers from 1" ;;
     *)
       [ "$jobs" -eq "$timed" ] ||
-        finding "$timed of $jobs jobs of ci.yml set timeout-minutes: $bound, the bound ci_job_timeout_min"
+        finding "$timed of $jobs jobs of ci.yml set the timeout line of the bounds ci_gate_job_timeout_min=$gate and ci_job_timeout_min=$bound; write it in each job: $timeout_line"
       ;;
   esac
 
-  pins=$(LC_ALL=C PIN_BRANCHES=$pin_branches PIN_TAGS=$pin_tags PIN_CRON=$pin_cron PIN_USES=$pin_uses PIN_WITH=$pin_with PIN_PREFIX=$pin_prefix PIN_SAVE=$pin_save awk -v q="'" '
+  pins=$(LC_ALL=C PIN_DISPATCH=$pin_dispatch PIN_BRANCHES=$pin_branches PIN_TAGS=$pin_tags PIN_CRON=$pin_cron PIN_CRON_LONG=$pin_cron_long PIN_USES=$pin_uses PIN_WITH=$pin_with PIN_PREFIX=$pin_prefix PIN_SAVE=$pin_save awk -v q="'" '
     function decode(s,    out, h, n, k) {
       out = ""
       while (match(s, /\\(x[0-9A-Fa-f][0-9A-Fa-f]|u[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]|U[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f])/)) {
@@ -201,6 +208,8 @@ EOF
       return ""
     }
     function held(v) { return "; the pin holds the " pinned[v] " in the variable " v " at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change" }
+    function heldtwo() { return "; the pin holds the two cron lines in the variables pin_cron and pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of one is a ruled change" }
+    function crons() { return "the two lines " shown(PIN_CRON) " and " shown(PIN_CRON_LONG) }
     function add(n, text) {
       nf++
       at[nf] = n
@@ -222,7 +231,7 @@ EOF
       cstate = 0
     }
     function endon() {
-      if (sec == "on" && !onbad && !sched && !schedother) add(onstart, "the block on: holds no line " shown("  schedule:") "; this lint reads the schedule as that line alone and under it the line " shown(PIN_CRON) "; write both lines under " shown("on:") held("pin_cron"))
+      if (sec == "on" && !onbad && !sched && !schedother) add(onstart, "the block on: holds no line " shown("  schedule:") "; this lint reads the schedule as that line alone and under it " crons() "; write the three lines under " shown("on:") heldtwo())
     }
     function checkname() {
       if (low !~ /rust-cache/ || firstofstep || quiet) return
@@ -256,7 +265,7 @@ EOF
       if (onbad || blank) return
       if (comment) {
         if (low ~ /schedule|cron/) {
-          add(NR, shown(line) " names the schedule or a cron line in the block on:; this lint reads the schedule as the line " shown("  schedule:") " alone and under it the one line " shown(PIN_CRON) "; take this line out" held("pin_cron"))
+          add(NR, shown(line) " names the schedule or a cron line in the block on:; this lint reads the schedule as the line " shown("  schedule:") " alone and under it " crons() "; take this line out" heldtwo())
           schedother = 1
         }
         return
@@ -274,14 +283,16 @@ EOF
         event = line
         if (event == "  push:") pushes++
         else if (event == "  pull_request:") pull_requests++
+        else if (event == "  workflow_dispatch:") { dispatches++; dispatch_at = 0 }
         else if (event != "  schedule:") other_event = 1
       } else if (event == "  push:" && line == ENVIRON["PIN_BRANCHES"]) branch_filters++
       else if (event == "  push:" && line == ENVIRON["PIN_TAGS"]) tag_filters++
+      else if (event == "  workflow_dispatch:" && line == dispatch[++dispatch_at]) dispatch_lines++
       else if (event != "  schedule:") other_event = 1
       if (aftercron) {
         aftercron = 0
         if (i > 2) {
-          add(NR, shown(line) " stands under the schedule below its cron line; this lint reads the cron line and nothing else under " shown("  schedule:") "; take it out" held("pin_cron"))
+          add(NR, shown(line) " stands under the schedule below its two cron lines; this lint reads " crons() " and nothing else under " shown("  schedule:") "; take it out" heldtwo())
           return
         }
       }
@@ -292,7 +303,7 @@ EOF
         return
       }
       if (low ~ /schedule|cron/) {
-        add(NR, shown(line) " names the schedule or a cron line in the block on:; this lint reads the schedule as the line " shown("  schedule:") " alone and under it the one line " shown(PIN_CRON) "; write it so or take this line out" held("pin_cron"))
+        add(NR, shown(line) " names the schedule or a cron line in the block on:; this lint reads the schedule as the line " shown("  schedule:") " alone and under it " crons() "; write it so or take this line out" heldtwo())
         schedother = 1
       }
     }
@@ -404,11 +415,14 @@ EOF
       want[4] = ENVIRON["PIN_SAVE"]; var[4] = "pin_save"
       PIN_CRON = ENVIRON["PIN_CRON"]
       pinned["pin_cron"] = "cron line"
+      pinned["pin_cron_long"] = "second cron line"
+      PIN_CRON_LONG = ENVIRON["PIN_CRON_LONG"]
       pinned["pin_uses"] = "uses line of the Rust cache step"
       pinned["pin_with"] = "with line of the Rust cache step"
       pinned["pin_prefix"] = "prefix-key line"
       pinned["pin_save"] = "save-if line"
       PIN_USES = want[1]; PIN_WITH = want[2]; PIN_PREFIX = want[3]; PIN_SAVE = want[4]
+      dispatch_want = split(ENVIRON["PIN_DISPATCH"], dispatch, "\n")
     }
     {
       line = $0
@@ -436,8 +450,14 @@ EOF
       }
       if (NR == wantcron) {
         wantcron = 0
-        if (line == PIN_CRON) { aftercron = 1; next }
+        if (line == PIN_CRON) { wantlong = NR + 1; next }
         add(NR, shown(line) " stands under " shown("  schedule:") ", where this lint reads the cron line; " differ(line, PIN_CRON) "; write " shown(PIN_CRON) held("pin_cron"))
+        if (blank || comment || line !~ /^[^ ]/) { wantlong = NR + 1; checkname(); next }
+      }
+      if (NR == wantlong) {
+        wantlong = 0
+        if (line == PIN_CRON_LONG) { aftercron = 1; next }
+        add(NR, shown(line) " stands on the second line under " shown("  schedule:") ", where this lint reads the second cron line; " differ(line, PIN_CRON_LONG) "; write " shown(PIN_CRON_LONG) held("pin_cron_long"))
         if (blank || comment || line !~ /^[^ ]/) { checkname(); next }
       }
       if (!blank && !comment && line ~ /^[^ ]/) col1()
@@ -447,12 +467,13 @@ EOF
     }
     END {
       if (cstate == 1) add(cstart, "the Rust cache step of the job " job " ends with the file before its line " (NR - cstart + 2) "; write after its last line the line " shown(want[NR - cstart + 2]) held(var[NR - cstart + 2]))
-      if (wantcron) add(wantcron - 1, "the file ends where this lint reads the cron line under " shown("  schedule:") "; write " shown(PIN_CRON) held("pin_cron"))
+      if (wantcron) add(wantcron - 1, "the file ends where this lint reads the cron line under " shown("  schedule:") "; write " crons() heldtwo())
+      if (wantlong) add(wantlong - 1, "the file ends where this lint reads the second cron line under " shown("  schedule:") "; write " shown(PIN_CRON_LONG) held("pin_cron_long"))
       endjob()
       endon()
-      if (!ons && !onother) add(0, "no line of the file is " shown("on:") " alone in column 1; this lint reads the events under that line, with the line " shown("  schedule:") " and under it the line " shown(PIN_CRON) "; write them" held("pin_cron"))
-      if (!nf && (pushes != 1 || pull_requests != 1 || branch_filters != 1 || tag_filters != 1 || other_event))
-        add(onstart, "write the push filters and the pull_request and schedule events under " shown("on:") ": under " shown("  push:") " write " shown(ENVIRON["PIN_BRANCHES"]) " and " shown(ENVIRON["PIN_TAGS"]) "; write " shown("  pull_request:") " without filters and keep the weekly schedule")
+      if (!ons && !onother) add(0, "no line of the file is " shown("on:") " alone in column 1; this lint reads the events under that line, with the line " shown("  schedule:") " and under it " crons() "; write them" heldtwo())
+      if (!nf && (pushes != 1 || pull_requests != 1 || branch_filters != 1 || tag_filters != 1 || other_event || dispatches > 1 || (dispatches == 1 && dispatch_lines != dispatch_want)))
+        add(onstart, "write the push filters and the pull_request and schedule events under " shown("on:") ": under " shown("  push:") " write " shown(ENVIRON["PIN_BRANCHES"]) " and " shown(ENVIRON["PIN_TAGS"]) "; write " shown("  pull_request:") " without filters and keep the weekly schedule; the event of a run by hand is the line " shown("  workflow_dispatch:") " with the " dispatch_want " lines of the variable pin_dispatch at the top of scripts/r1/ci.d/17-workflow-lint.sh under it and nothing else")
       for (a = 2; a <= nf; a++)
         for (b = a; b > 1 && at[b - 1] > at[b]; b--) {
           t = at[b]; at[b] = at[b - 1]; at[b - 1] = t
@@ -472,6 +493,14 @@ EOF
         mapping.children.each_slice(2)
       end
       workflow = Psych.parse_file(ARGV.fetch(0)).root
+      wednesday = "github.event.schedule == \x2717 3 * * 3\x27"
+      other_days = "github.event.schedule != \x2717 3 * * 3\x27"
+      merge_gate = "github.event_name == \x27push\x27 || github.event_name == \x27pull_request\x27"
+      whole_table = "github.event_name == \x27workflow_dispatch\x27 || github.event.schedule == \x2717 3 * * 0\x27"
+      table_steps = ["Self-tests that commit in throwaway repositories", "ci.d self-test", "ci.d"]
+      long_env = { "macos" => [["HALVO_STALL_FORM", "long"], ["CI_D_SCRIPT_LIMIT_S", "3600"]], "windows" => [["HALVO_WF_FORM", "long"], ["CI_D_SCRIPT_LIMIT_S", "3600"]] }
+      plain = lambda { |node| node.is_a?(Psych::Nodes::Scalar) && node.plain ? node.value : nil }
+      text = lambda { |node| node.is_a?(Psych::Nodes::Scalar) ? node.value : nil }
       _, jobs = pairs(workflow).find { |key, _| key.value == "jobs" }
       pairs(jobs).each do |job, mapping|
         pairs(mapping).each do |key, value|
@@ -481,9 +510,36 @@ EOF
           end
           next unless key.value == "steps"
           value.children.each_with_index do |step, index|
+            named = pairs(step).find { |field, _| field.value == "name" }
+            long = named && ["Long forms build", "Long forms"].include?(text.call(named[1]))
+            condition = pairs(step).find { |field, _| field.value.downcase == "if" }
+            written = condition && plain.call(condition[1])
+            if long
+              puts "job #{job.value} step #{index + 1}: a Long forms step takes the condition #{wednesday} and no other" unless written == wednesday
+            elsif written == wednesday
+              puts "job #{job.value} step #{index + 1}: the condition #{wednesday} belongs to the steps Long forms build and Long forms alone"
+            end
+            if named && table_steps.include?(text.call(named[1]))
+              puts "job #{job.value} step #{index + 1}: a step of the whole table (#{table_steps.join(", ")}) takes the condition #{whole_table} and no other, so that a push and a pull request never run it" unless written == whole_table
+            elsif written == whole_table
+              puts "job #{job.value} step #{index + 1}: the condition #{whole_table} belongs to the steps #{table_steps.join(", ")} alone"
+            end
+            if named && text.call(named[1]) == "ci.d merge gate"
+              puts "job #{job.value} step #{index + 1}: the step ci.d merge gate takes the condition #{merge_gate} and no other" unless written == merge_gate
+            elsif written == merge_gate
+              puts "job #{job.value} step #{index + 1}: the condition #{merge_gate} belongs to the step ci.d merge gate alone"
+            end
+            if named && text.call(named[1]) == "Long forms"
+              env = pairs(step).find { |field, _| field.value == "env" }
+              got = env && env[1].is_a?(Psych::Nodes::Mapping) ? pairs(env[1]).map { |key, setting| [plain.call(key), plain.call(setting)] } : nil
+              want = long_env[job.value]
+              puts "job #{job.value} step #{index + 1}: the step Long forms sets #{(want || []).map { |key, setting| "#{key}: #{setting}" }.join(" and then ")} in its env and nothing else" unless got == want
+            end
             pairs(step).each do |field, setting|
               case field.value.downcase
               when "if"
+                next if long || [wednesday, other_days, merge_gate, whole_table].include?(plain.call(setting))
+                puts "job #{job.value} step #{index + 1}: write the condition as a plain YAML scalar, with no quotes and no block; this lint reads a condition by its plain value alone" unless setting.is_a?(Psych::Nodes::Scalar) && setting.plain
                 unless setting.is_a?(Psych::Nodes::Scalar) && setting.value == "always()"
                   puts "job #{job.value} step #{index + 1}: use only always() as a step condition"
                 end
@@ -577,14 +633,21 @@ EOF
   cat >"$work/lib.sh" <<'EOF'
 gate_bound() {
   [ "${GATE_ROOT:-}" = "$CI_D_REPO" ] || return 1
-  [ "$1" = ci_job_timeout_min ] && printf '%s\n' "$STUB_BOUND"
+  case $1 in
+    ci_gate_job_timeout_min) printf '20\n' ;;
+    ci_job_timeout_min) printf '%s\n' "$STUB_BOUND" ;;
+    *) return 1 ;;
+  esac
 }
 EOF
   checkout='      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1'
-  printf '%s\n' 'on:' '  push:' "    branches-ignore: ['land-*', 'land-*/**']" "    tags: ['**']" '  pull_request:' '  schedule:' "$pin_cron" 'jobs:' \
-    '  macos:' '    runs-on: macos-15' '    timeout-minutes: 30' '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
-    '  windows:' '    runs-on: windows-2025' '    timeout-minutes: 30' '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
+  timeout_30="    timeout-minutes: \${{ (github.event_name == 'push' || github.event_name == 'pull_request') && 20 || 30 }}"
+  timeout_30_sed=$(printf '%s\n' "$timeout_30" | sed 's/&/\\&/g')
+  printf '%s\n' '' '' '' '' '' '' '' 'jobs:' \
+    '  macos:' '    runs-on: macos-15' "$timeout_30" '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
+    '  windows:' '    runs-on: windows-2025' "$timeout_30" '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
     'permissions:' '  contents: read' 'name: ci' \
+    'on:' '  push:' "    branches-ignore: ['land-*', 'land-*/**']" "    tags: ['**']" '  pull_request:' '  schedule:' "$pin_cron" "$pin_cron_long" \
     >"$work/ci.yml"
   rejected=0
   wrong=
@@ -639,6 +702,70 @@ EOF
   check step-flow-continue-on-error FAIL 'take continue-on-error out of the step'
   lines step-always-and-input-named-if 13 "$checkout${nl}        if: always()${nl}        env:${nl}          if: local"
   check step-always-and-input-named-if PASS 'jobs: 2, uses keys: 4, findings: 0'
+  wed="        if: github.event.schedule == '17 3 * * 3'"
+  neg="        if: github.event.schedule != '17 3 * * 3'"
+  build="      - name: Long forms build"
+  long="      - name: Long forms"
+  mac_env="        env:${nl}          HALVO_STALL_FORM: long${nl}          CI_D_SCRIPT_LIMIT_S: 3600"
+  win_env="        env:${nl}          HALVO_WF_FORM: long${nl}          CI_D_SCRIPT_LIMIT_S: 3600"
+  run_b="        run: echo build"
+  run_l="        run: echo long"
+  lines w01-long-forms-steps-on-the-wednesday-time 26 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}$win_env${nl}$run_l" 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}$mac_env${nl}$run_l"
+  check w01-long-forms-steps-on-the-wednesday-time PASS 'jobs: 2, uses keys: 4, findings: 0'
+  lines w02-other-days-condition-on-steps 22 "$checkout${nl}$neg" 13 "$checkout${nl}$neg"
+  check w02-other-days-condition-on-steps PASS 'jobs: 2, uses keys: 4, findings: 0'
+  lines w03-wednesday-condition-on-another-step 13 "$checkout${nl}$wed"
+  check w03-wednesday-condition-on-another-step FAIL "job macos step 1: the condition github.event.schedule == '17 3 * * 3' belongs to the steps Long forms build and Long forms alone"
+  lines w04-long-forms-step-without-a-condition 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$mac_env${nl}$run_l"
+  check w04-long-forms-step-without-a-condition FAIL "job macos step 4: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w05-long-forms-step-on-the-other-days 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$neg${nl}$mac_env${nl}$run_l"
+  check w05-long-forms-step-on-the-other-days FAIL "job macos step 4: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w06-long-forms-build-on-every-run 17 "$pin_save${nl}$build${nl}        if: always()${nl}$run_b${nl}$long${nl}$wed${nl}$mac_env${nl}$run_l"
+  check w06-long-forms-build-on-every-run FAIL "job macos step 3: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w07-wednesday-condition-in-an-expression 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}        if: \${{ github.event.schedule == '17 3 * * 3' }}${nl}$mac_env${nl}$run_l"
+  check w07-wednesday-condition-in-an-expression FAIL "job macos step 4: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w08-wednesday-condition-in-double-quotes 17 "$pin_save${nl}$build${nl}        if: \"github.event.schedule == '17 3 * * 3'\"${nl}$run_b${nl}$long${nl}$wed${nl}$mac_env${nl}$run_l"
+  check w08-wednesday-condition-in-double-quotes FAIL "job macos step 3: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w09-other-days-condition-in-double-quotes 13 "$checkout${nl}        if: \"github.event.schedule != '17 3 * * 3'\""
+  check w09-other-days-condition-in-double-quotes FAIL 'job macos step 1: use only always() as a step condition'
+  lines w10-other-days-condition-of-the-sunday-time 13 "$checkout${nl}        if: github.event.schedule != '17 3 * * 0'"
+  check w10-other-days-condition-of-the-sunday-time FAIL 'job macos step 1: use only always() as a step condition'
+  lines w11-limit-of-1200 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}        env:${nl}          HALVO_STALL_FORM: long${nl}          CI_D_SCRIPT_LIMIT_S: 1200${nl}$run_l"
+  check w11-limit-of-1200 FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w12-short-form 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}        env:${nl}          HALVO_STALL_FORM: short${nl}          CI_D_SCRIPT_LIMIT_S: 3600${nl}$run_l"
+  check w12-short-form FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w13-windows-takes-the-form-of-macos 26 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}$mac_env${nl}$run_l"
+  check w13-windows-takes-the-form-of-macos FAIL 'job windows step 4: the step Long forms sets HALVO_WF_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w14-a-third-variable 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}$mac_env${nl}          EXTRA: x${nl}$run_l"
+  check w14-a-third-variable FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w15-limit-in-quotes 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}        env:${nl}          HALVO_STALL_FORM: long${nl}          CI_D_SCRIPT_LIMIT_S: '3600'${nl}$run_l"
+  check w15-limit-in-quotes FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w16-long-forms-without-env 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}$run_l"
+  check w16-long-forms-without-env FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w17-variables-in-the-other-order 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}        env:${nl}          CI_D_SCRIPT_LIMIT_S: 3600${nl}          HALVO_STALL_FORM: long${nl}$run_l"
+  check w17-variables-in-the-other-order FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w18-wednesday-condition-on-a-step-named-otherwise 17 "$pin_save${nl}      - name: long forms${nl}$wed${nl}$run_l"
+  check w18-wednesday-condition-on-a-step-named-otherwise FAIL "job macos step 3: the condition github.event.schedule == '17 3 * * 3' belongs to the steps Long forms build and Long forms alone"
+  lines w19-long-forms-build-named-in-quotes-on-the-other-days 17 "$pin_save${nl}      - name: 'Long forms build'${nl}$neg${nl}$run_b${nl}$long${nl}$wed${nl}$mac_env${nl}$run_l"
+  check w19-long-forms-build-named-in-quotes-on-the-other-days FAIL "job macos step 3: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w20-long-forms-build-named-in-a-block-without-a-condition 17 "$pin_save${nl}      - name: |-${nl}          Long forms build${nl}$run_b${nl}$long${nl}$wed${nl}$mac_env${nl}$run_l"
+  check w20-long-forms-build-named-in-a-block-without-a-condition FAIL "job macos step 3: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w21-long-forms-named-in-quotes-on-every-run-with-a-short-form 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}      - name: \"Long forms\"${nl}        if: always()${nl}        env:${nl}          HALVO_STALL_FORM: short${nl}          CI_D_SCRIPT_LIMIT_S: 3600${nl}$run_l"
+  check w21-long-forms-named-in-quotes-on-every-run-with-a-short-form FAIL "job macos step 4: a Long forms step takes the condition github.event.schedule == '17 3 * * 3' and no other"
+  lines w22-long-forms-named-in-quotes-with-a-limit-of-1200 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}      - name: 'Long forms'${nl}$wed${nl}        env:${nl}          HALVO_STALL_FORM: long${nl}          CI_D_SCRIPT_LIMIT_S: 1200${nl}$run_l"
+  check w22-long-forms-named-in-quotes-with-a-limit-of-1200 FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w23-long-forms-named-in-a-block-on-the-other-days-without-env 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}      - name: |-${nl}          Long forms${nl}$neg${nl}$run_l"
+  check w23-long-forms-named-in-a-block-on-the-other-days-without-env FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w24-always-in-quotes 13 "$checkout${nl}        if: 'always()'"
+  check w24-always-in-quotes FAIL 'job macos step 1: write the condition as a plain YAML scalar, with no quotes and no block; this lint reads a condition by its plain value alone'
+  lines w25-quoted-variable-name 17 "$pin_save${nl}$build${nl}$wed${nl}$run_b${nl}$long${nl}$wed${nl}        env:${nl}          'HALVO_STALL_FORM': long${nl}          CI_D_SCRIPT_LIMIT_S: 3600${nl}$run_l"
+  check w25-quoted-variable-name FAIL 'job macos step 4: the step Long forms sets HALVO_STALL_FORM: long and then CI_D_SCRIPT_LIMIT_S: 3600 in its env and nothing else'
+  lines w26-wednesday-condition-on-long-forms-extra 17 "$pin_save${nl}      - name: Long forms extra${nl}$wed${nl}$run_l"
+  check w26-wednesday-condition-on-long-forms-extra FAIL "job macos step 3: the condition github.event.schedule == '17 3 * * 3' belongs to the steps Long forms build and Long forms alone"
+  lines w27-other-days-condition-in-capitals 13 "$checkout${nl}        if: GITHUB.EVENT.SCHEDULE != '17 3 * * 3'"
+  check w27-other-days-condition-in-capitals FAIL 'job macos step 1: use only always() as a step condition'
+  lines w28-other-days-condition-in-an-expression 13 "$checkout${nl}        if: \${{ github.event.schedule != '17 3 * * 3' }}"
+  check w28-other-days-condition-in-an-expression FAIL 'job macos step 1: use only always() as a step condition'
 
   tree pinned-and-timed ''
   check pinned-and-timed PASS 'jobs: 2, uses keys: 4, findings: 0'
@@ -663,24 +790,24 @@ EOF
   tree permissions-at-job-level-only "27,28d;10s/\$/\\${nl}    permissions: {}/"
   check permissions-at-job-level-only FAIL 'ci.yml must set permissions once at the top level, and it does so 0 times)'
   tree job-without-timeout '20d'
-  check job-without-timeout FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check job-without-timeout FAIL '1 of 2 jobs of ci.yml set the timeout line of the bounds ci_gate_job_timeout_min=20 and ci_job_timeout_min=30;'
   tree step-timeout-in-place-of-the-job-timeout "20d;22s/\$/\\${nl}        timeout-minutes: 30/"
-  check step-timeout-in-place-of-the-job-timeout FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check step-timeout-in-place-of-the-job-timeout FAIL '1 of 2 jobs of ci.yml set the timeout line of the bounds ci_gate_job_timeout_min=20 and ci_job_timeout_min=30;'
   tree job-keys-at-another-indent '9,26s/^/  /;11d;20d'
   check job-keys-at-another-indent FAIL 'FAIL 17-workflow-lint (ci.yml holds no job key at two spaces under jobs:;'
   tree timeout-above-the-bound '11s/30/31/'
-  check timeout-above-the-bound FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-above-the-bound FAIL '1 of 2 jobs of ci.yml set the timeout line of the bounds ci_gate_job_timeout_min=20 and ci_job_timeout_min=30;'
   tree timeout-ten-times-the-bound '11s/30/300/'
-  check timeout-ten-times-the-bound FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
+  check timeout-ten-times-the-bound FAIL '1 of 2 jobs of ci.yml set the timeout line of the bounds ci_gate_job_timeout_min=20 and ci_job_timeout_min=30;'
   tree bound-moved ''
   STUB_BOUND=45
-  check bound-moved FAIL '0 of 2 jobs of ci.yml set timeout-minutes: 45, the bound ci_job_timeout_min)'
+  check bound-moved FAIL '0 of 2 jobs of ci.yml set the timeout line of the bounds ci_gate_job_timeout_min=20 and ci_job_timeout_min=45;'
   tree bound-is-no-number ''
   STUB_BOUND=30m
   check bound-is-no-number FAIL 'the bound ci_job_timeout_min is no number)'
   tree bound-zero '11s/30/0/;20s/30/0/'
   STUB_BOUND=0
-  check bound-zero FAIL 'actionlint reports a finding in ci.yml)'
+  check bound-zero FAIL 'a job limit of 0 minutes, or one written with a leading zero, is no limit'
   tree bound-unreadable ''
   printf 'gate_bound() {\n  return 1\n}\n' >"$work/bound-unreadable/scripts/r1-gate/lib.sh"
   check bound-unreadable FAIL 'the bound ci_job_timeout_min cannot be read with gate_bound of scripts/r1-gate/lib.sh)'
@@ -693,8 +820,8 @@ EOF
   tree flow-steps-with-an-unpinned-action '12s/.*/    steps: [{uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1}, {uses: actions\/setup-node@v4}]/;13,17d'
   check flow-steps-with-an-unpinned-action FAIL '1 of 4 uses keys of ci.yml take no 40-hex commit'
   tree runs-on-block-list-without-timeout "19s/.*/    runs-on:\\${nl}      - windows-2025/;20d"
-  check runs-on-block-list-without-timeout FAIL '1 of 2 jobs of ci.yml set timeout-minutes: 30, the bound ci_job_timeout_min)'
-  tree third-job "26s/\$/\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 30\\${nl}    steps:\\${nl}      - run: \"true\"/"
+  check runs-on-block-list-without-timeout FAIL '1 of 2 jobs of ci.yml set the timeout line of the bounds ci_gate_job_timeout_min=20 and ci_job_timeout_min=30;'
+  tree third-job "26s/\$/\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}$timeout_30_sed\\${nl}    steps:\\${nl}      - run: \"true\"/"
   check third-job FAIL 'the jobs of ci.yml must be exactly macos and windows, and it holds: macos windows linux)'
   tree permissions-write-all '27s/.*/permissions: write-all/;28d'
   check permissions-write-all FAIL 'the top-level permissions of ci.yml must grant contents: read and nothing else)'
@@ -830,13 +957,13 @@ EOF
   tree explicit-key-hides-a-later-job "22s/.*/      - uses: foo\\/bar@3d3c42e5aac5ba805825da76410c181273ba90b1\\${nl}        with: { ? \"a}\\${nl}x\\${nl}        y\" : b }\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 600\\${nl}    steps:\\${nl}      - run: echo x/"
   check explicit-key-hides-a-later-job FAIL 'ci.yml line 23 starts a key with ? and a blank, one of the keys in the explicit form of YAML'
   tree second-document-holds-the-permissions "27,28d;\$s/\$/\\${nl}---\\${nl}permissions:\\${nl}  contents: read/"
-  check second-document-holds-the-permissions FAIL 'ci.yml line 28 begins a YAML document or a directive'
+  check second-document-holds-the-permissions FAIL 'ci.yml line 36 begins a YAML document or a directive'
   tree end-marker-then-a-document "27,28d;\$s/\$/\\${nl}...\\${nl}---\\${nl}permissions:\\${nl}  contents: read/"
-  check end-marker-then-a-document FAIL 'ci.yml line 28 begins a YAML document or a directive'
+  check end-marker-then-a-document FAIL 'ci.yml line 36 begins a YAML document or a directive'
   tree tagged-jobs-key-and-a-second-document "1s/^/permissions:\\${nl}  contents: read\\${nl}/;27,29d;8s/.*/!!str jobs:/;11d;26s/\$/\\${nl}  linux:\\${nl}    runs-on: ubuntu-24.04\\${nl}    timeout-minutes: 600\\${nl}    steps:\\${nl}      - run: echo x\\${nl}---\\${nl}jobs:\\${nl}  macos:\\${nl}    runs-on: macos-15\\${nl}    timeout-minutes: 30\\${nl}  windows:\\${nl}    runs-on: windows-2025\\${nl}    timeout-minutes: 30/"
   check tagged-jobs-key-and-a-second-document FAIL 'ci.yml line 33 begins a YAML document or a directive'
   tree quote-starts-a-second-document "27,28d;\$s/\$/\\${nl}--- \"x\\${nl}permissions:\\${nl}  contents: read\\${nl}\"/"
-  check quote-starts-a-second-document FAIL 'ci.yml line 28 begins a YAML document or a directive'
+  check quote-starts-a-second-document FAIL 'ci.yml line 36 begins a YAML document or a directive'
   tree directive-line "1s/^/%YAML 1.2\\${nl}---\\${nl}/"
   check directive-line FAIL 'ci.yml line 1 begins a YAML document or a directive'
   tree anchor-and-alias-as-a-uses-key "11s/\$/\\${nl}    env:\\${nl}      K: \\&k uses/;13s/\$/\\${nl}      - *k : actions\/setup-node@v4/"
@@ -882,10 +1009,10 @@ EOF
   check r4-v07-windows-prefix-key-line-gone FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 25: '${pin_save}' stands where this lint reads line 3 of the Rust cache step of the job windows, '${pin_prefix}'; it differs from the line to write first at column 11, which holds the sign s where the line to write holds the sign p; write '${pin_prefix}'; the pin holds the prefix-key line in the variable pin_prefix at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
   lines r5-macos-both-lines-of-the-base 17 "$base_save" 16 -
   check r5-macos-both-lines-of-the-base FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 16: '          save-if: \${{ github.ref == 'refs/heads/main' }}' stands where this lint reads line 3 of the Rust cache step of the job macos, '${pin_prefix}'; it differs from the line to write first at column 11, which holds the sign s where the line to write holds the sign p; write '${pin_prefix}'; the pin holds the prefix-key line in the variable pin_prefix at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines v01-no-schedule-trigger 7 - 6 -
-  check v01-no-schedule-trigger FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 1: the block on: holds no line '  schedule:'; this lint reads the schedule as that line alone and under it the line '${pin_cron}'; write both lines under 'on:'; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines v02-cron-daily 7 "    - cron: '17 3 * * *'"
-  check v02-cron-daily FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 7: '    - cron: '17 3 * * *'' stands under '  schedule:', where this lint reads the cron line; it differs from the line to write first at column 23, which holds the sign * where the line to write holds the sign 0; write '${pin_cron}'; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
+  lines v01-no-schedule-trigger 37 - 36 - 35 -
+  check v01-no-schedule-trigger FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 30: the block on: holds no line '  schedule:'; this lint reads the schedule as that line alone and under it the two lines '${pin_cron}' and '${pin_cron_long}'; write the three lines under 'on:'; the pin holds the two cron lines in the variables pin_cron and pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of one is a ruled change)"
+  lines v02-cron-daily 36 "    - cron: '17 3 * * *'"
+  check v02-cron-daily FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 36: '    - cron: '17 3 * * *'' stands under '  schedule:', where this lint reads the cron line; it differs from the line to write first at column 23, which holds the sign * where the line to write holds the sign 0; write '${pin_cron}'; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
   lines v08-macos-cold-prefix-is-v0-rust 16 "          prefix-key: \${{ github.event_name == 'schedule' && 'v0-rust' || 'v0-rust' }}"
   check v08-macos-cold-prefix-is-v0-rust FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 16: '          prefix-key: \${{ github.event_name == 'schedule' && 'v0-rust' || 'v0-rust' }}' stands where this lint reads line 3 of the Rust cache step of the job macos, '${pin_prefix}'; it differs from the line to write first at column 70, which holds the sign ' where the line to write holds the sign -; write '${pin_prefix}'; the pin holds the prefix-key line in the variable pin_prefix at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
   lines v09-windows-prefix-inverted 25 "          prefix-key: \${{ github.event_name != 'schedule' && 'v0-rust-cold' || 'v0-rust' }}"
@@ -920,14 +1047,14 @@ EOF
   check steps-in-a-flow-list-with-no-decoy FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 12: '    steps: [{uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1}, {uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0}]' is the steps key of the job macos with something behind its colon; this lint reads the steps as the line '    steps:' alone and below it each step at six blanks, a dash and a blank; write them so)"
   lines h16-comment-on-the-macos-job-key 9 "  macos: # the macOS job"
   check h16-comment-on-the-macos-job-key FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 9: '  macos: # the macOS job' stands at two blanks under 'jobs:', where this lint reads a job's key; it reads that key as the line '  macos:' or '  windows:' alone, with no comment, no quotes and no blank before the colon; write one of those lines)"
-  lines h17-quoted-on-key 1 '"on":'
-  check h17-quoted-on-key FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 1: '\"on\":' holds the key on in another form; this lint reads the key on as the line 'on:' alone in column 1, with no quotes, capital letters, escapes, blank before the colon, value or comment; write 'on:')"
+  lines h17-quoted-on-key 30 '"on":'
+  check h17-quoted-on-key FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 30: '\"on\":' holds the key on in another form; this lint reads the key on as the line 'on:' alone in column 1, with no quotes, capital letters, escapes, blank before the colon, value or comment; write 'on:')"
   lines h18-escape-x0a-in-a-run-block-above-the-cache-step 13 "$checkout${nl}      - run: |${nl}          printf 'done\\x0a'"
   check h18-escape-x0a-in-a-run-block-above-the-cache-step PASS "jobs: 2, uses keys: 4, findings: 0"
   lines h22-trailing-blank-after-with 15 "$pin_with "
   check h22-trailing-blank-after-with FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 15: '        with: ' stands where this lint reads line 2 of the Rust cache step of the job macos, '${pin_with}'; it differs from the line to write first at column 14, which holds a blank where the line to write holds the line's end; write '${pin_with}'; the pin holds the with line of the Rust cache step in the variable pin_with at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines pr-x03-timezone-under-the-cron-item 7 "$pin_cron${nl}      timezone: Asia/Tokyo"
-  check pr-x03-timezone-under-the-cron-item FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 8: '      timezone: Asia/Tokyo' stands under the schedule below its cron line; this lint reads the cron line and nothing else under '  schedule:'; take it out; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
+  lines pr-x03-timezone-under-the-cron-item 37 "$pin_cron_long${nl}      timezone: Asia/Tokyo"
+  check pr-x03-timezone-under-the-cron-item FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 38: '      timezone: Asia/Tokyo' stands under the schedule below its two cron lines; this lint reads the two lines '${pin_cron}' and '${pin_cron_long}' and nothing else under '  schedule:'; take it out; the pin holds the two cron lines in the variables pin_cron and pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of one is a ruled change)"
   lines pr-x01-second-cache-step-with-defaults-in-macos 17 "$pin_save${nl}$pin_uses"
   check pr-x01-second-cache-step-with-defaults-in-macos FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 18: the job macos holds a second Rust cache step, beside the one at line 14; this lint reads one Rust cache step in a job; take one out; and 1 more above)"
   lines pr-x02-f03-pinned-lines-under-env-and-a-with-of-its-own 17 "$pin_save${nl}        with:${nl}          cache-on-failure: true" 15 "        env:"
@@ -952,9 +1079,9 @@ EOF
   check c01-macos-step-if-not-pull-request FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 18: '        if: github.event_name != 'pull_request'' follows the four lines of the Rust cache step of the job macos; this lint reads that step as those four lines alone, so the next line begins a step, is a job's key or stands in column 1; take it out or begin a step there)"
   lines c07-other-commit-of-the-action 14 "      - uses: Swatinem/rust-cache@0123456789abcdef0123456789abcdef01234567 # v2.9.3"
   check c07-other-commit-of-the-action FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 14: '      - uses: Swatinem/rust-cache@0123456789abcdef0123456789abcdef01234567 # v2.9.3' stands where this lint reads line 1 of the Rust cache step of the job macos, '${pin_uses}'; it differs from the line to write first at column 35, which holds the sign 0 where the line to write holds the sign d; write '${pin_uses}'; the pin holds the uses line of the Rust cache step in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines j1-macos-keys-at-three-blanks-with-a-timeout-in-a-name-block 17 - 16 - 15 - 14 - 13 - 12 - 11 - 10 - 9 "  macos:${nl}   name: |${nl}    timeout-minutes: 30${nl}   runs-on: macos-15${nl}   timeout-minutes: 600${nl}   steps:${nl}     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1${nl}${pin_uses# }${nl}${pin_with# }${nl}${pin_prefix# }${nl}${pin_save# }"
+  lines j1-macos-keys-at-three-blanks-with-a-timeout-in-a-name-block 17 - 16 - 15 - 14 - 13 - 12 - 11 - 10 - 9 "  macos:${nl}   name: |${nl}$timeout_30${nl}   runs-on: macos-15${nl}   timeout-minutes: 600${nl}   steps:${nl}     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1${nl}${pin_uses# }${nl}${pin_with# }${nl}${pin_prefix# }${nl}${pin_save# }"
   check j1-macos-keys-at-three-blanks-with-a-timeout-in-a-name-block FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 10: '   name: |' is the first line of the job macos and stands at 3 blanks; this lint reads a job's own keys at four blanks; write them at four blanks)"
-  lines byte-ff-beside-the-save-if-of-the-base 17 "$base_save" 2 "  push: # $(printf '\377')"
+  lines byte-ff-beside-the-save-if-of-the-base 17 "$base_save" 31 "  push: # $(printf '\377')"
   if locale -a 2>/dev/null | grep -q -x 'en_US.UTF-8'; then
     lc_before=${LC_ALL-unset}
     LC_ALL=en_US.UTF-8
@@ -971,20 +1098,34 @@ EOF
   check two-escapes-in-the-name-of-a-second-step FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 18: '      - uses: \"Swatinem\x2frust\x2dcache@d1527c8f67ef9af357290475d4af4b0fab8f12e0\"' stands where this lint reads line 1 of the Rust cache step of the job macos, '${pin_uses}'; it differs from the line to write first at column 15, which holds the sign \" where the line to write holds the sign S; write '${pin_uses}'; the pin holds the uses line of the Rust cache step in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change; and 1 more above)"
   lines h06-renamed-step 14 "      - name: Rust build cache${nl}        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3"
   check h06-renamed-step FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 15: '        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3' names the action rust-cache; this lint reads the action's name on the first line of a job's Rust cache step alone, the line '${pin_uses}'; take the name out of this line; the pin holds the uses line of the Rust cache step in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines schedule-key-with-a-comment 6 "  schedule: # weekly"
-  check schedule-key-with-a-comment FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 6: '  schedule: # weekly' names the schedule or a cron line in the block on:; this lint reads the schedule as the line '  schedule:' alone and under it the one line '${pin_cron}'; write it so or take this line out; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change; and 1 more above)"
-  lines first-event-at-four-blanks 7 "      - cron: '17 3 * * 0'" 6 "    schedule:" 5 "    pull_request:" 4 "      tags: ['**']" 3 "      branches-ignore: ['land-*', 'land-*/**']" 2 "    push:"
-  check first-event-at-four-blanks FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 2: '    push:' is the first line under 'on:' and stands at 4 blanks; this lint reads the events of on: at two blanks; write each event at two blanks)"
-  lines second-on-line 28 "  contents: read${nl}on:${nl}  workflow_dispatch:"
-  check second-on-line FAIL ".github/workflows/ci.yml line 29: a second line 'on:'; this lint reads one block on:, the one at line 1; write the events of this block under that one"
+  lines schedule-key-with-a-comment 35 "  schedule: # weekly"
+  check schedule-key-with-a-comment FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 35: '  schedule: # weekly' names the schedule or a cron line in the block on:; this lint reads the schedule as the line '  schedule:' alone and under it the two lines '${pin_cron}' and '${pin_cron_long}'; write it so or take this line out; the pin holds the two cron lines in the variables pin_cron and pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of one is a ruled change; and 2 more above)"
+  lines first-event-at-four-blanks 37 "      - cron: '17 3 * * 3'" 36 "      - cron: '17 3 * * 0'" 35 "    schedule:" 34 "    pull_request:" 33 "      tags: ['**']" 32 "      branches-ignore: ['land-*', 'land-*/**']" 31 "    push:"
+  check first-event-at-four-blanks FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 31: '    push:' is the first line under 'on:' and stands at 4 blanks; this lint reads the events of on: at two blanks; write each event at two blanks)"
+  lines second-on-line 37 "$pin_cron_long${nl}on:${nl}  workflow_dispatch:"
+  check second-on-line FAIL ".github/workflows/ci.yml line 38: a second line 'on:'; this lint reads one block on:, the one at line 30; write the events of this block under that one"
   lines jobs-key-with-a-comment 8 "jobs: # the two jobs"
   check jobs-key-with-a-comment FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 8: 'jobs: # the two jobs' holds the key jobs in another form; this lint reads the jobs under the line 'jobs:' alone in column 1; write 'jobs:')"
-  lines comment-in-the-on-block-names-the-schedule 2 "  push:${nl}  # the weekly schedule is below"
-  check comment-in-the-on-block-names-the-schedule FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 3: '  # the weekly schedule is below' names the schedule or a cron line in the block on:; this lint reads the schedule as the line '  schedule:' alone and under it the one line '${pin_cron}'; take this line out; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines s01-second-cron-line 7 "$pin_cron${nl}    - cron: '0 4 * * 3'"
-  check s01-second-cron-line FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 8: '    - cron: '0 4 * * 3'' stands under the schedule below its cron line; this lint reads the cron line and nothing else under '  schedule:'; take it out; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines s02-second-schedule-key 7 "$pin_cron${nl}  schedule:${nl}$pin_cron"
-  check s02-second-schedule-key FAIL ".github/workflows/ci.yml line 8: a second line '  schedule:'; this lint reads one, the one at line 6; take this one out"
+  lines comment-in-the-on-block-names-the-schedule 31 "  push:${nl}  # the weekly schedule is below"
+  check comment-in-the-on-block-names-the-schedule FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 32: '  # the weekly schedule is below' names the schedule or a cron line in the block on:; this lint reads the schedule as the line '  schedule:' alone and under it the two lines '${pin_cron}' and '${pin_cron_long}'; take this line out; the pin holds the two cron lines in the variables pin_cron and pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of one is a ruled change)"
+  lines s01-second-cron-line 37 "$pin_cron_long${nl}    - cron: '0 4 * * 3'"
+  check s01-second-cron-line FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 38: '    - cron: '0 4 * * 3'' stands under the schedule below its two cron lines; this lint reads the two lines '${pin_cron}' and '${pin_cron_long}' and nothing else under '  schedule:'; take it out; the pin holds the two cron lines in the variables pin_cron and pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of one is a ruled change)"
+  lines s02-second-schedule-key 37 "$pin_cron_long${nl}  schedule:${nl}$pin_cron${nl}$pin_cron_long"
+  check s02-second-schedule-key FAIL ".github/workflows/ci.yml line 38: a second line '  schedule:'; this lint reads one, the one at line 35; take this one out"
+  lines s03-sunday-time-alone 37 -
+  check s03-sunday-time-alone FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 36: the file ends where this lint reads the second cron line under '  schedule:'; write '${pin_cron_long}'; the pin holds the second cron line in the variable pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
+  lines s04-times-swapped 36 "$pin_cron_long" 37 "$pin_cron"
+  check s04-times-swapped FAIL ".github/workflows/ci.yml line 37: '${pin_cron}' stands on the second line under '  schedule:', where this lint reads the second cron line; it differs from the line to write first at column 23, which holds the sign 0 where the line to write holds the sign 3; write '${pin_cron_long}'; the pin holds the second cron line in the variable pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines s05-second-time-on-thursday 37 "    - cron: '17 3 * * 4'"
+  check s05-second-time-on-thursday FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 37: '    - cron: '17 3 * * 4'' stands on the second line under '  schedule:', where this lint reads the second cron line; it differs from the line to write first at column 23, which holds the sign 4 where the line to write holds the sign 3; write '${pin_cron_long}'; the pin holds the second cron line in the variable pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
+  lines s06-a-key-after-the-sunday-time 37 - 36 "$pin_cron${nl}name: ci" 29 -
+  check s06-a-key-after-the-sunday-time FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 36: 'name: ci' stands on the second line under '  schedule:', where this lint reads the second cron line; it differs from the line to write first at column 1, which holds the sign n where the line to write holds a blank; write '${pin_cron_long}'; the pin holds the second cron line in the variable pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
+  lines s07-comment-between-the-two-times 36 "$pin_cron${nl}    # the long forms"
+  check s07-comment-between-the-two-times FAIL ".github/workflows/ci.yml line 37: '    # the long forms' stands on the second line under '  schedule:', where this lint reads the second cron line; it differs from the line to write first at column 5, which holds the sign # where the line to write holds the sign -; write '${pin_cron_long}'; the pin holds the second cron line in the variable pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines s08-a-second-on-block-after-the-sunday-time 37 "on:${nl}  push:"
+  check s08-a-second-on-block-after-the-sunday-time FAIL ".github/workflows/ci.yml line 37: a second line 'on:'; this lint reads one block on:, the one at line 30; write the events of this block under that one"
+  lines s09-the-action-named-on-the-second-cron-line 37 "    - cron: rust-cache"
+  check s09-the-action-named-on-the-second-cron-line FAIL ".github/workflows/ci.yml line 37: '    - cron: rust-cache' names the action rust-cache"
   lines line-at-three-blanks-in-a-job 10 "    runs-on: macos-15${nl}   env: {}"
   check line-at-three-blanks-in-a-job FAIL ".github/workflows/ci.yml line 11: '   env: {}' stands at 3 blanks in the job macos; this lint reads a job's own keys at four blanks and its steps at six; write the line at one of those"
   lines line-at-five-blanks-in-the-steps 13 "$checkout${nl}     name: x"
@@ -999,39 +1140,39 @@ EOF
   check line-at-six-blanks-that-is-no-step FAIL ".github/workflows/ci.yml line 14: '      name: x' stands at six blanks in the steps of the job macos and is no step's first line; this lint reads a line at six blanks there as the first line of a step, with a dash and a blank; write it so"
   lines job-key-where-the-with-line-stands 17 - 16 - 15 "    continue-on-error: true"
   check job-key-where-the-with-line-stands FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 15: '    continue-on-error: true' stands where this lint reads line 2 of the Rust cache step of the job macos, '${pin_with}'; it differs from the line to write first at column 5, which holds the sign c where the line to write holds a blank; write '${pin_with}'; the pin holds the with line of the Rust cache step in the variable pin_with at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines cache-step-cut-by-the-end-of-the-file 29 - 28 - 27 - 26 - 25 - 1 "permissions:${nl}  contents: read${nl}on:"
-  check cache-step-cut-by-the-end-of-the-file FAIL ".github/workflows/ci.yml line 25: the Rust cache step of the job windows ends with the file before its line 3; write after its last line the line '${pin_prefix}'; the pin holds the prefix-key line in the variable pin_prefix at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
-  lines schedule-line-at-the-end-of-the-file 29 "name: ci${nl}on:${nl}  push:${nl}  schedule:" 7 - 6 - 5 - 4 - 3 - 2 - 1 -
-  check schedule-line-at-the-end-of-the-file FAIL ".github/workflows/ci.yml line 25: the file ends where this lint reads the cron line under '  schedule:'; write '${pin_cron}'; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines cache-step-cut-by-the-end-of-the-file 37 - 36 - 35 - 34 - 33 - 32 - 31 - 30 - 29 - 28 - 27 - 26 - 25 - 1 "permissions:${nl}  contents: read${nl}on:${nl}  push:${nl}    branches-ignore: ['land-*', 'land-*/**']${nl}    tags: ['**']${nl}  pull_request:${nl}  schedule:${nl}$pin_cron${nl}$pin_cron_long"
+  check cache-step-cut-by-the-end-of-the-file FAIL ".github/workflows/ci.yml line 32: the Rust cache step of the job windows ends with the file before its line 3; write after its last line the line '${pin_prefix}'; the pin holds the prefix-key line in the variable pin_prefix at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines schedule-line-at-the-end-of-the-file 37 - 36 -
+  check schedule-line-at-the-end-of-the-file FAIL ".github/workflows/ci.yml line 35: the file ends where this lint reads the cron line under '  schedule:'; write the two lines '${pin_cron}' and '${pin_cron_long}'; the pin holds the two cron lines in the variables pin_cron and pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of one is a ruled change"
   lines first-step-at-eight-blanks 13 "        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
   check first-step-at-eight-blanks FAIL ".github/workflows/ci.yml line 13: '        - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1' is the first line in the steps of the job macos and stands at 8 blanks; this lint reads a step as beginning at six blanks, a dash and a blank; write the step so"
-  lines no-on-block 7 - 6 - 5 - 4 - 3 - 2 - 1 -
-  check no-on-block FAIL ".github/workflows/ci.yml: no line of the file is 'on:' alone in column 1; this lint reads the events under that line, with the line '  schedule:' and under it the line '${pin_cron}'; write them; the pin holds the cron line in the variable pin_cron at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change"
+  lines no-on-block 37 - 36 - 35 - 34 - 33 - 32 - 31 - 30 -
+  check no-on-block FAIL ".github/workflows/ci.yml: no line of the file is 'on:' alone in column 1; this lint reads the events under that line, with the line '  schedule:' and under it the two lines '${pin_cron}' and '${pin_cron_long}'; write them; the pin holds the two cron lines in the variables pin_cron and pin_cron_long at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of one is a ruled change"
   lines n27-checkout-comment-names-the-action 13 "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # before rust-cache"
   check n27-checkout-comment-names-the-action FAIL "FAIL 17-workflow-lint (.github/workflows/ci.yml line 13: '      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # before rust-cache' is the first line of a step and names the action rust-cache in its comment; this lint reads the action's name on the first line of a job's Rust cache step alone, the line '${pin_uses}', and in no comment; take the name out of the comment; the pin holds the uses line of the Rust cache step in the variable pin_uses at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of it is a ruled change)"
-  lines push-filter-missing 3 -
+  lines push-filter-missing 32 -
   check push-filter-missing FAIL 'write the push filters and the pull_request and schedule events'
-  lines main-also-ignored 3 "    branches-ignore: ['land-*', 'land-*/**', 'main']"
+  lines main-also-ignored 32 "    branches-ignore: ['land-*', 'land-*/**', 'main']"
   check main-also-ignored FAIL 'write the push filters and the pull_request and schedule events'
-  lines scratch-branch-also-ignored 3 "    branches-ignore: ['land-*', 'land-*/**', 'scratch/**']"
+  lines scratch-branch-also-ignored 32 "    branches-ignore: ['land-*', 'land-*/**', 'scratch/**']"
   check scratch-branch-also-ignored FAIL 'write the push filters and the pull_request and schedule events'
-  lines nested-landing-branch-tested 3 "    branches-ignore: ['land-*']"
+  lines nested-landing-branch-tested 32 "    branches-ignore: ['land-*']"
   check nested-landing-branch-tested FAIL 'write the push filters and the pull_request and schedule events'
-  lines only-nested-landing-branches-ignored 3 "    branches-ignore: ['land-*/**']"
+  lines only-nested-landing-branches-ignored 32 "    branches-ignore: ['land-*/**']"
   check only-nested-landing-branches-ignored FAIL 'write the push filters and the pull_request and schedule events'
-  lines no-tag-filter 4 -
+  lines no-tag-filter 33 -
   check no-tag-filter FAIL 'write the push filters and the pull_request and schedule events'
-  lines only-top-level-tags 4 "    tags: ['*']"
+  lines only-top-level-tags 33 "    tags: ['*']"
   check only-top-level-tags FAIL 'write the push filters and the pull_request and schedule events'
-  lines push-event-missing 4 - 3 - 2 -
+  lines push-event-missing 33 - 32 - 31 -
   check push-event-missing FAIL 'write the push filters and the pull_request and schedule events'
-  lines pull-request-event-missing 5 -
+  lines pull-request-event-missing 34 -
   check pull-request-event-missing FAIL 'write the push filters and the pull_request and schedule events'
-  lines pull-request-limited-to-main 5 "  pull_request:${nl}    branches: [main]"
+  lines pull-request-limited-to-main 34 "  pull_request:${nl}    branches: [main]"
   check pull-request-limited-to-main FAIL 'write the push filters and the pull_request and schedule events'
-  lines extra-workflow-event 5 "  pull_request:${nl}  workflow_dispatch:"
+  lines extra-workflow-event 34 "  pull_request:${nl}  workflow_dispatch:"
   check extra-workflow-event FAIL 'write the push filters and the pull_request and schedule events'
-  lines push-limited-to-paths 4 "    tags: ['**']${nl}    paths: [README.md]"
+  lines push-limited-to-paths 33 "    tags: ['**']${nl}    paths: [README.md]"
   check push-limited-to-paths FAIL 'write the push filters and the pull_request and schedule events'
   tree another-actionlint-version ''
   printf '#!/bin/sh\ncase "%s1" in -version) printf "1.6.0\\n" ;; *) exec "%s" "%s@" ;; esac\n' "\$" "$STUB_REAL" "\$" >"$work/old-tools/actionlint"

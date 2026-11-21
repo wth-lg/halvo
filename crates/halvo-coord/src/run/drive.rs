@@ -263,6 +263,15 @@ impl<P: Owner> Owner for Watch<'_, P> {
         self.ports.replies(workflow, agent, run)
     }
 
+    fn overlaps(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        slots: Option<&[crate::types::Slot]>,
+    ) -> Result<crate::ports::Overlaps, PortError> {
+        self.ports.overlaps(workflow, agent, slots)
+    }
+
     fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
         self.ports.delete(workflow)
     }
@@ -712,6 +721,40 @@ where
     done.report.stopped.push(run.clone());
     done.report.read = now;
     done
+}
+
+#[cfg(test)]
+mod watch_tests {
+    use super::Watch;
+    use crate::guard::Table;
+    use crate::mem::{Config, Method, Ports};
+    use crate::ports::{Owner, PortError};
+    use crate::types::{AgentId, WorkflowId};
+    use std::cell::RefCell;
+
+    /// The row of the coordinator's message msg_273bd1c3262d (round RD-160): the tick's view of
+    /// the ports hands the read `Owner::overlaps` on to the owner, so that a read inside a tick
+    /// meets the owner's answer (here `busy`) and not the trait's default `no_service`.
+    #[test]
+    fn the_ticks_watch_hands_the_read_of_overlaps_on_to_the_owner() {
+        let p: Ports<Config> = Ports::new(0, 0);
+        p.refuse(Method::Overlaps, PortError::Busy);
+        let mut table = Table::new();
+        let watch = Watch {
+            ports: &p,
+            kill_refused_unknown_run: RefCell::new(Vec::new()),
+            listed: RefCell::new(None),
+            cancel_already_sent: Vec::new(),
+            table: RefCell::new(&mut table),
+        };
+        let workflow = WorkflowId::parse("000000000000000000000000000000e0").unwrap();
+        let agent = AgentId::parse("000000000000000000000000000000b0").unwrap();
+        assert_eq!(
+            watch.overlaps(&workflow, &agent, None),
+            Err(PortError::Busy)
+        );
+        assert_eq!(p.overlap_reads.borrow().clone(), vec![(agent, None)]);
+    }
 }
 
 #[cfg(test)]
