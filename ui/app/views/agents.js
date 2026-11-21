@@ -280,6 +280,17 @@
       runs.appendChild(item);
     });
     box.appendChild(runs);
+    if (c.history === 'busy' && (again === null || (again.left < 1 && !again.flying))) {
+      box.appendChild(el('p', 'r4a-unread', c.unread.text));
+      var read = button('read_card', row.agent, c.unread.again);
+      read.addEventListener('click', function (event) {
+        if (event.detail > 1 || !pressedOn(read, event) || busy[row.agent]) return;
+        ask(row, 'read_card');
+      });
+      box.appendChild(read);
+      var told = beside(read, row);
+      if (told) box.appendChild(told);
+    }
     return box;
   }
 
@@ -297,6 +308,7 @@
       typeof reply === 'object' &&
       reply.agent === agent &&
       isText(reply.name) &&
+      (reply.history !== 'busy' || (reply.unread !== null && typeof reply.unread === 'object' && isText(reply.unread.text) && isText(reply.unread.again))) &&
       listOf(reply.lines, function (l) {
         return l !== null && isText(l.text);
       }) &&
@@ -374,6 +386,7 @@
         if (mine !== again || asked !== turn || card === null || card.agent !== agent) return;
         if (!isCard(reply, agent)) {
           again = null;
+          render();
           return;
         }
         card = reply;

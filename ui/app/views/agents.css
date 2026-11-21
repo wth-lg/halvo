@@ -4,7 +4,7 @@
 .r4a-list{list-style:none;margin:0;padding:0}
 .r4a-row{padding-top:8px;padding-bottom:8px;border-bottom-width:1px;border-bottom-style:solid;border-bottom-color:#6b6b6b}
 .r4a-name{margin:0;font-size:1rem}
-.r4a-status,.r4a-level,.r4a-line,.r4a-next,.r4a-note,.r4a-did,.r4a-answer{margin-top:4px;margin-bottom:4px}
+.r4a-status,.r4a-level,.r4a-line,.r4a-next,.r4a-note,.r4a-did,.r4a-answer,.r4a-unread{margin-top:4px;margin-bottom:4px}
 .r4a-word{font-weight:bold}
 .r4a-icon{display:inline-block;width:10px;height:10px;margin-right:8px;border-radius:50%;border-width:2px;border-style:solid;border-color:#1a1a1a;vertical-align:middle}
 .r4a-icon-needs_you{background-color:#b3261e}

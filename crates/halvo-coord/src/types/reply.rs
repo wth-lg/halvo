@@ -177,12 +177,45 @@ pub struct Card {
     pub lines: Vec<CardLine>,
     /// `runs`: at most `history_runs`, newest first.
     pub runs: Vec<CardRun>,
-    /// `history`: `busy` where the card's read of `Owner::agent_history` answered busy, and the
-    /// card then holds the line of the count of records taken off alone, where that count is
-    /// at least 1, and no run; the key is left out where the read answered (the coordinator's
-    /// word on R6 of U2.4t).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub history: Option<HistoryRead>,
+    /// `history` and `unread`, where the card's read of `Owner::agent_history` answered busy:
+    /// the card then holds the line of the count of records taken off alone, where that count
+    /// is at least 1, and no run. Both keys are left out where the read answered (the
+    /// coordinator's word on R6 of U2.4t).
+    #[serde(flatten)]
+    pub history: Option<BusyHistory>,
+}
+
+/// The two keys of a card whose history read answered busy (I2.6): `history`, which says
+/// `busy` and nothing else, and on which alone the page asks the card again and, once it asks
+/// no more, shows `unread` (RD-148 R6, way C).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct BusyHistory {
+    /// `history`: `busy`.
+    pub history: HistoryRead,
+    /// `unread`.
+    pub unread: Unread,
+}
+
+/// What the card of a busy history read shows once the page asks no more.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Unread {
+    /// `text`: the sentence of `card.history_busy`.
+    pub text: String,
+    /// `again`: the text of the card's control that reads it again, `card.read_again`.
+    pub again: String,
+}
+
+impl BusyHistory {
+    /// The keys of a busy history read, with their words.
+    pub fn new() -> Result<BusyHistory, Cause> {
+        Ok(BusyHistory {
+            history: HistoryRead::Busy,
+            unread: Unread {
+                text: words::text("card.history_busy", &[])?,
+                again: words::text("card.read_again", &[])?,
+            },
+        })
+    }
 }
 
 /// A settings line of a card (I2.2).

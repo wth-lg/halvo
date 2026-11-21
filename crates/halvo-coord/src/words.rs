@@ -75,6 +75,11 @@ pub const KEYS: &[(&str, &str)] = &[
         "After Halvo started, {count} of this agent's records went unsaved. Its steps may have happened; check outside Halvo before repeating.",
     ),
     (
+        "card.history_busy",
+        "Halvo could not show this agent's past tasks just now.",
+    ),
+    ("card.read_again", "Try again"),
+    (
         "line.problem.sign_in_refused",
         "The site did not let it sign in.",
     ),

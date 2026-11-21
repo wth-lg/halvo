@@ -11,8 +11,8 @@ use crate::run::{self, Act, Done, StopBy};
 use crate::schedule::{self, Board, Move, Report};
 use crate::sync::{Next, Sync};
 use crate::types::{
-    Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
-    FullWorkflow, HandbackAsk, HistoryRead, Item, ItemId, ItemKind, LapseCause, Limits, Live,
+    Action, AgentId, BusyHistory, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView,
+    Doing, Facts, FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live,
     OtherLapse, OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind,
     Snapshot, Status, StatusLine, System, Unknown, WorkflowId,
 };
@@ -3264,10 +3264,12 @@ where
     /// rows the page shows (I2.3). Its first line is `card.records_dropped` with the count of
     /// `records_dropped` where the board took off a record of the agent in this life. Where the
     /// history read answers busy, the card holds that line alone, where the count is at least
-    /// 1, no run, and the key `history` with `busy`, so that the page asks again and never shows
-    /// it as a card with no history; any other refusal of the read answers its cause (the
-    /// coordinator's word on R6 of U2.4t). An agent that has no row, whose workflow a tick saw
-    /// gone or whose setup body the owner ended, is `unknown_agent`, as for every control.
+    /// 1, no run, the key `history` with `busy`, so that the page asks again and never shows it
+    /// as a card with no history, and the key `unread` with the sentence and the control text
+    /// that the page shows once it asks no more (RD-148 R6, way C); any other refusal of the
+    /// read answers its cause (the coordinator's word on R6 of U2.4t). An agent that has no
+    /// row, whose workflow a tick saw gone or whose setup body the owner ended, is
+    /// `unknown_agent`, as for every control.
     /// A run that this life's `Runs::reap` answered `alive` and that a record of the store names
     /// takes its line from that record's end, as its row does (`Board::ended_after_reap`).
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
@@ -3298,7 +3300,7 @@ where
                         name,
                         lines: dropped.into_iter().collect(),
                         runs: Vec::new(),
-                        history: Some(HistoryRead::Busy),
+                        history: Some(BusyHistory::new()?),
                     })
                 }
                 Err(e) => return Err(cause_of(&e)),

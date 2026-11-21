@@ -1343,7 +1343,9 @@ if (want('card')) {
   const tries = /^ {2}var CARD_TRIES = (\d+);$/m.exec(readFileSync(join(REPO, 'ui', 'app', 'views', 'agents.js'), 'utf8'));
   const N = tries ? Number(tries[1]) : 0;
   const count = { key: 'records_dropped', text: 'One record went unsaved.' };
-  const busyCard = { agent: A, name: state.card.name, lines: [count], runs: [], history: 'busy' };
+  const words = json('words.json');
+  const unread = { text: words['card.history_busy'], again: words['card.read_again'] };
+  const busyCard = { agent: A, name: state.card.name, lines: [count], runs: [], history: 'busy', unread };
   const same0 = { state: { ...snap } };
   const cardCall = (reply) => ({ call: 'agents_card', args: { agent: A }, reply });
   const syncLine = { call: 'agents_control', args: { agent: B, action: 'run_now' }, reply: { ok: 'yes' } };
@@ -1364,6 +1366,7 @@ if (want('card')) {
       };
     }, A);
   const busyTexts = [count.text].concat(typeof row.next === 'string' && row.next !== '' ? [row.next] : []);
+  const unreadTexts = busyTexts.concat([unread.text, unread.again]);
 
   await test('a_busy_card_is_asked_again_at_the_next_reply_and_shows_its_runs_without_a_close', async () => {
     const out = outDir();
@@ -1389,22 +1392,28 @@ if (want('card')) {
       await sync(h);
       const shown = await cardOf(h);
       const asked = cardsAsked(out);
-      return [N >= 2 && asked === 2 && strays(h) === 0 && shown !== null && same(shown.texts, busyTexts), { N, asked, shown, trail: trail(h) }];
+      return [N >= 2 && asked === 2 && strays(h) === 0 && shown !== null && same(shown.texts, unreadTexts), { N, asked, shown, trail: trail(h) }];
     });
   });
 
-  await test('a_busy_card_is_asked_again_at_most_CARD_TRIES_times_and_then_keeps_the_count_line_alone', async () => {
+  await test('a_busy_card_asked_no_more_after_CARD_TRIES_says_so_and_its_control_reads_again', async () => {
     const out = outDir();
     const replies = [{ state: snap }, cardCall(busyCard)];
     for (let k = 1; k <= N; k++) replies.push(syncLine, same0, cardCall(busyCard));
-    replies.push(syncLine, same0);
+    replies.push(syncLine, same0, cardCall(state.card));
     return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       await act(h, { act: 'open_card', param: A });
       await settleCalls(h);
       for (let k = 0; k <= N; k++) await sync(h);
       const shown = await cardOf(h);
       const asked = cardsAsked(out);
-      return [N >= 1 && asked === N + 1 && strays(h) === 0 && shown !== null && shown.runs === 0 && same(shown.texts, busyTexts), { N, asked, shown, busyTexts, trail: trail(h) }];
+      await act(h, { act: 'read_card', param: A });
+      await settleCalls(h);
+      const read = await cardOf(h);
+      const ok =
+        N >= 1 && asked === N + 1 && shown !== null && shown.runs === 0 && same(shown.texts, unreadTexts) &&
+        cardsAsked(out) === N + 2 && read !== null && read.runs === state.card.runs.length && strays(h) === 0;
+      return [ok, { N, asked, shown, unreadTexts, read, trail: trail(h) }];
     });
   });
 
