@@ -3,7 +3,7 @@
 # rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin or signingIdentity, makes Halvo.app under release/bundle/macos of the target directory with Contents/Info.plist, whose CFBundleIdentifier is the identifier of src-tauri/tauri.conf.json and whose CFBundleShortVersionString and CFBundleVersion are what 61-version.sh --print prints, with halvo and each helper that packaging/helpers.d names as an executable file in Contents/MacOS, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, no import of the call that holds secure input, and the version by 61-version.sh --check, which starts each with --version).
 set -u
 name=70-package-macos
-config_keys='externalBin'
+config_keys='externalBin signingIdentity'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
