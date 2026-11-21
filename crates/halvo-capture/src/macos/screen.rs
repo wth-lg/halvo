@@ -5175,4 +5175,83 @@ mod tests {
         assert!(frames > 0, "no frame record in four seconds");
         assert_eq!(stopped, Ok(()), "the stop's answer");
     }
+
+    #[test]
+    #[ignore = "a hosted test: it starts a real screen stream"]
+    fn a_live_rebuild_hands_a_real_stream_its_new_filter() {
+        if std::env::var("HALVO_SCREEN_LIVE_REBUILD").as_deref() != Ok("1") {
+            return;
+        }
+        let (handle, _writer) = sink::channel(64);
+        let (_front, foreground) = in_front_for_test();
+        let frames = frames_of(handle, foreground);
+        let facts = frames.facts.clone();
+        let opened = open_on(
+            &SystemContent,
+            frames,
+            selection_under(None),
+            SCREEN_FRAME_CAP,
+            SCREEN_START_WAIT,
+        );
+        let (stream, output, queue, display) = match opened {
+            Ok(opened) => opened,
+            Err(error) => {
+                println!(
+                    "screen-live-rebuild answered=start-{} waited_ms=0 fact_written=false stopped=false",
+                    probe_code(&error)
+                );
+                panic!("the start failed");
+            }
+        };
+        facts.lists_app.store(NO_FILTER, Ordering::SeqCst);
+        locked(&facts.listed).clear();
+        let (tx, rx) = channel();
+        let rebuild_stream = stream.clone();
+        let rebuild_facts = facts.clone();
+        let asked = Instant::now();
+        std::thread::spawn(move || {
+            let answer = refilter_on(
+                &SystemContent,
+                &rebuild_stream,
+                display,
+                &selection_under(None),
+                &rebuild_facts,
+            );
+            drop(rebuild_stream);
+            tx.send(answer).ok();
+        });
+        let answer = rx.recv_timeout(Duration::from_secs(30));
+        let waited_ms = asked.elapsed().as_millis();
+        let answered = match &answer {
+            Ok(Ok(_)) => "ok".to_string(),
+            Ok(Err(error)) => probe_code(error),
+            Err(_) => "none".to_string(),
+        };
+        let until = Instant::now() + Duration::from_secs(5);
+        while facts.lists_app().is_none() && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let fact_written = facts.lists_app().is_some();
+        let stopped = if answer.is_ok() {
+            let (tx, rx) = channel();
+            stream.ask_stop(tx);
+            let stopped = rx.recv_timeout(SCREEN_STOP_WAIT) == Ok(StopReply::Stopped);
+            if stopped {
+                release(Some(output), Some(queue));
+            } else {
+                keep_for_the_life_of_the_process(Some(output), Some(queue));
+            }
+            stopped
+        } else {
+            keep_for_the_life_of_the_process(Some(output), Some(queue));
+            std::mem::forget(stream);
+            false
+        };
+        println!(
+            "screen-live-rebuild answered={answered} waited_ms={waited_ms} fact_written={fact_written} stopped={stopped}"
+        );
+        assert_eq!(answered, "ok", "the rebuild's answer");
+        assert!(fact_written, "the new filter's fact was not written");
+        assert!(stopped, "the stream did not stop");
+    }
 }
