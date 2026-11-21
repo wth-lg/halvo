@@ -1,11 +1,13 @@
 #include <stdlib.h>
 #include <tomcrypt.h>
+#include "sqlite3.h"
 
 #if !defined(LTC_CLEAN_STACK)
 #error "halvo-sqlcipher: the build stops: LTC_CLEAN_STACK is not defined, so LibTomCrypt leaves its stack and its HMAC state unwiped"
 #endif
 
 int sqlcipher_extra_init(const char *arg);
+int halvo_sqlcipher_page_gap_mend(void);
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -33,9 +35,26 @@ static unsigned long halvo_ltc_rng(unsigned char *out, unsigned long len, void (
   return len;
 }
 
+static void halvo_page_gap_mend_sql(sqlite3_context *context, int argc, sqlite3_value **argv) {
+  (void)argc;
+  (void)argv;
+  sqlite3_result_int(context, halvo_sqlcipher_page_gap_mend());
+}
+
+static int halvo_register_page_gap_mend(sqlite3 *db, char **error, const sqlite3_api_routines *api) {
+  (void)error;
+  (void)api;
+  return sqlite3_create_function_v2(db, "halvo_sqlcipher_page_gap_mend", 0,
+                                    SQLITE_UTF8 | SQLITE_DETERMINISTIC | SQLITE_INNOCUOUS, NULL,
+                                    halvo_page_gap_mend_sql, NULL, NULL, NULL);
+}
+
 int halvo_sqlcipher_extra_init(const char *arg) {
+  int rc;
   ltc_rng = halvo_ltc_rng;
-  return sqlcipher_extra_init(arg);
+  rc = sqlcipher_extra_init(arg);
+  if (rc != SQLITE_OK) return rc;
+  return sqlite3_auto_extension((void (*)(void))halvo_register_page_gap_mend);
 }
 
 int halvo_sqlcipher_os_entropy_hook_installed(void) {

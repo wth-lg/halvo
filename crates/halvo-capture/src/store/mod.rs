@@ -1,5 +1,6 @@
 //! The encrypted segment store: its traits, types and errors.
 
+pub mod adapter;
 pub mod db;
 pub(crate) mod durable;
 pub(in crate::store) mod expiry;
@@ -202,13 +203,27 @@ pub struct Reconciled {
 }
 
 /// The store the capture daemon appends to.
-pub trait SegmentStore {
+pub(in crate::store) trait SegmentStore {
     /// Refused with [`StoreError::NotImplemented`]: the store keeps no
     /// per-event row. It touches nothing.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests: the store keeps no per-event row, and core-3 deletes this call"
+        )
+    )]
     fn append_event(&mut self, event: &CaptureStreamEvent) -> StoreResult<()>;
 
     /// Write raw capture bytes as a new encrypted segment with no totals, its
     /// instants the write instant, and return its ref and its ordinal.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests: the adapter writes through write_batch, and core-3 deletes this call"
+        )
+    )]
     fn write_segment(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)>;
 
     /// The summed lengths of the files under the store directory, for the cost
@@ -219,7 +234,7 @@ pub trait SegmentStore {
 
 /// Window-expiry crypto-shred: destroy the per-segment key for every segment past
 /// its retention bound, so its ciphertext becomes unrecoverable.
-pub trait SegmentExpiry {
+pub(in crate::store) trait SegmentExpiry {
     /// Crypto-shred every segment past its retention bound. When a shred's
     /// commit changed a row and the look after the commit or the checkpoint
     /// after it then fails, the pass answers that failure and reports no
@@ -239,7 +254,7 @@ pub trait SegmentExpiry {
 
 /// The result of a crypto-shred pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct ShredReport {
+pub(in crate::store) struct ShredReport {
     pub segments_shredded: u64,
     pub keys_destroyed: u64,
 }
@@ -400,7 +415,7 @@ impl DeleteReport {
 /// Debug form holds a path, a file name of the account, a segment id or a
 /// text that another library built.
 #[derive(Debug, thiserror::Error)]
-pub enum StoreError {
+pub(in crate::store) enum StoreError {
     #[error("store i/o failed: {0}")]
     Io(std::io::ErrorKind),
     /// SQLite returned this extended result code.
@@ -469,15 +484,26 @@ pub enum StoreError {
     #[error(transparent)]
     Custody(#[from] CustodyError),
     #[error("{0} is not implemented in this phase")]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "only append_event answers it, which has no caller outside the store's tests until core-3 deletes both"
+        )
+    )]
     NotImplemented(&'static str),
 }
 
-pub type StoreResult<T> = Result<T, StoreError>;
+pub(in crate::store) type StoreResult<T> = Result<T, StoreError>;
 
 /// Run the `--verify-store` measurements on a fresh store in the directory
 /// that HALVO_STORE_DIR names, or in a temporary one, with the marker of
 /// HALVO_GATE_MARKER, and return the line that the gate judges.
-pub fn verify_store() -> StoreResult<String> {
+#[expect(
+    dead_code,
+    reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)"
+)]
+pub(in crate::store) fn verify_store() -> StoreResult<String> {
     let dir = verify::StoreDir::from_env();
     measure_store(dir.path(), &verify::marker_from_env())
 }
@@ -485,7 +511,11 @@ pub fn verify_store() -> StoreResult<String> {
 /// Run the `--verify-deletion` measurements in the directory that
 /// HALVO_STORE_DIR names, or in a temporary one, and return the line that the
 /// gate judges.
-pub fn verify_deletion() -> StoreResult<String> {
+#[expect(
+    dead_code,
+    reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)"
+)]
+pub(in crate::store) fn verify_deletion() -> StoreResult<String> {
     let dir = verify::StoreDir::from_env();
     measure_deletion(dir.path())
 }
@@ -494,7 +524,7 @@ pub fn verify_deletion() -> StoreResult<String> {
 /// holds `marker`, and return the line that the gate judges. It reads neither
 /// HALVO_STORE_DIR nor HALVO_GATE_MARKER and uses no default marker.
 /// Fails when a file of the store holds the raw store key.
-pub fn measure_store(dir: &Path, marker: &str) -> StoreResult<String> {
+pub(in crate::store) fn measure_store(dir: &Path, marker: &str) -> StoreResult<String> {
     verify::run_store_check_in(dir, marker).map(|check| check.to_string())
 }
 
@@ -503,6 +533,6 @@ pub fn measure_store(dir: &Path, marker: &str) -> StoreResult<String> {
 /// the line that the gate judges. It reads neither HALVO_STORE_DIR nor
 /// HALVO_GATE_MARKER. Fails when the state of the root after delete-all is
 /// unknown.
-pub fn measure_deletion(dir: &Path) -> StoreResult<String> {
+pub(in crate::store) fn measure_deletion(dir: &Path) -> StoreResult<String> {
     verify::run_deletion_check_in(dir).map(|check| check.to_string())
 }

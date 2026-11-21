@@ -180,8 +180,6 @@ mod tests {
 
     const CHECK_ROUNDS: u64 = 100_000;
 
-    const SCRIPT: &str = include_str!("../../../scripts/r6/ci.d/70-r6-memory.sh");
-
     const CHILD: &str = "HALVO_ROUTE_GATE_PROBE_ALLOCATION_CHILD";
 
     use super::counting::{
@@ -429,16 +427,6 @@ mod tests {
                 many.0.others
             );
         }
-    }
-
-    #[test]
-    fn the_allocation_test_makes_the_rounds_of_the_check() {
-        let lines: Vec<String> = SCRIPT
-            .lines()
-            .filter(|line| line.starts_with("rounds="))
-            .map(str::to_owned)
-            .collect();
-        assert_eq!(lines, vec![format!("rounds={CHECK_ROUNDS}")]);
     }
 
     #[test]

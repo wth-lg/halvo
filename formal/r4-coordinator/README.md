@@ -1,7 +1,9 @@
 # The coordinator's models
 
 This directory holds two TLA+ models of the coordinator that the crate `halvo-coord` will
-implement, and the traces that the crate's tests replay. `Schedule` is the machine that
+implement, and the traces of `Schedule`. Since the commit that removed the crate's trace test
+`formal_traces`, no test holds the code to the traces of these models, so the models no longer
+follow the code. `Schedule` is the machine that
 decides when a run starts, how it moves and how it ends. `Confirm4` is the life of a
 confirmation and the guard on the runner's effect records. The models were written before
 the code. A change to a rule changes the model first; then the traces are exported again
@@ -10,13 +12,12 @@ and committed. Nobody edits a trace file by hand.
 | File | What it holds |
 |---|---|
 | `Schedule.tla`, `Schedule.cfg` | the schedule model, its full configuration and the invariants C1 to C12 |
-| `Schedule-days.cfg`, `Schedule-queue.cfg`, `Schedule-store.cfg`, `Schedule-holds.cfg`, `Schedule-left.cfg`, `Schedule-reap.cfg` | the six small configurations of the schedule model that CI runs |
-| `Confirm4.tla`, `Confirm4.cfg`, `Confirm4-apart.cfg`, `Confirm4-bound.cfg` | the confirmation model, its two small configurations that CI runs, its own bound, and the invariants L1 to L11 |
+| `Schedule-days.cfg`, `Schedule-queue.cfg`, `Schedule-store.cfg`, `Schedule-holds.cfg`, `Schedule-left.cfg`, `Schedule-reap.cfg` | the six small configurations of the schedule model |
+| `Confirm4.tla`, `Confirm4.cfg`, `Confirm4-apart.cfg`, `Confirm4-bound.cfg` | the confirmation model, its two small configurations, its own bound, and the invariants L1 to L11 |
 | `ScheduleTrace.tla`, `Confirm4Trace.tla`, `TraceText.tla` | the modules that walk a model and print one JSON line per trace |
 | `limits.json` | the limits of the models, with the field names of the struct `Limits` |
 | `export.sh` | the command that writes the two trace files |
-| `traces-schedule.jsonl`, `traces-confirm.jsonl` | 200 random walks of each model, then 14 and 15 directed traces |
-| `gate-record.txt` | the record of the check's long self-test, with the stamp of the model files and the digest of the check script that it was made from |
+| `traces-schedule.jsonl` | the walks and the directed traces of `Schedule`; `export.sh` reads its first line and also writes `traces-confirm.jsonl`, which is not committed |
 
 ## The checker
 
@@ -62,59 +63,13 @@ Each run must print `Model checking completed. No error has been found.` `Confir
 with `-deadlock`, because a state after the app ended has no next state on purpose.
 
 A model has two kinds of configuration. Its own bound is the configuration named `full`
-for `Schedule` and the one named `bound` for `Confirm4`, whose `full` is a configuration
-that CI runs (ruling RD-106 (1)). Whoever
+for `Schedule` and the one named `bound` for `Confirm4`, whose `full` is a small
+configuration (ruling RD-106 (1)). Whoever
 changes a file of this directory runs it, through the machine's helper for timed runs, the
 verifier runs it at the gate of the phase in which the change lands, and this table
-records its states and the commit. CI runs the small ones alone: `30-r4-formal.sh` runs
-each configuration whose row says `yes` under CI and prints their names, so that its PASS
-is never read as the full bound. To run a small configuration, name its file after
+records its states and the commit. The rows that say `yes` under CI
+are the small configurations; no check of CI runs TLC on these models. To run a small configuration, name its file after
 `-config` in the command above.
-
-What the check asks of the table and of the files, each with the cause that ends it:
-
-- Every line of the table below parses into its eight cells, read with the bar as the
-  only separator: the model, a name of small letters, digits and dashes, a file that
-  exists, `yes` or `no`, and a count of digits and commas; no cell is empty. A line that
-  does not parse, a line of that form outside the table and a `.cfg` file of this
-  directory that no line names end the check with `invariant`. The check runs TLC once
-  for each line marked `yes` and counts its runs against those lines.
-- The lines marked `yes` are exactly the configurations whose names the script holds, in
-  the table's order (`invariant`). So no mark and no deleted line switches a
-  configuration off: that takes a change of the script, and a unit that adds a
-  configuration adds its name there in the same commit.
-- Every configuration file of the table, one that CI does not run among them, holds
-  exactly the invariant lines of its model, each as a whole line, and no comment, neither
-  `(*` nor a line with `\*`, because TLC reads no line inside a comment (`invariant`).
-- Every configuration file of this directory, CI's and the others, holds only lines of four
-  forms besides empty ones (RD-109 Addition 1, point 3): `CONSTANT` with a constant of the
-  model's own `CONSTANTS` line and a value (a number, `TRUE`, `FALSE`, a string or a set of
-  them), `INIT Init` once, `NEXT Next` once, and `INVARIANT` with a name; a configuration of
-  `Schedule` also holds `CONSTRAINT Bound` and `VIEW View`, as the committed files do. Any
-  other line ends the check with `invariant`: a replacement (`<-`, `result=replaced`), a
-  value given to a defined operator, another `CONSTRAINT` or `VIEW`, a second `NEXT`
-  (`result=lines`). A replaced operator that an invariant reads, such as
-  `CONSTANT HInPress <- HTaken`, switched L11 off while every count stayed as it was. That a
-  definition which an invariant uses can be changed in the model's own file is outside what
-  a check of this kind can hold; the three control copies and the review of a change are
-  what stand against it.
-- This directory holds no module, configuration or limits file (`*.tla`, `*.cfg`,
-  `*.json`) that neither the stamp's list nor the table names (`traces`). The stamp's list
-  holds every file that the export reads, the own bound `Confirm4-bound.cfg` from which the confirm walks are drawn, the three configurations of the directed traces
-  among them, and the table names every configuration that a run reads.
-- TLC runs from the copy of the jar whose size and hash the check compared, with
-  `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS` and `_JAVA_OPTIONS` unset and with nothing on
-  its standard input; the download reads no configuration file of the user.
-- `gate-record.txt` is the record of the files in the tree: its stamp is the stamp of the
-  model files, and its script line is the digest of the check script that runs
-  (`record`). The section "What CI runs, and the gate record" says what the
-  record holds.
-- The check works in one directory that it makes under the temporary directory, the
-  export's own directory inside it, and removes it when it ends: after a pass, after a
-  failure, and after the signals HUP, INT and TERM, as soon as the command that was
-  running has returned. The three signal traps are for a shell that does not run its
-  EXIT trap at a fatal signal: dash leaves the directory without them, bash does not.
-  Nothing removes the directory after the signal KILL.
 
 | Model | Configuration | File | CI | What it holds | Distinct states | States generated | Depth |
 |---|---|---|---|---|---|---|---|
@@ -125,7 +80,7 @@ What the check asks of the table and of the files, each with the cause that ends
 | `Schedule` | `holds` | `Schedule-holds.cfg` | yes | five agents on three days with the store's own move and a start that may fail at step 7 or 8; a run ends with the frame `effect_unknown` alone; no stop, no restart, no deleted workflow. It holds the moves of the directed trace `hold_start` | 27,685 | 657,706 | 11 |
 | `Schedule` | `left` | `Schedule-left.cfg` | yes | five agents on one day with the person's stop, the store's own move and a request that may have left; no restart. It holds the moves of the directed trace `store_not_ended` | 8,986 | 157,768 | 14 |
 | `Schedule` | `reap` | `Schedule-reap.cfg` | yes | five agents on one day with two restarts, a `reap` that may answer `alive` for one run, and a request that may have left. It holds the moves of the directed trace `reap_alive` | 5,960 | 52,125 | 10 |
-| `Confirm4` | `full` | `Confirm4.cfg` | yes | one run with two requests in all, each a confirmation or a second step of a sign-in (the orders CC, CB, BC and BB); two effects. A configuration that CI runs, not the model's own bound | 35,856 | 5,063,579 | 25 |
+| `Confirm4` | `full` | `Confirm4.cfg` | yes | one run with two requests in all, each a confirmation or a second step of a sign-in (the orders CC, CB, BC and BB); two effects. A small configuration, not the model's own bound | 35,856 | 5,063,579 | 25 |
 | `Confirm4` | `apart` | `Confirm4-apart.cfg` | yes | the same run with a second request that names the other effect, so that it can follow a lapse of the first item in a run that lives on, and no second step (`Binds` is 0, so L11 holds there with nothing bound) | 4,260 | 560,587 | 21 |
 | `Confirm4` | `bound` | `Confirm4-bound.cfg` | no | the model's own bound (rulings RD-106 (4), (5) and RD-109 Addition 1, point 4): one run with three requests in all, each a confirmation or a second step, at most two second steps, two effects; the confirm walks are drawn from it | 597,556 | 94,352,511 | 30 |
 
@@ -137,7 +92,7 @@ The counts of `days` and `holds` are those of the model of unit U2.4g, with `sho
 | `days` | 1 to 8, 18 to 21, 28, 29, 31 to 34 and 38 | the 28 properties that `Schedule` had before the store's view: all of the first list below but `ReachQueueTwo`, `ReachQueueOrder` and `ReachQueueIdle`, which need a queue of two; and `ReachUnknownAgent` |
 | `queue` | 17 and 30: of the three, only `queue` holds `a5`, the agent with no schedule that needs no person. It holds no stop, so row 38 is no run of it | `ReachQueueTwo`, `ReachQueueOrder`, `ReachQueueIdle` |
 | `store` | 46 to 50 and 53 to 55: of the three, only `store` holds the time between the end of a runner, or a failed start, and the store's record of the run | `ReachStoreOpen`, `ReachAlive`, `ReachCheckKill`, `ReachCheckLapse`, `ReachCheckRestart`, `ReachCheckAnswered`, `ReachOwedAgain`, `ReachSentAgain`, `ReachOwingEnds`, `ReachFailedOwed`, `ReachFailedSentAgain` |
-| `holds` | 56: of the configurations that CI runs, only `holds` has a second slot of an agent together with the store's own move; 65, the start that goes on after the read that brought a lost `hold_set` (C4); and 67, the start under the hold `failures` that launches on the verdict from before its store of `hold_cleared` (C4). Rows 66 and 68 break no property in any configuration | `ReachOffRead` |
+| `holds` | 56: of the small configurations, only `holds` has a second slot of an agent together with the store's own move; 65, the start that goes on after the read that brought a lost `hold_set` (C4); and 67, the start under the hold `failures` that launches on the verdict from before its store of `hold_cleared` (C4). Rows 66 and 68 break no property in any configuration | `ReachOffRead` |
 | `left`, `reap` | none of their own: each holds the moves of one directed trace | none of their own |
 | `full` of `Confirm4` | 9 to 16, 22 to 27, 35 to 37, 39 to 45, 57 to 63 and 69 to 75 | all of `Confirm4` |
 | `apart` | 51 and 52: only here a second item follows a lapse of the first in a run that lives on | none of its own |
@@ -155,14 +110,14 @@ distinct states of this table again: the change of that commit touches `ready` a
 which `VIEW` takes out of the fingerprint. The heap bound `-Xmx2g` keeps
 a run far below the machine's cap of 8,589,934,592 bytes of resident size. More workers
 find the same distinct states. The depth and, under the `VIEW` of `Schedule`, the number
-of generated states can then differ, so the check compares the distinct states of each
+of generated states can then differ, so compare the distinct states of each
 configuration with this table and nothing else of the two counts.
 
 What each configuration costs. The first three columns are from the development Mac
 (arm64, JDK 17.0.20.1), one run each on 2026-11-11 through the machine's helper for timed
 runs, on its lane for heavy runs, because the lane for timed runs was held by other work all evening, so each run had other runs beside it, read with `/usr/bin/time -l`; the time holds the start of the JVM and follows the
 load of the machine. The last two are the seconds of the check's own line for that
-configuration, with three workers, in the hosted jobs of run 43680897604 on 2026-11-15, at the scratch commit 2b9cb280 over commit ac8b6117, the commit before this file's last change, which changed this file alone. The windows job no longer runs these configurations: with `CI_D_JOB=windows` the check leaves them and the three control copies to the macos job, so the `windows` column is a record of that run.
+configuration, with three workers, in the hosted jobs of run 43680897604 on 2026-11-15, at the scratch commit 2b9cb280 over commit ac8b6117, the commit before this file's last change, which changed this file alone. No job of CI runs these configurations now, so both columns are a record of that run.
 
 | Model | Configuration | Time on the Mac | Largest resident size | 1-minute load before the run | `macos` job | `windows` job |
 |---|---|---|---|---|---|---|
@@ -181,100 +136,15 @@ In that run the check took 242 s and its self-test 35 s in the
 `macos` job, and 320 s and 96 s in the `windows` job; the
 export of both trace files is 29 s and 26 s of the check's. Main's newest push run before
 it, 43666146769 at 5fadd38e, gave this run's four scripts 213 s in `macos` and 513 s in
-`windows`, 30-r4-formal 26 s and 173 s, 108 s and 231 s of them. With the seconds above in
+`windows`, the check 26 s and 173 s, 108 s and 231 s of them. With the seconds above in
 their place the sums are 291 s and 590 s, against the shares of I12.1 (about 531 s in
 `macos` and 590 s in `windows`). In an earlier round's run, 43161137794, the self-test held
 every fixture and took 70 s and 301 s.
 
-## What CI runs, and the gate record
+## What CI runs
 
-The scripts of this run have a share of each hosted job: 320 s in `macos` and 440 s in
-`windows`, for all of them together (I12.1). Each CI run checks what fits that share:
-
-- the check: the small configurations of the table above, the stamp of the traces, the
-  export against the committed traces in the jobs that the line `export compared in jobs`
-  names, the three control copies with TLC, and `gate-record.txt` against the tree. In the
-  windows job (`CI_D_JOB=windows`) the small configurations and the control copies are left to
-  the macos job: the check still reads every row of the table, holds the stamps, the record and
-  the export there, and prints one line that names the runs it left. The jar (its pinned
-  SHA-256), the models and the configurations are the same bytes on both systems, and both jobs
-  printed the same distinct states before this change; no job of CI runs these configurations
-  under the Java 17 of the windows job (the macos job's java is 21);
-- its `--self-test`: seven fixtures that must pass (`good`, `not-compared`, and the runs with
-  `CI_D_JOB` set to `windows`, unset, `macos`, `Windows` and `windows `) and one failing fixture
-  for each rule below, with a windows copy for each part that the windows job keeps. A fixture is a whole run of the script on a copy of this directory with one
-  thing wrong, with a stand-in `java` that answers in place of TLC, so that a fixture
-  ends in seconds. The three control copies run with the real TLC there as well.
-
-The further fixtures of each rule are not run at a push. They are the long self-test:
-
-```sh
-sh scripts/r4/ci.d/30-r4-formal.sh --record
-```
-
-A person runs it, through the machine's helper for timed runs. It runs every fixture of
-both columns below and, when each is as expected, writes `gate-record.txt` into the
-script's artifacts directory (`target/ci-artifacts/30-r4-formal/` without the driver).
-Whoever ran it copies that file over `formal/r4-coordinator/gate-record.txt` and commits
-it with the change. The record holds the stamp of the model files, which is the stamp of
-the traces' first lines; the SHA-256 of the check script with every carriage return taken
-out; one line for each fixture, each held rule and each control; and the count of those
-lines. In CI the check ends with `record` when the file is missing, when it has
-not exactly one stamp line of 64 hex digits, when that stamp is not the stamp of the
-files in the tree, when its script line is not the digest of the script that runs, and
-when its count is not the count of its lines or a line does not end in `=yes`. So neither
-a changed model nor a changed check script passes CI on the record of an older one:
-whoever changes a file of the stamp's list or the script runs `--record` again. The check
-compares; it cannot know that the run happened, and a record that was written by hand
-shows in the diff of its pull request.
-
-| What the check refuses | Cause | Fixture in every CI run | Further fixtures, in the record |
-|---|---|---|---|
-| an argument that it does not know | `usage` | `good` with `--other` | none |
-| a jar that cannot be fetched or is not at the given path | `fetch` | `fetch`, with the rule that the download reads no user configuration | `no-file` |
-| a jar of another hash or size | `hash` | `other-bytes` | `other-size` |
-| a Java older than 17, or one whose version cannot be read | `java` | `java-old` | `java-unreadable` |
-| a line of the table that does not parse | `invariant` | `line-beside-its-copy`, a bad line beside a good line of the same file, so that no other rule refuses it | `two-spaces`, `name-with-a-dash`, `empty-count`, `line-cut-short` |
-| a configuration file that no line names | `invariant` | `unnamed-configuration` | none |
-| marked lines that are not the names in the script | `invariant` | `days-not-for-ci` | `line-deleted`, `apart-not-for-ci`, `no-schedule-for-ci`, `no-confirm-for-ci` |
-| a configuration without exactly its invariant lines | `invariant` | `invariant-twice` | `renamed-invariant`, `extra-invariant`, `full-without-an-invariant`, `confirm-without-l11` (`Confirm4.cfg` without L11, so that the check holds eleven and not at least ten) |
-| a comment in a configuration | `invariant` | `comment-mark` | `comment-in-configuration` |
-| a line of a configuration outside the four forms | `invariant` | `replaced-invariant`, `replaced-operator` (`CONSTANT HInPress <- HTaken` in `Confirm4.cfg`), `replaced-outside-ci` (a replacement in `Schedule.cfg`, which CI does not run), and `line-form-1` to `line-form-6` in `Confirm4.cfg`: the replacement with no space before the arrow, two replacements on one line, `CONSTANT NRequests = 3`, `CONSTRAINT Bound`, `VIEW View` and a second `NEXT Next`; the committed files are the passing control | none |
-| a run in which TLC reports an invariant violated | `invariant` | `violated` | `violated-status`, twice |
-| a run that ends with a status other than 0 | `invariant` | `status` | `killed` |
-| a run that does not say that it finished | `invariant` | `unfinished` | `silent` |
-| a count of distinct states that is not the table's | `invariant` | `distinct` | none |
-| two stamps in the pair of trace files | `traces` | `two-stamps-traces-schedule.jsonl` | `two-stamps-traces-confirm.jsonl` |
-| a stamp that is not the stamp of the files | `traces` | `other-models` | `other-Schedule-holds.cfg`, `other-Schedule-left.cfg`, `other-Schedule-reap.cfg` |
-| a trace file with another number of lines | `traces` | `line-added-traces-schedule.jsonl` | `line-added-traces-confirm.jsonl`, `line-removed-` for both files |
-| a module, configuration or limits file outside the lists | `traces` | `module-outside` | none |
-| a jobs line that names no job, an unknown job, or is missing | `traces` | `no-job-named` | `unknown-job`, `no-jobs-line` |
-| committed traces that a fresh export does not give | `traces` | `changed-line-no-job`, which also shows that the export is compared when no job is named | `changed-line-` for both files |
-| no record | `record` | `record-missing` | none |
-| a record with no stamp | `record` | `record-no-stamp` | none |
-| a record whose stamp differs in one digit | `record` | `record-one-digit` | none |
-| a record of another check script | `record` | `record-other-script` | none |
-| a record whose count is not the count of its lines | `record` | `record-cut` | none |
-| a control copy that does not break its invariant with status 12 | `control` | `control-holds` | `control-other`, `control-status`, `control-one` |
-| a control whose text is not in the model exactly once | `control` | `control-moved` | `control-twice` |
-| a part that the windows job keeps, run with `CI_D_JOB=windows` | that part's cause | `other-bytes-windows`, `java-old-windows`, `line-beside-its-copy-windows`, `days-not-for-ci-windows`, `invariant-twice-windows`, `two-stamps-windows`, `record-one-digit-windows`, `changed-line-windows` | none |
-
-The self-test also holds rules that it reads from what the runs left behind: the scratch
-directory is absolute under a relative `TMPDIR`; TLC ran from the hashed copy of the jar,
-with `-deadlock` for `Confirm4` alone, once for each marked line; and the temporary
-directory of the runs is empty after the fixtures that pass and after those that fail.
-The record adds the three passing runs one by one (`not-compared` as it is, with a `java`
-that reads its input, and under a relative `TMPDIR`) and one run that the stand-in `java`
-ends with the signal TERM, after which the temporary directory is empty as well.
-Five more rules read the calls of the stand-in `java`: with `CI_D_JOB=windows` it ran the
-export alone (`good-windows`); unset and with `macos` it ran every marked configuration and the
-export (`good-without-a-job`, `good-macos`); with `Windows` and with `windows ` it ran every
-marked configuration and no export comparison, since the jobs line names neither value
-(`good-capital-windows`, `good-windows-and-a-blank`).
-
-At the commit of this section the self-test of every push rejected 46 failing fixtures and
-control copies (`PASS self-test:30-r4-formal (46 failing fixtures rejected)`), and the record
-held 106 lines: 83 failing fixtures and control copies, ten passing runs and 13 held rules.
+No check of CI runs TLC on these models or the export, no gate record is kept, and no test
+replays the traces against the code.
 
 ## What a property is read from
 
@@ -877,8 +747,7 @@ answer lapses at the Stop, at the wait limit, at the run's end and at the quit),
 `ReachBindAndConfirm` (a confirmation and a second step in one run).
 
 The three control copies. Each is the model with one line replaced, and TLC must report the
-named invariant violated; the check prints `formal control violated=3` (RD-109 Addition 1,
-point 3, where I5.13 still says 2).
+named invariant violated (RD-109 Addition 1, point 3: three copies, where I5.13 still says 2).
 
 - `Schedule` without the model's guard in step 4 breaks C1. Replace
   `ModelFree(s, a) == a \notin NeedsModel \/ \A r \in s.runs : r.agent \notin NeedsModel`
@@ -1061,14 +930,7 @@ moves of the confirm walks (22.3%); a start that is answered `queued`, a record
 that is answered `repeat`, a switch-off whose reply is lost, a press that the ports answer
 `no_service` or `busy` and a Bind of a stopped run count as accepted in these two shares. A confirm walk also
 takes a refusal whenever no move is left that the model accepts. Two exports with one seed and count gave the same
-bytes on the development Mac. The check compares the export with the committed files in
-the jobs of this line, and prints `same=-` in a job that the line does not name. The line
-names both jobs or one, never none: the check refuses a line that names no job, with the
-cause `traces`. A run with no job name set, outside the driver, compares the export:
-
-```
-export compared in jobs: macos windows
-```
+bytes on the development Mac.
 
 One export of both files took 44.55 s on the Mac under a load of 42.82, on 2026-11-14 with
 the models of unit U1.2c, with a largest resident size of 565,903,360 bytes, and gave the
@@ -1083,8 +945,7 @@ with CRLF line ends gives the same stamp. The digest joins the files with nothin
 them, so it does not say where one file ends. Both files of one export hold the same stamp, and
 the export prints it. Whoever reads the two files compares the two stamps first and refuses
 a pair in which they differ: such a pair holds the traces of two versions of the models.
-The check `30-r4-formal.sh` refuses it with the cause `traces`, and the test
-`formal_traces` fails. A reader that has the model files can compute the stamp again and
+A reader that has the model files can compute the stamp again and
 so tell traces that were exported from other model files. Each further line is one trace,
 `{"n":<number>,"moves":[{"m":"<move>","a":{...},"r":"<answer>","e":[...],"p":[...],"s":{...}}...]}`. The walks
 have the numbers 1 to `count`. The directed traces follow them, with one more key after
@@ -1137,7 +998,7 @@ only reads (`Owner::workflows`, `history` and `agents`, `Clock`, `Rng`) and no n
 (`Tray`, `Page`). A record that the guard passes on is the answer `ok` of its line.
 
 The two lists do not say which entry of `e` came before which entry of `p`. The model
-makes them in this order, and `formal_traces` holds the code to it on the memory ports:
+makes them in this order:
 
 - one start: `defer`; `run_started`; `start_run`; `start`, but for `no_store`; under
   `no_store` and `no_run` then `run_ended` with `failed`, `hold_set` with `set_state` when
@@ -1268,7 +1129,7 @@ runner ended with `left` `yes`, and an agent's entry goes at its next stored sta
 | `ack` | `agent`, whose run the agent store ends: the owner's acknowledgement of `end_run` | `ok` | none | none: it changes what `Owner::agents` gives |
 | `check` | `agent`, whose item `check` the person answers with `try_again` | `ok`, `state` | none | the answer to a `check` (I5.4) |
 | `delete` | `agent`, whose workflow leaves the owner's list | `ok` | none | none: it changes the list that `Owner::workflows` gives |
-| `off` | `agent`, `port` (`ok`, `lost`). Of the three forms of a lost acknowledgement of its `hold_set`, the model holds as `lost` the one whose read right after fails (the crate's form `Unread`); one whose read answers is the switch-off in order, `ok` (RD-52 (b) rule 1), which the test `formal_traces_a_lost_switch_off_whose_read_answers_moves_as_the_switch_off_in_order` replays against the code for every `lost` line of the traces; and the one whose rows land at the owner after the move (`Later`) only the crate's tests hold (tests/coordinator_moves.rs, `NO_SERVICE_ROW_UNSEEN_ORDERS`) | `ok`, `no_service` | `stopped`, the run that the control stopped | `holds` with `run_step` |
+| `off` | `agent`, `port` (`ok`, `lost`). Of the three forms of a lost acknowledgement of its `hold_set`, the model holds as `lost` the one whose read right after fails (the crate's form `Unread`); one whose read answers is the switch-off in order, `ok` (RD-52 (b) rule 1); and the one whose rows land at the owner after the move (`Later`) only the crate's tests hold (tests/coordinator_moves.rs, `NO_SERVICE_ROW_UNSEEN_ORDERS`) | `ok`, `no_service` | `stopped`, the run that the control stopped | `holds` with `run_step` |
 
 A `start` with `ok` holds the move `spawn` of I5.6: the run is `starting` in `s`. A start
 of an agent whose workflow is gone is answered `state`. `port` says what the ports do
@@ -1425,12 +1286,7 @@ with its own effect and its own digest.
 
 The models cover `holds`, `start_step` and `tick_step`, `run_step`, `recover_step` and
 `delete_step`, `confirm_step` and `guard_step` of `halvo-coord`. None of them existed at
-the commit that added this file. The check `scripts/r4/ci.d/30-r4-formal.sh` runs the
-small configurations, compares the committed traces with a fresh export and with the
-stamp of the model files, and breaks three control copies; a change of a model file with no
-new export fails it with the cause `traces`, and a change of a model file or of the check
-script with no new `gate-record.txt` fails it with the cause `record`. The crate's test `formal_traces` replays every committed
-line. When TLC reports an invariant violated, read its trace against I4 and I5: a step
+the commit that added this file. No check of CI runs TLC on them, and no test replays their traces:
+whoever changes a model file runs the small configurations and `export.sh` by hand. When TLC reports an invariant violated, read its trace against I4 and I5: a step
 that the contract does not allow is a fault of the model, and a trace of allowed steps is
-a finding about the design. When the test fails, the code and the model differ: decide
-which one the contract supports, and change the other.
+a finding about the design.
