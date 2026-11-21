@@ -871,15 +871,16 @@ EOF
   printf '%s\n' --config--
   git config --list --show-origin 2>&1
   printf '%s\n' --untracked--
-  git -c core.fsmonitor=false -c core.untrackedCache=false -c core.quotePath=false ls-files --others --directory
+  untracked=$(git -c core.fsmonitor=false -c core.untrackedCache=false -c core.quotePath=false ls-files --others --directory) ||
+    untracked=--failed--
+  for entry in $untracked; do
+    [ "$entry" = target/ ] || printf '%s\n' "$entry"
+  done
 }
 
 fast_state() {
   fast_now=$(fast_view "$1" && printf x) || fast_now=-
   fast_now=${fast_now%x}
-  case $fast_now in
-    *"${nl}target/$nl"*) fast_now=${fast_now%%"${nl}target/$nl"*}$nl${fast_now#*"${nl}target/$nl"} ;;
-  esac
 }
 
 list_after() {
