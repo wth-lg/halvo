@@ -5,6 +5,7 @@ mod derived;
 mod drift;
 mod host;
 mod limits;
+mod privacy;
 mod reader;
 mod routine;
 mod store;

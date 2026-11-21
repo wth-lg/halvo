@@ -55,10 +55,11 @@ store_database_named_through_a_glob_of_the_store E0603 debug
 store_database_named_by_a_macro_of_path_segments E0603 debug
 store_database_named_by_an_alias_in_a_brace_list E0603 debug
 store_database_re_exported_under_a_new_name E0603 debug
+store_handle_named_from_the_daemon_owner E0603 debug
 synthetic_clearance_in_a_release_build E0425 release
 synthetic_keep_in_a_release_build E0425 release'
 proof_names=$(printf '%s\n' "$PROOFS" | awk '{ printf "%s ", $1 }')
-test_support="$src/daemon/model_store.rs $src/daemon/owner_props.rs $src/daemon/process_tests.rs $src/daemon/scripted.rs $src/daemon/stop_tests.rs"
+test_support="$src/daemon/model_store.rs $src/daemon/owner_props.rs $src/daemon/process_tests.rs $src/daemon/scripted.rs $src/daemon/stop_tests.rs $src/daemon/delete_all/process_tests.rs"
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"

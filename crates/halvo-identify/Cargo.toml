@@ -1,0 +1,14 @@
+[package]
+name = "halvo-identify"
+version = "0.0.0"
+description = "Cuts a call's capture records into episodes and proposes a workflow for a task that recurs"
+edition = "2021"
+publish = false
+
+[dependencies]
+halvo-redact = { path = "../halvo-redact" }
+halvo-schema = { path = "../halvo-schema" }
+halvo-seam = { path = "../halvo-seam" }
+
+[dev-dependencies]
+halvo-sample = { path = "../halvo-sample" }
