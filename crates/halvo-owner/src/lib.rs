@@ -18,15 +18,47 @@
 //! - It opens the store and calls `Store::purge_below` with `--first-live`, the lowest live ordinal of the capture
 //!   store, before it reads its first request.
 //!
-//! # How one process serves two channels
+//! # How one process serves its channels and its streams
 //!
 //! One reader thread for each read end blocks in `read_frame` and hands each frame, its end or its fault to the main
 //! thread over one bounded channel. The main thread alone holds the store. It waits on that channel until the next
 //! periodic check or the end of the idle time, answers the requests in the order in which they arrive, and writes
-//! every report and every reply. The starter's channel admits the role `interface` and the worker's the role
-//! `analysis`; a request of another role gets `role`. A request frame holds at most 65,536 bytes and a reply frame at
-//! most 262,144. An analysis write whose `commit` is null is held in memory until the write that carries the commit,
-//! because one batch is one or more writes, and a worker channel that ends before its commit leaves nothing.
+//! every report and every reply. The starter's channel admits the role `interface`, the worker's the role `analysis`
+//! and a stream the roles `runner` and `coordinator`; a request of another role gets `role` and reaches no handler.
+//! A request frame holds at most 65,536 bytes and a reply frame at most 262,144. An analysis write whose `commit` is
+//! null is held in memory until the write that carries the commit, because one batch is one or more writes, and a
+//! worker channel that ends before its commit leaves nothing.
+//!
+//! # The streams
+//!
+//! A stream is a byte stream between the owner and a client of the capture service, on which `runner` and
+//! `coordinator_write` requests reach the handlers of the host (`Store::handle`). The starter hands the owner one end
+//! of a new stream with the frame `stream` on its channel, a JSON object whose one key is `stream`:
+//!
+//! ```text
+//! {"stream":{"handles":null}}              macOS: the end is one descriptor in one SCM_RIGHTS message beside the frame
+//! {"stream":{"handles":[<read>,<write>]}}  Windows: the end is two handle values of the owner's own process
+//! ```
+//!
+//! On macOS the starter's channel is then a socket, and the owner reads it with `recvmsg` and sets close-on-exec on
+//! the descriptor. There the starter keeps its own descriptor of that end open until it has read the answer; what
+//! the owner gets when the starter closes it earlier stands at `hand_over` in tests/owner.rs. The owner answers the
+//! frame with one frame on the starter's channel:
+//!
+//! ```text
+//! {"stream":"taken"}    the owner holds the end and reads it on a reader thread of its own
+//! {"stream":"full"}     the owner already holds four streams
+//! {"stream":"refused"}  the frame is not as above: on macOS no descriptor or more than one came beside it, on
+//!                       Windows the two values are one or a value names no pipe
+//! ```
+//!
+//! With `full` and `refused` the owner closes what came and keeps the streams that it holds; on Windows it closes a
+//! value that names a pipe and touches no other value. A descriptor that comes beside any other frame is closed. A
+//! stream ends at an end-of-file, between two frames or inside one, at a read or a write error, and at a length
+//! above 65,536: the owner writes nothing more on it, closes its end and goes on with its channels and its other
+//! streams. The place of a stream is free when its reader thread has ended. After a write error the owner shuts the
+//! socket down on macOS, which ends the reader at once; on Windows the handle that reads stays open, with its place,
+//! until the far end closes the handle on which it writes.
 //!
 //! # The report
 //!
@@ -42,10 +74,11 @@
 //!
 //! # How the owner ends
 //!
-//! It exits 0 at the end of the starter's channel, and after the idle time with no request on either channel, which
-//! runs only while no worker channel is open. The end of the worker's channel ends that channel alone. Every other
-//! exit code is one of `exit`. The owner ends no step: the liveness rule of its starter ends a step that does not
-//! return.
+//! It exits 0 at the end of the starter's channel, and after the idle time with no frame on a channel or on a stream,
+//! which runs only while no worker channel is open. An open stream on which nothing arrives does not keep the owner
+//! alive. The end of the worker's channel ends that channel alone, and the end of a stream that stream alone. Every
+//! other exit code is one of `exit`. The owner ends no step: the liveness rule of its starter ends a step that does
+//! not return.
 //!
 //! # What may be logged
 //!
@@ -80,6 +113,7 @@ use halvo_schema_core::request::{self, AnalysisWrite, Decoded, ErrorName, ReplyR
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 use serde::ser::{SerializeMap, SerializeStruct, Serializer};
 use serde::Serialize;
+use serde_json::Value;
 
 /// The exit codes of the owner.
 pub mod exit {
@@ -105,6 +139,8 @@ const CHECK_DEFAULT: Duration = Duration::from_millis(30_000);
 const IDLE_DEFAULT: Duration = Duration::from_millis(120_000);
 /// The key's length in bytes.
 const KEY_LEN: usize = 32;
+/// The most streams that the owner holds at once.
+const STREAMS_MAX: usize = 4;
 
 /// Runs the owner and returns its exit code.
 pub fn run() -> i32 {
@@ -272,36 +308,58 @@ impl Ends {
     }
 }
 
-/// The channel that a frame came from.
+/// The channel or the stream that a frame came from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Source {
     Starter,
     Worker,
+    /// A stream, by the number that the owner gave it when it took its end. No two streams of one owner have one
+    /// number, so what the reader thread of an ended stream hands over is never read as a later stream's.
+    Stream(u64),
 }
 
 impl Source {
-    /// The one role that the channel admits.
-    fn role(self) -> Role {
+    /// Whether the source admits a request of `role`: the starter's channel the role `interface`, the worker's the
+    /// role `analysis`, and a stream the roles `runner` and `coordinator`. A request of a further role has none of
+    /// the four, and no source admits it.
+    fn admits(self, role: Option<Role>) -> bool {
         match self {
-            Source::Starter => Role::Interface,
-            Source::Worker => Role::Analysis,
+            Source::Starter => role == Some(Role::Interface),
+            Source::Worker => role == Some(Role::Analysis),
+            Source::Stream(_) => matches!(role, Some(Role::Runner | Role::Coordinator)),
         }
     }
 }
 
 /// What a reader thread hands the main thread.
 enum Event {
-    Frame(Source, Vec<u8>),
+    /// A frame, with the ends that came beside its bytes.
+    Frame(Source, Vec<u8>, Vec<File>),
     End(Source),
     Fault(Source),
 }
 
-fn spawn_reader(source: Source, mut end: File, tx: SyncSender<Event>) -> io::Result<()> {
+/// A read end of a channel or of a stream.
+trait Inbound: Read + Send + 'static {
+    /// The ends that came beside the bytes read since the last call. Nothing comes beside the bytes of a pipe or of
+    /// a stream; `sys::starter_end` gives the read end beside whose bytes an end of a stream can come.
+    fn came(&mut self) -> Vec<File> {
+        Vec::new()
+    }
+}
+
+impl Inbound for File {}
+
+/// Starts the reader thread of `end`. What came beside a frame goes to the main thread with it; what came beside
+/// bytes that make no frame is closed.
+fn spawn_reader(source: Source, mut end: impl Inbound, tx: SyncSender<Event>) -> io::Result<()> {
     std::thread::Builder::new()
         .name(format!("{source:?} reader"))
         .spawn(move || loop {
-            let event = match read_frame(&mut end, CLIENT_FRAME_MAX) {
-                Ok(Some(bytes)) => Event::Frame(source, bytes),
+            let read = read_frame(&mut end, CLIENT_FRAME_MAX);
+            let came = end.came();
+            let event = match read {
+                Ok(Some(bytes)) => Event::Frame(source, bytes, came),
                 Ok(None) => Event::End(source),
                 Err(_) => Event::Fault(source),
             };
@@ -311,6 +369,48 @@ fn spawn_reader(source: Source, mut end: File, tx: SyncSender<Event>) -> io::Res
             }
         })
         .map(|_| ())
+}
+
+/// What the `handles` of a frame `stream` hold.
+enum Handles {
+    /// `null`: the end comes beside the frame, as on macOS.
+    Null,
+    /// Two handle values of the owner's own process, the one that reads and then the one that writes, as on Windows.
+    Two(u64, u64),
+    /// The frame is not `{"stream":{"handles":..}}` with one of the two values above.
+    Other,
+}
+
+/// Reads a frame of the starter's channel as a frame `stream`: a JSON object whose one key is `stream`. Any other
+/// frame is a request, and this function returns none for it.
+fn stream_frame(bytes: &[u8]) -> Option<Handles> {
+    let frame: Value = serde_json::from_slice(bytes).ok()?;
+    let stream = frame
+        .as_object()
+        .filter(|keys| keys.len() == 1)?
+        .get("stream")?;
+    let handles = stream
+        .as_object()
+        .filter(|keys| keys.len() == 1)
+        .and_then(|keys| keys.get("handles"));
+    Some(match handles {
+        Some(Value::Null) => Handles::Null,
+        Some(Value::Array(values)) => match values.as_slice() {
+            [reads, writes] => match (reads.as_u64(), writes.as_u64()) {
+                (Some(reads), Some(writes)) => Handles::Two(reads, writes),
+                _ => Handles::Other,
+            },
+            _ => Handles::Other,
+        },
+        _ => Handles::Other,
+    })
+}
+
+/// A stream that the owner holds. Its place is taken from the answer `taken` until its reader thread has ended.
+struct Stream {
+    id: u64,
+    /// The end on which the owner writes, or none once a write on it has failed.
+    out: Option<File>,
 }
 
 /// The machine's clock and its local calendar.
@@ -415,6 +515,8 @@ fn serve(args: &Args, key: DbKey, ends: Ends) -> i32 {
         starter: starter_out,
         worker: None,
         pending: None,
+        streams: Vec::new(),
+        next_stream: 0,
     };
     if let Err(fault) = owner.store.purge_below(args.first_live) {
         eprintln!("halvo-owner: the purge below the lowest live ordinal failed: {fault}");
@@ -424,17 +526,16 @@ fn serve(args: &Args, key: DbKey, ends: Ends) -> i32 {
         return code;
     }
     let (tx, rx) = mpsc::sync_channel(2);
-    let mut readers = spawn_reader(Source::Starter, starter_in, tx.clone());
+    let mut readers = spawn_reader(Source::Starter, sys::starter_end(starter_in), tx.clone());
     if let Some((worker_in, worker_out)) = ends.worker {
         readers = readers.and_then(|()| spawn_reader(Source::Worker, worker_in, tx.clone()));
         owner.worker = Some(worker_out);
     }
-    drop(tx);
     if let Err(e) = readers {
         eprintln!("halvo-owner: a reader thread does not start: {e}");
         return owner.finish(exit::SOFTWARE);
     }
-    owner.serve(&rx, args.check, args.idle)
+    owner.serve(&rx, &tx, args.check, args.idle)
 }
 
 /// The open store with what the main thread holds beside it.
@@ -444,10 +545,22 @@ struct Owner {
     starter: File,
     worker: Option<File>,
     pending: Option<Pending>,
+    /// The streams that the owner holds, at most `STREAMS_MAX`.
+    streams: Vec<Stream>,
+    /// The number of the next stream.
+    next_stream: u64,
 }
 
 impl Owner {
-    fn serve(&mut self, rx: &Receiver<Event>, check: Duration, idle: Duration) -> i32 {
+    /// Serves the channels and the streams until the owner ends. `tx` is the sender that the reader thread of each
+    /// new stream gets.
+    fn serve(
+        &mut self,
+        rx: &Receiver<Event>,
+        tx: &SyncSender<Event>,
+        check: Duration,
+        idle: Duration,
+    ) -> i32 {
         let mut quiet_since = Mono::now();
         let mut next_check = quiet_since + check;
         loop {
@@ -465,10 +578,22 @@ impl Owner {
             }
             let wake = idle_end.map_or(next_check, |end| end.min(next_check));
             match rx.recv_timeout(wake.saturating_duration_since(now)) {
-                Ok(Event::Frame(Source::Worker, _)) if self.worker.is_none() => {}
-                Ok(Event::Frame(source, bytes)) => {
+                Ok(Event::Frame(Source::Worker, ..)) if self.worker.is_none() => {}
+                Ok(Event::Frame(Source::Stream(id), ..)) if !self.writes_on(id) => {}
+                Ok(Event::Frame(source, bytes, came)) => {
                     quiet_since = Mono::now();
-                    if let Err(code) = self.answer(source, &bytes) {
+                    let handles = match source {
+                        Source::Starter => stream_frame(&bytes),
+                        Source::Worker | Source::Stream(_) => None,
+                    };
+                    let done = match handles {
+                        Some(handles) => self.take_stream(handles, came, tx),
+                        None => {
+                            drop(came);
+                            self.answer(source, &bytes)
+                        }
+                    };
+                    if let Err(code) = done {
                         return self.finish(code);
                     }
                 }
@@ -485,6 +610,11 @@ impl Owner {
                     eprintln!("halvo-owner: the worker's channel failed; the owner closes it");
                     self.close_worker();
                     quiet_since = Mono::now();
+                }
+                Ok(Event::End(Source::Stream(id))) => self.free_stream(id),
+                Ok(Event::Fault(Source::Stream(id))) => {
+                    eprintln!("halvo-owner: a stream failed; the owner closes it");
+                    self.free_stream(id);
                 }
                 Err(RecvTimeoutError::Timeout) => {}
                 Err(RecvTimeoutError::Disconnected) => return self.finish(exit::END),
@@ -507,7 +637,8 @@ impl Owner {
         }
     }
 
-    /// Answers one request frame: the reports of what it committed first, then its reply on its own channel.
+    /// Answers one request frame: the reports of what it committed first, on the starter's channel, then its reply on
+    /// the channel or the stream that it came from. A reply that cannot be written on a stream ends that stream alone.
     fn answer(&mut self, source: Source, bytes: &[u8]) -> Result<(), i32> {
         let reply = self.reply(source, bytes);
         self.flush_reports()?;
@@ -529,7 +660,93 @@ impl Owner {
                 }
                 Ok(())
             }
+            Source::Stream(id) => {
+                let out = self.streams.iter_mut().find(|stream| stream.id == id);
+                let written = match out.and_then(|stream| stream.out.as_mut()) {
+                    Some(out) => write_frame(out, &reply, SERVER_FRAME_MAX).is_ok(),
+                    None => true,
+                };
+                if !written {
+                    eprintln!(
+                        "halvo-owner: a reply cannot be written on a stream; the owner closes it"
+                    );
+                    self.end_stream(id);
+                }
+                Ok(())
+            }
         }
+    }
+
+    /// Answers a frame `stream` with one frame on the starter's channel: `taken` when the owner holds the end that
+    /// came and has started its reader thread, `full` when it already holds `STREAMS_MAX` streams, and `refused`
+    /// when the frame does not give one end as `sys::stream_end` reads it. With `full` and `refused` what came is
+    /// closed before the answer is written, and the streams that the owner holds stay.
+    fn take_stream(
+        &mut self,
+        handles: Handles,
+        came: Vec<File>,
+        tx: &SyncSender<Event>,
+    ) -> Result<(), i32> {
+        let end = match handles {
+            Handles::Null => sys::stream_end(None, came),
+            Handles::Two(reads, writes) => sys::stream_end(Some((reads, writes)), came),
+            Handles::Other => {
+                drop(came);
+                None
+            }
+        };
+        let answer = match end {
+            None => "refused",
+            Some(end) if self.streams.len() >= STREAMS_MAX => {
+                drop(end);
+                "full"
+            }
+            Some((reads, writes)) => {
+                let id = self.next_stream;
+                self.next_stream += 1;
+                match spawn_reader(Source::Stream(id), reads, tx.clone()) {
+                    Ok(()) => {
+                        self.streams.push(Stream {
+                            id,
+                            out: Some(writes),
+                        });
+                        "taken"
+                    }
+                    Err(e) => {
+                        eprintln!("halvo-owner: the reader thread of a stream does not start: {e}");
+                        drop(writes);
+                        "refused"
+                    }
+                }
+            }
+        };
+        let frame = format!(r#"{{"stream":"{answer}"}}"#);
+        write_frame(&mut self.starter, frame.as_bytes(), SERVER_FRAME_MAX).map_err(|_| {
+            eprintln!("halvo-owner: an answer cannot be written on the starter's channel");
+            exit::CHANNEL
+        })
+    }
+
+    /// Whether the owner still writes on the stream `id`: it holds the stream and no write on it has failed.
+    fn writes_on(&self, id: u64) -> bool {
+        self.streams
+            .iter()
+            .any(|stream| stream.id == id && stream.out.is_some())
+    }
+
+    /// Ends a stream on which a write failed: the owner writes nothing more on it, answers no further frame of it
+    /// and closes the end on which it writes. `sys::shut` ends its reader thread where the system can, and the
+    /// place is free when that thread has ended.
+    fn end_stream(&mut self, id: u64) {
+        let stream = self.streams.iter_mut().find(|stream| stream.id == id);
+        if let Some(out) = stream.and_then(|stream| stream.out.take()) {
+            sys::shut(&out);
+        }
+    }
+
+    /// Frees the place of a stream whose reader thread has ended, and closes the end on which the owner writes.
+    fn free_stream(&mut self, id: u64) {
+        self.streams.retain(|stream| stream.id != id);
     }
 
     fn reply(&mut self, source: Source, bytes: &[u8]) -> Vec<u8> {
@@ -537,7 +754,7 @@ impl Owner {
             Err(e) => (e.id, Err(e.error)),
             Ok(decoded) => {
                 let id = decoded.id().clone();
-                let outcome = if decoded.role() == Some(source.role()) {
+                let outcome = if source.admits(decoded.role()) {
                     self.request(decoded)
                 } else {
                     Err(ErrorName::Role)

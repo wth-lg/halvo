@@ -1,7 +1,7 @@
 //! The process tests of the owner: each starts the built binary as a child, hands it the key on standard input and
 //! the ends of its channels, and reads what it writes.
 
-use std::io::{PipeReader, PipeWriter, Write};
+use std::io::{PipeReader, PipeWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -15,7 +15,8 @@ use halvo_schema_core::record::{
     Episode, FloorLayer, Instant, ObservedStep, Ordinal, Part, Tagged, Text,
 };
 use halvo_schema_core::request::{
-    decode_reply, AnalysisRole, AnalysisWrite, InterfaceRead, InterfaceRole, Reply, ReplyResult,
+    decode_reply, AnalysisRole, AnalysisWrite, ErrorName, InterfaceRead, InterfaceRole, Reply,
+    ReplyResult,
 };
 use halvo_schema_core::site::AppId;
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
@@ -71,11 +72,55 @@ fn frames(mut from: PipeReader) -> Receiver<Vec<u8>> {
     rx
 }
 
+/// The four ends of a starter's channel: the end that the owner reads and the end that it writes, then the end that
+/// the test writes and the end that it reads.
+type Channel = ((PipeReader, PipeWriter), (PipeWriter, PipeReader));
+
+/// A starter's channel of two pipes.
+fn pipes() -> Channel {
+    let (owner_reads, requests) = std::io::pipe().unwrap();
+    let (replies, owner_writes) = std::io::pipe().unwrap();
+    ((owner_reads, owner_writes), (requests, replies))
+}
+
+/// A starter's channel on which an end of a stream travels: one socket pair, whose one end and a copy of that end by
+/// `dup` are the two ends of the owner, because the owner refuses two ends of one number, and whose other end and
+/// its copy are the two ends of the test.
+#[cfg(unix)]
+fn stream_channel() -> Channel {
+    use std::os::fd::OwnedFd;
+    use std::os::unix::net::UnixStream;
+    let (owner, test) = UnixStream::pair().unwrap();
+    let copy = |end: &UnixStream| OwnedFd::from(end.try_clone().unwrap());
+    (
+        (copy(&owner).into(), OwnedFd::from(owner).into()),
+        (copy(&test).into(), OwnedFd::from(test).into()),
+    )
+}
+
+/// A starter's channel on which an end of a stream travels: on Windows the frame names the two handles of the end
+/// by their values, so the channel is two pipes.
+#[cfg(windows)]
+fn stream_channel() -> Channel {
+    pipes()
+}
+
 /// Starts the built owner on `dir` with `key` on standard input, the lowest live ordinal `first_live`, the
 /// starter's channel and, where `worker` holds, the worker's pipe pair.
 fn start(dir: &Path, key: [u8; 32], first_live: u64, worker: bool, extra: &[&str]) -> Owner {
-    let (owner_reads, requests) = std::io::pipe().unwrap();
-    let (replies, owner_writes) = std::io::pipe().unwrap();
+    start_on(pipes(), dir, key, first_live, worker, extra)
+}
+
+/// Starts the owner as `start` does, with `channel` as the starter's channel.
+fn start_on(
+    channel: Channel,
+    dir: &Path,
+    key: [u8; 32],
+    first_live: u64,
+    worker: bool,
+    extra: &[&str],
+) -> Owner {
+    let ((owner_reads, owner_writes), (requests, replies)) = channel;
     let mut ends = vec![(owner_reads, owner_writes)];
     let mut test_ends = None;
     if worker {
@@ -203,6 +248,19 @@ impl Owner {
         }
     }
 
+    /// The owner's answer to a frame `stream`: the text of the next frame on the starter's channel that is no report.
+    fn stream_answer(&mut self) -> String {
+        loop {
+            let frame = self
+                .frames
+                .recv_timeout(WAIT)
+                .expect("the owner answers no frame `stream`");
+            if is_report(&frame).is_none() {
+                return String::from_utf8(frame).unwrap();
+            }
+        }
+    }
+
     /// The next frame on the worker's channel.
     fn worker_reply(&mut self) -> Reply {
         let frames = self.worker_frames.as_ref().unwrap();
@@ -255,9 +313,177 @@ impl Drop for Owner {
     }
 }
 
+/// The frame `stream` that names no handle: on macOS the end comes beside it.
+const STREAM_BESIDE: &[u8] = br#"{"stream":{"handles":null}}"#;
+/// The three answers of the owner to a frame `stream`.
+const TAKEN: &str = r#"{"stream":"taken"}"#;
+const FULL: &str = r#"{"stream":"full"}"#;
+const REFUSED: &str = r#"{"stream":"refused"}"#;
+
+/// The test's end of a stream.
+struct Stream {
+    #[cfg(unix)]
+    writes: std::os::unix::net::UnixStream,
+    #[cfg(windows)]
+    writes: PipeWriter,
+    /// Each frame that the owner writes on the stream, and none at its end-of-file.
+    frames: Receiver<Option<Vec<u8>>>,
+}
+
+/// Hands each frame that the owner writes on a stream to the receiver, and none when the stream reads end-of-file.
+/// A read that fails ends the thread with nothing handed over.
+fn stream_frames(mut from: impl Read + Send + 'static) -> Receiver<Option<Vec<u8>>> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        while let Ok(read) = read_frame(&mut from, SERVER_FRAME_MAX) {
+            let last = read.is_none();
+            if tx.send(read).is_err() || last {
+                return;
+            }
+        }
+    });
+    rx
+}
+
+impl Stream {
+    /// Sends one request on the stream.
+    fn send(&mut self, request: &[u8]) {
+        write_frame(&mut self.writes, request, CLIENT_FRAME_MAX).unwrap();
+    }
+
+    /// The next reply on the stream.
+    fn reply(&mut self) -> Reply {
+        let frame = self
+            .frames
+            .recv_timeout(WAIT)
+            .expect("the owner sends no reply on the stream")
+            .expect("the stream ended before its reply");
+        decode_reply(&frame).unwrap()
+    }
+
+    /// Whether the next thing that the test's end reads is the end-of-file of the stream.
+    fn ends(&mut self) -> bool {
+        self.frames.recv_timeout(WAIT) == Ok(None)
+    }
+}
+
+/// Drops the test's end: the socket is shut down, so that the copy of it in the test's reader thread ends too and
+/// the owner reads end-of-file. On Windows the two pipe handles of the test's end close as they are dropped.
+#[cfg(unix)]
+impl Drop for Stream {
+    fn drop(&mut self) {
+        let _ = self.writes.shutdown(std::net::Shutdown::Both);
+    }
+}
+
+/// Makes a new stream, a socket pair, hands the owner one end of it as one descriptor in one SCM_RIGHTS message on
+/// the call that writes the frame `stream` on the starter's channel, and returns the test's end with the owner's
+/// answer. The test keeps its own descriptor of the owner's end until it has read the answer, as a starter does that
+/// closes what it holds after the answer: closed while the message is in flight, it leaves the owner on macOS a
+/// socket on which the first write of the test's end fails with a broken pipe.
+#[cfg(unix)]
+fn hand_over(owner: &mut Owner) -> (Stream, String) {
+    use std::os::fd::AsRawFd;
+    use std::os::unix::net::UnixStream;
+    let (mine, owners) = UnixStream::pair().unwrap();
+    let mut frame = u32::try_from(STREAM_BESIDE.len())
+        .unwrap()
+        .to_be_bytes()
+        .to_vec();
+    frame.extend_from_slice(STREAM_BESIDE);
+    let mut iov = libc::iovec {
+        iov_base: frame.as_mut_ptr().cast(),
+        iov_len: frame.len(),
+    };
+    let one = u32::try_from(size_of::<libc::c_int>()).unwrap();
+    // SAFETY: the macro computes the size of a control message from the length of its data.
+    let space = unsafe { libc::CMSG_SPACE(one) } as usize;
+    let mut control = vec![0u64; space.div_ceil(8)];
+    // SAFETY: an all-zero msghdr is a valid value of the type, whose pointers are then null.
+    let mut msg: libc::msghdr = unsafe { std::mem::zeroed() };
+    msg.msg_iov = &mut iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = control.as_mut_ptr().cast();
+    msg.msg_controllen = space as _;
+    // SAFETY: `control` holds the bytes of one header and one descriptor, aligned for a header; the macros of the
+    // system give the header and the place of its data inside those bytes.
+    unsafe {
+        let header = libc::CMSG_FIRSTHDR(&msg);
+        (*header).cmsg_level = libc::SOL_SOCKET;
+        (*header).cmsg_type = libc::SCM_RIGHTS;
+        (*header).cmsg_len = libc::CMSG_LEN(one) as _;
+        libc::CMSG_DATA(header)
+            .cast::<libc::c_int>()
+            .write_unaligned(owners.as_raw_fd());
+    }
+    let channel = owner.requests.as_ref().unwrap().as_raw_fd();
+    // SAFETY: sendmsg reads the frame and the control message, which both live through the call, and the two
+    // descriptors are open.
+    let sent = unsafe { libc::sendmsg(channel, &msg, 0) };
+    assert_eq!(
+        usize::try_from(sent).ok(),
+        Some(frame.len()),
+        "{}",
+        std::io::Error::last_os_error()
+    );
+    let answer = owner.stream_answer();
+    drop(owners);
+    let stream = Stream {
+        frames: stream_frames(mine.try_clone().unwrap()),
+        writes: mine,
+    };
+    (stream, answer)
+}
+
+/// Makes a new stream, two pipes, copies the owner's two ends of it into the owner's process, names the two copies
+/// by their values in the frame `stream` on the starter's channel, and returns the test's end with the owner's
+/// answer.
+#[cfg(windows)]
+fn hand_over(owner: &mut Owner) -> (Stream, String) {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::{DuplicateHandle, DUPLICATE_SAME_ACCESS, HANDLE};
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    let (owner_reads, writes) = std::io::pipe().unwrap();
+    let (reads, owner_writes) = std::io::pipe().unwrap();
+    let there = owner.child.as_raw_handle() as HANDLE;
+    let give = |end: HANDLE| {
+        let mut value: HANDLE = std::ptr::null_mut();
+        // SAFETY: `end` is an open handle of this process and `there` is the handle of the owner's process, which
+        // the child keeps open; the call writes the one handle value that the pointer names.
+        let made = unsafe {
+            DuplicateHandle(
+                GetCurrentProcess(),
+                end,
+                there,
+                &mut value,
+                0,
+                0,
+                DUPLICATE_SAME_ACCESS,
+            )
+        };
+        assert_ne!(made, 0, "{}", std::io::Error::last_os_error());
+        value as usize
+    };
+    let read_value = give(owner_reads.as_raw_handle() as HANDLE);
+    let write_value = give(owner_writes.as_raw_handle() as HANDLE);
+    drop((owner_reads, owner_writes));
+    owner.send(format!(r#"{{"stream":{{"handles":[{read_value},{write_value}]}}}}"#).as_bytes());
+    let stream = Stream {
+        frames: stream_frames(reads),
+        writes,
+    };
+    (stream, owner.stream_answer())
+}
+
 fn request_id() -> RequestId {
     static NEXT: AtomicU8 = AtomicU8::new(1);
     RequestId::from_random([NEXT.fetch_add(1, Ordering::Relaxed); 16])
+}
+
+/// A `runner` request, with a body that no handler of the owner's step list takes.
+fn runner_request() -> Vec<u8> {
+    let id = serde_json::to_string(&request_id()).unwrap();
+    format!(r#"{{"v":1,"id":{id},"request":"runner","body":{{"probe":1}}}}"#).into_bytes()
 }
 
 fn read_workflows() -> Vec<u8> {
@@ -481,4 +707,85 @@ fn the_owner_reports_each_commit_expires_by_itself_and_reports_before_it_exits()
     let last = last.expect("no last report after the end of the channel");
     assert_eq!(last["counts"]["window"], 0);
     assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+}
+
+/// Rulings 1 and 2 of the owner stream: the owner refuses a frame `stream` beside which no end came, takes four
+/// streams, answers a fifth `full` and closes the end that came with it, and gives a place again within two seconds
+/// of the end-of-file of a dropped end.
+#[test]
+fn a_fifth_stream_is_answered_full_and_a_dropped_end_frees_its_place() {
+    let scratch = Scratch::new("owner-stream-full");
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+
+    owner.send(STREAM_BESIDE);
+    assert_eq!(owner.stream_answer(), REFUSED);
+
+    let mut held = Vec::new();
+    for _ in 0..4 {
+        let (stream, answer) = hand_over(&mut owner);
+        assert_eq!(answer, TAKEN);
+        held.push(stream);
+    }
+    let (mut fifth, answer) = hand_over(&mut owner);
+    assert_eq!(answer, FULL);
+    assert!(
+        fifth.ends(),
+        "the owner did not close the end that came with the fifth frame"
+    );
+
+    drop(held.pop());
+    let deadline = Mono::now() + Duration::from_secs(2);
+    loop {
+        let (stream, answer) = hand_over(&mut owner);
+        if answer == TAKEN {
+            held.push(stream);
+            break;
+        }
+        assert_eq!(answer, FULL);
+        assert!(
+            Mono::now() < deadline,
+            "no place is free two seconds after an end was dropped"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+/// Rulings 3 and 4 of the owner stream: on a stream a `runner` request reaches the store, which answers
+/// `unsupported` because the step list holds no handler, and an interface read answers `role`; on the starter's
+/// channel the bytes of the same `runner` request answer `role`.
+#[test]
+fn on_a_stream_a_runner_request_reaches_the_store_and_an_interface_read_answers_role() {
+    let scratch = Scratch::new("owner-stream-roles");
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+
+    let runner = runner_request();
+    stream.send(&runner);
+    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Unsupported);
+    stream.send(&read_workflows());
+    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Role);
+
+    owner.send(&runner);
+    assert_eq!(owner.reply().outcome.unwrap_err(), ErrorName::Role);
+}
+
+/// Ruling 5 of the owner stream: a length above 65,536 ends its stream, whose far end reads end-of-file, and the
+/// owner goes on: a read on the starter's channel still gets its reply.
+#[test]
+fn a_length_above_the_bound_ends_its_stream_alone() {
+    let scratch = Scratch::new("owner-stream-length");
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (mut stream, answer) = hand_over(&mut owner);
+    assert_eq!(answer, TAKEN);
+
+    let above = u32::try_from(CLIENT_FRAME_MAX + 1).unwrap();
+    stream.writes.write_all(&above.to_be_bytes()).unwrap();
+    assert!(
+        stream.ends(),
+        "the stream did not read end-of-file after a length of 65,537"
+    );
+
+    owner.send(&read_workflows());
+    assert_eq!(workflows(owner.reply()), []);
 }
