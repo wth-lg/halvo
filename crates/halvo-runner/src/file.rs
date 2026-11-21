@@ -52,14 +52,12 @@ fn slot_path(loaded: &LoadReply, name: &Name) -> Result<PathBuf, Failure> {
 const LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// The folder of the permission `user_files`: the directory `dir` that holds the workbook of the slot `workbook`,
-/// with the locks of `agents/locks/` under the data directory of `--data-dir`, or without the argument the app's
-/// default (`DataDir::for_current_user`). When the data directory cannot be found or its `agents/locks/` cannot be
-/// opened, the file step answers `step_failed` and touches no file of the folder.
+/// with the locks of `agents/locks/` under the data directory of `--data-dir`, which the supervisor library passes
+/// (A6.1, U4.7). A runner started without `--data-dir` has no directory to lock under: its file step answers
+/// `step_failed` before it opens a lock, as it does when `agents/locks/` cannot be opened, and touches no file of the
+/// folder.
 fn folder_at(dir: &Path, data_dir: Option<&DataDir>) -> Result<Folder, Failure> {
-    let data = match data_dir {
-        Some(data) => data.clone(),
-        None => DataDir::for_current_user().map_err(|_| Failure::Step(Cause::StepFailed))?,
-    };
+    let data = data_dir.ok_or(Failure::Step(Cause::StepFailed))?;
     let locks =
         Locks::open(data.path(), LOCK_WAIT).map_err(|_| Failure::Step(Cause::StepFailed))?;
     Folder::new(dir, locks).map_err(|e| Failure::Step(sheet_cause(&e)))

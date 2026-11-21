@@ -467,8 +467,8 @@ fn delete_a_second_command_on_the_derived_store_of_the_first_is_refused_by_its_o
     if cfg!(windows) {
         assert_eq!(
             err.split_inclusive('\n').count() - 1,
-            3,
-            "the lines before the refusal line, each one of the forms (a form may repeat), which were 3 in all 200 rounds of hosted run 6"
+            0,
+            "the lines before the refusal line: none, since the library starts with its log level at NONE"
         );
     }
 }
