@@ -2011,6 +2011,8 @@ import-takes-away-an-untracked-path
 derive-leaves-a-file-in-the-checkout
 control-leaves-a-file-in-the-checkout
 last-entry-leaves-a-file-in-the-checkout
+shared-stand-ins-first-input
+shared-stand-ins-second-input
 EOF
 }
 
@@ -2831,6 +2833,10 @@ EOF
   case_repo=$work/repo-patch
   case_tree=$patch_tree
   case_run graph-patch-table FAIL check 'egress graph patch=Cargo.toml'
+  STUB_GRAPH=missing
+  case_run shared-stand-ins-first-input FAIL check 'egress graph missing=zmij' 'egress graph unknown=libc'
+  STUB_GRAPH=extra-third
+  case_run shared-stand-ins-second-input FAIL check 'egress graph unknown=libc' 'egress graph missing=zmij'
   STUB_CANARY=real
   case_job=$own_job
   case_run canary-on-the-real-cargo PASS - 'egress canary profile=dev entries='
