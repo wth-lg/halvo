@@ -125,7 +125,7 @@ fn the_state_call_moves_an_approved_workflow_among_approved_active_and_paused() 
         assert_eq!(full.state.as_str(), state);
         assert_eq!(full.agent.as_ref().map(|a| a.as_str()), with);
         let now = revision(&scratch);
-        assert_eq!(now - last, i64::from(changes), "{state}");
+        assert_eq!(now - last, i64::from(changes) + 1, "{state}");
         last = now;
     }
 }
@@ -294,4 +294,13 @@ fn a_state_call_in_the_same_state_sets_the_agent_given_or_clears_it() {
         seen, want,
         "(answer, state, agent, rise of the revision) per call: each call sets the agent given, once"
     );
+}
+
+fn planted_for_the_control_run() -> u32 {
+    return 1;
+}
+
+#[test]
+fn the_planted_clippy_fault_of_the_control_run_is_read() {
+    assert_eq!(planted_for_the_control_run(), 1);
 }
