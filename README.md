@@ -180,8 +180,10 @@ Pushing the commit and the tag, a GitHub release, signing and publishing are the
 owner's own steps.
 
 Both forms take an optional bump level after the flag: `patch` (default), `minor` or
-`major`. `CHANGELOG.md` follows Keep a Changelog. Every change goes into its
-`## [Unreleased]` section as one line at the end of the list, `- <Type>: <text>`,
-where Type is Added, Changed, Deprecated, Removed, Fixed or Security. A pull request
-adds one entry for each type of change it makes, and `sh scripts/check-changelog.sh`
-checks the file.
+`major`. `CHANGELOG.md` follows Keep a Changelog. A pull request records its changes
+in one new file under `changelog.d/`, named after its branch, with one line for each
+type of change that it makes, `- <Type>: <text>`, where Type is Added, Changed,
+Deprecated, Removed, Fixed or Security, and leaves `CHANGELOG.md` from its
+`## [Unreleased]` heading down as it is. At a release `sh scripts/changelog-join.sh`
+moves those lines to the end of the list under that heading, and
+`sh scripts/check-changelog.sh` checks both.
