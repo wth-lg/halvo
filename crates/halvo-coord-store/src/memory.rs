@@ -74,9 +74,12 @@ impl Row {
 /// entries of `halvo_schema::kinds::registry` and those that `with_kind` adds, it answers `HeldRefused::Role` while it
 /// serves a request that is no `coordinator_write` by `serve_as`, and it dates a row by the day kept beside it, so a
 /// row that the typed reader refuses makes a yes while it lies more than two days ahead. Its fifth call has no fault.
-/// What this stand-in lacks against the derived store: one reading of the clock for a whole request, which is the
-/// adapter's; here each read, each fifth call and each commit reads the clock anew. This store holds no delete of a
-/// workflow: the cascade of W-C3.10 is the derived store's.
+/// What this stand-in lacks against the derived store: the one reading of the clock that `Store::handle` takes for
+/// the reads and the fifth call of a request; here each read, each fifth call and each commit reads the clock anew.
+/// Under `CoordHandler` a request of the derived store reads a clock in three places: its reads and its fifth call by
+/// that one reading, the tie of each record's day to its `at` by the clock given to `CoordHandler::new`, read per
+/// record, and the typed commit by a reading of its own, until WR3 gives the handler the request's reading. This store
+/// holds no delete of a workflow: the cascade of W-C3.10 is the derived store's.
 pub struct MemoryStore {
     clock: Box<dyn Clock>,
     workflows: BTreeMap<WorkflowId, Workflow>,
