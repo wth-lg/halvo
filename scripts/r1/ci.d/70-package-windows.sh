@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: windows
-# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version).
+# rule: The one command npm run tauri build -- -- --locked, started with no set variable whose name starts with APPLE_ or TAURI_SIGNING_ or is HALVO_WINDOWS_SIGN_COMMAND and with no tracked file under src-tauri that names externalBin, signCommand or certificateThumbprint, and tried three times at most, makes exactly one installer *-setup.exe under release/bundle/nsis of the target directory, newer than the start of the build, whose manifest asks for the level asInvoker at each requestedExecutionLevel and for no other, and which the 7-Zip of the runner's image unpacks, with no install, into files that hold one halvo.exe with each helper that packaging/helpers.d names, with .exe, in its directory, each read for a number of bytes above zero before anything starts it, and 62-build.sh --files passes on those executables (no stand-in or test-seam marker, and the version by 61-version.sh --check, which starts each with --version).
 set -u
 name=70-package-windows
 config_keys='externalBin signCommand certificateThumbprint'
@@ -88,6 +88,16 @@ content_defect() {
   printf '%s\n' "${apps%/*}"
 }
 
+bytes_of() {
+  read_bytes=$(wc -c <"$1") || { printf 'wc could not read %s\n' "${1##*/}"; return 1; }
+  read_bytes=$(printf '%s' "$read_bytes" | tr -d '[:blank:]')
+  case $read_bytes in
+    '' | *[!0-9]*) printf 'wc gave no number of bytes for %s\n' "${1##*/}"; return 1 ;;
+  esac
+  [ "$read_bytes" -gt 0 ] || { printf '%s holds no byte\n' "${1##*/}"; return 1; }
+  printf '%s\n' "$read_bytes"
+}
+
 release_defect() {
   directory=$1
   shift
@@ -162,13 +172,13 @@ measure() {
   printf 'installer files unpacked by 7-Zip: %s\n' "$file_count"
   # shellcheck disable=SC2086
   directory=$(content_defect "$work/content" $helpers) || fail "$directory"
+  for executable in halvo $helpers; do
+    bytes=$(bytes_of "$directory/$executable.exe") || fail "$bytes"
+    printf 'installer holds %s.exe bytes=%s\n' "$executable" "$bytes"
+  done
   # shellcheck disable=SC2086
   read_output=$(release_defect "$directory" $helpers) || fail "$read_output"
   printf '%s\n' "$read_output"
-  for executable in halvo $helpers; do
-    bytes=$(wc -c <"$directory/$executable.exe" | tr -d ' ')
-    printf 'installer holds %s.exe bytes=%s\n' "$executable" "$bytes"
-  done
   printf 'PASS %s\n' "$name"
 }
 
