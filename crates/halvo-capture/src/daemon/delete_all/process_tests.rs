@@ -283,7 +283,13 @@ fn a_delete_ends_the_derived_key_and_a_new_store_makes_a_new_one() {
     let key_file = std::fs::read(dir.join("derived/master.key")).unwrap();
     assert_eq!(files_that_unwrap_under(&dir, &key_file, derived).len(), 1);
     let mut table = rows();
-    table.push(DERIVED);
+    if !table.iter().any(|row| row.name == "derived") {
+        table.push(Row {
+            name: "derived",
+            key_files: &["derived/master.key"],
+            owner_pid_file: Some("derived/owner.pid"),
+        });
+    }
     let how = Offline {
         rows: &table,
         select: custody_policy::of_this_build,
