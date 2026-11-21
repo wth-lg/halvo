@@ -2585,7 +2585,7 @@ mod proofs {
 
     #[cfg(halvo_proof = "held_key_printed_twin")]
     fn held_key_printed_twin(key: &super::HeldKey) -> String {
-        format!("{:?}", key.instant)
+        format!("{:?}", key.class)
     }
 
     #[cfg(halvo_proof = "tap_event_printed")]
