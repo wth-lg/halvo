@@ -12935,7 +12935,11 @@ fn u24s_r2_under_class_b_the_stop_of_the_row_stops_the_run() {
 #[test]
 fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_and_shows_the_agent_on(
 ) {
-    let (c, run) = u24s_r1_dismissed_live();
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
     let m = mark(&c);
     let _ = c.control(&agent(0), Action::SwitchOff);
     assert_eq!(
@@ -13502,4 +13506,22 @@ fn u24s_rd168_an_owed_setup_raise_does_not_say_needs_you_while_the_list_shows_it
         owed,
         "no tick makes the raise for a dismissed workflow, so the row does not say that it does"
     );
+}
+
+/// Ruling RD-168 (the verifier's finding 1): while the list shows the agent's workflow dismissed,
+/// where neither half of the line can come true, the row does not say that the switch-off could
+/// not be saved.
+#[test]
+fn u24s_rd168_the_line_of_a_switch_off_that_could_not_be_saved_does_not_show_while_its_workflow_is_dismissed(
+) {
+    let (c, run) = u24s_r1_dismissed_live();
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    let stopping = u24s_r1_row(&c).line;
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    c.tick();
+    let ended = u24s_r1_row(&c).line;
+    for line in [stopping, ended] {
+        assert_ne!(line, text("line.working.switch_not_saved"));
+        assert_ne!(line, text("line.all_set.switch_not_saved"));
+    }
 }
