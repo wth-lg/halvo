@@ -1094,6 +1094,36 @@ fn values_of(value: &str) -> Vec<String> {
     vec![value.to_owned()]
 }
 
+/// RD-90 item 6 at the set-up's typed line (U2.4n): a payee typed with a zero-width space, a
+/// character with no visible form of the ruling's item 7, fails the predicate of a deciding
+/// field and is refused at that question; nothing of it is stored or sent.
+#[test]
+fn a_typed_payee_with_a_character_that_cannot_be_seen_is_refused_at_its_question() {
+    let f = facts(Category::UtilityBillPayment, "web", WorkflowState::Approved);
+    let p = ports(&f);
+    let payee = SetupParam {
+        param: Param::Payee,
+        candidates: vec![],
+    };
+    let mut setup = Setup::new(
+        item_id(1),
+        flow(),
+        agent(),
+        Category::UtilityBillPayment,
+        vec![payee],
+    )
+    .unwrap();
+    let mut l = ledger();
+    let typed = SetupInput::Typed {
+        param: Param::Payee,
+        text: "City\u{200b}Water",
+    };
+    let answer = answer_setup(&p, &mut l, &LIMITS, &mut setup, &f, typed);
+    assert_eq!(answer, Err(Cause::Malformed));
+    assert_eq!(setup.state(), &SetupState::Open);
+    assert!(p.calls.borrow().is_empty(), "nothing is stored or sent");
+}
+
 fn past(n: u32, outcome: Outcome) -> PastRun {
     PastRun {
         run: RunId::parse(&format!("{n:032x}")).unwrap(),

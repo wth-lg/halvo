@@ -1,7 +1,9 @@
-use super::{compose_setup, SetupParam};
+use super::chars::composed;
+use super::{bound_field, compose_setup, value_bound, Marking, SetupParam};
 use crate::ports::{Refused, Shared};
 use crate::types::{
-    AgentId, Body, Category, Cause, Item, ItemId, Limits, Name, Param, Slot, WorkflowId,
+    AgentId, Body, BoundFrom, Category, Cause, Class, Item, ItemId, Limits, Name, Param, Slot,
+    WorkflowId,
 };
 
 const TYPED_MAX: usize = 1024;
@@ -106,6 +108,7 @@ pub struct Setup {
     item: ItemId,
     workflow: WorkflowId,
     agent: AgentId,
+    category: Category,
     params: Vec<SetupParam>,
     given: Vec<Option<Vec<String>>>,
     refused: Vec<Option<Refused>>,
@@ -140,6 +143,7 @@ impl Setup {
             item,
             workflow,
             agent,
+            category,
             given: vec![None; params.len()],
             refused: vec![None; params.len()],
             params,
@@ -290,6 +294,39 @@ impl Setup {
     }
 }
 
+/// The deciding field of I4.3 that the slot `param` of an agent of `category` binds, with its
+/// class (ruling RD-90 items 3 and 6): a field of the class of the category's effects that
+/// A-A9.3 binds from a slot and the table marks as deciding, so the payee and the instrument of a
+/// payment and the seller and the instrument of a purchase; none for every other parameter.
+fn deciding(category: Category, param: Param) -> Option<(Class, &'static str)> {
+    let class = match category {
+        Category::UtilityBillPayment => Class::Payment,
+        Category::ShopOrder => Class::Purchase,
+        _ => return None,
+    };
+    let field = param.name();
+    match bound_field(class, field) {
+        Some((sources, Marking::Deciding)) if sources.contains(&BoundFrom::Slot) => {
+            Some((class, field))
+        }
+        _ => None,
+    }
+}
+
+/// Whether `text`, given for `param` of an agent of `category`, holds to the predicate of a
+/// deciding field (ruling RD-90 items 2 and 6): it equals its own composed form at the bound of
+/// its field (`chars::composed` at `value_bound`), as a raised value of that field must, so that
+/// a person's own value never trips the refusal at the raise later. Every text holds for a
+/// parameter that binds no deciding field.
+pub(super) fn fits(category: Category, param: Param, text: &str) -> bool {
+    match deciding(category, param) {
+        Some((class, field)) => {
+            value_bound(class, field, BoundFrom::Slot).is_ok_and(|most| composed(text, most))
+        }
+        None => true,
+    }
+}
+
 /// A typed answer: one line of at most 1,024 bytes that holds something other than white space
 /// (I3.5); else `malformed`.
 fn typed(text: &str) -> Result<Vec<String>, Cause> {
@@ -310,7 +347,9 @@ fn typed(text: &str) -> Result<Vec<String>, Cause> {
 /// the line `item.setup.not_taken` (ruling IG-34), and `gone` ends it. An open item refuses the
 /// acknowledgement and `not_taken` with `state`, keeps everything at `none` (I3.5, ruling RD-23
 /// (b)), and takes `choose` of a candidate that it shows, or a typed line for a parameter with no
-/// candidate (`malformed` otherwise); a later answer for a parameter replaces the earlier one.
+/// candidate that holds, for a parameter that binds a deciding field, to that field's predicate
+/// (`fits`; ruling RD-90 item 6) (`malformed` otherwise); a later answer for a parameter replaces
+/// the earlier one.
 /// While a parameter has no answer the item stays open; the answer that gives the last one makes
 /// the one body `set_bindings`, with the slots of the given values, which is owed from then on.
 /// `overlap` (I3.5 (a); ruling RD-67 3.2) makes an owed item open as `not_taken` does and keeps
@@ -383,7 +422,11 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
             if !setup.params[i].candidates.is_empty() {
                 return Err(Cause::Malformed);
             }
-            next.given[i] = Some(typed(text)?);
+            let value = typed(text)?;
+            if !fits(setup.category, param, text) {
+                return Err(Cause::Malformed);
+            }
+            next.given[i] = Some(value);
             next.refused[i] = None;
         }
     }

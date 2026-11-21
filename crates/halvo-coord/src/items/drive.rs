@@ -2278,10 +2278,12 @@ pub fn freed_setup<P: Owner + Clock, C: ConfigView + Clone>(
 }
 
 /// Opens the setup item `item` of the agent `agent` of `workflow`, of the category `category`,
-/// that asks `params` (I3.5; ruling RD-81 9.2): a value offered for `reply_senders` that the
-/// reader of senders refuses is not offered, so that a parameter left with no offered value
-/// takes a typed line and no card keeps a choice that can only fail; then `Setup::new`. A reader
-/// that did not answer is `busy` or `no_service`, and nothing is opened.
+/// that asks `params` (I3.5; rulings RD-81 9.2, RD-90 item 6): a value offered for
+/// `reply_senders` that the reader of senders refuses is not offered, nor a value offered for a
+/// parameter that binds a deciding field that fails that field's predicate, so that a parameter
+/// left with no offered value takes a typed line and no card keeps a choice that can only fail;
+/// then `Setup::new`. A reader that did not answer is `busy` or `no_service`, and nothing is
+/// opened.
 pub fn open_setup<P: Senders>(
     ports: &P,
     item: ItemId,
@@ -2294,7 +2296,7 @@ pub fn open_setup<P: Senders>(
     for p in params {
         let mut candidates = Vec::with_capacity(p.candidates.len());
         for (value, from) in p.candidates {
-            if offers(ports, p.param, &value)? {
+            if offers(ports, category, p.param, &value)? {
                 candidates.push((value, from));
             }
         }
@@ -2306,13 +2308,23 @@ pub fn open_setup<P: Senders>(
     Setup::new(item, workflow, agent, category, asked)
 }
 
-/// Whether the set-up may offer `value` for `param`: for `reply_senders` only where the reader
-/// of senders takes the value's text, its pieces joined.
-fn offers<P: Senders>(ports: &P, param: Param, value: &[String]) -> Result<bool, Cause> {
+/// Whether the set-up may offer `value` for `param` of an agent of `category`: where the value's
+/// text, its pieces joined, holds to the predicate of a deciding field that the parameter binds
+/// (`setup::fits`), and for `reply_senders` only where the reader of senders takes that text.
+fn offers<P: Senders>(
+    ports: &P,
+    category: Category,
+    param: Param,
+    value: &[String],
+) -> Result<bool, Cause> {
+    let text = value.concat();
+    if !super::setup::fits(category, param, &text) {
+        return Ok(false);
+    }
     if param != Param::ReplySenders {
         return Ok(true);
     }
-    let read = ports.read(&value.concat()).map_err(|e| cause_of(&e))?;
+    let read = ports.read(&text).map_err(|e| cause_of(&e))?;
     Ok(read == Reading::Taken)
 }
 
