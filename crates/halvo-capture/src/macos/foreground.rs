@@ -1247,6 +1247,81 @@ mod tests {
 
 
     #[test]
+    fn a_title_asked_before_an_active_reading_and_answered_after_it_is_not_emitted() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let front = app("com.example.a", 10);
+        let asked = poller.step(front.clone(), Vec::new(), &handle);
+        assert!(asked.is_some(), "tick 1 reads inactive and asks for the title");
+        PROBE_BYTE.with(|byte| byte.set(1));
+        let during = poller.step(front.clone(), Vec::new(), &handle);
+        assert_eq!(during, None, "tick 2 reads active and asks nothing");
+        PROBE_BYTE.with(|byte| byte.set(0));
+        poller.step(
+            front.clone(),
+            answer(1, read("ASKED-BEFORE-ACTIVE")),
+            &handle,
+        );
+        let stored = titles(&writer);
+        drop(poller);
+        assert_eq!(
+            stored,
+            [],
+            "the answer of a request older than an active reading"
+        );
+    }
+
+    static INSIDE_BYTE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+    fn inside_byte() -> u8 {
+        INSIDE_BYTE.load(Ordering::SeqCst)
+    }
+
+    #[test]
+    fn a_title_read_inside_an_active_reading_between_two_ticks_is_not_emitted() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        poller.probe = SystemProbe::with_readers(at_console, inside_byte);
+        let front = app("com.example.a", 10);
+        let (go, wait) = std::sync::mpsc::channel::<()>();
+        let (seen, read_under) = std::sync::mpsc::channel::<u8>();
+        let reader: TitleReader = Box::new(move |_pid| {
+            wait.recv().ok();
+            seen.send(inside_byte()).ok();
+            read("READ-WHILE-ACTIVE")
+        });
+        let (thread, joined) = TitleThread::spawn(reader).expect("the title thread of the test");
+        let request = poller
+            .step(front.clone(), thread.answers(), &handle)
+            .expect("tick 1 reads inactive and asks for the title");
+        thread.ask(request);
+        INSIDE_BYTE.store(1, Ordering::SeqCst);
+        go.send(()).expect("the reader waits for the test");
+        let byte_at_the_read = read_under.recv_timeout(Duration::from_secs(60));
+        let mut answers = Vec::new();
+        for _ in 0..60_000 {
+            answers = thread.answers();
+            if !answers.is_empty() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        INSIDE_BYTE.store(0, Ordering::SeqCst);
+        let answered = answers.len();
+        poller.step(front.clone(), answers, &handle);
+        let stored = titles(&writer);
+        drop(thread);
+        joined.join().expect("the title thread ends by returning");
+        drop(poller);
+        assert_eq!(byte_at_the_read, Ok(1), "the title was read while active");
+        assert_eq!(answered, 1, "the read answered before tick 2");
+        assert_eq!(
+            stored,
+            [],
+            "a title that was read while the reading was active"
+        );
+    }
+
+
+    #[test]
     fn readings_a_a_b_of_one_app_give_two_title_events_with_a_and_b() {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
         let front = app("com.example.a", 10);
