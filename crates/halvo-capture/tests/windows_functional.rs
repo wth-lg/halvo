@@ -350,6 +350,7 @@ const CHILD_EXE_NAME: &str = "halvo-verify-child.exe";
 const LISTED_CHILD_EXE: &str = "KeePass.exe";
 const GHOST_CLASS: &str = "HalvoVerifyGhostChild";
 const GHOST_CAPTION: &str = "halvo-verify-ghost-caption";
+const BACKGROUND_CLASS: &str = "HalvoVerifyBackgroundChild";
 const CHILD_MODE_ENV: &str = "HALVO_VERIFY_CHILD_MODE";
 const LISTENER_OUT_ENV: &str = "HALVO_VERIFY_LISTENER_OUT";
 const LISTENER_WINDOW_CLASS: &str = "HalvoVerifyListenerWindow";
@@ -1234,6 +1235,7 @@ fn helper_child_window() {
         Ok("root") => return child_root(secs),
         Ok("password-title") => return child_password_title(),
         Ok("hang") => return child_hang(),
+        Ok("background") => return child_background(secs),
         _ => {}
     }
     let first = TestWindow::create(&normal_window(
@@ -1397,6 +1399,19 @@ fn child_root(secs: u64) {
         "child",
         format!("mode=root grandchild_exit_ok={}", exit.success()),
     );
+}
+
+/// A window that stays where it was made and answers its messages for `secs`.
+fn child_background(secs: u64) {
+    let _window = TestWindow::create(&normal_window(
+        BACKGROUND_CLASS,
+        "halvo-verify-background",
+        420,
+        320,
+    ))
+    .expect("the window");
+    pump_answering(Duration::from_secs(secs));
+    say("child", "mode=background");
 }
 
 /// A window that comes to the front, then a thread that takes no message for
@@ -6172,6 +6187,90 @@ fn titles_with(events: &[Seen], prefix: &str) -> usize {
                 .is_some_and(|index| titles[index].starts_with(prefix))
         })
         .count()
+}
+
+#[test]
+#[ignore = "functional: a wheel turn over a background window of a listed app is decided on that app"]
+fn a_wheel_turn_over_a_background_window_of_a_listed_app_gives_no_scroll_record() {
+    use windows::Win32::Foundation::{POINT, RECT};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetAncestor, GetWindowRect, SetCursorPos, WindowFromPoint, GA_ROOT,
+    };
+    with_deadline("wheel-under", Duration::from_secs(90), || {
+        env_report("wheel-under");
+        source_built_by_test("wheel-under", "pointer");
+        let (sink, events) = capture(4096);
+        let front = TestWindow::create(&normal_window(
+            "HalvoVerifyWheelFront",
+            "halvo-verify-wheel-front",
+            20,
+            20,
+        ))
+        .expect("the window in front");
+        let mut child = spawn_child_as("background", 12, LISTED_CHILD_EXE);
+        let class: Vec<u16> = BACKGROUND_CLASS.encode_utf16().chain([0]).collect();
+        let mut background = HWND::default();
+        let began = Instant::now();
+        while background.0.is_null() && began.elapsed() < Duration::from_secs(10) {
+            pump_thread(Duration::from_millis(100));
+            // SAFETY: `class` is a NUL-terminated wide string that outlives the call.
+            background =
+                unsafe { FindWindowW(PCWSTR(class.as_ptr()), PCWSTR::null()) }.unwrap_or_default();
+        }
+        pump_thread(Duration::from_millis(500));
+        let (front_activated, method) = front.activate();
+        let mut rect = RECT::default();
+        // SAFETY: `rect` is a live RECT that the call writes into.
+        let _ = unsafe { GetWindowRect(background, &mut rect) };
+        let middle = POINT {
+            x: (rect.left + rect.right) / 2,
+            y: (rect.top + rect.bottom) / 2,
+        };
+        // SAFETY: SetCursorPos, WindowFromPoint and GetAncestor take plain values.
+        let pointer_over_background = unsafe {
+            let _ = SetCursorPos(middle.x, middle.y);
+            !background.0.is_null() && GetAncestor(WindowFromPoint(middle), GA_ROOT) == background
+        };
+        let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
+        let start = pointer.begin(SourceContext::new(sink.clone()));
+        let _ = events.drain_for(Duration::from_secs(1));
+        let sent = send(&[mouse(MOUSEEVENTF_WHEEL, 0, 120)]);
+        let seen = events.drain_for(Duration::from_millis(2_500));
+        let front_still_in_front = front.is_foreground();
+        let _ = stop_counted(&mut pointer, "pointer");
+        while child.try_wait().is_none() {
+            pump_thread(Duration::from_millis(200));
+        }
+        child.print_output();
+        let scroll_records = folds(&seen, FoldClass::Scroll).len();
+        let scroll_record_app_is_front = seen.iter().any(|e| {
+            e.view.is_some_and(|view| {
+                matches!(view.fold, Some((FoldClass::Scroll, _)))
+                    && view.app == seam::AppSeen::Named(1)
+            })
+        });
+        let listed_app_drops = pointer.drops().listed_app;
+        say(
+            "wheel-under",
+            format!(
+                "pointer_start={} front_activated={front_activated} method={method} \
+                 pointer_over_background={pointer_over_background} \
+                 front_still_in_front={front_still_in_front} wheel_accepted={sent} \
+                 scroll_records={scroll_records} scroll_record_app_is_front={scroll_record_app_is_front} \
+                 listed_app_drops={listed_app_drops}",
+                show(&start)
+            ),
+        );
+        assert!(start.is_ok(), "the pointer source must start");
+        assert!(
+            sent == 1 && pointer_over_background && front_still_in_front,
+            "INCONCLUSIVE: the wheel turn was not sent over a background window"
+        );
+        assert!(
+            scroll_records == 0 && listed_app_drops >= 1,
+            "a wheel turn over a listed app's background window was recorded"
+        );
+    });
 }
 
 #[test]
