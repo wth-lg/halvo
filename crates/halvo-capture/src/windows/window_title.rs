@@ -653,6 +653,51 @@ mod tests {
         assert!(title.ends_with("draft"));
     }
 
+    /// The text of `window` as the title path reads it, and what the title
+    /// path tells of the window for `browser` when the Chrome query answers
+    /// nothing.
+    fn as_the_title_path_reads(window: HWND, browser: Browser) -> (String, PrivateWindow) {
+        let title = read_window_title(window);
+        let told = private_window(browser, &title, || None);
+        (title, told)
+    }
+
+    #[test]
+    fn a_long_private_title_is_told_before_the_cut() {
+        let edge = "[InPrivate] - Microsoft\u{200B} Edge";
+        let firefox = "Mozilla Firefox Private Browsing";
+        let cases = [
+            ("edge-ascii-1000", Browser::Edge, "x".repeat(1_000), edge),
+            (
+                "edge-cyrillic-500",
+                Browser::Edge,
+                "\u{436}".repeat(500),
+                edge,
+            ),
+            ("edge-cjk-340", Browser::Edge, "\u{6F22}".repeat(340), edge),
+            (
+                "firefox-ascii-1000",
+                Browser::Firefox,
+                "x".repeat(1_000),
+                firefox,
+            ),
+        ];
+        let mut kept = Vec::new();
+        for (case, browser, page, ending) in cases {
+            let text: Vec<u16> = format!("{page} - {ending}").encode_utf16().collect();
+            let window = TitledWindow::new(&text);
+            let (read, told) = as_the_title_path_reads(window.0, browser);
+            if told != PrivateWindow::Private {
+                kept.push(format!("{case} read_bytes={} told={told:?}", read.len()));
+            }
+        }
+        assert!(
+            kept.is_empty(),
+            "a private window was told otherwise: {}",
+            kept.join("; ")
+        );
+    }
+
     fn no_hook(
         _event: u32,
         _callback: windows::Win32::UI::Accessibility::WINEVENTPROC,
