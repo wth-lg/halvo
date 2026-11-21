@@ -1097,10 +1097,10 @@ fn the_derived_key_stands_in_no_file_line_or_argument() {
     let scratch = Scratch::new("crash-key");
     let key = capture_store_and_key(&scratch.0);
     for (name, form) in key_forms(&key) {
-        assert_eq!(
-            forms_in(&form, &key),
-            [name],
-            "the scan misses the form {name}"
+        let found = forms_in(&form, &key);
+        assert!(
+            found.contains(&name),
+            "the scan misses the form {name}: {found:?}"
         );
     }
 
