@@ -1734,3 +1734,92 @@ fn u24q_an_unknown_payment_stands_beside_a_rejected_send_in_a_declined_run() {
         ]
     );
 }
+
+/// The verifier's finding 2 (d2, d6, d11, d12) under RD-158 (3): a kept value of no byte, with no
+/// piece, one empty piece or three, never stands under a name that is not the first of its table
+/// and in each class that shows fields, on the partial entry and on the unknown entry; the fields
+/// that read beside it stand. A send stands as an unknown effect alone, because a committed send
+/// that keeps `to` alone holds its whole table. Every place whose entry differs is named.
+#[test]
+fn u24q_a_kept_value_of_no_byte_never_stands_under_any_name_of_any_class() {
+    let empties: [&[&str]; 3] = [&[], &[""], &["", "", ""]];
+    let mut differ = Vec::new();
+    for pieces in empties {
+        let places = [
+            (
+                "the amount of a payment",
+                Class::Payment,
+                vec![
+                    one_kept("payee", "City Power"),
+                    kept_pieces("amount", pieces),
+                ],
+                vec![pair("Pay to", "City Power")],
+                true,
+            ),
+            (
+                "the party of a sign",
+                Class::Sign,
+                vec![
+                    one_kept("document", "Lease"),
+                    kept_pieces("party", pieces),
+                    one_kept("note", "zq6"),
+                ],
+                vec![pair("Document", "Lease")],
+                true,
+            ),
+            (
+                "the seller of a purchase",
+                Class::Purchase,
+                vec![
+                    kept_pieces("seller", pieces),
+                    one_kept("amount", "19.99 USD"),
+                ],
+                vec![pair("Total", "19.99 USD")],
+                true,
+            ),
+            (
+                "the range of a local_edit",
+                Class::LocalEdit,
+                vec![
+                    one_kept("file", "Shared/Books.xlsx"),
+                    kept_pieces("range", pieces),
+                    one_kept("note", "zq7"),
+                ],
+                vec![pair("File", "Books.xlsx")],
+                true,
+            ),
+            (
+                "the to of a send",
+                Class::Send,
+                vec![kept_pieces("to", pieces)],
+                vec![],
+                false,
+            ),
+        ];
+        for (place, class, kept, fields, as_committed) in places {
+            let mut forms = vec![(
+                unknown(class, kept.clone()),
+                format!("run.effect.{}.unknown", class.name()),
+            )];
+            if as_committed {
+                forms.push((
+                    committed(class, kept.clone()),
+                    format!("run.effect.{}.partial", class.name()),
+                ));
+            }
+            for (effect, key) in forms {
+                let c = beside_a_good_run(effect);
+                let e = &c.runs[0].effects[1];
+                let got = (e.key(), shown(e));
+                if got != (key.clone(), fields.clone()) {
+                    differ.push(format!("{place}, pieces {pieces:?}, as {key}: {got:?}"));
+                }
+            }
+        }
+    }
+    assert!(
+        differ.is_empty(),
+        "{} places differ: {differ:?}",
+        differ.len()
+    );
+}
