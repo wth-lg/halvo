@@ -50,7 +50,7 @@
 //!   browser keeps such a sign there, the mark reads more switches as naming another place or as an
 //!   end and errs toward leaving. Where the browser's own parser reads more of a line as witnesses
 //!   than these clauses do, or takes the run's place where another place is named too, the mark
-//!   bears less than the browser reads and errs toward leaving a process. Four cases err toward
+//!   bears less than the browser reads and errs toward leaving a process. These cases err toward
 //!   ending. No run of a browser shows any of them, and in each another program must have written
 //!   the line; each arises only on a reading of the browser that is not the one recalled:
 //!   - if the browser ends its switches at the text `--single-argument` wherever it stands, also
@@ -76,12 +76,36 @@
 //!     sign, the start does not refuse the directory, and the mark bears for the run's exact switch
 //!     while the browser takes the directory without the sign. The browser's signs of white space
 //!     are recalled as the signs of `char::is_whitespace` on Windows and as the ASCII ones among
-//!     them on macOS, so that, as recalled, this case does not arise.
+//!     them on macOS, so that, as recalled, this case does not arise;
+//!   - if the browser sets aside at the end of an argument a sign that `char::is_whitespace` does
+//!     not count (U+200B is one such sign), it ends its switches at the argument `--` with that
+//!     sign behind it, and on Windows at the single-argument switch with that sign behind it, where
+//!     the mark does not end its own, because it sets aside there the signs of
+//!     `char::is_whitespace` alone; with such an argument before the run's exact switch, the mark
+//!     reads a witness and bears where the browser reads no switch and does not take the run's
+//!     place. The browser's signs of white space are recalled as the signs of `char::is_whitespace`
+//!     on Windows and as the ASCII ones among them on macOS, so that, as recalled, this case does
+//!     not arise;
+//!   - if the browser sets aside at the end of an argument a sign that `char::is_whitespace` does
+//!     not count (U+200B is one such sign), it reads an argument such as `--user-data-dir` or
+//!     `--database` with no `=` and that sign behind it as the profile's or the database's key with
+//!     an empty value, where the mark reads it under another key, because it sets aside at the end
+//!     of a key that has no `=` the signs of `char::is_whitespace` alone, and takes no mark away;
+//!     with the run's exact switch on the line, the mark bears where the browser may not take the
+//!     run's place. The browser's signs of white space are recalled as the signs of
+//!     `char::is_whitespace` on Windows and as the ASCII ones among them on macOS, so that, as
+//!     recalled, this case does not arise.
 //!
-//!   A profile directory whose name ends in a sign of white space that `char::is_whitespace` counts
-//!   is refused at the start (`cdp::Executor::start`), because a browser that sets that sign aside
-//!   at the end of a value would take the directory without it while the mark bears for the run's
-//!   exact switch.
+//!   The class that these cases belong to is named by its rule and not by this list: a sign that
+//!   `char::is_whitespace` does not count and that a browser may set aside, at any of the places
+//!   where the mark reads (the start of a Windows line, before the dashes of an argument, the end
+//!   of an argument that ends the switches, the end of a key that has no `=`, the end of a value);
+//!   the cases above that turn on such a sign are examples of it; one of these places is open, not
+//!   worked through for such a browser and with no side named for it, the start of a Windows line;
+//!   and the browser row of U2.6c reads the class. A profile directory whose name ends in a sign of
+//!   white space that `char::is_whitespace` counts is refused at the start
+//!   (`cdp::Executor::start`), because a browser that sets that sign aside at the end of a value
+//!   would take the directory without it while the mark bears for the run's exact switch.
 //! - Which value of the system's parts `guard::guard_main` hands `guard::run_guard`: a test reads
 //!   what `run_guard` does with each part; of `guard::SYSTEM` it compares six parts (`open`,
 //!   `table`, `args`, `ask_end`, `kill` and `write`) by address with the functions that they name,

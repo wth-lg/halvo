@@ -124,11 +124,12 @@ pub fn bears_profile(args: &[String], profile: &str) -> bool {
 /// such a sign it bears where the browser takes the place without the sign, a case that cannot
 /// arise in a run of ours for a sign that `char::is_whitespace` counts, because the start refuses
 /// such a directory (`Executor::start`), and a case on the ending side for a sign that the browser
-/// alone sets aside. The crate's doc names every case on the ending side; two more of them are:
-/// where the browser would end at a text inside an argument, the mark reads as witnesses switches
-/// that the browser does not; and where the browser keeps at the start of its line a sign that the
-/// mark sets aside, the browser's argument 0 ends before the mark's, and the browser reads as a
-/// switch what the mark takes for argument 0.
+/// alone sets aside. The crate's doc names the class of the cases on the ending side by its rule,
+/// and the known cases as examples of it; two more of them are: where the browser would end at a
+/// text inside an argument, the mark reads as witnesses switches that the browser does not; and
+/// where the browser keeps at the start of its line a sign that the mark sets aside, the browser's
+/// argument 0 ends before the mark's, and the browser reads as a switch what the mark takes for
+/// argument 0.
 fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     let split: Vec<String> = if windows {
         args.iter()
