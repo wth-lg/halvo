@@ -215,20 +215,35 @@ pub(crate) fn kept_answer(
     Some(answer)
 }
 
-/// The answers of the Chrome query on the title thread.
+/// How long a Chrome window is told Private after the title path first saw
+/// it, since its Incognito button may not exist yet.
+const CHROME_YOUNG_MS: u32 = 2_000;
+
+/// The answers of the Chrome query on the title thread, with the OS time at
+/// which the title path first saw each window.
 #[derive(Debug, Default)]
 pub(crate) struct ChromeAnswers {
     answers: std::collections::HashMap<usize, bool>,
+    first_seen: std::collections::HashMap<usize, u32>,
 }
 
 impl ChromeAnswers {
-    /// The answer for `window` at the OS time `now`, by [`kept_answer`].
+    /// The answer for `window` at the OS time `now`: no answer, so that its
+    /// title is dropped, for the window's first two seconds as the title path
+    /// first saw it; after that, [`kept_answer`].
     pub(crate) fn answer(
         &mut self,
         window: usize,
-        _now: u32,
+        now: u32,
         query: impl FnOnce() -> Option<bool>,
     ) -> Option<bool> {
+        if self.first_seen.len() >= CHROME_ANSWERS_KEPT && !self.first_seen.contains_key(&window) {
+            self.first_seen.clear();
+        }
+        let first = *self.first_seen.entry(window).or_insert(now);
+        if now.wrapping_sub(first) < CHROME_YOUNG_MS {
+            return None;
+        }
         kept_answer(&mut self.answers, window, query)
     }
 }
