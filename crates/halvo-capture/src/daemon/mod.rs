@@ -1867,7 +1867,7 @@ pub fn ctl(
 ) -> i32 {
     let printed = match ctl.data_dir() {
         Ok(dir) => {
-            let result = halvo_control::client::system_connector(&dir).and_then(|connector| {
+            let result = halvo_control::client::ctl_connector(&dir).and_then(|connector| {
                 halvo_control::client::Client::new(connector).send(&ctl.verb.request())
             });
             halvo_control::ctl_text::print(&ctl.verb, result, &dir)

@@ -331,8 +331,17 @@ fn serve_one(
 
 #[cfg(test)]
 mod tests {
+    use super::super::{status_of, RunFacts, StatusParts, Written};
     use super::*;
-    use halvo_control::proto::{self, Request};
+    use crate::daemon::board::Board;
+    use crate::daemon::slot::Slot;
+    use crate::daemon::state::{Cap as StateCap, Desired, StateHealth};
+    use crate::floor::Switches;
+    use halvo_control::client::{ctl_connector, Client, ClientError, Connector};
+    use halvo_control::model::{StorageCap, UtcSecond};
+    use halvo_control::proto::{
+        self, DaemonStatus, LastStop, Lease, Parent, Platform, Reply, Request,
+    };
     use halvo_control::wire;
     use std::io::{Read, Write};
     use std::time::Instant;
@@ -352,6 +361,103 @@ mod tests {
         )
         .unwrap();
         frame
+    }
+
+    fn a_status() -> DaemonStatus {
+        let parts = StatusParts {
+            board: Board::new(Platform::Macos),
+            desired: Desired::Paused,
+            lease: Lease::None,
+            slot: Slot::Opening,
+            obstructed: None,
+            health: StateHealth::Ok,
+            cap: StateCap::Known(StorageCap::DEFAULT),
+            switches: Switches::default(),
+            once_granted: Vec::new(),
+            asked: Vec::new(),
+        };
+        let facts = RunFacts {
+            started_at: UtcSecond::from_unix_seconds(1_800_000_000).unwrap(),
+            parent: Parent::None,
+            last_stop: LastStop::None,
+            rss_peak_bytes: 0,
+        };
+        status_of(&parts, &facts).unwrap()
+    }
+
+    fn answer_next(listening: &Listening, reply: Reply) -> Written {
+        let until = Instant::now() + Duration::from_secs(10);
+        loop {
+            if let Some(asked) = listening.next() {
+                return asked.answer(reply);
+            }
+            assert!(Instant::now() < until, "no request reached the loop");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[test]
+    fn a_client_and_the_server_meet_over_the_pipe_of_one_data_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = data_dir(&root);
+        let listening = Listening::bind(&dir).unwrap();
+        let status = a_status();
+
+        let asking = std::thread::spawn({
+            let dir = dir.clone();
+            move || Client::new(ctl_connector(&dir).unwrap()).status()
+        });
+        let written = answer_next(&listening, Reply::Status(status.clone()));
+        assert_eq!(asking.join().unwrap().unwrap(), status, "case 1");
+        assert!(
+            written.wait(Duration::from_secs(5)),
+            "case 1: no close after the reply"
+        );
+
+        let second = Listening::bind(&dir)
+            .err()
+            .expect("case 2: a second listener stood");
+        assert_eq!(second.kind(), io::ErrorKind::AddrInUse, "case 2: {second}");
+        assert!(
+            second
+                .to_string()
+                .contains(&*listening.path().to_string_lossy()),
+            "case 2: {second}"
+        );
+
+        let other_root = tempfile::tempdir().unwrap();
+        let other = data_dir(&other_root);
+        let expected = pipe_name(&current_user().unwrap(), &other);
+        match Client::new(ctl_connector(&other).unwrap()).status() {
+            Err(ClientError::Unreachable { endpoint }) => assert_eq!(endpoint, expected, "case 3"),
+            other => panic!("case 3: a client of another data directory read {other:?}"),
+        }
+
+        let mut transport = ctl_connector(&dir)
+            .unwrap()
+            .connect(Duration::from_secs(5))
+            .unwrap();
+        transport.set_timeout(Duration::from_secs(5)).unwrap();
+        transport
+            .write_all(&request_frame(&Request::Status { indicator: false }))
+            .unwrap();
+        let written = answer_next(&listening, Reply::Status(status.clone()));
+        assert!(
+            written.wait(Duration::from_secs(5)),
+            "case 4: no close after the reply"
+        );
+        let frame = wire::read_frame(&mut transport, REPLY_MAX_BYTES).unwrap();
+        assert_eq!(
+            proto::decode_reply(&frame).unwrap(),
+            Reply::Status(status),
+            "case 4"
+        );
+        let mut after = [0u8; 1];
+        assert_eq!(
+            transport.read(&mut after).unwrap(),
+            0,
+            "case 4: a byte after the reply"
+        );
     }
 
     #[test]

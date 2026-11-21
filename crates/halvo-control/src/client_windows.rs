@@ -1,25 +1,32 @@
-//! The control channel on Windows (contracts.md C15): the stream of a named pipe and the token
-//! user that each end of the pipe reads of the other.
+//! The control channel on Windows (contracts.md C15): the stream of a named pipe, the token
+//! user that each end of the pipe reads of the other, and the connector of a data directory's
+//! pipe.
 
 use std::io::{self, Read, Write};
 use std::os::windows::io::{AsHandle, AsRawHandle, BorrowedHandle, FromRawHandle, OwnedHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{
-    LocalFree, ERROR_BROKEN_PIPE, ERROR_IO_PENDING, ERROR_OPERATION_ABORTED,
-    ERROR_PIPE_NOT_CONNECTED, HANDLE, HLOCAL, WAIT_OBJECT_0,
+    LocalFree, ERROR_BROKEN_PIPE, ERROR_FILE_NOT_FOUND, ERROR_IO_PENDING, ERROR_OPERATION_ABORTED,
+    ERROR_PIPE_BUSY, ERROR_PIPE_NOT_CONNECTED, GENERIC_READ, GENERIC_WRITE, HANDLE, HLOCAL,
+    WAIT_OBJECT_0,
 };
 use windows::Win32::Security::Authorization::ConvertSidToStringSidW;
 use windows::Win32::Security::{GetTokenInformation, TokenUser, PSID, TOKEN_QUERY, TOKEN_USER};
-use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
+use windows::Win32::Storage::FileSystem::{
+    CreateFileW, ReadFile, WriteFile, FILE_FLAG_OVERLAPPED, FILE_SHARE_NONE, OPEN_EXISTING,
+    SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
+};
+use windows::Win32::System::Pipes::WaitNamedPipeW;
 use windows::Win32::System::Threading::{
     CreateEventW, GetCurrentProcess, OpenProcess, OpenProcessToken, WaitForSingleObject, INFINITE,
     PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
 
-use crate::client::Transport;
+use crate::client::{ClientError, Connector, Transport};
+use crate::paths::DataDir;
 
 fn code(error: &windows::core::Error) -> u32 {
     let hresult = error.code().0 as u32;
@@ -218,5 +225,85 @@ impl Transport for PipeStream {
 impl AsHandle for PipeStream {
     fn as_handle(&self) -> BorrowedHandle<'_> {
         self.pipe.as_handle()
+    }
+}
+
+/// The connector of the named pipe of a data directory for the user of this process
+/// (contracts.md C15.1, C15.3, C15.5). It opens the pipe with identification-level impersonation
+/// alone, waits for a busy pipe inside the request's deadline, and answers
+/// [`ClientError::Unreachable`] with the pipe's name when no pipe of that name stands.
+#[derive(Debug, Clone)]
+pub struct PipeConnector {
+    name: String,
+}
+
+impl PipeConnector {
+    /// The connector to the pipe that [`crate::paths::pipe_name`] gives `data_dir` with the SID of
+    /// this process's user.
+    pub fn for_data_dir(data_dir: &DataDir) -> Result<PipeConnector, ClientError> {
+        let own = current_user().map_err(ClientError::Io)?;
+        Ok(PipeConnector {
+            name: crate::paths::pipe_name(&own, data_dir),
+        })
+    }
+
+    /// The name of the pipe.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn checked(&self, pipe: OwnedHandle) -> Result<PipeStream, ClientError> {
+        PipeStream::from_overlapped(pipe).map_err(ClientError::Io)
+    }
+}
+
+impl Connector for PipeConnector {
+    type Transport = PipeStream;
+
+    fn endpoint(&self) -> String {
+        self.name.clone()
+    }
+
+    fn connect(&self, timeout: Duration) -> Result<PipeStream, ClientError> {
+        let until = Instant::now() + timeout;
+        let name: Vec<u16> = self.name.encode_utf16().chain(std::iter::once(0)).collect();
+        loop {
+            // SAFETY: `name` ends in a NUL and outlives the call; no other pointer is passed.
+            let opened = unsafe {
+                CreateFileW(
+                    PCWSTR(name.as_ptr()),
+                    (GENERIC_READ | GENERIC_WRITE).0,
+                    FILE_SHARE_NONE,
+                    None,
+                    OPEN_EXISTING,
+                    FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
+                    None,
+                )
+            };
+            let error = match opened {
+                Ok(pipe) => {
+                    // SAFETY: `pipe` is a new handle that nothing else owns or closes.
+                    let pipe = unsafe { OwnedHandle::from_raw_handle(pipe.0) };
+                    return self.checked(pipe);
+                }
+                Err(error) => error,
+            };
+            if code(&error) == ERROR_FILE_NOT_FOUND.0 {
+                return Err(ClientError::Unreachable {
+                    endpoint: self.endpoint(),
+                });
+            }
+            if code(&error) != ERROR_PIPE_BUSY.0 {
+                return Err(ClientError::Io(os_error(error)));
+            }
+            let left = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(ClientError::Deadline {
+                    seconds: timeout.as_secs(),
+                });
+            }
+            // SAFETY: `name` ends in a NUL and outlives the call; no other pointer is passed.
+            let _ = unsafe { WaitNamedPipeW(PCWSTR(name.as_ptr()), wait_millis(Some(left))) };
+        }
     }
 }
