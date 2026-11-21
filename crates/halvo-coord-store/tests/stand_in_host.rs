@@ -245,7 +245,8 @@ fn the_delete_guard_waits_while_a_run_started_has_no_later_run_ended_of_its_run(
 }
 
 #[test]
-fn the_delete_guard_lets_the_delete_go_where_both_bodies_answer_store() {
+fn the_delete_guard_lets_go_for_an_unread_row_or_a_fifth_call_that_is_not_no_and_skips_rows_of_another_workflow(
+) {
     let live = run_started(1, 1, 1, 1);
     for held in [
         Ok(true),
@@ -268,10 +269,10 @@ fn the_delete_guard_lets_the_delete_go_where_both_bodies_answer_store() {
     );
     let unread = row(2, TODAY).replacen(r#""v":1"#, r#""v":2"#, 1);
     let theirs = run_ended(2, 1, 2, 1);
-    for other in [unread, theirs] {
+    for (other, answer) in [(unread, DeleteGuard::Go), (theirs, DeleteGuard::Wait)] {
         assert_eq!(
             guard(&[live.clone(), other.clone()], Ok(false)),
-            DeleteGuard::Go,
+            answer,
             "{other}"
         );
         let mut host = stand_in(vec![(1, live.clone()), (1, other.clone())], None);
@@ -281,6 +282,44 @@ fn the_delete_guard_lets_the_delete_go_where_both_bodies_answer_store() {
             "{other}"
         );
     }
+}
+
+#[test]
+fn the_delete_guard_waits_for_a_live_run_over_the_keyed_and_the_whole_read_beside_another_workflows_row(
+) {
+    let mut store = store();
+    assert_eq!(
+        coordinator(&mut store, &log(&[run_started(1, 1, 1, 7)])),
+        stored(1)
+    );
+    let theirs = log_body(2, 2, &[hold_set(2, 2, 1, TODAY, noon(TODAY))]);
+    assert_eq!(
+        coordinator(&mut store, &request("coordinator_write", &theirs)),
+        stored(1)
+    );
+    let held = Host::held_ahead(&store, "coord_event", &wid(1));
+    assert_eq!(
+        delete_guard(&wid(1), &Under(&store, wid(1)), held),
+        DeleteGuard::Wait
+    );
+    assert_eq!(delete_guard(&wid(1), &store, held), DeleteGuard::Wait);
+}
+
+#[test]
+fn the_delete_guard_waits_for_a_live_run_beside_a_row_under_its_key_that_names_another_workflow() {
+    let host = stand_in(
+        vec![
+            (1, run_started(1, 1, 1, 7)),
+            (1, hold_set(2, 2, 1, TODAY, noon(TODAY))),
+        ],
+        None,
+    );
+    let held = Host::held_ahead(&host, "coord_event", &wid(1));
+    assert_eq!(held, Ok(false));
+    assert_eq!(
+        delete_guard(&wid(1), &Under(&host, wid(1)), held),
+        DeleteGuard::Wait
+    );
 }
 
 #[test]

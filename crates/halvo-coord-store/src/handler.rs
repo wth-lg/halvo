@@ -46,16 +46,29 @@ pub enum DeleteGuard {
     Wait,
 }
 
-/// The owner's guard of the delete of a workflow for the family `coord` (RD-64 1.6 (a); the guard of the workflow
-/// run's planner-13, Addition 21, point 5 (a)), in the form of W-C25.5: the store calls it inside the transaction of
-/// W-C3.10, under an interface decision, with `rows`, the read of the family `coord` over the rows held under the
-/// workflow's key, and with `held`, the fifth call's yes or no for the kind `coord_event` and that workflow. It
-/// answers `Wait` while a `run_started` among the rows that name `workflow`, of any agent, has no `run_ended` of the
-/// same agent and run with a higher `seq`, and `Go` otherwise. It answers `Go` wherever `coordinator` answers `store`
-/// to both bodies of that workflow by its step 6: for a row that the typed reader refuses or whose text names another
-/// workflow, for a yes and for a refusal of `held`. No `run_ended` can be stored in that state, so a wait would shut
-/// the one control that ends it, and the tick that sees the workflow gone stops a run of it that is still live
-/// (I5.7). No host calls it until halvo-derived offers the seam of the guard (the workflow run's U5.1c).
+/// The owner's guard of the delete of a workflow for the family `coord` (RD-64 1.6 (a), with the coordinator's word
+/// of 2026-11-21T07:26:50Z on rows of another workflow; the guard of the workflow run's planner-13, Addition 21,
+/// point 5 (a)), in the form of W-C25.5: the store calls it inside the transaction of W-C3.10, under an interface
+/// decision, with `rows`, the read of the family `coord` over the rows held under the workflow's key, and with
+/// `held`, the fifth call's yes or no for the kind `coord_event` and that workflow. It counts only the rows whose text
+/// names `workflow`: a row that names another workflow is skipped, under the keyed read and under any other read
+/// alike, and is neither a hold nor a ground for `Go`. It answers `Wait` while a `run_started` among the rows that
+/// name `workflow`, of any agent, has no `run_ended` of the same agent and run with a higher `seq`, and `Go`
+/// otherwise. It answers `Go` for a row that the typed reader refuses, for a yes and for a refusal of `held`, where
+/// `coordinator` answers `store` to both bodies by its step 6: no `run_ended` can be stored in that state, so a wait
+/// would shut the one control that ends it, and the tick that sees the workflow gone stops a run of it that is still
+/// live (I5.7). For a row under the key that names another workflow `coordinator` answers `store` to both bodies as
+/// well, and there the guard waits although no `run_ended` can be stored; that hold ends when the `run_started` row
+/// leaves the read at its day of going.
+///
+/// It rests on its caller for the read. The caller hands it the read under the workflow's key and no other, and this
+/// crate exports no keyed read for that. Over a read that is not keyed it answers as over the keyed read for every row
+/// that the typed reader takes, but a row that the typed reader refuses names no workflow that the guard can read, so
+/// there such a row of another workflow lets the delete go. It applies no bound of its own: a hold ends at the day of
+/// going of the `run_started` row only because the read hands out no older row. Its read cannot carry a fault: a read
+/// that faults before it visits a `run_started` row hands it fewer rows, and it then answers `Go`, so it rests on the
+/// store to refuse the delete where its read faults. No host calls it until halvo-derived offers the seam of the guard
+/// (the workflow run's U5.1c).
 pub fn delete_guard(
     workflow: &WorkflowId,
     rows: &dyn RowRead,
@@ -68,7 +81,8 @@ pub fn delete_guard(
     let mut unfit = false;
     rows.for_each(KIND, &mut |row| match CoordEvent::parse(row.as_bytes()) {
         Ok(e) if &e.workflow == workflow => events.push(e),
-        _ => unfit = true,
+        Ok(_) => {}
+        Err(_) => unfit = true,
     });
     if unfit {
         return DeleteGuard::Go;
