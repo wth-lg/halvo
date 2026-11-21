@@ -20,7 +20,6 @@ use crate::floor::Switch;
 use crate::macos::run_loop::RunLoopTurns;
 use crate::macos::source_failure;
 use crate::macos::window_title::{self, TitleError, TitleText};
-use crate::secure_input::{SecureInputProbe, SecureInputReading};
 use crate::secure_input_macos::SystemProbe;
 use crate::sink::SinkHandle;
 use crate::source::{
@@ -481,10 +480,21 @@ type FrontReader = Box<dyn FnMut() -> Option<Foreground> + Send>;
 type TitleRead = Result<Option<TitleText>, TitleError>;
 type TitleReader = Box<dyn FnMut(libc::pid_t) -> TitleRead + Send>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct TitleRequest {
-    pid: libc::pid_t,
+    front: Foreground,
     change: u64,
+}
+
+fn verdict_of<K: Recorded>(
+    floor: &FloorHandle,
+    probe: &SystemProbe,
+    front: &Foreground,
+    window: PrivateWindow,
+) -> Option<Verdict<K>> {
+    let pid = ProcessId::new(u32::try_from(front.pid).ok()?);
+    let subject = Subject::new(front.identity.to_event(), pid);
+    Some(floor.decide::<K>(subject, window, probe))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -545,9 +555,7 @@ impl Poller {
         front: &Foreground,
         window: PrivateWindow,
     ) -> Option<Verdict<K>> {
-        let pid = ProcessId::new(u32::try_from(front.pid).ok()?);
-        let subject = Subject::new(front.identity.to_event(), pid);
-        Some(self.floor.decide::<K>(subject, window, &self.probe))
+        verdict_of::<K>(&self.floor, &self.probe, front, window)
     }
 
     fn keep<K: Recorded>(&self, front: &Foreground, window: PrivateWindow) -> Option<Keep<K>> {
@@ -668,7 +676,7 @@ impl Poller {
             None => return None,
         }
         Some(TitleRequest {
-            pid: front.pid,
+            front,
             change: self.change,
         })
     }
@@ -687,6 +695,7 @@ struct TitleThread {
 impl TitleThread {
     fn spawn(
         mut read_title: TitleReader,
+        floor: FloorHandle,
         probe: SystemProbe,
     ) -> Result<(Self, JoinHandle<()>), CaptureError> {
         let queue = Arc::new((
@@ -702,13 +711,23 @@ impl TitleThread {
             .name("halvo-window-title".into())
             .spawn(move || {
                 while let Some(request) = next_request(&shared) {
-                    let active = || probe.read() == SecureInputReading::Active;
-                    let read = if active() {
+                    let refused = || {
+                        !matches!(
+                            verdict_of::<floor_kind::WindowTitle>(
+                                &floor,
+                                &probe,
+                                &request.front,
+                                PrivateWindow::Unknown,
+                            ),
+                            Some(Verdict::Keep(_))
+                        )
+                    };
+                    let read = if refused() {
                         Ok(None)
                     } else {
-                        let read = catch_unwind(AssertUnwindSafe(|| read_title(request.pid)))
+                        let read = catch_unwind(AssertUnwindSafe(|| read_title(request.front.pid)))
                             .unwrap_or(Err(TitleError::ReaderPanicked));
-                        if active() {
+                        if refused() {
                             Ok(None)
                         } else {
                             read
@@ -887,13 +906,15 @@ impl CaptureSource for ForegroundSource {
         let (stop, stop_rx) = channel();
         let sink = ctx.sink().clone();
         let interval = self.interval;
-        let started = TitleThread::spawn(read_title, poller.probe).and_then(|(titles, title)| {
-            std::thread::Builder::new()
-                .name("halvo-foreground".into())
-                .spawn(move || poll_loop(read_front, poller, titles, sink, interval, stop_rx))
-                .map(|thread| (thread, title))
-                .map_err(thread_start_failure)
-        });
+        let started = TitleThread::spawn(read_title, poller.floor.clone(), poller.probe).and_then(
+            |(titles, title)| {
+                std::thread::Builder::new()
+                    .name("halvo-foreground".into())
+                    .spawn(move || poll_loop(read_front, poller, titles, sink, interval, stop_rx))
+                    .map(|thread| (thread, title))
+                    .map_err(thread_start_failure)
+            },
+        );
         match started {
             Ok((thread, title)) => {
                 self.running = Some(Running {
@@ -1341,8 +1362,8 @@ mod tests {
             seen.send(inside_byte()).ok();
             read("READ-WHILE-ACTIVE")
         });
-        let (thread, joined) =
-            TitleThread::spawn(reader, poller.probe).expect("the title thread of the test");
+        let (thread, joined) = TitleThread::spawn(reader, poller.floor.clone(), poller.probe)
+            .expect("the title thread of the test");
         let request = poller
             .step(front.clone(), thread.answers(), &handle)
             .expect("tick 1 reads inactive and asks for the title");
@@ -1400,9 +1421,12 @@ mod tests {
             read("NOT-TO-BE-READ")
         });
         let probe = SystemProbe::with_readers(at_console, active_byte);
-        let (thread, joined) =
-            TitleThread::spawn(reader, probe).expect("the title thread of the test");
-        thread.ask(TitleRequest { pid: 10, change: 1 });
+        let (thread, joined) = TitleThread::spawn(reader, FloorHandle::default(), probe)
+            .expect("the title thread of the test");
+        thread.ask(TitleRequest {
+            front: super::tests_support::front("com.example.a", 10),
+            change: 1,
+        });
         let answers = answers_within(&thread, Duration::from_secs(60));
         drop(thread);
         joined.join().expect("the title thread ends by returning");
@@ -1447,10 +1471,21 @@ mod tests {
         }
         let one = crate::secure_input_macos::test_support::one_hold_at_a_time();
         let probe = SystemProbe::new();
-        let active = move || probe.read() == SecureInputReading::Active;
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
         poller.probe = probe;
         let front = app("com.example.a", 10);
+        let floor = poller.floor.clone();
+        let active = || {
+            matches!(
+                verdict_of::<floor_kind::WindowTitle>(
+                    &floor,
+                    &probe,
+                    &super::tests_support::front("com.example.a", 10),
+                    PrivateWindow::Unknown
+                ),
+                Some(Verdict::Drop(DropReason::SecureInput))
+            )
+        };
         let (entered, came) = std::sync::mpsc::channel::<()>();
         let (go, wait) = std::sync::mpsc::channel::<()>();
         let reader: TitleReader = Box::new(move |_pid| {
@@ -1458,8 +1493,8 @@ mod tests {
             wait.recv().ok();
             read("READ-UNDER-THE-SYSTEM-HOLD")
         });
-        let (thread, joined) =
-            TitleThread::spawn(reader, probe).expect("the title thread of the test");
+        let (thread, joined) = TitleThread::spawn(reader, poller.floor.clone(), probe)
+            .expect("the title thread of the test");
         let request = poller
             .step(front.clone(), thread.answers(), &handle)
             .expect("step 1 reads secure input off and asks for the title");
@@ -1532,7 +1567,13 @@ mod tests {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
         let front = app("com.example.a", 10);
         let first = poller.step(front.clone(), Vec::new(), &handle);
-        assert_eq!(first, Some(TitleRequest { pid: 10, change: 1 }));
+        assert_eq!(
+            first,
+            Some(TitleRequest {
+                front: super::tests_support::front("com.example.a", 10),
+                change: 1,
+            })
+        );
         for text in ["A", "A", "B"] {
             let asked = poller.step(front.clone(), answer(1, read(text)), &handle);
             assert_eq!(asked, first, "the title is asked on every tick");
@@ -1584,7 +1625,7 @@ mod tests {
         let request = poller
             .step(front.clone(), Vec::new(), &handle)
             .expect("the first tick after asks for the title");
-        assert_eq!(request.pid, 10);
+        assert_eq!(request.front.pid, 10);
         poller.step(front.clone(), answer(request.change, read("B")), &handle);
         assert_eq!(titles(&writer), [("B".to_string(), "app_change", false)]);
         drop(poller);
@@ -1708,7 +1749,13 @@ mod tests {
             answer(1, Err(TitleError::Accessibility { code: -25204 })),
             &handle,
         );
-        assert_eq!(again, Some(TitleRequest { pid: 10, change: 1 }));
+        assert_eq!(
+            again,
+            Some(TitleRequest {
+                front: super::tests_support::front("com.example.a", 10),
+                change: 1,
+            })
+        );
         assert_eq!(poller.health.errors.load(Ordering::Relaxed), 1);
         assert!(poller.health.failing.load(Ordering::Relaxed));
         drop(poller);
@@ -1847,8 +1894,11 @@ mod tests {
             &handle,
         ));
         drop(poller);
-        let request = Some(TitleRequest { pid: 10, change: 1 });
-        assert_eq!(asked, [request; 6], "the title is asked on every tick");
+        let request = Some(TitleRequest {
+            front: super::tests_support::front("com.example.a", 10),
+            change: 1,
+        });
+        assert_eq!(asked, vec![request; 6], "the title is asked on every tick");
         assert_eq!(
             events(handle, &sink_writer),
             [
@@ -2577,7 +2627,10 @@ mod tests {
         );
         assert_eq!(
             again,
-            Some(TitleRequest { pid: 10, change: 1 }),
+            Some(TitleRequest {
+                front: super::tests_support::front("com.example.a", 10),
+                change: 1,
+            }),
             "asked again, so a grant given later is read"
         );
         assert_eq!(health.errors.load(Ordering::Relaxed), 0);
