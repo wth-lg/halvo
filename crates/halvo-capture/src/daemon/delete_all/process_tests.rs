@@ -15,7 +15,7 @@ use halvo_control::paths::DataDir;
 use super::{rows, run, Hands, Offline, Owner, Row, SystemHands};
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{KeyCustody, KeyLabel, RootId, WrappedKey};
-use crate::daemon::custody_policy::{self, Custody};
+use crate::daemon::custody_policy::{self, Custody, OpenAs, Selection};
 use crate::daemon::instance::tests::kept_dir;
 use crate::daemon::instance::InstanceLock;
 use crate::daemon::port::{
@@ -264,6 +264,92 @@ fn the_offline_delete_leaves_no_store() {
     let (again, out, err) = offline_run(&dir, &how);
     assert_eq!(again, 0, "err: {err}");
     assert_eq!(out, format!("data_dir={shown}\nno_store\n"));
+}
+
+#[test]
+fn every_state_on_disk_is_deleted_by_the_offline_caller() {
+    fn maintenance_alone(recorded: Option<Custody>) -> Selection {
+        match recorded {
+            Some(_) => Selection::Open(OpenAs::MaintenanceOnly),
+            None => Selection::Create(None),
+        }
+    }
+    let table = rows();
+
+    let unopened = kept_dir("delete-all-unopened-");
+    a_store_with_a_segment(&unopened);
+    let key_file = std::fs::read(unopened.join("store/store.key")).unwrap();
+    std::fs::write(unopened.join("store/store.key"), vec![0u8; key_file.len()]).unwrap();
+    let how = Offline {
+        rows: &table,
+        select: custody_policy::of_this_build,
+        hands: &SystemHands,
+    };
+    let (status, out, err) = offline_run(&unopened, &how);
+    assert_eq!(status, 0, "a store that does not open: out {out} err {err}");
+    assert!(!unopened.join("store/store.key").exists());
+    assert!(segment_files(&unopened).is_empty());
+    assert!(root_files(&unopened).is_empty());
+    assert!(files_that_unwrap(&unopened, &key_file).is_empty());
+
+    let rejected = kept_dir("delete-all-rejected-");
+    a_store_with_a_segment(&rejected);
+    let key_file = std::fs::read(rejected.join("store/store.key")).unwrap();
+    let how = Offline {
+        rows: &table,
+        select: maintenance_alone,
+        hands: &SystemHands,
+    };
+    let (status, out, err) = offline_run(&rejected, &how);
+    assert_eq!(status, 0, "a policy-rejected store: out {out} err {err}");
+    assert!(
+        out.contains("deleted segments_shredded=1 keys_destroyed=2 "),
+        "the handle of the maintenance slot did not delete: {out}"
+    );
+    assert!(!rejected.join("store/store.key").exists());
+    assert!(segment_files(&rejected).is_empty());
+    assert!(root_files(&rejected).is_empty());
+    assert!(files_that_unwrap(&rejected, &key_file).is_empty());
+
+    let refused = kept_dir("delete-all-refused-");
+    let id = a_store_with_a_segment(&refused);
+    let root = root_files(&refused);
+    assert_eq!(root.len(), 1);
+    let root_name = root[0].file_name().unwrap().to_str().unwrap().to_owned();
+    struct Immutable(std::ffi::CString);
+    impl Immutable {
+        fn set(path: &Path) -> Immutable {
+            let path = std::ffi::CString::new(path.to_str().unwrap()).unwrap();
+            assert_eq!(
+                unsafe { libc::chflags(path.as_ptr(), libc::UF_IMMUTABLE) },
+                0
+            );
+            Immutable(path)
+        }
+    }
+    impl Drop for Immutable {
+        fn drop(&mut self) {
+            unsafe { libc::chflags(self.0.as_ptr(), 0) };
+        }
+    }
+    let immutable = Immutable::set(&root[0]);
+    let how = Offline {
+        rows: &table,
+        select: custody_policy::of_this_build,
+        hands: &SystemHands,
+    };
+    let (status, out, err) = offline_run(&refused, &how);
+    drop(immutable);
+    assert_eq!(status, 1, "a refused root: out {out} err {err}");
+    assert!(!refused.join("store/store.key").exists());
+    assert!(!refused.join("store/store.db").exists());
+    assert!(segment_files(&refused).is_empty());
+    assert!(root[0].exists());
+    assert!(out.contains(" root_destroyed=no "), "{out}");
+    assert!(
+        out.contains(&format!("root_id={id}")) || err.contains(&root_name),
+        "the root that stays is not named: out {out} err {err}"
+    );
 }
 
 #[test]

@@ -253,6 +253,14 @@ pub trait MaintainStore {
     fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault>;
 
     fn usage(&mut self) -> Result<Usage, MaintFault>;
+
+    /// Deletes the store of this handle, root first, and refuses every write
+    /// from its first step on (contracts.md C11.4). A handle with no delete
+    /// of its own answers that the delete failed, so that its caller runs
+    /// the tail on the directory.
+    fn delete_all(&mut self) -> TailAnswer {
+        TailAnswer::Failed(NO_DELETE.to_owned())
+    }
 }
 
 /// The answer of a handle or a host that has no delete of its own.
@@ -278,6 +286,10 @@ impl<S: MaintainStore + ?Sized> MaintainStore for Box<S> {
 
     fn usage(&mut self) -> Result<Usage, MaintFault> {
         (**self).usage()
+    }
+
+    fn delete_all(&mut self) -> TailAnswer {
+        (**self).delete_all()
     }
 }
 

@@ -12,11 +12,13 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use halvo_control::exit;
 use halvo_control::paths::{one_line, DataDir, Entry, INTENT_FILE, STATE_FILE};
 
-use super::custody_policy::{Custody, Selection};
+use super::custody_policy::{Custody, OpenAs, Selection};
 use super::instance::InstanceLock;
-use super::port::{DataDirStore, Probe, StoreHost};
+use super::port::{
+    Access, CaptureStore, DataDirStore, MaintainStore, OpenFault, Opened, Probe, StoreHost,
+};
 use super::state::{StateDir, StateFile, StateHealth};
-use super::{DurableState, TailAnswer, TailReport};
+use super::{DurableState, TailAnswer, TailReport, TailRoot};
 
 /// One row of the registry of contracts.md C17 item 2 as the walk reads it:
 /// the name of the entry under the data directory, its key files and its
@@ -319,12 +321,17 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
         return print(out, err, &text, None, exit::CLEAN);
     }
     let host = DataDirStore::at(path);
-    let intent = write_intent(path, how.rows, host.probe());
+    let probe = host.probe();
+    let handle = match open_for_the_delete(&host, probe, how.select) {
+        Ok(handle) => handle,
+        Err(Held) => return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY),
+    };
+    let intent = write_intent(path, how.rows, probe);
     let mut causes = Vec::new();
     if let Some(line) = clear_the_mark(path) {
         causes.push(line);
     }
-    let store = host.delete();
+    let store = delete_the_store(&host, handle);
     if matches!(store, TailAnswer::Held) {
         let _ = host.remove_durably(INTENT_FILE);
         return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY);
@@ -362,6 +369,93 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
     };
     let causes = (!causes.is_empty()).then(|| causes.join("\n"));
     print(out, err, &text, causes, status)
+}
+
+/// Another process holds the store.
+struct Held;
+
+/// A handle of the store, open for capture or for maintenance alone.
+enum Handle {
+    Capture(Box<dyn CaptureStore + Send>),
+    Maintenance(Box<dyn MaintainStore + Send>),
+}
+
+impl Handle {
+    fn delete_all(&mut self) -> TailAnswer {
+        match self {
+            Handle::Capture(store) => store.delete_all(),
+            Handle::Maintenance(store) => store.delete_all(),
+        }
+    }
+}
+
+/// The open of a store that stands, as the custody selection `select`
+/// opens it: read-write, for maintenance alone (a store that the selection
+/// keeps from capture, whose handle deletes it and never writes it), or not
+/// at all, when the selection refuses the store or the open fails. A store
+/// that another process holds answers [`Held`].
+fn open_for_the_delete(
+    host: &DataDirStore,
+    probe: Probe,
+    select: fn(Option<Custody>) -> Selection,
+) -> Result<Option<Handle>, Held> {
+    let Probe::KeyFile { custody, .. } = probe else {
+        return Ok(None);
+    };
+    let opened = match select(Some(custody)) {
+        Selection::Open(OpenAs::ReadWrite) => host.open(Access::ReadWrite),
+        Selection::Open(OpenAs::MaintenanceOnly) => host.open(Access::MaintenanceOnly),
+        Selection::Open(OpenAs::Refused) | Selection::Create(_) => return Ok(None),
+    };
+    match opened {
+        Opened::ReadWrite { store, .. } => Ok(Some(Handle::Capture(store))),
+        Opened::MaintenanceOnly { store, .. } => Ok(Some(Handle::Maintenance(store))),
+        Opened::Fault {
+            fault: OpenFault::Locked,
+            ..
+        } => Err(Held),
+        Opened::Fault { .. } => Ok(None),
+    }
+}
+
+/// Step 3 for the store (contracts.md C11.4 and ruling ST-44 (a)): the
+/// handle's delete when the store opened, and the tail on the directory
+/// when it did not or when the handle's delete is not finished, with the
+/// handle dropped first. What the tail cannot read, the count of keyed
+/// segments and the root that the handle named, comes from the handle's
+/// report.
+fn delete_the_store(host: &DataDirStore, handle: Option<Handle>) -> TailAnswer {
+    let Some(mut handle) = handle else {
+        return host.delete();
+    };
+    let by_the_handle = handle.delete_all();
+    drop(handle);
+    if matches!(by_the_handle, TailAnswer::Finished(_)) {
+        return by_the_handle;
+    }
+    let Some(read) = (match &by_the_handle {
+        TailAnswer::Finished(report) | TailAnswer::NotFinished(report) => Some(report.clone()),
+        TailAnswer::Held | TailAnswer::Failed(_) => None,
+    }) else {
+        return host.delete();
+    };
+    match host.delete() {
+        TailAnswer::Finished(mut report) => {
+            report.keyed_segments = report.keyed_segments.or(read.keyed_segments);
+            if report.root == TailRoot::Unnamed && read.root == TailRoot::Destroyed {
+                report.root = TailRoot::Destroyed;
+            }
+            TailAnswer::Finished(report)
+        }
+        TailAnswer::NotFinished(mut report) => {
+            report.keyed_segments = report.keyed_segments.or(read.keyed_segments);
+            if report.root == TailRoot::Unnamed && matches!(read.root, TailRoot::Left(_)) {
+                report.root = read.root;
+            }
+            TailAnswer::NotFinished(report)
+        }
+        other => other,
+    }
 }
 
 fn print(

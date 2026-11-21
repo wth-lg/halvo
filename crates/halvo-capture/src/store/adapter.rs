@@ -46,6 +46,10 @@ impl MaintainStore for Adapter {
             })
             .map_err(maint_fault)
     }
+
+    fn delete_all(&mut self) -> TailAnswer {
+        tail_answer(self.store.delete_all())
+    }
 }
 
 impl CaptureStore for Adapter {
