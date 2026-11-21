@@ -10,6 +10,7 @@ use halvo_control::model::{StorageCap, UtcDay};
 use uuid::{Builder, Uuid, Variant};
 
 use super::custody_policy::Custody;
+use super::TailAnswer;
 use crate::event::Modality;
 
 /// The most bytes of one segment payload.
@@ -252,7 +253,18 @@ pub trait MaintainStore {
     fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault>;
 
     fn usage(&mut self) -> Result<Usage, MaintFault>;
+
+    /// Deletes the store of this handle, root first, and refuses every write
+    /// from its first step on (contracts.md C11.4). A handle with no delete
+    /// of its own answers that the delete failed, so that its caller runs
+    /// the tail on the directory.
+    fn delete_all(&mut self) -> TailAnswer {
+        TailAnswer::Failed(NO_DELETE.to_owned())
+    }
 }
+
+/// The answer of a handle or a host that has no delete of its own.
+pub const NO_DELETE: &str = "this store has no delete of its own";
 
 /// The read-write handle that the owner holds.
 pub trait CaptureStore: MaintainStore {
@@ -274,6 +286,10 @@ impl<S: MaintainStore + ?Sized> MaintainStore for Box<S> {
 
     fn usage(&mut self) -> Result<Usage, MaintFault> {
         (**self).usage()
+    }
+
+    fn delete_all(&mut self) -> TailAnswer {
+        (**self).delete_all()
     }
 }
 
@@ -414,6 +430,13 @@ pub trait StoreHost: Send {
     /// Makes a store under `custody` where no key file stands. Where one
     /// stands, it opens that store read-write in its place.
     fn create(&self, custody: Custody) -> Opened;
+
+    /// The keyless tail on the directory, for a store that does not open
+    /// (contracts.md C11.2 and C11.4). A host with no delete of its own
+    /// answers that the delete failed.
+    fn delete(&self) -> TailAnswer {
+        TailAnswer::Failed(NO_DELETE.to_owned())
+    }
 }
 
 /// The store of a data directory: its store directory `store` and its roots
@@ -429,6 +452,10 @@ impl DataDirStore {
         DataDirStore {
             data_dir: data_dir.to_path_buf(),
         }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.data_dir
     }
 
     pub fn store_dir(&self) -> PathBuf {
