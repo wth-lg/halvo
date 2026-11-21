@@ -22,8 +22,8 @@ use serde_json::value::RawValue;
 pub const FAMILY: &str = "coord";
 
 /// The handler of the bodies `coord_log` and `coord_history` for the host of the derived store (W-C25.5; the
-/// review's F-2): the owner adds it with `halvo_derived::Host::handler(FAMILY, Takes::Coordinator(&OPS), ..)`. For
-/// each request it answers with `coordinator` over the calls of `HandlerCx`, and writes the reply's compact JSON, or
+/// review's F-2). U5.4's owner is to add it with `halvo_derived::Host::handler(FAMILY, Takes::Coordinator(&OPS),
+/// ..)`; nothing adds it to a host at this head. For each request it answers with `coordinator` over the calls of `HandlerCx`, and writes the reply's compact JSON, or
 /// `internal` where the reply cannot be written. A refusal of the typed commit answers by `CommitRefused`: an unknown
 /// kind, a kind of the family `workflow` and a kind of another family are `Kind`, and a fault of the store and a
 /// commit that stored fewer records than its list held are `Fault`, so each answers `store`; a fault of the read of a
