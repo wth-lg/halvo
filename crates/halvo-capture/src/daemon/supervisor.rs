@@ -757,6 +757,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// N5).
     pub fn tick(&mut self, owner: Option<&dyn OwnerLink>) -> Option<Ending> {
         let now = self.main_loop.now();
+        #[cfg(feature = "r2")]
+        super::r2::tick(now);
         if !self.stopped_for_drain {
             self.read_health(now);
         }
