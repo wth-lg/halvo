@@ -1694,6 +1694,7 @@ name = "halvo-coord-store"
 version = "0.0.0"
 dependencies = [
  "halvo-coord",
+ "halvo-derived",
  "halvo-schema",
  "serde_json",
 ]
