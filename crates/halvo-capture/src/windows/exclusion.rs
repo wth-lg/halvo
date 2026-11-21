@@ -517,6 +517,48 @@ mod tests {
     }
 
     #[test]
+    fn a_firefox_or_edge_title_is_kept_only_with_the_bare_brand_ending() {
+        let told = |browser, title: &str| private_window(browser, title, || None);
+        let cases = [
+            (
+                "firefox-german-private",
+                told(
+                    Browser::Firefox,
+                    "Seite \u{2014} Mozilla Firefox Privater Modus",
+                ),
+                PrivateWindow::Private,
+            ),
+            (
+                "firefox-plain",
+                told(Browser::Firefox, "Seite \u{2014} Mozilla Firefox"),
+                PrivateWindow::Unknown,
+            ),
+            (
+                "edge-bracketed-marker",
+                told(
+                    Browser::Edge,
+                    "Seite - [InPrivate-Modus] - Microsoft\u{200B} Edge",
+                ),
+                PrivateWindow::Private,
+            ),
+            (
+                "edge-plain",
+                told(Browser::Edge, "Seite - Microsoft\u{200B} Edge"),
+                PrivateWindow::Unknown,
+            ),
+        ];
+        let wrong: Vec<&str> = cases
+            .iter()
+            .filter(|(_, told, wanted)| told != wanted)
+            .map(|(case, ..)| *case)
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "told against the window's ending: {wrong:?}"
+        );
+    }
+
+    #[test]
     fn a_title_of_a_private_window_is_told_by_its_ending_alone() {
         let never = || -> Option<bool> { panic!("the query ran for a window that is not Chrome") };
         let private = PrivateWindow::Private;
