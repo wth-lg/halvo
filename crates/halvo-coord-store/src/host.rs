@@ -1,4 +1,4 @@
-use halvo_schema::{Instant, RowRead, TypedRecord, WorkflowId, WorkflowItem};
+use halvo_schema::{Instant, TypedRecord, WorkflowId, WorkflowItem};
 
 /// The clock that the host supplies to the store (W-C25.5): the machine's clock and time zone in the owner, a clock
 /// that the host sets, with UTC as local time, in a replay and in the gate.
@@ -34,7 +34,7 @@ pub enum CommitRefused {
     Day(DayFault),
 }
 
-/// The four calls that a store offers the handler while it answers one request, and no other. The host calls the
+/// The calls that a store offers the handler while it answers one request, and no other. The host calls the
 /// handler to its end before it passes it the next request, so no other request changes the rows between the
 /// handler's reads and its commit.
 pub trait Host {
@@ -43,8 +43,13 @@ pub trait Host {
     /// lies after the day of the clock or already outside its bound.
     fn commit(&mut self, records: Vec<TypedRecord>) -> Result<(), CommitRefused>;
 
-    /// The rows of the family `coord` as they stand at the call (W-C2.11).
-    fn rows(&self) -> &dyn RowRead;
+    /// The keyed read (W-C2.11, `Rows::for_each_under` of halvo-derived): visits each stored row of the kind `kind`
+    /// of the family `coord` that the store holds under the workflow id `workflow`, the id that the commit took from
+    /// the committed text under the kind's workflow key, and no row held under another id. It hands out exactly the
+    /// rows under that id that an expiry at the store's clock would leave, and it parses no row, so a row that the
+    /// typed reader refuses is handed out while it lies inside its bound. A fault of this read is the store's to
+    /// answer: halvo-derived keeps it for the request and answers the request with it.
+    fn rows_under(&self, kind: &str, workflow: &WorkflowId, visit: &mut dyn FnMut(&str));
 
     /// The item of the read `workflows` for one stored workflow, or none where it is not stored (W-C2.10).
     fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem>;

@@ -33,13 +33,13 @@ fn each_refusal_of_the_commit_has_its_error_name() {
 #[test]
 fn a_stored_row_that_the_reader_refuses_is_store() {
     let unread = row(1, TODAY).replacen(r#""v":1"#, r#""v":2"#, 1);
-    let mut host = stand_in(vec![unread.clone()], None);
+    let mut host = stand_in(vec![(1, unread.clone())], None);
     assert_eq!(
         coordinator(&mut host, &log(&[row(1, TODAY)])),
         Err(ErrorName::Store)
     );
     assert!(rows(&host.store).is_empty());
-    let mut host = stand_in(vec![unread], None);
+    let mut host = stand_in(vec![(1, unread)], None);
     assert_eq!(
         coordinator(&mut host, &history(None)),
         Err(ErrorName::Store)
@@ -59,23 +59,54 @@ fn one_unreadable_row_of_another_agent_is_store_for_every_agent() {
     let theirs = hold_set(2, 2, 1, TODAY, noon(TODAY)).replacen(r#""v":1"#, r#""v":2"#, 1);
     let mut host = StandIn {
         store: readable,
-        extra: vec![theirs],
+        extra: vec![(2, theirs)],
         refusal: None,
     };
+    assert_eq!(coordinator(&mut host, &log(&[row(3, TODAY)])), stored(1));
+    assert_eq!(rows(&host.store).len(), 3);
+    let Ok(halvo_coord_store::CoordReply::History(h)) = coordinator(&mut host, &history(None))
+    else {
+        panic!("no history");
+    };
+    assert_eq!(h.last, 3);
     assert_eq!(
-        coordinator(&mut host, &log(&[row(3, TODAY)])),
+        coordinator(
+            &mut host,
+            &request("coordinator_write", &history_body(2, 2, None))
+        ),
+        Err(ErrorName::Store)
+    );
+
+    let ours = hold_set(1, 2, 1, TODAY, noon(TODAY)).replacen(r#""v":1"#, r#""v":2"#, 1);
+    let mut host = stand_in(vec![(1, ours)], None);
+    assert_eq!(
+        coordinator(&mut host, &log(&[row(1, TODAY)])),
         Err(ErrorName::Store)
     );
     assert_eq!(
         coordinator(&mut host, &history(None)),
         Err(ErrorName::Store)
     );
-    assert_eq!(rows(&host.store).len(), 2);
+    assert!(rows(&host.store).is_empty());
+}
+
+#[test]
+fn a_row_under_the_askers_key_that_names_another_workflow_is_store() {
+    let mut host = stand_in(vec![(1, hold_set(2, 2, 1, TODAY, noon(TODAY)))], None);
+    assert_eq!(
+        coordinator(&mut host, &log(&[row(1, TODAY)])),
+        Err(ErrorName::Store)
+    );
+    assert_eq!(
+        coordinator(&mut host, &history(None)),
+        Err(ErrorName::Store)
+    );
+    assert!(rows(&host.store).is_empty());
 }
 
 #[test]
 fn two_stored_rows_of_one_seq_are_store() {
-    let mut host = stand_in(vec![row(1, TODAY), row(1, TODAY)], None);
+    let mut host = stand_in(vec![(1, row(1, TODAY)), (1, row(1, TODAY))], None);
     assert_eq!(
         coordinator(&mut host, &history(None)),
         Err(ErrorName::Store)
@@ -86,11 +117,11 @@ fn two_stored_rows_of_one_seq_are_store() {
 fn rows_of_another_workflow_or_agent_count_for_neither() {
     let mut host = stand_in(
         vec![
-            hold_set(2, 1, 1, TODAY, noon(TODAY)),
-            hold_set(2, 1, 2, TODAY, noon(TODAY)),
-            hold_set(1, 2, 1, TODAY, noon(TODAY)),
-            hold_set(1, 2, 2, TODAY, noon(TODAY)),
-            hold_set(1, 2, 3, TODAY, noon(TODAY)),
+            (2, hold_set(2, 1, 1, TODAY, noon(TODAY))),
+            (2, hold_set(2, 1, 2, TODAY, noon(TODAY))),
+            (1, hold_set(1, 2, 1, TODAY, noon(TODAY))),
+            (1, hold_set(1, 2, 2, TODAY, noon(TODAY))),
+            (1, hold_set(1, 2, 3, TODAY, noon(TODAY))),
         ],
         None,
     );

@@ -108,21 +108,13 @@ pub fn store() -> MemoryStore {
     store_at(noon(TODAY), 0).0
 }
 
-/// A host over a store that hands out the extra rows after the store's own, as rows that another build stored, and
-/// whose commit answers the refusal where one is given.
+/// A host over a store whose keyed read hands out, after the store's own rows, each extra row held under the
+/// workflow of its number, as rows that another build stored, and whose commit answers the refusal where one is
+/// given.
 pub struct StandIn {
     pub store: MemoryStore,
-    pub extra: Vec<String>,
+    pub extra: Vec<(u32, String)>,
     pub refusal: Option<CommitRefused>,
-}
-
-impl RowRead for StandIn {
-    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
-        self.store.for_each(kind, visit);
-        for row in &self.extra {
-            visit(row);
-        }
-    }
 }
 
 impl Host for StandIn {
@@ -133,8 +125,13 @@ impl Host for StandIn {
         }
     }
 
-    fn rows(&self) -> &dyn RowRead {
-        self
+    fn rows_under(&self, kind: &str, workflow: &WorkflowId, visit: &mut dyn FnMut(&str)) {
+        self.store.rows_under(kind, workflow, visit);
+        for (n, row) in &self.extra {
+            if kind == "coord_event" && wf(*n) == workflow.as_str() {
+                visit(row);
+            }
+        }
     }
 
     fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
@@ -146,8 +143,8 @@ impl Host for StandIn {
     }
 }
 
-/// The stand-in over `store()` with the extra rows and the refusal.
-pub fn stand_in(extra: Vec<String>, refusal: Option<CommitRefused>) -> StandIn {
+/// The stand-in over `store()` with the extra rows, each under the workflow of its number, and the refusal.
+pub fn stand_in(extra: Vec<(u32, String)>, refusal: Option<CommitRefused>) -> StandIn {
     StandIn {
         store: store(),
         extra,

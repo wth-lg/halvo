@@ -47,9 +47,11 @@ fn declared(name: &str) -> ErrorName {
 /// 5. `coord_log` alone: `malformed` for a record whose `at` is below 0 (CP-122 (b)), and then `malformed` for a
 ///    record whose `day` is not the local day of its `at` by the store's clock. This tie is the handler's alone;
 ///    the store's commit holds the two clock bounds and no tie (CP-122 (b), (e), (j)).
-/// 6. `store` where the typed reader refuses one stored row of the kind `coord_event`, of any workflow and agent:
-///    such a row answers `store` to both bodies for every workflow and agent, because the seq rule and `last` rest
-///    on every row of the asker's pair and an unreadable row cannot be put to its pair.
+/// 6. `store` where the keyed read under the asker's workflow key hands out a row of the kind `coord_event` that the
+///    typed reader refuses or whose text names another workflow: such a row answers `store` to both bodies for every
+///    agent of that workflow, because the seq rule and `last` rest on every row of the asker's pair and such a row
+///    cannot be put to its pair. The handler reads no row held under another workflow's key, so a row of another
+///    workflow stops nothing (RD-64 1.1).
 /// 7. `coord_log` alone: `seq` unless the records' `seq` are the stored last `seq` of the workflow and agent plus 1,
 ///    2 and on, the last being 0 where none is stored.
 /// 8. `coord_log` alone: one typed commit of the text that `CoordEvent::to_json` writes for each record, never the
@@ -61,7 +63,7 @@ fn declared(name: &str) -> ErrorName {
 /// `coord_log` answers `{"stored":n}`, n the number of records stored. `coord_history` answers the stored records of
 /// the workflow and agent whose `seq` is above `after`, or every one where it is null, at most `HISTORY_PAGE` in
 /// ascending `seq`, gaps allowed, with `last` the largest stored `seq` of the workflow and agent, or 0 where none is
-/// stored; it stores nothing. Both read the rows that the host's row read hands out.
+/// stored; it stores nothing. Both read the rows that the host's keyed read hands out under the body's workflow.
 pub fn coordinator(host: &mut dyn Host, request: &RawRequest) -> Result<CoordReply, ErrorName> {
     if request.role() != Some(Role::Coordinator) {
         return Err(ErrorName::Role);
@@ -90,14 +92,18 @@ fn stored_of(
     agent: &AgentId,
 ) -> Result<Vec<CoordEvent>, ErrorName> {
     let mut out = Vec::new();
-    let mut unread = false;
-    host.rows()
-        .for_each(KIND, &mut |row| match CoordEvent::parse(row.as_bytes()) {
-            Ok(e) if &e.workflow == workflow && &e.agent == agent => out.push(e),
+    let mut unfit = false;
+    host.rows_under(
+        KIND,
+        workflow,
+        &mut |row| match CoordEvent::parse(row.as_bytes()) {
+            Ok(e) if &e.workflow != workflow => unfit = true,
+            Ok(e) if &e.agent == agent => out.push(e),
             Ok(_) => {}
-            Err(_) => unread = true,
-        });
-    if unread {
+            Err(_) => unfit = true,
+        },
+    );
+    if unfit {
         return Err(ErrorName::Store);
     }
     out.sort_by_key(|e| e.seq);
