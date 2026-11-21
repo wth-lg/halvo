@@ -1853,8 +1853,9 @@ where
     /// it before, answers `no_service` and is not taken: nothing of it is armed, stored or sent
     /// to the run, and the item stays as it was, with its own time, and shows again once the
     /// record can be saved. That holds for a confirmation, the second step of a sign-in and every
-    /// handback alike; the items that no run raises are answered as before (rulings RD-147
-    /// (5)(ii), RD-159, RD-164).
+    /// handback alike; the items that no run raises are answered as before. Such a refused press
+    /// ends as every other refusal of this move ends: what the entry of the move took up is
+    /// published (rulings RD-147 (5)(ii), RD-159, RD-164).
     pub fn answer(
         &self,
         item: &ItemId,
@@ -1867,16 +1868,17 @@ where
         if Self::waits_on_item(&st, item) {
             return Err(Cause::NoService);
         }
-        if self.withdrawn(&st, item) {
-            return Err(Cause::NoService);
-        }
         let before = Self::agents_held_off(&st);
-        let by = AnsweredBy {
-            step: Some(step),
-            from: Presenter::Page,
-            now,
+        let out = if self.withdrawn(&st, item) {
+            Err(Cause::NoService)
+        } else {
+            let by = AnsweredBy {
+                step: Some(step),
+                from: Presenter::Page,
+                now,
+            };
+            self.answer_in(&mut st, item, choice, pick, by)
         };
-        let out = self.answer_in(&mut st, item, choice, pick, by);
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
@@ -1886,8 +1888,9 @@ where
     /// While the board holds stuck the record of the agent whose row shows the item, the agent of
     /// the run that raised it, a press of either control answers `no_service` and is not taken:
     /// nothing of it is armed, stored or sent to the run, and the item stays held with its own
-    /// time, which `present` offers again once the record can be saved (rulings RD-147 (5)(ii),
-    /// RD-164).
+    /// time, which `present` offers again once the record can be saved. Such a refused press ends
+    /// as every other refusal of this move ends: what the entry of the move took up is published
+    /// (rulings RD-147 (5)(ii), RD-164).
     pub fn answer_native(&self, item: &ItemId, answer: ConfirmAnswer) -> Result<(), Cause> {
         let choice = match answer {
             ConfirmAnswer::Allow => Choice::Allow,
@@ -1898,21 +1901,22 @@ where
         if Self::waits_on_item(&st, item) {
             return Err(Cause::NoService);
         }
-        if st
+        let before = Self::agents_held_off(&st);
+        let out = if st
             .held
             .iter()
             .find(|h| h.item() == item)
             .is_some_and(|h| self.withdrawn(&st, h.item()))
         {
-            return Err(Cause::NoService);
-        }
-        let before = Self::agents_held_off(&st);
-        let by = AnsweredBy {
-            step: None,
-            from: Presenter::Native,
-            now,
+            Err(Cause::NoService)
+        } else {
+            let by = AnsweredBy {
+                step: None,
+                from: Presenter::Native,
+                now,
+            };
+            self.answer_in(&mut st, item, choice, None, by)
         };
-        let out = self.answer_in(&mut st, item, choice, None, by);
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
