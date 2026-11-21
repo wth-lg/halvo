@@ -60,7 +60,7 @@ store_handle_named_from_the_daemon_owner E0603 debug
 synthetic_clearance_in_a_release_build E0425 release
 synthetic_keep_in_a_release_build E0425 release'
 proof_names=$(printf '%s\n' "$PROOFS" | awk '{ printf "%s ", $1 }')
-test_support="$src/daemon/model_store.rs $src/daemon/owner_props.rs $src/daemon/process_tests.rs $src/daemon/scripted.rs $src/daemon/stop_tests.rs $src/daemon/delete_all/process_tests.rs"
+test_support="$src/daemon/model_store.rs $src/daemon/owner_props.rs $src/daemon/process_tests.rs $src/daemon/scripted.rs $src/daemon/stop_tests.rs $src/daemon/delete_all/process_tests.rs $src/daemon/lease/process_tests.rs $src/daemon/lease/tests.rs"
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
