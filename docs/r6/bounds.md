@@ -7,10 +7,10 @@ The router is a library with no process, no store and no model. It runs inside t
 These are the lines that the check printed on each machine:
 
 ```text
-bound part=router machine=mac run=1 peak_bytes=1343848
+bound part=router machine=mac run=1 peak_bytes=1393000
 bound part=router machine=mac run=2 peak_bytes=1360232
-bound part=router machine=mac run=3 peak_bytes=1343848
-bound part=router machine=mac run=4 peak_bytes=1343848
+bound part=router machine=mac run=3 peak_bytes=1360232
+bound part=router machine=mac run=4 peak_bytes=1360232
 bound part=router machine=mac run=5 peak_bytes=1360232
 bound part=router machine=mac bound_bytes=8388608
 bound part=router machine=hosted-mac run=1 peak_bytes=1065728
@@ -27,7 +27,7 @@ bound part=router machine=hosted-win run=5 peak_bytes=802816
 bound part=router machine=hosted-win bound_bytes=8388608
 ```
 
-The `mac` lines come from this repository's development Mac at commit b71ec4f7, run on 2026-11-12. The `hosted-mac` lines come from the job `macos` (runner `macos-15`) and the `hosted-win` lines from the job `windows` (runner `windows-2025`) of the hosted run 43320954252 at commit dc10ca0a. The probe's code outside its tests is the same at that commit and at the commit of this text. measure-peak read in `mode=poll` on both macOS machines and in `mode=job` on Windows. No machine here is a 16 GB laptop.
+The `mac` lines come from this repository's development Mac at commit b8b32bbb, run on 2026-11-21. At that commit `docs/r6/outcomes/` holds the recorded table, and `policy.tsv` is the table that `route-gate derive` writes from it. That table hands every model cell back and has the same bytes as the first table. The `hosted-mac` lines come from the job `macos` (runner `macos-15`) and the `hosted-win` lines from the job `windows` (runner `windows-2025`) of the hosted run 43320954252 at commit dc10ca0a. The four data files under `crates/halvo-route/data/` have the same bytes at that commit, at b8b32bbb and at the commit of this text. The probe's code outside its tests is also the same at all three commits. measure-peak read in `mode=poll` on both macOS machines and in `mode=job` on Windows. No machine here is a 16 GB laptop.
 
 What a pass claims. Every run read `capped=no` and the median is at or under the limit, so no read was above 16,777,216 bytes. That never says that the probe held no more memory than that. On Windows `capped=no` says that no report of a refused allocation arrived.
 
