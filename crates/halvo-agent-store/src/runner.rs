@@ -30,13 +30,15 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 /// of the run's own `finish` and an `effect` row equal to the effect's last row, which are answered as the first.
 /// Then:
 ///
-/// - `load`: the stored configuration; the newest playbook number with its count of stored steps; the newest
-///   revision of the bindings; for each origin, in byte order, the newest session revision whose parts 1 to `of`
-///   are all stored, with `of` as its count of parts; the agent's start row of the configuration's workflow, the
-///   earliest by `at` where more than one is stored, or null where none is.
-/// - `load_steps`: `playbook` where no step of that playbook number is stored; else the agent of the stored steps
-///   of that number, read before the cut by `from`, and at most 16 stored steps from the one numbered `from`, in
-///   order and with no gap.
+/// - `load`: the stored configuration; the newest finished playbook number with the count of steps that its compile
+///   finished, by `finished`, or null; `next_playbook`, the number that a new playbook is stored under: the newest
+///   number of a stored step or a finished playbook plus 1, or 1 where there is none (CP-182); the newest revision
+///   of the bindings; for each origin, in byte order, the newest session revision whose parts 1 to `of` are all
+///   stored, with `of` as its count of parts; the agent's start row of the configuration's workflow, the earliest by
+///   `at` where more than one is stored, or null where none is.
+/// - `load_steps`: `playbook` where the number is not finished, by `finished`, or no step of it is stored; else the
+///   agent of the stored steps of that number, read before the cut by `from`, and at most 16 stored steps from the
+///   one numbered `from`, in order and with no gap, none past the count of steps that the compile finished.
 /// - `load_session`: `binding` where the part is not stored; else the part with the agent of its row.
 /// - `put_playbook`: `playbook` unless the number is the newest stored number or the next one (1 for the first),
 ///   for a first step after a gap in the steps of that number, and for a step whose number and `n` hold another
@@ -79,8 +81,11 @@ use crate::{bind, checkpoint, day, effect, end, reply};
 /// - `finish`: where the run's record is stored, `{"stored":1}` for the same record and `effect` for another.
 ///   Else `effect` for a record with the outcome `completed` while an effect of the run is `held`, `cleared`,
 ///   `approved`, `releasing` or `not_made`, and for one whose `unknown` is below the count of the run's effects
-///   that are `unknown` after the moves (CP-132 (b)); the keys of the run's list are stored as given, with no relation over
-///   them. Else, in one commit, the record and the moves of the run's end: for each effect of the run whose last row is
+///   that are `unknown` after the moves (CP-132 (b)); the keys of the run's list are stored as given, with no
+///   relation over them. Else `playbook` for a record of the mode `compile` with the outcome `completed` whose
+///   `playbook` is not the agent's newest stored playbook number (CP-182 (2)). Else, in one commit, the record; for
+///   such a compile the row `agent_finished` of that number with its count of stored steps and the run's id, unless
+///   a row of the number stands; and the moves of the run's end: for each effect of the run whose last row is
 ///   `held`, `cleared` or `approved` a row `rejected` with the cause `ended` and no approval, and for each one that
 ///   is `releasing` a row `unknown` that keeps its approval, each with the next seq and the request's day and
 ///   instant; and for each message whose newest reply row of its agent names the run and is `begun`, a reply row
@@ -132,34 +137,45 @@ fn own_steps(host: &dyn Host, agent: &AgentId) -> Result<Vec<AgentPlaybook>, Err
         .collect())
 }
 
-/// The agent's newest stored playbook number with its count of stored steps, or none where no step of the agent
-/// is stored: the key `playbook` of the reply of `load`, by the same reader. It refuses with `binding`, as `load`
-/// does, unless the agent's configuration is stored and the agent is its workflow's; it stores nothing, writes no
-/// log line and names no run, so that a party that is no runner reads the number without a runner body, which
-/// CP-135 (5) refuses for a run with no start row. U3.6 makes it the agent's finished number of CP-182 for every
-/// reader. `store` where a stored row of the family is not the form.
+/// The agent's newest finished playbook number with the count of steps that its compile finished, or none where no
+/// compile of the agent finished: the key `playbook` of the reply of `load`, by the same function. It refuses with
+/// `binding`, as `load` does, unless the agent's configuration is stored and the agent is its workflow's; it stores
+/// nothing, writes no log line and names no run, so that a party that is no runner reads the number without a
+/// runner body, which CP-135 (5) refuses for a run with no start row. `store` where a stored row of the family is
+/// not the form.
 pub fn newest_playbook(
     host: &dyn Host,
     agent: &AgentId,
 ) -> Result<Option<LoadedPlaybook>, ErrorName> {
     bind::runner_agent(host, agent)?;
-    playbook_of(host.rows(), agent)
+    newest_finished(host.rows(), agent)
 }
 
-fn playbook_of(rows: &dyn RowRead, agent: &AgentId) -> Result<Option<LoadedPlaybook>, ErrorName> {
-    let steps: Vec<AgentPlaybook> = rows::playbooks(rows)?
+/// The agent's finished playbooks (CP-182): each number for which a row `agent_finished` of the agent stands, with
+/// the count of steps of that row, the first row by the store's order where two rows name one number. It is the one
+/// function of A7.1 that `load`, `newest_playbook`, `load_steps` and the test of `set_state` for `active` read: a
+/// stored step of a number with no such row, or past the count of that row, is no step of a finished playbook.
+pub(crate) fn finished(
+    rows: &dyn RowRead,
+    agent: &AgentId,
+) -> Result<BTreeMap<NonZeroU32, NonZeroU32>, ErrorName> {
+    let mut out = BTreeMap::new();
+    for row in rows::finished(rows)?
         .into_iter()
-        .filter(|p| &p.agent == agent)
-        .collect();
-    let Some(number) = steps.iter().map(|p| p.number).max() else {
-        return Ok(None);
-    };
-    let count = steps.iter().filter(|p| p.number == number).count();
-    let count = u32::try_from(count).ok().and_then(NonZeroU32::new);
-    Ok(Some(LoadedPlaybook {
-        number,
-        steps: count.ok_or(ErrorName::Store)?,
-    }))
+        .filter(|f| &f.agent == agent)
+    {
+        out.entry(row.number).or_insert(row.steps);
+    }
+    Ok(out)
+}
+
+fn newest_finished(
+    rows: &dyn RowRead,
+    agent: &AgentId,
+) -> Result<Option<LoadedPlaybook>, ErrorName> {
+    Ok(finished(rows, agent)?
+        .pop_last()
+        .map(|(number, steps)| LoadedPlaybook { number, steps }))
 }
 
 fn own_sessions(host: &dyn Host, agent: &AgentId) -> Result<Vec<AgentSession>, ErrorName> {
@@ -173,7 +189,13 @@ fn load(host: &dyn Host, now: Now, b: &Load) -> Result<RunnerReply, ErrorName> {
     let (config, workflow) = bind::runner_agent(host, &b.agent)?;
     bind::own_run(host, now, &b.run, &b.agent)?;
     bind::open_run(host, &b.run)?;
-    let playbook = playbook_of(host.rows(), &b.agent)?;
+    let playbook = newest_finished(host.rows(), &b.agent)?;
+    let stored = own_steps(host, &b.agent)?.into_iter().map(|p| p.number);
+    let newest = stored.chain(playbook.as_ref().map(|p| p.number)).max();
+    let next_playbook = match newest {
+        Some(number) => number.checked_add(1).ok_or(Own::Length)?,
+        None => NonZeroU32::MIN,
+    };
     let bindings = rows::bindings(host.rows())?
         .into_iter()
         .filter(|r| r.agent == b.agent && r.workflow == workflow.id)
@@ -187,6 +209,7 @@ fn load(host: &dyn Host, now: Now, b: &Load) -> Result<RunnerReply, ErrorName> {
     Ok(RunnerReply::Load(LoadReply {
         config,
         playbook,
+        next_playbook,
         bindings,
         sessions,
         start: rows::start_of(host.rows(), &b.agent)?.filter(|s| s.workflow == workflow.id),
@@ -228,9 +251,11 @@ fn load_steps(host: &dyn Host, now: Now, b: &LoadSteps) -> Result<RunnerReply, E
     bind::runner_agent(host, &b.agent)?;
     bind::own_run(host, now, &b.run, &b.agent)?;
     bind::open_run(host, &b.run)?;
+    let finished = finished(host.rows(), &b.agent)?;
+    let count = finished.get(&b.number).ok_or(Own::Playbook)?;
     let mut steps: Vec<AgentPlaybook> = own_steps(host, &b.agent)?
         .into_iter()
-        .filter(|p| p.number == b.number)
+        .filter(|p| p.number == b.number && p.n <= *count)
         .collect();
     let Some(agent) = steps.first().map(|p| p.agent.clone()) else {
         return Err(Own::Playbook.into());

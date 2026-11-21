@@ -57,11 +57,14 @@ fn ended(end: End) -> MemoryStore {
     assert_eq!(runner(&mut store, session(1, ORIGIN)), Ok(stored(1)));
     assert_eq!(runner(&mut store, log(1, 2)), Ok(stored(1)));
     match end {
-        End::Finish => assert_eq!(
-            finish(&mut store, run_record(1, Some("compile"), "completed")),
-            Ok(stored(1))
-        ),
-        End::EndRun => assert_eq!(end_run(&mut store, 1), Ok(accepted())),
+        End::Finish => assert_eq!(finish(&mut store, compiled(1, 1)), Ok(stored(1))),
+        End::EndRun => {
+            let earlier = finished_row(1, 1, 1, 9);
+            store
+                .typed_commit(vec![earlier])
+                .expect("the fact of an earlier compile");
+            assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+        }
     }
     store
 }
@@ -188,16 +191,10 @@ fn log_after_end_run_is_refused() {
 #[test]
 fn the_runner_s_finish_repeated_after_its_end_is_answered_as_the_first() {
     let mut store = ended(End::Finish);
-    assert_eq!(
-        finish(&mut store, run_record(1, Some("compile"), "completed")),
-        Ok(stored(1))
-    );
+    assert_eq!(finish(&mut store, compiled(1, 1)), Ok(stored(1)));
     assert_eq!(rows(&store, "agent_run").len(), 1);
     let mut store = ended(End::EndRun);
-    assert_eq!(
-        finish(&mut store, run_record(1, Some("compile"), "completed")),
-        Err(declared("effect"))
-    );
+    assert_eq!(finish(&mut store, compiled(1, 1)), Err(declared("effect")));
 }
 
 fn second_agent(store: &mut MemoryStore) {

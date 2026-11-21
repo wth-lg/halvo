@@ -552,6 +552,7 @@ impl Supervisor {
                         steps,
                     },
                 ),
+                next_playbook: NonZeroU32::MIN.saturating_add(1),
                 bindings: Some(LoadedBindings {
                     rev: NonZeroU32::MIN,
                     origins: self.origins.clone(),
