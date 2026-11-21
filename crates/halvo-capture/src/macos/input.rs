@@ -303,6 +303,15 @@ impl InputCounters {
             .fetch_add(1, Ordering::Relaxed);
     }
 
+    fn count_folds_dropped_at_stop(&self, folds: &[PointerFold]) {
+        let events = folds
+            .iter()
+            .fold(0u64, |sum, fold| sum.saturating_add(fold.count().get()));
+        self.0
+            .pointer_dropped_at_stop
+            .fetch_add(events, Ordering::Relaxed);
+    }
+
     #[cfg(test)]
     fn pointer_dropped_at_stop(&self) -> u64 {
         self.0.pointer_dropped_at_stop.load(Ordering::Relaxed)
@@ -1488,6 +1497,12 @@ impl Drop for TapContext {
         if let Some(ReadingTimer(timer)) = fold {
             (self.timers.invalidate)(&timer);
         }
+        let left = self
+            .folds
+            .get_mut()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        self.counters.count_folds_dropped_at_stop(&left);
     }
 }
 
@@ -1558,7 +1573,11 @@ fn on_pointer(ctx: &TapContext, kind: Kind, event: &TapEvent) {
 
 fn close_interval(ctx: &TapContext) {
     let folds = ctx.folds().take();
-    if folds.is_empty() || ctx.stop.load(Ordering::SeqCst) {
+    if ctx.stop.load(Ordering::SeqCst) {
+        ctx.counters.count_folds_dropped_at_stop(&folds);
+        return;
+    }
+    if folds.is_empty() {
         return;
     }
     let front = ctx.foreground.get();
@@ -8572,6 +8591,7 @@ mod tests {
         held.ctx.stop.store(true, Ordering::SeqCst);
         close_interval(&held.ctx);
         assert_eq!(pointer_records(&held.writer), []);
+        assert_eq!(held.counters.pointer_dropped_at_stop(), 50);
     }
 
     #[test]
