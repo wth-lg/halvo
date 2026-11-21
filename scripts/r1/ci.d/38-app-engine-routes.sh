@@ -156,7 +156,7 @@ helper_cases() {
   rejected=$((rejected + right))
   bad=$(sed -n 's/^case [^ /]*\/\([^ ]*\) .* wrong$/\1/p' "$work/helper-cases.txt" | paste -s -d ' ' -)
   [ -z "$bad" ] || wrong="$wrong $bad"
-  if [ "$code" != 0 ] || [ "$right" != 9 ]; then wrong="$wrong helper-cases"; fi
+  if [ "$code" != 0 ] || [ "$right" != 10 ]; then wrong="$wrong helper-cases"; fi
   shown=$(verdict "$work/helper/judged.txt" macos)
   got=green
   [ "$shown" = "FAIL $name (s03-ip:open-or-unread s18-ip:open-or-unread)" ] && got=red
@@ -243,7 +243,8 @@ class MadeUpSocket:
         raise OSError("a made-up socket takes no datagram")
 
     def connect(self, address):
-        pass
+        if route[0] is None:
+            raise OSError(51, "Network is unreachable")
 
     def getsockname(self):
         return (route[0], 9)
@@ -348,6 +349,32 @@ def each_refused_bind_is_asked_once():
     if asked.get((socket.SOCK_STREAM, "203.0.113.9", 443)) != 1 or asked.get((socket.SOCK_STREAM, "0.0.0.0", 443)) != 1:
         return "permission-branch-misread"
     return "once"
+
+
+def a_failed_read_is_told_like_a_refused_bind():
+    unread = os.path.join(directory, "unread")
+    told = {}
+    route[0] = None
+    try:
+        for value in ("true", None):
+            machine(value)
+            out = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                    measure.plan(unread)
+                return "read"
+            except OSError:
+                told[value] = out.getvalue().splitlines()
+    finally:
+        route[0] = "10.0.0.5"
+        machine(None)
+    if not any(line.startswith("interface") for line in told["true"] + told[None]):
+        return "no-interface-line"
+    if told["true"] != [f"interface {line}" for line in MAC_LINES]:
+        return f"hosted-{len(told['true'])}-lines"
+    if told[None] != ["interfaces read 3, reader failed false, no address asked, error numbers 51"]:
+        return f"elsewhere-{len(told[None])}-lines"
+    return "told"
 
 
 def refused_binds_elsewhere_are_told_by_counts():
@@ -462,6 +489,7 @@ case("taken-binds-tell-the-address-alone", "asked-alone", taken_binds_tell_the_a
 case("one-refused-bind-told-with-the-interfaces", "told", one_refused_bind_is_told_with_the_interfaces)
 case("refused-binds-elsewhere-told-by-counts", "counted", refused_binds_elsewhere_are_told_by_counts)
 case("each-refused-bind-asked-once", "once", each_refused_bind_is_asked_once)
+case("failed-read-told-like-a-refused-bind", "told", a_failed_read_is_told_like_a_refused_bind)
 case("windows-interfaces-read", "read", windows_interfaces_are_read)
 case("unread-interfaces-told", "told", an_unread_list_is_told)
 case("unbound-listener-reads-not-measured", "not-measured", an_unbound_listener_reads_not_measured)
@@ -519,7 +547,7 @@ case "$tool:$*" in
     if [ "$2" = no-layer ]; then echo HALVO_MEASURE_NEVER_SET >> src-tauri/src/engine.rs; fi
     ;;
   python*:*measure.py\ plan*)
-    if [ "${FIXTURE_PLAN:-}" = fail ]; then exit 1; fi
+    if [ "${FIXTURE_PLAN:-}" = fail ]; then printf 'interface en0 8863<UP,BROADCAST> inet6 fe80::1%%en0\r\n'; exit 1; fi
     if [ "${FIXTURE_PLAN:-}" = fail-second ] && [ "$(grep -c 'measure\.py plan ' "$FIXTURE_CALLS")" = 2 ]; then exit 1; fi
     if [ "${FIXTURE_LAUNCH:-}" = run ]; then printf 's03-ip\tplan %s\n' "$(grep -c 'measure\.py plan ' "$FIXTURE_CALLS")" > "$3/steps.tsv"; fi
     ;;
@@ -694,6 +722,9 @@ run_cases() {
   is "$last" "FAIL $name (the plan could not read an address of the runner for the copy engine-alone)" ran
   n=$(grep -c 'measure\.py listen ' "$work/a-failed-plan-fails-the-check.calls")
   is "$n" 0 ran
+  told_at=$(grep -n -x -F "$name interface at a failed read of the address for the copy engine-alone: en0 8863<UP,BROADCAST> inet6 fe80::1%en0" "$work/a-failed-plan-fails-the-check.out" | cut -d: -f1)
+  failed_at=$(grep -n -x -F "FAIL $name (the plan could not read an address of the runner for the copy engine-alone)" "$work/a-failed-plan-fails-the-check.out" | cut -d: -f1)
+  [ "${told_at:-0}" -gt 0 ] && [ "${told_at:-0}" -lt "${failed_at:-0}" ] || got=ran
   report a-failed-plan-fails-the-check "$got"
   run_fixture second-copy-failed-plan-fails-the-check true macos FIXTURE_LAUNCH=run FIXTURE_PLAN=fail-second FIXTURE_READY="$work/ready-made-up"
   got=refused
@@ -958,7 +989,11 @@ def host_of(step, form, ip):
 
 
 def plan(directory):
-    ip = os.environ.get("HALVO_MEASURE_TEST_IP") or runner_address()
+    try:
+        ip = os.environ.get("HALVO_MEASURE_TEST_IP") or runner_address()
+    except OSError as e:
+        print("\n".join(told_lines(None, [e.errno])))
+        raise
     assert not ip.startswith("127.") or os.environ.get("HALVO_MEASURE_TEST_IP"), ip
     no_filter = os.name == "nt"
     targets = []
@@ -2134,7 +2169,11 @@ measure() {
       tail -n 5 "$work/build-$copy.txt"
       continue
     fi
-    "$py" "$work/measure.py" plan "$work" > /dev/null || fail "the plan could not read an address of the runner for the copy $copy"
+    if ! "$py" "$work/measure.py" plan "$work" > "$work/plan-$copy.txt"; then
+      tr -d '\r' < "$work/plan-$copy.txt" > "$work/plan-$copy.lf"
+      relay "$work/plan-$copy.lf" "at a failed read of the address for the copy $copy"
+      fail "the plan could not read an address of the runner for the copy $copy"
+    fi
     grep -F -f "$work/keys.txt" "$work/steps.tsv" | awk -F'\t' 'NR==FNR {k[$1]=1; next} ($1 in k)' "$work/keys.txt" - > "$work/routes.tsv"
     steps=$(cut -f1 "$work/routes.tsv" | paste -s -d ' ' -)
     echo "$name steps of $copy: $steps"
