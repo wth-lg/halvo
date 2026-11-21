@@ -31,13 +31,17 @@ pub trait CarriesEnds: Transport + AsFd {}
 
 impl<T: Transport + AsFd> CarriesEnds for T {}
 
-/// The owner's channel as the handler of `owner_stream` uses it. The caller holds its turn on the channel for the
-/// length of the handler's call, so no other exchange is open on it.
+/// The owner's channel as the handlers of `owner_stream` and `relay` use it. The caller holds its turn on the channel
+/// for the length of the handler's call, so no other exchange is open on it.
 pub trait OwnerChannel {
     /// Writes the frame `stream` on the channel with `end` as one SCM_RIGHTS control message on the call that writes
     /// the frame's first byte, as [`send_with_end`] does. The handler keeps its own descriptor of `end` open until
     /// [`OwnerChannel::answer`] has returned.
     fn send_stream(&mut self, frame: &[u8], end: BorrowedFd<'_>) -> io::Result<()>;
+
+    /// Writes `frame` on the channel as one frame with nothing beside it: the request that the handler of `relay`
+    /// hands to the owner. An error of kind `BrokenPipe` is the end of the channel.
+    fn send(&mut self, frame: &[u8]) -> io::Result<()>;
 
     /// The owner's next frame on the channel that is no report, waiting at most `within`: `None` at the end of the
     /// channel, and an error of kind `TimedOut` when no frame came.
@@ -328,6 +332,10 @@ mod tests {
         fn send_stream(&mut self, frame: &[u8], _: BorrowedFd<'_>) -> io::Result<()> {
             assert_eq!(frame, STREAM_BESIDE);
             Ok(())
+        }
+
+        fn send(&mut self, _: &[u8]) -> io::Result<()> {
+            unreachable!("the handler of owner_stream writes no frame without an end")
         }
 
         fn answer(&mut self, _: Duration) -> io::Result<Option<Vec<u8>>> {

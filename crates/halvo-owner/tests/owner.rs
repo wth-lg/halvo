@@ -552,6 +552,11 @@ impl halvo_control::r2::OwnerChannel for Starter<'_> {
         Ok(())
     }
 
+    fn send(&mut self, frame: &[u8]) -> std::io::Result<()> {
+        self.0.send(frame);
+        Ok(())
+    }
+
     fn answer(&mut self, within: Duration) -> std::io::Result<Option<Vec<u8>>> {
         let deadline = Mono::now() + within;
         loop {
@@ -773,6 +778,37 @@ fn the_daemon_half_hands_both_ends_over() {
     let mut stream = stream_of(end.unwrap());
     stream.send(&runner_request());
     assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Malformed);
+}
+
+/// The relay (contracts.md C24.4 of the workflows run): an interface read, encoded by `Relay::encode`, goes through
+/// `dispatch_unknown` to the owner on the starter's channel as the object that the handler writes again, and the reply
+/// that comes back in `relayed` is the owner's answer to that read. The server's end closes after the reply, as the
+/// daemon's server closes it, so the client call reads the end of the stream.
+#[cfg(any(target_os = "macos", windows))]
+#[test]
+fn a_relayed_interface_read_reaches_the_store() {
+    let scratch = Scratch::new("relay-daemon-half");
+    let mut owner = start(&scratch.0, KEY, 1, false, &[]);
+    let (client_end, server) = control_connection();
+    let client = halvo_control::client::Client::new(Once(std::sync::Mutex::new(Some(client_end))));
+    let id = request_id();
+    let read = InterfaceRead::workflows(&InterfaceRole::claim(), id.clone(), None)
+        .to_bytes()
+        .unwrap();
+    let (served, reply) = std::thread::scope(|scope| {
+        let owner = &mut owner;
+        let served = scope.spawn(move || {
+            let served = serve_one(&server, owner);
+            drop(server);
+            served
+        });
+        let reply = client.relay(&read);
+        (served.join().unwrap(), reply)
+    });
+    assert!(served, "dispatch_unknown wrote no reply");
+    let reply = decode_reply(&reply.unwrap()).unwrap();
+    assert_eq!(reply.id, Some(id));
+    assert_eq!(workflows(reply), []);
 }
 
 fn request_id() -> RequestId {

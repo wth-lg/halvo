@@ -160,9 +160,9 @@ pub struct Client<C> {
     deadlines: Deadlines,
 }
 
-struct Timed<'a, T> {
-    transport: &'a mut T,
-    deadline: Instant,
+pub(crate) struct Timed<'a, T> {
+    pub(crate) transport: &'a mut T,
+    pub(crate) deadline: Instant,
 }
 
 fn left(deadline: Instant) -> std::io::Result<Duration> {
@@ -175,7 +175,7 @@ fn left(deadline: Instant) -> std::io::Result<Duration> {
 }
 
 impl<T: Transport> Timed<'_, T> {
-    fn end_request(&mut self) -> std::io::Result<()> {
+    pub(crate) fn end_request(&mut self) -> std::io::Result<()> {
         self.transport.set_timeout(left(self.deadline)?)?;
         self.transport.end_request()
     }
@@ -200,7 +200,7 @@ impl<T: Transport> Write for Timed<'_, T> {
     }
 }
 
-fn is_timeout(error: &std::io::Error) -> bool {
+pub(crate) fn is_timeout(error: &std::io::Error) -> bool {
     matches!(error.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock)
 }
 
@@ -208,7 +208,7 @@ fn is_timeout(error: &std::io::Error) -> bool {
 /// waits at most [`crate::REPLY_END_WAIT_MS`], and never past that deadline, for what follows:
 /// a byte is [`FrameError::Trailing`], and the end of the stream, the end of the wait and any
 /// error of the transport give the frame.
-fn read_reply<T: Transport>(timed: &mut Timed<'_, T>) -> Result<Vec<u8>, FrameError> {
+pub(crate) fn read_reply<T: Transport>(timed: &mut Timed<'_, T>) -> Result<Vec<u8>, FrameError> {
     let frame = read_frame(timed, REPLY_MAX_BYTES)?;
     let Ok(time_left) = left(timed.deadline) else {
         return Ok(frame);

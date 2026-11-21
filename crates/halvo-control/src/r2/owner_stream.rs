@@ -183,7 +183,7 @@ fn is_timeout(error: &std::io::Error) -> bool {
 }
 
 /// The error of the client call for a reply of v1.
-fn v1_answer(frame: &[u8]) -> ClientError {
+pub(super) fn v1_answer(frame: &[u8]) -> ClientError {
     match decode_reply(frame) {
         Ok(Reply::Error(error)) if error.ending() => ClientError::ServiceEnding(error),
         Ok(Reply::Error(error)) => ClientError::Daemon(error),
