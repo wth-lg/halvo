@@ -1571,14 +1571,15 @@ fn kept_pieces(name: &str, pieces: &[&str]) -> Kept {
 /// Ruling RD-158 (3): a kept value that holds no byte, with no piece or with pieces that are all
 /// empty, never stands on a partial or an unknown entry. A row with nothing else to show keeps the
 /// unshown entry of the base and the unknown entry with no field; where other fields read, they
-/// stand in the table's order and the empty one is left out.
+/// stand in the table's order and the empty one is left out. Each row keeps fewer names than its
+/// class's table, so that the reader refuses it as a whole committed entry.
 #[test]
 fn u24q_a_kept_value_of_no_byte_never_stands_on_a_partial_or_an_unknown_entry() {
     let empties: [&[&str]; 3] = [&[], &[""], &["", "", ""]];
     for pieces in empties {
         for (class, name, word) in [
             (Class::Payment, "payee", "payment"),
-            (Class::Send, "to", "send"),
+            (Class::Sign, "document", "sign"),
         ] {
             let alone = vec![kept_pieces(name, pieces)];
             for (effect, want) in [
