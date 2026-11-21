@@ -456,7 +456,7 @@ fn a_store_fault_at_the_second_page_of_the_compiled_steps_before_a_finish_passes
         let put = w.put(1, 1, page.to_vec());
         assert!(put.is_ok(), "a page of the compile: {put:?}");
     }
-    let finish = w.finish(1, "compile", "completed");
+    let finish = w.finish_of(1, "compile", "completed", Some(1));
     assert!(finish.is_ok(), "the compile's finish: {finish:?}");
     let state = w.coordinator(
         json!({"op": "set_state", "workflow": wf(1), "agent": agent(1), "state": "active"}),
@@ -524,7 +524,7 @@ fn compiles_after_the_fault(w: &mut World, r: u32, number: u32) {
     assert_eq!(playbook_rows(w, number), rows + 3);
     assert!(lost_start(w, r));
     let commits = w.host.commits.get();
-    let finish = w.finish(r, "compile", "completed");
+    let finish = w.finish_of(r, "compile", "completed", Some(number));
     assert!(finish.is_ok(), "{finish:?}");
     assert_eq!(
         w.host.commits.get(),

@@ -213,7 +213,7 @@ fn delete_line_misses_when_the_other_agent_is_no_longer_served_its_learned_step(
     let second = id('3', 2);
     let (text, ok) = line(&mut |store, id| {
         let stored = store.delete_workflow(id);
-        let playbook: Vec<TypedRecord> = store
+        let mut playbook: Vec<TypedRecord> = store
             .rows(Family::Agent)
             .all()
             .filter(|(kind, json)| *kind == "agent_playbook" && names(json, &second))
@@ -223,6 +223,15 @@ fn delete_line_misses_when_the_other_agent_is_no_longer_served_its_learned_step(
             })
             .collect();
         assert!(!playbook.is_empty());
+        let row: Value = serde_json::from_str(&playbook[0].json).expect("a playbook row");
+        let finished = serde_json::json!({
+            "v": 1, "workflow": row["workflow"], "agent": row["agent"], "number": 2,
+            "steps": playbook.len(), "run": crate::stub::id('5', 99),
+        });
+        playbook.push(TypedRecord {
+            kind: "agent_finished",
+            json: finished.to_string(),
+        });
         store
             .commit(Family::Agent, playbook)
             .expect("a newer playbook of the second agent");

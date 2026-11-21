@@ -12,7 +12,7 @@ use halvo_schema::{Category, ErrorName, Workflow, WorkflowState};
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, bindings, checkpoint, day, end};
+use crate::{bind, bindings, checkpoint, day, end, runner};
 
 /// Answers one coordinator body of A7.2, read from its bytes with the typed parser: the reply, or the error name of
 /// the first check that refuses it. A refused body stores nothing, but for `create_agent`, whose state call comes
@@ -29,9 +29,11 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   of the overlap, as that of `set_state` does: `overlap` where the agent's stored bindings overlap another agent
 ///   that is live, as `list_overlaps` reads them (CP-150 (1) (b)).
 /// - `set_state`: `no_workflow`; `binding` unless the workflow's agent is the body's, and for `active` where no
-///   configuration of the agent is stored; `playbook` for `active` while
-///   the agent's runtime is `web` and no playbook step of the agent is stored; `overlap` for `approved` and
-///   `active`, never for `paused`, where the agent's stored bindings overlap another agent that is live, as
+///   configuration of the agent is stored; `playbook` for `active` while the agent's runtime is `web` and no
+///   playbook of the agent is finished, by the store's one function `finished` (CP-182): a stored step of a
+///   number with no row `agent_finished`, a run record with another outcome and an `end_run` are no proof;
+///   `overlap` for `approved` and `active`, never for `paused`, where the agent's stored bindings overlap another
+///   agent that is live, as
 ///   `list_overlaps` reads them, and then no state changes (CP-150 (1) (b)); then the state call and its own
 ///   refusal.
 /// - `start_run`: `no_workflow`; `binding`; `state` unless the workflow is `approved` or `active` for `compile`
@@ -151,10 +153,7 @@ fn set_state(host: &mut dyn Host, b: &SetState) -> Result<CoordinatorReply, Erro
     bind::of_agent(&*host, &b.workflow, &b.agent)?;
     if b.state == AgentState::Active {
         let config = rows::newest_config(host.rows(), &b.agent)?.ok_or(Own::Binding)?;
-        let playbook = rows::playbooks(host.rows())?
-            .iter()
-            .any(|p| p.agent == b.agent);
-        if config.runtime == Runtime::Web && !playbook {
+        if config.runtime == Runtime::Web && runner::finished(host.rows(), &b.agent)?.is_empty() {
             return Err(Own::Playbook.into());
         }
     }

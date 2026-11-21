@@ -556,6 +556,7 @@ fn supervise(
                             config
                         },
                         playbook: None,
+                        next_playbook: NonZeroU32::MIN,
                         bindings: Some(LoadedBindings {
                             rev: NonZeroU32::MIN,
                             origins: {

@@ -495,7 +495,7 @@ const LOAD_CONFIG: &str = r#"{"v":1,"workflow":"30000000000000000000000000000001
 
 fn load_reply(start: &str) -> String {
     format!(
-        r#"{{"config":{LOAD_CONFIG},"playbook":null,"bindings":null,"sessions":[],"start":{start}}}"#
+        r#"{{"config":{LOAD_CONFIG},"playbook":null,"next_playbook":1,"bindings":null,"sessions":[],"start":{start}}}"#
     )
 }
 
@@ -514,7 +514,7 @@ fn the_reply_of_load_holds_the_agent_s_start_row_or_null_under_the_key_start() {
         assert_eq!(through, read);
     }
     let without =
-        format!(r#"{{"config":{LOAD_CONFIG},"playbook":null,"bindings":null,"sessions":[]}}"#);
+        format!(r#"{{"config":{LOAD_CONFIG},"playbook":null,"next_playbook":1,"bindings":null,"sessions":[]}}"#);
     expect(
         LoadReply::parse(without.as_bytes()),
         "LoadReply",

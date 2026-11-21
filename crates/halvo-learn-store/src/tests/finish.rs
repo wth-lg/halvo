@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 
 use super::host::{active_world, agent, compiled, locator, run, wf, with_locators, World, DAY};
 use crate::handlers::Fault;
-use crate::{LearnHandlers, LearnHost};
+use crate::LearnHandlers;
 
 fn loc(name: &str) -> Value {
     json!({"by": "role", "value": "button", "name": name})
@@ -221,9 +221,7 @@ fn refusal_reverted_not_served() {
     );
     assert_eq!(w.put(7, 1, vec![again]), Ok(stored(0)));
 
-    let now = w.host.agent_now();
-    let body = json!({"op": "put_playbook", "agent": agent(1), "run": run(7), "number": 2, "steps": compiled()});
-    assert!(halvo_agent_store::runner(&mut w.host.agent, now, body.to_string().as_bytes()).is_ok());
+    w.direct_compile(70, 2);
     let stopped = w.replay(8);
     assert_eq!(stopped, compiled());
     let lower_open = newest(&w)

@@ -80,7 +80,7 @@ impl LearnHandlers {
         Ok(reply)
     }
 
-    /// The agent's newest compile number by the handlers' own `load` of the run, or none.
+    /// The agent's newest finished compile number by the handlers' own `load` of the run (CP-182), or none.
     pub(crate) fn newest_of(
         &mut self,
         host: &mut dyn LearnHost,

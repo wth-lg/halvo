@@ -117,6 +117,10 @@ fn load_reads_the_newest_revision_of_each() {
     let mut store = store_with("utility_bill_payment");
     assert_eq!(put_steps(&mut store, 1, navs(1, 3)), Ok(stored(3)));
     assert_eq!(put_steps(&mut store, 2, navs(1, 2)), Ok(stored(2)));
+    let fact = finished_row(1, 2, 2, 9);
+    store
+        .typed_commit(vec![fact])
+        .expect("the fact of the compile");
     coordinator(
         &mut store,
         json!({"op": "set_bindings", "workflow": wf(1), "agent": agent(1), "slots": [{"name": "payee", "value": ["Northwind"]}]}),
@@ -365,6 +369,10 @@ fn load_steps_reads_at_most_sixteen_steps_from_from() {
     let mut store = store_with("utility_bill_payment");
     put_steps(&mut store, 1, navs(1, 16)).expect("steps 1 to 16");
     put_steps(&mut store, 1, navs(17, 20)).expect("steps 17 to 20");
+    let fact = finished_row(1, 1, 20, 9);
+    store
+        .typed_commit(vec![fact])
+        .expect("the fact of the compile");
     assert_eq!(load_steps(&mut store, 1, 1), Ok((1..=16).collect()));
     assert_eq!(load_steps(&mut store, 1, 5), Ok((5..=20).collect()));
     assert_eq!(load_steps(&mut store, 1, 17), Ok((17..=20).collect()));
@@ -680,17 +688,6 @@ fn playbook_row(a: u32, number: u32, n: u32) -> halvo_schema::TypedRecord {
     }
 }
 
-fn finished_row(a: u32, number: u32, steps: u32) -> halvo_schema::TypedRecord {
-    let row = json!({
-        "v": 1, "workflow": wf(1), "agent": agent(a), "number": number, "steps": steps,
-        "run": run(90 + number),
-    });
-    halvo_schema::TypedRecord {
-        kind: "agent_finished",
-        json: row.to_string(),
-    }
-}
-
 #[test]
 fn newest_playbook_and_the_key_playbook_of_load_agree_over_drawn_rows() {
     let mut seed: u64 = 0x5eed_0049;
@@ -716,14 +713,16 @@ fn newest_playbook_and_the_key_playbook_of_load_agree_over_drawn_rows() {
             held.insert((a, number), count);
             if draw(2) == 0 {
                 store
-                    .typed_commit(vec![finished_row(a, number, count)])
+                    .typed_commit(vec![finished_row(a, number, count, 90 + number)])
                     .expect("a finished row");
                 finished.insert((a, number), count);
                 let more = draw(3);
                 let rows = (count + 1..=count + more)
                     .map(|n| playbook_row(a, number, n))
                     .collect();
-                store.typed_commit(rows).expect("rows stored after the finish");
+                store
+                    .typed_commit(rows)
+                    .expect("rows stored after the finish");
                 past += usize::from(a == 1 && more > 0);
             }
         }
@@ -755,7 +754,10 @@ fn newest_playbook_and_the_key_playbook_of_load_agree_over_drawn_rows() {
     }
     assert!(some > 50, "{some} of 200 cases had a finished playbook");
     assert!(half > 50, "{half} numbers of half playbooks were asked");
-    assert!(past > 20, "{past} finished numbers had steps stored after their finish");
+    assert!(
+        past > 20,
+        "{past} finished numbers had steps stored after their finish"
+    );
 }
 
 #[test]

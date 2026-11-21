@@ -38,6 +38,7 @@ fn the_file_registers_the_two_kinds_of_origin_capture_of_the_family_agent() {
             "agent_checkpoint",
             "agent_reply",
             "agent_start",
+            "agent_finished",
         ]
     );
     let config = entry("agent_config");
@@ -115,7 +116,7 @@ fn the_fields_of_each_entry_are_the_keys_of_its_record_with_their_types() {
     assert_eq!(run[..expected.len()], expected);
     let list: Vec<&str> = run[expected.len()..].iter().map(|(key, _)| *key).collect();
     assert_eq!(list, RUN_LIST_KEYS);
-    let own_fields: [(&str, &[(&str, FieldType)]); 8] = [
+    let own_fields: [(&str, &[(&str, FieldType)]); 9] = [
         (
             "agent_playbook",
             &[
@@ -238,6 +239,17 @@ fn the_fields_of_each_entry_are_the_keys_of_its_record_with_their_types() {
                 ("agent", Id),
                 ("day", Day),
                 ("at", Instant),
+            ],
+        ),
+        (
+            "agent_finished",
+            &[
+                ("v", Version),
+                ("workflow", Id),
+                ("agent", Id),
+                ("number", Count),
+                ("steps", Count),
+                ("run", Id),
             ],
         ),
     ];

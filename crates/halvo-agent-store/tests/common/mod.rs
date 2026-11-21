@@ -326,6 +326,26 @@ pub fn run_record(r: u32, mode: Option<&str>, outcome: &str) -> Value {
     record
 }
 
+/// The record of the compile `r` of the first agent with the outcome `completed`, naming the playbook number under
+/// which it stored its steps; its `finish` writes the row `agent_finished` of that number (CP-182).
+pub fn compiled(r: u32, number: u32) -> Value {
+    let mut record = run_record(r, Some("compile"), "completed");
+    record["playbook"] = json!(number);
+    record
+}
+
+/// A row `agent_finished` of the agent `a` of the first workflow: the compile of the run `r` finished the playbook
+/// number with `steps` steps.
+pub fn finished_row(a: u32, number: u32, steps: u32, r: u32) -> TypedRecord {
+    let row = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(a), "number": number, "steps": steps, "run": run(r),
+    });
+    TypedRecord {
+        kind: "agent_finished",
+        json: row.to_string(),
+    }
+}
+
 pub fn finish(store: &mut MemoryStore, record: Value) -> Result<RunnerReply, ErrorName> {
     let body = json!({
         "op": "finish",

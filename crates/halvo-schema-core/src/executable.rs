@@ -9,7 +9,8 @@ pub const ERROR_NAMES: &[&str] = &[
 /// `agent_config`, kept, and `agent_run`, bounded at 93 days; of origin own `agent_playbook` and `agent_bindings`,
 /// kept, `agent_effect` and `agent_log`, bounded at 93 days, `agent_session`, bounded at 35 days, `agent_checkpoint`,
 /// bounded at 93 days, `agent_reply`, kept by default until the owner answers O4, with its `day` and `at`, and
-/// `agent_start`, kept by default until the owner answers the entry on the start instant, one row for an agent.
+/// `agent_start`, kept by default until the owner answers the entry on the start instant, one row for an agent, and
+/// `agent_finished`, kept, one row for each playbook number that a compile finished (CP-182).
 pub const KINDS: &[KindEntry] = &[
     KindEntry {
         name: "agent_config",
@@ -241,5 +242,21 @@ pub const KINDS: &[KindEntry] = &[
             ("at", FieldType::Instant),
         ],
         example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","day":20768,"at":1794339000000000010}"#,
+    },
+    KindEntry {
+        name: "agent_finished",
+        class: RetentionClass::Kept,
+        origin: Origin::Own,
+        family: "agent",
+        workflow_key: Some("workflow"),
+        fields: &[
+            ("v", FieldType::Version),
+            ("workflow", FieldType::Id),
+            ("agent", FieldType::Id),
+            ("number", FieldType::Count),
+            ("steps", FieldType::Count),
+            ("run", FieldType::Id),
+        ],
+        example: r#"{"v":1,"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","number":1,"steps":2,"run":"50505050505050505050505050505050"}"#,
     },
 ];
