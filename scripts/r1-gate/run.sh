@@ -65,9 +65,9 @@ R1 gate driver. One line for each sub-check of the done-when.
   sh scripts/r1-gate/run.sh [--duration N] [--input none|operator] [--strict] [--allow-dirty] [--remove-scratch]
       Measure the built binary of HEAD. The first line names the commit, the
       tree id, the state of the work tree, the input and the machine. The tree
-      id is the hash of the listing of HEAD without docs/baseline, so a squash
-      and the commit that adds the record keep it:
-        git ls-tree -r HEAD | awk -F '\t' 'index(\$2, "docs/baseline/") != 1' | git hash-object --stdin
+      id is the hash of the listing of HEAD without docs/baseline and the list
+      of names, so a squash and the commit that adds the record keep it:
+        git ls-tree -r HEAD | awk -F '\t' 'index(\$2, "docs/baseline/") != 1 && \$2 != "scripts/r1-gate/mutants.expected"' | git hash-object --stdin
       A dirty tree is refused unless --allow-dirty is given,
       and then every line says so. N is the length of each timed run in seconds,
       a positive integer with no leading zero (default $GATE_DURATION, which

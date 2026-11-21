@@ -187,7 +187,14 @@ shows that the substitution applies and compiles nothing, under the type check
 as under the build.
 `mutants.expected` lists one name for each mutant that a review applied and
 the name of every row whose state is `required` or `required on <place>`; a
-unit that adds such a row adds its name in the same change. Under `--strict` a
+unit that adds such a row adds its name in the same change. The gate record
+does not move for the list: the tree id leaves `mutants.expected` out as it
+leaves `docs/baseline/` out, and `scripts/r1/ci.d/15-gate-self-test.sh` reads
+the record against the last commit that changed another file of
+`scripts/r1-gate` or the bounds file. So a change of the list alone needs no
+new record, and a record is made again only for a change of such a file: a
+record made at a later commit whose tree differs outside `docs/baseline/` and
+the list reads stale. Under `--strict` a
 FAIL line comes for each name that no row file holds or retires, for each such
 required row whose name the list lacks, with the row file named, and for a
 missing `mutants.expected`. The count line of every run gives both numbers.

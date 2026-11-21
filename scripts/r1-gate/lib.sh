@@ -459,7 +459,7 @@ measured_sha() {
 
 tree_id() {
   tree_listing=$(git -C "$1" ls-tree -r "$2" 2>/dev/null) || return 1
-  printf '%s\n' "$tree_listing" | awk -F '\t' 'index($2, "docs/baseline/") != 1 && index($2, "\"docs/baseline/") != 1' | git hash-object --stdin
+  printf '%s\n' "$tree_listing" | awk -F '\t' 'index($2, "docs/baseline/") != 1 && index($2, "\"docs/baseline/") != 1 && $2 != "scripts/r1-gate/mutants.expected"' | git hash-object --stdin
 }
 
 head_read() {

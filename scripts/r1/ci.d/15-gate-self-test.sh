@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: On every run the last record of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file; the self-tests of the R1 gate, sh scripts/r1-gate/run.sh --self-test and each check script under dash, run only in the weekly run, when the range of the push or the pull request changes a path of this script's list, and when that range cannot be read, and then they pass, print each group's PASS line once and reject at least one failing fixture each; an ordinary push or pull request runs neither pass.
+# rule: On every run the last record of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate, its list of names mutants.expected aside, or the bounds file; the self-tests of the R1 gate, sh scripts/r1-gate/run.sh --self-test and each check script under dash, run only in the weekly run, when the range of the push or the pull request changes a path of this script's list, and when that range cannot be read, and then they pass, print each group's PASS line once and reject at least one failing fixture each; an ordinary push or pull request runs neither pass.
 # lane: alone
 # limit: 1800
 set -u
@@ -57,7 +57,7 @@ record_defect() (
   isolated_git
   record_tree=$(sed -n 's/^gate head=[0-9a-f]* tree=\([0-9a-f]*\) .*/\1/p' "$1/docs/baseline/r1-gate-main.txt" 2>/dev/null | tail -n 1)
   [ -n "$record_tree" ] || { printf 'docs/baseline/r1-gate-main.txt holds no line gate head=... tree=...\n'; return 1; }
-  record_commit=$(git -C "$1" log -1 --format=%H -- scripts/r1-gate docs/baseline/r1-gate-bounds.txt) || { printf 'git log could not read the history of scripts/r1-gate\n'; return 1; }
+  record_commit=$(git -C "$1" log -1 --format=%H -- scripts/r1-gate docs/baseline/r1-gate-bounds.txt ':(icase,exclude)scripts/r1-gate/mutants.expected') || { printf 'git log could not read the history of scripts/r1-gate\n'; return 1; }
   [ -n "$record_commit" ] || { printf 'no commit changed scripts/r1-gate or the bounds file\n'; return 1; }
   record_want=$(GATE_ROOT=$1 sh -c '. "$0"; tree_id "$GATE_ROOT" "$1"' "$1/scripts/r1-gate/lib.sh" "$record_commit") || { printf 'tree_id of lib.sh could not read %s\n' "$record_commit"; return 1; }
   record_bounds=$(sed -n 's/^gate head=[0-9a-f]* tree=[0-9a-f]* bounds=\([0-9a-f]*\) .*/\1/p' "$1/docs/baseline/r1-gate-main.txt" 2>/dev/null | tail -n 1)
@@ -96,11 +96,35 @@ fixture_record() {
 
 record_case() {
   repo=$work/record-$1
+  mkdir -p "$repo/scripts/r1-gate" || exit 2
+  printf 'name-one\n' >"$repo/scripts/r1-gate/mutants.expected"
   fixture_record "$repo"
   case $1 in
     stale) printf '# a later change\n' >>"$repo/scripts/r1-gate/lib.sh"; fixture_commit "$repo" ;;
     bounds-changed) printf 'x=2\n' >"$repo/docs/baseline/r1-gate-bounds.txt"; fixture_commit "$repo" ;;
     other-file-changed) printf 'notes\n' >"$repo/README.md"; fixture_commit "$repo" ;;
+    list-changed) printf 'name-two\n' >>"$repo/scripts/r1-gate/mutants.expected"; fixture_commit "$repo" ;;
+    names-added-with-their-rows)
+      mkdir -p "$repo/crates/x/src" || exit 2
+      printf 'row\n' >"$repo/crates/x/src/mutants.rows"
+      printf 'name-two\n' >>"$repo/scripts/r1-gate/mutants.expected"
+      fixture_commit "$repo" ;;
+    list-edited-after-the-record)
+      printf '# the change that the record measured\n' >>"$repo/scripts/r1-gate/lib.sh"
+      git -C "$repo" add -A >/dev/null 2>&1 || exit 2
+      measured=$(git -C "$repo" write-tree) || exit 2
+      recorded=$(GATE_ROOT=$repo sh -c '. "$0"; tree_id "$GATE_ROOT" "$1"' "$repo/scripts/r1-gate/lib.sh" "$measured") || exit 2
+      printf 'gate head=0 tree=%s bounds=%s state=clean input=none machine=host\n' "$recorded" "$recorded_blob" >>"$repo/docs/baseline/r1-gate-main.txt"
+      printf 'name-two\n' >>"$repo/scripts/r1-gate/mutants.expected"
+      fixture_commit "$repo" ;;
+    list-and-lib-changed)
+      printf 'name-two\n' >>"$repo/scripts/r1-gate/mutants.expected"
+      printf '# a later change\n' >>"$repo/scripts/r1-gate/lib.sh"
+      fixture_commit "$repo" ;;
+    list-in-another-case)
+      blob=$(printf 'name-two\n' | git -C "$repo" hash-object -w --stdin) || exit 2
+      git -C "$repo" update-index --add --cacheinfo "100644,$blob,scripts/r1-gate/Mutants.expected" || exit 2
+      fixture_commit "$repo" '' index ;;
   esac
   got=PASS
   record_defect "$repo" >/dev/null || got=FAIL
@@ -308,7 +332,11 @@ ranged() {
     other) printf 'notes\n' >"$work/$1/README.md"; fixture_commit "$work/$1" ;;
     gate) printf '# a change\n' >>"$work/$1/scripts/r1-gate/check-store.sh"; fixture_record "$work/$1" ;;
     check) printf '# a change\n' >>"$work/$1/scripts/r1/ci.d/$name.sh"; fixture_commit "$work/$1" ;;
-    expected) printf 'row\n' >>"$work/$1/scripts/r1-gate/mutants.expected"; fixture_record "$work/$1" ;;
+    expected)
+      printf 'row\n' >>"$work/$1/scripts/r1-gate/mutants.expected"
+      record_line=$(tail -n 1 "$work/$1/docs/baseline/r1-gate-main.txt") || exit 2
+      printf '%s\n' "$record_line" >>"$work/$1/docs/baseline/r1-gate-main.txt"
+      fixture_commit "$work/$1" ;;
     two)
       mkdir -p "$work/$1/scripts/ci" "$work/$1/.github/workflows" || exit 2
       printf '# a change\n' >>"$work/$1/scripts/ci/run-ci-d.sh"
@@ -445,6 +473,11 @@ self_test() {
   record_case other-file-changed PASS
   record_case stale FAIL
   record_case bounds-changed FAIL
+  record_case list-changed PASS
+  record_case names-added-with-their-rows PASS
+  record_case list-edited-after-the-record PASS
+  record_case list-and-lib-changed FAIL
+  record_case list-in-another-case PASS
   run_changed="gate file changed: scripts/r1-gate/check-store.sh${nl}gate self-tests: run (gate file changed: scripts/r1-gate/check-store.sh)"
   new_branch="{\"before\": \"$zero\", \"repository\": {\"default_branch\": \"trunk\"}}"
   ranged push-no-gate-file-changed other push '{"before": "@from@", "after": "@to@"}' "$planned"
