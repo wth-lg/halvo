@@ -1,0 +1,2 @@
+- Added: learn-gate privacy checks learn_listed, learn_scrub and learn_expired on the derived store, opened with its key, with three refusal tests of its delete and of a step's origin; learn_delete_all stays not-run.
+- Changed: 60-r5-privacy.sh wants five ok lines and learn_delete_all not-run.
