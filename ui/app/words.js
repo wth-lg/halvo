@@ -173,6 +173,8 @@
     DELETE_WORKFLOW_YES: "Yes, delete it",
     NOT_LOOKING: "Halvo is not looking for repeated tasks yet.",
     NOTHING_FOUND: "Halvo has not found a repeated task yet.",
+    LOOKS_WHEN: "Halvo looks for repeated tasks while this computer is plugged in and not in use.",
+    WORKFLOW_IN_USE: "Halvo did not delete this workflow, because an agent is still using it. Try again later.",
   };
 
   Halvo.errorWords = function (e) {

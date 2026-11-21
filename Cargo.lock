@@ -1548,6 +1548,7 @@ dependencies = [
  "halvo-control",
  "halvo-coord",
  "halvo-coord-app",
+ "halvo-schema-core",
  "halvo-test-dir",
  "objc2",
  "objc2-foundation",
