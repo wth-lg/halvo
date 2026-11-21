@@ -657,6 +657,7 @@ pub fn compose_setup(
             } else {
                 String::new()
             },
+            refused: None,
         });
     }
     let line = if not_taken {

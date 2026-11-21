@@ -7,7 +7,8 @@ param(
     [long]$Root = 0,
     [string]$Start = '',
     [int]$Rules = -1,
-    [string]$Listed = ''
+    [string]$Listed = '',
+    [int]$SystemIcmp = 0
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
@@ -15,6 +16,7 @@ Add-Type -AssemblyName System.Numerics
 
 $FilteringPlatformConnection = '{0CCE9226-69AE-11D9-BED3-505054503030}'
 $ProcessCreation = '{0CCE922B-69AE-11D9-BED3-505054503030}'
+$ProcessTermination = '{0CCE922C-69AE-11D9-BED3-505054503030}'
 $DnsChannel = 'Microsoft-Windows-DNS-Client/Operational'
 $Utf8 = New-Object System.Text.UTF8Encoding $false
 
@@ -78,7 +80,7 @@ function Get-PortComplement([int[]]$ports) {
 
 function Get-Setting {
     $parts = @()
-    foreach ($pair in @(@('fpc', $FilteringPlatformConnection), @('pc', $ProcessCreation))) {
+    foreach ($pair in @(@('fpc', $FilteringPlatformConnection), @('pc', $ProcessCreation), @('pt', $ProcessTermination))) {
         $row = @(& auditpol.exe /get "/subcategory:$($pair[1])" /r | Where-Object { $_ -ne '' } | ConvertFrom-Csv)
         if ($row.Count -eq 0) { throw 'auditpol could not read an audit setting' }
         $parts += "$($pair[0])=$($row[0].'Inclusion Setting')"
@@ -95,7 +97,7 @@ function Set-Setting([string]$saved) {
         $pair = $part.Split('=', 2)
         if ($pair.Count -eq 2) { $values[$pair[0]] = $pair[1] }
     }
-    foreach ($pair in @(@('fpc', $FilteringPlatformConnection), @('pc', $ProcessCreation))) {
+    foreach ($pair in @(@('fpc', $FilteringPlatformConnection), @('pc', $ProcessCreation), @('pt', $ProcessTermination))) {
         if (-not $values.ContainsKey($pair[0])) { continue }
         $success = 'disable'
         $failure = 'disable'
@@ -207,7 +209,7 @@ function Test-Kept {
             ($_.DisplayName -like '* saved' -and "$($_.Enabled)" -eq 'False') -or ("$($_.Enabled)" -eq 'True' -and "$($_.Action)" -eq 'Block' -and "$($_.Direction)" -eq 'Outbound')
         }).Count
     if ($kept -ne $Rules) { throw "the run's firewall rules were changed during the run ($kept of $Rules left)" }
-    foreach ($pair in @(@($FilteringPlatformConnection, 'Success and Failure'), @($ProcessCreation, 'Success'))) {
+    foreach ($pair in @(@($FilteringPlatformConnection, 'Success and Failure'), @($ProcessCreation, 'Success'), @($ProcessTermination, 'Success'))) {
         $row = @(& auditpol.exe /get "/subcategory:$($pair[0])" /r | Where-Object { $_ -ne '' } | ConvertFrom-Csv)
         if ($row.Count -eq 0 -or $row[0].'Inclusion Setting' -notlike "$($pair[1])*") { throw "an audit of the run was switched off during the run" }
     }
@@ -217,39 +219,64 @@ function Test-Kept {
     }
 }
 
+function Find-Span($spans, [long]$processId, [DateTime]$instant) {
+    foreach ($span in $spans) {
+        if ($span.Pid -eq $processId -and $span.From -le $instant -and ($null -eq $span.To -or $instant -le $span.To)) { return $span }
+    }
+    $null
+}
+
+function Close-Span([hashtable]$open, [long]$processId, [DateTime]$instant) {
+    if (-not $open.ContainsKey($processId) -or $open[$processId].From -gt $instant) { return $false }
+    $open[$processId].To = $instant
+    $open.Remove($processId)
+    $true
+}
+
 function Write-Log {
     Test-Kept
     $start = [DateTime]::Parse($Start, $null, [Globalization.DateTimeStyles]::RoundtripKind)
     Start-Sleep -Seconds 2
     $since = $start.ToLocalTime().AddSeconds(-1)
-    $tree = @{}
-    $images = @{}
-    $tree[[long]$Root] = $true
-    $created = @(Get-Events @{ LogName = 'Security'; Id = 4688; StartTime = $since })
-    foreach ($record in ($created | Sort-Object RecordId)) {
+    $records = @(Get-Events @{ LogName = 'Security'; Id = @(4688, 4689, 5156, 5157); StartTime = $since } | Sort-Object RecordId)
+    $open = @{}
+    $spans = @()
+    $rooted = $false
+    $connections = New-Object System.Collections.Generic.List[object]
+    $seen = @{ '4688' = 0; '4689' = 0; '5156' = 0; '5157' = 0; 'left' = 0; 'tree5156' = 0; 'tree5157' = 0 }
+    foreach ($record in $records) {
+        $seen["$($record.Id)"]++
+        if ($record.Id -ne 4688 -and $record.Id -ne 4689) {
+            $connections.Add($record)
+            continue
+        }
         $xml = [xml]$record.ToXml()
+        $at = [DateTime]$record.TimeCreated
+        if ($record.Id -eq 4689) {
+            if (Close-Span $open ([Convert]::ToInt64((Get-Field $xml 'ProcessId'), 16)) $at) { $seen['left']++ }
+            continue
+        }
         $child = [Convert]::ToInt64((Get-Field $xml 'NewProcessId'), 16)
         $parent = [Convert]::ToInt64((Get-Field $xml 'ProcessId'), 16)
-        $image = [IO.Path]::GetFileName((Get-Field $xml 'NewProcessName'))
-        if ($child -eq $Root) { $images[$child] = $image }
-        if ($tree.ContainsKey($parent)) {
-            $tree[$child] = $true
-            $images[$child] = $image
+        $null = Close-Span $open $child $at
+        $isRoot = -not $rooted -and $child -eq $Root -and $at.ToUniversalTime() -ge $start
+        if ($isRoot -or $null -ne (Find-Span $spans $parent $at)) {
+            if ($isRoot) { $rooted = $true }
+            $span = [pscustomobject]@{ Pid = $child; Image = [IO.Path]::GetFileName((Get-Field $xml 'NewProcessName')); From = $at; To = $null }
+            $spans += $span
+            $open[$child] = $span
         }
     }
-    if (-not $images.ContainsKey([long]$Root)) { throw 'the process-creation audit holds no event for the runner' }
+    if (-not $rooted) { throw 'the process-creation audit holds no event for the runner' }
     $allowed = @{}
     foreach ($pair in $Listed.Split(';')) { if ($pair -ne '' -and $pair -ne 'none') { $allowed[$pair] = $true } }
     $lines = @()
-    $connections = @(Get-Events @{ LogName = 'Security'; Id = @(5156, 5157); StartTime = $since })
-    $seen = @{ '5156' = 0; '5157' = 0; 'tree5156' = 0; 'tree5157' = 0 }
     foreach ($record in $connections) {
         $xml = [xml]$record.ToXml()
-        $seen["$($record.Id)"]++
         $processId = [long](Get-Field $xml 'ProcessID')
         $protocol = Get-Field $xml 'Protocol'
-        $sentBySystem = $Deny -eq 1 -and $record.Id -eq 5157 -and ($protocol -eq '1' -or $protocol -eq '58') -and ($processId -eq 4 -or $processId -eq 0)
-        if (-not $tree.ContainsKey($processId) -and -not $sentBySystem) { continue }
+        $sentBySystem = $SystemIcmp -eq 1 -and $Deny -eq 1 -and $record.Id -eq 5157 -and ($protocol -eq '1' -or $protocol -eq '58') -and ($processId -eq 4 -or $processId -eq 0)
+        if (-not $sentBySystem -and $null -eq (Find-Span $spans $processId ([DateTime]$record.TimeCreated))) { continue }
         $seen["tree$($record.Id)"]++
         if ((Get-Field $xml 'Direction') -ne '%%14593') { continue }
         $proto = switch ($protocol) { '6' { 'tcp' } '17' { 'udp' } '1' { 'icmp' } '58' { 'icmp' } default { '-' } }
@@ -271,17 +298,15 @@ function Write-Log {
     $seen['3006'] = $dns.Count
     $seen['tree3006'] = 0
     foreach ($record in $dns) {
-        $processId = [long]$record.ProcessId
-        if (-not $tree.ContainsKey($processId)) { continue }
+        $span = Find-Span $spans ([long]$record.ProcessId) ([DateTime]$record.TimeCreated)
+        if ($null -eq $span) { continue }
         $seen['tree3006']++
-        $image = '-'
-        if ($images.ContainsKey($processId)) { $image = $images[$processId] }
-        $lines += [pscustomobject]@{ At = (Get-Instant $record); Order = $record.RecordId; Text = "proto=dns dest=resolver pid=$processId image=$image" }
+        $lines += [pscustomobject]@{ At = (Get-Instant $record); Order = $record.RecordId; Text = "proto=dns dest=resolver pid=$($record.ProcessId) image=$($span.Image)" }
     }
     $text = ''
     foreach ($line in ($lines | Sort-Object At, Order)) { $text += "denied at=$($line.At) $($line.Text)`n" }
     [IO.File]::WriteAllText((Join-Path $Dir 'denied.log'), $text, $Utf8)
-    $counts = "created=$($created.Count) tree=$($tree.Count) events5156=$($seen['5156']) events5157=$($seen['5157']) tree5156=$($seen['tree5156']) tree5157=$($seen['tree5157']) events3006=$($seen['3006']) tree3006=$($seen['tree3006'])`n"
+    $counts = "created=$($seen['4688']) ended=$($seen['4689']) tree=$($spans.Count) left=$($seen['left']) events5156=$($seen['5156']) events5157=$($seen['5157']) tree5156=$($seen['tree5156']) tree5157=$($seen['tree5157']) events3006=$($seen['3006']) tree3006=$($seen['tree3006'])`n"
     [IO.File]::WriteAllText((Join-Path $Dir 'counts'), $counts, $Utf8)
 }
 
@@ -307,6 +332,8 @@ switch ($Action) {
             if ($LASTEXITCODE -ne 0) { throw 'auditpol could not enable the Filtering Platform Connection audit' }
             $null = & auditpol.exe /set "/subcategory:$ProcessCreation" /success:enable
             if ($LASTEXITCODE -ne 0) { throw 'auditpol could not enable the Process Creation audit' }
+            $null = & auditpol.exe /set "/subcategory:$ProcessTermination" /success:enable
+            if ($LASTEXITCODE -ne 0) { throw 'auditpol could not enable the Process Termination audit' }
             $null = & wevtutil.exe sl $DnsChannel /e:true
             if ($LASTEXITCODE -ne 0) { throw 'wevtutil could not enable the DNS client channel' }
             Set-NetFirewallProfile -Profile Domain, Public, Private -Enabled True

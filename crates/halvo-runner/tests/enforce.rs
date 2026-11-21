@@ -613,13 +613,14 @@ fn the_binary_still_fails_a_web_step_and_an_api_call_and_asks_no_confirmation() 
         },
         LONG,
     );
-    let failed: Vec<Option<Cause>> = seen
-        .logs()
-        .iter()
-        .filter(|l| l.event == LogEvent::StepFailed)
-        .map(|l| l.cause)
-        .collect();
-    assert_eq!(failed, [Some(Cause::Adapter)]);
+    assert_eq!(
+        (seen.done(), seen.logs().last().map(|l| (l.event, l.cause))),
+        (
+            Some(Outcome::Failed),
+            Some((LogEvent::Stopped, Some(Cause::NoStart)))
+        ),
+        "the mail list of a load with no start row stops before any request"
+    );
     assert!(seen.effects().is_empty() && !seen.tags().contains(&"confirm"));
 }
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every vendored file of account/schema/ has its recorded sha256, account/schema/vendored.txt names the four vendored files in their order, each with its sha256 and one path, and holds no other line, sh account/schema/vendor.sh --check finds each vendored file and the record equal to the four files of the backend in the same tree, no cargo configuration file sits at the repository root or under account/ and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test first runs sh account/schema/vendor.sh --self-test, prints its last line and fails when it does not exit 0, then runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 112 and 89: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside, the two layouts of a build script's out directory that the runner images of the windows job give, and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives from the five values that the run holds, read by one more function, and that harness cases check with values of their own at both. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
+# rule: Every vendored file of account/schema/ has its recorded sha256, account/schema/vendored.txt names the four vendored files in their order, each with its sha256 and one path, and holds no other line, sh account/schema/vendor.sh --check finds each vendored file and the record equal to the four files of the backend in the same tree, no cargo configuration file sits at the repository root or under account/, but the root .cargo/config.toml when it is one [env] table whose keys are the ones that scripts/r6/ci.d/40-r6-policy.sh lists in env_keys, and no symbolic link under account/, account/deny.toml is the configuration that this script admits with at least the 27 bans of unit 7.1, and, offline with the cargo-deny version and the packages that scripts/prerequisites.sh installs and fetches, cargo's metadata of account/ holds no package from a source outside crates.io, no local path outside account/ on the disk or by its text and no package named with sqlite or sqlcipher, no tracked file lies under target/account, and after cargo clean of the packages of account/ cargo deny check bans licenses sources over the four targets that Halvo is built for, build, test, fmt --check and clippy with all features pass for account/, the packages of account/Cargo.lock that no such target compiles and whose licence is outside the allow list are the ones that this script lists, the dep-info files that this build wrote for the packages of account/, each package with at least one, name no file with a tab or another control character, which the reader cannot split without doubt and so refuses, and list no file that, made real on the disk, is a symbolic link, is not there, or lies outside account/ and outside the out directory that the same dep-info file names for its build script under target/account, and no tracked file differs from HEAD after cargo ran; on a GitHub-hosted runner the hosted test of halvo-secrets stores, reads and deletes an item and prints store=keychain and store=file in the macos job and store=dpapi in the windows job. Its self-test first runs sh account/schema/vendor.sh --self-test, prints its last line and fails when it does not exit 0, then runs the real builds path-attribute-outside, include-outside, include-str-outside, include-bytes-outside, include-from-the-target-directory, moved-tree, moved-tree-with-an-outside-include, source-put-right, member-named-with-a-hash, directory-name-with-a-tab in the macos job alone and includes-inside in both jobs, fails when the real builds of its job are none, and fails in a whole run, one without R7_ACCOUNT_CASES, when none ran. Two lists of the script name every case of the self-test, 112 and 89: the macos job runs both, and the windows job runs the first alone and prints one line for each case of the second, because the windows job is held under ST-22's line. The first holds the cases that end before the first cargo fetch, the cases whose subject differs between the two systems (line ends, the tracked-file guard, paths that leave account/, the drive and cygpath spellings, names whose bytes the tools of the windows runner read in their own way, includes-inside, the two layouts of a build script's out directory that the runner images of the windows job give, and the hosted store of the windows job), the controls unchanged, git-source-in-lock, banned-package-in-graph, dep-info-path-outside and tracked-file-under-the-target, and the harness cases. The self-test fails when a case of its job's list did not run (the link case alone may print that its system made no symbolic link), when a case stands on no list, when the count of cases left to the macos job is wrong or when the job that it read is not the driver's, a verdict that one function gives from the five values that the run holds, read by one more function, and that harness cases check with values of their own at both. The windows job therefore no longer shows that the script refuses the left-out cases under the shell tools of the windows runner; the macos job of the same commit does, and a commit needs both jobs green. Limits: what a build script or a proc macro of account/ reads, copies or writes while it runs is not seen. A doc example is compiled by rustdoc, which writes no dep-info. Code under a cfg that neither job compiles is not read. Code of account/ that runs in the job (a build script, a proc macro, a test) can change the target before the check reads it. A source replacement in the cargo home of the machine is outside the check.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -26,6 +26,7 @@ record-line-without-a-path backend-byte-schema.v1.json
 backend-byte-routes.v1.json backend-byte-samples.v1.json backend-byte-prompt-budget.json
 backend-without-a-file sum-of-65-digits sum-in-upper-case
 record-with-a-fifth-line fifth-line-without-newline config-source-replacement
+config-env-key-off-the-list
 config-patch-under-account config-name-in-another-case link-out-of-account escaped-path-key
 escaped-build-key path-outside-account git-source-in-lock crlf-line-ends licence-added-to-list
 licence-exception git-allowed unknown-git-warns extra-line-without-newline ban-with-wrappers
@@ -154,6 +155,26 @@ is_cargo_config_name() {
   return 1
 }
 
+root_env_table_alone() {
+  [ -f "$1" ] && [ ! -L "$1" ] || return 1
+  env_keys=$(sed -n "s/^env_keys='\\(.*\\)'\$/\\1/p" "${self%/*}/../../r6/ci.d/40-r6-policy.sh" 2>/dev/null)
+  [ -n "$env_keys" ] || return 1
+  awk -v keys="$env_keys" '
+    BEGIN { n = split(keys, list, " "); for (i = 1; i <= n; i++) allowed[list[i]] = 1 }
+    { line = $0; sub(/\r$/, "", line) }
+    line == "" { next }
+    line == "[env]" && !header { header = 1; next }
+    !header { bad = 1; exit }
+    {
+      key = line
+      if (index(key, "=") == 0) { bad = 1; exit }
+      sub(/ *=.*/, "", key)
+      if (!(key in allowed)) { bad = 1; exit }
+    }
+    END { exit (bad || !header) ? 1 : 0 }
+  ' "$1"
+}
+
 check_config_files() {
   {
     find . -maxdepth 1 -iname .cargo
@@ -163,6 +184,9 @@ check_config_files() {
     [ -d "$dir" ] || continue
     for entry in "$dir"/*; do
       if is_cargo_config_name "${entry##*/}"; then
+        if [ "$entry" = ./.cargo/config.toml ] && root_env_table_alone "$entry"; then
+          continue
+        fi
         fail 'a cargo configuration file sits at the repository root or under account/'
       fi
     done
@@ -1564,6 +1588,9 @@ EOF
   make_fixture config-source-replacement && mkdir "$fixture/.cargo" &&
     printf '[source.crates-io]\nreplace-with = "vendored"\n\n[source.vendored]\ndirectory = "vendor"\n' >"$fixture/.cargo/config.toml" &&
     run_case config-source-replacement "FAIL $name ($cause_config)" stub
+  make_fixture config-env-key-off-the-list && mkdir "$fixture/.cargo" &&
+    printf '[env]\nSQLCIPHER_LIB_DIR = { value = "x", force = true }\nOTHER_KEY = "1"\n' >"$fixture/.cargo/config.toml" &&
+    run_case config-env-key-off-the-list "FAIL $name ($cause_config)" stub
   make_fixture config-patch-under-account && mkdir "$fixture/account/.cargo" &&
     printf '[patch.crates-io]\nitoa = { path = "../outside-itoa" }\n' >"$fixture/account/.cargo/config" &&
     run_case config-patch-under-account "FAIL $name ($cause_config)" stub

@@ -893,3 +893,52 @@ fn through_the_app_an_agent_listed_paused_with_no_hold_by_its_events_reads_the_l
         Some(vec![json!("switch_on"), json!("delete")])
     );
 }
+
+fn hold_set(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, halvo_coord::types::What::HoldSet { .. })
+}
+
+/// U3.12 (A), term (5) of RD-161 R1 with RD-155 (1): a Switch off that stops the live run while
+/// the owner refuses to store its hold under class B answers, through the hub, its cause beside
+/// the sentence that says both halves, and the row's line no longer says it.
+#[test]
+fn u312_a_a_switch_off_that_could_not_be_saved_answers_both_halves_beside_its_cause() {
+    let hub = hub(1);
+    let (_app, main, _other) = app(hub.clone());
+    let control = |action: &str| {
+        invoke(
+            &main,
+            "agents_control",
+            json!({"agent": agent(0).to_string(), "action": action}),
+        )
+    };
+    assert_eq!(control("run_now"), Ok(fixture("reply-ok")));
+    let run = started(&hub).last().cloned().unwrap();
+    assert_eq!(hub.coordinator().on_run(&run, RunEvent::Hello), Ok(()));
+    let class_b = PortError::Refused(halvo_coord::types::Name::parse("no_workflow").unwrap());
+    hub.coordinator()
+        .ports()
+        .inner()
+        .with(|p| p.refuse_record(hold_set, class_b));
+    let sentence = halvo_coord::words::text("refused.switch_not_saved", &[]).unwrap();
+    let reply: Value = serde_json::from_str(&control("switch_off").unwrap()).unwrap();
+    assert_eq!(
+        reply,
+        json!({"error": "no_service", "text": sentence}),
+        "the answer at the press"
+    );
+    let row = hub
+        .coordinator()
+        .snapshot()
+        .rows
+        .into_iter()
+        .find(|r| r.agent == agent(0))
+        .unwrap();
+    assert!(
+        row.controls
+            .iter()
+            .any(|c| c.control == halvo_coord::types::Control::SwitchOff),
+        "the row shows the agent on"
+    );
+    assert_ne!(row.line, sentence, "one fact, one place");
+}

@@ -1,0 +1,3 @@
+package=halvo-capture
+bin=halvo-capture
+manifest=crates/halvo-capture/Cargo.toml

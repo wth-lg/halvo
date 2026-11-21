@@ -118,7 +118,10 @@ fn the_files_are_those_of_i8_3() {
     );
     assert_eq!(
         json("reply-error-queue_full.json"),
-        serde_json::json!({"error": "queue_full"})
+        serde_json::json!({
+            "error": "queue_full",
+            "text": words::text("refused.queue_full", &[]).unwrap()
+        })
     );
     assert_eq!(
         json("reply-next-same.json"),
