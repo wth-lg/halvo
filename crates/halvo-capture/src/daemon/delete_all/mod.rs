@@ -261,16 +261,75 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
         text.push_str("no_store\n");
         return print(out, err, &text, None, exit::CLEAN);
     }
+    let ran = match steps_of_the_delete(path, how, &mut || clear_the_mark(path)) {
+        Steps::Busy => return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY),
+        Steps::Ran(ran) => ran,
+    };
+    if let Some(line) = &ran.line {
+        text.push_str(line);
+    }
+    let status = if ran.whole { exit::CLEAN } else { exit::ERROR };
+    let causes = (!ran.causes.is_empty()).then(|| ran.causes.join("\n"));
+    print(out, err, &text, causes, status)
+}
+
+/// What the steps of a delete did in a data directory whose instance lock
+/// their caller holds.
+pub enum Steps {
+    /// Another process holds the store: nothing was deleted, and an intent
+    /// that these steps wrote was removed again.
+    Busy,
+    /// The steps ran to their end.
+    Ran(Box<Ran>),
+}
+
+/// What steps 2 to 5 of contracts.md C17 item 3 did, field by field.
+pub struct Ran {
+    /// The `deleted` line of contracts.md C2.6 without `store_id=`, none when
+    /// the store's delete answered no report.
+    pub line: Option<String>,
+    /// The report of the store's delete, none when it failed with no report.
+    pub report: Option<TailReport>,
+    pub entries_removed: u64,
+    pub entries_left: u64,
+    pub unknown_entries: u64,
+    pub intent_written: bool,
+    /// What stays, a line each for standard error; no line holds a path of
+    /// the store.
+    pub causes: Vec<String>,
+    /// The offline form's exit 0: the store's delete finished, no row stays
+    /// and no intent was kept by a failed removal.
+    pub whole: bool,
+    /// Whether every folder that the steps flush reached the drive, which a
+    /// whole finish needs before its intent goes.
+    pub synced: bool,
+}
+
+/// Steps 2 to 5 of contracts.md C17 item 3 in `path`, a data directory whose
+/// instance lock the caller holds, with the rows, selection and hands of
+/// `how`: the open of the store for the delete, the intent, the clear of the
+/// mark `store_made` by `clear` (which answers a line when the clear failed),
+/// the store's delete, the walk over the rows, the count of the entries that
+/// the registry does not know, the truncation of daemon.err, the flushes and
+/// the removal of the intent after a whole finish. The offline form runs
+/// them after it takes the lock, and the service run, which holds the lock
+/// for its life, on a delete request once its owner's thread has closed the
+/// store.
+pub fn steps_of_the_delete(
+    path: &Path,
+    how: &Offline<'_>,
+    clear: &mut dyn FnMut() -> Option<String>,
+) -> Steps {
     let host = DataDirStore::at(path);
     let probe = host.probe();
     let handle = match open_for_the_delete(&host, probe, how.select) {
         Ok(handle) => handle,
-        Err(Held) => return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY),
+        Err(Held) => return Steps::Busy,
     };
     let intent_stood = stands(&path.join(INTENT_FILE));
     let intent = write_intent(path, how.rows, probe);
     let mut causes = Vec::new();
-    if let Some(line) = clear_the_mark(path) {
+    if let Some(line) = clear() {
         causes.push(line);
     }
     let store = delete_the_store(&host, handle);
@@ -278,9 +337,22 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
         if !intent_stood {
             let _ = host.remove_durably(INTENT_FILE);
         }
-        return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY);
+        return Steps::Busy;
     }
     let finished = steps_3_to_5(path, how.rows, how.hands, store);
+    let ran = |line, report, causes| {
+        Steps::Ran(Box::new(Ran {
+            line,
+            report,
+            entries_removed: finished.walked.removed,
+            entries_left: finished.walked.left,
+            unknown_entries: finished.unknown,
+            intent_written: intent.is_ok(),
+            causes,
+            whole: finished.whole(),
+            synced: finished.not_synced.is_empty(),
+        }))
+    };
     let Some(report) = finished.store_report() else {
         if let TailAnswer::Failed(error) = &finished.store {
             causes.push(format!("halvo-capture: {error}"));
@@ -288,9 +360,9 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
         if stands(&path.join(INTENT_FILE)) {
             causes.push(INTENT_STAYS_LINE.to_owned());
         }
-        return print(out, err, &text, Some(causes.join("\n")), exit::ERROR);
+        return ran(None, None, causes);
     };
-    text.push_str(&deleted_line(report, &finished, intent.is_ok()));
+    let line = deleted_line(report, &finished, intent.is_ok());
     if let TailAnswer::NotFinished(report) = &finished.store {
         causes.push(match report.what_stays() {
             stays if stays.is_empty() => "halvo-capture: the delete is not finished".to_owned(),
@@ -312,13 +384,7 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
             one_line(&folder.to_string_lossy())
         ));
     }
-    let status = if finished.whole() {
-        exit::CLEAN
-    } else {
-        exit::ERROR
-    };
-    let causes = (!causes.is_empty()).then(|| causes.join("\n"));
-    print(out, err, &text, causes, status)
+    ran(Some(line), Some(report.clone()), causes)
 }
 
 /// Another process holds the store.

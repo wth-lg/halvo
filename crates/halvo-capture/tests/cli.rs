@@ -111,6 +111,56 @@ fn grows_to(dir: &Path, want: u64) {
     );
 }
 
+fn status_line(dir: &Path, key: &str) -> Option<String> {
+    let output = ctl(dir, &["status"]);
+    let prefix = format!("{key}=");
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find_map(|line| line.strip_prefix(prefix.as_str()).map(str::to_owned))
+}
+
+fn files_under(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+    let mut found = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return found;
+    };
+    for entry in entries.map_while(Result::ok) {
+        let path = entry.path();
+        match entry.file_type() {
+            Ok(kind) if kind.is_dir() => found.extend(files_under(&path)),
+            Ok(kind) if kind.is_file() => {
+                if let Ok(bytes) = std::fs::read(&path) {
+                    found.push((path, bytes));
+                }
+            }
+            _ => {}
+        }
+    }
+    found
+}
+
+fn names_under(dir: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return found;
+    };
+    for entry in entries.map_while(Result::ok) {
+        let path = entry.path();
+        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+            found.extend(names_under(&path));
+        }
+        found.push(path);
+    }
+    found
+}
+
+fn holds(haystack: &[u8], needle: &[u8]) -> bool {
+    !needle.is_empty()
+        && haystack
+            .windows(needle.len())
+            .any(|window| window == needle)
+}
+
 fn equal_twice(dir: &Path) {
     let first = total_events(dir);
     std::thread::sleep(Duration::from_millis(1_500));
@@ -168,6 +218,62 @@ fn ctl_starts_pauses_resumes_and_stops_the_service_run() {
         text(&paused)
     );
     equal_twice(&dir);
+
+    let old_id = status_line(&dir, "store_id").expect("case D: the status shows a store id");
+    let kept: Vec<Vec<u8>> = files_under(&dir.join("roots"))
+        .into_iter()
+        .map(|(_, bytes)| bytes)
+        .chain(std::fs::read(dir.join("store").join("store.key")).ok())
+        .collect();
+    assert_eq!(kept.len(), 2, "case D: one root file and store.key");
+    let fixed = ["store.key", "store.db", "store.db-wal", "segments"]
+        .map(|name| dir.join("store").join(name));
+    let names_before: Vec<PathBuf> = names_under(&dir.join("store"))
+        .into_iter()
+        .chain(names_under(&dir.join("roots")))
+        .filter(|name| !fixed.contains(name))
+        .collect();
+    let deleted = ctl(&dir, &["delete-all", &old_id]);
+    assert_eq!(deleted.status.code(), Some(0), "case D: {}", text(&deleted));
+    let deleted_line = String::from_utf8_lossy(&deleted.stdout).into_owned();
+    assert!(
+        deleted_line.starts_with("deleted "),
+        "case D: {}",
+        text(&deleted)
+    );
+    assert_eq!(
+        total_events(&dir),
+        0,
+        "case D: the inventory after the delete"
+    );
+    let new_id = status_line(&dir, "store_id").expect("case D: the status shows the fresh store");
+    assert_ne!(new_id, old_id, "case D: the store id did not change");
+    assert!(
+        deleted_line.ends_with(&format!(" store_id={new_id}\n")),
+        "case D: {deleted_line}"
+    );
+    for name in &names_before {
+        assert!(
+            std::fs::symlink_metadata(name).is_err(),
+            "case D: {} stands after the delete",
+            name.display()
+        );
+    }
+    for (path, bytes) in files_under(&dir) {
+        assert!(
+            !kept.iter().any(|kept| holds(&bytes, kept)),
+            "case D: {} holds bytes that the store held before the delete",
+            path.display()
+        );
+    }
+    let again = ctl(&dir, &["delete-all", &old_id]);
+    assert_eq!(again.status.code(), Some(0), "case D: {}", text(&again));
+    assert_eq!(
+        String::from_utf8_lossy(&again.stdout),
+        format!("already_deleted store_id={new_id}\n"),
+        "case D: {}",
+        text(&again)
+    );
 
     let before = total_events(&dir);
     let resumed = ctl(&dir, &["resume"]);

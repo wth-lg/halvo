@@ -633,6 +633,24 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.read_the_condition(owner);
     }
 
+    /// [`Self::set_slot`] for the slot of a delete request: `reply` gets the
+    /// Board of an end routine, as [`Self::follow_the_run_condition`] gives
+    /// it, when the stop that the slot asks for meets a source that does not
+    /// stop.
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    pub(crate) fn set_slot_answering(
+        &mut self,
+        slot: Slot,
+        owner: Option<&dyn OwnerLink>,
+        reply: &mut dyn FnMut(&Board),
+    ) {
+        self.slot = slot;
+        if let Some(ending) = self.follow_the_run_condition(owner, reply) {
+            self.ending = Some(ending);
+        }
+        self.publish();
+    }
+
     /// Renews the indicator lease at the supervisor's clock, as a client's
     /// Status with `indicator: true` asks (contracts.md C14 item 3), and reads
     /// the run condition at once, so that a claim with desired running and
