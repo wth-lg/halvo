@@ -470,16 +470,22 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `load`: one session entry per origin, and the agent's one start row or null when none stands.
+    /// The reply of `load`: the agent's newest finished playbook or null; the number that a new playbook is stored
+    /// under, the newest stored number plus 1, above the finished number (CP-182); one session entry per origin, and
+    /// the agent's one start row or null when none stands.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct LoadReply {
         pub config: AgentConfig = "config" => AgentConfig::from_raw,
         pub playbook: Option<LoadedPlaybook> = "playbook" => opt(LoadedPlaybook::from_raw),
+        pub next_playbook: NonZeroU32 = "next_playbook" => from_json,
         pub bindings: Option<LoadedBindings> = "bindings" => opt(LoadedBindings::from_raw),
         pub sessions: Vec<LoadedSession> = "sessions" => list(LoadedSession::from_raw),
         pub start: Option<AgentStart> = "start" => opt(AgentStart::from_raw),
     }
     rules(r) {
+        if r.playbook.as_ref().is_some_and(|p| p.number >= r.next_playbook) {
+            return Err(Refusal::malformed("LoadReply", "next_above_playbook").at("next_playbook"));
+        }
         let origins: Vec<&WebOrigin> = r.sessions.iter().map(|s| &s.origin).collect();
         each_once("LoadReply", &origins).map_err(|e| e.at("sessions"))?;
         if r

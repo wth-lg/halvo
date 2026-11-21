@@ -481,18 +481,63 @@ impl World {
     }
 
     pub fn finish(&mut self, r: u32, mode: &str, outcome: &str) -> Result<RunnerReply, Refused> {
+        self.finish_of(r, mode, outcome, None)
+    }
+
+    /// `finish` of the run whose record names `playbook`, the number under which a compile stored its steps (A7.4).
+    pub fn finish_of(
+        &mut self,
+        r: u32,
+        mode: &str,
+        outcome: &str,
+        playbook: Option<u32>,
+    ) -> Result<RunnerReply, Refused> {
+        self.runner(self.finish_body(r, mode, outcome, playbook))
+    }
+
+    fn finish_body(&self, r: u32, mode: &str, outcome: &str, playbook: Option<u32>) -> Value {
         let record = json!({
             "v": 1, "workflow": wf(self.pair), "agent": agent(self.pair), "run": run(r), "day": self.host.day,
-            "mode": mode, "outcome": outcome, "playbook": null, "steps": 3, "prompts": 0,
+            "mode": mode, "outcome": outcome, "playbook": playbook, "steps": 3, "prompts": 0,
             "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0, "model_calls": 0,
             "tokens_in": 0, "tokens_out": 0, "wall_s": 9, "model": null,
             "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
             "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
             "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
         });
-        self.runner(
-            json!({"op": "finish", "agent": agent(self.pair), "run": run(r), "record": record}),
-        )
+        json!({"op": "finish", "agent": agent(self.pair), "run": run(r), "record": record})
+    }
+
+    /// The compile of the run `r` that starts, stores `number` and finishes it in the agent store alone, so that the
+    /// agent store holds a newer finished number that the handlers did not see.
+    pub fn direct_compile(&mut self, r: u32, number: u32) {
+        let now = self.host.agent_now();
+        let start = json!({"op": "start_run", "workflow": wf(self.pair), "agent": agent(self.pair), "run": run(r), "mode": "compile"});
+        let started =
+            halvo_agent_store::coordinator(&mut self.host.agent, now, start.to_string().as_bytes());
+        assert!(
+            started.is_ok(),
+            "the agent store starts run {r}: {started:?}"
+        );
+        let body = json!({"op": "put_playbook", "agent": agent(self.pair), "run": run(r), "number": number, "steps": compiled()});
+        let put = halvo_agent_store::runner(&mut self.host.agent, now, body.to_string().as_bytes());
+        assert!(
+            put.is_ok(),
+            "the agent store stores number {number}: {put:?}"
+        );
+        self.direct_finish(r, number);
+    }
+
+    /// The finish of the compile of the run `r` with the outcome `completed`, sent to the agent store alone.
+    pub fn direct_finish(&mut self, r: u32, number: u32) {
+        let now = self.host.agent_now();
+        let body = self.finish_body(r, "compile", "completed", Some(number));
+        let reply =
+            halvo_agent_store::runner(&mut self.host.agent, now, body.to_string().as_bytes());
+        assert!(
+            reply.is_ok(),
+            "the agent store finishes number {number}: {reply:?}"
+        );
     }
 
     pub fn compile(&mut self, r: u32, number: u32, steps: Vec<Value>) {
@@ -500,7 +545,7 @@ impl World {
         self.load(r);
         let reply = self.put(r, number, steps);
         assert!(reply.is_ok(), "the compile's put_playbook: {reply:?}");
-        let reply = self.finish(r, "compile", "completed");
+        let reply = self.finish_of(r, "compile", "completed", Some(number));
         assert!(reply.is_ok(), "the compile's finish: {reply:?}");
     }
 

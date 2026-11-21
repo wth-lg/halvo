@@ -179,7 +179,7 @@ fn a_refused_learn_edit_row_stops_the_edit_side_of_its_workflow_and_nothing_else
         w.put(11, 2, compiled()),
         Ok(RunnerReply::Stored(_))
     ));
-    assert!(w.finish(11, "compile", "completed").is_ok());
+    assert!(w.finish_of(11, "compile", "completed", Some(2)).is_ok());
     assert_eq!(list(&mut w, 1), Err(Refused::Error(ErrorName::Store)));
     assert_eq!(rows_of(&w, "learn_edit", 1), edits_of_a);
     assert!(w.handlers.faults.is_empty(), "a stopped read is no fault");
@@ -241,7 +241,7 @@ fn a_refused_learn_run_row_makes_the_runs_of_its_workflow_lost_runs_and_stops_no
         w.put(11, 2, compiled()),
         Ok(RunnerReply::Stored(_))
     ));
-    assert!(w.finish(11, "compile", "completed").is_ok());
+    assert!(w.finish_of(11, "compile", "completed", Some(2)).is_ok());
     let withdrawn = edits(&w)
         .into_iter()
         .filter(|e| e.workflow.as_str() == wf(1) && e.state == EditState::Withdrawn)
@@ -401,7 +401,7 @@ fn a_learning_commit_that_the_store_refuses_leaves_the_agent_stores_reply() {
         w.put(6, 2, compiled()),
         Ok(RunnerReply::Stored(_))
     ));
-    assert!(w.finish(6, "compile", "completed").is_ok());
+    assert!(w.finish_of(6, "compile", "completed", Some(2)).is_ok());
 
     w.host.put_workflow(super::host::workflow(
         &wf(3),

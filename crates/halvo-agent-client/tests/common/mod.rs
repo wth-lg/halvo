@@ -402,7 +402,7 @@ const CONFIG: &str = r#"{"v":1,"workflow":"30303030303030303030303030303030","ag
 fn load_reply(bindings: &str, agent: &str) -> String {
     let config = CONFIG.replacen("40404040404040404040404040404040", agent, 1);
     format!(
-        r#"{{"config":{config},"playbook":null,"bindings":{bindings},"sessions":[],"start":null}}"#
+        r#"{{"config":{config},"playbook":null,"next_playbook":1,"bindings":{bindings},"sessions":[],"start":null}}"#
     )
 }
 

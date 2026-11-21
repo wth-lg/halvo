@@ -11,6 +11,7 @@ agent_bindings
 agent_checkpoint
 agent_config
 agent_effect
+agent_finished
 agent_log
 agent_playbook
 agent_reply
@@ -228,6 +229,7 @@ navigate
 navigation
 new_origin
 next
+next_playbook
 night
 no
 no_channel
