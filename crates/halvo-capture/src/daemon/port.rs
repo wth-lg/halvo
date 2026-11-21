@@ -6,7 +6,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use halvo_control::model::{StorageCap, UtcDay};
+use halvo_control::model::{InventoryRow, StorageCap, UtcDay};
 use uuid::{Builder, Uuid, Variant};
 
 use super::custody_policy::Custody;
@@ -305,6 +305,13 @@ pub trait CaptureStore: MaintainStore {
         let _ = from;
         Err(MaintFault::Io(io::ErrorKind::Unsupported))
     }
+
+    /// The rows of the store's per-day rollup that hold records, by UTC day
+    /// and kind (contracts.md C2.2); a row of a kind that is no `Modality` is
+    /// left out. A store that keeps no rollup answers no row.
+    fn inventory(&mut self) -> Result<Vec<InventoryRow>, MaintFault> {
+        Ok(Vec::new())
+    }
 }
 
 impl<S: MaintainStore + ?Sized> MaintainStore for Box<S> {
@@ -337,6 +344,10 @@ impl<S: CaptureStore + ?Sized> CaptureStore for Box<S> {
     #[cfg(feature = "r2")]
     fn read_segment(&mut self, from: Ordinal) -> Result<SegmentRead, MaintFault> {
         (**self).read_segment(from)
+    }
+
+    fn inventory(&mut self) -> Result<Vec<InventoryRow>, MaintFault> {
+        (**self).inventory()
     }
 }
 

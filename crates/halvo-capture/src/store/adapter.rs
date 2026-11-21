@@ -102,6 +102,24 @@ impl CaptureStore for Adapter {
     ) -> Result<crate::daemon::port::SegmentRead, MaintFault> {
         read::first_at(&self.store, self.id, from).map_err(maint_fault)
     }
+
+    fn inventory(&mut self) -> Result<Vec<halvo_control::model::InventoryRow>, MaintFault> {
+        let rows = self.store.inventory().map_err(maint_fault)?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| {
+                Some(halvo_control::model::InventoryRow {
+                    day: halvo_control::model::UtcDay::from_days_since_epoch(
+                        row.day.days_since_epoch(),
+                    )
+                    .ok()?,
+                    modality: row.kind.parse().ok()?,
+                    events: row.events,
+                    bytes: row.bytes,
+                })
+            })
+            .collect())
+    }
 }
 
 /// The read of the cursor on the encrypted store.

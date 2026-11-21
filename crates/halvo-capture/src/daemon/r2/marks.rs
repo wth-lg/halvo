@@ -90,8 +90,11 @@ impl Marks {
     /// `stored` of the reply: true when the owner took the record of this
     /// request.
     #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the dispatch lines of the capture run call it")
+        not(any(test, all(target_os = "macos", debug_assertions))),
+        expect(
+            dead_code,
+            reason = "the store owner, whose mark command calls it, is built in tests and in macOS debug builds alone"
+        )
     )]
     pub(in crate::daemon) fn request(
         &mut self,

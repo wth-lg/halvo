@@ -394,6 +394,37 @@ impl Drop for ForegroundWriter {
 }
 
 #[cfg(debug_assertions)]
+impl ForegroundWriter {
+    /// A writer on the same state and read, for the next foreground source of
+    /// a service run once the source that held the last one has stopped; its
+    /// drop clears the value, as the drop of every writer does.
+    pub(crate) fn share(&self) -> ForegroundWriter {
+        ForegroundWriter {
+            state: self.state.clone(),
+            read: self.read.clone(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl ForegroundSource {
+    /// The product's source of [`ForegroundSource::new`] whose title reader
+    /// is a stand-in that reads no title, for a test that must read no title
+    /// of the machine that runs it.
+    pub(crate) fn with_stand_in_title(
+        interval: Duration,
+        foreground: ForegroundWriter,
+        turns: RunLoopTurns,
+    ) -> Self {
+        let mut source = Self::new(interval, foreground, turns);
+        if let Some(readers) = source.readers.as_mut() {
+            readers.1 = Box::new(|_| Ok(None));
+        }
+        source
+    }
+}
+
+#[cfg(debug_assertions)]
 impl ForegroundReader {
     /// A reader with no writer, which reads nothing in front: for tests in a
     /// process of their own, which cannot claim the main run loop.
