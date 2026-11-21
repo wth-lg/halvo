@@ -281,6 +281,10 @@ impl Finished {
     }
 }
 
+/// The line of an offline delete that did not finish whole and leaves its
+/// intent.
+const INTENT_STAYS_LINE: &str = "halvo-capture: delete-all.intent stays until a delete finishes; until then a start of the service run opens no store";
+
 /// The line of a delete that another process holds back.
 const BUSY_LINE: &str =
     "halvo-capture: another process holds the data directory or its store; this request deleted nothing";
@@ -329,6 +333,7 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
         Ok(handle) => handle,
         Err(Held) => return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY),
     };
+    let intent_stood = stands(&path.join(INTENT_FILE));
     let intent = write_intent(path, how.rows, probe);
     let mut causes = Vec::new();
     if let Some(line) = clear_the_mark(path) {
@@ -336,13 +341,18 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
     }
     let store = delete_the_store(&host, handle);
     if matches!(store, TailAnswer::Held) {
-        let _ = host.remove_durably(INTENT_FILE);
+        if !intent_stood {
+            let _ = host.remove_durably(INTENT_FILE);
+        }
         return print(out, err, &text, Some(BUSY_LINE.to_owned()), exit::BUSY);
     }
     let finished = steps_3_to_5(path, how.rows, how.hands, store);
     let Some(report) = finished.store_report() else {
         if let TailAnswer::Failed(error) = &finished.store {
             causes.push(format!("halvo-capture: {error}"));
+        }
+        if stands(&path.join(INTENT_FILE)) {
+            causes.push(INTENT_STAYS_LINE.to_owned());
         }
         return print(out, err, &text, Some(causes.join("\n")), exit::ERROR);
     };
@@ -358,6 +368,9 @@ pub fn run(dir: &DataDir, how: &Offline<'_>, out: &mut dyn Write, err: &mut dyn 
             "halvo-capture: {} registered entries stay; a process that a pid file names did not end, or their files could not be removed",
             finished.walked.left
         ));
+    }
+    if !finished.whole() && stands(&path.join(INTENT_FILE)) {
+        causes.push(INTENT_STAYS_LINE.to_owned());
     }
     for folder in &finished.not_synced {
         causes.push(format!(
@@ -588,9 +601,11 @@ fn clear_the_mark(dir: &Path) -> Option<String> {
 
 /// Steps 3 to 5 of contracts.md C17 item 3 after the store's delete answered
 /// `store`: the walk over the other rows, the count of the entries that the
-/// registry does not know, the truncation of daemon.err, the flush of each
-/// folder from which the delete removed a name, and the removal of the
-/// intent when every flush succeeded.
+/// registry does not know, the truncation of daemon.err, the flush of store/,
+/// roots/ and, after the walk removed an entry, the data directory, and the
+/// removal of the intent only after a whole finish: the store's delete
+/// answered finished, no row stays and every flush succeeded. After any other
+/// finish the intent stays, so that the next start tries again.
 fn steps_3_to_5(dir: &Path, rows: &[Row], hands: &dyn Hands, store: TailAnswer) -> Finished {
     let store_done = matches!(store, TailAnswer::Finished(_));
     let walked = walk(dir, rows, store_done, hands);
@@ -607,7 +622,7 @@ fn steps_3_to_5(dir: &Path, rows: &[Row], hands: &dyn Hands, store: TailAnswer) 
             not_synced.push(folder);
         }
     }
-    if not_synced.is_empty() {
+    if matches!(store, TailAnswer::Finished(_)) && walked.left == 0 && not_synced.is_empty() {
         let _ = host.remove_durably(INTENT_FILE);
     }
     Finished {
@@ -732,9 +747,10 @@ pub enum AtStart {
     /// No intent stands.
     NoIntent,
     /// The intent named the store whose store.key stands, or no store.key
-    /// that names a store stood beside it: the delete was finished from step
-    /// 3, and `whole` says whether every row was handled and every flush
-    /// succeeded, so that the intent was removed.
+    /// that names a store stood beside it: the delete was run from step 3.
+    /// `whole` is true when the store's delete answered finished, every row
+    /// was handled and every flush succeeded, and the intent was removed; when
+    /// it is false the intent stays and this start opens no store.
     Finished { whole: bool },
     /// The intent named another root: it was removed and nothing else.
     Stale,
@@ -752,7 +768,7 @@ impl AtStart {
                 Some("halvo-capture: a delete-all that was cut short was finished before the open")
             }
             AtStart::Finished { whole: false } => Some(
-                "halvo-capture: a delete-all that was cut short is not finished; delete-all.intent stays",
+                "halvo-capture: a delete-all that was cut short could not be finished: delete-all.intent stays, no store is opened in this run, and the next start tries again",
             ),
             AtStart::Stale => {
                 Some("halvo-capture: delete-all.intent named another store and was removed")
@@ -786,9 +802,10 @@ fn intent_root(bytes: &[u8]) -> Option<Option<String>> {
 /// `data_dir` (contracts.md C17 item 3, "At start"), before the open's first
 /// call: an intent of store.key's root id, or one with no readable store.key
 /// beside it, is finished from step 3 through `host`'s tail and the walk over
-/// `rows` by `hands`, and `deleting` is called before that step; an intent
-/// of another root is removed and nothing else; an intent that cannot be read
-/// is left.
+/// `rows` by `hands`, and `deleting` is called before that step; a tail that
+/// another process holds back deletes nothing, and no row is walked; the
+/// intent stays unless the finish is whole. An intent of another root is
+/// removed and nothing else; an intent that cannot be read is left.
 pub fn at_start(
     data_dir: &Path,
     rows: &[Row],
@@ -813,7 +830,11 @@ pub fn at_start(
         return AtStart::Stale;
     }
     deleting();
-    let finished = steps_3_to_5(data_dir, rows, hands, host.delete());
+    let store = host.delete();
+    if matches!(store, TailAnswer::Held) {
+        return AtStart::Finished { whole: false };
+    }
+    let finished = steps_3_to_5(data_dir, rows, hands, store);
     AtStart::Finished {
         whole: finished.whole() && finished.not_synced.is_empty(),
     }

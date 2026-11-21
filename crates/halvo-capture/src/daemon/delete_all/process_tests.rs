@@ -29,6 +29,8 @@ use crate::event::Modality;
 const HOLD: &str = "HALVO_DELETE_ALL_HOLD";
 const HELD_TEST: &str =
     "daemon::delete_all::process_tests::a_held_store_answers_busy_and_removes_nothing";
+const STORE_HOLD: &str = "HALVO_DELETE_ALL_STORE_HOLD";
+const START_TEST: &str = "daemon::delete_all::process_tests::a_start_whose_finish_cannot_delete_keeps_the_intent_and_opens_nothing";
 
 fn data_dir(path: &Path) -> DataDir {
     DataDir::from_flag(path.to_str().unwrap()).unwrap()
@@ -500,4 +502,112 @@ fn an_intent_at_start_is_finished_before_the_open() {
         at_start(&dir, &rows(), &SystemHands, &DataDirStore::at(&dir), &|| {}),
         AtStart::NoIntent
     );
+}
+
+fn opener_after_an_intent(dir: &Path) -> (Opener, mpsc::Receiver<AtStart>) {
+    let (found, answer) = mpsc::channel();
+    let path = dir.to_path_buf();
+    let finish = Box::new(move |host: &dyn StoreHost, deleting: &dyn Fn()| {
+        let at = at_start(&path, &rows(), &SystemHands, host, deleting);
+        found.send(at).unwrap();
+        at
+    });
+    let opener = Opener::start_with(
+        finish,
+        Box::new(DataDirStore::at(dir)),
+        custody_policy::of_this_build,
+        CreateRule::FirstRun,
+    )
+    .unwrap();
+    (opener, answer)
+}
+
+#[test]
+fn a_start_whose_finish_cannot_delete_keeps_the_intent_and_opens_nothing() {
+    if let Some(dir) = std::env::var_os(STORE_HOLD) {
+        let Opened::ReadWrite { store, .. } =
+            DataDirStore::at(Path::new(&dir)).open(Access::ReadWrite)
+        else {
+            panic!("the holder did not open the store");
+        };
+        let mut out = std::io::stdout().lock();
+        writeln!(out, "delete-all-store-holder: held").unwrap();
+        out.flush().unwrap();
+        let mut rest = Vec::new();
+        let _ = std::io::stdin().read_to_end(&mut rest);
+        drop(store);
+        return;
+    }
+    let dir = kept_dir("delete-all-start-held-");
+    let old = a_store_with_a_segment(&dir);
+    let old_root = root_files(&dir);
+    assert_eq!(old_root.len(), 1);
+    std::fs::write(
+        dir.join("delete-all.intent"),
+        format!("{{\"v\":1,\"started_at\":\"2026-11-21T00:00:00Z\",\"entries\":[{{\"name\":\"store\",\"custody_kind\":\"root_file\",\"root_id\":\"{old}\"}}]}}"),
+    )
+    .unwrap();
+    let mut holder = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", START_TEST, "--nocapture", "--test-threads=1"])
+        .env(STORE_HOLD, &dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(holder.stdout.take().unwrap()).lines();
+    let started = Instant::now();
+    loop {
+        let line = lines.next().expect("the holder ended early").unwrap();
+        if line.contains("delete-all-store-holder: held") {
+            break;
+        }
+        assert!(started.elapsed() < Duration::from_secs(60));
+    }
+
+    let (first, answer) = opener_after_an_intent(&dir);
+    let found = answer.recv_timeout(Duration::from_secs(60)).unwrap();
+    std::thread::sleep(Duration::from_millis(500));
+    let intent_stays = dir.join("delete-all.intent").exists();
+    let (slot, tries) = (first.slot(), first.tries());
+    first.stop();
+    assert!(first.wait_for_its_call(Duration::from_secs(60)));
+    let handed = first.take().is_some();
+    drop(holder.stdin.take());
+    for line in lines.by_ref() {
+        line.unwrap();
+    }
+    assert!(holder.wait().unwrap().success(), "the holder failed");
+
+    assert_eq!(found, AtStart::Finished { whole: false });
+    assert!(
+        intent_stays,
+        "a finish that deleted nothing removed the intent"
+    );
+    assert_eq!((slot, tries, handed), (Slot::Deleting, 0, false));
+    assert!(dir.join("store/store.key").exists());
+
+    let (second, answer) = opener_after_an_intent(&dir);
+    assert_eq!(
+        answer.recv_timeout(Duration::from_secs(60)).unwrap(),
+        AtStart::Finished { whole: true }
+    );
+    let started = Instant::now();
+    let held = loop {
+        if let Some(held) = second.take() {
+            break held;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(60),
+            "the second start never handed a store; slot {:?}",
+            second.slot()
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    let Held::Capture { id, .. } = held else {
+        panic!("the fresh store did not open for capture");
+    };
+    assert_ne!(id.to_string(), old);
+    assert!(!old_root[0].exists());
+    assert!(!dir.join("delete-all.intent").exists());
 }

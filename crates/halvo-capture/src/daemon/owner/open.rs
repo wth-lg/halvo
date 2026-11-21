@@ -134,9 +134,11 @@ impl Opener {
     /// Starts the tries of the open on `host` under `select` and `rule`
     /// after `at_start` ran on the open's thread: the slot reads Deleting from
     /// the moment that `at_start` begins a delete. After a delete that a start
-    /// finished, a store is made where none stands, also under the rule
+    /// finished whole, a store is made where none stands, also under the rule
     /// StoreMade, whose mark a clear that failed may have left, and a slot of
-    /// a make that failed reads Empty.
+    /// a make that failed reads Empty. After a delete that a start could not
+    /// finish whole, no try of the open is made: the slot reads Deleting until
+    /// the tries are stopped, and the next start tries the delete again.
     pub fn start_with(
         at_start: AtStartCall,
         host: Box<dyn StoreHost>,
@@ -156,8 +158,13 @@ impl Opener {
                 move || {
                     let deleting =
                         || *slot.lock().unwrap_or_else(PoisonError::into_inner) = Slot::Deleting;
-                    let deleted =
-                        matches!(at_start(host.as_ref(), &deleting), AtStart::Finished { .. });
+                    let found = at_start(host.as_ref(), &deleting);
+                    if found == (AtStart::Finished { whole: false }) {
+                        deleting();
+                        wait_unless_stopped(&stop, None);
+                        return;
+                    }
+                    let deleted = found == (AtStart::Finished { whole: true });
                     let rule = match rule {
                         CreateRule::StoreMade if deleted => CreateRule::FirstRun,
                         rule => rule,
