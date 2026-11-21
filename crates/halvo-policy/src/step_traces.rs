@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
+use halvo_schema::executable::names::Cause;
 use halvo_schema::executable::{ActionClass, Digest, EffectId, EffectState};
 use serde_json::Value;
 
-use crate::not_made::{followed, stopped_after};
 use crate::{effect_step, Decided, Decision, Effect, EffectMove, StepCause};
 
 fn traces() -> String {
@@ -108,6 +108,12 @@ fn step_move(m: &Value, class_of_effect: ActionClass) -> EffectMove {
         },
         "commit" => EffectMove::Commit,
         "lose" => EffectMove::Lose,
+        "not_made" => EffectMove::NotMade {
+            cause: match Cause::parse(need("cause")) {
+                Ok(c) => c,
+                Err(r) => panic!("{r}"),
+            },
+        },
         other => panic!("move {other}"),
     }
 }
@@ -142,15 +148,9 @@ fn effect_step_answers_every_move_of_the_model_traces_with_the_model_cause() {
         let Some(steps) = trace.get("moves").and_then(Value::as_array) else {
             panic!("trace {n} has no moves");
         };
-        let mut gone = false;
         let mut refused_not_made = false;
         for (i, m) in steps.iter().enumerate() {
             moves += 1;
-            if !followed(text(m, "move"), gone) {
-                gone = stopped_after(gone, text(m, "move"), text(m, "answer") == "ok");
-                refused_not_made = refused_not_made || !gone;
-                continue;
-            }
             if refused_not_made {
                 after_refused += 1;
             }
@@ -185,6 +185,8 @@ fn effect_step_answers_every_move_of_the_model_traces_with_the_model_cause() {
             if text(m, "move") == "rebind" && answer == "ok" {
                 rebinds += 1;
             }
+            refused_not_made =
+                refused_not_made || (text(m, "move") == "not_made" && answer != "ok");
             now = want_state;
             bound = digest(text(m, "bound"));
         }
@@ -212,6 +214,8 @@ fn effect_step_answers_every_move_of_the_model_traces_with_the_model_cause() {
         ("begin", "digest"),
         ("lose", "ok"),
         ("commit", "ok"),
+        ("not_made", "ok"),
+        ("not_made", "class"),
     ] {
         assert!(
             met.contains(&(mv.to_owned(), answer.to_owned())),
