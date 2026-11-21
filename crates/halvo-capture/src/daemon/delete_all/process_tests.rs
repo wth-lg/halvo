@@ -188,6 +188,9 @@ fn the_offline_delete_leaves_no_store() {
         format!("pid={} started=1700000000123456\n", std::process::id()),
     )
     .unwrap();
+    let profile = dir.join("agents/profiles/50000000000000000000000000000001");
+    std::fs::create_dir_all(&profile).unwrap();
+    std::fs::write(profile.join("Preferences"), b"a runner's profile").unwrap();
     std::fs::create_dir(dir.join("spare")).unwrap();
     std::fs::write(dir.join("spare/spare.key"), [9u8; 32]).unwrap();
     std::fs::write(dir.join("planted.txt"), b"not the registry's").unwrap();
@@ -228,7 +231,7 @@ fn the_offline_delete_leaves_no_store() {
     );
     assert!(deleted.contains(" root_destroyed=yes "), "{deleted}");
     assert!(
-        deleted.contains(" entries_removed=6 entries_left=0 unknown_entries=1 intent=written"),
+        deleted.contains(" entries_removed=7 entries_left=0 unknown_entries=1 intent=written"),
         "{deleted}"
     );
     assert!(!deleted.contains("store_id="), "{deleted}");
@@ -237,6 +240,7 @@ fn the_offline_delete_leaves_no_store() {
     assert!(segment_files(&dir).is_empty());
     assert!(root_files(&dir).is_empty(), "{:?}", root_files(&dir));
     assert!(!dir.join("derived").exists());
+    assert!(!dir.join("agents").exists());
     assert!(!dir.join("spare").exists());
     assert!(!dir.join("delete-all.intent").exists());
     assert_eq!(
@@ -254,6 +258,7 @@ fn the_offline_delete_leaves_no_store() {
             ),
             "key derived/master.key".to_owned(),
             "remove derived".to_owned(),
+            "remove agents".to_owned(),
             "key spare/spare.key".to_owned(),
             "remove spare".to_owned(),
         ]
