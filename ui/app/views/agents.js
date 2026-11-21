@@ -22,7 +22,7 @@
   var again = null;
   var asking = 0;
   var busy = {};
-  var answers = {};
+  var answers = [];
   var pointerFrom = null;
   var keyFrom = null;
   var SPACE = String.fromCharCode(32);
@@ -61,12 +61,20 @@
     );
   }
 
+  function keep(stays) {
+    var before = answers.length;
+    answers = answers.filter(function (a) {
+      if (stays(a)) return true;
+      if (a.said) a.said.remove();
+      return false;
+    });
+    return answers.length !== before;
+  }
+
   function drop(agent) {
-    var a = answers[agent];
-    if (!a) return false;
-    if (a.said) a.said.remove();
-    delete answers[agent];
-    return true;
+    return keep(function (a) {
+      return a.agent !== agent;
+    });
   }
 
   function answer(agent, act, text) {
@@ -85,7 +93,7 @@
       say.add([text]);
       said = status.firstChild;
     }
-    answers[agent] = { act: act, line: row.line, text: text, said: said };
+    answers.push({ agent: agent, act: act, line: row.line, text: text, said: said });
     render();
   }
 
@@ -99,8 +107,11 @@
   }
 
   function beside(b, row) {
-    var a = answers[row.agent];
-    if (!a || a.act !== b.getAttribute('data-act')) return null;
+    var a = null;
+    answers.forEach(function (x) {
+      if (x.agent === row.agent && x.act === b.getAttribute('data-act')) a = x;
+    });
+    if (a === null) return null;
     var p = el('p', 'r4a-answer', a.text);
     p.id = 'r4a-answer-' + row.agent;
     var by = b.getAttribute('aria-describedby');
@@ -448,6 +459,11 @@
     seq = reply.seq;
     snapshot = reply;
     busy = {};
+    keep(function (a) {
+      return reply.rows.some(function (r) {
+        return r.agent === a.agent && r.line === a.line;
+      });
+    });
     if (question !== null) {
       var asked = question;
       var still = reply.rows.some(function (r) {
@@ -506,6 +522,10 @@
       if (shown) return;
       shown = true;
       turn += 1;
+      var dropped = keep(function () {
+        return false;
+      });
+      if (dropped) render();
       var mine = turn;
       call('agents_snapshot', {})
         .then(function (reply) {

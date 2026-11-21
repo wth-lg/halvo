@@ -1488,7 +1488,7 @@ if (want('card')) {
 
 if (want('ten')) {
   const ten = json('state-ten.json').snapshot;
-  const [A] = ten.rows;
+  const [A, , C] = ten.rows;
   const words = json('words.json');
   const CAUSES = readdirSync(FIXTURES)
     .map((f) => /^reply-error-(.+)\.json$/.exec(f))
@@ -1522,6 +1522,51 @@ if (want('ten')) {
     const ok =
       CAUSES.length === 12 &&
       seen.every((s) => typeof words['refused.' + s.cause] === 'string' && s.text === words['refused.' + s.cause] && s.beside && s.described && same(s.said, [[s.text]]));
+    return [ok, seen];
+  });
+
+  await test('a_refused_press_answer_stands_through_a_state_that_keeps_its_row_and_goes_at_each_end', async () => {
+    const line = [words['line.all_set.done'], words['line.all_set.new']].find((l) => typeof l === 'string' && l !== A.line);
+    const changed = { ...ten, seq: 3, rows: ten.rows.map((r) => (r.agent === A.agent ? { ...r, line } : r)) };
+    const syncCall = { ...callOf(C, 'run_now'), reply: { ok: 'yes' } };
+    const replies = [
+      { state: ten },
+      refused('busy'),
+      syncCall,
+      { state: { ...ten, seq: 2 } },
+      { ...callOf(A, 'switch_off'), reply: { ok: 'yes' } },
+      refused('busy'),
+      syncCall,
+      { state: changed },
+      refused('busy'),
+    ];
+    const sync = async (h) => {
+      await h.page.evaluate((c) => window.Halvo.ipc.call('agents_control', { agent: c, action: 'run_now' }), C.agent);
+      await settleCalls(h);
+      await settleCalls(h);
+    };
+    const seen = {};
+    await withPage({ origin, replies, views: [CONFIRM, VIEW] }, async (h) => {
+      await press(h, 'run_now', A.agent);
+      await sync(h);
+      seen.kept = await answerOf(h, 'run_now');
+      await press(h, 'switch_off', A.agent);
+      seen.pressed = await answerOf(h, 'run_now');
+      await press(h, 'run_now', A.agent);
+      seen.before_line = await answerOf(h, 'run_now');
+      await sync(h);
+      seen.line = await answerOf(h, 'run_now');
+      await press(h, 'run_now', A.agent);
+      seen.before_drawn = await answerOf(h, 'run_now');
+      await h.page.evaluate(() => window.Halvo.views.window('hidden'));
+      await h.page.evaluate(() => window.Halvo.views.window('shown'));
+      await settleCalls(h);
+      seen.drawn = await answerOf(h, 'run_now');
+    });
+    const sentence = words['refused.busy'];
+    const stands = (s) => typeof sentence === 'string' && s.text === sentence && s.beside && same(s.said, [[sentence]]);
+    const gone = (s) => s.text === null && same(s.said, [[]]);
+    const ok = typeof line === 'string' && stands(seen.kept) && gone(seen.pressed) && stands(seen.before_line) && gone(seen.line) && stands(seen.before_drawn) && gone(seen.drawn);
     return [ok, seen];
   });
 }
