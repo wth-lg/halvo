@@ -1,9 +1,10 @@
 #![cfg(all(target_os = "macos", debug_assertions))]
 
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use halvo_control::instance_lock::{self, LockRead};
@@ -18,7 +19,8 @@ use super::maintenance::{Clocks, MAINTENANCE_INTERVAL, SHRED_CHUNK};
 use super::model_store::{noon, open_floor, ManualClocks};
 use super::owner::{Owner, OwnerHandle, OwnerParts};
 use super::port::{
-    CaptureStore, DataDirStore, EntryKind, KindEntry, Opened, SegmentId, SegmentWrite, StoreHost,
+    ByteBound, CaptureStore, DataDirStore, EntryKind, KindEntry, MaintFault, MaintainStore, Opened,
+    Pass, SegmentId, SegmentWrite, StoreHost, Usage, WriteFault, Written,
 };
 use super::state::tests::TestWrite;
 use super::state::{DaemonState, StateDir, StateFile, StateWrite};
@@ -1049,5 +1051,81 @@ fn a_record_past_its_window_is_unreadable_within_one_deadline_on_the_real_store(
         stamped,
         Some(clocks.wall()),
         "last_expiry_at is not the deadline's wall time"
+    );
+}
+
+#[derive(Clone, Default)]
+struct Expiries(Arc<Mutex<Vec<Result<(usize, bool), MaintFault>>>>);
+
+impl Expiries {
+    fn taken(&self) -> Vec<Result<(usize, bool), MaintFault>> {
+        self.0.lock().unwrap().clone()
+    }
+}
+
+struct Counted<S> {
+    store: S,
+    expiries: Expiries,
+}
+
+impl<S: MaintainStore> MaintainStore for Counted<S> {
+    fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> Result<Pass, MaintFault> {
+        let answer = self.store.expire_due(now, max_segments);
+        self.expiries.0.lock().unwrap().push(
+            answer
+                .as_ref()
+                .map(|pass| (pass.shredded.len(), pass.more_due))
+                .map_err(|fault| *fault),
+        );
+        answer
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.store.evict_to(bound, max_segments)
+    }
+
+    fn usage(&mut self) -> Result<Usage, MaintFault> {
+        self.store.usage()
+    }
+}
+
+impl<S: CaptureStore> CaptureStore for Counted<S> {
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        self.store.write_batch(write)
+    }
+
+    fn volume_free_bytes(&self) -> io::Result<u64> {
+        self.store.volume_free_bytes()
+    }
+}
+
+#[test]
+fn a_start_over_a_backlog_expires_all_of_it_in_chunks() {
+    let dir = kept_dir("upkeep-tests-");
+    let mut store = made_store(&dir);
+    for _ in 0..65 {
+        segment_at(&mut *store, noon() - 15 * DAY, b"due\n");
+    }
+    let expiries = Expiries::default();
+    let counted = Counted {
+        store,
+        expiries: expiries.clone(),
+    };
+    let clocks = ManualClocks::at(noon());
+    let (mut owner, _handle, _sink) = owner_over(counted, &clocks, StorageCap::DEFAULT);
+    for _ in 0..3 {
+        assert!(owner.pass(Duration::ZERO), "the owner stopped");
+    }
+    drop(owner);
+    assert_eq!(
+        expiries.taken(),
+        [Ok((SHRED_CHUNK, true)), Ok((1, false))],
+        "the start did not expire the backlog of 65 in a chunk of 64 at the open and one more in the next loop pass"
+    );
+    let read = DataDirStore::at(&dir).read_back();
+    assert_eq!(read.len(), 65);
+    assert!(
+        read.iter().all(Option::is_none),
+        "a segment of the backlog still decrypts"
     );
 }
