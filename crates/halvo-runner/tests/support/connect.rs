@@ -11,17 +11,21 @@ use std::time::Duration;
 
 use halvo_schema::executable::body::{LoadRepliesReply, RunnerCall, RunnerReply};
 use halvo_schema::executable::day::day_of;
-use halvo_schema::executable::frame::{SecretReply, StoreReply, StoreReplyFrame};
+use halvo_schema::executable::frame::{
+    Approval, ConfirmDecision, ConfirmEffect, ConfirmReply, SecretReply, StoreReply,
+    StoreReplyFrame,
+};
+use halvo_schema::executable::names::{Answer, FieldName};
 use halvo_schema::executable::text::{SecretText, V1};
 use halvo_schema::executable::{
-    AgentReply, AgentRun, AgentStart, EffectId, FromRunner, ProviderId, ReplyState, ToRunner,
-    WebOrigin,
+    AgentReply, AgentRun, AgentStart, ApprovalId, Bound, Cause, EffectId, EffectState, FromRunner,
+    ProviderId, ReplyState, ToRunner, WebOrigin,
 };
 use halvo_schema::record::Instant;
 use halvo_schema::Category;
 use serde_json::Value;
 
-use super::{is_op, load_with, slot, Act, Seen, Supervisor, LONG};
+use super::{is_op, load_with, slot, Act, Runner, Seen, Supervisor, LONG};
 
 /// The token of the seeds' credentials, the one that the fixture's Graph hosts take.
 pub const TOKEN: &str = "Zq7-halvo-marker-token";
@@ -113,6 +117,22 @@ impl Fixture {
     /// The number of drafts that the mail host holds.
     pub fn drafts(&self) -> u64 {
         self.state()["mail"]["drafts"].as_u64().expect("a count")
+    }
+
+    /// The mails that the mail host sent, in order, each as its `to` and the id of the message that it answered.
+    pub fn sent(&self) -> Vec<(String, String)> {
+        let text = |value: &Value| value.as_str().expect("a text").to_owned();
+        self.state()["mail"]["sent"]
+            .as_array()
+            .expect("a list")
+            .iter()
+            .map(|sent| (text(&sent["to"]), text(&sent["in_reply_to"])))
+            .collect()
+    }
+
+    /// Has the next request to a Graph host answered 429 with `Retry-After: <seconds>`.
+    pub fn throttle(&self, seconds: u32) {
+        self.control("POST", &format!("/throttle?seconds={seconds}"));
     }
 
     fn control(&self, method: &str, path: &str) -> Value {
@@ -263,8 +283,8 @@ impl ReplyStore {
 }
 
 /// Serves a run of `sup` that reads the stored secret `token` at every `secret`, gets a load whose start row stands
-/// at `start` (none for `None`), the rows of `store` at each `load_replies`, and whose each `reply_row` `store`
-/// keeps.
+/// at `start` (none for `None`), the rows of `store` at each `load_replies`, whose each `reply_row` `store` keeps,
+/// and whose each confirmation the person answers `reject_once` for every effect.
 pub fn serve_run(
     sup: &Supervisor,
     token: &str,
@@ -283,29 +303,185 @@ pub fn serve_run_then(
     mut first: impl FnMut(&FromRunner) -> Option<Act>,
 ) -> Seen {
     sup.serve(
-        |frame, _| {
-            if let Some(act) = first(frame) {
-                return act;
-            }
-            if matches!(frame, FromRunner::Secret(_)) {
-                let value = SecretText::parse(token).expect("a stored secret");
-                return Act::With(ToRunner::SecretReply(SecretReply::Stored(value)));
-            }
-            if is_op(frame, "load") {
-                return load_with(sup, frame, |l| l.start = start.map(|at| start_row(sup, at)));
-            }
-            if is_op(frame, "load_replies") {
-                return Act::With(store.answer(frame));
-            }
-            if let FromRunner::Store(s) = frame {
-                if let RunnerCall::ReplyRow(body) = s.request.body() {
-                    store.rows.push(body.record.clone());
-                }
-            }
-            Act::Answer
-        },
+        |frame, _| first(frame).unwrap_or_else(|| rule(sup, token, start, store, frame)),
         LONG,
     )
+}
+
+/// The act of `serve_run` for `frame`.
+fn rule(
+    sup: &Supervisor,
+    token: &str,
+    start: Option<Instant>,
+    store: &mut ReplyStore,
+    frame: &FromRunner,
+) -> Act {
+    if matches!(frame, FromRunner::Secret(_)) {
+        return secret(token);
+    }
+    if is_op(frame, "load") {
+        return load_with(sup, frame, |l| l.start = start.map(|at| start_row(sup, at)));
+    }
+    if is_op(frame, "load_replies") {
+        return Act::With(store.answer(frame));
+    }
+    if matches!(frame, FromRunner::Confirm(_)) {
+        return decision(frame, |_| Answer::RejectOnce);
+    }
+    if let FromRunner::Store(s) = frame {
+        if let RunnerCall::ReplyRow(body) = s.request.body() {
+            store.rows.push(body.record.clone());
+        }
+    }
+    Act::Answer
+}
+
+/// The reply to a `secret` frame that gives the stored secret `token`.
+pub fn secret(token: &str) -> Act {
+    let value = SecretText::parse(token).expect("a stored secret");
+    Act::With(ToRunner::SecretReply(SecretReply::Stored(value)))
+}
+
+/// The person's decision on the confirmation `frame`: `answer` for each of its effects, each approval with an id of
+/// its own and the digest that the card shows.
+pub fn decision(frame: &FromRunner, answer: impl Fn(&ConfirmEffect) -> Answer) -> Act {
+    let FromRunner::Confirm(c) = frame else {
+        panic!("not a confirm frame")
+    };
+    let approvals = c
+        .request
+        .effects
+        .iter()
+        .enumerate()
+        .map(|(i, e)| Approval {
+            approval: ApprovalId::from_random([0xa0 + u8::try_from(i).expect("an index"); 16]),
+            effect: e.effect.clone(),
+            digest: e.digest.clone(),
+            answer: answer(e),
+        })
+        .collect();
+    Act::With(ToRunner::ConfirmReply(ConfirmReply {
+        decision: ConfirmDecision { v: V1, approvals },
+    }))
+}
+
+/// The value of the bound field `to` of `bound`.
+pub fn bound_to(bound: &Bound) -> String {
+    bound
+        .fields()
+        .iter()
+        .find(|f| f.name == FieldName::To)
+        .map(|f| f.value.joined())
+        .expect("a field to")
+}
+
+/// How long `serve_run_holding` keeps the link open after the frame that it does not answer.
+pub const HOLD: Duration = Duration::from_millis(1500);
+
+/// `serve_run_then` until the first frame for which `held` holds: that frame gets no answer, the runner's standard
+/// input is closed `HOLD` after it, and every frame that the runner writes until its end is read and kept.
+pub fn serve_run_holding(
+    sup: &Supervisor,
+    token: &str,
+    start: Option<Instant>,
+    store: &mut ReplyStore,
+    mut first: impl FnMut(&FromRunner) -> Option<Act>,
+    held: impl Fn(&FromRunner) -> bool,
+) -> Seen {
+    let mut runner = Runner::start(&sup.args());
+    let mut frames = Vec::new();
+    let mut closed_at = None;
+    let mut closer = None;
+    while let Some(frame) = runner.recv() {
+        frames.push(frame.clone());
+        if closer.is_some() {
+            continue;
+        }
+        if held(&frame) {
+            let input = runner.input.take();
+            closer = Some(std::thread::spawn(move || {
+                std::thread::sleep(HOLD);
+                drop(input);
+            }));
+            continue;
+        }
+        let act = first(&frame).unwrap_or_else(|| rule(sup, token, start, store, &frame));
+        if !sup.act(&mut runner, &frame, act, &mut closed_at) {
+            break;
+        }
+    }
+    if let Some(closer) = closer {
+        closer.join().expect("the closer");
+    }
+    let status = runner.wait_within(LONG);
+    if status.is_none() {
+        runner.kill();
+    }
+    let stderr = runner.stderr();
+    Seen {
+        data_dir: runner.data_dir.clone(),
+        line: runner.line.clone(),
+        frames,
+        status,
+        stderr,
+        close_to_end: None,
+        group_gone: None,
+    }
+}
+
+/// Whether `frame` is a `reply_row` of the state `state`.
+pub fn is_reply_row(frame: &FromRunner, state: ReplyState) -> bool {
+    matches!(frame, FromRunner::Store(s)
+        if matches!(s.request.body(), RunnerCall::ReplyRow(b) if b.record.state == state))
+}
+
+/// The rows of the effects of a run in the order sent, each as the index of its effect among the run's effects by
+/// their first rows, its state and its cause.
+pub fn effect_rows(seen: &Seen) -> Vec<(usize, EffectState, Option<Cause>)> {
+    let mut ids: Vec<EffectId> = Vec::new();
+    seen.effects()
+        .into_iter()
+        .map(|e| {
+            let at = ids
+                .iter()
+                .position(|id| *id == e.effect)
+                .unwrap_or_else(|| {
+                    ids.push(e.effect.clone());
+                    ids.len() - 1
+                });
+            (at, e.state, e.cause)
+        })
+        .collect()
+}
+
+/// The rows of each `reply_row` that the runner sent for `message`, in order, each as its `seq`, its state, its
+/// draft and the index of its effect among the run's effects by their first rows.
+pub fn reply_rows_of(
+    seen: &Seen,
+    message: &str,
+) -> Vec<(u32, ReplyState, Option<String>, Option<usize>)> {
+    let mut ids: Vec<EffectId> = Vec::new();
+    for e in seen.effects() {
+        if !ids.contains(&e.effect) {
+            ids.push(e.effect);
+        }
+    }
+    seen.calls()
+        .into_iter()
+        .filter_map(|call| match call {
+            RunnerCall::ReplyRow(body) if body.record.message.as_str() == message => Some((
+                body.record.seq.get(),
+                body.record.state,
+                body.record.draft.as_ref().map(|d| d.as_str().to_owned()),
+                body.record.effect.as_ref().map(|e| {
+                    ids.iter()
+                        .position(|id| id == e)
+                        .expect("an effect of the run")
+                }),
+            )),
+            _ => None,
+        })
+        .collect()
 }
 
 /// The ids of each `load_replies` that the runner sent, in order.
