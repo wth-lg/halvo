@@ -597,6 +597,45 @@ impl<C> Board<C> {
         self.ends().ended_after_reap(facts, records)
     }
 
+    /// Whether the open `ready` item of `facts` is the raise of a run that `read`, the facts with
+    /// the ends that the row reads (`ended_after_reap`), ends `completed` or `nothing_to_do` while
+    /// the stored events end it `interrupted` or with no `run_ended`. The item's run is the run of
+    /// the newest `run_started` before the item's `item_raised` event: such a raise was stored
+    /// while the run's interrupted row or its missing end stood, before a record named the run
+    /// finished (RD-162 (1)). An item with no run before it, or whose run reads otherwise, is not
+    /// such a raise.
+    pub fn raise_of_a_finished_run(facts: &Facts<C>, read: &Facts<C>) -> bool {
+        use crate::types::What;
+        let Some(open) = facts
+            .doing
+            .item()
+            .filter(|o| o.kind == crate::types::ItemKind::Ready)
+        else {
+            return false;
+        };
+        let raised = facts
+            .events
+            .iter()
+            .position(|e| matches!(&e.what, What::ItemRaised { item, .. } if *item == open.item));
+        let Some(run) = raised.and_then(|at| {
+            facts.events[..at].iter().rev().find_map(|e| match &e.what {
+                What::RunStarted { run, .. } => Some(run),
+                _ => None,
+            })
+        }) else {
+            return false;
+        };
+        let finished = |f: &Facts<C>| {
+            f.events.iter().any(|e| match &e.what {
+                What::RunEnded { run: r, cause, .. } => {
+                    r == run && matches!(cause, RunEnd::Completed | RunEnd::NothingToDo)
+                }
+                _ => false,
+            })
+        };
+        finished(read) && !finished(facts)
+    }
+
     /// What `ended_after_reap` reads beside the facts and the records, held apart from the board
     /// (RD-156 (1)).
     pub(crate) fn ends(&self) -> Ends {
