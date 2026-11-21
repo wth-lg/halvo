@@ -226,7 +226,7 @@ fn store_bytes(dir: &Path) -> StoreBytes {
     found
 }
 
-const MADE: [&str; 3] = ["daemon-state.json", "roots", "store"];
+const MADE: [&str; 4] = ["daemon-state.json", "roots", "run", "store"];
 
 fn second_start(dir: &Path) -> (Option<i32>, Duration) {
     let started = Instant::now();
@@ -727,7 +727,10 @@ fn a_missing_data_directory_is_made_with_mode_0700_and_an_open_one_is_set_to_070
     let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode(&missing), 0o700);
     assert_eq!(mode(&root.join("below")), 0o700);
-    assert_eq!(names(&missing), vec!["daemon-state.json".to_owned()]);
+    assert_eq!(
+        names(&missing),
+        vec!["daemon-state.json".to_owned(), "run".to_owned()]
+    );
     let open = root.join("open");
     std::fs::create_dir(&open).unwrap();
     std::fs::set_permissions(&open, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -951,7 +954,7 @@ impl Drop for SearchBack {
 }
 
 #[test]
-fn the_held_service_run_opens_its_state_folder_through_the_lock_when_the_folder_above_cannot_be_searched(
+fn a_held_service_run_whose_folder_above_cannot_be_searched_cannot_bind_and_exits_1_writing_nothing(
 ) {
     use std::os::unix::fs::PermissionsExt;
     let root = kept_dir("service-tests-");
@@ -980,9 +983,12 @@ fn the_held_service_run_opens_its_state_folder_through_the_lock_when_the_folder_
     );
     drop(back);
     let err = String::from_utf8(err).unwrap();
-    assert_eq!(status, 0, "{err}");
-    assert!(!err.contains("folder of the data directory"), "{err}");
-    assert_eq!(names(&data), vec!["daemon-state.json".to_owned()]);
+    assert_eq!(status, 1, "{err}");
+    assert!(
+        err.ends_with("halvo-capture: the control channel could not be bound: permission denied\n"),
+        "{err}"
+    );
+    assert!(names(&data).is_empty(), "{:?}", names(&data));
 }
 
 const SECOND: Duration = Duration::from_secs(1);

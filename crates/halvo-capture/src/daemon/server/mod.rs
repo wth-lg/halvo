@@ -12,10 +12,22 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
 use std::time::Duration;
 
+use halvo_control::model::{CaptureState, Modality, UtcSecond};
+use halvo_control::onboarding::{
+    self, AssessInput, GrantState, Grants, OnboardingState, Permission, PermissionSet,
+};
 use halvo_control::proto::{
-    self, Admission, Decoded, ErrorCode, ErrorReply, Life, Reply, Request, PERMISSION_FORM,
+    self, Admission, CaptureReason, Custody, DaemonStatus, DaemonVersion, Decoded, DrainError,
+    ErrorCode, ErrorReply, Health, KindLine, LastStop, Life, LostRecord, OnOff, Parent,
+    PasswordGuard, PermissionLine, Platform, Reply, Request, SourceLine, StatusError, StatusFields,
+    StoreErrorKind, StoreState, SwitchLine, SwitchName, PERMISSION_FORM,
 };
 use halvo_control::wire::{self, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
+
+use super::board::{Board, Capture as BoardCapture};
+use super::slot::Slot;
+use super::state::{Cap as StateCap, Desired, StateHealth};
+use crate::floor::{Switch, Switches};
 
 /// How long the server waits for each read of a request (contracts.md C2.1).
 pub const READ_DEADLINE: Duration = Duration::from_secs(2);
@@ -125,7 +137,7 @@ pub fn serve_connection<S: Read + Write>(
             return None;
         }
     };
-    if let Err(reply) = admit(&request, admitting) {
+    if let Some(reply) = refusal(&request, admitting) {
         write_reply(stream, &reply);
         return None;
     }
@@ -151,24 +163,24 @@ pub fn serve_connection<S: Read + Write>(
 
 enum Got {
     Request(Request),
-    Answer(Reply),
+    Answer(Box<Reply>),
 }
 
 fn read_request<S: Read>(stream: &mut S) -> Got {
     let Ok(body) = wire::read_frame(stream, REQUEST_MAX_BYTES) else {
-        return Got::Answer(error(
+        return Got::Answer(Box::new(error(
             ErrorCode::InvalidArgument,
             "the request is not one whole frame",
-        ));
+        )));
     };
     match proto::decode_request(&body) {
-        Err(refused) => Got::Answer(refused.answer()),
-        Ok(Decoded::Unknown(unknown)) => Got::Answer(proto::unknown_answer(&unknown)),
+        Err(refused) => Got::Answer(Box::new(refused.answer())),
+        Ok(Decoded::Unknown(unknown)) => Got::Answer(Box::new(proto::unknown_answer(&unknown))),
         Ok(Decoded::Known(request)) if at_the_end(stream) => Got::Request(request),
-        Ok(Decoded::Known(_)) => Got::Answer(error(
+        Ok(Decoded::Known(_)) => Got::Answer(Box::new(error(
             ErrorCode::InvalidArgument,
             "the request is not one frame followed by the end of its stream",
-        )),
+        ))),
     }
 }
 
@@ -195,9 +207,9 @@ fn served_by_this_build(request: &Request) -> bool {
     )
 }
 
-fn admit(request: &Request, admitting: &Admitting) -> Result<(), Reply> {
+fn refusal(request: &Request, admitting: &Admitting) -> Option<Reply> {
     if PERMISSION_FORM.serves(request) && !served_by_this_build(request) {
-        return Err(error(
+        return Some(error(
             ErrorCode::UnsupportedOp,
             "this build of the capture service does not serve the op",
         ));
@@ -228,15 +240,10 @@ fn admit(request: &Request, admitting: &Admitting) -> Result<(), Reply> {
         | Admission::ClaimStartingNothing
         | Admission::Serve => None,
     };
-    match refused {
-        Some(reply) => {
-            if claimed {
-                admitting.in_flight.store(false, Ordering::SeqCst);
-            }
-            Err(reply)
-        }
-        None => Ok(()),
+    if refused.is_some() && claimed {
+        admitting.in_flight.store(false, Ordering::SeqCst);
     }
+    refused
 }
 
 fn error(code: ErrorCode, message: &str) -> Reply {
@@ -256,6 +263,282 @@ fn write_reply<S: Write>(stream: &mut S, reply: &Reply) {
     if wire::write_frame(stream, &body, REPLY_MAX_BYTES).is_ok() {
         let _ = stream.flush();
     }
+}
+
+/// The bound of the password guard that a Mac's status reports: no constant
+/// of the capture crate holds the Mac's bound at this head, so the status
+/// reports the value of halvo-control's sample status.
+pub const MAC_GUARD_BOUND_MS: u64 = 30_000;
+
+/// What a status reads of the life beside the supervisor: its start, whether a
+/// parent is watched, the reading of the run marker at its start and the peak
+/// of its resident memory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RunFacts {
+    pub started_at: UtcSecond,
+    pub parent: Parent,
+    pub last_stop: LastStop,
+    pub rss_peak_bytes: u64,
+}
+
+/// What the supervisor holds that a status reads.
+#[derive(Debug, Clone)]
+pub struct StatusParts {
+    pub board: Board,
+    pub desired: Desired,
+    pub lease: proto::Lease,
+    pub slot: Slot,
+    pub obstructed: Option<Duration>,
+    pub health: StateHealth,
+    pub cap: StateCap,
+    pub switches: Switches,
+    pub once_granted: Vec<Permission>,
+    pub asked: Vec<Permission>,
+}
+
+/// The status of a service run on a Mac (contracts.md C2.1, C2.3), built from
+/// `parts` and `facts`; a status whose fields do not hold together is the
+/// error of its rule.
+pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, StatusError> {
+    let board = &parts.board;
+    let snapshot = board.snapshot;
+    let figures = board.figures;
+    let desired = match parts.desired {
+        Desired::Running => CaptureState::Running,
+        Desired::Paused => CaptureState::Paused,
+    };
+    let lines = board.source_lines();
+    let fresh = parts.lease == proto::Lease::Fresh;
+    let (capture, capture_reason) = capture_of(board, &lines, desired, fresh);
+    let (store, store_id, store_error, store_retry_in_s) = store_of(parts);
+    let failing = board.drain.failing || board.drain.hold;
+    let enabled_sources = lines
+        .iter()
+        .filter(|line| line.state != proto::SourceState::Off)
+        .map(|line| line.name)
+        .collect();
+    let permissions: Vec<PermissionLine> = Permission::R1_MACOS
+        .iter()
+        .map(|&name| PermissionLine {
+            name,
+            grant: board
+                .permissions
+                .iter()
+                .find(|(permission, _)| *permission == name)
+                .map_or(GrantState::NotDetermined, |(_, grant)| *grant),
+            at_start: match &board.granted_at_start {
+                None => GrantState::NotDetermined,
+                Some(granted) if granted.contains(&name) => GrantState::Granted,
+                Some(_) => GrantState::NotGranted,
+            },
+            asked: parts.asked.contains(&name),
+            once_granted: parts.once_granted.contains(&name),
+        })
+        .collect();
+    let onboarding = onboarding_of(&permissions, parts.switches);
+    DaemonStatus::new(StatusFields {
+        daemon_version: env!("CARGO_PKG_VERSION").parse().unwrap_or(DaemonVersion {
+            major: 0,
+            minor: 0,
+            patch: 0,
+        }),
+        pid: std::process::id(),
+        started_at: facts.started_at,
+        rss_peak_bytes: facts.rss_peak_bytes,
+        parent: facts.parent,
+        data_dir_resolved: None,
+        desired,
+        capture,
+        capture_reason,
+        lease: parts.lease,
+        store,
+        store_id,
+        store_error,
+        store_retry_in_s,
+        store_bytes: snapshot.and_then(|snapshot| snapshot.disk_bytes),
+        store_logical_bytes: None,
+        cap_bytes: match parts.cap {
+            StateCap::Known(cap) => proto::Cap::Known(cap),
+            StateCap::OutOfRange(_) => proto::Cap::Unknown,
+        },
+        drain: if failing {
+            Health::Failing
+        } else {
+            Health::Healthy
+        },
+        drain_error: failing.then_some(if board.drain.failing {
+            DrainError::Io
+        } else {
+            DrainError::Rejected
+        }),
+        drain_since: None,
+        events_pending: snapshot.map_or(0, |snapshot| snapshot.events_pending),
+        events_lost: snapshot.map_or(0, |snapshot| snapshot.events_lost),
+        dropped_frames: 0,
+        pointer_coalesced: figures.pointer_coalesced,
+        tap_disabled_timeout: figures.tap_disabled_timeout,
+        tap_disabled_user_input: figures.tap_disabled_user_input,
+        late_events: figures.late_events > 0,
+        max_lag_ms: figures.max_lag_ms,
+        secure_input_keystrokes: Some(figures.secure_input_keystrokes > 0),
+        keys_withheld: figures.keys_withheld,
+        title_read_errors: figures.title_read_errors,
+        last_flush_at: snapshot.and_then(|snapshot| second_of(snapshot.last_flush_at)),
+        expiry: Health::Healthy,
+        expiry_error: None,
+        last_expiry_at: snapshot.and_then(|snapshot| second_of(snapshot.last_expiry_at)),
+        last_eviction_at: snapshot.and_then(|snapshot| second_of(snapshot.last_eviction_at)),
+        last_stop: facts.last_stop,
+        last_stop_newest_capture: None,
+        last_stop_kind: None,
+        last_stop_lost: LostRecord::NONE,
+        last_stop_sources: Vec::new(),
+        state_file: match parts.health {
+            StateHealth::Ok => proto::StateFile::Ok,
+            StateHealth::Corrupt => proto::StateFile::Corrupt,
+            StateHealth::NewerVersion(_) => proto::StateFile::NewerVersion,
+            StateHealth::WriteFailed(_) => proto::StateFile::WriteFailed,
+        },
+        platform: Platform::Macos,
+        enabled_sources,
+        switches: SwitchName::ALL
+            .iter()
+            .map(|&name| SwitchLine {
+                name,
+                value: if parts.switches.is_on(switch_of(name)) {
+                    OnOff::On
+                } else {
+                    OnOff::Off
+                },
+            })
+            .collect(),
+        permissions,
+        sources: lines,
+        kinds: Modality::ALL
+            .iter()
+            .map(|&name| KindLine {
+                name,
+                dropped: 0,
+                refused: 0,
+            })
+            .collect(),
+        password_guard: board.password_guard,
+        password_guard_bound_ms: (board.password_guard != PasswordGuard::None)
+            .then_some(MAC_GUARD_BOUND_MS),
+        screen_filter_excludes_app: None,
+        custody: Custody::RootFile,
+        onboarding,
+        ext: Vec::new(),
+    })
+}
+
+fn capture_of(
+    board: &Board,
+    lines: &[SourceLine],
+    desired: CaptureState,
+    fresh: bool,
+) -> (proto::Capture, Option<CaptureReason>) {
+    let faulted = |lines: &[SourceLine]| {
+        let permission = lines.iter().any(|line| {
+            matches!(
+                line.state,
+                proto::SourceState::Failed {
+                    reason: proto::Reason::Permission,
+                    ..
+                }
+            )
+        });
+        if permission {
+            CaptureReason::Permission
+        } else {
+            CaptureReason::NoSource
+        }
+    };
+    match board.capture {
+        BoardCapture::Pausing => (proto::Capture::Pausing, None),
+        BoardCapture::NoIndicator => (proto::Capture::NoIndicator, None),
+        BoardCapture::Running => (proto::Capture::Running, None),
+        BoardCapture::Partial => (proto::Capture::Partial, None),
+        BoardCapture::Faulted => (proto::Capture::Faulted, Some(faulted(lines))),
+        BoardCapture::Stopped if fresh && desired == CaptureState::Running => {
+            (proto::Capture::Faulted, Some(CaptureReason::Drain))
+        }
+        BoardCapture::Stopped | BoardCapture::Starting if desired == CaptureState::Paused => {
+            (proto::Capture::Paused, None)
+        }
+        BoardCapture::Stopped | BoardCapture::Starting => (proto::Capture::Starting, None),
+    }
+}
+
+fn store_of(
+    parts: &StatusParts,
+) -> (
+    StoreState,
+    Option<halvo_control::model::StoreId>,
+    Option<StoreErrorKind>,
+    Option<u64>,
+) {
+    if let Some(left) = parts.obstructed {
+        return (
+            StoreState::Unavailable,
+            None,
+            Some(StoreErrorKind::Obstructed),
+            Some(left.as_secs()),
+        );
+    }
+    let id = match &parts.slot {
+        Slot::Open { id } => Some(*id),
+        Slot::Maintenance { id } | Slot::Sealed { id, .. } | Slot::Unavailable { id, .. } => *id,
+        Slot::Opening
+        | Slot::OlderFormat
+        | Slot::NewerFormat
+        | Slot::Deleting
+        | Slot::Empty { .. } => None,
+    };
+    (
+        parts.slot.state(),
+        id.map(|id| halvo_control::model::StoreId::from_bytes(*id.as_bytes())),
+        parts.slot.cause(),
+        parts.slot.retry_in().map(|left| left.as_secs()),
+    )
+}
+
+fn onboarding_of(lines: &[PermissionLine], switches: Switches) -> OnboardingState {
+    let set = |pick: fn(&PermissionLine) -> bool| -> PermissionSet {
+        lines
+            .iter()
+            .filter(|line| pick(line))
+            .map(|line| line.name)
+            .collect()
+    };
+    let now = lines.iter().fold(Grants::default(), |grants, line| {
+        grants.with(line.name, line.grant)
+    });
+    onboarding::assess(&AssessInput {
+        required: &Permission::R1_MACOS,
+        now,
+        granted_at_capture_start: set(|line| line.at_start == GrantState::Granted),
+        asked: set(|line| line.asked),
+        once_granted: set(|line| line.once_granted),
+        macos_major: None,
+        settings_entry_name: "Halvo",
+        screen_activity: switches.is_on(Switch::ScreenActivity),
+    })
+}
+
+fn switch_of(name: SwitchName) -> Switch {
+    match name {
+        SwitchName::TitleText => Switch::TitleText,
+        SwitchName::KeyClass => Switch::KeyClass,
+        SwitchName::PointerClass => Switch::PointerClass,
+        SwitchName::ScreenActivity => Switch::ScreenActivity,
+        SwitchName::SiteRead => Switch::SiteRead,
+    }
+}
+
+fn second_of(at: Option<std::time::SystemTime>) -> Option<UtcSecond> {
+    let seconds = at?.duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    UtcSecond::from_unix_seconds(i64::try_from(seconds).ok()?).ok()
 }
 
 #[cfg(test)]
@@ -327,7 +610,10 @@ mod tests {
                 "{peer:?}"
             );
         }
-        assert!(handed.try_recv().is_err(), "a refused request reached the loop");
+        assert!(
+            handed.try_recv().is_err(),
+            "a refused request reached the loop"
+        );
         admitting.in_flight.store(true, Ordering::SeqCst);
         let mut stream = Recorded::holding(&Request::Stop);
         assert!(serve_connection(&mut stream, Some(own), own, &admitting, &hand).is_none());

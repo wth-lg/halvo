@@ -36,6 +36,16 @@ impl Lease {
         self.deadline.is_some_and(|deadline| now < deadline)
     }
 
+    /// The lease as Status reports it at `now`: none before the first claim,
+    /// fresh before its deadline and lapsed after it.
+    pub fn reading(self, now: Duration) -> halvo_control::proto::Lease {
+        match self.deadline {
+            None => halvo_control::proto::Lease::None,
+            Some(_) if self.is_fresh(now) => halvo_control::proto::Lease::Fresh,
+            Some(_) => halvo_control::proto::Lease::Lapsed,
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn renewed_at(now: Duration) -> Lease {
         Lease {

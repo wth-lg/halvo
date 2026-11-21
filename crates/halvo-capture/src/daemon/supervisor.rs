@@ -503,6 +503,33 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         &self.board
     }
 
+    /// What a status of a service run reads of this supervisor, with the
+    /// time left before the next check of a data directory that failed its
+    /// check, if one did.
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    pub(crate) fn status_parts(&self, obstructed: Option<Duration>) -> super::server::StatusParts {
+        let state = self.state.as_ref().map(StateFile::state);
+        super::server::StatusParts {
+            board: self.board.clone(),
+            desired: self.desired(),
+            lease: self.lease.reading(self.main_loop.now()),
+            slot: self.slot.clone(),
+            obstructed,
+            health: self
+                .state
+                .as_ref()
+                .map_or(super::state::StateHealth::Ok, StateFile::health),
+            cap: state.map_or(
+                super::state::Cap::Known(halvo_control::model::StorageCap::DEFAULT),
+                |state| state.storage_cap,
+            ),
+            switches: state.map_or_else(crate::floor::Switches::default, |state| state.switches),
+            once_granted: state
+                .map_or_else(Vec::new, |state| state.permissions_once_granted.clone()),
+            asked: state.map_or_else(Vec::new, |state| state.permissions_asked.clone()),
+        }
+    }
+
     #[cfg(all(target_os = "macos", debug_assertions))]
     pub(crate) fn update_state(
         &mut self,

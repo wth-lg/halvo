@@ -149,3 +149,14 @@ fn peer_uid(stream: &UnixStream) -> io::Result<u32> {
 fn effective_uid() -> u32 {
     unsafe { libc::geteuid() }
 }
+
+/// The peak resident size of this process in bytes, as getrusage reports it
+/// on a Mac; 0 when the call fails.
+pub fn rss_peak_bytes() -> u64 {
+    let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
+    if unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) } != 0 {
+        return 0;
+    }
+    let usage = unsafe { usage.assume_init() };
+    u64::try_from(usage.ru_maxrss).unwrap_or(0)
+}
