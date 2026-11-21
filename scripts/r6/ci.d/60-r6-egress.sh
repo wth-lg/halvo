@@ -1404,6 +1404,7 @@ write_stubs() {
   cat >"$work/bin/git" <<EOF || self_failed "setup at line $LINENO"
 #!/bin/sh
 if [ "\$*" = 'rev-parse --verify --quiet HEAD^{tree}' ]; then
+  [ -z "\${STUB_INPUT:-}" ] || . "\$STUB_INPUT"
   [ -n "\${STUB_TREE:-}" ] || exit 1
   printf '%s\n' "\$STUB_TREE"
   exit 0
@@ -1423,6 +1424,7 @@ EOF
   chmod +x "$work/bin/rustc" || self_failed "setup at line $LINENO"
   cat >"$work/bin/cargo" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
+[ -z "${STUB_INPUT:-}" ] || . "$STUB_INPUT"
 paths() {
   repo_w=$(cd "$CI_D_REPO" && { pwd -W 2>/dev/null || pwd -P; }) || exit 96
   for crate in halvo-route-gate halvo-route halvo-route-wire; do
@@ -1550,6 +1552,7 @@ exit 97
 EOF
   cat >"$work/route-gate" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
+[ -z "${STUB_INPUT:-}" ] || . "$STUB_INPUT"
 [ -z "$STUB_MARKER" ] || printf 'run %s\n' "$*" >>"$STUB_MARKER"
 if [ -n "$STUB_LEAVE" ] && [ "$1" = "$STUB_LEAVE" ]; then
   if [ -n "$STUB_LEAVE_AT" ]; then
@@ -1631,6 +1634,7 @@ EOF
   fi
   cat >"$dir/scripts/egress/check.sh" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
+[ -z "${STUB_INPUT:-}" ] || . "$STUB_INPUT"
 list=$1
 shift 2
 empty=no
@@ -1739,12 +1743,15 @@ printf 'egress mode=sandbox list=%s command=%s denied=%s log=target/egress/%s/de
 EOF
   cat >"$dir/scripts/egress/probe.sh" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
+[ -z "${STUB_INPUT:-}" ] || . "$STUB_INPUT"
 case $1 in
   none)
+    [ ! -f target/egress/bin/egress-spawn ] || exit 0
     mkdir -p target/egress/bin || exit 2
     for spawn in target/egress/bin/egress-spawn; do
       cat >"$spawn" <<'SPAWN' || exit 2
 #!/bin/sh
+[ -z "${STUB_INPUT:-}" ] || . "$STUB_INPUT"
 [ "$1" = serve ] || exit 2
 [ "$STUB_CONTROL" != port ] || exit 3
 [ "$STUB_HELD_PORT" != "$2" ] || exit 3
@@ -2036,14 +2043,22 @@ case_wanted() {
 }
 
 case_environment() {
+  set -- STUB_TREE "$case_tree" STUB_EXE "$work/route-gate" STUB_COMMANDS "$STUB_COMMANDS" STUB_PRINT_EXIT "$STUB_PRINT_EXIT" \
+    STUB_MARKER "$STUB_MARKER" STUB_BUILD_TOUCH "$STUB_BUILD_TOUCH" STUB_CONTROL "$STUB_CONTROL" STUB_HELD_PORT "$STUB_HELD_PORT" \
+    STUB_LEAVE "$STUB_LEAVE" STUB_TAKE "$STUB_TAKE" STUB_PRINT_FILTER "$STUB_PRINT_FILTER" STUB_PRINT_HIDDEN "$STUB_PRINT_HIDDEN" \
+    STUB_LEAVE_AT "$STUB_LEAVE_AT" STUB_LEAVE_COUNT "$work/leave-count" STUB_CONTROL_LEAVE "$STUB_CONTROL_LEAVE" \
+    STUB_RUN_EXIT "$STUB_RUN_EXIT" STUB_CHECK "$STUB_CHECK" STUB_TOUCH "$STUB_TOUCH" STUB_FRESH "$STUB_FRESH" \
+    STUB_CLIPPY_JSON "$STUB_CLIPPY_JSON" STUB_CLIPPY_EXIT "$STUB_CLIPPY_EXIT" STUB_CANARY "$STUB_CANARY" \
+    STUB_CANARY_DROP "$STUB_CANARY_DROP" STUB_CANARY_DROP_PROFILE "$STUB_CANARY_DROP_PROFILE" \
+    STUB_CLIPPY_RELEASE_JSON "$STUB_CLIPPY_RELEASE_JSON" STUB_CLIPPY_RELEASE_EXIT "$STUB_CLIPPY_RELEASE_EXIT" \
+    STUB_GRAPH "$STUB_GRAPH" REAL_CARGO "$real_cargo" STUB_SPAWN_PIDS "$work/spawn.pids"
+  case "$*" in
+    *"'"*) self_failed "a stand-in input holds a quote" ;;
+  esac
+  printf "%s='%s'\n" "$@" >"$work/stub-input.sh" || self_failed "setup at line $LINENO"
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp
-  STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_LEAVE_COUNT=$work/leave-count STUB_SPAWN_PIDS=$work/spawn.pids
-  REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions
-  export PATH CI_D_REPO CI_D_ARTIFACTS TMPDIR STUB_TREE STUB_EXE STUB_COMMANDS STUB_PRINT_EXIT STUB_MARKER STUB_BUILD_TOUCH \
-    STUB_CONTROL STUB_HELD_PORT STUB_LEAVE STUB_TAKE STUB_PRINT_FILTER STUB_PRINT_HIDDEN STUB_LEAVE_AT STUB_LEAVE_COUNT \
-    STUB_CONTROL_LEAVE STUB_RUN_EXIT STUB_CHECK STUB_TOUCH STUB_FRESH STUB_CLIPPY_JSON STUB_CLIPPY_EXIT STUB_CANARY \
-    STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE STUB_CLIPPY_RELEASE_JSON STUB_CLIPPY_RELEASE_EXIT STUB_GRAPH REAL_CARGO \
-    CI_D_JOB GITHUB_ACTIONS STUB_SPAWN_PIDS
+  STUB_INPUT=$work/stub-input.sh CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions
+  export PATH CI_D_REPO CI_D_ARTIFACTS TMPDIR STUB_INPUT CI_D_JOB GITHUB_ACTIONS
 }
 
 case_run() {
