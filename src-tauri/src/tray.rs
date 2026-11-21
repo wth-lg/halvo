@@ -43,6 +43,13 @@ pub const NOT_RUNNING: &str = "Capture service not running";
 /// status 5: it names the cause, and a Resume of the toggle ends the hold only beside it.
 pub const HELD: &str = "Capture off: one part did not stop in time";
 
+/// The tray's status line and tooltip after a person's Pause whose answer does not read paused,
+/// until the next answer of a Pause or a Resume: the page's words for it.
+pub const PAUSE_NOT_DONE: &str =
+    "Capture was not paused. Try again, or quit Halvo to stop capture.";
+
+const PAUSED_TITLE: &str = "Halvo ❚❚";
+
 /// The tray's tooltip while the app holds capture off.
 pub const HELD_TOOLTIP: &str =
     "Halvo shut its capture service down because one part of capture did not stop in time";
@@ -99,15 +106,20 @@ pub fn shown<R: Runtime>(app: &AppHandle<R>, view: &StatusView) -> TrayLabels {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     });
-    labels_with(view, window_missing, notice)
+    let pause_missed = app
+        .try_state::<AppState>()
+        .is_some_and(|state| state.views.pause_missed());
+    labels_with(view, window_missing, pause_missed, notice)
 }
 
 /// The tray's labels for `view`: where the window cannot open its line, unless the hold stands,
-/// whose line names its cause; a quit's notice over every line; and while the hold stands a
-/// toggle only where the status line names the cause (contracts.md C14 item 4).
+/// whose line names its cause; after a Pause that did not happen its sentence, unless the hold
+/// stands, and never the paused title; a quit's notice over every line; and while the hold
+/// stands a toggle only where the status line names the cause (contracts.md C14 item 4).
 pub fn labels_with(
     view: &StatusView,
     window_missing: Option<bool>,
+    pause_missed: bool,
     quit_notice: Option<&'static str>,
 ) -> TrayLabels {
     let held = view.hold().is_some();
@@ -120,6 +132,18 @@ pub fn labels_with(
             }
         } else {
             without_window(labels, restart_cures)
+        };
+    }
+    if pause_missed && !held {
+        labels = TrayLabels {
+            title: if labels.title == PAUSED_TITLE {
+                "Halvo"
+            } else {
+                labels.title
+            },
+            status_text: PAUSE_NOT_DONE,
+            tooltip: PAUSE_NOT_DONE,
+            ..labels
         };
     }
     if let Some(sentence) = quit_notice {
@@ -174,7 +198,7 @@ pub fn labels(view: &StatusView) -> TrayLabels {
             ),
             Capture::Starting => line("Halvo", "Starting", "Halvo's capture is starting"),
             Capture::Pausing => line("Halvo", "Stopping capture", "Halvo's capture is stopping"),
-            Capture::Paused => line("Halvo ❚❚", "Paused", "Halvo capture is paused"),
+            Capture::Paused => line(PAUSED_TITLE, "Paused", "Halvo capture is paused"),
             Capture::NoIndicator => line(
                 "Halvo",
                 "Not capturing",
@@ -561,6 +585,104 @@ mod tests {
             assert!(!labels(&StatusView::no_status(service, Platform::Macos))
                 .status_text
                 .contains("not running"));
+        }
+    }
+
+    fn answered(capture: Capture, desired: CaptureState) -> halvo_control::proto::DaemonStatus {
+        let mut f = sample_status(Platform::Macos).into_fields();
+        f.capture = capture;
+        f.desired = desired;
+        if capture == Capture::Paused {
+            for line in f.sources.iter_mut() {
+                if matches!(
+                    line.name,
+                    halvo_control::proto::SourceName::Foreground
+                        | halvo_control::proto::SourceName::Input
+                ) {
+                    line.state = halvo_control::proto::SourceState::Stopped { by_user: false };
+                }
+            }
+        }
+        halvo_control::proto::DaemonStatus::new(f).expect("the status holds together")
+    }
+
+    #[test]
+    fn a_pause_with_no_answer_reads_not_paused_in_the_command_and_in_the_tray() {
+        use crate::commands::capture::{capture_set, sort_change_answer};
+        use crate::poller::Views;
+        use halvo_control::client::ClientError;
+        use halvo_control::proto::{DaemonStatus, ErrorCode, ErrorReply};
+        use std::io::{Error, ErrorKind};
+        let rows = || -> Vec<(&str, Result<DaemonStatus, ClientError>)> {
+            vec![
+                (
+                    "no reply inside the deadline",
+                    Err(ClientError::Deadline { seconds: 10 }),
+                ),
+                (
+                    "a broken exchange",
+                    Err(ClientError::Io(Error::from(ErrorKind::ConnectionReset))),
+                ),
+                (
+                    "a reply that cannot be read",
+                    Err(ClientError::Protocol("a cut frame".to_owned())),
+                ),
+                (
+                    "a child that ended before its reply",
+                    Err(ClientError::Io(Error::from(ErrorKind::UnexpectedEof))),
+                ),
+                (
+                    "the typed busy of a life that is ending",
+                    Err(ClientError::ServiceEnding(
+                        ErrorReply::busy_of_an_ending_life(),
+                    )),
+                ),
+                (
+                    "the plain busy",
+                    Err(ClientError::Daemon(ErrorReply::new(
+                        ErrorCode::Busy,
+                        "busy",
+                    ))),
+                ),
+                (
+                    "a view with no status",
+                    Err(ClientError::Unreachable {
+                        endpoint: String::new(),
+                    }),
+                ),
+                (
+                    "a status that reads pausing",
+                    Ok(answered(Capture::Pausing, CaptureState::Paused)),
+                ),
+            ]
+        };
+        let pause = CaptureChange::Pause;
+        let (command, toggle) = (Views::default(), Views::default());
+        for (n, ((name, by_command), (_, by_toggle))) in rows().into_iter().zip(rows()).enumerate()
+        {
+            let call = 2 * n as u64;
+            if let Ok(set) = capture_set(&command, call, call + 1, pause, by_command) {
+                assert!(!set.reached, "{name}: the command's reached");
+            }
+            assert!(!sort_change_answer(&toggle, pause, &by_toggle), "{name}");
+            take_toggle_answer(&toggle, call, call + 1, &by_toggle);
+            for views in [&command, &toggle] {
+                let shown = labels_with(&views.view(), None, views.pause_missed(), None);
+                assert_eq!(shown.status_text, PAUSE_NOT_DONE, "{name}");
+                assert_eq!(shown.tooltip, PAUSE_NOT_DONE, "{name}");
+                assert_ne!(shown.title, PAUSED_TITLE, "{name}");
+            }
+        }
+        let paused = || Ok(answered(Capture::Paused, CaptureState::Paused));
+        let set = capture_set(&command, 100, 101, pause, paused()).expect("a status");
+        assert!(set.reached, "a Pause that happened");
+        assert!(sort_change_answer(&toggle, pause, &paused()));
+        for views in [&command, &toggle] {
+            let shown = labels_with(&views.view(), None, views.pause_missed(), None);
+            assert_ne!(
+                shown.status_text, PAUSE_NOT_DONE,
+                "the next answer ends the line"
+            );
         }
     }
 

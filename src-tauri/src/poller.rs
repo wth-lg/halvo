@@ -56,6 +56,7 @@ pub struct Views {
     draw_lock: Mutex<()>,
     drawer: OnceLock<Drawer>,
     hold: Arc<Hold>,
+    pause_missed: Mutex<bool>,
 }
 
 impl Default for Views {
@@ -72,6 +73,7 @@ impl Default for Views {
             draw_lock: Mutex::new(()),
             drawer: OnceLock::new(),
             hold: Arc::default(),
+            pause_missed: Mutex::new(false),
         }
     }
 }
@@ -95,6 +97,18 @@ impl Views {
     /// The app's hold on capture after a child ended itself with status 5.
     pub fn hold(&self) -> &Arc<Hold> {
         &self.hold
+    }
+
+    /// Whether the last answer of a person's Pause or Resume was that of a Pause that did not
+    /// happen.
+    pub fn pause_missed(&self) -> bool {
+        *self.pause_missed.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Keeps whether the answer of a person's Pause or Resume was that of a Pause that did not
+    /// happen, until the next such answer.
+    pub fn set_pause_missed(&self, missed: bool) {
+        *self.pause_missed.lock().unwrap_or_else(|e| e.into_inner()) = missed;
     }
 
     pub fn status(&self) -> Option<DaemonStatus> {

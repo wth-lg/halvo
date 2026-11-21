@@ -205,14 +205,18 @@ fn start_and_resume(
 }
 
 /// Sorts the answer of a press of Pause or Resume, for the page's command and for the tray's
-/// toggle: it reached its end only where `holds` reads its status. The hold ends at a Resume
-/// that reached its end, and at no other place (contracts.md C14 item 4).
+/// toggle: it reached its end only where `holds` reads its status. A Pause happened only there:
+/// no reply in time, a broken exchange, a child that ended before its reply, either busy and a
+/// view with no status read as a Pause that did not happen, which the tray says until the next
+/// such answer. The hold ends at a Resume that reached its end, and at no other place
+/// (contracts.md C14 item 4).
 pub fn sort_change_answer(
     views: &Views,
     change: CaptureChange,
     answer: &Result<DaemonStatus, ClientError>,
 ) -> bool {
     let reached = answer.as_ref().is_ok_and(|status| holds(change, status));
+    views.set_pause_missed(change == CaptureChange::Pause && !reached);
     if change == CaptureChange::Resume && reached {
         views.hold().release();
     }
