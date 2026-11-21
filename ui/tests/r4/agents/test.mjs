@@ -9,8 +9,10 @@ const FIXTURES = join(REPO, 'ui', 'tests', 'fixtures', 'coord');
 const STRUCTURE = join(HERE, 'structure');
 const VIEW = '/app/views/agents.js';
 const NEEDS = '/app/views/needs.js';
+const CONFIRM = '/app/views/confirm.js';
 const ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
-const ACTING = ['run_now', 'stop', 'switch_off', 'switch_on'];
+const ACTING = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on'];
+const DRAWN = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on', 'delete'];
 
 const { serve, open, act, check, settled } = await import(pathToFileURL(join(REPO, 'tools', 'r4-page', 'index.mjs')).href);
 
@@ -140,7 +142,7 @@ function expectedModel(snapshot, card) {
           word: r.word,
           line: r.line,
           level: r.level,
-          controls: r.controls.filter((c) => ACTING.includes(c.control)).map((c) => ({ act: c.control, param: r.agent, text: c.text })),
+          controls: r.controls.filter((c) => DRAWN.includes(c.control)).map((c) => ({ act: c.control, param: r.agent, text: c.text })),
           card: open
             ? {
                 label: card.name,
@@ -252,7 +254,7 @@ for (const s of STATES) {
   const acts = cardActs(state);
   const out = outDir();
   await test('render_' + s, async () =>
-    withPage({ origin, state: s, views: [VIEW], acts, out }, async (h) => {
+    withPage({ origin, state: s, views: [CONFIRM, VIEW], acts, out }, async (h) => {
       deletes.inReplies += state.snapshot.rows.filter((r) => r.controls.some((c) => c.control === 'delete')).length;
       deletes.shown += await h.page.evaluate(() => document.querySelectorAll('[data-act="delete"]').length);
       const got = await h.page.evaluate(MODEL);
@@ -260,11 +262,11 @@ for (const s of STATES) {
     }),
   );
   result('card_call_' + s, same(calls(out), acts.map((a) => ({ call: 'agents_card', args: { agent: a.param } }))), calls(out));
-  const views = pageConfirmFirst(state.snapshot) ? [NEEDS, VIEW] : [VIEW];
-  await harness(s + (views.length > 1 ? '_with_both_views' : ''), { origin, state: s, views, acts }, join(STRUCTURE, s + '.txt'));
+  const views = pageConfirmFirst(state.snapshot) ? [CONFIRM, NEEDS, VIEW] : [CONFIRM, VIEW];
+  await harness(s + (views.length > 2 ? '_with_both_views' : ''), { origin, state: s, views, acts }, join(STRUCTURE, s + '.txt'));
 }
 if (STATES.length > 0) {
-  result('a_row_shows_no_element_for_delete', deletes.inReplies > 0 && deletes.shown === 0, deletes);
+  result('every_row_that_the_core_gives_delete_shows_delete', deletes.inReplies > 0 && deletes.shown === deletes.inReplies, deletes);
 }
 
 for (const s of STATES) {
@@ -272,7 +274,7 @@ for (const s of STATES) {
   const out = outDir();
   const wanted = [];
   await test('actions_' + s, async () => {
-    await withPage({ origin, state: s, views: [VIEW], out }, async (h) => {
+    await withPage({ origin, state: s, views: [CONFIRM, VIEW], out }, async (h) => {
       for (const r of state.snapshot.rows) {
         for (const c of r.controls.filter((x) => ACTING.includes(x.control))) {
           await act(h, { act: c.control, param: r.agent });
@@ -302,7 +304,7 @@ if (want('card')) {
   const cardB = { ...state.card, agent: B, name: rows.find((r) => r.agent === B).name };
 
   await test('card_effects_one_line_each_values_in_fields_alone', async () =>
-    withPage({ origin, state: 'card', views: [VIEW], acts: cardActs(state) }, async (h) => {
+    withPage({ origin, state: 'card', views: [CONFIRM, VIEW], acts: cardActs(state) }, async (h) => {
       const sentences = await h.page.evaluate(() =>
         [...document.querySelectorAll('.r4a-effects > li')].map((e) => ({
           did: e.querySelector('.r4a-did').textContent,
@@ -323,7 +325,7 @@ if (want('card')) {
     const two = JSON.parse(JSON.stringify(state.card));
     two.runs[0].effects[0].fields[0].value = ['City ', 'Power'];
     const replies = [{ state: state.snapshot }, { call: 'agents_card', args: { agent: A }, reply: two }];
-    return withPage({ origin, replies, views: [VIEW] }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW] }, async (h) => {
       await act(h, { act: 'open_card', param: A });
       await settleCalls(h);
       const value = await h.page.evaluate(() => {
@@ -335,7 +337,7 @@ if (want('card')) {
   });
 
   await test('a_card_of_another_agent_is_not_shown', async () =>
-    withPage({ origin, state: 'card', views: [VIEW] }, async (h) => {
+    withPage({ origin, state: 'card', views: [CONFIRM, VIEW] }, async (h) => {
       await act(h, { act: 'open_card', param: B });
       await settleCalls(h);
       const cards = await cardsOf(h);
@@ -348,7 +350,7 @@ if (want('card')) {
     const bad = JSON.parse(JSON.stringify(state.card));
     delete bad.runs[0].effects;
     const replies = [{ state: state.snapshot }, { call: 'agents_card', args: { agent: A }, reply: bad }];
-    return withPage({ origin, replies, views: [VIEW] }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW] }, async (h) => {
       await act(h, { act: 'open_card', param: A });
       await settleCalls(h);
       const cards = await cardsOf(h);
@@ -360,7 +362,7 @@ if (want('card')) {
 
   await test('close_card_sends_nothing_closes_and_keeps_the_focus', async () => {
     const out = outDir();
-    return withPage({ origin, state: 'card', views: [VIEW], acts: cardActs(state), out }, async (h) => {
+    return withPage({ origin, state: 'card', views: [CONFIRM, VIEW], acts: cardActs(state), out }, async (h) => {
       await press(h, 'close_card', A);
       const closed = await h.page.evaluate(MODEL);
       const focus = await focusOf(h);
@@ -370,7 +372,7 @@ if (want('card')) {
   });
 
   await test('the_focus_goes_back_to_the_toggle_after_a_card_opens', async () =>
-    withPage({ origin, state: 'card', views: [VIEW] }, async (h) => {
+    withPage({ origin, state: 'card', views: [CONFIRM, VIEW] }, async (h) => {
       await press(h, 'open_card', A);
       const focus = await focusOf(h);
       return [same(focus, ['close_card', A]), focus];
@@ -382,7 +384,7 @@ if (want('card')) {
     const left = { ...snap, seq: 2, rows: snap.rows.filter((r) => r.agent !== A) };
     const back = { ...snap, seq: 3 };
     const replies = [{ state: snap }, { call: 'agents_card', args: { agent: A }, reply: state.card }, { state: left }, { state: back }];
-    return withPage({ origin, replies, views: [VIEW] }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW] }, async (h) => {
       await act(h, { act: 'open_card', param: A });
       await settleCalls(h);
       const cards = await cardsOf(h);
@@ -394,7 +396,7 @@ if (want('card')) {
   await test('a_close_clears_a_card_asked_for_another_agent', async () => {
     const out = outDir();
     const replies = [{ state: state.snapshot }, { call: 'agents_card', args: { agent: A }, reply: state.card }, { call: 'agents_card', args: { agent: B }, reply: cardB }, { call: 'agents_card', args: { agent: B }, reply: cardB }];
-    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       await act(h, { act: 'open_card', param: A });
       await h.page.evaluate(([a, b]) => {
         const pick = (act, p) => [...document.querySelectorAll('button')].find((x) => x.getAttribute('data-act') === act && x.getAttribute('data-param') === p);
@@ -413,7 +415,7 @@ if (want('card')) {
   await test('a_card_call_that_rejects_gives_the_name_back', async () => {
     const out = outDir();
     const replies = [{ state: state.snapshot }, { call: 'agents_card', args: { agent: A }, reject: true }, { call: 'agents_card', args: { agent: A }, reply: state.card }];
-    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       await act(h, { act: 'open_card', param: A });
       await settleCalls(h);
       await act(h, { act: 'open_card', param: A });
@@ -425,7 +427,7 @@ if (want('card')) {
 
   await test('one_call_and_one_card_for_a_double_click_on_a_name', async () => {
     const out = outDir();
-    return withPage({ origin, state: 'card', views: [VIEW], out }, async (h) => {
+    return withPage({ origin, state: 'card', views: [CONFIRM, VIEW], out }, async (h) => {
       await h.page.dblclick(sel('open_card', A));
       await settleCalls(h);
       const cards = await cardsOf(h);
@@ -435,7 +437,7 @@ if (want('card')) {
 
   await test('a_second_click_on_a_name_after_its_card_opened_keeps_it_open', async () => {
     const out = outDir();
-    return withPage({ origin, state: 'card', views: [VIEW], out }, async (h) => {
+    return withPage({ origin, state: 'card', views: [CONFIRM, VIEW], out }, async (h) => {
       const at = await pointAt(h, 'open_card', A);
       await clickAt(h, 1);
       await settleCalls(h);
@@ -449,7 +451,7 @@ if (want('card')) {
 
   await test('a_second_press_while_a_card_is_asked_for_sends_nothing_and_a_close_holds', async () => {
     const out = outDir();
-    return withPage({ origin, state: 'card', views: [VIEW], out }, async (h) => {
+    return withPage({ origin, state: 'card', views: [CONFIRM, VIEW], out }, async (h) => {
       const seen = await h.page.evaluate(
         (agent) =>
           new Promise((done) => {
@@ -486,7 +488,7 @@ for (const [s, control] of [['ten', 'run_now'], ['ten', 'switch_off'], ['working
     if (how === 'held_space' && control !== 'run_now') continue;
     const out = outDir();
     await test('one_call_for_' + how + '_on_' + control, async () => {
-      await withPage({ origin, state: s, views: [VIEW], out }, async (h) => {
+      await withPage({ origin, state: s, views: [CONFIRM, VIEW], out }, async (h) => {
         if (how === 'double_click') {
           await h.page.dblclick(sel(control, row.agent));
         } else {
@@ -511,7 +513,7 @@ if (want('ten')) {
 
   await test('an_answered_call_gives_the_controls_back', async () => {
     const out = outDir();
-    await withPage({ origin, state: 'ten', views: [VIEW], out }, async (h) => {
+    await withPage({ origin, state: 'ten', views: [CONFIRM, VIEW], out }, async (h) => {
       await act(h, { act: 'run_now', param: A.agent });
       await settleCalls(h);
       await act(h, { act: 'run_now', param: A.agent });
@@ -523,7 +525,7 @@ if (want('ten')) {
   await test('a_call_on_its_way_holds_its_row_and_no_other', async () => {
     const out = outDir();
     const replies = [{ state: ten }, { call: 'agents_control', args: { agent: A.agent, action: 'run_now' }, hold: true }, { call: 'agents_control', args: { agent: B.agent, action: 'run_now' }, reply: { ok: 'yes' } }];
-    await withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+    await withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       await act(h, { act: 'run_now', param: A.agent });
       await settleCalls(h);
       await act(h, { act: 'run_now', param: A.agent });
@@ -539,7 +541,7 @@ if (want('ten')) {
   await test('a_newer_reply_gives_the_controls_back', async () => {
     const out = outDir();
     const replies = [{ state: ten }, { call: 'agents_control', args: { agent: A.agent, action: 'run_now' }, hold: true }, { state: { ...ten, seq: 2 } }, { call: 'agents_control', args: { agent: A.agent, action: 'run_now' }, reply: { ok: 'yes' } }];
-    await withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+    await withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       await act(h, { act: 'run_now', param: A.agent });
       await settleCalls(h);
       await act(h, { act: 'run_now', param: A.agent });
@@ -551,7 +553,7 @@ if (want('ten')) {
   await test('a_rejected_call_gives_the_controls_back', async () => {
     const out = outDir();
     const replies = [{ state: ten }, { call: 'agents_control', args: { agent: A.agent, action: 'run_now' }, reject: true }, { call: 'agents_control', args: { agent: A.agent, action: 'run_now' }, reply: { ok: 'yes' } }];
-    await withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+    await withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       await act(h, { act: 'run_now', param: A.agent });
       await settleCalls(h);
       await act(h, { act: 'run_now', param: A.agent });
@@ -565,7 +567,7 @@ if (want('ten')) {
     const gone = { ...ten, seq: 2, rows: ten.rows.filter((r) => r.agent !== A.agent) };
     const replies = [{ state: ten }, { call: 'agents_control', args: { agent: A.agent, action: 'run_now' }, reply: { ok: 'yes' } }, { state: gone }, { call: 'agents_control', args: { agent: B.agent, action: 'run_now' }, reply: { ok: 'yes' } }];
     let under = null;
-    await withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+    await withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       const at = await pointAt(h, 'run_now', A.agent);
       await clickAt(h, 1);
       await h.page.waitForFunction((a) => document.querySelector('[data-param="' + a + '"]') === null, A.agent, { timeout: 3000 });
@@ -582,7 +584,7 @@ if (want('ten')) {
     const C = ten.rows[2];
     const gone = { ...ten, seq: 2, rows: ten.rows.filter((r) => r.agent !== A.agent) };
     const replies = [{ state: ten }, { call: 'agents_card', args: { agent: C.agent }, reply: { error: 'busy' } }, { state: gone }, { ...sent, reply: act === 'open_card' ? { error: 'busy' } : { ok: 'yes' } }];
-    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       const box = await h.page.locator(sel(act, A.agent)).boundingBox();
       const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
       const cdp = await h.page.context().newCDPSession(h.page);
@@ -607,7 +609,7 @@ if (want('ten')) {
     });
   };
 
-  const engine = await withPage({ origin, state: 'empty', views: [VIEW] }, async (h) => h.page.context().browser().browserType().name());
+  const engine = await withPage({ origin, state: 'empty', views: [CONFIRM, VIEW] }, async (h) => h.page.context().browser().browserType().name());
   if (engine === 'chromium') {
     await test('a_touch_begun_before_a_reply_moved_another_control_under_it_sends_nothing', () => touchCase('run_now', callOf(B, 'run_now')));
     await test('a_touch_begun_before_a_reply_moved_another_name_under_it_opens_nothing', () => touchCase('open_card', { call: 'agents_card', args: { agent: B.agent } }));
@@ -622,7 +624,7 @@ if (want('ten')) {
       rows: ten.rows.map((r) => (r.agent === A.agent ? { ...r, status: 'working', word: 'Working', line: 'It is working on its task.', say: 'It changed.', controls: [{ control: 'stop', text: 'Stop' }, { control: 'switch_off', text: 'Switch off' }, { control: 'delete', text: 'Delete' }] } : r)),
     };
     const replies = [{ state: ten }, { call: 'agents_control', args: { agent: A.agent, action: 'run_now' }, reply: { ok: 'yes' } }, { state: second }];
-    return withPage({ origin, replies, views: [VIEW] }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW] }, async (h) => {
       const before = await h.page.evaluate(() => {
         const s = document.querySelectorAll('[role="status"]');
         s[0].r4aMark = 'kept';
@@ -640,18 +642,21 @@ if (want('ten')) {
     });
   });
 
-  await test('each_change_adds_its_say_to_the_status_region', async () => {
+  await test('rd76_each_addition_takes_out_every_sentence_that_the_status_element_holds', async () => {
     const flip = (snap, seq, row, say) => ({ ...snap, seq, rows: snap.rows.map((r) => (r.agent === row.agent ? { ...r, status: 'off', word: 'Off', say } : r)) });
     const second = flip(ten, 2, A, 'First change.');
     const third = flip(second, 3, B, 'Second change.');
-    return withPage({ origin, replies: [{ state: ten }, { state: second }, { state: third }], views: [VIEW] }, async (h) => {
-      const says = await h.page.evaluate(() => [...document.querySelector('[role="status"]').children].map((p) => p.textContent));
-      return [same(says, ['First change.', 'Second change.']), says];
+    return withPage({ origin, replies: [{ state: ten }, { state: second }, { state: third }], views: [CONFIRM, VIEW] }, async (h) => {
+      const seen = await h.page.evaluate(() => {
+        const s = document.querySelector('[role="status"]');
+        return { says: [...s.children].map((p) => p.textContent), live: s.getAttribute('aria-live'), atomic: s.getAttribute('aria-atomic') };
+      });
+      return [same(seen, { says: ['Second change.'], live: 'polite', atomic: 'true' }), seen];
     });
   });
 
   await test('a_hidden_view_calls_nothing_and_a_shown_one_reads_again', async () =>
-    withPage({ origin, state: 'ten', views: [VIEW] }, async (h) => {
+    withPage({ origin, state: 'ten', views: [CONFIRM, VIEW] }, async (h) => {
       const count = () => ({ all: h.started, next: h.nexts });
       const start = count();
       await h.page.evaluate(() => window.Halvo.views.window('hidden'));
@@ -666,7 +671,7 @@ if (want('ten')) {
   );
 
   await test('a_second_show_while_shown_starts_no_second_reader', async () =>
-    withPage({ origin, state: 'ten', views: [VIEW] }, async (h) => {
+    withPage({ origin, state: 'ten', views: [CONFIRM, VIEW] }, async (h) => {
       const before = h.started;
       await h.page.evaluate(() => window.Halvo.views.window('shown'));
       await h.page.waitForTimeout(300);
@@ -675,14 +680,14 @@ if (want('ten')) {
   );
 
   await test('a_closed_reply_ends_the_calls', async () =>
-    withPage({ origin, replies: [{ state: ten }, { state: { closed: 'yes' } }], views: [VIEW] }, async (h) => {
+    withPage({ origin, replies: [{ state: ten }, { state: { closed: 'yes' } }], views: [CONFIRM, VIEW] }, async (h) => {
       await h.page.waitForTimeout(500);
       return [h.started === 2, { started: h.started }];
     }),
   );
 
   await test('a_waiting_call_that_answers_without_a_state_ends_until_the_next_show', async () =>
-    withPage({ origin, replies: [{ state: ten }, { state: { error: 'busy' } }], views: [VIEW] }, async (h) => {
+    withPage({ origin, replies: [{ state: ten }, { state: { error: 'busy' } }], views: [CONFIRM, VIEW] }, async (h) => {
       await h.page.waitForTimeout(500);
       const ended = h.started;
       await h.page.evaluate(() => window.Halvo.views.window('hidden'));
@@ -702,19 +707,19 @@ if (want('ten')) {
         return r;
       }),
     };
-    return withPage({ origin, replies: [{ state: ten }, { state: odd }], views: [VIEW] }, async (h) => {
+    return withPage({ origin, replies: [{ state: ten }, { state: odd }], views: [CONFIRM, VIEW] }, async (h) => {
       const seen = await h.page.evaluate(([a, b]) => ({
         says: document.querySelector('[role="status"]').textContent,
         rowA: document.querySelectorAll('[data-param="' + a + '"]').length,
         actsB: [...document.querySelectorAll('[data-param="' + b + '"]')].map((x) => x.getAttribute('data-act')),
       }), [A.agent, B.agent]);
-      const wantB = ['open_card', ...B.controls.filter((c) => ACTING.includes(c.control)).map((c) => c.control)];
+      const wantB = ['open_card', ...B.controls.filter((c) => DRAWN.includes(c.control)).map((c) => c.control)];
       return [seen.says === '' && seen.rowA === 0 && same(seen.actsB, wantB), seen];
     });
   });
 
   await test('each_control_is_described_by_its_agents_name', async () =>
-    withPage({ origin, state: 'ten', views: [VIEW] }, async (h) => {
+    withPage({ origin, state: 'ten', views: [CONFIRM, VIEW] }, async (h) => {
       const all = await h.page.evaluate(() =>
         [...document.querySelectorAll('.r4a-controls button')].map((b) => {
           const d = document.getElementById(b.getAttribute('aria-describedby') || '');
@@ -746,7 +751,7 @@ if (want('ten')) {
   await test('a_click_with_no_press_after_the_walk_key_acts_once_on_a_row_control', async () => {
     const out = outDir();
     const replies = [{ state: ten }, { ...callOf(C, 'switch_off'), reply: { ok: 'yes' } }, { ...callOf(A, 'run_now'), reply: { ok: 'yes' } }, { ...callOf(A, 'run_now'), reply: { ok: 'yes' } }];
-    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       await h.page.focus(sel('switch_off', C.agent));
       await h.page.keyboard.press('Enter');
       await settleCalls(h);
@@ -762,7 +767,7 @@ if (want('ten')) {
     const out = outDir();
     const aGone = { ...ten, seq: 2, rows: ten.rows.filter((r) => r.agent !== A.agent) };
     const replies = [{ state: ten }, gate, { state: aGone }, { ...callOf(B, 'run_now'), reply: { ok: 'yes' } }, { ...callOf(B, 'run_now'), reply: { ok: 'yes' } }];
-    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       await pointAt(h, 'run_now', A.agent);
       await h.page.mouse.down();
       await h.page.evaluate((c) => window.Halvo.ipc.call('agents_card', { agent: c }), C.agent);
@@ -780,7 +785,7 @@ if (want('ten')) {
 
   await test('a_pointer_click_counts_only_for_a_press_begun_on_its_own_control', async () => {
     const out = outDir();
-    return withPage({ origin, state: 'ten', views: [VIEW], out }, async (h) => {
+    return withPage({ origin, state: 'ten', views: [CONFIRM, VIEW], out }, async (h) => {
       const pointerClick = (from, to) =>
         h.page.evaluate(
           ([f, t]) => {
@@ -804,7 +809,7 @@ if (want('ten')) {
 
   await test('a_key_click_counts_only_for_a_key_pressed_on_its_own_control', async () => {
     const out = outDir();
-    return withPage({ origin, state: 'ten', views: [VIEW], out }, async (h) => {
+    return withPage({ origin, state: 'ten', views: [CONFIRM, VIEW], out }, async (h) => {
       const keyClick = (from, to) =>
         h.page.evaluate(
           ([f, t]) => {
@@ -834,7 +839,7 @@ if (want('card')) {
   await test('a_click_with_no_press_after_the_walk_key_acts_once_on_a_name', async () => {
     const out = outDir();
     const replies = [{ state: state.snapshot }, { call: 'agents_card', args: { agent: A }, reply: state.card }, { call: 'agents_card', args: { agent: A }, reply: state.card }];
-    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       const presses = await walkTo(h, 'open_card', A);
       await clickWithoutPress(h);
       await settleCalls(h);
@@ -847,12 +852,636 @@ if (want('card')) {
     const bad = JSON.parse(JSON.stringify(state.card));
     bad.runs[0].effects[0].fields[0].value = 'City Power';
     const replies = [{ state: state.snapshot }, { call: 'agents_card', args: { agent: A }, reply: bad }];
-    return withPage({ origin, replies, views: [VIEW] }, async (h) => {
+    return withPage({ origin, replies, views: [CONFIRM, VIEW] }, async (h) => {
       await act(h, { act: 'open_card', param: A });
       await settleCalls(h);
       const cards = await cardsOf(h);
       const model = await h.page.evaluate(MODEL);
       return [same(cards, []) && same(model, expectedModel(state.snapshot, null)) && h.errors === 0, { cards, errors: h.errors }];
+    });
+  });
+}
+
+
+const AGENTS_SRC = readFileSync(join(REPO, 'ui', 'app', 'views', 'agents.js'), 'utf8');
+const NEEDS_SRC = readFileSync(join(REPO, 'ui', 'app', 'views', 'needs.js'), 'utf8');
+
+/** Runs the sources of views in the page under a stand-in `Halvo` whose calls the test answers:
+ * the real helper serves as `Halvo.confirm`, `agents_snapshot` answers `first`, a call named in
+ * `oks` answers `{"ok":"yes"}`, and every other call waits in `window.r4boot.pending`. Each call
+ * stands in `window.r4boot.calls`. The harness freezes its own call function, so this is the one
+ * way that a test holds and orders the replies of `agents_next`. */
+const boot = (h, sources, first, oks) =>
+  h.page.evaluate(
+    ([srcs, snap, names]) => {
+      const r = { calls: [], pending: [], views: [] };
+      window.r4boot = r;
+      const fake = {
+        views: { add: (v) => r.views.push(v) },
+        confirm: window.Halvo.confirm,
+        ipc: {
+          call: (name, args) => {
+            r.calls.push({ call: name, args: args });
+            if (name === 'agents_snapshot') return Promise.resolve(JSON.parse(JSON.stringify(snap)));
+            if (names.includes(name)) return Promise.resolve({ ok: 'yes' });
+            return new Promise((resolve, reject) => r.pending.push({ call: name, args: args, resolve: resolve, reject: reject }));
+          },
+        },
+      };
+      for (const src of srcs) new Function('Halvo', src)(fake);
+      const main = document.getElementById('views');
+      r.views
+        .sort((a, b) => a.order - b.order)
+        .forEach((v) => {
+          const section = document.createElement('section');
+          const body = document.createElement('div');
+          section.appendChild(body);
+          main.appendChild(section);
+          v.mount(body);
+        });
+      r.views.forEach((v) => v.show());
+    },
+    [sources, first, oks],
+  );
+const answerFirst = (h, call, match, value, how) =>
+  h.page.evaluate(
+    ([c, m, v, w]) => {
+      const p = window.r4boot.pending.find((x) => x.call === c && (m === null || JSON.stringify(x.args) === JSON.stringify(m)));
+      if (!p) return false;
+      window.r4boot.pending.splice(window.r4boot.pending.indexOf(p), 1);
+      if (w === 'reject') p.reject(new Error('rejected'));
+      else p.resolve(v);
+      return true;
+    },
+    [call, match, value, how || 'resolve'],
+  );
+const answerAll = (h, call, value) =>
+  h.page.evaluate(
+    ([c, v]) => {
+      const all = window.r4boot.pending.filter((x) => x.call === c);
+      for (const p of all) {
+        window.r4boot.pending.splice(window.r4boot.pending.indexOf(p), 1);
+        p.resolve(JSON.parse(JSON.stringify(v)));
+      }
+      return all.length;
+    },
+    [call, value],
+  );
+const bootCalls = (h) => h.page.evaluate(() => window.r4boot.calls.filter((c) => c.call !== 'agents_snapshot' && c.call !== 'agents_next').map((c) => ({ call: c.call, args: c.args })));
+const nextsOf = (h) => h.page.evaluate(() => window.r4boot.calls.filter((c) => c.call === 'agents_next').map((c) => c.args.after));
+
+const questionOf = (h) =>
+  h.page.evaluate(() => {
+    const all = [...document.querySelectorAll('[role="alertdialog"]')];
+    const d = all.find((x) => x.matches(':modal'));
+    if (!d) return { open: false, dialogs: all.length };
+    return {
+      open: true,
+      dialogs: all.length,
+      title: d.querySelector('h3') ? d.querySelector('h3').textContent : null,
+      text: [...d.querySelectorAll('.hc-text')].map((p) => p.textContent),
+      did: [...d.querySelectorAll('.hc-did')].map((p) => p.textContent),
+      labels: [...d.querySelectorAll('.hc-label')].map((p) => p.textContent),
+      values: [...d.querySelectorAll('.hc-value')].map((p) => p.textContent),
+      controls: [...d.querySelectorAll('button')].map((b) => ({ act: b.getAttribute('data-act'), param: b.getAttribute('data-param'), text: b.textContent })),
+      focused: document.activeElement === d,
+      labelled: Boolean(d.getAttribute('aria-labelledby')) && Boolean(d.getAttribute('aria-describedby')),
+    };
+  });
+
+async function pressIn(h, name) {
+  await h.page.evaluate((n) => {
+    const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+    d.querySelector('[data-act="' + n + '"]').focus();
+  }, name);
+  await h.page.keyboard.press('Enter');
+  await settleCalls(h);
+}
+
+function questionWanted(row) {
+  return {
+    title: row.ask.title,
+    text: [...row.ask.text, ...(row.ask.record ? [row.ask.record] : [])],
+    did: row.ask.effects.map((e) => e.text),
+    controls: row.ask.controls.map((c) => ({ act: c.act, param: row.agent, text: c.text })),
+  };
+}
+
+const STATUSES = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
+const CONTROLS = ['run_now', 'stop', 'take_back', 'switch_off', 'switch_on', 'delete'];
+
+function outsideTheClosedLists(snapshot) {
+  const out = [];
+  for (const r of snapshot.rows) {
+    if (!STATUSES.includes(r.status)) out.push(r.agent + ':status=' + r.status);
+    for (const c of r.controls) if (!CONTROLS.includes(c.control)) out.push(r.agent + ':control=' + c.control);
+  }
+  return out;
+}
+
+if (STATES.length > 0) {
+  const faults = [];
+  for (const s of STATES) for (const f of outsideTheClosedLists(json('state-' + s + '.json').snapshot)) faults.push(s + ':' + f);
+  const ten = json('state-ten.json').snapshot;
+  const odd = { ...ten, rows: [{ ...ten.rows[0], status: 'paused' }, { ...ten.rows[1], controls: [...ten.rows[1].controls, { control: 'switch_offf', text: 'x' }] }] };
+  const caught = outsideTheClosedLists(odd).length === 2;
+  result('point10_every_row_of_every_state_has_a_status_of_the_seven_and_controls_of_the_closed_list', faults.length === 0 && caught, { faults, caught });
+}
+
+if (want('ten')) {
+  const ten = json('state-ten.json').snapshot;
+  const [A, B, C] = ten.rows;
+
+  await test('rule2_a_press_on_delete_sends_nothing_and_opens_the_question_whose_words_come_in_the_rows_reply', async () => {
+    const out = outDir();
+    return withPage({ origin, state: 'ten', views: [CONFIRM, VIEW], out }, async (h) => {
+      await act(h, { act: 'delete', param: A.agent });
+      await settleCalls(h);
+      const q = await questionOf(h);
+      const wantQ = questionWanted(A);
+      const got = { title: q.title, text: q.text, did: q.did, controls: q.controls };
+      const ok = A.ask.kind === 'delete' && q.open && q.dialogs === 1 && q.focused && q.labelled && same(got, wantQ) && calls(out).length === 0;
+      return [ok, { q, wantQ, calls: calls(out) }];
+    });
+  });
+
+  await test('rule2_the_safe_control_first_closes_the_question_sends_nothing_and_gives_the_focus_back', async () => {
+    const out = outDir();
+    return withPage({ origin, state: 'ten', views: [CONFIRM, VIEW], out }, async (h) => {
+      await press(h, 'delete', A.agent);
+      const first = await h.page.evaluate(() => {
+        const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+        return d ? d.querySelector('button').getAttribute('data-act') : null;
+      });
+      await pressIn(h, 'reject');
+      const q = await questionOf(h);
+      const focus = await focusOf(h);
+      return [first === 'reject' && !q.open && q.dialogs === 0 && calls(out).length === 0 && same(focus, ['delete', A.agent]), { first, q, focus, calls: calls(out) }];
+    });
+  });
+
+  await test('rule7_the_unsafe_control_alone_sends_agents_delete_once_and_the_view_reads_the_state_anew', async () => {
+    const gone = { ...ten, seq: 2, rows: ten.rows.filter((r) => r.agent !== A.agent) };
+    return withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [AGENTS_SRC], ten, ['agents_delete']);
+      await settleCalls(h);
+      await press(h, 'delete', A.agent);
+      await h.page.focus('[role="alertdialog"] [data-act="allow"]');
+      await h.page.keyboard.press('Enter');
+      await h.page.keyboard.press('Enter');
+      await settleCalls(h);
+      const afters = await nextsOf(h);
+      const answered = await answerFirst(h, 'agents_next', { after: 0 }, gone);
+      await settleCalls(h);
+      const model = await h.page.evaluate(MODEL);
+      const sent = await bootCalls(h);
+      const ok = same(sent, [{ call: 'agents_delete', args: { agent: A.agent } }]) && same(afters, [ten.seq, 0]) && answered && same(model, expectedModel(gone, null));
+      return [ok, { sent, afters, answered }];
+    });
+  });
+
+  await test('rule7_a_double_click_on_the_unsafe_control_sends_one_delete', async () => {
+    const out = outDir();
+    const replies = [{ state: ten }, { call: 'agents_delete', args: { agent: A.agent }, reply: { ok: 'yes' } }];
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
+      await press(h, 'delete', A.agent);
+      await h.page.waitForTimeout(100);
+      await h.page.dblclick('[role="alertdialog"] [data-act="allow"]');
+      await settleCalls(h);
+      const sent = calls(out).filter((c) => c.call === 'agents_delete').length;
+      return [sent <= 1 && h.mismatch.length === 0, { calls: calls(out), mismatch: h.mismatch }];
+    });
+  });
+
+  await test('rule4_the_question_shows_each_effect_of_unknown_outcome_with_its_kept_fields_above_the_controls_and_the_record_sentence', async () => {
+    const effects = [
+      {
+        text: 'Halvo does not know whether it made this payment.',
+        fields: [
+          { label: 'Pay to', value: ['City ', 'Power'], from: 'you', from_text: 'You set this' },
+          { label: 'Site', value: ['pay.site1.example'], from: 'halvo', from_text: '' },
+        ],
+      },
+    ];
+    const row = { ...A, ask: { ...A.ask, effects, record: 'Halvo keeps no record of this once the agent is removed.' } };
+    const snap = { ...ten, rows: ten.rows.map((r) => (r.agent === A.agent ? row : r)) };
+    return withPage({ origin, replies: [{ state: snap }], views: [CONFIRM, VIEW] }, async (h) => {
+      await press(h, 'delete', A.agent);
+      const q = await questionOf(h);
+      const order = await h.page.evaluate(() => {
+        const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
+        const did = d.querySelector('.hc-did');
+        const controls = d.querySelector('.hc-controls');
+        return Boolean(did && controls && did.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+      const ok = same(q.did, [effects[0].text]) && same(q.labels, ['Pay to', 'Site']) && same(q.values, ['City Power', 'pay.site1.example']) && q.text[q.text.length - 1] === row.ask.record && order;
+      return [ok, { q, order }];
+    });
+  });
+
+  await test('rule6_a_page_confirmation_that_arrives_while_the_question_is_open_waits_behind_it', async () => {
+    const page = json('state-needs_confirm_page.json').snapshot;
+    const mixed = { ...page, seq: 2, rows: [...ten.rows.filter((r) => !page.rows.some((p) => p.agent === r.agent)), ...page.rows] };
+    return withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [NEEDS_SRC, AGENTS_SRC], ten, []);
+      await settleCalls(h);
+      await press(h, 'delete', A.agent);
+      const delivered = await answerAll(h, 'agents_next', mixed);
+      await settleCalls(h);
+      const kinds = () =>
+        h.page.evaluate(() => [...document.querySelectorAll('[role="alertdialog"]')].map((d) => (d.matches(':modal') ? 'modal:' : 'shut:') + (d.classList.contains('hc-dialog') ? 'question' : 'item')));
+      const during = await kinds();
+      await pressIn(h, 'reject');
+      await settleCalls(h);
+      const after = (await kinds()).filter((d) => d.startsWith('modal:'));
+      const ok = delivered === 2 && same(during, ['shut:item', 'modal:question']) && same(after, ['modal:item']);
+      return [ok, { delivered, during, after }];
+    });
+  });
+
+  await test('rule6_a_page_confirmation_that_left_while_it_waited_behind_the_question_is_not_said_and_the_needs_view_adds_again', async () => {
+    const page = json('state-needs_confirm_page.json').snapshot;
+    const stuck = json('state-needs_stuck.json').snapshot;
+    const join = (snap, seq) => ({ ...snap, seq, rows: [...ten.rows.filter((r) => !snap.rows.some((p) => p.agent === r.agent)), ...snap.rows] });
+    return withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [NEEDS_SRC, AGENTS_SRC], ten, []);
+      await settleCalls(h);
+      await press(h, 'delete', A.agent);
+      await answerAll(h, 'agents_next', join(page, 2));
+      await settleCalls(h);
+      await answerAll(h, 'agents_next', join(stuck, 3));
+      await settleCalls(h);
+      await pressIn(h, 'reject');
+      await settleCalls(h);
+      const said = await h.page.evaluate(() => {
+        const s = document.querySelector('.hn-say');
+        return s ? [...s.children].map((p) => p.textContent) : null;
+      });
+      const want = [stuck.items[0].say_new];
+      return [same(said, want), { said, want }];
+    });
+  });
+
+  await test('rg1_after_every_reply_of_agents_control_whatever_it_holds_the_view_reads_the_state_anew', async () =>
+    withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [AGENTS_SRC], ten, []);
+      await settleCalls(h);
+      await act(h, { act: 'run_now', param: A.agent });
+      await answerFirst(h, 'agents_control', null, { error: 'busy' });
+      await settleCalls(h);
+      const once = await nextsOf(h);
+      await act(h, { act: 'run_now', param: A.agent });
+      await answerFirst(h, 'agents_control', null, null, 'reject');
+      await settleCalls(h);
+      const twice = await nextsOf(h);
+      return [same(once, [ten.seq, 0]) && same(twice, [ten.seq, 0, 0]), { once, twice }];
+    }),
+  );
+
+  for (const order of ['new_first', 'old_first'])
+    await test('a_reply_of_the_loop_before_a_control_reply_is_never_drawn_over_the_newer_state_' + order, async () =>
+      withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+        await boot(h, [AGENTS_SRC], ten, ['agents_control']);
+        await settleCalls(h);
+        await act(h, { act: 'run_now', param: A.agent });
+        await settleCalls(h);
+        const afters = await nextsOf(h);
+        const newer = { ...ten, seq: 7, rows: ten.rows.filter((r) => r.agent !== B.agent) };
+        const older = { ...ten, seq: 5, rows: ten.rows.filter((r) => r.agent !== C.agent) };
+        if (order === 'new_first') {
+          await answerFirst(h, 'agents_next', { after: 0 }, newer);
+          await settleCalls(h);
+          await answerFirst(h, 'agents_next', { after: ten.seq }, older);
+        } else {
+          await answerFirst(h, 'agents_next', { after: ten.seq }, older);
+          await settleCalls(h);
+          await answerFirst(h, 'agents_next', { after: 0 }, newer);
+        }
+        await settleCalls(h);
+        const model = await h.page.evaluate(MODEL);
+        const left = await nextsOf(h);
+        return [same(afters, [ten.seq, 0]) && same(model, expectedModel(newer, null)) && left[left.length - 1] === 7, { afters, left }];
+      }),
+    );
+
+  await test('rd74_a_reply_with_a_lower_seq_is_taken_by_the_transcript', async () => {
+    const high = { ...ten, seq: 9 };
+    const low = { ...ten, seq: 4, rows: ten.rows.filter((r) => r.agent !== A.agent) };
+    const later = { ...low, seq: 5, rows: low.rows.filter((r) => r.agent !== B.agent) };
+    return withPage({ origin, replies: [{ state: high }, { state: low }, { state: later }], views: [CONFIRM, VIEW] }, async (h) => {
+      await h.page.waitForFunction((b) => !document.querySelector('[data-param="' + b + '"]'), B.agent, { timeout: 5000 }).catch(() => {});
+      await settleCalls(h);
+      const model = await h.page.evaluate(MODEL);
+      return [same(model, expectedModel(later, null)), {}];
+    });
+  });
+
+  await test('rd74_the_next_call_after_a_lower_seq_carries_that_seq', async () => {
+    const high = { ...ten, seq: 9 };
+    const low = { ...ten, seq: 4, rows: ten.rows.filter((r) => r.agent !== A.agent) };
+    return withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [AGENTS_SRC], high, []);
+      await settleCalls(h);
+      await answerFirst(h, 'agents_next', { after: 9 }, low);
+      await settleCalls(h);
+      const afters = await nextsOf(h);
+      const model = await h.page.evaluate(MODEL);
+      return [same(afters, [9, 4]) && same(model, expectedModel(low, null)), { afters }];
+    });
+  });
+
+  await test('rd74_a_reply_with_seq_0_and_the_note_is_taken_and_then_a_state', async () => {
+    const stand = { seq: 0, rows: [], items: [], note: 'Halvo cannot reach its service right now.' };
+    const back = { ...ten, seq: 3 };
+    return withPage({ origin, replies: [{ state: ten }, { state: stand }, { state: back }], views: [CONFIRM, VIEW] }, async (h) => {
+      await settleCalls(h);
+      const model = await h.page.evaluate(MODEL);
+      return [same(model, expectedModel(back, null)), {}];
+    });
+  });
+
+  await test('rd74_a_reply_with_seq_0_and_the_note_alone_shows_the_note_and_no_row', async () => {
+    const stand = { seq: 0, rows: [], items: [], note: 'Halvo cannot reach its service right now.' };
+    return withPage({ origin, replies: [{ state: ten }, { state: stand }], views: [CONFIRM, VIEW] }, async (h) => {
+      await settleCalls(h);
+      const model = await h.page.evaluate(MODEL);
+      return [same(model, expectedModel(stand, null)), { model }];
+    });
+  });
+
+  await test('rd74_a_reply_after_next_wait_carries_the_views_own_seq_and_is_not_taken', async () => {
+    const same0 = { seq: ten.seq, rows: [], items: [], note: null };
+    return withPage({ origin, replies: [{ state: ten }, { state: same0 }], views: [CONFIRM, VIEW] }, async (h) => {
+      await settleCalls(h);
+      const model = await h.page.evaluate(MODEL);
+      return [same(model, expectedModel(ten, null)), {}];
+    });
+  });
+
+  await test('rd77_a_change_of_status_whose_say_is_null_adds_nothing_to_the_status_element', async () => {
+    const second = { ...ten, seq: 2, rows: ten.rows.map((r) => (r.agent === A.agent ? { ...r, status: 'off', word: 'Off', say: null } : r)) };
+    return withPage({ origin, replies: [{ state: ten }, { state: second }], views: [CONFIRM, VIEW] }, async (h) => {
+      await settleCalls(h);
+      const seen = await h.page.evaluate(() => {
+        const s = document.querySelector('[role="status"]');
+        return { nodes: s.childNodes.length, text: s.textContent };
+      });
+      return [same(seen, { nodes: 0, text: '' }), seen];
+    });
+  });
+
+  await test('rd76_r4_no_sentence_is_added_while_a_confirmation_is_open_and_it_comes_once_it_has_closed', async () => {
+    const second = { ...ten, seq: 2, rows: ten.rows.map((r) => (r.agent === B.agent ? { ...r, status: 'off', word: 'Off', say: 'It is off.' } : r)) };
+    return withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [AGENTS_SRC], ten, []);
+      await settleCalls(h);
+      await press(h, 'delete', A.agent);
+      await answerAll(h, 'agents_next', second);
+      await settleCalls(h);
+      const statusText = () => h.page.evaluate(() => document.querySelector('.r4a [role="status"]').textContent);
+      const during = await statusText();
+      await pressIn(h, 'reject');
+      await settleCalls(h);
+      const after = await statusText();
+      return [during === '' && after === 'It is off.', { during, after }];
+    });
+  });
+
+  await test('rg4_a_card_effect_with_empty_fields_draws_its_sentence', async () => {
+    const card = json('state-card.json');
+    const bare = JSON.parse(JSON.stringify(card.card));
+    bare.runs[0].effects[0].fields = [];
+    const agentA = card.card.agent;
+    const replies = [{ state: card.snapshot }, { call: 'agents_card', args: { agent: agentA }, reply: bare }];
+    return withPage({ origin, replies, views: [CONFIRM, VIEW] }, async (h) => {
+      await act(h, { act: 'open_card', param: agentA });
+      await settleCalls(h);
+      const did = await h.page.evaluate(() => [...document.querySelectorAll('.r4a-did')].map((p) => p.textContent));
+      return [did.length > 0 && did[0] === bare.runs[0].effects[0].text && h.errors === 0, { did }];
+    });
+  });
+
+  await test('rd54g_the_row_of_a_gone_workflow_draws_its_line_and_no_control', async () => {
+    const row = { ...A, status: 'working', word: 'Working', line: 'It is stopping.', controls: [], ask: null };
+    const snap = { ...ten, seq: 2, rows: ten.rows.map((r) => (r.agent === A.agent ? row : r)) };
+    return withPage({ origin, replies: [{ state: snap }], views: [CONFIRM, VIEW] }, async (h) => {
+      const model = await h.page.evaluate(MODEL);
+      const acts = await h.page.evaluate((a) => [...document.querySelectorAll('[data-param="' + a + '"]')].map((b) => b.getAttribute('data-act')), A.agent);
+      return [same(model, expectedModel(snap, null)) && same(acts, ['open_card']), { acts }];
+    });
+  });
+}
+
+if (want('working')) {
+  const working = json('state-working.json').snapshot;
+  const live = working.rows.find((r) => r.ask && r.ask.kind === 'working');
+
+  await test('rule3_with_a_live_run_the_question_is_the_notice_with_the_safe_control_first_and_the_rows_stop', async () =>
+    withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [AGENTS_SRC], working, ['agents_control']);
+      await settleCalls(h);
+      await press(h, 'delete', live.agent);
+      const q = await questionOf(h);
+      const got = { title: q.title, text: q.text, did: q.did, controls: q.controls };
+      await pressIn(h, 'stop');
+      const sent = await bootCalls(h);
+      const afters = await nextsOf(h);
+      const ok = same(got, questionWanted(live)) && same(q.controls.map((c) => c.act), ['reject', 'stop']) && same(sent, [callOf(live, 'stop')]) && same(afters, [working.seq, 0]);
+      return [ok, { q, sent, afters }];
+    }),
+  );
+
+  await test('rule3_while_the_run_stops_the_notice_has_one_control_that_sends_nothing', async () => {
+    const out = outDir();
+    const stopping = {
+      ...live,
+      ask: { kind: 'stopping', title: 'It is stopping', text: ['You can remove it once it has stopped.'], effects: [], record: null, controls: [{ act: 'done', text: 'OK' }] },
+    };
+    const snap = { ...working, rows: working.rows.map((r) => (r.agent === live.agent ? stopping : r)) };
+    return withPage({ origin, replies: [{ state: snap }], views: [CONFIRM, VIEW], out }, async (h) => {
+      await press(h, 'delete', live.agent);
+      const q = await questionOf(h);
+      await pressIn(h, 'done');
+      const after = await questionOf(h);
+      return [same(q.controls.map((c) => c.act), ['done']) && !after.open && calls(out).length === 0, { q, after, calls: calls(out) }];
+    });
+  });
+}
+
+if (want('queue')) {
+  const queue = json('state-queue.json').snapshot;
+  const waiting = queue.rows.find((r) => r.controls.some((c) => c.control === 'take_back'));
+
+  await test('u24e_the_row_draws_cancel_this_start_from_its_controls_and_reads_the_state_again_after_an_answer_ok', async () => {
+    const back = { ...queue, seq: 2, rows: queue.rows.map((r) => (r.agent === waiting.agent ? { ...r, controls: r.controls.filter((c) => c.control !== 'take_back') } : r)) };
+    return withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [AGENTS_SRC], queue, ['agents_control']);
+      await settleCalls(h);
+      const text = await h.page.evaluate((s) => (document.querySelector(s) ? document.querySelector(s).textContent : null), sel('take_back', waiting.agent));
+      await act(h, { act: 'take_back', param: waiting.agent });
+      await settleCalls(h);
+      const afters = await nextsOf(h);
+      await answerFirst(h, 'agents_next', { after: 0 }, back);
+      await settleCalls(h);
+      const model = await h.page.evaluate(MODEL);
+      const sent = await bootCalls(h);
+      const wantText = waiting.controls.find((c) => c.control === 'take_back').text;
+      const ok = text === wantText && same(sent, [callOf(waiting, 'take_back')]) && same(afters, [queue.seq, 0]) && same(model, expectedModel(back, null));
+      return [ok, { text, sent, afters }];
+    });
+  });
+
+}
+
+if (want('card')) {
+  const { trail } = await import(pathToFileURL(join(REPO, 'tools', 'r4-page', 'index.mjs')).href);
+  const state = json('state-card.json');
+  const A = state.card.agent;
+  const snap = state.snapshot;
+  const B = snap.rows.find((r) => r.agent !== A).agent;
+  const row = snap.rows.find((r) => r.agent === A);
+  const tries = /^ {2}var CARD_TRIES = (\d+);$/m.exec(readFileSync(join(REPO, 'ui', 'app', 'views', 'agents.js'), 'utf8'));
+  const N = tries ? Number(tries[1]) : 0;
+  const count = { key: 'records_dropped', text: 'One record went unsaved.' };
+  const busyCard = { agent: A, name: state.card.name, lines: [count], runs: [], history: 'busy' };
+  const same0 = { state: { ...snap } };
+  const cardCall = (reply) => ({ call: 'agents_card', args: { agent: A }, reply });
+  const syncLine = { call: 'agents_control', args: { agent: B, action: 'run_now' }, reply: { ok: 'yes' } };
+  const sync = async (h) => {
+    await h.page.evaluate((b) => window.Halvo.ipc.call('agents_control', { agent: b, action: 'run_now' }), B);
+    await settleCalls(h);
+    await settleCalls(h);
+  };
+  const strays = (h) => trail(h).filter((l) => l.includes('not_next_in_transcript')).length;
+  const cardsAsked = (out) => calls(out).filter((c) => c.call === 'agents_card').length;
+  const cardOf = (h) =>
+    h.page.evaluate((a) => {
+      const c = document.getElementById('r4a-card-' + a);
+      if (c === null) return null;
+      return {
+        runs: c.querySelectorAll('.r4a-runs > li').length,
+        texts: [...c.querySelectorAll('*')].filter((e) => e.children.length === 0 && e.textContent !== '').map((e) => e.textContent),
+      };
+    }, A);
+  const busyTexts = [count.text].concat(typeof row.next === 'string' && row.next !== '' ? [row.next] : []);
+
+  await test('a_busy_card_is_asked_again_at_the_next_reply_and_shows_its_runs_without_a_close', async () => {
+    const out = outDir();
+    const replies = [{ state: snap }, cardCall(busyCard), syncLine, same0, cardCall(state.card), syncLine, same0];
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      await sync(h);
+      const shown = await cardOf(h);
+      await sync(h);
+      const asked = cardsAsked(out);
+      return [N >= 1 && shown !== null && shown.runs === state.card.runs.length && asked === 2 && strays(h) === 0, { N, shown, asked, trail: trail(h) }];
+    });
+  });
+
+  await test('a_busy_card_whose_next_ask_is_refused_is_not_asked_again_and_keeps_its_count_line', async () => {
+    const out = outDir();
+    const replies = [{ state: snap }, cardCall(busyCard), syncLine, same0, cardCall({ error: 'no_service' }), syncLine, same0];
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      await sync(h);
+      await sync(h);
+      const shown = await cardOf(h);
+      const asked = cardsAsked(out);
+      return [N >= 2 && asked === 2 && strays(h) === 0 && shown !== null && same(shown.texts, busyTexts), { N, asked, shown, trail: trail(h) }];
+    });
+  });
+
+  await test('a_busy_card_is_asked_again_at_most_CARD_TRIES_times_and_then_keeps_the_count_line_alone', async () => {
+    const out = outDir();
+    const replies = [{ state: snap }, cardCall(busyCard)];
+    for (let k = 1; k <= N; k++) replies.push(syncLine, same0, cardCall(busyCard));
+    replies.push(syncLine, same0);
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      for (let k = 0; k <= N; k++) await sync(h);
+      const shown = await cardOf(h);
+      const asked = cardsAsked(out);
+      return [N >= 1 && asked === N + 1 && strays(h) === 0 && shown !== null && shown.runs === 0 && same(shown.texts, busyTexts), { N, asked, shown, busyTexts, trail: trail(h) }];
+    });
+  });
+
+  await test('no_card_is_asked_for_behind_a_busy_card_that_was_closed', async () => {
+    const out = outDir();
+    const replies = [{ state: snap }, cardCall(busyCard), syncLine, same0];
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      await act(h, { act: 'close_card', param: A });
+      await settleCalls(h);
+      await sync(h);
+      const asked = cardsAsked(out);
+      const cards = await cardsOf(h);
+      return [asked === 1 && strays(h) === 0 && same(cards, []), { asked, cards, trail: trail(h) }];
+    });
+  });
+
+  await test('only_the_busy_key_is_asked_again_and_a_busy_refusal_or_a_card_that_answered_is_not', async () => {
+    const seen = [];
+    for (const first of [{ error: 'busy' }, state.card]) {
+      const out = outDir();
+      const replies = [{ state: snap }, cardCall(first), syncLine, same0];
+      const one = await withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
+        await act(h, { act: 'open_card', param: A });
+        await settleCalls(h);
+        await sync(h);
+        return { asked: cardsAsked(out), strays: strays(h), cards: await cardsOf(h) };
+      });
+      seen.push(one);
+    }
+    const ok = same(seen, [
+      { asked: 1, strays: 0, cards: [] },
+      { asked: 1, strays: 0, cards: ['r4a-card-' + A] },
+    ]);
+    return [ok, seen];
+  });
+
+  await test('a_busy_card_shows_the_count_line_and_no_words_of_a_card_with_no_history', async () => {
+    const replies = [{ state: snap }, cardCall(busyCard)];
+    return withPage({ origin, replies, views: [CONFIRM, VIEW] }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      const shown = await cardOf(h);
+      return [shown !== null && shown.runs === 0 && same(shown.texts, busyTexts) && h.errors === 0, { shown, busyTexts }];
+    });
+  });
+
+  await test('a_stop_pressed_while_the_re_ask_of_a_busy_card_is_in_flight_is_sent', async () => {
+    const out = outDir();
+    const work = { ...snap, rows: snap.rows.map((r) => (r.agent === A ? { ...r, controls: [{ control: 'stop', text: 'Stop' }] } : r)) };
+    const stopA = { call: 'agents_control', args: { agent: A, action: 'stop' }, reply: { ok: 'yes' } };
+    const replies = [{ state: work }, cardCall(busyCard), syncLine, { state: { ...work } }, { call: 'agents_card', args: { agent: A }, hold: true }, stopA];
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      await sync(h);
+      const reAsked = cardsAsked(out);
+      await act(h, { act: 'stop', param: A }).catch(() => {});
+      await settleCalls(h);
+      const stops = calls(out).filter((c) => c.call === 'agents_control' && c.args.agent === A && c.args.action === 'stop').length;
+      return [reAsked === 2 && stops === 1 && strays(h) === 0, { reAsked, stops, calls: calls(out), trail: trail(h) }];
+    });
+  });
+
+  await test('a_card_that_the_person_opens_while_a_busy_card_is_asked_again_is_the_one_shown', async () => {
+    const out = outDir();
+    const cardB = { agent: B, name: 'Card of B', lines: [{ key: 'x', text: 'A line of B' }], runs: [] };
+    const replies = [{ state: snap }, cardCall(busyCard), { call: 'agents_card', args: { agent: B }, reply: cardB }, same0, cardCall(busyCard)];
+    return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      await act(h, { act: 'open_card', param: B });
+      await settleCalls(h);
+      await settleCalls(h);
+      const cards = await cardsOf(h);
+      return [same(cards, ['r4a-card-' + B]) && strays(h) === 0, { cards, calls: calls(out), trail: trail(h) }];
     });
   });
 }

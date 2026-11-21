@@ -1,12 +1,14 @@
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
+use halvo_coord_app::{Agents, Core};
 use tauri::webview::PageLoadEvent;
 use tauri::{
-    AppHandle, Builder, Context, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Builder, Context, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder, Window,
     WindowEvent,
 };
 
@@ -93,6 +95,15 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
             let views = Arc::clone(&parts.state.views);
             app.manage(parts.state);
             app.manage(PageLoads::default());
+            if app.try_state::<Agents>().is_none() {
+                let handle = app.handle().clone();
+                app.manage(commands::agents::core(Box::new(move |count| {
+                    tray::set_attention(&handle, count)
+                })));
+            }
+            app.manage(Hooks::default());
+            let ticker = app.handle().clone();
+            std::thread::spawn(move || tick(&ticker));
             let (sender, answer) = mpsc::channel();
             match main_window(
                 app.handle(),
@@ -129,7 +140,10 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 .map(|module| module.registration)
                 .collect();
             views.set_drawer(poller::Drawer::new(
-                Box::new(move |view| tray::refresh(&handle, view)),
+                Box::new(move |view| {
+                    tray::refresh(&handle, view);
+                    tick(&handle);
+                }),
                 modules,
             ));
             if parts.poll {
@@ -152,10 +166,7 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
-                    let _ = webview.eval(WINDOW_HIDDEN);
-                }
-                let _ = window.hide();
+                hide_on_close(window);
             }
         })
         .on_page_load(|webview, payload| {
@@ -169,6 +180,66 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 }
             }
         })
+}
+
+/// What the close handler does once it has kept the window: it tells the page that the window
+/// hides, hides the window, and then calls `Core::hidden` for the window main, since no window
+/// event stands behind a hide.
+pub(crate) fn hide_on_close<R: Runtime>(window: &Window<R>) {
+    if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
+        let _ = webview.eval(WINDOW_HIDDEN);
+    }
+    let _ = window.hide();
+    if window.label() == "main" {
+        if let Some(agents) = core_of(window.app_handle()) {
+            agents.hidden();
+        }
+    }
+}
+
+/// The state of the hooks: whether the tray's Quit has begun, after which no hook calls the
+/// Core, and the turn that a tick holds while it runs, so that the quit hook starts after a
+/// tick that has begun and no tick starts after it.
+#[derive(Default)]
+pub struct Hooks {
+    quitting: AtomicBool,
+    turn: Mutex<()>,
+}
+
+/// Whether the tray's Quit has begun.
+pub(crate) fn quitting<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.try_state::<Hooks>()
+        .is_some_and(|hooks| hooks.quitting.load(Ordering::SeqCst))
+}
+
+/// The app's Core for a hook, or none once the tray's Quit has begun.
+pub(crate) fn core_of<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<dyn Core>> {
+    if quitting(app) {
+        return None;
+    }
+    app.try_state::<Agents>().map(|agents| agents.0.clone())
+}
+
+/// `Core::tick`, called off the main thread: once at the start and at each draw of the view,
+/// which the poller makes at each of its passes. A tick that panics ends no later tick.
+pub(crate) fn tick<R: Runtime>(app: &AppHandle<R>) {
+    let Some(hooks) = app.try_state::<Hooks>() else {
+        return;
+    };
+    let _turn = hooks.turn.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(agents) = core_of(app) {
+        let _ = catch_unwind(AssertUnwindSafe(|| agents.tick()));
+    }
+}
+
+/// Whether this is the first Quit of the tray. From it on no hook calls the Core, and when it
+/// returns, a tick that had begun has ended.
+pub(crate) fn begin_quit<R: Runtime>(app: &AppHandle<R>) -> bool {
+    let Some(hooks) = app.try_state::<Hooks>() else {
+        return true;
+    };
+    let _turn = hooks.turn.lock().unwrap_or_else(PoisonError::into_inner);
+    !hooks.quitting.swap(true, Ordering::SeqCst)
 }
 
 /// The navigation rule of the window main: whether it may navigate to
@@ -349,6 +420,9 @@ fn open<R: Runtime>(app: &AppHandle<R>, opening: Opening, visible: bool) {
     };
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.destroy();
+        if let Some(agents) = core_of(app) {
+            agents.destroyed();
+        }
     }
     match opening {
         Opening::Load(_) => {}

@@ -17,9 +17,10 @@ use crate::floor::exclude::{
 use crate::floor::kind::{self as floor_kind, Recorded};
 use crate::floor::payload::{Title, TitleWhy};
 use crate::floor::Switch;
+use crate::macos::browser_reads::{self, LanguageReads, Languages};
 use crate::macos::run_loop::RunLoopTurns;
 use crate::macos::source_failure;
-use crate::macos::window_title::{self, TitleError, TitleText};
+use crate::macos::window_title::{self, Listed, TitleError, TitleText};
 use crate::secure_input_macos::SystemProbe;
 use crate::sink::SinkHandle;
 use crate::source::{
@@ -379,6 +380,7 @@ pub(crate) mod tests_support {
                 writer,
                 super::RunLoopTurns::for_test(std::time::Instant::now()),
                 Box::new(|_| Ok(None)),
+                super::TitleRules::unread(),
             ),
             reader,
         )
@@ -507,6 +509,281 @@ struct TitleRequest {
     change: u64,
 }
 
+/// The system's list of handlers of https links as bundle ids, or `None` when
+/// it could not be read: the one seam of that list, which a test replaces.
+type HandlerRead = Box<dyn FnMut() -> Option<Vec<String>> + Send>;
+
+/// What the title rules make of a request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TitleRule {
+    /// No browser: its title is read and kept as any app's.
+    Kept,
+    /// Chrome, Edge or Safari in a process that runs in English: its title is
+    /// read, and dropped as private when it ends with these words.
+    PrivateEnding(&'static str),
+    /// Any other browser, and the three under another language or at a failed
+    /// reading: no title is read.
+    NoTitle,
+}
+
+impl TitleRule {
+    fn mark(self, title: TitleText) -> TitleText {
+        match self {
+            Self::PrivateEnding(words) => title.of_a_browser_ending_private_with(words),
+            Self::Kept | Self::NoTitle => title,
+        }
+    }
+}
+
+/// The kept value of a place that a browser's language is read from, and its
+/// epoch in the machine's ticks: taken after the readings at the source's
+/// start, or after the readings of the last change of the app in front at
+/// which this place gave another value than the one before.
+struct Place {
+    value: Languages,
+    epoch: u64,
+}
+
+impl Place {
+    fn read(&mut self, value: Languages, now: u64) {
+        if value != self.value {
+            *self = Self { value, epoch: now };
+        }
+    }
+}
+
+/// The decision for one process of Chrome or Edge, found by the browser, the
+/// pid and the start of the process in ticks: taken at its first title
+/// request and kept until another process of that browser is decided.
+struct Decided {
+    browser: &'static str,
+    pid: libc::pid_t,
+    started: u64,
+    english: bool,
+}
+
+/// The rules that tell, on the title thread, whether the title of the app in
+/// front is read and how it is told private, with the reads of the system
+/// that they make: the places of the apps that the system lists for https
+/// links, and the place of the app in front, at most once for each change of
+/// the app in front whose request reaches the rules; the two places of each
+/// browser's language (its own value and the person's global list), each
+/// after a synchronize call, at the source's start and at each such change;
+/// the start of a process of Chrome or Edge at each of its title requests;
+/// and its localization once, read only from a bundle under an Applications
+/// folder.
+pub(crate) struct TitleRules {
+    handlers: HandlerRead,
+    languages: Box<dyn LanguageReads>,
+    home: Option<String>,
+    change: Option<u64>,
+    list: Option<Option<Vec<String>>>,
+    global: Option<Place>,
+    own: Vec<(&'static str, Place)>,
+    decided: Vec<Decided>,
+}
+
+impl TitleRules {
+    fn new(handlers: HandlerRead, languages: Box<dyn LanguageReads>) -> Self {
+        let home = std::env::var("HOME")
+            .ok()
+            .filter(|home| home.starts_with('/'));
+        Self {
+            handlers,
+            languages,
+            home,
+            change: None,
+            list: None,
+            global: None,
+            own: Vec::new(),
+            decided: Vec::new(),
+        }
+    }
+
+    fn system() -> Self {
+        Self::new(
+            Box::new(browser_reads::https_handlers),
+            Box::new(browser_reads::SystemLanguages),
+        )
+    }
+
+    /// Reads both places of each browser at the source's start; the ticks
+    /// after those readings are their first epoch, so a browser that already
+    /// runs keeps no title until it starts again.
+    fn begin(&mut self) {
+        let global = self.languages.global();
+        let own: Vec<(&'static str, Languages)> = window_title::ENGLISH_ENDINGS
+            .iter()
+            .map(|&(browser, _)| (browser, self.languages.own(browser)))
+            .collect();
+        let now = self.languages.now();
+        self.global = Some(Place {
+            value: global,
+            epoch: now,
+        });
+        self.own = own
+            .into_iter()
+            .map(|(browser, value)| (browser, Place { value, epoch: now }))
+            .collect();
+    }
+
+    /// At a change of the app in front whose request reaches the rules: reads
+    /// both places of each browser again and, after those readings, sets the
+    /// value and the epoch of each place that gave another value, so that each
+    /// kept value and its epoch follow every change that a reading sees; and
+    /// forgets the system's list.
+    fn at_change(&mut self) {
+        let global = self.languages.global();
+        let own: Vec<Languages> = self
+            .own
+            .iter()
+            .map(|(browser, _)| self.languages.own(browser))
+            .collect();
+        let now = self.languages.now();
+        if let Some(place) = self.global.as_mut() {
+            place.read(global, now);
+        }
+        for ((_, place), value) in self.own.iter_mut().zip(own) {
+            place.read(value, now);
+        }
+        self.list = None;
+    }
+
+    fn rule_of(&mut self, request: &TitleRequest) -> TitleRule {
+        if self.change != Some(request.change) {
+            self.change = Some(request.change);
+            self.at_change();
+        }
+        let AppIdentity::BundleId(id) = &request.front.identity else {
+            return TitleRule::Kept;
+        };
+        let id = id.as_str();
+        match window_title::listed(id) {
+            Listed::Ending(browser, words) => {
+                if self.english(browser, id, request.front.pid) {
+                    TitleRule::PrivateEnding(words)
+                } else {
+                    TitleRule::NoTitle
+                }
+            }
+            Listed::Browser => TitleRule::NoTitle,
+            Listed::Domain => match self.named_by_system(id, request.front.pid) {
+                Some(false) => TitleRule::Kept,
+                Some(true) | None => TitleRule::NoTitle,
+            },
+            Listed::Other => match self.named_by_system(id, request.front.pid) {
+                Some(true) => TitleRule::NoTitle,
+                Some(false) | None => TitleRule::Kept,
+            },
+        }
+    }
+
+    /// Whether the system's list names the place of the app `id` with `pid`,
+    /// both as the system gives them, set against each other as text with one
+    /// closing slash taken off; `None` when the list or the place could not be
+    /// read.
+    fn named_by_system(&mut self, id: &str, pid: libc::pid_t) -> Option<bool> {
+        let list = self.list.get_or_insert_with(|| (self.handlers)()).clone()?;
+        let place = self.languages.place(pid, id)?;
+        let place = place.trim_end_matches('/');
+        Some(
+            list.iter()
+                .any(|named| named.trim_end_matches('/') == place),
+        )
+    }
+
+    /// Whether the process `pid` of `browser` runs in English: its start is
+    /// read at each title request, and a decision is found by the browser, the
+    /// pid and that start; another start is decided anew.
+    fn english(&mut self, browser: &'static str, id: &str, pid: libc::pid_t) -> bool {
+        let Some(started) = self.languages.started(pid) else {
+            return false;
+        };
+        if let Some(decided) = self.decided.iter().find(|decided| {
+            decided.browser == browser && decided.pid == pid && decided.started == started
+        }) {
+            return decided.english;
+        }
+        let english = self.first_title(browser, id, pid, started);
+        self.decided.retain(|decided| decided.browser != browser);
+        self.decided.push(Decided {
+            browser,
+            pid,
+            started,
+            english,
+        });
+        english
+    }
+
+    /// A process of `browser` that started at the tick `started` runs in
+    /// English when it started after the epochs of both its places, which the
+    /// readings at this change of the app in front have just moved if they
+    /// gave another value, its bundle lies under an Applications folder, and
+    /// the bundle takes the localization [`window_title::ENGLISH`] under the
+    /// kept list: its own value, else the person's global list.
+    fn first_title(
+        &mut self,
+        browser: &'static str,
+        id: &str,
+        pid: libc::pid_t,
+        started: u64,
+    ) -> bool {
+        let (Some(global), Some((_, own))) = (
+            self.global.as_ref(),
+            self.own.iter().find(|(name, _)| *name == browser),
+        ) else {
+            return false;
+        };
+        let epoch = global.epoch.max(own.epoch);
+        let list = match (&own.value, &global.value) {
+            (Languages::List(list), _) | (Languages::NoValue, Languages::List(list)) => {
+                list.clone()
+            }
+            _ => return false,
+        };
+        if started <= epoch {
+            return false;
+        }
+        let Some(place) = self.languages.place(pid, id) else {
+            return false;
+        };
+        if !window_title::in_applications(&place, self.home.as_deref()) {
+            return false;
+        }
+        self.languages.localization(&place, &list).as_deref() == Some(window_title::ENGLISH)
+    }
+}
+
+#[cfg(test)]
+impl TitleRules {
+    /// Rules whose reads of the system all fail, and read nothing of it: the
+    /// closed list alone stands, and Chrome and Edge keep no title.
+    pub(crate) fn unread() -> Self {
+        struct Unread;
+        impl LanguageReads for Unread {
+            fn own(&mut self, _bundle_id: &str) -> Languages {
+                Languages::Failed
+            }
+            fn global(&mut self) -> Languages {
+                Languages::Failed
+            }
+            fn now(&mut self) -> u64 {
+                0
+            }
+            fn started(&mut self, _pid: libc::pid_t) -> Option<u64> {
+                None
+            }
+            fn place(&mut self, _pid: libc::pid_t, _bundle_id: &str) -> Option<String> {
+                None
+            }
+            fn localization(&mut self, _place: &str, _languages: &[String]) -> Option<String> {
+                None
+            }
+        }
+        Self::new(Box::new(|| None), Box::new(Unread))
+    }
+}
+
 fn window_of(front: &Foreground) -> PrivateWindow {
     let bundle_id = match &front.identity {
         AppIdentity::BundleId(id) => Some(id.as_str()),
@@ -629,7 +906,7 @@ impl Poller {
             return;
         };
         let window = window_of(&front);
-        if window == PrivateWindow::Private {
+        if window == PrivateWindow::Private || title.is_private() {
             self.health.private_dropped.fetch_add(1, Ordering::Relaxed);
             self.last_title = Some(title.into_text());
             return;
@@ -717,9 +994,56 @@ struct TitleThread {
     answers: Receiver<TitleAnswer>,
 }
 
+/// The title thread's answer to one request: no title where the floor refuses
+/// it before or after the read, or where the title rules read none; else the
+/// title read, marked with the words of its browser's private window where the
+/// rules tell a private window by them.
+fn answer_of(
+    request: &TitleRequest,
+    rules: &mut TitleRules,
+    read_title: &mut TitleReader,
+    floor: &FloorHandle,
+    probe: &SystemProbe,
+) -> TitleAnswer {
+    let refused = || {
+        !matches!(
+            verdict_of::<floor_kind::WindowTitle>(
+                floor,
+                probe,
+                &request.front,
+                window_of(&request.front),
+            ),
+            Some(Verdict::Keep(_))
+        )
+    };
+    let read = if refused() {
+        Ok(None)
+    } else {
+        match catch_unwind(AssertUnwindSafe(|| rules.rule_of(request)))
+            .unwrap_or(TitleRule::NoTitle)
+        {
+            TitleRule::NoTitle => Ok(None),
+            rule => {
+                let read = catch_unwind(AssertUnwindSafe(|| read_title(request.front.pid)))
+                    .unwrap_or(Err(TitleError::ReaderPanicked));
+                if refused() {
+                    Ok(None)
+                } else {
+                    read.map(|title| title.map(|title| rule.mark(title)))
+                }
+            }
+        }
+    };
+    TitleAnswer {
+        change: request.change,
+        read,
+    }
+}
+
 impl TitleThread {
     fn spawn(
         mut read_title: TitleReader,
+        mut rules: TitleRules,
         floor: FloorHandle,
         probe: SystemProbe,
     ) -> Result<(Self, JoinHandle<()>), CaptureError> {
@@ -735,33 +1059,9 @@ impl TitleThread {
         let thread = std::thread::Builder::new()
             .name("halvo-window-title".into())
             .spawn(move || {
+                catch_unwind(AssertUnwindSafe(|| rules.begin())).ok();
                 while let Some(request) = next_request(&shared) {
-                    let refused = || {
-                        !matches!(
-                            verdict_of::<floor_kind::WindowTitle>(
-                                &floor,
-                                &probe,
-                                &request.front,
-                                window_of(&request.front),
-                            ),
-                            Some(Verdict::Keep(_))
-                        )
-                    };
-                    let read = if refused() {
-                        Ok(None)
-                    } else {
-                        let read = catch_unwind(AssertUnwindSafe(|| read_title(request.front.pid)))
-                            .unwrap_or(Err(TitleError::ReaderPanicked));
-                        if refused() {
-                            Ok(None)
-                        } else {
-                            read
-                        }
-                    };
-                    let answer = TitleAnswer {
-                        change: request.change,
-                        read,
-                    };
+                    let answer = answer_of(&request, &mut rules, &mut read_title, &floor, &probe);
                     if tx.send(answer).is_err() {
                         return;
                     }
@@ -843,7 +1143,7 @@ impl Running {
 pub struct ForegroundSource {
     interval: Duration,
     turns: RunLoopTurns,
-    readers: Option<(FrontReader, TitleReader, ForegroundWriter)>,
+    readers: Option<(FrontReader, TitleReader, TitleRules, ForegroundWriter)>,
     health: Arc<TitleHealth>,
     running: Option<Running>,
     failure: Option<CaptureError>,
@@ -861,6 +1161,7 @@ impl ForegroundSource {
             foreground,
             turns,
             Box::new(window_title::focused_window_title),
+            TitleRules::system(),
         );
         #[cfg(test)]
         {
@@ -876,9 +1177,10 @@ impl ForegroundSource {
         foreground: ForegroundWriter,
         turns: RunLoopTurns,
         read_title: TitleReader,
+        rules: TitleRules,
     ) -> Self {
         let read_front = foreground.poll_reader();
-        Self::with_readers(interval, foreground, turns, read_front, read_title)
+        Self::with_readers(interval, foreground, turns, read_front, read_title, rules)
     }
 
     fn with_readers(
@@ -887,11 +1189,12 @@ impl ForegroundSource {
         turns: RunLoopTurns,
         read_front: FrontReader,
         read_title: TitleReader,
+        rules: TitleRules,
     ) -> Self {
         Self {
             interval,
             turns,
-            readers: Some((read_front, read_title, foreground)),
+            readers: Some((read_front, read_title, rules, foreground)),
             health: Arc::new(TitleHealth::default()),
             running: None,
             failure: None,
@@ -921,7 +1224,7 @@ impl CaptureSource for ForegroundSource {
         if self.running.is_some() {
             return Err(CaptureError::AlreadyStarted);
         }
-        let Some((read_front, read_title, writer)) = self.readers.take() else {
+        let Some((read_front, read_title, rules, writer)) = self.readers.take() else {
             return Err(CaptureError::Start(
                 "the foreground source starts once".into(),
             ));
@@ -931,15 +1234,14 @@ impl CaptureSource for ForegroundSource {
         let (stop, stop_rx) = channel();
         let sink = ctx.sink().clone();
         let interval = self.interval;
-        let started = TitleThread::spawn(read_title, poller.floor.clone(), poller.probe).and_then(
-            |(titles, title)| {
+        let started = TitleThread::spawn(read_title, rules, poller.floor.clone(), poller.probe)
+            .and_then(|(titles, title)| {
                 std::thread::Builder::new()
                     .name("halvo-foreground".into())
                     .spawn(move || poll_loop(read_front, poller, titles, sink, interval, stop_rx))
                     .map(|thread| (thread, title))
                     .map_err(thread_start_failure)
-            },
-        );
+            });
         match started {
             Ok((thread, title)) => {
                 self.running = Some(Running {
@@ -1330,7 +1632,8 @@ mod tests {
         let chrome = app("com.google.Chrome", 40);
         poller.step(chrome.clone(), Vec::new(), &handle);
         let long = format!("{} - Google Chrome (Incognito)", "a".repeat(1_100));
-        poller.step(chrome, answer(1, read(&long)), &handle);
+        let english = TitleText::for_test(&long).of_a_browser_ending_private_with("(Incognito)");
+        poller.step(chrome, answer(1, Ok(Some(english))), &handle);
         assert_eq!(
             titles(&writer),
             [],
@@ -1387,8 +1690,13 @@ mod tests {
             seen.send(inside_byte()).ok();
             read("READ-WHILE-ACTIVE")
         });
-        let (thread, joined) = TitleThread::spawn(reader, poller.floor.clone(), poller.probe)
-            .expect("the title thread of the test");
+        let (thread, joined) = TitleThread::spawn(
+            reader,
+            TitleRules::unread(),
+            poller.floor.clone(),
+            poller.probe,
+        )
+        .expect("the title thread of the test");
         let request = poller
             .step(front.clone(), thread.answers(), &handle)
             .expect("tick 1 reads inactive and asks for the title");
@@ -1446,8 +1754,9 @@ mod tests {
             read("NOT-TO-BE-READ")
         });
         let probe = SystemProbe::with_readers(at_console, active_byte);
-        let (thread, joined) = TitleThread::spawn(reader, FloorHandle::default(), probe)
-            .expect("the title thread of the test");
+        let (thread, joined) =
+            TitleThread::spawn(reader, TitleRules::unread(), FloorHandle::default(), probe)
+                .expect("the title thread of the test");
         thread.ask(TitleRequest {
             front: super::tests_support::front("com.example.a", 10),
             change: 1,
@@ -1518,8 +1827,9 @@ mod tests {
             wait.recv().ok();
             read("READ-UNDER-THE-SYSTEM-HOLD")
         });
-        let (thread, joined) = TitleThread::spawn(reader, poller.floor.clone(), probe)
-            .expect("the title thread of the test");
+        let (thread, joined) =
+            TitleThread::spawn(reader, TitleRules::unread(), poller.floor.clone(), probe)
+                .expect("the title thread of the test");
         let request = poller
             .step(front.clone(), thread.answers(), &handle)
             .expect("step 1 reads secure input off and asks for the title");
@@ -1597,10 +1907,6 @@ mod tests {
             "Neuer Tab - Google Chrome (Inkognito)",
         ];
         for bundle_id in [
-            "com.google.Chrome",
-            "com.microsoft.edgemac",
-            "org.mozilla.firefox",
-            "com.apple.Safari",
             "com.brave.Browser",
             "company.thebrowser.Browser",
             "com.example.editor",
@@ -1780,7 +2086,7 @@ mod tests {
     #[test]
     fn a_private_window_of_its_browser_makes_no_title_and_counts_the_drop() {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
-        let chrome = app("com.google.Chrome", 40);
+        let chrome = app("com.brave.Browser", 40);
         poller.step(chrome.clone(), Vec::new(), &handle);
         poller.step(
             chrome.clone(),
@@ -1805,6 +2111,412 @@ mod tests {
             "no title of a browser's window is kept"
         );
         drop(poller);
+    }
+
+    /// A tick of the machine's count, `ticks` after the first of these tests.
+    fn at(ticks: u64) -> u64 {
+        1_000_000 + ticks
+    }
+
+    fn list_of(language: &str) -> Languages {
+        Languages::List(vec![language.to_string()])
+    }
+
+    /// A stand-in of the system's reads of a browser's language and of the
+    /// app in front: the global list and the tick count as the test sets
+    /// them, no value of a browser's own, the start of each process as the
+    /// test sets it, an app's place /Applications/<its id>.app unless the test
+    /// sets another, and as the localization of a bundle the code of the first
+    /// language of the list, with each place asked for it noted. It reads
+    /// nothing of the system.
+    #[derive(Clone)]
+    struct SaidLanguage(Arc<Mutex<Said>>);
+
+    struct Said {
+        global: Languages,
+        clock: u64,
+        started: Vec<(libc::pid_t, u64)>,
+        places: Vec<(libc::pid_t, String)>,
+        asked: Vec<String>,
+    }
+
+    impl SaidLanguage {
+        fn new(global: Languages) -> Self {
+            Self(Arc::new(Mutex::new(Said {
+                global,
+                clock: 0,
+                started: Vec::new(),
+                places: Vec::new(),
+                asked: Vec::new(),
+            })))
+        }
+
+        fn said(&self) -> std::sync::MutexGuard<'_, Said> {
+            self.0.lock().expect("the stand-in's lock")
+        }
+
+        fn set(&self, global: Languages) {
+            self.said().global = global;
+        }
+
+        fn started(&self, pid: libc::pid_t, at: u64) {
+            let mut said = self.said();
+            said.started.retain(|(process, _)| *process != pid);
+            said.started.push((pid, at));
+        }
+
+        fn lies(&self, pid: libc::pid_t, place: &str) {
+            self.said().places.push((pid, place.to_string()));
+        }
+    }
+
+    impl LanguageReads for SaidLanguage {
+        fn own(&mut self, _bundle_id: &str) -> Languages {
+            Languages::NoValue
+        }
+
+        fn global(&mut self) -> Languages {
+            self.said().global.clone()
+        }
+
+        fn now(&mut self) -> u64 {
+            self.said().clock
+        }
+
+        fn started(&mut self, pid: libc::pid_t) -> Option<u64> {
+            let said = self.said();
+            Some(said.started.iter().find(|(process, _)| *process == pid)?.1)
+        }
+
+        fn place(&mut self, pid: libc::pid_t, bundle_id: &str) -> Option<String> {
+            let said = self.said();
+            Some(
+                said.places
+                    .iter()
+                    .find(|(process, _)| *process == pid)
+                    .map_or_else(
+                        || format!("/Applications/{bundle_id}.app"),
+                        |(_, place)| place.clone(),
+                    ),
+            )
+        }
+
+        fn localization(&mut self, place: &str, languages: &[String]) -> Option<String> {
+            self.said().asked.push(place.to_string());
+            Some(languages.first()?.split('-').next()?.to_string())
+        }
+    }
+
+    /// A poll with title rules over stand-ins of the system, whose title
+    /// thread's answers `answer_of` makes here, on the test's own thread.
+    struct Through {
+        poller: Poller,
+        handle: SinkHandle,
+        writer: SinkWriter,
+        rules: TitleRules,
+        said: SaidLanguage,
+        reads: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl Through {
+        /// `handlers` stands in for the places of the system's list (`None`:
+        /// a failed read), `language` for the reads of a language; the source
+        /// began at the tick `began`.
+        fn new(handlers: Option<&[&str]>, language: &SaidLanguage, began: u64) -> Self {
+            let list: Option<Vec<String>> =
+                handlers.map(|places| places.iter().map(|place| place.to_string()).collect());
+            let mut rules =
+                TitleRules::new(Box::new(move || list.clone()), Box::new(language.clone()));
+            language.said().clock = began;
+            rules.begin();
+            let (poller, handle, writer) = poller_with(FloorHandle::default());
+            Self {
+                poller,
+                handle,
+                writer,
+                rules,
+                said: language.clone(),
+                reads: Arc::default(),
+            }
+        }
+
+        /// The app `front` in front at the tick `now`, its window titled
+        /// `title`: the poll that asks for the title, the title thread's
+        /// answer, the poll that takes it.
+        fn shows(&mut self, front: &Option<Foreground>, title: &str, now: u64) {
+            self.said.said().clock = now;
+            let text = title.to_string();
+            let reads = self.reads.clone();
+            let mut reader: TitleReader = Box::new(move |_pid| {
+                reads.fetch_add(1, Ordering::SeqCst);
+                read(&text)
+            });
+            let answers = match self.poller.step(front.clone(), Vec::new(), &self.handle) {
+                Some(request) => vec![answer_of(
+                    &request,
+                    &mut self.rules,
+                    &mut reader,
+                    &self.poller.floor,
+                    &self.poller.probe,
+                )],
+                None => Vec::new(),
+            };
+            self.poller.step(front.clone(), answers, &self.handle);
+        }
+
+        /// The kinds of the events made since the last call, the texts of its
+        /// title events, the titles read from a window and the private titles
+        /// dropped.
+        fn made(&self) -> (Vec<Modality>, Vec<String>, usize, u64) {
+            let events = floor_events(&self.writer);
+            let texts = events
+                .iter()
+                .filter_map(|floor| match floor.event().observation() {
+                    crate::floor::payload::Observation::WindowTitle(title) => {
+                        Some(crate::floor::cases::stored(
+                            &title.text,
+                            crate::floor::text::TextField::Title,
+                        ))
+                    }
+                    _ => None,
+                })
+                .collect();
+            (
+                events.iter().map(|floor| floor.event().kind()).collect(),
+                texts,
+                self.reads.swap(0, Ordering::SeqCst),
+                self.poller
+                    .health
+                    .private_dropped
+                    .swap(0, Ordering::Relaxed),
+            )
+        }
+    }
+
+    #[test]
+    fn an_app_that_the_system_lists_for_https_links_keeps_no_title_while_one_in_neither_list_and_thunderbird_keep_theirs(
+    ) {
+        let visit = ["Quarterly plan - Reader", "New Tab - Reader (Incognito)"];
+        let system = [
+            "/Applications/com.example.webreader.app/",
+            "/Applications/org.mozilla.firefox.app",
+        ];
+        for (bundle_id, kept) in [
+            ("com.example.webreader", &[][..]),
+            ("com.example.editor", &visit[..]),
+            ("org.mozilla.thunderbird", &visit[..]),
+        ] {
+            let mut through =
+                Through::new(Some(&system), &SaidLanguage::new(list_of("en-US")), at(0));
+            let front = app(bundle_id, 40);
+            for title in visit {
+                through.shows(&front, title, at(10));
+            }
+            let (_, titles, reads, _) = through.made();
+            assert_eq!(
+                (titles, reads),
+                (
+                    kept.iter().map(|title| title.to_string()).collect(),
+                    kept.len()
+                ),
+                "{bundle_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn chrome_and_edge_keep_a_normal_title_and_drop_a_private_one_under_english_alone_and_safari_and_a_browser_outside_the_applications_folders_keep_none(
+    ) {
+        let normal = "Quarterly plan - Google Docs";
+        let outside = "/Volumes/Stick/Google Chrome.app";
+        for (bundle_id, private, place, language, kept, reads, dropped) in [
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                None,
+                list_of("de-DE"),
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                None,
+                list_of("en-US"),
+                &[normal][..],
+                2,
+                1,
+            ),
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                None,
+                Languages::Failed,
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.microsoft.edgemac",
+                "New Tab - Microsoft Edge (InPrivate)",
+                None,
+                list_of("de-DE"),
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.microsoft.edgemac",
+                "New Tab - Microsoft Edge (InPrivate)",
+                None,
+                list_of("en-US"),
+                &[normal][..],
+                2,
+                1,
+            ),
+            (
+                "com.microsoft.edgemac",
+                "New Tab - Microsoft Edge (InPrivate)",
+                None,
+                Languages::Failed,
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.apple.Safari",
+                "Start Page, Private Browsing",
+                None,
+                list_of("en-US"),
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                Some(outside),
+                list_of("en-US"),
+                &[][..],
+                0,
+                0,
+            ),
+        ] {
+            let said = SaidLanguage::new(language.clone());
+            said.started(40, at(5));
+            if let Some(place) = place {
+                said.lies(40, place);
+            }
+            let mut through = Through::new(None, &said, at(0));
+            let front = app(bundle_id, 40);
+            for title in [normal, private] {
+                through.shows(&front, title, at(10));
+            }
+            let (_, titles, read, private_dropped) = through.made();
+            let asked_outside = said.said().asked.iter().any(|asked| asked == outside);
+            assert_eq!(
+                (titles, read, private_dropped, asked_outside),
+                (
+                    kept.iter().map(|title| title.to_string()).collect(),
+                    reads,
+                    dropped,
+                    false
+                ),
+                "{bundle_id} at {place:?} under {language:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn under_english_firefox_and_another_browser_of_the_closed_list_keep_no_title_and_their_app_is_recorded(
+    ) {
+        let system = ["/Applications/com.example.webreader.app"];
+        for (bundle_id, private) in [
+            ("org.mozilla.firefox", "New Tab \u{2014} Private Browsing"),
+            ("com.brave.Browser", "New Private Tab - Brave"),
+            ("org.torproject.torbrowser", "Tor Browser"),
+        ] {
+            let said = SaidLanguage::new(list_of("en-US"));
+            said.started(40, at(5));
+            let mut through = Through::new(Some(&system), &said, at(0));
+            let front = app(bundle_id, 40);
+            for title in ["Quarterly plan - Google Docs", private] {
+                through.shows(&front, title, at(10));
+            }
+            assert_eq!(
+                through.made(),
+                (vec![Modality::ForegroundApp], Vec::new(), 0, 0),
+                "{bundle_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_language_changed_after_a_browser_started_keeps_no_title_of_that_process_and_the_next_one_has_its_titles(
+    ) {
+        let normal = "Quarterly plan - Google Docs";
+        let private = "New Tab - Google Chrome (Incognito)";
+        let chrome = |pid| app("com.google.Chrome", pid);
+
+        // A change between a process's start and its first title.
+        let said = SaidLanguage::new(list_of("de-DE"));
+        let mut through = Through::new(None, &said, at(0));
+        said.started(41, at(10));
+        said.set(list_of("en-US"));
+        for title in [normal, private] {
+            through.shows(&chrome(41), title, at(20));
+        }
+        let (_, changed, _, _) = through.made();
+        said.started(42, at(30));
+        for title in [normal, private] {
+            through.shows(&chrome(42), title, at(40));
+        }
+        let (_, next, _, dropped) = through.made();
+        assert_eq!(
+            (changed, next, dropped),
+            (Vec::<String>::new(), vec![normal.to_string()], 1)
+        );
+
+        // A change and its undoing across a switch of apps, with a process
+        // that started between them.
+        let said = SaidLanguage::new(list_of("en-US"));
+        let mut through = Through::new(None, &said, at(0));
+        through.shows(&app("com.example.editor", 10), "Settings", at(10));
+        said.set(list_of("de-DE"));
+        through.shows(&app("com.example.mail", 11), "Inbox", at(20));
+        said.started(43, at(30));
+        through.shows(&app("com.example.editor", 10), "Settings", at(40));
+        said.set(list_of("en-US"));
+        through.shows(&app("com.example.mail", 11), "Inbox", at(50));
+        for title in [normal, private] {
+            through.shows(&chrome(43), title, at(60));
+        }
+        let (_, titles, _, _) = through.made();
+        assert_eq!(titles, ["Settings", "Inbox", "Settings", "Inbox"]);
+
+        // A later process with the pid of a process decided English.
+        let said = SaidLanguage::new(list_of("en-US"));
+        let mut through = Through::new(None, &said, at(0));
+        said.started(44, at(10));
+        through.shows(&chrome(44), normal, at(20));
+        said.set(list_of("de-DE"));
+        through.shows(&app("com.example.editor", 10), "Settings", at(30));
+        said.started(44, at(40));
+        for title in [normal, private] {
+            through.shows(&chrome(44), title, at(50));
+        }
+        let (_, titles, _, _) = through.made();
+        assert_eq!(titles, [normal, "Settings"]);
+
+        // A start that the ticks put before the source's start.
+        let said = SaidLanguage::new(list_of("en-US"));
+        said.started(45, at(50));
+        let mut through = Through::new(None, &said, at(100));
+        for title in [normal, private] {
+            through.shows(&chrome(45), title, at(110));
+        }
+        assert_eq!(through.made().1, Vec::<String>::new());
     }
 
     #[test]
@@ -2311,7 +3023,14 @@ mod tests {
     ) -> (ForegroundSource, ForegroundReader) {
         let (writer, reader) = foreground_state_for_test();
         (
-            ForegroundSource::with_readers(interval, writer, turns, read_front, read_title),
+            ForegroundSource::with_readers(
+                interval,
+                writer,
+                turns,
+                read_front,
+                read_title,
+                TitleRules::unread(),
+            ),
             reader,
         )
     }

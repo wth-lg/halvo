@@ -13,7 +13,7 @@ use std::time::SystemTime;
 use super::db::{EncryptedStore, KeyFile};
 use super::durable::{self, Dir, OsFs};
 use super::KindTotal;
-use super::{Layout, OpenFor, RootReading, SegmentStore, StoreError, DEFAULT_RETENTION};
+use super::{Layout, OpenFor, RootReading, StoreError, DEFAULT_RETENTION};
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId};
 use crate::daemon::custody_policy::Custody;
@@ -29,20 +29,26 @@ struct Adapter {
 }
 
 impl MaintainStore for Adapter {
-    fn expire_due(&mut self, _now: SystemTime, _max_segments: usize) -> Result<Pass, MaintFault> {
-        Ok(Pass::default())
+    fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.store
+            .expire_due(now, max_segments)
+            .map(pass)
+            .map_err(maint_fault)
     }
 
-    fn evict_to(&mut self, _bound: ByteBound, _max_segments: usize) -> Result<Pass, MaintFault> {
-        Ok(Pass::default())
+    fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.store
+            .evict_to(bound.bytes(), max_segments)
+            .map(pass)
+            .map_err(maint_fault)
     }
 
     fn usage(&mut self) -> Result<Usage, MaintFault> {
         self.store
-            .size_bytes()
-            .map(|disk_bytes| Usage {
-                disk_bytes,
-                logical_bytes: 0,
+            .usage()
+            .map(|usage| Usage {
+                disk_bytes: usage.disk_bytes,
+                logical_bytes: usage.logical_bytes,
             })
             .map_err(maint_fault)
     }
@@ -84,6 +90,18 @@ impl CaptureStore for Adapter {
 
     fn volume_free_bytes(&self) -> io::Result<u64> {
         free_bytes(self.store.dir())
+    }
+}
+
+fn pass(pass: super::Pass) -> Pass {
+    Pass {
+        shredded: pass
+            .shredded
+            .into_iter()
+            .map(|ordinal| Ordinal::new(ordinal.get()))
+            .collect(),
+        more_due: pass.more_due,
+        owed: pass.owed,
     }
 }
 
@@ -246,10 +264,17 @@ fn opened(store: EncryptedStore, id: StoreId, access: Access) -> Opened {
     }
 }
 
+fn open_for(access: Access) -> OpenFor {
+    match access {
+        Access::ReadWrite => OpenFor::Write,
+        Access::MaintenanceOnly => OpenFor::Maintenance,
+    }
+}
+
 fn open_at(store_dir: &Path, roots: &Path, access: Access) -> Opened {
     let id = key_id(store_dir);
     match (
-        EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION, OpenFor::Write),
+        EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION, open_for(access)),
         id,
     ) {
         (Ok(store), Some(id)) => opened(store, id, access),
@@ -323,6 +348,46 @@ impl DataDirStore {
             let _ = place.destroy();
         }
         std::fs::symlink_metadata(&path).is_err_and(|e| e.kind() == io::ErrorKind::NotFound)
+    }
+}
+
+#[cfg(all(test, target_os = "macos", debug_assertions))]
+impl DataDirStore {
+    /// The plaintext of every segment that the store of this data directory
+    /// recorded, the oldest first capture first, or `None` for a segment that
+    /// no longer decrypts because its key is gone. It opens the store for
+    /// maintenance alone, so no other handle may hold it.
+    pub(crate) fn read_back(&self) -> Vec<Option<Vec<u8>>> {
+        let store = EncryptedStore::open(
+            &self.store_dir(),
+            &self.roots(),
+            DEFAULT_RETENTION,
+            OpenFor::Maintenance,
+        )
+        .unwrap();
+        let ids: Vec<String> = {
+            let db = store.db().unwrap();
+            let mut rows = db
+                .connection()
+                .prepare("SELECT segment_id FROM segment_keys ORDER BY first_capture, id")
+                .unwrap();
+            let ids = rows
+                .query_map([], |row| row.get(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap();
+            ids
+        };
+        ids.iter()
+            .map(|id| {
+                let mut plaintext = Vec::new();
+                match store.read_segment(uuid::Uuid::parse_str(id).unwrap(), &mut plaintext) {
+                    Ok(_) => Some(plaintext),
+                    Err(StoreError::Sealed) => None,
+                    Err(e) => panic!("segment {id} did not read: {e}"),
+                }
+            })
+            .collect()
     }
 }
 

@@ -1335,10 +1335,10 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
     }
     let cases: Vec<(String, &str, &str, &str)> = vec![
         (
-            format!(r#"{{"op":"list_agents","workflow":"{W}","agent":"{A}"}}"#),
-            "CoordinatorCall",
-            "unknown_op",
-            "op",
+            format!(r#"{{"op":"list_agents","workflow":"{W}","agent":"{A}","after":null}}"#),
+            "Null",
+            "not_null",
+            "workflow",
         ),
         (
             format!(r#"{{"op":"load","agent":"{A}","run":"{R}"}}"#),
@@ -1412,10 +1412,10 @@ fn every_coordinator_body_reads_writes_back_and_travels_in_a_coordinator_write()
 #[test]
 fn each_reply_is_told_apart_by_its_keys_and_answers_its_own_call() {
     let load = format!(
-        r#"{{"config":{CONFIG},"playbook":{{"number":1,"steps":9}},"bindings":{{"rev":1,{ORIGINS},{SLOTS}}},"sessions":[{{"origin":"{U}","rev":1,"parts":1}}],"start":null}}"#
+        r#"{{"config":{CONFIG},"playbook":{{"number":1,"steps":9}},"next_playbook":2,"bindings":{{"rev":1,{ORIGINS},{SLOTS}}},"sessions":[{{"origin":"{U}","rev":1,"parts":1}}],"start":null}}"#
     );
     let empty_load = format!(
-        r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[],"start":null}}"#
+        r#"{{"config":{CONFIG},"playbook":null,"next_playbook":1,"bindings":null,"sessions":[],"start":null}}"#
     );
     let steps = format!(r#"{{"agent":"{A}","steps":[{},{}]}}"#, wait(3), wait(4));
     let no_steps = format!(r#"{{"agent":"{A}","steps":[]}}"#);
@@ -1933,7 +1933,7 @@ fn the_reply_of_create_agent_is_revision_1_and_set_bindings_and_add_origin_take_
 fn a_load_reply_whose_bindings_name_an_origin_twice_is_refused() {
     let load = |origins: &str| {
         format!(
-            r#"{{"config":{CONFIG},"playbook":null,"bindings":{{"rev":3,{origins},{SLOTS}}},"sessions":[],"start":null}}"#
+            r#"{{"config":{CONFIG},"playbook":null,"next_playbook":1,"bindings":{{"rev":3,{origins},{SLOTS}}},"sessions":[],"start":null}}"#
         )
     };
     assert!(RunnerReply::parse(load(ORIGINS).as_bytes()).is_ok());
@@ -1960,7 +1960,7 @@ fn a_load_reply_whose_bindings_name_an_origin_twice_is_refused() {
 fn every_reply_of_a_runner_body_is_counted_on_the_bytes_given_by_its_own_parse_and_its_readers() {
     type Parse = fn(&[u8]) -> Result<(), Refusal>;
     let load = format!(
-        r#"{{"config":{CONFIG},"playbook":null,"bindings":null,"sessions":[],"start":null}}"#
+        r#"{{"config":{CONFIG},"playbook":null,"next_playbook":1,"bindings":null,"sessions":[],"start":null}}"#
     );
     let steps = format!(r#"{{"agent":"{A}","steps":[{}]}}"#, wait(3));
     let session =
@@ -2043,4 +2043,109 @@ fn a_runner_reply_one_byte_over_its_bound_is_refused_before_any_byte_of_it_is_re
             }
         }
     }
+}
+
+fn listed_agent(agent: &str, last: &str) -> String {
+    let config = swap(
+        CONFIG,
+        &format!(r#""agent":"{A}""#),
+        &format!(r#""agent":"{agent}""#),
+    );
+    let config = swap(&config, r#""playbook":null"#, r#""playbook":1"#);
+    format!(
+        r#"{{"config":{config},"state":"active","slots":["payee","instrument"],"session":"yes","last":{last},"unknown":[{{"run":"{R}","effect":"{E}","day":20768,"class":"payment","kept":{PAY_KEPT}}}]}}"#
+    )
+}
+
+#[test]
+fn list_agents_is_a_body_and_its_reply_reads_back() {
+    for text in [
+        r#"{"op":"list_agents","workflow":null,"agent":null,"after":null}"#.to_owned(),
+        format!(r#"{{"op":"list_agents","workflow":null,"agent":null,"after":"{A}"}}"#),
+    ] {
+        let call =
+            CoordinatorCall::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}: {text}"));
+        assert_eq!(call.op(), "list_agents");
+        assert_eq!(call.to_json().unwrap(), text);
+        assert_eq!(
+            serde_json::from_str::<CoordinatorCall>(&text).unwrap(),
+            call
+        );
+        let write = CoordinatorWrite::new(
+            &CoordinatorRole::claim(),
+            RequestId::from_random([9; 16]),
+            call.clone(),
+        );
+        let Ok(Decoded::Raw(raw)) = request::decode(&write.to_bytes().unwrap()) else {
+            panic!("{text}")
+        };
+        assert_eq!(
+            CoordinatorCall::parse(raw.body().get().as_bytes()).unwrap(),
+            call
+        );
+    }
+    expect(
+        CoordinatorCall::parse(br#"{"op":"list_agents","workflow":null,"agent":null}"#),
+        "ListAgents",
+        "missing_key",
+        "after",
+    );
+
+    const A2: &str = "40000000000000000000000000000002";
+    let first = listed_agent(A, &run_record(R, RUN_REST));
+    let second = listed_agent(A2, "null");
+    let lists = format!(r#"{{"agents":[{first},{second}],"next":"{A2}"}}"#);
+    let empty = r#"{"agents":[],"next":null}"#.to_owned();
+    let call = CoordinatorCall::parse(
+        br#"{"op":"list_agents","workflow":null,"agent":null,"after":null}"#,
+    )
+    .unwrap();
+    let checkpoints = CoordinatorCall::parse(
+        br#"{"op":"list_checkpoints","workflow":null,"agent":null,"after":null}"#,
+    )
+    .unwrap();
+    for text in [lists.as_str(), empty.as_str()] {
+        let reply =
+            CoordinatorReply::parse(text.as_bytes()).unwrap_or_else(|e| panic!("{e}: {text}"));
+        assert_eq!(reply.to_json().unwrap(), text);
+        assert_eq!(
+            serde_json::from_str::<CoordinatorReply>(text).unwrap(),
+            reply
+        );
+        assert!(
+            reply.answers(&call) && !reply.answers(&checkpoints),
+            "{text}"
+        );
+    }
+    let unordered = format!(r#"{{"agents":[{second},{first}],"next":null}}"#);
+    expect(
+        CoordinatorReply::parse(unordered.as_bytes()),
+        "AgentsReply",
+        "agent_order",
+        "agents",
+    );
+    let twice = format!(r#"{{"agents":[{first},{first}],"next":null}}"#);
+    expect(
+        CoordinatorReply::parse(twice.as_bytes()),
+        "AgentsReply",
+        "agent_order",
+        "agents",
+    );
+    let of_another = format!(
+        r#"{{"agents":[{}],"next":null}}"#,
+        listed_agent(A2, &run_record(R, RUN_REST))
+    );
+    expect(
+        CoordinatorReply::parse(of_another.as_bytes()),
+        "ListedAgent",
+        "record_of_another_agent",
+        "last",
+    );
+    let mut over = empty.clone().into_bytes();
+    over.resize(CHECKPOINTS_REPLY_MAX + 1, b' ');
+    let refusal = CoordinatorReply::parse(&over).expect_err("one byte over the bound");
+    assert_eq!(
+        (refusal.cause(), refusal.rule()),
+        (RefusalCause::Length, "reply_bytes")
+    );
 }

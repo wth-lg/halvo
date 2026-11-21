@@ -4,8 +4,9 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use halvo_control::model::CaptureState;
 use halvo_control::onboarding::Permission;
-use halvo_control::proto::{Platform, Request};
+use halvo_control::proto::{Capture, Platform, Request};
 use halvo_control::testing::{sample_inventory, sample_status, ScriptedConnector, ScriptedDaemon};
 use serde::Deserialize;
 use serde_json::Value;
@@ -22,6 +23,7 @@ use crate::engine::{self, EngineSite, GuardAnswer, GuardInstalled};
 use crate::launch::Exit;
 use crate::poller;
 use crate::tray::{self, TrayInstalled};
+use crate::view_state::StatusView;
 
 pub const APP_URL: &str = if cfg!(windows) {
     "http://tauri.localhost"
@@ -469,6 +471,34 @@ fn the_handler_names_the_manifest_and_the_capabilities_are_one_set() {
             line.names().module
         );
     }
+    let list: BTreeSet<String> = halvo_coord::types::commands::LIST
+        .iter()
+        .map(|command| command.name.to_string())
+        .collect();
+    let table = commands::table::<MockRuntime>();
+    let agents = table
+        .iter()
+        .find(|line| line.names().module == "agents")
+        .expect("the module table holds the module agents");
+    let names: BTreeSet<String> = agents
+        .names()
+        .commands
+        .iter()
+        .map(|c| c.to_string())
+        .collect();
+    assert_eq!(names, list, "the names of the module agents");
+    let allowed: BTreeSet<String> =
+        permission_names(&read_json(&src_tauri().join("capabilities/agents.json"))["permissions"])
+            .iter()
+            .filter_map(|name| name.strip_prefix("allow-"))
+            .map(|command| command.replace('-', "_"))
+            .collect();
+    assert_eq!(allowed, list, "capabilities/agents.json");
+    assert_eq!(
+        answered_by(agents.handler, "three-lists-agents"),
+        list,
+        "the handler of the module agents"
+    );
 }
 
 #[test]
@@ -592,6 +622,13 @@ const UNIT_PERMISSIONS: [&str; 10] = [
     "core:app:allow-version",
 ];
 
+const WORKFLOWS_PERMISSIONS: [&str; 4] = [
+    "allow-workflows",
+    "allow-approve-workflow",
+    "allow-dismiss-workflow",
+    "allow-delete-workflow",
+];
+
 fn permission_names(permissions: &Value) -> BTreeSet<String> {
     permissions
         .as_array()
@@ -641,9 +678,13 @@ fn the_built_context_holds_the_capability_file_and_no_other_capability() {
         .collect();
     assert_eq!(
         identifiers,
-        ["capture"],
-        "the build holds the capabilities {identifiers:?} beside capture"
+        ["agents", "capture", "workflows"],
+        "the build holds the capabilities {identifiers:?} beside agents, capture and workflows"
     );
+    let agents = &built["agents"];
+    assert_eq!(agents["windows"], serde_json::json!(["main"]), "{agents}");
+    assert!(agents.get("webviews").is_none(), "{agents}");
+    assert!(agents.get("remote").is_none_or(Value::is_null), "{agents}");
     let capture = &built["capture"];
     assert_eq!(capture["windows"], serde_json::json!(["main"]), "{capture}");
     assert!(capture.get("webviews").is_none(), "{capture}");
@@ -690,7 +731,7 @@ fn is_refused(reply: &Result<Value, Value>) -> bool {
 #[test]
 fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin_alone() {
     let commands = manifest_commands();
-    assert_eq!(commands.len(), 174, "commands of the generated manifests");
+    assert_eq!(commands.len(), 187, "commands of the generated manifests");
     let test = test_app(scratch_dir("every-command"));
     let main = main_window(&test.app);
     let other = WebviewWindowBuilder::new(
@@ -760,7 +801,14 @@ fn widening(labels: &[&str], identifier: &str) -> String {
     serde_json::json!({
         "identifier": identifier,
         "windows": labels,
-        "permissions": UNIT_PERMISSIONS,
+        "permissions": UNIT_PERMISSIONS
+            .iter()
+            .map(|p| p.to_string())
+            .chain(permission_names(
+                &read_json(&src_tauri().join("capabilities/agents.json"))["permissions"],
+            ))
+            .chain(WORKFLOWS_PERMISSIONS.iter().map(|p| p.to_string()))
+            .collect::<Vec<String>>(),
     })
     .to_string()
 }
@@ -1574,5 +1622,374 @@ fn a_window_that_cannot_open_keeps_the_trays_other_texts_and_disables_open() {
             usual.toggle_text,
             usual.toggle_enabled
         )
+    );
+}
+
+/// This test reads the manifests: no build of the app turns on the feature `scripted` of
+/// halvo-coord-app, the stand-in presenter of that crate's tests, neither by the app's own
+/// line nor by a default feature of the crate.
+#[test]
+fn no_manifest_turns_the_feature_scripted_of_halvo_coord_app_on_for_the_app() {
+    let read = |path: &str| {
+        std::fs::read_to_string(src_tauri().join(path))
+            .unwrap_or_else(|e| panic!("cannot read {path}: {e}"))
+            .replace("\r\n", "\n")
+    };
+    let app = read("Cargo.toml");
+    let lines: Vec<&str> = app
+        .lines()
+        .filter(|line| line.contains("halvo-coord-app"))
+        .collect();
+    assert_eq!(
+        lines,
+        [r#"halvo-coord-app = { path = "../crates/halvo-coord-app" }"#],
+        "src-tauri/Cargo.toml names halvo-coord-app on these lines"
+    );
+    let own = read("../crates/halvo-coord-app/Cargo.toml");
+    let defaults: Vec<&str> = own
+        .lines()
+        .filter(|line| line.trim_start().starts_with("default") && line.contains("scripted"))
+        .collect();
+    assert!(
+        defaults.is_empty(),
+        "crates/halvo-coord-app/Cargo.toml turns scripted on by default: {defaults:?}"
+    );
+}
+
+/// The tray's count of agents that need the person (I10.3): above zero the icon variant and
+/// the tooltip of `Attention::of`, and on macOS the tray's own title with the count after it,
+/// so that the title still says whether Halvo captures; at zero the tray's own.
+#[test]
+fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives_it() {
+    let test = test_app(scratch_dir("tray-count"));
+    let handle = test.app.handle();
+    let view = test.app.state::<AppState>().views.view();
+    let own = tray::shown(handle, &view);
+    for count in [0, 1, 12] {
+        tray::set_attention(handle, count);
+        let attention = halvo_coord_app::Attention::of(count);
+        let shown = tray::with_attention(handle, &view);
+        assert_eq!(shown.variant, attention.variant, "{count}");
+        let tooltip = attention.tooltip.unwrap_or_else(|| own.tooltip.to_string());
+        assert_eq!(shown.tooltip, tooltip, "{count}");
+        let title = if count > 0 && cfg!(target_os = "macos") {
+            format!("{} {count}", own.title)
+        } else {
+            own.title.to_string()
+        };
+        assert_eq!(shown.title, title, "{count}");
+    }
+    let title_with = |capture, desired| {
+        let StatusView::Running(mut running) = StatusView::of(&sample_status(Platform::Macos))
+        else {
+            panic!("the sample status makes a running view")
+        };
+        running.capture = capture;
+        running.desired = desired;
+        tray::with_attention(handle, &StatusView::Running(running)).title
+    };
+    assert_ne!(
+        title_with(Capture::Running, CaptureState::Running),
+        title_with(Capture::Paused, CaptureState::Paused),
+        "with 12 agents that need the person, the title still says whether Halvo captures"
+    );
+}
+
+/// A stand-in for the app's `Core` that records each call with the thread that made it, and
+/// whose tick panics at the numbers in `panics`.
+struct Recorder {
+    calls: Mutex<Vec<(&'static str, std::thread::ThreadId)>>,
+    panics: Vec<usize>,
+    hold: Mutex<Option<std::sync::mpsc::Receiver<()>>>,
+}
+
+impl Recorder {
+    fn new(panics: &[usize]) -> Arc<Recorder> {
+        Arc::new(Recorder {
+            calls: Mutex::new(Vec::new()),
+            panics: panics.to_vec(),
+            hold: Mutex::new(None),
+        })
+    }
+
+    /// A recorder whose quit hook waits until `release` is sent or dropped.
+    fn holding_quit(release: std::sync::mpsc::Receiver<()>) -> Arc<Recorder> {
+        Arc::new(Recorder {
+            calls: Mutex::new(Vec::new()),
+            panics: Vec::new(),
+            hold: Mutex::new(Some(release)),
+        })
+    }
+
+    fn record(&self, name: &'static str) -> usize {
+        let mut calls = self
+            .calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        calls.push((name, std::thread::current().id()));
+        calls.iter().filter(|(n, _)| *n == name).count()
+    }
+
+    fn calls(&self) -> Vec<(&'static str, std::thread::ThreadId)> {
+        self.calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    fn names(&self) -> Vec<&'static str> {
+        self.calls().into_iter().map(|(name, _)| name).collect()
+    }
+
+    fn wait_for(&self, name: &str, count: usize) {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while self.names().iter().filter(|n| **n == name).count() < count {
+            assert!(
+                Instant::now() < deadline,
+                "the stand-in saw {:?}",
+                self.names()
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+}
+
+impl halvo_coord_app::Core for Recorder {
+    fn call(&self, _command: &str, _args: Option<&Value>) -> halvo_coord_app::Reply {
+        self.record("call");
+        halvo_coord_app::Reply::Closed
+    }
+
+    fn shown(&self) {
+        self.record("shown");
+    }
+
+    fn hidden(&self) {
+        self.record("hidden");
+    }
+
+    fn destroyed(&self) {
+        self.record("destroyed");
+    }
+
+    fn tick(&self) {
+        let n = self.record("tick");
+        assert!(!self.panics.contains(&n), "tick {n} of the stand-in panics");
+    }
+
+    fn quit(
+        &self,
+        budget: Option<Duration>,
+    ) -> Vec<(halvo_coord::types::AgentId, halvo_coord::types::RunId)> {
+        self.record(if budget.is_none() {
+            "quit"
+        } else {
+            "quit with a budget"
+        });
+        let hold = self
+            .hold
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        if let Some(release) = hold {
+            let _ = release.recv();
+        }
+        Vec::new()
+    }
+
+    fn on_screen(&self, _item: &halvo_coord::types::ItemId) {
+        self.record("on_screen");
+    }
+
+    fn answer_native(
+        &self,
+        _item: &halvo_coord::types::ItemId,
+        _answer: halvo_coord::items::ConfirmAnswer,
+    ) -> Result<(), halvo_coord::types::Cause> {
+        self.record("answer_native");
+        Err(halvo_coord::types::Cause::NoService)
+    }
+}
+
+/// The app on the mock runtime with `core` as the Core that it manages.
+fn app_with_core(
+    name: &str,
+    core: Arc<Recorder>,
+    guard: engine::GuardInstall<MockRuntime>,
+    tray: Option<app::TrayInstall<MockRuntime>>,
+) -> TestApp {
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
+    let mut parts = test_parts(scratch_dir(name), state_of(&connector));
+    parts.guard = guard;
+    parts.tray = tray;
+    let core: Arc<dyn halvo_coord_app::Core> = core;
+    let builder = mock_builder()
+        .manage(GuardCalls::default())
+        .manage(halvo_coord_app::Agents(core));
+    let mut app = app::build(builder, parts)
+        .build(app::context())
+        .expect("the app builds on the mock runtime");
+    first_iteration_runs_the_set_up(&mut app);
+    TestApp {
+        app,
+        daemon: connector,
+    }
+}
+
+/// The hooks of the app's Core from its own poller and window (contracts I10, ruling RD-74
+/// 3.6), on the mock runtime: a tick at the start, off the thread that ran the set-up; a tick
+/// at each pass of the poller, also after a tick that panicked; `shown` at a show, before the
+/// page hears of it; `hidden` where the close handler hides the window; and `destroyed` where
+/// the app destroys it. The mock runtime fires no close request and runs no script, so the test
+/// calls the function that the close handler calls and reads the order of the show in tray.rs.
+#[test]
+fn the_app_calls_the_hooks_of_its_core_from_its_poller_and_its_window() {
+    let set_up = std::thread::current().id();
+    let core = Recorder::new(&[2]);
+    let test = app_with_core("hooks", core.clone(), guard_installed, None);
+    core.wait_for("tick", 1);
+    assert_eq!(core.names(), ["tick"], "the start");
+    assert!(
+        core.calls().iter().all(|(_, thread)| *thread != set_up),
+        "the tick of the start runs off the thread of the set-up"
+    );
+    let state = test.app.state::<AppState>();
+    poller::round(state.control.as_ref(), &state.views, None);
+    poller::round(state.control.as_ref(), &state.views, None);
+    assert_eq!(
+        core.names(),
+        ["tick", "tick", "tick"],
+        "a tick at each pass of the poller, also after a tick that panicked"
+    );
+    tray::show_main_window(test.app.handle());
+    assert_eq!(core.names().last(), Some(&"shown"));
+    let tray_rs = std::fs::read_to_string(src_tauri().join("src/tray.rs"))
+        .expect("tray.rs reads")
+        .replace("\r\n", "\n");
+    let show = tray_rs
+        .find("pub fn show_main_window<")
+        .expect("show_main_window");
+    let shown = tray_rs[show..]
+        .find("core.shown()")
+        .expect("show_main_window calls Core::shown");
+    let heard = tray_rs[show..]
+        .find("window.eval(crate::app::WINDOW_SHOWN)")
+        .expect("show_main_window tells the page");
+    assert!(
+        shown < heard,
+        "Core::shown comes before the page hears of the show"
+    );
+    app::hide_on_close(&main_window(&test.app).as_ref().window());
+    assert_eq!(core.names().last(), Some(&"hidden"));
+    let without_window = Recorder::new(&[]);
+    let _app = app_with_core(
+        "hooks-destroyed",
+        without_window.clone(),
+        guard_refused,
+        Some(tray_stand_in),
+    );
+    assert!(
+        without_window.names().contains(&"destroyed"),
+        "{:?}",
+        without_window.names()
+    );
+}
+
+/// The tray's Quit (I5.7, ruling RD-8): it calls `Core::quit` once, off the main thread and with
+/// no budget, before it asks for the exit, and no tick and no other call of the Core follows it.
+/// The mock runtime cannot exit, so the test hands the Quit an exit that records.
+#[test]
+fn the_trays_quit_calls_the_quit_hook_once_before_the_exit_and_nothing_after_it() {
+    let set_up = std::thread::current().id();
+    let core = Recorder::new(&[]);
+    let test = app_with_core("quit", core.clone(), guard_installed, None);
+    core.wait_for("tick", 1);
+    let (sender, exits) = std::sync::mpsc::channel();
+    let seen = core.clone();
+    let again = sender.clone();
+    tray::quit(test.app.handle(), move |_| {
+        let _ = sender.send(seen.calls());
+    });
+    let at_exit = exits
+        .recv_timeout(Duration::from_secs(20))
+        .expect("the Quit asks for the exit");
+    let names: Vec<&str> = at_exit.iter().map(|(name, _)| *name).collect();
+    assert_eq!(
+        names.iter().filter(|name| name.starts_with("quit")).count(),
+        1,
+        "{names:?}"
+    );
+    assert_eq!(
+        names.last(),
+        Some(&"quit"),
+        "the quit hook, with no budget, before the exit"
+    );
+    assert!(
+        at_exit
+            .iter()
+            .all(|(name, thread)| *name != "quit" || *thread != set_up),
+        "the quit hook runs off the main thread"
+    );
+    let state = test.app.state::<AppState>();
+    poller::round(state.control.as_ref(), &state.views, None);
+    tray::show_main_window(test.app.handle());
+    app::hide_on_close(&main_window(&test.app).as_ref().window());
+    tray::quit(test.app.handle(), move |_| {
+        let _ = again.send(Vec::new());
+    });
+    assert!(
+        exits.recv_timeout(Duration::from_millis(500)).is_err(),
+        "a second Quit asks for no exit"
+    );
+    assert_eq!(
+        core.names(),
+        names,
+        "no call of the Core follows the quit hook"
+    );
+}
+
+/// Once the tray's Quit has begun, every command of the page gets the fixed reply that the app's
+/// `NoService` gives it and reaches no call of the Core, while `Core::quit` runs and after it has
+/// returned.
+#[test]
+fn once_the_trays_quit_has_begun_every_command_of_the_page_gets_its_fixed_reply_and_no_call_of_the_core(
+) {
+    let (release, held) = std::sync::mpsc::channel();
+    let core = Recorder::holding_quit(held);
+    let test = app_with_core("quit-commands", core.clone(), guard_installed, None);
+    core.wait_for("tick", 1);
+    let window = main_window(&test.app);
+    let check = |moment: &str| {
+        for command in halvo_coord::types::commands::LIST.iter().map(|c| c.name) {
+            let fixed = serde_json::to_value(halvo_coord_app::Core::call(
+                &commands::agents::NoService,
+                command,
+                None,
+            ))
+            .expect("a reply is JSON");
+            assert_eq!(
+                invoke(&window, APP_URL, command, serde_json::json!({})),
+                Ok(fixed),
+                "{command} {moment}"
+            );
+        }
+    };
+    let (sender, exits) = std::sync::mpsc::channel();
+    tray::quit(test.app.handle(), move |_| {
+        let _ = sender.send(());
+    });
+    core.wait_for("quit", 1);
+    check("while Core::quit runs");
+    release
+        .send(())
+        .expect("the quit hook waits for the release");
+    exits
+        .recv_timeout(Duration::from_secs(20))
+        .expect("the Quit asks for the exit");
+    check("after Core::quit has returned");
+    assert!(
+        !core.names().contains(&"call"),
+        "a command reached the Core: {:?}",
+        core.names()
     );
 }

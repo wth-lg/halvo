@@ -11,12 +11,14 @@ agent_bindings
 agent_checkpoint
 agent_config
 agent_effect
+agent_finished
 agent_log
 agent_playbook
 agent_reply
 agent_run
 agent_session
 agent_start
+agents
 allow
 allow_once
 analysis
@@ -187,6 +189,7 @@ limit
 limits
 link
 link_account
+list_agents
 list_checkpoints
 list_overlaps
 list_refinements
@@ -228,6 +231,7 @@ navigate
 navigation
 new_origin
 next
+next_playbook
 night
 no
 no_channel
@@ -308,6 +312,7 @@ ride_order
 routine_stale
 run
 run_ended
+run_not_stopped
 run_started
 runner
 runs
@@ -324,6 +329,7 @@ send
 senders
 senders_unread
 seq
+session
 session_size
 sessions
 set_bindings

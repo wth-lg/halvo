@@ -8,6 +8,7 @@ export const ROOT = resolve(HERE, '..', '..', '..', '..');
 export const TRACKED = join(ROOT, 'ui', 'tests', 'fixtures', 'coord');
 export const VIEW_FILE = join(ROOT, 'ui', 'app', 'views', 'needs.js');
 export const VIEW = '/app/views/needs.js';
+export const CONFIRM = '/app/views/confirm.js';
 
 const harness = await import(pathToFileURL(join(ROOT, 'tools', 'r4-page', 'index.mjs')).href);
 export const { serve, open, act, check, trail, settled } = harness;

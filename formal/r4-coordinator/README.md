@@ -1,5 +1,10 @@
 # The coordinator's models
 
+From the commit that adds this sentence on, the model `Schedule` no longer follows the code in
+one rule, the day's read of ruling RD-73 2.2, which takes a stored `hold_set` into the facts so
+that a tick on a new day sends `set_state` `paused` where the model does not, and its traces in
+`traces-schedule.jsonl` are no longer held against the code.
+
 This directory holds two TLA+ models of the coordinator that the crate `halvo-coord` will
 implement, and the traces of `Schedule`. Since the commit that removed the crate's trace test
 `formal_traces`, no test holds the code to the traces of these models, so the models no longer

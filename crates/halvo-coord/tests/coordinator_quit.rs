@@ -296,6 +296,45 @@ fn u46_the_next_life_shows_a_run_that_outlived_quit_with_the_line_of_a_stuck_kil
     );
 }
 
+#[test]
+fn u46d_the_quit_of_the_next_life_kills_the_run_that_reap_kept_and_names_it() {
+    let c = coord::coordinator(&[coord::MANUAL], Limits::PRODUCT);
+    let run = run_now(&c, 0);
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    let next = coord::owner(&[], Limits::PRODUCT);
+    *next.ports.workflows.borrow_mut() = c.ports().ports.workflows.borrow().clone();
+    *next.ports.agents.borrow_mut() = c.ports().ports.agents.borrow().clone();
+    *next.ports.events.borrow_mut() = c.ports().ports.events.borrow().clone();
+    next.ports.leave_marks(&[(run.clone(), Reaped::Alive)]);
+    let life = Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    life.quit_stop();
+    life.quit_kill();
+    let kills: Vec<RunId> = life
+        .ports()
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .filter_map(|t| match &t.call {
+            Call::Kill(r) => Some(r.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        kills,
+        std::slice::from_ref(&run),
+        "the second step of the next life's quit sends its kill for the run that reap kept"
+    );
+    assert_eq!(
+        life.not_stopped(),
+        named(&[(0, &run)]),
+        "the library of the new life answers the kill unknown_run, so the run stays named"
+    );
+}
+
 fn hand_back(c: &Coordinator<coord::Both>, n: usize, run: &RunId) {
     assert_eq!(
         c.on_run(

@@ -271,6 +271,10 @@ impl<P: Owner> Owner for Watch<'_, P> {
     ) -> Result<crate::ports::Overlaps, PortError> {
         self.ports.overlaps(workflow, agent, slots)
     }
+
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        self.ports.delete(workflow)
+    }
 }
 
 impl<P: Runs> Runs for Watch<'_, P> {
@@ -413,13 +417,33 @@ where
             lost.push(run);
         }
     }
+    let checked = checks_of_the_move(ports, board, limits, None, &report);
     Done {
         report,
         lost,
         gone: gone.map(|g| g.seen).unwrap_or_default(),
-        checked: raise_checks(ports, board, limits, None),
+        checked,
         killed: Vec::new(),
     }
+}
+
+/// The checks that an act raises after its move of the schedule, each stamped by that move's one
+/// read of the clock, which its report carries; none where no read of the clock answered (ruling
+/// RD-77 part 6).
+fn checks_of_the_move<P>(
+    ports: &P,
+    board: &mut Board<P::Config>,
+    limits: &Limits,
+    only: Option<&AgentId>,
+    report: &Report,
+) -> Vec<AgentId>
+where
+    P: Owner + Rng,
+    P::Config: ConfigView,
+{
+    report.stamp.map_or_else(Vec::new, |stamp| {
+        raise_checks(ports, board, limits, only, stamp)
+    })
 }
 
 /// Carries out a move of a run on the ports, the board and the guard's table (I5.6, I5.7,
@@ -469,7 +493,7 @@ where
                     agent: agent.clone(),
                 },
             ));
-            done.checked = raise_checks(ports, board, limits, Some(&agent));
+            done.checked = checks_of_the_move(ports, board, limits, Some(&agent), &done.report);
             done
         }
         Act::SwitchOff { agent } => {
@@ -512,7 +536,7 @@ where
                 limits,
                 Move::End { run, outcome },
             ));
-            done.checked = raise_checks(ports, board, limits, None);
+            done.checked = checks_of_the_move(ports, board, limits, None, &done.report);
             done
         }
         Act::StopAll => stop_all(ports, board, table),
@@ -750,5 +774,74 @@ mod watch_tests {
             Err(PortError::Busy)
         );
         assert_eq!(p.overlap_reads.borrow().clone(), vec![(agent, None)]);
+    }
+}
+
+#[cfg(test)]
+mod watch {
+    use super::Watch;
+    use crate::guard::Table;
+    use crate::mem::Config;
+    use crate::ports::{Owner, PortError};
+    use crate::types::{Agent, AgentId, Body, Event, Reply, ReplyRow, RunId, Workflow, WorkflowId};
+    use std::cell::RefCell;
+
+    #[derive(Default)]
+    struct Recording {
+        deletes: RefCell<Vec<WorkflowId>>,
+    }
+
+    impl Owner for Recording {
+        type Config = Config;
+
+        fn log(&self, _: &[Event]) -> Result<(), PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn history(&self, _: &AgentId, _: u32) -> Result<(Vec<Event>, u32), PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn send(&self, _: &Body) -> Result<Reply, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn replies(
+            &self,
+            _: &WorkflowId,
+            _: &AgentId,
+            _: &RunId,
+        ) -> Result<Vec<ReplyRow>, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+            self.deletes.borrow_mut().push(workflow.clone());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_delete_through_the_watch_reaches_the_owner_that_it_wraps() {
+        let owner = Recording::default();
+        let mut table = Table::new();
+        let watch = Watch {
+            ports: &owner,
+            kill_refused_unknown_run: RefCell::new(Vec::new()),
+            listed: RefCell::new(None),
+            cancel_already_sent: Vec::new(),
+            table: RefCell::new(&mut table),
+        };
+        let workflow = WorkflowId::parse(&format!("{:032x}", 0x51)).unwrap();
+        assert_eq!(watch.delete(&workflow), Ok(()));
+        assert_eq!(*owner.deletes.borrow(), [workflow]);
     }
 }

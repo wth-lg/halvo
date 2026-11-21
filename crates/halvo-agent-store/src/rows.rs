@@ -1,6 +1,6 @@
 use halvo_schema::executable::{
-    AgentBindings, AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentPlaybook, AgentReply,
-    AgentRun, AgentSession, AgentStart, Refusal,
+    AgentBindings, AgentCheckpoint, AgentConfig, AgentEffect, AgentFinished, AgentLog,
+    AgentPlaybook, AgentReply, AgentRun, AgentSession, AgentStart, Refusal,
 };
 use halvo_schema::{AgentId, ErrorName, RowRead, TypedRecord};
 
@@ -16,6 +16,7 @@ pub(crate) const AGENT_SESSION: &str = "agent_session";
 pub(crate) const AGENT_CHECKPOINT: &str = "agent_checkpoint";
 pub(crate) const AGENT_REPLY: &str = "agent_reply";
 pub(crate) const AGENT_START: &str = "agent_start";
+pub(crate) const AGENT_FINISHED: &str = "agent_finished";
 
 fn parsed<T>(
     rows: &dyn RowRead,
@@ -78,6 +79,10 @@ pub(crate) fn checkpoints(rows: &dyn RowRead) -> Result<Vec<AgentCheckpoint>, Er
 
 pub(crate) fn replies(rows: &dyn RowRead) -> Result<Vec<AgentReply>, ErrorName> {
     parsed(rows, AGENT_REPLY, AgentReply::parse)
+}
+
+pub(crate) fn finished(rows: &dyn RowRead) -> Result<Vec<AgentFinished>, ErrorName> {
+    parsed(rows, AGENT_FINISHED, AgentFinished::parse)
 }
 
 pub(crate) fn start_of(

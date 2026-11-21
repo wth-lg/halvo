@@ -1,0 +1,1 @@
+- Added: The agent store answers the coordinator body `list_agents` with each agent's configuration with its finished playbook, state, slot names, session, last run record and effects of unknown outcome, in ascending order of agent id, paged by `after` and `next`.

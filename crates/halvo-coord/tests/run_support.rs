@@ -207,6 +207,7 @@ pub fn what_name(what: &What) -> String {
         What::HoldSet { cause } => format!("hold_set {}", cause.name()),
         What::HoldCleared { .. } => "hold_cleared".into(),
         What::SlotSkipped { .. } => "slot_skipped".into(),
+        What::RunNotStopped { .. } => "run_not_stopped".into(),
     }
 }
 

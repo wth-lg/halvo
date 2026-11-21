@@ -416,6 +416,14 @@ names! {
 }
 
 names! {
+    /// What a card's read of `Owner::agent_history` answered, where the card names it in its key
+    /// `history` (I2.6; the coordinator's word on R6 of U2.4t): `busy`, so the card holds no run.
+    HistoryRead {
+        Busy = "busy",
+    }
+}
+
+names! {
     /// The type of a command's argument in `commands.json` (I8.3).
     ArgType {
         Count = "count",

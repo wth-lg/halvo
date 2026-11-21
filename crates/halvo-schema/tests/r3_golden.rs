@@ -4,12 +4,13 @@ use std::path::{Path, PathBuf};
 
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
-    Accepted, AddOrigin, CheckpointsReply, CoordinatorCall, CoordinatorReply, CreateAgent, EndRun,
-    Finish, ListCheckpoints, ListOverlaps, ListedCheckpoint, Load, LoadReplies, LoadRepliesReply,
-    LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook, LoadedSession,
-    MarkCheckpoint, Overlap, OverlapsReply, PutCheckpoint, PutEffect, PutLog, PutPlaybook,
-    PutReplyRow, PutSession, RevReply, RunnerCall, RunnerReply, SessionReply, SetBindings,
-    SetState, StartRun, StateReply, StepsReply, Stored,
+    Accepted, AddOrigin, AgentsReply, CheckpointsReply, CoordinatorCall, CoordinatorReply,
+    CreateAgent, EndRun, Finish, ListAgents, ListCheckpoints, ListOverlaps, ListedAgent,
+    ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply, LoadSession, LoadSteps,
+    LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint, Overlap, OverlapsReply,
+    PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession, RevReply, RunnerCall,
+    RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply, StepsReply, Stored,
+    UnknownEffect,
 };
 use halvo_schema::executable::bound::{Bound, BoundField, KeptField};
 use halvo_schema::executable::config::{AgentConfig, Budget, Caps, Limits};
@@ -928,7 +929,39 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
                 },
             ]),
         }),
+        CoordinatorCall::ListAgents(ListAgents {
+            workflow: Null,
+            agent: Null,
+            after: None,
+        }),
+        CoordinatorCall::ListAgents(ListAgents {
+            workflow: Null,
+            agent: Null,
+            after: Some(agent()),
+        }),
     ]
+}
+
+/// The agent of the bill's configuration with playbook 1 finished, its newest run record that left one effect
+/// `unknown`, and that effect.
+fn listed_agent() -> ListedAgent {
+    let mut config = configs().remove(0);
+    config.playbook = Some(n(1));
+    let row = effect_row(6, EffectState::Unknown, None, None);
+    ListedAgent {
+        config,
+        state: AgentState::Active,
+        slots: slots().into_iter().map(|s| s.name).collect(),
+        session: YesNo::Yes,
+        last: Some(runs().remove(2)),
+        unknown: vec![UnknownEffect {
+            run: row.run,
+            effect: row.effect,
+            day: row.day,
+            class: row.class,
+            kept: row.kept,
+        }],
+    }
 }
 
 fn runner_replies() -> Vec<RunnerReply> {
@@ -939,6 +972,7 @@ fn runner_replies() -> Vec<RunnerReply> {
                 number: n(1),
                 steps: n(9),
             }),
+            next_playbook: n(3),
             bindings: Some(LoadedBindings {
                 rev: n(1),
                 origins: vec![origin(UTILITY), origin(PAY)],
@@ -1018,6 +1052,14 @@ fn coordinator_replies() -> Vec<CoordinatorReply> {
         CoordinatorReply::Overlaps(OverlapsReply {
             overlaps: vec![],
             more: YesNo::No,
+        }),
+        CoordinatorReply::Agents(AgentsReply {
+            agents: vec![listed_agent()],
+            next: Some(agent()),
+        }),
+        CoordinatorReply::Agents(AgentsReply {
+            agents: vec![],
+            next: None,
         }),
     ]
 }
@@ -1340,7 +1382,7 @@ fn the_names_list_holds_every_key_and_closed_list_name_of_the_records_and_bodies
     for name in ["binding", "length", "overlap"] {
         assert!(!NAMES.contains(&name), "{name}");
     }
-    assert_eq!(executable::KINDS.len(), 10);
+    assert_eq!(executable::KINDS.len(), 11);
 }
 
 #[test]

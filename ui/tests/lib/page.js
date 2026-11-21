@@ -70,6 +70,7 @@ function defaultReplies() {
     inventory: () => fixture("inventory-empty"),
     onboarding_state: () => fixture("onboarding_state-none"),
     last_delete: () => fixture("last_delete-none"),
+    workflows: () => ({ state: "not_running" }),
     "plugin:app|version": () => "0.0.0",
   };
 }
@@ -101,6 +102,7 @@ async function openPage(options = {}) {
     clearTimeout: (id) => clock.clear(id),
     clearInterval: (id) => clock.clear(id),
     __TAURI_INTERNALS__: { invoke },
+    addEventListener: () => {},
   };
   const loads = { again: 0 };
   context.location = {

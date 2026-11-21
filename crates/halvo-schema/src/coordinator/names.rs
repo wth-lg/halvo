@@ -55,7 +55,9 @@ macro_rules! names {
 }
 
 names! {
-    /// The nine events of `coord_event` (contracts.md I7.1).
+    /// The ten events of `coord_event` (contracts.md I7.1): the nine of the contract and `run_not_stopped`, the run of
+    /// the list of the runs that the app's quit did not stop, written at the quit so that the next life reads it
+    /// (ruling RD-150).
     pub enum Event {
         RunStarted = "run_started",
         RunEnded = "run_ended",
@@ -66,6 +68,7 @@ names! {
         HoldSet = "hold_set",
         HoldCleared = "hold_cleared",
         SlotSkipped = "slot_skipped",
+        RunNotStopped = "run_not_stopped",
     }
 }
 

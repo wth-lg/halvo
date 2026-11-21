@@ -167,6 +167,10 @@ fn every_shape() -> Vec<(What, String)> {
             line("slot_skipped", &[("slot", "20766")]),
         ),
         (What::SlotSkipped { slot: None }, line("slot_skipped", &[])),
+        (
+            What::RunNotStopped { run: run() },
+            line("run_not_stopped", &[("run", &q(RUN))]),
+        ),
     ];
     for answer in CheckAnswer::ALL {
         shapes.push((
@@ -475,6 +479,7 @@ fn r4_record_the_closed_lists_hold_the_names_of_the_contract() {
             "hold_set",
             "hold_cleared",
             "slot_skipped",
+            "run_not_stopped",
         ]
     );
     assert_eq!(

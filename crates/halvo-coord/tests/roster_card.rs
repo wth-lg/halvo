@@ -1,11 +1,12 @@
 use halvo_coord::guard::EffectState;
+use halvo_coord::items::compose_check;
 use halvo_coord::mem::{Config, Method, Ports};
 use halvo_coord::ports::{Owner, PortError};
 use halvo_coord::roster::{card, names, plain_site};
 use halvo_coord::types::fixtures::{facts, State};
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Body, CardEffect, Class, Digest, EffectId, Event, Kept, Limits,
-    Name, Outcome, PastEffect, PastRun, Reply, RunHistory, RunId, Workflow, WorkflowId,
+    Name, Outcome, PastEffect, PastRun, Reply, RunHistory, RunId, Unknown, Workflow, WorkflowId,
 };
 use halvo_coord::types::{
     Answered, ApprovalId, DecisionEntry, EffectAnswer, ItemId, LapseCause, Lapsed, Raised, RunEnd,
@@ -1623,16 +1624,12 @@ fn u24q_a_kept_value_of_no_byte_never_stands_on_a_partial_or_an_unknown_entry() 
     }
 }
 
-/// The control of the rule above: a kept value that holds a byte stands as before, a value of
-/// white space alone and a value with one empty piece among them.
+/// The control of the rule above: a kept value that holds a byte stands as before, a value with
+/// one empty piece among them; a value of white space alone shows nothing and no longer stands
+/// (U2.4w, ruling RD-161 R6).
 #[test]
 fn u24q_a_kept_value_that_holds_a_byte_stands_white_space_among_them() {
-    let values: [&[&str]; 4] = [
-        &[" "],
-        &["", "City Power"],
-        &["City Power", ""],
-        &["City Power"],
-    ];
+    let values: [&[&str]; 3] = [&["", "City Power"], &["City Power", ""], &["City Power"]];
     for pieces in values {
         let shown_value: Vec<String> = pieces.iter().map(|p| p.to_string()).collect();
         for (effect, want) in [
@@ -2004,4 +2001,60 @@ fn u24q_a_value_stands_by_any_piece_with_a_byte_and_a_name_counts_by_its_whole_s
         "{} cases differ: {differ:?}",
         differ.len()
     );
+}
+
+/// A name that a row keeps more than once stands on no entry, the entry of a rejected effect
+/// among them, under either of its keys (U2.4w, ruling RD-161 R5).
+#[test]
+fn u24w_a_rejected_send_that_keeps_to_twice_shows_no_field_of_that_name_under_either_key() {
+    let kept = vec![one_kept("to", "Ann Lee"), one_kept("to", "Zq7 Other")];
+    for (refused, key) in [
+        (false, "run.effect.send.not_done"),
+        (true, "run.effect.send.refused"),
+    ] {
+        let e = CardEffect::not_done(Class::Send, &kept, refused).unwrap();
+        assert_eq!(e.key(), key);
+        assert_eq!(shown(&e), Vec::new(), "{key}");
+    }
+}
+
+/// A kept value that shows nothing, of white space, of zero-width signs or of control characters
+/// alone, is no value on a committed entry, on an unknown one and on its item `check` (U2.4w,
+/// ruling RD-161 R6 as the coordinator widened it).
+#[test]
+fn u24w_a_payee_that_shows_nothing_stands_on_no_entry_and_not_on_the_check_item() {
+    let labels = |fields: &[halvo_coord::types::Field]| -> Vec<String> {
+        fields.iter().map(|f| f.label.clone()).collect()
+    };
+    for blank in [
+        " \t\u{a0}\u{3000}",
+        "\u{200b}\u{200c}\u{200d}\u{2060}\u{feff}",
+        "\u{7}\u{0}\u{1b}\u{85}",
+    ] {
+        let mut kept = payment().kept;
+        kept[0].value = vec![blank.to_owned()];
+        let committed = CardEffect::committed(Class::Payment, &kept).unwrap();
+        assert_eq!(committed.key(), "run.effect.payment", "{blank:?}");
+        let unknown = CardEffect::unknown(Class::Payment, &kept).unwrap();
+        let check = compose_check(
+            &ItemId::parse(&format!("{:032x}", 0x61)).unwrap(),
+            &AgentId::parse(&format!("{:032x}", 2)).unwrap(),
+            "N",
+            &[Unknown {
+                run: run_of(2),
+                effect: effect_id(0xe1),
+                day: 20_760,
+                class: Class::Payment,
+                kept,
+            }],
+        )
+        .unwrap();
+        for (what, shown) in [
+            ("committed", labels(committed.fields())),
+            ("unknown", labels(unknown.fields())),
+            ("check", labels(check.fields())),
+        ] {
+            assert_eq!(shown, ["Amount", "Pay with", "Site"], "{what} {blank:?}");
+        }
+    }
 }
