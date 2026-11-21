@@ -495,9 +495,11 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `load_steps`: at most 16 steps, numbered in order.
+    /// The reply of `load_steps`: the agent of the step rows that the store read, and at most 16 steps, numbered in
+    /// order.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct StepsReply {
+        pub agent: AgentId = "agent" => json::agent_id,
         pub steps: Vec<ExecutableStep> = "steps" => list(ExecutableStep::from_raw),
     }
     rules(r) { steps_in_order("StepsReply", &r.steps) }
@@ -505,9 +507,10 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `load_session`: part `part` of `of`.
+    /// The reply of `load_session`: the agent of the session part that the store read, and part `part` of `of`.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct SessionReply {
+        pub agent: AgentId = "agent" => json::agent_id,
         pub origin: WebOrigin = "origin" => from_json,
         pub rev: NonZeroU32 = "rev" => from_json,
         pub part: NonZeroU32 = "part" => from_json,
@@ -622,28 +625,29 @@ reply_enum! {
 
 impl RunnerReply {
     /// Whether the reply has the form that the body's call answers with; a reply of `load_replies` answers its call
-    /// only as `LoadRepliesReply::answers` says, and a reply of `load` only when its config, and its start row if it
-    /// holds one, are of the body's agent.
+    /// only as `LoadRepliesReply::answers` says, a reply of `load` only when its config, and its start row if it
+    /// holds one, are of the body's agent, and a reply of `load_steps` or `load_session` only when it names the
+    /// body's agent.
     pub fn answers(&self, call: &RunnerCall) -> bool {
         match (self, call) {
             (RunnerReply::Replies(r), RunnerCall::LoadReplies(b)) => r.answers(b).is_ok(),
             (RunnerReply::Load(r), RunnerCall::Load(b)) => {
                 r.config.agent == b.agent && r.start.as_ref().is_none_or(|s| s.agent == b.agent)
             }
+            (RunnerReply::Steps(r), RunnerCall::LoadSteps(b)) => r.agent == b.agent,
+            (RunnerReply::Session(r), RunnerCall::LoadSession(b)) => r.agent == b.agent,
             _ => matches!(
                 (self, call),
-                (RunnerReply::Steps(_), RunnerCall::LoadSteps(_))
-                    | (RunnerReply::Session(_), RunnerCall::LoadSession(_))
-                    | (
-                        RunnerReply::Stored(_),
-                        RunnerCall::PutPlaybook(_)
-                            | RunnerCall::PutSession(_)
-                            | RunnerCall::Effect(_)
-                            | RunnerCall::Log(_)
-                            | RunnerCall::Finish(_)
-                            | RunnerCall::Checkpoint(_)
-                            | RunnerCall::ReplyRow(_)
-                    )
+                (
+                    RunnerReply::Stored(_),
+                    RunnerCall::PutPlaybook(_)
+                        | RunnerCall::PutSession(_)
+                        | RunnerCall::Effect(_)
+                        | RunnerCall::Log(_)
+                        | RunnerCall::Finish(_)
+                        | RunnerCall::Checkpoint(_)
+                        | RunnerCall::ReplyRow(_)
+                )
             ),
         }
     }

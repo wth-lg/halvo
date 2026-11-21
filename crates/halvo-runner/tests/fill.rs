@@ -866,6 +866,7 @@ fn a_page_of_steps_that_does_not_start_at_from_is_refused_with_frame() {
                                 id: Some(s.request.id().clone()),
                                 outcome: Ok(halvo_schema::executable::RunnerReply::Steps(
                                     halvo_schema::executable::body::StepsReply {
+                                        agent: b.agent.clone(),
                                         steps: vec![first_page[0].clone()],
                                     },
                                 )),

@@ -179,6 +179,7 @@ pub struct Store {
     pub wrong_form_runner: AtomicUsize,
     pub wrong_id_coord: AtomicUsize,
     pub wrong_form_coord: AtomicUsize,
+    pub other_agent_runner: AtomicUsize,
 }
 
 impl Store {
@@ -205,6 +206,16 @@ impl Store {
 
     fn error(id: &str, name: &str) -> Vec<u8> {
         format!(r#"{{"v":1,"id":"{id}","error":"{name}"}}"#).into_bytes()
+    }
+
+    /// The agent that a reply of `load_steps` or `load_session` names: another agent's id while
+    /// `other_agent_runner` counts down, else the asking agent's.
+    fn reply_agent(&self, asking: &str) -> String {
+        if take_one(&self.other_agent_runner) {
+            "e".repeat(32)
+        } else {
+            asking.to_owned()
+        }
     }
 }
 
@@ -304,6 +315,21 @@ impl Store {
                         end_move(states);
                     }
                     Store::reply(&id, r#"{"stored":1}"#)
+                }
+                RunnerCall::LoadSteps(b) => {
+                    let agent = self.reply_agent(b.agent.as_str());
+                    Store::reply(&id, &format!(r#"{{"agent":"{agent}","steps":[]}}"#))
+                }
+                RunnerCall::LoadSession(b) => {
+                    let agent = self.reply_agent(b.agent.as_str());
+                    let part = format!(
+                        r#""origin":"{}","rev":{},"part":{},"of":{},"data":["QUJD"]"#,
+                        b.origin.as_str(),
+                        b.rev,
+                        b.part,
+                        b.part
+                    );
+                    Store::reply(&id, &format!(r#"{{"agent":"{agent}",{part}}}"#))
                 }
                 _ => Store::reply(&id, r#"{"stored":1}"#),
             });
