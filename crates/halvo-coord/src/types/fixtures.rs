@@ -672,6 +672,11 @@ fn name(category: Category) -> String {
 fn row(b: &Built) -> Row {
     let status = b.spec.line.status();
     let name = name(b.spec.category);
+    let ask = b
+        .spec
+        .controls
+        .contains(&Control::Delete)
+        .then(|| crate::roster::ask(&b.facts, &name).expect("the question of a state's row"));
     Row {
         agent: b.facts.agent.clone(),
         workflow: b.facts.workflow.id.clone(),
@@ -691,6 +696,7 @@ fn row(b: &Built) -> Row {
                 text: t(&format!("control.{}", c.name())),
             })
             .collect(),
+        ask,
     }
 }
 

@@ -196,8 +196,11 @@ fn every_state_file_has_the_shapes_of_i8_1_and_its_facts() {
                 Some("seq") => &["seq", "rows", "items", "note"],
                 Some("agent") if keys.get(1).map(String::as_str) == Some("workflow") => &[
                     "agent", "workflow", "name", "status", "word", "line", "say", "level", "next",
-                    "controls",
+                    "controls", "ask",
                 ],
+                Some("kind") => &["kind", "title", "text", "effects", "record", "controls"],
+                Some("act") => &["act", "text"],
+                Some("text") => &["text", "fields"],
                 Some("agent") => &["agent", "name", "lines", "runs"],
                 Some("control") => &["control", "text"],
                 Some("item") => &[
