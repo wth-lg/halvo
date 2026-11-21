@@ -307,11 +307,13 @@ pub struct Ran {
 
 /// Steps 2 to 5 of contracts.md C17 item 3 in `path`, a data directory whose
 /// instance lock the caller holds, with the rows, selection and hands of
-/// `how`: the open of the store for the delete, the intent, the clear of the
-/// mark `store_made` by `clear` (which answers a line when the clear failed),
-/// the store's delete, the walk over the rows, the count of the entries that
-/// the registry does not know, the truncation of daemon.err, the flushes and
-/// the removal of the intent after a whole finish. The offline form runs
+/// `how`: the open of the store for the delete, the intent, the store's
+/// delete, then the clear of the mark `store_made` by `clear` (which answers
+/// a line when the clear failed) once that delete did not answer busy, so a
+/// delete that removed nothing leaves the mark as it was, the walk over the
+/// rows, the count of the entries that the registry does not know, the
+/// truncation of daemon.err, the flushes and the removal of the intent after
+/// a whole finish. The offline form runs
 /// them after it takes the lock, and the service run, which holds the lock
 /// for its life, on a delete request once its owner's thread has closed the
 /// store.
@@ -329,15 +331,15 @@ pub fn steps_of_the_delete(
     let intent_stood = stands(&path.join(INTENT_FILE));
     let intent = write_intent(path, how.rows, probe);
     let mut causes = Vec::new();
-    if let Some(line) = clear() {
-        causes.push(line);
-    }
     let store = delete_the_store(&host, handle);
     if matches!(store, TailAnswer::Held) {
         if !intent_stood {
             let _ = host.remove_durably(INTENT_FILE);
         }
         return Steps::Busy;
+    }
+    if let Some(line) = clear() {
+        causes.push(line);
     }
     let finished = steps_3_to_5(path, how.rows, how.hands, store);
     let ran = |line, report, causes| {
