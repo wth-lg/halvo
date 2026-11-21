@@ -12004,6 +12004,11 @@ fn u24v_3_when_the_record_saves_again_the_held_confirmation_is_presented_again_w
                 "{case}: a press now is taken"
             );
             assert_eq!(decisions_since(&c, m).len(), 1, "{case}");
+            assert_eq!(
+                c.answer_native(&item, ConfirmAnswer::Allow),
+                Err(Cause::UnknownItem),
+                "{case}: a second press finds no item"
+            );
             continue;
         }
         c.ports().ports.set_clock(limit - 1, DAY);
