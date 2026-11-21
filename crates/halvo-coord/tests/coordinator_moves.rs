@@ -12075,3 +12075,147 @@ fn u24v_4_one_agents_stuck_record_withdraws_its_own_confirmation_and_no_other_ag
     );
     assert_eq!(decisions_since(&c, m).len(), 1);
 }
+
+fn u24v_page_item_of(c: &Coordinator<Both>, n: usize) -> ItemId {
+    let s = c.snapshot();
+    let item = s.items.iter().find(|i| i.agent() == &agent(n)).unwrap();
+    assert_eq!(item.kind(), ItemKind::Confirm);
+    assert_eq!(item.presenter(), Some(halvo_coord::types::Presenter::Page));
+    item.item().clone()
+}
+
+fn u24v_sent(c: &Coordinator<Both>, m: usize, answer: &str) -> usize {
+    decisions_since(c, m)
+        .iter()
+        .filter(|d| format!("{d:?}").contains(answer))
+        .count()
+}
+
+#[test]
+fn u24v_5_a_page_press_on_a_confirmation_drawn_before_the_record_stuck_allows_nothing() {
+    let mut got = Vec::new();
+    let mut want = Vec::new();
+    for takes_rows_again in [false, true] {
+        for choice in [Choice::Allow, Choice::Reject] {
+            let case = format!("the store takes rows again: {takes_rows_again}, {choice:?}");
+            let c = coordinator(&[MANUAL], Limits::PRODUCT);
+            let run = start(&c, 0);
+            c.ports()
+                .ports
+                .refuse_record(is_item_raise, refused_name("store"));
+            c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+            let item = u24v_page_item_of(&c, 0);
+            u24v_tick(&c, 1);
+            u24v_tick(&c, 2);
+            assert_eq!(c.shown_on_page(&item, 0), Ok(()), "{case}: drawn");
+            u24v_tick(&c, 3);
+            assert!(c.record_stuck(&agent(0)), "{case}");
+            assert_eq!(
+                row_line(&c.snapshot(), 0),
+                text("line.problem.record"),
+                "{case}"
+            );
+            assert!(c.snapshot().items.is_empty(), "{case}: no item now");
+            if takes_rows_again {
+                c.ports().ports.clear_refusals();
+            }
+            let (m, before) = (mark(&c), events(&c));
+            let pressed = c.answer(&item, choice, None, 0);
+            got.push((
+                case.clone(),
+                pressed,
+                calls_since(&c, m),
+                u24v_sent(&c, m, "AllowOnce"),
+                u24v_sent(&c, m, "RejectOnce"),
+                events(&c) == before,
+                cancels_of(&c, m, &run),
+                c.live(),
+                c.present(&item),
+            ));
+            want.push((
+                case.clone(),
+                Err(Cause::NoService),
+                Vec::new(),
+                0,
+                0,
+                true,
+                0,
+                1,
+                Err(Cause::Presenter),
+            ));
+            c.ports().ports.clear_refusals();
+            u24v_tick(&c, 4);
+            let s = c.snapshot();
+            let again: Vec<ItemId> = s.items.iter().map(|i| i.item().clone()).collect();
+            let m = mark(&c);
+            let first = c.answer(&item, Choice::Allow, None, 0);
+            let second = c.answer(&item, Choice::Allow, None, 0);
+            got.push((
+                format!("{case}, after the record saves"),
+                first,
+                Vec::new(),
+                u24v_sent(&c, m, "AllowOnce"),
+                u24v_sent(&c, m, "RejectOnce"),
+                again == [item.clone()],
+                usize::from(second.is_err()),
+                c.live(),
+                Ok(()),
+            ));
+            want.push((
+                format!("{case}, after the record saves"),
+                Ok(()),
+                Vec::new(),
+                1,
+                0,
+                true,
+                1,
+                1,
+                Ok(()),
+            ));
+        }
+    }
+    assert_eq!(
+        got, want,
+        "(case, the press, its port calls, AllowOnce sent, RejectOnce sent, nothing stored or the same item again, stops or a second press refused, live runs, present)"
+    );
+}
+
+#[test]
+fn u24v_6_one_agents_stuck_record_refuses_its_own_page_press_and_no_other_agents() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run1 = start(&c, 1);
+    c.on_run(&run1, ask_confirm(&run1, 1)).unwrap();
+    let other = u24v_page_item_of(&c, 1);
+    assert_eq!(c.shown_on_page(&other, 0), Ok(()));
+    let run0 = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_agent(Method::Log, &agent(0), refused_name("store"));
+    c.on_run(&run0, ask_confirm(&run0, 0)).unwrap();
+    let own = u24v_page_item_of(&c, 0);
+    assert_eq!(c.shown_on_page(&own, 0), Ok(()));
+    for k in 1..=3u64 {
+        u24v_tick(&c, k);
+    }
+    assert!(c.record_stuck(&agent(0)));
+    assert!(!c.record_stuck(&agent(1)));
+    let m = mark(&c);
+    for choice in [Choice::Allow, Choice::Reject] {
+        assert_eq!(
+            c.answer(&own, choice, None, 0),
+            Err(Cause::NoService),
+            "{choice:?}"
+        );
+    }
+    assert_eq!(calls_since(&c, m), Vec::new());
+    assert_eq!(
+        c.answer(&other, Choice::Allow, None, 0),
+        Ok(()),
+        "the other agent's page press is taken"
+    );
+    assert_eq!(u24v_sent(&c, m, "AllowOnce"), 1);
+}
