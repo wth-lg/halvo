@@ -409,6 +409,40 @@ mod tests {
         assert!(out.lock().expect("lock").is_empty(), "nothing written");
     }
 
+    /// An output whose every write fails, as the runner's standard output does once the supervisor closed its end.
+    struct Refused;
+
+    impl Write for Refused {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::ErrorKind::BrokenPipe.into())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::ErrorKind::BrokenPipe.into())
+        }
+    }
+
+    /// An input that stays open: its read waits until the test drops the other end of the channel.
+    struct Open(mpsc::Receiver<()>);
+
+    impl Read for Open {
+        fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+            let _ = self.0.recv();
+            Ok(0)
+        }
+    }
+
+    /// CP-81: a write error on the output alone, with the input still open, closes the link: `send` answers
+    /// `Closed`, and the link stays closed.
+    #[test]
+    fn a_write_error_on_the_output_alone_makes_send_answer_closed() {
+        let (keep_open, input) = mpsc::channel::<()>();
+        let mut link = Link::start(Box::new(Open(input)), Box::new(Refused), none());
+        assert_eq!(link.send(&done()), Err(Broken::Closed));
+        assert_eq!(link.poll(), Err(Broken::Closed), "the link stays closed");
+        drop(keep_open);
+    }
+
     #[test]
     fn ten_thousand_cancels_and_a_close_leave_one_note_no_frame_and_the_close() {
         let cancel = framed(&ToRunner::Cancel(Cancel {}));

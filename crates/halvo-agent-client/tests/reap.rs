@@ -705,7 +705,7 @@ fn reap_removes_nothing_through_a_profiles_folder_or_an_agents_folder_that_is_a_
 
 #[test]
 fn reap_keeps_the_profile_of_a_run_of_this_life_that_runs_after_its_finish_removed_its_mark() {
-    let rig = Rig::new("reap-profiles-finished");
+    let rig = Rig::new("reap-profiles-stored");
     let finish = common::ask_finish();
     let script = rig.script(&["hello", &finish, "log finished", "idle"]);
     let spec = rig.spec(&script);
