@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
 import { createServer as httpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer } from "node:net";
 import { localValues } from "../../test-kit/provider-fake/main.mjs";
+import { endGroup, startGroup } from "../ledger/process-group.ts";
 
 export const ROOT = new URL("../../", import.meta.url).pathname;
 
@@ -51,25 +51,22 @@ async function until(test: () => Promise<boolean>, what: string): Promise<void> 
 export async function startStripeMock(): Promise<{ url: string; stop(): Promise<void> }> {
   const port = await freePort();
   const tls = await freePort();
-  const child = spawn(`${ROOT}.tools/stripe-mock/stripe-mock`, ["-http-addr", `127.0.0.1:${port}`, "-https-addr", `127.0.0.1:${tls}`], {
+  const group = startGroup(`${ROOT}.tools/stripe-mock/stripe-mock`, ["-http-addr", `127.0.0.1:${port}`, "-https-addr", `127.0.0.1:${tls}`], {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let ended = false;
-  child.on("exit", () => {
+  group.child.on("exit", () => {
     ended = true;
   });
   const url = `http://127.0.0.1:${port}`;
-  await until(async () => ended || (await answers(url)), "stripe-mock");
-  if (ended) throw new Error("stripe-mock ended before it answered");
-  return {
-    url,
-    async stop() {
-      if (ended) return;
-      const gone = new Promise<void>((resolve) => child.on("exit", () => resolve()));
-      child.kill("SIGTERM");
-      await gone;
-    },
-  };
+  try {
+    await until(async () => ended || (await answers(url)), "stripe-mock");
+    if (ended) throw new Error("stripe-mock ended before it answered");
+  } catch (error) {
+    await endGroup(group);
+    throw error;
+  }
+  return { url, stop: () => endGroup(group) };
 }
 
 export function paramsOf(path: string, body: string): { names: string[]; values: Record<string, string> } {
