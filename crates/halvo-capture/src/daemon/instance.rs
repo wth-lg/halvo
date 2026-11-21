@@ -367,6 +367,19 @@ pub(crate) mod tests {
         }
 
         #[test]
+        fn the_state_folders_descriptor_is_closed_on_exec() {
+            use std::os::fd::AsRawFd;
+            let dir = kept_dir("instance-tests-");
+            let lock = InstanceLock::take(&data_dir(&dir)).unwrap().unwrap();
+            let folder = lock.state_dir().unwrap();
+            // SAFETY: F_GETFD reads the flags of the descriptor that `folder` owns and keeps
+            // open across the call; it takes no buffer.
+            let flags = unsafe { libc::fcntl(folder.descriptor().as_raw_fd(), libc::F_GETFD) };
+            assert!(flags >= 0);
+            assert_ne!(flags & libc::FD_CLOEXEC, 0);
+        }
+
+        #[test]
         fn the_lock_descriptor_is_closed_on_exec() {
             let dir = kept_dir("instance-tests-");
             let lock = InstanceLock::take(&data_dir(&dir)).unwrap().unwrap();
