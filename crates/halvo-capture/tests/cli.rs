@@ -11,10 +11,12 @@ const FIRST_LINE: &str = "halvo-capture: sources=scripted: this build has the fe
 const EVENTS_A_START: u64 = 3;
 const TICK_MS: u64 = 100;
 const LAPSE_MARGIN_MS: u64 = 1_000;
+const MARK_APP: &str = "dev.halvo.test-seam.scripted-front";
 
 struct Daemon {
     child: Child,
     stderr: Arc<Mutex<Vec<String>>>,
+    reader: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Drop for Daemon {
@@ -47,12 +49,16 @@ fn start(dir: &Path) -> Daemon {
     let pipe = child.stderr.take().unwrap();
     let stderr = Arc::new(Mutex::new(Vec::new()));
     let lines = stderr.clone();
-    std::thread::spawn(move || {
+    let reader = std::thread::spawn(move || {
         for line in BufReader::new(pipe).lines().map_while(Result::ok) {
             lines.lock().unwrap().push(line);
         }
     });
-    Daemon { child, stderr }
+    Daemon {
+        child,
+        stderr,
+        reader: Some(reader),
+    }
 }
 
 fn ctl(dir: &Path, verb: &[&str]) -> Output {
@@ -310,4 +316,23 @@ fn ctl_starts_pauses_resumes_and_stops_the_service_run() {
         "case 6: {:?}",
         daemon.stderr.lock().unwrap()
     );
+
+    if let Some(reader) = daemon.reader.take() {
+        reader
+            .join()
+            .expect("case L: the reader of standard error ends");
+    }
+    for (path, bytes) in files_under(&dir) {
+        assert!(
+            path.starts_with(dir.join("store")) || !holds(&bytes, MARK_APP.as_bytes()),
+            "case L: {} holds a text that a source read",
+            path.display()
+        );
+    }
+    for line in daemon.stderr.lock().unwrap().iter() {
+        assert!(
+            !line.contains(MARK_APP),
+            "case L: a line of standard error holds a text that a source read: {line}"
+        );
+    }
 }
