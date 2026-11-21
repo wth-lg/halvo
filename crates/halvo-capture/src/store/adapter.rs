@@ -29,8 +29,11 @@ struct Adapter {
 }
 
 impl MaintainStore for Adapter {
-    fn expire_due(&mut self, _now: SystemTime, _max_segments: usize) -> Result<Pass, MaintFault> {
-        Ok(Pass::default())
+    fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.store
+            .expire_due(now, max_segments)
+            .map(pass)
+            .map_err(maint_fault)
     }
 
     fn evict_to(&mut self, _bound: ByteBound, _max_segments: usize) -> Result<Pass, MaintFault> {
@@ -84,6 +87,18 @@ impl CaptureStore for Adapter {
 
     fn volume_free_bytes(&self) -> io::Result<u64> {
         free_bytes(self.store.dir())
+    }
+}
+
+fn pass(pass: super::Pass) -> Pass {
+    Pass {
+        shredded: pass
+            .shredded
+            .into_iter()
+            .map(|ordinal| Ordinal::new(ordinal.get()))
+            .collect(),
+        more_due: pass.more_due,
+        owed: pass.owed,
     }
 }
 
@@ -323,6 +338,46 @@ impl DataDirStore {
             let _ = place.destroy();
         }
         std::fs::symlink_metadata(&path).is_err_and(|e| e.kind() == io::ErrorKind::NotFound)
+    }
+}
+
+#[cfg(test)]
+impl DataDirStore {
+    /// The plaintext of every segment that the store of this data directory
+    /// recorded, the oldest first capture first, or `None` for a segment that
+    /// no longer decrypts because its key is gone. It opens the store for
+    /// maintenance alone, so no other handle may hold it.
+    pub(crate) fn read_back(&self) -> Vec<Option<Vec<u8>>> {
+        let store = EncryptedStore::open(
+            &self.store_dir(),
+            &self.roots(),
+            DEFAULT_RETENTION,
+            OpenFor::Maintenance,
+        )
+        .unwrap();
+        let ids: Vec<String> = {
+            let db = store.db().unwrap();
+            let mut rows = db
+                .connection()
+                .prepare("SELECT segment_id FROM segment_keys ORDER BY first_capture, id")
+                .unwrap();
+            let ids = rows
+                .query_map([], |row| row.get(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap();
+            ids
+        };
+        ids.iter()
+            .map(|id| {
+                let mut plaintext = Vec::new();
+                match store.read_segment(uuid::Uuid::parse_str(id).unwrap(), &mut plaintext) {
+                    Ok(_) => Some(plaintext),
+                    Err(StoreError::Sealed) => None,
+                    Err(e) => panic!("segment {id} did not read: {e}"),
+                }
+            })
+            .collect()
     }
 }
 

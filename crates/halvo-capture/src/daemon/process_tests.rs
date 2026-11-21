@@ -4,17 +4,27 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use halvo_control::instance_lock::{self, LockRead};
+use halvo_control::model::{StorageCap, UtcDay};
 use halvo_control::paths::DataDir;
 
+use super::custody_policy::Custody;
 use super::instance::tests::{backup_mark, kept_dir};
 use super::instance::InstanceLock;
 use super::main_loop::{self, MainLoop};
+use super::maintenance::{Clocks, MAINTENANCE_INTERVAL, SHRED_CHUNK};
+use super::model_store::{noon, open_floor, ManualClocks};
+use super::owner::{Owner, OwnerHandle, OwnerParts};
+use super::port::{
+    CaptureStore, DataDirStore, EntryKind, KindEntry, Opened, SegmentId, SegmentWrite, StoreHost,
+};
 use super::state::tests::TestWrite;
 use super::state::{DaemonState, StateDir, StateFile, StateWrite};
 use super::{serve, serve_held, signal};
+use crate::event::Modality;
+use crate::sink::SinkHandle;
 
 const SERVE: &str = "HALVO_DAEMON_SERVE_DIR";
 const SERVER: &str = "daemon::process_tests::serve_for_parent";
@@ -970,4 +980,74 @@ fn the_held_service_run_opens_its_state_folder_through_the_lock_when_the_folder_
     assert_eq!(status, 0, "{err}");
     assert!(!err.contains("folder of the data directory"), "{err}");
     assert_eq!(names(&data), vec!["daemon-state.json".to_owned()]);
+}
+
+const SECOND: Duration = Duration::from_secs(1);
+const DAY: Duration = Duration::from_secs(86_400);
+
+fn made_store(dir: &Path) -> Box<dyn CaptureStore + Send> {
+    let Opened::ReadWrite { store, .. } = DataDirStore::at(dir).create(Custody::RootFile) else {
+        panic!("no store was made in {}", dir.display());
+    };
+    store
+}
+
+fn segment_at<S: CaptureStore + ?Sized>(store: &mut S, at: SystemTime, payload: &[u8]) {
+    let id = SegmentId::mint().unwrap();
+    let nanos = i64::try_from(at.duration_since(UNIX_EPOCH).unwrap().as_nanos()).unwrap();
+    let day = UtcDay::from_days_since_epoch(nanos.div_euclid(86_400_000_000_000)).unwrap();
+    let entries = [KindEntry {
+        kind: EntryKind::of(Modality::ForegroundApp),
+        events: 1,
+        bytes: payload.len() as u64,
+    }];
+    store
+        .write_batch(SegmentWrite::new(&id, day, nanos, nanos, &entries, payload))
+        .unwrap();
+}
+
+fn owner_over<S: CaptureStore>(
+    store: S,
+    clocks: &ManualClocks,
+    cap: StorageCap,
+) -> (Owner<S, ManualClocks>, OwnerHandle, SinkHandle) {
+    let (sink, writer) = crate::sink::channel(64);
+    let (owner, handle, _reports) = Owner::open(OwnerParts {
+        writer,
+        store,
+        clocks: clocks.clone(),
+        floor: open_floor(),
+        cap,
+        shred_chunk: SHRED_CHUNK,
+    });
+    (owner, handle, sink)
+}
+
+#[test]
+fn a_record_past_its_window_is_unreadable_within_one_deadline_on_the_real_store() {
+    let dir = kept_dir("upkeep-tests-");
+    let mut store = made_store(&dir);
+    segment_at(&mut *store, noon() - 15 * DAY, b"fifteen days\n");
+    segment_at(
+        &mut *store,
+        noon() - 14 * DAY + 30 * SECOND,
+        b"due 30 s after the open\n",
+    );
+    segment_at(&mut *store, noon() - 13 * DAY, b"thirteen days\n");
+    let clocks = ManualClocks::at(noon());
+    let (mut owner, _handle, _sink) = owner_over(store, &clocks, StorageCap::DEFAULT);
+    clocks.advance(MAINTENANCE_INTERVAL + SECOND);
+    assert!(owner.pass(Duration::ZERO), "the owner stopped");
+    let stamped = owner.snapshot().last_expiry_at;
+    drop(owner);
+    assert_eq!(
+        DataDirStore::at(&dir).read_back(),
+        [None, None, Some(b"thirteen days\n".to_vec())],
+        "after the open's pass and one deadline, a segment past its window still decrypts or the younger does not"
+    );
+    assert_eq!(
+        stamped,
+        Some(clocks.wall()),
+        "last_expiry_at is not the deadline's wall time"
+    );
 }
