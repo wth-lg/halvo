@@ -1501,3 +1501,33 @@ fn u24q_a_name_kept_twice_never_stands_whatever_its_values_or_its_place() {
         }
     }
 }
+
+/// The verify step's M2: a class with no effect row shows no field on its unshown entry or its
+/// unknown entry, also where its row keeps the names of a payment's table with values that would
+/// read for a payment.
+#[test]
+fn u24q_a_class_with_no_effect_row_shows_no_field_even_with_another_tables_names() {
+    let kept = vec![
+        one_kept("payee", "zqr7 Power"),
+        one_kept("amount", "zqr7 1.00 USD"),
+        one_kept("instrument", "zqr7 card"),
+        one_kept("origin", "https://zqr7site.example:443"),
+    ];
+    for class in [Class::Read, Class::Prepare, Class::Credential] {
+        for (effect, want) in [
+            (committed(class, kept.clone()), "run.effect.unshown"),
+            (unknown(class, kept.clone()), "run.effect.unknown"),
+        ] {
+            let c = beside_a_good_run(effect);
+            let e = &c.runs[0].effects[1];
+            assert_eq!(
+                (e.key().as_str(), e.text()),
+                (want, line(want).as_str()),
+                "{class:?}"
+            );
+            assert!(e.fields().is_empty(), "{class:?}: {want}");
+            let all = serde_json::to_string(&c).unwrap();
+            assert!(!all.contains("zqr7"), "{class:?}: {want}: {all}");
+        }
+    }
+}
