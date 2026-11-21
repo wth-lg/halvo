@@ -161,3 +161,33 @@ fn a_service_run_on_windows_answers_status_over_its_pipe_and_stops_on_request() 
 
     stop(&dir, &mut daemon);
 }
+
+#[test]
+fn a_fresh_windows_store_keeps_its_root_under_the_data_directory_and_its_key_under_dpapi() {
+    let dir = scratch_data_dir("store");
+    let mut daemon = start(&dir);
+    first_status(&dir, &daemon, |status| {
+        status.lines().any(|line| line == "store=open")
+    });
+    stop(&dir, &mut daemon);
+
+    let key_file = dir.join("store").join("store.key");
+    let key: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(&key_file).unwrap_or_else(|e| panic!("{}: {e}", key_file.display())),
+    )
+    .unwrap();
+    assert_eq!(key["custody_kind"], "dpapi", "{key}");
+    let roots: Vec<PathBuf> = std::fs::read_dir(dir.join("roots"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(roots.len(), 1, "{roots:?}");
+    let root_id = key["root_id"].as_str().unwrap_or_else(|| panic!("{key}"));
+    assert!(
+        roots[0]
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.starts_with(root_id)),
+        "{roots:?} for the root id {root_id}"
+    );
+}
