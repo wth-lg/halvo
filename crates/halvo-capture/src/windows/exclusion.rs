@@ -102,11 +102,15 @@ impl ProcessTable for SystemTable {
 /// still open, ends it outside the tree as well, and a process that is gone, or
 /// a snapshot that cannot be taken, gives an unknown parent.
 /// Each answer is kept for the process as long as the process keeps its
-/// creation time.
+/// creation time and a parent that it names keeps its own.
 pub struct ProcessLineage<T = SystemTable> {
     table: T,
-    cache: Mutex<HashMap<u32, (u64, Parent)>>,
+    cache: Mutex<HashMap<u32, CachedParent>>,
 }
+
+/// A kept answer: the process's creation time, its parent, and the parent's
+/// creation time when it names one.
+type CachedParent = (u64, Parent, Option<u64>);
 
 impl ProcessLineage<SystemTable> {
     /// The lineage over the system's process table.
@@ -153,9 +157,13 @@ impl<T: ProcessTable> Lineage for ProcessLineage<T> {
                 Listing::NotListed | Listing::NoSnapshot => Parent::Unknown,
             };
         };
+        let created_of = |parent: Parent| match parent {
+            Parent::Of(parent) => self.table.created(parent.get()),
+            Parent::None | Parent::Unknown => None,
+        };
         let mut cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some((at, parent)) = cache.get(&pid) {
-            if *at == created {
+        if let Some((at, parent, parent_created)) = cache.get(&pid) {
+            if *at == created && created_of(*parent) == *parent_created {
                 return *parent;
             }
         }
@@ -164,7 +172,7 @@ impl<T: ProcessTable> Lineage for ProcessLineage<T> {
             if cache.len() >= LINEAGE_CACHE_MAX {
                 cache.clear();
             }
-            cache.insert(pid, (created, parent));
+            cache.insert(pid, (created, parent, created_of(parent)));
         }
         parent
     }
@@ -477,7 +485,7 @@ mod tests {
             table: moved,
             cache: Mutex::new(HashMap::from([(
                 CHILD,
-                (20, Parent::Of(ProcessId::new(ROOT))),
+                (20, Parent::Of(ProcessId::new(ROOT)), Some(10)),
             )])),
         };
         assert_eq!(
