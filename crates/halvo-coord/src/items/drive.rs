@@ -2242,9 +2242,11 @@ pub fn again_setup<P: Owner + Clock, C: ConfigView + Clone>(
 }
 
 /// The kept body after a control of the person that switched off the agent `off` (I3.5 (e);
-/// ruling RD-67 3.2 (e)): sent once more, as `again_setup` does, where the item is open, keeps a
-/// body of another agent and its sentence names `off` or names nobody; else nothing is sent and
-/// the answer is `Open`.
+/// rulings RD-67 3.2 (e), RD-160 (2)), where the item is open, keeps a body of another agent and
+/// its sentence names `off` or names nobody: sent once more, as `again_setup` does, where the
+/// owner has acknowledged the `paused` of `off` (`off_paused`); else held, with nothing sent,
+/// until the first tick at which `off` is listed `paused` or has left the list
+/// (`Setup::waits`). Any other item sends nothing; the answer is then `Open`.
 pub fn freed_setup<P: Owner + Clock, C: ConfigView + Clone>(
     ports: &P,
     ledger: &mut Ledger,
@@ -2252,6 +2254,7 @@ pub fn freed_setup<P: Owner + Clock, C: ConfigView + Clone>(
     setup: &mut Setup,
     facts: &Facts<C>,
     off: &AgentId,
+    off_paused: bool,
 ) -> Result<SetupDone, Cause> {
     let names = match setup.shared() {
         Some(shared @ Shared::Named(_)) => shared.names(off),
@@ -2259,6 +2262,10 @@ pub fn freed_setup<P: Owner + Clock, C: ConfigView + Clone>(
     };
     let open = setup.state() == &SetupState::Open && setup.kept().is_some();
     if open && names && setup.agent() != off {
+        if !off_paused {
+            setup.wait_for(off);
+            return Ok(SetupDone::Open);
+        }
         again_setup(ports, ledger, limits, setup, facts)
     } else {
         Ok(SetupDone::Open)

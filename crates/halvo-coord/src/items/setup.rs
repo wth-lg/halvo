@@ -112,6 +112,7 @@ pub struct Setup {
     state: SetupState,
     kept: Option<SetupBody>,
     shared: Option<Shared>,
+    waits: Option<AgentId>,
 }
 
 impl Setup {
@@ -144,6 +145,7 @@ impl Setup {
             state: SetupState::Open,
             kept: None,
             shared: None,
+            waits: None,
         })
     }
 
@@ -166,6 +168,22 @@ impl Setup {
     pub(crate) fn take_shared(&mut self, shared: Option<Shared>) {
         if self.kept.is_some() {
             self.shared = shared;
+        }
+    }
+
+    /// The agent that the person switched off whose `paused` the owner has not acknowledged yet,
+    /// for an open item whose kept body that switch-off freed: the body waits and goes at the
+    /// first tick at which that agent's workflow is listed `paused` or has left the list (I3.5
+    /// (e); ruling RD-160 (2)). Every move of the item but the answer `none` ends the wait.
+    pub(crate) fn waits(&self) -> Option<&AgentId> {
+        self.waits.as_ref()
+    }
+
+    /// Holds the kept body of an open item until the `paused` of `off` is acknowledged; nothing
+    /// for an item that is not open or keeps no body.
+    pub(crate) fn wait_for(&mut self, off: &AgentId) {
+        if self.state == SetupState::Open && self.kept.is_some() {
+            self.waits = Some(off.clone());
         }
     }
 
@@ -272,9 +290,13 @@ fn typed(text: &str) -> Result<Vec<String>, Cause> {
 /// its body in memory, never stored, and `again` makes an open item that keeps a body owe it once
 /// more, `state` for an item that keeps none; the answer that makes a new body, `not_taken` and
 /// the close end the kept body and what the item holds of its read, and an answer of the person
-/// stops the read that a tick asks again.
+/// stops the read that a tick asks again; every move but the answer `none` ends the wait of a
+/// freed body (`Setup::waits`).
 pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
     let mut next = setup.clone();
+    if !matches!(mv, SetupMove::Input(SetupInput::None)) {
+        next.waits = None;
+    }
     match (&setup.state, mv) {
         (SetupState::AgentGone, SetupMove::Input(_)) => return Err(Cause::UnknownAgent),
         (SetupState::Closed | SetupState::Gone | SetupState::AgentGone, _) => {

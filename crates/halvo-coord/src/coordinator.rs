@@ -202,6 +202,22 @@ fn index<C>(board: &Board<C>, agent: &AgentId) -> Option<usize> {
     board.members.iter().position(|m| &m.facts.agent == agent)
 }
 
+/// Whether the owner has acknowledged the `paused` of `agent`, the task that the person switched
+/// off, for the kept body that its switch-off freed (I3.5 (e); ruling RD-160 (2)): its workflow is
+/// listed `paused`, has left the list or is the stand-in of a dismissed one, or the board holds
+/// no member of it.
+fn off_paused<C>(board: &Board<C>, agent: &AgentId) -> bool {
+    match index(board, agent) {
+        None => true,
+        Some(i) => {
+            let facts = &board.members[i].facts;
+            facts.stand_in
+                || facts.workflow.state == crate::types::WorkflowState::Paused
+                || board.gone.contains(&facts.workflow.id)
+        }
+    }
+}
+
 /// The items ledger of the agent of member `i`, which takes the owner's events that the board
 /// read after its last acknowledged one, the coordinator's read right after a call that answered
 /// no acknowledgement among them, as its own read after a refusal `seq` takes them (ruling
@@ -859,6 +875,7 @@ where
             }
         }
         self.open_setups(st);
+        self.tick_waited_setups(st);
         self.tick_setups(st);
         self.tick_confirms(st);
         self.tick_binds(st);
@@ -988,8 +1005,10 @@ where
 
     /// After a switch-off of the agent `off` that the person made, the kept body of each setup
     /// whose sentence names that agent, or names nobody, goes once more (I3.5 (e); ruling RD-67
-    /// 3.2 (e)).
+    /// 3.2 (e)), in this move where the owner has acknowledged the `paused` of `off`, else at the
+    /// first tick that finds it acknowledged (`tick_waited_setups`; ruling RD-160 (2)).
     fn setups_freed(&self, st: &mut State<Cfg<P>>, off: &AgentId) {
+        let paused = st.board.as_ref().is_some_and(|b| off_paused(b, off));
         let mut k = 0;
         while k < st.setups.len() {
             let State {
@@ -1003,11 +1022,51 @@ where
                     Some(i) => {
                         let l = ledger(ledgers, board, i);
                         let facts = &board.members[i].facts;
-                        items::freed_setup(&self.ports, l, &self.limits, &mut setups[k], facts, off)
+                        items::freed_setup(
+                            &self.ports,
+                            l,
+                            &self.limits,
+                            &mut setups[k],
+                            facts,
+                            off,
+                            paused,
+                        )
                     }
                     None => Err(Cause::State),
                 },
                 None => return,
+            };
+            if self.setup_done(st, k, done) {
+                k += 1;
+            }
+        }
+    }
+
+    /// At a tick, the kept body of each setup that waits for the `paused` of the task that the
+    /// person switched off goes once more, as `again_setup` sends it, once the owner has
+    /// acknowledged that `paused` (`off_paused`); a setup that still waits sends nothing (I3.5
+    /// (e); ruling RD-160 (2)).
+    fn tick_waited_setups(&self, st: &mut State<Cfg<P>>) {
+        let mut k = 0;
+        while k < st.setups.len() {
+            let State {
+                board,
+                ledgers,
+                setups,
+                ..
+            } = &mut *st;
+            let Some(board) = board.as_mut() else { return };
+            if !setups[k].waits().is_some_and(|off| off_paused(board, off)) {
+                k += 1;
+                continue;
+            }
+            let done = match index(board, setups[k].agent()) {
+                Some(i) => {
+                    let l = ledger(ledgers, board, i);
+                    let facts = &board.members[i].facts;
+                    items::again_setup(&self.ports, l, &self.limits, &mut setups[k], facts)
+                }
+                None => Err(Cause::State),
             };
             if self.setup_done(st, k, done) {
                 k += 1;
@@ -2405,6 +2464,12 @@ where
         let off = matches!(action, Action::SwitchOff);
         let out = self.control_in(&mut st, agent, action);
         if off && out.is_ok() {
+            // Every owed `paused` before a freed body (ruling RD-160 (2)); a switch-off that waits
+            // for a read of the clock sends its own with the rest of it (ruling RD-133 1).
+            let unstamped = st.offs.contains(agent);
+            if let (Some(board), false) = (st.board.as_mut(), unstamped) {
+                schedule::pause_owed(&self.ports, board);
+            }
             self.setups_freed(&mut st, agent);
         }
         self.finish_switch_offs_after_reads(&mut st, &before);
