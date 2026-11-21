@@ -69,6 +69,10 @@ pub enum StatusLine {
     /// `problem.record`: the agent's record cannot be read or saved right now (I5.7, I5.8;
     /// ruling RD-64 1.5, 2.5), first of every row (I1.3).
     Record,
+    /// `working.deleting`: the agent whose delete the person confirmed while its run was live,
+    /// which Halvo stops and then removes (I5.7; ruling RD-19 (c) rule 7), the line that the plan
+    /// names `line.deleting`.
+    Deleting,
 }
 
 impl StatusLine {
@@ -96,6 +100,7 @@ impl StatusLine {
             StatusLine::Nothing,
             StatusLine::StoppedEarly,
         ]);
+        all.push(StatusLine::Deleting);
         all
     }
 
@@ -110,7 +115,8 @@ impl StatusLine {
             StatusLine::Starting
             | StatusLine::Working
             | StatusLine::Stopping
-            | StatusLine::KillStuck(_) => Status::Working,
+            | StatusLine::KillStuck(_)
+            | StatusLine::Deleting => Status::Working,
             StatusLine::Queued | StatusLine::Store => Status::WaitingTurn,
             StatusLine::TriedToday
             | StatusLine::New
@@ -142,6 +148,7 @@ impl StatusLine {
             StatusLine::Nothing => "nothing",
             StatusLine::StoppedEarly => "stopped_early",
             StatusLine::Record => "record",
+            StatusLine::Deleting => "deleting",
         };
         format!("line.{}.{}", self.status().name(), case)
     }

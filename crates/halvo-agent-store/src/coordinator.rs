@@ -1,18 +1,23 @@
+use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
 use halvo_policy::{preset, validate};
 use halvo_schema::executable::body::{
-    Accepted, CreateAgent, RevReply, SetState, StartRun, StateReply,
+    Accepted, AgentsReply, CreateAgent, ListAgents, ListedAgent, RevReply, SetState, StartRun,
+    StateReply, UnknownEffect, CHECKPOINTS_REPLY_MAX,
 };
-use halvo_schema::executable::names::{AgentState, LogEvent, Mode};
+use halvo_schema::executable::names::{AgentState, EffectState, LogEvent, Mode, YesNo};
 use halvo_schema::executable::text::V1;
-use halvo_schema::executable::{AgentLog, AgentStart, CoordinatorCall, CoordinatorReply, Runtime};
-use halvo_schema::{Category, ErrorName, Workflow, WorkflowState};
+use halvo_schema::executable::{
+    AgentConfig, AgentEffect, AgentLog, AgentRun, AgentSession, AgentStart, CoordinatorCall,
+    CoordinatorReply, EffectId, Runtime,
+};
+use halvo_schema::{AgentId, Category, ErrorName, Instant, Workflow, WorkflowState};
 
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, bindings, checkpoint, day, end};
+use crate::{bind, bindings, checkpoint, day, end, runner};
 
 /// Answers one coordinator body of A7.2, read from its bytes with the typed parser: the reply, or the error name of
 /// the first check that refuses it. A refused body stores nothing, but for `create_agent`, whose state call comes
@@ -29,9 +34,11 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   of the overlap, as that of `set_state` does: `overlap` where the agent's stored bindings overlap another agent
 ///   that is live, as `list_overlaps` reads them (CP-150 (1) (b)).
 /// - `set_state`: `no_workflow`; `binding` unless the workflow's agent is the body's, and for `active` where no
-///   configuration of the agent is stored; `playbook` for `active` while
-///   the agent's runtime is `web` and no playbook step of the agent is stored; `overlap` for `approved` and
-///   `active`, never for `paused`, where the agent's stored bindings overlap another agent that is live, as
+///   configuration of the agent is stored; `playbook` for `active` while the agent's runtime is `web` and no
+///   playbook of the agent is finished, by the store's one function `finished` (CP-182): a stored step of a
+///   number with no row `agent_finished`, a run record with another outcome and an `end_run` are no proof;
+///   `overlap` for `approved` and `active`, never for `paused`, where the agent's stored bindings overlap another
+///   agent that is live, as
 ///   `list_overlaps` reads them, and then no state changes (CP-150 (1) (b)); then the state call and its own
 ///   refusal.
 /// - `start_run`: `no_workflow`; `binding`; `state` unless the workflow is `approved` or `active` for `compile`
@@ -80,6 +87,18 @@ use crate::{bind, bindings, checkpoint, day, end};
 ///   reader refuses lists nobody, and bindings with no `account_address` overlap nobody. The other agent's bindings
 ///   are its newest revision, and it is live where the stored workflow of those bindings names it as its agent and
 ///   is `approved` or `active` (CP-150 (1)).
+/// - `list_agents`: it stores nothing and changes no state. Over every agent after `after`, in ascending order of
+///   agent id, it takes the agent's newest configuration and holds the agent only where the stored workflow of that
+///   configuration is of the full shape and names the agent as its agent, so no agent of a workflow that is not
+///   stored, names another agent, or is stored in the dismissed shape (S-69 (d)). Each entry holds: the
+///   configuration with `playbook` the newest number of `finished`, or null (CP-182); `state`, the stored state of
+///   that workflow; `slots`, the slot names of the agent's newest bindings of that workflow, in their order, or none;
+///   `session`, `yes` where a session revision of the agent is stored whole, as `load` lists it; `last`, the agent's
+///   run record of the greatest day, then of the latest start row, then of the greatest run id; `unknown`, each
+///   effect of the agent whose newest row by seq is `unknown`, in ascending order of effect id, with the run, the
+///   day, the class and the kept fields of that row, whatever a record's count says. A page holds whole entries while
+///   the writer takes it, and `next` names its last agent where agents are left; `length` where the first entry of
+///   the page alone does not fit.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -95,7 +114,147 @@ pub fn coordinator(
         CoordinatorCall::ListCheckpoints(b) => checkpoint::list(&*host, &b),
         CoordinatorCall::MarkCheckpoint(b) => checkpoint::mark(host, now, &b),
         CoordinatorCall::ListOverlaps(b) => bindings::list_overlaps(&*host, &b),
+        CoordinatorCall::ListAgents(b) => list_agents(&*host, &b),
     }
+}
+
+fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, ErrorName> {
+    let rows = host.rows();
+    let mut newest: BTreeMap<AgentId, AgentConfig> = BTreeMap::new();
+    for config in rows::configs(rows)? {
+        if b.after.as_ref().is_some_and(|after| &config.agent <= after) {
+            continue;
+        }
+        if newest
+            .get(&config.agent)
+            .is_none_or(|held| held.rev < config.rev)
+        {
+            newest.insert(config.agent.clone(), config);
+        }
+    }
+    let bindings = rows::bindings(rows)?;
+    let sessions = rows::sessions(rows)?;
+    let runs = rows::runs(rows)?;
+    let effects = rows::effects(rows)?;
+    let starts: Vec<AgentLog> = rows::logs(rows)?
+        .into_iter()
+        .filter(|l| l.event == LogEvent::StartAccepted)
+        .collect();
+    let mut entries = Vec::new();
+    for (agent, mut config) in newest {
+        let Some(state) = named_state(host, &config) else {
+            continue;
+        };
+        config.playbook = runner::finished(rows, &agent)?
+            .pop_last()
+            .map(|(number, _)| number);
+        let slots = bindings
+            .iter()
+            .filter(|r| r.agent == agent && r.workflow == config.workflow)
+            .max_by_key(|r| r.rev)
+            .map_or_else(Vec::new, |r| {
+                r.slots.iter().map(|s| s.name.clone()).collect()
+            });
+        let own: Vec<AgentSession> = sessions
+            .iter()
+            .filter(|s| s.agent == agent)
+            .cloned()
+            .collect();
+        let session = if runner::newest_sessions(&own).is_empty() {
+            YesNo::No
+        } else {
+            YesNo::Yes
+        };
+        let last = runs
+            .iter()
+            .filter(|r| r.agent == agent)
+            .max_by_key(|r| (r.day, started(&starts, r), r.run.clone()))
+            .cloned();
+        let unknown = unknown_of(&effects, &agent);
+        entries.push(ListedAgent {
+            config,
+            state,
+            slots,
+            session,
+            last,
+            unknown,
+        });
+    }
+    Ok(CoordinatorReply::Agents(page(entries)?))
+}
+
+/// The state of the stored workflow of the configuration where it is of the full shape and names the agent, else
+/// none.
+fn named_state(host: &dyn Host, config: &AgentConfig) -> Option<AgentState> {
+    match host.workflow(&config.workflow)?.workflow {
+        Workflow::Full(w) if w.agent.as_ref() == Some(&config.agent) => match w.state {
+            WorkflowState::Approved => Some(AgentState::Approved),
+            WorkflowState::Active => Some(AgentState::Active),
+            WorkflowState::Paused => Some(AgentState::Paused),
+            WorkflowState::Proposed => None,
+        },
+        _ => None,
+    }
+}
+
+fn started(starts: &[AgentLog], record: &AgentRun) -> Option<Instant> {
+    starts
+        .iter()
+        .filter(|l| l.run == record.run && l.agent == record.agent)
+        .map(|l| l.at)
+        .min()
+}
+
+fn unknown_of(effects: &[AgentEffect], agent: &AgentId) -> Vec<UnknownEffect> {
+    let mut last: BTreeMap<&EffectId, &AgentEffect> = BTreeMap::new();
+    for row in effects.iter().filter(|r| &r.agent == agent) {
+        if last.get(&row.effect).is_none_or(|held| held.seq < row.seq) {
+            last.insert(&row.effect, row);
+        }
+    }
+    last.into_values()
+        .filter(|row| row.state == EffectState::Unknown)
+        .map(|row| UnknownEffect {
+            run: row.run.clone(),
+            effect: row.effect.clone(),
+            day: row.day,
+            class: row.class,
+            kept: row.kept.clone(),
+        })
+        .collect()
+}
+
+/// The first entries that fit one reply as the writer writes it, with `next` the last of them where entries are
+/// left: the compact text of a page is that of the empty list with the agent id under `next`, and each entry's own
+/// text with a comma before every entry but the first.
+fn page(entries: Vec<ListedAgent>) -> Result<AgentsReply, ErrorName> {
+    let Some(newest) = entries.last() else {
+        return Ok(AgentsReply {
+            agents: Vec::new(),
+            next: None,
+        });
+    };
+    let frame = AgentsReply {
+        agents: Vec::new(),
+        next: Some(newest.config.agent.clone()),
+    };
+    let mut used = frame.to_json().map_err(refused)?.len();
+    let mut agents: Vec<ListedAgent> = Vec::new();
+    for entry in entries {
+        let len = entry.to_json().map_err(refused)?.len() + usize::from(!agents.is_empty());
+        if used + len > CHECKPOINTS_REPLY_MAX {
+            let Some(next) = agents.last().map(|a| a.config.agent.clone()) else {
+                return Err(Own::Length.into());
+            };
+            return Ok(AgentsReply {
+                agents,
+                next: Some(next),
+            });
+        }
+        used += len;
+        agents.push(entry);
+    }
+    Ok(AgentsReply { agents, next: None })
 }
 
 fn create_agent(
@@ -151,10 +310,7 @@ fn set_state(host: &mut dyn Host, b: &SetState) -> Result<CoordinatorReply, Erro
     bind::of_agent(&*host, &b.workflow, &b.agent)?;
     if b.state == AgentState::Active {
         let config = rows::newest_config(host.rows(), &b.agent)?.ok_or(Own::Binding)?;
-        let playbook = rows::playbooks(host.rows())?
-            .iter()
-            .any(|p| p.agent == b.agent);
-        if config.runtime == Runtime::Web && !playbook {
+        if config.runtime == Runtime::Web && runner::finished(host.rows(), &b.agent)?.is_empty() {
             return Err(Own::Playbook.into());
         }
     }

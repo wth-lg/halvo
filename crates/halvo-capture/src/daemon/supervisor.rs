@@ -2210,7 +2210,9 @@ mod tests {
             store: store.clone(),
             clocks: crate::daemon::maintenance::SystemClocks::new(),
             floor: open_floor(),
-            cap: halvo_control::model::StorageCap::DEFAULT,
+            cap: Some(crate::daemon::port::ByteBound::of_cap(
+                halvo_control::model::StorageCap::DEFAULT,
+            )),
             shred_chunk: crate::daemon::maintenance::SHRED_CHUNK,
         })
         .unwrap();

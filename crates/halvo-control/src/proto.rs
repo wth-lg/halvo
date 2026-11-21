@@ -2592,6 +2592,14 @@ stopped/kind body
     fn a_version_other_than_1_is_unsupported_version_and_2_is_among_them() {
         for v in ["0", "2", "3", "18446744073709551615"] {
             let text = format!(r#"{{"v":{v},"body":{{"op":"status","indicator":false}}}}"#);
+            if cfg!(feature = "r2") && v == "2" {
+                // The feature r2 takes version 2: its body reads as unknown (contracts.md C24.3 of the workflows run).
+                assert!(
+                    matches!(decode_request(text.as_bytes()), Ok(Decoded::Unknown(_))),
+                    "v={v}"
+                );
+                continue;
+            }
             let error = decode_request(text.as_bytes()).unwrap_err();
             assert_eq!(error.code(), ErrorCode::UnsupportedVersion, "v={v}");
             assert_eq!(error.version(), v.parse::<u64>().ok());
@@ -2617,9 +2625,18 @@ stopped/kind body
         frame
     }
 
+    /// A frame of a version that this build does not serve: `frame`, of version 2, as written, and the same frame of
+    /// version 3 with the feature r2, which takes version 2 (contracts.md C24.3 of the workflows run).
+    fn another_version(frame: &[u8]) -> Vec<u8> {
+        match frame.strip_prefix(br#"{"v":2"#) {
+            Some(rest) if cfg!(feature = "r2") => [br#"{"v":3"#.as_slice(), rest].concat(),
+            _ => frame.to_vec(),
+        }
+    }
+
     #[test]
     fn a_frame_of_another_version_is_unsupported_version_only_when_the_decoder_reads_all_of_it() {
-        let code = |frame: &[u8]| decode_request(frame).unwrap_err().code();
+        let code = |frame: &[u8]| decode_request(&another_version(frame)).unwrap_err().code();
         assert_eq!(code(&version_2_nested(127)), ErrorCode::UnsupportedVersion);
         assert_eq!(
             code(&version_2_nested(128)),
@@ -2898,6 +2915,7 @@ stopped/kind body
             r#"{"v":18446744073709551615,"id":7}"#,
             r#"{"v":0,"body":7}"#,
         ] {
+            let text = String::from_utf8(another_version(text.as_bytes())).unwrap();
             let error = decode_request(text.as_bytes()).unwrap_err();
             assert_eq!(error.code(), ErrorCode::UnsupportedVersion, "{text}");
             assert!(
@@ -2982,10 +3000,18 @@ stopped/kind body
     #[test]
     fn the_twins_at_version_2_of_the_frames_with_white_space_are_invalid_argument() {
         let frame = r#"{"v":2,"body":{"op":"pause"}}"#;
-        assert_eq!(
-            decode_request(frame.as_bytes()).unwrap_err().code(),
-            ErrorCode::UnsupportedVersion
-        );
+        if cfg!(feature = "r2") {
+            // The feature r2 takes version 2: its body reads as unknown (contracts.md C24.3 of the workflows run).
+            assert!(matches!(
+                decode_request(frame.as_bytes()),
+                Ok(Decoded::Unknown(_))
+            ));
+        } else {
+            assert_eq!(
+                decode_request(frame.as_bytes()).unwrap_err().code(),
+                ErrorCode::UnsupportedVersion
+            );
+        }
         for text in [format!(" {frame}"), format!("{frame}\n")] {
             assert_eq!(
                 decode_request(text.as_bytes()).unwrap_err().code(),

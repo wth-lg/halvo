@@ -93,7 +93,10 @@ fn i8_1() -> Value {
             arg("item", "id", None, None),
             arg("step", "count", None, None)],
          "replies": ["reply-ok"],
-         "errors": ["unknown_item", "presenter", "stale", "state", "no_service", "malformed"]}
+         "errors": ["unknown_item", "presenter", "stale", "state", "no_service", "malformed"]},
+        {"command": "agents_delete", "args": [arg("agent", "id", None, None)],
+         "replies": ["reply-ok"],
+         "errors": ["state", "unknown_agent", "no_service", "busy", "malformed"]}
     ])
 }
 

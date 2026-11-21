@@ -33,23 +33,6 @@ fn newest(w: &World) -> Vec<LearnEdit> {
     out
 }
 
-fn direct_compile(w: &mut World, r: u32, number: u32) {
-    let now = w.host.agent_now();
-    let start = json!({"op": "start_run", "workflow": wf(1), "agent": agent(1), "run": run(r), "mode": "compile"});
-    let started =
-        halvo_agent_store::coordinator(&mut w.host.agent, now, start.to_string().as_bytes());
-    assert!(
-        started.is_ok(),
-        "the agent store starts run {r}: {started:?}"
-    );
-    let body = json!({"op": "put_playbook", "agent": agent(1), "run": run(r), "number": number, "steps": compiled()});
-    let reply = halvo_agent_store::runner(&mut w.host.agent, now, body.to_string().as_bytes());
-    assert!(
-        reply.is_ok(),
-        "the agent store stores number {number}: {reply:?}"
-    );
-}
-
 fn names(step: &Value) -> Vec<String> {
     step["target"]["locators"]
         .as_array()
@@ -179,7 +162,7 @@ fn the_read_lists_no_edit_of_a_lower_compile_number_after_a_stop_between_a_compi
     w.learn(2, 2, "button Pay now", vec![loc("A"), pay()]);
     w.start(3, "replay");
     w.load(3);
-    direct_compile(&mut w, 3, 2);
+    w.direct_compile(3, 2);
     let reply =
         w.coordinator(json!({"op": "list_refinements", "workflow": wf(1), "agent": agent(1)}));
     let Ok(CoordinatorAnswer::Refinements(reply)) = reply else {
@@ -194,7 +177,7 @@ fn a_run_is_served_no_edit_on_a_number_that_it_did_not_load() {
     let mut w = active_world();
     w.start(2, "replay");
     w.load(2);
-    direct_compile(&mut w, 30, 2);
+    w.direct_compile(30, 2);
     w.host
         .commit(vec![edit_row(
             1,
@@ -262,7 +245,7 @@ fn a_proposal_on_a_step_after_the_first_page_of_sixteen_is_admitted_and_stored()
     w.load(1);
     assert_eq!(w.put(1, 1, steps[..16].to_vec()), Ok(stored(16)));
     assert_eq!(w.put(1, 1, steps[16..].to_vec()), Ok(stored(2)));
-    assert!(w.finish(1, "compile", "completed").is_ok());
+    assert!(w.finish_of(1, "compile", "completed", Some(1)).is_ok());
     let reply = w.coordinator(
         json!({"op": "set_state", "workflow": wf(1), "agent": agent(1), "state": "active"}),
     );

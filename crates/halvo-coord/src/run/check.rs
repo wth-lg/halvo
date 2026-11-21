@@ -1,5 +1,7 @@
-use crate::ports::{Clock, Owner, Rng, Stamp};
-use crate::schedule::{holds, owed_of_kind, owed_ready, read_back, seq_refusal, Board, Hold};
+use crate::ports::{Owner, PortError, Rng, Stamp};
+use crate::schedule::{
+    holds, item_closed, owed_of_kind, owed_ready, read_back, seq_refusal, Board, Hold,
+};
 use crate::types::{
     hex, AgentId, Category, Cleared, ConfigView, Doing, Event, Facts, ItemId, ItemKind, Lapsed,
     Limits, OtherLapse, OwnItem, OwnItemKind, Raised, Replies, What,
@@ -59,7 +61,10 @@ where
 }
 
 /// Raises the item `check` for each agent of the board, or for `only`, for which `check_due`
-/// holds: after the agent's last event it stores, in one body, `item_lapsed` with the cause `check`
+/// holds and whose place the board does not hold (`Board::place_held`: set aside, or a record of
+/// its items' list keeps its place; I5.7, I5.8): numbered after the agent's stored last
+/// (`Board::stored_last`, the one stored last that every sender of the agent takes, ruling RD-64
+/// 3.2), it stores, in one body, `item_lapsed` with the cause `check`
 /// of the agent's open `ready` item where it holds one and of each `ready` item whose lapse the
 /// board owes and the events do not close (`owed_ready`), then the owed `item_lapsed` of each
 /// `check` item of an earlier life that the events do not close (`owed_of_kind`, ruling RD-96
@@ -71,26 +76,36 @@ where
 /// (`read_back`), and goes on from there, once: the agent holds an item `check` that those events
 /// raised and left open, or else the body is made again from the item that the agent holds after
 /// the read and logged once more while `check_due` holds (rulings XB-31, RD-34 (b), RD-5).
+/// The check is a sender of the agent's record as the other three are: the board takes each
+/// acknowledged body as a store of the agent and each refusal by its class, a second `seq` after
+/// the read among them, and so a refusal by name of that read itself (I5.7, I7.2, rulings RD-64
+/// 2.5, RD-126 item 9, RD-155 (4)), so that a check that the owner keeps refusing shows the line
+/// of a stuck record. Where that read leaves the stored last below the newest `seq` of the
+/// agent's events, the move reads the owner's rows after the number from which its body was
+/// numbered, and an open check among them is the agent's, so that no second raise is stored
+/// (ruling RD-12 (b)). A refusal that comes after the count of a tick counts at the next tick's
+/// count, as a move of the person does, also at a tick whose read of the owner's list fails.
+/// Every row of the raise is stamped by `stamp`, the one read of the clock of the move or of the
+/// recovery that raises it, and the raise reads no clock, so that no row holds a day that the
+/// board has not taken (ruling RD-77 part 6).
 /// The agents that hold the item `check` so, in ascending agent id.
 pub(super) fn raise_checks<P, C>(
     ports: &P,
     board: &mut Board<C>,
     limits: &Limits,
     only: Option<&AgentId>,
+    stamp: Stamp,
 ) -> Vec<AgentId>
 where
-    P: Owner + Rng + Clock,
+    P: Owner + Rng,
     C: ConfigView,
 {
-    let Ok(stamp) = Stamp::read(ports) else {
-        return Vec::new();
-    };
     let mut raised = Vec::new();
     for i in 0..board.members.len() {
         let agent = board.members[i].facts.agent.clone();
         let gone = board.gone.contains(&board.members[i].facts.workflow.id);
         if only.is_some_and(|a| a != &agent)
-            || board.aside(&agent)
+            || board.place_held(&agent)
             || board.dismissed_unread(&agent)
             || !check_due(&board.members[i].facts, gone)
         {
@@ -99,25 +114,18 @@ where
         let Ok(Ok(item)) = ports.bytes16().map(|b| ItemId::parse(&hex(b))) else {
             continue;
         };
-        let events = check_raise_body(
-            &board.members[i].facts,
-            owed_ready(board, i),
-            owed_of_kind(board, i, ItemKind::Check),
-            &item,
-            stamp,
-        );
-        let logged = match ports.log(&events) {
-            Ok(()) => Retried::Logged(events),
+        let from = board.stored_last(i);
+        let events = check_raise_body(board, i, &item, stamp);
+        let logged = match log_body(ports, board, i, events) {
+            Ok(()) => Retried::Logged,
             Err(e) if seq_refusal(&e) => {
-                retry_after_read_back(ports, limits, stamp, board, i, gone, &item)
+                retry_after_read_back(ports, limits, stamp, board, i, (gone, from), &item)
             }
             Err(_) => Retried::Nothing,
         };
         match logged {
-            Retried::Logged(events) => {
-                let facts = &mut board.members[i].facts;
-                facts.events.extend(events);
-                facts.doing = Doing::Idle(Some(OwnItem {
+            Retried::Logged => {
+                board.members[i].facts.doing = Doing::Idle(Some(OwnItem {
                     item,
                     kind: OwnItemKind::Check,
                 }));
@@ -131,19 +139,35 @@ where
 }
 
 enum Retried {
-    Logged(Vec<Event>),
+    Logged,
     HeldAlready,
     Nothing,
 }
 
-fn check_raise_body<C>(
-    facts: &Facts<C>,
-    owed: Vec<ItemId>,
-    owed_checks: Vec<What>,
-    item: &ItemId,
-    stamp: Stamp,
-) -> Vec<Event> {
-    let last = facts.events.last().map_or(0, |e| e.seq.get());
+fn log_body<P: Owner, C>(
+    ports: &P,
+    board: &mut Board<C>,
+    i: usize,
+    events: Vec<Event>,
+) -> Result<(), PortError> {
+    let agent = board.members[i].facts.agent.clone();
+    if let Err(e) = ports.log(&events) {
+        let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
+        board.note_refusal(&agent, &e, dismissed, false);
+        return Err(e);
+    }
+    let last = events.last().map_or(board.stored_last(i), |e| e.seq.get());
+    board.members[i].facts.events.extend(events);
+    board.set_last(i, last);
+    board.acknowledged(&agent);
+    Ok(())
+}
+
+fn check_raise_body<C>(board: &Board<C>, i: usize, item: &ItemId, stamp: Stamp) -> Vec<Event> {
+    let facts = &board.members[i].facts;
+    let last = board.stored_last(i);
+    let owed = owed_ready(board, i);
+    let owed_checks = owed_of_kind(board, i, ItemKind::Check);
     let open = match &facts.doing {
         Doing::Idle(Some(own)) if own.kind == OwnItemKind::Ready => Some(own.item.clone()),
         _ => None,
@@ -171,20 +195,72 @@ fn check_raise_body<C>(
         .collect()
 }
 
+fn read_after<P: Owner, C>(
+    ports: &P,
+    board: &mut Board<C>,
+    i: usize,
+    from: u32,
+) -> Result<(), PortError> {
+    let agent = board.members[i].facts.agent.clone();
+    let (rows, _) = ports.history(&agent, from)?;
+    let open = rows.iter().rev().find_map(|e| match &e.what {
+        What::ItemRaised {
+            item,
+            raised: Raised::Check(None),
+        } if !item_closed(&rows, item) => Some(item.clone()),
+        _ => None,
+    });
+    let Some(item) = open else {
+        return Ok(());
+    };
+    let last = board.stored_last(i);
+    let facts = &mut board.members[i].facts;
+    let new: Vec<Event> = rows
+        .into_iter()
+        .filter(|e| !facts.events.contains(e))
+        .collect();
+    facts.events.extend(new);
+    if let Doing::Idle(_) = facts.doing {
+        facts.doing = Doing::Idle(Some(OwnItem {
+            item,
+            kind: OwnItemKind::Check,
+        }));
+    }
+    board.set_last(i, last);
+    Ok(())
+}
+
 fn retry_after_read_back<P, C>(
     ports: &P,
     limits: &Limits,
     stamp: Stamp,
     board: &mut Board<C>,
     i: usize,
-    gone: bool,
+    (gone, from): (bool, u32),
     item: &ItemId,
 ) -> Retried
 where
-    P: Owner + Rng + Clock,
+    P: Owner + Rng,
     C: ConfigView,
 {
-    if read_back(ports, limits, stamp, board, i).is_err() {
+    let newest = |board: &Board<C>| {
+        board.members[i]
+            .facts
+            .events
+            .last()
+            .map_or(0, |e| e.seq.get())
+    };
+    let read = read_back(ports, limits, stamp, board, i).and_then(|()| {
+        if board.stored_last(i) < newest(board) {
+            read_after(ports, board, i, from)
+        } else {
+            Ok(())
+        }
+    });
+    if let Err(e) = read {
+        let agent = board.members[i].facts.agent.clone();
+        let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
+        board.note_refusal(&agent, &e, dismissed, false);
         return Retried::Nothing;
     }
     let doing = &board.members[i].facts.doing;
@@ -194,15 +270,15 @@ where
     if !check_due(&board.members[i].facts, gone) {
         return Retried::Nothing;
     }
-    let events = check_raise_body(
-        &board.members[i].facts,
-        owed_ready(board, i),
-        owed_of_kind(board, i, ItemKind::Check),
-        item,
-        stamp,
-    );
-    match ports.log(&events) {
-        Ok(()) => Retried::Logged(events),
-        Err(_) => Retried::Nothing,
+    let events = check_raise_body(board, i, item, stamp);
+    match log_body(ports, board, i, events) {
+        Ok(()) => Retried::Logged,
+        Err(e) => {
+            if seq_refusal(&e) {
+                let agent = board.members[i].facts.agent.clone();
+                board.refused(&agent);
+            }
+            Retried::Nothing
+        }
     }
 }

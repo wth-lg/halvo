@@ -725,6 +725,40 @@ fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)));
 }
 
+/// RD-77 part 6 (6.1, 6.4): a check that an act raises is stamped by that act's one read of the
+/// clock. In an end that raises a check, with the memory clock moving on 1 ms at each read, the
+/// check's `item_raised` row holds the `at` and the `day` of the `run_ended` row of the same act.
+#[test]
+fn a_check_that_an_end_raises_holds_the_at_and_the_day_of_its_run_ended_row() {
+    let mut w = world(&[MANUAL]);
+    let run = w.act(Act::Start { agent: agent(0) }).report.run.unwrap();
+    w.store_end(0, &run, Outcome::EffectUnknown, 1);
+    w.ports.step_reads(1);
+    let done = w.act(Act::End {
+        run: run.clone(),
+        outcome: None,
+    });
+    assert_eq!(done.checked, vec![agent(0)]);
+    let events = w.ports.events.borrow();
+    let ended = events
+        .iter()
+        .find(|e| matches!(&e.what, What::RunEnded { run: r, .. } if *r == run))
+        .unwrap();
+    let raised = events
+        .iter()
+        .find(|e| {
+            matches!(
+                e.what,
+                What::ItemRaised {
+                    raised: Raised::Check(None),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    assert_eq!((raised.at, raised.day), (ended.at, ended.day));
+}
+
 /// The rows of the moves that go through the run drive and so through its clock wrapper `Watch`
 /// (src/run/drive.rs): a start, a tick and a switch-off, with the clock from 8 ms before local
 /// midnight to 3 ms after it and moving on 1 ms at each read. Every row carries the memory
@@ -3391,5 +3425,406 @@ fn a_roster_read_that_does_not_answer_keeps_the_hold_of_an_email_card_that_a_new
         !halvo_coord::roster::controls(w.facts(0), None, &w.limits)
             .contains(&halvo_coord::types::Control::RunNow),
         "the row offers no Run now beside the card"
+    );
+}
+
+fn u24s_seqs_of(w: &World, n: usize) -> Vec<u32> {
+    w.ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .map(|e| e.seq.get())
+        .collect()
+}
+
+fn u24s_check_due(limits: halvo_coord::types::Limits) -> World {
+    let mut w = support::world_with(&[MANUAL], limits);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    w.forget();
+    w
+}
+
+fn u24s_one_tick() -> halvo_coord::types::Limits {
+    halvo_coord::types::Limits {
+        record_stuck_ticks: 1,
+        ..halvo_coord::types::Limits::PRODUCT
+    }
+}
+
+fn u24s_line(w: &World, n: usize) -> halvo_coord::types::StatusLine {
+    halvo_coord::roster::status_of(
+        w.facts(n),
+        &w.limits,
+        None,
+        w.board.record_stuck(&agent(n), &w.limits),
+    )
+}
+
+#[test]
+fn u24s_f3_01_a_check_raised_after_the_read_that_lowered_the_stored_last_numbers_from_it() {
+    let mut w = world(&[MANUAL]);
+    let run = ended_unknown(&mut w, 0);
+    w.store_end(0, &run, Outcome::Failed, 1);
+    w.ports.events.borrow_mut().retain(|e| e.agent != agent(0));
+    let tick = w.act(Act::Tick);
+    assert_eq!(
+        tick.checked,
+        vec![agent(0)],
+        "RD-64 3.2: after the read whose last is 0 the check numbers from it: {:?}",
+        u24s_seqs_of(&w, 0)
+    );
+    assert!(holds_check_item(&w, 0));
+    assert_eq!(check_items(&w, 0), 1);
+    assert_eq!(
+        u24s_seqs_of(&w, 0),
+        vec![1],
+        "the check takes the next seq after 0"
+    );
+}
+
+#[test]
+fn u24s_f3_02_a_check_raise_refused_with_store_at_each_tick_makes_the_record_stuck() {
+    let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refusal("store"));
+    let ticks = w.limits.record_stuck_ticks;
+    for _ in 0..=ticks {
+        w.act(Act::Tick);
+    }
+    let refused = w
+        .calls()
+        .iter()
+        .filter(|c| c.as_str() == "log item_raised check refused")
+        .count();
+    assert_eq!(
+        refused,
+        ticks as usize + 1,
+        "the check's body was sent and refused at each tick"
+    );
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "RD-64 2.5: record_stuck_ticks counted ticks with a refusal of class D make the record stuck"
+    );
+    assert_eq!(u24s_line(&w, 0), halvo_coord::types::StatusLine::Record);
+}
+
+#[test]
+fn u24s_f3_02_a_check_raise_counts_by_the_class_of_its_refusal() {
+    for (name, dismissed, stuck, for_life) in [
+        ("no_workflow", false, false, false),
+        ("binding", true, false, false),
+        ("binding", false, true, true),
+        ("store", false, true, false),
+        ("malformed", false, true, false),
+        ("role", false, true, true),
+        ("seq", false, true, false),
+    ] {
+        let mut w = u24s_check_due(u24s_one_tick());
+        if dismissed {
+            w.ports.workflows.borrow_mut()[0] =
+                Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                    id: flow(0),
+                    category: Category::CalendarCleanup,
+                    site: None,
+                });
+        }
+        w.ports.refuse_agent(Method::Log, &agent(0), refusal(name));
+        w.act(Act::Tick);
+        w.act(Act::Tick);
+        assert!(
+            w.calls()
+                .contains(&"log item_raised check refused".to_string()),
+            "{name}: the check's body was sent and refused"
+        );
+        assert_eq!(
+            w.board.record_stuck(&agent(0), &w.limits),
+            stuck,
+            "{name} (dismissed {dismissed}): class B counts nothing, a class that can pass and a second seq after the read count"
+        );
+        assert_eq!(
+            w.board.stuck_for_life(&agent(0), &w.limits),
+            for_life,
+            "{name} (dismissed {dismissed}): only a refusal that cannot pass in this life marks the agent for the life"
+        );
+    }
+}
+
+#[test]
+fn u24s_f3_02_an_acknowledged_check_raise_ends_the_count() {
+    let mut w = u24s_check_due(u24s_one_tick());
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refusal("store"));
+    w.act(Act::Tick);
+    w.ports.clear_refusals();
+    w.act(Act::Tick);
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "the refused raise of the first tick counts"
+    );
+    assert!(holds_check_item(&w, 0), "the second tick's raise is stored");
+    w.act(Act::Tick);
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "a tick of which the check's store was acknowledged and nothing refused ends the count"
+    );
+}
+
+fn u24s_open_checks_of_the_owner(w: &World, n: usize) -> usize {
+    let events = w.ports.events.borrow();
+    let closed = |item: &ItemId| {
+        events.iter().any(|c| match &c.what {
+            What::ItemAnswered { item: i, .. } | What::ItemLapsed { item: i, .. } => i == item,
+            _ => false,
+        })
+    };
+    events
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .filter(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: Raised::Check(None),
+            } => !closed(item),
+            _ => false,
+        })
+        .count()
+}
+
+fn u24s_raise_at_1(e: &Event) -> bool {
+    e.seq.get() == 1 && matches!(e.what, What::ItemRaised { .. })
+}
+
+fn u24s_raise_at_3(e: &Event) -> bool {
+    e.seq.get() == 3 && matches!(e.what, What::ItemRaised { .. })
+}
+
+#[test]
+fn u24s_a_check_whose_acknowledgement_was_lost_after_the_stored_last_fell_is_not_raised_again() {
+    for (kept, lost_at) in [
+        (0, u24s_raise_at_1 as fn(&Event) -> bool),
+        (2, u24s_raise_at_3),
+    ] {
+        let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+        w.ports
+            .events
+            .borrow_mut()
+            .retain(|e| e.agent != agent(0) || e.seq.get() <= kept);
+        let from = w.ports.tried.borrow().len();
+        w.ports.refuse_record(lost_at, PortError::NoService);
+        w.act(Act::Tick);
+        w.ports.clear_refusals();
+        let lost: Vec<Vec<Event>> = w.ports.tried.borrow()[from..]
+            .iter()
+            .filter_map(|t| match (&t.call, &t.refused) {
+                (Call::Log(events), Some(PortError::NoService)) => Some(events.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            lost.len(),
+            1,
+            "last {kept}: one body got no acknowledgement"
+        );
+        w.ports.events.borrow_mut().extend(lost[0].clone());
+        w.act(Act::Tick);
+        assert_eq!(
+            u24s_open_checks_of_the_owner(&w, 0),
+            1,
+            "last {kept}: I7.2, after the read the agent's open items are those that the owner's events hold"
+        );
+        assert!(holds_check_item(&w, 0), "last {kept}: the board holds it");
+    }
+}
+
+#[test]
+fn u24s_a_check_refused_at_ticks_whose_list_read_fails_counts_each_tick() {
+    let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refusal("store"));
+    w.act(Act::Tick);
+    w.ports.refuse(Method::Workflows, PortError::NoService);
+    let ticks = w.limits.record_stuck_ticks;
+    for _ in 0..ticks {
+        w.act(Act::Tick);
+    }
+    assert!(
+        w.calls()
+            .iter()
+            .filter(|c| c.as_str() == "log item_raised check refused")
+            .count()
+            > ticks as usize,
+        "the check was sent and refused at each tick"
+    );
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "I5.7: the ticks whose list read fails count, with the lag of one tick of the check (RD-155 (3))"
+    );
+}
+
+#[test]
+fn u24s_a_check_stored_at_a_tick_whose_list_read_fails_ends_the_record_line() {
+    let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refusal("store"));
+    for _ in 0..=w.limits.record_stuck_ticks {
+        w.act(Act::Tick);
+    }
+    assert!(w.board.record_stuck(&agent(0), &w.limits));
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::Workflows, PortError::NoService);
+    w.act(Act::Tick);
+    assert!(holds_check_item(&w, 0), "the check is stored");
+    w.act(Act::Tick);
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "the next tick's count ends the record line, also without a list (RD-155 (3))"
+    );
+}
+
+#[test]
+fn u24s_a_check_whose_read_after_a_first_seq_is_refused_by_name_counts_each_tick() {
+    let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+    w.ports.refuse_agent(Method::Log, &agent(0), refusal("seq"));
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refusal("store"));
+    for _ in 0..=w.limits.record_stuck_ticks {
+        w.act(Act::Tick);
+    }
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "I5.7: a read of the agent refused with a name of class C or D counts (RD-155 (4))"
+    );
+}
+
+#[test]
+fn u24s_after_the_last_fell_a_check_whose_read_is_refused_by_name_counts_each_tick() {
+    let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+    w.ports.events.borrow_mut().retain(|e| e.agent != agent(0));
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refusal("store"));
+    for _ in 0..=w.limits.record_stuck_ticks {
+        w.act(Act::Tick);
+    }
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "the owner's own seq refuses the check, and its read refused with store counts"
+    );
+}
+
+#[test]
+fn u24s_a_check_whose_read_after_a_first_seq_does_not_answer_or_is_refused_under_class_b_counts_nothing(
+) {
+    for read in [
+        PortError::Busy,
+        PortError::NoService,
+        refusal("no_workflow"),
+    ] {
+        let mut w = u24s_check_due(u24s_one_tick());
+        w.ports.refuse_agent(Method::Log, &agent(0), refusal("seq"));
+        w.ports
+            .refuse_agent(Method::History, &agent(0), read.clone());
+        w.act(Act::Tick);
+        w.act(Act::Tick);
+        assert!(
+            w.calls()
+                .contains(&"log item_raised check refused".to_string()),
+            "{read:?}: the check was sent and refused"
+        );
+        assert!(
+            !w.board.record_stuck(&agent(0), &w.limits),
+            "{read:?}: a read that does not answer, and class B, count nothing (RD-155 (4))"
+        );
+    }
+}
+
+fn is_stuck_raise(e: &Event) -> bool {
+    matches!(
+        e.what,
+        What::ItemRaised {
+            raised: Raised::Stuck(_),
+            ..
+        }
+    )
+}
+
+/// No tick raises the item `check` for an agent while a record of its items' list keeps its
+/// place under class D (I5.7, ruling RD-64 2.5): the raise tests `Board::place_held` as the start
+/// does (U2.4w).
+#[test]
+fn a_tick_raises_no_check_while_a_record_of_the_agent_keeps_its_place() {
+    let c = coord::coordinator(&[coord::MANUAL], halvo_coord::types::Limits::PRODUCT);
+    assert_eq!(
+        c.control(&agent(0), halvo_coord::types::Action::RunNow),
+        Ok(())
+    );
+    let run = coord::started(&c).last().cloned().unwrap();
+    assert_eq!(c.on_run(&run, halvo_coord::types::RunEvent::Hello), Ok(()));
+    c.ports().ports.refuse_record(
+        is_stuck_raise,
+        PortError::Refused(Name::parse("store").unwrap()),
+    );
+    let _ = c.on_run(
+        &run,
+        halvo_coord::types::RunEvent::Handback(halvo_coord::types::HandbackAsk {
+            run: run.clone(),
+            agent: agent(0),
+            reason: halvo_coord::types::HandbackReason::StepFailed,
+            origin: None,
+        }),
+    );
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, halvo_coord::types::RunEvent::Ended(None));
+    c.ports().ports.store_end(
+        &agent(0),
+        halvo_coord::types::PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    c.ports().ports.agents.borrow_mut()[0]
+        .unknown
+        .push(Unknown {
+            run: run.clone(),
+            effect: EffectId::parse(&format!("{:032x}", 0xe402)).unwrap(),
+            day: DAY,
+            class: Class::Send,
+            kept: vec![halvo_coord::types::Kept {
+                name: Name::parse("to").unwrap(),
+                value: vec!["Ann Lee".into()],
+            }],
+        });
+    let from = c.ports().ports.tried.borrow().len();
+    c.ports().ports.set_clock(T0 + 5000, DAY);
+    c.tick();
+    let tried_stuck = c.ports().ports.tried.borrow()[from..]
+        .iter()
+        .any(|t| matches!(&t.call, Call::Log(rows) if rows.iter().any(is_stuck_raise)));
+    assert!(
+        tried_stuck,
+        "flush_ledgers sent the held record at the tick"
+    );
+    let checks = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            matches!(
+                e.what,
+                What::ItemRaised {
+                    raised: Raised::Check(_),
+                    ..
+                }
+            )
+        })
+        .count();
+    assert_eq!(
+        checks, 0,
+        "no item_raised check while the record keeps its place"
     );
 }

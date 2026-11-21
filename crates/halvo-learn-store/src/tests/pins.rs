@@ -42,7 +42,7 @@ fn a_compile_run_that_sends_no_load_keeps_its_run_row_at_rev_1() {
     let mut w = active_world();
     w.start(20, "compile");
     assert!(w.put(20, 2, compiled()).is_ok());
-    assert!(w.finish(20, "compile", "completed").is_ok());
+    assert!(w.finish_of(20, "compile", "completed", Some(2)).is_ok());
     let rows: Vec<_> = w
         .host
         .runs()
@@ -59,7 +59,7 @@ fn a_compile_run_that_loads_has_its_run_row_at_rev_2_after_its_finish() {
     w.start(1, "compile");
     w.load(1);
     assert!(w.put(1, 1, compiled()).is_ok());
-    assert!(w.finish(1, "compile", "completed").is_ok());
+    assert!(w.finish_of(1, "compile", "completed", Some(1)).is_ok());
     let mut rows: Vec<_> = w
         .host
         .runs()

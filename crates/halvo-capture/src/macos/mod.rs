@@ -2,6 +2,7 @@
 
 pub mod apps;
 pub mod audio;
+pub(crate) mod browser_reads;
 pub mod foreground;
 pub mod input;
 pub mod mic;

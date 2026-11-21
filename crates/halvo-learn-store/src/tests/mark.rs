@@ -130,7 +130,7 @@ fn a_reply_under_another_number_than_the_loaded_one_changes_nothing_that_the_run
     w.start(4, "compile");
     w.load(4);
     assert!(w.put(4, 2, compiled()).is_ok());
-    assert!(w.finish(4, "compile", "completed").is_ok());
+    assert!(w.finish_of(4, "compile", "completed", Some(2)).is_ok());
     let id = RunId::parse(&run(3)).expect("a run id");
     let held = |w: &World| -> Vec<(NonZeroU32, Option<String>)> {
         w.handlers.facts[&id]

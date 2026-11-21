@@ -231,6 +231,10 @@ impl Owner for Both {
     ) -> Result<halvo_coord::ports::Overlaps, PortError> {
         self.ports.overlaps(workflow, agent, slots)
     }
+
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        self.ports.delete(workflow)
+    }
 }
 
 impl Runs for Both {

@@ -3,8 +3,9 @@ mod common;
 use common::*;
 use halvo_agent_store::{Host, MemoryStore, AGENT_KINDS};
 use halvo_policy::{preset, validate};
+use halvo_schema::executable::body::{AgentsReply, CHECKPOINTS_REPLY_MAX};
 use halvo_schema::executable::names::LogEvent;
-use halvo_schema::executable::{AgentLog, CoordinatorReply};
+use halvo_schema::executable::{AgentLog, CoordinatorReply, RunnerReply};
 use halvo_schema::{
     AgentId, Category, ErrorName, SeedCategory, TypedRecord, Workflow, WorkflowId, WorkflowState,
 };
@@ -125,7 +126,7 @@ fn a_body_that_is_not_the_form_is_malformed() {
     let mut store = store_with("email");
     for body in [
         json!({"op": "create_agent", "workflow": wf(1)}),
-        json!({"op": "list_agents", "workflow": wf(1), "agent": agent(1)}),
+        json!({"op": "list_agents", "workflow": null, "agent": null}),
         json!({"op": "create_agent", "workflow": wf(1), "agent": agent(1), "extra": 1}),
         json!(["create_agent"]),
     ] {
@@ -209,6 +210,11 @@ fn set_state_active_needs_a_playbook_for_a_web_agent() {
     );
     assert_eq!(
         set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(store.commit(vec![finished_row(1, 1, 1, 9)]), Ok(()));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
         Ok(state_reply("active"))
     );
 
@@ -236,6 +242,37 @@ fn set_state_active_needs_a_playbook_for_a_web_agent() {
         set_state(&mut other, 1, "active"),
         Err(declared("playbook"))
     );
+}
+
+#[test]
+fn a_web_agent_with_a_half_recorded_playbook_is_not_switched_on() {
+    let mut store = store_with("utility_bill_payment");
+    let approved = (WorkflowState::Approved, Some(agent(1)));
+    let one = vec![step(1, "navigate", "read")];
+    assert_eq!(put_steps(&mut store, 1, one.clone()), Ok(stored(1)));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(state_of(&store, 1), approved);
+    let mut failed = run_record(1, Some("compile"), "failed");
+    failed["playbook"] = json!(1);
+    assert_eq!(finish(&mut store, failed), Ok(stored(1)));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(state_of(&store, 1), approved);
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of the second compile");
+    let body =
+        json!({"op": "put_playbook", "agent": agent(1), "run": run(2), "number": 2, "steps": one});
+    assert_eq!(runner(&mut store, body), Ok(stored(1)));
+    assert_eq!(end_run(&mut store, 2), Ok(accepted()));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(state_of(&store, 1), approved);
 }
 
 #[test]
@@ -1278,5 +1315,283 @@ fn the_read_and_the_keeper_agree_on_drawn_pairs_of_slot_sets() {
             .iter()
             .all(|&n| n >= 30),
         "{kept_out} kept out, {let_in} let in, {held_off} held off, {switched_on} switched on"
+    );
+}
+
+/// The reply of `list_agents` after the agent `after`, or from the first, as its JSON.
+fn roster_after(store: &mut MemoryStore, after: Option<u32>) -> Value {
+    let body =
+        json!({"op": "list_agents", "workflow": null, "agent": null, "after": after.map(agent)});
+    let reply = coordinator(store, body).expect("the reply of list_agents");
+    serde_json::from_str(&reply.to_json().expect("the reply's JSON")).expect("the reply's text")
+}
+
+fn roster(store: &mut MemoryStore) -> Value {
+    roster_after(store, None)
+}
+
+/// `put_playbook` of one step of playbook `number` in the run `r` of the first agent.
+fn put_step_of(store: &mut MemoryStore, r: u32, number: u32) -> Result<RunnerReply, ErrorName> {
+    let steps = vec![step(1, "navigate", "read")];
+    runner(
+        store,
+        json!({"op": "put_playbook", "agent": agent(1), "run": run(r), "number": number, "steps": steps}),
+    )
+}
+
+#[test]
+fn the_roster_shows_a_playbook_only_after_its_compile_finished() {
+    let mut store = store_with("utility_bill_payment");
+    let playbook =
+        |store: &mut MemoryStore| roster(store)["agents"][0]["config"]["playbook"].clone();
+    let stored_configs = configs(&store);
+    assert_eq!(playbook(&mut store), Value::Null);
+    assert_eq!(put_step_of(&mut store, 1, 1), Ok(stored(1)));
+    assert_eq!(
+        playbook(&mut store),
+        Value::Null,
+        "a stored step is no finished playbook"
+    );
+    assert_eq!(finish(&mut store, compiled(1, 1)), Ok(stored(1)));
+    assert_eq!(
+        playbook(&mut store),
+        json!(1),
+        "the compile finished with completed"
+    );
+
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of the second compile");
+    assert_eq!(put_step_of(&mut store, 2, 2), Ok(stored(1)));
+    assert_eq!(playbook(&mut store), json!(1));
+    let mut failed = run_record(2, Some("compile"), "failed");
+    failed["playbook"] = json!(2);
+    assert_eq!(finish(&mut store, failed), Ok(stored(1)));
+    assert_eq!(
+        playbook(&mut store),
+        json!(1),
+        "another outcome leaves the number before"
+    );
+
+    start_at(&mut store, NOW, 1, 1, 3).expect("start_run of the third compile");
+    assert_eq!(put_step_of(&mut store, 3, 3), Ok(stored(1)));
+    assert_eq!(end_run(&mut store, 3), Ok(accepted()));
+    assert_eq!(
+        playbook(&mut store),
+        json!(1),
+        "an end_run leaves the number before"
+    );
+    assert_eq!(
+        configs(&store),
+        stored_configs,
+        "the read stores no configuration"
+    );
+}
+
+/// The typed reply of `list_agents` after the agent id `after`, or from the first.
+fn roster_page(store: &mut MemoryStore, after: Option<&str>) -> AgentsReply {
+    let body = json!({"op": "list_agents", "workflow": null, "agent": null, "after": after});
+    match coordinator(store, body) {
+        Ok(CoordinatorReply::Agents(reply)) => reply,
+        other => panic!("the reply of list_agents: {other:?}"),
+    }
+}
+
+/// The configuration of the agent `a` for the workflow `w`, as `create_agent` stores it for an email workflow.
+fn config_row(w: u32, a: u32) -> TypedRecord {
+    let config = preset(
+        Category::Email,
+        WorkflowId::parse(&wf(w)).expect("an id"),
+        AgentId::parse(&agent(a)).expect("an id"),
+    )
+    .expect("a preset");
+    TypedRecord {
+        kind: "agent_config",
+        json: config.to_json().expect("the config's JSON"),
+    }
+}
+
+#[test]
+fn the_roster_holds_only_named_agents_in_order_and_pages_by_after() {
+    let mut store = MemoryStore::new();
+    let mut named = Vec::new();
+    let mut records = Vec::new();
+    for n in (1..=1200).rev() {
+        records.push(config_row(n, n));
+        match n % 100 {
+            7 => store.put_workflow(workflow(&wf(n), "email", "active", Some(&agent(n + 5000)))),
+            8 => store.put_workflow(dismissed(&wf(n))),
+            _ => {
+                let state = ["approved", "active", "paused"][(n % 3) as usize];
+                store.put_workflow(workflow(&wf(n), "email", state, Some(&agent(n))));
+                if n % 100 != 9 {
+                    named.push(agent(n));
+                }
+            }
+        }
+    }
+    store
+        .commit(records)
+        .expect("the configurations are stored");
+    for n in (9..=1200).step_by(100) {
+        gone(&mut store, n);
+    }
+    named.sort();
+
+    let mut listed: Vec<String> = Vec::new();
+    let mut pages: Vec<AgentsReply> = Vec::new();
+    let mut after: Option<String> = None;
+    loop {
+        let page = roster_page(&mut store, after.as_deref());
+        let text = page.to_json().expect("the page's text");
+        assert!(text.len() <= CHECKPOINTS_REPLY_MAX, "{} bytes", text.len());
+        assert!(!page.agents.is_empty(), "page {}", pages.len());
+        listed.extend(
+            page.agents
+                .iter()
+                .map(|a| a.config.agent.as_str().to_owned()),
+        );
+        after = page.next.as_ref().map(|next| next.as_str().to_owned());
+        if let Some(next) = &after {
+            assert_eq!(
+                Some(next),
+                listed.last(),
+                "next names the page's last agent"
+            );
+        }
+        pages.push(page);
+        if after.is_none() {
+            break;
+        }
+    }
+    assert!(pages.len() >= 2, "{} pages", pages.len());
+    for pair in pages.windows(2) {
+        let text = pair[0].to_json().expect("the page's text");
+        let entry = pair[1].agents[0].to_json().expect("the entry's text");
+        assert!(
+            text.len() + 1 + entry.len() > CHECKPOINTS_REPLY_MAX,
+            "a page holds every whole entry that fits"
+        );
+    }
+    assert_eq!(
+        listed, named,
+        "every named agent once, in ascending order, and no other"
+    );
+
+    let last = roster_page(&mut store, named.last().map(String::as_str));
+    assert!(last.agents.is_empty() && last.next.is_none());
+    let unlisted = agent(1109);
+    let from_unlisted = roster_page(&mut store, Some(&unlisted));
+    let above: Vec<&String> = named.iter().filter(|a| **a > unlisted).collect();
+    let got: Vec<String> = from_unlisted
+        .agents
+        .iter()
+        .map(|a| a.config.agent.as_str().to_owned())
+        .collect();
+    assert_eq!(got.iter().collect::<Vec<_>>(), above);
+}
+
+#[test]
+fn an_entry_names_state_slots_session_and_the_last_run() {
+    let mut store = store_with("utility_bill_payment");
+    let entry = |store: &mut MemoryStore| roster(store)["agents"][0].clone();
+    let first = entry(&mut store);
+    assert_eq!(
+        [
+            &first["state"],
+            &first["slots"],
+            &first["session"],
+            &first["last"]
+        ],
+        [&json!("approved"), &json!([]), &json!("no"), &Value::Null]
+    );
+
+    let paying = json!([
+        slot("payee", "Northwind Power"),
+        slot("instrument", "card 4242")
+    ]);
+    assert_eq!(set_bindings(&mut store, 1, paying), Ok(rev(1)));
+    let due = json!([slot("payee", "Contoso Power"), slot("due_day", "12")]);
+    assert_eq!(set_bindings(&mut store, 1, due), Ok(rev(2)));
+    assert_eq!(
+        entry(&mut store)["slots"],
+        json!(["payee", "instrument", "due_day"]),
+        "the slot names of the newest bindings"
+    );
+
+    let part = |part: u32, data: Vec<String>| json!({"op": "put_session", "agent": agent(1), "run": run(1), "origin": "http://utility.test:18090", "rev": 1, "part": part, "of": 2, "data": data});
+    assert_eq!(
+        runner(&mut store, part(1, vec!["A".repeat(1024); 48])),
+        Ok(stored(1))
+    );
+    assert_eq!(entry(&mut store)["session"], json!("no"), "one part of two");
+    assert_eq!(
+        runner(&mut store, part(2, vec!["QUJD".to_owned()])),
+        Ok(stored(1))
+    );
+    assert_eq!(entry(&mut store)["session"], json!("yes"), "stored whole");
+
+    assert_eq!(
+        set_state(&mut store, 1, "paused"),
+        Ok(state_reply("paused"))
+    );
+    assert_eq!(entry(&mut store)["state"], json!("paused"));
+    assert_eq!(
+        set_state(&mut store, 1, "approved"),
+        Ok(state_reply("approved"))
+    );
+    assert_eq!(entry(&mut store)["state"], json!("approved"));
+
+    let record = run_record(1, Some("compile"), "failed");
+    assert_eq!(finish(&mut store, record.clone()), Ok(stored(1)));
+    assert_eq!(entry(&mut store)["last"], record);
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of the second run");
+    assert_eq!(end_run(&mut store, 2), Ok(accepted()));
+    let ended: Value = rows(&store, "agent_run")
+        .iter()
+        .map(|r| serde_json::from_str::<Value>(r).expect("a run row"))
+        .find(|r| r["run"] == json!(run(2)))
+        .expect("the record of end_run");
+    assert_eq!(ended["day"], json!(TODAY));
+    assert_eq!(entry(&mut store)["last"], ended, "the newest record");
+}
+
+#[test]
+fn the_roster_names_each_effect_whose_newest_row_is_unknown() {
+    let mut store = store_with("utility_bill_payment");
+    let unknown = |store: &mut MemoryStore| roster(store)["agents"][0]["unknown"].clone();
+    let begun = |store: &mut MemoryStore, r: u32, e: u32| {
+        for m in [
+            row(r, e, 1, "held", "payment", 1, None, None),
+            row(r, e, 2, "approved", "payment", 1, Some(e), None),
+            row(r, e, 3, "releasing", "payment", 1, Some(e), None),
+        ] {
+            assert_eq!(put(store, m), Ok(stored(1)));
+        }
+    };
+    begun(&mut store, 1, 1);
+    begun(&mut store, 1, 2);
+    let committed = row(1, 2, 4, "committed", "payment", 1, Some(2), None);
+    assert_eq!(put(&mut store, committed), Ok(stored(1)));
+    assert_eq!(unknown(&mut store), json!([]), "releasing is not unknown");
+
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    let records = rows(&store, "agent_run");
+    assert_eq!(records.len(), 1);
+    assert!(records[0].contains(r#""unknown":0"#), "{}", records[0]);
+    let entry = |r: u32, e: u32| json!({"run": run(r), "effect": effect(e), "day": TODAY, "class": "payment", "kept": kept("payment")});
+    assert_eq!(
+        unknown(&mut store),
+        json!([entry(1, 1)]),
+        "after an end_run whose record counts 0"
+    );
+
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of the second run");
+    begun(&mut store, 2, 3);
+    let mut record = run_record(2, Some("replay"), "effect_unknown");
+    record["unknown"] = json!(1);
+    assert_eq!(finish(&mut store, record), Ok(stored(1)));
+    assert_eq!(
+        unknown(&mut store),
+        json!([entry(1, 1), entry(2, 3)]),
+        "every effect of the agent, whatever the newest record counts"
     );
 }

@@ -6,33 +6,71 @@ on:
     tags: ['**']
   pull_request:
   schedule:
-    - cron: '17 3 * * 0'
+    - cron: '17 3 * * 1'
+    - cron: '17 3 * * 2'
     - cron: '17 3 * * 3'
+    - cron: '17 3 * * 4'
+    - cron: '17 3 * * 5'
+    - cron: '17 3 * * 6'
+    - cron: '17 3 * * 0'
   workflow_dispatch:
     inputs:
-      table:
-        description: The whole table with every self-test, as the Sunday run
+      slice:
+        description: The slice to run, as the run of its day at 03:17 UTC does
         type: choice
-        options: [whole]
-        default: whole
+        options: [mon, tue, wed, thu, fri, sat, sun]
+        default: mon
+      checks:
+        description: In place of the slice, these checks alone, each with its self-test (names with blanks between them)
+        type: string
+        default: ''
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || github.event_name == 'workflow_dispatch' && github.run_id || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && 45 || 180 }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Slice
+        id: slice
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          CRON: ${{ github.event.schedule }}
+          SLICE: ${{ inputs.slice }}
+          CHECKS: ${{ inputs.checks }}
+        run: |
+          case "$GITHUB_EVENT_NAME:$CRON" in
+            'schedule:17 3 * * 1') slice=mon ;;
+            'schedule:17 3 * * 2') slice=tue ;;
+            'schedule:17 3 * * 3') slice=wed ;;
+            'schedule:17 3 * * 4') slice=thu ;;
+            'schedule:17 3 * * 5') slice=fri ;;
+            'schedule:17 3 * * 6') slice=sat ;;
+            'schedule:17 3 * * 0') slice=sun ;;
+            workflow_dispatch:*) slice=$SLICE ;;
+            *)
+              echo "Slice: no slice belongs to the event $GITHUB_EVENT_NAME with the cron line '$CRON'. Fix: give each cron line of the schedule its slice in this step."
+              exit 1
+              ;;
+          esac
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -n "$CHECKS" ]; then
+            slice=
+            echo "Slice: none; this run by hand runs the named checks alone: $CHECKS"
+          else
+            echo "Slice: $slice"
+          fi
+          echo "name=$slice" >>"$GITHUB_OUTPUT"
       - name: Commit messages
-        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -42,7 +80,7 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
       - name: Self-tests that commit in throwaway repositories
-        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0'
+        if: steps.slice.outputs.name == 'fri'
         shell: bash
         env:
           GIT_AUTHOR_NAME: Halvo CI
@@ -62,7 +100,6 @@ jobs:
         shell: bash
         run: sh scripts/prerequisites.sh
       - name: Changelog
-        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           sh scripts/check-changelog.sh --self-test
@@ -82,61 +119,53 @@ jobs:
             sh scripts/check-changelog.sh
           fi
       - name: Line endings
-        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           sh scripts/check-line-endings.sh --self-test
           sh scripts/check-line-endings.sh
       - name: Own-source reads
-        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           sh scripts/check-own-source-reads.sh --self-test
           sh scripts/check-own-source-reads.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0'
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+          prefix-key: v0-rust
+          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
       - name: Processor
-        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
-      - name: ci.d
-        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0'
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
       - name: ci.d merge gate
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos --merge-gate
-      - name: Long forms build
-        if: github.event.schedule == '17 3 * * 3'
-        shell: bash
-        run: cargo test --locked -p halvo-capture --lib --test macos_stall_fixture --no-run
-      - name: Long forms
-        if: github.event.schedule == '17 3 * * 3'
+      - name: ci.d slice
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         shell: bash
         env:
-          HALVO_STALL_FORM: long
-          CI_D_SCRIPT_LIMIT_S: 3600
-        run: sh scripts/ci/run-ci-d.sh macos 51-macos-stall
+          SLICE: ${{ steps.slice.outputs.name }}
+          CHECKS: ${{ inputs.checks }}
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+        run: |
+          if [ -n "$SLICE" ]; then
+            sh scripts/ci/run-ci-d.sh macos --slice "$SLICE"
+          else
+            sh scripts/ci/run-ci-d.sh macos --checks "$CHECKS"
+          fi
       - name: Lockfile unchanged
-        if: github.event.schedule != '17 3 * * 3'
         shell: bash
+        env:
+          SLICE: ${{ steps.slice.outputs.name }}
         run: |
           git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" cat-file blob "$GITHUB_SHA:scripts/lockfile-unchanged.sh" >"$RUNNER_TEMP/lockfile-unchanged.sh"
           sh "$RUNNER_TEMP/lockfile-unchanged.sh" macos
-          sh "$RUNNER_TEMP/lockfile-unchanged.sh" --self-test
+          if [ "$SLICE" = fri ]; then
+            sh "$RUNNER_TEMP/lockfile-unchanged.sh" --self-test
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -145,11 +174,41 @@ jobs:
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && 45 || 180 }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
+      - name: Slice
+        id: slice
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          CRON: ${{ github.event.schedule }}
+          SLICE: ${{ inputs.slice }}
+          CHECKS: ${{ inputs.checks }}
+        run: |
+          case "$GITHUB_EVENT_NAME:$CRON" in
+            'schedule:17 3 * * 1') slice=mon ;;
+            'schedule:17 3 * * 2') slice=tue ;;
+            'schedule:17 3 * * 3') slice=wed ;;
+            'schedule:17 3 * * 4') slice=thu ;;
+            'schedule:17 3 * * 5') slice=fri ;;
+            'schedule:17 3 * * 6') slice=sat ;;
+            'schedule:17 3 * * 0') slice=sun ;;
+            workflow_dispatch:*) slice=$SLICE ;;
+            *)
+              echo "Slice: no slice belongs to the event $GITHUB_EVENT_NAME with the cron line '$CRON'. Fix: give each cron line of the schedule its slice in this step."
+              exit 1
+              ;;
+          esac
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ -n "$CHECKS" ]; then
+            slice=
+            echo "Slice: none; this run by hand runs the named checks alone: $CHECKS"
+          else
+            echo "Slice: $slice"
+          fi
+          echo "name=$slice" >>"$GITHUB_OUTPUT"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -159,43 +218,34 @@ jobs:
         run: sh scripts/prerequisites.sh
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
-          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0'
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+          prefix-key: v0-rust
+          save-if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
       - name: Processor
-        if: github.event.schedule != '17 3 * * 3'
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
-      - name: ci.d
-        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0'
-        shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
       - name: ci.d merge gate
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows --merge-gate
-      - name: Long forms build
-        if: github.event.schedule == '17 3 * * 3'
-        shell: bash
-        run: cargo test --locked -p halvo-capture --lib --test windows_functional --no-run
-      - name: Long forms
-        if: github.event.schedule == '17 3 * * 3'
+      - name: ci.d slice
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         shell: bash
         env:
-          HALVO_WF_FORM: long
-          CI_D_SCRIPT_LIMIT_S: 3600
-        run: sh scripts/ci/run-ci-d.sh windows 50-windows-functional 52-windows-browser
+          SLICE: ${{ steps.slice.outputs.name }}
+          CHECKS: ${{ inputs.checks }}
+          GIT_AUTHOR_NAME: Halvo CI
+          GIT_AUTHOR_EMAIL: ci@halvo.invalid
+          GIT_COMMITTER_NAME: Halvo CI
+          GIT_COMMITTER_EMAIL: ci@halvo.invalid
+        run: |
+          if [ -n "$SLICE" ]; then
+            sh scripts/ci/run-ci-d.sh windows --slice "$SLICE"
+          else
+            sh scripts/ci/run-ci-d.sh windows --checks "$CHECKS"
+          fi
       - name: Scripts and hook in a core.autocrlf=true clone
-        if: github.event.schedule != '17 3 * * 3'
+        if: steps.slice.outputs.name == 'fri'
         shell: bash
         run: |
           clone="$RUNNER_TEMP/halvo-autocrlf-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
@@ -228,12 +278,15 @@ jobs:
             *) echo "git refused the commit, but the hook did not report the trailer."; exit 1 ;;
           esac
       - name: Lockfile unchanged
-        if: github.event.schedule != '17 3 * * 3'
         shell: bash
+        env:
+          SLICE: ${{ steps.slice.outputs.name }}
         run: |
           git --no-replace-objects --git-dir="$GITHUB_WORKSPACE/.git" cat-file blob "$GITHUB_SHA:scripts/lockfile-unchanged.sh" >"$RUNNER_TEMP/lockfile-unchanged.sh"
           sh "$RUNNER_TEMP/lockfile-unchanged.sh" windows
-          sh "$RUNNER_TEMP/lockfile-unchanged.sh" --self-test
+          if [ "$SLICE" = fri ]; then
+            sh "$RUNNER_TEMP/lockfile-unchanged.sh" --self-test
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:

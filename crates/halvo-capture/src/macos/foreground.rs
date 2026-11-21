@@ -1,29 +1,36 @@
+#![deny(clippy::let_underscore_must_use)]
+
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use objc2::rc::autoreleasepool;
 use objc2_app_kit::NSWorkspace;
-use uuid::Uuid;
 
-use crate::event::{CaptureStreamEvent, CapturedAt, Modality, SegmentKeyId, SegmentRef};
+use crate::event::{EventClock, FloorEvent};
+use crate::floor::exclude::{
+    DropReason, FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict,
+};
+use crate::floor::kind::{self as floor_kind, Recorded};
+use crate::floor::payload::{Title, TitleWhy};
+use crate::floor::Switch;
+use crate::macos::browser_reads::{self, LanguageReads, Languages};
 use crate::macos::run_loop::RunLoopTurns;
 use crate::macos::source_failure;
-use crate::macos::window_title::{self, TitleError, TitleLength};
-use crate::sink::{SinkError, SinkHandle};
+use crate::macos::window_title::{self, Listed, TitleError, TitleText};
+use crate::secure_input_macos::SystemProbe;
+use crate::sink::SinkHandle;
 use crate::source::{
-    CaptureError, CaptureSource, EmitOutcome, EventSink, HealthReason, SourceContext,
-    SourceCounters, SourceHealth, SourceState, Started, StopCause,
+    CaptureError, CaptureSource, HealthReason, SourceContext, SourceCounters, SourceHealth,
+    SourceState, Started, StopCause,
 };
 
 pub const FOREGROUND_POLL: Duration = Duration::from_millis(400);
 
 pub const FOREGROUND_STOP_DEADLINE: Duration = Duration::from_secs(1);
-
-pub const TITLE_RETRY_WINDOW: Duration = FOREGROUND_POLL.saturating_mul(5);
 
 pub const IDENTITY_CAP_BYTES: usize = 1024;
 
@@ -344,6 +351,16 @@ pub(crate) mod tests_support {
         AppIdentity::of(None, Some(path))
     }
 
+    pub(crate) fn stored_and_read(
+        stored: Foreground,
+        read: Foreground,
+    ) -> (super::ForegroundWriter, super::ForegroundReader) {
+        let (writer, reader) =
+            super::writer_and_reader(std::sync::Arc::new(move || Some(read.clone())));
+        writer.set(Some(stored));
+        (writer, reader)
+    }
+
     /// A foreground source with the product's poll interval whose poll reads
     /// `system_front`, the stand-in of the system's app in front, through the
     /// writer's read as the product's source does, and the reader of its value.
@@ -363,6 +380,7 @@ pub(crate) mod tests_support {
                 writer,
                 super::RunLoopTurns::for_test(std::time::Instant::now()),
                 Box::new(|_| Ok(None)),
+                super::TitleRules::unread(),
             ),
             reader,
         )
@@ -381,6 +399,27 @@ impl ForegroundReader {
     /// process of their own, which cannot claim the main run loop.
     pub fn nothing_in_front() -> Self {
         writer_and_reader(Arc::new(|| None)).1
+    }
+}
+
+#[cfg(all(debug_assertions, feature = "stall-seam"))]
+impl ForegroundReader {
+    /// A reader with no writer whose app in front is always the executable at
+    /// `executable_path` with `pid`: for the stall fixture alone, and no release
+    /// build holds it.
+    pub fn fixed_front(executable_path: &str, pid: libc::pid_t) -> Self {
+        let front = Foreground {
+            identity: AppIdentity::of(None, Some(executable_path)),
+            pid,
+        };
+        let read = front.clone();
+        Self {
+            state: Arc::new(Mutex::new(FrontState {
+                front: Some(front),
+                answered: true,
+            })),
+            read: Arc::new(move || Some(read.clone())),
+        }
     }
 }
 
@@ -409,49 +448,6 @@ impl ForegroundReader {
         }
         (self.read)()
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Unpersisted {
-    pub byte_len: u64,
-}
-
-impl Unpersisted {
-    pub const EMPTY: Self = Self { byte_len: 0 };
-
-    pub fn placement(self) -> (SegmentRef, SegmentKeyId) {
-        (
-            SegmentRef {
-                segment_id: Uuid::nil(),
-                byte_offset: 0,
-                byte_len: self.byte_len,
-            },
-            SegmentKeyId(0),
-        )
-    }
-}
-
-pub(crate) fn emit_metadata_only(
-    sink: &SinkHandle,
-    modality: Modality,
-    foreground: Option<Foreground>,
-    placement: Unpersisted,
-    wall_clock: SystemTime,
-) -> Result<EmitOutcome, SinkError> {
-    let foreground_app = foreground
-        .map(|front| front.identity.text().to_owned())
-        .unwrap_or_default();
-    let (segment_ref, segment_key_id) = placement.placement();
-    sink.emit(CaptureStreamEvent::new_raw(
-        CapturedAt {
-            wall_clock,
-            sequence: sink.next_sequence(),
-        },
-        modality,
-        foreground_app,
-        segment_ref,
-        segment_key_id,
-    ))
 }
 
 pub(crate) fn executable_path(pid: libc::pid_t) -> Option<String> {
@@ -504,26 +500,313 @@ fn read_frontmost() -> Option<Foreground> {
 }
 
 type FrontReader = Box<dyn FnMut() -> Option<Foreground> + Send>;
-type TitleRead = Result<Option<TitleLength>, TitleError>;
+type TitleRead = Result<Option<TitleText>, TitleError>;
 type TitleReader = Box<dyn FnMut(libc::pid_t) -> TitleRead + Send>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct TitleRequest {
-    pid: libc::pid_t,
+    front: Foreground,
     change: u64,
 }
 
+/// The system's list of handlers of https links as bundle ids, or `None` when
+/// it could not be read: the one seam of that list, which a test replaces.
+type HandlerRead = Box<dyn FnMut() -> Option<Vec<String>> + Send>;
+
+/// What the title rules make of a request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TitleRule {
+    /// No browser: its title is read and kept as any app's.
+    Kept,
+    /// Chrome, Edge or Safari in a process that runs in English: its title is
+    /// read, and dropped as private when it ends with these words.
+    PrivateEnding(&'static str),
+    /// Any other browser, and the three under another language or at a failed
+    /// reading: no title is read.
+    NoTitle,
+}
+
+impl TitleRule {
+    fn mark(self, title: TitleText) -> TitleText {
+        match self {
+            Self::PrivateEnding(words) => title.of_a_browser_ending_private_with(words),
+            Self::Kept | Self::NoTitle => title,
+        }
+    }
+}
+
+/// The kept value of a place that a browser's language is read from, and its
+/// epoch in the machine's ticks: taken after the readings at the source's
+/// start, or after the readings of the last change of the app in front at
+/// which this place gave another value than the one before.
+struct Place {
+    value: Languages,
+    epoch: u64,
+}
+
+impl Place {
+    fn read(&mut self, value: Languages, now: u64) {
+        if value != self.value {
+            *self = Self { value, epoch: now };
+        }
+    }
+}
+
+/// The decision for one process of Chrome or Edge, found by the browser, the
+/// pid and the start of the process in ticks: taken at its first title
+/// request and kept until another process of that browser is decided.
+struct Decided {
+    browser: &'static str,
+    pid: libc::pid_t,
+    started: u64,
+    english: bool,
+}
+
+/// The rules that tell, on the title thread, whether the title of the app in
+/// front is read and how it is told private, with the reads of the system
+/// that they make: the places of the apps that the system lists for https
+/// links, and the place of the app in front, at most once for each change of
+/// the app in front whose request reaches the rules; the two places of each
+/// browser's language (its own value and the person's global list), each
+/// after a synchronize call, at the source's start and at each such change;
+/// the start of a process of Chrome or Edge at each of its title requests;
+/// and its localization once, read only from a bundle under an Applications
+/// folder.
+pub(crate) struct TitleRules {
+    handlers: HandlerRead,
+    languages: Box<dyn LanguageReads>,
+    home: Option<String>,
+    change: Option<u64>,
+    list: Option<Option<Vec<String>>>,
+    global: Option<Place>,
+    own: Vec<(&'static str, Place)>,
+    decided: Vec<Decided>,
+}
+
+impl TitleRules {
+    fn new(handlers: HandlerRead, languages: Box<dyn LanguageReads>) -> Self {
+        let home = std::env::var("HOME")
+            .ok()
+            .filter(|home| home.starts_with('/'));
+        Self {
+            handlers,
+            languages,
+            home,
+            change: None,
+            list: None,
+            global: None,
+            own: Vec::new(),
+            decided: Vec::new(),
+        }
+    }
+
+    fn system() -> Self {
+        Self::new(
+            Box::new(browser_reads::https_handlers),
+            Box::new(browser_reads::SystemLanguages),
+        )
+    }
+
+    /// Reads both places of each browser at the source's start; the ticks
+    /// after those readings are their first epoch, so a browser that already
+    /// runs keeps no title until it starts again.
+    fn begin(&mut self) {
+        let global = self.languages.global();
+        let own: Vec<(&'static str, Languages)> = window_title::ENGLISH_ENDINGS
+            .iter()
+            .map(|&(browser, _)| (browser, self.languages.own(browser)))
+            .collect();
+        let now = self.languages.now();
+        self.global = Some(Place {
+            value: global,
+            epoch: now,
+        });
+        self.own = own
+            .into_iter()
+            .map(|(browser, value)| (browser, Place { value, epoch: now }))
+            .collect();
+    }
+
+    /// At a change of the app in front whose request reaches the rules: reads
+    /// both places of each browser again and, after those readings, sets the
+    /// value and the epoch of each place that gave another value, so that each
+    /// kept value and its epoch follow every change that a reading sees; and
+    /// forgets the system's list.
+    fn at_change(&mut self) {
+        let global = self.languages.global();
+        let own: Vec<Languages> = self
+            .own
+            .iter()
+            .map(|(browser, _)| self.languages.own(browser))
+            .collect();
+        let now = self.languages.now();
+        if let Some(place) = self.global.as_mut() {
+            place.read(global, now);
+        }
+        for ((_, place), value) in self.own.iter_mut().zip(own) {
+            place.read(value, now);
+        }
+        self.list = None;
+    }
+
+    fn rule_of(&mut self, request: &TitleRequest) -> TitleRule {
+        if self.change != Some(request.change) {
+            self.change = Some(request.change);
+            self.at_change();
+        }
+        let AppIdentity::BundleId(id) = &request.front.identity else {
+            return TitleRule::Kept;
+        };
+        let id = id.as_str();
+        match window_title::listed(id) {
+            Listed::Ending(browser, words) => {
+                if self.english(browser, id, request.front.pid) {
+                    TitleRule::PrivateEnding(words)
+                } else {
+                    TitleRule::NoTitle
+                }
+            }
+            Listed::Browser => TitleRule::NoTitle,
+            Listed::Domain => match self.named_by_system(id, request.front.pid) {
+                Some(false) => TitleRule::Kept,
+                Some(true) | None => TitleRule::NoTitle,
+            },
+            Listed::Other => match self.named_by_system(id, request.front.pid) {
+                Some(true) => TitleRule::NoTitle,
+                Some(false) | None => TitleRule::Kept,
+            },
+        }
+    }
+
+    /// Whether the system's list names the place of the app `id` with `pid`,
+    /// both as the system gives them, set against each other as text with one
+    /// closing slash taken off; `None` when the list or the place could not be
+    /// read.
+    fn named_by_system(&mut self, id: &str, pid: libc::pid_t) -> Option<bool> {
+        let list = self.list.get_or_insert_with(|| (self.handlers)()).clone()?;
+        let place = self.languages.place(pid, id)?;
+        let place = place.trim_end_matches('/');
+        Some(
+            list.iter()
+                .any(|named| named.trim_end_matches('/') == place),
+        )
+    }
+
+    /// Whether the process `pid` of `browser` runs in English: its start is
+    /// read at each title request, and a decision is found by the browser, the
+    /// pid and that start; another start is decided anew.
+    fn english(&mut self, browser: &'static str, id: &str, pid: libc::pid_t) -> bool {
+        let Some(started) = self.languages.started(pid) else {
+            return false;
+        };
+        if let Some(decided) = self.decided.iter().find(|decided| {
+            decided.browser == browser && decided.pid == pid && decided.started == started
+        }) {
+            return decided.english;
+        }
+        let english = self.first_title(browser, id, pid, started);
+        self.decided.retain(|decided| decided.browser != browser);
+        self.decided.push(Decided {
+            browser,
+            pid,
+            started,
+            english,
+        });
+        english
+    }
+
+    /// A process of `browser` that started at the tick `started` runs in
+    /// English when it started after the epochs of both its places, which the
+    /// readings at this change of the app in front have just moved if they
+    /// gave another value, its bundle lies under an Applications folder, and
+    /// the bundle takes the localization [`window_title::ENGLISH`] under the
+    /// kept list: its own value, else the person's global list.
+    fn first_title(
+        &mut self,
+        browser: &'static str,
+        id: &str,
+        pid: libc::pid_t,
+        started: u64,
+    ) -> bool {
+        let (Some(global), Some((_, own))) = (
+            self.global.as_ref(),
+            self.own.iter().find(|(name, _)| *name == browser),
+        ) else {
+            return false;
+        };
+        let epoch = global.epoch.max(own.epoch);
+        let list = match (&own.value, &global.value) {
+            (Languages::List(list), _) | (Languages::NoValue, Languages::List(list)) => {
+                list.clone()
+            }
+            _ => return false,
+        };
+        if started <= epoch {
+            return false;
+        }
+        let Some(place) = self.languages.place(pid, id) else {
+            return false;
+        };
+        if !window_title::in_applications(&place, self.home.as_deref()) {
+            return false;
+        }
+        self.languages.localization(&place, &list).as_deref() == Some(window_title::ENGLISH)
+    }
+}
+
+#[cfg(test)]
+impl TitleRules {
+    /// Rules whose reads of the system all fail, and read nothing of it: the
+    /// closed list alone stands, and Chrome and Edge keep no title.
+    pub(crate) fn unread() -> Self {
+        struct Unread;
+        impl LanguageReads for Unread {
+            fn own(&mut self, _bundle_id: &str) -> Languages {
+                Languages::Failed
+            }
+            fn global(&mut self) -> Languages {
+                Languages::Failed
+            }
+            fn now(&mut self) -> u64 {
+                0
+            }
+            fn started(&mut self, _pid: libc::pid_t) -> Option<u64> {
+                None
+            }
+            fn place(&mut self, _pid: libc::pid_t, _bundle_id: &str) -> Option<String> {
+                None
+            }
+            fn localization(&mut self, _place: &str, _languages: &[String]) -> Option<String> {
+                None
+            }
+        }
+        Self::new(Box::new(|| None), Box::new(Unread))
+    }
+}
+
+fn window_of(front: &Foreground) -> PrivateWindow {
+    let bundle_id = match &front.identity {
+        AppIdentity::BundleId(id) => Some(id.as_str()),
+        AppIdentity::ExecutablePath(_) | AppIdentity::Unknown => None,
+    };
+    window_title::window_privacy(bundle_id)
+}
+
+fn verdict_of<K: Recorded>(
+    floor: &FloorHandle,
+    probe: &SystemProbe,
+    front: &Foreground,
+    window: PrivateWindow,
+) -> Option<Verdict<K>> {
+    let pid = ProcessId::new(u32::try_from(front.pid).ok()?);
+    let subject = Subject::new(front.identity.to_event(), pid);
+    Some(floor.decide::<K>(subject, window, probe))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct TitleAnswer {
     change: u64,
     read: TitleRead,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TitleState {
-    Asked,
-    AskAgain,
-    Settled,
 }
 
 #[derive(Default)]
@@ -533,6 +816,7 @@ struct TitleHealth {
     not_trusted: AtomicBool,
     stop_asked: AtomicBool,
     dropped_at_stop: AtomicU64,
+    private_dropped: AtomicU64,
 }
 
 impl TitleHealth {
@@ -545,71 +829,111 @@ impl TitleHealth {
     }
 }
 
-fn retry_ticks(interval: Duration) -> u32 {
-    let interval = interval.as_millis().max(1);
-    u32::try_from(TITLE_RETRY_WINDOW.as_millis() / interval).unwrap_or(u32::MAX)
-}
-
 struct Poller {
     writer: ForegroundWriter,
     front: Option<Foreground>,
     change: u64,
-    title: TitleState,
-    retries_left: u32,
-    retry_ticks: u32,
+    last_title: Option<String>,
+    titled: bool,
     health: Arc<TitleHealth>,
+    floor: FloorHandle,
+    probe: SystemProbe,
+    clock: &'static EventClock,
 }
 
 impl Poller {
-    fn new(writer: ForegroundWriter, retry_ticks: u32, health: Arc<TitleHealth>) -> Self {
+    fn new(writer: ForegroundWriter, health: Arc<TitleHealth>) -> Self {
         Self {
             writer,
             front: None,
             change: 0,
-            title: TitleState::Settled,
-            retries_left: 0,
-            retry_ticks,
+            last_title: None,
+            titled: false,
             health,
+            floor: FloorHandle::default(),
+            probe: SystemProbe::new(),
+            clock: EventClock::system(),
+        }
+    }
+
+    fn verdict<K: Recorded>(
+        &self,
+        front: &Foreground,
+        window: PrivateWindow,
+    ) -> Option<Verdict<K>> {
+        verdict_of::<K>(&self.floor, &self.probe, front, window)
+    }
+
+    fn keep<K: Recorded>(&self, front: &Foreground, window: PrivateWindow) -> Option<Keep<K>> {
+        match self.verdict::<K>(front, window)? {
+            Verdict::Keep(keep) => Some(keep),
+            Verdict::Drop(_) => None,
+        }
+    }
+
+    fn dropped(&mut self, reason: DropReason) {
+        if reason == DropReason::SecureInput {
+            self.change += 1;
         }
     }
 
     fn take_answer(&mut self, answer: TitleAnswer, sink: &SinkHandle) {
-        if answer.change != self.change || self.title != TitleState::Asked {
+        if answer.change != self.change {
             return;
         }
         match answer.read {
             Ok(Some(title)) => {
-                self.title = TitleState::Settled;
                 self.health.failing.store(false, Ordering::Relaxed);
                 self.health.not_trusted.store(false, Ordering::Relaxed);
-                if !self.health.emits() {
-                    return;
-                }
-                let _ = emit_metadata_only(
-                    sink,
-                    Modality::WindowTitle,
-                    self.front.clone(),
-                    Unpersisted {
-                        byte_len: title.bytes(),
-                    },
-                    SystemTime::now(),
-                );
+                self.title_read(title, sink);
             }
-            Ok(None) if self.retries_left > 0 => {
-                self.retries_left -= 1;
-                self.title = TitleState::AskAgain;
-            }
-            Ok(None) => self.title = TitleState::Settled,
+            Ok(None) => {}
             Err(TitleError::NotTrusted) => {
-                self.title = TitleState::Settled;
                 self.health.not_trusted.store(true, Ordering::Relaxed);
             }
             Err(_) => {
-                self.title = TitleState::Settled;
                 self.health.errors.fetch_add(1, Ordering::Relaxed);
                 self.health.failing.store(true, Ordering::Relaxed);
             }
         }
+    }
+
+    fn title_read(&mut self, title: TitleText, sink: &SinkHandle) {
+        if self.last_title.as_deref() == Some(title.text()) {
+            return;
+        }
+        let Some(front) = self.front.clone() else {
+            return;
+        };
+        let window = window_of(&front);
+        if window == PrivateWindow::Private || title.is_private() {
+            self.health.private_dropped.fetch_add(1, Ordering::Relaxed);
+            self.last_title = Some(title.into_text());
+            return;
+        }
+        let keep = match self.verdict::<floor_kind::WindowTitle>(&front, window) {
+            Some(Verdict::Keep(keep)) => keep,
+            Some(Verdict::Drop(reason)) => return self.dropped(reason),
+            None => return,
+        };
+        if !self.health.emits() {
+            return;
+        }
+        let why = if self.titled {
+            TitleWhy::TitleChange
+        } else {
+            TitleWhy::AppChange
+        };
+        let text = title.into_text();
+        self.last_title = Some(text.clone());
+        self.titled = true;
+        let site = window_title::site_of(front.pid);
+        sink.emit_event(FloorEvent::window_title(
+            keep,
+            Title::new(text, why, site),
+            None,
+            self.clock,
+        ));
     }
 
     fn step(
@@ -624,7 +948,6 @@ impl Poller {
         let Some(front) = reading else {
             if self.front.take().is_some() {
                 self.change += 1;
-                self.title = TitleState::Settled;
                 self.writer.set(None);
             }
             return None;
@@ -633,24 +956,29 @@ impl Poller {
             self.change += 1;
             self.front = Some(front.clone());
             self.writer.set(Some(front.clone()));
-            if self.health.emits() {
-                let _ = emit_metadata_only(
-                    sink,
-                    Modality::ForegroundApp,
-                    Some(front.clone()),
-                    Unpersisted::EMPTY,
-                    SystemTime::now(),
-                );
+            self.last_title = None;
+            self.titled = false;
+            if let Some(keep) =
+                self.keep::<floor_kind::ForegroundApp>(&front, PrivateWindow::Unknown)
+            {
+                if self.health.emits() {
+                    sink.emit_event(FloorEvent::foreground_app(keep, None, self.clock));
+                }
             }
-            self.title = TitleState::Asked;
-            self.retries_left = self.retry_ticks;
-        } else if self.title == TitleState::AskAgain {
-            self.title = TitleState::Asked;
-        } else {
+        }
+        if !self.floor.switches().is_on(Switch::TitleText) {
             return None;
         }
+        match self.verdict::<floor_kind::WindowTitle>(&front, window_of(&front)) {
+            Some(Verdict::Keep(_)) => {}
+            Some(Verdict::Drop(reason)) => {
+                self.dropped(reason);
+                return None;
+            }
+            None => return None,
+        }
         Some(TitleRequest {
-            pid: front.pid,
+            front,
             change: self.change,
         })
     }
@@ -666,8 +994,59 @@ struct TitleThread {
     answers: Receiver<TitleAnswer>,
 }
 
+/// The title thread's answer to one request: no title where the floor refuses
+/// it before or after the read, or where the title rules read none; else the
+/// title read, marked with the words of its browser's private window where the
+/// rules tell a private window by them.
+fn answer_of(
+    request: &TitleRequest,
+    rules: &mut TitleRules,
+    read_title: &mut TitleReader,
+    floor: &FloorHandle,
+    probe: &SystemProbe,
+) -> TitleAnswer {
+    let refused = || {
+        !matches!(
+            verdict_of::<floor_kind::WindowTitle>(
+                floor,
+                probe,
+                &request.front,
+                window_of(&request.front),
+            ),
+            Some(Verdict::Keep(_))
+        )
+    };
+    let read = if refused() {
+        Ok(None)
+    } else {
+        match catch_unwind(AssertUnwindSafe(|| rules.rule_of(request)))
+            .unwrap_or(TitleRule::NoTitle)
+        {
+            TitleRule::NoTitle => Ok(None),
+            rule => {
+                let read = catch_unwind(AssertUnwindSafe(|| read_title(request.front.pid)))
+                    .unwrap_or(Err(TitleError::ReaderPanicked));
+                if refused() {
+                    Ok(None)
+                } else {
+                    read.map(|title| title.map(|title| rule.mark(title)))
+                }
+            }
+        }
+    };
+    TitleAnswer {
+        change: request.change,
+        read,
+    }
+}
+
 impl TitleThread {
-    fn spawn(mut read_title: TitleReader) -> Result<(Self, JoinHandle<()>), CaptureError> {
+    fn spawn(
+        mut read_title: TitleReader,
+        mut rules: TitleRules,
+        floor: FloorHandle,
+        probe: SystemProbe,
+    ) -> Result<(Self, JoinHandle<()>), CaptureError> {
         let queue = Arc::new((
             Mutex::new(TitleQueue {
                 latest: None,
@@ -680,13 +1059,9 @@ impl TitleThread {
         let thread = std::thread::Builder::new()
             .name("halvo-window-title".into())
             .spawn(move || {
+                catch_unwind(AssertUnwindSafe(|| rules.begin())).ok();
                 while let Some(request) = next_request(&shared) {
-                    let read = catch_unwind(AssertUnwindSafe(|| read_title(request.pid)))
-                        .unwrap_or(Err(TitleError::ReaderPanicked));
-                    let answer = TitleAnswer {
-                        change: request.change,
-                        read,
-                    };
+                    let answer = answer_of(&request, &mut rules, &mut read_title, &floor, &probe);
                     if tx.send(answer).is_err() {
                         return;
                     }
@@ -768,7 +1143,7 @@ impl Running {
 pub struct ForegroundSource {
     interval: Duration,
     turns: RunLoopTurns,
-    readers: Option<(FrontReader, TitleReader, ForegroundWriter)>,
+    readers: Option<(FrontReader, TitleReader, TitleRules, ForegroundWriter)>,
     health: Arc<TitleHealth>,
     running: Option<Running>,
     failure: Option<CaptureError>,
@@ -786,6 +1161,7 @@ impl ForegroundSource {
             foreground,
             turns,
             Box::new(window_title::focused_window_title),
+            TitleRules::system(),
         );
         #[cfg(test)]
         {
@@ -801,9 +1177,10 @@ impl ForegroundSource {
         foreground: ForegroundWriter,
         turns: RunLoopTurns,
         read_title: TitleReader,
+        rules: TitleRules,
     ) -> Self {
         let read_front = foreground.poll_reader();
-        Self::with_readers(interval, foreground, turns, read_front, read_title)
+        Self::with_readers(interval, foreground, turns, read_front, read_title, rules)
     }
 
     fn with_readers(
@@ -812,11 +1189,12 @@ impl ForegroundSource {
         turns: RunLoopTurns,
         read_front: FrontReader,
         read_title: TitleReader,
+        rules: TitleRules,
     ) -> Self {
         Self {
             interval,
             turns,
-            readers: Some((read_front, read_title, foreground)),
+            readers: Some((read_front, read_title, rules, foreground)),
             health: Arc::new(TitleHealth::default()),
             running: None,
             failure: None,
@@ -846,22 +1224,24 @@ impl CaptureSource for ForegroundSource {
         if self.running.is_some() {
             return Err(CaptureError::AlreadyStarted);
         }
-        let Some((read_front, read_title, writer)) = self.readers.take() else {
+        let Some((read_front, read_title, rules, writer)) = self.readers.take() else {
             return Err(CaptureError::Start(
                 "the foreground source starts once".into(),
             ));
         };
-        let poller = Poller::new(writer, retry_ticks(self.interval), self.health.clone());
+        let mut poller = Poller::new(writer, self.health.clone());
+        poller.floor = ctx.floor().clone();
         let (stop, stop_rx) = channel();
         let sink = ctx.sink().clone();
         let interval = self.interval;
-        let started = TitleThread::spawn(read_title).and_then(|(titles, title)| {
-            std::thread::Builder::new()
-                .name("halvo-foreground".into())
-                .spawn(move || poll_loop(read_front, poller, titles, sink, interval, stop_rx))
-                .map(|thread| (thread, title))
-                .map_err(thread_start_failure)
-        });
+        let started = TitleThread::spawn(read_title, rules, poller.floor.clone(), poller.probe)
+            .and_then(|(titles, title)| {
+                std::thread::Builder::new()
+                    .name("halvo-foreground".into())
+                    .spawn(move || poll_loop(read_front, poller, titles, sink, interval, stop_rx))
+                    .map(|thread| (thread, title))
+                    .map_err(thread_start_failure)
+            });
         match started {
             Ok((thread, title)) => {
                 self.running = Some(Running {
@@ -887,7 +1267,7 @@ impl CaptureSource for ForegroundSource {
         };
         let ended_before = !running.stop_sent && running.thread.is_finished();
         self.health.stop_asked.store(true, Ordering::SeqCst);
-        let _ = running.stop.send(());
+        running.stop.send(()).ok();
         running.stop_sent = true;
         let called = Instant::now();
         while !running.ended() {
@@ -956,7 +1336,7 @@ impl Drop for ForegroundSource {
         if self.unstopped.is_some() {
             return;
         }
-        let _ = self.shutdown();
+        self.shutdown().ok();
     }
 }
 
@@ -987,6 +1367,7 @@ pub(crate) fn note_shutdown_answer(source: &str, real: bool, answer: &Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event::Modality;
     use crate::sink::{self, SinkWriter};
     use core_foundation::base::{kCFAllocatorDefault, TCFType};
     use core_foundation::string::{CFString, CFStringCreateWithCharacters};
@@ -1045,36 +1426,42 @@ mod tests {
         RunLoopTurns::for_test(Instant::now())
     }
 
-    fn events(handle: SinkHandle, writer: &SinkWriter) -> Vec<(Modality, String, u64)> {
+    fn shown(received: crate::sink::Received) -> (Modality, String, String) {
+        let floor = received.into_floor().expect("a floor value");
+        let event = floor.event();
+        let app = event
+            .app()
+            .text()
+            .map(|(text, field)| crate::floor::cases::stored(text, field))
+            .unwrap_or_default();
+        let title = match event.observation() {
+            crate::floor::payload::Observation::WindowTitle(title) => {
+                crate::floor::cases::stored(&title.text, crate::floor::text::TextField::Title)
+            }
+            _ => String::new(),
+        };
+        (event.kind(), app, title)
+    }
+
+    fn events(handle: SinkHandle, writer: &SinkWriter) -> Vec<(Modality, String, String)> {
         drop(handle);
         let mut kinds = Vec::new();
         loop {
             match writer.recv_timeout(Duration::from_secs(2)) {
-                Ok(received) => {
-                    let event = received.event();
-                    kinds.push((
-                        event.modality,
-                        event.foreground_app.clone(),
-                        event.segment_ref.byte_len,
-                    ));
-                }
+                Ok(received) => kinds.push(shown(received)),
                 Err(RecvTimeoutError::Disconnected) => return kinds,
                 Err(RecvTimeoutError::Timeout) => panic!("something still holds the sink's handle"),
             }
         }
     }
 
-    fn take(writer: &SinkWriter, n: usize) -> Vec<(Modality, String, u64)> {
+    fn take(writer: &SinkWriter, n: usize) -> Vec<(Modality, String, String)> {
         (0..n)
             .map(|_| {
-                let received = writer
-                    .recv_timeout(Duration::from_secs(5))
-                    .expect("an event within 5 s");
-                let event = received.event();
-                (
-                    event.modality,
-                    event.foreground_app.clone(),
-                    event.segment_ref.byte_len,
+                shown(
+                    writer
+                        .recv_timeout(Duration::from_secs(5))
+                        .expect("an event within 5 s"),
                 )
             })
             .collect()
@@ -1082,9 +1469,9 @@ mod tests {
 
     fn poll(
         readings: Vec<Option<Foreground>>,
-    ) -> (Vec<(Modality, String, u64)>, Option<Foreground>) {
+    ) -> (Vec<(Modality, String, String)>, Option<Foreground>) {
         let (writer, reader) = foreground_state_for_test();
-        let mut poller = Poller::new(writer, 5, Arc::default());
+        let mut poller = Poller::new(writer, Arc::default());
         let (handle, sink_writer) = sink::channel(64);
         for reading in readings {
             poller.step(reading, Vec::new(), &handle);
@@ -1094,100 +1481,1064 @@ mod tests {
         (events(handle, &sink_writer), front)
     }
 
-    fn fg(text: &str) -> (Modality, String, u64) {
-        (Modality::ForegroundApp, text.to_string(), 0)
+    fn fg(text: &str) -> (Modality, String, String) {
+        (Modality::ForegroundApp, text.to_string(), String::new())
+    }
+
+    fn floor_events(writer: &SinkWriter) -> Vec<crate::sink::FloorReceived> {
+        std::iter::from_fn(|| writer.try_recv().ok())
+            .filter_map(|received| received.into_floor().ok())
+            .collect()
+    }
+
+    fn titles(writer: &SinkWriter) -> Vec<(String, &'static str, bool)> {
+        floor_events(writer)
+            .into_iter()
+            .filter_map(|floor| match floor.event().observation() {
+                crate::floor::payload::Observation::WindowTitle(title) => {
+                    let Title { text, why, site } = title;
+                    assert!(site.is_none(), "no site reader in R1");
+                    Some((
+                        crate::floor::cases::stored(text, crate::floor::text::TextField::Title),
+                        why.as_str(),
+                        text.was_cut(),
+                    ))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn kinds(writer: &SinkWriter) -> Vec<Modality> {
+        floor_events(writer)
+            .iter()
+            .map(|floor| floor.event().kind())
+            .collect()
+    }
+
+    fn read(text: &str) -> TitleRead {
+        Ok(Some(TitleText::for_test(text)))
+    }
+
+    thread_local! {
+        static PROBE_BYTE: std::cell::Cell<u8> = const { std::cell::Cell::new(0) };
+    }
+
+    fn probe_byte() -> u8 {
+        PROBE_BYTE.with(std::cell::Cell::get)
+    }
+
+    fn at_console() -> crate::secure_input_macos::Session {
+        crate::secure_input_macos::Session::AtConsole
+    }
+
+    fn poller_with(floor: FloorHandle) -> (Poller, SinkHandle, SinkWriter) {
+        let (writer, _reader) = foreground_state_for_test();
+        let mut poller = Poller::new(writer, Arc::default());
+        poller.floor = floor;
+        poller.probe = SystemProbe::with_readers(at_console, probe_byte);
+        let (handle, sink_writer) = sink::channel(64);
+        (poller, handle, sink_writer)
     }
 
     #[test]
-    fn unpersisted_placement_is_the_nil_sentinel() {
-        let (seg, key) = Unpersisted { byte_len: 128 }.placement();
-        assert!(seg.segment_id.is_nil());
-        assert_eq!(seg.byte_len, 128);
-        assert_eq!(key.0, 0);
-        assert_eq!(Unpersisted::EMPTY.placement().0.byte_len, 0);
-    }
-
-    #[test]
-    fn a_metadata_only_event_carries_the_identity_and_no_persisted_bytes() {
-        let (handle, writer) = sink::channel(2);
-        emit_metadata_only(
-            &handle,
-            Modality::WindowTitle,
-            app("com.apple.Terminal", 7),
-            Unpersisted { byte_len: 7 },
-            SystemTime::now(),
-        )
-        .unwrap();
-        emit_metadata_only(
-            &handle,
-            Modality::Pointer,
-            None,
-            Unpersisted::EMPTY,
-            SystemTime::now(),
-        )
-        .unwrap();
+    fn a_title_record_holds_its_text_its_cut_and_why_and_no_length() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let front = app("com.example.a", 10);
+        poller.step(front.clone(), Vec::new(), &handle);
+        poller.step(front, answer(1, read("Quarterly plan")), &handle);
+        let records: Vec<serde_json::Value> = floor_events(&writer)
+            .into_iter()
+            .map(|floor| {
+                let record =
+                    crate::floor::record::encode(&floor, &crate::floor::cases::IdentityPoint)
+                        .expect("the encoder writes the record");
+                crate::floor::record::decode(record.as_str())
+                    .expect("the decoder reads the record");
+                serde_json::from_str(record.as_str()).expect("a record is a JSON object")
+            })
+            .collect();
+        let shapes: Vec<(String, String, String)> = records
+            .iter()
+            .map(|record| {
+                (
+                    record["kind"].to_string(),
+                    record["app"].to_string(),
+                    record["p"].to_string(),
+                )
+            })
+            .collect();
         assert_eq!(
-            events(handle, &writer),
+            shapes,
             [
-                (Modality::WindowTitle, "com.apple.Terminal".to_string(), 7),
-                (Modality::Pointer, String::new(), 0)
+                (
+                    "\"foreground_app\"".to_string(),
+                    "\"com.example.a\"".to_string(),
+                    "{}".to_string()
+                ),
+                (
+                    "\"window_title\"".to_string(),
+                    "\"com.example.a\"".to_string(),
+                    r#"{"cut":false,"text":"Quarterly plan","why":"app_change"}"#.to_string()
+                ),
             ]
         );
+        drop(poller);
     }
 
     #[test]
-    fn an_emit_carries_the_instant_that_it_is_given() {
-        let (handle, writer) = sink::channel(2);
-        let instant = SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000);
-        emit_metadata_only(
-            &handle,
-            Modality::Keystroke,
-            None,
-            Unpersisted::EMPTY,
-            instant,
-        )
-        .unwrap();
-        drop(handle);
-        let stamps: Vec<SystemTime> = std::iter::from_fn(|| writer.recv())
-            .map(|event| event.captured_at.wall_clock)
-            .collect();
-        assert_eq!(stamps, [instant]);
-    }
-
-    #[test]
-    fn two_emits_carry_increasing_sequences_and_wall_clocks_between_the_calls() {
-        let (handle, writer) = sink::channel(2);
-        let before = SystemTime::now();
-        for modality in [Modality::ForegroundApp, Modality::WindowTitle] {
-            emit_metadata_only(
-                &handle,
-                modality,
-                None,
-                Unpersisted::EMPTY,
-                SystemTime::now(),
-            )
-            .unwrap();
-        }
-        let after = SystemTime::now();
-        drop(handle);
-        let stamps: Vec<CapturedAt> = std::iter::from_fn(|| writer.recv())
-            .map(|event| event.captured_at)
-            .collect();
-        assert_eq!(stamps.len(), 2);
-        assert!(
-            stamps[0].sequence < stamps[1].sequence,
-            "sequences {:?} then {:?}",
-            stamps[0].sequence,
-            stamps[1].sequence
+    fn a_title_of_the_poller_passes_the_owners_flush_as_its_text_its_cut_and_why() {
+        use crate::daemon::model_store::Harness;
+        use crate::daemon::owner::Command;
+        use crate::floor::record::DecodedPayload;
+        let mut harness = Harness::new();
+        harness.ask(Command::ClosePause);
+        let (writer, _reader) = foreground_state_for_test();
+        let mut poller = Poller::new(writer, Arc::default());
+        poller.probe = SystemProbe::with_readers(at_console, probe_byte);
+        let front = app("com.example.a", 10);
+        poller.step(front.clone(), Vec::new(), &harness.sink);
+        poller.step(front, answer(1, read("Quarterly plan")), &harness.sink);
+        harness.ask(Command::Settle);
+        let records = harness.store.records();
+        assert_eq!(
+            records
+                .iter()
+                .map(|record| record.kind())
+                .collect::<Vec<_>>(),
+            ["foreground_app", "window_title"]
         );
-        for stamp in &stamps {
-            assert!(
-                before <= stamp.wall_clock && stamp.wall_clock <= after,
-                "wall clock {:?} outside {before:?} to {after:?}",
-                stamp.wall_clock
+        match records[1].payload() {
+            DecodedPayload::WindowTitle {
+                text,
+                cut,
+                why,
+                site,
+            } => {
+                assert_eq!(
+                    (text.as_str(), *cut, why.as_str(), site.is_none()),
+                    ("Quarterly plan", false, "app_change", true)
+                );
+            }
+            _ => panic!("the second record is no title"),
+        }
+        assert_eq!(records[1].app(), Some("com.example.a"));
+        drop(poller);
+    }
+
+    #[test]
+    fn a_private_window_whose_title_is_longer_than_the_cap_makes_no_title() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let chrome = app("com.google.Chrome", 40);
+        poller.step(chrome.clone(), Vec::new(), &handle);
+        let long = format!("{} - Google Chrome (Incognito)", "a".repeat(1_100));
+        let english = TitleText::for_test(&long).of_a_browser_ending_private_with("(Incognito)");
+        poller.step(chrome, answer(1, Ok(Some(english))), &handle);
+        assert_eq!(
+            titles(&writer),
+            [],
+            "the private ending lies past unit 1,024"
+        );
+        assert_eq!(poller.health.private_dropped.load(Ordering::Relaxed), 1);
+        drop(poller);
+    }
+
+    #[test]
+    fn a_title_asked_before_an_active_reading_and_answered_after_it_is_not_emitted() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let front = app("com.example.a", 10);
+        let asked = poller.step(front.clone(), Vec::new(), &handle);
+        assert!(
+            asked.is_some(),
+            "tick 1 reads inactive and asks for the title"
+        );
+        PROBE_BYTE.with(|byte| byte.set(1));
+        let during = poller.step(front.clone(), Vec::new(), &handle);
+        assert_eq!(during, None, "tick 2 reads active and asks nothing");
+        PROBE_BYTE.with(|byte| byte.set(0));
+        poller.step(
+            front.clone(),
+            answer(1, read("ASKED-BEFORE-ACTIVE")),
+            &handle,
+        );
+        let stored = titles(&writer);
+        drop(poller);
+        assert_eq!(
+            stored,
+            [],
+            "the answer of a request older than an active reading"
+        );
+    }
+
+    static INSIDE_BYTE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+    fn inside_byte() -> u8 {
+        INSIDE_BYTE.load(Ordering::SeqCst)
+    }
+
+    #[test]
+    fn a_title_read_inside_an_active_reading_between_two_ticks_is_not_emitted() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        poller.probe = SystemProbe::with_readers(at_console, inside_byte);
+        let front = app("com.example.a", 10);
+        let (go, wait) = std::sync::mpsc::channel::<()>();
+        let (seen, read_under) = std::sync::mpsc::channel::<u8>();
+        let (entered, came) = std::sync::mpsc::channel::<()>();
+        let reader: TitleReader = Box::new(move |_pid| {
+            entered.send(()).ok();
+            wait.recv().ok();
+            seen.send(inside_byte()).ok();
+            read("READ-WHILE-ACTIVE")
+        });
+        let (thread, joined) = TitleThread::spawn(
+            reader,
+            TitleRules::unread(),
+            poller.floor.clone(),
+            poller.probe,
+        )
+        .expect("the title thread of the test");
+        let request = poller
+            .step(front.clone(), thread.answers(), &handle)
+            .expect("tick 1 reads inactive and asks for the title");
+        thread.ask(request);
+        came.recv_timeout(Duration::from_secs(60))
+            .expect("the title thread calls its reader");
+        INSIDE_BYTE.store(1, Ordering::SeqCst);
+        go.send(()).expect("the reader waits for the test");
+        let byte_at_the_read = read_under.recv_timeout(Duration::from_secs(60));
+        let mut answers = Vec::new();
+        for _ in 0..60_000 {
+            answers = thread.answers();
+            if !answers.is_empty() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        INSIDE_BYTE.store(0, Ordering::SeqCst);
+        let answered = answers.len();
+        poller.step(front.clone(), answers, &handle);
+        let stored = titles(&writer);
+        drop(thread);
+        joined.join().expect("the title thread ends by returning");
+        drop(poller);
+        assert_eq!(byte_at_the_read, Ok(1), "the title was read while active");
+        assert_eq!(answered, 1, "the read answered before tick 2");
+        assert_eq!(
+            stored,
+            [],
+            "a title that was read while the reading was active"
+        );
+    }
+
+    fn active_byte() -> u8 {
+        1
+    }
+
+    fn answers_within(thread: &TitleThread, limit: Duration) -> Vec<TitleAnswer> {
+        let started = Instant::now();
+        loop {
+            let answers = thread.answers();
+            if !answers.is_empty() || started.elapsed() >= limit {
+                return answers;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    #[test]
+    fn the_title_thread_calls_no_reader_when_the_reading_is_active_before_its_read() {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = calls.clone();
+        let reader: TitleReader = Box::new(move |_pid| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            read("NOT-TO-BE-READ")
+        });
+        let probe = SystemProbe::with_readers(at_console, active_byte);
+        let (thread, joined) =
+            TitleThread::spawn(reader, TitleRules::unread(), FloorHandle::default(), probe)
+                .expect("the title thread of the test");
+        thread.ask(TitleRequest {
+            front: super::tests_support::front("com.example.a", 10),
+            change: 1,
+        });
+        let answers = answers_within(&thread, Duration::from_secs(60));
+        drop(thread);
+        joined.join().expect("the title thread ends by returning");
+        assert_eq!(
+            answers,
+            [TitleAnswer {
+                change: 1,
+                read: Ok(None)
+            }]
+        );
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "calls of the reader while the reading was active before the read"
+        );
+    }
+
+    fn reads_within(reader: impl Fn() -> bool, want: bool, limit: Duration) -> bool {
+        let started = Instant::now();
+        loop {
+            if reader() == want {
+                return true;
+            }
+            if started.elapsed() >= limit {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    #[ignore = "takes the system's secure-input hold: a hosted runner runs it with HALVO_HOSTED_TITLE_HOLD=1"]
+    fn a_title_read_while_the_system_hold_is_taken_between_two_poller_steps_is_not_stored() {
+        const NAME: &str =
+            "a_title_read_while_the_system_hold_is_taken_between_two_poller_steps_is_not_stored";
+        if std::env::var("HALVO_HOSTED_TITLE_HOLD").as_deref() != Ok("1") {
+            println!("{NAME}: HALVO_HOSTED_TITLE_HOLD is not 1, so no hold is taken");
+            return;
+        }
+        if !crate::secure_input_macos::test_support::hosted_or_refuse(NAME) {
+            return;
+        }
+        let one = crate::secure_input_macos::test_support::one_hold_at_a_time();
+        let probe = SystemProbe::new();
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        poller.probe = probe;
+        let front = app("com.example.a", 10);
+        let floor = poller.floor.clone();
+        let active = || {
+            matches!(
+                verdict_of::<floor_kind::WindowTitle>(
+                    &floor,
+                    &probe,
+                    &super::tests_support::front("com.example.a", 10),
+                    PrivateWindow::Unknown
+                ),
+                Some(Verdict::Drop(DropReason::SecureInput))
+            )
+        };
+        let (entered, came) = std::sync::mpsc::channel::<()>();
+        let (go, wait) = std::sync::mpsc::channel::<()>();
+        let reader: TitleReader = Box::new(move |_pid| {
+            entered.send(()).ok();
+            wait.recv().ok();
+            read("READ-UNDER-THE-SYSTEM-HOLD")
+        });
+        let (thread, joined) =
+            TitleThread::spawn(reader, TitleRules::unread(), poller.floor.clone(), probe)
+                .expect("the title thread of the test");
+        let request = poller
+            .step(front.clone(), thread.answers(), &handle)
+            .expect("step 1 reads secure input off and asks for the title");
+        thread.ask(request);
+        came.recv_timeout(Duration::from_secs(60))
+            .expect("the title thread calls its reader");
+        let Some(hold) = one.hold_or_skip(NAME) else {
+            go.send(()).ok();
+            drop(thread);
+            joined.join().expect("the title thread ends by returning");
+            return;
+        };
+        let on = reads_within(active, true, Duration::from_secs(2));
+        go.send(()).expect("the reader waits for the test");
+        let answers = answers_within(&thread, Duration::from_secs(60));
+        drop(hold);
+        let off = reads_within(active, false, Duration::from_secs(2));
+        let answered = answers.len();
+        poller.step(front.clone(), answers, &handle);
+        let stored = titles(&writer);
+        drop(thread);
+        joined.join().expect("the title thread ends by returning");
+        drop(poller);
+        assert!(
+            on,
+            "during the hold the system's probe reads active within 2 s"
+        );
+        assert!(
+            off,
+            "after the hold the system's probe reads off within 2 s"
+        );
+        assert_eq!(answered, 1, "the title thread answered before step 2");
+        assert_eq!(
+            stored,
+            [],
+            "a title read while the system's hold was taken, between two steps"
+        );
+    }
+
+    #[test]
+    fn an_ascii_title_longer_than_the_unit_cap_is_stored_with_cut_true() {
+        use crate::daemon::model_store::Harness;
+        use crate::daemon::owner::Command;
+        use crate::floor::record::DecodedPayload;
+        let mut harness = Harness::new();
+        harness.ask(Command::ClosePause);
+        let (writer, _reader) = foreground_state_for_test();
+        let mut poller = Poller::new(writer, Arc::default());
+        poller.probe = SystemProbe::with_readers(at_console, probe_byte);
+        let front = app("com.example.a", 10);
+        poller.step(front.clone(), Vec::new(), &harness.sink);
+        poller.step(front, answer(1, read(&"a".repeat(2_000))), &harness.sink);
+        harness.ask(Command::Settle);
+        let stored: Vec<(usize, bool)> = harness
+            .store
+            .records()
+            .iter()
+            .filter_map(|record| match record.payload() {
+                DecodedPayload::WindowTitle { text, cut, .. } => Some((text.as_str().len(), *cut)),
+                _ => None,
+            })
+            .collect();
+        drop(poller);
+        assert_eq!(stored.len(), 1, "one title record");
+        assert_eq!(stored[0], (0, true));
+    }
+
+    #[test]
+    fn on_a_mac_no_title_of_a_browsers_window_is_kept_in_english_or_german_while_another_apps_are()
+    {
+        let visit = [
+            "Quarterly plan - Google Docs",
+            "New Tab - Google Chrome (Incognito)",
+            "Quartalsplan - Google Docs",
+            "Neuer Tab - Google Chrome (Inkognito)",
+        ];
+        for bundle_id in [
+            "com.brave.Browser",
+            "company.thebrowser.Browser",
+            "com.example.editor",
+        ] {
+            let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+            let front = app(bundle_id, 40);
+            let asked = poller.step(front.clone(), Vec::new(), &handle);
+            for title in visit {
+                poller.step(front.clone(), answer(1, read(title)), &handle);
+            }
+            let made = kinds(&writer);
+            drop(poller);
+            let titles = made
+                .iter()
+                .filter(|&&kind| kind == Modality::WindowTitle)
+                .count();
+            let browser = bundle_id != "com.example.editor";
+            assert_eq!(
+                (asked.is_some(), made.first().copied(), titles),
+                if browser {
+                    (false, Some(Modality::ForegroundApp), 0)
+                } else {
+                    (true, Some(Modality::ForegroundApp), visit.len())
+                },
+                "{bundle_id}"
             );
         }
-        assert!(stamps[0].wall_clock <= stamps[1].wall_clock);
+    }
+
+    #[test]
+    fn readings_a_a_b_of_one_app_give_two_title_events_with_a_and_b() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let front = app("com.example.a", 10);
+        let first = poller.step(front.clone(), Vec::new(), &handle);
+        assert_eq!(
+            first,
+            Some(TitleRequest {
+                front: super::tests_support::front("com.example.a", 10),
+                change: 1,
+            })
+        );
+        for text in ["A", "A", "B"] {
+            let asked = poller.step(front.clone(), answer(1, read(text)), &handle);
+            assert_eq!(asked, first, "the title is asked on every tick");
+        }
+        assert_eq!(
+            kinds(&writer),
+            [
+                Modality::ForegroundApp,
+                Modality::WindowTitle,
+                Modality::WindowTitle
+            ]
+        );
+        drop(poller);
+    }
+
+    #[test]
+    fn a_title_event_holds_its_text_its_cut_and_why_it_was_made() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let front = app("com.example.a", 10);
+        poller.step(front.clone(), Vec::new(), &handle);
+        poller.step(front.clone(), answer(1, read("A")), &handle);
+        let long = "\u{e9}".repeat(600);
+        poller.step(front.clone(), answer(1, read(&long)), &handle);
+        let made = titles(&writer);
+        assert_eq!(made.len(), 2);
+        assert_eq!(made[0], ("A".to_string(), "app_change", false));
+        assert_eq!((made[1].1, made[1].2), ("title_change", true));
+        assert_eq!(
+            made[1].0,
+            "\u{e9}".repeat(512),
+            "cut to 1,024 bytes on a character boundary"
+        );
+    }
+
+    #[test]
+    fn with_an_active_probe_no_title_is_asked_and_b_comes_on_the_first_tick_after() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let front = app("com.example.a", 10);
+        PROBE_BYTE.with(|byte| byte.set(1));
+        let asked: Vec<_> = (0..3)
+            .map(|_| poller.step(front.clone(), Vec::new(), &handle))
+            .collect();
+        assert_eq!(
+            asked,
+            [None, None, None],
+            "no read while secure input is active"
+        );
+        PROBE_BYTE.with(|byte| byte.set(0));
+        let request = poller
+            .step(front.clone(), Vec::new(), &handle)
+            .expect("the first tick after asks for the title");
+        assert_eq!(request.front.pid, 10);
+        poller.step(front.clone(), answer(request.change, read("B")), &handle);
+        assert_eq!(titles(&writer), [("B".to_string(), "app_change", false)]);
+        drop(poller);
+    }
+
+    #[test]
+    fn a_title_read_under_an_active_probe_is_not_emitted() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let front = app("com.example.a", 10);
+        poller.step(front.clone(), Vec::new(), &handle);
+        PROBE_BYTE.with(|byte| byte.set(1));
+        poller.step(front.clone(), answer(1, read("A")), &handle);
+        PROBE_BYTE.with(|byte| byte.set(0));
+        assert_eq!(titles(&writer), []);
+        let again = poller
+            .step(front.clone(), Vec::new(), &handle)
+            .expect("the first tick after asks for the title");
+        poller.step(front.clone(), answer(again.change, read("A")), &handle);
+        assert_eq!(
+            titles(&writer).len(),
+            1,
+            "the same title once secure input has ended"
+        );
+        drop(poller);
+    }
+
+    #[test]
+    fn with_title_text_off_no_title_is_ever_asked() {
+        let mut switches = crate::floor::Switches::default();
+        switches.set(Switch::TitleText, false);
+        let floor = FloorHandle::new(None, Arc::new(crate::floor::exclude::NoLineage), switches);
+        let (mut poller, handle, writer) = poller_with(floor);
+        let front = app("com.example.a", 10);
+        let asked: Vec<_> = (0..3)
+            .map(|_| poller.step(front.clone(), Vec::new(), &handle))
+            .collect();
+        assert_eq!(asked, [None, None, None]);
+        assert_eq!(kinds(&writer), [Modality::ForegroundApp]);
+        drop(poller);
+    }
+
+    struct UnderRoot;
+
+    impl crate::floor::exclude::Lineage for UnderRoot {
+        fn parent_of(&self, pid: ProcessId) -> crate::floor::exclude::Parent {
+            match pid.get() {
+                10 => crate::floor::exclude::Parent::Of(ProcessId::new(500)),
+                _ => crate::floor::exclude::Parent::None,
+            }
+        }
+    }
+
+    #[test]
+    fn a_listed_app_or_a_process_under_the_root_gives_no_event_and_no_title_read() {
+        let rooted = FloorHandle::new(
+            Some(ProcessId::new(500)),
+            Arc::new(UnderRoot),
+            crate::floor::Switches::default(),
+        );
+        for (floor, front) in [
+            (FloorHandle::default(), app("com.apple.Passwords", 20)),
+            (rooted.clone(), app("com.example.a", 10)),
+        ] {
+            let (mut poller, handle, writer) = poller_with(floor);
+            let asked: Vec<_> = (0..3)
+                .map(|_| poller.step(front.clone(), Vec::new(), &handle))
+                .collect();
+            assert_eq!(asked, [None, None, None]);
+            assert_eq!(kinds(&writer), []);
+            drop(poller);
+        }
+        let (mut poller, handle, writer) = poller_with(rooted);
+        let other = app("com.example.b", 30);
+        assert!(poller.step(other.clone(), Vec::new(), &handle).is_some());
+        poller.step(other, answer(1, read("B")), &handle);
+        assert_eq!(
+            kinds(&writer),
+            [Modality::ForegroundApp, Modality::WindowTitle],
+            "a process outside the tree"
+        );
+        drop(poller);
+    }
+
+    #[test]
+    fn a_private_window_of_its_browser_makes_no_title_and_counts_the_drop() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let chrome = app("com.brave.Browser", 40);
+        poller.step(chrome.clone(), Vec::new(), &handle);
+        poller.step(
+            chrome.clone(),
+            answer(1, read("New Tab - Google Chrome (Incognito)")),
+            &handle,
+        );
+        poller.step(
+            chrome.clone(),
+            answer(1, read("New Tab - Google Chrome (Incognito)")),
+            &handle,
+        );
+        assert_eq!(titles(&writer), []);
+        assert_eq!(poller.health.private_dropped.load(Ordering::Relaxed), 1);
+        poller.step(
+            chrome,
+            answer(1, read("Private Browsing tips - Google Chrome")),
+            &handle,
+        );
+        assert_eq!(
+            titles(&writer).len(),
+            0,
+            "no title of a browser's window is kept"
+        );
+        drop(poller);
+    }
+
+    /// A tick of the machine's count, `ticks` after the first of these tests.
+    fn at(ticks: u64) -> u64 {
+        1_000_000 + ticks
+    }
+
+    fn list_of(language: &str) -> Languages {
+        Languages::List(vec![language.to_string()])
+    }
+
+    /// A stand-in of the system's reads of a browser's language and of the
+    /// app in front: the global list and the tick count as the test sets
+    /// them, no value of a browser's own, the start of each process as the
+    /// test sets it, an app's place /Applications/<its id>.app unless the test
+    /// sets another, and as the localization of a bundle the code of the first
+    /// language of the list, with each place asked for it noted. It reads
+    /// nothing of the system.
+    #[derive(Clone)]
+    struct SaidLanguage(Arc<Mutex<Said>>);
+
+    struct Said {
+        global: Languages,
+        clock: u64,
+        started: Vec<(libc::pid_t, u64)>,
+        places: Vec<(libc::pid_t, String)>,
+        asked: Vec<String>,
+    }
+
+    impl SaidLanguage {
+        fn new(global: Languages) -> Self {
+            Self(Arc::new(Mutex::new(Said {
+                global,
+                clock: 0,
+                started: Vec::new(),
+                places: Vec::new(),
+                asked: Vec::new(),
+            })))
+        }
+
+        fn said(&self) -> std::sync::MutexGuard<'_, Said> {
+            self.0.lock().expect("the stand-in's lock")
+        }
+
+        fn set(&self, global: Languages) {
+            self.said().global = global;
+        }
+
+        fn started(&self, pid: libc::pid_t, at: u64) {
+            let mut said = self.said();
+            said.started.retain(|(process, _)| *process != pid);
+            said.started.push((pid, at));
+        }
+
+        fn lies(&self, pid: libc::pid_t, place: &str) {
+            self.said().places.push((pid, place.to_string()));
+        }
+    }
+
+    impl LanguageReads for SaidLanguage {
+        fn own(&mut self, _bundle_id: &str) -> Languages {
+            Languages::NoValue
+        }
+
+        fn global(&mut self) -> Languages {
+            self.said().global.clone()
+        }
+
+        fn now(&mut self) -> u64 {
+            self.said().clock
+        }
+
+        fn started(&mut self, pid: libc::pid_t) -> Option<u64> {
+            let said = self.said();
+            Some(said.started.iter().find(|(process, _)| *process == pid)?.1)
+        }
+
+        fn place(&mut self, pid: libc::pid_t, bundle_id: &str) -> Option<String> {
+            let said = self.said();
+            Some(
+                said.places
+                    .iter()
+                    .find(|(process, _)| *process == pid)
+                    .map_or_else(
+                        || format!("/Applications/{bundle_id}.app"),
+                        |(_, place)| place.clone(),
+                    ),
+            )
+        }
+
+        fn localization(&mut self, place: &str, languages: &[String]) -> Option<String> {
+            self.said().asked.push(place.to_string());
+            Some(languages.first()?.split('-').next()?.to_string())
+        }
+    }
+
+    /// A poll with title rules over stand-ins of the system, whose title
+    /// thread's answers `answer_of` makes here, on the test's own thread.
+    struct Through {
+        poller: Poller,
+        handle: SinkHandle,
+        writer: SinkWriter,
+        rules: TitleRules,
+        said: SaidLanguage,
+        reads: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl Through {
+        /// `handlers` stands in for the places of the system's list (`None`:
+        /// a failed read), `language` for the reads of a language; the source
+        /// began at the tick `began`.
+        fn new(handlers: Option<&[&str]>, language: &SaidLanguage, began: u64) -> Self {
+            let list: Option<Vec<String>> =
+                handlers.map(|places| places.iter().map(|place| place.to_string()).collect());
+            let mut rules =
+                TitleRules::new(Box::new(move || list.clone()), Box::new(language.clone()));
+            language.said().clock = began;
+            rules.begin();
+            let (poller, handle, writer) = poller_with(FloorHandle::default());
+            Self {
+                poller,
+                handle,
+                writer,
+                rules,
+                said: language.clone(),
+                reads: Arc::default(),
+            }
+        }
+
+        /// The app `front` in front at the tick `now`, its window titled
+        /// `title`: the poll that asks for the title, the title thread's
+        /// answer, the poll that takes it.
+        fn shows(&mut self, front: &Option<Foreground>, title: &str, now: u64) {
+            self.said.said().clock = now;
+            let text = title.to_string();
+            let reads = self.reads.clone();
+            let mut reader: TitleReader = Box::new(move |_pid| {
+                reads.fetch_add(1, Ordering::SeqCst);
+                read(&text)
+            });
+            let answers = match self.poller.step(front.clone(), Vec::new(), &self.handle) {
+                Some(request) => vec![answer_of(
+                    &request,
+                    &mut self.rules,
+                    &mut reader,
+                    &self.poller.floor,
+                    &self.poller.probe,
+                )],
+                None => Vec::new(),
+            };
+            self.poller.step(front.clone(), answers, &self.handle);
+        }
+
+        /// The kinds of the events made since the last call, the texts of its
+        /// title events, the titles read from a window and the private titles
+        /// dropped.
+        fn made(&self) -> (Vec<Modality>, Vec<String>, usize, u64) {
+            let events = floor_events(&self.writer);
+            let texts = events
+                .iter()
+                .filter_map(|floor| match floor.event().observation() {
+                    crate::floor::payload::Observation::WindowTitle(title) => {
+                        Some(crate::floor::cases::stored(
+                            &title.text,
+                            crate::floor::text::TextField::Title,
+                        ))
+                    }
+                    _ => None,
+                })
+                .collect();
+            (
+                events.iter().map(|floor| floor.event().kind()).collect(),
+                texts,
+                self.reads.swap(0, Ordering::SeqCst),
+                self.poller
+                    .health
+                    .private_dropped
+                    .swap(0, Ordering::Relaxed),
+            )
+        }
+    }
+
+    #[test]
+    fn an_app_that_the_system_lists_for_https_links_keeps_no_title_while_one_in_neither_list_and_thunderbird_keep_theirs(
+    ) {
+        let visit = ["Quarterly plan - Reader", "New Tab - Reader (Incognito)"];
+        let system = [
+            "/Applications/com.example.webreader.app/",
+            "/Applications/org.mozilla.firefox.app",
+        ];
+        for (bundle_id, kept) in [
+            ("com.example.webreader", &[][..]),
+            ("com.example.editor", &visit[..]),
+            ("org.mozilla.thunderbird", &visit[..]),
+        ] {
+            let mut through =
+                Through::new(Some(&system), &SaidLanguage::new(list_of("en-US")), at(0));
+            let front = app(bundle_id, 40);
+            for title in visit {
+                through.shows(&front, title, at(10));
+            }
+            let (_, titles, reads, _) = through.made();
+            assert_eq!(
+                (titles, reads),
+                (
+                    kept.iter().map(|title| title.to_string()).collect(),
+                    kept.len()
+                ),
+                "{bundle_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn chrome_and_edge_keep_a_normal_title_and_drop_a_private_one_under_english_alone_and_safari_and_a_browser_outside_the_applications_folders_keep_none(
+    ) {
+        let normal = "Quarterly plan - Google Docs";
+        let outside = "/Volumes/Stick/Google Chrome.app";
+        for (bundle_id, private, place, language, kept, reads, dropped) in [
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                None,
+                list_of("de-DE"),
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                None,
+                list_of("en-US"),
+                &[normal][..],
+                2,
+                1,
+            ),
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                None,
+                Languages::Failed,
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.microsoft.edgemac",
+                "New Tab - Microsoft Edge (InPrivate)",
+                None,
+                list_of("de-DE"),
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.microsoft.edgemac",
+                "New Tab - Microsoft Edge (InPrivate)",
+                None,
+                list_of("en-US"),
+                &[normal][..],
+                2,
+                1,
+            ),
+            (
+                "com.microsoft.edgemac",
+                "New Tab - Microsoft Edge (InPrivate)",
+                None,
+                Languages::Failed,
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.apple.Safari",
+                "Start Page, Private Browsing",
+                None,
+                list_of("en-US"),
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                Some(outside),
+                list_of("en-US"),
+                &[][..],
+                0,
+                0,
+            ),
+        ] {
+            let said = SaidLanguage::new(language.clone());
+            said.started(40, at(5));
+            if let Some(place) = place {
+                said.lies(40, place);
+            }
+            let mut through = Through::new(None, &said, at(0));
+            let front = app(bundle_id, 40);
+            for title in [normal, private] {
+                through.shows(&front, title, at(10));
+            }
+            let (_, titles, read, private_dropped) = through.made();
+            let asked_outside = said.said().asked.iter().any(|asked| asked == outside);
+            assert_eq!(
+                (titles, read, private_dropped, asked_outside),
+                (
+                    kept.iter().map(|title| title.to_string()).collect(),
+                    reads,
+                    dropped,
+                    false
+                ),
+                "{bundle_id} at {place:?} under {language:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn under_english_firefox_and_another_browser_of_the_closed_list_keep_no_title_and_their_app_is_recorded(
+    ) {
+        let system = ["/Applications/com.example.webreader.app"];
+        for (bundle_id, private) in [
+            ("org.mozilla.firefox", "New Tab \u{2014} Private Browsing"),
+            ("com.brave.Browser", "New Private Tab - Brave"),
+            ("org.torproject.torbrowser", "Tor Browser"),
+        ] {
+            let said = SaidLanguage::new(list_of("en-US"));
+            said.started(40, at(5));
+            let mut through = Through::new(Some(&system), &said, at(0));
+            let front = app(bundle_id, 40);
+            for title in ["Quarterly plan - Google Docs", private] {
+                through.shows(&front, title, at(10));
+            }
+            assert_eq!(
+                through.made(),
+                (vec![Modality::ForegroundApp], Vec::new(), 0, 0),
+                "{bundle_id}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_language_changed_after_a_browser_started_keeps_no_title_of_that_process_and_the_next_one_has_its_titles(
+    ) {
+        let normal = "Quarterly plan - Google Docs";
+        let private = "New Tab - Google Chrome (Incognito)";
+        let chrome = |pid| app("com.google.Chrome", pid);
+
+        // A change between a process's start and its first title.
+        let said = SaidLanguage::new(list_of("de-DE"));
+        let mut through = Through::new(None, &said, at(0));
+        said.started(41, at(10));
+        said.set(list_of("en-US"));
+        for title in [normal, private] {
+            through.shows(&chrome(41), title, at(20));
+        }
+        let (_, changed, _, _) = through.made();
+        said.started(42, at(30));
+        for title in [normal, private] {
+            through.shows(&chrome(42), title, at(40));
+        }
+        let (_, next, _, dropped) = through.made();
+        assert_eq!(
+            (changed, next, dropped),
+            (Vec::<String>::new(), vec![normal.to_string()], 1)
+        );
+
+        // A change and its undoing across a switch of apps, with a process
+        // that started between them.
+        let said = SaidLanguage::new(list_of("en-US"));
+        let mut through = Through::new(None, &said, at(0));
+        through.shows(&app("com.example.editor", 10), "Settings", at(10));
+        said.set(list_of("de-DE"));
+        through.shows(&app("com.example.mail", 11), "Inbox", at(20));
+        said.started(43, at(30));
+        through.shows(&app("com.example.editor", 10), "Settings", at(40));
+        said.set(list_of("en-US"));
+        through.shows(&app("com.example.mail", 11), "Inbox", at(50));
+        for title in [normal, private] {
+            through.shows(&chrome(43), title, at(60));
+        }
+        let (_, titles, _, _) = through.made();
+        assert_eq!(titles, ["Settings", "Inbox", "Settings", "Inbox"]);
+
+        // A later process with the pid of a process decided English.
+        let said = SaidLanguage::new(list_of("en-US"));
+        let mut through = Through::new(None, &said, at(0));
+        said.started(44, at(10));
+        through.shows(&chrome(44), normal, at(20));
+        said.set(list_of("de-DE"));
+        through.shows(&app("com.example.editor", 10), "Settings", at(30));
+        said.started(44, at(40));
+        for title in [normal, private] {
+            through.shows(&chrome(44), title, at(50));
+        }
+        let (_, titles, _, _) = through.made();
+        assert_eq!(titles, [normal, "Settings"]);
+
+        // A start that the ticks put before the source's start.
+        let said = SaidLanguage::new(list_of("en-US"));
+        said.started(45, at(50));
+        let mut through = Through::new(None, &said, at(100));
+        for title in [normal, private] {
+            through.shows(&chrome(45), title, at(110));
+        }
+        assert_eq!(through.made().1, Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_failed_title_read_is_counted_and_asked_again_on_the_next_tick() {
+        let (mut poller, handle, _writer) = poller_with(FloorHandle::default());
+        let front = app("com.example.a", 10);
+        poller.step(front.clone(), Vec::new(), &handle);
+        let again = poller.step(
+            front,
+            answer(1, Err(TitleError::Accessibility { code: -25204 })),
+            &handle,
+        );
+        assert_eq!(
+            again,
+            Some(TitleRequest {
+                front: super::tests_support::front("com.example.a", 10),
+                change: 1,
+            })
+        );
+        assert_eq!(poller.health.errors.load(Ordering::Relaxed), 1);
+        assert!(poller.health.failing.load(Ordering::Relaxed));
+        drop(poller);
     }
 
     #[test]
@@ -1298,68 +2649,48 @@ mod tests {
         vec![TitleAnswer { change, read }]
     }
 
-    fn title(bytes: u64) -> TitleRead {
-        Ok(Some(TitleLength::for_test(bytes)))
+    fn title(text: &str) -> TitleRead {
+        Ok(Some(TitleText::for_test(text)))
     }
 
     #[test]
     fn three_answers_of_no_window_and_then_a_title_give_exactly_one_title_event() {
         let (writer, _reader) = foreground_state_for_test();
         let health = Arc::new(TitleHealth::default());
-        let mut poller = Poller::new(writer, 5, health.clone());
+        let mut poller = Poller::new(writer, health.clone());
         let (handle, sink_writer) = sink::channel(64);
         let mut asked = vec![poller.step(app("com.example.a", 10), Vec::new(), &handle)];
         for _ in 0..3 {
             asked.push(poller.step(app("com.example.a", 10), answer(1, Ok(None)), &handle));
         }
-        asked.push(poller.step(app("com.example.a", 10), answer(1, title(9)), &handle));
-        asked.push(poller.step(app("com.example.a", 10), answer(1, title(9)), &handle));
+        asked.push(poller.step(
+            app("com.example.a", 10),
+            answer(1, title("Inbox (9)")),
+            &handle,
+        ));
+        asked.push(poller.step(
+            app("com.example.a", 10),
+            answer(1, title("Inbox (9)")),
+            &handle,
+        ));
         drop(poller);
-        let request = Some(TitleRequest { pid: 10, change: 1 });
-        assert_eq!(asked, [request, request, request, request, None, None]);
+        let request = Some(TitleRequest {
+            front: super::tests_support::front("com.example.a", 10),
+            change: 1,
+        });
+        assert_eq!(asked, vec![request; 6], "the title is asked on every tick");
         assert_eq!(
             events(handle, &sink_writer),
             [
                 fg("com.example.a"),
-                (Modality::WindowTitle, "com.example.a".into(), 9)
+                (
+                    Modality::WindowTitle,
+                    "com.example.a".into(),
+                    "Inbox (9)".into()
+                )
             ]
         );
         assert_eq!(health.errors.load(Ordering::Relaxed), 0);
-    }
-
-    #[test]
-    fn the_poller_asks_again_for_five_ticks_and_then_stops() {
-        assert_eq!(retry_ticks(FOREGROUND_POLL), 5);
-        assert_eq!(TITLE_RETRY_WINDOW, Duration::from_millis(2000));
-        let (writer, _reader) = foreground_state_for_test();
-        let mut poller = Poller::new(writer, retry_ticks(FOREGROUND_POLL), Arc::default());
-        let (handle, _sink_writer) = sink::channel(64);
-        poller.step(app("com.example.a", 10), Vec::new(), &handle);
-        let asked = (0..7)
-            .filter(|_| {
-                poller
-                    .step(app("com.example.a", 10), answer(1, Ok(None)), &handle)
-                    .is_some()
-            })
-            .count();
-        assert_eq!(asked, 5);
-    }
-
-    #[test]
-    fn an_accessibility_error_is_counted_and_not_asked_again() {
-        let (writer, _reader) = foreground_state_for_test();
-        let health = Arc::new(TitleHealth::default());
-        let mut poller = Poller::new(writer, 5, health.clone());
-        let (handle, _sink_writer) = sink::channel(64);
-        poller.step(app("com.example.a", 10), Vec::new(), &handle);
-        let again = poller.step(
-            app("com.example.a", 10),
-            answer(1, Err(TitleError::Accessibility { code: -25204 })),
-            &handle,
-        );
-        assert_eq!(again, None);
-        assert_eq!(health.errors.load(Ordering::Relaxed), 1);
-        assert!(health.failing.load(Ordering::Relaxed));
     }
 
     #[test]
@@ -1596,11 +2927,15 @@ mod tests {
     fn a_change_and_a_title_seen_after_a_stop_is_asked_are_counted_and_not_emitted() {
         let (writer, _reader) = foreground_state_for_test();
         let health: Arc<TitleHealth> = Arc::default();
-        let mut poller = Poller::new(writer, 5, health.clone());
+        let mut poller = Poller::new(writer, health.clone());
         let (handle, sink_writer) = sink::channel(64);
         poller.step(app("com.example.a", 10), Vec::new(), &handle);
         health.stop_asked.store(true, Ordering::SeqCst);
-        poller.step(app("com.example.b", 20), answer(1, title(9)), &handle);
+        poller.step(
+            app("com.example.b", 20),
+            answer(1, title("Inbox (9)")),
+            &handle,
+        );
         drop(poller);
         assert_eq!(events(handle, &sink_writer), [fg("com.example.a")]);
         assert_eq!(health.dropped_at_stop.load(Ordering::SeqCst), 2);
@@ -1612,7 +2947,7 @@ mod tests {
         let (handle, _writer) = sink::channel(64);
         let (release, released) = channel::<()>();
         let read_front: FrontReader = Box::new(move || {
-            let _ = released.recv_timeout(Duration::from_secs(3));
+            released.recv_timeout(Duration::from_secs(3)).ok();
             app("a", 1)
         });
         let (mut source, _reader) = source_with(
@@ -1651,11 +2986,15 @@ mod tests {
     #[test]
     fn an_answer_for_an_app_no_longer_in_front_is_dropped() {
         let (writer, _reader) = foreground_state_for_test();
-        let mut poller = Poller::new(writer, 5, Arc::default());
+        let mut poller = Poller::new(writer, Arc::default());
         let (handle, sink_writer) = sink::channel(64);
         poller.step(app("com.example.a", 10), Vec::new(), &handle);
         poller.step(app("com.example.b", 20), Vec::new(), &handle);
-        poller.step(app("com.example.b", 20), answer(1, title(9)), &handle);
+        poller.step(
+            app("com.example.b", 20),
+            answer(1, title("Inbox (9)")),
+            &handle,
+        );
         drop(poller);
         assert_eq!(
             events(handle, &sink_writer),
@@ -1684,7 +3023,14 @@ mod tests {
     ) -> (ForegroundSource, ForegroundReader) {
         let (writer, reader) = foreground_state_for_test();
         (
-            ForegroundSource::with_readers(interval, writer, turns, read_front, read_title),
+            ForegroundSource::with_readers(
+                interval,
+                writer,
+                turns,
+                read_front,
+                read_title,
+                TitleRules::unread(),
+            ),
             reader,
         )
     }
@@ -1862,7 +3208,7 @@ mod tests {
         let read_title: TitleReader = Box::new(move |pid| {
             if pid == 1 {
                 title_reading.store(true, Ordering::SeqCst);
-                let _ = released.recv_timeout(Duration::from_secs(10));
+                released.recv_timeout(Duration::from_secs(10)).ok();
             }
             Ok(None)
         });
@@ -1877,19 +3223,19 @@ mod tests {
         assert_eq!(
             writer
                 .recv_timeout(Duration::from_secs(2))
-                .map(|r| r.event().foreground_app.clone()),
+                .map(|r| shown(r).1),
             Ok("a".to_string())
         );
         switched.store(true, Ordering::SeqCst);
         let changed = Instant::now();
         let next = writer
             .recv_timeout(Duration::from_secs(3))
-            .map(|r| r.event().foreground_app.clone());
+            .map(|r| shown(r).1);
         let reached = changed.elapsed();
         let called = Instant::now();
         let shut = source.shutdown();
         let stopped_in = called.elapsed();
-        let _ = release.send(());
+        release.send(()).ok();
         let again = source.shutdown();
         assert_eq!(next, Ok("b".to_string()));
         assert!(
@@ -1918,9 +3264,9 @@ mod tests {
         let (entered_tx, entered_rx) = channel::<()>();
         let (left_tx, left_rx) = channel::<()>();
         let read_title: TitleReader = Box::new(move |_pid| {
-            let _ = entered_tx.send(());
+            entered_tx.send(()).ok();
             std::thread::sleep(Duration::from_millis(300));
-            let _ = left_tx.send(());
+            left_tx.send(()).ok();
             Ok(None)
         });
         let (mut source, _reader) = source_with(
@@ -1956,7 +3302,7 @@ mod tests {
             FOREGROUND_POLL,
             fresh_turns(),
             Box::new(|| app("a", 1)),
-            Box::new(|_| Ok(Some(TitleLength::for_test(5)))),
+            Box::new(|_| Ok(Some(TitleText::for_test("Inbox")))),
         );
         source
             .begin(SourceContext::new(handle))
@@ -1967,7 +3313,10 @@ mod tests {
         let took = called.elapsed();
         assert_eq!(
             first,
-            [fg("a"), (Modality::WindowTitle, "a".to_string(), 5)],
+            [
+                fg("a"),
+                (Modality::WindowTitle, "a".to_string(), "Inbox".to_string())
+            ],
             "the title was read once, so the title thread waits idle"
         );
         assert!(
@@ -2055,7 +3404,7 @@ mod tests {
     fn a_missing_grant_reads_impaired_and_counts_no_title_read_error() {
         let (writer, _reader) = foreground_state_for_test();
         let health = Arc::new(TitleHealth::default());
-        let mut poller = Poller::new(writer, 5, health.clone());
+        let mut poller = Poller::new(writer, health.clone());
         let (handle, _sink_writer) = sink::channel(64);
         poller.step(app("com.example.a", 10), Vec::new(), &handle);
         let again = poller.step(
@@ -2063,7 +3412,14 @@ mod tests {
             answer(1, Err(TitleError::NotTrusted)),
             &handle,
         );
-        assert_eq!(again, None);
+        assert_eq!(
+            again,
+            Some(TitleRequest {
+                front: super::tests_support::front("com.example.a", 10),
+                change: 1,
+            }),
+            "asked again, so a grant given later is read"
+        );
         assert_eq!(health.errors.load(Ordering::Relaxed), 0);
         assert!(health.not_trusted.load(Ordering::Relaxed));
         assert!(!health.failing.load(Ordering::Relaxed));

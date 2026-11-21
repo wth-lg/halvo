@@ -9,7 +9,7 @@ use super::names::{
     ActionClass, Cause, CheckpointState, EffectState, LeftReason, LogEvent, Mode, Outcome,
     ReplyState, YesNo,
 };
-use super::step::ExecutableStep;
+use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
 use super::text::{
     ApprovalId, Digest, EffectId, Name, OwnValue, ProviderId, RunId, SessionData, WebOrigin, V1,
 };
@@ -364,6 +364,27 @@ object_type! {
         pub at: Instant = "at" => json::instant,
     }
     rules(_s) { Ok(()) }
+}
+
+object_type! {
+    /// The fact that a compile finished one playbook number of an agent, kind `agent_finished`: ids, the number, its
+    /// count of steps, 1 to 64, and the id of the run whose record of the mode `compile` with the outcome `completed`
+    /// the handler of `finish` stored in the same commit (A7.4; CP-182).
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct AgentFinished {
+        pub v: V1 = "v" => from_json,
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub number: NonZeroU32 = "number" => from_json,
+        pub steps: NonZeroU32 = "steps" => from_json,
+        pub run: RunId = "run" => from_json,
+    }
+    rules(f) {
+        if usize::try_from(f.steps.get()).map_or(true, |n| n > PLAYBOOK_STEPS_MAX) {
+            return Err(Refusal::length("AgentFinished", "steps").at("steps"));
+        }
+        Ok(())
+    }
 }
 
 pub(in crate::executable) fn part_of(

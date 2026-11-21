@@ -1,0 +1,27 @@
+[package]
+name = "halvo-analysis"
+version = "0.0.0"
+description = "The analysis worker: one process that reads one batch of capture records, cuts it into episodes and sends them to the owner of the derived store"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "halvo-analysis"
+path = "src/main.rs"
+
+[dependencies]
+getrandom = "0.3"
+halvo-identify = { path = "../halvo-identify" }
+halvo-schema-core = { path = "../halvo-schema-core" }
+halvo-seam = { path = "../halvo-seam" }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Diagnostics_Debug", "Win32_System_ErrorReporting", "Win32_System_Time"] }
+
+[dev-dependencies]
+halvo-owner = { path = "../halvo-owner" }
+halvo-sample = { path = "../halvo-sample" }
+halvo-test-dir = { path = "../halvo-test-dir" }

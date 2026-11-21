@@ -16,13 +16,17 @@ mod stamp_phases;
 use stamp_phases::{period_ms, phase_of, Phase, TICK_PERIOD_FALLBACK_MS};
 
 use halvo_capture::event::{CaptureStreamEvent, Modality};
+use halvo_capture::floor::exclude::{FloorHandle, Lineage, NoLineage, Parent, ProcessId};
+use halvo_capture::floor::payload::{Button, FoldClass, KeyClass};
+use halvo_capture::floor::{Switch, Switches};
 use halvo_capture::secure_input::windows::PasswordGate;
 use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
 use halvo_capture::source::{CaptureError, CaptureSource, SourceContext};
 use halvo_capture::windows::apps::scan_installed;
+use halvo_capture::windows::exclusion::ProcessLineage;
 use halvo_capture::windows::foreground::{current_foreground_app, ForegroundAppSource};
 use halvo_capture::windows::input::{seam, RawInputSource};
-use halvo_capture::windows::screen::ScreenSource;
+use halvo_capture::windows::screen::{ScreenSource, DEFAULT_MIN_FRAME_INTERVAL};
 use halvo_capture::windows::window_title::WindowTitleSource;
 
 use windows::core::{HSTRING, PCWSTR};
@@ -37,7 +41,8 @@ use windows::Win32::System::Threading::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYBD_EVENT_FLAGS,
-    KEYEVENTF_KEYUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_WHEEL, MOUSEINPUT, VIRTUAL_KEY, VK_F15, VK_MENU,
+    KEYEVENTF_KEYUP, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_WHEEL,
+    MOUSEINPUT, MOUSE_EVENT_FLAGS, VIRTUAL_KEY, VK_F15, VK_MENU,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
@@ -341,6 +346,13 @@ const DESKTOP_READOBJECTS: u32 = 0x0001;
 const ATTRIBUTION: &str = "halvo-verify-attributed-app";
 const CHILD_SECS_ENV: &str = "HALVO_VERIFY_CHILD_SECS";
 const CHILD_EXE_NAME: &str = "halvo-verify-child.exe";
+/// The file name of a child that the floor's static list names.
+const LISTED_CHILD_EXE: &str = "KeePass.exe";
+const GHOST_CLASS: &str = "HalvoVerifyGhostChild";
+const GHOST_CAPTION: &str = "halvo-verify-ghost-caption";
+/// What the system adds to the caption of a hung window's ghost.
+const GHOST_CAPTION_ENDING: &str = " (Not Responding)";
+const BACKGROUND_CLASS: &str = "HalvoVerifyBackgroundChild";
 const CHILD_MODE_ENV: &str = "HALVO_VERIFY_CHILD_MODE";
 const LISTENER_OUT_ENV: &str = "HALVO_VERIFY_LISTENER_OUT";
 const LISTENER_WINDOW_CLASS: &str = "HalvoVerifyListenerWindow";
@@ -349,6 +361,15 @@ const MAGENTA: u32 = 0x00FF_00FF;
 const FIRST_FRAME_WAIT: Duration = Duration::from_secs(10);
 const FULL_SINK_STOP_LIMIT: Duration = Duration::from_secs(2);
 const BOUNDS_FILE: &str = "docs/baseline/r1-gate-bounds.txt";
+
+macro_rules! flipped {
+    ($id:literal, $wanted:expr, $evidence:expr) => {{
+        let evidence: String = $evidence;
+        println!("{evidence}");
+        let _ = $id;
+        assert!($wanted, "{evidence}");
+    }};
+}
 
 fn say(test: &str, message: impl AsRef<str>) {
     println!("TF {test} {}", message.as_ref());
@@ -567,7 +588,7 @@ fn app_class(app: &str, own_exe: &str) -> &'static str {
 
 const SHUTDOWN_LINE: &str = "TF shutdown source=";
 
-fn stop_counted<S: CaptureSource>(source: &mut S, name: &str) -> Result<(), CaptureError> {
+fn stop_counted<S: CaptureSource + ?Sized>(source: &mut S, name: &str) -> Result<(), CaptureError> {
     let stopped = source.shutdown();
     println!("{SHUTDOWN_LINE}{name} ok={}", stopped.is_ok());
     stopped
@@ -575,6 +596,17 @@ fn stop_counted<S: CaptureSource>(source: &mut S, name: &str) -> Result<(), Capt
 
 fn source_built_by_test(test: &str, source: &str) {
     say(test, format!("source_built_by_test={source}"));
+    if source == "screen" {
+        say(test, "screen_activity=on");
+    }
+}
+
+/// The context of a screen source that a test builds: the switch
+/// `screen_activity` is off by default, and the source starts only with it on.
+fn screen_on(sink: SinkHandle) -> SourceContext {
+    let mut switches = Switches::default();
+    switches.set(Switch::ScreenActivity, true);
+    SourceContext::with_floor(sink, FloorHandle::new(None, Arc::new(NoLineage), switches))
 }
 
 fn key_input(key: VIRTUAL_KEY, released: bool) -> INPUT {
@@ -645,6 +677,31 @@ fn press_keys(presses: u32) -> u32 {
     accepted
 }
 
+/// Puts the pointer over the middle of the window in front, since a pointer
+/// sample is decided on the window under the pointer; answers whether that
+/// window is the one under the pointer then.
+fn point_at_front() -> bool {
+    use windows::Win32::Foundation::{POINT, RECT};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetAncestor, GetWindowRect, SetCursorPos, WindowFromPoint, GA_ROOT,
+    };
+    let front = foreground_window();
+    let mut rect = RECT::default();
+    // SAFETY: `rect` is a live RECT that the call writes into.
+    if front.0.is_null() || unsafe { GetWindowRect(front, &mut rect) }.is_err() {
+        return false;
+    }
+    let middle = POINT {
+        x: (rect.left + rect.right) / 2,
+        y: (rect.top + rect.bottom) / 2,
+    };
+    // SAFETY: SetCursorPos, WindowFromPoint and GetAncestor take plain values.
+    unsafe {
+        let _ = SetCursorPos(middle.x, middle.y);
+        GetAncestor(WindowFromPoint(middle), GA_ROOT) == front
+    }
+}
+
 fn move_pointer(moves: u32) -> u32 {
     let mut accepted = 0;
     for i in 0..moves {
@@ -655,10 +712,90 @@ fn move_pointer(moves: u32) -> u32 {
     accepted
 }
 
-struct Events(mpsc::Receiver<CaptureStreamEvent>);
+/// One event as the test reads it: the sink's event, with the app and the
+/// title's length of a floor value filled from the seam's view of it, and the
+/// view. The view names an app or a title only by the names that this test
+/// gives it.
+#[derive(Clone)]
+struct Seen {
+    event: CaptureStreamEvent,
+    view: Option<seam::FloorView>,
+    /// The OS time of a keystroke, which the seam keeps in the order of the
+    /// keys that the source handed on; its record holds the second alone.
+    key_time: Option<SystemTime>,
+}
+
+impl std::ops::Deref for Seen {
+    type Target = CaptureStreamEvent;
+
+    fn deref(&self) -> &CaptureStreamEvent {
+        &self.event
+    }
+}
+
+/// The app file names that the tests compare an event's app with.
+fn app_names() -> Vec<String> {
+    vec![
+        CHILD_EXE_NAME.to_string(),
+        own_exe_file(),
+        "ApplicationFrameHost.exe".to_string(),
+        "SystemSettings.exe".to_string(),
+    ]
+}
+
+/// The titles that the tests compare a title event with by its length.
+fn known_titles() -> Vec<String> {
+    let mut titles: Vec<String> = (0..8).map(child_title).collect();
+    titles.push(FIXED_TITLE.to_string());
+    titles.extend(["f".repeat(30), "b".repeat(50), "h".repeat(60)]);
+    for prefix in [PASSWORD_EDIT_TITLE, PLAIN_TITLE] {
+        titles.extend((0..3).map(|step| format!("{prefix}-{step}")));
+    }
+    titles.push(GHOST_CAPTION.to_string());
+    titles.push(GHOST_CAPTION.to_string() + GHOST_CAPTION_ENDING);
+    titles
+}
+
+fn seen(received: halvo_capture::sink::Received, apps: &[String], titles: &[String]) -> Seen {
+    let mut event = received.event().clone();
+    let apps: Vec<&str> = apps.iter().map(String::as_str).collect();
+    let titles_ref: Vec<&str> = titles.iter().map(String::as_str).collect();
+    let view = received
+        .into_floor()
+        .ok()
+        .map(|floor| seam::view(floor.event(), &apps, &titles_ref));
+    if let Some(view) = &view {
+        event.foreground_app = match view.app {
+            seam::AppSeen::Unknown => String::new(),
+            seam::AppSeen::Named(index) => apps[index].to_string(),
+            seam::AppSeen::Other => "other.exe".to_string(),
+        };
+        if let Some(seam::TitleSeen {
+            among: Some(index), ..
+        }) = view.title
+        {
+            event.segment_ref.byte_len = titles[index].len() as u64;
+        }
+    }
+    let key_time = (event.modality == Modality::Keystroke)
+        .then(seam::next_recorded_tick)
+        .flatten()
+        .map(|tick| {
+            // SAFETY: GetTickCount takes no argument and reads a counter.
+            let age = unsafe { GetTickCount() }.wrapping_sub(tick);
+            SystemTime::now() - Duration::from_millis(u64::from(age.min(i32::MAX as u32)))
+        });
+    Seen {
+        event,
+        view,
+        key_time,
+    }
+}
+
+struct Events(mpsc::Receiver<Seen>);
 
 impl Events {
-    fn drain_for(&self, window: Duration) -> Vec<CaptureStreamEvent> {
+    fn drain_for(&self, window: Duration) -> Vec<Seen> {
         let deadline = Instant::now() + window;
         let mut events = Vec::new();
         loop {
@@ -675,7 +812,7 @@ impl Events {
         events
     }
 
-    fn first_within(&self, limit: Duration) -> Option<CaptureStreamEvent> {
+    fn first_within(&self, limit: Duration) -> Option<Seen> {
         match self.0.recv_timeout(limit) {
             Ok(event) => Some(event),
             Err(RecvTimeoutError::Timeout) => None,
@@ -690,13 +827,19 @@ fn sink_closed() -> ! {
 
 fn forward(writer: SinkWriter) -> Events {
     let (tx, rx) = mpsc::channel();
+    let apps = app_names();
+    let titles = known_titles();
     std::thread::Builder::new()
         .name("tf-sink-forward".to_string())
-        .spawn(move || {
-            while let Some(event) = writer.recv() {
-                if tx.send(event).is_err() {
-                    break;
+        .spawn(move || loop {
+            match writer.recv_timeout(Duration::from_secs(60)) {
+                Ok(received) => {
+                    if tx.send(seen(received, &apps, &titles)).is_err() {
+                        break;
+                    }
                 }
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => break,
             }
         })
         .expect("spawn the sink forwarder");
@@ -708,11 +851,11 @@ fn capture(capacity: usize) -> (SinkHandle, Events) {
     (sink, forward(writer))
 }
 
-fn count(events: &[CaptureStreamEvent], modality: Modality) -> usize {
+fn count(events: &[Seen], modality: Modality) -> usize {
     events.iter().filter(|e| e.modality == modality).count()
 }
 
-fn summarize(test: &str, phase: &str, events: &[CaptureStreamEvent]) {
+fn summarize(test: &str, phase: &str, events: &[Seen]) {
     let own_exe = own_exe_file();
     let mut groups: BTreeMap<(String, &'static str, u64), usize> = BTreeMap::new();
     for event in events {
@@ -1116,6 +1259,10 @@ fn helper_child_window() {
     match std::env::var(CHILD_MODE_ENV).as_deref() {
         Ok("scope") => return child_scope(),
         Ok("hold") => return child_hold(secs),
+        Ok("root") => return child_root(secs),
+        Ok("password-title") => return child_password_title(),
+        Ok("hang") => return child_hang(),
+        Ok("background") => return child_background(secs),
         _ => {}
     }
     let first = TestWindow::create(&normal_window(
@@ -1269,6 +1416,93 @@ fn child_hold(secs: u64) {
     pump_answering(Duration::from_secs(3));
 }
 
+/// The exclusion root of the tree test: it starts a grandchild of the test
+/// that holds a window in front with a plain edit focused, and waits for it.
+fn child_root(secs: u64) {
+    let mut grandchild = spawn_child("hold", secs);
+    let exit = grandchild.wait();
+    grandchild.print_output();
+    say(
+        "child",
+        format!("mode=root grandchild_exit_ok={}", exit.success()),
+    );
+}
+
+/// A window that stays where it was made and answers its messages for `secs`.
+fn child_background(secs: u64) {
+    let _window = TestWindow::create(&normal_window(
+        BACKGROUND_CLASS,
+        "halvo-verify-background",
+        420,
+        320,
+    ))
+    .expect("the window");
+    pump_answering(Duration::from_secs(secs));
+    say("child", "mode=background");
+}
+
+/// A window that comes to the front, then a thread that takes no message for
+/// 8 s, so that the system reads the window as hung and may show its ghost.
+fn child_hang() {
+    let window =
+        TestWindow::create(&normal_window(GHOST_CLASS, GHOST_CAPTION, 60, 60)).expect("the window");
+    pump_answering(Duration::from_millis(300));
+    let (foreground, method) = window.activate();
+    pump_answering(Duration::from_millis(1_500));
+    std::thread::sleep(Duration::from_secs(8));
+    pump_answering(Duration::from_millis(2_000));
+    say(
+        "child",
+        format!("mode=hang foreground={foreground} method={method}"),
+    );
+}
+
+const PASSWORD_EDIT_TITLE: &str = "halvo-verify-title-in-a-password-edit";
+const PLAIN_TITLE: &str = "halvo-verify-plain-title";
+
+/// A window with a password edit and a plain edit: three title changes while
+/// the password edit has the focus, then three while the plain edit has it.
+fn child_password_title() {
+    let window = TestWindow::create(&normal_window(
+        "HalvoVerifyPasswordTitle",
+        "halvo-verify-password-title",
+        40,
+        40,
+    ))
+    .expect("the window");
+    let password = window
+        .child_control("EDIT", WINDOW_STYLE(ES_PASSWORD_STYLE), 10)
+        .expect("the password edit");
+    let plain = window
+        .child_control("EDIT", WINDOW_STYLE(0), 50)
+        .expect("the plain edit");
+    pump_answering(Duration::from_millis(300));
+    let (foreground, method) = window.activate();
+    let mut phases = Vec::new();
+    for (edit, prefix) in [(password, PASSWORD_EDIT_TITLE), (plain, PLAIN_TITLE)] {
+        let focused = focus_on(edit);
+        pump_answering(Duration::from_millis(800));
+        for step in 0..3 {
+            window
+                .set_title(&format!("{prefix}-{step}"))
+                .expect("set the title");
+            pump_answering(Duration::from_millis(400));
+        }
+        phases.push(focused);
+    }
+    say(
+        "child",
+        format!(
+            "mode=password-title window_foreground={foreground} method={method} \
+             password_edit_focused={} plain_edit_focused={}",
+            phases[0], phases[1]
+        ),
+    );
+    pump_answering(Duration::from_millis(500));
+}
+
+const ES_PASSWORD_STYLE: u32 = 0x20;
+
 struct ChildProcess {
     process: std::process::Child,
     output: Option<std::thread::JoinHandle<String>>,
@@ -1307,8 +1541,12 @@ fn scratch_dir() -> tempfile::TempDir {
 }
 
 fn spawn_child(mode: &str, secs: u64) -> ChildProcess {
+    spawn_child_as(mode, secs, CHILD_EXE_NAME)
+}
+
+fn spawn_child_as(mode: &str, secs: u64, exe_name: &str) -> ChildProcess {
     let dir = scratch_dir();
-    let exe = dir.path().join(CHILD_EXE_NAME);
+    let exe = dir.path().join(exe_name);
     std::fs::copy(std::env::current_exe().expect("current exe"), &exe)
         .expect("copy the test binary");
     let mut process = Command::new(&exe)
@@ -1336,12 +1574,12 @@ struct WindowScenario {
     foreground_start: Result<(), String>,
     title_start: Result<(), String>,
     own_window_was_foreground: bool,
-    own_events: Vec<CaptureStreamEvent>,
+    own_events: Vec<Seen>,
     own_exe_file: String,
     child_was_foreground: bool,
     last_app_was_child: bool,
     child_exit_ok: bool,
-    child_events: Vec<CaptureStreamEvent>,
+    child_events: Vec<Seen>,
 }
 
 fn window_scenario(test: &'static str) -> WindowScenario {
@@ -1474,6 +1712,7 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         let after_keys = events.drain_for(Duration::from_millis(1500));
         summarize("c1", "after-key-presses", &after_keys);
 
+        let _ = point_at_front();
         let move_events_accepted = move_pointer(MOVES);
         let after_moves = events.drain_for(Duration::from_millis(1500));
         summarize("c1", "after-pointer-moves", &after_moves);
@@ -1487,17 +1726,22 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
 
         let keystrokes = count(&after_keys, Modality::Keystroke);
         let pointers = count(&after_moves, Modality::Pointer);
-        let attributed = after_keys
-            .iter()
-            .chain(&after_moves)
-            .all(|e| e.foreground_app == ATTRIBUTION);
+        let front_app = after_keys
+            .first()
+            .map(|e| e.foreground_app.clone())
+            .unwrap_or_default();
+        let attributed = !front_app.is_empty()
+            && after_keys
+                .iter()
+                .chain(&after_moves)
+                .all(|e| e.foreground_app == front_app);
         say(
             "c1",
             format!(
                 "key_presses_sent={PRESSES} sendinput_key_events_accepted={key_events_accepted} \
                  keystroke_events={keystrokes} pointer_moves_sent={MOVES} \
                  sendinput_move_events_accepted={move_events_accepted} pointer_events={pointers} \
-                 events_before_input={} events_after_stop={} attributed_to_last_app={attributed}",
+                 events_before_input={} events_after_stop={} attributed_to_one_app_in_front={attributed}",
                 quiet.len(),
                 after_stop.len(),
             ),
@@ -1529,13 +1773,10 @@ fn c2_screen_source_delivers_a_frame() {
     with_deadline("c2", Duration::from_secs(120), || {
         env_report("c2");
         source_built_by_test("c2", "screen");
-        let (cx, cy) = screen_size();
-        let expected_len = cx as u64 * cy as u64 * 4;
         let (sink, events) = capture(1024);
-        let last_app = Arc::new(Mutex::new(Some(ATTRIBUTION.to_string())));
-        let mut screen = ScreenSource::new(last_app);
+        let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
         let started = Instant::now();
-        let start = screen.begin(SourceContext::new(sink.clone()));
+        let start = screen.begin(screen_on(sink.clone()));
         say(
             "c2",
             format!(
@@ -1556,7 +1797,7 @@ fn c2_screen_source_delivers_a_frame() {
                 started.elapsed().as_millis()
             ),
         );
-        let mut idle: Vec<CaptureStreamEvent> = first.into_iter().collect();
+        let mut idle: Vec<Seen> = first.into_iter().collect();
         idle.extend(events.drain_for(Duration::from_secs(4)));
         summarize("c2", "unchanged-screen", &idle);
 
@@ -1572,7 +1813,7 @@ fn c2_screen_source_delivers_a_frame() {
 
         let _ = stop_counted(&mut screen, "screen");
         let after_stop = events.drain_for(Duration::from_millis(1500));
-        let frames: Vec<&CaptureStreamEvent> = idle
+        let frames: Vec<&Seen> = idle
             .iter()
             .chain(&moving)
             .filter(|e| e.modality == Modality::ScreenFrame)
@@ -1581,28 +1822,21 @@ fn c2_screen_source_delivers_a_frame() {
             "c2",
             format!(
                 "frames_unchanged_screen={} frames_moving_window={} frames_after_stop={} \
-                 expected_byte_len={expected_len} every_frame_is_full_screen={} \
-                 attributed_to_last_app={} dropped={}",
+                 frames_with_an_app={} dropped={}",
                 count(&idle, Modality::ScreenFrame),
                 count(&moving, Modality::ScreenFrame),
                 after_stop.len(),
                 frames
                     .iter()
-                    .all(|e| e.segment_ref.byte_len == expected_len),
-                frames.iter().all(|e| e.foreground_app == ATTRIBUTION),
+                    .filter(|e| !e.foreground_app.is_empty())
+                    .count(),
                 sink.dropped_count(),
             ),
         );
         assert!(!frames.is_empty(), "no frame of the desktop in 15 seconds");
         assert!(
-            frames
-                .iter()
-                .all(|e| e.segment_ref.byte_len == expected_len),
-            "a frame event does not have the size of the full screen"
-        );
-        assert!(
-            frames.iter().all(|e| e.foreground_app == ATTRIBUTION),
-            "a frame event does not carry the app in the shared cell"
+            frames.iter().all(|e| e.view.is_some()),
+            "a frame event is no record of the floor"
         );
     });
 }
@@ -1943,7 +2177,7 @@ fn c5_installed_software_returns_registry_entries() {
         }
 
         let before = scan_installed().expect("scan the registry");
-        let mut sorted = before.apps.clone();
+        let mut sorted = before.apps().to_vec();
         sorted.sort();
         sorted.dedup();
         say(
@@ -1951,9 +2185,13 @@ fn c5_installed_software_returns_registry_entries() {
             format!(
                 "entries={} with_version={} with_publisher={} sorted_and_deduplicated={}",
                 before.len(),
-                before.apps.iter().filter(|a| a.version.is_some()).count(),
-                before.apps.iter().filter(|a| a.publisher.is_some()).count(),
-                sorted == before.apps,
+                before.apps().iter().filter(|a| a.version.is_some()).count(),
+                before
+                    .apps()
+                    .iter()
+                    .filter(|a| a.publisher.is_some())
+                    .count(),
+                sorted.as_slice() == before.apps(),
             ),
         );
 
@@ -1973,7 +2211,7 @@ fn c5_installed_software_returns_registry_entries() {
                 });
             let in_scan = first_listable
                 .as_ref()
-                .map(|name| before.apps.iter().any(|app| &app.name == name));
+                .map(|name| before.apps().iter().any(|app| &app.name == name));
             say(
                 "c5",
                 format!("hklm_{path_name}_first_listable_app_is_in_scan={in_scan:?}"),
@@ -1985,7 +2223,7 @@ fn c5_installed_software_returns_registry_entries() {
         let probe_path = format!(r"{UNINSTALL}\{PROBE_KEY}");
         let hkcu_key_existed = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_ok();
         assert!(
-            !before.apps.iter().any(|a| a.name == probe_name),
+            !before.apps().iter().any(|a| a.name == probe_name),
             "the probe entry must not exist yet"
         );
 
@@ -2003,7 +2241,7 @@ fn c5_installed_software_returns_registry_entries() {
             .expect("probe publisher");
 
         let with_probe = scan_installed().expect("scan with the probe");
-        let found = with_probe.apps.iter().find(|a| a.name == probe_name);
+        let found = with_probe.apps().iter().find(|a| a.name == probe_name);
         let found_ok = found.is_some_and(|app| {
             app.version.as_deref() == Some("9.9.9")
                 && app.publisher.as_deref() == Some("halvo-verifier")
@@ -2022,7 +2260,7 @@ fn c5_installed_software_returns_registry_entries() {
             .set_value("SystemComponent", &1u32)
             .expect("probe system component");
         let hidden = scan_installed().expect("scan with the hidden probe");
-        let system_component_hidden = !hidden.apps.iter().any(|a| a.name == probe_name);
+        let system_component_hidden = !hidden.apps().iter().any(|a| a.name == probe_name);
 
         drop(probe);
         hkcu.delete_subkey_all(&probe_path)
@@ -2036,7 +2274,7 @@ fn c5_installed_software_returns_registry_entries() {
             format!(
                 "system_component_probe_hidden={system_component_hidden} \
                  probe_gone_after_delete={} entries_after={} same_as_before={}",
-                !after.apps.iter().any(|a| a.name == probe_name),
+                !after.apps().iter().any(|a| a.name == probe_name),
                 after.len(),
                 after == before,
             ),
@@ -2196,7 +2434,7 @@ fn c9_peak_working_set_of_sources_1_to_4_for_60_seconds() {
                 keyboard.begin(SourceContext::new(sink.clone()))
             }),
             ("pointer", pointer.begin(SourceContext::new(sink.clone()))),
-            ("screen", screen.begin(SourceContext::new(sink.clone()))),
+            ("screen", screen.begin(screen_on(sink.clone()))),
         ];
         for (name, result) in &starts {
             say("c9", format!("source={name} start={}", show(result)));
@@ -2838,7 +3076,7 @@ fn x7_capture_border_on_the_screen() {
         let before = yellow_edge_pixels();
         let (sink, events) = capture(256);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let start = screen.begin(SourceContext::new(sink.clone()));
+        let start = screen.begin(screen_on(sink.clone()));
         let first = events.first_within(FIRST_FRAME_WAIT);
         let frame_before_sampling = first
             .as_ref()
@@ -2899,7 +3137,7 @@ fn x9_screen_source_across_a_display_mode_change() {
         };
         let (sink, events) = capture(1024);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let start = screen.begin(SourceContext::new(sink.clone()));
+        let start = screen.begin(screen_on(sink.clone()));
         let before = events.drain_for(Duration::from_secs(3));
         summarize("x9", "before-mode-change", &before);
 
@@ -2917,24 +3155,16 @@ fn x9_screen_source_across_a_display_mode_change() {
         summarize("x9", "after-mode-change", &after);
         let _ = stop_counted(&mut screen, "screen");
         let restored = set_resolution(start_w, start_h);
-        let with_new_size = after
-            .iter()
-            .filter(|e| e.segment_ref.byte_len == now_w as u64 * now_h as u64 * 4)
-            .count();
+        let frames_after = count(&after, Modality::ScreenFrame);
         say(
             "x9",
             format!(
                 "screen_start={} mode_before={start_w}x{start_h} mode_change_command_ok={changed} \
                  mode_after={now_w}x{now_h} frames_before={} frames_after_change={} \
-                 frames_after_with_new_size={with_new_size} frames_after_with_old_size={} \
                  mode_restored={restored}",
                 show(&start),
                 count(&before, Modality::ScreenFrame),
-                count(&after, Modality::ScreenFrame),
-                after
-                    .iter()
-                    .filter(|e| e.segment_ref.byte_len == start_w as u64 * start_h as u64 * 4)
-                    .count(),
+                frames_after,
             ),
         );
         assert!(start.is_ok(), "the screen source must start");
@@ -2942,10 +3172,7 @@ fn x9_screen_source_across_a_display_mode_change() {
             changed && (now_w, now_h) == (other_w, other_h),
             "INCONCLUSIVE: the display mode did not change"
         );
-        assert!(
-            with_new_size >= 1,
-            "no frame of the new display size after the mode change"
-        );
+        assert!(frames_after >= 1, "no frame after the mode change");
     });
 }
 
@@ -2958,108 +3185,106 @@ fn x13_frames_on_a_static_screen() {
         let cover = TestWindow::create(&magenta_popup("HalvoVerifyStatic", "halvo-verify-static"))
             .expect("covering window");
         cover.cover_screen();
+        let (in_front, method) = cover.activate();
         pump_thread(Duration::from_secs(1));
         let (sink, events) = capture(1024);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let start = screen.begin(SourceContext::new(sink.clone()));
-        let mut frames = 0;
+        let start = screen.begin(screen_on(sink.clone()));
+        let mut first_frame = false;
+        let began = Instant::now();
+        while !first_frame && began.elapsed() < FIRST_FRAME_WAIT {
+            pump_thread(Duration::from_millis(100));
+            first_frame = count(
+                &events.drain_for(Duration::from_millis(100)),
+                Modality::ScreenFrame,
+            ) > 0;
+        }
+        let mut records_while_static = 0;
         let began = Instant::now();
         while began.elapsed() < Duration::from_secs(8) {
             pump_thread(Duration::from_millis(100));
-            frames += count(
+            records_while_static += count(
                 &events.drain_for(Duration::from_millis(100)),
                 Modality::ScreenFrame,
             );
         }
         let covered = cover.is_foreground();
+        let windows_above_cover = visible_windows_above(cover.hwnd);
+        let mut records_while_moving = 0;
+        for step in 0..12 {
+            cover.move_to(if step % 2 == 0 { 40 } else { 0 }, 0);
+            pump_thread(Duration::from_millis(150));
+            records_while_moving += count(
+                &events.drain_for(Duration::from_millis(100)),
+                Modality::ScreenFrame,
+            );
+        }
         drop(cover);
-        let after_uncover = count(
-            &events.drain_for(Duration::from_secs(2)),
-            Modality::ScreenFrame,
-        );
+        let frames = screen.frame_counts();
         let _ = stop_counted(&mut screen, "screen");
+        let every_frame_changed =
+            frames.delivered > 0 && frames.with_changed_region == frames.delivered;
+        let by_the_time_filter = 8_000 / DEFAULT_MIN_FRAME_INTERVAL.as_millis() as usize + 1;
         say(
             "x13",
             format!(
-                "screen_start={} static_screen_secs=8 frames_while_static={frames} \
-                 cover_window_was_foreground={covered} frames_in_2s_after_uncover={after_uncover}",
-                show(&start)
+                "screen_start={} screen_activity=on cover_activated={in_front} method={method} \
+                 regions_reported={} first_frame={first_frame} \
+                 static_screen_secs=8 records_while_static={records_while_static} \
+                 cover_window_was_foreground={covered} windows_above_cover={windows_above_cover} \
+                 records_while_moving={records_while_moving} \
+                 frames_delivered={} frames_with_changed_region={} \
+                 every_delivered_frame_changed={every_frame_changed} \
+                 records_by_the_time_filter={by_the_time_filter}",
+                show(&start),
+                frames.regions_reported,
+                frames.delivered,
+                frames.with_changed_region,
             ),
         );
         assert!(start.is_ok(), "the screen source must start");
+        assert!(first_frame, "INCONCLUSIVE: no first frame");
+        assert!(
+            covered,
+            "INCONCLUSIVE: the covering window was not in front, so the screen was not static"
+        );
+        assert!(
+            records_while_moving >= 1,
+            "no screen record while a window moved"
+        );
+        if every_frame_changed && records_while_static > 1 {
+            assert!(
+                records_while_static <= by_the_time_filter,
+                "more screen records on a static screen than one for each interval of the time filter"
+            );
+        } else {
+            flipped!(
+                "VWF-10",
+                records_while_static <= 1,
+                format!("TF x13 records_while_static={records_while_static}")
+            );
+        }
     });
 }
 
-#[test]
-#[ignore = "functional: needs an interactive Windows desktop"]
-fn pointer_moves_coalesce() {
-    with_deadline("coalesce", Duration::from_secs(60), || {
-        const MOVES: u32 = 100;
-        env_report("coalesce");
-        source_built_by_test("coalesce", "pointer");
-        let (sink, events) = capture(8192);
-        let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
-        let start = pointer.begin(SourceContext::new(sink.clone()));
-        let first = move_pointer(MOVES / 2);
-        let wheel = send(&[wheel_notch()]);
-        let second = move_pointer(MOVES / 2);
-        let pointers = count(
-            &events.drain_for(Duration::from_millis(1500)),
-            Modality::Pointer,
-        );
-        std::thread::sleep(Duration::from_millis(300));
-        let coalesced_before = pointer.handoff_counts().coalesced;
-        let mut segment_sent = send(&[mouse_move(3, 0)]);
-        std::thread::sleep(Duration::from_millis(10));
-        segment_sent += send(&[wheel_notch()]);
-        std::thread::sleep(Duration::from_millis(10));
-        segment_sent += send(&[mouse_move(-3, 0)]);
-        let segment = count(
-            &events.drain_for(Duration::from_millis(700)),
-            Modality::Pointer,
-        );
-        let segment_coalesced = pointer.handoff_counts().coalesced - coalesced_before;
-        let _ = stop_counted(&mut pointer, "pointer");
-        let counts = pointer.handoff_counts();
-        let accepted = first + second;
-        say(
-            "coalesce",
-            format!(
-                "pointer_start={} moves_sent={MOVES} sendinput_move_events_accepted={accepted} \
-                 sendinput_wheel_events_accepted={wheel} pointer_events={pointers} \
-                 coalesced={} lost={} move_notch_move_accepted={segment_sent} \
-                 move_notch_move_events={segment} move_notch_move_coalesced={segment_coalesced}",
-                show(&start),
-                counts.coalesced,
-                counts.lost,
-            ),
-        );
-        assert!(start.is_ok(), "the pointer source must start");
-        assert!(
-            accepted == MOVES && wheel == 1,
-            "INCONCLUSIVE: SendInput did not insert every move and the wheel notch"
-        );
-        assert!(pointers >= 1, "no pointer event at all");
-        assert!(
-            pointers < accepted as usize,
-            "every move gave its own pointer event"
-        );
-        assert_eq!(counts.lost, 0, "the hand-off lost packets");
-        assert_eq!(
-            pointers as u64 + counts.coalesced,
-            u64::from(accepted) + 1,
-            "the wheel packet inside the burst is not its own pointer event"
-        );
-        assert_eq!(
-            segment_sent, 3,
-            "INCONCLUSIVE: SendInput did not insert the move, the notch and the move"
-        );
-        assert_eq!(
-            (segment, segment_coalesced),
-            (3, 0),
-            "a wheel notch 10 ms after a move and 10 ms before the next was folded into the motion sample"
-        );
-    });
+/// The visible top-level windows above `hwnd` in the order of the desktop.
+fn visible_windows_above(hwnd: HWND) -> usize {
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindow, IsWindowVisible, GW_HWNDPREV};
+    let mut count = 0;
+    let mut current = hwnd;
+    for _ in 0..4_096 {
+        // SAFETY: GetWindow takes a window handle by value; a handle with no
+        // window before it gives an error.
+        let Ok(above) = (unsafe { GetWindow(current, GW_HWNDPREV) }) else {
+            break;
+        };
+        // SAFETY: IsWindowVisible takes a window handle by value.
+        if unsafe { IsWindowVisible(above) }.as_bool() {
+            count += 1;
+        }
+        current = above;
+    }
+    count
 }
 
 fn detector_line(test: &str, at: &str) {
@@ -3354,49 +3579,62 @@ fn capture_times_follow_the_input_order() {
         let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
         let pointer_start = pointer.begin(SourceContext::new(sink.clone()));
         gate_reads_clear("order", Some(&fields), &keyboard);
-        let mut injected = Vec::new();
+        let mut keys_sent = Vec::new();
+        let mut turns_sent = Vec::new();
         let mut accepted = 0;
         for _ in 0..ROUNDS {
             accepted += send(&[key_input(VK_F15, false)]);
-            injected.push((Modality::Keystroke, SystemTime::now()));
+            keys_sent.push(SystemTime::now());
             accepted += send(&[key_input(VK_F15, true)]);
             std::thread::sleep(Duration::from_millis(100));
             accepted += send(&[wheel_notch()]);
-            injected.push((Modality::Pointer, SystemTime::now()));
+            turns_sent.push(SystemTime::now());
             std::thread::sleep(Duration::from_millis(100));
         }
         std::thread::sleep(Duration::from_millis(1500));
-        let events = forward(writer).drain_for(Duration::from_secs(2));
+        let events = forward(writer).drain_for(Duration::from_secs(3));
         let _ = stop_counted(&mut keyboard, "keyboard");
         let _ = stop_counted(&mut pointer, "pointer");
-        let mut stamped: Vec<(Modality, SystemTime)> = events
+        let mut key_times: Vec<SystemTime> = events
             .iter()
-            .map(|e| (e.modality, e.captured_at.wall_clock))
+            .filter(|e| e.modality == Modality::Keystroke)
+            .map(|e| e.captured_at.wall_clock)
             .collect();
-        stamped.sort_by_key(|(_, at)| *at);
-        let kinds: Vec<Modality> = stamped.iter().map(|(kind, _)| *kind).collect();
-        let wanted: Vec<Modality> = injected.iter().map(|(kind, _)| *kind).collect();
-        let worst_ms = stamped
+        key_times.sort();
+        let scrolls: Vec<(u64, SystemTime)> = events
             .iter()
-            .zip(&injected)
-            .map(|((_, at), (_, sent))| {
-                at.duration_since(*sent)
-                    .or_else(|e| Ok::<Duration, ()>(e.duration()))
-                    .unwrap_or_default()
-                    .as_millis()
+            .filter_map(|e| match e.view.and_then(|view| view.fold) {
+                Some((FoldClass::Scroll, count)) => Some((count, e.captured_at.wall_clock)),
+                _ => None,
             })
-            .max()
-            .unwrap_or(0);
+            .collect();
+        let distance_ms = |at: SystemTime, sent: SystemTime| {
+            at.duration_since(sent)
+                .or_else(|e| Ok::<Duration, ()>(e.duration()))
+                .unwrap_or_default()
+                .as_millis()
+        };
+        let keys_in_their_second = key_times.len() == ROUNDS
+            && key_times.iter().zip(&keys_sent).all(|(at, sent)| {
+                sent.duration_since(*at)
+                    .is_ok_and(|before| before < Duration::from_millis(1_250))
+            });
+        let scroll_distance_ms = scrolls
+            .first()
+            .map_or(u128::MAX, |(_, at)| distance_ms(*at, turns_sent[0]));
         say(
             "order",
             format!(
                 "keyboard_start={} pointer_start={} sink_capacity=1 draining_stopped_ms=1500 \
-                 sendinput_events_accepted={accepted} events={} order_matches={} \
-                 worst_distance_from_input_ms={worst_ms}",
+                 sendinput_events_accepted={accepted} events={} keystroke_events={} \
+                 keys_in_their_second={keys_in_their_second} scroll_records={} scroll_count={} \
+                 scroll_distance_from_the_first_turn_ms={scroll_distance_ms}",
                 show(&keyboard_start),
                 show(&pointer_start),
                 events.len(),
-                kinds == wanted,
+                key_times.len(),
+                scrolls.len(),
+                scrolls.first().map_or(0, |(count, _)| *count),
             ),
         );
         assert!(keyboard_start.is_ok(), "the keyboard source must start");
@@ -3406,13 +3644,22 @@ fn capture_times_follow_the_input_order() {
             3 * ROUNDS as u32,
             "INCONCLUSIVE: SendInput did not insert every key and wheel event"
         );
+        assert!(
+            keys_in_their_second,
+            "a keystroke record is not stamped at the second of its input"
+        );
         assert_eq!(
-            kinds, wanted,
-            "the capture times do not follow the input order"
+            scrolls.len(),
+            1,
+            "the wheel turns are not one scroll record"
+        );
+        assert_eq!(
+            scrolls[0].0, ROUNDS as u64,
+            "the scroll record does not count every turn"
         );
         assert!(
-            worst_ms <= 250,
-            "a capture time is {worst_ms} ms away from its input"
+            scroll_distance_ms <= 250,
+            "the scroll record is {scroll_distance_ms} ms away from its first turn"
         );
     });
 }
@@ -3548,7 +3795,7 @@ fn keys_queued_before_a_stop_are_delivered_or_counted() {
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         std::thread::sleep(Duration::from_millis(200));
         let _ = seam::take();
-        let held = last_app.lock().expect("the last-app cell");
+        let held = seam::hold_the_pumps();
         let accepted = press_keys(5);
         std::thread::sleep(Duration::from_millis(300));
         let (done, returned) = mpsc::channel();
@@ -3633,7 +3880,7 @@ fn a_timed_out_stop_reads_no_input_posted_after_its_answer() {
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         std::thread::sleep(Duration::from_millis(200));
         let _ = seam::take();
-        let held = last_app.lock().expect("the last-app cell");
+        let held = seam::hold_the_pumps();
         let accepted_before = press_keys(1);
         std::thread::sleep(Duration::from_millis(300));
         let (done, returned) = mpsc::channel();
@@ -3701,11 +3948,11 @@ fn x5_screen_source_stop_and_start_again() {
         source_built_by_test("x5", "screen");
         let (sink, events) = capture(256);
         let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-        let first = screen.begin(SourceContext::new(sink.clone()));
+        let first = screen.begin(screen_on(sink.clone()));
         let first_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
         let first_stop = stop_counted(&mut screen, "screen");
         let _ = events.drain_for(Duration::from_millis(500));
-        let second = screen.begin(SourceContext::new(sink.clone()));
+        let second = screen.begin(screen_on(sink.clone()));
         let second_frame = events.first_within(FIRST_FRAME_WAIT).is_some();
         let second_stop = stop_counted(&mut screen, "screen");
         say(
@@ -3746,7 +3993,7 @@ fn x12_screen_source_fifteen_start_stop_cycles() {
         for _ in 0..CYCLES {
             let (sink, events) = capture(256);
             let mut screen = ScreenSource::new(Arc::clone(&last_app));
-            if screen.begin(SourceContext::new(sink.clone())).is_ok() {
+            if screen.begin(screen_on(sink.clone())).is_ok() {
                 started += 1;
             }
             frames += screen_frames_within(&events, Duration::from_millis(700));
@@ -3781,7 +4028,7 @@ fn c8b_window_destroyed_after_the_last_capture_session() {
         let session = |label: &str| {
             let (sink, events) = capture(256);
             let mut screen = ScreenSource::new(Arc::new(Mutex::new(None)));
-            let start = screen.begin(SourceContext::new(sink.clone()));
+            let start = screen.begin(screen_on(sink.clone()));
             let mut frames = 0;
             let began = Instant::now();
             while began.elapsed() < Duration::from_secs(3) {
@@ -3854,7 +4101,7 @@ fn x3_attribution_before_the_first_foreground_change() {
         let waited = Instant::now();
         while !between
             .iter()
-            .any(|e: &CaptureStreamEvent| e.modality == Modality::ForegroundApp)
+            .any(|e: &Seen| e.modality == Modality::ForegroundApp)
             && waited.elapsed() < Duration::from_secs(15)
         {
             between.extend(events.drain_for(Duration::from_millis(100)));
@@ -3866,15 +4113,15 @@ fn x3_attribution_before_the_first_foreground_change() {
         let _ = stop_counted(&mut keyboard, "keyboard");
         child.print_output();
 
-        let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
-        let empty_app = |events: &[CaptureStreamEvent]| {
+        let keys = |events: &[Seen]| count(events, Modality::Keystroke);
+        let empty_app = |events: &[Seen]| {
             events
                 .iter()
                 .filter(|e| e.modality == Modality::Keystroke && e.foreground_app.is_empty())
                 .count()
         };
         gate_trail("x3");
-        let child_app = |events: &[CaptureStreamEvent]| {
+        let child_app = |events: &[Seen]| {
             events
                 .iter()
                 .filter(|e| e.modality == Modality::Keystroke && is_child_app(&e.foreground_app))
@@ -4375,15 +4622,11 @@ fn x15_a_held_key() {
     });
 }
 
-fn unix_millis_of(event: &CaptureStreamEvent) -> u128 {
-    unix_millis(event.captured_at.wall_clock)
+fn unix_millis_of(event: &Seen) -> u128 {
+    unix_millis(event.key_time.unwrap_or(event.captured_at.wall_clock))
 }
 
-fn keystrokes_inside(
-    events: &[CaptureStreamEvent],
-    intervals: &[(u128, u128)],
-    margin: u128,
-) -> usize {
+fn keystrokes_inside(events: &[Seen], intervals: &[(u128, u128)], margin: u128) -> usize {
     events
         .iter()
         .filter(|e| e.modality == Modality::Keystroke)
@@ -4431,7 +4674,7 @@ fn password_field_fixture_native_dialog_phases_a_to_f() {
         let mut keyboard =
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
-        let keys = |events: &[CaptureStreamEvent]| count(events, Modality::Keystroke);
+        let keys = |events: &[Seen]| count(events, Modality::Keystroke);
 
         let _ = seam::take();
         let _ = seam::take_marks();
@@ -4855,12 +5098,7 @@ fn browser_phase(
     events: &Events,
     phase: char,
     typing: impl FnOnce() -> Vec<u128>,
-) -> (
-    usize,
-    Vec<CaptureStreamEvent>,
-    Option<PageCounts>,
-    Vec<u128>,
-) {
+) -> (usize, Vec<Seen>, Option<PageCounts>, Vec<u128>) {
     let hwnd = run.open(phase);
     let foreground = hwnd.is_some_and(|hwnd| foreground_window() == hwnd);
     let _ = events.drain_for(Duration::from_millis(300));
@@ -4893,7 +5131,7 @@ fn letters(n: u32) -> Vec<u128> {
     sent
 }
 
-fn password_key_events(seen: &[CaptureStreamEvent], sent: &[u128], seq: &str) -> usize {
+fn password_key_events(seen: &[Seen], sent: &[u128], seq: &str) -> usize {
     let fields: Vec<char> = seq.chars().collect();
     let offset = sent.len().saturating_sub(fields.len());
     seen.iter()
@@ -5376,140 +5614,832 @@ mod known_defect {
             );
         });
     }
+}
 
-    use halvo_capture::windows::apps::wait_for_change;
+use halvo_capture::windows::apps::{InstalledSoftwareWatcher, WatchOutcome};
 
-    fn arm_watcher() -> mpsc::Receiver<Result<(), String>> {
-        let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move || {
-            let _ = tx.send(wait_for_change().map_err(|e| e.to_string()));
-        });
-        std::thread::sleep(Duration::from_millis(500));
-        rx
-    }
+fn arm_watcher() -> mpsc::Receiver<Result<(), String>> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let woke = InstalledSoftwareWatcher::new()
+            .map_err(|e| e.to_string())
+            .and_then(
+                |mut watcher| match watcher.wait(Some(Duration::from_secs(20))) {
+                    Ok(WatchOutcome::Changed) => Ok(()),
+                    Ok(other) => Err(format!("the watch answered {other:?}")),
+                    Err(e) => Err(e.to_string()),
+                },
+            );
+        let _ = tx.send(woke);
+    });
+    std::thread::sleep(Duration::from_millis(500));
+    rx
+}
 
-    fn answer<T>(rx: &mpsc::Receiver<T>, limit: Duration, what: &str) -> Option<T> {
-        match rx.recv_timeout(limit) {
-            Ok(value) => Some(value),
-            Err(RecvTimeoutError::Timeout) => None,
-            Err(RecvTimeoutError::Disconnected) => {
-                panic!("INCONCLUSIVE: {what} ended without an answer")
-            }
+fn answer<T>(rx: &mpsc::Receiver<T>, limit: Duration, what: &str) -> Option<T> {
+    match rx.recv_timeout(limit) {
+        Ok(value) => Some(value),
+        Err(RecvTimeoutError::Timeout) => None,
+        Err(RecvTimeoutError::Disconnected) => {
+            panic!("INCONCLUSIVE: {what} ended without an answer")
         }
     }
+}
 
-    fn watch_woke(rx: &mpsc::Receiver<Result<(), String>>, limit: Duration, what: &str) -> bool {
-        match answer(rx, limit, what) {
-            Some(Ok(())) => true,
-            Some(Err(e)) => panic!("INCONCLUSIVE: {what} returned an error: {e}"),
-            None => false,
-        }
+fn watch_woke(rx: &mpsc::Receiver<Result<(), String>>, limit: Duration, what: &str) -> bool {
+    match answer(rx, limit, what) {
+        Some(Ok(())) => true,
+        Some(Err(e)) => panic!("INCONCLUSIVE: {what} returned an error: {e}"),
+        None => false,
     }
+}
 
-    fn powershell_line(script: &str) -> String {
-        Command::new("powershell.exe")
-            .args(["-NoProfile", "-Command", script])
-            .output()
-            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
-            .unwrap_or_default()
-    }
+fn powershell_line(script: &str) -> String {
+    Command::new("powershell.exe")
+        .args(["-NoProfile", "-Command", script])
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .unwrap_or_default()
+}
 
-    #[test]
-    #[ignore = "known defect: reads and writes the Windows registry"]
-    fn c5_watch_armed_while_the_per_user_key_is_absent() {
-        with_deadline("c5-watch", Duration::from_secs(90), || {
-            use winreg::enums::HKEY_CURRENT_USER;
-            use winreg::RegKey;
+#[test]
+#[ignore = "functional: reads and writes the Windows registry"]
+fn c5_watch_armed_while_the_per_user_key_is_absent() {
+    with_deadline("c5-watch", Duration::from_secs(90), || {
+        use winreg::enums::HKEY_CURRENT_USER;
+        use winreg::RegKey;
 
-            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-            let key_absent = per_user_key_absent_or_removed("c5-watch", &hkcu);
-            assert!(
-                key_absent,
-                "INCONCLUSIVE: the per-user Uninstall key exists, so no watch can be armed while it is absent"
-            );
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let key_absent = per_user_key_absent_or_removed("c5-watch", &hkcu);
+        assert!(
+            key_absent,
+            "INCONCLUSIVE: the per-user Uninstall key exists, so no watch can be armed while it is absent"
+        );
 
-            let first = arm_watcher();
-            let spurious = watch_woke(&first, Duration::from_secs(1), "the first watch");
-            let probe_path = format!(r"{UNINSTALL}\{PROBE_KEY}");
-            let (probe, _) = hkcu
-                .create_subkey(&probe_path)
-                .expect("create the probe key");
-            probe
-                .set_value(
-                    "DisplayName",
-                    &format!("Halvo Verify Probe {}", std::process::id()),
-                )
-                .expect("probe name");
-            let first_woke = watch_woke(&first, Duration::from_secs(5), "the first watch");
-
-            let second = arm_watcher();
-            probe
-                .set_value("DisplayVersion", &"9.9.10")
-                .expect("probe version change");
-            let second_woke = watch_woke(&second, Duration::from_secs(5), "the second watch");
-
-            drop(probe);
-            hkcu.delete_subkey_all(&probe_path)
-                .expect("delete the probe key");
-            let _ = hkcu.delete_subkey(UNINSTALL);
-            say(
-                "c5-watch",
-                format!(
-                    "woke_before_any_change={spurious} \
-                     watch_armed_with_the_key_present_woke_within_5s_of_change={second_woke}"
-                ),
-            );
-            assert!(!spurious, "the watch woke before any change");
-            assert!(
-                second_woke,
-                "INCONCLUSIVE: a watch armed with the key present did not wake on a change"
-            );
-            defect!(
-                "RR-windows-12",
-                first_woke,
-                format!("TF c5-watch woke_within_5s_of_hkcu_install={first_woke}")
-            );
-        });
-    }
-
-    #[test]
-    #[ignore = "known defect: reads the Windows registry"]
-    fn x16_packaged_apps_and_the_inventory() {
-        with_deadline("x16", Duration::from_secs(120), || {
-            let scan = scan_installed().expect("scan the registry");
-            let packages: u32 = powershell_line("(Get-AppxPackage | Measure-Object).Count")
-                .parse()
-                .unwrap_or(0);
-            let terminal_packages: u32 = powershell_line(
-                "(Get-AppxPackage -Name Microsoft.WindowsTerminal | Measure-Object).Count",
+        let first = arm_watcher();
+        let spurious = watch_woke(&first, Duration::from_secs(1), "the first watch");
+        let probe_path = format!(r"{UNINSTALL}\{PROBE_KEY}");
+        let (probe, _) = hkcu
+            .create_subkey(&probe_path)
+            .expect("create the probe key");
+        probe
+            .set_value(
+                "DisplayName",
+                &format!("Halvo Verify Probe {}", std::process::id()),
             )
+            .expect("probe name");
+        let first_woke = watch_woke(&first, Duration::from_secs(5), "the first watch");
+
+        let second = arm_watcher();
+        probe
+            .set_value("DisplayVersion", &"9.9.10")
+            .expect("probe version change");
+        let second_woke = watch_woke(&second, Duration::from_secs(5), "the second watch");
+
+        drop(probe);
+        hkcu.delete_subkey_all(&probe_path)
+            .expect("delete the probe key");
+        let _ = hkcu.delete_subkey(UNINSTALL);
+        say(
+            "c5-watch",
+            format!(
+                "woke_before_any_change={spurious} \
+                 watch_armed_with_the_key_present_woke_within_5s_of_change={second_woke}"
+            ),
+        );
+        assert!(!spurious, "the watch woke before any change");
+        assert!(
+            second_woke,
+            "INCONCLUSIVE: a watch armed with the key present did not wake on a change"
+        );
+        flipped!(
+            "RR-windows-12",
+            first_woke,
+            format!("TF c5-watch woke_within_5s_of_hkcu_install={first_woke}")
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: reads the Windows registry"]
+fn x16_packaged_apps_and_the_inventory() {
+    with_deadline("x16", Duration::from_secs(120), || {
+        let scan = scan_installed().expect("scan the registry");
+        let packages: u32 = powershell_line("(Get-AppxPackage | Measure-Object).Count")
             .parse()
             .unwrap_or(0);
-            let terminal_in_inventory = scan
-                .apps
-                .iter()
-                .any(|app| app.name.to_ascii_lowercase().contains("terminal"));
-            say(
-                "x16",
+        let terminal_packages: u32 = powershell_line(
+            "(Get-AppxPackage -Name Microsoft.WindowsTerminal | Measure-Object).Count",
+        )
+        .parse()
+        .unwrap_or(0);
+        let terminal_in_inventory = scan
+            .apps()
+            .iter()
+            .any(|app| app.name.to_ascii_lowercase().contains("terminal"));
+        say(
+            "x16",
+            format!(
+                "inventory_entries={} packaged_apps_registered_for_this_user={packages} \
+                 windows_terminal_packages={terminal_packages}",
+                scan.len(),
+            ),
+        );
+        assert!(
+            !scan.is_empty(),
+            "INCONCLUSIVE: the registry scan returned no entries"
+        );
+        assert!(
+            packages >= 1 && terminal_packages >= 1,
+            "INCONCLUSIVE: no packaged Windows Terminal is registered for this user"
+        );
+        flipped!(
+            "RR-windows-12",
+            terminal_in_inventory,
+            format!("TF x16 inventory_has_an_entry_naming_terminal={terminal_in_inventory}")
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: reads and writes the Windows registry"]
+fn c5_three_probe_entries_against_what_windows_lists() {
+    with_deadline("c5-three", Duration::from_secs(90), || {
+        use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
+        use winreg::RegKey;
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let key_existed = hkcu.open_subkey_with_flags(UNINSTALL, KEY_READ).is_ok();
+        let id = std::process::id();
+        let probes = [
+            (
+                "HalvoVerifyProbeListed",
+                format!("Halvo Verify Listed {id}"),
+                None,
+                false,
+            ),
+            (
+                "HalvoVerifyProbeSystem",
+                format!("Halvo Verify System {id}"),
+                None,
+                true,
+            ),
+            (
+                "HalvoVerifyProbeChild",
+                format!("Halvo Verify Child {id}"),
+                Some("HalvoVerifyProbeListed"),
+                false,
+            ),
+        ];
+        for (key, name, parent, system) in &probes {
+            let (probe, _) = hkcu
+                .create_subkey(format!(r"{UNINSTALL}\{key}"))
+                .expect("create a probe key");
+            probe.set_value("DisplayName", name).expect("probe name");
+            if let Some(parent) = parent {
+                probe
+                    .set_value("ParentKeyName", &parent.to_string())
+                    .expect("probe parent");
+            }
+            if *system {
+                probe
+                    .set_value("SystemComponent", &1u32)
+                    .expect("probe system component");
+            }
+        }
+        let scan = scan_installed();
+        for (key, ..) in &probes {
+            let _ = hkcu.delete_subkey_all(format!(r"{UNINSTALL}\{key}"));
+        }
+        if !key_existed {
+            let _ = hkcu.delete_subkey(UNINSTALL);
+        }
+        let scan = scan.expect("scan with the three probes");
+        let listed = probes
+            .each_ref()
+            .map(|(_, name, ..)| scan.apps().iter().any(|app| &app.name == name));
+        let windows_lists = [true, false, false];
+        say(
+            "c5-three",
+            format!(
+                "probe_listed={} probe_system_component_listed={} probe_with_parent_listed={}",
+                listed[0], listed[1], listed[2]
+            ),
+        );
+        assert!(
+            listed[0],
+            "INCONCLUSIVE: the plain probe entry is not in the scan"
+        );
+        flipped!(
+            "RR-windows-25",
+            listed == windows_lists,
+            format!(
+                "TF c5-three scan_lists_what_windows_lists={}",
+                listed == windows_lists
+            )
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: was a known defect: E4, a keystroke record holds no class"]
+fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
+    with_deadline("classes", Duration::from_secs(90), || {
+        env_report("classes");
+        source_built_by_test("classes", "keyboard");
+        let (sink, events) = capture(4096);
+        let mut child = spawn_child("hold", 14);
+        let began = Instant::now();
+        let mut held_in_front = false;
+        while !held_in_front && began.elapsed() < Duration::from_secs(15) {
+            pump_thread(Duration::from_millis(100));
+            held_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
+        }
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let start = keyboard.begin(SourceContext::new(sink.clone()));
+        let _ = events.drain_for(Duration::from_secs(1));
+        let presses: [&[VIRTUAL_KEY]; 5] = [
+            &[VIRTUAL_KEY(0x41)],
+            &[VIRTUAL_KEY(0x08)],
+            &[VIRTUAL_KEY(0x25)],
+            &[VIRTUAL_KEY(0x11), VIRTUAL_KEY(0x41)],
+            &[VIRTUAL_KEY(0x0D)],
+        ];
+        let mut accepted = 0;
+        for keys in presses {
+            accepted += key_press(keys);
+        }
+        let mut seen = events.drain_for(Duration::from_secs(2));
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        let mut second = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let second_start = second.begin(SourceContext::new(sink.clone()));
+        let _ = events.drain_for(Duration::from_millis(500));
+        accepted += key_press(&[VIRTUAL_KEY(0x09)]);
+        seen.extend(events.drain_for(Duration::from_secs(2)));
+        let still_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
+        let _ = stop_counted(&mut second, "keyboard");
+        let _ = child.wait();
+        child.print_output();
+        let classes: Vec<KeyClass> = seen
+            .iter()
+            .filter_map(|e| e.view.and_then(|view| view.key_class))
+            .collect();
+        let each: Vec<String> = KeyClass::ALL
+            .iter()
+            .map(|class| {
                 format!(
-                    "inventory_entries={} packaged_apps_registered_for_this_user={packages} \
-                     windows_terminal_packages={terminal_packages}",
-                    scan.len(),
-                ),
-            );
-            assert!(
-                !scan.is_empty(),
-                "INCONCLUSIVE: the registry scan returned no entries"
-            );
-            assert!(
-                packages >= 1 && terminal_packages >= 1,
-                "INCONCLUSIVE: no packaged Windows Terminal is registered for this user"
-            );
-            defect!(
-                "RR-windows-12",
-                terminal_in_inventory,
-                format!("TF x16 inventory_has_an_entry_naming_terminal={terminal_in_inventory}")
-            );
-        });
+                    "{}={}",
+                    class.as_str(),
+                    classes.iter().filter(|seen| *seen == class).count()
+                )
+            })
+            .collect();
+        say(
+            "classes",
+            format!(
+                "keyboard_start={} held_in_front={held_in_front} still_in_front={still_in_front} \
+                 sendinput_key_events_accepted={accepted} keystroke_events={} {}",
+                show(&start),
+                count(&seen, Modality::Keystroke),
+                each.join(" ")
+            ),
+        );
+        assert!(
+            start.is_ok() && second_start.is_ok(),
+            "the keyboard sources must start"
+        );
+        assert!(
+            held_in_front && still_in_front,
+            "INCONCLUSIVE: the child's window with its plain edit was not in front"
+        );
+        assert_eq!(
+            accepted, 14,
+            "INCONCLUSIVE: SendInput did not insert every key"
+        );
+        flipped!(
+            "E4",
+            KeyClass::ALL
+                .iter()
+                .all(|class| classes.iter().filter(|seen| *seen == class).count() == 1)
+                && classes.len() == KeyClass::ALL.len(),
+            format!(
+                "TF classes keystroke_records_with_a_class={}",
+                classes.len()
+            )
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: was a known defect: E4 and B14-20, pointer events are not folded by class and interval"]
+fn pointer_events_fold_into_one_record_for_each_class_and_interval() {
+    with_deadline("folds", Duration::from_secs(90), || {
+        const MOVES: usize = 100;
+        env_report("folds");
+        source_built_by_test("folds", "pointer");
+        let (sink, events) = capture(8192);
+        let cover = TestWindow::create(&magenta_popup("HalvoVerifyFolds", "halvo-verify-folds"))
+            .expect("covering window");
+        cover.cover_screen();
+        pump_thread(Duration::from_millis(500));
+        let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
+        let start = pointer.begin(SourceContext::new(sink.clone()));
+        let _ = events.drain_for(Duration::from_secs(1));
+        let moves: Vec<INPUT> = (0..MOVES)
+            .map(|i| mouse(MOUSEEVENTF_MOVE, if i % 2 == 0 { 3 } else { -3 }, 0))
+            .collect();
+        let moved = send(&moves);
+        let first = events.drain_for(Duration::from_millis(2_500));
+        let mut second_sent = send(&[
+            mouse(MOUSEEVENTF_LEFTDOWN, 0, 0),
+            mouse(MOUSEEVENTF_LEFTUP, 0, 0),
+        ]);
+        second_sent += send(&[mouse(MOUSEEVENTF_WHEEL, 0, 120)]);
+        second_sent += send(&[
+            mouse(MOUSEEVENTF_LEFTDOWN, 0, 0),
+            mouse(MOUSEEVENTF_MOVE, 3, 0),
+            mouse(MOUSEEVENTF_MOVE, -3, 0),
+            mouse(MOUSEEVENTF_MOVE, 3, 0),
+            mouse(MOUSEEVENTF_LEFTUP, 0, 0),
+        ]);
+        let second = events.drain_for(Duration::from_millis(2_500));
+        let third_sent = send(&[
+            mouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_LEFTDOWN, -3, 0),
+            mouse(MOUSEEVENTF_LEFTUP, 0, 0),
+        ]);
+        let third = events.drain_for(Duration::from_millis(2_500));
+        let covered = cover.is_foreground();
+        pump_thread(Duration::from_millis(100));
+        drop(cover);
+        let _ = stop_counted(&mut pointer, "pointer");
+        let moves_first = folds(&first, FoldClass::Move);
+        let drags = folds(&second, FoldClass::Drag);
+        let scrolls = folds(&second, FoldClass::Scroll);
+        let moves_second = folds(&second, FoldClass::Move);
+        let clicks_second = clicks(&second);
+        let moves_third = folds(&third, FoldClass::Move);
+        let clicks_third = clicks(&third);
+        say(
+            "folds",
+            format!(
+                "pointer_start={} cover_window_was_foreground={covered} sendinput_move_events_accepted={moved} \
+                 move_records={moves_first:?} pointer_events={} second_accepted={second_sent} \
+                 clicks={} drag_records={drags:?} scroll_records={scrolls:?} \
+                 move_records_of_the_second={moves_second:?} third_accepted={third_sent} \
+                 clicks_of_the_third={} move_records_of_the_third={moves_third:?}",
+                show(&start),
+                count(&first, Modality::Pointer),
+                clicks_second.len(),
+                clicks_third.len(),
+            ),
+        );
+        assert!(start.is_ok(), "the pointer source must start");
+        assert!(
+            moved as usize == MOVES && second_sent == 8 && third_sent == 2,
+            "INCONCLUSIVE: SendInput did not insert every pointer event"
+        );
+        flipped!(
+            "E4",
+            moves_first == [MOVES as u64]
+                && clicks_second == [Button::Primary, Button::Primary]
+                && drags == [3]
+                && scrolls == [1]
+                && moves_second.is_empty()
+                && clicks_third == [Button::Primary]
+                && moves_third == [1],
+            format!("TF folds move_records={moves_first:?}")
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: was a known defect: P8, an event of a process under the exclusion root leaves the sources"]
+fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
+    with_deadline("tree", Duration::from_secs(120), || {
+        env_report("tree");
+        for source in ["foreground", "window_title", "keyboard", "pointer"] {
+            source_built_by_test("tree", source);
+        }
+        let (sink, events) = capture(8192);
+        let mut root = spawn_child("root", 14);
+        let floor = FloorHandle::new(
+            Some(ProcessId::new(root.id())),
+            Arc::new(ProcessLineage::new()),
+            Switches::default(),
+        );
+        let ctx = SourceContext::with_floor(sink.clone(), floor);
+        let mut foreground = ForegroundAppSource::new();
+        let mut title = WindowTitleSource::new();
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
+        let starts = [
+            foreground.begin(ctx.clone()),
+            title.begin(ctx.clone()),
+            keyboard.begin(ctx.clone()),
+            pointer.begin(ctx.clone()),
+        ];
+        let began = Instant::now();
+        let mut held_in_front = false;
+        while !held_in_front && began.elapsed() < Duration::from_secs(15) {
+            pump_thread(Duration::from_millis(100));
+            held_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
+        }
+        let _ = events.drain_for(Duration::from_millis(500));
+        let in_tree_keys = press_keys(5);
+        let _ = point_at_front();
+        let in_tree_moves = move_pointer(10);
+        let in_tree = events.drain_for(Duration::from_millis(1_500));
+        let still_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
+        let fields = FieldWindow::open(
+            "a_window_under_the_exclusion_root_gives_no_event_and_another_window_does",
+            Field::Plain,
+        );
+        let _ = events.drain_for(Duration::from_millis(500));
+        let outside_pid = foreground_pid();
+        let outside_keys = press_keys(5);
+        let _ = point_at_front();
+        let outside_moves = move_pointer(10);
+        let outside = events.drain_for(Duration::from_millis(2_000));
+        let lineage = ProcessLineage::new();
+        let mut walked = ProcessId::new(outside_pid);
+        let mut walk_steps = 0;
+        let mut walk_end = "steps";
+        let mut last_opened = false;
+        for _ in 0..64 {
+            if walked.get() == root.id() {
+                walk_end = "root";
+                break;
+            }
+            match lineage.parent_of(walked) {
+                Parent::Of(parent) => {
+                    walked = parent;
+                    walk_steps += 1;
+                }
+                Parent::None => {
+                    walk_end = "none";
+                    break;
+                }
+                Parent::Unknown => {
+                    walk_end = "unknown";
+                    break;
+                }
+            }
+        }
+        // SAFETY: OpenProcess takes plain values; a handle that it gives is
+        // closed at once.
+        unsafe {
+            use windows::Win32::System::Threading::{
+                OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+            };
+            if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, walked.get())
+            {
+                last_opened = true;
+                let _ = windows::Win32::Foundation::CloseHandle(handle);
+            }
+        }
+        drop(fields);
+        for (source, name) in [
+            (&mut foreground as &mut dyn CaptureSource, "foreground"),
+            (&mut title, "window_title"),
+            (&mut keyboard, "keyboard"),
+            (&mut pointer, "pointer"),
+        ] {
+            let _ = stop_counted(source, name);
+        }
+        let _ = root.wait();
+        root.print_output();
+        let drops = [
+            foreground.drops(),
+            title.drops(),
+            keyboard.drops(),
+            pointer.drops(),
+        ];
+        let tree_drops: u64 = drops.iter().map(|drops| drops.exclusion_tree).sum();
+        let unknown_lineage_drops: u64 = drops.iter().map(|drops| drops.unknown_lineage).sum();
+        let other_drops: u64 = drops
+            .iter()
+            .map(|drops| {
+                drops.switch_off + drops.listed_app + drops.private_window + drops.secure_input
+            })
+            .sum();
+        say(
+            "tree",
+            format!(
+                "starts_ok={} grandchild_window_in_front={held_in_front} still_in_front={still_in_front} \
+                 sendinput_key_events_accepted={in_tree_keys} sendinput_move_events_accepted={in_tree_moves} \
+                 events_in_the_tree={} exclusion_tree_drops={tree_drops} \
+                 unknown_lineage_drops={unknown_lineage_drops} other_drops={other_drops} \
+                 outside_walk_steps={walk_steps} outside_walk_end={walk_end} \
+                 outside_walk_last_process_opened={last_opened} \
+                 outside_keys={outside_keys} outside_moves={outside_moves} events_outside={} \
+                 keystroke_events_outside={} pointer_events_outside={}",
+                starts.iter().all(Result::is_ok),
+                in_tree.len(),
+                outside.len(),
+                count(&outside, Modality::Keystroke),
+                count(&outside, Modality::Pointer),
+            ),
+        );
+        assert!(starts.iter().all(Result::is_ok), "the sources must start");
+        assert!(
+            held_in_front && still_in_front,
+            "INCONCLUSIVE: the window of the grandchild was not in front"
+        );
+        assert!(
+            count(&outside, Modality::Pointer) >= 1,
+            "no pointer event for a window outside the tree"
+        );
+        flipped!(
+            "P8",
+            in_tree.is_empty() && tree_drops > 0,
+            format!("TF tree events_in_the_tree={}", in_tree.len())
+        );
+    });
+}
+
+fn key_press(keys: &[VIRTUAL_KEY]) -> u32 {
+    let mut accepted = 0;
+    for key in keys {
+        accepted += send(&[key_input(*key, false)]);
+        std::thread::sleep(Duration::from_millis(30));
     }
+    for key in keys.iter().rev() {
+        accepted += send(&[key_input(*key, true)]);
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    accepted
+}
+
+fn mouse(flags: MOUSE_EVENT_FLAGS, dx: i32, data: i32) -> INPUT {
+    INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 {
+            mi: MOUSEINPUT {
+                dx,
+                dy: 0,
+                mouseData: data as u32,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+fn folds(events: &[Seen], wanted: FoldClass) -> Vec<u64> {
+    events
+        .iter()
+        .filter_map(|e| match e.view.and_then(|view| view.fold) {
+            Some((class, count)) if class == wanted => Some(count),
+            _ => None,
+        })
+        .collect()
+}
+
+fn clicks(events: &[Seen]) -> Vec<Button> {
+    events
+        .iter()
+        .filter_map(|e| e.view.and_then(|view| view.click))
+        .collect()
+}
+
+fn titles_with(events: &[Seen], prefix: &str) -> usize {
+    let titles = known_titles();
+    events
+        .iter()
+        .filter(|e| {
+            e.view
+                .and_then(|view| view.title)
+                .and_then(|title| title.among)
+                .is_some_and(|index| titles[index].starts_with(prefix))
+        })
+        .count()
+}
+
+#[test]
+#[ignore = "functional: a wheel turn over a background window of a listed app is decided on that app"]
+fn a_wheel_turn_over_a_background_window_of_a_listed_app_gives_no_scroll_record() {
+    use windows::Win32::Foundation::{POINT, RECT};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetAncestor, GetWindowRect, SetCursorPos, SetWindowPos, WindowFromPoint, GA_ROOT,
+        HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    };
+    with_deadline("wheel-under", Duration::from_secs(90), || {
+        env_report("wheel-under");
+        source_built_by_test("wheel-under", "pointer");
+        let (sink, events) = capture(4096);
+        let front = TestWindow::create(&normal_window(
+            "HalvoVerifyWheelFront",
+            "halvo-verify-wheel-front",
+            20,
+            20,
+        ))
+        .expect("the window in front");
+        let mut child = spawn_child_as("background", 12, LISTED_CHILD_EXE);
+        let class: Vec<u16> = BACKGROUND_CLASS.encode_utf16().chain([0]).collect();
+        let mut background = HWND::default();
+        let began = Instant::now();
+        while background.0.is_null() && began.elapsed() < Duration::from_secs(10) {
+            pump_thread(Duration::from_millis(100));
+            // SAFETY: `class` is a NUL-terminated wide string that outlives the call.
+            background =
+                unsafe { FindWindowW(PCWSTR(class.as_ptr()), PCWSTR::null()) }.unwrap_or_default();
+        }
+        // SAFETY: SetWindowPos takes the child's window handle by value and
+        // plain flags; it moves the window above the others without
+        // activating it.
+        let _ = unsafe {
+            SetWindowPos(
+                background,
+                Some(HWND_TOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE,
+            )
+        };
+        pump_thread(Duration::from_millis(500));
+        let (front_activated, method) = front.activate();
+        let mut rect = RECT::default();
+        // SAFETY: `rect` is a live RECT that the call writes into.
+        let _ = unsafe { GetWindowRect(background, &mut rect) };
+        let middle = POINT {
+            x: (rect.left + rect.right) / 2,
+            y: (rect.top + rect.bottom) / 2,
+        };
+        // SAFETY: SetCursorPos, WindowFromPoint and GetAncestor take plain values.
+        let pointer_over_background = unsafe {
+            let _ = SetCursorPos(middle.x, middle.y);
+            !background.0.is_null() && GetAncestor(WindowFromPoint(middle), GA_ROOT) == background
+        };
+        let mut pointer = RawInputSource::pointer(Arc::new(Mutex::new(None)));
+        let start = pointer.begin(SourceContext::new(sink.clone()));
+        let _ = events.drain_for(Duration::from_secs(1));
+        let sent = send(&[mouse(MOUSEEVENTF_WHEEL, 0, 120)]);
+        let seen = events.drain_for(Duration::from_millis(2_500));
+        let front_still_in_front = front.is_foreground();
+        let _ = stop_counted(&mut pointer, "pointer");
+        while child.try_wait().is_none() {
+            pump_thread(Duration::from_millis(200));
+        }
+        child.print_output();
+        let scroll_records = folds(&seen, FoldClass::Scroll).len();
+        let scroll_record_app_is_front = seen.iter().any(|e| {
+            e.view.is_some_and(|view| {
+                matches!(view.fold, Some((FoldClass::Scroll, _)))
+                    && view.app == seam::AppSeen::Named(1)
+            })
+        });
+        let listed_app_drops = pointer.drops().listed_app;
+        say(
+            "wheel-under",
+            format!(
+                "pointer_start={} front_activated={front_activated} method={method} \
+                 pointer_over_background={pointer_over_background} \
+                 front_still_in_front={front_still_in_front} wheel_accepted={sent} \
+                 scroll_records={scroll_records} scroll_record_app_is_front={scroll_record_app_is_front} \
+                 listed_app_drops={listed_app_drops}",
+                show(&start)
+            ),
+        );
+        assert!(start.is_ok(), "the pointer source must start");
+        assert!(
+            sent == 1 && pointer_over_background && front_still_in_front,
+            "INCONCLUSIVE: the wheel turn was not sent over a background window"
+        );
+        assert!(
+            scroll_records == 0 && listed_app_drops >= 1,
+            "a wheel turn over a listed app's background window was recorded"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: the ghost of a hung window of a listed app must not carry its caption out"]
+fn the_ghost_of_a_hung_listed_window_gives_no_title() {
+    use windows::Win32::UI::WindowsAndMessaging::IsHungAppWindow;
+    with_deadline("ghost", Duration::from_secs(90), || {
+        env_report("ghost");
+        source_built_by_test("ghost", "foreground");
+        source_built_by_test("ghost", "window_title");
+        let (sink, events) = capture(4096);
+        let mut foreground = ForegroundAppSource::new();
+        let mut title = WindowTitleSource::new();
+        let foreground_start = foreground.begin(SourceContext::new(sink.clone()));
+        let title_start = title.begin(SourceContext::new(sink.clone()));
+        let mut child = spawn_child_as("hang", 0, LISTED_CHILD_EXE);
+        let class: Vec<u16> = GHOST_CLASS.encode_utf16().chain([0]).collect();
+        let mut hung = HWND::default();
+        let mut seen = Vec::new();
+        let began = Instant::now();
+        while hung.0.is_null() && began.elapsed() < Duration::from_secs(10) {
+            seen.extend(events.drain_for(Duration::from_millis(100)));
+            // SAFETY: `class` is a NUL-terminated wide string that outlives the call.
+            hung =
+                unsafe { FindWindowW(PCWSTR(class.as_ptr()), PCWSTR::null()) }.unwrap_or_default();
+        }
+        let mut hung_read = false;
+        while !hung.0.is_null() && !hung_read && began.elapsed() < Duration::from_secs(20) {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+            // SAFETY: IsHungAppWindow takes a window handle by value.
+            hung_read = unsafe { IsHungAppWindow(hung) }.as_bool();
+        }
+        if hung_read {
+            send(&[key_input(VK_MENU, false)]);
+            set_foreground(hung);
+            send(&[key_input(VK_MENU, true)]);
+        }
+        seen.extend(events.drain_for(Duration::from_millis(1_000)));
+        let front = foreground_window();
+        let mut front_pid = 0u32;
+        // SAFETY: `front_pid` is a live u32 that the call writes into.
+        unsafe { GetWindowThreadProcessId(front, Some(&mut front_pid)) };
+        let ghost_seen = !front.0.is_null() && front != hung && class_of_window(front) == "Ghost";
+        let front_file = image_name(front_pid);
+        let foreground_process_is_dwm = front_file.eq_ignore_ascii_case("dwm.exe");
+        let foreground_process_is_the_child = front_file.eq_ignore_ascii_case(LISTED_CHILD_EXE);
+        while child.try_wait().is_none() {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+        }
+        seen.extend(events.drain_for(Duration::from_millis(800)));
+        let _ = stop_counted(&mut title, "window_title");
+        let _ = stop_counted(&mut foreground, "foreground");
+        child.print_output();
+        let title_records_of_ghost = titles_with(&seen, GHOST_CAPTION);
+        let listed_app_drops = title.drops().listed_app;
+        say(
+            "ghost",
+            format!(
+                "foreground_start={} title_start={} window_found={} hung_read={hung_read} \
+                 ghost_seen={ghost_seen} foreground_process_is_dwm={foreground_process_is_dwm} \
+                 foreground_process_is_the_child={foreground_process_is_the_child} \
+                 title_records_of_ghost={title_records_of_ghost} listed_app_drops={listed_app_drops}",
+                show(&foreground_start),
+                show(&title_start),
+                !hung.0.is_null()
+            ),
+        );
+        assert!(
+            foreground_start.is_ok() && title_start.is_ok(),
+            "the sources must start"
+        );
+        assert_eq!(
+            title_records_of_ghost, 0,
+            "a title that names the hung window's caption left the source"
+        );
+    });
+}
+
+#[test]
+#[ignore = "functional: was a known defect: E4, a title leaves while the keyboard source's gate reads Password"]
+fn a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event() {
+    with_deadline("password-title", Duration::from_secs(90), || {
+        env_report("password-title");
+        source_built_by_test("password-title", "keyboard");
+        source_built_by_test("password-title", "window_title");
+        let (sink, events) = capture(4096);
+        let mut keyboard =
+            RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let gate = keyboard
+            .password_gate()
+            .expect("the keyboard source's gate");
+        let mut title = WindowTitleSource::new().with_password_gate(gate);
+        let keyboard_start = keyboard.begin(SourceContext::new(sink.clone()));
+        let title_start = title.begin(SourceContext::new(sink.clone()));
+        let mut child = spawn_child("password-title", 0);
+        let mut seen = Vec::new();
+        while child.try_wait().is_none() {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+        }
+        seen.extend(events.drain_for(Duration::from_millis(800)));
+        let _ = stop_counted(&mut title, "window_title");
+        let _ = stop_counted(&mut keyboard, "keyboard");
+        child.print_output();
+        let in_password_edit = titles_with(&seen, PASSWORD_EDIT_TITLE);
+        let plain = titles_with(&seen, PLAIN_TITLE);
+        let drops = title.drops();
+        say(
+            "password-title",
+            format!(
+                "keyboard_start={} title_start={} title_events_with_the_password_edit_focused={in_password_edit} \
+                 title_events_with_the_plain_edit_focused={plain} secure_input_drops={}",
+                show(&keyboard_start),
+                show(&title_start),
+                drops.secure_input
+            ),
+        );
+        assert!(
+            keyboard_start.is_ok() && title_start.is_ok(),
+            "the sources must start"
+        );
+        flipped!(
+            "E4",
+            in_password_edit == 0 && plain >= 1,
+            format!("TF password-title in_password_edit={in_password_edit} plain={plain}")
+        );
+    });
 }

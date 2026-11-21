@@ -3549,6 +3549,13 @@ impl SegmentStore for EncryptedStore {
     }
 }
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "only size_bytes calls it, which has no caller outside the store's tests until core-3 deletes it"
+    )
+)]
 fn listed(dir: &Dir) -> StoreResult<Vec<durable::Entry>> {
     match dir.entries() {
         Ok(entries) => Ok(entries),
@@ -3557,6 +3564,13 @@ fn listed(dir: &Dir) -> StoreResult<Vec<durable::Entry>> {
     }
 }
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "only size_bytes calls it, which has no caller outside the store's tests until core-3 deletes it"
+    )
+)]
 pub(in crate::store) fn dir_size(dir: &Dir) -> StoreResult<u64> {
     type Pending = Vec<(Option<Rc<Dir>>, std::ffi::OsString)>;
     fn take(

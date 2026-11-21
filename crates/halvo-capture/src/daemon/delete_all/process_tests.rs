@@ -168,12 +168,6 @@ impl Hands for Recorded {
     }
 }
 
-const DERIVED: Row = Row {
-    name: "derived",
-    key_files: &["derived/master.key"],
-    owner_pid_file: Some("derived/owner.pid"),
-};
-
 const SPARE: Row = Row {
     name: "spare",
     key_files: &["spare/spare.key"],
@@ -203,7 +197,7 @@ fn the_offline_delete_leaves_no_store() {
     )
     .unwrap();
     let mut table = rows();
-    table.extend([DERIVED, SPARE]);
+    table.extend([SPARE]);
     let hands = Recorded {
         dir: dir.clone(),
         log: Mutex::new(Vec::new()),

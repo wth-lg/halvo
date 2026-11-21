@@ -31,7 +31,7 @@ fn a_card_of_more_than_one_effect_of_one_class_takes_the_many_entries_with_the_c
     assert_eq!(card.title(), "Pay this?");
     assert_eq!(
         (card.reject(), card.allow()),
-        ("Don't pay these 2", "Pay all 2")
+        ("Don't pay any of these 2", "Pay all 2")
     );
 }
 

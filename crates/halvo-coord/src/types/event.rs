@@ -125,6 +125,13 @@ pub enum What {
         /// `slot`: the day of the slot, or null.
         slot: Option<u32>,
     },
+    /// `run_not_stopped`: a run of the list of the runs that the app's quit did not stop
+    /// (`Coordinator::not_stopped`), written at the quit in the ledger of the run's agent, so
+    /// that the next life reads it (ruling RD-150).
+    RunNotStopped {
+        /// `run`.
+        run: RunId,
+    },
 }
 
 /// The kind and the answer of an `item_answered` row: each kind with one of its own choices of

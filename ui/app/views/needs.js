@@ -1,28 +1,4 @@
 (function () {
-  const CSS = [
-    '.hn-items{list-style:none;margin:0;padding:0;overflow-wrap:anywhere}',
-    '.hn-item{border-bottom-width:1px;border-bottom-style:solid;border-bottom-color:#6b6b6b;padding-top:8px;padding-bottom:8px}',
-    '.hn-title{font-size:1.1rem;margin-top:8px;margin-bottom:8px}',
-    '.hn-text{margin-top:4px;margin-bottom:8px}',
-    '.hn-line{font-weight:bold;margin-top:8px;margin-bottom:4px}',
-    '.hn-fields{margin-top:4px;margin-bottom:8px}',
-    '.hn-label{font-weight:bold}',
-    '.hn-value{margin-left:0;white-space:pre-wrap;overflow-wrap:anywhere}',
-    '.hn-from{margin-left:0;margin-bottom:8px;font-style:italic}',
-    '.hn-param{border-width:1px;border-style:solid;border-color:#6b6b6b;margin-top:8px;margin-bottom:8px;padding:8px;min-width:0}',
-    '.hn-choice{display:flex;align-items:center;gap:8px;margin-top:4px;margin-bottom:4px;overflow-wrap:anywhere}',
-    '.hn-radio{-webkit-appearance:none;appearance:none;flex:none;width:24px;height:24px;margin:0;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:50%;background-color:#ffffff}',
-    '.hn-radio:checked{border-width:8px}',
-    '.hn-typed{box-sizing:border-box;width:100%;max-width:24rem;min-height:44px;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:4px;padding:4px;font:inherit;color:#1a1a1a;background-color:#ffffff}',
-    '.hn-controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}',
-    '.hn-button{-webkit-appearance:none;appearance:none;min-width:44px;min-height:44px;padding:8px;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:4px;background-color:#f2f2f2;color:#1a1a1a;font:inherit;overflow-wrap:anywhere}',
-    '.hn-button:focus,.hn-radio:focus,.hn-typed:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
-    '.hn-dialog{border-width:2px;border-style:solid;border-color:#1a1a1a;padding:16px;max-width:28rem;background-color:#ffffff;color:#1a1a1a}',
-    '.hn-dialog:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
-    '.hn-dialog::backdrop{background-color:rgba(0,0,0,0.4)}',
-    '.hn-say{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border-width:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}'
-  ];
-
   let root = null;
   let region = null;
   let list = null;
@@ -33,12 +9,8 @@
   let cards = new Map();
   const answered = new Set();
   let serial = 0;
-  let tick = 0;
-  let press = null;
-  let pointer = null;
   let pointedAt = null;
-  let raising = false;
-  const keys = new Map();
+  let say = null;
   let holdBase = null;
   const heldGone = new Map();
   const answeredGone = new Set();
@@ -319,7 +291,6 @@
   }
 
   function input(event) {
-    tick += 1;
     const type = event.type;
     if (type === 'pointerdown') {
       pointerRead = allLines().filter(unsettled);
@@ -331,24 +302,9 @@
     }
     if (type === 'keydown') {
       if (event.repeat && event.key === 'Enter' && event.target.tagName === 'BUTTON' && list.contains(event.target)) event.preventDefault();
-      if (!event.repeat) keys.set(event.key, { at: tick, target: event.target });
-      press = { target: event.target, repeat: event.repeat, at: event.repeat ? null : tick, from: event.target, raise: false, end: false };
-    } else if (type === 'keyup') {
-      const down = keys.get(event.key) || null;
-      keys.delete(event.key);
-      press = { target: event.target, repeat: false, at: down ? down.at : null, from: down ? down.target : null, raise: false, end: true };
     } else if (type === 'pointerdown') {
       pointedAt = controlName(event.target);
-      pointer = { at: tick, target: event.target, raise: raising };
-      raising = false;
-      press = { target: event.target, repeat: false, at: tick, from: event.target, raise: pointer.raise, end: false };
-    } else {
-      press = { target: event.target, repeat: false, at: pointer ? pointer.at : null, from: pointer ? pointer.target : null, raise: pointer ? pointer.raise : false, end: true };
     }
-  }
-
-  function raised(event) {
-    if (event.target === window) raising = true;
   }
 
   function controlName(node) {
@@ -362,17 +318,8 @@
     return began === b.getAttribute('data-act') + ':' + b.getAttribute('data-param');
   }
 
-  function freshFor(card, event) {
-    const p = press;
-    press = null;
-    if (!p) return true;
-    if (p.target !== event.currentTarget) return !(p.end && (p.at === null || p.at <= card.opened));
-    if (p.repeat || p.raise || p.at === null || p.at <= card.opened) return false;
-    return Boolean(p.from && card.dialog.contains(p.from));
-  }
-
   function build(item, key) {
-    const card = { id: item.item, key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, answers: [], gone: false, busy: false, opened: 0 };
+    const card = { id: item.item, key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
@@ -393,10 +340,7 @@
       b.setAttribute('data-act', c.choice);
       b.setAttribute('data-param', item.item);
       b.addEventListener('click', function (event) {
-        if (card.dialog && (event.detail > 1 || !freshFor(card, event))) {
-          card.dialog.focus();
-          return;
-        }
+        if (card.handle && !Halvo.confirm.takes(card.handle, event)) return;
         if (event.detail > 1) return;
         if (!card.dialog && event.detail > 0 && !pointedOn(b)) return;
         answer(item, c, card, event);
@@ -405,19 +349,10 @@
     });
     box.appendChild(controls);
     if (page) {
-      box.setAttribute('role', 'alertdialog');
-      box.setAttribute('tabindex', '-1');
-      box.autofocus = true;
-      box.setAttribute('aria-modal', 'true');
-      if (item.title) box.setAttribute('aria-labelledby', box.firstChild.id);
-      box.setAttribute('aria-describedby', about.id);
-      box.addEventListener('cancel', function (event) {
-        event.preventDefault();
-      });
-      box.addEventListener('close', function () {
-        if (!card.gone && box.isConnected) modal(card);
-        else release();
-      });
+      card.handle = Halvo.confirm.dress(box, item.title ? box.firstChild.id : null, about.id, release);
+      card.handle.again = function () {
+        modal(card);
+      };
       card.dialog = box;
       card.li.appendChild(box);
     }
@@ -425,27 +360,23 @@
   }
 
   function modal(card) {
-    card.opened = tick;
     opened.add(card.id);
     empty();
-    card.dialog.showModal();
-    card.dialog.scrollTop = 0;
-    card.dialog.focus();
+    Halvo.confirm.show(card.handle);
   }
 
   function drop(key) {
     const card = cards.get(key);
     if (!card) return;
     card.gone = true;
-    if (card.dialog && card.dialog.open) {
-      closing = true;
-      card.dialog.close();
-    }
+    if (card.dialog && card.dialog.open) closing = true;
+    if (card.handle) Halvo.confirm.drop(card.handle);
     card.li.remove();
     cards.delete(key);
   }
 
   function openNext() {
+    if (Halvo.confirm.busy()) return;
     let waiting = null;
     for (const card of cards.values()) {
       if (card.dialog && card.dialog.open) return;
@@ -512,15 +443,13 @@
   }
 
   function empty() {
-    if (!region) return;
-    while (region.firstChild) region.removeChild(region.firstChild);
+    if (!say) return;
+    say.empty();
   }
 
   function addition(sentences) {
-    empty();
-    sentences.forEach(function (text) {
-      if (text) region.appendChild(el('p', null, text));
-    });
+    if (!say) return;
+    say.add(sentences);
   }
 
   function pageWaiting() {
@@ -625,7 +554,7 @@
   function wait(mine) {
     call('agents_next', { after: seq }).then(function (reply) {
       if (mine !== turn || !reply || reply.closed === 'yes' || reply.error) return;
-      if (reply.seq > seq) take(reply);
+      if (typeof reply.seq === 'number' && reply.seq !== seq) take(reply);
       wait(mine);
     });
   }
@@ -636,24 +565,22 @@
     heading: "What needs you",
     mount: function (element) {
       root = element;
-      const style = document.createElement('style');
-      style.appendChild(document.createTextNode(CSS.join('')));
-      element.appendChild(style);
       list = el('ul', 'hn-items', '');
       element.appendChild(list);
       ['keydown', 'keyup', 'pointerdown', 'pointerup', 'pointercancel'].forEach(function (type) {
         window.addEventListener(type, input, true);
       });
-      window.addEventListener('focus', raised);
+      Halvo.confirm.whenFree(function () {
+        openNext();
+        release();
+      });
     },
     show: function () {
       if (shown) return;
       shown = true;
       if (!region) {
-        region = el('div', 'hn-say', '');
-        region.setAttribute('role', 'status');
-        region.setAttribute('aria-live', 'polite');
-        region.setAttribute('aria-atomic', 'true');
+        say = Halvo.confirm.region('hn-say');
+        region = say.element;
         root.insertBefore(region, list);
       }
       turn += 1;
