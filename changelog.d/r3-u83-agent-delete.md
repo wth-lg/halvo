@@ -1,0 +1,2 @@
+- Changed: `halvo-capture --delete-all` removes `agents/` under the data directory: the registry holds the row `agents` (owner pid file `agents/owner.pid`), and `agents` is no longer a reserved entry name.
+- Added: `agent-gate privacy --data-dir DIR` prints `agent_deleted` and `agent_scrub` from a delete of a workflow on the derived store, and `agent_delete_all` as `not-run`.

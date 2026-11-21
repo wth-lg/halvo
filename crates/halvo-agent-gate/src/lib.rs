@@ -8,6 +8,10 @@
 //! W3 of plan.md); the crate builds with the feature `memory-store` alone until then, and the count line of
 //! `configs` names the store with `store=memory`.
 //!
+//! `privacy` (A14.4) runs on the derived store instead: it opens a new store with a key that the process makes, in a
+//! data directory that its caller names, under the owner's step list (`halvo_owner::steps::list`), whose handlers
+//! store the rows of the family `agent`, and deletes a workflow by the store's own decision `delete`.
+//!
 //! The check scripts/r3/ci.d/20-r3-policy.sh starts this crate's binary and every test binary of this crate,
 //! halvo-policy and halvo-agent-store itself, from the paths in cargo's messages of a build that compiles nothing. It
 //! holds two lists: 19 tests, each run by its name alone in its own target's binary, and the 25 test targets of the
@@ -24,7 +28,11 @@ compile_error!(
 
 pub mod configs;
 mod host;
+pub mod privacy;
 pub mod seed;
+
+#[cfg(test)]
+mod tests;
 
 pub use host::{GateHost, Sent};
 

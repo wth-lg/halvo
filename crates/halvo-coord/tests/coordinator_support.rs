@@ -5,7 +5,9 @@ mod run_support;
 
 use halvo_coord::mem::policy::Policy;
 use halvo_coord::mem::{Call, Config, Ports};
-use halvo_coord::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
+use halvo_coord::ports::{
+    Analysis, Clock, Owner, Page, PortError, Reading, Reaped, Rng, Runs, Senders, Tray,
+};
 use halvo_coord::types::{
     Agent, AgentId, AgentState, Answer, BindResult, Body, Class, Decision, Event, HandbackResult,
     Limits, Reply, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
@@ -378,6 +380,12 @@ impl halvo_coord::guard::Policy for Both {
 
     fn gives_run(&self, config: &Config, class: Class) -> Result<bool, PortError> {
         self.policy.gives_run(config, class)
+    }
+}
+
+impl Senders for Both {
+    fn read(&self, text: &str) -> Result<Reading, PortError> {
+        self.ports.read(text)
     }
 }
 

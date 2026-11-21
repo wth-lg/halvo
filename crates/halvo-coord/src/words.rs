@@ -45,6 +45,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.needs_you.setup",
         "It needs a few answers from you before it can start.",
     ),
+    (
+        "line.needs_you.setup_owed",
+        "It needs a few answers from you, but Halvo could not show the questions yet. Halvo tries again soon.",
+    ),
     ("line.needs_you.ready", "It is ready to start when you are."),
     (
         "line.needs_you.show",
@@ -75,6 +79,11 @@ pub const KEYS: &[(&str, &str)] = &[
         "After Halvo started, {count} of this agent's records went unsaved. Its steps may have happened; check outside Halvo before repeating.",
     ),
     (
+        "card.history_busy",
+        "Halvo could not show this agent's past tasks just now.",
+    ),
+    ("card.read_again", "Try again"),
+    (
         "line.problem.sign_in_refused",
         "The site did not let it sign in.",
     ),
@@ -101,10 +110,6 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.working.starting", "It is starting."),
     ("line.working.working", "It is doing its task now."),
     ("line.working.stopping", "It is stopping."),
-    (
-        "line.working.switch_not_saved",
-        "Halvo is stopping the task but could not switch this agent off. It may start again: press Switch off again.",
-    ),
     (
         "line.working.kill_stuck_mac",
         "Its task may still run. Right-click Halvo in the Dock, choose Quit. Halvo stops all tasks; that can take seconds.",
@@ -151,10 +156,6 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "line.all_set.stopped_early",
         "Last time, it stopped before the task was done, and it needs nothing from you now.",
-    ),
-    (
-        "line.all_set.switch_not_saved",
-        "Halvo stopped the task but could not switch this agent off. It may start again: press Switch off again.",
     ),
     ("line.run.completed", "It finished the task."),
     ("line.run.nothing_to_do", "It found nothing to do."),
@@ -649,6 +650,58 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "line.needs_you.asks_again",
         "You cancelled its start, so it asks you again before it starts.",
+    ),
+    (
+        "refused.stale",
+        "This question is no longer open, so Halvo did nothing with your choice.",
+    ),
+    (
+        "refused.presenter",
+        "This question cannot be answered here, so Halvo did nothing.",
+    ),
+    (
+        "refused.early",
+        "Halvo was not ready for that yet, so it did nothing. Try again.",
+    ),
+    (
+        "refused.hold",
+        "Halvo is holding it back for now, so it did not start.",
+    ),
+    (
+        "refused.state",
+        "That does not fit what it is doing now, so nothing changed.",
+    ),
+    (
+        "refused.budget",
+        "It has started as often as it may today, so it did not start again.",
+    ),
+    (
+        "refused.queue_full",
+        "Too many agents are waiting their turn, so it did not start. Try again later.",
+    ),
+    (
+        "refused.busy",
+        "Halvo is busy for a moment, so nothing happened. Try again.",
+    ),
+    (
+        "refused.no_service",
+        "Halvo cannot do that right now, so nothing happened. Try again later.",
+    ),
+    (
+        "refused.unknown_item",
+        "Halvo no longer has this question, so it did nothing with your choice.",
+    ),
+    (
+        "refused.unknown_agent",
+        "This agent is no longer in your list, so nothing happened.",
+    ),
+    (
+        "refused.malformed",
+        "Something went wrong inside Halvo, so nothing happened. Try again.",
+    ),
+    (
+        "refused.switch_not_saved",
+        "Halvo is stopping the task but could not switch this agent off. It may start again: press Switch off again.",
     ),
 ];
 

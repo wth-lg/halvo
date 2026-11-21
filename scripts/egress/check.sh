@@ -274,7 +274,7 @@ wfp_launch() {
 wfp_collect() {
   win_dir=$(cygpath -w "$1") || refuse output "target/egress/$n"
   allowed_pairs=$(printf '%s\n' "$entries" | awk 'NF == 5 { printf "%s%s %s", sep, $4, $5; sep = ";" }') || allowed_pairs=
-  out=$(wfp_ps -Action collect -Dir "$win_dir" -Token "$2" -CheckPid "$checker" -Deny "$3" -Root "${root_pid:-0}" -Start "$wfp_start" -Rules "$wfp_rules" -Listed "${allowed_pairs:-none}" 2>&1) || {
+  out=$(wfp_ps -Action collect -Dir "$win_dir" -Token "$2" -CheckPid "$checker" -Deny "$3" -Root "${root_pid:-0}" -Start "$wfp_start" -Rules "$wfp_rules" -Listed "${allowed_pairs:-none}" -SystemIcmp "${system_icmp:-0}" 2>&1) || {
     wfp_teardown "$1" "$2"
     refuse mode "${out:-the wfp audit could not be read}"
   }
@@ -590,6 +590,7 @@ first_form() {
   fi
 }
 
+system_icmp=0
 if [ "$self_test" -eq 0 ]; then
   build_probe
   first_form "$list" 1 "$@"
@@ -706,6 +707,8 @@ lost_report() {
 lost_total=0
 for name in $names; do
   lost_runs=0
+  system_icmp=0
+  [ "$name" != icmp ] || system_icmp=1
   while :; do
     first_form "$empty" "$deny" sh scripts/egress/probe.sh "$name" </dev/null >/dev/null
     result=$(classify "$name" "$name")
@@ -720,6 +723,7 @@ for name in $names; do
   lines="$lines
 probe name=$name result=$result"
 done
+system_icmp=0
 first_form "$empty" "$deny" sh scripts/egress/probe.sh none </dev/null >/dev/null
 quiet=$(empty_ok)
 lines="$lines

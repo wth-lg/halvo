@@ -450,10 +450,19 @@ pub const DERIVED: Entry = Entry {
     key_files: &["derived/master.key"],
     owner_pid_file: Some("derived/owner.pid"),
 };
+/// The folder of the agent-setup run: its runners' profiles, locks and marks. It has no key file. Its owner pid file
+/// is `agents/owner.pid`, which no process of this build writes yet, so a delete of everything ends no runner before
+/// it removes the folder.
+pub const AGENTS: Entry = Entry {
+    name: "agents",
+    kind: EntryKind::Content,
+    key_files: &[],
+    owner_pid_file: Some("agents/owner.pid"),
+};
 
-pub const ENTRIES: [Entry; 5] = [STORE, ROOTS, RUN, LOGS, DERIVED];
+pub const ENTRIES: [Entry; 6] = [STORE, ROOTS, RUN, LOGS, DERIVED, AGENTS];
 
-pub const RESERVED_ENTRY_NAMES: [&str; 1] = ["agents"];
+pub const RESERVED_ENTRY_NAMES: [&str; 0] = [];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemovedBy {
@@ -2448,10 +2457,10 @@ mod tests {
     }
 
     #[test]
-    fn the_registry_holds_the_four_r1_entries_and_the_derived_store_in_table_order() {
+    fn the_registry_holds_the_four_r1_entries_the_derived_store_and_agents_in_table_order() {
         assert_eq!(
             ENTRIES.map(|entry| entry.name),
-            ["store", "roots", "run", "logs", "derived"]
+            ["store", "roots", "run", "logs", "derived", "agents"]
         );
         assert_eq!(
             ENTRIES.map(|entry| entry.kind),
@@ -2460,17 +2469,20 @@ mod tests {
                 EntryKind::Custody,
                 EntryKind::Runtime,
                 EntryKind::Log,
+                EntryKind::Content,
                 EntryKind::Content
             ]
         );
         assert_eq!(STORE.key_files, ["store/store.key"]);
         assert_eq!(DERIVED.key_files, ["derived/master.key"]);
         assert!(ENTRIES[1..4].iter().all(|entry| entry.key_files.is_empty()));
+        assert!(AGENTS.key_files.is_empty());
         assert_eq!(DERIVED.owner_pid_file, Some("derived/owner.pid"));
+        assert_eq!(AGENTS.owner_pid_file, Some("agents/owner.pid"));
         assert!(ENTRIES[..4]
             .iter()
             .all(|entry| entry.owner_pid_file.is_none()));
-        assert_eq!(RESERVED_ENTRY_NAMES, ["agents"]);
+        assert!(RESERVED_ENTRY_NAMES.is_empty());
         assert!(KEYCHAIN_ITEMS.is_empty());
     }
 

@@ -146,12 +146,7 @@ pub const LIST: [Command; 9] = [
         name: "agents_card",
         args: &[AGENT],
         replies: &["state-card"],
-        errors: &[
-            Cause::UnknownAgent,
-            Cause::NoService,
-            Cause::Busy,
-            Cause::Malformed,
-        ],
+        errors: &[Cause::UnknownAgent, Cause::NoService, Cause::Malformed],
     },
     Command {
         name: "agents_answer",

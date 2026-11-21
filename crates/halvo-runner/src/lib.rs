@@ -5,6 +5,7 @@
 
 mod args;
 mod clock;
+mod connect;
 mod effect;
 mod file;
 mod link;

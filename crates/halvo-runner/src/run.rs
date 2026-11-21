@@ -20,6 +20,7 @@ use halvo_sheet::Value;
 
 use crate::args::Args;
 use crate::clock::{now, random16};
+use crate::connect::Lists;
 use crate::effect::Tracked;
 use crate::file::{ReadUnder, Taken};
 use crate::link::{Broken, Link};
@@ -99,6 +100,8 @@ pub(crate) struct Runner {
     pub(crate) read_under: Option<ReadUnder>,
     /// The newest row of each checkpoint of the run that the store took, by the workbook's path as the rows name it.
     pub(crate) checkpoints: HashMap<String, Taken>,
+    /// What the run's list and draft steps gave, for its record.
+    pub(crate) lists: Lists,
 }
 
 /// Carries out one run on the link and returns the exit status: 0 once `done` is written after a stored
@@ -131,6 +134,7 @@ impl Runner {
             kept: HashMap::new(),
             read_under: None,
             checkpoints: HashMap::new(),
+            lists: Lists::default(),
         }
     }
 
@@ -183,7 +187,7 @@ impl Runner {
                 self.file_read(step, target, loaded)
             }
             Some(Target::File(target)) => self.file_write(step, target),
-            Some(Target::Api(target)) => self.api_call(target, loaded),
+            Some(Target::Api(target)) => self.api_call(step, target, loaded),
             _ => Err(Failure::Step(Cause::StepFailed)),
         }
     }
@@ -397,7 +401,7 @@ impl Runner {
                 Err(Stop::End(..)) | Ok(()) => {}
             }
         }
-        let record = AgentRun {
+        let mut record = AgentRun {
             v: V1,
             workflow: self.args.workflow.clone(),
             agent: self.args.agent.clone(),
@@ -430,6 +434,7 @@ impl Runner {
             held_earlier: None,
             earlier_page: None,
         };
+        self.lists.fill(&mut record);
         let call = RunnerCall::Finish(Finish {
             agent: self.args.agent.clone(),
             run: self.args.run.clone(),
