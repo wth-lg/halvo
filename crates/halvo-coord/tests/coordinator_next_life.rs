@@ -198,12 +198,16 @@ fn u46b_an_agent_with_no_clean_run_shows_no_ready_card_while_its_run_may_still_r
         next_life(&c, &[(runs[0].clone(), Reaped::Alive)]),
         Limits::PRODUCT,
     );
-    let before = readies(&life);
     life.tick();
-    assert_eq!(
-        readies(&life),
-        before,
-        "no ready is raised while the run that reap answered alive has no record"
+    assert!(
+        life.ports().ports.events.borrow().iter().any(|e| matches!(
+            e.what,
+            What::ItemRaised {
+                raised: halvo_coord::types::Raised::Ready,
+                ..
+            }
+        )),
+        "the tick raised ready for an agent with no clean run"
     );
     let s = life.snapshot();
     let first = s.rows.iter().find(|r| r.agent == agent(0)).unwrap();
@@ -1260,7 +1264,9 @@ fn reads_as(c: &Coordinator<Both>, form: &str, end: Outcome, want: &Shown, at_re
 /// where reap answered it alive, not in the life after, not in a first next life whose reap
 /// answered it gone, and not where its own life ended it with no outcome; a record `failed` reads
 /// as where the run failed in the ordinary way. A scheduled agent that needs no person starts
-/// nothing more in the slot that the finished run served, and a run in the next slot.
+/// nothing more in the slot that the finished run served; in the life where reap answered its
+/// run alive the next slot waits for a start of the person (a named limit), and the life after
+/// starts it.
 #[test]
 fn u46b_a_first_task_that_the_record_names_finished_is_never_offered_as_ready_to_start() {
     for cleared in [true, false] {
@@ -1363,9 +1369,29 @@ fn u46b_a_first_task_that_the_record_names_finished_is_never_offered_as_ready_to
         "the slot that the finished run served starts nothing more"
     );
     assert_eq!(
-        (next_slot(&life), next_slot(&reference)),
-        (1, 1),
-        "the next slot starts one run of the scheduler, as in the ordinary world"
+        next_slot(&reference),
+        1,
+        "the ordinary world starts one run of the scheduler in the next slot"
+    );
+    assert_eq!(
+        next_slot(&life),
+        0,
+        "a named limit: in the life where reap answered alive, the ready item that the tick \
+         raised while the run had no record stands hidden, and the scheduler starts nothing \
+         until a start of the person"
+    );
+    let later = Coordinator::new(carried(&life, &[]), Limits::PRODUCT);
+    later.ports().ports.set_clock(T0 + 2 * DAY_MS, DAY + 2);
+    later.tick();
+    later
+        .ports()
+        .ports
+        .set_clock(T0 + 2 * DAY_MS + 1_000, DAY + 2);
+    later.tick();
+    assert_eq!(
+        coord::started(&later).len(),
+        1,
+        "the life after starts the run of the scheduler in that slot"
     );
 }
 
@@ -1451,6 +1477,82 @@ fn u46b_a_run_that_its_own_life_ended_with_no_outcome_reads_the_end_that_the_rec
             c.card(&agent(0)).expect("the card").runs[0].text,
             text(card),
             "the record {end:?}: the card"
+        );
+    }
+}
+
+/// The coordinator's word of 2026-11-21T01:59:47Z on R8: the one `ready` that the tick raises
+/// while the run that reap answered alive has no record stays, as Schedule.tla has it; once the
+/// record names that first task completed, its item is not shown and is counted and reached
+/// nowhere a person meets it: no number of the tray or of the items counts it, no published
+/// snapshot or card carries its id, which the page needs to reach its Start, and no rule of the
+/// slots starts anything from it.
+#[test]
+fn u46b_the_hidden_ready_item_of_a_finished_first_task_is_counted_reached_and_started_nowhere() {
+    for (a, kind) in [
+        (MANUAL, "manual"),
+        (
+            A {
+                person: false,
+                slotted: true,
+            },
+            "scheduled, no person",
+        ),
+    ] {
+        let (reference, _, _) = ordinary(true, a, Outcome::Completed);
+        let (c, runs) = outlived_quit(no_clean_run(true, a));
+        let life = Coordinator::new(
+            carried(&c, &[(runs[0].clone(), Reaped::Alive)]),
+            Limits::PRODUCT,
+        );
+        let before = life.ports().ports.events.borrow().len();
+        life.tick();
+        let hidden = life.ports().ports.events.borrow()[before..]
+            .iter()
+            .find_map(|e| match &e.what {
+                What::ItemRaised {
+                    item,
+                    raised: halvo_coord::types::Raised::Ready,
+                } if e.agent == agent(0) => Some(item.clone()),
+                _ => None,
+            })
+            .expect("the one raise that Schedule.tla holds");
+        store_ends(&life, 0, &record(&runs[0], Outcome::Completed));
+        for k in 1..=3 {
+            tick_at(&life, k);
+        }
+
+        assert_eq!(
+            (attention(&life), shown(&life).3.len()),
+            (attention(&reference), 0),
+            "{kind}: the number of the tray and the items count no hidden item"
+        );
+        let id = serde_json::to_string(&hidden).unwrap();
+        let snapshot = serde_json::to_string(&life.snapshot()).unwrap();
+        let card = serde_json::to_string(&life.card(&agent(0)).expect("the card")).unwrap();
+        assert!(
+            !snapshot.contains(&id) && !card.contains(&id),
+            "{kind}: no published snapshot or card carries the id of the hidden item"
+        );
+
+        let starts = coord::started(&life).len();
+        life.ports().ports.set_clock(T0 + 2 * DAY_MS, DAY + 2);
+        life.tick();
+        life.ports()
+            .ports
+            .set_clock(T0 + 2 * DAY_MS + 1_000, DAY + 2);
+        life.tick();
+        let answered = life
+            .ports()
+            .ports
+            .events
+            .borrow()
+            .iter()
+            .any(|e| matches!(&e.what, What::ItemAnswered { item, .. } if *item == hidden));
+        assert_eq!(
+            (coord::started(&life).len() - starts, answered),
+            (0, false),
+            "{kind}: no rule of the slots starts anything from the hidden item"
         );
     }
 }
