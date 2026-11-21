@@ -394,6 +394,19 @@ impl Drop for ForegroundWriter {
 }
 
 #[cfg(debug_assertions)]
+impl ForegroundWriter {
+    /// A writer on the same state and read, for the next foreground source of
+    /// a service run once the source that held the last one has stopped; its
+    /// drop clears the value, as the drop of every writer does.
+    pub(crate) fn share(&self) -> ForegroundWriter {
+        ForegroundWriter {
+            state: self.state.clone(),
+            read: self.read.clone(),
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
 impl ForegroundReader {
     /// A reader with no writer, which reads nothing in front: for tests in a
     /// process of their own, which cannot claim the main run loop.

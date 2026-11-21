@@ -19,7 +19,9 @@ use crate::daemon::sources::tests::Factory;
 use crate::daemon::sources::{starting, RunKind};
 use crate::daemon::state::tests::TestWrite;
 use crate::daemon::state::{Desired, StateDir, StateFile};
-use crate::daemon::supervisor::{Ending, OwnerLink, ReportLog, Supervisor, RESTART_MAX};
+use crate::daemon::supervisor::{
+    Ending, OwnerLink, ReportLog, Supervisor, SystemSources, RESTART_MAX,
+};
 use crate::source::{CaptureError, SourceContext};
 
 struct TestLoop {
@@ -65,20 +67,20 @@ impl OwnerLink for Link {
     }
 }
 
-struct Fixture {
-    supervisor: Supervisor<Factory, TestLoop>,
+struct Fixture<F: SystemSources = Factory> {
+    supervisor: Supervisor<F, TestLoop>,
     now: Rc<Cell<Duration>>,
     link: Link,
     wanted: Vec<SourceName>,
     dir: tempfile::TempDir,
 }
 
-impl Fixture {
-    fn new(desired: Desired, factory: Factory) -> Fixture {
+impl<F: SystemSources> Fixture<F> {
+    fn new(desired: Desired, factory: F) -> Fixture<F> {
         Fixture::ending_by(desired, factory, None)
     }
 
-    fn ending_by(desired: Desired, factory: Factory, ending: Option<Arc<dyn EndCall>>) -> Fixture {
+    fn ending_by(desired: Desired, factory: F, ending: Option<Arc<dyn EndCall>>) -> Fixture<F> {
         let dir = tempfile::tempdir().unwrap();
         let mut state = StateFile::open(
             StateDir::open(dir.path()).unwrap(),
@@ -135,22 +137,6 @@ impl Fixture {
             .set_lease(Lease::renewed_at(now), Some(&self.link));
     }
 
-    fn begins(&self, name: SourceName) -> usize {
-        self.supervisor
-            .factory()
-            .calls
-            .of(&format!("begin {}", name.as_str()))
-            .len()
-    }
-
-    fn stops(&self, name: SourceName) -> usize {
-        self.supervisor
-            .factory()
-            .calls
-            .of(&format!("stop {}", name.as_str()))
-            .len()
-    }
-
     fn emit(&self, count: usize) {
         for _ in 0..count {
             self.link.harness.borrow().emit(foreground_now());
@@ -166,6 +152,24 @@ impl Fixture {
 
     fn state_bytes(&self) -> Vec<u8> {
         std::fs::read(self.dir.path().join(STATE_FILE)).unwrap()
+    }
+}
+
+impl Fixture {
+    fn begins(&self, name: SourceName) -> usize {
+        self.supervisor
+            .factory()
+            .calls
+            .of(&format!("begin {}", name.as_str()))
+            .len()
+    }
+
+    fn stops(&self, name: SourceName) -> usize {
+        self.supervisor
+            .factory()
+            .calls
+            .of(&format!("stop {}", name.as_str()))
+            .len()
     }
 }
 
@@ -401,4 +405,47 @@ fn a_start_whose_owner_answers_after_the_lease_ended_begins_no_source() {
     for name in f.wanted.clone() {
         assert_eq!(f.begins(name), 0, "{name:?} began after the lease ended");
     }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+#[test]
+fn after_a_lapse_and_a_renewal_every_source_of_the_run_condition_runs_again_the_foreground_source_too(
+) {
+    use crate::daemon::sources::ServiceSources;
+    use crate::source::{SourceState, StopCause};
+    let (writer, reader) = crate::macos::foreground::foreground_state_for_test();
+    let factory = ServiceSources::new(
+        writer,
+        reader,
+        crate::macos::run_loop::RunLoopTurns::for_test(std::time::Instant::now()),
+    );
+    let mut f = Fixture::new(Desired::Running, factory);
+    let ctx = {
+        let harness = f.link.harness.borrow();
+        SourceContext::with_floor(harness.sink.clone(), open_floor())
+    };
+    f.supervisor
+        .serve_sources(ctx, vec![SourceName::Foreground]);
+    f.set_slot(open());
+    let front = |f: &Fixture<ServiceSources>| {
+        f.supervisor
+            .board()
+            .sources
+            .iter()
+            .find(|entry| entry.name == SourceName::Foreground)
+            .map(|entry| entry.state.clone())
+    };
+    f.claim();
+    assert_eq!(front(&f), Some(SourceState::Running), "the first start");
+    f.later(Duration::from_millis(INDICATOR_LEASE_MS) + TICK);
+    assert_eq!(f.supervisor.board().capture, Capture::NoIndicator);
+    assert_eq!(
+        front(&f),
+        Some(SourceState::Stopped(StopCause::Request)),
+        "the lapse"
+    );
+    f.claim();
+    let after = front(&f);
+    f.supervisor.stop_every_source();
+    assert_eq!(after, Some(SourceState::Running), "after the renewal");
 }

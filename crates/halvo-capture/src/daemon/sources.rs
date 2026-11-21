@@ -143,11 +143,12 @@ pub trait SourceFactory {
 /// The factory of a service run on macOS: the foreground, screen and input
 /// sources of macos-4 on the process's one foreground writer, the input
 /// source with no hold planned (ruling MA-9 part (3)) and the product's
-/// bound. The writer goes to the first foreground source made, so a second
-/// one reads off.
+/// bound. The factory keeps the writer and gives each foreground source it
+/// makes a share of it, so that a source started after a lapse and a renewal
+/// writes the app in front again.
 #[cfg(all(target_os = "macos", debug_assertions))]
 pub struct ServiceSources {
-    foreground_writer: Option<crate::macos::foreground::ForegroundWriter>,
+    foreground_writer: crate::macos::foreground::ForegroundWriter,
     foreground_reader: crate::macos::foreground::ForegroundReader,
     turns: crate::macos::run_loop::RunLoopTurns,
     input_counters: crate::macos::input::InputCounters,
@@ -161,7 +162,7 @@ impl ServiceSources {
         turns: crate::macos::run_loop::RunLoopTurns,
     ) -> ServiceSources {
         ServiceSources {
-            foreground_writer: Some(writer),
+            foreground_writer: writer,
             foreground_reader: reader,
             turns,
             input_counters: crate::macos::input::InputCounters::new(),
@@ -181,7 +182,7 @@ impl SourceFactory for ServiceSources {
         match name {
             SourceName::Foreground => Some(Box::new(foreground::ForegroundSource::new(
                 foreground::FOREGROUND_POLL,
-                self.foreground_writer.take()?,
+                self.foreground_writer.share(),
                 self.turns.clone(),
             ))),
             SourceName::Screen => Some(Box::new(screen::ScreenSource::new(
