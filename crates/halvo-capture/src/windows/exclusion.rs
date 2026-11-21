@@ -208,9 +208,6 @@ impl Browser {
 /// The bare brand name that ends the window text of a normal Edge window.
 const EDGE_BRAND: &str = "Microsoft Edge";
 
-/// The bare brand name that ends the window text of a normal Firefox window.
-const FIREFOX_BRAND: &str = "Mozilla Firefox";
-
 /// Whether `c` counts as nothing in an Edge window text: a zero-width
 /// character or a mark of writing direction.
 fn is_invisible_mark(c: char) -> bool {
@@ -241,13 +238,16 @@ fn edge_text_is_normal(text: &str) -> bool {
     !matches!(last, Some(']' | '\u{FF3D}'))
 }
 
-/// The private-window input of a title of `browser` (C13.7 item 4). Edge and
-/// Firefox fail closed: a title is kept only where the window text ends with
-/// the bare brand name (for Edge, with no bracketed marker before it), and
-/// every other text, the private ending of any interface language among them,
-/// is told Private; never by a word alone. A Chrome window is private unless
-/// `query` tells it as not private, so a query with no answer drops its title;
-/// every other window is Unknown, which drops nothing.
+/// The private-window input of a title of `browser` (C13.7 item 4). Edge
+/// fails closed: a title is kept only where the window text ends with the
+/// bare brand name with no bracketed marker before it, and every other text,
+/// the private marker of any interface language among them, is told Private;
+/// never by a word alone. Every title of Firefox is told Private, so no
+/// Firefox title is kept: under some interface languages the title of a
+/// private window ends with the brand name as a normal one does, and no rule
+/// on the text tells the two apart. A Chrome window is private unless `query`
+/// tells it as not private, so a query with no answer drops its title; every
+/// other window is Unknown, which drops nothing.
 pub(crate) fn private_window(
     browser: Browser,
     title: &str,
@@ -255,7 +255,7 @@ pub(crate) fn private_window(
 ) -> PrivateWindow {
     let private = match browser {
         Browser::Edge => !edge_text_is_normal(title),
-        Browser::Firefox => !title.trim_end().ends_with(FIREFOX_BRAND),
+        Browser::Firefox => true,
         Browser::Chrome => query() != Some(false),
         Browser::Other => false,
     };
@@ -646,22 +646,9 @@ mod tests {
     }
 
     #[test]
-    fn a_firefox_or_edge_title_is_kept_only_with_the_bare_brand_ending() {
+    fn an_edge_title_is_kept_only_with_the_bare_brand_ending() {
         let told = |browser, title: &str| private_window(browser, title, || None);
         let cases = [
-            (
-                "firefox-german-private",
-                told(
-                    Browser::Firefox,
-                    "Seite \u{2014} Mozilla Firefox Privater Modus",
-                ),
-                PrivateWindow::Private,
-            ),
-            (
-                "firefox-plain",
-                told(Browser::Firefox, "Seite \u{2014} Mozilla Firefox"),
-                PrivateWindow::Unknown,
-            ),
             (
                 "edge-bracketed-marker",
                 told(
@@ -743,16 +730,6 @@ mod tests {
             (
                 Browser::Edge,
                 "[InPrivate] browsing tips - Microsoft\u{200B} Edge",
-                unknown,
-            ),
-            (
-                Browser::Firefox,
-                "Inbox \u{2014} Mozilla Firefox Private Browsing",
-                private,
-            ),
-            (
-                Browser::Firefox,
-                "Private Browsing - Mozilla Firefox",
                 unknown,
             ),
             (
