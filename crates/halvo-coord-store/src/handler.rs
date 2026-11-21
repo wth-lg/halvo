@@ -61,10 +61,12 @@ pub enum DeleteGuard {
 /// well, and there the guard waits although no `run_ended` can be stored; that hold ends when the `run_started` row
 /// leaves the read at its day of going.
 ///
-/// It rests on its caller for the read. The caller hands it the read under the workflow's key and no other, and this
-/// crate exports no keyed read for that. Over a read that is not keyed it answers as over the keyed read for every row
+/// It rests on its caller for the read. Over a read that is not keyed it answers as over the keyed read for every row
 /// that the typed reader takes, but a row that the typed reader refuses names no workflow that the guard can read, so
-/// there such a row of another workflow lets the delete go. It applies no bound of its own: a hold ends at the day of
+/// there such a row of another workflow lets the delete go while a run of the workflow of the delete is live: with a
+/// live run of workflow 1 and one row of workflow 2 that no reader takes, the keyed read answers `Wait` and the whole
+/// read `Go`. That is why the caller hands it the read under the workflow's key and no other; this crate exports no
+/// keyed read for that. It applies no bound of its own: a hold ends at the day of
 /// going of the `run_started` row only because the read hands out no older row. Its read cannot carry a fault: a read
 /// that faults before it visits a `run_started` row hands it fewer rows, and it then answers `Go`, so it rests on the
 /// store to refuse the delete where its read faults. No host calls it until halvo-derived offers the seam of the guard
