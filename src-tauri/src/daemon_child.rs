@@ -367,6 +367,14 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
 }
 
 impl<C: Watched, K: Clock> crate::quit::Children for Supervisor<C, K> {
+    fn lives(&self) -> bool {
+        self.shared.lock().child.is_some()
+    }
+
+    fn ended(&self) -> bool {
+        self.shared.lock().quitting
+    }
+
     fn end(&self) {
         if let Some(mut child) = self.close() {
             end_child(&mut child, self.clock.as_ref(), STOP_WAIT);

@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, PoisonError};
 
-use halvo_control::client::ClientError;
+use halvo_control::client::{ClientError, PeerRejection};
 use halvo_control::proto::{Capture, DaemonStatus};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Builder, Manager, Runtime};
@@ -10,10 +10,13 @@ use crate::commands::capture::AppState;
 use crate::commands::control::Control;
 use crate::launch::Exit;
 use crate::tray::{QuitNotice, QuitWith};
-use crate::view_state::{read_error, NoStatusService};
 
 /// The app's daemon child as a quit ends it.
 pub trait Children: Send + Sync {
+    /// Whether a child of the app lives now.
+    fn lives(&self) -> bool;
+    /// Whether the app has ended its child for a quit; no child starts after it.
+    fn ended(&self) -> bool;
     /// Closes the descriptor of the child of the moment, waits up to STOP_WAIT_MS for its end
     /// and kills it after that; no child starts after it.
     fn end(&self);
@@ -34,6 +37,11 @@ pub enum Quit {
 /// pause.
 pub const NOT_PAUSED: &str =
     "Halvo did not quit, because its capture service did not confirm the pause. Choose Quit again to try once more.";
+
+/// The sentence of a quit that did not exit, because the app's own child took no connection or
+/// gave no reply within the Pause's deadline: the app ended that child, and the next Quit exits.
+pub const NOT_ANSWERED: &str =
+    "Halvo's capture service did not answer the pause, so Halvo ended it. Choose Quit again to quit.";
 
 /// The id of the app menu's Quit.
 pub const APP_QUIT_ID: &str = "app-quit";
@@ -99,25 +107,65 @@ pub const APP_MENU: [(&str, &[Entry]); 3] = [
     ),
 ];
 
-/// Whether a quit may go on after the answer to its Pause: a status that reads paused or
-/// pausing, or no daemon that answers.
-pub fn may_exit(answer: &Result<DaemonStatus, ClientError>) -> bool {
+/// Where the answer to a quit's Pause stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reached {
+    /// A daemon confirmed: its status reads paused or pausing.
+    Paused,
+    /// No daemon was reached. None answers, or the system has no control channel. Or an error
+    /// stands before any daemon: the client's own check refused the run directory or the
+    /// socket entry, or an Io error came from the connect. Such an error carries a payload: the
+    /// app's unresolved endpoint, a cause at the data folder, or the mark of the connect on an
+    /// error while no daemon holds the directory. An error of the exchange carries none.
+    NoDaemon,
+    /// A daemon holds the directory and took no connection, gave no reply within the
+    /// deadline, or broke the connection before its reply.
+    NoReply,
+    /// A daemon answered otherwise, or the server is not the app's own: busy, an error reply,
+    /// a status that reads neither paused nor pausing, a reply that cannot be read, a server
+    /// of another user or another process than the app's child.
+    Answered,
+}
+
+/// Where `answer`, the answer to a quit's Pause, stands.
+pub fn reached(answer: &Result<DaemonStatus, ClientError>) -> Reached {
     match answer {
-        Ok(status) => matches!(status.fields().capture, Capture::Paused | Capture::Pausing),
-        Err(error) => matches!(
-            read_error(error).service,
-            NoStatusService::NotRunning | NoStatusService::Unsupported
-        ),
+        Ok(status) if matches!(status.fields().capture, Capture::Paused | Capture::Pausing) => {
+            Reached::Paused
+        }
+        Ok(_) => Reached::Answered,
+        Err(ClientError::Unreachable { .. } | ClientError::Unsupported) => Reached::NoDaemon,
+        Err(ClientError::Io(error)) if error.get_ref().is_some() => Reached::NoDaemon,
+        Err(ClientError::PeerRejected(
+            PeerRejection::SocketDirNotPrivate
+            | PeerRejection::SocketDirOfAnotherUser
+            | PeerRejection::NotASocket
+            | PeerRejection::SocketOfAnotherUser,
+        )) => Reached::NoDaemon,
+        Err(
+            ClientError::Io(_) | ClientError::Deadline { .. } | ClientError::DataDirInUse { .. },
+        ) => Reached::NoReply,
+        Err(_) => Reached::Answered,
     }
 }
 
-/// The steps of the app's one quit: Pause with the client's Pause deadline; on a status that
-/// reads paused or pausing, or with no daemon that answers, the end of the child and the exit
-/// with status 0; on any other answer a stay.
+/// The steps of the app's one quit (contracts.md C14 item 5): Pause with the client's Pause
+/// deadline. On paused or pausing, where no daemon is reached, and at a press after the app has
+/// ended its own child, it ends the child and exits with status 0. Where the app's own child
+/// took no connection or gave no reply, it ends that child and stays with `NOT_ANSWERED`, so
+/// that the next press exits. On any other answer it stays with `NOT_PAUSED`.
 pub fn quit_and_pause(control: &dyn Control, children: Option<&dyn Children>) -> Quit {
+    let ended_before = children.is_some_and(|children| children.ended());
     let answer = control.pause(control.places().make());
-    if !may_exit(&answer) {
-        return Quit::Stay(NOT_PAUSED);
+    let own_child = children.filter(|children| children.lives());
+    match (reached(&answer), own_child) {
+        _ if ended_before => {}
+        (Reached::Paused | Reached::NoDaemon, _) => {}
+        (Reached::NoReply, Some(child)) => {
+            child.end();
+            return Quit::Stay(NOT_ANSWERED);
+        }
+        (Reached::NoReply | Reached::Answered, _) => return Quit::Stay(NOT_PAUSED),
     }
     if let Some(children) = children {
         children.end();
@@ -233,20 +281,20 @@ mod tests {
     use halvo_control::testing::sample_status;
 
     use super::*;
-    use crate::commands::control::{ChildPid, Made, Places};
+    use crate::commands::control::{ChildPid, Gated, Made, Places, Unresolved};
     use crate::daemon_child::stand_in::{note, Record, StandInChild, StandInClock, StandInSpawner};
     use crate::daemon_child::Supervisor;
 
     type Row = (
         &'static str,
-        Result<DaemonStatus, ClientError>,
-        bool,
+        Vec<Result<DaemonStatus, ClientError>>,
+        Option<bool>,
         Vec<String>,
     );
 
     struct Pausing {
         places: Arc<Places>,
-        answer: Mutex<Option<Result<DaemonStatus, ClientError>>>,
+        answers: Mutex<Vec<Result<DaemonStatus, ClientError>>>,
         record: Record,
     }
 
@@ -265,11 +313,9 @@ mod tests {
 
         fn pause(&self, _: Made) -> Result<DaemonStatus, ClientError> {
             note(&self.record, "pause");
-            self.answer
-                .lock()
-                .unwrap()
-                .take()
-                .expect("one Pause in a quit")
+            let mut answers = self.answers.lock().unwrap();
+            assert!(!answers.is_empty(), "one Pause for each press");
+            answers.remove(0)
         }
 
         fn resume(&self, _: Made) -> Result<DaemonStatus, ClientError> {
@@ -310,78 +356,108 @@ mod tests {
     #[test]
     fn quit_pauses_closes_the_descriptor_waits_for_the_child_and_exits_zero() {
         let exit = |line: &[&str]| line.iter().map(|word| word.to_string()).collect::<Vec<_>>();
+        let unresolved = Gated::new(Unresolved);
         let rows: Vec<Row> = vec![
             (
                 "paused",
-                Ok(status(Capture::Paused, CaptureState::Paused)),
-                true,
+                vec![Ok(status(Capture::Paused, CaptureState::Paused))],
+                Some(true),
                 exit(&["pause", "closed descriptor", "exit 0"]),
             ),
             (
                 "pausing, and a child that does not end",
-                Ok(status(Capture::Pausing, CaptureState::Paused)),
-                false,
+                vec![Ok(status(Capture::Pausing, CaptureState::Paused))],
+                Some(false),
                 exit(&["pause", "closed descriptor", "kill after 20 s", "exit 0"]),
             ),
             (
                 "no daemon that answers",
-                Err(ClientError::Unreachable {
+                vec![Err(ClientError::Unreachable {
                     endpoint: String::new(),
-                }),
-                true,
+                })],
+                Some(true),
                 exit(&["pause", "closed descriptor", "exit 0"]),
             ),
             (
                 "busy",
-                Err(ClientError::Daemon(ErrorReply::new(
+                vec![Err(ClientError::Daemon(ErrorReply::new(
                     ErrorCode::Busy,
                     "busy",
-                ))),
-                true,
-                exit(&["pause", "stay"]),
+                )))],
+                Some(true),
+                exit(&["pause", "stay, not paused"]),
             ),
             (
-                "a passed deadline",
-                Err(ClientError::Deadline { seconds: 10 }),
-                true,
-                exit(&["pause", "stay"]),
+                "a passed deadline of a daemon that is not the app's child",
+                vec![Err(ClientError::Deadline { seconds: 10 })],
+                None,
+                exit(&["pause", "stay, not paused"]),
             ),
             (
                 "neither paused nor pausing",
-                Ok(sample_status(Platform::Macos)),
-                true,
-                exit(&["pause", "stay"]),
+                vec![Ok(sample_status(Platform::Macos))],
+                Some(true),
+                exit(&["pause", "stay, not paused"]),
+            ),
+            (
+                "an endpoint that the app cannot resolve: an error before any daemon",
+                vec![unresolved.pause(unresolved.places().make())],
+                Some(true),
+                exit(&["pause", "closed descriptor", "exit 0"]),
+            ),
+            (
+                "the app's child gives no reply in the deadline: ended, and the next press exits",
+                vec![
+                    Err(ClientError::Deadline { seconds: 10 }),
+                    Err(ClientError::Deadline { seconds: 10 }),
+                ],
+                Some(false),
+                exit(&[
+                    "pause",
+                    "closed descriptor",
+                    "kill after 20 s",
+                    "stay, not answered",
+                    "pause",
+                    "exit 0",
+                ]),
             ),
         ];
-        for (name, answer, ends_at_close, expected) in rows {
+        for (name, answers, child, expected) in rows {
             let record = Record::default();
             let clock = Arc::new(StandInClock::default());
             let pid = Arc::<ChildPid>::default();
             let spawner = StandInSpawner {
-                children: [StandInChild {
-                    ends_at_close,
-                    ..StandInChild::new(7, &clock, &record)
-                }]
-                .into(),
+                children: child
+                    .map(|ends_at_close| StandInChild {
+                        ends_at_close,
+                        ..StandInChild::new(7, &clock, &record)
+                    })
+                    .into_iter()
+                    .collect(),
                 record: Arc::clone(&record),
             };
             let supervisor = Supervisor::start(spawner, Arc::clone(&pid), Arc::clone(&clock));
             let until = Instant::now() + Duration::from_secs(10);
-            while pid.get() != Some(7) {
+            while child.is_some() && pid.get() != Some(7) {
                 assert!(Instant::now() < until, "{name}: the stand-in child starts");
                 std::thread::sleep(Duration::from_millis(5));
             }
             record.lock().unwrap().clear();
+            let presses = answers.len();
             let control = Pausing {
                 places: Arc::default(),
-                answer: Mutex::new(Some(answer)),
+                answers: Mutex::new(answers),
                 record: Arc::clone(&record),
             };
-            match quit_and_pause(&control, Some(&supervisor)) {
-                Quit::Exit(status) => note(&record, format!("exit {status}")),
-                Quit::Stay(sentence) => {
-                    assert_eq!(sentence, NOT_PAUSED, "{name}");
-                    note(&record, "stay");
+            for _ in 0..presses {
+                match quit_and_pause(&control, Some(&supervisor)) {
+                    Quit::Exit(status) => {
+                        note(&record, format!("exit {status}"));
+                        break;
+                    }
+                    Quit::Stay(NOT_PAUSED) => note(&record, "stay, not paused"),
+                    Quit::Stay(NOT_ANSWERED) => note(&record, "stay, not answered"),
+                    Quit::Stay(other) => panic!("{name}: a stay with {other}"),
                 }
             }
             assert_eq!(*record.lock().unwrap(), expected, "{name}");
