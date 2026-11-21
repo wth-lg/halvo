@@ -703,6 +703,25 @@ mod tests {
 
     /// The context of a screen source that a test starts: the switch
     /// screen_activity is off by default.
+    #[test]
+    fn a_frame_with_no_known_front_gives_no_record() {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::Switches;
+        let mut switches = Switches::default();
+        switches.set(Switch::ScreenActivity, true);
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(
+            FloorHandle::new(None, Arc::new(NoLineage), switches),
+            Arc::clone(&drops),
+        );
+        let made = frame_event(&floor, None, &super::super::FrontApp::default()).is_some();
+        let unknown_lineage = drops.read().unknown_lineage;
+        assert!(
+            !made && unknown_lineage == 1,
+            "frame_record={made} unknown_lineage={unknown_lineage}"
+        );
+    }
+
     fn screen_on(sink: crate::sink::SinkHandle) -> SourceContext {
         use crate::floor::exclude::{FloorHandle, NoLineage};
         let mut switches = crate::floor::Switches::default();

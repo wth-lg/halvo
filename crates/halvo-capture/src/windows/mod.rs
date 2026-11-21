@@ -1094,6 +1094,48 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn a_front_whose_process_cannot_be_read_gives_no_event_of_any_kind() {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::{kind, Switches};
+        use crate::secure_input::windows::PasswordFieldProbe;
+        let mut switches = Switches::default();
+        switches.set(Switch::ScreenActivity, true);
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(
+            FloorHandle::new(None, Arc::new(NoLineage), switches),
+            Arc::clone(&drops),
+        );
+        let unread = FrontApp {
+            pid: 79,
+            path: None,
+        };
+        let probe = PasswordFieldProbe::default();
+        let window = PrivateWindow::Unknown;
+        let kept = [
+            floor
+                .keep::<kind::ForegroundApp>(&unread, window, &probe)
+                .is_some(),
+            floor
+                .keep::<kind::WindowTitle>(&unread, window, &probe)
+                .is_some(),
+            floor
+                .keep::<kind::Keystroke>(&unread, window, &probe)
+                .is_some(),
+            floor
+                .keep::<kind::Pointer>(&unread, window, &probe)
+                .is_some(),
+            floor
+                .keep::<kind::ScreenFrame>(&unread, window, &probe)
+                .is_some(),
+        ];
+        let unknown_lineage = drops.read().unknown_lineage;
+        assert!(
+            kept == [false; 5] && unknown_lineage == 5,
+            "kept={kept:?} unknown_lineage={unknown_lineage}"
+        );
+    }
+
+    #[test]
     fn a_listed_app_in_front_drops_every_kind_and_counts_each_drop() {
         use crate::floor::exclude::{FloorHandle, NoLineage};
         use crate::floor::{kind, Switches};
