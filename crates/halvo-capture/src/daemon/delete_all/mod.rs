@@ -267,6 +267,7 @@ struct Finished {
     walked: Walked,
     unknown: u64,
     not_synced: Vec<PathBuf>,
+    intent_kept: bool,
 }
 
 impl Finished {
@@ -278,7 +279,7 @@ impl Finished {
     }
 
     fn whole(&self) -> bool {
-        matches!(self.store, TailAnswer::Finished(_)) && self.walked.left == 0
+        matches!(self.store, TailAnswer::Finished(_)) && self.walked.left == 0 && !self.intent_kept
     }
 }
 
@@ -623,14 +624,16 @@ fn steps_3_to_5(dir: &Path, rows: &[Row], hands: &dyn Hands, store: TailAnswer) 
             not_synced.push(folder);
         }
     }
-    if matches!(store, TailAnswer::Finished(_)) && walked.left == 0 && not_synced.is_empty() {
-        let _ = host.remove_durably(INTENT_FILE);
-    }
+    let intent_kept = matches!(store, TailAnswer::Finished(_))
+        && walked.left == 0
+        && not_synced.is_empty()
+        && host.remove_durably(INTENT_FILE).is_err();
     Finished {
         store,
         walked,
         unknown,
         not_synced,
+        intent_kept,
     }
 }
 

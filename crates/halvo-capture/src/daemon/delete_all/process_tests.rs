@@ -611,3 +611,41 @@ fn a_start_whose_finish_cannot_delete_keeps_the_intent_and_opens_nothing() {
     assert!(!old_root[0].exists());
     assert!(!dir.join("delete-all.intent").exists());
 }
+
+#[test]
+fn a_finish_whose_intent_cannot_be_removed_is_not_whole() {
+    struct Immutable(std::ffi::CString);
+    impl Drop for Immutable {
+        fn drop(&mut self) {
+            unsafe { libc::chflags(self.0.as_ptr(), 0) };
+        }
+    }
+    let dir = kept_dir("delete-all-intent-kept-");
+    let old = a_store_with_a_segment(&dir);
+    let old_root = root_files(&dir);
+    assert_eq!(old_root.len(), 1);
+    let intent = dir.join("delete-all.intent");
+    std::fs::write(
+        &intent,
+        format!("{{\"v\":1,\"started_at\":\"2026-11-21T00:00:00Z\",\"entries\":[{{\"name\":\"store\",\"custody_kind\":\"root_file\",\"root_id\":\"{old}\"}}]}}"),
+    )
+    .unwrap();
+    let flagged = Immutable(std::ffi::CString::new(intent.to_str().unwrap()).unwrap());
+    assert_eq!(
+        unsafe { libc::chflags(flagged.0.as_ptr(), libc::UF_IMMUTABLE) },
+        0
+    );
+
+    let found = at_start(&dir, &rows(), &SystemHands, &DataDirStore::at(&dir), &|| {});
+    drop(flagged);
+
+    assert!(!dir.join("store/store.key").exists());
+    assert!(!old_root[0].exists());
+    assert!(segment_files(&dir).is_empty());
+    assert!(intent.exists());
+    assert_eq!(
+        found,
+        AtStart::Finished { whole: false },
+        "a finish whose intent stays read whole"
+    );
+}
