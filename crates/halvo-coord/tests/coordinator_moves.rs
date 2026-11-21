@@ -12262,6 +12262,33 @@ fn u24s_r1_the_line_of_a_switch_off_that_could_not_be_saved_ends_when_a_later_ru
     assert_ne!(u24s_r1_row(&c).line, text("line.all_set.switch_not_saved"));
 }
 
+#[test]
+fn u24s_r1_a_later_switch_off_that_is_saved_ends_the_line_of_the_one_that_was_not() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    let row = u24s_r1_row(&c);
+    assert_eq!(
+        (row.status, row.line),
+        (Status::Off, text("line.off.person")),
+        "the switch is saved now, so the row shows the agent off"
+    );
+    assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
+    let line = u24s_r1_row(&c).line;
+    assert_ne!(
+        line,
+        text("line.all_set.switch_not_saved"),
+        "after a saved switch the row no longer says that a switch could not be saved"
+    );
+    assert_ne!(line, text("line.working.switch_not_saved"));
+}
+
 fn u24s_r4_setup_raise(e: &halvo_coord::types::Event) -> bool {
     matches!(
         e.what,
