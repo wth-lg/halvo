@@ -106,7 +106,9 @@ machine that other runs share, this is a false FAIL.
 The import listing: the check prints the count of the undefined or imported symbols of the dev
 route-gate binary that it built (nm -u on macOS, llvm-readobj --coff-imports on Windows where the
 runner has it, else one line that it has none) and keeps the listing under its artifacts directory;
-it is a measurement and refuses nothing.
+it is a measurement and refuses nothing. On Windows it looks for llvm-readobj under the sysroot that
+rustc --print sysroot names, or under R6_EGRESS_SYSROOT when that variable is set: the self-test sets
+it for its cases, so that one self-test asks rustc for the sysroot once.
 A signal INT, TERM or HUP stops the control's listener and ends the check with FAIL 60-r6-egress
 (signal).
 When a rule or a forbid run has refused before a later step fails to set up, the cause is check.
@@ -596,7 +598,11 @@ import_listing() {
     return
   fi
   reader=
-  sysroot=$(rustc --print sysroot 2>/dev/null) || sysroot=
+  if [ -n "${R6_EGRESS_SYSROOT+set}" ]; then
+    sysroot=$R6_EGRESS_SYSROOT
+  else
+    sysroot=$(rustc --print sysroot 2>/dev/null) || sysroot=
+  fi
   for found in "$sysroot"/lib/rustlib/*/bin/llvm-readobj.exe "$sysroot"/lib/rustlib/*/bin/llvm-readobj; do
     if [ -n "$sysroot" ] && [ -f "$found" ]; then
       reader=$found
@@ -1416,6 +1422,7 @@ EOF
   cat >"$work/bin/rustc" <<EOF || self_failed "setup at line $LINENO"
 #!/bin/sh
 if [ "\$*" = '--print sysroot' ]; then
+  printf 'x\n' >>'$work/sysroot-asks.txt'
   printf '%s\n' '$stub_sysroot'
   exit 0
 fi
@@ -1816,6 +1823,7 @@ case_reset() {
   case_arg=
   case_env=
   case_self=
+  case_sysroot=given
 }
 
 rule_cases() {
@@ -2059,6 +2067,12 @@ case_environment() {
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp
   STUB_INPUT=$work/stub-input.sh CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions
   export PATH CI_D_REPO CI_D_ARTIFACTS TMPDIR STUB_INPUT CI_D_JOB GITHUB_ACTIONS
+  if [ "$case_sysroot" != asked ]; then
+    R6_EGRESS_SYSROOT=$stub_sysroot
+    export R6_EGRESS_SYSROOT
+  else
+    unset R6_EGRESS_SYSROOT
+  fi
 }
 
 case_run() {
@@ -2180,7 +2194,14 @@ part_seconds() {
           (cd "$work/repo" && STUB_COMMANDS=probe \
             sh scripts/egress/check.sh scripts/r6/egress/gate.txt -- "$work/route-gate" probe --rounds 1 >/dev/null 2>&1) ;;
         import-listing)
-          (PATH=$work/bin:$PATH rustc --print sysroot >/dev/null 2>&1) ;;
+          (
+            case_environment
+            job_system=unix
+            [ "$host_job" != windows ] || job_system=windows
+            exe=$work/route-gate
+            artifacts=$work/artifacts
+            import_listing >/dev/null 2>&1
+          ) ;;
         env-rules)
           (case_environment && env_rules >/dev/null 2>&1) ;;
         canary-match)
@@ -2689,7 +2710,8 @@ EOF
 
   case_run pass PASS - "egress checks=8 denied=0 entries=0${nl}denied=0 proves that no process"
   part_seconds
-  case_run import-listing-printed PASS - 'egress imports binary=dev reader=' 
+  case_sysroot=asked
+  case_run import-listing-printed PASS - 'egress imports binary=dev reader='
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
@@ -3110,7 +3132,24 @@ help_sentences() {
   done
 }
 
+sysroot_asks() {
+  case_wanted sysroot-asked-once || return 0
+  asks=0
+  if [ -f "$work/sysroot-asks.txt" ]; then
+    while IFS= read -r line; do
+      asks=$((asks + 1))
+    done <"$work/sysroot-asks.txt"
+  fi
+  if [ "$asks" -le 1 ]; then
+    printf 'case %s/sysroot-asked-once want=PASS got=PASS\n' "$name"
+  else
+    printf 'case %s/sysroot-asked-once want=PASS got=asked-%s-times\n' "$name" "$asks"
+    wrong="$wrong sysroot-asked-once"
+  fi
+}
+
 self_test_end() {
+  sysroot_asks
   if case_wanted forms; then
     check_forms
   fi
