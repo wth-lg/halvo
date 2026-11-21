@@ -9,7 +9,7 @@ evidence: rulings S-82 and S-83 of run 20261109-halvo-r2-workflows (rulings-on-u
 
 Both stores open the one SQLCipher build of crates/halvo-sqlcipher with secure
 delete on, and promise that what they remove leaves no text in their files. In
-the pinned source (sqlcipher-src 419.0.6, SQLCipher 4.19.0 on SQLite 3.53.4),
+the source pinned at the decision (sqlcipher-src 419.0.6, SQLCipher 4.19.0 on SQLite 3.53.4),
 secure delete zeroes a freed cell, an emptied page, a freed page and the gap of
 a page that the database defragments. Two places leave text of a row in the
 gap of a page that is in use, where a later removal of that row zeroes its
@@ -25,8 +25,8 @@ cell and not the copy:
   its last bytes take the first bytes of the cell at the content start. Found
   in the review of this unit, in test tables of this crate.
 
-Version 420.0.0 of the crate holds rebuildPage byte for byte as 419.0.6 does;
-editPage of that version was not read.
+Version 420.0.0 of the crate, the pin since sqlcipher-2, holds rebuildPage,
+editPage, pageInsertArray, pageFreeArray and balance_quick byte for byte as 419.0.6 does.
 
 ## Decision
 
@@ -37,10 +37,10 @@ two functions, rebuildPage and editPage, and in one added function.
   under the build's own output directory and compiles that copy. No file of
   the cargo registry is written, and no copy of the source is in the
   repository.
-- At the end of the comment line 81262 of rebuildPage, under secure delete,
+- At the end of the comment line 80796 of rebuildPage, under secure delete,
   the bytes between the new pointer array and the new content are set to
   zero.
-- At the end of line 81517 of editPage (`pPg->nCell = (u16)nNew;`), on an edit
+- At the end of line 81051 of editPage (`pPg->nCell = (u16)nNew;`), on an edit
   that succeeded in place, under secure delete, the bytes between the end of
   the new pointer array and the content start are set to zero.
 - Neither statement adds a line, so every line number of the compiled file,
@@ -178,15 +178,15 @@ in the draws of the tests", with the limits below.
   requires `PRAGMA auto_vacuum` to read 0 on a new file after its first table,
   and the structural check's rule on bytes 52 to 55 of the file header (the
   auto-vacuum field) is the same pin on every drawn file. The sixteen rows of
-  auto-vacuum code in the table (74665 among them) run in no draw under that
-  pin, and the row of line 77342 in none because a file that this build made
+  auto-vacuum code in the table (74194 among them) run in no draw under that
+  pin, and the row of line 76874 in none because a file that this build made
   does not reach it; with the five rows that write into memory alone, 22 rows
   read 0 in both columns.
 - Its controls fail by name: each statement taken out, secure delete off, and
   4 bytes of text planted in a gap of a copy of the file. The mutant rows
   rebuilt-page-gap-not-zeroed and edited-page-gap-not-zeroed take each
   statement out. A narrowing of the editPage statement to the bytes of line
-  81461 is caught by the structural check alone: the byte search does not see
+  80995 is caught by the structural check alone: the byte search does not see
   it in the draws. For each line that the structural check or a search can
   print, a test of page_gap makes the fault in a copy or in a file and
   requires that line, and a test fails when a line of rules.rs has no control
@@ -257,10 +257,10 @@ in the draws of the tests", with the limits below.
   cells, the editPage statement zeroes those cells on a delete, where the
   pinned source keeps them until a row of that page grows or is inserted, and
   then loses the same rows by its own code (seen by run); pageInsertArray
-  (lines 81324 to 81326) and defragmentPage (line 75289) lose them too (by
+  (lines 80858 to 80860) and defragmentPage (line 74818) lose them too (by
   reading). The integrity check refuses such a page by name: a cell below the
   content start at line 84530 (`Offset ... out of range`), such a freeblock at
-  line 75689. The test
+  line 75218. The test
   `page_gap::malformed::on_a_leaf_whose_content_start_lies_above_live_cells_the_integrity_check_refuses_it_and_deletes_lose_those_cells`
   pins what this build does on such a page, beside what the integrity check
   prints before the first delete. No sequence of this build's writes is known
@@ -280,7 +280,7 @@ in the draws of the tests", with the limits below.
   edited-page-gap-not-zeroed (ruling S-86 E2).
 - The table below has one row for every line of btree.c in the pinned file
   (between its marker lines "Begin file btree.c" and "End of btree.c", lines
-  73561 to 85152, each found exactly once by the test) that holds memcpy,
+  73063 to 84723, each found exactly once by the test) that holds memcpy,
   memmove, memset, put2byte or put4byte, and a test of the crate fails when
   such a line has no row or a row names no such line. The five words do not
   match a header byte or a varint written in another form (a byte stored
@@ -328,7 +328,7 @@ in the draws of the tests", with the limits below.
   row of the table, move or delete the statements, write the new sha256 into
   build.rs, and run the tests page_gap with the statements and without them.
 - The notices of a bundle owe one line for it: the SQLCipher in Halvo is
-  SQLCipher 4.19.0 with two statements of Halvo's own, in rebuildPage and in
+  SQLCipher 4.20.0 with two statements of Halvo's own, in rebuildPage and in
   editPage, and without SQLITE_ENABLE_STAT4.
 - The statements clean no file that a build without them wrote. Such stores
   are removed whole.
@@ -339,145 +339,145 @@ in the draws of the tests", with the limits below.
 
 | line | function | what it writes, from where to where | can a range pass its object | what it can leave in the file | zeroed or written over by | runs in the secured keyless draws | runs in all draws |
 |---|---|---|---|---|---|---|---|
-| 74297 | saveCursorKey | a buffer of the process | no | nothing in the file (a saved key) | - | 624 | 740 |
-| 74563 | sqlite3BtreeCursorHint | a buffer of the process | no | nothing in the file | - | not compiled | not compiled |
-| 74665 | ptrmapPut | a 4-byte page number or count into a pointer-map page (auto-vacuum) | no | nothing; pointer-map pages exist only under auto-vacuum | - | 0: not tested | 0: not tested |
-| 75205 | defragmentPage | comment | - | - | - | comment | comment |
-| 75227 | defragmentPage | cells between two freeblocks, moved up inside the content area | no: both inside [top, usableSize) by the corruption checks before it | the old bytes of the moved cells below the new content start | the zeroing of [iCellFirst, cbrk) at 75289 | 262 | 441 |
-| 75235 | defragmentPage | the content block [top, iFree) moved up to cbrk | no: top < iFree and iFree+sz <= usableSize are checked before it | the old bytes of the block below cbrk | 75289 | 500 | 837 |
-| 75238 | defragmentPage | a 2-byte offset or count into the pointer array | no | nothing | - | 7.18k | 10.9k |
-| 75239 | defragmentPage | a 2-byte offset or count into the pointer array | no | nothing | - | 4.25k | 6.58k |
-| 75251 | defragmentPage | the page, copied whole to the pager's temp space | no | a copy in the process's memory, not in the file | - | 470 | 736 |
-| 75274 | defragmentPage | a 2-byte offset or count into the pointer array | no | nothing | - | 10.5k | 13.8k |
-| 75275 | defragmentPage | a cell from the temp copy to its new place cbrk | no: cbrk >= iCellStart and pc+size <= usableSize are checked before it | the old place of the cell below cbrk | 75289 | 10.5k | 13.8k |
-| 75286 | defragmentPage | a 2-byte offset or count into the header (content start) | no | nothing | - | 970 | 1.57k |
-| 75289 | defragmentPage | zeros over the gap [iCellFirst, cbrk) | no | nothing: it is a zeroing | - | 970 | 1.57k |
-| 75335 | pageFindSlot | the 2-byte next pointer of a freeblock into its predecessor | no | nothing | - | 3.58k | 4.41k |
-| 75345 | pageFindSlot | the 2-byte size of what stays of a freeblock | no | nothing | - | 24.0k | 36.0k |
-| 75460 | allocateSpace | a 2-byte offset or count into the header (content start) | no | nothing | - | 30.8k | 39.8k |
-| 75556 | freeSpace | zeros over a freed cell and the freeblocks that it joins | no | nothing: it is a zeroing | - | 37.5k | 53.4k |
-| 75564 | freeSpace | a 2-byte offset or count into the header (first freeblock) | no | nothing | - | 6.90k | 11.0k |
-| 75565 | freeSpace | a 2-byte offset or count into the header (content start) | no | nothing | - | 6.90k | 11.0k |
-| 75568 | freeSpace | a 2-byte offset or count into the freeblock chain | no | the 4 header bytes of a freeblock, which the structural check allows | - | 30.6k | 45.1k |
-| 75569 | freeSpace | a 2-byte offset or count into the freeblock chain | no | as 75568 | - | 30.6k | 45.1k |
-| 75571 | freeSpace | a 2-byte offset or count (the size of a freeblock) | no | as 75568 | - | 30.6k | 45.1k |
-| 75844 | zeroPage | zeros over a page from its header to its end | no | nothing: it is a zeroing | - | 1.50k | 2.19k |
-| 75848 | zeroPage | zeros over 4 header bytes | no | nothing | - | 1.50k | 2.40k |
-| 75850 | zeroPage | a 2-byte offset or count into the header (content start) | no | nothing | - | 1.50k | 2.40k |
-| 76168 | sqlite3BtreeOpen | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
-| 76236 | sqlite3BtreeOpen | a buffer of the process | no | nothing in the file | - | 220 | 420 |
-| 76444 | allocateTempSpace | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
-| 76463 | allocateTempSpace | a buffer of the process | no | nothing in the file | - | 117 | 218 |
-| 77085 | newDatabase | the magic string into the file header of a new database | no | a fixed string, no row | - | 33 | 50 |
-| 77096 | newDatabase | zeros over bytes 24 to 99 of the file header | no | nothing | - | 33 | 50 |
-| 77102 | newDatabase | a 4-byte page number or count into the file header | no | nothing | - | 33 | 50 |
-| 77103 | newDatabase | a 4-byte page number or count into the file header | no | nothing | - | 33 | 50 |
-| 77342 | btreeBeginTrans | a 4-byte page number or count (the page count) into the file header, when the header's count differs from the file's, as after a writer older than the header format | no | nothing; a file that this build made does not reach it | - | 0: not tested | 0: not tested |
-| 77449 | modifyPagePointer | a 4-byte page number or count into an overflow page (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
-| 77469 | modifyPagePointer | a 4-byte page number or count into a cell (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
-| 77478 | modifyPagePointer | a 4-byte page number or count into a cell (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
-| 77489 | modifyPagePointer | a 4-byte page number or count into a page header (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
-| 77749 | sqlite3BtreeIncrVacuum | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
-| 77828 | autoVacuumCommit | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
-| 77829 | autoVacuumCommit | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
-| 77831 | autoVacuumCommit | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
-| 78378 | sqlite3BtreeClosesWithCursor | comment | - | - | - | comment | comment |
-| 78384 | sqlite3BtreeCursorZero | a buffer of the process | no | nothing in the file | - | 98.6k | 119k |
-| 78445 | sqlite3BtreeCloseCursor | a buffer of the process | no | nothing in the file (debug build only) | - | not compiled | not compiled |
-| 78649 | copyPayload | new bytes of an incremental blob write over the payload of the row in place | no: bounded by the payload, checked by the caller | nothing: the old bytes are written over | - | 6 | 7 |
-| 78652 | copyPayload | a buffer of the process | no | nothing in the file (a read) | - | 61.6k | 103k |
-| 78771 | accessPayload | a buffer of the process | no | nothing in the file | - | 17.0k | 32.5k |
-| 78847 | accessPayload | a buffer of the process | no | nothing in the file (4 bytes saved before a direct read) | - | 20.6k | 20.6k |
-| 78850 | accessPayload | a buffer of the process | no | nothing in the file (the same 4 bytes put back) | - | 20.6k | 20.6k |
-| 79751 | sqlite3BtreeIndexMoveto | a buffer of the process | no | nothing in the file | - | 12.8k | 24.3k |
-| 80133 | allocateBtreePage | a 4-byte page number or count into the file header (freelist count) | no | nothing | - | 816 | 1.46k |
-| 80178 | allocateBtreePage | 4 bytes (a page number) from a trunk into the file header | no | nothing | - | 53 | 77 |
-| 80202 | allocateBtreePage | 4 bytes (a page number) from a trunk into the file header (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
-| 80208 | allocateBtreePage | 4 bytes (a page number) between two trunks (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
-| 80231 | allocateBtreePage | 4 bytes (a page number) into a new trunk (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
-| 80232 | allocateBtreePage | a 4-byte page number or count into a new trunk (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
-| 80233 | allocateBtreePage | (k-1) leaf page numbers into a new trunk (auto-vacuum) | no | page numbers past the count of the old trunk, which the structural check allows; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
-| 80237 | allocateBtreePage | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
-| 80243 | allocateBtreePage | a 4-byte page number or count into a trunk (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
-| 80298 | allocateBtreePage | a leaf page number moved inside a trunk | no | a page number past the trunk's count, which the structural check allows | - | 679 | 1.24k |
-| 80300 | allocateBtreePage | a 4-byte page number or count into a trunk (its count) | no | nothing | - | 763 | 1.39k |
-| 80361 | allocateBtreePage | a 4-byte page number or count into the file header (page count) | no | nothing | - | 1.59k | 2.55k |
-| 80423 | freePage2 | a 4-byte page number or count into the file header (freelist count) | no | nothing | - | 1.68k | 2.88k |
-| 80434 | freePage2 | zeros over a freed page, under secure delete | no | nothing: it is a zeroing | - | 1.68k | 2.64k |
-| 80493 | freePage2 | a 4-byte page number or count into a trunk (its count) | no | nothing | - | 1.61k | 2.78k |
-| 80494 | freePage2 | a 4-byte page number or count into a trunk (a leaf) | no | nothing | - | 1.61k | 2.78k |
-| 80518 | freePage2 | a 4-byte page number or count into a freed page that becomes a trunk | no | nothing | - | 74 | 107 |
-| 80519 | freePage2 | a 4-byte page number or count into a new trunk | no | nothing | - | 74 | 107 |
-| 80520 | freePage2 | a 4-byte page number or count into the file header | no | nothing | - | 74 | 107 |
-| 80690 | fillInCell | the payload of a new cell into the cell buffer or an overflow page | no: nSrc <= nPayload, asserted | nothing: the rest of the payload is zeroed at 80691 | - | 42.9k | 53.9k |
-| 80691 | fillInCell | zeros over the rest of a payload | no | nothing: it is a zeroing | - | 42.9k | 53.9k |
-| 80748 | fillInCell | a part of a payload into the cell buffer or an overflow page | no | the tail of the last overflow page past the payload keeps the bytes that the page held, which secure delete zeroed when the page was freed | 80434 when the page was freed | 1.39k | 2.46k |
-| 80751 | fillInCell | as 80748 | no | as 80748 | 80434 | 10 | 20 |
-| 80753 | fillInCell | zeros over a part of a payload | no | nothing: it is a zeroing | - | 20 | 40 |
-| 80807 | fillInCell | a 4-byte page number or count (the next overflow page) into a page | no | nothing | - | 870 | 1.53k |
-| 80811 | fillInCell | a 4-byte page number or count (zero) into a page | no | nothing | - | 870 | 1.53k |
-| 80860 | dropCell | zeros over 4 header bytes of an emptied page | no | nothing | - | 1.47k | 2.05k |
-| 80862 | dropCell | a 2-byte offset or count into the header (content start) | no | nothing | - | 1.47k | 2.05k |
-| 80866 | dropCell | the pointer array moved down one slot | no | a stale 2-byte offset after the new end of the array, which the structural check allows | line 81517 when the page is edited in place later, 81262 when it is built again | 27.0k | 39.4k |
-| 80867 | dropCell | a 2-byte offset or count into the header (cell count) | no | nothing | - | 27.0k | 39.4k |
-| 80916 | insertCell | a buffer of the process | no | nothing in the file (the cell kept for a balance) | - | 89 | 169 |
-| 80919 | insertCell | a 4-byte page number or count (a child page) into a cell buffer | no | nothing | - | 89 | 169 |
-| 80956 | insertCell | a cell into its place in an interior page | no: idx+sz <= usableSize, asserted after allocateSpace | nothing: the place came from the gap or a zeroed freeblock | - | 7.38k | 12.0k |
-| 80957 | insertCell | a 4-byte page number or count (a child page) into a cell | no | nothing | - | 7.38k | 12.0k |
-| 80959 | insertCell | the pointer array moved up one slot | no | nothing | - | 7.38k | 12.0k |
-| 80960 | insertCell | a 2-byte offset or count into the pointer array | no | nothing | - | 7.38k | 12.0k |
-| 81041 | insertCellFast | a cell into its place in a leaf | no: as 80956 | nothing: as 80956 | - | 38.2k | 47.9k |
-| 81043 | insertCellFast | the pointer array moved up one slot | no | nothing | - | 38.2k | 47.9k |
-| 81044 | insertCellFast | a 2-byte offset or count into the pointer array | no | nothing | - | 38.2k | 47.9k |
-| 81228 | rebuildPage | the content area copied to the pager's temp space | no | a copy in the process's memory, not in the file | - | 1.43k | 2.27k |
-| 81249 | rebuildPage | a 2-byte offset or count into the pointer array | no | nothing | - | 15.9k | 24.8k |
-| 81252 | rebuildPage | a cell packed at the end of the page being built again | no: line 81251 returns before the cell would pass the pointers | the earlier places of kept cells and cells that a failed edit had copied, in the gap | Halvo's statement at the end of line 81262 | 15.9k | 24.8k |
-| 81267 | rebuildPage | zeros into the header (first freeblock) | no | nothing | - | 1.43k | 2.27k |
-| 81268 | rebuildPage | a 2-byte offset or count into the header (cell count) | no | nothing | - | 1.43k | 2.27k |
-| 81269 | rebuildPage | a 2-byte offset or count into the header (content start) | no | nothing | - | 1.43k | 2.27k |
-| 81329 | pageInsertArray | comment | - | - | - | comment | comment |
-| 81330 | pageInsertArray | comment | - | - | - | comment | comment |
-| 81341 | pageInsertArray | a cell into a freeblock or the end of the gap of a page being edited | no: (pData - pBegin) >= sz is checked before the slot is taken | on a failed edit, the cells copied so far in the gap | 81262 (the fall-back to rebuildPage); on success the copies are cells | 27.9k | 44.1k |
-| 81342 | pageInsertArray | a 2-byte offset or count into the pointer array | no | nothing | - | 27.9k | 44.1k |
-| 81453 | editPage | a buffer of the process | no | nothing in the file (debug build only) | - | not compiled | not compiled |
-| 81461 | editPage | the pointer array moved down by nShift slots, nCell slots long | the source passes the end of the pointer array by nShift*2 bytes, inside the page | the first bytes of the cell at the content start in the new gap | Halvo's statement at the end of line 81517 | 1.93k | 3.18k |
-| 81480 | editPage | the pointer array moved up by nAdd slots | no | nothing beyond the new array | 81517 | 3.34k | 5.52k |
-| 81494 | editPage | the pointer array moved up one slot | no | nothing beyond the new array | 81517 | 1.77k | 2.87k |
-| 81520 | editPage | a 2-byte offset or count into the header (cell count) | no | nothing | - | 9.04k | 14.9k |
-| 81521 | editPage | a 2-byte offset or count into the header (content start) | no | nothing | - | 9.04k | 14.9k |
-| 81655 | balance_quick | a 4-byte page number or count (the right child) into a page header | no | nothing | - | 345 | 448 |
-| 81741 | copyNodeContent | the content area of one page into another (a root that becomes deeper or shallower) | no | the receiving page's own bytes between its new pointer array and the copied content | a child from allocateBtreePage (82625): a page freed under secure delete was zeroed by freePage2 (80434), or the page is new (under secure_delete=FAST a freed page is not zeroed there; both stores use ON); the root is zeroed by zeroPage (82650); read by the structural check | 258 | 470 |
-| 81742 | copyNodeContent | the header and pointer array of one page into another | no | as 81741 | as 81741 | 258 | 470 |
-| 81840 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 3.56k | 5.92k |
-| 81842 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 3.56k | 5.92k |
-| 81898 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
-| 81904 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
-| 81940 | balance_nonroot | a buffer of the process | no | nothing in the file (a divider kept for the balance) | - | 6.48k | 10.2k |
-| 82023 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 10.0k | 16.6k |
-| 82060 | balance_nonroot | a buffer of the process | no | nothing in the file (a divider kept for the balance) | - | 4.80k | 7.94k |
-| 82069 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 114 | 218 |
-| 82317 | balance_nonroot | a 4-byte page number or count (the right child) into the parent | no | nothing | - | 3.56k | 5.92k |
-| 82329 | balance_nonroot | 4 bytes (the right child) between two pages | no | nothing | - | 99 | 198 |
-| 82405 | balance_nonroot | 4 bytes (a child page) into a new page | no | nothing | - | 115 | 220 |
-| 82643 | balance_deeper | a buffer of the process | no | nothing in the file | - | 172 | 299 |
-| 82645 | balance_deeper | a buffer of the process | no | nothing in the file | - | 172 | 299 |
-| 82651 | balance_deeper | a 4-byte page number or count (the right child) into a root | no | nothing | - | 172 | 299 |
-| 82840 | btreeOverwriteContent | zeros over a payload being written over | no | nothing: it is a zeroing | - | 10 | 20 |
-| 82857 | btreeOverwriteContent | comment | - | - | - | comment | comment |
-| 82858 | btreeOverwriteContent | new bytes over the payload of a row in place, same size | no | nothing: the old bytes are written over | - | 47 | 87 |
-| 83181 | sqlite3BtreeInsert | a buffer of the process | no | nothing in the file | - | 3 | 5 |
-| 83205 | sqlite3BtreeInsert | a new cell over the old one in place, same size | no: checked against the page before the copy | nothing: the old bytes are written over | - | 2.49k | 2.61k |
-| 83260 | sqlite3BtreeInsert | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
-| 83309 | sqlite3BtreeTransferRow | the payload of a row into a new cell buffer (a transfer) | no: aIn+nIn is checked against the page before it | nothing in the file | - | 104 | 208 |
-| 83341 | sqlite3BtreeTransferRow | a part of a payload into a cell buffer or an overflow page (a transfer) | no | as 80748 | 80434 | 108 | 216 |
-| 83364 | sqlite3BtreeTransferRow | a 4-byte page number or count (the next overflow page of a copied row) into a cell or an overflow page | no | nothing | - | 72 | 144 |
-| 83372 | sqlite3BtreeTransferRow | a 4-byte page number or count (zero, the end of a copied row's chain) into an overflow page | no | nothing | - | 72 | 144 |
-| 84044 | sqlite3BtreeUpdateMeta | a 4-byte page number or count (a meta value) into the file header | no | nothing | - | 183 | 274 |
-| 84738 | sqlite3BtreeIntegrityCheck | a buffer of the process | no | nothing in the file (the integrity check's state) | - | 354 | 688 |
+| 73809 | saveCursorKey | a buffer of the process | no | nothing in the file (a saved key) | - | 624 | 740 |
+| 74076 | sqlite3BtreeCursorHint | a buffer of the process | no | nothing in the file | - | not compiled | not compiled |
+| 74194 | ptrmapPut | a 4-byte page number or count into a pointer-map page (auto-vacuum) | no | nothing; pointer-map pages exist only under auto-vacuum | - | 0: not tested | 0: not tested |
+| 74734 | defragmentPage | comment | - | - | - | comment | comment |
+| 74756 | defragmentPage | cells between two freeblocks, moved up inside the content area | no: both inside [top, usableSize) by the corruption checks before it | the old bytes of the moved cells below the new content start | the zeroing of [iCellFirst, cbrk) at 75289 | 262 | 441 |
+| 74764 | defragmentPage | the content block [top, iFree) moved up to cbrk | no: top < iFree and iFree+sz <= usableSize are checked before it | the old bytes of the block below cbrk | 75289 | 500 | 837 |
+| 74767 | defragmentPage | a 2-byte offset or count into the pointer array | no | nothing | - | 7.18k | 10.9k |
+| 74768 | defragmentPage | a 2-byte offset or count into the pointer array | no | nothing | - | 4.25k | 6.58k |
+| 74780 | defragmentPage | the page, copied whole to the pager's temp space | no | a copy in the process's memory, not in the file | - | 470 | 736 |
+| 74803 | defragmentPage | a 2-byte offset or count into the pointer array | no | nothing | - | 10.5k | 13.8k |
+| 74804 | defragmentPage | a cell from the temp copy to its new place cbrk | no: cbrk >= iCellStart and pc+size <= usableSize are checked before it | the old place of the cell below cbrk | 75289 | 10.5k | 13.8k |
+| 74815 | defragmentPage | a 2-byte offset or count into the header (content start) | no | nothing | - | 970 | 1.57k |
+| 74818 | defragmentPage | zeros over the gap [iCellFirst, cbrk) | no | nothing: it is a zeroing | - | 970 | 1.57k |
+| 74864 | pageFindSlot | the 2-byte next pointer of a freeblock into its predecessor | no | nothing | - | 3.58k | 4.41k |
+| 74874 | pageFindSlot | the 2-byte size of what stays of a freeblock | no | nothing | - | 24.0k | 36.0k |
+| 74989 | allocateSpace | a 2-byte offset or count into the header (content start) | no | nothing | - | 30.8k | 39.8k |
+| 75085 | freeSpace | zeros over a freed cell and the freeblocks that it joins | no | nothing: it is a zeroing | - | 37.5k | 53.4k |
+| 75093 | freeSpace | a 2-byte offset or count into the header (first freeblock) | no | nothing | - | 6.90k | 11.0k |
+| 75094 | freeSpace | a 2-byte offset or count into the header (content start) | no | nothing | - | 6.90k | 11.0k |
+| 75097 | freeSpace | a 2-byte offset or count into the freeblock chain | no | the 4 header bytes of a freeblock, which the structural check allows | - | 30.6k | 45.1k |
+| 75098 | freeSpace | a 2-byte offset or count into the freeblock chain | no | as 75568 | - | 30.6k | 45.1k |
+| 75100 | freeSpace | a 2-byte offset or count (the size of a freeblock) | no | as 75568 | - | 30.6k | 45.1k |
+| 75376 | zeroPage | zeros over a page from its header to its end | no | nothing: it is a zeroing | - | 1.50k | 2.19k |
+| 75380 | zeroPage | zeros over 4 header bytes | no | nothing | - | 1.50k | 2.40k |
+| 75382 | zeroPage | a 2-byte offset or count into the header (content start) | no | nothing | - | 1.50k | 2.40k |
+| 75700 | sqlite3BtreeOpen | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
+| 75768 | sqlite3BtreeOpen | a buffer of the process | no | nothing in the file | - | 220 | 420 |
+| 75976 | allocateTempSpace | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
+| 75995 | allocateTempSpace | a buffer of the process | no | nothing in the file | - | 117 | 218 |
+| 76617 | newDatabase | the magic string into the file header of a new database | no | a fixed string, no row | - | 33 | 50 |
+| 76628 | newDatabase | zeros over bytes 24 to 99 of the file header | no | nothing | - | 33 | 50 |
+| 76634 | newDatabase | a 4-byte page number or count into the file header | no | nothing | - | 33 | 50 |
+| 76635 | newDatabase | a 4-byte page number or count into the file header | no | nothing | - | 33 | 50 |
+| 76874 | btreeBeginTrans | a 4-byte page number or count (the page count) into the file header, when the header's count differs from the file's, as after a writer older than the header format | no | nothing; a file that this build made does not reach it | - | 0: not tested | 0: not tested |
+| 76981 | modifyPagePointer | a 4-byte page number or count into an overflow page (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
+| 77001 | modifyPagePointer | a 4-byte page number or count into a cell (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
+| 77010 | modifyPagePointer | a 4-byte page number or count into a cell (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
+| 77021 | modifyPagePointer | a 4-byte page number or count into a page header (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
+| 77281 | sqlite3BtreeIncrVacuum | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
+| 77360 | autoVacuumCommit | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
+| 77361 | autoVacuumCommit | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
+| 77363 | autoVacuumCommit | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing | - | 0: not tested | 0: not tested |
+| 77910 | sqlite3BtreeClosesWithCursor | comment | - | - | - | comment | comment |
+| 77916 | sqlite3BtreeCursorZero | a buffer of the process | no | nothing in the file | - | 98.6k | 119k |
+| 77977 | sqlite3BtreeCloseCursor | a buffer of the process | no | nothing in the file (debug build only) | - | not compiled | not compiled |
+| 78181 | copyPayload | new bytes of an incremental blob write over the payload of the row in place | no: bounded by the payload, checked by the caller | nothing: the old bytes are written over | - | 6 | 7 |
+| 78184 | copyPayload | a buffer of the process | no | nothing in the file (a read) | - | 61.6k | 103k |
+| 78303 | accessPayload | a buffer of the process | no | nothing in the file | - | 17.0k | 32.5k |
+| 78379 | accessPayload | a buffer of the process | no | nothing in the file (4 bytes saved before a direct read) | - | 20.6k | 20.6k |
+| 78382 | accessPayload | a buffer of the process | no | nothing in the file (the same 4 bytes put back) | - | 20.6k | 20.6k |
+| 79285 | sqlite3BtreeIndexMoveto | a buffer of the process | no | nothing in the file | - | 12.8k | 24.3k |
+| 79667 | allocateBtreePage | a 4-byte page number or count into the file header (freelist count) | no | nothing | - | 816 | 1.46k |
+| 79712 | allocateBtreePage | 4 bytes (a page number) from a trunk into the file header | no | nothing | - | 53 | 77 |
+| 79736 | allocateBtreePage | 4 bytes (a page number) from a trunk into the file header (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
+| 79742 | allocateBtreePage | 4 bytes (a page number) between two trunks (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
+| 79765 | allocateBtreePage | 4 bytes (a page number) into a new trunk (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
+| 79766 | allocateBtreePage | a 4-byte page number or count into a new trunk (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
+| 79767 | allocateBtreePage | (k-1) leaf page numbers into a new trunk (auto-vacuum) | no | page numbers past the count of the old trunk, which the structural check allows; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
+| 79771 | allocateBtreePage | a 4-byte page number or count into the file header (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
+| 79777 | allocateBtreePage | a 4-byte page number or count into a trunk (auto-vacuum) | no | nothing; auto-vacuum only: the branch of lines 80186 to 80248 runs under searchList, which only the auto-vacuum code sets (77632, 77664, 83666) | - | 0: not tested | 0: not tested |
+| 79832 | allocateBtreePage | a leaf page number moved inside a trunk | no | a page number past the trunk's count, which the structural check allows | - | 679 | 1.24k |
+| 79834 | allocateBtreePage | a 4-byte page number or count into a trunk (its count) | no | nothing | - | 763 | 1.39k |
+| 79895 | allocateBtreePage | a 4-byte page number or count into the file header (page count) | no | nothing | - | 1.59k | 2.55k |
+| 79957 | freePage2 | a 4-byte page number or count into the file header (freelist count) | no | nothing | - | 1.68k | 2.88k |
+| 79968 | freePage2 | zeros over a freed page, under secure delete | no | nothing: it is a zeroing | - | 1.68k | 2.64k |
+| 80027 | freePage2 | a 4-byte page number or count into a trunk (its count) | no | nothing | - | 1.61k | 2.78k |
+| 80028 | freePage2 | a 4-byte page number or count into a trunk (a leaf) | no | nothing | - | 1.61k | 2.78k |
+| 80052 | freePage2 | a 4-byte page number or count into a freed page that becomes a trunk | no | nothing | - | 74 | 107 |
+| 80053 | freePage2 | a 4-byte page number or count into a new trunk | no | nothing | - | 74 | 107 |
+| 80054 | freePage2 | a 4-byte page number or count into the file header | no | nothing | - | 74 | 107 |
+| 80224 | fillInCell | the payload of a new cell into the cell buffer or an overflow page | no: nSrc <= nPayload, asserted | nothing: the rest of the payload is zeroed at 80691 | - | 42.9k | 53.9k |
+| 80225 | fillInCell | zeros over the rest of a payload | no | nothing: it is a zeroing | - | 42.9k | 53.9k |
+| 80282 | fillInCell | a part of a payload into the cell buffer or an overflow page | no | the tail of the last overflow page past the payload keeps the bytes that the page held, which secure delete zeroed when the page was freed | 80434 when the page was freed | 1.39k | 2.46k |
+| 80285 | fillInCell | as 80748 | no | as 80748 | 80434 | 10 | 20 |
+| 80287 | fillInCell | zeros over a part of a payload | no | nothing: it is a zeroing | - | 20 | 40 |
+| 80341 | fillInCell | a 4-byte page number or count (the next overflow page) into a page | no | nothing | - | 870 | 1.53k |
+| 80345 | fillInCell | a 4-byte page number or count (zero) into a page | no | nothing | - | 870 | 1.53k |
+| 80394 | dropCell | zeros over 4 header bytes of an emptied page | no | nothing | - | 1.47k | 2.05k |
+| 80396 | dropCell | a 2-byte offset or count into the header (content start) | no | nothing | - | 1.47k | 2.05k |
+| 80400 | dropCell | the pointer array moved down one slot | no | a stale 2-byte offset after the new end of the array, which the structural check allows | line 81517 when the page is edited in place later, 81262 when it is built again | 27.0k | 39.4k |
+| 80401 | dropCell | a 2-byte offset or count into the header (cell count) | no | nothing | - | 27.0k | 39.4k |
+| 80450 | insertCell | a buffer of the process | no | nothing in the file (the cell kept for a balance) | - | 89 | 169 |
+| 80453 | insertCell | a 4-byte page number or count (a child page) into a cell buffer | no | nothing | - | 89 | 169 |
+| 80490 | insertCell | a cell into its place in an interior page | no: idx+sz <= usableSize, asserted after allocateSpace | nothing: the place came from the gap or a zeroed freeblock | - | 7.38k | 12.0k |
+| 80491 | insertCell | a 4-byte page number or count (a child page) into a cell | no | nothing | - | 7.38k | 12.0k |
+| 80493 | insertCell | the pointer array moved up one slot | no | nothing | - | 7.38k | 12.0k |
+| 80494 | insertCell | a 2-byte offset or count into the pointer array | no | nothing | - | 7.38k | 12.0k |
+| 80575 | insertCellFast | a cell into its place in a leaf | no: as 80956 | nothing: as 80956 | - | 38.2k | 47.9k |
+| 80577 | insertCellFast | the pointer array moved up one slot | no | nothing | - | 38.2k | 47.9k |
+| 80578 | insertCellFast | a 2-byte offset or count into the pointer array | no | nothing | - | 38.2k | 47.9k |
+| 80762 | rebuildPage | the content area copied to the pager's temp space | no | a copy in the process's memory, not in the file | - | 1.43k | 2.27k |
+| 80783 | rebuildPage | a 2-byte offset or count into the pointer array | no | nothing | - | 15.9k | 24.8k |
+| 80786 | rebuildPage | a cell packed at the end of the page being built again | no: line 81251 returns before the cell would pass the pointers | the earlier places of kept cells and cells that a failed edit had copied, in the gap | Halvo's statement at the end of line 81262 | 15.9k | 24.8k |
+| 80801 | rebuildPage | zeros into the header (first freeblock) | no | nothing | - | 1.43k | 2.27k |
+| 80802 | rebuildPage | a 2-byte offset or count into the header (cell count) | no | nothing | - | 1.43k | 2.27k |
+| 80803 | rebuildPage | a 2-byte offset or count into the header (content start) | no | nothing | - | 1.43k | 2.27k |
+| 80863 | pageInsertArray | comment | - | - | - | comment | comment |
+| 80864 | pageInsertArray | comment | - | - | - | comment | comment |
+| 80875 | pageInsertArray | a cell into a freeblock or the end of the gap of a page being edited | no: (pData - pBegin) >= sz is checked before the slot is taken | on a failed edit, the cells copied so far in the gap | 81262 (the fall-back to rebuildPage); on success the copies are cells | 27.9k | 44.1k |
+| 80876 | pageInsertArray | a 2-byte offset or count into the pointer array | no | nothing | - | 27.9k | 44.1k |
+| 80987 | editPage | a buffer of the process | no | nothing in the file (debug build only) | - | not compiled | not compiled |
+| 80995 | editPage | the pointer array moved down by nShift slots, nCell slots long | the source passes the end of the pointer array by nShift*2 bytes, inside the page | the first bytes of the cell at the content start in the new gap | Halvo's statement at the end of line 81517 | 1.93k | 3.18k |
+| 81014 | editPage | the pointer array moved up by nAdd slots | no | nothing beyond the new array | 81517 | 3.34k | 5.52k |
+| 81028 | editPage | the pointer array moved up one slot | no | nothing beyond the new array | 81517 | 1.77k | 2.87k |
+| 81054 | editPage | a 2-byte offset or count into the header (cell count) | no | nothing | - | 9.04k | 14.9k |
+| 81055 | editPage | a 2-byte offset or count into the header (content start) | no | nothing | - | 9.04k | 14.9k |
+| 81189 | balance_quick | a 4-byte page number or count (the right child) into a page header | no | nothing | - | 345 | 448 |
+| 81275 | copyNodeContent | the content area of one page into another (a root that becomes deeper or shallower) | no | the receiving page's own bytes between its new pointer array and the copied content | a child from allocateBtreePage (82625): a page freed under secure delete was zeroed by freePage2 (80434), or the page is new (under secure_delete=FAST a freed page is not zeroed there; both stores use ON); the root is zeroed by zeroPage (82650); read by the structural check | 258 | 470 |
+| 81276 | copyNodeContent | the header and pointer array of one page into another | no | as 81741 | as 81741 | 258 | 470 |
+| 81374 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 3.56k | 5.92k |
+| 81376 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 3.56k | 5.92k |
+| 81432 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
+| 81438 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
+| 81474 | balance_nonroot | a buffer of the process | no | nothing in the file (a divider kept for the balance) | - | 6.48k | 10.2k |
+| 81557 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 10.0k | 16.6k |
+| 81594 | balance_nonroot | a buffer of the process | no | nothing in the file (a divider kept for the balance) | - | 4.80k | 7.94k |
+| 81603 | balance_nonroot | a buffer of the process | no | nothing in the file | - | 114 | 218 |
+| 81851 | balance_nonroot | a 4-byte page number or count (the right child) into the parent | no | nothing | - | 3.56k | 5.92k |
+| 81863 | balance_nonroot | 4 bytes (the right child) between two pages | no | nothing | - | 99 | 198 |
+| 81939 | balance_nonroot | 4 bytes (a child page) into a new page | no | nothing | - | 115 | 220 |
+| 82177 | balance_deeper | a buffer of the process | no | nothing in the file | - | 172 | 299 |
+| 82179 | balance_deeper | a buffer of the process | no | nothing in the file | - | 172 | 299 |
+| 82185 | balance_deeper | a 4-byte page number or count (the right child) into a root | no | nothing | - | 172 | 299 |
+| 82374 | btreeOverwriteContent | zeros over a payload being written over | no | nothing: it is a zeroing | - | 10 | 20 |
+| 82391 | btreeOverwriteContent | comment | - | - | - | comment | comment |
+| 82392 | btreeOverwriteContent | new bytes over the payload of a row in place, same size | no | nothing: the old bytes are written over | - | 47 | 87 |
+| 82715 | sqlite3BtreeInsert | a buffer of the process | no | nothing in the file | - | 3 | 5 |
+| 82739 | sqlite3BtreeInsert | a new cell over the old one in place, same size | no: checked against the page before the copy | nothing: the old bytes are written over | - | 2.49k | 2.61k |
+| 82794 | sqlite3BtreeInsert | a buffer of the process | no | nothing in the file | - | 0: not tested | 0: not tested |
+| 82843 | sqlite3BtreeTransferRow | the payload of a row into a new cell buffer (a transfer) | no: aIn+nIn is checked against the page before it | nothing in the file | - | 104 | 208 |
+| 82875 | sqlite3BtreeTransferRow | a part of a payload into a cell buffer or an overflow page (a transfer) | no | as 80748 | 80434 | 108 | 216 |
+| 82898 | sqlite3BtreeTransferRow | a 4-byte page number or count (the next overflow page of a copied row) into a cell or an overflow page | no | nothing | - | 72 | 144 |
+| 82906 | sqlite3BtreeTransferRow | a 4-byte page number or count (zero, the end of a copied row's chain) into an overflow page | no | nothing | - | 72 | 144 |
+| 83595 | sqlite3BtreeUpdateMeta | a 4-byte page number or count (a meta value) into the file header | no | nothing | - | 183 | 274 |
+| 84300 | sqlite3BtreeIntegrityCheck | a buffer of the process | no | nothing in the file (the integrity check's state) | - | 354 | 688 |
 
 ## Amendments
 
 - 2026-11-14: rulings S-83 and ST-42 widen the decision after the review of
   sqlcipher-1 found the second place in editPage: the statement at the end of
-  line 81517, the structural check, the table, the answer 2 of the added
+  line 81051, the structural check, the table, the answer 2 of the added
   function and the build without SQLITE_ENABLE_STAT4.

@@ -1,4 +1,7 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: the macos job's proof (the windows job runs 10-format alone)
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +33,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -82,21 +73,34 @@ jobs:
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format
+      - name: Scratch rows run 1 of sqlcipher-2, 69 rows, each to its end by name
+        if: always()
+        shell: bash
+        run: |
+          start=$(date +%s); last=$start; seen=" "; n=0
+          sh scripts/r1-gate/mutation-test.sh --only delete-all-destroys-nothing --only shredded-key-survives --only checkpoint-not-verified --only segment-roundtrip-broken --only temp-store-on-disk --only plaintext-written-to-stderr --only marker-written-into-the-store-directory --only key-row-deleted --only header-not-authenticated --only last-chunk-flag-dropped --only keys-not-wiped-on-drop --only raw-store-key-in-key-file --only checkpoint-after-removal --only formal-shred-never-committed --only formal-checkpoint-removed --only formal-checkpoint-not-verified --only formal-reader-keyed-with-zeros --only formal-busy-not-mapped-to-locked --only live-holder-busy-not-mapped-to-locked --only formal-delete-all-destroys-nothing --only formal-delete-all-returns-before-its-root-step --only formal-shredded-key-survives --only formal-single-writer --only directory-lock-never-refuses --only formal-directory-lock-never-taken --only formal-single-writer-both-locks --only directory-lock-refusal-taken-as-a-lock --only formal-wrapped-key-in-a-side-file --only formal-second-wrap-in-another-table --only formal-raw-store-key-in-key-file --only formal-failed-create-leaves-the-database --only formal-create-makes-its-root-first --only formal-create-takes-an-existing-root --only formal-refused-create-destroys-the-root --only formal-second-delete-all-finishes-nothing --only formal-second-delete-all-is-refused --only create-destroys-a-root-it-cannot-read --only create-destroys-a-root-file-it-cannot-read --only verify-store-scan-skipped --only verify-store-scan-skips-the-key-file --only deletion-check-unknown-reads-destroyed --only deletion-check-without-the-all-zero-probe --only root-state-corrupt-is-destroyed --only unreadable-key-file-is-sealed --only unreadable-segment-file-is-missing --only key-scan-hex-unpadded --only key-scan-base64-at-one-offset --only key-scan-without-decimal-lists --only raw-store-key-as-a-debug-print-beside-the-key-file --only raw-store-key-as-a-json-array-beside-the-key-file --only raw-store-key-in-a-longer-base64-text-beside-the-key-file --only raw-store-key-as-unpadded-hex-beside-the-key-file --only wrapped-key-of-any-length-accepted --only key-file-removed-without-its-zero-fill --only database-removal-leaves-the-log --only failed-key-commit-keeps-the-segment-file --only create-keeps-keyless-leftovers --only segment-key-wrap-without-its-label --only create-destroys-the-root-of-a-create-at-the-same-instant --only formal-create-spares-only-a-root-it-can-read --only journal-mode-not-wal --only partial-root-file-shared-by-two-writers --only unwrap-not-measured --only read-holds-the-whole-segment --only formal-held-store-asks-its-custody --only formal-store-files-take-the-umask --only formal-store-directories-take-the-umask --only formal-store-db-keeps-a-wider-mode --only formal-open-makes-a-missing-database 2>&1 | while IFS= read -r line; do
+            printf '%s\n' "$line"
+            case $line in
+              "PASS mutation:"*|"FAIL mutation:"*)
+                name=${line#* mutation:}; name=${name%% *}
+                case "$seen" in
+                  *" $name "*) ;;
+                  *)
+                    now=$(date +%s); n=$((n + 1))
+                    echo "scratch-row-seconds $name $((now - last)) row=$n of 69 since_start=$((now - start))"
+                    last=$now; seen="$seen$name "
+                    ;;
+                esac
+                ;;
+            esac
+          done
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -127,21 +131,13 @@ jobs:
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
-      - name: ci.d self-test
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
