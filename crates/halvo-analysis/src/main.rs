@@ -24,16 +24,27 @@
 //!
 //! The worker reads until the newest record, until the batch holds 16,384 records that a record follows, or until
 //! the first record whose local day, by the system's time zone, is not that of the batch's first record, whichever
-//! comes first. A batch that reaches the 16,384 records ends before its last pause, the last of its records whose
+//! comes first. It follows the run marks in the order of place: a `start` opens an agent's run, an `end` closes it,
+//! and a `start` while a run is open or an `end` while none is open changes nothing. A batch that reaches the
+//! 16,384 records ends before its last pause, the last of its records before which no run is open and whose
 //! instant lies more than 331 s after that of every record before it: the 300 s past which the episode step
-//! continues no episode and the 31 s that it moves a late keystroke or click back, together. With no pause it
-//! keeps them all. The position of the first record that it did not take is the batch's commit position, and the
-//! next start reads from that record on, so a day above the bound takes several starts and holds back no later
-//! day. The episode step closes every episode at the end of its call: a batch that ends at the bound with no pause
-//! can make two episodes of one, and of an agent's run that it divides, the records after the cut are read as the
-//! person's. A keystroke or click that the store placed after the first record of a batch and that the episode
-//! step orders before it has no title record before it in its call and is dropped, at this cut as at the cut of a
-//! day.
+//! continues no episode and the 31 s that it moves a late keystroke or click back, together. With no pause and a
+//! run open after its last record it ends before that run's `start` mark, and with neither it keeps them all. A
+//! batch that reaches the newest record while a run is open ends before that run's `start` mark too. The position
+//! of the first record that it did not take is the batch's commit position, and the next start reads from that
+//! record on, so a day above the bound takes several starts and holds back no later day.
+//!
+//! When that `start` mark is the batch's first record, the batch keeps no record: at the newest record its commit
+//! position is the one that it started from, so each start reads the open run again, and at the bound it reads on
+//! to the run's `end` mark, whose position is its commit position. A run that is open at the first record of
+//! another local day ends with its batch, and the next start reads the rest of the run as the person's. So when a
+//! run's `end` mark never comes, as when its agent died, nothing after its `start` mark is committed until a later
+//! local day holds a record, and the person's own records of that day after the mark are never proposed.
+//!
+//! The episode step closes every episode at the end of its call: a batch that ends at the bound with no pause, or
+//! before a run's `start` mark, can make two episodes of one. A keystroke or click that the store placed after the
+//! first record of a batch and that the episode step orders before it has no title record before it in its call
+//! and is dropped, at this cut as at the cut of a day.
 //!
 //! The episode step gets the offset of local time from UTC at the batch's first record. The worker draws one
 //! summary id from the system's random bytes for each episode that the step returns.
@@ -51,11 +62,11 @@
 //! ```
 //!
 //! `end` says why the batch ended; this worker takes no request to defer and never writes `defer`. `run_open` and
-//! `start_first` are the episode step's answers on an agent's run. `records` counts the records of the batch and
-//! `episodes` the episodes that it sent. After any other end the line is `halvo-analysis: <what>: <name>`, where
-//! the name is a fixed word, the kind of an input or output error, or an error name of a reply. No line holds a
-//! title, a site, an app id or the text of an error. A line that cannot be written is dropped and changes no exit
-//! code.
+//! `start_first` are the episode step's answers on an agent's run. `records` counts the records that the batch
+//! keeps and `episodes` the episodes that it sent. After any other end the line is
+//! `halvo-analysis: <what>: <name>`, where the name is a fixed word, the kind of an input or output error, or an
+//! error name of a reply. No line holds a title, a site, an app id or the text of an error. A line that cannot be
+//! written is dropped and changes no exit code.
 //!
 //! # How the worker ends
 //!

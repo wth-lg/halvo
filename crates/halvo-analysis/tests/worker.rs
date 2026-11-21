@@ -25,7 +25,7 @@ use halvo_schema_core::site::{AppId, Domain, SiteValue};
 use halvo_seam::fixture::FixtureTransport;
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
 use halvo_seam::message::decode_client;
-use halvo_seam::record::{CaptureRecord, Payload, RecordId, Seq, Title, LINE_MAX};
+use halvo_seam::record::{CaptureRecord, Edge, Payload, RecordId, Seq, Title, LINE_MAX};
 
 /// The worker's exit codes, as the module `exit` of its source names them.
 const COMMITTED: i32 = 0;
@@ -166,10 +166,12 @@ fn feed(file: &Path, lines: &[u8], shift_s: i64) -> Vec<CaptureRecord> {
 const PAUSE_S: i64 = 332;
 
 /// Writes one batch file that holds `count` records on the children's local day `day`, after what the file holds,
-/// and returns the records as written. The n-th record repeats the n-th record of `lines`, read round and round.
+/// and returns the records as written. The n-th record repeats the n-th of the records of `lines` that are no run
+/// mark, read round and round.
 /// Its instant is a whole second: the first lies at six in the morning of that day, and each later one a second
 /// after the one before it, or `PAUSE_S` seconds where `pauses` holds its index. Its id and its `seq` come from
-/// that second, so each record has an id of its own and the `seq` rises.
+/// that second, so each record has an id of its own and the `seq` rises. Where `marks` holds its index with an
+/// edge, the record is a run mark of that edge, with no app, in place of the repeated record.
 ///
 /// With `largest`, for the reading of the worker's peak memory alone, every record is a `window_title` record of
 /// the largest size that a line carries into the worker's memory: a text of 1,024 bytes, an app id of 255 bytes and
@@ -181,9 +183,13 @@ fn feed_repeated(
     count: usize,
     day: i64,
     pauses: &[usize],
+    marks: &[(usize, Edge)],
     largest: bool,
 ) -> Vec<CaptureRecord> {
-    let scripted = records(lines);
+    let scripted: Vec<CaptureRecord> = records(lines)
+        .into_iter()
+        .filter(|record| !matches!(record.payload(), Payload::RunMark(_)))
+        .collect();
     let start_s = day * DAY_S + 6 * 3_600 - utc_offset(day * DAY_S + DAY_S / 2);
     let text = "mail sent ".repeat(103);
     let mut out = std::fs::OpenOptions::new()
@@ -198,7 +204,10 @@ fn feed_repeated(
             start_s + i64::try_from(n).unwrap() + (PAUSE_S - 1) * i64::try_from(paused).unwrap();
         let id = RecordId::parse(&format!("00000000-0000-7000-8000-{at_s:012x}")).unwrap();
         let seq = Seq::new(u64::try_from(at_s).unwrap()).unwrap();
-        let (app, payload) = if largest {
+        let mark = marks.iter().find(|(at, _)| *at == n).map(|&(_, edge)| edge);
+        let (app, payload) = if let Some(edge) = mark {
+            (None, Payload::RunMark(edge))
+        } else if largest {
             let site = format!("{n:063}.{}", "z".repeat(63));
             let title = Title {
                 text: Text::parse(&text[..1_024]).unwrap(),
@@ -562,6 +571,17 @@ fn one_start(
     file: &Path,
     from: Option<(&StoreId, Position)>,
 ) -> ([String; 5], Position, Vec<Sent>) {
+    let (values, writes) = one_start_writes(file, from);
+    let commit = writes
+        .last()
+        .and_then(|write| write.commit)
+        .expect("the last write carries no commit");
+    (values, commit, writes)
+}
+
+/// What one start of the worker left, as `one_start` reads it, for a start that may send no write: the values of its
+/// log line and every write.
+fn one_start_writes(file: &Path, from: Option<(&StoreId, Position)>) -> ([String; 5], Vec<Sent>) {
     let (worker_read, server) = channel();
     let (worker_owner, owner) = channel();
     let serving = serve(&[file.to_owned()], server, None);
@@ -571,11 +591,7 @@ fn one_start(
     serving.join().unwrap();
     let writes = owner.join().unwrap();
     let values = batch_line(left.log.trim_end()).expect(&left.log);
-    let commit = writes
-        .last()
-        .and_then(|write| write.commit)
-        .expect("the last write carries no commit");
-    (values.map(str::to_owned), commit, writes)
+    (values.map(str::to_owned), writes)
 }
 
 /// The values of a log line of the form
@@ -867,7 +883,7 @@ fn a_batch_ends_at_the_bound_inside_a_day() {
     let file = scratch.0.join("day.jsonl");
     let count = RECORDS_MAX + records(lines).len();
     let largest = std::env::var_os("HALVO_ANALYSIS_TIME").is_some();
-    feed_repeated(&file, lines, count, utc_day(lines), &[], largest);
+    feed_repeated(&file, lines, count, utc_day(lines), &[], &[], largest);
 
     let (values, commit, _) = one_start(&file, None);
     assert_eq!(values[0], "records", "{values:?}");
@@ -894,7 +910,7 @@ fn a_batch_ends_at_its_last_pause() {
     let file = scratch.0.join("day.jsonl");
     let count = RECORDS_MAX + records(lines).len();
     let pauses = [5_000, 9_000];
-    let fed = feed_repeated(&file, lines, count, utc_day(lines), &pauses, false);
+    let fed = feed_repeated(&file, lines, count, utc_day(lines), &pauses, &[], false);
 
     let (values, commit, writes) = one_start(&file, None);
     assert_eq!(values[0], "records", "{values:?}");
@@ -923,8 +939,8 @@ fn a_day_above_the_bound_holds_no_later_day() {
     let file = scratch.0.join("two-days.jsonl");
     let rest = records(lines).len();
     let first_day = utc_day(lines);
-    feed_repeated(&file, lines, RECORDS_MAX + rest, first_day, &[], false);
-    feed_repeated(&file, lines, rest, first_day + 1, &[], false);
+    feed_repeated(&file, lines, RECORDS_MAX + rest, first_day, &[], &[], false);
+    feed_repeated(&file, lines, rest, first_day + 1, &[], &[], false);
     let store = FixtureTransport::open(&[&file], 1, None)
         .unwrap()
         .store()
@@ -937,4 +953,167 @@ fn a_day_above_the_bound_holds_no_later_day() {
         assert_eq!(values[3], count.to_string(), "{values:?}");
         from = Some(commit);
     }
+}
+
+/// The store id of the fixture transport over the one batch file `file` as it is now.
+fn store_of(file: &Path) -> StoreId {
+    FixtureTransport::open(&[file], 1, None)
+        .unwrap()
+        .store()
+        .clone()
+}
+
+/// The position of the record at `idx` of the one batch file.
+fn at_idx(idx: usize) -> Position {
+    Position {
+        seg: 1,
+        idx: u64::try_from(idx).unwrap(),
+    }
+}
+
+/// The run, rule 1: a record is a pause only when no run is open before it. Of a day above the bound with two
+/// pauses, the second inside an agent's run that ends before the bound, one start ends before the first pause.
+#[test]
+fn a_pause_inside_a_run_is_no_cut() {
+    let scratch = Scratch::new("worker-run-pause");
+    let (stream, day) = LARGEST_DAY;
+    let lines = &persona(stream)[&day];
+    let file = scratch.0.join("day.jsonl");
+    let count = RECORDS_MAX + records(lines).len();
+    let marks = [(8_000, Edge::Start), (10_000, Edge::End)];
+    feed_repeated(
+        &file,
+        lines,
+        count,
+        utc_day(lines),
+        &[5_000, 9_000],
+        &marks,
+        false,
+    );
+
+    let (values, commit, _) = one_start(&file, None);
+    assert_eq!(values[3], "5000", "{values:?}");
+    assert_eq!(commit, at_idx(5_000));
+}
+
+/// The run, rule 2: a batch that reaches the bound with no pause and a run open ends before that run's `start` mark,
+/// and the next start reads the run from that mark, so no episode starts inside the run.
+#[test]
+fn a_bound_inside_a_run_ends_before_it() {
+    let scratch = Scratch::new("worker-run-bound");
+    let (stream, day) = LARGEST_DAY;
+    let lines = &persona(stream)[&day];
+    let file = scratch.0.join("day.jsonl");
+    let count = RECORDS_MAX + records(lines).len();
+    let marks = [(16_000, Edge::Start), (16_450, Edge::End)];
+    let fed = feed_repeated(&file, lines, count, utc_day(lines), &[], &marks, false);
+    let store = store_of(&file);
+
+    let (values, commit, _) = one_start(&file, None);
+    assert_eq!(values[0], "records", "{values:?}");
+    assert_eq!(values[1], "no", "{values:?}");
+    assert_eq!(values[3], "16000", "{values:?}");
+    assert_eq!(commit, at_idx(16_000));
+
+    let (values, _, writes) = one_start(&file, Some((&store, commit)));
+    assert_eq!(values[3], "531", "{values:?}");
+    let run = fed[16_000].at().0..=fed[16_450].at().0;
+    let episodes: Vec<&Episode> = writes.iter().flat_map(|write| &write.episodes).collect();
+    assert!(
+        !episodes.is_empty(),
+        "the records after the run hold no episode"
+    );
+    assert!(
+        episodes.iter().all(|e| !run.contains(&e.start.0)),
+        "an episode starts between the instants of the two marks"
+    );
+}
+
+/// The run, rule 3: a batch that reaches the newest record while a run is open ends before that run's `start` mark,
+/// a start from that mark keeps no record and sends nothing, and once the file holds the run's `end` mark a start
+/// from the `start` mark reads the run and the records after it.
+#[test]
+fn a_run_open_at_the_newest_is_read_again() {
+    let scratch = Scratch::new("worker-run-newest");
+    let (stream, day) = LARGEST_DAY;
+    let lines = &persona(stream)[&day];
+    let rest = records(lines).len();
+    let file = scratch.0.join("day.jsonl");
+    let grown = scratch.0.join("grown.jsonl");
+    let start = (rest, Edge::Start);
+    feed_repeated(
+        &file,
+        lines,
+        rest + 21,
+        utc_day(lines),
+        &[],
+        &[start],
+        false,
+    );
+    let both = [start, (rest + 21, Edge::End)];
+    feed_repeated(
+        &grown,
+        lines,
+        2 * rest + 22,
+        utc_day(lines),
+        &[],
+        &both,
+        false,
+    );
+    let store = store_of(&file);
+
+    let (values, commit, _) = one_start(&file, None);
+    assert_eq!(values[0], "newest", "{values:?}");
+    assert_eq!(values[1], "no", "{values:?}");
+    assert_eq!(values[3], rest.to_string(), "{values:?}");
+    assert_eq!(commit, at_idx(rest));
+
+    let (values, writes) = one_start_writes(&file, Some((&store, commit)));
+    assert_eq!(values[3], "0", "{values:?}");
+    assert!(
+        writes.is_empty(),
+        "a start that keeps no record sent a write"
+    );
+
+    let before = std::fs::read(&file).unwrap();
+    assert!(std::fs::read(&grown).unwrap().starts_with(&before));
+    std::fs::copy(&grown, &file).unwrap();
+    let store = store_of(&file);
+    let (values, _, _) = one_start(&file, Some((&store, commit)));
+    assert_eq!(values[1], "no", "{values:?}");
+    assert_eq!(values[3], (rest + 22).to_string(), "{values:?}");
+}
+
+/// The run, rule 4: a batch whose first record is the `start` mark of a run that is open after the bound keeps no
+/// record and reads on to the run's `end` mark, whose position it commits, and the next start reads from that mark.
+#[test]
+fn a_run_above_the_bound_is_read_past() {
+    let scratch = Scratch::new("worker-run-past");
+    let (stream, day) = LARGEST_DAY;
+    let lines = &persona(stream)[&day];
+    let rest = records(lines).len();
+    let file = scratch.0.join("day.jsonl");
+    let end = 1 + RECORDS_MAX + rest;
+    let marks = [(0, Edge::Start), (end, Edge::End)];
+    feed_repeated(
+        &file,
+        lines,
+        end + 1 + rest,
+        utc_day(lines),
+        &[],
+        &marks,
+        false,
+    );
+    let store = store_of(&file);
+
+    let (values, commit, _) = one_start(&file, None);
+    assert_eq!(values[0], "records", "{values:?}");
+    assert_eq!(values[1], "no", "{values:?}");
+    assert_eq!(values[3], "0", "{values:?}");
+    assert_eq!(values[4], "0", "{values:?}");
+    assert_eq!(commit, at_idx(end));
+
+    let (values, _, _) = one_start(&file, Some((&store, commit)));
+    assert_eq!(values[0], "newest", "{values:?}");
+    assert_eq!(values[3], (rest + 1).to_string(), "{values:?}");
 }
