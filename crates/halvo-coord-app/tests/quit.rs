@@ -322,6 +322,32 @@ impl Drop for Release {
     }
 }
 
+#[test]
+fn u46d_a_quit_whose_kill_holds_past_the_bound_has_written_its_list_when_the_hook_returns() {
+    let hub = hub(1);
+    let _release = Release(hub.clone());
+    let run = live_run(&hub);
+    let ports = hub.coordinator().ports().inner();
+    ports.hold_kills(Hold::Released);
+    let (took, named) = quit_named(&hub, Some(ms(100))).join().unwrap();
+    let holding = ports.kills_holding();
+    let written: Named = events(&hub)
+        .iter()
+        .filter_map(|e| match &e.what {
+            What::RunNotStopped { run } => Some((e.agent.clone(), run.clone())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(holding, 1, "the kill still held when the hook returned");
+    assert!(took < ms(1_900), "the hook returned at its bound: {took:?}");
+    assert_eq!(named, [(agent(0), run.clone())]);
+    assert_eq!(
+        written,
+        [(agent(0), run)],
+        "the owner holds the list of the runs that did not stop, as an event of its own kind"
+    );
+}
+
 fn hub_of(agents: usize, max_live_runs: u32, grace_s: u64) -> Arc<Hub<Shared>> {
     let limits = Limits {
         cancel_grace_s: grace_s,

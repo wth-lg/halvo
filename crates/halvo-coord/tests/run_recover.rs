@@ -1,6 +1,10 @@
 #[path = "run_support.rs"]
 mod support;
 
+#[allow(clippy::duplicate_mod)]
+#[path = "coordinator_support.rs"]
+mod coord;
+
 use halvo_coord::guard::Table;
 use halvo_coord::mem::Method;
 use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
@@ -2250,4 +2254,69 @@ fn rd122_t1_recovery_owes_no_end_run_that_the_owner_refuses_with_no_workflow() {
         "class B ends the end_run: {:?}",
         w.board.owed
     );
+}
+
+/// A life of one manual agent whose Quit left its run named as not stopped, its kill refused,
+/// and wrote that list; and the owner of the next life on the same store, whose reap gives
+/// `answer` for that run.
+fn after_a_quit_that_left_a_run(answer: Reaped) -> (coord::Both, RunId) {
+    let c = coord::coordinator(&[coord::MANUAL], Limits::PRODUCT);
+    let run_now = halvo_coord::types::Action::RunNow;
+    assert_eq!(c.control(&agent(0), run_now), Ok(()));
+    let run = coord::started(&c).pop().unwrap();
+    let hello = halvo_coord::types::RunEvent::Hello;
+    assert_eq!(c.on_run(&run, hello), Ok(()));
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    c.quit_write();
+    let next = same_store(c.ports(), &[(run.clone(), answer)]);
+    (next, run)
+}
+
+/// The owner of a new life on the store of `from`, whose reap gives `marks`.
+fn same_store(from: &coord::Both, marks: &[(RunId, Reaped)]) -> coord::Both {
+    let next = coord::owner(&[], Limits::PRODUCT);
+    *next.ports.workflows.borrow_mut() = from.ports.workflows.borrow().clone();
+    *next.ports.agents.borrow_mut() = from.ports.agents.borrow().clone();
+    *next.ports.events.borrow_mut() = from.ports.events.borrow().clone();
+    next.ports.leave_marks(marks);
+    next
+}
+
+#[test]
+fn u46d_the_first_row_of_the_next_life_says_that_its_task_was_still_running_when_halvo_quit() {
+    let (next, _) = after_a_quit_that_left_a_run(Reaped::Gone);
+    let life = halvo_coord::Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    let row = life.snapshot().rows[0].clone();
+    assert_eq!(
+        row.line,
+        halvo_coord::words::text("line.problem.quit", &[]).unwrap(),
+        "reap answered gone, and the first row says that the task was still running when \
+         Halvo quit: {row:?}"
+    );
+}
+
+#[test]
+fn u46d_the_row_shows_the_recorded_end_of_that_run_in_the_same_life_and_after_one_more_start() {
+    let (next, run) = after_a_quit_that_left_a_run(Reaped::Alive);
+    let life = halvo_coord::Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    let record = PastRun {
+        run: run.clone(),
+        day: DAY,
+        outcome: Outcome::Completed,
+        unknown: 0,
+    };
+    life.ports().ports.store_end(&agent(0), record);
+    life.tick();
+    let done = halvo_coord::words::text("line.all_set.done", &[]).unwrap();
+    let row = life.snapshot().rows[0].clone();
+    assert_eq!(row.line, done, "in the same life: {row:?}");
+    let third = same_store(life.ports(), &[(run, Reaped::Gone)]);
+    let after = halvo_coord::Coordinator::new(third, Limits::PRODUCT);
+    after.tick();
+    let row = after.snapshot().rows[0].clone();
+    assert_eq!(row.line, done, "after one more start: {row:?}");
 }

@@ -312,6 +312,7 @@ ride_order
 routine_stale
 run
 run_ended
+run_not_stopped
 run_started
 runner
 runs
