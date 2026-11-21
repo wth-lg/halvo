@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use halvo_agent_store::{Host as AgentHost, Now};
 use halvo_derived::{
     Clock as StoreClock, CommitOutcome, DbKey, Error, Handler, HandlerCx, Host, IdSource, MoveTo,
-    Store, Takes,
+    Report, Store, Takes,
 };
 use halvo_learn_store::{Clock, LearnHandlers, LearnHost, LearnStep};
 use halvo_schema::executable::day::day_of;
@@ -447,6 +447,7 @@ struct LearnFront {
     day: Day,
     handlers: Rc<RefCell<LearnHandlers>>,
     channel: Rc<Channel>,
+    calls: Rc<Cell<u64>>,
 }
 
 impl Handler for LearnFront {
@@ -455,6 +456,7 @@ impl Handler for LearnFront {
         request: &RawRequest,
         cx: &mut HandlerCx<'_>,
     ) -> Result<Box<RawValue>, ErrorName> {
+        self.calls.set(self.calls.get().saturating_add(1));
         let body = request.body().get().as_bytes();
         let cx = RefCell::new(cx);
         let mut front = Front {
@@ -552,7 +554,9 @@ fn copy_store(from: &Path, to: &Path) -> Result<(), String> {
 /// arms `none` and `plain`, and the gate's read under `READ_ROLE`. A workflow comes from one summary that the test
 /// proposer proposes and an `interface_decision` with `approve`; a restart drops the store and opens it again with
 /// a new value of `LearnHandlers`; the delete of a workflow is the decision `delete`. The host writes under its own
-/// directory alone.
+/// directory alone. It keeps what it sees of the store for the privacy checks (`Tallies`): the requests that reach
+/// `LearnHandlers`, the batches, the opens and, with `with_reports`, every report that the store hands its host after
+/// a committed transaction (`Host::on_report`).
 pub struct DerivedHost {
     root: PathBuf,
     data: PathBuf,
@@ -571,8 +575,21 @@ pub struct DerivedHost {
     kept: Option<PathBuf>,
     seen_runs: BTreeSet<String>,
     counted_runs: BTreeSet<String>,
-    #[cfg(test)]
+    keep_reports: bool,
+    reports: Rc<RefCell<Vec<Report>>>,
+    learn_calls: Rc<Cell<u64>>,
     opens: u32,
+}
+
+/// What a `DerivedHost` has seen of its store up to a moment: the reports that the store handed it, one after each
+/// committed transaction; the requests that reached `LearnHandlers`, the family's own handlers; the batches that it
+/// committed, after each of which the store runs its steps; and the opens of the store.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Tallies {
+    pub reports: usize,
+    pub learn_requests: u64,
+    pub batches: u64,
+    pub opens: u32,
 }
 
 impl DerivedHost {
@@ -599,7 +616,9 @@ impl DerivedHost {
             kept: None,
             seen_runs: BTreeSet::new(),
             counted_runs: BTreeSet::new(),
-            #[cfg(test)]
+            keep_reports: false,
+            reports: Rc::new(RefCell::new(Vec::new())),
+            learn_calls: Rc::new(Cell::new(0)),
             opens: 0,
         }
     }
@@ -607,6 +626,13 @@ impl DerivedHost {
     /// The host with `LearnStep` after the recurrence step.
     pub fn with_step(mut self) -> DerivedHost {
         self.step = true;
+        self
+    }
+
+    /// The host that keeps every report that the store hands it from its next open on (`Host::on_report`), for the
+    /// privacy checks; a host without it installs no sink, so that its store makes no report.
+    pub fn with_reports(mut self) -> DerivedHost {
+        self.keep_reports = true;
         self
     }
 
@@ -624,6 +650,12 @@ impl DerivedHost {
             Box::new(self.day.clone()),
             Box::new(Proposer(Rc::clone(&self.proposals))),
         );
+        if self.keep_reports {
+            let reports = Rc::clone(&self.reports);
+            host = host.on_report(Box::new(move |report: &Report| {
+                reports.borrow_mut().push(report.clone());
+            }));
+        }
         if self.step {
             host = host.step("learn", Box::new(LearnStep::new(self.day.clone())));
         }
@@ -631,6 +663,7 @@ impl DerivedHost {
             day: self.day.clone(),
             handlers: Rc::clone(&self.handlers),
             channel: Rc::clone(&channel),
+            calls: Rc::clone(&self.learn_calls),
         };
         let behind = || AgentStore {
             day: self.day.clone(),
@@ -656,10 +689,7 @@ impl DerivedHost {
             let store = Store::open(&self.data, &self.key, &entries, host, &mut self.ids)
                 .map_err(|e| format!("the derived store does not open: {e}"))?;
             self.store = Some(store);
-            #[cfg(test)]
-            {
-                self.opens += 1;
-            }
+            self.opens += 1;
         }
         Ok(())
     }
@@ -668,6 +698,22 @@ impl DerivedHost {
     #[cfg(test)]
     pub fn opens(&self) -> u32 {
         self.opens
+    }
+
+    /// What the host has seen of its store so far.
+    pub fn tallies(&self) -> Tallies {
+        Tallies {
+            reports: self.reports.borrow().len(),
+            learn_requests: self.learn_calls.get(),
+            batches: self.batches,
+            opens: self.opens,
+        }
+    }
+
+    /// Every report that the store has handed the host, in their order, the first after the first committed
+    /// transaction of the host's first open.
+    pub fn reports(&self) -> Vec<Report> {
+        self.reports.borrow().clone()
     }
 
     fn store(&mut self) -> Result<&mut Store, String> {

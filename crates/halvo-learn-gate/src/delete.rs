@@ -95,6 +95,8 @@ pub fn seed(cases: &[Case; 2]) -> Result<(Play<'_>, String), String> {
 /// The play of the second seeded workflow on the derived store under `data_dir`, opened with a key that this
 /// process makes, which holds both seeded workflows, each made by the test proposer and an approval, with its
 /// agent, its compile and its learned edits (L10.1, L10.4), and the id of the first workflow as the store gave it.
+/// The host keeps every report of the store from its first open on (`DerivedHost::with_reports`), which
+/// `privacy::derived_outcomes` reads.
 pub fn seed_derived<'c>(
     cases: &'c [Case; 2],
     data_dir: &Path,
@@ -103,7 +105,8 @@ pub fn seed_derived<'c>(
         data_dir.to_path_buf(),
         process_key(),
         cases[0].occurrences[0].day,
-    );
+    )
+    .with_reports();
     let mut first = Play::with_host(&cases[0], Arm::Admit, 1, host);
     play_all(&mut first, false)?;
     let first_workflow = first.workflow().to_owned();

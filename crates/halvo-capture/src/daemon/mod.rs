@@ -11,6 +11,7 @@ pub mod children;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod counters;
 pub mod custody_policy;
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod delete_all;
 pub mod instance;
 pub mod lease;
@@ -110,6 +111,7 @@ pub const USAGE: &str = "usage: halvo-capture --version
        halvo-capture --verify-store --store-dir DIR --marker MARKER
        halvo-capture --verify-deletion --store-dir DIR
        halvo-capture --delete-all --store-dir DIR
+       halvo-capture --delete-all --data-dir DIR
        halvo-capture --service-run [--data-dir DIR]";
 
 /// What a command line asks for. The gate's modes exist only in builds with
@@ -170,11 +172,14 @@ pub enum Mode {
     /// to it until that cut fills it, and the binary answers it with usage.
     #[cfg(debug_assertions)]
     Lease,
-    /// The mode of daemon-3d's cut in daemon/delete_all/. No command line
-    /// parses to it until that cut fills it, and the binary answers it with
-    /// usage.
+    /// `--delete-all --data-dir DIR`, the offline delete of a data directory
+    /// (contracts.md C3.3), with DIR absolute. A macOS build runs it; a build
+    /// of another system answers it with usage until the service run comes
+    /// to that system.
     #[cfg(debug_assertions)]
-    DeleteAllOfADataDir,
+    DeleteAllOfADataDir {
+        data_dir: halvo_control::paths::DataDir,
+    },
 }
 
 impl Mode {
@@ -650,6 +655,16 @@ pub fn parse(
             let flags = gate::Flags::read(&args[1..], &["--store-dir"])?;
             let store_dir = gate::store_dir(flags.store_dir, account)?.without_store_key()?;
             Ok(Mode::VerifyDeletion { store_dir })
+        }
+        #[cfg(debug_assertions)]
+        Some("--delete-all") if args.get(1).is_some_and(|flag| flag == "--data-dir") => {
+            match &args[1..] {
+                [_, dir] => halvo_control::paths::DataDir::from_flag(dir.as_str())
+                    .map(|data_dir| Mode::DeleteAllOfADataDir { data_dir })
+                    .map_err(|_| Usage("--data-dir takes an absolute directory").into()),
+                [_] => Err(Usage("--data-dir needs DIR").into()),
+                _ => Err(Usage("--delete-all --data-dir takes DIR and no other flag").into()),
+            }
         }
         #[cfg(debug_assertions)]
         Some("--delete-all") => {
@@ -1896,8 +1911,10 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
     if dir_shut.is_some() {
         let _ = writeln!(err, "{DIR_SHUT_LINE}");
     }
-    let mut opener = if stop.load(std::sync::atomic::Ordering::SeqCst) || dir_shut.is_some() {
+    let mut opener = if stop.load(std::sync::atomic::Ordering::SeqCst) {
         None
+    } else if dir_shut.is_some() {
+        finish_the_intent_alone(dir, err)
     } else {
         start_the_opener(dir, rule, err)
     };
@@ -1926,12 +1943,13 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         }
         if let Some(shut) = dir_shut {
             if shut.left().is_zero() {
+                let finishing = opener.as_ref().is_some_and(owner::open::Opener::is_running);
                 dir_shut = match lock.check(dir) {
-                    Ok(_) => {
+                    Ok(_) if !finishing => {
                         opener = start_the_opener(dir, rule, err);
                         None
                     }
-                    Err(_) => Some(shut.again()),
+                    Ok(_) | Err(_) => Some(shut.again()),
                 };
             }
             continue;
@@ -2101,7 +2119,8 @@ fn start_the_opener(
     rule: owner::open::CreateRule,
     err: &mut dyn std::io::Write,
 ) -> Option<owner::open::Opener> {
-    match owner::open::Opener::start(
+    match owner::open::Opener::start_with(
+        delete_all::at_start_of(dir.path()),
         Box::new(port::DataDirStore::at(dir.path())),
         custody_policy::of_this_build,
         rule,
@@ -2111,6 +2130,31 @@ fn start_the_opener(
             let _ = writeln!(
                 err,
                 "halvo-capture: store=unavailable the open did not start: {}",
+                error.kind()
+            );
+            None
+        }
+    }
+}
+
+/// The finish of a delete-all intent where the data directory failed its
+/// check, with no open after it: a failed check never gates a delete
+/// (contracts.md C3.2 step 3). The open starts once the check passes and
+/// this finish has ended.
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn finish_the_intent_alone(
+    dir: &halvo_control::paths::DataDir,
+    err: &mut dyn std::io::Write,
+) -> Option<owner::open::Opener> {
+    match owner::open::Opener::finish_alone(
+        delete_all::at_start_of(dir.path()),
+        Box::new(port::DataDirStore::at(dir.path())),
+    ) {
+        Ok(finish) => Some(finish),
+        Err(error) => {
+            let _ = writeln!(
+                err,
+                "halvo-capture: the finish of delete-all.intent did not start: {}",
                 error.kind()
             );
             None
@@ -2877,7 +2921,6 @@ mod tests {
             ],
             &["--delete-all", "--store-dir", d, "--hold-secure-input"],
             &["--delete-all", "--store-dir", d, "--switch", "key_class=on"],
-            &["--delete-all", "--data-dir", d],
         ] {
             let refused = parse_line(line);
             assert!(
