@@ -218,6 +218,10 @@ fn the_delete_guard_waits_while_a_run_started_has_no_later_run_ended_of_its_run(
             DeleteGuard::Wait,
         ),
         (
+            vec![run_started(1, 1, 1, 1), run_ended(1, 1, 1, 1)],
+            DeleteGuard::Wait,
+        ),
+        (
             vec![run_started(1, 1, 1, 1), run_ended(1, 2, 2, 1)],
             DeleteGuard::Wait,
         ),
