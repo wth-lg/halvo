@@ -4,7 +4,7 @@
 //! class: a window row lives no longer than its source segments, a bounded row the days of its kind's entry, and a
 //! kept row until the person deletes its workflow or everything.
 //!
-//! # Hosts, steps and handlers
+//! # Hosts, steps, handlers and delete guards
 //!
 //! A host supplies its code to the store in one value, built in this form:
 //!
@@ -12,17 +12,18 @@
 //! Host::new(clock, recurrence_step)
 //!     .step(family, writer_step)              // after the recurrence step, in this order
 //!     .handler(family, takes, handler)        // in front of the handlers of the same requests added after it
+//!     .delete_guard(family, guard)            // asked by each delete of a workflow, in this order
 //!     .on_report(sink)                        // the report after each committed transaction
 //! ```
 //!
-//! Each step and each handler names its own family. A step reads the summaries and the rows of its own family and
-//! returns records of kinds of its own family; a handler commits records of kinds of its own family and reads the
-//! rows of its own family. `Takes` names the requests that a handler takes: `runner` requests, the `coordinator_write`
-//! bodies of a list of `op` names, or the requests of one further role. For one request the store passes the request
-//! to the first handler that takes it; that handler is in front. It answers the request itself, or calls
-//! `HandlerCx::pass_on`, which passes the request on unchanged to the next handler that takes it and returns that
-//! handler's answer; the handler of the owning run is added last and has no handler behind it. Each handler of the
-//! chain gets a `HandlerCx` of its own family, the handler behind as well, so a handler in front makes its typed
+//! Each step, each handler and each delete guard names its own family. A step reads the summaries and the rows of its
+//! own family and returns records of kinds of its own family; a handler commits records of kinds of its own family and
+//! reads the rows of its own family. `Takes` names the requests that a handler takes: `runner` requests, the
+//! `coordinator_write` bodies of a list of `op` names, or the requests of one further role. For one request the store
+//! passes the request to the first handler that takes it; that handler is in front. It answers the request itself, or
+//! calls `HandlerCx::pass_on`, which passes the request on unchanged to the next handler that takes it and returns
+//! that handler's answer; the handler of the owning run is added last and has no handler behind it. Each handler of
+//! the chain gets a `HandlerCx` of its own family, the handler behind as well, so a handler in front makes its typed
 //! commits after `pass_on` has returned, in its own family. The owner reads the `op` of a `coordinator_write` and
 //! nothing else of its body, so a body whose `workflow` and `agent` are null goes to the handler of its `op` as every
 //! other body does.
@@ -36,6 +37,18 @@
 //! of origin own is stored for a `runner` request and a `coordinator_write`, and refused from a step and for a request
 //! of a further role.
 //!
+//! A delete guard (`DeleteGuard`) is a closure of a run whose rows can show that an agent still works under a workflow.
+//! The delete of a stored workflow (`Store::decide`) calls each guard, in the order in which the host added them,
+//! inside its own transaction and before it removes a row, with the workflow id and two inputs of the guard's own
+//! family: a `RowRead` whose `for_each` visits the rows of one kind that are held under that workflow id and no other,
+//! under the rule of the reads below (DS-4), and the held-ahead call by kind name (`HeldAhead`), which answers yes or
+//! no for each kind of that family under that workflow and never `HeldRefusal::Role`. A guard answers
+//! `GuardAnswer::Go` or `GuardAnswer::Wait`. At the first `Wait` the delete answers `state` and removes nothing, and
+//! no guard behind it is called. A fault of the database in the read or in the held-ahead call that the store gives a
+//! guard is the store's: the delete answers the fault and removes nothing, whatever the guard answered. So while a
+//! guard reads a kind, a workflow with a row of that kind that the store cannot read is not deleted by itself; the
+//! delete of everything still removes it. A delete of a workflow that is not stored calls no guard.
+//!
 //! # What a read hands out
 //!
 //! Every read hands out exactly the rows that an expiry at that read's clock would leave (DS-4): a bounded row while
@@ -43,16 +56,17 @@
 //! has a day; a window row while its `expires` lies after the clock's instant; a kept row always; and an evidence or
 //! a support row only while the summary that it names is handed out. That holds for a step's summary read and row
 //! read, a handler's `rows`, of one kind whole or under one workflow id, `workflow` and `evidence`, and the interface
-//! read. The summary read leaves out, by a sentence of its own, a summary of a day after the clock's day as well. The
-//! four conditions are written once, in `sql`, and the expiry's statements and the reads are made from them. No read
-//! writes: a row that the reads leave out stays stored, counted and found by a delete or a purge until an expiry
-//! removes it, and the revision rises then.
+//! read, and for the read that a delete hands its guards. The summary read leaves out, by a sentence of its own, a
+//! summary of a day after the clock's day as well. The four conditions are written once, in `sql`, and the expiry's
+//! statements and the reads are made from them. No read writes: a row that the reads leave out stays stored, counted
+//! and found by a delete or a purge until an expiry removes it, and the revision rises then.
 //!
 //! The clock is the host's. The store reads it once at the start of each call of the host, `commit_batch` for the
 //! reads of every step, `Store::interface_read` for one page, and `Store::handle` for every read of one request, the
 //! handlers behind included; no read takes a day or an instant from its caller. A call that starts before a deadline
 //! reads by its start, so a row that passes its bound while the call runs is handed out until the call ends. The
-//! typed commit and the state call keep their own reading at the commit.
+//! typed commit and the state call keep their own reading at the commit. A delete of `Store::decide` that calls a
+//! guard reads the clock once, before its first guard, for the read and the held-ahead call of every guard.
 //!
 //! # What the store reports to its host
 //!
@@ -100,6 +114,7 @@ mod batch;
 mod db;
 mod decide;
 mod error;
+mod guard;
 mod handler;
 mod hash;
 mod host;
@@ -118,6 +133,7 @@ use halvo_schema_core::record::RecurrenceStep;
 
 pub use batch::{CommitOutcome, ProposalOutcome};
 pub use error::{Error, Fault, OpenError, StoredFault};
+pub use guard::{DeleteGuard, GuardAnswer, HeldAhead};
 pub use handler::{Cause, Committed, DayFault, Handler, HandlerCx, Refusal, Takes};
 pub use host::{Clock, DbKey, Host, IdSource, ReportSink};
 pub use read::ReadHandle;
@@ -134,6 +150,7 @@ pub struct Store {
     recurrence: Box<dyn RecurrenceStep>,
     steps: Vec<handler::StepEntry>,
     handlers: Vec<handler::HandlerEntry>,
+    guards: Vec<guard::GuardEntry>,
 }
 
 impl Store {
@@ -159,8 +176,8 @@ impl Store {
     /// stored bounded row goes to the bound of its kind's entry in `entries` where that bound is the shorter, gives a
     /// bounded row of a kind of `entries` with a day and no day of going its day plus the days of its entry, and then
     /// runs the expiry of `Store::expire`, which reads that day as the report's deadline does. `ids` gives the key of
-    /// the site hash when the database is created. It also fails when a step or a handler of `host` names the family
-    /// `workflow` or a family outside the form of 1 to 32 bytes of `a` to `z`, `0` to `9` and `_`.
+    /// the site hash when the database is created. It also fails when a step, a handler or a delete guard of `host`
+    /// names the family `workflow` or a family outside the form of 1 to 32 bytes of `a` to `z`, `0` to `9` and `_`.
     pub fn open(
         data_dir: &Path,
         key: &DbKey,
@@ -182,7 +199,8 @@ impl Store {
             .steps
             .iter()
             .map(|s| s.family)
-            .chain(host.handlers.iter().map(|h| h.family));
+            .chain(host.handlers.iter().map(|h| h.family))
+            .chain(host.guards.iter().map(|g| g.family));
         for family in families {
             let form = (1..=32).contains(&family.len())
                 && family
@@ -198,6 +216,7 @@ impl Store {
             recurrence: host.recurrence,
             steps: host.steps,
             handlers: host.handlers,
+            guards: host.guards,
         })
     }
 }

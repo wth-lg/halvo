@@ -54,7 +54,8 @@ pub enum OpenError {
     Entries(Vec<String>),
     /// The entries lack this kind of the workflow run, or hold it changed.
     MissingKind(&'static str),
-    /// A step or a handler of the host names this family, which is `workflow` or outside the form of a family.
+    /// A step, a handler or a delete guard of the host names this family, which is `workflow` or outside the form of a
+    /// family.
     Family(&'static str),
     /// This setting of the connection is not in effect after the store set it.
     Setting(&'static str),
@@ -101,7 +102,10 @@ impl fmt::Display for OpenError {
                 )
             }
             OpenError::Family(family) => {
-                write!(f, "a step or a handler names the family {family:?}")
+                write!(
+                    f,
+                    "a step, a handler or a delete guard names the family {family:?}"
+                )
             }
             OpenError::Setting(name) => write!(f, "the setting {name} is not in effect"),
             OpenError::Schema => f.write_str("the database holds another schema"),
