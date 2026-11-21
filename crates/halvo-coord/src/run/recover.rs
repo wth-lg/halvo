@@ -253,6 +253,8 @@ where
         replies: crate::types::Replies::NotAsked,
         today: day,
         doing: Doing::Idle(None),
+        stand_in: true,
+        active_refused: false,
     };
     facts.take_unknown(&agent.unknown);
     Ok(Some(facts))
