@@ -49,13 +49,12 @@ tools/r3-trials/web/src/checks.rs 1 agent-setup run, P0 trials
 tools/r3-trials/web/src/start.rs 2 agent-setup run, P0 trials
 tools/r3-trials/web/tests/org.rs 4 agent-setup run, P0 trials
 tools/r3-trials/web/tests/signals.rs 2 agent-setup run, P0 trials
-tools/r4-trials/app/tests/pages.rs 1 interface run
 EOF
 }
 
-pinned_rows=35
-pinned_places=47
-pinned_paths=2644232165
+pinned_rows=34
+pinned_places=46
+pinned_paths=1009399032
 
 program='
 function code(s) {
