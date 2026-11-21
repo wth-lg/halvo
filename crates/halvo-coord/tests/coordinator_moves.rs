@@ -12320,3 +12320,204 @@ fn u24e_r4_a_take_back_is_no_service_with_no_board_and_ok_with_no_call_after_the
         "no read of the clock"
     );
 }
+
+/// The ports of `Both` with a clock that panics once at its next read while `armed` is set, a
+/// stand-in for a clock port that panics inside the take-up of a call (ruling RD-157).
+mod clock_panics {
+    use super::support::Both;
+    use halvo_coord::mem::Config;
+    use halvo_coord::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
+    use halvo_coord::types::{
+        Agent, AgentId, Answer, BindResult, Body, Class, Decision, Event, HandbackResult, Reply,
+        ReplyRow, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
+    };
+    use std::cell::Cell;
+
+    pub struct ClockPanics {
+        pub both: Both,
+        pub armed: Cell<bool>,
+    }
+
+    impl Owner for ClockPanics {
+        type Config = Config;
+
+        fn log(&self, events: &[Event]) -> Result<(), PortError> {
+            self.both.log(events)
+        }
+
+        fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
+            self.both.history(agent, after)
+        }
+
+        fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
+            self.both.workflows()
+        }
+
+        fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+            self.both.agents()
+        }
+
+        fn send(&self, body: &Body) -> Result<Reply, PortError> {
+            self.both.send(body)
+        }
+
+        fn agent_history(
+            &self,
+            workflow: &WorkflowId,
+            agent: &AgentId,
+            runs: u32,
+        ) -> Result<Vec<RunHistory>, PortError> {
+            self.both.agent_history(workflow, agent, runs)
+        }
+
+        fn replies(
+            &self,
+            workflow: &WorkflowId,
+            agent: &AgentId,
+            run: &RunId,
+        ) -> Result<Vec<ReplyRow>, PortError> {
+            self.both.replies(workflow, agent, run)
+        }
+    }
+
+    impl Runs for ClockPanics {
+        fn start(&self, spec: &RunSpec) -> Result<(), PortError> {
+            self.both.start(spec)
+        }
+
+        fn answer_confirm(
+            &self,
+            run: &RunId,
+            answers: &[Answer],
+            record: &mut dyn FnMut(&Decision) -> Result<(), PortError>,
+        ) -> Result<(), PortError> {
+            self.both.answer_confirm(run, answers, record)
+        }
+
+        fn answer_handback(&self, run: &RunId, result: HandbackResult) -> Result<(), PortError> {
+            self.both.answer_handback(run, result)
+        }
+
+        fn answer_bind(&self, run: &RunId, result: BindResult) -> Result<(), PortError> {
+            self.both.answer_bind(run, result)
+        }
+
+        fn cancel(&self, run: &RunId) -> Result<(), PortError> {
+            self.both.cancel(run)
+        }
+
+        fn kill(&self, run: &RunId) -> Result<(), PortError> {
+            self.both.kill(run)
+        }
+
+        fn reap(&self) -> Result<Vec<(RunId, Reaped)>, PortError> {
+            self.both.reap()
+        }
+    }
+
+    impl Analysis for ClockPanics {
+        fn defer(&self, until: u64) -> Result<(), PortError> {
+            self.both.defer(until)
+        }
+    }
+
+    impl Clock for ClockPanics {
+        fn now(&self) -> Result<u64, PortError> {
+            if self.armed.replace(false) {
+                panic!("the clock port panics");
+            }
+            self.both.now()
+        }
+
+        fn day(&self, at: u64) -> Result<u32, PortError> {
+            self.both.day(at)
+        }
+    }
+
+    impl Rng for ClockPanics {
+        fn bytes16(&self) -> Result<[u8; 16], PortError> {
+            self.both.bytes16()
+        }
+    }
+
+    impl Tray for ClockPanics {
+        fn attention(&self, count: u32) -> Result<(), PortError> {
+            self.both.attention(count)
+        }
+    }
+
+    impl Page for ClockPanics {
+        fn changed(&self) -> Result<(), PortError> {
+            self.both.changed()
+        }
+    }
+
+    impl halvo_coord::guard::Policy for ClockPanics {
+        type Config = Config;
+
+        fn gives_run(&self, config: &Config, class: Class) -> Result<bool, PortError> {
+            self.both.gives_run(config, class)
+        }
+    }
+}
+
+/// RD-157, the unwind: a take-back of agent 1, whose start waits ahead of agent 2's, is the first
+/// call after agent 0's end was kept for want of the clock, and the clock port panics at the
+/// take-up's read. The panic reaches the caller, and the named start stands in the queue again in
+/// its old place, so that the next tick makes the kept end and serves agent 1.
+#[test]
+fn u24e_rd157_a_take_up_that_unwinds_puts_the_named_start_back_in_its_place() {
+    use clock_panics::ClockPanics;
+    let ports = ClockPanics {
+        both: owner(&[MANUAL, MANUAL, MANUAL], one_at_a_time()),
+        armed: std::cell::Cell::new(false),
+    };
+    let c = Coordinator::new(ports, one_at_a_time());
+    c.tick();
+    let starts_of_agent = |n: usize| {
+        c.ports()
+            .both
+            .ports
+            .calls
+            .borrow()
+            .iter()
+            .filter(|t| matches!(&t.call, Call::Start(spec) if spec.agent == agent(n)))
+            .count()
+    };
+    assert_eq!(c.control(&agent(0), Action::RunNow), Ok(()));
+    let first = c
+        .ports()
+        .both
+        .ports
+        .calls
+        .borrow()
+        .iter()
+        .find_map(|t| match &t.call {
+            Call::Start(spec) => Some(spec.run.clone()),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(c.on_run(&first, RunEvent::Hello), Ok(()));
+    for n in [1, 2] {
+        assert_eq!(c.control(&agent(n), Action::RunNow), Ok(()), "{n}");
+    }
+    c.ports().both.clock_fails.set(true);
+    c.ports().both.ports.end_runner(&first);
+    let _ = c.on_run(&first, RunEvent::Ended(Some(Outcome::Completed)));
+    assert_eq!(starts_of_agent(1), 0, "the end is kept");
+    c.ports().both.clock_fails.set(false);
+    c.ports().armed.set(true);
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(1), Action::TakeBack)
+    }));
+    assert!(pressed.is_err(), "the panic reaches the caller");
+    assert!(!c.ports().armed.get(), "the take-up read the clock");
+    assert_eq!(
+        c.queued(),
+        vec![(agent(1), false), (agent(2), false)],
+        "the named start stands in its old place"
+    );
+    c.tick();
+    assert_eq!(starts_of_agent(1), 1, "the next tick serves it");
+    assert_eq!(c.queued(), vec![(agent(2), false)]);
+}
