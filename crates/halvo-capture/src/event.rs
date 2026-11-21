@@ -237,7 +237,9 @@ impl FloorEvent {
     }
 
     /// A keystroke needs the clearance of [`crate::secure_input::check`] for the
-    /// key, given by value; its age is the age that the check judged.
+    /// key, given by value; its age is the clearance's age: the age that the
+    /// check judged, and on macOS that age with the time that the hold kept the
+    /// key, which the release adds.
     pub fn keystroke(
         keep: Keep<kind::Keystroke>,
         clearance: KeystrokeClearance,

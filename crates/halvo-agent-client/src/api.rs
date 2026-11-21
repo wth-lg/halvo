@@ -9,7 +9,7 @@ use halvo_schema::executable::frame::{
 };
 use halvo_schema::executable::names::{Answer, Mode, Outcome};
 use halvo_schema::executable::record::AgentRun;
-use halvo_schema::executable::text::{Name, RunId, WebOrigin};
+use halvo_schema::executable::text::{EffectId, Name, RunId, WebOrigin};
 use halvo_schema::{AgentId, WorkflowId};
 
 /// How long a start waits for the runner's `hello` before it ends what it made and answers `not_started`.
@@ -117,7 +117,8 @@ impl SystemValue {
 }
 
 /// What a start gives the runner: its arguments `--run`, `--agent`, `--workflow`, `--mode`, `--browser` as the
-/// caller gave it, `--utc-offset`, `--model` and `--headed`.
+/// caller gave it, `--utc-offset`, `--model` and `--headed`. The start also gives `--data-dir` with
+/// `Config::data_dir`, the data directory under whose `agents/locks/` the runner locks a workbook's folder.
 #[derive(Clone, Debug)]
 pub struct RunSpec {
     pub run: RunId,
@@ -139,6 +140,12 @@ pub struct RunSpec {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LinkError;
 
+/// The failure of a read of the list of checkpoints, which gives no page: the owner's reply was not the list answer
+/// of that request (a link error, a reply that `decode_reply` refuses, a reply with another id, an error reply or a
+/// reply of another form), or no request id could be made.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ListFailed;
+
 /// The owner link: one call, request bytes in, reply bytes out.
 pub trait OwnerLink: Send + Sync {
     fn request(&self, request: &[u8]) -> Result<Vec<u8>, LinkError>;
@@ -150,8 +157,11 @@ pub struct IssueRefused;
 
 /// The confirmation of a run's effects.
 pub trait Confirmer: Send + Sync {
-    /// One answer per effect of the request, in its order.
-    fn answers(&self, run: &RunId, request: &ConfirmRequest) -> Vec<Answer>;
+    /// One answer per effect of the request, in its order, each with the id of the effect that it names. The library
+    /// releases a decision only when the ids match the request's effects in their order; an id of another effect, an
+    /// answer missing or one too many, or another order makes it reject every effect of the request (contracts.md
+    /// A6.6, the coordinator's ruling CP-226 item 1, reading (b)).
+    fn answers(&self, run: &RunId, request: &ConfirmRequest) -> Vec<(EffectId, Answer)>;
     /// Records the decision before the runner gets it; an error makes the library reject every effect.
     fn issued(&self, run: &RunId, decision: &ConfirmDecision) -> Result<(), IssueRefused>;
 }

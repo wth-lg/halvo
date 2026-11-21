@@ -3,15 +3,22 @@ use std::ffi::OsString;
 use std::io::ErrorKind;
 use std::path::Path;
 
-use halvo_schema::WorkflowId;
+use halvo_derived::Report as StoreReport;
+use halvo_schema::{RetentionClass, WorkflowId};
 
 use crate::case::Case;
 use crate::cli::{Cause, Flags, Refusal, Report};
-use crate::delete::{seed, seed_cases, Cascade, MARKERS};
+use crate::delete::{seed, seed_cases, seed_derived, Cascade, MARKERS};
+use crate::derived::DerivedHost;
+use crate::host::PlayHost;
 use crate::store::{Family, MemoryStore};
 use halvo_schema::kinds::registry;
 
-/// The six checks of contracts.md L11.4, in the order of their lines.
+/// The six checks of contracts.md L11.4, in the order of their lines. `Listed`, `Scrub` and `Expired` run on the
+/// derived store, opened with its key (`derived_outcomes`); `Scrub` reads rows, not bytes. No byte search of this unit
+/// shows the scrub. Every open of the store sets secure_delete; the store's own page check reads purges of evidence
+/// rows today, and a unit of the workflows run widens it to every removal: until then no check reads the file's pages
+/// after a delete of learned rows. `DeleteAll` is `not-run` in this build.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Check {
     Listed,
@@ -72,18 +79,26 @@ impl Outcome {
 
 type Row = (&'static str, String);
 
-fn naming(store: &MemoryStore, id: &WorkflowId, marker: &str) -> Vec<Row> {
+/// The rows among `rows` that name the workflow `id` by any of the three readings of learn_deleted (its kind's
+/// workflow key, its id as a JSON string, its marker), in byte order.
+fn naming_in<'r>(
+    rows: impl Iterator<Item = (&'static str, &'r str)>,
+    id: &WorkflowId,
+    marker: &str,
+) -> Vec<Row> {
     let quoted = format!("\"{}\"", id.as_str());
-    let mut rows: Vec<Row> = store
-        .rows(Family::Learn)
-        .all()
+    let mut found: Vec<Row> = rows
         .filter(|(kind, json)| {
             key_names(kind, json, id) || json.contains(&quoted) || json.contains(marker)
         })
         .map(|(kind, json)| (kind, json.to_owned()))
         .collect();
-    rows.sort();
-    rows
+    found.sort();
+    found
+}
+
+fn naming(store: &MemoryStore, id: &WorkflowId, marker: &str) -> Vec<Row> {
+    naming_in(store.rows(Family::Learn).all(), id, marker)
 }
 
 fn key_names(kind: &str, json: &str, id: &WorkflowId) -> bool {
@@ -197,36 +212,286 @@ fn clean_under(dir: &Path, made_after: Option<&BTreeSet<OsString>>) -> bool {
         .all(|name| !holds_marker(&dir.join(name)))
 }
 
-/// The checks on the memory store (contracts.md L11.4; the coordinator's rulings LM-54 E5 and LM-82), each with its
-/// result. It plays the two seeded cases as `learn-gate delete` does (`delete::seed`; the command's are
-/// `delete::seed_cases`, whose learned rows hold the markers), reads the rows of the family `learn` that name each
-/// workflow, each by kind and bytes, and calls `cascade` with the first workflow's id; then it calls `after` with
-/// `data_dir` and `temp`. A row names a workflow when the value under its kind's workflow key parses to that
-/// workflow's id, when its bytes hold the id as a JSON string, or when its bytes hold that workflow's marker. In this
-/// pull request `learn_deleted` checks the delete of the gate's own test store in memory (its own cascade), not the
-/// app's delete, and reads no file: after that cascade no learned row names the first seeded workflow by its kind's
-/// workflow key, holds its id as a JSON string or holds its marker, and the second workflow's rows are the same rows,
-/// by kind and bytes, with none added. `learn_deleted` is ok when the first workflow had rows, the cascade answered
-/// that it was stored, no row names it after the cascade, and the rows that name the second workflow are the same
-/// rows as before it, by kind and bytes, and more than none. `learn_outside` searches only the directory that the
-/// command is given, to which nothing of the command writes in this build, and, in the process's temporary directory,
-/// each entry whose name was not at its top before the seed, at every depth, and nothing else on the computer; the
-/// search looks for the markers' bytes in names, in regular files and in the target texts of links, follows no link
-/// below those places, reads no extended attribute (on Windows, no alternate data stream) and no other encoding, and
-/// counts an entry that cannot be read as holding a marker. `learn_outside` is ok when, besides, each marker was in
-/// an `active` and in a `reverted` `learn_edit` row of its own workflow, read by the kind's workflow key alone, so
-/// that the search can find one; a directory that cannot be listed counts as holding a marker, and an entry that is
-/// gone as holding none. The memory store keeps no file, so all of `data_dir` is outside the store. The other four
-/// checks are `not-run`: `learn_listed`, `learn_scrub` and `learn_expired` need the derived store and
-/// `learn_delete_all` the capture run's `halvo-capture --delete-all`, which this build does not hold.
+/// The days on which the person is told that a learned row of a bounded kind is kept (contracts.md L11.4): a row of
+/// day `d` stands on the days `d` to `d + 92` and is gone from the day `d + 93` on.
+pub const KEPT_DAYS: u32 = 93;
+
+/// The delete of a workflow on the derived store, and whether it was stored before it.
+pub type DerivedCascade<'a> =
+    &'a mut dyn FnMut(&mut DerivedHost, &WorkflowId) -> Result<bool, String>;
+
+/// The rows of the family `learn` that the gate's keyed read hands out on the host's clock, each as (kind, bytes).
+fn learned(host: &mut DerivedHost) -> Result<Vec<Row>, String> {
+    let mut rows = Vec::new();
+    for entry in halvo_schema::learning::KINDS {
+        for json in host.learn_rows(entry.name)? {
+            rows.push((entry.name, json));
+        }
+    }
+    Ok(rows)
+}
+
+fn refs(rows: &[Row]) -> impl Iterator<Item = (&'static str, &str)> {
+    rows.iter().map(|(kind, json)| (*kind, json.as_str()))
+}
+
+fn revision(report: Option<&StoreReport>, family: &str) -> u64 {
+    report
+        .and_then(|r| r.revisions.iter().find(|(f, _)| *f == family))
+        .map_or(0, |(_, n)| *n)
+}
+
+/// A count of rows by retention class.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct ByClass {
+    window: i128,
+    bounded: i128,
+    kept: i128,
+}
+
+impl ByClass {
+    /// The store's counts in `report`, none before the first report.
+    fn of(report: Option<&StoreReport>) -> ByClass {
+        report.map_or_else(ByClass::default, |r| ByClass {
+            window: r.counts.window.into(),
+            bounded: r.counts.bounded.into(),
+            kept: r.counts.kept.into(),
+        })
+    }
+
+    fn add_change(&mut self, from: ByClass, to: ByClass) {
+        self.window += to.window - from.window;
+        self.bounded += to.bounded - from.bounded;
+        self.kept += to.kept - from.kept;
+    }
+}
+
+/// learn_listed on the derived store (contracts.md L11.4): the store's counts per retention class, which its report
+/// to its host carries after each committed transaction, count every learned row. It reads that report and not the
+/// app's data view, so whether the Inventory shows those counts is not shown here. The report sums the rows of every
+/// family, so the check takes the change of the counts across each transaction whose report raises the revision of
+/// the family `learn` and of no other family, from the first report on; the sum of those changes, by class, must
+/// equal the gate's own count of the learned rows that its keyed read hands out, by the class of each row's kind
+/// (`learn_run` and `learn_routine` bounded, `learn_edit` kept), with a bounded and a kept row among them and no
+/// window row. A report that raises `learn` together with another family makes the check miss, because its change
+/// cannot be given to the learned rows alone.
+pub(crate) fn listed(host: &mut DerivedHost) -> Result<bool, String> {
+    let reports = host.reports();
+    let mut changed = ByClass::default();
+    let (mut alone, mut mixed) = (0usize, false);
+    let mut before: Option<&StoreReport> = None;
+    for report in &reports {
+        let rose: Vec<&str> = report
+            .revisions
+            .iter()
+            .filter(|(family, n)| *n > revision(before, family))
+            .map(|(family, _)| *family)
+            .collect();
+        if rose == ["learn"] {
+            changed.add_change(ByClass::of(before), ByClass::of(Some(report)));
+            alone += 1;
+        } else if rose.contains(&"learn") {
+            mixed = true;
+        }
+        before = Some(report);
+    }
+    let mut counted = ByClass::default();
+    for (kind, _) in learned(host)? {
+        let class = halvo_schema::learning::KINDS
+            .iter()
+            .find(|entry| entry.name == kind)
+            .map(|entry| entry.class);
+        match class {
+            Some(RetentionClass::Window) => counted.window += 1,
+            Some(RetentionClass::Bounded { .. }) => counted.bounded += 1,
+            Some(RetentionClass::Kept) => counted.kept += 1,
+            None => return Ok(false),
+        }
+    }
+    Ok(!mixed
+        && alone > 0
+        && changed == counted
+        && counted.bounded > 0
+        && counted.kept > 0
+        && counted.window == 0)
+}
+
+/// learn_scrub on the derived store, by the coordinator's word of 2026-11-21 (way C): after the delete of the first
+/// workflow no learned row of it stands, read through the store's own calls with the key, while the second
+/// workflow's rows stand, and the removal went through halvo-derived's own delete call and through no statement of
+/// the family's own. It reads the rows of the family `learn` right before and right after one call of `cascade`
+/// with the first workflow's id, and takes the host's tallies on both sides of that call. It is ok when: the first
+/// workflow had rows by any of the three readings of learn_deleted before and has none after; `cascade` answered
+/// that it was stored; the second workflow's rows are the same rows, by kind and bytes, and more than none; and
+/// across the call the store committed exactly one transaction, whose report raises the revision of `learn`, while
+/// no request reached `LearnHandlers`, no batch ran (so no step) and the store was not opened again (so neither the
+/// open's reconcile nor its expiry ran). The writer of a typed commit has no call that removes a row; the one removal
+/// under a plain write is of a support row that a new proposal drops, inside a batch, which the tally of batches
+/// counts. So a removal by another path is a further transaction, a request, a batch, an open, or a removal before or
+/// after the call, and each makes the check miss. It reads rows, not bytes. No byte search of this unit shows the
+/// scrub. Every open of the store sets secure_delete; the store's own page check reads purges of evidence rows today,
+/// and a unit of the workflows run widens it to every removal: until then no check reads the file's pages after a
+/// delete of learned rows.
+pub(crate) fn scrub(
+    host: &mut DerivedHost,
+    first: &WorkflowId,
+    second: &WorkflowId,
+    cascade: DerivedCascade<'_>,
+) -> Result<bool, String> {
+    let rows = learned(host)?;
+    let first_before = naming_in(refs(&rows), first, MARKERS[0]);
+    let kept = naming_in(refs(&rows), second, MARKERS[1]);
+    let before = host.tallies();
+    let stored = cascade(host, first)?;
+    let after = host.tallies();
+    let reports = host.reports();
+    let last_before = before.reports.checked_sub(1).and_then(|at| reports.get(at));
+    let one_delete = after.reports == before.reports.saturating_add(1)
+        && revision(reports.get(before.reports), "learn") > revision(last_before, "learn")
+        && after.learn_requests == before.learn_requests
+        && after.batches == before.batches
+        && after.opens == before.opens;
+    let rows = learned(host)?;
+    Ok(one_delete
+        && deleted(
+            &first_before,
+            stored,
+            &naming_in(refs(&rows), first, MARKERS[0]),
+            &kept,
+            &naming_in(refs(&rows), second, MARKERS[1]),
+        ))
+}
+
+/// The `learn_run` and `learn_routine` rows that the gate's keyed read hands out on the host's clock, each with its
+/// day, `None` for a row whose day cannot be read.
+fn bounded_rows(host: &mut DerivedHost) -> Result<Vec<(Row, Option<u32>)>, String> {
+    let mut rows = Vec::new();
+    for kind in ["learn_run", "learn_routine"] {
+        for json in host.learn_rows(kind)? {
+            let day = serde_json::from_str::<serde_json::Value>(&json)
+                .ok()
+                .and_then(|v| v["day"].as_u64())
+                .and_then(|day| u32::try_from(day).ok());
+            rows.push(((kind, json), day));
+        }
+    }
+    Ok(rows)
+}
+
+fn rows_now(host: &mut DerivedHost) -> Result<BTreeSet<Row>, String> {
+    Ok(bounded_rows(host)?
+        .into_iter()
+        .map(|(row, _)| row)
+        .collect())
+}
+
+/// learn_expired on the derived store (contracts.md L11.4): a learned row of a bounded kind is kept no longer than
+/// `KEPT_DAYS`. It takes the `learn_run` and `learn_routine` rows of the earliest day `d` among them, with one of each
+/// kind, and the rows of later days. On a clock at `d + 92`, the last of the 93 days, it opens the store again and
+/// reads that every one of those rows stands. On a clock one day past, `d + 93`, it opens the store again, which
+/// runs the store's expiry, and then sets the clock back to `d + 92` and reads: a read hands out a bounded row until
+/// its day of going (DS-4), so on that clock it hands out every row of day `d` that is still stored, and the check
+/// counts the stored rows through the gate's handler, never through a read on a clock at which the row is due. It is
+/// ok when none of the rows of day `d` is read then and every row of a later day is. It leaves the clock at `d + 93`.
+pub(crate) fn expired(host: &mut DerivedHost) -> Result<bool, String> {
+    let Some(rows) = bounded_rows(host)?
+        .into_iter()
+        .map(|(row, day)| day.map(|day| (row, day)))
+        .collect::<Option<Vec<(Row, u32)>>>()
+    else {
+        return Ok(false);
+    };
+    let Some(first) = rows.iter().map(|(_, day)| *day).min() else {
+        return Ok(false);
+    };
+    let (Some(last), Some(gone)) = (
+        first.checked_add(KEPT_DAYS - 1),
+        first.checked_add(KEPT_DAYS),
+    ) else {
+        return Ok(false);
+    };
+    let of_first: BTreeSet<Row> = rows
+        .iter()
+        .filter(|(_, day)| *day == first)
+        .map(|(row, _)| row.clone())
+        .collect();
+    let later: BTreeSet<Row> = rows
+        .iter()
+        .filter(|(_, day)| *day > first)
+        .map(|(row, _)| row.clone())
+        .collect();
+    let both = ["learn_run", "learn_routine"]
+        .iter()
+        .all(|kind| of_first.iter().any(|(k, _)| k == kind));
+    host.set_day(last);
+    host.reopen()?;
+    let standing = rows_now(host)?;
+    host.set_day(gone);
+    host.reopen()?;
+    host.set_day(last);
+    let left = rows_now(host)?;
+    host.set_day(gone);
+    Ok(both
+        && of_first.is_subset(&standing)
+        && later.is_subset(&standing)
+        && of_first.is_disjoint(&left)
+        && later.is_subset(&left))
+}
+
+/// learn_listed, learn_scrub and learn_expired on the derived store under `data_dir`, in that order: the play of
+/// `seed_derived`, which opens the store there with a key that this process makes and leaves both seeded workflows in
+/// it; then `listed`, `scrub` with `cascade` on the first workflow, and `expired` on the rows that are left, which
+/// moves the clock past the bound and expires every bounded row of the store. The store stays under `data_dir`.
+pub fn derived_outcomes(
+    cases: &[Case; 2],
+    data_dir: &Path,
+    cascade: DerivedCascade<'_>,
+) -> Result<[Outcome; 3], String> {
+    let (mut play, first) = seed_derived(cases, data_dir)?;
+    let first = WorkflowId::parse(&first).map_err(|_| "the first workflow's id".to_owned())?;
+    let second =
+        WorkflowId::parse(play.workflow()).map_err(|_| "the second workflow's id".to_owned())?;
+    let host = &mut play.host;
+    let listed = listed(host)?;
+    let scrub = scrub(host, &first, &second, cascade)?;
+    let expired = expired(host)?;
+    Ok([listed, scrub, expired].map(Outcome::holds))
+}
+
+/// The six checks (contracts.md L11.4; the coordinator's rulings LM-54 E5 and LM-82, and the coordinator's word of
+/// 2026-11-21 on the derived store, way C), each with its result. It lists the top of `temp`, then calls `derived` with
+/// `data_dir`, which answers `learn_listed`, `learn_scrub` and `learn_expired` (the command's is
+/// `derived_outcomes`, on the derived store under `data_dir`, opened with its key). Then it plays the two seeded
+/// cases on the memory store as `learn-gate delete` does (`delete::seed`; the command's are `delete::seed_cases`,
+/// whose learned rows hold the markers), reads the rows of the family `learn` that name each workflow, each by kind
+/// and bytes, and calls `cascade` with the first workflow's id; then it calls `after` with `data_dir` and `temp`. A
+/// row names a workflow when the value under its kind's workflow key parses to that workflow's id, when its bytes
+/// hold the id as a JSON string, or when its bytes hold that workflow's marker. `learn_deleted` checks the delete of
+/// the gate's own test store in memory (its own cascade), not the app's delete, and reads no file: after that
+/// cascade no learned row names the first seeded workflow by its kind's workflow key, holds its id as a JSON string
+/// or holds its marker, and the second workflow's rows are the same rows, by kind and bytes, with none added.
+/// `learn_deleted` is ok when the first workflow had rows, the cascade answered that it was stored, no row names it
+/// after the cascade, and the rows that name the second workflow are the same rows as before it, by kind and bytes,
+/// and more than none. `learn_outside` searches only the directory that the command is given, which holds the
+/// derived store's directory `derived/` after `derived` (its files included), and, in the process's temporary
+/// directory, each entry whose name was not at its top before `derived` ran, at every depth, and nothing else on the
+/// computer; the search looks for the markers' bytes in names, in regular files and in the target texts of links,
+/// follows no link below those places, reads no extended attribute (on Windows, no alternate data stream) and no
+/// other encoding, and counts an entry that cannot be read as holding a marker. `learn_outside` is ok when, besides,
+/// each marker was in an `active` and in a `reverted` `learn_edit` row of its own workflow on the memory store, read
+/// by the kind's workflow key alone, so that the search can find one; a directory that cannot be listed counts as
+/// holding a marker, and an entry that is gone as holding none. `learn_delete_all` is `not-run`: it needs the
+/// capture run's `halvo-capture --delete-all`, which does not reach `derived/` in this build.
 pub fn outcomes(
     cases: &[Case; 2],
     data_dir: &Path,
     temp: &Path,
+    derived: &mut dyn FnMut(&Path) -> Result<[Outcome; 3], String>,
     cascade: Cascade<'_>,
     after: &mut dyn FnMut(&Path, &Path),
 ) -> Result<[(Check, Outcome); 6], String> {
     let before = entries(temp).ok();
+    let [listed, scrub, expired] = derived(data_dir)?;
     let (mut play, first) = seed(cases)?;
     let id = WorkflowId::parse(&first).map_err(|_| "the first workflow's id".to_owned())?;
     let second = play.workflow().to_owned();
@@ -250,9 +515,12 @@ pub fn outcomes(
         && before.is_some_and(|before| clean_under(temp, Some(&before)));
     Ok(Check::ALL.map(|check| {
         let outcome = match check {
+            Check::Listed => listed,
             Check::Deleted => Outcome::holds(deleted),
+            Check::Scrub => scrub,
+            Check::DeleteAll => Outcome::NotRun,
             Check::Outside => Outcome::holds(outside),
-            Check::Listed | Check::Scrub | Check::DeleteAll | Check::Expired => Outcome::NotRun,
+            Check::Expired => expired,
         };
         (check, outcome)
     }))
@@ -274,9 +542,11 @@ pub fn report(outcomes: &[(Check, Outcome)]) -> Report {
     }
 }
 
-/// `learn-gate privacy --data-dir DIR` (contracts.md L10.4, L11.4): the checks of `outcomes` on the memory store with
-/// the store's cascade, `DIR` as the data directory and the process's temporary directory, one line each. `DIR`
-/// must be an existing directory; the refusal `usage` otherwise, and `store` when the seed fails.
+/// `learn-gate privacy --data-dir DIR` (contracts.md L10.4, L11.4): the checks of `outcomes`, `DIR` as the data
+/// directory and the process's temporary directory, one line each: `derived_outcomes` on the derived store under
+/// `DIR` with the decision `delete` of the store as its cascade, which leaves the store under `DIR`, and the memory
+/// store with its own cascade. `DIR` must be an existing directory; the refusal `usage` otherwise, and `store` when a
+/// seed fails or the derived store refuses (for one, a `derived/` under `DIR` that another key made).
 pub fn run(args: &[String]) -> Result<Report, Refusal> {
     let mut flags = Flags::new(args);
     let dir = flags
@@ -292,6 +562,11 @@ pub fn run(args: &[String]) -> Result<Report, Refusal> {
         &seed_cases(),
         dir,
         &temp,
+        &mut |data| {
+            derived_outcomes(&seed_cases(), data, &mut |host, id| {
+                host.delete_workflow(id)
+            })
+        },
         &mut |store, id| store.delete_workflow(id),
         &mut |_, _| {},
     )
@@ -326,13 +601,17 @@ mod tests {
         store.delete_workflow(id)
     }
 
+    fn no_derived(_: &Path) -> Result<[Outcome; 3], String> {
+        Ok([Outcome::NotRun; 3])
+    }
+
     fn checks_with(
         data: &Path,
         temp: &Path,
         cascade: &mut dyn FnMut(&mut MemoryStore, &WorkflowId) -> bool,
         after: &mut dyn FnMut(&Path, &Path),
     ) -> Vec<(Check, Outcome)> {
-        outcomes(&seed_cases(), data, temp, cascade, after)
+        outcomes(&seed_cases(), data, temp, &mut no_derived, cascade, after)
             .expect("the seeded store")
             .to_vec()
     }
@@ -401,21 +680,20 @@ mod tests {
         assert_eq!(
             got.lines,
             [
-                "privacy check=learn_listed result=not-run",
+                "privacy check=learn_listed result=ok",
                 "privacy check=learn_deleted result=ok",
-                "privacy check=learn_scrub result=not-run",
+                "privacy check=learn_scrub result=ok",
                 "privacy check=learn_delete_all result=not-run",
                 "privacy check=learn_outside result=ok",
-                "privacy check=learn_expired result=not-run",
+                "privacy check=learn_expired result=ok",
             ]
         );
         assert!(got.ok);
-        assert_eq!(
-            std::fs::read_dir(&data)
-                .expect("the data directory")
-                .count(),
-            0
-        );
+        let left: Vec<_> = std::fs::read_dir(&data)
+            .expect("the data directory")
+            .map(|e| e.expect("an entry").file_name())
+            .collect();
+        assert_eq!(left, ["derived"]);
     }
 
     #[test]
@@ -707,8 +985,15 @@ mod tests {
         let last = first.occurrences[first.occurrences.len() - 1].day;
         let cases = [first, seed_case("Pay soon", last)];
         let (data, temp) = (scratch("unmarked-data"), scratch("unmarked-temp"));
-        let got = outcomes(&cases, &data, &temp, &mut store_cascade, &mut |_, _| {})
-            .expect("the seeded store");
+        let got = outcomes(
+            &cases,
+            &data,
+            &temp,
+            &mut no_derived,
+            &mut store_cascade,
+            &mut |_, _| {},
+        )
+        .expect("the seeded store");
         assert_eq!(result_of(&got, Check::Deleted), Outcome::Ok);
         assert_eq!(result_of(&got, Check::Outside), Outcome::Miss);
     }
@@ -945,8 +1230,15 @@ mod tests {
         let last = first.occurrences[first.occurrences.len() - 1].day;
         let cases = [first, seed_case(MARKERS[0], last)];
         let (data, temp) = (scratch("swapped-data"), scratch("swapped-temp"));
-        let got = outcomes(&cases, &data, &temp, &mut store_cascade, &mut |_, _| {})
-            .expect("the seeded store");
+        let got = outcomes(
+            &cases,
+            &data,
+            &temp,
+            &mut no_derived,
+            &mut store_cascade,
+            &mut |_, _| {},
+        )
+        .expect("the seeded store");
         assert_eq!(result_of(&got, Check::Outside), Outcome::Miss);
     }
 }

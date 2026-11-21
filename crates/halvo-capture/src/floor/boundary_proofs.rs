@@ -329,7 +329,7 @@ fn store_database_named_by_its_path() -> &'static str {
 
 #[cfg(halvo_proof = "store_database_named_by_its_path_twin")]
 fn store_database_named_by_its_path_twin() -> &'static str {
-    std::any::type_name::<crate::store::ShredReport>()
+    std::any::type_name::<crate::daemon::port::Pass>()
 }
 
 #[cfg(halvo_proof = "store_key_file_named_by_its_path")]
@@ -339,7 +339,7 @@ fn store_key_file_named_by_its_path() -> &'static str {
 
 #[cfg(halvo_proof = "store_key_file_named_by_its_path_twin")]
 fn store_key_file_named_by_its_path_twin() -> &'static str {
-    std::any::type_name::<crate::store::ShredReport>()
+    std::any::type_name::<crate::daemon::port::Pass>()
 }
 
 #[cfg(halvo_proof = "store_segment_files_named_by_their_module")]
@@ -379,7 +379,7 @@ fn store_default_retention_named_by_its_path() -> u64 {
 
 #[cfg(halvo_proof = "store_default_retention_named_by_its_path_twin")]
 fn store_default_retention_named_by_its_path_twin() -> &'static str {
-    std::any::type_name::<crate::store::ShredReport>()
+    std::any::type_name::<crate::daemon::port::Pass>()
 }
 
 #[cfg(halvo_proof = "store_database_named_after_a_glob_of_the_crate_root")]
@@ -400,7 +400,7 @@ mod store_database_named_after_a_glob_of_the_crate_root_twin {
     use self::store as backing;
 
     fn name() -> &'static str {
-        std::any::type_name::<backing::ShredReport>()
+        std::any::type_name::<crate::daemon::port::Pass>()
     }
 }
 
@@ -422,7 +422,7 @@ mod store_database_named_through_a_glob_of_the_store_twin {
     use self::store::*;
 
     fn name() -> &'static str {
-        std::any::type_name::<ShredReport>()
+        std::any::type_name::<crate::daemon::port::Pass>()
     }
 }
 
@@ -445,7 +445,7 @@ mod store_database_named_by_a_macro_of_path_segments_twin {
         ($($seg:tt),+) => { $($seg)::+ };
     }
 
-    type Handle = joined!(crate, store, ShredReport);
+    type Handle = joined!(crate, daemon, port, Pass);
 
     fn name() -> &'static str {
         std::any::type_name::<Handle>()
@@ -472,7 +472,7 @@ mod store_database_named_by_an_alias_in_a_brace_list_twin {
 
     fn name() -> &'static str {
         let _ = sink::channel;
-        std::any::type_name::<backing::ShredReport>()
+        std::any::type_name::<crate::daemon::port::Pass>()
     }
 }
 
@@ -483,7 +483,44 @@ mod store_database_re_exported_under_a_new_name {
 
 #[cfg(halvo_proof = "store_database_re_exported_under_a_new_name_twin")]
 mod store_database_re_exported_under_a_new_name_twin {
-    pub(crate) use crate::store::ShredReport as Backing;
+    pub(crate) use crate::daemon::port::Pass as Backing;
+}
+
+#[cfg(halvo_proof = "store_handle_named_from_the_daemon_owner")]
+mod store_handle_named_from_the_daemon_owner {
+    use crate::store::db::EncryptedStore;
+
+    fn owner_store(store: &mut EncryptedStore) -> usize {
+        std::mem::size_of_val(store)
+    }
+}
+
+#[cfg(halvo_proof = "store_handle_named_from_the_daemon_owner_twin")]
+mod store_handle_named_from_the_daemon_owner_twin {
+    use crate::daemon::port::CaptureStore;
+
+    fn owner_store(store: &mut dyn CaptureStore) -> usize {
+        std::mem::size_of_val(store)
+    }
+}
+
+#[cfg(halvo_proof = "keystroke_release_made_without_the_queue")]
+fn keystroke_release_made_without_the_queue(
+    probe: &dyn crate::secure_input::SecureInputProbe,
+) -> Option<crate::secure_input_macos::Released<u8>> {
+    let clearance = crate::secure_input::check(probe, None).ok()?;
+    Some(crate::secure_input_macos::Released { clearance, key: 0 })
+}
+
+#[cfg(halvo_proof = "keystroke_release_made_without_the_queue_twin")]
+fn keystroke_release_made_without_the_queue_twin(
+    queue: &mut crate::secure_input_macos::KeyQueue<u8>,
+    at: crate::secure_input_macos::hold::Stamps,
+) -> Option<crate::secure_input_macos::Released<u8>> {
+    match queue.reading(crate::secure_input_macos::Reading::Off, at) {
+        crate::secure_input_macos::hold::Step::Released(released) => Some(released),
+        _ => None,
+    }
 }
 
 #[cfg(halvo_proof = "synthetic_clearance_in_a_release_build")]

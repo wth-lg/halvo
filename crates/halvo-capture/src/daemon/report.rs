@@ -180,6 +180,9 @@ pub enum LossCause {
     LostDuringStop,
     /// The owner thread ended before it answered the stop.
     OwnerEnded,
+    /// The drain wait ran out before the owner received every event of the
+    /// window, and the pause then discarded those events (ruling DM-12 P1).
+    DrainWaitRanOut,
 }
 
 #[cfg(test)]

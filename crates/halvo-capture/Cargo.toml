@@ -7,7 +7,7 @@ publish = false
 
 [features]
 secure-enclave = []
-r2 = []
+r2 = ["halvo-control/r2"]
 stall-seam = []
 test-seam = []
 
@@ -19,6 +19,7 @@ thiserror = "2"
 zeroize = { version = "1", features = ["derive"] }
 halvo-sqlcipher = { path = "../halvo-sqlcipher" }
 halvo-control = { path = "../halvo-control" }
+halvo-redact = { path = "../halvo-redact" }
 chacha20poly1305 = { version = "0.11", features = ["zeroize"] }
 aead = { version = "0.6", features = ["alloc"] }
 aead-stream = { version = "0.6", features = ["alloc"] }
@@ -62,6 +63,7 @@ windows = { version = "0.62", features = [
     "Win32_Graphics_Gdi",
     "Win32_Security_Cryptography",
     "Win32_System_Com",
+    "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_LibraryLoader",
     "Win32_System_Ole",
     "Win32_System_Threading",
@@ -70,7 +72,10 @@ windows = { version = "0.62", features = [
     "Win32_UI_Input",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
+    "ApplicationModel",
     "Foundation",
+    "Foundation_Collections",
+    "Management_Deployment",
 ] }
 windows-capture = "2"
 winreg = "0.56"

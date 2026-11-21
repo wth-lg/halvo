@@ -1,0 +1,2 @@
+- Added: The agent store keeps the fact that a learning run finished a playbook, and the reply of load names the number that the next learning run stores its playbook under.
+- Fixed: A web agent is no longer switched on, and a run is no longer handed playbook steps, from a learning run that was cut off half way.

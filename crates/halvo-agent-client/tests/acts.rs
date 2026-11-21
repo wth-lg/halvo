@@ -5,10 +5,12 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use common::{wait_until, Rig};
-use halvo_agent_client::{CallError, Forced, ForcedPath, OriginAnswer, RunEnd};
+use halvo_agent_client::{CallError, Forced, ForcedPath, ListFailed, OriginAnswer, RunEnd};
+use halvo_schema::executable::body::CheckpointsReply;
 use halvo_schema::executable::frame::HandbackResult;
 use halvo_schema::executable::names::{Answer, HandbackOutcome, HandbackReason, Outcome};
-use halvo_schema::executable::text::{Name, RunId, V1};
+use halvo_schema::executable::text::{EffectId, Name, RunId, V1};
+use halvo_schema::request::REPLY_MAX;
 
 const SHORT: Duration = Duration::from_secs(10);
 
@@ -18,6 +20,27 @@ fn confirm(new_origin: Option<&str>) -> String {
     CONFIRM.replace(
         "NEW",
         &new_origin.map_or_else(|| "null".to_owned(), |o| format!("\"{o}\"")),
+    )
+}
+
+/// The effect id of 16 bytes `n`; `effect_id(0x60)` is the effect of `CONFIRM`.
+fn effect_id(n: u8) -> EffectId {
+    EffectId::from_random([n; 16])
+}
+
+/// An effect of the class `send`, which may stand beside another effect in one request.
+const SEND: &str = r#"{"effect":"EFFECT","class":"send","digest":"DIGEST","bound":{"class":"send","fields":[{"name":"to","from":"extract","origin":null,"value":["landlord@mail.test"]},{"name":"subject","from":"extract","origin":null,"value":["Re: rent"]},{"name":"body","from":"model","origin":null,"value":["Thank you."]}]},"new_origin":null}"#;
+
+/// A confirm of two effects of the class `send`, `first` and then `second`.
+fn confirm_two(first: &EffectId, second: &EffectId) -> String {
+    let send = |id: &EffectId| {
+        SEND.replace("EFFECT", id.as_str())
+            .replace("DIGEST", &id.as_str().repeat(2))
+    };
+    format!(
+        r#"ask {{"t":"confirm","request":{{"v":1,"run":"{{run}}","agent":"{{agent}}","cut":null,"effects":[{},{}]}}}}"#,
+        send(first),
+        send(second)
     )
 }
 
@@ -246,7 +269,7 @@ fn a_rejected_effect_with_a_new_origin_sends_no_add_origin() {
         .answers
         .lock()
         .unwrap()
-        .push_back(vec![Answer::RejectOnce]);
+        .push_back(vec![(effect_id(0x60), Answer::RejectOnce)]);
     let script = rig.script(&[
         "hello",
         &confirm(Some("http://pay.test:18090")),
@@ -266,11 +289,10 @@ fn a_rejected_effect_with_a_new_origin_sends_no_add_origin() {
 #[test]
 fn a_confirmer_that_answers_for_another_count_of_effects_gets_every_effect_rejected() {
     let rig = Rig::new("confirm-count");
-    rig.people
-        .answers
-        .lock()
-        .unwrap()
-        .push_back(vec![Answer::AllowOnce, Answer::AllowOnce]);
+    rig.people.answers.lock().unwrap().push_back(vec![
+        (effect_id(0x60), Answer::AllowOnce),
+        (effect_id(0x60), Answer::AllowOnce),
+    ]);
     let script = rig.script(&["hello", &confirm(None), "log answered", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
@@ -278,6 +300,79 @@ fn a_confirmer_that_answers_for_another_count_of_effects_gets_every_effect_rejec
     assert!(script.wait_log("answered", SHORT), "{}", script.log());
     assert!(script.replies()[0].contains(r#""answer":"reject_once""#));
     assert!(!script.replies()[0].contains(r#""answer":"allow_once""#));
+    rig.sup.kill(&run).unwrap();
+}
+
+/// U4.7, CP-226 item 1 reading (b), contracts.md A6.6: each answer of `Confirmer::answers` names its effect by id,
+/// and the library releases a decision only when the ids match the asked effects in their order. The answers of two
+/// effects in the asked order are applied each to its effect; the same answers in the other order, and a set of
+/// answers that names an effect that the request does not ask for, reject both effects; the runner gets the decision
+/// that `issued` saw.
+#[test]
+fn answers_in_the_asked_order_go_each_to_their_effect_and_another_order_or_a_wrong_id_rejects_every_effect(
+) {
+    let rig = Rig::new("confirm-by-id");
+    let (first, second) = (effect_id(0x61), effect_id(0x62));
+    let asked = vec![
+        (first.clone(), Answer::AllowOnce),
+        (second.clone(), Answer::RejectOnce),
+    ];
+    let other_order = asked.iter().rev().cloned().collect();
+    rig.people.answers.lock().unwrap().extend([
+        asked,
+        other_order,
+        vec![
+            (first.clone(), Answer::AllowOnce),
+            (effect_id(0x63), Answer::AllowOnce),
+        ],
+    ]);
+    let ask = confirm_two(&first, &second);
+    let script = rig.script(&[
+        "hello",
+        &ask,
+        "log asked-order",
+        &ask,
+        "log other-order",
+        &ask,
+        "log wrong-id",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("wrong-id", SHORT), "{}", script.log());
+    let issued = rig.people.issued.lock().unwrap().clone();
+    let applied: Vec<Vec<(EffectId, Answer)>> = issued
+        .iter()
+        .map(|d| {
+            d.approvals
+                .iter()
+                .map(|a| (a.effect.clone(), a.answer))
+                .collect()
+        })
+        .collect();
+    let rejected = vec![
+        (first.clone(), Answer::RejectOnce),
+        (second.clone(), Answer::RejectOnce),
+    ];
+    assert_eq!(
+        applied,
+        [
+            vec![(first, Answer::AllowOnce), (second, Answer::RejectOnce)],
+            rejected.clone(),
+            rejected,
+        ]
+    );
+    let sent: Vec<String> = issued
+        .iter()
+        .map(|d| {
+            format!(
+                r#"{{"t":"confirm_reply","decision":{}}}"#,
+                d.to_json().unwrap()
+            )
+        })
+        .collect();
+    assert_eq!(script.replies(), sent);
     rig.sup.kill(&run).unwrap();
 }
 
@@ -1351,4 +1446,497 @@ fn a_confirm_after_a_done_account_link_and_its_reply_is_answered_and_the_run_end
     assert_eq!(rig.people.issued.lock().unwrap().len(), 1);
     assert_eq!(end.outcome, Some(Outcome::Completed), "{}", script.log());
     assert_eq!(end.forced, None, "{}", script.log());
+}
+
+/// A page of the list of checkpoints with one checkpoint, `made`, of the run `run`, and `next`.
+fn page(run: &RunId, next: Option<&RunId>) -> String {
+    let (run, sha) = (run.as_str(), "b".repeat(64));
+    let next = next.map_or_else(|| "null".to_owned(), |r| format!("\"{}\"", r.as_str()));
+    format!(
+        r#"{{"checkpoints":[{{"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"{run}","folder":["/data/books"],"workbook":["/data/books/rent.xlsx"],"copy":["rent.halvo-checkpoint-{run}.xlsx"],"state":"made","sha256":"{sha}","bytes":18432,"at":1794339000000000001,"ended":"yes","effect":"committed","superseded":"no"}}],"next":{next}}}"#
+    )
+}
+
+fn parsed(page: &str) -> CheckpointsReply {
+    CheckpointsReply::parse(page.as_bytes()).unwrap()
+}
+
+#[test]
+fn the_list_of_checkpoints_is_read_a_page_at_a_time_by_after_and_next() {
+    let rig = Rig::new("list-of-checkpoints");
+    let (first, second) = (common::run_id(), common::run_id());
+    let (one, two) = (page(&first, Some(&first)), page(&second, None));
+    *rig.store.pages.lock().unwrap() =
+        vec![(None, one.clone()), (Some(first.clone()), two.clone())];
+    let read = rig.sup.checkpoints(None);
+    assert_eq!(read, Ok(parsed(&one)));
+    let next = read.unwrap().next;
+    assert_eq!(next.as_ref(), Some(&first));
+    assert_eq!(rig.sup.checkpoints(next), Ok(parsed(&two)));
+    let asked: Vec<String> = rig
+        .store
+        .bodies()
+        .into_iter()
+        .filter(|b| b.contains("list_checkpoints"))
+        .collect();
+    let body = |after: &str| {
+        format!(r#"{{"op":"list_checkpoints","workflow":null,"agent":null,"after":{after}}}"#)
+    };
+    assert_eq!(asked.len(), 2, "{asked:?}");
+    assert!(asked[0].contains(&body("null")), "{}", asked[0]);
+    let after = format!("\"{}\"", first.as_str());
+    assert!(asked[1].contains(&body(&after)), "{}", asked[1]);
+}
+
+#[test]
+fn a_list_reply_that_white_space_takes_past_reply_max_gives_no_page() {
+    let rig = Rig::new("list-reply-past-max");
+    let value = page(&common::run_id(), None);
+    // The 53 bytes of the envelope beside a request id: `{"v":1,"id":"`, the id's 32 signs, `","ok":` and `}`. A
+    // reply of `REPLY_MAX` bytes gives the page and one of a byte more does not, so both cases hold that count.
+    let padded = |len: usize| format!("{}{value}", " ".repeat(len - 53 - value.len()));
+    let answer = |text: String| *rig.store.pages.lock().unwrap() = vec![(None, text)];
+    answer(padded(REPLY_MAX + 1));
+    assert_eq!(rig.sup.checkpoints(None), Err(ListFailed));
+    answer(padded(REPLY_MAX));
+    assert_eq!(rig.sup.checkpoints(None), Ok(parsed(&value)));
+    for (name, lever) in [
+        ("wrong_id_coord", &rig.store.wrong_id_coord),
+        ("wrong_form_coord", &rig.store.wrong_form_coord),
+        ("fail_all", &rig.store.fail_all),
+    ] {
+        lever.store(1, Ordering::SeqCst);
+        assert_eq!(rig.sup.checkpoints(None), Err(ListFailed), "{name}");
+    }
+}
+
+// The removal of checkpoints (contracts.md A6.6, A11.3), on real folders under the rig's scratch directory.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// The bytes of each workbook of these tests, as the person keeps it.
+const BOOK: &[u8] = b"the workbook as the person keeps it";
+/// The bytes of each checkpoint of a `made` row, as `prepare` read the workbook.
+const COPY: &[u8] = b"the workbook as prepare read it";
+
+/// The instant `days` days before now, in nanoseconds since 1970.
+fn days_ago(days: i64) -> i64 {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    i64::try_from(now.as_nanos()).unwrap() - days * 24 * 60 * 60 * 1_000_000_000
+}
+
+/// The folder `books` under the rig's scratch directory, in its canonical spelling, and the rig's data directory.
+fn books(rig: &Rig) -> PathBuf {
+    let folder = rig.dir.canonicalize().unwrap().join("books");
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::create_dir_all(rig.data()).unwrap();
+    folder
+}
+
+/// The checkpoint of `run` beside `workbook`, under the name that halvo-checkpoint builds.
+fn copy_of(workbook: &Path, run: &RunId) -> PathBuf {
+    let run = halvo_checkpoint::RunId::parse(run.as_str()).unwrap();
+    workbook.with_file_name(halvo_checkpoint::checkpoint_name(workbook, &run).unwrap())
+}
+
+/// The workbook `name` in `folder`, holding `BOOK`, with the checkpoint of `run` beside it holding `copy`.
+fn with_copy(folder: &Path, name: &str, run: &RunId, copy: &[u8]) -> PathBuf {
+    let workbook = folder.join(name);
+    std::fs::write(&workbook, BOOK).unwrap();
+    std::fs::write(copy_of(&workbook, run), copy).unwrap();
+    workbook
+}
+
+fn absent(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_err()
+}
+
+/// Every entry under `dir` by its path below `dir`: a file with its bytes, a directory with none.
+fn tree(dir: &Path) -> BTreeMap<PathBuf, Option<Vec<u8>>> {
+    let mut found = BTreeMap::new();
+    let mut open = vec![dir.to_path_buf()];
+    while let Some(at) = open.pop() {
+        for entry in std::fs::read_dir(&at).unwrap() {
+            let path = entry.unwrap().path();
+            let below = path.strip_prefix(dir).unwrap().to_path_buf();
+            if std::fs::symlink_metadata(&path).unwrap().is_dir() {
+                found.insert(below, None);
+                open.push(path);
+            } else {
+                found.insert(below, Some(std::fs::read(&path).unwrap()));
+            }
+        }
+    }
+    found
+}
+
+/// A path as the list writes it, one piece of `own_text`.
+fn own(path: &Path) -> String {
+    let text = path.to_str().unwrap();
+    format!(r#"["{}"]"#, text.replace('\\', r"\\").replace('"', r#"\""#))
+}
+
+/// One row of the list of checkpoints. `made` holds the copy's bytes of a `made` row and is none for a `planned` row.
+struct Listed<'a> {
+    run: &'a RunId,
+    folder: &'a Path,
+    workbook: &'a Path,
+    made: Option<&'a [u8]>,
+    at: i64,
+    ended: bool,
+    effect: Option<&'a str>,
+    superseded: bool,
+}
+
+/// A `made` row of `copy`, made now, of a run whose end is stored, with no effect and not superseded.
+fn row<'a>(run: &'a RunId, folder: &'a Path, workbook: &'a Path, copy: &'a [u8]) -> Listed<'a> {
+    Listed {
+        run,
+        folder,
+        workbook,
+        made: Some(copy),
+        at: days_ago(0),
+        ended: true,
+        effect: None,
+        superseded: false,
+    }
+}
+
+impl Listed<'_> {
+    fn json(&self) -> String {
+        let yes = |b: bool| if b { "yes" } else { "no" };
+        let (state, sha256, bytes) = match self.made {
+            Some(copy) => (
+                "made",
+                format!("\"{}\"", halvo_checkpoint::Sha256::of(copy).hex()),
+                copy.len().to_string(),
+            ),
+            None => ("planned", "null".to_owned(), "null".to_owned()),
+        };
+        let effect = self
+            .effect
+            .map_or_else(|| "null".to_owned(), |e| format!("\"{e}\""));
+        let copy = copy_of(self.workbook, self.run);
+        format!(
+            r#"{{"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"{}","folder":{},"workbook":{},"copy":{},"state":"{state}","sha256":{sha256},"bytes":{bytes},"at":{},"ended":"{}","effect":{effect},"superseded":"{}"}}"#,
+            self.run.as_str(),
+            own(self.folder),
+            own(self.workbook),
+            own(Path::new(copy.file_name().unwrap())),
+            self.at,
+            yes(self.ended),
+            yes(self.superseded),
+        )
+    }
+}
+
+/// Gives the store one page that lists `rows`, in the order of their run ids.
+fn list(rig: &Rig, rows: &[Listed<'_>]) {
+    let mut rows: Vec<&Listed<'_>> = rows.iter().collect();
+    rows.sort_by(|a, b| a.run.as_str().cmp(b.run.as_str()));
+    let rows: Vec<String> = rows.iter().map(|r| r.json()).collect();
+    let page = format!(r#"{{"checkpoints":[{}],"next":null}}"#, rows.join(","));
+    *rig.store.pages.lock().unwrap() = vec![(None, page)];
+}
+
+/// The `mark_checkpoint` bodies that the store got, in order.
+fn marks(rig: &Rig) -> Vec<String> {
+    rig.store
+        .bodies()
+        .into_iter()
+        .filter(|b| b.contains(r#""op":"mark_checkpoint""#))
+        .collect()
+}
+
+/// The body of the mark of the checkpoint of `run` and `workbook` with `state` and the reason `left`.
+fn marked(run: &RunId, workbook: &Path, state: &str, left: Option<&str>) -> String {
+    let left = left.map_or_else(|| "null".to_owned(), |l| format!("\"{l}\""));
+    format!(
+        r#"{{"op":"mark_checkpoint","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"{}","workbook":{},"state":"{state}","left":{left}}}"#,
+        run.as_str(),
+        own(workbook)
+    )
+}
+
+/// The store got exactly the marks `expected`, each once.
+fn assert_marks(rig: &Rig, expected: &[String]) {
+    let sent = marks(rig);
+    assert_eq!(sent.len(), expected.len(), "{sent:#?}");
+    for body in expected {
+        let found = sent.iter().filter(|s| s.contains(body.as_str())).count();
+        assert_eq!(found, 1, "{body} in {sent:#?}");
+    }
+}
+
+#[test]
+fn a_pass_removes_superseded_aged_and_unreplaced_copies() {
+    let rig = Rig::new("pass-removes");
+    let folder = books(&rig);
+    let runs: Vec<RunId> = (0..4).map(|_| common::run_id()).collect();
+    let names = [
+        "superseded.xlsx",
+        "aged.xlsx",
+        "no-effect.xlsx",
+        "not-made.xlsx",
+    ];
+    let wbs: Vec<PathBuf> = names
+        .iter()
+        .zip(&runs)
+        .map(|(name, run)| with_copy(&folder, name, run, COPY))
+        .collect();
+    list(
+        &rig,
+        &[
+            Listed {
+                effect: Some("committed"),
+                superseded: true,
+                ..row(&runs[0], &folder, &wbs[0], COPY)
+            },
+            Listed {
+                effect: Some("committed"),
+                at: days_ago(31),
+                ..row(&runs[1], &folder, &wbs[1], COPY)
+            },
+            row(&runs[2], &folder, &wbs[2], COPY),
+            Listed {
+                effect: Some("not_made"),
+                ..row(&runs[3], &folder, &wbs[3], COPY)
+            },
+        ],
+    );
+    assert_eq!(rig.sup.remove_checkpoints(), Ok(()));
+    let left: BTreeMap<PathBuf, Option<Vec<u8>>> = names
+        .iter()
+        .map(|name| (PathBuf::from(name), Some(BOOK.to_vec())))
+        .collect();
+    assert_eq!(
+        tree(&folder),
+        left,
+        "each copy is removed, each workbook stays"
+    );
+    let gone: Vec<String> = wbs
+        .iter()
+        .zip(&runs)
+        .map(|(wb, run)| marked(run, wb, "gone", None))
+        .collect();
+    assert_marks(&rig, &gone);
+}
+
+#[test]
+fn a_pass_leaves_an_unknown_edits_copy_and_the_way_back() {
+    let rig = Rig::new("pass-leaves");
+    let folder = books(&rig);
+    let runs: Vec<RunId> = (0..3).map(|_| common::run_id()).collect();
+    let names = ["unknown.xlsx", "not-ended.xlsx", "young.xlsx"];
+    let wbs: Vec<PathBuf> = names
+        .iter()
+        .zip(&runs)
+        .map(|(name, run)| with_copy(&folder, name, run, COPY))
+        .collect();
+    list(
+        &rig,
+        &[
+            Listed {
+                effect: Some("unknown"),
+                superseded: true,
+                at: days_ago(31),
+                ..row(&runs[0], &folder, &wbs[0], COPY)
+            },
+            Listed {
+                ended: false,
+                superseded: true,
+                at: days_ago(31),
+                ..row(&runs[1], &folder, &wbs[1], COPY)
+            },
+            Listed {
+                effect: Some("committed"),
+                ..row(&runs[2], &folder, &wbs[2], COPY)
+            },
+        ],
+    );
+    let before = tree(&folder);
+    assert_eq!(rig.sup.remove_checkpoints(), Ok(()));
+    assert_eq!(rig.store.count("list_checkpoints"), 1, "the list was read");
+    assert_eq!(tree(&folder), before, "no file changed");
+    assert_marks(&rig, &[]);
+}
+
+#[test]
+fn a_pass_removes_the_named_copy_and_no_other_file() {
+    let rig = Rig::new("pass-named");
+    let folder = books(&rig);
+    let (run, other, outside_run) = (common::run_id(), common::run_id(), common::run_id());
+    let workbook = with_copy(&folder, "rent.xlsx", &run, COPY);
+    // Another run's checkpoint of the same workbook, of the same bytes, which the list does not name; a file under the
+    // copy's own name in a directory below the folder; and files of the person's own.
+    std::fs::write(copy_of(&workbook, &other), COPY).unwrap();
+    std::fs::create_dir(folder.join("sub")).unwrap();
+    std::fs::write(copy_of(&folder.join("sub").join("rent.xlsx"), &run), COPY).unwrap();
+    std::fs::write(folder.join("rent.xlsx.bak"), COPY).unwrap();
+    std::fs::write(folder.join("notes.txt"), b"the person's notes").unwrap();
+    // A row whose workbook lies outside its folder, with a checkpoint of the row's bytes beside that workbook.
+    let away = rig.dir.canonicalize().unwrap().join("away");
+    std::fs::create_dir(&away).unwrap();
+    let outside = with_copy(&away, "rent.xlsx", &outside_run, COPY);
+    list(
+        &rig,
+        &[
+            row(&run, &folder, &workbook, COPY),
+            row(&outside_run, &folder, &outside, COPY),
+        ],
+    );
+    let (mut in_folder, in_away) = (tree(&folder), tree(&away));
+    assert_eq!(rig.sup.remove_checkpoints(), Ok(()));
+    let named = copy_of(&workbook, &run);
+    let named = named.strip_prefix(&folder).unwrap();
+    assert!(in_folder.remove(named).is_some());
+    assert_eq!(tree(&folder), in_folder, "only the named copy is removed");
+    assert_eq!(tree(&away), in_away, "nothing outside the folder changed");
+    assert_marks(
+        &rig,
+        &[
+            marked(&run, &workbook, "gone", None),
+            marked(&outside_run, &outside, "left", Some("not_file")),
+        ],
+    );
+}
+
+#[test]
+fn a_changed_copy_stays_and_is_marked_left() {
+    let rig = Rig::new("pass-changed");
+    let folder = books(&rig);
+    let finish = common::ask_finish();
+    let lines: [&str; 4] = [
+        "hello",
+        &finish,
+        r#"send {"t":"done","outcome":"completed"}"#,
+        "exit 0",
+    ];
+    // A run whose pass finds no list.
+    let script = rig.script(&lines);
+    let spec = rig.spec(&script);
+    let first = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    let without = rig
+        .rec
+        .wait_end(&first, SHORT)
+        .expect("the first run ended");
+    assert!(wait_until(SHORT, || rig.store.count("list_checkpoints") == 1));
+    // A `made` copy that the person changed to the workbook's own bytes, which a check against the workbook would
+    // take; and a copy whose own name holds nothing, with a directory under the name that the removal moves a copy to.
+    let (changed_run, aside_run) = (common::run_id(), common::run_id());
+    let changed = with_copy(&folder, "changed.xlsx", &changed_run, BOOK);
+    let aside = folder.join("aside.xlsx");
+    std::fs::write(&aside, BOOK).unwrap();
+    let copy = copy_of(&aside, &aside_run);
+    let moved = copy.with_file_name(halvo_checkpoint::removing_name(copy.file_name().unwrap()));
+    std::fs::create_dir(&moved).unwrap();
+    std::fs::write(moved.join("inside.xlsx"), COPY).unwrap();
+    list(
+        &rig,
+        &[
+            row(&changed_run, &folder, &changed, COPY),
+            row(&aside_run, &folder, &aside, COPY),
+        ],
+    );
+    let before = tree(&folder);
+    let script = rig.script(&lines);
+    let spec = rig.spec(&script);
+    let second = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    let with = rig
+        .rec
+        .wait_end(&second, SHORT)
+        .expect("the second run ended");
+    assert!(
+        wait_until(SHORT, || marks(&rig).len() == 2),
+        "{:#?}",
+        marks(&rig)
+    );
+    assert_eq!(tree(&folder), before, "no file changed");
+    assert_marks(
+        &rig,
+        &[
+            marked(&changed_run, &changed, "left", Some("changed")),
+            marked(&aside_run, &aside, "left", Some("not_file")),
+        ],
+    );
+    let facts = |end: &RunEnd| {
+        (
+            end.outcome,
+            end.end_run,
+            end.exit,
+            end.forced,
+            end.finish.is_some(),
+        )
+    };
+    assert_eq!(facts(&with), facts(&without));
+    assert_eq!(with.outcome, Some(Outcome::Completed));
+    assert!(with.finish.is_some());
+}
+
+#[test]
+fn a_planned_copy_equal_to_its_workbook_goes() {
+    let rig = Rig::new("pass-planned");
+    let folder = books(&rig);
+    let run = common::run_id();
+    let workbook = with_copy(&folder, "rent.xlsx", &run, BOOK);
+    list(
+        &rig,
+        &[Listed {
+            made: None,
+            ..row(&run, &folder, &workbook, BOOK)
+        }],
+    );
+    assert_eq!(rig.sup.remove_checkpoints(), Ok(()));
+    assert!(absent(&copy_of(&workbook, &run)));
+    assert_eq!(std::fs::read(&workbook).unwrap(), BOOK);
+    assert_marks(&rig, &[marked(&run, &workbook, "gone", None)]);
+}
+
+#[test]
+fn an_absent_folder_writes_no_row_and_is_asked_again() {
+    let rig = Rig::new("pass-absent-folder");
+    let folder = books(&rig);
+    let run = common::run_id();
+    let workbook = with_copy(&folder, "rent.xlsx", &run, COPY);
+    list(&rig, &[row(&run, &folder, &workbook, COPY)]);
+    let away = folder.with_file_name("books-moved");
+    std::fs::rename(&folder, &away).unwrap();
+    let before = tree(&away);
+    assert_eq!(rig.sup.remove_checkpoints(), Ok(()));
+    assert!(absent(&folder), "the pass made no folder");
+    assert_eq!(tree(&away), before, "no file changed");
+    assert_marks(&rig, &[]);
+    std::fs::rename(&away, &folder).unwrap();
+    assert_eq!(rig.sup.remove_checkpoints(), Ok(()));
+    assert!(absent(&copy_of(&workbook, &run)));
+    assert_marks(&rig, &[marked(&run, &workbook, "gone", None)]);
+}
+
+#[test]
+fn a_removal_whose_mark_failed_is_marked_gone_later() {
+    let rig = Rig::new("pass-mark-failed");
+    let folder = books(&rig);
+    let run = common::run_id();
+    let workbook = with_copy(&folder, "rent.xlsx", &run, COPY);
+    list(&rig, &[row(&run, &folder, &workbook, COPY)]);
+    rig.store.fail_mark.store(1, Ordering::SeqCst);
+    assert_eq!(rig.sup.remove_checkpoints(), Ok(()));
+    assert!(absent(&copy_of(&workbook, &run)));
+    assert_eq!(
+        rig.store.fail_mark.load(Ordering::SeqCst),
+        0,
+        "the mark met the cut link"
+    );
+    let gone = marked(&run, &workbook, "gone", None);
+    assert_marks(&rig, std::slice::from_ref(&gone));
+    assert_eq!(rig.sup.remove_checkpoints(), Ok(()));
+    let sent = marks(&rig);
+    assert_eq!(sent.len(), 2, "{sent:#?}");
+    assert!(sent.iter().all(|s| s.contains(&gone)), "{sent:#?}");
+    let left = BTreeMap::from([(PathBuf::from("rent.xlsx"), Some(BOOK.to_vec()))]);
+    assert_eq!(tree(&folder), left);
 }

@@ -442,10 +442,18 @@ pub const LOGS: Entry = Entry {
     key_files: &[],
     owner_pid_file: None,
 };
+/// The derived store of the workflow run: the entry holds its database, the key file of that database, and the pid
+/// file in which the process that owns the database records itself.
+pub const DERIVED: Entry = Entry {
+    name: "derived",
+    kind: EntryKind::Content,
+    key_files: &["derived/master.key"],
+    owner_pid_file: Some("derived/owner.pid"),
+};
 
-pub const ENTRIES: [Entry; 4] = [STORE, ROOTS, RUN, LOGS];
+pub const ENTRIES: [Entry; 5] = [STORE, ROOTS, RUN, LOGS, DERIVED];
 
-pub const RESERVED_ENTRY_NAMES: [&str; 2] = ["derived", "agents"];
+pub const RESERVED_ENTRY_NAMES: [&str; 1] = ["agents"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RemovedBy {
@@ -2440,10 +2448,10 @@ mod tests {
     }
 
     #[test]
-    fn the_registry_holds_the_four_r1_entries_in_table_order() {
+    fn the_registry_holds_the_four_r1_entries_and_the_derived_store_in_table_order() {
         assert_eq!(
             ENTRIES.map(|entry| entry.name),
-            ["store", "roots", "run", "logs"]
+            ["store", "roots", "run", "logs", "derived"]
         );
         assert_eq!(
             ENTRIES.map(|entry| entry.kind),
@@ -2451,13 +2459,18 @@ mod tests {
                 EntryKind::Content,
                 EntryKind::Custody,
                 EntryKind::Runtime,
-                EntryKind::Log
+                EntryKind::Log,
+                EntryKind::Content
             ]
         );
         assert_eq!(STORE.key_files, ["store/store.key"]);
-        assert!(ENTRIES[1..].iter().all(|entry| entry.key_files.is_empty()));
-        assert!(ENTRIES.iter().all(|entry| entry.owner_pid_file.is_none()));
-        assert_eq!(RESERVED_ENTRY_NAMES, ["derived", "agents"]);
+        assert_eq!(DERIVED.key_files, ["derived/master.key"]);
+        assert!(ENTRIES[1..4].iter().all(|entry| entry.key_files.is_empty()));
+        assert_eq!(DERIVED.owner_pid_file, Some("derived/owner.pid"));
+        assert!(ENTRIES[..4]
+            .iter()
+            .all(|entry| entry.owner_pid_file.is_none()));
+        assert_eq!(RESERVED_ENTRY_NAMES, ["agents"]);
         assert!(KEYCHAIN_ITEMS.is_empty());
     }
 

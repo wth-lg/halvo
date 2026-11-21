@@ -12,16 +12,20 @@
 #            units   unit tests, as <package> for all of them or <package>::<module path> for a group
 #   place    gate       the merge gate runs it, on every push and pull request (scripts/ci/merge-gate.txt;
 #                       for a test: 12-test runs it in the form of the merge gate)
-#            scheduled  the Sunday run of the whole table and a run by hand run it; the merge gate does not
-#   clause   for scheduled, the reason; for gate, the job when one job alone has the check or the group
+#            scheduled  a slice runs it, once a week and in a run by hand (scripts/ci/slices.txt; for a
+#                       test: 12-test runs it in the group form, by its group in scripts/ci/slow-tests.txt)
+#   clause   for scheduled, first the slice (mon, tue, wed, thu, fri, sat or sun), then the job when the
+#            jobs differ, then the reason; for gate, the job when one job alone has the check or the group
 #
 # A check has one line for each place: a check that is in the gate of one job alone has a second
-# line, scheduled, for the other job. Nothing of this list is deleted. A line moves to scheduled
-# only with its reason. A test target under about 6 s stays in the gate, and so does a check under
-# about 60 s where the job has room: the windows job, the slower one, keeps fewer checks than the
-# macos job. The seconds of a check are those of the pull request run 44877874023, which ran the
-# whole table, unless the clause names another run; those of a group of unit tests are the gaps
-# before its lines in a job of the push run 44893237714.
+# line, scheduled, for the other job. A line moves to scheduled only with its reason. A test target
+# under about 6 s stays in the gate, and so does a check under about 60 s where the job has room.
+# What holds the rule on egress in the gate: 21-tree-bans in both jobs, 60-r6-egress in the macos job
+# and the tests of 12-test; 10-egress, 80-r6-absent, 38-app-engine-routes and 20-r6-gateway run in
+# slices. Before a release the seven slices are run by hand at the commit of the release
+# (scripts/ci/README.md, The slices). The seconds of a check are those of the pull request run
+# 44877874023, which ran the whole table, unless the clause names another run; those of a group of
+# unit tests are the gaps before its lines in a job of the push run 44893237714.
 # The list is made by reading check rules and test names; no check reads it.
 
 secure-input check 12-test gate in the form of the merge gate; the macos job fails a hold test whose hold the system refuses
@@ -29,42 +33,43 @@ secure-input units halvo-capture::secure_input gate the macos module in the maco
 secure-input units halvo-capture::macos::input gate macos job
 secure-input units halvo-capture::macos::secure_input_byte gate macos job
 secure-input units halvo-capture::windows::input gate windows job, but for the two lines below
-secure-input units halvo-capture::windows::input::tests::keys_wait_for_a_held_pointer_pump_and_an_idle_pointer_source_lets_them_through scheduled 12 s in the windows job
-secure-input units halvo-capture::windows::input::tests::a_keyboard_stop_lets_the_click_route_go_only_when_its_window_and_gate_are_its_own scheduled 9 s in the windows job
+secure-input units halvo-capture::windows::input::tests::keys_wait_for_a_held_pointer_pump_and_an_idle_pointer_source_lets_them_through scheduled fri the windows job, the group C; 12 s there
+secure-input units halvo-capture::windows::input::tests::a_keyboard_stop_lets_the_click_route_go_only_when_its_window_and_gate_are_its_own scheduled fri the windows job, the group C; 9 s there
 secure-input units halvo-capture::daemon::stop_tests gate
 secure-input units halvo-capture::floor gate
 secure-input target halvo-capture/source_rules gate
 secure-input check 18-hook-scan gate macos job, which alone has the check
-secure-input check 62-build gate macos job, 68 s there in the push run 44895970784; neither built executable may import the call that holds secure input
-secure-input check 62-build scheduled windows job, 153 s there as a check of the merge gate in the push run 44893237714; it is the one build in the release profile
-secure-input check 24-hook-imports scheduled 28 s in the windows job, which alone has the check; it makes debug builds of two executables
-secure-input target halvo-capture/macos_stall_fixture scheduled 10 s in the macos job; its phases belong to 51-macos-stall
-secure-input check 51-macos-stall scheduled 197 s in the macos job
-secure-input check 30-core-boundary-proofs scheduled 104 s in the macos job, 27 s in the windows job
+secure-input check 62-build scheduled thu and sun the macos job, 68 s there as a check of the merge gate in the push run 44895970784; neither built executable may import the call that holds secure input
+secure-input check 62-build scheduled sun the windows job, 153 s there as a check of the merge gate in the push run 44893237714; it is the one build in the release profile
+secure-input check 24-hook-imports scheduled mon 28 s in the windows job, which alone has the check; it makes debug builds of two executables
+secure-input target halvo-capture/macos_stall_fixture scheduled sat the group D; 10 s in the macos job; its phases belong to 51-macos-stall
+secure-input check 51-macos-stall scheduled wed 197 s in the macos job
+secure-input check 30-core-boundary-proofs scheduled wed 104 s in the macos job, which holds every proof; the windows job no longer runs it
 
 store units halvo-capture::store gate but for the four lines below
-store units halvo-capture::store::formal_tests scheduled 37 s for its 16 tests
-store units halvo-capture::store::hardening_tests::a_shredded_wrapped_key_is_gone_from_the_raw_database_pages scheduled 9 s
-store units halvo-capture::store::hardening_tests::a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind scheduled 5 s
-store units halvo-capture::store::hardening_tests::page_gap_probe scheduled 26 s in the windows job, 2 s in the macos job
+store units halvo-capture::store::formal_tests scheduled sun in the macos job and fri in the windows job, the group C; 37 s for its 16 tests
+store units halvo-capture::store::hardening_tests::a_shredded_wrapped_key_is_gone_from_the_raw_database_pages scheduled sun in the macos job and fri in the windows job, the group C; 9 s
+store units halvo-capture::store::hardening_tests::a_kill_before_each_file_system_call_of_each_operation_leaves_no_key_or_root_behind scheduled sun in the macos job and fri in the windows job, the group C; 5 s
+store units halvo-capture::store::hardening_tests::page_gap_probe scheduled sun in the macos job and fri in the windows job, the group C; 26 s in the windows job, 2 s in the macos job
 store units halvo-capture::custody gate
-store units halvo-sqlcipher scheduled 27 s in the macos job, 32 s in the windows job
+store units halvo-sqlcipher scheduled mon the group A; 27 s in the macos job, 32 s in the windows job
 store target halvo-derived/crash_model gate
 store target halvo-learn-gate/delete_cli gate
+store units halvo-learn-gate::tests::privacy gate the deletion of learned rows; the line kept of scripts/ci/slow-tests.txt names the part, which the tests of the privacy command in privacy::tests hold too, and the package's other unit tests run in the group B
 store target halvo/page_guard gate
-store target halvo-seam/conformance scheduled 30 s in the macos job, 20 s in the windows job
-store target halvo-seam/suite_controls scheduled 11 s in the macos job, 7 s in the windows job
-store target halvo-derived/privacy scheduled 52 s in the macos job, 60 s in the windows job
+store target halvo-seam/conformance scheduled mon the group A; 30 s in the macos job, 20 s in the windows job
+store target halvo-seam/suite_controls scheduled mon the group A; 11 s in the macos job, 7 s in the windows job
+store target halvo-derived/privacy scheduled mon the group A; 52 s in the macos job, 60 s in the windows job
 store check 39-store-no-analyze gate
 store check 55-sqlcipher-unmended gate it builds only when the commit changes crates/halvo-sqlcipher, and then took 66 s and 77 s
 store check 19-control-links-no-store gate
 store check 20-app-links-no-store gate macos job, which reads the tree of every target
-store check 20-app-links-no-store scheduled windows job, 44 s there in the push run 44895943466
+store check 20-app-links-no-store scheduled mon the windows job, 44 s there in the push run 44895943466
 store check 23-daemon-port-only gate
 store check 31-app-page-layout gate macos job, which alone has the check
 store check 60-r5-privacy gate
-store check 31-store-full-volume scheduled 136 s in the macos job
-store check 30-core-boundary-proofs scheduled 104 s in the macos job, 27 s in the windows job
+store check 31-store-full-volume scheduled mon 136 s in the macos job
+store check 30-core-boundary-proofs scheduled wed 104 s in the macos job, which holds every proof; the windows job no longer runs it
 
 capture units halvo-capture::macos::foreground gate macos job
 capture units halvo-capture::macos::screen gate macos job
@@ -74,30 +79,34 @@ capture units halvo-capture::windows gate windows job; its modules apps, foregro
 capture units halvo-capture::floor::exclude gate
 capture units halvo-capture::consent gate
 capture check 22-redact gate
-capture check 50-windows-functional scheduled 467 s in the windows job
-capture check 52-windows-browser scheduled 433 s in the windows job
-capture check 51-macos-stall scheduled 197 s in the macos job
+capture check 50-windows-functional scheduled wed 467 s in the windows job
+capture check 52-windows-browser scheduled thu 433 s in the windows job
+capture check 51-macos-stall scheduled wed 197 s in the macos job
 
 billing target halvo-route/prices_rules gate
 billing target halvo-route/refusal_spend gate
-billing target halvo-route/formal_traces scheduled 15 s in the macos job, 10 s in the windows job
-billing units halvo-route-gate scheduled 13 s in the macos job, 9 s in the windows job
+billing target halvo-route/formal_traces scheduled tue the group B; 15 s in the macos job, 10 s in the windows job
+billing units halvo-route-gate scheduled tue the group B; 13 s in the macos job, 9 s in the windows job
 billing check 40-r6-policy gate
 billing check 21-r7-backend-test gate macos job, which alone has the check, 72 s there in the push run 44895970784; the ledger and the metering tests of the backend
 billing check 24-r7-wall gate
 billing check 27-r7-metering-self gate
-billing check 28-r7-helper-s6 scheduled it reads the build that 10-r7-account makes and fails without it; 35 s in the macos job, 14 s in the windows job
-billing check 55-r6-formal scheduled 108 s in the macos job
-billing check 10-r7-account scheduled 55 s in the macos job, 38 s in the windows job
-billing check 20-r7-stub scheduled 83 s in the macos job, 58 s in the windows job
+billing check 55-r6-formal scheduled wed 108 s in the macos job
+billing check 10-r7-account scheduled sat the macos job, 55 s there
+billing check 10-r7-account scheduled mon the windows job, 38 s there
 
 egress check 60-r6-egress gate macos job, 69 s there in the push run 44895970784
-egress check 60-r6-egress scheduled windows job, 123 s there as a check of the merge gate in the push run 44893237714
+egress check 60-r6-egress scheduled sun the windows job, 123 s there as a check of the merge gate in the push run 44893237714
 egress check 21-tree-bans gate
-egress check 10-egress gate macos job, 33 s there in the push run 44895970784
-egress check 10-egress scheduled windows job, 142 s
-egress check 80-r6-absent gate macos job, 20 s there in the push run 44895970784
-egress check 80-r6-absent scheduled windows job, 22 s; the windows job, at 989 s in the push run 44895943466, has no room for it
+egress check 10-egress scheduled thu the macos job, 33 s there in the push run 44895970784
+egress check 10-egress scheduled sat the windows job, 142 s there
+egress check 80-r6-absent scheduled thu the macos job, 20 s there in the push run 44895970784
+egress check 80-r6-absent scheduled sat the windows job, 22 s there
+egress check 38-app-engine-routes scheduled thu the macos job, 127 s there; the engine of the window opens no connection
+egress check 38-app-engine-routes scheduled sat the windows job, 115 s there
+egress check 20-r6-gateway scheduled thu the macos job, 8 s there; the body that leaves holds six keys
+egress check 20-r6-gateway scheduled sat the windows job, 6 s there
 
 licences check 23-licences gate macos job, which alone has the check
 licences check 25-r7-backend-licenses gate macos job, which alone has the check
+licences check 10-r7-account scheduled sat the macos job and mon the windows job; cargo deny over the account workspace, which the root workspace does not hold

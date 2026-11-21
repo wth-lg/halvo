@@ -11,6 +11,7 @@ use crate::types::{
     Limits, LineKey, LivePhase, PastEffect, PastRun, Permission, Raised, Row, RunEnd, RunHistory,
     RunId, Runtime, StatusLine, System, Tier, Trigger, What,
 };
+use crate::types::{Ask, AskAct, AskControl, AskEffect, AskKind, Class, Kept};
 use crate::words;
 
 /// The status of the agent of `facts` with the case of its line (I1.3): the first row that fits
@@ -50,10 +51,14 @@ pub fn status_of<C: ConfigView>(
         }
     }
     let standing = holds(facts);
+    if crate::schedule::kept_off(facts) && !standing.contains(&Hold::NotYet) {
+        return StatusLine::Kept;
+    }
     for (hold, line) in [
         (Hold::NotYet, StatusLine::NotYet),
         (Hold::Off, StatusLine::Off),
         (Hold::Failures, StatusLine::Failures),
+        (Hold::Check, StatusLine::NeedsYou(ItemKind::Check)),
     ] {
         if standing.contains(&hold) {
             return line;
@@ -254,6 +259,11 @@ fn row_offering<C: ConfigView>(
     offered: Vec<Control>,
 ) -> Result<Row, Cause> {
     let status = line.status();
+    let ask = if offered.contains(&Control::Delete) {
+        Some(ask(facts, name)?)
+    } else {
+        None
+    };
     Ok(Row {
         agent: facts.agent.clone(),
         workflow: facts.workflow.id.clone(),
@@ -274,7 +284,114 @@ fn row_offering<C: ConfigView>(
                     .map(|text| ControlText { control, text })
             })
             .collect::<Result<_, _>>()?,
+        ask,
     })
+}
+
+/// The sentences of the question of the delete after its line on the next day, in order
+/// (ruling RD-19 (c) rule (4)).
+pub const ASK_DELETE: [&str; 7] = [
+    "ask.delete.setup",
+    "ask.delete.sign_in",
+    "ask.delete.records",
+    "ask.delete.final",
+    "ask.delete.done",
+    "ask.delete.copies",
+    "ask.delete.starts",
+];
+
+fn ask_control(act: AskAct, key: &str) -> Result<AskControl, Cause> {
+    Ok(AskControl {
+        act,
+        text: text(key, &[])?,
+    })
+}
+
+/// The question that a press on the Delete of the agent's row opens in the page, which sends
+/// nothing (ruling RD-19 (c) rules (2) to (4), RD-30 (1)). While a run of the agent is live it
+/// is the notice `working`, that the agent must be stopped first and can be removed once it has
+/// stopped, with the safe control that leaves it first and the control that sends the row's
+/// stop; while the run stops, the notice `stopping` with one control. With no live run it is
+/// the question `delete`: its title names the agent, its first sentence the next day where the
+/// agent has one, then what the delete removes, that it cannot be brought back, that nothing
+/// done or at a website is undone, that the copies beside the person's workbooks stay, and that
+/// a task that starts before the answer is stopped first; then each effect of the last run
+/// whose outcome is not known (`Facts::unknown`) with its kept fields and the sentence on its
+/// record, where the agent's open item `check` names them in its own words instead; the safe
+/// control first, then the one that sends the delete. A queued start withholds nothing.
+pub fn ask<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Ask, Cause> {
+    let pair = [("name", name)];
+    match facts.doing.phase() {
+        Some(LivePhase::Stopping) => Ok(Ask {
+            kind: AskKind::Stopping,
+            title: text("ask.stopping.title", &pair)?,
+            text: vec![text("ask.stopping.text", &[])?],
+            effects: Vec::new(),
+            record: None,
+            controls: vec![ask_control(AskAct::Done, "ask.stopping.done")?],
+        }),
+        Some(_) => Ok(Ask {
+            kind: AskKind::Working,
+            title: text("ask.working.title", &pair)?,
+            text: vec![text("ask.working.text", &[])?],
+            effects: Vec::new(),
+            record: None,
+            controls: vec![
+                ask_control(AskAct::Reject, "ask.working.keep")?,
+                ask_control(AskAct::Stop, "control.stop")?,
+            ],
+        }),
+        None => {
+            let mut lines = Vec::new();
+            if let Some(day) = next_slot(&facts.workflow, facts.today) {
+                lines.push(text("ask.delete.next", &[("day", &words::day(day))])?);
+            }
+            for key in ASK_DELETE {
+                lines.push(text(key, &[])?);
+            }
+            let effects = unknown_effects(facts, name)?;
+            let record = if effects.is_empty() {
+                None
+            } else {
+                Some(text("ask.delete.record", &[])?)
+            };
+            Ok(Ask {
+                kind: AskKind::Delete,
+                title: text("ask.delete.title", &pair)?,
+                text: lines,
+                effects,
+                record,
+                controls: vec![
+                    ask_control(AskAct::Reject, "ask.delete.keep")?,
+                    ask_control(AskAct::Allow, "control.delete")?,
+                ],
+            })
+        }
+    }
+}
+
+fn unknown_effects<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Vec<AskEffect>, Cause> {
+    if facts.unknown.is_empty() {
+        return Ok(Vec::new());
+    }
+    let check = facts
+        .doing
+        .item()
+        .is_some_and(|open| open.kind == ItemKind::Check);
+    if check {
+        let list: Vec<(Class, &[Kept])> = facts
+            .unknown
+            .iter()
+            .map(|u| (u.class, u.kept.as_slice()))
+            .collect();
+        let title = text("item.check.title", &[("name", name)])?;
+        return Ok(vec![AskEffect::checked(title, &list)?]);
+    }
+    facts
+        .unknown
+        .iter()
+        .map(|u| AskEffect::unknown(u.class, &u.kept))
+        .collect()
 }
 
 /// The row of an agent whose workflow a tick saw gone while its run lives (I5.7, ruling RD-54
@@ -295,6 +412,16 @@ pub fn gone_row<C: ConfigView>(
     Ok(Row {
         next: None,
         ..row_offering(facts, line, name, Vec::new())?
+    })
+}
+
+/// The row of an agent whose delete the person confirmed while its run was live, until that
+/// run's end is stored and the delete is sent (I5.7; ruling RD-19 (c) rule 7): `working.deleting`,
+/// no control and no next day, since the agent will not start again.
+pub fn deleting_row<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Row, Cause> {
+    Ok(Row {
+        next: None,
+        ..row_offering(facts, StatusLine::Deleting, name, Vec::new())?
     })
 }
 
@@ -447,6 +574,7 @@ pub fn card<C: ConfigView>(
             .take(limits.history_runs as usize)
             .map(|h| card_run(&facts.events, h))
             .collect::<Result<_, _>>()?,
+        history: None,
     })
 }
 

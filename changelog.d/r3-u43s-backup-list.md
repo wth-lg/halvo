@@ -1,0 +1,1 @@
+- Added: The supervisor library reads the list of checkpoints from the owner one page at a time (`Supervisor::checkpoints`).

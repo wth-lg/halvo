@@ -262,6 +262,19 @@ impl<P: Owner> Owner for Watch<'_, P> {
     ) -> Result<Vec<ReplyRow>, PortError> {
         self.ports.replies(workflow, agent, run)
     }
+
+    fn overlaps(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        slots: Option<&[crate::types::Slot]>,
+    ) -> Result<crate::ports::Overlaps, PortError> {
+        self.ports.overlaps(workflow, agent, slots)
+    }
+
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        self.ports.delete(workflow)
+    }
 }
 
 impl<P: Runs> Runs for Watch<'_, P> {
@@ -708,4 +721,107 @@ where
     done.report.stopped.push(run.clone());
     done.report.read = now;
     done
+}
+
+#[cfg(test)]
+mod watch_tests {
+    use super::Watch;
+    use crate::guard::Table;
+    use crate::mem::{Config, Method, Ports};
+    use crate::ports::{Owner, PortError};
+    use crate::types::{AgentId, WorkflowId};
+    use std::cell::RefCell;
+
+    /// The row of the coordinator's message msg_273bd1c3262d (round RD-160): the tick's view of
+    /// the ports hands the read `Owner::overlaps` on to the owner, so that a read inside a tick
+    /// meets the owner's answer (here `busy`) and not the trait's default `no_service`.
+    #[test]
+    fn the_ticks_watch_hands_the_read_of_overlaps_on_to_the_owner() {
+        let p: Ports<Config> = Ports::new(0, 0);
+        p.refuse(Method::Overlaps, PortError::Busy);
+        let mut table = Table::new();
+        let watch = Watch {
+            ports: &p,
+            kill_refused_unknown_run: RefCell::new(Vec::new()),
+            listed: RefCell::new(None),
+            cancel_already_sent: Vec::new(),
+            table: RefCell::new(&mut table),
+        };
+        let workflow = WorkflowId::parse("000000000000000000000000000000e0").unwrap();
+        let agent = AgentId::parse("000000000000000000000000000000b0").unwrap();
+        assert_eq!(
+            watch.overlaps(&workflow, &agent, None),
+            Err(PortError::Busy)
+        );
+        assert_eq!(p.overlap_reads.borrow().clone(), vec![(agent, None)]);
+    }
+}
+
+#[cfg(test)]
+mod watch {
+    use super::Watch;
+    use crate::guard::Table;
+    use crate::mem::Config;
+    use crate::ports::{Owner, PortError};
+    use crate::types::{Agent, AgentId, Body, Event, Reply, ReplyRow, RunId, Workflow, WorkflowId};
+    use std::cell::RefCell;
+
+    #[derive(Default)]
+    struct Recording {
+        deletes: RefCell<Vec<WorkflowId>>,
+    }
+
+    impl Owner for Recording {
+        type Config = Config;
+
+        fn log(&self, _: &[Event]) -> Result<(), PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn history(&self, _: &AgentId, _: u32) -> Result<(Vec<Event>, u32), PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn send(&self, _: &Body) -> Result<Reply, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn replies(
+            &self,
+            _: &WorkflowId,
+            _: &AgentId,
+            _: &RunId,
+        ) -> Result<Vec<ReplyRow>, PortError> {
+            Err(PortError::Busy)
+        }
+
+        fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+            self.deletes.borrow_mut().push(workflow.clone());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_delete_through_the_watch_reaches_the_owner_that_it_wraps() {
+        let owner = Recording::default();
+        let mut table = Table::new();
+        let watch = Watch {
+            ports: &owner,
+            kill_refused_unknown_run: RefCell::new(Vec::new()),
+            listed: RefCell::new(None),
+            cancel_already_sent: Vec::new(),
+            table: RefCell::new(&mut table),
+        };
+        let workflow = WorkflowId::parse(&format!("{:032x}", 0x51)).unwrap();
+        assert_eq!(watch.delete(&workflow), Ok(()));
+        assert_eq!(*owner.deletes.borrow(), [workflow]);
+    }
 }

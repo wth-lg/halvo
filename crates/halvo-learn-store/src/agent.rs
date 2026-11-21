@@ -22,7 +22,7 @@ fn ask(host: &mut dyn LearnHost, call: RunnerCall) -> Result<Option<RunnerReply>
 }
 
 /// What the agent store answers a `load` of the agent in the run, which stores nothing: the agent's
-/// configuration and its newest compile number. None where the agent store refuses the body.
+/// configuration and its newest finished compile number (CP-182). None where the agent store refuses the body.
 pub(crate) fn load(
     host: &mut dyn LearnHost,
     agent: &AgentId,
@@ -39,9 +39,9 @@ pub(crate) fn load(
     }
 }
 
-/// The agent's newest compile number as the agent store's `load` would give it, by the agent store's read that
-/// needs no runner body (CP-135 (5) refuses a runner body of a run with no start row): `Some(None)` for an agent
-/// with no compile number, and none where the agent store refuses the agent.
+/// The agent's newest finished compile number as the agent store's `load` would give it, by the agent store's read
+/// that needs no runner body (CP-135 (5) refuses a runner body of a run with no start row): `Some(None)` for an
+/// agent with no finished compile number, and none where the agent store refuses the agent.
 pub(crate) fn newest_number(
     host: &mut dyn LearnHost,
     agent: &AgentId,

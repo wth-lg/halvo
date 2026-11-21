@@ -4,7 +4,7 @@
 
 use crate::types::{
     Agent, AgentId, Answer, BindResult, Body, ConfigView, Decision, Event, HandbackResult, Name,
-    Reply, ReplyRow, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
+    Reply, ReplyRow, RunHistory, RunId, RunSpec, Slot, Workflow, WorkflowId,
 };
 
 /// Why a port call did not do its work (I5.10). The coordinator answers a command with `busy`
@@ -65,6 +65,106 @@ pub trait Owner {
         agent: &AgentId,
         run: &RunId,
     ) -> Result<Vec<ReplyRow>, PortError>;
+
+    /// The read `list_overlaps` of the agent-setup run's A7.2, whose body holds `op`, then
+    /// `workflow` and `agent`, then `slots`: the other live agents that answer mail from a sender
+    /// of the agent on its mailbox, with its slots as they would stand with `slots` merged by
+    /// name into its newest bindings, or as they stand where `slots` is none. It stores nothing.
+    /// A read that did not answer is an error, never an empty list; the owner refuses a workflow
+    /// that is not in its list with `no_workflow` and an agent that is not the workflow's with
+    /// `binding`. An owner that does not read them answers `no_service`, which is the answer of
+    /// this default (CP-150 (1) (e), CP-234 (a); ruling RD-67 3.2).
+    fn overlaps(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        slots: Option<&[Slot]>,
+    ) -> Result<Overlaps, PortError> {
+        let _ = (workflow, agent, slots);
+        Err(PortError::NoService)
+    }
+
+    /// Sends the decision `delete` of the workflow, the one delete of a workflow and its agent
+    /// (W-C3.10); success is the acknowledgement, after which the owner holds no row that names
+    /// the workflow. The owner refuses a delete while a run of the workflow's agent is live
+    /// with the name `state`, and a workflow that is not in its list with `no_workflow`
+    /// (rulings RD-19 (d) (1), RD-30 (1)). An owner that does not take the decision answers
+    /// `no_service`, which is the answer of this default.
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        let _ = workflow;
+        Err(PortError::NoService)
+    }
+}
+
+/// The most entries of one answer of `Owner::overlaps` (the agent-setup run's A7.2).
+pub const OVERLAPS_MAX: usize = 16;
+
+/// The answer of `Owner::overlaps`: at most `OVERLAPS_MAX` other agents in ascending order of
+/// workflow id, each workflow and each agent once, and `more`, which says that more agents share
+/// senders than the entries name (the agent-setup run's A7.2).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Overlaps {
+    /// The other agents, each with the senders that it shares.
+    pub entries: Vec<Overlap>,
+    /// Whether more agents share senders than `entries` names.
+    pub more: bool,
+}
+
+/// One other live agent of `Overlaps`: its workflow, its agent and the senders that it shares
+/// with the asking agent, at least one, in the spelling of the asking agent's list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Overlap {
+    /// The other agent's workflow.
+    pub workflow: WorkflowId,
+    /// The other agent.
+    pub agent: AgentId,
+    /// The shared senders.
+    pub senders: Vec<String>,
+}
+
+/// What the core holds to show for a refusal `overlap` (I3.5 (c), (d), (f); ruling RD-67 3.2),
+/// always from the read that followed the newest refusal and never from an earlier one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Shared {
+    /// The read answered with these entries, at least one.
+    Named(Overlaps),
+    /// The read did not answer, so the sentence names nobody; `again` says whether waiting can
+    /// change that (no answer, `busy`, `store_unavailable`, `internal`), so that a tick asks the
+    /// read once more.
+    Unread {
+        /// Whether a tick asks the read once more.
+        again: bool,
+    },
+}
+
+impl Shared {
+    /// What a read's answer gives to show: its entries where it named one, none for an answer
+    /// with no entry, and the half that is known where it did not answer.
+    pub fn of(read: Result<Overlaps, PortError>) -> Option<Shared> {
+        match read {
+            Ok(o) if o.entries.is_empty() => None,
+            Ok(o) => Some(Shared::Named(o)),
+            Err(e) => Some(Shared::Unread {
+                again: waiting_can_change(&e),
+            }),
+        }
+    }
+
+    /// Whether the agent `agent` is one that the sentence names.
+    pub fn names(&self, agent: &AgentId) -> bool {
+        matches!(self, Shared::Named(o) if o.entries.iter().any(|e| &e.agent == agent))
+    }
+}
+
+/// Whether a failed call can answer otherwise after a wait: no answer, `busy`,
+/// `store_unavailable` or `internal` (I3.5 (d)).
+pub fn waiting_can_change(error: &PortError) -> bool {
+    match error {
+        PortError::Busy | PortError::NoService => true,
+        PortError::Refused(name) => {
+            matches!(name.as_str(), "busy" | "store_unavailable" | "internal")
+        }
+    }
 }
 
 /// The runners of the agent-setup run, through its supervisor library.

@@ -26,7 +26,7 @@ use halvo_schema::executable::frame::{
     ConfirmDecision, ConfirmRequest, HandbackRequest, SecretReply,
 };
 use halvo_schema::executable::names::{Answer, Mode};
-use halvo_schema::executable::text::{Name, RunId, WebOrigin};
+use halvo_schema::executable::text::{EffectId, Name, RunId, WebOrigin};
 use halvo_schema::request::{decode, CoordinatorRole, Decoded};
 use halvo_schema::{AgentId, WorkflowId};
 
@@ -77,11 +77,15 @@ fn hold_until_released(dir: &Path) {
 }
 
 impl Confirmer for Yes {
-    fn answers(&self, _run: &RunId, request: &ConfirmRequest) -> Vec<Answer> {
+    fn answers(&self, _run: &RunId, request: &ConfirmRequest) -> Vec<(EffectId, Answer)> {
         if let Some(dir) = &self.hold {
             hold_until_released(dir);
         }
-        vec![Answer::AllowOnce; request.effects.len()]
+        request
+            .effects
+            .iter()
+            .map(|e| (e.effect.clone(), Answer::AllowOnce))
+            .collect()
     }
 
     fn issued(&self, _run: &RunId, _decision: &ConfirmDecision) -> Result<(), IssueRefused> {

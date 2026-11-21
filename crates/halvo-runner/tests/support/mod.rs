@@ -174,16 +174,14 @@ pub enum Act {
     CloseReadThenAnswer,
     /// No reply, and the link stays open until the runner ends.
     Hold,
-    /// The supervisor closes the end on which it reads the runner's frames and writes the answer, and leaves the
-    /// runner's standard input open, so that the runner sees the close at its next write alone.
-    CloseReadKeepInput,
     /// This frame, then the act.
     Then(ToRunner, Box<Act>),
 }
 
 /// What the supervisor saw.
 pub struct Seen {
-    /// The data directory that the harness gave the runner, and the runner's argument line.
+    /// The data directory that the harness gave the runner, empty for a start with no `--data-dir`, and the runner's
+    /// argument line.
     pub data_dir: PathBuf,
     pub line: Vec<String>,
     pub frames: Vec<FromRunner>,
@@ -344,6 +342,21 @@ impl Runner {
                 .any(|pair| pair[0] == "--data-dir" && !pair[1].is_empty()),
             "a runner of a test starts with --data-dir and a directory of its own"
         );
+        Runner::spawn(line, data_dir)
+    }
+
+    /// Starts the runner with `args` alone and no `--data-dir` (U4.7), its data directory in `Seen` empty. Its file
+    /// step fails before it locks: run it only at a head whose runner takes no default data directory, since an
+    /// older runner locks under this account's real data directory there.
+    pub fn start_without_data_dir(args: &[String]) -> Runner {
+        assert!(
+            !args.iter().any(|a| a == "--data-dir"),
+            "a start with no --data-dir"
+        );
+        Runner::spawn(args.to_vec(), PathBuf::new())
+    }
+
+    fn spawn(line: Vec<String>, data_dir: PathBuf) -> Runner {
         let mut command = Command::new(RUNNER);
         command
             .args(&line)
@@ -488,6 +501,9 @@ pub struct Supervisor {
     pub mode: &'static str,
     /// The run's `--utc-offset`, 0 unless a test sets it.
     pub utc_offset_s: i32,
+    /// Whether `serve` starts the runner with `--data-dir` and a directory of the test's own; true unless a test
+    /// clears it for `Runner::start_without_data_dir`.
+    pub data_dir: bool,
 }
 
 impl Supervisor {
@@ -504,6 +520,7 @@ impl Supervisor {
             steps: Vec::new(),
             mode: "replay",
             utc_offset_s: 0,
+            data_dir: true,
         }
     }
 
@@ -535,6 +552,7 @@ impl Supervisor {
                         steps,
                     },
                 ),
+                next_playbook: NonZeroU32::MIN.saturating_add(1),
                 bindings: Some(LoadedBindings {
                     rev: NonZeroU32::MIN,
                     origins: self.origins.clone(),
@@ -546,6 +564,7 @@ impl Supervisor {
             RunnerCall::LoadSteps(b) => {
                 let from = b.from.get() as usize;
                 RunnerReply::Steps(StepsReply {
+                    agent: self.config.agent.clone(),
                     steps: self.steps.iter().skip(from - 1).take(16).cloned().collect(),
                 })
             }
@@ -578,7 +597,11 @@ impl Supervisor {
         mut rule: impl FnMut(&FromRunner, &[FromRunner]) -> Act,
         limit: Duration,
     ) -> Seen {
-        let mut runner = Runner::start(&self.args());
+        let mut runner = if self.data_dir {
+            Runner::start(&self.args())
+        } else {
+            Runner::start_without_data_dir(&self.args())
+        };
         let mut frames: Vec<FromRunner> = Vec::new();
         let mut closed_at: Option<Instant> = None;
         let start = Instant::now();
@@ -652,14 +675,6 @@ impl Supervisor {
                 false
             }
             Act::Hold => true,
-            Act::CloseReadKeepInput => {
-                runner.close_output();
-                if let Some(reply) = self.answer(frame) {
-                    runner.send(&reply);
-                }
-                *closed_at = Some(Instant::now());
-                false
-            }
             Act::Then(first, then) => {
                 runner.send(&first);
                 self.act(runner, frame, *then, closed_at)

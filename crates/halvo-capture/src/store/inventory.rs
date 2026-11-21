@@ -1,15 +1,44 @@
 //! The listing of the store: the per-day rollup, read as it stands.
 
 use super::db::{db_error, EncryptedStore};
-use super::{InventoryRow, StoreError, StoreResult, UtcDay};
+use super::{InventoryRow, StoreError, StoreResult, Usage, UtcDay};
 
 impl EncryptedStore {
+    /// The store's byte totals on disk and in its payloads, as [`Usage`]
+    /// defines them. Rows of shredded segments stay in the database, so its
+    /// pages count after every live segment is gone.
+    pub fn usage(&self) -> StoreResult<Usage> {
+        let db = self.db()?;
+        let (segment_disk, logical): (i64, i64) = db
+            .connection()
+            .query_row(
+                "SELECT coalesce(sum(disk_bytes), 0), coalesce(sum(logical_bytes), 0) \
+                 FROM segment_keys WHERE wrapped_key IS NOT NULL",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .map_err(db_error)?;
+        Ok(Usage {
+            disk_bytes: (segment_disk.max(0) as u64)
+                .saturating_add(db.live_page_bytes()?)
+                .saturating_add(db.wal_bytes()?),
+            logical_bytes: logical.max(0) as u64,
+        })
+    }
+
     /// The rows of the per-day rollup whose count is above 0, by UTC day and
     /// kind text. A batch write adds its totals in its transaction and a
     /// shred takes them out in its own, so the rows are the records and bytes
     /// of the live segments; no query groups segments or records. A rollup row
     /// at 0 stays in the table and is left out here. A sealed store lists
     /// nothing.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests until daemon-3e's adapter reads the inventory"
+        )
+    )]
     pub fn inventory(&self) -> StoreResult<Vec<InventoryRow>> {
         let db = match self.db() {
             Ok(db) => db,

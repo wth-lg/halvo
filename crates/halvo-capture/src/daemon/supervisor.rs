@@ -481,6 +481,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         &self.board
     }
 
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    pub(crate) fn update_state(
+        &mut self,
+        change: impl FnOnce(&mut super::state::DaemonState),
+    ) -> Option<Result<(), StateError>> {
+        self.state.as_mut().map(|state| state.update(change))
+    }
+
     pub fn factory(&self) -> &F {
         &self.factory
     }
@@ -2202,7 +2210,9 @@ mod tests {
             store: store.clone(),
             clocks: crate::daemon::maintenance::SystemClocks::new(),
             floor: open_floor(),
-            cap: halvo_control::model::StorageCap::DEFAULT,
+            cap: Some(crate::daemon::port::ByteBound::of_cap(
+                halvo_control::model::StorageCap::DEFAULT,
+            )),
             shred_chunk: crate::daemon::maintenance::SHRED_CHUNK,
         })
         .unwrap();

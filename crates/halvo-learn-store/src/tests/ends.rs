@@ -189,6 +189,7 @@ fn an_end_run_after_a_stop_between_a_compiles_two_commits_withdraws_the_lower_ed
         halvo_agent_store::runner(&mut w.host.agent, now, put.to_string().as_bytes()).is_ok(),
         "the agent store stores number 2, and the handlers' commit does not follow"
     );
+    w.direct_finish(4, 2);
     assert!(accepted(&end_run(&mut w, 3, 1)));
     let rows = edits(&w);
     assert_eq!(rows.len(), 2);

@@ -374,7 +374,13 @@ fn p1_with_the_roots_inside_the_store_directory_leaves_no_root_that_unwraps() {
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, root_id, _, wrapped) = adv1_store_with_its_roots_inside(dir.path());
     let roots = store_dir.join("roots");
-    let mut store = EncryptedStore::open(&store_dir, &roots, DEFAULT_RETENTION).unwrap();
+    let mut store = EncryptedStore::open(
+        &store_dir,
+        &roots,
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    )
+    .unwrap();
     let moved = dir.path().join("moved-away");
     std::fs::rename(&store_dir, &moved).unwrap();
     std::fs::create_dir(&store_dir).unwrap();
@@ -406,7 +412,12 @@ fn the_tail_with_the_roots_inside_a_moved_store_directory_answers_ok_only_when_t
     let answer = tail(&store_dir, &roots);
     let line = adv1_report_line(&answer);
     let unwraps = adv1_dev_fallback_unwraps(&moved.join("roots"), root_id, &wrapped);
-    let reads = match EncryptedStore::open(&moved, &moved.join("roots"), DEFAULT_RETENTION) {
+    let reads = match EncryptedStore::open(
+        &moved,
+        &moved.join("roots"),
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    ) {
         Ok(store) => {
             let mut out = Vec::new();
             match store.read_segment(segment, &mut out) {
@@ -762,7 +773,13 @@ fn delete_all_of_a_moved_store_keeps_the_root_of_the_store_made_at_its_old_name(
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, first_id, _, first_wrapped) = adv1_store_with_its_roots_inside(dir.path());
     let roots = store_dir.join("roots");
-    let mut first = EncryptedStore::open(&store_dir, &roots, DEFAULT_RETENTION).unwrap();
+    let mut first = EncryptedStore::open(
+        &store_dir,
+        &roots,
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    )
+    .unwrap();
     let moved = dir.path().join("moved-away");
     std::fs::rename(&store_dir, &moved).unwrap();
     let second_id = RootId::fresh().unwrap();
@@ -780,7 +797,12 @@ fn delete_all_of_a_moved_store_keeps_the_root_of_the_store_made_at_its_old_name(
     drop(first);
     let line = adv1_report_line(&answer);
     let first_root = adv1_dev_fallback_unwraps(&moved.join("roots"), first_id, &first_wrapped);
-    let second_reads = match EncryptedStore::open(&store_dir, &roots, DEFAULT_RETENTION) {
+    let second_reads = match EncryptedStore::open(
+        &store_dir,
+        &roots,
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    ) {
         Ok(store) => {
             let mut out = Vec::new();
             match store.read_segment(segment.segment_id, &mut out) {
