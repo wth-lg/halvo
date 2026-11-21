@@ -9,14 +9,7 @@ use std::path::{Path, PathBuf};
 const TRACKED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../ui/tests/fixtures/coord");
 
 fn fresh_dir(name: &str) -> PathBuf {
-    let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
-    for n in 0.. {
-        let dir = base.join(format!("{name}-{}-{n}", std::process::id()));
-        if std::fs::create_dir_all(base).is_ok() && std::fs::create_dir(&dir).is_ok() {
-            return dir;
-        }
-    }
-    unreachable!()
+    halvo_test_dir::make(Path::new(env!("CARGO_TARGET_TMPDIR")), name).unwrap()
 }
 
 fn names(dir: &Path) -> BTreeSet<String> {
@@ -537,4 +530,59 @@ fn every_item_says_its_coming_and_going_with_its_agents_name() {
         }
     }
     assert!(items > 0);
+}
+
+/// The control that takes a queued start back stands on the two waiting rows of `queue` and on
+/// no other row of any state, before Switch off. Each of the two is a start that the person
+/// queued with Start now for an agent that asks first, so it keeps the control, and no state
+/// holds a start that the schedule queued (U2.4e; rulings RD-54 (h), RD-149 (a)).
+#[test]
+fn u24e_the_take_back_stands_on_the_two_waiting_rows_of_the_queue_state_each_the_persons_start() {
+    use halvo_coord::types::Trigger;
+    let text = words::text("control.take_back", &[]).unwrap();
+    let mut waiting = Vec::new();
+    for state in State::ALL {
+        for (f, w) in fixtures::facts(*state)
+            .iter()
+            .zip(fixtures::waiting(*state))
+        {
+            if let Some(trigger) = w {
+                waiting.push((
+                    state.name(),
+                    trigger,
+                    halvo_coord::schedule::needs_person(&f.config),
+                ));
+            }
+        }
+    }
+    assert_eq!(
+        waiting,
+        [
+            ("queue", Trigger::Person, true),
+            ("queue", Trigger::Person, true)
+        ]
+    );
+    let mut offered = Vec::new();
+    for state in State::ALL {
+        for row in snapshot(state.name())["rows"].as_array().unwrap() {
+            let controls: Vec<&str> = row["controls"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c["control"].as_str().unwrap())
+                .collect();
+            if controls.contains(&"take_back") {
+                offered.push((state.name(), row["status"].as_str().unwrap().to_owned()));
+                assert_eq!(controls, ["take_back", "switch_off", "delete"]);
+                assert!(row["controls"][0]["text"] == text.as_str(), "{row}");
+            }
+        }
+    }
+    assert_eq!(
+        offered,
+        [
+            ("queue", "waiting_turn".to_owned()),
+            ("queue", "waiting_turn".to_owned())
+        ]
+    );
 }

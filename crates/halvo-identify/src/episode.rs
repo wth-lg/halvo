@@ -169,23 +169,24 @@ enum Input {
     Pointer(Pointer),
 }
 
-/// The person's records of a call, split where an agent's run opens, and what the run marks left.
+/// The person's records of a call and what the run marks left.
 struct Person {
     windows: Vec<Window>,
-    stretches: Vec<Vec<Item>>,
+    items: Vec<Item>,
     run_open: bool,
     start_first: bool,
 }
 
 /// Reads the ordered records with the two states of the run marks: a `start` opens a run, an `end` closes it, and
 /// a `start` while a run is open or an `end` while none is open changes nothing. Every record while a run is open
-/// is dropped, and a run that is open at the end of the call ends with it. A keystroke or a pointer record belongs
-/// to the window of the title record before it; one with no such window since the call's start or since the last
-/// run opened is dropped.
+/// is dropped, and a run that is open at the end of the call ends with it. A run closes no episode: the cut sees
+/// the person's records on both sides of it as one sequence. A keystroke or a pointer record belongs to the window
+/// of the title record before it; one with no such window since the call's start or since the last run opened is
+/// dropped.
 fn person(ordered: Vec<Rec>) -> Person {
     let mut out = Person {
         windows: Vec::new(),
-        stretches: vec![Vec::new()],
+        items: Vec::new(),
         run_open: false,
         start_first: false,
     };
@@ -197,7 +198,6 @@ fn person(ordered: Vec<Rec>) -> Person {
                     out.run_open = true;
                     out.start_first = index == 0;
                     current = None;
-                    out.stretches.push(Vec::new());
                 }
                 continue;
             }
@@ -230,15 +230,13 @@ fn person(ordered: Vec<Rec>) -> Person {
             continue;
         };
         let step = step_of(&out.windows[window], rec.app, &input);
-        if let Some(stretch) = out.stretches.last_mut() {
-            stretch.push(Item {
-                seg: rec.seg,
-                at: rec.at,
-                window,
-                step,
-                input,
-            });
-        }
+        out.items.push(Item {
+            seg: rec.seg,
+            at: rec.at,
+            window,
+            step,
+            input,
+        });
     }
     if !out.run_open {
         out.start_first = false;
@@ -291,7 +289,7 @@ fn key_class(class: KeyClass) -> InputClass {
     }
 }
 
-/// Cuts one stretch of the person's records into episodes, each the indices of its records in the step's order.
+/// Cuts the person's records of a call into episodes, each the indices of its records in the step's order.
 /// An episode takes the key of its first record and stays open across records of other keys until more than `GAP`
 /// has passed since its own last record; a record of its key within that time continues it, and a later one opens
 /// a new episode. A stretch of records in other keys that follows a record of the open episode's key and that a
@@ -358,12 +356,10 @@ pub fn episode_step(call: &Call, stage: &dyn Stage, ids: &mut dyn FnMut() -> Sum
         pointer_on,
     };
     let mut episodes = Vec::new();
-    for stretch in &person.stretches {
-        for indices in cut(stretch, &person.windows) {
-            let items: Vec<&Item> = indices.iter().map(|&i| &stretch[i]).collect();
-            if let Some(episode) = shape.episode(&items, &person.windows, stage, ids) {
-                episodes.push(episode);
-            }
+    for indices in cut(&person.items, &person.windows) {
+        let items: Vec<&Item> = indices.iter().map(|&i| &person.items[i]).collect();
+        if let Some(episode) = shape.episode(&items, &person.windows, stage, ids) {
+            episodes.push(episode);
         }
     }
     Outcome {
@@ -382,7 +378,7 @@ struct Shape<'c, 'a> {
 impl Shape<'_, '_> {
     /// The episode of the records that the cut gave it, or none when the stage puts it in `other`, when its key
     /// holds no app id, or when a segment of its records has no expiry entry in the call. Its range runs from its
-    /// first record to one second after its last, across the records of other keys between them.
+    /// first record to one second after its last, across the records of other keys and any agent's run between them.
     fn episode(
         &self,
         items: &[&Item],
@@ -696,5 +692,19 @@ mod tests {
         let (outcome, _) = run(&entries);
         assert_eq!(sites(&outcome), ["a.test", "c.test"]);
         assert!(!outcome.run_open);
+    }
+
+    #[test]
+    fn run_inside_episode_keeps_it_open() {
+        let entries = [
+            page(0, 0, "a.test"),
+            mark(1, 10, Edge::Start),
+            page(2, 30, "b.test"),
+            mark(3, 40, Edge::End),
+            page(4, 60, "a.test"),
+        ];
+        let (outcome, _) = run(&entries);
+        assert_eq!(sites(&outcome), ["a.test"]);
+        assert_eq!(outcome.episodes[0].steps.len(), 2);
     }
 }

@@ -58,9 +58,11 @@ impl EndCall for ExitNow {
 
 /// A thread that exists from the start of a run, so that arming it creates
 /// nothing: once armed, it makes the ending call with the armed status at the
-/// deadline. A second arm keeps the earlier of the two deadlines and carries
-/// its own status, the later reading of how the run ends; a disarm takes the
-/// arm back, and a later arm counts again.
+/// deadline, holding the lock of its arm while the call runs, so that a disarm
+/// or an arm that meets the call returns only after it. A second arm keeps the
+/// earlier of the two deadlines and carries its own status, the later reading
+/// of how the run ends; a disarm takes the arm back, and a later arm counts
+/// again.
 #[derive(Clone)]
 pub struct Watchdog {
     state: Arc<Armed>,
@@ -88,8 +90,8 @@ impl Watchdog {
                         Some((deadline, status)) => {
                             let now = Instant::now();
                             if now >= deadline {
-                                drop(guard);
                                 ending.end(status);
+                                drop(guard);
                                 return;
                             }
                             guard = wake
@@ -136,6 +138,14 @@ impl Watchdog {
         wake.notify_all();
     }
 
+    /// Puts the watchdog back to `armed` as [`Watchdog::armed_until`] read it:
+    /// the deadline and the status of an earlier arm, or no arm.
+    pub fn put_back(&self, armed: Option<(Instant, i32)>) {
+        let (state, wake) = &*self.state;
+        *state.lock().unwrap_or_else(PoisonError::into_inner) = armed;
+        wake.notify_all();
+    }
+
     /// The status that the watchdog is armed with, if it is.
     pub fn armed(&self) -> Option<i32> {
         self.armed_until().map(|(_, status)| status)
@@ -179,6 +189,44 @@ pub(crate) mod tests {
         fn end(&self, status: i32) {
             panic!("a test reached the process's ending call with status {status}");
         }
+    }
+
+    struct Slow {
+        entered: Arc<std::sync::atomic::AtomicBool>,
+        left: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    const SLOW_ENDING: Duration = Duration::from_millis(300);
+
+    impl EndCall for Slow {
+        fn end(&self, _status: i32) {
+            self.entered
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            std::thread::sleep(SLOW_ENDING);
+            self.left.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    #[test]
+    fn a_disarm_that_meets_the_ending_call_returns_after_it() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let entered = Arc::new(AtomicBool::new(false));
+        let left = Arc::new(AtomicBool::new(false));
+        let watchdog = Watchdog::start(Arc::new(Slow {
+            entered: entered.clone(),
+            left: left.clone(),
+        }));
+        watchdog.arm(Duration::ZERO, 5);
+        let waiting = Instant::now();
+        while !entered.load(Ordering::SeqCst) {
+            assert!(waiting.elapsed() < Duration::from_secs(5), "no ending call");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        watchdog.disarm();
+        assert!(
+            left.load(Ordering::SeqCst),
+            "a disarm returned while the ending call ran outside the watchdog's lock, inside its {SLOW_ENDING:?}"
+        );
     }
 
     #[test]
