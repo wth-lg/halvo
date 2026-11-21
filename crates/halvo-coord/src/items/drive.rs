@@ -557,6 +557,11 @@ impl<'a> Record<'a> {
                 slot: *slot,
                 ..base
             },
+            What::RunNotStopped { run } => Record {
+                event: "run_not_stopped",
+                run: Some(run.as_str()),
+                ..base
+            },
         }
     }
 

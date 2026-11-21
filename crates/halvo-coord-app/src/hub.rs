@@ -125,7 +125,12 @@ pub trait Core: Send + Sync {
     /// no run is live, at most until `cancel_grace_s` after the stop of each live run, counted
     /// from its stop for a run that was stopped before the quit, never longer than
     /// `cancel_grace_s` whatever the clock reads (RD-28 (e)), and at most `budget`, the time that
-    /// the system gives the quit at a logout or a shutdown; then the second step. The grace
+    /// the system gives the quit at a logout or a shutdown; then the second step. In the window
+    /// of the second step the hook also writes the list of the runs that did not stop to the
+    /// owner (`Coordinator::quit_write`), on a thread of its own, once the second step has
+    /// returned and at the latest at half of that window, so that the next life reads the list
+    /// also where a kill still holds when the hook returns (rulings RD-150, RD-154 point 2); a
+    /// call whose first step has not returned within `cancel_grace_s` writes no list. The grace
     /// counts from the stop that the first step reads on the clock once it holds the
     /// coordinator's lock, and for a run stopped before the quit from its own stop; the hook
     /// takes the length of its wait from the first step, from the time that the step read
@@ -306,6 +311,40 @@ where
             })
             .ok()?;
         answer.recv_timeout(self.grace).ok()
+    }
+
+    /// The second step of the quit and the write of its list, in one window of `cancel_grace_s`
+    /// from the call of the second step (ruling RD-154 point 2): the second step on a thread of
+    /// its own, and on another the write (`Coordinator::quit_write`), which starts once that step
+    /// has returned or ended by a panic, and at the latest at half of the window; the hook waits
+    /// for the second step and then for the write, both until the end of the window. Where no
+    /// thread can be started for the second step, the hook takes it no further, and writes
+    /// nothing; where none can be started for the write, it waits for the second step alone.
+    fn kill_and_write(&self) {
+        let (to_writer, kill_seen_by_writer) = mpsc::channel::<()>();
+        let (to_hook, kill_seen_by_hook) = mpsc::channel::<()>();
+        let (wrote, written) = mpsc::channel::<()>();
+        let end = Instant::now() + self.grace;
+        let coord = Arc::clone(&self.coord);
+        let kill = std::thread::Builder::new().spawn(move || {
+            coord.quit_kill();
+            let _ = to_writer.send(());
+            let _ = to_hook.send(());
+        });
+        if kill.is_err() {
+            return;
+        }
+        let coord = Arc::clone(&self.coord);
+        let half = self.grace / 2;
+        let write = std::thread::Builder::new().spawn(move || {
+            let _ = kill_seen_by_writer.recv_timeout(half);
+            coord.quit_write();
+            let _ = wrote.send(());
+        });
+        let _ = kill_seen_by_hook.recv_timeout(end.saturating_duration_since(Instant::now()));
+        if write.is_ok() {
+            let _ = written.recv_timeout(end.saturating_duration_since(Instant::now()));
+        }
     }
 
     fn run(&self, command: &str, args: &Args<'_>) -> Option<Reply> {
@@ -499,7 +538,7 @@ where
             }
             seen = self.bell.wait(seen, end.min(now + LOOK));
         }
-        let _ = self.step(Coordinator::quit_kill);
+        self.kill_and_write();
         self.coord.not_stopped()
     }
 

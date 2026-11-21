@@ -64,6 +64,12 @@ pub struct Coordinator<P: Owner> {
     unstopped: Arc<Mutex<Vec<(AgentId, RunId)>>>,
     live_runs: AtomicUsize,
     quit_mark: Arc<AtomicBool>,
+    /// The workflow of each member as the last publish found it, which `quit_write` reads
+    /// without the coordinator's lock.
+    flows: Mutex<Vec<(AgentId, crate::types::WorkflowId)>>,
+    /// The runs, each with its agent, whose `run_not_stopped` the owner acknowledged in this
+    /// life (`quit_write`).
+    written: Mutex<Vec<(AgentId, RunId)>>,
 }
 
 const NO_READ: u64 = 0;
@@ -525,6 +531,8 @@ where
             unstopped: Arc::new(Mutex::new(Vec::new())),
             live_runs: AtomicUsize::new(0),
             quit_mark: Arc::new(AtomicBool::new(false)),
+            flows: Mutex::new(Vec::new()),
+            written: Mutex::new(Vec::new()),
         }
     }
 
@@ -3131,6 +3139,93 @@ where
         self.publish(&mut st);
     }
 
+    /// The write of the list of the runs that did not stop (ruling RD-150; RD-154 point 2), which
+    /// the app's quit hook calls on a thread of its own once the second step has returned or half
+    /// of `cancel_grace_s` has passed since it called that step: for each run that `not_stopped`
+    /// names at this call, of an agent that the last publish found as a member, one
+    /// `run_not_stopped` event in that agent's ledger of the owner, where the next life's
+    /// recovery reads it. The rows of one agent go in one body, numbered after the owner's stored
+    /// last, which this call reads (`Owner::history`), and stamped by one read of the clock, or by
+    /// the last read of this life where that read fails; with neither, nothing is written. A
+    /// refusal `seq` reads the stored last once more and sends once more; any other failure
+    /// writes nothing for that agent. This call takes no lock that a move holds, so it writes
+    /// while a kill of the second step holds the coordinator's lock, and then the list is the one
+    /// from before that move. A run whose row the owner acknowledged in this life is not written
+    /// again. Not written: a run of an agent that is no member, such as the kept row of a gone
+    /// workflow, whose rows the owner keeps no more; and nothing at all while another port call
+    /// holds every port, since the owner then does not answer. The rows go past the agent's
+    /// ledger, so a later row of that ledger in this life meets the refusal `seq` and is numbered
+    /// again after a read (I7.2).
+    pub fn quit_write(&self) {
+        let fresh: Vec<(AgentId, RunId)> = {
+            let written = self.written.lock().unwrap_or_else(PoisonError::into_inner);
+            self.not_stopped()
+                .into_iter()
+                .filter(|pair| !written.contains(pair))
+                .collect()
+        };
+        if fresh.is_empty() {
+            return;
+        }
+        let flows = self
+            .flows
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let Some(stamp) = crate::ports::Stamp::read(&self.ports)
+            .ok()
+            .or_else(|| self.last_stamp())
+        else {
+            return;
+        };
+        let mut agents: Vec<&AgentId> = Vec::new();
+        for (agent, _) in &fresh {
+            if !agents.contains(&agent) {
+                agents.push(agent);
+            }
+        }
+        for agent in agents {
+            let Some((_, workflow)) = flows.iter().find(|(a, _)| a == agent) else {
+                continue;
+            };
+            let runs: Vec<&RunId> = fresh
+                .iter()
+                .filter(|(a, _)| a == agent)
+                .map(|(_, run)| run)
+                .collect();
+            for _ in 0..2 {
+                let Ok((_, last)) = self.ports.history(agent, u32::MAX) else {
+                    break;
+                };
+                let events: Vec<crate::types::Event> = runs
+                    .iter()
+                    .zip(0u32..)
+                    .map(|(run, k)| crate::types::Event {
+                        workflow: workflow.clone(),
+                        agent: agent.clone(),
+                        seq: std::num::NonZeroU32::MIN.saturating_add(last.saturating_add(k)),
+                        day: stamp.day(),
+                        at: stamp.at(),
+                        what: crate::types::What::RunNotStopped {
+                            run: (*run).clone(),
+                        },
+                    })
+                    .collect();
+                match self.ports.log(&events) {
+                    Ok(()) => {
+                        self.written
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .extend(runs.iter().map(|run| (agent.clone(), (*run).clone())));
+                        break;
+                    }
+                    Err(e) if schedule::seq_refusal(&e) => {}
+                    Err(_) => break,
+                }
+            }
+        }
+    }
+
     /// The count of live runs as the last publish found them, for which the app's quit hook
     /// waits; a dying tree is no live run. This read takes no lock, so it answers while a kill
     /// holds the coordinator's lock.
@@ -3363,6 +3458,11 @@ where
                 .chain(named.into_iter().map(|(_, agent, run)| (agent, run)))
                 .collect();
             self.live_runs.store(b.runs.len(), Ordering::Relaxed);
+            *self.flows.lock().unwrap_or_else(PoisonError::into_inner) = b
+                .members
+                .iter()
+                .map(|m| (m.facts.agent.clone(), m.facts.workflow.id.clone()))
+                .collect();
         }
         Self::keep_check_fields(st);
         let (rows, items, note) = self.compose(st);
