@@ -1595,3 +1595,211 @@ fn the_roster_names_each_effect_whose_newest_row_is_unknown() {
         "every effect of the agent, whatever the newest record counts"
     );
 }
+
+/// The reply of `agent_history` of the first agent for `runs` runs, as its JSON.
+fn history(store: &mut MemoryStore, runs: u32) -> Value {
+    let body = json!({"op": "agent_history", "workflow": wf(1), "agent": agent(1), "runs": runs});
+    let reply = coordinator(store, body).expect("the reply of agent_history");
+    serde_json::from_str(&reply.to_json().expect("the reply's JSON")).expect("the reply's text")
+}
+
+/// The stored run record of the run `r`.
+fn record_of(store: &MemoryStore, r: u32) -> Value {
+    rows(store, "agent_run")
+        .iter()
+        .map(|text| serde_json::from_str::<Value>(text).expect("a run row"))
+        .find(|record| record["run"] == json!(run(r)))
+        .expect("the run's record")
+}
+
+/// One effect of the history as the last row of the effect `e` holds it.
+fn as_last_row(store: &MemoryStore, e: u32) -> Value {
+    let text = last_of(store, &effect(e))
+        .to_json()
+        .expect("the row's JSON");
+    let last: Value = serde_json::from_str(&text).expect("the row's text");
+    json!({
+        "effect": last["effect"], "digest": last["digest"], "class": last["class"],
+        "state": last["state"], "cause": last["cause"], "kept": last["kept"],
+    })
+}
+
+#[test]
+fn the_history_gives_the_newest_runs_first_and_no_more_than_asked() {
+    let mut store = unstarted("utility_bill_payment");
+    for (k, r) in [3, 1, 2, 4].into_iter().enumerate() {
+        let started = at(NOW.at.0 + 1_000_000_000 * i64::try_from(k).expect("a count"));
+        start_at(&mut store, started, 1, 1, r).expect("start_run");
+        assert_eq!(
+            put(&mut store, row(r, r, 1, "held", "payment", r, None, None)),
+            Ok(stored(1))
+        );
+    }
+    for (seq, state) in [(2, "approved"), (3, "releasing"), (4, "committed")] {
+        let next = row(2, 2, seq, state, "payment", 2, Some(2), None);
+        assert_eq!(put(&mut store, next), Ok(stored(1)));
+    }
+    for r in [1, 2, 3] {
+        assert_eq!(end_run(&mut store, r), Ok(accepted()));
+    }
+    let entry = |store: &MemoryStore, r: u32| json!({"run": record_of(store, r), "effects": [as_last_row(store, r)]});
+    assert_eq!(
+        history(&mut store, 2),
+        json!({"runs": [entry(&store, 2), entry(&store, 1)]}),
+        "the two runs started last, newest first, each effect as its last row holds it"
+    );
+    assert_eq!(
+        history(&mut store, 5),
+        json!({"runs": [entry(&store, 2), entry(&store, 1), entry(&store, 3)]}),
+        "every run with a record, and the run 4, with none, not at all"
+    );
+    assert_eq!(history(&mut store, 0), json!({"runs": []}));
+}
+
+#[test]
+fn an_effect_of_the_history_names_its_id_and_the_digest_of_its_last_row() {
+    let mut store = store_with("utility_bill_payment");
+    assert_eq!(
+        put(&mut store, row(1, 1, 1, "held", "payment", 1, None, None)),
+        Ok(stored(1))
+    );
+    assert_eq!(
+        put(&mut store, row(1, 1, 2, "held", "payment", 2, None, None)),
+        Ok(stored(1)),
+        "a rebind to a second digest"
+    );
+    assert_eq!(
+        put(&mut store, row(1, 2, 1, "held", "payment", 3, None, None)),
+        Ok(stored(1))
+    );
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    let effects = history(&mut store, 1)["runs"][0]["effects"].clone();
+    assert_eq!(effects.as_array().map(Vec::len), Some(2), "{effects}");
+    for (n, (e, d)) in [(1, 2), (2, 3)].into_iter().enumerate() {
+        let last = last_of(&store, &effect(e));
+        assert_eq!(
+            [&effects[n]["effect"], &effects[n]["digest"]],
+            [&json!(effect(e)), &json!(digest(d))]
+        );
+        assert_eq!(effects[n]["digest"], json!(last.digest.as_str()));
+    }
+}
+
+#[test]
+fn a_rejected_effect_says_what_ended_it() {
+    let mut store = unattended_sender();
+    for (m, why) in [
+        (row(1, 1, 1, "cleared", "send", 1, None, None), "cleared"),
+        (
+            row(1, 1, 2, "rejected", "send", 1, None, Some("reproposed")),
+            "the runner proposes it again",
+        ),
+        (row(1, 2, 1, "held", "delete", 1, None, None), "held"),
+        (
+            row(1, 2, 2, "rejected", "delete", 1, None, None),
+            "a reject_once",
+        ),
+        (row(1, 3, 1, "held", "delete", 1, None, None), "held"),
+    ] {
+        assert_eq!(put(&mut store, m), Ok(stored(1)), "{why}");
+    }
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    let effects = history(&mut store, 1)["runs"][0]["effects"].clone();
+    let said: Vec<(Value, Value)> = effects
+        .as_array()
+        .expect("the run's effects")
+        .iter()
+        .map(|e| (e["state"].clone(), e["cause"].clone()))
+        .collect();
+    assert_eq!(
+        said,
+        [
+            (json!("rejected"), json!("reproposed")),
+            (json!("rejected"), Value::Null),
+            (json!("rejected"), json!("ended")),
+        ]
+    );
+}
+
+#[test]
+fn a_local_edit_names_its_checkpoint_made_and_then_gone() {
+    const FOLDER: &str = "/data/books";
+    let book = |n: u32| format!("{FOLDER}/book-{n}.xlsx");
+    let copy_of = |r: u32, n: u32| format!("book-{n}.halvo-checkpoint-{}.xlsx", run(r));
+    let checkpoint = |r: u32, n: u32, made: bool| {
+        let mut row = json!({
+            "v": 1, "workflow": wf(1), "agent": agent(1), "run": run(r), "seq": 1, "day": ROW_DAY,
+            "at": ROW_AT, "folder": [FOLDER], "workbook": [book(n)], "copy": [copy_of(r, n)],
+            "sha256": null, "bytes": null, "state": "planned", "left": null,
+        });
+        if made {
+            row["seq"] = json!(2);
+            row["state"] = json!("made");
+            row["sha256"] = json!(digest(n));
+            row["bytes"] = json!(4096 + n);
+        }
+        json!({"op": "checkpoint", "agent": agent(1), "run": run(r), "record": row})
+    };
+    let edit = |r: u32, e: u32, seq: u32, state: &str, n: u32| {
+        let mut row = row(r, e, seq, state, "local_edit", 1, None, None);
+        for field in row["kept"].as_array_mut().expect("the kept fields") {
+            if field["name"] == "file" {
+                field["value"] = json!([book(n)]);
+            }
+        }
+        row
+    };
+
+    let mut store = store_with("spreadsheet_fill");
+    assert_eq!(put(&mut store, edit(1, 1, 1, "cleared", 1)), Ok(stored(1)));
+    assert_eq!(
+        put(&mut store, row(1, 2, 1, "held", "payment", 1, None, None)),
+        Ok(stored(1))
+    );
+    assert_eq!(runner(&mut store, checkpoint(1, 1, false)), Ok(stored(1)));
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+
+    start_at(&mut store, at(NOW.at.0 + 1_000_000_000), 1, 1, 2).expect("start_run of run 2");
+    for (seq, state) in [(1, "cleared"), (2, "releasing"), (3, "committed")] {
+        assert_eq!(put(&mut store, edit(2, 3, seq, state, 1)), Ok(stored(1)));
+    }
+    for (n, made) in [(1, false), (1, true), (2, false), (2, true)] {
+        assert_eq!(runner(&mut store, checkpoint(2, n, made)), Ok(stored(1)));
+    }
+    assert_eq!(end_run(&mut store, 2), Ok(accepted()));
+
+    let runs = history(&mut store, 2)["runs"].clone();
+    assert_eq!(
+        runs[0]["effects"][0]["checkpoint"],
+        json!({"state": "made", "at": ROW_AT, "name": copy_of(2, 1)}),
+        "the newest row of its run's checkpoint of its file"
+    );
+    let first = &runs[1]["effects"];
+    assert_eq!(
+        first[0].get("checkpoint"),
+        Some(&Value::Null),
+        "a newest row planned: no copy was made"
+    );
+    assert_eq!(first[1]["class"], json!("payment"));
+    assert_eq!(
+        first[1].get("checkpoint"),
+        None,
+        "another class carries none"
+    );
+
+    let later = at(NOW.at.0 + 5_000_000_000);
+    let mark = json!({
+        "op": "mark_checkpoint", "workflow": wf(1), "agent": agent(1), "run": run(2),
+        "workbook": [book(1)], "state": "gone", "left": null,
+    });
+    let marked = coordinator_at(&mut store, later, mark).expect("mark_checkpoint");
+    assert_eq!(
+        marked.to_json().expect("the reply's JSON"),
+        r#"{"stored":1}"#
+    );
+    assert_eq!(
+        history(&mut store, 1)["runs"][0]["effects"][0]["checkpoint"],
+        json!({"state": "gone", "at": later.at.0, "name": copy_of(2, 1)}),
+        "gone, at the instant of mark_checkpoint"
+    );
+}

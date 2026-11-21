@@ -1788,6 +1788,7 @@ dependencies = [
  "getrandom 0.3.4",
  "halvo-agent-client",
  "halvo-agent-store",
+ "halvo-capture",
  "halvo-control",
  "halvo-derived",
  "halvo-identify",

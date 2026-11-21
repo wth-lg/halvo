@@ -313,4 +313,6 @@ record::run_list! { names_with_run_list
     "agents",
     "session",
     "last",
+    "agent_history",
+    "runs",
 }

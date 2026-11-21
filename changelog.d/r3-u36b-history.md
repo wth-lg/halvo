@@ -1,0 +1,1 @@
+- Added: The agent store answers the coordinator body agent_history, so the app can show what an agent did in its past runs: the agent's last runs with a stored record, newest first, each effect as its last row holds it, with its id, its digest, its cause and, for a local edit, its checkpoint.
