@@ -1457,6 +1457,8 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
 #[cfg(target_os = "windows")]
 fn emit_from_raw(packet: RawInputPacket, tick: u32) {
     if super::reading_at_stop() {
+        #[cfg(feature = "test-seam")]
+        note_key_read_at_stop(packet, tick);
         return;
     }
     #[cfg(feature = "test-seam")]
@@ -1507,6 +1509,28 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                 );
             }
             _ => {}
+        }
+    });
+}
+
+/// A key press that the drain at a stop reads, and that the gate would have
+/// held, gets the verdict of a key held at the stop: no record, no flag and
+/// no count of the product. The seam alone sees it, as LostAtStop.
+#[cfg(all(target_os = "windows", feature = "test-seam"))]
+fn note_key_read_at_stop(packet: RawInputPacket, tick: u32) {
+    let RawInputPacket::Keyboard(key) = packet else {
+        return;
+    };
+    INPUT_CTX.with(|cell| {
+        let mut borrow = cell.borrow_mut();
+        let Some(state) = borrow.as_mut() else {
+            return;
+        };
+        if state.device != RawDevice::Keyboard || state.gate.is_none() {
+            return;
+        }
+        if key_step(&mut state.keys, key).record.is_some() {
+            seam::note(key.vkey, &None, tick, super::now_tick());
         }
     });
 }
