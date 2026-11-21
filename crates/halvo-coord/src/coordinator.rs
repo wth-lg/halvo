@@ -5,14 +5,14 @@ use crate::items::{
     raise_step, ConfirmAnswer, ConfirmMove, ConfirmState, NativeCard, Plain, Raise, Setup,
     SetupInput, SetupParam, Source,
 };
-use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
+use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Senders, Tray};
 use crate::roster::{self, Placed};
 use crate::run::{self, Act, Done, StopBy};
 use crate::schedule::{self, Board, Move, Report};
 use crate::sync::{Next, Sync};
 use crate::types::{
-    Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
-    FullWorkflow, HandbackAsk, HistoryRead, Item, ItemId, ItemKind, LapseCause, Limits, Live,
+    Action, AgentId, BusyHistory, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView,
+    Doing, Facts, FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live,
     OtherLapse, OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind,
     Snapshot, Status, StatusLine, System, Unknown, WorkflowId,
 };
@@ -464,7 +464,7 @@ fn candidates(param: Param, workflow: &FullWorkflow) -> Vec<(Vec<String>, Candid
 
 impl<P> Coordinator<P>
 where
-    P: Owner + Runs + Analysis + Clock + Rng + Tray + Page + Policy<Config = Cfg<P>>,
+    P: Owner + Runs + Analysis + Clock + Rng + Tray + Page + Policy<Config = Cfg<P>> + Senders,
     Cfg<P>: ConfigView + Clone,
 {
     /// A coordinator of a new life over `ports` with `limits`, which recovers at its first
@@ -1078,7 +1078,8 @@ where
                     candidates: candidates(*p, &f.workflow),
                 })
                 .collect();
-            if let Ok(setup) = Setup::new(
+            if let Ok(setup) = items::open_setup(
+                &self.ports,
                 open.item.clone(),
                 f.workflow.id.clone(),
                 f.agent.clone(),
@@ -2715,16 +2716,31 @@ where
     /// tells the page and the tray when it changed.
     /// A switch-off
     /// whose `hold_set` the owner refuses with a name of class B stops the agent's live run as
-    /// the stop does, stores no hold and answers the store's cause; the agent stays on, and its
-    /// row says both, that the task was stopped and that the switch-off could not be saved, until
-    /// a later run of it starts or a later switch-off of it is stored (ruling RD-155 (1)), while
-    /// the owner's list does not show its workflow dismissed (ruling RD-168).
+    /// the stop does, stores no hold and answers the store's cause; the agent stays on, and the
+    /// answer of `control_reply` says both, that the task was stopped and that the switch-off
+    /// could not be saved (ruling RD-155 (1); term (5) of RD-161 R1).
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
+        self.control_reply(agent, action)
+            .map_err(crate::types::Refusal::cause)
+    }
+
+    /// `control`, with its refusal as the reply of `agents_control` writes it: a switch-off whose
+    /// `hold_set` the owner refused under class B after it stopped the agent's live run is
+    /// `Refusal::SwitchNotSaved`, whose sentence the page shows beside the control, while the
+    /// owner's list does not show the agent's workflow dismissed (ruling RD-168); every other
+    /// refusal is its cause alone.
+    pub fn control_reply(
+        &self,
+        agent: &AgentId,
+        action: Action,
+    ) -> Result<(), crate::types::Refusal> {
         let mut st = self.enter_control(agent, Some(action));
         let before = Self::agents_held_off(&st);
         let off = matches!(action, Action::SwitchOff);
         st.refused_on.retain(|(a, _)| a != agent);
+        let kept = Self::still_on(&st, agent);
         let out = self.control_in(&mut st, agent, action);
+        let stopped = off && out.is_err() && !kept && Self::still_on(&st, agent);
         if off && out.is_ok() {
             // Every owed `paused` before a freed body, where a set-up keeps one (ruling RD-160
             // (2)); a switch-off that waits for a read of the clock sends its own with the rest
@@ -2738,7 +2754,24 @@ where
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.deletes_due(&mut st);
         self.publish(&mut st);
-        out
+        out.map_err(|cause| {
+            if stopped {
+                crate::types::Refusal::SwitchNotSaved(cause)
+            } else {
+                crate::types::Refusal::Cause(cause)
+            }
+        })
+    }
+
+    /// Whether the board marks the agent kept on after a switch-off that could not be saved
+    /// (`Board::kept_on`), while the owner's list does not show its workflow dismissed.
+    fn still_on(st: &State<Cfg<P>>, agent: &AgentId) -> bool {
+        st.board.as_ref().is_some_and(|board| {
+            board.kept_on(agent)
+                && board.members.iter().any(|m| {
+                    &m.facts.agent == agent && !board.workflow_dismissed(&m.facts.workflow.id)
+                })
+        })
     }
 
     /// The person's yes to the question of a row's Delete (I8.1 `agents_delete`; ruling RD-19
@@ -3263,10 +3296,12 @@ where
     /// rows the page shows (I2.3). Its first line is `card.records_dropped` with the count of
     /// `records_dropped` where the board took off a record of the agent in this life. Where the
     /// history read answers busy, the card holds that line alone, where the count is at least
-    /// 1, no run, and the key `history` with `busy`, so that the page asks again and never shows
-    /// it as a card with no history; any other refusal of the read answers its cause (the
-    /// coordinator's word on R6 of U2.4t). An agent that has no row, whose workflow a tick saw
-    /// gone or whose setup body the owner ended, is `unknown_agent`, as for every control.
+    /// 1, no run, the key `history` with `busy`, so that the page asks again and never shows it
+    /// as a card with no history, and the key `unread` with the sentence and the control text
+    /// that the page shows once it asks no more (RD-148 R6, way C); any other refusal of the
+    /// read answers its cause (the coordinator's word on R6 of U2.4t). An agent that has no
+    /// row, whose workflow a tick saw gone or whose setup body the owner ended, is
+    /// `unknown_agent`, as for every control.
     /// A run that this life's `Runs::reap` answered `alive` and that a record of the store names
     /// takes its line from that record's end, as its row does (`Board::ended_after_reap`).
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
@@ -3297,7 +3332,7 @@ where
                         name,
                         lines: dropped.into_iter().collect(),
                         runs: Vec::new(),
-                        history: Some(HistoryRead::Busy),
+                        history: Some(BusyHistory::new()?),
                     })
                 }
                 Err(e) => return Err(cause_of(&e)),
@@ -3520,10 +3555,10 @@ where
                 }
                 line => line,
             };
-            if board.setup_owed(&facts.agent)
+            let owed = board.setup_owed(&facts.agent)
                 && !board.workflow_dismissed(&facts.workflow.id)
-                && line.status() == Status::AllSet
-            {
+                && line.status() == Status::AllSet;
+            if owed {
                 line = crate::types::StatusLine::NeedsYou(ItemKind::Setup);
             }
             let waiting = board
@@ -3560,19 +3595,10 @@ where
                     row.line = text;
                 }
             }
-            if board.kept_on(&facts.agent)
-                && !board.workflow_dismissed(&facts.workflow.id)
-                && matches!(
-                    row.status,
-                    Status::Working | Status::WaitingTurn | Status::AllSet
-                )
-            {
-                let key = if board.runs.iter().any(|r| r.agent == facts.agent) {
-                    "line.working.switch_not_saved"
-                } else {
-                    "line.all_set.switch_not_saved"
-                };
-                if let Ok(text) = words::text(key, &[]) {
+            // While the raise of its setup is owed the row has no card, so its line says that the
+            // questions could not be shown yet (U3.12 (B); RD-155 (2), way B).
+            if owed && !st.deleting.iter().any(|d| d.agent == facts.agent) {
+                if let Ok(text) = words::text("line.needs_you.setup_owed", &[]) {
                     row.line = text;
                 }
             }

@@ -6,6 +6,9 @@ use crate::types::{
     Agent, AgentId, Answer, BindResult, Body, ConfigView, Decision, Event, HandbackResult, Name,
     Reply, ReplyRow, RunHistory, RunId, RunSpec, Slot, Workflow, WorkflowId,
 };
+use serde::ser::{Serialize, SerializeStruct, Serializer};
+use std::fmt;
+use std::num::NonZeroU32;
 
 /// Why a port call did not do its work (I5.10). The coordinator answers a command with `busy`
 /// or `no_service` accordingly.
@@ -299,4 +302,88 @@ pub trait Tray {
 pub trait Page {
     /// Tells the page's waiting call that the state changed.
     fn changed(&self) -> Result<(), PortError>;
+}
+
+/// The reader of the senders of a set-up (I3.5, I5.10; ruling RD-81 9.1 and 9.2): whether a text
+/// for the parameter `reply_senders`, typed or offered, is taken or refused by entry. It decides
+/// and never rewrites, so a text that it takes is kept exactly as the person gave it. Like
+/// `guard::Policy` it is a bound of `Coordinator` with no default answer; the app fills it with
+/// the schema's reader (U5.4), and the memory `Ports` answers from the rows that a test gives.
+pub trait Senders {
+    /// What the reader answers for `text`.
+    fn read(&self, text: &str) -> Result<Reading, PortError>;
+}
+
+/// What `Senders::read` answers: taken, or refused by entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Reading {
+    /// The text is taken as it stands.
+    Taken,
+    /// The text is refused whole, by the entry that `Refused` names.
+    Refused(Refused),
+}
+
+/// A refusal of `Senders::read` by entry, in the kinds of the agent-setup run's CP-165 (5) (c),
+/// with the number of the entry counted from 1, both numbers for an address that stands twice.
+/// It reaches the page as the key `refused` of the parameter (I3.5, I8.1), `{"entry":<n>,
+/// "kind":"<kind>"}` with `"earlier":<n>` for `twice`, and the numbers go into no row, log line
+/// or frame: `Debug` prints none.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Refused {
+    /// The entry is empty.
+    Empty(NonZeroU32),
+    /// The entry holds a letter outside ASCII, which Halvo does not take: a limit of Halvo, apart
+    /// from `NotAnAddress`, so that the person is not told that they typed something wrong.
+    NotAscii(NonZeroU32),
+    /// The entry is no address by the rule for a sender.
+    NotAnAddress(NonZeroU32),
+    /// The entry `later` is one address with the entry `earlier`.
+    Twice {
+        /// The number of the earlier entry.
+        earlier: NonZeroU32,
+        /// The number of the later entry.
+        later: NonZeroU32,
+    },
+}
+
+impl Refused {
+    /// The number of the refused entry, the later one for `Twice`.
+    pub const fn entry(self) -> NonZeroU32 {
+        match self {
+            Refused::Empty(n) | Refused::NotAscii(n) | Refused::NotAnAddress(n) => n,
+            Refused::Twice { later, .. } => later,
+        }
+    }
+
+    /// The kind's name: `empty`, `not_ascii`, `not_an_address` or `twice`.
+    pub const fn kind(self) -> &'static str {
+        match self {
+            Refused::Empty(_) => "empty",
+            Refused::NotAscii(_) => "not_ascii",
+            Refused::NotAnAddress(_) => "not_an_address",
+            Refused::Twice { .. } => "twice",
+        }
+    }
+}
+
+impl fmt::Debug for Refused {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Refused({})", self.kind())
+    }
+}
+
+impl Serialize for Refused {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let earlier = match self {
+            Refused::Twice { earlier, .. } => Some(earlier.get()),
+            _ => None,
+        };
+        let mut out = s.serialize_struct("Refused", 2 + usize::from(earlier.is_some()))?;
+        out.serialize_field("entry", &self.entry().get())?;
+        out.serialize_field("kind", self.kind())?;
+        if let Some(earlier) = earlier {
+            out.serialize_field("earlier", &earlier)?;
+        }
+        out.end()
+    }
 }
