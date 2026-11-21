@@ -74,6 +74,11 @@ pub enum Command {
     Shutdown,
     /// Answer the rows of the store's per-day rollup as they stand.
     Inventory,
+    /// A mark request of a client for the edge of an agent run: the marks'
+    /// handler takes it on this owner and answers whether the record was
+    /// stored.
+    #[cfg(feature = "r2")]
+    Mark(halvo_control::r2::RunEdge),
 }
 
 /// The answer to a command.
@@ -84,6 +89,8 @@ pub enum Answer {
     Settled(Snapshot),
     ShutDown(Snapshot),
     Inventory(Result<Vec<halvo_control::model::InventoryRow>, MaintFault>),
+    #[cfg(feature = "r2")]
+    Marked(bool),
 }
 
 /// Why the drain fails, with the tokens of the status text.

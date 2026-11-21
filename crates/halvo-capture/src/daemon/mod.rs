@@ -2367,6 +2367,10 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                             switches,
                         );
                         supervisor.serve_sources(owner.context(), wanted);
+                        #[cfg(feature = "r2")]
+                        listening
+                            .admitting()
+                            .hold_owner(Some(owner.watched.handle.clone()));
                         let store = HeldStore::Capture(Box::new(owner));
                         supervisor.set_slot(slot::Slot::Open { id }, store.link());
                         store
@@ -2386,6 +2390,8 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             )),
         };
     }
+    #[cfg(feature = "r2")]
+    listening.admitting().hold_owner(None);
     if let Some(opener) = &opener {
         opener.stop();
         opener.wait_for_its_call(CLOSE_WAIT);

@@ -54,9 +54,21 @@ pub fn serves_peer(peer: u32, own: u32) -> bool {
 pub struct Admitting {
     in_flight: AtomicBool,
     ending: AtomicBool,
+    #[cfg(feature = "r2")]
+    owner: std::sync::Mutex<Option<super::owner::OwnerHandle>>,
 }
 
 impl Admitting {
+    /// The store owner that a mark request reaches: the owner of the open
+    /// store, or `None` while no store is open for capture.
+    #[cfg(feature = "r2")]
+    pub fn hold_owner(&self, owner: Option<super::owner::OwnerHandle>) {
+        *self
+            .owner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = owner;
+    }
+
     /// Marks the life as ending: from now on every mutation but a Pause and a
     /// Resume answers the busy of an ending life.
     pub fn end_the_life(&self) {
@@ -136,6 +148,13 @@ pub fn serve_connection<S: Read + Write>(
             write_reply(stream, &reply);
             return None;
         }
+        #[cfg(feature = "r2")]
+        Got::Mark(edge) => {
+            if wire::write_frame(stream, &marked(edge, admitting), REPLY_MAX_BYTES).is_ok() {
+                let _ = stream.flush();
+            }
+            return None;
+        }
     };
     if let Some(reply) = refusal(&request, admitting) {
         write_reply(stream, &reply);
@@ -164,6 +183,26 @@ pub fn serve_connection<S: Read + Write>(
 enum Got {
     Request(Request),
     Answer(Box<Reply>),
+    #[cfg(feature = "r2")]
+    Mark(halvo_control::r2::RunEdge),
+}
+
+#[cfg(feature = "r2")]
+const MARK_WAIT: Duration = Duration::from_millis(1_500);
+
+#[cfg(feature = "r2")]
+fn marked(edge: halvo_control::r2::RunEdge, admitting: &Admitting) -> Vec<u8> {
+    use super::owner::{Answer, Command};
+    let owner = admitting
+        .owner
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let stored = owner
+        .and_then(|owner| owner.ask(Command::Mark(edge)).ok())
+        .and_then(|pending| pending.wait_for(MARK_WAIT))
+        .is_some_and(|answer| answer == Answer::Marked(true));
+    halvo_control::r2::RunMarked { edge, stored }.encode()
 }
 
 fn read_request<S: Read>(stream: &mut S) -> Got {
@@ -175,7 +214,15 @@ fn read_request<S: Read>(stream: &mut S) -> Got {
     };
     match proto::decode_request(&body) {
         Err(refused) => Got::Answer(Box::new(refused.answer())),
-        Ok(Decoded::Unknown(unknown)) => Got::Answer(Box::new(proto::unknown_answer(&unknown))),
+        Ok(Decoded::Unknown(unknown)) => {
+            #[cfg(feature = "r2")]
+            match halvo_control::r2::mark_request(&unknown) {
+                Some(Ok(edge)) => return Got::Mark(edge),
+                Some(Err(refused)) => return Got::Answer(Box::new(Reply::Error(refused))),
+                None => {}
+            }
+            Got::Answer(Box::new(proto::unknown_answer(&unknown)))
+        }
         Ok(Decoded::Known(request)) if at_the_end(stream) => Got::Request(request),
         Ok(Decoded::Known(_)) => Got::Answer(Box::new(error(
             ErrorCode::InvalidArgument,
