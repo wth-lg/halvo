@@ -2361,8 +2361,9 @@ where
     }
 
     /// A control of a row (I8.1 `agents_control`). Every control of an agent whose workflow a
-    /// tick saw gone, or whose setup body the owner ended, is answered `unknown_agent` at once
-    /// with nothing stored (I5.7, rulings IG-33, IG-36); after the first
+    /// tick saw gone, or whose setup body the owner ended, is answered `unknown_agent`, and the
+    /// control itself stores nothing; the take-up that the call makes first, below, can still
+    /// store and send before that answer (I5.7, rulings IG-33, IG-36); after the first
     /// step of the quit every start is `state`; while the mark of a tick that did not return
     /// stands, `run_now` and `switch_on` are `no_service` (ruling RD-80 4.5). The person's
     /// `stop` lapses the open item of a
@@ -2370,8 +2371,9 @@ where
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
     /// switch-off control lapses that item in the same way before its own move. Like every move,
     /// the call first takes up what an earlier stop, switch-off or runner's end left waiting for
-    /// a read of the clock, which can read the clock, store and send for other agents and their
-    /// runs; for `take_back`, `switch_off` and `stop`, after the refusals above, the named agent's
+    /// a read of the clock, which can read the clock, store and send for agents and their runs,
+    /// the named agent among them where its own earlier switch-off waited for the clock; for
+    /// `take_back`, `switch_off` and `stop`, after the refusals above, the named agent's
     /// start that waits in the queue is set aside during that take-up and put back in its place
     /// after it, so that no end that the take-up makes starts the agent that the control names
     /// (RD-149, verifier-59 issue 1). The take-back's own move then takes that start out of the
