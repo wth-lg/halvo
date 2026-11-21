@@ -1,0 +1,2 @@
+- Changed: A pull request records its changes in one new entry file under changelog.d/ and leaves the list under the Unreleased heading of CHANGELOG.md as it is, so that open pull requests no longer conflict in that file
+- Added: scripts/changelog-entry.sh moves the lines that a branch added under the Unreleased heading into the entry file of the branch, and scripts/changelog-join.sh joins the entry files into CHANGELOG.md at a release
