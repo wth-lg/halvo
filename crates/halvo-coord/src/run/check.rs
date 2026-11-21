@@ -237,15 +237,24 @@ where
     P: Owner + Rng + Clock,
     C: ConfigView,
 {
-    if read_back(ports, limits, stamp, board, i).is_err() {
-        return Retried::Nothing;
-    }
-    let newest = board.members[i]
-        .facts
-        .events
-        .last()
-        .map_or(0, |e| e.seq.get());
-    if board.stored_last(i) < newest && read_after(ports, board, i, from).is_err() {
+    let newest = |board: &Board<C>| {
+        board.members[i]
+            .facts
+            .events
+            .last()
+            .map_or(0, |e| e.seq.get())
+    };
+    let read = read_back(ports, limits, stamp, board, i).and_then(|()| {
+        if board.stored_last(i) < newest(board) {
+            read_after(ports, board, i, from)
+        } else {
+            Ok(())
+        }
+    });
+    if let Err(e) = read {
+        let agent = board.members[i].facts.agent.clone();
+        let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
+        board.note_refusal(&agent, &e, dismissed, false);
         return Retried::Nothing;
     }
     let doing = &board.members[i].facts.doing;

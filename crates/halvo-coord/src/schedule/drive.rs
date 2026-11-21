@@ -314,10 +314,16 @@ fn log_or_reread_once<P: Owner, C: ConfigView>(
         Err(e) if seq_refusal(&e) => e,
         other => return other.map(|()| Stored::LoggedOrFound),
     };
+    let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
     let facts = &mut board.members[i].facts;
     let before = facts.events.len();
-    let Ok(last) = resync(cx.ports, &facts.agent, &mut facts.events) else {
-        return Err(refusal);
+    let last = match resync(cx.ports, &facts.agent, &mut facts.events) {
+        Ok(last) => last,
+        Err(e) => {
+            let agent = facts.agent.clone();
+            board.note_refusal(&agent, &e, dismissed, false);
+            return Err(refusal);
+        }
     };
     board.set_last(i, last);
     let facts = &mut board.members[i].facts;
