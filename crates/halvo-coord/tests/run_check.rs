@@ -3388,7 +3388,8 @@ fn a_roster_read_that_does_not_answer_keeps_the_hold_of_an_email_card_that_a_new
         "the stored card's hold stands through a roster read that did not answer"
     );
     assert!(
-        !halvo_coord::roster::controls(w.facts(0)).contains(&halvo_coord::types::Control::RunNow),
+        !halvo_coord::roster::controls(w.facts(0), None, &w.limits)
+            .contains(&halvo_coord::types::Control::RunNow),
         "the row offers no Run now beside the card"
     );
 }
