@@ -750,7 +750,7 @@ fn the_daemon_half_hands_both_ends_over() {
     assert!(served, "dispatch_unknown wrote no reply");
     let mut stream = stream_of(end.unwrap());
     stream.send(&runner_request());
-    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Unsupported);
+    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Malformed);
 }
 
 fn request_id() -> RequestId {
@@ -1050,9 +1050,7 @@ fn on_a_stream_a_runner_request_reaches_the_store_and_an_interface_read_answers_
 }
 
 /// The test's `Ends` in the product's link: the one end that the hand-over returned, once; after it `internal`.
-struct Once(Mutex<Option<End>>);
-
-impl Ends for Once {
+impl Ends for Once<End> {
     fn end(&self) -> Result<End, Refusal> {
         self.0.lock().unwrap().take().ok_or(Refusal::Internal)
     }
