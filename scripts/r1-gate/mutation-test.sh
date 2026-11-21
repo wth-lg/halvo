@@ -1891,6 +1891,7 @@ fallback_cases() {
   t stop-children-reaches-pkill-after-the-wrapper-has-its-child-when-its-fork-comes-late PASS pkill_fallback_late_fork
   t the-start-of-the-wrapper-gives-up-when-the-wrapper-ends-before-it-has-a-child PASS pkill_fallback_wrapper_gone
   t the-late-fork-case-refuses-a-stop-before-the-fork-beside-a-right-stop PASS pkill_fallback_early_stop
+  t the-late-fork-case-refuses-a-start-that-hands-on-no-id-of-the-child-that-pgrep-read PASS pkill_fallback_id_lost
   fallback_want=NO-INPUT
   [ "${GITHUB_ACTIONS:-}" != true ] || fallback_want=PASS
   t stop-children-ends-a-wrapper-s-child-by-the-real-pkill-on-the-hosted-job "$fallback_want" pkill_fallback_real
@@ -1972,6 +1973,13 @@ late_fork_meet() {
     printf 'events: %s\n' "$fallback_events"
     return 1
   fi
+  fallback_read=$(cat "$fallback_dir/bin/pgrep.out")
+  case $fallback_child in
+    ''|*[!0-9]*) ;;
+    "$fallback_read") return 0 ;;
+  esac
+  printf "the start handed on the id '%s' where pgrep read '%s'\n" "$fallback_child" "$fallback_read"
+  return 1
 }
 
 late_fork_answer() {
@@ -1996,6 +2004,24 @@ STUB
   late_fork_answer start_wrapper_with_its_child
   case $late_fork_status:$late_fork_said in
     "1:events: pgrep 0;pkill -TERM -P $late_fork_started;"*"pgrep 1;pkill -TERM -P $late_fork_started;") return 0 ;;
+  esac
+  printf 'the late-fork case answered %s: %s\n' "$late_fork_status" "$late_fork_said"
+  return 1
+}
+
+pkill_fallback_id_lost() {
+  late_fork_fixture id-lost
+  cat > "$fallback_dir/bin/pgrep" <<STUB
+#!/bin/sh
+"$fallback_pgrep" "\$@" > "\${0%/*}/pgrep.out"
+s=\$?
+printf 'pgrep %s\n' "\$(wc -l < "\${0%/*}/pgrep.out" | tr -d ' ')" >> "\${0%/*}/events"
+if mkdir "\${0%/*}/forked" 2> /dev/null; then printf 'go\n' > "\${0%/*}/fork"; fi
+exit "\$s"
+STUB
+  late_fork_answer start_wrapper_with_its_child
+  case $late_fork_status:$late_fork_said in
+    "1:the start handed on the id '' where pgrep read '"[0-9]*"'") return 0 ;;
   esac
   printf 'the late-fork case answered %s: %s\n' "$late_fork_status" "$late_fork_said"
   return 1
