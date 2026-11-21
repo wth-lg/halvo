@@ -411,15 +411,15 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "item.setup.overlap",
-        "“{name}” already answers mail from {senders} on this mailbox, and a message that one agent answered can still look unread to the other. Take those people out and choose again, or switch “{name}” off or delete it.",
+        "“{name}” already answers mail from {senders} on this mailbox, and a message that one agent answered can still look unread to the other. Take those people out of your list and choose again, or switch “{name}” off or delete it.",
     ),
     (
         "item.setup.overlap_more",
-        "“{name}” already answers mail from {senders} on this mailbox, and other agents answer some of these people too. A message that one agent answered can still look unread to another. Take those people out and choose again, or switch those agents off or delete them.",
+        "“{name}” already answers mail from {senders} on this mailbox, and other agents answer some of these people too. A message that one agent answered can still look unread to another. Take those people out of your list and choose again, or switch the other agents off or delete them.",
     ),
     (
         "item.setup.overlap_unread",
-        "Another of your agents already answers mail from at least one of these people on this mailbox, and Halvo cannot show which one right now. A message that one agent answered can still look unread to the other. Take those people out and choose again, or switch the other agent off or delete it.",
+        "Another of your agents already answers mail from at least one of these people on this mailbox, and Halvo cannot show which one right now. A message that one agent answered can still look unread to the other. Take out the people that the other agent answers and choose again, or switch the other agent off or delete it.",
     ),
     ("run.effect.payment", "It made this payment."),
     ("run.effect.purchase", "It placed this order."),
@@ -721,7 +721,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "refused.overlap_more",
-        "“{name}” already answers mail from {senders} on this mailbox, and other agents answer some of these people too. A message that one agent answered can still look unread to another, so this agent stays off. Switch those agents off or delete them, then switch this one on.",
+        "“{name}” already answers mail from {senders} on this mailbox, and other agents answer some of these people too. A message that one agent answered can still look unread to another, so this agent stays off. Switch the other agents off or delete them, then switch this one on.",
     ),
     (
         "refused.switch_not_saved",
