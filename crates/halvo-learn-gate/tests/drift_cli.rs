@@ -11,6 +11,10 @@ fn scratch(name: &str) -> PathBuf {
     dir
 }
 
+fn fresh(name: &str) -> PathBuf {
+    halvo_test_dir::make(Path::new(env!("CARGO_TARGET_TMPDIR")), name).expect("a test directory")
+}
+
 fn gate(args: &[&str], cwd: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_learn-gate"))
         .args(args)
@@ -164,21 +168,47 @@ fn drift_prints_a_miss_and_exits_1() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
 }
 
+fn gate_in(args: &[&str], temp: &Path) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_learn-gate"))
+        .args(args)
+        .current_dir(repo())
+        .env("TMPDIR", temp)
+        .env("TMP", temp)
+        .env("TEMP", temp)
+        .output()
+        .expect("learn-gate runs")
+}
+
 #[test]
-fn drift_refuses_the_derived_store_with_store() {
-    let out = gate(
-        &[
-            "drift",
-            "--gate",
-            "dev",
-            "--cases",
-            "fixtures/r5/cases/dev",
-            "--store",
-            "derived",
-        ],
-        &repo(),
-    );
-    refused(&out, "store");
+fn drift_on_the_derived_store_prints_the_memory_store_s_lines_in_every_arm_and_leaves_no_file() {
+    let dir = fresh("drift-derived-cases");
+    copy_case(&dir, "decoy-pay-1.jsonl");
+    copy_case(&dir, "renamed-pay.jsonl");
+    let dir = dir.to_str().expect("a path");
+    let temp = fresh("drift-derived-temp");
+    for arm in ["none", "plain", "admit"] {
+        for restart in [&[][..], &["--restart-all"][..]] {
+            let call = [&["drift", "--arm", arm, "--cases", dir][..], restart].concat();
+            let memory = gate_in(&[&call[..], &["--store", "memory"]].concat(), &temp);
+            let derived = gate_in(&[&call[..], &["--store", "derived"]].concat(), &temp);
+            assert_eq!(memory.status.code(), Some(0), "{memory:?}");
+            assert_eq!(derived.status.code(), Some(0), "{derived:?}");
+            assert!(derived.stderr.is_empty(), "{derived:?}");
+            let want: Vec<String> = stdout(&memory)
+                .iter()
+                .map(|line| line.replacen(" store=memory ", " store=derived ", 1))
+                .collect();
+            assert_eq!(want.len(), 2);
+            assert_eq!(stdout(&derived), want, "arm {arm} {restart:?}");
+            assert_eq!(
+                std::fs::read_dir(&temp)
+                    .expect("the temporary directory")
+                    .count(),
+                0,
+                "the play's data directories are gone with the command"
+            );
+        }
+    }
 }
 
 #[test]
@@ -249,6 +279,8 @@ fn drift_refuses_without_the_targets_file() {
 
 #[test]
 fn every_wrong_call_is_refused_with_usage() {
+    let absent = fresh("usage-calls").join("absent");
+    let absent = absent.to_str().expect("a path");
     let calls: [&[&str]; 12] = [
         &[],
         &["walk"],
@@ -285,7 +317,7 @@ fn every_wrong_call_is_refused_with_usage() {
         &[
             "drift", "--case", "x.jsonl", "--arm", "admit", "--link", "product",
         ],
-        &["privacy", "--data-dir", "x"],
+        &["privacy", "--data-dir", absent],
         &["routine", "--extra"],
     ];
     for call in calls {

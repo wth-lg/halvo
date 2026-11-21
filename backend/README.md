@@ -370,5 +370,6 @@ during the run, or a check prints no line or more than one.
 
 The rules of the app repository, its `AGENTS.md`, bind every commit here. A commit is made by
 the configured git user, and its message carries no attribution line: the app's commit-msg and
-pre-push hooks and its CI read every message. A pull request adds one line for each type of
-change that it makes at the end of the list under Unreleased in the app's `CHANGELOG.md`.
+pre-push hooks and its CI read every message. A pull request adds one new file under the app's
+`changelog.d/`, with one line for each type of change that it makes, and leaves the list under
+Unreleased in the app's `CHANGELOG.md` as it is.

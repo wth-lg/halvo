@@ -7,11 +7,13 @@ use std::sync::{Arc, Mutex, PoisonError};
 use halvo_learn_store::{newest_routine, Clock, LearnStep};
 use halvo_schema::learning::names::Mark;
 use halvo_schema::learning::record::LearnRoutine;
-use halvo_schema::{AgentId, RowRead, Summary, SummaryRead, WorkflowId, WriterStep};
+use halvo_schema::{AgentId, RowRead, Summary, SummaryId, SummaryRead, WorkflowId, WriterStep};
 use serde_json::{json, Value};
 
 use crate::case::{Case, Form, Kind, Occurrence, Step, Verb};
 use crate::cli::{Cause, Flags, Refusal, Report, StoreName};
+use crate::derived::{episode, process_key, DerivedHost, Scratch};
+use crate::host::PlayHost;
 use crate::page::{Control, Role};
 use crate::store::{stays, Family, MemoryStore};
 use crate::stub::{id, workflow_record, Arm, Play};
@@ -21,6 +23,9 @@ pub const SAMPLE_PATH: &str = "fixtures/r5/trains/sample.jsonl";
 
 /// The number of trains that the sample holds (L7.2).
 pub const TRAINS: usize = 135;
+
+/// The number of trains, the first of the sample, that `learn-gate routine --store derived` plays (L10.4).
+pub const DERIVED_TRAINS: usize = 5;
 
 const WORKFLOW: u32 = 1;
 
@@ -76,7 +81,8 @@ impl Stream {
 
 /// What one play of a train did: the first day whose newest routine row differs from the trial's figures, or none
 /// when every day from 1 to `LAST_DAY` gives them, the occurrences that it carried by each stream, and the
-/// summaries and `learn_run` rows that the opens removed by their bound.
+/// summaries and `learn_run` rows that the opens removed by their bound, which a play on the derived store leaves
+/// at 0: there the store's own expiry removes them at its opens.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Played {
     pub differs_on: Option<u32>,
@@ -379,6 +385,97 @@ pub fn play(train: &Train, stream: Stream) -> Result<Played, String> {
     Ok(played)
 }
 
+struct Listed<'a> {
+    kind: &'a str,
+    rows: &'a [String],
+}
+
+impl RowRead for Listed<'_> {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        if kind == self.kind {
+            for row in self.rows {
+                visit(row);
+            }
+        }
+    }
+}
+
+fn newest_on(
+    host: &mut DerivedHost,
+    workflow: &WorkflowId,
+    agent: &AgentId,
+) -> Result<Option<Figures>, String> {
+    let rows = host.learn_rows("learn_routine")?;
+    newest(
+        &Listed {
+            kind: "learn_routine",
+            rows: &rows,
+        },
+        workflow,
+        agent,
+    )
+}
+
+/// Plays one train in one stream on the derived store of `host` (L10.2, L10.4), as `play` does on the memory store,
+/// to the day `last`, which the command gives as `LAST_DAY`: the workflow from a summary of day `LAST_DAY` + 3, whose
+/// open on day 1 removes it, so that no summary of the play stands outside the train's days; the compile on day 1,
+/// with `LearnStep` after the test proposer; then each day from 1 to `last`, at most `LAST_DAY`, until the first day
+/// whose figures differ from the train's, the store opened again on the day first (the coordinator's ruling LM-67),
+/// then the stub runner's replay run where the stream carries the day's occurrence as a run, then one batch of the
+/// analysis, with the day's summary where the stream carries the occurrence as a summary and empty otherwise, after
+/// which the store runs the step; and the mark and the period of the newest routine row, as the gate's read hands
+/// the rows out, compared with the train's. Answers what the play did and the host, whose store stands as the play
+/// left it.
+pub fn play_derived(
+    train: &Train,
+    stream: Stream,
+    host: DerivedHost,
+    last: u32,
+) -> Result<(Played, DerivedHost), String> {
+    let case = routine_case();
+    let host = host.with_step().with_seed_day(LAST_DAY + 3);
+    let mut play = Play::with_host(&case, Arm::Admit, WORKFLOW, host);
+    play.host.set_day(1);
+    play.compile()?;
+    let pair = (
+        WorkflowId::parse(play.workflow()).map_err(|_| "the play's workflow id".to_owned())?,
+        AgentId::parse(&id('4', WORKFLOW)).map_err(|_| "the play's agent id".to_owned())?,
+    );
+    if newest_on(&mut play.host, &pair.0, &pair.1)?.is_none() {
+        return Err("no learn_routine row".to_owned());
+    }
+    let occurs: BTreeSet<u32> = train.days.iter().copied().collect();
+    let mut played = Played::default();
+    for day in 1..=last.min(LAST_DAY) {
+        play.host.set_day(day);
+        play.host.reopen()?;
+        let mut episodes = Vec::new();
+        if occurs.contains(&day) {
+            if stream == Stream::Replay && day >= REPLAY_FROM {
+                let (_, _, completed, _) = play.occurrence(&occurrence(day))?;
+                if !completed {
+                    return Err(format!("the replay run of day {day} did not complete"));
+                }
+                played.runs += 1;
+            } else {
+                let summary =
+                    SummaryId::parse(&id('6', day)).map_err(|_| "a summary's id".to_owned())?;
+                episodes.push(episode(summary, WORKFLOW, day, play.host.next_ordinal())?);
+                played.summaries += 1;
+            }
+        }
+        play.host
+            .batch(&episodes)
+            .map_err(|e| format!("the batch of day {day}: {e}"))?;
+        let figures = newest_on(&mut play.host, &pair.0, &pair.1)?;
+        if figures != Some(train.figures_on(day)) {
+            played.differs_on = Some(day);
+            return Ok((played, play.host));
+        }
+    }
+    Ok((played, play.host))
+}
+
 /// The threads that play the trains: the machine's parallelism, at most four.
 pub fn threads() -> usize {
     std::thread::available_parallelism().map_or(1, |n| n.get().min(4))
@@ -537,12 +634,25 @@ pub fn report_with<F>(trains: &[Train], threads: usize, play_one: F) -> Result<R
 where
     F: Fn(&Train, Stream) -> Result<Played, String> + Sync,
 {
+    whole(trains)?;
+    let played = played_all(trains, threads, play_one)?;
+    Ok(line(trains.len(), &played))
+}
+
+fn whole(trains: &[Train]) -> Result<(), Refusal> {
     if trains.len() != TRAINS {
         return Err(Refusal::new(
             Cause::Case,
             format!("the sample holds {} trains, not {TRAINS}", trains.len()),
         ));
     }
+    Ok(())
+}
+
+fn played_all<F>(trains: &[Train], threads: usize, play_one: F) -> Result<Vec<Played>, Refusal>
+where
+    F: Fn(&Train, Stream) -> Result<Played, String> + Sync,
+{
     let results = play_all(trains, threads, play_one);
     let first = results
         .iter()
@@ -559,32 +669,64 @@ where
             ),
         ));
     }
-    let played: Vec<Played> = results.into_iter().flatten().collect();
-    Ok(line(trains.len(), &played))
+    Ok(results.into_iter().flatten().collect())
+}
+
+/// Plays the first `DERIVED_TRAINS` trains of the sample, which must hold `TRAINS`, in both streams, each play on a
+/// derived store of its own under the command's temporary directory, opened with the command's key (`play_derived`),
+/// spread over `threads()` threads as on the memory store, since ten plays on threads of their own took several times
+/// as long as one after another on a hosted Windows runner of four processors, and gives the line of L10.4 with
+/// `store=derived`; a play that failed refuses as `report_with` says.
+pub fn report_derived(trains: &[Train]) -> Result<Report, Refusal> {
+    whole(trains)?;
+    let scratch = Scratch::make().map_err(|detail| Refusal::new(Cause::Store, detail))?;
+    report_derived_in(trains, &scratch, LAST_DAY)
+}
+
+/// `report_derived` with the plays' directories under `scratch` and their last day `last` (`play_derived`).
+pub fn report_derived_in(
+    trains: &[Train],
+    scratch: &Scratch,
+    last: u32,
+) -> Result<Report, Refusal> {
+    let key = process_key();
+    let first = &trains[..DERIVED_TRAINS];
+    let played = played_all(first, threads(), |train, stream| {
+        let host = DerivedHost::new(scratch.play_dir()?, key.clone(), 1);
+        play_derived(train, stream, host, last).map(|(played, _)| played)
+    })?;
+    Ok(line_with(first.len(), &played, " store=derived"))
 }
 
 /// The line of L10.4 for the plays of `trains` trains.
 pub fn line(trains: usize, played: &[Played]) -> Report {
+    line_with(trains, played, "")
+}
+
+fn line_with(trains: usize, played: &[Played], store: &str) -> Report {
     let same = played.iter().filter(|p| p.differs_on.is_none()).count();
     let plays = trains * Stream::BOTH.len();
     let ok = played.len() == plays && same == plays;
     Report {
         lines: vec![format!(
-            "routine trains={trains} plays={plays} same={same} result={}",
+            "routine trains={trains} plays={plays} same={same}{store} result={}",
             if ok { "ok" } else { "miss" }
         )],
         ok,
     }
 }
 
-/// `learn-gate routine [--store memory|derived]` (L10.4).
+/// `learn-gate routine [--store memory|derived]` (L10.4): the 135 trains on the memory store, or the first
+/// `DERIVED_TRAINS` on the derived store.
 pub fn run(args: &[String]) -> Result<Report, Refusal> {
     let mut flags = Flags::new(args);
     let store = flags.value("--store")?.map(StoreName::parse).transpose()?;
     flags.done()?;
-    store.unwrap_or(StoreName::Memory).memory_only()?;
     let bytes = std::fs::read(SAMPLE_PATH)
         .map_err(|_| Refusal::new(Cause::Case, format!("{SAMPLE_PATH} cannot be read")))?;
     let trains = read_sample(&bytes).map_err(|detail| Refusal::new(Cause::Case, detail))?;
-    report(&trains)
+    match store.unwrap_or(StoreName::Memory) {
+        StoreName::Memory => report(&trains),
+        StoreName::Derived => report_derived(&trains),
+    }
 }

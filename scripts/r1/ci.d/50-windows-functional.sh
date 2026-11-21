@@ -14,7 +14,7 @@ case $group in
 esac
 test_limit_s=${WF_TEST_LIMIT_S:-360}
 timeout_tool=${WF_TIMEOUT_TOOL:-timeout}
-failing_fixtures=68
+failing_fixtures=71
 form_test=stall::the_round_count_of_the_stall_tests
 ledger=${WF_LEDGER_FILE:-docs/baseline/ledger.d/win-3.txt}
 prints_rule=scripts/r1/windows-prints-rule.sh
@@ -91,35 +91,34 @@ password_field_fixture_edge group=browser
 password_field_fixture_firefox group=browser
 password_field_fixture_native_dialog_phases_a_to_f group=browser
 pointer_moves_coalesce group=native
-stall::a_focus_notice_that_the_system_does_not_deliver_changes_nothing group=native
-stall::a_second_tab_out_of_the_password_field_then_a_letter_records_nothing group=native
-stall::an_edit_masked_while_it_has_the_focus_records_no_letter_after_the_mask group=native
-stall::click_then_letters_while_the_program_serves_sent_messages_150_ms group=native
-stall::click_then_letters_while_the_program_serves_sent_messages_2000_ms group=native
-stall::click_then_letters_while_the_program_serves_sent_messages_200_ms group=native
-stall::click_then_letters_while_the_program_serves_sent_messages_300_ms group=native
-stall::click_then_letters_while_the_program_serves_sent_messages_600_ms group=native
-stall::click_then_letters_while_the_program_sleeps_150_ms group=native
-stall::click_then_letters_while_the_program_sleeps_2000_ms group=native
-stall::click_then_letters_while_the_program_sleeps_200_ms group=native
-stall::click_then_letters_while_the_program_sleeps_300_ms group=native
-stall::click_then_letters_while_the_program_sleeps_600_ms group=native
-stall::enter_with_no_focus_move_then_five_letters_records_no_letter group=native
+stall::a_masked_edit_and_a_focus_notice_that_the_system_does_not_deliver_record_no_letter group=native
+stall::a_second_field_and_a_window_of_another_thread_while_the_program_waits_300_ms group=native
+stall::click_then_letters_while_the_program_serves_sent_messages_at_each_wait group=native
+stall::click_then_letters_while_the_program_sleeps_at_each_wait group=native
+stall::enter_a_tab_out_and_a_focus_move_in_two_steps_record_no_letter group=native
 stall::five_letters_of_the_plain_field_after_the_programs_own_focus_move_are_recorded group=native
 stall::helper_stall_fixture group=native
-stall::tab_and_letters_while_a_window_of_another_thread_comes_to_the_front group=native
-stall::tab_tab_and_a_letter_across_a_second_field_while_the_program_waits_after_the_first_tab group=native
-stall::tab_then_letters_while_the_program_serves_sent_messages_150_ms group=native
-stall::tab_then_letters_while_the_program_serves_sent_messages_2000_ms group=native
-stall::tab_then_letters_while_the_program_serves_sent_messages_200_ms group=native
-stall::tab_then_letters_while_the_program_serves_sent_messages_300_ms group=native
-stall::tab_then_letters_while_the_program_serves_sent_messages_600_ms group=native
-stall::tab_then_letters_while_the_program_sleeps_150_ms group=native
-stall::tab_then_letters_while_the_program_sleeps_2000_ms group=native
-stall::tab_then_letters_while_the_program_sleeps_200_ms group=native
-stall::tab_then_letters_while_the_program_sleeps_300_ms group=native
-stall::tab_then_letters_while_the_program_sleeps_600_ms group=native
-stall::the_program_moves_the_focus_in_two_steps_and_no_letter_is_recorded group=native
+stall::kinds::a_control_that_recorded_more_than_five_letters_fails group=native
+stall::kinds::a_fault_of_the_first_batch_of_a_click_phase_still_fails_after_a_clean_second_batch group=native
+stall::kinds::a_kind_with_no_phase_to_run_is_refused group=native
+stall::kinds::a_native_phase_fails_each_of_its_own_faults group=native
+stall::kinds::a_one_round_enter_phase_that_set_no_withheld_flag_fails group=native
+stall::kinds::a_phase_before_the_before_control_or_after_the_after_control_fails group=native
+stall::kinds::a_phase_between_the_two_controls_of_its_own_session_passes group=native
+stall::kinds::a_phase_that_begins_with_an_open_latch_of_an_earlier_phase_fails group=native
+stall::kinds::a_phase_that_counted_more_rounds_than_it_ran_fails group=native
+stall::kinds::a_phase_that_the_controls_of_another_session_bracket_fails group=native
+stall::kinds::a_phase_whose_control_recorded_fewer_than_five_letters_fails group=native
+stall::kinds::a_phase_whose_text_of_open_latches_could_not_be_read_fails_by_those_words group=native
+stall::kinds::a_phase_whose_two_controls_come_from_two_sessions_fails group=native
+stall::kinds::each_check_of_a_phase_fails_its_own_fault_in_each_family group=native
+stall::kinds::each_fault_of_a_family_still_fails_after_the_sum_that_a_live_phase_goes_through group=native
+stall::kinds::each_kind_holds_its_own_phases_in_their_order group=native
+stall::kinds::the_count_of_open_latches_is_read_from_the_text_of_the_gate group=native
+stall::kinds::the_kinds_hold_one_phase_for_each_test_and_sub_case_that_they_replace group=native
+stall::kinds::the_loop_over_the_phases_of_a_kind_prints_each_phase_and_keeps_each_failure group=native
+stall::tab_then_letters_while_the_program_serves_sent_messages_at_each_wait group=native
+stall::tab_then_letters_while_the_program_sleeps_at_each_wait group=native
 stall::the_round_count_of_the_stall_tests group=native
 stop_with_a_full_sink group=native
 the_fault_line_allocates_nothing group=native
@@ -745,6 +744,22 @@ measure() {
   printf 'PASS %s\n' "$name"
 }
 
+rules() {
+  repo=${CI_D_REPO:-}
+  [ -n "$repo" ] || repo=$(git rev-parse --show-toplevel 2>/dev/null) || fail "no repository: run it inside a checkout or give CI_D_REPO"
+  cd "$repo" || exit 2
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$name-rules.XXXXXX") || fail "mktemp failed"
+  if [ -z "${WF_LEDGER_FILE:-}" ]; then
+    mkdir -p "$work/HEAD/${ledger%/*}" || fail "the directory for the ledger of HEAD cannot be made"
+    git show "HEAD:$ledger" >"$work/HEAD/$ledger" 2>/dev/null ||
+      fail "HEAD holds no $ledger: commit the ledger, and the form reads it as HEAD holds it"
+    ledger=$work/HEAD/$ledger
+  fi
+  ledger_check
+  printf 'rules: the ledger check alone ran; no build, no test and no process of the product was started\n'
+  printf 'PASS %s\n' "$name"
+}
+
 launch() {
   printf '%s\n' "$3" >"$work/spec-$1"
   if [ "$expected" = real ]; then
@@ -788,7 +803,18 @@ launch() {
       WF_TIMEOUT_TOOL=$tool
       export WF_TIMEOUT_TOOL
     fi
-    sh "$0" >"$work/out-$1" 2>&1
+    if [ -n "$rules_knob" ]; then
+      PATH=$work/rules-bin:$PATH
+      if [ -n "$rules_cwd_knob" ]; then
+        unset CI_D_REPO
+        cd "$work/repo/$rules_cwd_knob" || exit 2
+      fi
+      sh "${rules_script_knob:-$self_script}" --rules >"$work/out-$1" 2>&1
+    elif [ -n "$args_knob" ]; then
+      sh "$self_script" "$args_knob" >"$work/out-$1" 2>&1
+    else
+      sh "$0" >"$work/out-$1" 2>&1
+    fi
     printf '%s\n' "$?" >"$work/code-$1"
   ) &
   running=$((running + 1))
@@ -858,6 +884,10 @@ reset_knobs() {
   loop_list=
   STUB_LIB_EXE=one
   STUB_LIB_FAIL=
+  rules_knob=
+  rules_cwd_knob=
+  rules_script_knob=
+  args_knob=
 }
 
 write_stubs() {
@@ -1107,6 +1137,16 @@ fi
 printf 'ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s\n\n'
 EOF
   chmod +x "$work/bin/cargo" "$work/bin/tf-stub" "$work/bin/lib-stub" || exit 2
+  mkdir -p "$work/rules-bin" || exit 2
+  cat >"$work/rules-bin/cargo" <<'EOF'
+#!/bin/sh
+printf 'the --rules form called %s\n' "${0##*/}"
+exit 99
+EOF
+  chmod +x "$work/rules-bin/cargo" || exit 2
+  for tool in rustc timeout; do
+    cp "$work/rules-bin/cargo" "$work/rules-bin/$tool" || exit 2
+  done
 }
 
 make_ledger_repo() {
@@ -1253,9 +1293,28 @@ EOF
   grep -v 'path=scripts/r1/ci.d/50-windows-functional.sh ' "$right_ledger" >"$work/ledger-paths" || exit 2
   sed 's/ wf_browser=total=1,pass=0,known_defect=1,fail=0 / wf_browser=total=1,pass=0,known_defect=0,fail=0 /' "$right_ledger" >"$work/ledger-sums" || exit 2
   grep -v '^measured view ' "$right_ledger" >"$work/ledger-no-view" || exit 2
+  git clone -q "$repo" "$work/repo-stale-ledger-committed" || exit 2
+  (
+    cd "$work/repo-stale-ledger-committed" || exit 2
+    mkdir -p docs/baseline/ledger.d || exit 2
+    cp "$work/ledger-stale" docs/baseline/ledger.d/win-3.txt || exit 2
+    git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
+      -c commit.gpgsign=false commit -q -m "a stale ledger committed" || exit 2
+    cp "$right_ledger" docs/baseline/ledger.d/win-3.txt || exit 2
+  ) || exit 2
+  git clone -q "$repo" "$work/repo-right-ledger-committed" || exit 2
+  (
+    cd "$work/repo-right-ledger-committed" || exit 2
+    mkdir -p docs/baseline/ledger.d || exit 2
+    cp "$right_ledger" docs/baseline/ledger.d/win-3.txt || exit 2
+    git add -A && git -c user.name=self-test -c user.email=self-test@halvo.invalid -c core.hooksPath=/dev/null \
+      -c commit.gpgsign=false commit -q -m "the right ledger committed" || exit 2
+    cp "$work/ledger-stale" docs/baseline/ledger.d/win-3.txt || exit 2
+  ) || exit 2
 }
 
 self_test() {
+  self_script=$(cd "$(dirname "$0")" && pwd)/${0##*/}
   test_file=$(cd "$(dirname "$0")/../../.." && pwd)/crates/halvo-capture/tests/windows_functional.rs
   prints_rule_file=$(cd "$(dirname "$0")/.." && pwd)/windows-prints-rule.sh
   test_file_shutdown_line=$(sed -n 's/^const SHUTDOWN_LINE: &str = "\(.*\)";$/\1/p' "$test_file")
@@ -1523,6 +1582,45 @@ fixtures() {
   check the-ledger-holds-a-run-line-of-the-old-form FAIL "$right" "holds a line of the form measured run=, which records no attempts"
   ledger_knob=$work/ledger-stale
   check the-ledger-holds-another-tree-of-the-crate FAIL "$right" "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's (0000000000000000000000000000000000000000 against "
+  ledger_knob=$right_ledger
+  rules_knob=yes
+  check rules-form-reads-the-ledger-alone-and-builds-nothing PASS "$right" \
+    "ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
+    "${nl}rules: the ledger check alone ran" "!the --rules form called" "!WF total="
+  ledger_knob=$work/ledger-stale
+  rules_knob=yes
+  check rules-form-refuses-a-ledger-of-another-tree FAIL "$right" \
+    "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's (0000000000000000000000000000000000000000 against " \
+    "!the --rules form called"
+  ledger_knob=$right_ledger
+  rules_knob=yes
+  rules_cwd_knob=crates/halvo-capture
+  check rules-form-finds-the-repository-from-a-directory-below-its-root PASS "$right" \
+    "ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
+    "${nl}rules: the ledger check alone ran" "!the --rules form called"
+  ledger_knob=$right_ledger
+  rules_knob=yes
+  rules_script_knob=$(dirname "$self_script")/52-windows-browser.sh
+  check rules-form-runs-through-52-for-the-browser-group exit-0 "$right" \
+    "ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
+    "${nl}rules: the ledger check alone ran" "${nl}PASS 52-windows-browser" "!the --rules form called"
+  repo_knob=$work/repo-stale-ledger-committed
+  rules_knob=yes
+  check rules-form-reads-the-ledger-that-head-holds FAIL "$right" \
+    "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's (0000000000000000000000000000000000000000 against " \
+    "!the --rules form called"
+  repo_knob=$work/repo-right-ledger-committed
+  rules_knob=yes
+  check rules-form-passes-on-the-ledger-that-head-holds-beside-a-stale-one-in-the-work-tree PASS "$right" \
+    "ledger: the measured run 6 of the long form, attempt 2, ran on what the head has" \
+    "${nl}rules: the ledger check alone ran" "!the --rules form called"
+  rules_knob=yes
+  check rules-form-refuses-a-head-that-holds-no-ledger FAIL "$right" \
+    "FAIL $name (HEAD holds no docs/baseline/ledger.d/win-3.txt: commit the ledger, and the form reads it as HEAD holds it)" \
+    "!the --rules form called"
+  args_knob=--no-such-form
+  check an-unknown-argument-prints-the-usage-and-exits-64 exit-64 "$right" \
+    "usage: sh " "--rules runs the ledger check alone" "!PASS " "!FAIL "
   ledger_knob=$work/ledger-source-changed
   check a-changed-source-rs-is-refused FAIL "$right" "the measured run 6 ran on another tree of crates/halvo-capture, without its macOS-only paths, than the head's"
   ledger_knob=$work/ledger-macos-changed
@@ -1626,6 +1724,13 @@ fixtures() {
 
 case ${1:-} in
   --self-test) self_test ;;
+  --rules) rules ;;
   '') measure ;;
-  *) exit 64 ;;
+  *)
+    cat >&2 <<EOF
+usage: sh $0 [--self-test | --rules]
+  --rules runs the ledger check alone: it reads docs/baseline/ledger.d/win-3.txt as HEAD holds it (or the file that WF_LEDGER_FILE names, as that file stands; a relative name is read from the root of the repository) against the tree at HEAD, builds nothing, runs no test and starts no process of the product
+EOF
+    exit 64
+    ;;
 esac

@@ -606,6 +606,7 @@ async fn probe(args: Args) -> usize {
 }
 
 fn main() -> ExitCode {
+    halvo_web::fence_marker();
     let argv: Vec<String> = std::env::args().collect();
     if let Some(code) = halvo_web::guard::run_if_guard(&argv) {
         return ExitCode::from(code.clamp(0, 255) as u8);
@@ -627,5 +628,18 @@ fn main() -> ExitCode {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// CP-186 N8: the fence is on in this test target from its start, so that the program's tests
+    /// reach the fence's means.
+    #[test]
+    fn the_fence_is_on_in_this_test_target() {
+        assert!(
+            std::hint::black_box(cfg!(feature = "test-fence")),
+            "the fence is off in this test target"
+        );
     }
 }

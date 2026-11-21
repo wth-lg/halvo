@@ -107,7 +107,7 @@ What the check asks of the table and of the files, each with the cause that ends
   its standard input; the download reads no configuration file of the user.
 - `gate-record.txt` is the record of the files in the tree: its stamp is the stamp of the
   model files, and its script line is the digest of the check script that runs
-  (`record`). The section "What every push runs, and the gate record" says what the
+  (`record`). The section "What CI runs, and the gate record" says what the
   record holds.
 - The check works in one directory that it makes under the temporary directory, the
   export's own directory inside it, and removes it when it ends: after a pass, after a
@@ -184,10 +184,10 @@ their place the sums are 291 s and 590 s, against the shares of I12.1 (about 531
 `macos` and 590 s in `windows`). In an earlier round's run, 43161137794, the self-test held
 every fixture and took 70 s and 301 s.
 
-## What every push runs, and the gate record
+## What CI runs, and the gate record
 
 The scripts of this run have a share of each hosted job: 320 s in `macos` and 440 s in
-`windows`, for all of them together (I12.1). Every push runs what fits that share:
+`windows`, for all of them together (I12.1). Each CI run checks what fits that share:
 
 - the check: the small configurations of the table above, the stamp of the traces, the
   export against the committed traces in the jobs that the line `export compared in jobs`
@@ -217,7 +217,7 @@ Whoever ran it copies that file over `formal/r4-coordinator/gate-record.txt` and
 it with the change. The record holds the stamp of the model files, which is the stamp of
 the traces' first lines; the SHA-256 of the check script with every carriage return taken
 out; one line for each fixture, each held rule and each control; and the count of those
-lines. The check of every push ends with `record` when the file is missing, when it has
+lines. In CI the check ends with `record` when the file is missing, when it has
 not exactly one stamp line of 64 hex digits, when that stamp is not the stamp of the
 files in the tree, when its script line is not the digest of the script that runs, and
 when its count is not the count of its lines or a line does not end in `=yes`. So neither
@@ -226,7 +226,7 @@ whoever changes a file of the stamp's list or the script runs `--record` again. 
 compares; it cannot know that the run happened, and a record that was written by hand
 shows in the diff of its pull request.
 
-| What the check refuses | Cause | Fixture of every push | Further fixtures, in the record |
+| What the check refuses | Cause | Fixture in every CI run | Further fixtures, in the record |
 |---|---|---|---|
 | an argument that it does not know | `usage` | `good` with `--other` | none |
 | a jar that cannot be fetched or is not at the given path | `fetch` | `fetch`, with the rule that the download reads no user configuration | `no-file` |

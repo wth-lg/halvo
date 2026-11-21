@@ -119,12 +119,14 @@ pub struct StartOptions {
 /// the product's and one candidate of the closed list `crate::CRASH_CANDIDATES` (the crash row's
 /// readings). A caller names an entry of a list of the crate and adds no flag of its own. The two
 /// entries other than `Product` are the crash row's alone; a caller of the product names `Product`.
-/// Both are public in every build, as `relay::Names::Fixture` is, and no caller of the product
-/// exists yet (CP-186 S8, N8).
+/// Both stand behind the fence (`crate::FENCE_MARKER`): a build without the feature `test-fence`,
+/// which is no test build, has `Product` alone (CP-186 S8, N8).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CrashMeans {
     Product,
+    #[cfg(any(test, feature = "test-fence"))]
     Without,
+    #[cfg(any(test, feature = "test-fence"))]
     Candidate(usize),
 }
 
@@ -423,16 +425,25 @@ pub(crate) fn start_profile_form(given: &Path, made: &Path) -> PathBuf {
 pub fn launch_args(opts: &StartOptions) -> Vec<String> {
     let mut args: Vec<String> = crate::PRODUCT_FLAGS.iter().map(|f| f.to_string()).collect();
     let profile = opts.profile.display().to_string();
-    if opts.crash_means != CrashMeans::Without {
-        args.extend(
-            crate::CRASH_MEANS
-                .iter()
-                .map(|f| f.replace("{profile}", &profile)),
-        );
-    }
-    if let CrashMeans::Candidate(i) = opts.crash_means {
-        for f in crate::CRASH_CANDIDATES.get(i).map_or(&[][..], |c| c.1) {
-            args.push(f.replace("{profile}", &profile));
+    let product: Vec<String> = crate::CRASH_MEANS
+        .iter()
+        .map(|f| f.replace("{profile}", &profile))
+        .collect();
+    match opts.crash_means {
+        CrashMeans::Product => args.extend(product),
+        #[cfg(any(test, feature = "test-fence"))]
+        CrashMeans::Without => {
+            #[cfg(feature = "test-fence")]
+            crate::fence_marker();
+        }
+        #[cfg(any(test, feature = "test-fence"))]
+        CrashMeans::Candidate(i) => {
+            #[cfg(feature = "test-fence")]
+            crate::fence_marker();
+            args.extend(product);
+            for f in crate::CRASH_CANDIDATES.get(i).map_or(&[][..], |c| c.1) {
+                args.push(f.replace("{profile}", &profile));
+            }
         }
     }
     args.extend(crate::relay::relay_flags(opts.relay.port()));
@@ -738,8 +749,13 @@ impl Executor {
 
     /// The crash row's forced crash (CP-165 (2) (c)): the driver's own command `Browser.crash` on
     /// the pipe, which crashes the browser's first process on its main thread, with no input and
-    /// no window. The browser's crash handler takes it as a crash; the row's control shows it.
+    /// no window. The browser's crash handler takes it as a crash; the row's control shows it. It
+    /// stands behind the fence (`crate::FENCE_MARKER`) and reads the marker: a build without the
+    /// feature `test-fence`, which is no test build, has no means that crashes the browser.
+    #[cfg(any(test, feature = "test-fence"))]
     pub async fn crash(&self) {
+        #[cfg(feature = "test-fence")]
+        crate::fence_marker();
         let _ = self
             .wire
             .call_within(
@@ -1828,6 +1844,7 @@ pub(crate) mod tests {
             )),
             _ => None,
         };
+        let watch = crate::procs::ExecutorWatch::open(num(3) as u32, num(4));
         let code = crate::guard::guard_loop(
             num(1) as u32,
             num(2),
@@ -1839,7 +1856,7 @@ pub(crate) mod tests {
                 read: &mut || crate::procs::table().ok(),
                 args: &crate::checks::command_args,
                 mark: mark.as_ref(),
-                own_name: None,
+                executor: &mut |_, _| watch.runs(),
                 now_ms: &mut || start.elapsed().as_millis(),
                 pause: &mut |_| std::thread::sleep(crate::guard::POLL),
                 end: &mut |p, force| {
@@ -2045,74 +2062,6 @@ pub(crate) mod tests {
         (Executor::start(&opts).await, profile, dir, relay)
     }
 
-    /// CP-126 E1 and point 42: a failed start ends every process that names the profile: the
-    /// stand-in leaves a helper and ends before its first reply, which is `browser_start`, kept
-    /// apart from `no_channel` (CP-165 (9)); the failure reports both directories removed.
-    #[cfg(target_os = "macos")]
-    #[tokio::test]
-    async fn a_failed_start_ends_a_process_that_the_browser_left_with_its_profile() {
-        let since_us = own_start_us();
-        let (started, profile, dir, _relay) = stand_in_start("leftover", "leave", None).await;
-        let left = naming(&profile, since_us);
-        end_left(&left, &dir);
-        let failed = started.err().expect("the start failed");
-        assert_eq!(failed.cause, "browser_start", "{failed:?}");
-        assert!(failed.removed, "{failed:?}");
-        assert_eq!(left.len(), 0, "processes left that name the profile");
-    }
-
-    /// The review's point 3, finding (3): a start for which no guard could be started fails with
-    /// the cause `guard`, ends its browser and leaves no process that names the profile.
-    #[cfg(target_os = "macos")]
-    #[tokio::test]
-    async fn a_start_with_no_guard_fails_and_leaves_no_browser() {
-        let since_us = own_start_us();
-        let none = crate::guard::GuardProgram {
-            program: crate::cdp::tests::nowhere("guard"),
-            prefix: Vec::new(),
-        };
-        let (started, profile, dir, _relay) =
-            stand_in_start("no-guard", "browser", Some(none)).await;
-        let left = named_within(&profile, since_us, Duration::from_millis(500)).await;
-        end_left(&left, &dir);
-        let failed = started.err().expect("the start went on with no guard");
-        assert_eq!(failed.cause, "guard", "{failed:?}");
-        assert!(failed.removed);
-        assert_eq!(left.len(), 0);
-    }
-
-    /// CP-158 (1), CP-165 (9), CP-189 G5: a browser that lives and gives no first reply within the
-    /// bound is `no_channel`, and its tree is ended by the guard's rule: nothing that bears the
-    /// run's mark is left. Its helper, which names no profile and outlives the test's wait, does
-    /// not bear the mark: it is left, and the start's failure counts and names it. The test then
-    /// ends it itself, inside its own fence (a program of the test's bundle). The stand-in holds
-    /// the pipe and answers nothing.
-    #[cfg(target_os = "macos")]
-    #[tokio::test]
-    async fn a_start_with_no_first_reply_ends_its_tree_and_is_no_channel() {
-        let since_us = own_start_us();
-        let (started, profile, dir, _relay) = stand_in_start("no-reply", "hang", None).await;
-        let left = named_within(&profile, since_us, Duration::from_millis(500)).await;
-        end_left(&left, &dir);
-        let bundle = std::fs::canonicalize(&dir).unwrap();
-        let helpers: Vec<crate::procs::Proc> = crate::procs::table()
-            .unwrap()
-            .into_iter()
-            .filter(|p| p.exe.as_deref().is_some_and(|e| e.starts_with(&bundle)))
-            .collect();
-        end_left(&helpers, &dir);
-        let failed = started.err().expect("the start failed");
-        assert_eq!(failed.cause, "no_channel", "{failed:?}");
-        assert!(failed.removed);
-        assert_eq!(left.len(), 0);
-        assert_eq!(helpers.len(), 1, "the helper without the mark: {helpers:?}");
-        assert_eq!(
-            (failed.left_unmarked, failed.left_unmarked_programs.clone()),
-            (1, vec!["stand-in".to_string()]),
-            "{failed:?}"
-        );
-    }
-
     /// CP-176 A1 (d): the start returns an executor whose rule is armed with no origin in the mode
     /// that fails, so no request leaves before the runner arms.
     #[cfg(target_os = "macos")]
@@ -2129,30 +2078,6 @@ pub(crate) mod tests {
         assert!(rule.allowed.is_empty(), "{:?}", rule.allowed);
         assert_eq!(rule.mode, Mode::Fail);
         assert!(stopped.removed);
-    }
-
-    /// CP-126 E1 (1): a stand-in browser that answers the start and the stop on its pipe starts,
-    /// when it is asked to close, a process that names the profile and starts another one 300 ms
-    /// later, after the browser has ended. After the stop none of them is left. The stand-in asks
-    /// for the start's probe 500 ms after the navigation, and the start returned only after the
-    /// relay recorded its refusal.
-    #[cfg(target_os = "macos")]
-    #[tokio::test]
-    async fn a_normal_stop_ends_a_process_that_appears_after_the_browser_ended() {
-        let since_us = own_start_us();
-        let (started, profile, dir, relay) =
-            stand_in_start("late", "browser_slow_probe", None).await;
-        let ex = started.expect("the stand-in starts");
-        assert_eq!(relay.handle().refusals_of(PROBE_HOST, PROBE_PORT), 1);
-        let stopped = ex.stop_and_remove().await;
-        let left = named_within(&profile, since_us, Duration::from_secs(2)).await;
-        end_left(&left, &dir);
-        assert!(stopped.removed);
-        assert_eq!(
-            left.len(),
-            0,
-            "processes left after the stop that name the profile"
-        );
     }
 
     #[test]

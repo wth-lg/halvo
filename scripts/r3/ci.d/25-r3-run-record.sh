@@ -17,16 +17,15 @@ esac
 
 known() {
   cat <<'EOF'
-crates/halvo-learn-gate/src/stub.rs 1 learning run, until its unit calls the maker
 crates/halvo-learn-store/src/tests/host.rs 1 learning run, until its unit calls the maker
 crates/halvo-learn-store/src/tests/pass.rs 1 learning run, until its unit calls the maker
 crates/halvo-schema/tests/later_kinds.rs 2 workflow run, its frozen entry of agent_run checked against itself
 EOF
 }
 
-pinned_rows=4
-pinned_places=5
-pinned_paths=1946205897
+pinned_rows=3
+pinned_places=4
+pinned_paths=2070842190
 
 program='
 function keys(text, k,    n, re) {
@@ -811,7 +810,7 @@ self_test() {
   put crates/a/tests/t.rs 'fn f() {}'
   mkdir -p "$work/the-pinned-list.out" || broken "the-pinned-list: mkdir"
   out=$(CI_D_REPO=$work/the-pinned-list CI_D_ARTIFACTS=$work/the-pinned-list.out sh "$self" 2>&1)
-  verdict the-pinned-list FAIL 'run-record gone=crates/halvo-learn-gate/src/stub.rs known=1'
+  verdict the-pinned-list FAIL 'run-record gone=crates/halvo-learn-store/src/tests/host.rs known=1'
 
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"

@@ -77,6 +77,151 @@ impl AppIdentity {
             Self::Unknown => "",
         }
     }
+
+    /// The same identity in the form of a floor event.
+    pub fn to_event(&self) -> crate::event::AppIdentity {
+        match self {
+            Self::BundleId(text) => crate::event::AppIdentity::bundle_id(text.as_str().to_owned()),
+            Self::ExecutablePath(text) => {
+                crate::event::AppIdentity::executable_path(text.as_str().to_owned())
+            }
+            Self::Unknown => crate::event::AppIdentity::unknown(),
+        }
+    }
+}
+
+/// Halvo's own app, by one predicate for the screen filter and for the rule on
+/// the app in front: the bundle id [`HalvoApp::BUNDLE_ID`], or the executable
+/// `halvo` beside the daemon's own executable, which an unbundled build has in
+/// place of a bundle id. The whole path of a process in front is read through
+/// `path_of`, which is the system's read of a pid's executable path.
+#[derive(Debug, Clone)]
+pub struct HalvoApp {
+    sibling: Option<String>,
+    path_of: fn(libc::pid_t) -> Option<String>,
+}
+
+impl HalvoApp {
+    pub const BUNDLE_ID: &'static str = "com.halvo.desktop";
+
+    /// The app whose executable is the file `halvo` beside this process's own
+    /// executable, read through its links.
+    pub fn beside_this_executable() -> Self {
+        Self::beside(std::env::current_exe().ok().as_deref())
+    }
+
+    /// The app whose executable is the file `halvo` beside `executable`: that
+    /// file read through its links where it exists, else the file `halvo` in
+    /// the directory read through its links, so that a link in the directory
+    /// path and a `halvo` that comes later still give the path that the
+    /// system reports for its process.
+    fn beside(executable: Option<&std::path::Path>) -> Self {
+        let sibling = executable
+            .and_then(std::path::Path::parent)
+            .map(|dir| {
+                let path = dir.join("halvo");
+                std::fs::canonicalize(&path)
+                    .or_else(|_| std::fs::canonicalize(dir).map(|dir| dir.join("halvo")))
+                    .unwrap_or(path)
+            })
+            .and_then(|path| path.to_str().map(str::to_owned));
+        Self {
+            sibling,
+            path_of: executable_path,
+        }
+    }
+
+    /// The app whose executable is `sibling`.
+    pub fn with_sibling(sibling: &str) -> Self {
+        Self {
+            sibling: Some(sibling.to_owned()),
+            path_of: executable_path,
+        }
+    }
+
+    /// Whether an app with this bundle id (empty when it has none) and the
+    /// executable at `path` is Halvo's.
+    pub fn selects(&self, bundle_id: &str, path: Option<&str>) -> bool {
+        bundle_id == Self::BUNDLE_ID
+            || path.is_some_and(|path| self.sibling.as_deref() == Some(path))
+    }
+
+    /// Whether the app in front is Halvo's: its identity, else the path of its
+    /// process. A path identity is Halvo's only when the whole path of the
+    /// front is the sibling.
+    pub fn selects_front(&self, front: &Foreground) -> bool {
+        match &front.identity {
+            AppIdentity::BundleId(id) if id.as_str() == Self::BUNDLE_ID => true,
+            AppIdentity::ExecutablePath(path) => self.selects_path(path, front.pid),
+            AppIdentity::BundleId(_) | AppIdentity::Unknown => {
+                self.selects("", (self.path_of)(front.pid).as_deref())
+            }
+        }
+    }
+
+    /// Whether the path identity `path` of the process `pid` is the sibling. An
+    /// identity shorter than the cap less three bytes was not cut, so it is the
+    /// whole path. A longer one may be a cut: when it equals the sibling as the
+    /// cap cuts it, the whole path of `pid` decides, and a whole path that
+    /// cannot be read counts as Halvo's own (ruling MA-37 C3).
+    fn selects_path(&self, path: &CappedText, pid: libc::pid_t) -> bool {
+        let Some(sibling) = self.sibling.as_deref() else {
+            return false;
+        };
+        if path.as_str().len() < IDENTITY_CAP_BYTES - 3 {
+            return path.as_str() == sibling;
+        }
+        if CappedText::new(sibling).is_none_or(|cut| cut.as_str() != path.as_str()) {
+            return false;
+        }
+        (self.path_of)(pid).is_none_or(|whole| whole == sibling)
+    }
+}
+
+#[cfg(test)]
+impl HalvoApp {
+    /// The same app, with `path_of` as the read of a process's whole path.
+    pub(crate) fn reading_paths_by(self, path_of: fn(libc::pid_t) -> Option<String>) -> Self {
+        Self { path_of, ..self }
+    }
+}
+
+/// The parent of a process, read from this Mac's process table: the probe that
+/// the exclusion decision walks to place a process under the exclusion root.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ProcessLineage;
+
+impl crate::floor::exclude::Lineage for ProcessLineage {
+    fn parent_of(&self, pid: crate::floor::exclude::ProcessId) -> crate::floor::exclude::Parent {
+        use crate::floor::exclude::{Parent, ProcessId};
+        let Ok(pid) = libc::c_int::try_from(pid.get()) else {
+            return Parent::Unknown;
+        };
+        let mut info = std::mem::MaybeUninit::<libc::proc_bsdshortinfo>::zeroed();
+        let size = std::mem::size_of::<libc::proc_bsdshortinfo>();
+        // SAFETY: `info` is writable for `size` bytes, the size passed, and
+        // proc_pidinfo writes at most that many bytes and returns how many it
+        // wrote.
+        let written = unsafe {
+            libc::proc_pidinfo(
+                pid,
+                libc::PROC_PIDT_SHORTBSDINFO,
+                0,
+                info.as_mut_ptr().cast(),
+                size as libc::c_int,
+            )
+        };
+        if usize::try_from(written).ok() != Some(size) {
+            return Parent::Unknown;
+        }
+        // SAFETY: proc_pidinfo wrote the whole value, as the check above shows.
+        let parent = unsafe { info.assume_init() }.pbsi_ppid;
+        if parent == 0 || parent == pid.unsigned_abs() {
+            Parent::None
+        } else {
+            Parent::Of(ProcessId::new(parent))
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,33 +230,95 @@ pub struct Foreground {
     pub pid: libc::pid_t,
 }
 
+/// The read of the app in front that the poll makes, which a reader makes
+/// again at a frame, so that both go through the same reader.
+type FrontRead = Arc<dyn Fn() -> Option<Foreground> + Send + Sync>;
+
+/// The poll's last answer, and whether the poll has answered since it began
+/// and has not ended.
+#[derive(Debug, Default)]
+struct FrontState {
+    front: Option<Foreground>,
+    answered: bool,
+}
+
 /// The write side of the app in front.
 ///  Dropping it clears the value.
-#[derive(Debug)]
-pub struct ForegroundWriter(Arc<Mutex<Option<Foreground>>>);
+pub struct ForegroundWriter {
+    state: Arc<Mutex<FrontState>>,
+    read: FrontRead,
+}
 
-#[derive(Debug, Clone)]
-pub struct ForegroundReader(Arc<Mutex<Option<Foreground>>>);
+#[derive(Clone)]
+pub struct ForegroundReader {
+    state: Arc<Mutex<FrontState>>,
+    read: FrontRead,
+}
+
+impl std::fmt::Debug for ForegroundWriter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ForegroundWriter")
+            .field("state", &self.state)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for ForegroundReader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ForegroundReader")
+            .field("state", &self.state)
+            .finish_non_exhaustive()
+    }
+}
 
 pub(crate) fn foreground_state(
     _one: crate::macos::run_loop::OneWriter,
 ) -> (ForegroundWriter, ForegroundReader) {
-    writer_and_reader()
+    writer_and_reader(Arc::new(read_frontmost))
 }
 
-fn writer_and_reader() -> (ForegroundWriter, ForegroundReader) {
-    let shared = Arc::new(Mutex::new(None));
-    (ForegroundWriter(shared.clone()), ForegroundReader(shared))
+fn writer_and_reader(read: FrontRead) -> (ForegroundWriter, ForegroundReader) {
+    let state = Arc::new(Mutex::new(FrontState::default()));
+    (
+        ForegroundWriter {
+            state: state.clone(),
+            read: read.clone(),
+        },
+        ForegroundReader { state, read },
+    )
 }
 
 #[cfg(test)]
 pub(crate) fn foreground_state_for_test() -> (ForegroundWriter, ForegroundReader) {
-    writer_and_reader()
+    let state = Arc::new(Mutex::new(FrontState::default()));
+    let last = state.clone();
+    let read: FrontRead = Arc::new(move || {
+        last.lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .front
+            .clone()
+    });
+    (
+        ForegroundWriter {
+            state: state.clone(),
+            read: read.clone(),
+        },
+        ForegroundReader { state, read },
+    )
 }
 
 impl ForegroundWriter {
     fn set(&self, front: Option<Foreground>) {
-        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = front;
+        *self.state.lock().unwrap_or_else(PoisonError::into_inner) = FrontState {
+            front,
+            answered: true,
+        };
+    }
+
+    /// The poll's reader: the same read that a reader makes at a frame.
+    fn poll_reader(&self) -> FrontReader {
+        let read = self.read.clone();
+        Box::new(move || read())
     }
 }
 
@@ -132,11 +339,39 @@ pub(crate) mod tests_support {
             pid,
         }
     }
+
+    pub(crate) fn unbundled(path: &str) -> AppIdentity {
+        AppIdentity::of(None, Some(path))
+    }
+
+    /// A foreground source with the product's poll interval whose poll reads
+    /// `system_front`, the stand-in of the system's app in front, through the
+    /// writer's read as the product's source does, and the reader of its value.
+    pub(crate) fn polled_source(
+        system_front: std::sync::Arc<std::sync::Mutex<Option<Foreground>>>,
+    ) -> (super::ForegroundSource, super::ForegroundReader) {
+        let read: super::FrontRead = std::sync::Arc::new(move || {
+            system_front
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone()
+        });
+        let (writer, reader) = super::writer_and_reader(read);
+        (
+            super::ForegroundSource::polling(
+                super::FOREGROUND_POLL,
+                writer,
+                super::RunLoopTurns::for_test(std::time::Instant::now()),
+                Box::new(|_| Ok(None)),
+            ),
+            reader,
+        )
+    }
 }
 
 impl Drop for ForegroundWriter {
     fn drop(&mut self) {
-        self.set(None);
+        *self.state.lock().unwrap_or_else(PoisonError::into_inner) = FrontState::default();
     }
 }
 
@@ -145,7 +380,7 @@ impl ForegroundReader {
     /// A reader with no writer, which reads nothing in front: for tests in a
     /// process of their own, which cannot claim the main run loop.
     pub fn nothing_in_front() -> Self {
-        writer_and_reader().1
+        writer_and_reader(Arc::new(|| None)).1
     }
 }
 
@@ -153,10 +388,26 @@ impl ForegroundReader {
     /// The app in front, or `None` before the first reading and while nothing is
     /// in front.
     pub fn get(&self) -> Option<Foreground> {
-        self.0
+        self.state
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+            .front
             .clone()
+    }
+
+    /// The app in front read now, through the reader that the poll uses; `None`
+    /// before the poll has answered once, after the poll has ended, and when
+    /// the read fails or names nothing in front.
+    pub(crate) fn read_now(&self) -> Option<Foreground> {
+        if !self
+            .state
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .answered
+        {
+            return None;
+        }
+        (self.read)()
     }
 }
 
@@ -203,7 +454,7 @@ pub(crate) fn emit_metadata_only(
     ))
 }
 
-fn executable_path(pid: libc::pid_t) -> Option<String> {
+pub(crate) fn executable_path(pid: libc::pid_t) -> Option<String> {
     let mut buffer = vec![0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
     // SAFETY: `buffer` is writable for the size passed, and proc_pidpath writes
     // at most that many bytes and returns how many it wrote.
@@ -214,7 +465,9 @@ fn executable_path(pid: libc::pid_t) -> Option<String> {
     Some(String::from_utf8_lossy(&buffer).into_owned())
 }
 
-fn bundle_identifier(text: &objc2_foundation::NSString) -> String {
+/// The text of a bundle id: at most the cap of UTF-16 units, an unpaired
+/// surrogate read as U+FFFD; it never aborts.
+pub(crate) fn bundle_identifier(text: &objc2_foundation::NSString) -> String {
     let string = (text as *const objc2_foundation::NSString).cast::<std::ffi::c_void>()
         as core_foundation::string::CFStringRef;
     // SAFETY: an NSString is toll-free bridged with CFString, and `text`
@@ -278,6 +531,18 @@ struct TitleHealth {
     errors: AtomicU64,
     failing: AtomicBool,
     not_trusted: AtomicBool,
+    stop_asked: AtomicBool,
+    dropped_at_stop: AtomicU64,
+}
+
+impl TitleHealth {
+    fn emits(&self) -> bool {
+        if self.stop_asked.load(Ordering::SeqCst) {
+            self.dropped_at_stop.fetch_add(1, Ordering::Relaxed);
+            return false;
+        }
+        true
+    }
 }
 
 fn retry_ticks(interval: Duration) -> u32 {
@@ -317,6 +582,9 @@ impl Poller {
                 self.title = TitleState::Settled;
                 self.health.failing.store(false, Ordering::Relaxed);
                 self.health.not_trusted.store(false, Ordering::Relaxed);
+                if !self.health.emits() {
+                    return;
+                }
                 let _ = emit_metadata_only(
                     sink,
                     Modality::WindowTitle,
@@ -365,13 +633,15 @@ impl Poller {
             self.change += 1;
             self.front = Some(front.clone());
             self.writer.set(Some(front.clone()));
-            let _ = emit_metadata_only(
-                sink,
-                Modality::ForegroundApp,
-                Some(front.clone()),
-                Unpersisted::EMPTY,
-                SystemTime::now(),
-            );
+            if self.health.emits() {
+                let _ = emit_metadata_only(
+                    sink,
+                    Modality::ForegroundApp,
+                    Some(front.clone()),
+                    Unpersisted::EMPTY,
+                    SystemTime::now(),
+                );
+            }
             self.title = TitleState::Asked;
             self.retries_left = self.retry_ticks;
         } else if self.title == TitleState::AskAgain {
@@ -502,18 +772,38 @@ pub struct ForegroundSource {
     health: Arc<TitleHealth>,
     running: Option<Running>,
     failure: Option<CaptureError>,
+    unstopped: Option<CaptureError>,
     stopped: bool,
+    #[cfg(test)]
+    real: bool,
 }
 
 impl ForegroundSource {
     pub fn new(interval: Duration, foreground: ForegroundWriter, turns: RunLoopTurns) -> Self {
-        Self::with_readers(
+        #[cfg_attr(not(test), allow(unused_mut))]
+        let mut source = Self::polling(
             interval,
             foreground,
             turns,
-            Box::new(read_frontmost),
             Box::new(window_title::focused_window_title),
-        )
+        );
+        #[cfg(test)]
+        {
+            source.real = true;
+        }
+        source
+    }
+
+    /// A source whose poll reads the app in front through the writer's read,
+    /// the one that its readers make again at a frame.
+    fn polling(
+        interval: Duration,
+        foreground: ForegroundWriter,
+        turns: RunLoopTurns,
+        read_title: TitleReader,
+    ) -> Self {
+        let read_front = foreground.poll_reader();
+        Self::with_readers(interval, foreground, turns, read_front, read_title)
     }
 
     fn with_readers(
@@ -530,7 +820,10 @@ impl ForegroundSource {
             health: Arc::new(TitleHealth::default()),
             running: None,
             failure: None,
+            unstopped: None,
             stopped: false,
+            #[cfg(test)]
+            real: false,
         }
     }
 
@@ -590,18 +883,19 @@ impl CaptureSource for ForegroundSource {
 
     fn shutdown(&mut self) -> Result<(), CaptureError> {
         let Some(running) = self.running.as_mut() else {
-            return Ok(());
+            return self.unstopped.clone().map_or(Ok(()), Err);
         };
         let ended_before = !running.stop_sent && running.thread.is_finished();
+        self.health.stop_asked.store(true, Ordering::SeqCst);
         let _ = running.stop.send(());
         running.stop_sent = true;
         let called = Instant::now();
         while !running.ended() {
             if called.elapsed() >= FOREGROUND_STOP_DEADLINE {
-                return Err(CaptureError::Timeout {
+                return self.answered(Err(CaptureError::Timeout {
                     stage: "foreground_join",
                     ms: FOREGROUND_STOP_DEADLINE.as_millis() as u64,
-                });
+                }));
             }
             std::thread::sleep(Duration::from_millis(2));
         }
@@ -609,13 +903,12 @@ impl CaptureSource for ForegroundSource {
             .running
             .take()
             .map(|running| (running.thread.join(), running.title.join()));
-        if let (false, Some((Ok(()), Ok(())))) = (ended_before, joined) {
-            self.stopped = true;
+        let answer = if let (false, Some((Ok(()), Ok(())))) = (ended_before, joined) {
             Ok(())
         } else {
-            self.failure = Some(CaptureError::ThreadEnded);
             Err(CaptureError::ThreadEnded)
-        }
+        };
+        self.answered(answer)
     }
 
     fn health(&self) -> SourceHealth {
@@ -628,6 +921,7 @@ impl CaptureSource for ForegroundSource {
             (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
             (None, None) => SourceState::NotReported,
         };
+        let state = self.unstopped.clone().map_or(state, source_failure);
         SourceHealth {
             state,
             counters: SourceCounters {
@@ -638,10 +932,56 @@ impl CaptureSource for ForegroundSource {
     }
 }
 
+impl ForegroundSource {
+    fn answered(&mut self, answer: Result<(), CaptureError>) -> Result<(), CaptureError> {
+        match &answer {
+            Ok(()) => {
+                self.unstopped = None;
+                self.stopped = true;
+            }
+            Err(CaptureError::ThreadEnded) => {
+                self.unstopped = None;
+                self.failure = Some(CaptureError::ThreadEnded);
+            }
+            Err(error) => self.unstopped = Some(error.clone()),
+        }
+        #[cfg(test)]
+        note_shutdown_answer("foreground", self.real, &answer);
+        answer
+    }
+}
+
 impl Drop for ForegroundSource {
     fn drop(&mut self) {
+        if self.unstopped.is_some() {
+            return;
+        }
         let _ = self.shutdown();
     }
+}
+
+/// Appends one line for the `shutdown` answer of a source that was begun through
+/// its product path to the file that `HALVO_SHUTDOWN_ANSWERS` names, for the
+/// count that scripts/r1/ci.d/12-test.sh prints; nothing when the variable is
+/// unset or the source is a stand-in.
+#[cfg(test)]
+pub(crate) fn note_shutdown_answer(source: &str, real: bool, answer: &Result<(), CaptureError>) {
+    use std::io::Write;
+    let Some(path) = std::env::var_os("HALVO_SHUTDOWN_ANSWERS") else {
+        return;
+    };
+    if !real {
+        return;
+    }
+    let line = format!("shutdown source={source} ok={}\n", answer.is_ok());
+    let written = std::fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .and_then(|mut file| file.write_all(line.as_bytes()));
+    assert!(
+        written.is_ok(),
+        "the file of HALVO_SHUTDOWN_ANSWERS takes no line: {written:?}"
+    );
 }
 
 #[cfg(test)]
@@ -1023,6 +1363,292 @@ mod tests {
     }
 
     #[test]
+    fn the_lineage_reads_the_parent_of_this_process_and_none_for_launchd_and_unknown_for_no_process(
+    ) {
+        use crate::floor::exclude::{Lineage, Parent, ProcessId};
+        // SAFETY: getppid takes no argument and cannot fail.
+        let parent = unsafe { libc::getppid() };
+        assert_eq!(
+            ProcessLineage.parent_of(ProcessId::new(std::process::id())),
+            Parent::Of(ProcessId::new(parent as u32))
+        );
+        assert_eq!(ProcessLineage.parent_of(ProcessId::new(1)), Parent::None);
+        assert_eq!(
+            ProcessLineage.parent_of(ProcessId::new(i32::MAX as u32)),
+            Parent::Unknown
+        );
+        assert_eq!(
+            ProcessLineage.parent_of(ProcessId::new(u32::MAX)),
+            Parent::Unknown
+        );
+    }
+
+    #[test]
+    fn the_predicate_selects_halvo_by_bundle_id_or_by_the_sibling_executable_and_nothing_else() {
+        let own_path =
+            executable_path(std::process::id() as libc::pid_t).expect("the path of this process");
+        let halvo = HalvoApp::with_sibling(&own_path);
+        let own = std::process::id() as libc::pid_t;
+        let fronts = [
+            ("the bundle id", app(HalvoApp::BUNDLE_ID, 70), true),
+            ("the sibling by its path", unbundled(&own_path, 71), true),
+            (
+                "another bundle id with the sibling's process",
+                app("com.example.renamed", own),
+                true,
+            ),
+            ("another app", app("com.example.editor", 1), false),
+            ("another path", unbundled("/opt/elsewhere/halvo", 72), false),
+        ];
+        for (what, front, wanted) in fronts {
+            let front = front.expect("a front");
+            assert_eq!(halvo.selects_front(&front), wanted, "{what}");
+        }
+        assert!(halvo.selects(HalvoApp::BUNDLE_ID, None));
+        assert!(halvo.selects("", Some(&own_path)));
+        assert!(!halvo.selects("", None));
+        assert!(!halvo.selects("com.example.editor", Some("/opt/elsewhere/halvo")));
+        let sibling = HalvoApp::beside_this_executable();
+        let beside = std::env::current_exe()
+            .expect("the test's own executable")
+            .with_file_name("halvo");
+        assert!(sibling.selects("", beside.to_str()));
+    }
+
+    #[test]
+    fn an_unbundled_front_whose_path_is_the_sibling_longer_than_the_cap_is_halvos() {
+        fn the_long_sibling(_pid: libc::pid_t) -> Option<String> {
+            Some(format!("/{}/halvo", "a".repeat(1040)))
+        }
+        let long_sibling = format!("/{}/halvo", "a".repeat(1040));
+        let halvo = HalvoApp::with_sibling(&long_sibling).reading_paths_by(the_long_sibling);
+        let front = unbundled(&long_sibling, 920).expect("a front");
+        assert!(long_sibling.len() > IDENTITY_CAP_BYTES);
+        assert!(front.identity.text().len() <= IDENTITY_CAP_BYTES);
+        assert!(halvo.selects_front(&front), "the long sibling in front");
+        let other = unbundled(&format!("/{}/other", "b".repeat(1040)), 921).expect("a front");
+        assert!(!halvo.selects_front(&other), "another long path");
+    }
+
+    fn cut_pair() -> (String, String) {
+        let prefix = format!("/{}", "a".repeat(1023));
+        (format!("{prefix}/halvo"), format!("{prefix}/another"))
+    }
+
+    fn the_other_program(_pid: libc::pid_t) -> Option<String> {
+        Some(cut_pair().1)
+    }
+
+    fn the_sibling(_pid: libc::pid_t) -> Option<String> {
+        Some(cut_pair().0)
+    }
+
+    fn no_path(_pid: libc::pid_t) -> Option<String> {
+        None
+    }
+
+    #[test]
+    fn a_front_whose_path_shares_the_cut_of_the_sibling_is_halvos_only_when_its_whole_path_is_the_sibling(
+    ) {
+        let prefix = format!("/{}", "a".repeat(1023));
+        let (sibling, other) = (format!("{prefix}/halvo"), format!("{prefix}/another"));
+        let own = std::process::id() as libc::pid_t;
+        let front = unbundled(&other, own).expect("a front");
+        assert!(other.len() > IDENTITY_CAP_BYTES);
+        assert_eq!(
+            CappedText::new(&sibling),
+            CappedText::new(&other),
+            "the two paths share the cap's cut"
+        );
+        let halvo = HalvoApp::with_sibling(&sibling);
+        assert!(!halvo.selects("", Some(&other)), "the filter");
+        assert!(
+            !halvo.selects_front(&front),
+            "another program in front, whose whole path is this test's own"
+        );
+    }
+
+    #[test]
+    fn a_cut_path_that_equals_the_cut_sibling_is_decided_by_the_whole_path_and_is_halvos_when_unread(
+    ) {
+        let (sibling, other) = cut_pair();
+        let front = unbundled(&other, 72).expect("a front");
+        let halvo = HalvoApp::with_sibling(&sibling);
+        assert!(
+            !halvo
+                .clone()
+                .reading_paths_by(the_other_program)
+                .selects_front(&front),
+            "the other program's whole path"
+        );
+        assert!(
+            halvo
+                .clone()
+                .reading_paths_by(the_sibling)
+                .selects_front(&unbundled(&sibling, 73).expect("a front")),
+            "the sibling's whole path"
+        );
+        let unread = halvo.reading_paths_by(no_path);
+        assert!(
+            unread.selects_front(&front),
+            "a cut path that equals the cut sibling, whole path unread"
+        );
+        let elsewhere = format!("/{}/another", "b".repeat(1023));
+        assert!(
+            !unread.selects_front(&unbundled(&elsewhere, 74).expect("a front")),
+            "a cut path that is not the cut sibling"
+        );
+        assert!(
+            !unread.selects_front(
+                &unbundled("/Applications/Other.app/Contents/MacOS/other", 75).expect("a front")
+            ),
+            "a short path, not the sibling"
+        );
+        let short = "/Applications/Halvo/halvo";
+        assert!(
+            HalvoApp::with_sibling(short)
+                .reading_paths_by(the_other_program)
+                .selects_front(&unbundled(short, 76).expect("a front")),
+            "an identity that the cap did not cut is the whole path, read no more"
+        );
+        let no_sibling = HalvoApp::beside(None).reading_paths_by(the_other_program);
+        assert!(
+            !no_sibling.selects_front(&front),
+            "an app with no sibling took a cut path for its own"
+        );
+        assert!(
+            !no_sibling.selects_front(&unbundled(short, 77).expect("a front")),
+            "an app with no sibling took a short path for its own"
+        );
+    }
+
+    #[test]
+    fn a_cut_that_backs_off_inside_a_character_is_decided_by_the_whole_path() {
+        fn the_sibling_with_an_e_acute(_pid: libc::pid_t) -> Option<String> {
+            Some(format!("/{}\u{e9}/halvo", "a".repeat(1022)))
+        }
+        let sibling = the_sibling_with_an_e_acute(0).expect("the sibling");
+        let front = unbundled(&sibling, 74).expect("a front");
+        assert_eq!(sibling.len(), 1031);
+        assert_eq!(
+            front.identity.text().len(),
+            IDENTITY_CAP_BYTES - 1,
+            "the cap backs off inside the e acute"
+        );
+        let halvo = HalvoApp::with_sibling(&sibling).reading_paths_by(the_sibling_with_an_e_acute);
+        assert!(
+            halvo.selects_front(&front),
+            "Halvo's own front, whose identity the cap cut inside a character"
+        );
+    }
+
+    #[test]
+    fn a_sibling_that_is_itself_a_link_is_read_through_the_link() {
+        let root = tempfile::tempdir().expect("a temporary directory");
+        let dir = root.path().join("dir");
+        std::fs::create_dir(&dir).expect("the directory");
+        std::fs::write(dir.join("halvo-real"), b"").expect("the file that the link names");
+        std::os::unix::fs::symlink(dir.join("halvo-real"), dir.join("halvo"))
+            .expect("halvo as a link");
+        let halvo = HalvoApp::beside(Some(&dir.join("halvo-capture")));
+        let canonical = std::fs::canonicalize(dir.join("halvo-real")).expect("the canonical path");
+        assert!(
+            halvo.selects("", canonical.to_str()),
+            "{:?} against {canonical:?}",
+            halvo.sibling
+        );
+        assert!(
+            !halvo.selects("", dir.join("halvo").to_str()),
+            "the path of the link itself"
+        );
+    }
+
+    #[test]
+    fn a_sibling_beside_an_executable_in_a_linked_directory_is_the_canonical_path_once_it_exists() {
+        let root = tempfile::tempdir().expect("a temporary directory");
+        let real = root.path().join("real");
+        let link = root.path().join("link");
+        std::fs::create_dir(&real).expect("the real directory");
+        std::os::unix::fs::symlink(&real, &link).expect("the link to it");
+        let halvo = HalvoApp::beside(Some(&link.join("halvo-capture")));
+        std::fs::write(real.join("halvo"), b"").expect("the sibling, made after the app");
+        let canonical = std::fs::canonicalize(real.join("halvo")).expect("the canonical path");
+        assert!(
+            halvo.selects("", canonical.to_str()),
+            "{:?} against {canonical:?}",
+            halvo.sibling
+        );
+        let through_the_link = link.join("halvo");
+        assert_ne!(through_the_link, canonical);
+        assert!(!halvo.selects("", through_the_link.to_str()));
+    }
+
+    #[test]
+    fn an_identity_becomes_the_same_identity_of_a_floor_event() {
+        let bundle = AppIdentity::of(Some("com.example.editor"), Some("/x/Editor"));
+        assert!(bundle.to_event().is_listed(&["com.example.editor"], &[]));
+        let path = AppIdentity::of(None, Some("/opt/tools/Tool"));
+        assert!(path.to_event().is_listed(&[], &["Tool"]));
+        assert!(AppIdentity::Unknown.to_event().is_unknown());
+    }
+
+    #[test]
+    fn a_change_and_a_title_seen_after_a_stop_is_asked_are_counted_and_not_emitted() {
+        let (writer, _reader) = foreground_state_for_test();
+        let health: Arc<TitleHealth> = Arc::default();
+        let mut poller = Poller::new(writer, 5, health.clone());
+        let (handle, sink_writer) = sink::channel(64);
+        poller.step(app("com.example.a", 10), Vec::new(), &handle);
+        health.stop_asked.store(true, Ordering::SeqCst);
+        poller.step(app("com.example.b", 20), answer(1, title(9)), &handle);
+        drop(poller);
+        assert_eq!(events(handle, &sink_writer), [fg("com.example.a")]);
+        assert_eq!(health.dropped_at_stop.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn a_shutdown_that_answered_timeout_reads_failed_with_reason_timeout_and_its_drop_waits_nothing(
+    ) {
+        let (handle, _writer) = sink::channel(64);
+        let (release, released) = channel::<()>();
+        let read_front: FrontReader = Box::new(move || {
+            let _ = released.recv_timeout(Duration::from_secs(3));
+            app("a", 1)
+        });
+        let (mut source, _reader) = source_with(
+            FOREGROUND_POLL,
+            fresh_turns(),
+            read_front,
+            Box::new(|_| Ok(None)),
+        );
+        source
+            .begin(SourceContext::new(handle))
+            .expect("the source starts");
+        let shut = source.shutdown();
+        let state = source.health().state;
+        let dropped = Instant::now();
+        drop(source);
+        let drop_took = dropped.elapsed();
+        drop(release);
+        let timeout = CaptureError::Timeout {
+            stage: "foreground_join",
+            ms: 1000,
+        };
+        assert_eq!(shut, Err(timeout.clone()));
+        assert_eq!(
+            state,
+            SourceState::Failed {
+                reason: HealthReason::Timeout,
+                error: timeout
+            }
+        );
+        assert!(
+            drop_took < Duration::from_millis(100),
+            "the drop after a Timeout waited {drop_took:?}"
+        );
+    }
+
+    #[test]
     fn an_answer_for_an_app_no_longer_in_front_is_dropped() {
         let (writer, _reader) = foreground_state_for_test();
         let mut poller = Poller::new(writer, 5, Arc::default());
@@ -1072,6 +1698,60 @@ mod tests {
             );
             std::thread::sleep(Duration::from_millis(1));
         }
+    }
+
+    #[test]
+    fn a_front_read_while_the_stop_is_asked_makes_no_record_and_is_counted() {
+        let (handle, writer) = sink::channel(64);
+        let (reading, reads) = channel::<()>();
+        let (open, gate) = channel::<()>();
+        let calls = Arc::new(AtomicU64::new(0));
+        let read_front: FrontReader = {
+            let calls = calls.clone();
+            Box::new(move || {
+                if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                    return app("a", 1);
+                }
+                reading.send(()).ok();
+                gate.recv().ok();
+                app("b", 2)
+            })
+        };
+        let (mut source, _reader) = source_with(
+            Duration::from_millis(1),
+            fresh_turns(),
+            read_front,
+            Box::new(|_| Ok(None)),
+        );
+        source
+            .begin(SourceContext::new(handle.clone()))
+            .expect("the source starts without a grant");
+        let first = take(&writer, 1);
+        reads
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the second reading began");
+        let health = source.health.clone();
+        let opener = std::thread::spawn(move || {
+            let waited = Instant::now();
+            while !health.stop_asked.load(Ordering::SeqCst)
+                && waited.elapsed() < Duration::from_millis(500)
+            {
+                std::thread::yield_now();
+            }
+            open.send(()).ok();
+        });
+        let shut = source.shutdown();
+        opener.join().expect("the opener ends");
+        let dropped = source.health.dropped_at_stop.load(Ordering::SeqCst);
+        drop(source);
+        assert_eq!(shut, Ok(()));
+        assert_eq!(first, [fg("a")]);
+        assert_eq!(
+            events(handle, &writer),
+            [],
+            "a record of the front read while the stop was asked"
+        );
+        assert_eq!(dropped, 1);
     }
 
     #[test]
