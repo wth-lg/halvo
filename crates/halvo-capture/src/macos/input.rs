@@ -8326,6 +8326,35 @@ mod tests {
     }
 
     #[test]
+    fn moves_in_a_listed_app_then_a_kept_app_at_the_interval_end_give_no_record() {
+        for under_root in [false, true] {
+            let mut held = held(100);
+            let excluded = if under_root {
+                held.ctx.floor = FloorHandle::new(
+                    Some(ProcessId::new(500)),
+                    Arc::new(UnderRoot),
+                    crate::floor::Switches::default(),
+                );
+                APP.front()
+            } else {
+                LISTED.front()
+            };
+            held.fg_writer.set_for_test(Some(excluded));
+            pointer(&held.ctx, CGEventType::MouseMoved, 5);
+            pointer(&held.ctx, CGEventType::ScrollWheel, 3);
+            held.fg_writer
+                .set_for_test(Some(TestApp("com.example.other", 4444).front()));
+            close_interval(&held.ctx);
+            assert_eq!(
+                pointer_records(&held.writer),
+                [],
+                "under the root: {under_root}"
+            );
+        }
+    }
+
+
+    #[test]
     fn each_type_of_the_table_has_its_class() {
         use TapClass::{
             ContinuousPointer as C, DiscretePointer as D, KeyPress as K, OtherKey as O,
