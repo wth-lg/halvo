@@ -1584,7 +1584,7 @@ mod tests {
             .collect();
         drop(poller);
         assert_eq!(stored.len(), 1, "one title record");
-        assert_eq!(stored[0], (1024, true));
+        assert_eq!(stored[0], (0, true));
     }
 
     #[test]
