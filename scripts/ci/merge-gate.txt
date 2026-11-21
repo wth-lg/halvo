@@ -1,7 +1,9 @@
 # The merge gate: the checks that a push and a pull request run.
-# sh scripts/ci/run-ci-d.sh <job> --merge-gate runs the lines of its job and no self-test.
+# sh scripts/ci/run-ci-d.sh <job> --merge-gate runs the lines of its job and no self-test. Before them
+# it runs the red control, scripts/ci/red-control, a check that always fails, and goes on only when
+# the driver's run of it failed.
 # A line is a job, macos or windows, a blank and the name of a check of that job.
-# Every other check of the table, and every self-test, runs in the Sunday run and in a run by hand.
+# Every other check that CI runs, and every self-test, stands in a slice of scripts/ci/slices.txt.
 # The run of both jobs ends in under 1,200 s. Before you add a line, name the seconds of the check
 # in that job and what it protects; scripts/ci/README.md, The merge gate, holds the measured seconds.
 macos 10-format
@@ -10,21 +12,21 @@ macos 12-test
 macos 17-workflow-lint
 macos 18-hook-scan
 macos 19-control-links-no-store
+macos 19-home-paths
 macos 20-app-links-no-store
 macos 21-tree-bans
 macos 23-daemon-port-only
 macos 23-licences
-macos 30-formal-covered
+macos 30-app-page-test
 macos 31-app-page-layout
 macos 39-store-no-analyze
+macos 54-tag-needs-store4
 macos 55-sqlcipher-unmended
-macos 62-build
 macos 22-redact
-macos 10-egress
 macos 60-r5-privacy
 macos 40-r6-policy
 macos 60-r6-egress
-macos 80-r6-absent
+macos 20-r7-backend-static
 macos 21-r7-backend-test
 macos 24-r7-wall
 macos 25-r7-backend-licenses
@@ -35,8 +37,8 @@ windows 12-test
 windows 19-control-links-no-store
 windows 21-tree-bans
 windows 23-daemon-port-only
-windows 30-formal-covered
 windows 39-store-no-analyze
+windows 54-tag-needs-store4
 windows 55-sqlcipher-unmended
 windows 22-redact
 windows 60-r5-privacy

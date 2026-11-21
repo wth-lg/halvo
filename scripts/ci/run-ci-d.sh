@@ -7,9 +7,12 @@ usage() {
   cat <<'EOF'
 usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]
        sh scripts/ci/run-ci-d.sh <job> --merge-gate
+       sh scripts/ci/run-ci-d.sh <job> --slice <slice>
+       sh scripts/ci/run-ci-d.sh <job> --checks '<NAME> [<NAME>...]'
        sh scripts/ci/run-ci-d.sh --list [<job>]
        sh scripts/ci/run-ci-d.sh --rules
-<job> is macos or windows. Start it at the repo root.
+<job> is macos or windows. <slice> is mon, tue, wed, thu, fri or sat.
+Start it at the repo root.
 scripts/ci/README.md states the interface.
 EOF
 }
@@ -28,6 +31,8 @@ mode=run
 job=
 wanted=
 gate=
+plan=
+plan_arg=
 seen=' '
 
 case ${1:-} in
@@ -47,6 +52,18 @@ case ${1:-} in
   macos | windows)
     job=$1
     shift
+    case ${1:-} in
+      --slice | --checks)
+        [ $# -eq 2 ] || { usage >&2; exit 64; }
+        plan=${1#--}
+        plan_arg=$2
+        case $plan:$plan_arg in
+          slice:mon | slice:tue | slice:wed | slice:thu | slice:fri | slice:sat) ;;
+          slice:* | checks: | checks:*[!a-z0-9\ -]*) usage >&2; exit 64 ;;
+        esac
+        shift 2
+        ;;
+    esac
     for arg in "$@"; do
       case $arg in
         --self-test) mode='self-test' ;;
@@ -73,6 +90,168 @@ unset CI_D_MERGE_GATE
 if [ -n "$gate" ]; then
   CI_D_MERGE_GATE=1
   export CI_D_MERGE_GATE
+  unset CI_D_TEST_GROUP
+fi
+
+plan_fail() {
+  printf 'FAIL run-ci-d (%s)\n' "$1"
+  exit 1
+}
+
+# shellcheck disable=SC2329
+plan_stop() {
+  trap '' INT TERM HUP
+  if [ -n "$plan_pid" ]; then
+    kill -s "$1" "$plan_pid" 2>/dev/null
+    wait "$plan_pid"
+  fi
+  exit "$2"
+}
+
+plan_run() {
+  sh "$0" "$job" "$@" &
+  plan_pid=$!
+  wait "$plan_pid" || plan_status=1
+  plan_pid=
+}
+
+plan_names() {
+  plan_listing=$(sh "$0" --list "$@") || {
+    printf '%s\n' "$plan_listing"
+    exit 1
+  }
+  plan_have=' '
+  while IFS= read -r plan_file; do
+    plan_file=${plan_file##*/}
+    plan_have="$plan_have${plan_file%.sh} "
+  done <<EOF
+$plan_listing
+EOF
+}
+
+plan_slice() {
+  plan_list=$root/ci/slices.txt
+  { [ -f "$plan_list" ] && [ -r "$plan_list" ]; } || plan_fail "$plan_list cannot be read"
+  plan_n=0
+  while IFS= read -r plan_line || [ -n "$plan_line" ]; do
+    plan_n=$((plan_n + 1))
+    set -f
+    # shellcheck disable=SC2086
+    set -- ${plan_line%"$plan_cr"}
+    set +f
+    case ${1:-} in
+      '' | '#'*) continue ;;
+    esac
+    plan_ok=
+    case $#:$1 in
+      4:mon | 4:tue | 4:wed | 4:thu | 4:fri | 4:sat) plan_ok=yes ;;
+    esac
+    case ${2:-} in
+      macos | windows) ;;
+      *) plan_ok= ;;
+    esac
+    case ${3:-}:${4:-} in
+      check: | self-test: | tests: | check:*[!a-z0-9-]* | self-test:*[!a-z0-9-]* | tests:*[!A-Z]*) plan_ok= ;;
+      check:* | self-test:* | tests:*) ;;
+      *) plan_ok= ;;
+    esac
+    [ -n "$plan_ok" ] ||
+      plan_fail "$plan_list line $plan_n is not a slice (mon, tue, wed, thu, fri or sat), a job (macos or windows), a kind (check, self-test or tests) and a name: the name of a check, or after tests the capital letter of a group of scripts/ci/slow-tests.txt"
+    [ "$1" = "$plan_arg" ] && [ "$2" = "$job" ] || continue
+    case $3 in
+      check) plan_ck="$plan_ck $4" ;;
+      self-test) plan_st="$plan_st $4" ;;
+      tests)
+        [ -z "$plan_group" ] ||
+          plan_fail "$plan_list line $plan_n is a second tests line of the slice $plan_arg for $job; a slice runs one group of slow tests in a job"
+        plan_group=$4
+        plan_ck="$plan_ck 12-test"
+        ;;
+    esac
+  done <"$plan_list" || plan_fail "$plan_list cannot be read"
+  [ -n "$plan_st$plan_ck" ] || plan_fail "$plan_list names nothing for the slice $plan_arg of the job $job"
+  plan_names "$job"
+  for plan_name in $plan_st $plan_ck; do
+    case $plan_have in
+      *" $plan_name "*) ;;
+      *)
+        printf 'FAIL run-ci-d (%s names %s for the slice %s, which is no check of the job %s)\n' "$plan_list" "$plan_name" "$plan_arg" "$job"
+        plan_status=1
+        ;;
+    esac
+  done
+  [ "$plan_status" -eq 0 ] || exit 1
+  printf 'slice %s of %s: self-tests:%s; checks:%s; group of slow tests: %s\n' "$plan_arg" "$job" "${plan_st:- none}" "${plan_ck:- none}" "${plan_group:-none}"
+}
+
+plan_checks() {
+  plan_names "$job"
+  plan_mine=$plan_have
+  plan_names
+  for plan_name in $plan_arg; do
+    case $plan_mine in
+      *" $plan_name "*)
+        plan_ck="$plan_ck $plan_name"
+        continue
+        ;;
+    esac
+    case $plan_have in
+      *" $plan_name "*) printf 'skipped %s: it is a check of the other job alone, not of %s\n' "$plan_name" "$job" ;;
+      *)
+        printf 'FAIL run-ci-d (%s is a check of neither job; sh scripts/ci/run-ci-d.sh --list prints the checks)\n' "$plan_name"
+        plan_status=1
+        ;;
+    esac
+  done
+  [ "$plan_status" -eq 0 ] || exit 1
+  plan_st=$plan_ck
+  if [ -z "$plan_ck" ]; then
+    printf 'ci.d %s: no named check is a check of this job; nothing ran\n' "$job"
+    exit 0
+  fi
+  printf 'named checks of %s, each with its self-test first:%s\n' "$job" "$plan_ck"
+}
+
+if [ -n "$plan" ]; then
+  { [ "$mode" = run ] && [ -z "$gate$wanted" ]; } || { usage >&2; exit 64; }
+  plan_cr=$(printf '\r')
+  plan_st=
+  plan_ck=
+  plan_group=
+  plan_status=0
+  plan_pid=
+  case $plan in
+    slice) plan_slice ;;
+    checks) plan_checks ;;
+  esac
+  unset CI_D_TEST_GROUP
+  if [ -n "$plan_group" ]; then
+    CI_D_TEST_GROUP=$plan_group
+    export CI_D_TEST_GROUP
+  fi
+  trap 'plan_stop TERM 130' INT
+  trap 'plan_stop TERM 143' TERM
+  trap 'plan_stop HUP 129' HUP
+  # shellcheck disable=SC2086
+  [ -z "$plan_st" ] || plan_run --self-test $plan_st
+  # shellcheck disable=SC2086
+  [ -z "$plan_ck" ] || plan_run $plan_ck
+  exit "$plan_status"
+fi
+
+if [ -n "$gate" ] && [ "${RUN_CI_D_WORKER:-}" != "$PPID" ]; then
+  red_out=$(CI_D_SCRIPTS=$root/ci/red-control sh "$0" "$job" 10-red 2>&1)
+  red_code=$?
+  case $red_code:$red_out in
+    "1:"*"${nl}FAIL 10-red (planned)${nl}ci.d $job: 0 passed, "*" failed, 0 skipped")
+      printf 'red control: the driver ran 10-red of %s, a check that always fails, and that run failed with exit 1\n' "$root/ci/red-control"
+      ;;
+    *)
+      printf '%s\n' "$red_out"
+      printf 'FAIL run-ci-d (the red control did not come out red: the run of 10-red of %s, a check that always fails, exited %s; it must exit 1 and end with the line FAIL 10-red (planned) and the count of this job with 0 passed)\n' "$root/ci/red-control" "$red_code"
+      exit 1
+      ;;
+  esac
 fi
 
 # shellcheck disable=SC2329
@@ -357,10 +536,6 @@ if command -v cygpath >/dev/null 2>&1; then
   tree_index=$(cygpath -m "$tree_index")
 fi
 
-case $0 in
-  /*) self=$0 ;;
-  *) self=$repo/$0 ;;
-esac
 
 record() {
   printf '%s\n' "$2" >>"$recap"
@@ -907,15 +1082,10 @@ st_td=
 st_lm=
 st_f_other=
 st_ready=
-st_v_k=
-st_v_x=
-st_v_d=
-st_v_lm=
 st_pick_i=
 st_pick_alone=
 tree_to=
 cr=$(printf '\r')
-tab=$(printf '\t')
 processors() {
   procs_n=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || procs_n=
   whole_number "$procs_n" || procs_n=${NUMBER_OF_PROCESSORS:-1}
