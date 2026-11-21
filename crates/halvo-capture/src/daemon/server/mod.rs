@@ -417,7 +417,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         store_logical_bytes: None,
         cap_bytes: match parts.cap {
             StateCap::Known(cap) => proto::Cap::Known(cap),
-            StateCap::OutOfRange(_) => proto::Cap::Unknown,
+            StateCap::OutOfRange(_) | StateCap::Unread => proto::Cap::Unknown,
         },
         drain: if failing {
             Health::Failing

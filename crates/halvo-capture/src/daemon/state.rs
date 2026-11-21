@@ -138,11 +138,15 @@ pub enum Desired {
 /// The storage cap that the state file holds: a cap in range, or a stored
 /// value out of range, which makes the cap unknown, so that nothing is
 /// evicted for it until a valid cap is set (RR-daemon-19). A write keeps a
-/// value out of range as it was stored.
+/// value out of range as it was stored. A state file that does not load
+/// gives no cap at all: the cap is unknown and nothing is evicted, since a
+/// person's records are never evicted on the word of a file that could not
+/// be read.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Cap {
     Known(StorageCap),
     OutOfRange(u64),
+    Unread,
 }
 
 impl Cap {
@@ -154,6 +158,7 @@ impl Cap {
         match self {
             Cap::Known(cap) => cap.bytes(),
             Cap::OutOfRange(bytes) => bytes,
+            Cap::Unread => StorageCap::DEFAULT.bytes(),
         }
     }
 }
@@ -181,6 +186,14 @@ impl Default for DaemonState {
             switches: Switches::default(),
             store_made: false,
         }
+    }
+}
+
+/// The state of a state file that does not load: the defaults, with no cap.
+fn unread() -> DaemonState {
+    DaemonState {
+        storage_cap: Cap::Unread,
+        ..DaemonState::default()
     }
 }
 
@@ -260,12 +273,10 @@ impl StateFile {
     pub fn open(dir: StateDir, writer: Box<dyn StateWrite>) -> StateFile {
         let (state, loaded, missing) = match read(&dir) {
             Found::Missing => (DaemonState::default(), Loaded::Readable, true),
-            Found::Unloadable | Found::CannotRead(_) => {
-                (DaemonState::default(), Loaded::Corrupt, false)
-            }
+            Found::Unloadable | Found::CannotRead(_) => (unread(), Loaded::Corrupt, false),
             Found::Bytes(bytes) => match parse(&bytes) {
                 Ok(state) => (state, Loaded::Readable, false),
-                Err(loaded) => (DaemonState::default(), loaded, false),
+                Err(loaded) => (unread(), loaded, false),
             },
         };
         let mut file = StateFile {
@@ -766,7 +777,7 @@ pub(crate) mod tests {
             let mut file = open(dir.path(), &writer);
             let shown = String::from_utf8_lossy(bytes);
             assert_eq!(file.health(), StateHealth::Corrupt, "{shown}");
-            assert_eq!(file.state(), &DaemonState::default(), "{shown}");
+            assert_eq!(file.state(), &unread(), "{shown}");
             assert!(file.update(|_| {}).is_err(), "{shown}");
             assert_eq!(writer.calls.load(Ordering::SeqCst), 0, "{shown}");
             assert_eq!(stamp(&path), before, "{shown}");

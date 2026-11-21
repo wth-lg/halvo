@@ -3017,7 +3017,7 @@ impl HeldStore {
 fn cap_bound(cap: state::Cap) -> Option<port::ByteBound> {
     match cap {
         state::Cap::Known(cap) => Some(port::ByteBound::of_cap(cap)),
-        state::Cap::OutOfRange(_) => None,
+        state::Cap::OutOfRange(_) | state::Cap::Unread => None,
     }
 }
 
