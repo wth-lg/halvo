@@ -1877,6 +1877,15 @@ where
                     cause: HoldSetCause::Person,
                 };
                 if let Err(e) = store(cx, board, i, vec![set]) {
+                    let dismissed = board.workflow_dismissed(&board.members[i].facts.workflow.id);
+                    if reachable && class_of(&e, dismissed) == Some(Class::Gone) {
+                        let stopped = stop_live(cx, board, i, halt);
+                        board.keep_on(&agent);
+                        return Report {
+                            stopped: stopped.into_iter().collect(),
+                            ..refused(port_cause(&e))
+                        };
+                    }
                     let shown = !seq_refusal(&e)
                         && read_once(cx, board, i).is_ok()
                         && holds(&board.members[i].facts).contains(&Hold::Off);
@@ -1924,21 +1933,29 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
             board.members[i].facts.doing = Doing::Idle(item.clone());
         }
     }
-    let live = board
-        .runs
-        .iter()
-        .find(|r| r.agent == agent && r.stop.is_none())
-        .map(|r| r.run.clone());
-    if let Some(run) = live {
-        stop_run(board, &run, cx.move_stamp.now(), RunEnd::Cancelled);
-        let sent = halt.is_some_and(|halt| halt(board, i, &run));
-        if !sent {
-            let _ = cx.ports.cancel(&run);
-        }
-        report.stopped.push(run);
-    }
+    report.stopped.extend(stop_live(cx, board, i, halt));
     send_state(cx, &board.members[i].facts, AgentState::Paused);
     report
+}
+
+fn stop_live<P: Owner + Runs, C: ConfigView>(
+    cx: &MoveContext<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    halt: Option<Halt<'_, C>>,
+) -> Option<RunId> {
+    let agent = &board.members[i].facts.agent;
+    let run = board
+        .runs
+        .iter()
+        .find(|r| &r.agent == agent && r.stop.is_none())
+        .map(|r| r.run.clone())?;
+    stop_run(board, &run, cx.move_stamp.now(), RunEnd::Cancelled);
+    let sent = halt.is_some_and(|halt| halt(board, i, &run));
+    if !sent {
+        let _ = cx.ports.cancel(&run);
+    }
+    Some(run)
 }
 
 /// Carries out a move on the ports and the board (I5.10).

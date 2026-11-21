@@ -154,6 +154,7 @@ pub struct Board<C> {
     unread: Vec<AgentId>,
     dismissed: Vec<WorkflowId>,
     queue_held: bool,
+    kept_on: Vec<AgentId>,
 }
 
 impl<C> Board<C> {
@@ -184,6 +185,20 @@ impl<C> Board<C> {
             unread: Vec::new(),
             dismissed: Vec::new(),
             queue_held: false,
+            kept_on: Vec::new(),
+        }
+    }
+
+    /// Whether the person's Switch off of the agent stopped its live run while the owner refused
+    /// the switch's `hold_set` with a name of class B, so that the agent is still on; it stands
+    /// until a later run of the agent goes on the board (ruling RD-155 (1)).
+    pub fn kept_on(&self, agent: &AgentId) -> bool {
+        self.kept_on.contains(agent)
+    }
+
+    pub(crate) fn keep_on(&mut self, agent: &AgentId) {
+        if !self.kept_on.contains(agent) {
+            self.kept_on.push(agent.clone());
         }
     }
 
@@ -234,6 +249,9 @@ impl<C> Board<C> {
     /// Takes a run that this life put on the board with whether the defer of its launch was
     /// acknowledged (ruling RD-86 item 1).
     pub(crate) fn launched(&mut self, run: &RunId, launch: bool) {
+        if let Some(live) = self.runs.iter().find(|r| &r.run == run) {
+            self.kept_on.retain(|a| a != &live.agent);
+        }
         self.defers.retain(|(r, _)| r != run);
         self.defers.push((
             run.clone(),
