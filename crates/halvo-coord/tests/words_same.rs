@@ -557,7 +557,7 @@ fn u24q_the_eight_unknown_texts_stand_word_for_word() {
         ),
         (
             "run.effect.delete.unknown",
-            "Something may have been removed; Halvo could not tell. Check that the things you need are still there.",
+            "Something may have been removed; Halvo could not tell. Look where this agent works for anything missing.",
         ),
         (
             "run.effect.submit.unknown",
@@ -573,7 +573,7 @@ fn u24q_the_eight_unknown_texts_stand_word_for_word() {
         ),
         (
             "run.effect.unknown",
-            "One step of this task may have been done; Halvo could not tell. Check its results before running it again.",
+            "One step may have been done; Halvo could not tell. Check where this agent works before you run it again.",
         ),
     ]);
 }
