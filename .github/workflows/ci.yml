@@ -8,6 +8,13 @@ on:
   schedule:
     - cron: '17 3 * * 0'
     - cron: '17 3 * * 3'
+  workflow_dispatch:
+    inputs:
+      table:
+        description: The whole table with every self-test, as the Sunday run
+        type: choice
+        options: [whole]
+        default: whole
 
 permissions:
   contents: read
@@ -19,7 +26,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-15
-    timeout-minutes: 180
+    timeout-minutes: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && 45 || 180 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,7 +42,7 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
       - name: Self-tests that commit in throwaway repositories
-        if: github.event.schedule != '17 3 * * 3'
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0'
         shell: bash
         env:
           GIT_AUTHOR_NAME: Halvo CI
@@ -91,7 +98,7 @@ jobs:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
       - name: ci.d self-test
-        if: github.event.schedule != '17 3 * * 3'
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0'
         shell: bash
         env:
           GIT_AUTHOR_NAME: Halvo CI
@@ -105,9 +112,13 @@ jobs:
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
-        if: github.event.schedule != '17 3 * * 3'
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0'
         shell: bash
         run: sh scripts/ci/run-ci-d.sh macos
+      - name: ci.d merge gate
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        shell: bash
+        run: sh scripts/ci/run-ci-d.sh macos --merge-gate
       - name: Long forms build
         if: github.event.schedule == '17 3 * * 3'
         shell: bash
@@ -134,7 +145,7 @@ jobs:
 
   windows:
     runs-on: windows-2025
-    timeout-minutes: 180
+    timeout-minutes: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && 45 || 180 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -151,7 +162,7 @@ jobs:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
           save-if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
       - name: ci.d self-test
-        if: github.event.schedule != '17 3 * * 3'
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0'
         shell: bash
         env:
           GIT_AUTHOR_NAME: Halvo CI
@@ -165,9 +176,13 @@ jobs:
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
-        if: github.event.schedule != '17 3 * * 3'
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '17 3 * * 0'
         shell: bash
         run: sh scripts/ci/run-ci-d.sh windows
+      - name: ci.d merge gate
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        shell: bash
+        run: sh scripts/ci/run-ci-d.sh windows --merge-gate
       - name: Long forms build
         if: github.event.schedule == '17 3 * * 3'
         shell: bash
