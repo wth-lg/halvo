@@ -237,12 +237,10 @@ where
     /// A hub of a new life over `ports` and `limits`, whose count of agents under `needs_you`
     /// goes to `tray` at each change of the state, also when the count is the same, and whose
     /// native confirmations go to `present`, with the waits of `limits`. The tray's sink and
-    /// every port of `P` are called with the coordinator's lock held, but for the one read of
-    /// the clock that the quit hook makes after its first step, with no lock held: none calls
-    /// back into the
-    /// hub, the `Core` or the coordinator, and none waits for a thread that can wait for that
-    /// lock (a sink that waits for the main thread while the main thread calls a hook stops the
-    /// app for good).
+    /// every port of `P` are called with the coordinator's lock held; the quit hook's own thread
+    /// calls none of them. None calls back into the hub, the `Core` or the coordinator, and none
+    /// waits for a thread that can wait for that lock (a sink that waits for the main thread
+    /// while the main thread calls a hook stops the app for good).
     pub fn new(
         ports: P,
         limits: Limits,
@@ -471,9 +469,7 @@ where
             return self.coord.not_stopped();
         };
         let stopped = Instant::now();
-        let grace = self.coord.ports().now().map_or(self.grace, |now| {
-            Duration::from_millis(wait.until.saturating_sub(now)).min(self.grace)
-        });
+        let grace = Duration::from_millis(wait.until.saturating_sub(wait.at)).min(self.grace);
         let end = budget.map_or(stopped + grace, |b| (start + b).min(stopped + grace));
         let mut seen = self.bell.mark();
         while self.coord.live() > 0 {

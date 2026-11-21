@@ -25,11 +25,15 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 /// latest time, in milliseconds of `Clock::now`, at which it calls the second step,
 /// `cancel_grace_s` after the stop of each run that is still live, where the stop of a run that
 /// was stopped before the quit counts from that stop; the hook calls it sooner once no run is
-/// live (`Coordinator::live`).
+/// live (`Coordinator::live`). The hook counts the wait from `at`, the first step's own read of
+/// the clock, and reads no clock of its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct QuitWait {
     /// The time of the second step at the latest.
     pub until: u64,
+    /// The time that the first step read on the clock, or the last time that this life read
+    /// when that read failed.
+    pub at: u64,
 }
 
 type Cfg<P> = <P as Owner>::Config;
@@ -2441,7 +2445,9 @@ where
     /// where a port panics in the step before its own work. It returns at once, with the time at
     /// which the hook calls the second step at the latest: `cancel_grace_s` after the latest stop
     /// of a live run, where a stop that reads later than the first step counts from the first
-    /// step (ruling RD-28 (e)), and the first step's time when no run is live.
+    /// step (ruling RD-28 (e)), and the first step's time when no run is live; and with the time
+    /// that the step read on the clock, from which the hook counts its wait without a read of
+    /// its own.
     pub fn quit_stop(&self) -> QuitWait {
         self.mark_quit();
         let mut st = self.enter(Entry::Move);
@@ -2475,7 +2481,7 @@ where
             })
             .map_or(now, |at| at.saturating_add(grace));
         self.publish(&mut st);
-        QuitWait { until }
+        QuitWait { until, at: now }
     }
 
     /// The second step of the app's quit (I5.7, ruling RD-8), which the app's hook calls when no
