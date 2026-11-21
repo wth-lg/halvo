@@ -18,6 +18,8 @@ pub mod lease;
 pub mod main_loop;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod maintenance;
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+mod mask;
 #[cfg(test)]
 mod model_store;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
