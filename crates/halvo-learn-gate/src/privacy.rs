@@ -15,8 +15,10 @@ use crate::store::{Family, MemoryStore};
 use halvo_schema::kinds::registry;
 
 /// The six checks of contracts.md L11.4, in the order of their lines. `Listed`, `Scrub` and `Expired` run on the
-/// derived store, opened with its key (`derived_outcomes`); `Scrub` reads rows, not bytes: no byte search of this unit
-/// shows the scrub; the store's own page check holds it. `DeleteAll` is `not-run` in this build.
+/// derived store, opened with its key (`derived_outcomes`); `Scrub` reads rows, not bytes. No byte search of this unit
+/// shows the scrub. Every open of the store sets secure_delete; the store's own page check reads purges of evidence
+/// rows today, and a unit of the workflows run widens it to every removal: until then no check reads the file's pages
+/// after a delete of learned rows. `DeleteAll` is `not-run` in this build.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Check {
     Listed,
@@ -323,11 +325,13 @@ pub(crate) fn listed(host: &mut DerivedHost) -> Result<bool, String> {
 /// that it was stored; the second workflow's rows are the same rows, by kind and bytes, and more than none; and
 /// across the call the store committed exactly one transaction, whose report raises the revision of `learn`, while
 /// no request reached `LearnHandlers`, no batch ran (so no step) and the store was not opened again (so neither the
-/// open's reconcile nor its expiry ran). A typed commit of the family adds rows and removes none (the store removes
-/// rows only through its checkpointed writer), so a removal by another path is a further transaction, a request, a
-/// batch, an open, or a removal before or after the call, and each makes the check miss. It reads rows, not bytes:
-/// no byte search of this unit shows the scrub; the store's own page check holds it (halvo-derived's test target
-/// page_gap_check).
+/// open's reconcile nor its expiry ran). The writer of a typed commit has no call that removes a row; the one removal
+/// under a plain write is of a support row that a new proposal drops, inside a batch, which the tally of batches
+/// counts. So a removal by another path is a further transaction, a request, a batch, an open, or a removal before or
+/// after the call, and each makes the check miss. It reads rows, not bytes. No byte search of this unit shows the
+/// scrub. Every open of the store sets secure_delete; the store's own page check reads purges of evidence rows today,
+/// and a unit of the workflows run widens it to every removal: until then no check reads the file's pages after a
+/// delete of learned rows.
 pub(crate) fn scrub(
     host: &mut DerivedHost,
     first: &WorkflowId,
