@@ -8435,6 +8435,134 @@ mod tests {
     }
 
 
+    fn fold_fifty(ctx: &TapContext) {
+        pointer(ctx, CGEventType::MouseMoved, 40);
+        pointer(ctx, CGEventType::ScrollWheel, 7);
+        pointer(ctx, CGEventType::LeftMouseDragged, 3);
+    }
+
+    thread_local! {
+        static FOLD_ASKS: RefCell<Vec<(usize, Duration)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn fold_recorder(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
+        FOLD_ASKS.with(|asks| asks.borrow_mut().push((info as usize, step)));
+        timer_at(
+            Duration::from_secs(86_400),
+            idle_timer_fired,
+            std::ptr::null_mut(),
+        )
+    }
+
+    #[test]
+    fn the_callback_arms_the_fold_timer_at_the_floor_interval_and_its_fire_gives_the_records() {
+        FOLD_ASKS.with(|asks| asks.borrow_mut().clear());
+        let mut held = held(100);
+        held.ctx.timers.fold = fold_recorder;
+        fold_fifty(&held.ctx);
+        let writer = held.writer;
+        let callback = tap_callback(*held.ctx);
+        let asks = FOLD_ASKS.with(|asks| asks.borrow().clone());
+        let steps: Vec<Duration> = asks.iter().map(|&(_, step)| step).collect();
+        assert_eq!(
+            steps,
+            [Duration::from_millis(1_000)],
+            "the callback arms one fold timer at the floor's interval"
+        );
+        fold_timer_fired(std::ptr::null_mut(), asks[0].0 as *mut c_void);
+        assert_eq!(
+            pointer_records(&writer),
+            [("scroll", 7), ("drag", 3), ("move", 40)]
+        );
+        drop(callback);
+        drop(held.fg_writer);
+    }
+
+    #[test]
+    fn the_held_phase_arms_its_sampler_at_250_ms_and_a_fire_takes_one_sample() {
+        reset_stand_ins();
+        answer(Reading::On);
+        TYPED.with(|counts| *counts.borrow_mut() = vec![3, 3]);
+        let counters = InputCounters::new();
+        let mut phase = phase_of(&counters, Arc::new(AtomicBool::new(false)));
+        phase.enter();
+        let ReadingTimer(timer) = phase.sampler.as_ref().expect("an armed sampler");
+        // SAFETY: the sampler is a live timer that the phase holds until its end.
+        let step = unsafe {
+            core_foundation::runloop::CFRunLoopTimerGetInterval(timer.as_concrete_TypeRef())
+        };
+        assert_eq!(step, 0.25, "the sampler's step in seconds");
+        held_sample_fired(
+            std::ptr::null_mut(),
+            std::ptr::from_ref(&phase).cast_mut().cast(),
+        );
+        assert_eq!(
+            counters.figures().secure_input_held,
+            HeldSamples { held: 1, taken: 1 }
+        );
+        phase.end();
+    }
+
+    struct CallbackMaker(Arc<Mutex<Option<KeptCallback>>>);
+
+    impl TapMaker for CallbackMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(Box::new(callback));
+            Ok(())
+        }
+
+        fn listen_denied() -> bool {
+            false
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_started_source_sends_the_moves_of_one_interval_as_one_record_from_its_own_timer() {
+        let kept = Arc::new(Mutex::new(None));
+        let (handle, writer) = sink::channel(8);
+        let (fg_writer, reader) = foreground_state_for_test();
+        fg_writer.set_for_test(Some(APP.front()));
+        let mut source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
+        source
+            .begin_with(handle, CallbackMaker(kept.clone()), || {})
+            .expect("the source starts behind a stand-in maker");
+        let callback = kept
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+            .expect("the maker was given a callback");
+        for _ in 0..5 {
+            let event = event_object(CGEventType::MouseMoved, 0);
+            set_stamp(&event, uptime_raw().nanos());
+            callback(std::ptr::null(), CGEventType::MouseMoved, &event);
+        }
+        let received = writer
+            .recv_timeout(Duration::from_secs(3))
+            .expect("a record within 3 s from the source's own fold timer");
+        let floor = received.into_floor().expect("a floor value");
+        let fold = match floor.event().observation() {
+            crate::floor::payload::Observation::Fold(fold) => {
+                (fold.class().as_str(), fold.count().get())
+            }
+            _ => panic!("a record that is no fold"),
+        };
+        assert_eq!(fold, ("move", 5));
+        assert_eq!(source.shutdown(), Ok(()));
+        drop(callback);
+        drop(fg_writer);
+    }
+
+
     #[test]
     fn each_type_of_the_table_has_its_class() {
         use TapClass::{
