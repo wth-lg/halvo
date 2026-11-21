@@ -1,28 +1,4 @@
 (function () {
-  const CSS = [
-    '.hn-items{list-style:none;margin:0;padding:0;overflow-wrap:anywhere}',
-    '.hn-item{border-bottom-width:1px;border-bottom-style:solid;border-bottom-color:#6b6b6b;padding-top:8px;padding-bottom:8px}',
-    '.hn-title{font-size:1.1rem;margin-top:8px;margin-bottom:8px}',
-    '.hn-text{margin-top:4px;margin-bottom:8px}',
-    '.hn-line{font-weight:bold;margin-top:8px;margin-bottom:4px}',
-    '.hn-fields{margin-top:4px;margin-bottom:8px}',
-    '.hn-label{font-weight:bold}',
-    '.hn-value{margin-left:0;white-space:pre-wrap;overflow-wrap:anywhere}',
-    '.hn-from{margin-left:0;margin-bottom:8px;font-style:italic}',
-    '.hn-param{border-width:1px;border-style:solid;border-color:#6b6b6b;margin-top:8px;margin-bottom:8px;padding:8px;min-width:0}',
-    '.hn-choice{display:flex;align-items:center;gap:8px;margin-top:4px;margin-bottom:4px;overflow-wrap:anywhere}',
-    '.hn-radio{-webkit-appearance:none;appearance:none;flex:none;width:24px;height:24px;margin:0;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:50%;background-color:#ffffff}',
-    '.hn-radio:checked{border-width:8px}',
-    '.hn-typed{box-sizing:border-box;width:100%;max-width:24rem;min-height:44px;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:4px;padding:4px;font:inherit;color:#1a1a1a;background-color:#ffffff}',
-    '.hn-controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}',
-    '.hn-button{-webkit-appearance:none;appearance:none;min-width:44px;min-height:44px;padding:8px;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:4px;background-color:#f2f2f2;color:#1a1a1a;font:inherit;overflow-wrap:anywhere}',
-    '.hn-button:focus,.hn-radio:focus,.hn-typed:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
-    '.hn-dialog{border-width:2px;border-style:solid;border-color:#1a1a1a;padding:16px;max-width:28rem;background-color:#ffffff;color:#1a1a1a}',
-    '.hn-dialog:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}',
-    '.hn-dialog::backdrop{background-color:rgba(0,0,0,0.4)}',
-    '.hn-say{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border-width:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}'
-  ];
-
   let root = null;
   let region = null;
   let list = null;
@@ -636,9 +612,6 @@
     heading: "What needs you",
     mount: function (element) {
       root = element;
-      const style = document.createElement('style');
-      style.appendChild(document.createTextNode(CSS.join('')));
-      element.appendChild(style);
       list = el('ul', 'hn-items', '');
       element.appendChild(list);
       ['keydown', 'keyup', 'pointerdown', 'pointerup', 'pointercancel'].forEach(function (type) {
