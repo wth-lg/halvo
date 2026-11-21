@@ -389,6 +389,16 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         true
     }
 
+    /// The read of the R2 cursor: the store's answer for the first live
+    /// segment at or after `from`, and the wall clock's reading at that read.
+    #[cfg(feature = "r2")]
+    pub(crate) fn read_segment(
+        &mut self,
+        from: super::port::Ordinal,
+    ) -> (Result<super::port::SegmentRead, MaintFault>, SystemTime) {
+        (self.store.read_segment(from), self.clocks.wall())
+    }
+
     /// One loop pass: the waiting commands, then at most one event received
     /// within `wait`, then the due work. Returns false once the owner has
     /// answered [`Command::Shutdown`].
@@ -405,6 +415,8 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
     }
 
     fn finish_pass(&mut self) -> bool {
+        #[cfg(feature = "r2")]
+        let took_event = self.inbox.is_some();
         if !self.stopping {
             self.handle_commands();
             if let Some(received) = self.inbox.take() {
@@ -415,7 +427,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             let now = self.clocks.now();
             self.due_work(now);
             #[cfg(feature = "r2")]
-            super::r2::owner_pass(self);
+            super::r2::owner_pass(self, took_event);
         }
         self.publish();
         !self.stopping

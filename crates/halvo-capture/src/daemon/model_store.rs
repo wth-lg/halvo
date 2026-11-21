@@ -1,7 +1,9 @@
 //! The model store of the owner's tests: it keeps acknowledged batches in
 //! memory, logs every call, takes scripted faults and scripted shred results,
-//! and has no expiry or eviction rule of its own. Beside it, the manual clocks
-//! and the event builders that the owner's tests share.
+//! and has no expiry or eviction rule of its own. Under the feature `r2` it
+//! answers the read of a segment from its batches, with the id, the shreds and
+//! the expiry instants that a test gave it. Beside it, the manual clocks and
+//! the event builders that the owner's tests share.
 
 use std::collections::VecDeque;
 use std::io;
@@ -72,6 +74,10 @@ pub(crate) enum Call {
     },
     Usage,
     FreeBytes,
+    #[cfg(feature = "r2")]
+    ReadSegment {
+        from: Ordinal,
+    },
 }
 
 /// A scripted answer to the next write.
@@ -90,6 +96,19 @@ struct State {
     expires: VecDeque<Result<Pass, MaintFault>>,
     evicts: VecDeque<Result<Pass, MaintFault>>,
     free: Result<u64, io::ErrorKind>,
+    #[cfg(feature = "r2")]
+    read: ReadModel,
+}
+
+/// What the model answers to a read of a segment beside its batches: its id,
+/// the ordinals that a test shredded, the expiry instants that a test set,
+/// and the fault of every read while a test sets one.
+#[cfg(feature = "r2")]
+struct ReadModel {
+    id: super::port::StoreId,
+    shredded: Vec<Ordinal>,
+    expiry: Vec<(Ordinal, i64)>,
+    fault: Option<MaintFault>,
 }
 
 /// The model store. Its clones share one state, so a new owner over a clone is
@@ -111,6 +130,13 @@ impl ModelStore {
                 expires: VecDeque::new(),
                 evicts: VecDeque::new(),
                 free: Ok(u64::MAX),
+                #[cfg(feature = "r2")]
+                read: ReadModel {
+                    id: MODEL_ID,
+                    shredded: Vec::new(),
+                    expiry: Vec::new(),
+                    fault: None,
+                },
             })),
         }
     }
@@ -177,7 +203,50 @@ impl ModelStore {
             })
             .collect()
     }
+
+    /// Shreds the batch with `ordinal`, as expiry or eviction does: no read
+    /// answers it again. The model keeps the batch in [`ModelStore::batches`].
+    #[cfg(feature = "r2")]
+    pub(crate) fn shred(&self, ordinal: Ordinal) {
+        self.state().read.shredded.push(ordinal);
+    }
+
+    /// Sets the expiry instant that a read answers for the batch with
+    /// `ordinal`; a batch with none set answers the highest instant.
+    #[cfg(feature = "r2")]
+    pub(crate) fn set_expiry(&self, ordinal: Ordinal, at: i64) {
+        self.state().read.expiry.push((ordinal, at));
+    }
+
+    /// Gives the model another id, as a store that was deleted and made again
+    /// has.
+    #[cfg(feature = "r2")]
+    pub(crate) fn set_id(&self, id: super::port::StoreId) {
+        self.state().read.id = id;
+    }
+
+    /// Makes every read of a segment fail with `fault`, or none fail.
+    #[cfg(feature = "r2")]
+    pub(crate) fn fail_reads(&self, fault: Option<MaintFault>) {
+        self.state().read.fault = fault;
+    }
+
+    /// The ordinals that the reads of a segment asked for, in order.
+    #[cfg(feature = "r2")]
+    pub(crate) fn read_calls(&self) -> Vec<Ordinal> {
+        self.log()
+            .into_iter()
+            .filter_map(|call| match call {
+                Call::ReadSegment { from } => Some(from),
+                _ => None,
+            })
+            .collect()
+    }
 }
+
+/// The id of a model store that no test gave another.
+#[cfg(feature = "r2")]
+pub(crate) const MODEL_ID: super::port::StoreId = super::port::StoreId::from_bytes([0x5a; 16]);
 
 /// A one-record write of `payload` under a fresh id, for the port tests.
 pub(crate) fn write_one<S: CaptureStore>(
@@ -251,6 +320,40 @@ impl CaptureStore for ModelStore {
         let mut state = self.state();
         state.log.push(Call::FreeBytes);
         state.free.map_err(io::Error::from)
+    }
+
+    #[cfg(feature = "r2")]
+    fn read_segment(&mut self, from: Ordinal) -> Result<super::port::SegmentRead, MaintFault> {
+        let mut state = self.state();
+        state.log.push(Call::ReadSegment { from });
+        if let Some(fault) = state.read.fault {
+            return Err(fault);
+        }
+        let read = &state.read;
+        let segment = state
+            .batches
+            .iter()
+            .filter(|batch| batch.ordinal >= from && !read.shredded.contains(&batch.ordinal))
+            .min_by_key(|batch| batch.ordinal)
+            .map(|batch| super::port::LiveSegment {
+                ordinal: batch.ordinal,
+                lines: zeroize::Zeroizing::new(batch.payload.clone()),
+                expiry: read
+                    .expiry
+                    .iter()
+                    .rev()
+                    .find(|(ordinal, _)| *ordinal == batch.ordinal)
+                    .map_or(i64::MAX, |(_, at)| *at),
+            });
+        Ok(super::port::SegmentRead {
+            store: read.id,
+            highest: state
+                .next_ordinal
+                .checked_sub(1)
+                .filter(|highest| *highest > 0)
+                .map(Ordinal::new),
+            segment,
+        })
     }
 }
 
