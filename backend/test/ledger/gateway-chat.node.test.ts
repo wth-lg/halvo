@@ -1,9 +1,9 @@
-import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { chat } from "../../src/gateway/chat.ts";
 import type { Env } from "../../src/types.ts";
+import { endGroup, type Group, startGroup } from "./process-group.ts";
 
 const ROOT = process.cwd();
 const ACCOUNT = "6f1e2d3c-4b5a-4968-8776-5a4b3c2d1e0f";
@@ -13,7 +13,7 @@ const LIFE_MS = 1500;
 const MARGIN_MS = 200;
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-let mock: { kill(signal?: string): boolean } | null = null;
+let mock: Group | null = null;
 let mockBase = "";
 let mockLog = "";
 
@@ -21,8 +21,9 @@ beforeAll(async () => {
   mkdirSync(join(ROOT, ".tmp"), { recursive: true });
   const dir = mkdtempSync(join(ROOT, ".tmp", "gateway-chat-test."));
   mockLog = join(dir, "mock.jsonl");
-  const child = spawn(process.execPath, [join(ROOT, "stress/upstream.mjs"), mockLog], { stdio: ["ignore", "pipe", "inherit"] });
-  mock = child;
+  const group = startGroup(process.execPath, [join(ROOT, "stress/upstream.mjs"), mockLog], { stdio: ["ignore", "pipe", "inherit"] });
+  mock = group;
+  const child = group.child;
   const port = await new Promise<number>((resolve, reject) => {
     let text = "";
     child.stdout.on("data", (part) => {
@@ -34,9 +35,7 @@ beforeAll(async () => {
   mockBase = `http://127.0.0.1:${port}`;
 });
 
-afterAll(() => {
-  mock?.kill("SIGTERM");
-});
+afterAll(() => endGroup(mock));
 
 test("a slow reserve reply does not move the cut past the hold: the upstream is cut DISPATCH_MARGIN_MS before expiresAt, counted from the reserve's send", async () => {
   let expiresAt = 0;

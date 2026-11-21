@@ -12,9 +12,10 @@ use halvo_coord::types::{
 };
 use halvo_coord_app::{handler, Agents, Hub, Native, Present};
 use std::num::NonZeroU32;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::ThreadId;
+use std::time::{Duration, Instant};
 use tauri::ipc::{CallbackFn, InvokeBody};
 use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime, INVOKE_KEY};
 use tauri::webview::InvokeRequest;
@@ -33,6 +34,88 @@ pub struct Shared {
     policy: Policy<Config>,
     clock_fails_at_cancel: AtomicBool,
     clock_failing: AtomicBool,
+    clock_back_at_cancel: Mutex<Option<u64>>,
+    panic_at_cancel: AtomicBool,
+    kills_in_turn: AtomicBool,
+    hook_clock_gated: AtomicBool,
+    hook_at_clock: AtomicBool,
+    hook_clock_go: AtomicBool,
+    cancels: AtomicUsize,
+    start_gate: Mutex<Option<StartGate>>,
+    start_at_gate: AtomicBool,
+    start_gate_go: AtomicBool,
+    recorder: Recorder,
+}
+
+/// The name of a thread on which a test calls `Core::quit`, which `Shared::gate_the_hooks_clock_read`
+/// reads.
+pub const QUIT_HOOK_THREAD: &str = "quit-hook";
+
+/// The port call of a start at which `Shared::hold_the_next_start_at` holds it, behind the
+/// start's first reading of the quit's mark.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartGate {
+    /// The store of the events that hold `run_started` (`Owner::log`).
+    StoreOfRunStarted,
+    /// The send of the body `start_run` (`Owner::send`).
+    SendOfStartRun,
+    /// `Runs::start`, before the memory ports record it.
+    RunsStart,
+}
+
+/// How long the recorder holds a kill before it answers `no_service`.
+#[derive(Clone, Copy, Debug)]
+pub enum Hold {
+    /// For this time.
+    For(Duration),
+    /// Until `Shared::release_kills`.
+    Released,
+    /// Until `Shared::release_kills`, and then the kill of the memory ports answers, Ok for a
+    /// runner that this life started.
+    ReleasedThenOk,
+    /// No time: the recorder panics in place of an answer.
+    Panics,
+}
+
+#[derive(Default)]
+struct Recorder {
+    hold: Mutex<Option<Hold>>,
+    calls: Mutex<Vec<(RunId, Instant)>>,
+    holding: AtomicUsize,
+    released: Mutex<bool>,
+    free: Condvar,
+}
+
+impl Recorder {
+    fn take(&self, run: &RunId) -> Option<Result<(), PortError>> {
+        let hold = (*self.hold.lock().unwrap_or_else(PoisonError::into_inner))?;
+        self.calls
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((run.clone(), Instant::now()));
+        self.holding.fetch_add(1, Ordering::SeqCst);
+        match hold {
+            Hold::Panics => {
+                self.holding.fetch_sub(1, Ordering::SeqCst);
+                panic!("the recorder's kill panics");
+            }
+            Hold::For(time) => std::thread::sleep(time),
+            Hold::Released | Hold::ReleasedThenOk => {
+                let mut released = self.released.lock().unwrap_or_else(PoisonError::into_inner);
+                while !*released {
+                    released = self
+                        .free
+                        .wait(released)
+                        .unwrap_or_else(PoisonError::into_inner);
+                }
+            }
+        }
+        self.holding.fetch_sub(1, Ordering::SeqCst);
+        match hold {
+            Hold::ReleasedThenOk => None,
+            _ => Some(Err(PortError::NoService)),
+        }
+    }
 }
 
 // SAFETY: `ports` and `policy` are read only inside `enter`, which lets one thread in at a time.
@@ -68,10 +151,135 @@ impl Shared {
         self.clock_fails_at_cancel.store(true, Ordering::SeqCst);
     }
 
+    /// From now on, `Clock::now` and `Clock::day` fail with `no_service`.
+    pub fn fail_the_clock_now(&self) {
+        self.clock_failing.store(true, Ordering::SeqCst);
+    }
+
+    /// At the next `Runs::cancel` the clock is set back to `to`, once.
+    pub fn step_clock_at_cancel(&self, to: u64) {
+        *self
+            .clock_back_at_cancel
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(to);
+    }
+
     /// Runs `f` on the memory ports.
     pub fn with<T>(&self, f: impl FnOnce(&Ports<Config>) -> T) -> T {
         let _turn = self.enter();
         f(&self.ports)
+    }
+
+    /// From the next `Runs::kill` on, the kill is replaced by a recorder (the never-here rule of
+    /// a line that ends a process): it writes the run that it would have ended and the time of
+    /// the call, ends nothing, holds by `hold` and answers `no_service`, but for
+    /// `Hold::ReleasedThenOk`, after which the kill of the memory ports answers. It holds
+    /// outside the turn of `Shared`, so that the other ports answer while it holds, unless
+    /// `hold_kills_inside_the_turn` was called: then it takes the turn first, as the kill of the
+    /// memory ports does, and every other port call waits while it holds (the test of a tick's
+    /// kill that shares a lock with the clock).
+    pub fn hold_kills(&self, hold: Hold) {
+        *self
+            .recorder
+            .hold
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(hold);
+    }
+
+    /// From the next `Runs::kill` on, the recorder holds inside the turn of `Shared`.
+    pub fn hold_kills_inside_the_turn(&self) {
+        self.kills_in_turn.store(true, Ordering::SeqCst);
+    }
+
+    /// From now on, a `Clock::now` on a thread named `QUIT_HOOK_THREAD` says so
+    /// (`hook_at_its_clock_read`) and waits, before it takes the turn, until
+    /// `let_the_hooks_clock_read_go`.
+    pub fn gate_the_hooks_clock_read(&self) {
+        self.hook_clock_gated.store(true, Ordering::SeqCst);
+    }
+
+    /// Whether a thread named `QUIT_HOOK_THREAD` waits at its read of the clock.
+    pub fn hook_at_its_clock_read(&self) -> bool {
+        self.hook_at_clock.load(Ordering::SeqCst)
+    }
+
+    /// Lets a read of the clock that waits at the gate go on, now and later.
+    pub fn let_the_hooks_clock_read_go(&self) {
+        self.hook_clock_go.store(true, Ordering::SeqCst);
+    }
+
+    /// The next `Runs::cancel` panics, once.
+    pub fn panic_at_the_next_cancel(&self) {
+        self.panic_at_cancel.store(true, Ordering::SeqCst);
+    }
+
+    /// How many `Runs::cancel` calls have returned, read with no turn.
+    pub fn cancels_made(&self) -> usize {
+        self.cancels.load(Ordering::SeqCst)
+    }
+
+    /// Ends every hold `Hold::Released`, now and later.
+    pub fn release_kills(&self) {
+        *self
+            .recorder
+            .released
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = true;
+        self.recorder.free.notify_all();
+    }
+
+    /// The kills that the recorder took: the run that each would have ended, with the time of
+    /// its call.
+    pub fn recorded_kills(&self) -> Vec<(RunId, Instant)> {
+        self.recorder
+            .calls
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// The kills that the recorder holds now.
+    pub fn kills_holding(&self) -> usize {
+        self.recorder.holding.load(Ordering::SeqCst)
+    }
+
+    /// The next call at `gate` says so (`start_at_its_gate`) and waits, before it takes the turn,
+    /// until `let_the_start_go`; one call holds, and the later ones answer at once.
+    pub fn hold_the_next_start_at(&self, gate: StartGate) {
+        *self
+            .start_gate
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(gate);
+    }
+
+    /// Whether a call waits at the gate of `hold_the_next_start_at`, read with no turn.
+    pub fn start_at_its_gate(&self) -> bool {
+        self.start_at_gate.load(Ordering::SeqCst)
+    }
+
+    /// Lets the call that waits at the gate go on.
+    pub fn let_the_start_go(&self) {
+        self.start_gate_go.store(true, Ordering::SeqCst);
+    }
+
+    fn start_gate(&self, here: StartGate) {
+        let held = {
+            let mut gate = self
+                .start_gate
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let held = *gate == Some(here);
+            if held {
+                *gate = None;
+            }
+            held
+        };
+        if held {
+            self.start_at_gate.store(true, Ordering::SeqCst);
+            while !self.start_gate_go.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        }
     }
 }
 
@@ -165,6 +373,17 @@ pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
         policy: Policy::new(&[]),
         clock_fails_at_cancel: AtomicBool::new(false),
         clock_failing: AtomicBool::new(false),
+        clock_back_at_cancel: Mutex::new(None),
+        panic_at_cancel: AtomicBool::new(false),
+        kills_in_turn: AtomicBool::new(false),
+        hook_clock_gated: AtomicBool::new(false),
+        hook_at_clock: AtomicBool::new(false),
+        hook_clock_go: AtomicBool::new(false),
+        cancels: AtomicUsize::new(0),
+        start_gate: Mutex::new(None),
+        start_at_gate: AtomicBool::new(false),
+        start_gate_go: AtomicBool::new(false),
+        recorder: Recorder::default(),
     }
 }
 
@@ -365,6 +584,12 @@ impl Owner for Shared {
     type Config = Config;
 
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
+        if events
+            .iter()
+            .any(|e| matches!(e.what, What::RunStarted { .. }))
+        {
+            self.start_gate(StartGate::StoreOfRunStarted);
+        }
         let _turn = self.enter();
         self.ports.log(events)
     }
@@ -385,6 +610,9 @@ impl Owner for Shared {
     }
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
+        if matches!(body, Body::StartRun { .. }) {
+            self.start_gate(StartGate::SendOfStartRun);
+        }
         let _turn = self.enter();
         self.ports.send(body)
     }
@@ -412,6 +640,7 @@ impl Owner for Shared {
 
 impl Runs for Shared {
     fn start(&self, spec: &RunSpec) -> Result<(), PortError> {
+        self.start_gate(StartGate::RunsStart);
         let _turn = self.enter();
         self.ports.start(spec)
     }
@@ -438,13 +667,33 @@ impl Runs for Shared {
 
     fn cancel(&self, run: &RunId) -> Result<(), PortError> {
         let _turn = self.enter();
+        if self.panic_at_cancel.swap(false, Ordering::SeqCst) {
+            panic!("the port cancel panics once");
+        }
         if self.clock_fails_at_cancel.load(Ordering::SeqCst) {
             self.clock_failing.store(true, Ordering::SeqCst);
         }
-        self.ports.cancel(run)
+        if let Some(to) = self
+            .clock_back_at_cancel
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
+            self.ports.set_now(to);
+        }
+        let answer = self.ports.cancel(run);
+        self.cancels.fetch_add(1, Ordering::SeqCst);
+        answer
     }
 
     fn kill(&self, run: &RunId) -> Result<(), PortError> {
+        let _inside = self
+            .kills_in_turn
+            .load(Ordering::SeqCst)
+            .then(|| self.enter());
+        if let Some(answer) = self.recorder.take(run) {
+            return answer;
+        }
         let _turn = self.enter();
         self.ports.kill(run)
     }
@@ -464,6 +713,14 @@ impl Analysis for Shared {
 
 impl Clock for Shared {
     fn now(&self) -> Result<u64, PortError> {
+        if self.hook_clock_gated.load(Ordering::SeqCst)
+            && std::thread::current().name() == Some(QUIT_HOOK_THREAD)
+        {
+            self.hook_at_clock.store(true, Ordering::SeqCst);
+            while !self.hook_clock_go.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        }
         let _turn = self.enter();
         if self.clock_failing.load(Ordering::SeqCst) {
             return Err(PortError::NoService);

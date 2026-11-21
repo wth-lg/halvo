@@ -65,7 +65,8 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "rejected",
             "releasing",
             "committed",
-            "unknown"
+            "unknown",
+            "not_made"
         ]
     );
     assert_eq!(
@@ -96,8 +97,15 @@ fn every_closed_list_holds_the_names_of_the_contract_in_its_order() {
             "changed",
             "secret",
             "unauthorized",
+            "not_sent",
+            "not_replaced",
+            "throttled",
             "not_selected",
-            "no_start"
+            "no_start",
+            "no_channel",
+            "browser_start",
+            "senders_unread",
+            "reproposed"
         ]
     );
     assert_eq!(
@@ -285,7 +293,7 @@ fn the_classes_have_the_money_and_confirm_sets_of_the_contract() {
     for state in EffectState::ALL {
         assert_eq!(
             state.is_final(),
-            ["refused", "rejected", "committed", "unknown"].contains(&state.as_str())
+            ["refused", "rejected", "committed", "unknown", "not_made"].contains(&state.as_str())
         );
     }
 }

@@ -580,6 +580,51 @@ mod sys {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// U2.6 (8), CP-190 (5): the compare of object handles waits on no pending read. A child of
+    /// this test (`cmd` reading its standard input) holds a pipe's read end with a read pending;
+    /// `pipe_holders` answers within 20 s and finds the child's copy of that end. The test ends its
+    /// own child on every way out.
+    #[cfg(windows)]
+    #[test]
+    fn pipe_holders_answers_while_the_pipe_has_a_pending_read_in_the_holder() {
+        use crate::start::Start;
+        use std::os::windows::io::AsRawHandle;
+        struct Own(std::process::Child);
+        impl Drop for Own {
+            fn drop(&mut self) {
+                let _ = self.0.kill();
+                let _ = self.0.wait();
+            }
+        }
+        let (reader, writer) = std::io::pipe().expect("pipe");
+        let ours = reader.try_clone().expect("copy of the read end");
+        let cmd = std::path::PathBuf::from(std::env::var_os("ComSpec").expect("ComSpec"));
+        let child = std::process::Command::new(cmd)
+            .args(["/C", "set /p x="])
+            .stdin(reader)
+            .stdout(std::process::Stdio::null())
+            .start()
+            .expect("cmd");
+        let own = Own(child);
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let pid = own.0.id();
+        let value = ours.as_raw_handle() as usize;
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let values: Vec<usize> = (1..16384).map(|i| i * 4).collect();
+            let _ = tx.send(pipe_holders(pid, &values, &[value]));
+        });
+        let found = rx.recv_timeout(std::time::Duration::from_secs(20));
+        drop(writer);
+        drop(own);
+        let found = found.expect("pipe_holders gave no answer within 20 s");
+        assert!(
+            found.is_some_and(|f| !f.is_empty()),
+            "the child's copy of the read end was not found"
+        );
+        drop(ours);
+    }
     use std::net::Ipv4Addr;
 
     #[test]

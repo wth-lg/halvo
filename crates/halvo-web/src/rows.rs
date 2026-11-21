@@ -125,8 +125,14 @@ mod tests {
 
     fn args(pid: u32) -> Option<Vec<String>> {
         match pid {
-            20 | 40 => Some(vec!["--user-data-dir=/p".into()]),
-            21 => Some(vec!["--user-data-dir=/q".into()]),
+            20 | 40 => Some(vec![
+                "/B.app/Contents/MacOS/b".into(),
+                "--user-data-dir=/p".into(),
+            ]),
+            21 => Some(vec![
+                "/B.app/Contents/MacOS/b".into(),
+                "--user-data-dir=/q".into(),
+            ]),
             _ => None,
         }
     }

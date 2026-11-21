@@ -5,6 +5,7 @@ use halvo_schema_core::request::{Decision, ErrorName, InterfaceDecision};
 use crate::batch::this_run;
 use crate::db::{one, rows, Checkpointed, Removes, Tx};
 use crate::error::{Error, Fault};
+use crate::guard::Guards;
 use crate::sql;
 use crate::Store;
 
@@ -66,14 +67,21 @@ fn dismiss(tx: &Checkpointed<'_, '_>, id: &WorkflowId) -> Result<(), Error> {
 /// The delete cascade: every row of every kind that names the workflow under its workflow key, every stored
 /// summary whose key is the workflow's key, and every row that names one of those summaries (their evidence and
 /// their support rows). Every summary that supports a workflow, or once did, holds its key, because a proposal that
-/// names a summary of another key is refused.
-pub(crate) fn delete(tx: &Checkpointed<'_, '_>, id: &WorkflowId) -> Result<u64, Fault> {
+/// names a summary of another key is refused. For a workflow that is stored it asks the delete guards of the host
+/// first, in this transaction and before it removes a row: a guard that answers wait, or a fault of the database in
+/// what the store hands a guard, ends the delete with nothing removed.
+pub(crate) fn delete(
+    tx: &Checkpointed<'_, '_>,
+    id: &WorkflowId,
+    guards: &Guards<'_>,
+) -> Result<u64, Error> {
     let Some(key) = one(tx.conn, sql::WORKFLOW_KEY, [id.as_str()], |r| {
         r.get::<_, String>(0)
     })?
     else {
         return Ok(0);
     };
+    guards.ask(id)?;
     let mut removed = tx.remove(sql::REMOVE_NAMING, [id.as_str()])?;
     let summaries: Vec<String> = rows(tx.conn, sql::KEY_SUMMARIES, [&key], |r| r.get(0))?;
     for summary in &summaries {
@@ -94,6 +102,17 @@ impl Store {
     /// is all that ever supported it, because the store refuses a proposal that names a summary of another key; a
     /// workflow that is not stored changes nothing. Each raises the revision of every family that gained, changed or
     /// lost a row. The truncating checkpoint runs after a dismissal and after a deletion.
+    ///
+    /// Before the delete of a stored workflow removes a row, in the same transaction, it calls each delete guard of
+    /// the host (`Host::delete_guard`) in the order in which the host added them, with the workflow id, the read of
+    /// the rows of the guard's own family that are held under that id and the held-ahead call of that family under
+    /// that id (`DeleteGuard`), both by one reading of the host's clock that the delete takes before its first guard.
+    /// At the first guard that answers `GuardAnswer::Wait` the delete answers `state` and removes nothing. A fault of
+    /// the database in a guard's read or in its held-ahead call is the store's: the delete answers the fault and
+    /// removes nothing, whatever the guard answered, so while a guard reads a kind, a workflow with a row of that kind
+    /// that the store cannot read is not deleted by itself; the delete of everything still removes it. A delete of a
+    /// workflow that is not stored calls no guard. A delete that calls no guard takes no reading of the clock for a
+    /// guard; the report that a host with a sink gets after the commit reads the clock, as it did before.
     pub fn decide(&mut self, decision: &InterfaceDecision) -> Result<(), Error> {
         let db = &self.db;
         db.arm();
@@ -102,7 +121,11 @@ impl Store {
             Decision::Approve => db.write(|tx| approve(tx, id)),
             Decision::Dismiss => db.write_checkpointed(|tx| dismiss(tx, id)),
             Decision::Delete => {
-                db.write_checkpointed(|tx| delete(tx, id))?;
+                let guards = Guards {
+                    db,
+                    entries: &self.guards,
+                };
+                db.write_checkpointed(|tx| delete(tx, id, &guards))?;
                 Ok(())
             }
         }

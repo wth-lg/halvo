@@ -325,8 +325,11 @@ mod sys {
         // child that a start made, and every other wait in the crate names its own child (std's
         // `Child::wait` and `try_wait` call waitpid with that child's number); nothing waits for
         // any child (waitpid with -1, wait), the crate sets no SIGCHLD disposition (SIG_IGN would
-        // let the system reap it), and tokio is built without its process feature (Cargo.toml),
-        // so no runtime reaps beside it.
+        // let the system reap it), and tokio, whose process feature chromiumoxide 0.9.1 turns on
+        // (its manifest's tokio features), waits only for a child that tokio::process started,
+        // through std's `try_wait` on that child; no code of this crate names tokio::process or
+        // chromiumoxide's async_process, and clippy.toml refuses tokio::process's starts,
+        // `Browser::launch` and `BrowserConfig`, so no runtime reaps beside it.
         unsafe { libc::kill(child.pid as libc::pid_t, libc::SIGKILL) };
     }
 
@@ -948,6 +951,93 @@ mod sys {
 mod tests {
     use super::*;
     use crate::child;
+
+    /// `cmd /C exit 0` on the pipe, started under the start lock.
+    #[cfg(windows)]
+    fn start_exit() -> OnPipe {
+        let cmd = PathBuf::from(std::env::var_os("ComSpec").expect("ComSpec"));
+        let work = system_dir().unwrap();
+        let spec = Spec {
+            program: &cmd,
+            args: vec!["/C".into(), "exit".into(), "0".into()],
+            env: guard_env().unwrap(),
+            dir: &work,
+        };
+        let held = lock();
+        start_on_pipe(&held, &spec).expect("start")
+    }
+
+    /// U2.6 (10), CP-190 (5): while no start runs, the ends of a browser's pipe that this process
+    /// keeps are not inheritable: a start makes the browser's two ends inheritable inside the
+    /// start lock alone, and its copies never.
+    #[cfg(windows)]
+    #[test]
+    fn the_ends_that_this_process_keeps_are_not_inheritable_after_a_start() {
+        use std::os::windows::io::AsRawHandle;
+        let mut on = start_exit();
+        let held = lock();
+        let mut handles = vec![
+            on.from_browser.as_raw_handle(),
+            on.to_browser.as_raw_handle(),
+        ];
+        handles.extend(on.kept.iter().map(|f| f.as_raw_handle()));
+        let mut inheritable = 0;
+        for h in handles {
+            let mut flags = 0u32;
+            // SAFETY: `h` is an open handle of a file that `on` owns, and `flags` is a live u32.
+            let ok = unsafe { windows_sys::Win32::Foundation::GetHandleInformation(h, &mut flags) };
+            assert_ne!(ok, 0, "the handle could not be read");
+            if flags & windows_sys::Win32::Foundation::HANDLE_FLAG_INHERIT != 0 {
+                inheritable += 1;
+            }
+        }
+        drop(held);
+        on.child.kill();
+        on.child.wait();
+        assert_eq!(
+            inheritable, 0,
+            "an end of the pipe is inheritable outside a start"
+        );
+    }
+
+    /// U2.6 (10), CP-190 (5): a start closes this process's own handles of what it gave the
+    /// child, the null device of its three standard streams and the browser's two ends: in a
+    /// process of this test binary that runs starts alone (`child::handle_count_entry`), five
+    /// starts after a first one leave the process's count of handles where it was, give or take
+    /// four, where a start that kept one handle open would add five.
+    #[cfg(windows)]
+    #[test]
+    fn a_start_leaves_no_handle_of_its_own_open() {
+        let dir = child::scratch("handle-count");
+        let out = dir.join("count.txt");
+        let mut started = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(child::entry_args(
+                "child::handle_count_entry",
+                &["--count-handles".to_string(), out.display().to_string()],
+            ))
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .start()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        while std::time::Instant::now() < deadline && matches!(started.try_wait(), Ok(None)) {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        let _ = started.kill();
+        let _ = started.wait();
+        let text = std::fs::read_to_string(&out).unwrap_or_default();
+        let field = |k: &str| {
+            text.split_whitespace()
+                .find_map(|w| w.strip_prefix(k))
+                .and_then(|v| v.parse::<u32>().ok())
+        };
+        let (before, after) = (
+            field("before=").expect("no count"),
+            field("after=").expect("no count"),
+        );
+        assert!(after <= before + 4, "{text}");
+    }
 
     fn report_of(env: Vec<(OsString, OsString)>, name: &str) -> child::Report {
         let dir = child::scratch(name);

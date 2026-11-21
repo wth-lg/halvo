@@ -342,6 +342,7 @@ impl std::fmt::Display for NoReply {
 }
 
 const NOT_DRIVEN: &str = "a reply of the fixture did not come";
+const MARKERS_NOT_RECORDED: &str = "the markers were not recorded";
 
 fn source_of(path: &str) -> &'static str {
     let full = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
@@ -431,6 +432,7 @@ struct Fixture {
     by: &'static str,
     wait: Duration,
     late: Vec<String>,
+    notices_dropped: usize,
 }
 
 const ASK_WAIT: Duration = Duration::from_secs(10);
@@ -602,6 +604,7 @@ fn launched(opener: &Path, bundle: &Path, tag: &str, wait: Duration) -> Result<F
         by: "opened",
         wait: ASK_WAIT,
         late: Vec::new(),
+        notices_dropped: 0,
     })
 }
 
@@ -632,6 +635,7 @@ impl Fixture {
             by: "spawned",
             wait: ASK_WAIT,
             late: Vec::new(),
+            notices_dropped: 0,
         })
     }
 
@@ -691,6 +695,66 @@ impl Fixture {
                         reply: prefix.to_owned(),
                         wait: within,
                     });
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    return Err(NoReply::Ended {
+                        reply: prefix.to_owned(),
+                    })
+                }
+            }
+        }
+    }
+
+    /// Waits for the fixture's notice that starts with `prefix` and that its
+    /// own `at_uptime_ns=` dates at or after `since`. A notice is no reply to a
+    /// command: one that does not come is owed by nobody, so it goes on no late
+    /// list, and the next round reads its own notice. A notice line dated
+    /// before `since`, or with no time, is the late notice of an earlier round:
+    /// it is dropped and counted in `notices_dropped`. A late reply to a
+    /// command is dropped here as `try_reply` drops it.
+    fn try_notice(
+        &mut self,
+        prefix: &str,
+        since: u64,
+        within: Duration,
+    ) -> Result<String, NoReply> {
+        let mut kept = Vec::new();
+        let mut found = None;
+        for note in std::mem::take(&mut self.notes) {
+            if !note.starts_with(prefix) {
+                kept.push(note);
+            } else if notice_time(&note).is_none_or(|at| at < since) {
+                self.notices_dropped += 1;
+            } else if found.is_none() {
+                found = Some(note);
+            } else {
+                kept.push(note);
+            }
+        }
+        self.notes = kept;
+        if let Some(note) = found {
+            return Ok(note);
+        }
+        let deadline = Instant::now() + within;
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            match self.lines.recv_timeout(left) {
+                Ok(line) => {
+                    if let Some(at) = self.late.iter().position(|late| line.starts_with(late)) {
+                        self.late.remove(at);
+                    } else if !line.starts_with(prefix) {
+                        self.notes.push(line);
+                    } else if notice_time(&line).is_none_or(|at| at < since) {
+                        self.notices_dropped += 1;
+                    } else {
+                        return Ok(line);
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => {
+                    return Err(NoReply::Late {
+                        reply: prefix.to_owned(),
+                        wait: within,
+                    })
                 }
                 Err(RecvTimeoutError::Disconnected) => {
                     return Err(NoReply::Ended {
@@ -1071,6 +1135,20 @@ fn letter_step(wait_ms: u64) -> Duration {
     Duration::from_millis((wait_ms.saturating_sub(60) / 9).max(10))
 }
 
+/// How long the leaving step waits for the fixture's notice that its secure
+/// field was left.
+const LEAVE_WAIT: Duration = Duration::from_secs(3);
+
+/// Posts the key that leaves the secure field and waits for the fixture's
+/// notice of this round: the uptime read before the key is sent ties the
+/// notice to the round, so that one notice that never comes costs its own
+/// round alone.
+fn leave_the_secure_field(fixture: &mut Fixture, within: Duration) -> Result<String, NoReply> {
+    let since = uptime_ns();
+    fixture.try_keys(Duration::ZERO, &format!("{RETURN}d"))?;
+    fixture.try_notice(notice_of("left"), since, within)
+}
+
 fn round(
     fixture: &mut Fixture,
     recorder: &impl Records,
@@ -1319,8 +1397,7 @@ impl Drive {
             return Ok(());
         }
         if how == Move::LeavingKeyUp {
-            fixture.try_keys(Duration::ZERO, &format!("{RETURN}d"))?;
-            fixture.try_reply(notice_of("left"), Duration::from_secs(3))?;
+            leave_the_secure_field(fixture, LEAVE_WAIT)?;
             if !state_reads(false, Duration::from_secs(2)) {
                 round.why_not = "secure input did not read off after the leaving key";
                 std::thread::sleep(bound + MARGIN);
@@ -1349,7 +1426,7 @@ impl Drive {
         if state.plain != MARKERS.len() {
             round.why_not = "the markers did not land in the plain field";
         } else if round.markers < MARKERS.len() {
-            round.why_not = "the markers were not recorded";
+            round.why_not = MARKERS_NOT_RECORDED;
         } else {
             round.counted = true;
         }
@@ -1560,9 +1637,10 @@ fn phase_on(
                 .count()
                 + usize::from(round.not_driven.is_some());
             println!(
-                "{} {}",
+                "{} {} earlier_notices_dropped={}",
                 round_line(name, number, &round, bound, plan.keep, how),
-                phase_counts(counted, not_driven)
+                phase_counts(counted, not_driven),
+                fixture.notices_dropped
             );
             println!(
                 "{name} drops round={number} {}",
@@ -1637,6 +1715,106 @@ fn by_wait_line(name: &str, rounds: &[Round], waits: &[(u64, Duration)]) -> Stri
     )
 }
 
+fn late_rule_dropped_from(entries: &[RawEntry], posted: u64) -> usize {
+    let late = [
+        format!("dropped_{:?}", Cause::LateKey).to_lowercase(),
+        format!("withheld_{:?}", Cause::LateKey).to_lowercase(),
+    ];
+    key_fates(entries)
+        .iter()
+        .filter(|(arrival, fate, _)| *arrival >= posted && late.contains(fate))
+        .count()
+}
+
+fn released_before(entries: &[RawEntry], posted: u64) -> bool {
+    released_keys(entries)
+        .iter()
+        .any(|&(arrival, _)| arrival.is_none_or(|arrival| arrival < posted))
+}
+
+fn lost_to_the_late_rule(round: &Round) -> bool {
+    let markers_not_recorded = match round.verdict {
+        Some(verdict) => verdict == Verdict::NotCounted(MARKERS_NOT_RECORDED),
+        None => !round.counted && round.why_not == MARKERS_NOT_RECORDED,
+    };
+    let Some(posted) = round.markers_at else {
+        return false;
+    };
+    markers_not_recorded
+        && round.ahead == 0
+        && !released_before(&round.entries, posted)
+        && late_rule_dropped_from(&round.entries, posted) > 0
+}
+
+fn waits_in_order(rounds: &[Round]) -> Vec<u64> {
+    let mut waits: Vec<u64> = Vec::new();
+    for round in rounds {
+        if !waits.contains(&round.wait_ms) {
+            waits.push(round.wait_ms);
+        }
+    }
+    waits
+}
+
+fn lost_at(rounds: &[Round], wait_ms: u64) -> usize {
+    rounds
+        .iter()
+        .filter(|round| round.wait_ms == wait_ms && lost_to_the_late_rule(round))
+        .count()
+}
+
+fn late_rule_line(name: &str, rounds: &[Round], waits: &[u64]) -> String {
+    let by_wait: Vec<String> = waits
+        .iter()
+        .map(|&wait_ms| format!("{wait_ms}:{}", lost_at(rounds, wait_ms)))
+        .collect();
+    format!(
+        "{name} rounds_lost_to_the_late_rule={} by_wait={}",
+        rounds
+            .iter()
+            .filter(|round| lost_to_the_late_rule(round))
+            .count(),
+        by_wait.join(",")
+    )
+}
+
+fn assert_at_most_one_lost(name: &str, rounds: &[Round], waits: &[u64]) {
+    let above: Vec<String> = waits
+        .iter()
+        .filter_map(|&wait_ms| {
+            let lost = lost_at(rounds, wait_ms);
+            (lost > 1).then(|| format!("wait {wait_ms} ms: {lost}"))
+        })
+        .collect();
+    assert!(
+        above.is_empty(),
+        "{name}: rounds lost to the late rule above one at a wait in the long form: {}",
+        above.join(", ")
+    );
+}
+
+fn assert_quota(name: &str, rounds: &[Round], waits: &[u64], count: usize) {
+    let short_of_count: Vec<String> = waits
+        .iter()
+        .filter_map(|&wait_ms| {
+            let held = at_wait(rounds, wait_ms, Verdict::Held);
+            let not_driven = at_wait(rounds, wait_ms, Verdict::NotDriven);
+            let credited = if lost_at(rounds, wait_ms) > 0 {
+                held
+            } else {
+                held + not_driven
+            };
+            (credited < count)
+                .then(|| format!("wait {wait_ms} ms: {held} of {count}, {not_driven} not driven"))
+        })
+        .collect();
+    assert!(
+        short_of_count.is_empty(),
+        "{name}: rounds that did not count by the cap of rounds run: {}",
+        short_of_count.join(", ")
+    );
+}
+
 fn judge_mended(name: &str, rounds: &[Round], waits: &[(u64, Duration)], count: usize) {
     judge_mended_in(name, rounds, waits, count, short_form());
 }
@@ -1648,8 +1826,23 @@ fn judge_mended_in(
     count: usize,
     short: bool,
 ) {
+    judge_mended_telling(name, rounds, waits, count, short, &mut |line| {
+        println!("{line}");
+    });
+}
+
+fn judge_mended_telling(
+    name: &str,
+    rounds: &[Round],
+    waits: &[(u64, Duration)],
+    count: usize,
+    short: bool,
+    tell: &mut dyn FnMut(&str),
+) {
     assert!(!rounds.is_empty(), "{name}: the phase ran no round");
     println!("{}", by_wait_line(name, rounds, waits));
+    let wait_list: Vec<u64> = waits.iter().map(|&(wait_ms, _)| wait_ms).collect();
+    tell(&late_rule_line(name, rounds, &wait_list));
     let of = |want: fn(Verdict) -> bool| -> Vec<String> {
         rounds
             .iter()
@@ -1704,8 +1897,12 @@ fn judge_mended_in(
     );
     let not_counted: Vec<String> = rounds
         .iter()
+        .filter(|round| !lost_to_the_late_rule(round))
         .filter_map(|round| match round.verdict {
             Some(Verdict::NotCounted(why)) => Some(format!("wait {} ms: {why}", round.wait_ms)),
+            None if !round.counted && round.not_driven.is_none() => {
+                Some(format!("wait {} ms: {}", round.wait_ms, round.why_not))
+            }
             _ => None,
         })
         .collect();
@@ -1754,8 +1951,15 @@ fn judge_mended_in(
             "{name}: no round of the phase was held: the short form passes a phase with one held \
              round and no failed round"
         );
+        let lost_waits: Vec<u64> = wait_list
+            .iter()
+            .copied()
+            .filter(|&wait_ms| lost_at(rounds, wait_ms) > 0)
+            .collect();
+        assert_quota(name, rounds, &lost_waits, count);
         return;
     }
+    assert_at_most_one_lost(name, rounds, &wait_list);
     let not_driven_waits: Vec<u64> = waits
         .iter()
         .map(|&(wait_ms, _)| wait_ms)
@@ -1781,20 +1985,7 @@ fn judge_mended_in(
             .collect::<Vec<_>>()
             .join(", ")
     );
-    let short_of_count: Vec<String> = waits
-        .iter()
-        .filter_map(|&(wait_ms, _)| {
-            let held = at_wait(rounds, wait_ms, Verdict::Held);
-            let not_driven = at_wait(rounds, wait_ms, Verdict::NotDriven);
-            (held + not_driven < count)
-                .then(|| format!("wait {wait_ms} ms: {held} of {count}, {not_driven} not driven"))
-        })
-        .collect();
-    assert!(
-        short_of_count.is_empty(),
-        "{name}: rounds that did not count by the cap of rounds run: {}",
-        short_of_count.join(", ")
-    );
+    assert_quota(name, rounds, &wait_list, count);
 }
 
 fn measured(name: &str, form: &str, rounds: &[Round]) {
@@ -1842,6 +2033,16 @@ fn measured(name: &str, form: &str, rounds: &[Round]) {
 }
 
 fn judge(name: &str, rounds: &[Round]) {
+    judge_in(name, rounds, short_form());
+}
+
+fn judge_in(name: &str, rounds: &[Round], short: bool) {
+    judge_telling(name, rounds, short, &mut |line| println!("{line}"));
+}
+
+fn judge_telling(name: &str, rounds: &[Round], short: bool, tell: &mut dyn FnMut(&str)) {
+    let waits = waits_in_order(rounds);
+    tell(&late_rule_line(name, rounds, &waits));
     let leaked: Vec<String> = rounds
         .iter()
         .filter(|round| {
@@ -1864,7 +2065,9 @@ fn judge(name: &str, rounds: &[Round]) {
     assert_some_round_driven(name, rounds);
     let not_counted: Vec<String> = rounds
         .iter()
-        .filter(|round| !round.counted && round.not_driven.is_none())
+        .filter(|round| {
+            !round.counted && round.not_driven.is_none() && !lost_to_the_late_rule(round)
+        })
         .map(|round| format!("wait {} ms: {}", round.wait_ms, round.why_not))
         .collect();
     assert!(
@@ -1882,6 +2085,33 @@ fn judge(name: &str, rounds: &[Round]) {
         "{name}: records of the markers other than one for each marker: {}",
         inexact.join(", ")
     );
+    let short_of_count: Vec<String> = waits
+        .iter()
+        .filter(|&&wait_ms| lost_at(rounds, wait_ms) > 0)
+        .filter(|&&wait_ms| {
+            !rounds
+                .iter()
+                .any(|round| round.wait_ms == wait_ms && round.counted)
+        })
+        .map(|&wait_ms| {
+            let not_driven = rounds
+                .iter()
+                .filter(|round| round.wait_ms == wait_ms && round.not_driven.is_some())
+                .count();
+            format!(
+                "wait {wait_ms} ms: 0 counted, {not_driven} not driven, {} lost to the late rule",
+                lost_at(rounds, wait_ms)
+            )
+        })
+        .collect();
+    assert!(
+        short_of_count.is_empty(),
+        "{name}: rounds that did not count by the cap of rounds run: {}",
+        short_of_count.join(", ")
+    );
+    if !short {
+        assert_at_most_one_lost(name, rounds, &waits);
+    }
 }
 
 fn stall_waits() -> Vec<(u64, Duration)> {
@@ -5133,6 +5363,11 @@ fn first_on_after(at: u64, within: Duration) -> Option<u64> {
     None
 }
 
+fn notice_time(line: &str) -> Option<u64> {
+    line.rsplit_once("at_uptime_ns=")
+        .and_then(|(_, at)| at.parse().ok())
+}
+
 fn reply_time(line: &str) -> u64 {
     line.rsplit_once("at_uptime_ns=")
         .and_then(|(_, at)| at.parse().ok())
@@ -6246,6 +6481,309 @@ fn the_late_reply_of_one_round_is_not_taken_as_the_reply_of_the_next() {
     );
 }
 
+/// What a fed fixture prints for a command line, in order.
+type FedAnswer = Box<dyn FnMut(&str) -> Vec<String> + Send>;
+
+/// The input of a fixture of the test's own for the reply logic of the
+/// driver: no process of the fixture, no window and no key. Each command line
+/// written to it goes to `answer`, which gives the lines that the fixture
+/// prints for it, in their order.
+struct FedInput {
+    tx: std::sync::mpsc::Sender<String>,
+    answer: FedAnswer,
+    pending: Vec<u8>,
+}
+
+impl Write for FedInput {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.pending.extend_from_slice(buf);
+        while let Some(end) = self.pending.iter().position(|&byte| byte == b'\n') {
+            let line: Vec<u8> = self.pending.drain(..=end).collect();
+            let command = String::from_utf8_lossy(&line[..end]).into_owned();
+            for out in (self.answer)(&command) {
+                let _ = self.tx.send(out);
+            }
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// The fed fixture's wait for a reply or a notice.
+const FED_WAIT: Duration = Duration::from_millis(50);
+
+fn fed_fixture(answer: impl FnMut(&str) -> Vec<String> + Send + 'static) -> Fixture {
+    let (tx, lines) = channel();
+    let child = Command::new("/usr/bin/true")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("a child that ends at once stands for the fixture's process");
+    let pid = i32::try_from(child.id()).expect("a pid");
+    Fixture {
+        child: Some(child),
+        input: Box::new(FedInput {
+            tx,
+            answer: Box::new(answer),
+            pending: Vec::new(),
+        }),
+        lines,
+        pid,
+        notes: Vec::new(),
+        by: "fed",
+        wait: FED_WAIT,
+        late: Vec::new(),
+        notices_dropped: 0,
+    }
+}
+
+fn left_at(at: u64) -> String {
+    format!("{} at_uptime_ns={at}", notice_of("left"))
+}
+
+/// A fed fixture whose notice of the first leaving key never comes, and whose
+/// later leaving keys each give their notice at once.
+fn first_notice_lost() -> Fixture {
+    let mut keys = 0;
+    fed_fixture(move |command| {
+        if !command.starts_with("keys ") {
+            return Vec::new();
+        }
+        keys += 1;
+        let mut lines = vec![String::from("posted=1")];
+        if keys > 1 {
+            lines.push(left_at(uptime_ns()));
+        }
+        lines
+    })
+}
+
+/// The rounds of a mended phase of the leaving key as `phase_on` runs them in
+/// the long form, each round driven by the leaving step alone over a fed
+/// fixture: a round whose notice comes is held and counted, and a round whose
+/// notice does not come is not driven.
+fn fed_leaving_phase(fixture: &mut Fixture, waits: &[(u64, Duration)]) -> Vec<Round> {
+    let plan = mended(ROUNDS, ROUNDS + 1);
+    let mut rounds = Vec::new();
+    for &(wait_ms, _) in waits {
+        let (mut good, mut run) = (0, 0);
+        while run < plan.cap && good < plan.count {
+            let mut round = stand_in_round(true, 0);
+            round.wait_ms = wait_ms;
+            match leave_the_secure_field(fixture, FED_WAIT) {
+                Ok(_) => round.verdict = Some(Verdict::Held),
+                Err(no_reply) => {
+                    round.counted = false;
+                    round.markers = 0;
+                    round.why_not = NOT_DRIVEN;
+                    round.not_driven = Some(no_reply);
+                    round.verdict = Some(Verdict::NotDriven);
+                }
+            }
+            run += 1;
+            if round.verdict == Some(Verdict::Held) {
+                good += 1;
+            }
+            rounds.push(round);
+        }
+    }
+    rounds
+}
+
+#[test]
+fn a_notice_lost_in_the_first_round_costs_that_round_alone() {
+    let name = "fed-first-notice-lost";
+    let waits = stall_waits();
+    let mut fixture = first_notice_lost();
+    let rounds = fed_leaving_phase(&mut fixture, &waits);
+    let line = by_wait_line(name, &rounds, &waits);
+    println!("{line}");
+    let not_driven: Vec<usize> = rounds
+        .iter()
+        .enumerate()
+        .filter(|(_, round)| round.not_driven.is_some())
+        .map(|(number, _)| number)
+        .collect();
+    assert_eq!(
+        not_driven,
+        vec![0],
+        "one notice that never came cost more rounds than its own: {line}"
+    );
+    assert_eq!(
+        rounds.len(),
+        waits.len() * ROUNDS + 1,
+        "the phase ran another count of rounds than one lost round asks: {line}"
+    );
+}
+
+#[test]
+fn a_late_notice_of_an_earlier_round_is_dropped_and_each_round_reads_its_own() {
+    let first = Arc::new(AtomicU64::new(0));
+    let own = Arc::new(Mutex::new(Vec::new()));
+    let (first_in, own_in) = (Arc::clone(&first), Arc::clone(&own));
+    let mut keys = 0;
+    let mut fixture = fed_fixture(move |command| {
+        if !command.starts_with("keys ") {
+            return Vec::new();
+        }
+        keys += 1;
+        let now = uptime_ns();
+        let old = first_in.load(Ordering::SeqCst);
+        match keys {
+            1 => {
+                first_in.store(now, Ordering::SeqCst);
+                vec![String::from("posted=1")]
+            }
+            2 => {
+                own_in
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(now);
+                vec![left_at(old), String::from("posted=1"), left_at(now)]
+            }
+            _ => {
+                own_in
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(now);
+                vec![
+                    String::from("posted=1"),
+                    left_at(old),
+                    String::from(notice_of("left")),
+                    left_at(now),
+                ]
+            }
+        }
+    });
+    assert!(
+        leave_the_secure_field(&mut fixture, FED_WAIT).is_err(),
+        "the notice of the first round came in the first round"
+    );
+    let second =
+        leave_the_secure_field(&mut fixture, FED_WAIT).expect("the second round reads a notice");
+    let third =
+        leave_the_secure_field(&mut fixture, FED_WAIT).expect("the third round reads a notice");
+    let own = own.lock().unwrap_or_else(PoisonError::into_inner).clone();
+    assert_eq!(
+        (notice_time(&second), notice_time(&third)),
+        (own.first().copied(), own.get(1).copied()),
+        "a round read the late notice of an earlier round as its own: {second} / {third}"
+    );
+    assert_eq!(
+        fixture.notices_dropped, 3,
+        "the late notice before the second round's posted line, the late notice after the third \
+         round's and the notice with no time are each dropped and counted"
+    );
+}
+
+#[test]
+fn a_notice_wait_drops_a_late_command_reply_and_keeps_the_lines_of_other_waits() {
+    let mut clears = 0;
+    let mut fixture = fed_fixture(move |command| {
+        if command == "clear" {
+            clears += 1;
+            return if clears == 1 {
+                Vec::new()
+            } else {
+                vec![format!("cleared n={clears}")]
+            };
+        }
+        if command.starts_with("keys ") {
+            return vec![
+                String::from("focus=plain at_uptime_ns=1"),
+                String::from("posted=1"),
+                String::from("cleared n=1"),
+                left_at(uptime_ns()),
+            ];
+        }
+        Vec::new()
+    });
+    assert!(
+        fixture.try_ask("clear").is_err(),
+        "the first clear was answered in its wait"
+    );
+    leave_the_secure_field(&mut fixture, FED_WAIT).expect("the round reads its notice");
+    assert_eq!(
+        fixture.try_reply("focus=", FED_WAIT).as_deref(),
+        Ok("focus=plain at_uptime_ns=1"),
+        "a line of another wait that came before the notice was lost in the wait for the notice"
+    );
+    assert_eq!(
+        fixture.try_ask("clear").as_deref(),
+        Ok("cleared n=2"),
+        "the second clear read the late reply of the first, which came in the wait for a notice"
+    );
+}
+
+#[test]
+fn a_phase_whose_every_notice_is_lost_still_never_passes() {
+    let name = "fed-every-notice-lost";
+    let waits = stall_waits();
+    let mut fixture = fed_fixture(|command| {
+        if command.starts_with("keys ") {
+            vec![String::from("posted=1")]
+        } else {
+            Vec::new()
+        }
+    });
+    let rounds = fed_leaving_phase(&mut fixture, &waits);
+    println!("{}", by_wait_line(name, &rounds, &waits));
+    assert_eq!(
+        (
+            rounds.len(),
+            rounds.iter().filter(|round| round.not_driven.is_some()).count()
+        ),
+        (waits.len() * (ROUNDS + 1), waits.len() * (ROUNDS + 1)),
+        "every round of a phase whose every notice is lost is not driven, up to the cap at each wait"
+    );
+    let failed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        assert_some_round_driven(name, &rounds);
+    }));
+    assert!(
+        failed.is_err(),
+        "a phase whose every round was not driven passed (ruling MA-27 item 2)"
+    );
+}
+
+#[test]
+fn one_lost_notice_reads_one_round_not_driven_under_the_rules_of_a_lost_round() {
+    let name = "fed-one-notice-lost";
+    let waits = stall_waits();
+    let wait_list: Vec<u64> = waits.iter().map(|&(wait_ms, _)| wait_ms).collect();
+    let mut fixture = first_notice_lost();
+    let rounds = fed_leaving_phase(&mut fixture, &waits);
+    let late_rule = late_rule_line(name, &rounds, &wait_list);
+    println!("{late_rule}");
+    let none_lost: Vec<String> = wait_list
+        .iter()
+        .map(|wait_ms| format!("{wait_ms}:0"))
+        .collect();
+    assert_eq!(
+        late_rule,
+        format!(
+            "{name} rounds_lost_to_the_late_rule=0 by_wait={}",
+            none_lost.join(",")
+        ),
+        "a round not driven by a lost notice is no round lost to a late marker"
+    );
+    let first = wait_list[0];
+    assert_eq!(
+        (
+            at_wait(&rounds, first, Verdict::NotDriven),
+            at_wait(&rounds, first, Verdict::Held)
+        ),
+        (1, ROUNDS),
+        "{}",
+        by_wait_line(name, &rounds, &waits)
+    );
+    assert_quota(name, &rounds, &wait_list, ROUNDS);
+    assert_at_most_one_lost(name, &rounds, &wait_list);
+}
+
 const MARKERS_POSTED_AT: u64 = 4_000_000;
 
 fn after_its_markers(
@@ -6521,4 +7059,716 @@ fn a_phase_whose_every_round_was_not_driven_reads_not_driven_in_both_forms() {
             "short={short}: {found:?}"
         );
     }
+}
+
+fn late_drop_at(ms: u64) -> RawEntry {
+    RawEntry::Dropped {
+        at: ms_ns(ms),
+        cause: Cause::LateKey,
+        keys: 1,
+        unread: false,
+    }
+}
+
+fn lost_to_a_late_marker(wait_ms: u64) -> Round {
+    Round {
+        wait_ms,
+        why_not: "the markers were not recorded",
+        markers: 1,
+        verdict: Some(Verdict::NotCounted("the markers were not recorded")),
+        entries: vec![arrived_at(2_457), late_drop_at(2_503)],
+        markers_at: Some(ms_ns(2_450)),
+        ..stand_in_round(false, 0)
+    }
+}
+
+fn not_counted_beside_a_late_drop(wait_ms: u64, why: &'static str) -> Round {
+    Round {
+        why_not: why,
+        verdict: Some(Verdict::NotCounted(why)),
+        ..lost_to_a_late_marker(wait_ms)
+    }
+}
+
+fn held_before_the_last_wait(last: Round) -> Vec<Round> {
+    let mut rounds: Vec<Round> = [150, 300, 600, JUST_UNDER]
+        .into_iter()
+        .map(held_round)
+        .collect();
+    rounds.push(last);
+    rounds
+}
+
+fn beside_a_counted_retry(last: Round) -> Vec<Round> {
+    let mut rounds = held_before_the_last_wait(last);
+    rounds.push(held_round(2_000));
+    rounds
+}
+
+fn the_rounds_of_the_hosted_job_135405942095() -> Vec<Round> {
+    let arrival = |us: u64| RawEntry::Arrival {
+        at: us * 1_000,
+        admission: Arrived::Held,
+    };
+    let mut entries: Vec<RawEntry> = [
+        7_429, 264_069, 559_000, 852_829, 1_132_828, 1_388_219, 1_674_764, 1_917_041,
+    ]
+    .into_iter()
+    .map(arrival)
+    .collect();
+    entries.extend([
+        RawEntry::Dropped {
+            at: 2_064_211_000,
+            cause: Cause::On,
+            keys: 8,
+            unread: false,
+        },
+        arrival(2_457_838),
+        RawEntry::Dropped {
+            at: 2_503_499_000,
+            cause: Cause::LateKey,
+            keys: 1,
+            unread: false,
+        },
+        arrival(2_587_025),
+        RawEntry::Released { at: 5_604_840_000 },
+    ]);
+    beside_a_counted_retry(Round {
+        wait_ms: 2_000,
+        why_not: "the markers were not recorded",
+        markers: 1,
+        verdict: Some(Verdict::NotCounted("the markers were not recorded")),
+        entries,
+        markers_at: Some(2_427_326_000),
+        ..stand_in_round(false, 0)
+    })
+}
+
+type LateRow = (&'static str, Vec<Round>, bool, Option<&'static str>);
+
+type QuotaRow = (&'static str, Vec<Round>, usize, bool, Option<&'static str>);
+
+#[test]
+fn a_round_lost_to_a_late_marker_reads_by_its_rule_on_a_table() {
+    let mut one_lost = held_at_each_wait();
+    one_lost.push(lost_to_a_late_marker(2_000));
+    let mut two_lost = held_at_each_wait();
+    two_lost.extend([lost_to_a_late_marker(2_000), lost_to_a_late_marker(2_000)]);
+    let rows: Vec<LateRow> = vec![
+        (
+            "1 a round lost to a late marker beside a counted retry at its wait, short form",
+            beside_a_counted_retry(lost_to_a_late_marker(2_000)),
+            true,
+            None,
+        ),
+        (
+            "2 a round lost to a late marker with the quota of its wait not met, short form",
+            held_before_the_last_wait(lost_to_a_late_marker(2_000)),
+            true,
+            Some("rounds that did not count by the cap of rounds run: wait 2000 ms: 0 of 1, 0 not driven"),
+        ),
+        (
+            "3 a round with a late drop and a key of the secure field recorded, short form",
+            beside_a_counted_retry(Round {
+                ahead: 1,
+                verdict: Some(Verdict::Recorded),
+                ..lost_to_a_late_marker(2_000)
+            }),
+            true,
+            Some("recorded keys beside the markers in rounds that counted or were not driven: wait 2000 ms: ahead 1"),
+        ),
+        (
+            "3b a round not counted with a key ahead and a late drop, short form",
+            beside_a_counted_retry(Round {
+                ahead: 1,
+                ..lost_to_a_late_marker(2_000)
+            }),
+            true,
+            Some("rounds that did not count: wait 2000 ms: the markers were not recorded"),
+        ),
+        (
+            "3c a round not counted with a late drop that released a key typed before the markers, short form",
+            beside_a_counted_retry(Round {
+                entries: vec![
+                    arrived_at(1_000),
+                    released_at(2_400),
+                    arrived_at(2_457),
+                    late_drop_at(2_503),
+                ],
+                markers_at: Some(ms_ns(2_450)),
+                ..lost_to_a_late_marker(2_000)
+            }),
+            true,
+            Some("rounds that did not count: wait 2000 ms: the markers were not recorded"),
+        ),
+        (
+            "4 one round lost to a late marker at a wait, long form",
+            one_lost,
+            false,
+            None,
+        ),
+        (
+            "5 two rounds lost to a late marker at one wait, long form",
+            two_lost,
+            false,
+            Some("rounds lost to the late rule above one at a wait in the long form: wait 2000 ms: 2"),
+        ),
+        (
+            "6 the markers did not land in the plain field, beside a late drop, short form",
+            beside_a_counted_retry(not_counted_beside_a_late_drop(
+                2_000,
+                "the markers did not land in the plain field",
+            )),
+            true,
+            Some("rounds that did not count: wait 2000 ms: the markers did not land in the plain field"),
+        ),
+        (
+            "6 the round's first stamp read on, beside a late drop, short form",
+            beside_a_counted_retry(not_counted_beside_a_late_drop(
+                2_000,
+                "the round's first stamp read on",
+            )),
+            true,
+            Some("rounds that did not count: wait 2000 ms: the round's first stamp read on"),
+        ),
+        (
+            "6 the markers were not recorded and no late drop, short form",
+            beside_a_counted_retry(Round {
+                entries: vec![arrived_at(2_457)],
+                ..lost_to_a_late_marker(2_000)
+            }),
+            true,
+            Some("rounds that did not count: wait 2000 ms: the markers were not recorded"),
+        ),
+        (
+            "7 the rounds of the hosted job 135405942095, short form",
+            the_rounds_of_the_hosted_job_135405942095(),
+            true,
+            None,
+        ),
+        (
+            "3d a round not counted with a late drop that released a key whose arrival is not in its entries, short form",
+            beside_a_counted_retry(Round {
+                entries: vec![released_at(2_400), arrived_at(2_457), late_drop_at(2_503)],
+                markers_at: Some(ms_ns(2_450)),
+                ..lost_to_a_late_marker(2_000)
+            }),
+            true,
+            Some("rounds that did not count: wait 2000 ms: the markers were not recorded"),
+        ),
+        (
+            "8 a wait with a late click and no held round beside a round lost to a late marker at another wait, short form",
+            vec![
+                held_round(150),
+                Round {
+                    wait_ms: 300,
+                    verdict: Some(Verdict::LateClick),
+                    ..stand_in_round(false, 0)
+                },
+                held_round(600),
+                held_round(JUST_UNDER),
+                lost_to_a_late_marker(2_000),
+                held_round(2_000),
+            ],
+            true,
+            None,
+        ),
+        (
+            "9 a round whose late drop is a key withheld at its arrival by the late rule, beside a counted retry, short form",
+            beside_a_counted_retry(Round {
+                entries: vec![RawEntry::Arrival {
+                    at: ms_ns(2_503),
+                    admission: Arrived::Withheld {
+                        cause: Cause::LateKey,
+                        dropped: 0,
+                    },
+                }],
+                ..lost_to_a_late_marker(2_000)
+            }),
+            true,
+            None,
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (what, rounds, short, want) in rows {
+        let got = judged_in_form(&rounds, 1, short);
+        println!("late row: {what}: want={want:?} got={got:?}");
+        let right = match want {
+            None => got.is_none(),
+            Some(text) => got.is_some_and(|got| got.contains(text)),
+        };
+        if !right {
+            wrong.push(what);
+        }
+    }
+    let as_is = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+        || {
+            judge(
+                "stand-in",
+                &[
+                    Round {
+                        wait_ms: 1_500,
+                        ..stand_in_round(true, 0)
+                    },
+                    Round {
+                        verdict: None,
+                        ..lost_to_a_late_marker(1_500)
+                    },
+                ],
+            );
+        },
+    )));
+    println!("late row: as is: a round lost to a late marker beside a counted round at its wait: want=None got={as_is:?}");
+    if as_is.is_some() {
+        wrong.push("as is: a round lost to a late marker beside a counted round at its wait");
+    }
+    let waits_ms: Vec<u64> = stall_waits().iter().map(|&(wait_ms, _)| wait_ms).collect();
+    let one_at_2000 =
+        "stand-in rounds_lost_to_the_late_rule=1 by_wait=150:0,300:0,600:0,850:0,2000:1";
+    for (what, rounds) in [
+        (
+            "1 the count reads 1 at the wait of the round lost to a late marker",
+            beside_a_counted_retry(lost_to_a_late_marker(2_000)),
+        ),
+        (
+            "7 the count of the hosted job's rounds reads 1 at wait 2000 ms",
+            the_rounds_of_the_hosted_job_135405942095(),
+        ),
+    ] {
+        let got = late_rule_line("stand-in", &rounds, &waits_ms);
+        println!("late row: {what}: want={one_at_2000} got={got}");
+        if got != one_at_2000 {
+            wrong.push(what);
+        }
+    }
+    let lost_as_is = |wait_ms: u64| Round {
+        verdict: None,
+        ..lost_to_a_late_marker(wait_ms)
+    };
+    let counted_at = |wait_ms: u64| Round {
+        wait_ms,
+        ..stand_in_round(true, 0)
+    };
+    let as_is_rows: Vec<LateRow> = vec![
+        (
+            "as is: a round lost to a late marker alone at its wait",
+            vec![counted_at(300), lost_as_is(1_500)],
+            true,
+            Some("rounds that did not count by the cap of rounds run: wait 1500 ms: 0 counted, 0 not driven, 1 lost to the late rule"),
+        ),
+        (
+            "as is: a round lost to a late marker beside a round not driven at its wait",
+            vec![counted_at(300), lost_as_is(1_500), not_driven_round(1_500, 0)],
+            true,
+            Some("rounds that did not count by the cap of rounds run: wait 1500 ms: 0 counted, 1 not driven, 1 lost to the late rule"),
+        ),
+        (
+            "as is: two rounds lost to a late marker at one wait, long form",
+            vec![counted_at(1_500), lost_as_is(1_500), lost_as_is(1_500)],
+            false,
+            Some("rounds lost to the late rule above one at a wait in the long form: wait 1500 ms: 2"),
+        ),
+        (
+            "as is: two rounds lost to a late marker at one wait, short form",
+            vec![counted_at(1_500), lost_as_is(1_500), lost_as_is(1_500)],
+            true,
+            None,
+        ),
+        (
+            "as is: a round not counted with a key ahead and a late drop",
+            vec![
+                counted_at(1_500),
+                Round {
+                    ahead: 1,
+                    ..lost_as_is(1_500)
+                },
+            ],
+            true,
+            Some("rounds that did not count: wait 1500 ms: the markers were not recorded"),
+        ),
+        (
+            "as is: a round not counted for another reason beside a late drop",
+            vec![
+                counted_at(1_500),
+                Round {
+                    why_not: "the markers did not land in the plain field",
+                    ..lost_as_is(1_500)
+                },
+            ],
+            true,
+            Some("rounds that did not count: wait 1500 ms: the markers did not land in the plain field"),
+        ),
+    ];
+    let waits = waits_in_order(&[
+        counted_at(300),
+        lost_as_is(1_500),
+        lost_as_is(1_500),
+        counted_at(300),
+    ]);
+    println!("late row: as is: the waits in the order of their first round: want=[300, 1500] got={waits:?}");
+    if waits != [300, 1_500] {
+        wrong.push("as is: the waits in the order of their first round");
+    }
+    for (what, rounds, short, want) in as_is_rows {
+        let got = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || judge_in("stand-in", &rounds, short),
+        )));
+        println!("late row: {what}: want={want:?} got={got:?}");
+        let right = match want {
+            None => got.is_none(),
+            Some(text) => got.is_some_and(|got| got.contains(text)),
+        };
+        if !right {
+            wrong.push(what);
+        }
+    }
+    let held_three = |at_2000: usize| -> Vec<Round> {
+        let mut rounds = Vec::new();
+        for &(wait_ms, _) in &stall_waits() {
+            let held = if wait_ms == 2_000 { at_2000 } else { 3 };
+            rounds.extend((0..held).map(|_| held_round(wait_ms)));
+        }
+        rounds
+    };
+    let lost_with = |entries: Vec<RawEntry>| Round {
+        entries,
+        ..lost_to_a_late_marker(2_000)
+    };
+    let quota_rows: Vec<QuotaRow> = vec![
+        (
+            "L1 a round lost to a late marker beside a round not driven and no held round at its wait, short form",
+            {
+                let mut rounds = held_before_the_last_wait(lost_to_a_late_marker(2_000));
+                rounds.push(not_driven_round(2_000, 0));
+                rounds
+            },
+            1,
+            true,
+            Some("rounds that did not count by the cap of rounds run: wait 2000 ms: 0 of 1, 1 not driven"),
+        ),
+        (
+            "L1 two held, one lost and one not driven at a wait, long form, quota 3",
+            {
+                let mut rounds = held_three(2);
+                rounds.extend([lost_to_a_late_marker(2_000), not_driven_round(2_000, 0)]);
+                rounds
+            },
+            3,
+            false,
+            Some("rounds that did not count by the cap of rounds run: wait 2000 ms: 2 of 3, 1 not driven"),
+        ),
+        (
+            "L2 a late drop of a key that arrived and was dropped before the markers' time",
+            beside_a_counted_retry(lost_with(vec![arrived_at(1_000), late_drop_at(1_200)])),
+            1,
+            true,
+            Some("rounds that did not count: wait 2000 ms: the markers were not recorded"),
+        ),
+        (
+            "L2 a late drop after the markers' time of a key that arrived before it",
+            beside_a_counted_retry(lost_with(vec![arrived_at(1_000), late_drop_at(2_500)])),
+            1,
+            true,
+            Some("rounds that did not count: wait 2000 ms: the markers were not recorded"),
+        ),
+        (
+            "L2 a late drop of a key that arrived at the markers' time exactly qualifies",
+            beside_a_counted_retry(lost_with(vec![arrived_at(2_450), late_drop_at(2_503)])),
+            1,
+            true,
+            None,
+        ),
+        (
+            "L1 MA-27 kept: a wait with no loss counts a round not driven in the long form, quota 3",
+            {
+                let mut rounds = held_three(2);
+                rounds.push(not_driven_round(2_000, 0));
+                rounds
+            },
+            3,
+            false,
+            None,
+        ),
+        (
+            "L3 a counted round with no verdict is passed over by the mended reader",
+            {
+                let mut rounds = held_at_each_wait();
+                rounds.push(stand_in_round(true, 0));
+                rounds
+            },
+            1,
+            true,
+            None,
+        ),
+        (
+            "S2 a released key that arrived at the markers' posting time exactly still reads as lost",
+            beside_a_counted_retry(lost_with(vec![
+                arrived_at(2_450),
+                released_at(2_460),
+                arrived_at(2_462),
+                late_drop_at(2_464),
+            ])),
+            1,
+            true,
+            None,
+        ),
+        (
+            "L2 a late drop entry of no key",
+            beside_a_counted_retry(lost_with(vec![
+                arrived_at(2_457),
+                RawEntry::Dropped {
+                    at: ms_ns(2_503),
+                    cause: Cause::LateKey,
+                    keys: 0,
+                    unread: false,
+                },
+            ])),
+            1,
+            true,
+            Some("rounds that did not count: wait 2000 ms: the markers were not recorded"),
+        ),
+        (
+            "L2 a round with no markers' time",
+            beside_a_counted_retry(Round {
+                markers_at: None,
+                ..lost_to_a_late_marker(2_000)
+            }),
+            1,
+            true,
+            Some("rounds that did not count: wait 2000 ms: the markers were not recorded"),
+        ),
+        (
+            "L2 a round with no markers' time and a released key",
+            beside_a_counted_retry(Round {
+                markers_at: None,
+                ..lost_with(vec![
+                    arrived_at(2_457),
+                    late_drop_at(2_503),
+                    arrived_at(2_600),
+                    released_at(2_700),
+                ])
+            }),
+            1,
+            true,
+            Some("rounds that did not count: wait 2000 ms: the markers were not recorded"),
+        ),
+        (
+            "L3 a round with no verdict, not counted for another reason, beside a counted retry",
+            beside_a_counted_retry(Round {
+                wait_ms: 2_000,
+                why_not: "another reason",
+                ..stand_in_round(false, 0)
+            }),
+            1,
+            true,
+            Some("rounds that did not count: wait 2000 ms: another reason"),
+        ),
+        (
+            "L3 a round with no verdict that was not driven is passed over, as the as-is reader passes it over",
+            {
+                let mut rounds = held_at_each_wait();
+                rounds.push(Round {
+                    verdict: None,
+                    ..not_driven_round(300, 0)
+                });
+                rounds
+            },
+            1,
+            true,
+            None,
+        ),
+        (
+            "N1 no held round and two rounds lost to a late marker at one wait, long form",
+            {
+                let mut rounds = held_before_the_last_wait(lost_to_a_late_marker(2_000));
+                rounds.push(lost_to_a_late_marker(2_000));
+                rounds
+            },
+            1,
+            false,
+            Some("rounds lost to the late rule above one at a wait in the long form: wait 2000 ms: 2"),
+        ),
+        (
+            "N5 two held and one lost at one wait, long form, quota 3",
+            {
+                let mut rounds = held_three(2);
+                rounds.push(lost_to_a_late_marker(2_000));
+                rounds
+            },
+            3,
+            false,
+            Some("rounds that did not count by the cap of rounds run: wait 2000 ms: 2 of 3, 0 not driven"),
+        ),
+        (
+            "N5 three held and one lost at one wait, long form, quota 3",
+            {
+                let mut rounds = held_three(3);
+                rounds.push(lost_to_a_late_marker(2_000));
+                rounds
+            },
+            3,
+            false,
+            None,
+        ),
+        (
+            "N5 one lost at 150 ms and one lost at 2000 ms beside three held at each wait, long form, quota 3",
+            {
+                let mut rounds = held_three(3);
+                rounds.extend([lost_to_a_late_marker(150), lost_to_a_late_marker(2_000)]);
+                rounds
+            },
+            3,
+            false,
+            None,
+        ),
+    ];
+    for (what, rounds, count, short, want) in quota_rows {
+        let got = judged_in_form(&rounds, count, short);
+        println!("late row: {what}: want={want:?} got={got:?}");
+        let right = match want {
+            None => got.is_none(),
+            Some(text) => got.is_some_and(|got| got.contains(text)),
+        };
+        if !right {
+            wrong.push(what);
+        }
+    }
+    let as_is_round_two: Vec<LateRow> = vec![
+        (
+            "L1 as is: a round lost to a late marker beside a round not driven at its wait, long form",
+            vec![counted_at(300), lost_as_is(1_500), not_driven_round(1_500, 0)],
+            false,
+            Some("rounds that did not count by the cap of rounds run: wait 1500 ms: 0 counted, 1 not driven, 1 lost to the late rule"),
+        ),
+        (
+            "L2 as is: a round lost to a late marker with a key released before the markers' time",
+            vec![
+                counted_at(1_500),
+                Round {
+                    entries: vec![
+                        arrived_at(1_000),
+                        released_at(1_100),
+                        arrived_at(2_457),
+                        late_drop_at(2_503),
+                    ],
+                    ..lost_as_is(1_500)
+                },
+            ],
+            true,
+            Some("rounds that did not count: wait 1500 ms: the markers were not recorded"),
+        ),
+        (
+            "L3 as is: a round with no verdict that was not driven is passed over",
+            vec![
+                counted_at(300),
+                Round {
+                    verdict: None,
+                    ..not_driven_round(300, 0)
+                },
+            ],
+            true,
+            None,
+        ),
+    ];
+    for (what, rounds, short, want) in as_is_round_two {
+        let got = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || judge_in("stand-in", &rounds, short),
+        )));
+        println!("late row: {what}: want={want:?} got={got:?}");
+        let right = match want {
+            None => got.is_none(),
+            Some(text) => got.is_some_and(|got| got.contains(text)),
+        };
+        if !right {
+            wrong.push(what);
+        }
+    }
+    let mended_told = |rounds: &[Round]| {
+        let mut told: Vec<String> = Vec::new();
+        let found = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || {
+                judge_mended_telling("stand-in", rounds, &stall_waits(), 1, true, &mut |line| {
+                    told.push(line.to_owned());
+                });
+            },
+        )));
+        (found.is_some(), told)
+    };
+    let as_is_told = |rounds: &[Round]| {
+        let mut told: Vec<String> = Vec::new();
+        let found = panic_text(std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+            || {
+                judge_telling("stand-in", rounds, true, &mut |line| {
+                    told.push(line.to_owned())
+                })
+            },
+        )));
+        (found.is_some(), told)
+    };
+    let mut recorded_at_300 = held_at_each_wait();
+    recorded_at_300.push(Round {
+        verdict: Some(Verdict::Recorded),
+        ..stand_in_round(false, 1)
+    });
+    for (what, got, want) in [
+        (
+            "L5 the mended reader tells one count line of a phase that passes",
+            mended_told(&beside_a_counted_retry(lost_to_a_late_marker(2_000))),
+            (false, one_at_2000),
+        ),
+        (
+            "L5 the mended reader tells its count line before an assertion stops the phase",
+            mended_told(&recorded_at_300),
+            (
+                true,
+                "stand-in rounds_lost_to_the_late_rule=0 by_wait=150:0,300:0,600:0,850:0,2000:0",
+            ),
+        ),
+        (
+            "L5 the as-is reader tells one count line of a phase that passes",
+            as_is_told(&[counted_at(1_500), lost_as_is(1_500)]),
+            (false, "stand-in rounds_lost_to_the_late_rule=1 by_wait=1500:1"),
+        ),
+        (
+            "L5 the as-is reader tells its count line before the recorded keys of a listed fault stop it",
+            as_is_told(&[
+                Round {
+                    wait_ms: 1_500,
+                    ..stand_in_round(true, 3)
+                },
+                lost_as_is(1_500),
+            ]),
+            (true, "stand-in rounds_lost_to_the_late_rule=1 by_wait=1500:1"),
+        ),
+    ] {
+        println!("late row: {what}: want={want:?} got={got:?}");
+        if got.0 != want.0 || got.1 != [want.1] {
+            wrong.push(what);
+        }
+    }
+    let two_at_2000 = late_rule_line(
+        "stand-in",
+        &[lost_to_a_late_marker(2_000), lost_to_a_late_marker(2_000)],
+        &[2_000],
+    );
+    println!("late row: S2 two rounds lost at one wait count two: got={two_at_2000}");
+    if two_at_2000 != "stand-in rounds_lost_to_the_late_rule=2 by_wait=2000:2" {
+        wrong.push("S2 two rounds lost at one wait count two");
+    }
+    let counted_with_the_reason = Round {
+        wait_ms: 1_500,
+        why_not: "the markers were not recorded",
+        entries: vec![arrived_at(2_457), late_drop_at(2_503)],
+        markers_at: Some(ms_ns(2_450)),
+        ..stand_in_round(true, 0)
+    };
+    let got = late_rule_line("stand-in", &[counted_with_the_reason], &[1_500]);
+    println!("late row: N6 a counted round with no verdict and the markers' reason is not lost: got={got}");
+    if got != "stand-in rounds_lost_to_the_late_rule=0 by_wait=1500:0" {
+        wrong.push("N6 a counted round with no verdict and the markers' reason is not lost");
+    }
+    assert!(
+        wrong.is_empty(),
+        "rows that gave another verdict: {wrong:?}"
+    );
 }

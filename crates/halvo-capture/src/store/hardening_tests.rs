@@ -12626,7 +12626,7 @@ fn a_refused_open_with_a_wrong_key_leaves_the_library_log_level_at_none() {
         .unwrap_or_else(|_| format!("the child wrote nothing and exited {}", child.status));
     assert_eq!(
         (text.as_str(), library_lines),
-        ("before=WARN answer=DatabaseUnreadable after=NONE", 0),
+        ("before=NONE answer=DatabaseUnreadable after=NONE", 0),
         "a first open of a process with a wrong key"
     );
 }

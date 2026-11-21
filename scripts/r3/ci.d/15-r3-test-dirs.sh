@@ -26,7 +26,6 @@ account/crates/halvo-secrets/tests/walk.rs 1 account run
 account/crates/halvo-secrets/tests/wipe.rs 1 account run
 crates/halvo-agent-client/src/marks.rs 1 agent-setup run, U4.3
 crates/halvo-capture/tests/source_rules.rs 1 capture run, store-4
-crates/halvo-coord/tests/fixtures_same.rs 1 interface run
 crates/halvo-route-gate/tests/cli_commands.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-route-gate/tests/import_golden.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-route-gate/tests/import_rules.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
@@ -37,8 +36,6 @@ crates/halvo-route-gate/tests/product_recorded_cli.rs 1 routing run; exclusive c
 crates/halvo-route-gate/tests/sequences_same.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-route-wire/tests/gateway_check.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-sample/tests/common/mod.rs 1 workflow run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
-crates/halvo-web/src/child.rs 1 agent-setup run, U2.6
-crates/halvo-web/src/guard.rs 2 agent-setup run, U2.6
 src-tauri/src/tests.rs 1 capture run, app-3a
 src-tauri/tests/page_guard.rs 1 capture run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 tools/r3-trials/profile/src/bin/profile-trial.rs 1 agent-setup run, P0 trials
@@ -51,13 +48,12 @@ tools/r3-trials/web/src/checks.rs 1 agent-setup run, P0 trials
 tools/r3-trials/web/src/start.rs 2 agent-setup run, P0 trials
 tools/r3-trials/web/tests/org.rs 4 agent-setup run, P0 trials
 tools/r3-trials/web/tests/signals.rs 2 agent-setup run, P0 trials
-tools/r4-trials/app/tests/pages.rs 1 interface run
 EOF
 }
 
-pinned_rows=37
-pinned_places=50
-pinned_paths=2781855249
+pinned_rows=33
+pinned_places=45
+pinned_paths=3913687370
 
 program='
 function code(s) {

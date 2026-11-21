@@ -225,7 +225,10 @@ pub enum Names {
     /// The fixture's names of the probe and the tests: a name under `.test` goes to 127.0.0.1 and
     /// every other name nowhere. It is outside the class rule of CP-176 A3 by its construction: it
     /// asks the system nothing and reaches no address but 127.0.0.1. Only the probe, the tests and
-    /// the gate's stand-in start a relay with it; nothing in the crate enforces that yet.
+    /// the gate's stand-in start a relay with it: it stands behind the fence
+    /// (`crate::FENCE_MARKER`), so a build without the feature `test-fence`, which is no test
+    /// build, has `System` alone (CP-186 N8).
+    #[cfg(any(test, feature = "test-fence"))]
     Fixture,
 }
 
@@ -390,7 +393,10 @@ fn bound_loopback(host: &str) -> Option<Ipv4Addr> {
 /// every other answer (`answer`), at every tunnel and in every state of the list.
 async fn look_up(names: Names, host: &str, port: u16, bound: bool) -> Dial {
     match names {
+        #[cfg(any(test, feature = "test-fence"))]
         Names::Fixture => {
+            #[cfg(feature = "test-fence")]
+            crate::fence_marker();
             if host.to_ascii_lowercase().ends_with(".test") {
                 Dial::To(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port))
             } else {
@@ -412,8 +418,12 @@ async fn look_up(names: Names, host: &str, port: u16, bound: bool) -> Dial {
 /// The guard's arguments after `guard`'s prefix (`guard::GUARD_FLAG`): the browser's first
 /// process `root` and the executor `me`, each by number and creation time, the record, the
 /// profile and the program. Refuses an executor with no creation time (CP-176 A4 (b)), which would
-/// name no executor to the guard, and a start without the run's profile or the browser's program,
-/// from which the guard builds the mark that every ask and forced end needs (CP-185 (2)).
+/// name no executor to the guard; a first process with no creation time (`first_row`; U2.6b, the
+/// planner's lean (a) of CP-231 (4), M8: on Windows the table gives 0 for a process that the
+/// executor cannot open), which the guard could not tell from a later process of its number and
+/// whose mark would begin at 0, so that the launch fails and ends its own new child; and a start
+/// without the run's profile or the browser's program, from which the guard builds the mark that
+/// every ask and forced end needs (CP-185 (2)).
 fn guard_args(
     guard: &crate::guard::GuardProgram,
     root: &Proc,
@@ -424,6 +434,9 @@ fn guard_args(
 ) -> Result<Vec<std::ffi::OsString>, &'static str> {
     if me.started_us == 0 {
         return Err("own_row");
+    }
+    if root.started_us == 0 {
+        return Err("first_row");
     }
     if profile.as_os_str().is_empty() || program.as_os_str().is_empty() {
         return Err("guard_mark");
@@ -1128,6 +1141,10 @@ mod tests {
         let args = guard_args(&guard, &proc(9, 7), &proc(5, 50), p, p, p).unwrap();
         assert_eq!(args[3], "5");
         assert_eq!(args[4], "50");
+        assert_eq!(
+            guard_args(&guard, &proc(9, 0), &proc(5, 50), p, p, p),
+            Err("first_row")
+        );
     }
 
     #[test]

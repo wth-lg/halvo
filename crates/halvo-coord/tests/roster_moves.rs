@@ -230,6 +230,14 @@ fn line(key: &str) -> String {
     words::text(key, &[]).unwrap()
 }
 
+/// The words key of `working.kill_stuck` on the system that runs the test: the row says how to
+/// quit Halvo on that system.
+const HOST_KILL_STUCK: &str = if cfg!(windows) {
+    "line.working.kill_stuck_windows"
+} else {
+    "line.working.kill_stuck_mac"
+};
+
 fn own_end(c: &Coordinator<Both>, run: &RunId) -> Option<RunEnd> {
     c.ports()
         .ports
@@ -485,7 +493,7 @@ fn rd54g_a_gone_workflows_run_whose_kill_does_not_end_it_shows_kill_stuck() {
     c.tick();
     assert_eq!(c.live(), 1, "the kill did not end the run");
     let row = row_of(&c).expect("the row stays");
-    assert_eq!(row.line, line("line.working.kill_stuck"));
+    assert_eq!(row.line, line(HOST_KILL_STUCK));
     assert!(row.controls.is_empty());
     c.ports().ports.clear_refusals();
     c.ports()
@@ -678,7 +686,7 @@ fn rd116_kill_stuck_after_a_refused_kill_when_the_clock_stepped_back() {
     assert_eq!(kills_tried(&c), 1, "the tick tried the kill");
     assert_eq!(c.live(), 1, "the kill did not end the run");
     let row = row_of(&c).expect("the row stays");
-    assert_eq!(row.line, line("line.working.kill_stuck"));
+    assert_eq!(row.line, line(HOST_KILL_STUCK));
     assert!(row.controls.is_empty());
 }
 
@@ -847,7 +855,7 @@ fn rd116_r4_a_refused_kill_of_one_gone_agent_shows_kill_stuck_on_its_row_alone()
             .map(|r| r.line.clone())
             .unwrap()
     };
-    assert_eq!(line_of(0), line("line.working.kill_stuck"));
+    assert_eq!(line_of(0), line(HOST_KILL_STUCK));
     assert_eq!(
         line_of(1),
         line("line.working.stopping"),
@@ -866,5 +874,5 @@ fn rd116_r4_a_kill_refused_at_the_quit_shows_kill_stuck_on_the_gone_row() {
     c.quit_kill();
     assert_eq!(c.live(), 1, "the quit's kill was refused");
     let row = row_of(&c).expect("the row stays");
-    assert_eq!(row.line, line("line.working.kill_stuck"));
+    assert_eq!(row.line, line(HOST_KILL_STUCK));
 }

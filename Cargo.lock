@@ -1671,6 +1671,7 @@ name = "halvo-coord"
 version = "0.0.0"
 dependencies = [
  "halvo-schema",
+ "halvo-test-dir",
  "serde",
  "serde_json",
 ]
@@ -1694,6 +1695,7 @@ name = "halvo-coord-store"
 version = "0.0.0"
 dependencies = [
  "halvo-coord",
+ "halvo-derived",
  "halvo-schema",
  "serde_json",
 ]
@@ -1725,6 +1727,7 @@ name = "halvo-learn-gate"
 version = "0.0.0"
 dependencies = [
  "halvo-agent-store",
+ "halvo-derived",
  "halvo-learn",
  "halvo-learn-store",
  "halvo-policy",
@@ -1871,6 +1874,8 @@ version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
  "chromiumoxide",
+ "halvo-test-dir",
+ "halvo-web",
  "libc",
  "serde_json",
  "tokio",
