@@ -1,6 +1,7 @@
 use super::{AgentId, CandidateFrom, Cause, Choice, Class, Control, FieldFrom, ItemId, ItemKind};
 use super::{HistoryRead, Kept, LineKey, Origin, Param, Presenter, Status, WorkflowId, YesNo};
 use crate::items::{field_from, kept_source};
+use crate::ports::Refused;
 use crate::words;
 use serde::Serialize;
 
@@ -935,6 +936,15 @@ impl Item {
     pub fn at_step(self, step: u32) -> Item {
         Item { step, ..self }
     }
+
+    /// The item with `refused` as the key `refused` of its parameter `param` (I3.5, I8.1;
+    /// ruling RD-81 9.3); the item as it was where it asks no such parameter.
+    pub fn refused_at(mut self, param: Param, refused: Refused) -> Item {
+        for p in self.params.iter_mut().filter(|p| p.name == param) {
+            p.refused = Some(refused);
+        }
+        self
+    }
 }
 
 /// A field of an item (I3.4).
@@ -969,6 +979,11 @@ pub struct ParamEntry {
     /// which the card shows below the typed line after an input was refused below the bound
     /// (I3.5); empty for every other parameter.
     pub too_long: String,
+    /// `refused`: the refusal by entry that the reader of senders gave the newest answer for the
+    /// parameter, the entry's number and kind and no sentence, which is the card's (I3.5, I8.1;
+    /// ruling RD-81 9.1 to 9.3); the key is left out while none stands.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refused: Option<Refused>,
 }
 
 /// A candidate of a parameter (I3.5).

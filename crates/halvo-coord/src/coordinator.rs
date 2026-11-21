@@ -5,7 +5,7 @@ use crate::items::{
     raise_step, ConfirmAnswer, ConfirmMove, ConfirmState, NativeCard, Plain, Raise, Setup,
     SetupInput, SetupParam, Source,
 };
-use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Tray};
+use crate::ports::{Analysis, Clock, Owner, Page, PortError, Rng, Runs, Senders, Tray};
 use crate::roster::{self, Placed};
 use crate::run::{self, Act, Done, StopBy};
 use crate::schedule::{self, Board, Move, Report};
@@ -464,7 +464,7 @@ fn candidates(param: Param, workflow: &FullWorkflow) -> Vec<(Vec<String>, Candid
 
 impl<P> Coordinator<P>
 where
-    P: Owner + Runs + Analysis + Clock + Rng + Tray + Page + Policy<Config = Cfg<P>>,
+    P: Owner + Runs + Analysis + Clock + Rng + Tray + Page + Policy<Config = Cfg<P>> + Senders,
     Cfg<P>: ConfigView + Clone,
 {
     /// A coordinator of a new life over `ports` with `limits`, which recovers at its first

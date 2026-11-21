@@ -1,5 +1,5 @@
 use super::{compose_setup, SetupParam};
-use crate::ports::Shared;
+use crate::ports::{Refused, Shared};
 use crate::types::{
     AgentId, Body, Category, Cause, Item, ItemId, Limits, Name, Param, Slot, WorkflowId,
 };
@@ -98,8 +98,9 @@ pub enum SetupMove<'a> {
 }
 
 /// A setup item that the coordinator holds: its item id, its workflow and agent, its
-/// parameters with their candidates, the value given for each so far, whether the owner refused
-/// its answers by a name after which another value can pass, and its state.
+/// parameters with their candidates, the value given for each so far, the refusal by entry that
+/// the reader of senders gave the newest answer for each, whether the owner refused its answers
+/// by a name after which another value can pass, and its state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Setup {
     item: ItemId,
@@ -107,6 +108,7 @@ pub struct Setup {
     agent: AgentId,
     params: Vec<SetupParam>,
     given: Vec<Option<Vec<String>>>,
+    refused: Vec<Option<Refused>>,
     not_taken: bool,
     step: u32,
     state: SetupState,
@@ -139,6 +141,7 @@ impl Setup {
             workflow,
             agent,
             given: vec![None; params.len()],
+            refused: vec![None; params.len()],
             params,
             not_taken: false,
             step: 0,
@@ -225,19 +228,43 @@ impl Setup {
         self.not_taken
     }
 
+    /// The value that the item holds for `param`, as the person gave it; none while it holds
+    /// none, and for a parameter that it does not ask.
+    pub fn given(&self, param: Param) -> Option<&[String]> {
+        let i = self.at(param).ok()?;
+        self.given[i].as_deref()
+    }
+
+    /// Takes the refusal by entry that the reader of senders gave the answer for `param`: the
+    /// parameter holds no value and carries the refusal until its next answer, and nothing else
+    /// of the item changes (ruling RD-81 9.2); nothing for a parameter that the item does not
+    /// ask.
+    pub(crate) fn refuse(&mut self, param: Param, refused: Refused) {
+        if let Ok(i) = self.at(param) {
+            self.given[i] = None;
+            self.refused[i] = Some(refused);
+        }
+    }
+
     /// The item as the page gets it (I3.4, I3.5), for the agent of the name `name` (I2.3):
     /// `compose_setup` of its parameters, with the line `item.setup.not_taken` while it asks
-    /// again.
+    /// again and the key `refused` of each parameter whose newest answer the reader of senders
+    /// refused (ruling RD-81 9.3).
     pub fn page_item(&self, name: &str, limits: &Limits) -> Result<Item, Cause> {
-        compose_setup(
+        let item = compose_setup(
             &self.item,
             &self.agent,
             name,
             &self.params,
             self.not_taken,
             limits,
-        )
-        .map(|item| item.at_step(self.step))
+        )?;
+        let refused = self.params.iter().zip(&self.refused);
+        Ok(refused
+            .filter_map(|(p, r)| r.map(|r| (p.param, r)))
+            .fold(item.at_step(self.step), |item, (param, r)| {
+                item.refused_at(param, r)
+            }))
     }
 
     fn at(&self, param: Param) -> Result<usize, Cause> {
@@ -291,7 +318,9 @@ fn typed(text: &str) -> Result<Vec<String>, Cause> {
 /// more, `state` for an item that keeps none; the answer that makes a new body, `not_taken` and
 /// the close end the kept body and what the item holds of its read, and an answer of the person
 /// stops the read that a tick asks again; every move but the answer `none` ends the wait of a
-/// freed body (`Setup::waits`).
+/// freed body (`Setup::waits`). An answer that it takes for a parameter ends the refusal by
+/// entry that the parameter carried, and a move after which the item asks every parameter again
+/// ends every such refusal (ruling RD-81 9.2).
 pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
     let mut next = setup.clone();
     if !matches!(mv, SetupMove::Input(SetupInput::None)) {
@@ -305,6 +334,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
         (SetupState::Owed(_), SetupMove::Acknowledged) => next.state = SetupState::Closed,
         (SetupState::Owed(_), SetupMove::NotTaken) => {
             next.given = vec![None; setup.params.len()];
+            next.refused = vec![None; setup.params.len()];
             next.not_taken = true;
             next.step = setup.step.saturating_add(1);
             next.state = SetupState::Open;
@@ -314,6 +344,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
         }
         (SetupState::Owed(body), SetupMove::Overlap) => {
             next.given = vec![None; setup.params.len()];
+            next.refused = vec![None; setup.params.len()];
             next.not_taken = true;
             next.step = setup.step.saturating_add(1);
             next.state = SetupState::Open;
@@ -345,6 +376,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
                 .and_then(|k| candidates.get(k))
                 .ok_or(Cause::Malformed)?;
             next.given[i] = Some(value.clone());
+            next.refused[i] = None;
         }
         (SetupState::Open, SetupMove::Input(SetupInput::Typed { param, text })) => {
             let i = setup.at(param)?;
@@ -352,6 +384,7 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
                 return Err(Cause::Malformed);
             }
             next.given[i] = Some(typed(text)?);
+            next.refused[i] = None;
         }
     }
     if matches!(

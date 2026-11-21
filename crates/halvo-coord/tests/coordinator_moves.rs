@@ -13081,7 +13081,9 @@ fn u24e_r4_a_take_back_is_no_service_with_no_board_and_ok_with_no_call_after_the
 mod clock_panics {
     use super::support::Both;
     use halvo_coord::mem::Config;
-    use halvo_coord::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
+    use halvo_coord::ports::{
+        Analysis, Clock, Owner, Page, PortError, Reading, Reaped, Rng, Runs, Senders, Tray,
+    };
     use halvo_coord::types::{
         Agent, AgentId, Answer, BindResult, Body, Class, Decision, Event, HandbackResult, Reply,
         ReplyRow, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
@@ -13212,6 +13214,12 @@ mod clock_panics {
 
         fn gives_run(&self, config: &Config, class: Class) -> Result<bool, PortError> {
             self.both.gives_run(config, class)
+        }
+    }
+
+    impl Senders for ClockPanics {
+        fn read(&self, text: &str) -> Result<Reading, PortError> {
+            self.both.read(text)
         }
     }
 }

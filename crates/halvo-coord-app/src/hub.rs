@@ -3,7 +3,7 @@ use crate::bell::Bell;
 use crate::wired::Wired;
 use halvo_coord::guard::Policy;
 use halvo_coord::items::ConfirmAnswer;
-use halvo_coord::ports::{Analysis, Clock, Owner, Rng, Runs};
+use halvo_coord::ports::{Analysis, Clock, Owner, Rng, Runs, Senders};
 use halvo_coord::sync::Next;
 use halvo_coord::types::commands::LIST;
 use halvo_coord::types::{
@@ -255,7 +255,16 @@ pub struct Hub<P: Owner> {
 
 impl<P> Hub<P>
 where
-    P: Owner + Runs + Analysis + Clock + Rng + Policy<Config = Cfg<P>> + Send + Sync + 'static,
+    P: Owner
+        + Runs
+        + Analysis
+        + Clock
+        + Rng
+        + Policy<Config = Cfg<P>>
+        + Senders
+        + Send
+        + Sync
+        + 'static,
     Cfg<P>: ConfigView + Clone + Send + 'static,
 {
     /// A hub of a new life over `ports` and `limits`, whose count of agents under `needs_you`
@@ -485,7 +494,16 @@ where
 
 impl<P> Core for Hub<P>
 where
-    P: Owner + Runs + Analysis + Clock + Rng + Policy<Config = Cfg<P>> + Send + Sync + 'static,
+    P: Owner
+        + Runs
+        + Analysis
+        + Clock
+        + Rng
+        + Policy<Config = Cfg<P>>
+        + Senders
+        + Send
+        + Sync
+        + 'static,
     Cfg<P>: ConfigView + Clone + Send + 'static,
 {
     fn call(&self, command: &str, args: Option<&Value>) -> Reply {

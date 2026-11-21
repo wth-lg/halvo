@@ -7,13 +7,13 @@ use super::{choices, compose_bind, compose_confirm, confirm_step, handback_kind,
 use super::{setup_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
 use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
 use crate::guard::Table;
-use crate::ports::{Clock, Owner, PortError, Rng, Runs, Shared, Stamp};
+use crate::ports::{Clock, Owner, PortError, Reading, Rng, Runs, Senders, Shared, Stamp};
 use crate::schedule::wants_active;
 use crate::types::{
     hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Cause, CheckAnswer,
     Choice, Cleared, ConfigView, ConfirmAsk, DecisionEntry, DoneAnswer, Event, Facts, HandbackAsk,
     HandbackResult, Item, ItemId, ItemKind, LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse,
-    OwnItem, OwnItemKind, Presenter, Raised, RunId, RunItem, RunItemKind, SetupAnswer,
+    OwnItem, OwnItemKind, Param, Presenter, Raised, RunId, RunItem, RunItemKind, SetupAnswer,
     SignInAnswer, What, WorkflowId,
 };
 use serde::Serialize;
@@ -2280,13 +2280,17 @@ pub fn freed_setup<P: Owner + Clock, C: ConfigView + Clone>(
 /// The person's answer to a setup item (I3.5), with the facts and the ledger of its agent:
 /// `state` for the facts or the ledger of another agent, and the refusal of `setup_step`, `stale`
 /// for an item that closed, `state` while its body is owed (ruling IG-10) and `malformed` for an
-/// answer that does not fit it; then nothing is sent and nothing stored. `none` keeps the item
-/// open with its answers and stores and sends nothing (I3.5, ruling RD-23 (b)). When the answer
-/// gives the last parameter, the one body
+/// answer that does not fit it; then nothing is sent and nothing stored. A typed answer for
+/// `reply_senders` that fits goes to the reader of senders (`Senders::read`): a refusal by entry
+/// is `malformed`, the parameter then holds no value and carries the refusal (`Setup::refuse`),
+/// the item stays open and nothing is kept, sent or stored, also where the answer was the last
+/// open parameter (ruling RD-81 9.1, 9.2); a reader that did not answer is `busy` or
+/// `no_service` and changes nothing. `none` keeps the item open with its answers and stores and
+/// sends nothing (I3.5, ruling RD-23 (b)). When the answer gives the last parameter, the one body
 /// `set_bindings` goes to the owner in this move; at its acknowledgement the item closes, its row
 /// is stored and the rule of `active` of I5.5 runs once for the agent, and a refusal decides as
 /// `refused_body` gives.
-pub fn answer_setup<P: Owner + Clock, C: ConfigView + Clone>(
+pub fn answer_setup<P: Owner + Clock + Senders, C: ConfigView + Clone>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
@@ -2296,6 +2300,16 @@ pub fn answer_setup<P: Owner + Clock, C: ConfigView + Clone>(
 ) -> Result<SetupDone, Cause> {
     same_agent(setup, facts, ledger)?;
     let next = setup_step(setup, SetupMove::Input(answer))?;
+    if let SetupInput::Typed {
+        param: param @ Param::ReplySenders,
+        text,
+    } = answer
+    {
+        if let Reading::Refused(refused) = ports.read(text).map_err(|e| cause_of(&e))? {
+            setup.refuse(param, refused);
+            return Err(Cause::Malformed);
+        }
+    }
     let at = match next.state() {
         SetupState::Owed(_) => clock_at(ports)?,
         SetupState::Open | SetupState::Closed | SetupState::Gone | SetupState::AgentGone => {
