@@ -65,11 +65,25 @@ mod tests {
         let sqlite: String = conn
             .query_row("SELECT sqlite_version()", [], |r| r.get(0))
             .unwrap();
-        assert!(cipher.starts_with("4.19.0"), "cipher_version {cipher}");
-        assert_eq!(sqlite, "3.53.4");
+        assert!(cipher.starts_with("4.20.0"), "cipher_version {cipher}");
+        assert_eq!(sqlite, "3.54.1");
         assert!(
             page_gap_mend_linked(),
             "the linked SQLCipher lacks the mend"
+        );
+    }
+
+    #[test]
+    fn the_library_that_answers_a_connection_carries_the_mark_of_this_build() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        let mark: i64 = conn
+            .query_row("SELECT halvo_sqlcipher_page_gap_mend()", [], |r| r.get(0))
+            .unwrap_or_else(|error| {
+                panic!("the library that answers this connection lacks the mark of this build: {error}")
+            });
+        assert_eq!(
+            mark, 2,
+            "the library that answers this connection carries another mark"
         );
     }
 

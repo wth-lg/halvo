@@ -274,7 +274,7 @@ fn rows_that_tie_in_group_and_name_stand_in_ascending_agent_id() {
         let mut f = utility();
         f.agent = halvo_coord::types::AgentId::parse(&format!("{:032x}", 0x5000 + n)).unwrap();
         Placed {
-            row: row(&f, line, "Same name").unwrap(),
+            row: row(&f, line, "Same name", None, &Limits::PRODUCT).unwrap(),
             raised,
         }
     };
@@ -294,4 +294,192 @@ fn rows_that_tie_in_group_and_name_stand_in_ascending_agent_id() {
             .collect();
         assert_eq!(agents, [1, 2, 3], "{line:?}");
     }
+}
+
+#[test]
+fn u24r_all_lists_the_record_line_once_and_first_in_the_order_of_i1_3() {
+    let all = StatusLine::all();
+    assert_eq!(all.first(), Some(&StatusLine::Record));
+    assert_eq!(all.iter().filter(|l| **l == StatusLine::Record).count(), 1);
+}
+
+#[test]
+fn u24r_the_record_row_offers_stop_where_a_run_is_live_the_delete_and_no_other_control() {
+    use halvo_coord::roster::row;
+    use halvo_coord::types::Control;
+    let controls = |f: &Facts<Config>| -> Vec<Control> {
+        row(
+            f,
+            StatusLine::Record,
+            "A name",
+            Some(Trigger::Person),
+            &Limits::PRODUCT,
+        )
+        .unwrap()
+        .controls
+        .iter()
+        .map(|c| c.control)
+        .collect()
+    };
+    let idle = utility();
+    assert_eq!(controls(&idle), [Control::Delete], "idle");
+    let mut off = utility();
+    push(
+        &mut off,
+        TODAY,
+        What::HoldSet {
+            cause: HoldSetCause::Person,
+        },
+    );
+    assert_eq!(controls(&off), [Control::Delete], "switched off");
+    for live in [
+        Live::Starting,
+        Live::Working,
+        Live::Waiting(RunItem {
+            item: item(4),
+            kind: RunItemKind::Confirm,
+        }),
+        Live::Stopping,
+    ] {
+        let mut f = utility();
+        f.doing = Doing::Live(live.clone());
+        assert_eq!(controls(&f), [Control::Stop, Control::Delete], "{live:?}");
+    }
+    let mut queued = utility();
+    queued.doing = Doing::Queued(None);
+    assert_eq!(controls(&queued), [Control::Delete], "queued");
+}
+
+#[test]
+fn u24r_kill_stuck_has_a_line_per_system_and_the_gone_row_takes_the_line_of_its_system() {
+    use halvo_coord::roster::gone_row;
+    use halvo_coord::types::System;
+    let words = |key: &str| halvo_coord::words::text(key, &[]).unwrap();
+    assert_eq!(System::ALL, [System::Mac, System::Windows]);
+    assert_eq!(
+        StatusLine::KillStuck(System::Mac).key(),
+        "line.working.kill_stuck_mac"
+    );
+    assert_eq!(
+        StatusLine::KillStuck(System::Windows).key(),
+        "line.working.kill_stuck_windows"
+    );
+    let mut f = utility();
+    f.doing = Doing::Live(Live::Stopping);
+    let mac = gone_row(&f, true, System::Mac, "A name").unwrap();
+    let windows = gone_row(&f, true, System::Windows, "A name").unwrap();
+    assert_eq!(mac.line, words("line.working.kill_stuck_mac"));
+    assert_eq!(windows.line, words("line.working.kill_stuck_windows"));
+    assert_ne!(mac.line, windows.line);
+    for system in System::ALL {
+        let row = gone_row(&f, false, system, "A name").unwrap();
+        assert_eq!(row.line, words("line.working.stopping"), "{system:?}");
+        assert!(row.controls.is_empty());
+    }
+    let all = StatusLine::all();
+    let at = |l: StatusLine| all.iter().position(|x| *x == l).unwrap();
+    assert_eq!(
+        at(StatusLine::KillStuck(System::Mac)),
+        at(StatusLine::Stopping) + 1
+    );
+    assert_eq!(
+        at(StatusLine::KillStuck(System::Windows)),
+        at(StatusLine::Stopping) + 2
+    );
+    assert_eq!(
+        System::HOST,
+        if cfg!(windows) {
+            System::Windows
+        } else {
+            System::Mac
+        }
+    );
+}
+
+#[test]
+fn u24r_b5_a_stuck_record_gives_the_record_line_before_every_bucket_of_i1_3() {
+    use halvo_coord::roster::status_of;
+    let limits = Limits::PRODUCT;
+    let mut buckets: Vec<(&str, Facts<Config>, StatusLine)> = Vec::new();
+    let mut f = utility();
+    f.doing = Doing::Idle(Some(OwnItem {
+        item: item(7),
+        kind: OwnItemKind::Ready,
+    }));
+    buckets.push(("needs_you", f, StatusLine::NeedsYou(ItemKind::Ready)));
+    buckets.push((
+        "hold not_yet",
+        facts(State::Ten).remove(1),
+        StatusLine::NotYet,
+    ));
+    let mut f = utility();
+    push(
+        &mut f,
+        TODAY,
+        What::HoldSet {
+            cause: HoldSetCause::Person,
+        },
+    );
+    buckets.push(("hold off", f, StatusLine::Off));
+    let mut f = utility();
+    push(
+        &mut f,
+        TODAY,
+        What::HoldSet {
+            cause: HoldSetCause::Failures,
+        },
+    );
+    buckets.push(("hold failures", f, StatusLine::Failures));
+    for (name, live, want) in [
+        ("live starting", Live::Starting, StatusLine::Starting),
+        ("live working", Live::Working, StatusLine::Working),
+        (
+            "live waiting",
+            Live::Waiting(RunItem {
+                item: item(8),
+                kind: RunItemKind::Confirm,
+            }),
+            StatusLine::NeedsYou(ItemKind::Confirm),
+        ),
+        ("live stopping", Live::Stopping, StatusLine::Stopping),
+    ] {
+        let mut f = utility();
+        f.store_ended = false;
+        f.doing = Doing::Live(live);
+        buckets.push((name, f, want));
+    }
+    let mut f = utility();
+    f.doing = Doing::Queued(None);
+    buckets.push(("queued", f, StatusLine::Queued));
+    let mut f = utility();
+    f.store_ended = false;
+    buckets.push(("store not ended", f, StatusLine::Store));
+    let mut f = utility();
+    ended(&mut f, 1, TODAY, RunEnd::from(Failure::ALL[0]));
+    buckets.push(("failure", f, StatusLine::Problem(Failure::ALL[0])));
+    let mut f = utility();
+    for n in 0..limits.starts_per_day {
+        ended(&mut f, n as u8, TODAY, RunEnd::Completed);
+    }
+    buckets.push(("tried_today", f, StatusLine::TriedToday));
+    let idle = utility();
+    let idle_line = status_of(&idle, &limits, None, false);
+    buckets.push(("idle", idle, idle_line));
+    for (name, f, want) in &buckets {
+        assert_eq!(
+            status_of(f, &limits, None, false),
+            *want,
+            "{name}: the bucket's own line"
+        );
+    }
+    let wrong: Vec<&str> = buckets
+        .iter()
+        .filter(|(_, f, _)| status_of(f, &limits, None, true) != StatusLine::Record)
+        .map(|(name, _, _)| *name)
+        .collect();
+    assert!(
+        wrong.is_empty(),
+        "buckets whose stuck record does not give the record line: {wrong:?}"
+    );
+    assert_eq!(buckets.len(), 13);
 }

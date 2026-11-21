@@ -1,11 +1,136 @@
 //! The web executor of A11.1: the agent's browser driven over a pipe by the one process that
 //! started it, through a relay that reaches only the person's bound sites.
+//!
+//! A named limit, held by no row and no promise (CP-186 N9): what each start leaves outside the
+//! run's profile on macOS. In every reading of the crash row in run 43484944398, the start with no
+//! crash among them, a start of Chrome left four files of 4,196 bytes in all, two in the account's
+//! cache of `com.google.Chrome.helper` and two links in the system's temporary directory, and a
+//! start of Edge four files of 4,923 bytes; after a crash the singleton directory stays in the
+//! system's temporary directory. The stop removes the profile and the temporary directory
+//! that its start made and nothing else (A11.1), so nothing in this crate removes those files, and
+//! no text of this run says who does. On Windows the same readings left none.
+//!
+//! The named limits of the mark and the guard that U2.6b leaves (the coordinator's rulings CP-231
+//! (5) and CP-233, the planner's object of U2.6b), each held by reading and by no test:
+//!
+//! - M5: `checks::same_path_on` counts up to two leading separators on both systems, while macOS
+//!   reads two or three leading slashes as one; a process that names the run's profile with two
+//!   or three leading slashes bears no mark and is left. It errs toward leaving a process, and
+//!   the executor writes the profile in its resolved form with one.
+//! - M7: `procs::adopted` takes only rows whose parent number is 1, which Windows does not give,
+//!   so on Windows `checks::tree_of` takes no adopted process into the tree; a process that the
+//!   tree misses for that reason is neither waited for nor ended as a member of the tree unless
+//!   another clause of `guard::members` takes it, which errs toward leaving a process. That holds
+//!   for the tree alone: the end at a stop (`checks::end_runs_own_with`) reads every row of the
+//!   process table by its mark (`Mark::owns`), not by the tree.
+//! - N9: the hosted row `killed_start` of web-rows does not say whether the guard or the close of
+//!   the pipe ended the browser; in the draws of U2.6 the browser was gone before the guard could
+//!   end anything. The reading of its draws comes from the rows step of the built-head run of
+//!   landing-68. It is a limit of a reading, on neither side.
+//! - The mark's reading of a command line (`checks::switch_args`, `checks::switch_of`,
+//!   `checks::bears_profile`) rests on the browser's own parser as it is recalled and not run:
+//!   argument 0 is no switch, a Windows line is read from its first sign that is not white space
+//!   and ends at its first NUL, the switches end at an argument `--` and, on Windows, at the
+//!   single-argument switch in the spellings `--`, `-` and `/` and any letter case, and a switch of
+//!   the profile's or the database's key that names another place takes the mark away, whichever
+//!   value of a repeated switch the browser takes. A key that is another beginning of the word
+//!   `database` is read as the database's key, because the crash handler's `getopt_long` may take
+//!   a unique beginning of a long option, a reading that is recalled and not run; there the mark
+//!   errs toward leaving. The mark finds the run's exact place only before the end of its switches
+//!   and reads a switch that names another place over every argument after its argument 0, so an
+//!   end of its switches that the browser does not share can lose a witness and cannot hide
+//!   another place. A value is compared as the argument holds it. Where the browser sets white
+//!   space at the end of a value aside, the mark reads a value that differs from the run's place
+//!   by such a sign alone as another place and errs toward leaving; where the name of the run's own
+//!   place ends in such a sign, the mark bears for the run's exact switch while the browser takes
+//!   the place without the sign: for a sign that `char::is_whitespace` counts, this case cannot
+//!   arise in a run of ours, because the start refuses such a directory (`Executor::start`); for a
+//!   sign that the browser alone sets aside, it is the fourth case below. Before the dashes of a
+//!   switch the mark sets aside the signs that Rust's `char::is_whitespace` counts: where the
+//!   browser keeps such a sign there, the mark reads more switches as naming another place or as an
+//!   end and errs toward leaving. Where the browser's own parser reads more of a line as witnesses
+//!   than these clauses do, or takes the run's place where another place is named too, the mark
+//!   bears less than the browser reads and errs toward leaving a process. These cases err toward
+//!   ending. No run of a browser shows any of them, and in each another program must have written
+//!   the line; each arises only on a reading of the browser that is not the one recalled:
+//!   - if the browser ends its switches at the text `--single-argument` wherever it stands, also
+//!     inside a quoted argument (a reading that the verify step of U2.6b does not share), a process
+//!     whose line holds that text inside an argument and then the run's exact profile switch or
+//!     exact database switch bears the mark where the browser does not take that place (row
+//!     `win_single_argument_inside_quotes`);
+//!   - if the browser sets aside before the dashes of a switch a sign that `char::is_whitespace`
+//!     does not count, or keeps at the start of its Windows line a sign that the mark sets aside
+//!     there, so that its argument 0 ends before the mark's, it reads a switch, or an end of the
+//!     switches, that the mark does not read; with a switch of another place, or an end, before
+//!     the run's exact switch, the mark bears where the browser may not take the run's place. The
+//!     browser's signs of white space are recalled as the signs of `char::is_whitespace` on
+//!     Windows and as the ASCII ones among them on macOS, so that, as recalled, this case does
+//!     not arise;
+//!   - if the browser reads its Windows line past the first NUL, where the mark and the system's
+//!     split end the line, a switch of another place behind the NUL is not read by the mark,
+//!     which bears where the browser may not take the run's place. The browser's line is recalled
+//!     to end at the NUL too, and no line that CreateProcess writes from a string holds one, so
+//!     that, as recalled, this case does not arise;
+//!   - if the browser sets aside at the end of a value a sign that `char::is_whitespace` does not
+//!     count (U+200B is one such sign) and the name of the run's own profile directory ends in that
+//!     sign, the start does not refuse the directory, and the mark bears for the run's exact switch
+//!     while the browser takes the directory without the sign. The browser's signs of white space
+//!     are recalled as the signs of `char::is_whitespace` on Windows and as the ASCII ones among
+//!     them on macOS, so that, as recalled, this case does not arise;
+//!   - if the browser sets aside at the end of an argument a sign that `char::is_whitespace` does
+//!     not count (U+200B is one such sign), it ends its switches at the argument `--` with that
+//!     sign behind it, and on Windows at the single-argument switch with that sign behind it, where
+//!     the mark does not end its own, because it sets aside there the signs of
+//!     `char::is_whitespace` alone; with such an argument before the run's exact switch, the mark
+//!     reads a witness and bears where the browser reads no switch and does not take the run's
+//!     place. The browser's signs of white space are recalled as the signs of `char::is_whitespace`
+//!     on Windows and as the ASCII ones among them on macOS, so that, as recalled, this case does
+//!     not arise;
+//!   - if the browser sets aside at the end of an argument a sign that `char::is_whitespace` does
+//!     not count (U+200B is one such sign), it reads an argument such as `--user-data-dir` or
+//!     `--database` with no `=` and that sign behind it as the profile's or the database's key with
+//!     an empty value, where the mark reads it under another key, because it sets aside at the end
+//!     of a key that has no `=` the signs of `char::is_whitespace` alone, and takes no mark away;
+//!     with the run's exact switch on the line, the mark bears where the browser may not take the
+//!     run's place. The browser's signs of white space are recalled as the signs of
+//!     `char::is_whitespace` on Windows and as the ASCII ones among them on macOS, so that, as
+//!     recalled, this case does not arise.
+//!
+//!   The class that these cases belong to is named by its rule and not by this list: a sign that
+//!   `char::is_whitespace` does not count and that a browser may set aside, at any of the places
+//!   where the mark reads (the start of a Windows line, before the dashes of an argument, the end
+//!   of an argument that ends the switches, the end of a key that has no `=`, the end of a value);
+//!   the cases above that turn on such a sign are examples of it; one of these places is open, not
+//!   worked through for such a browser and with no side named for it, the start of a Windows line;
+//!   and the browser row of U2.6c reads the class. A profile directory whose name ends in a sign of
+//!   white space that `char::is_whitespace` counts is refused at the start
+//!   (`cdp::Executor::start`), because a browser that sets that sign aside at the end of a value
+//!   would take the directory without it while the mark bears for the run's exact switch.
+//! - Which value of the system's parts `guard::guard_main` hands `guard::run_guard`: a test reads
+//!   what `run_guard` does with each part; of `guard::SYSTEM` it compares six parts (`open`,
+//!   `table`, `args`, `ask_end`, `kill` and `write`) by address with the functions that they name,
+//!   and of `sleep` and `now` it reads bounds: a sleep of `POLL` timed by `now` is at least `POLL`
+//!   and, the least of five, under ten times `POLL`, and a sleep of `UNREAD_PAUSE` is at least
+//!   `UNREAD_PAUSE` and, the least of ten, under `POLL`. No test reads that `guard_main` hands
+//!   `SYSTEM`; a change there passes every test, on either side.
+//! - Below the base of U2.6 (adversary 3 of its stress step, confirmed by the verify step): after
+//!   one read in which a timed member's row has no creation time, the executor's end of a start
+//!   with no first reply (`guard::Trigger::Now`) reads that member as gone and returns with the
+//!   cause `tree_gone` at 20 ms with no forced end, or `now_left` at 2,020 ms, which errs toward
+//!   leaving a process; and on Windows `checks::inside` folds the letter case of a program's path
+//!   with Unicode's rule, where the mark's path rule folds A to Z alone, so that a program whose
+//!   path folds into the browser's install directory only by Unicode's rule lies inside it, which
+//!   errs toward ending. Its third note, a browser left without a guard when the first process has
+//!   no creation time at the start, no longer holds: such a start starts no guard and ends its own
+//!   new child (M8).
 
 pub mod cdp;
 pub mod checks;
 #[cfg(test)]
 mod child;
 pub mod crash_row;
+#[cfg(test)]
+mod fence_manifest;
 pub mod guard;
 pub mod peer;
 pub mod pipe;
@@ -68,8 +193,11 @@ pub const PRODUCT_FLAGS: [&str; 16] = [
 ///   the product's earlier means alone wrote its dump to the account's Crashpad directory. No place
 ///   in the browser's source or documentation is named for it: the four cells of run 43484944398,
 ///   with their controls, stand in that place's stead for Chrome 156 and 157 and Edge 156 and for
-///   no other version, and the crash row is run again when a browser's major version changes
-///   (CP-165 (2) (d), CP-186 N3).
+///   no other version (`crash_row::LAST_READ`). Running the crash row again when a browser's
+///   major version changes is the rule of CP-165 (2) (d), and who runs it is the planner's line of
+///   CP-186 N3: the row `crash_major` of web-rows, when someone runs it, reads `miss` with
+///   `cause=new_major` at a major that `LAST_READ` does not hold (`crash_row::read_at`), and it
+///   runs in no job of main's workflow.
 ///
 /// The crash row's control starts without them (`cdp::CrashMeans::Without`).
 pub const CRASH_MEANS: [&str; 2] = [
@@ -79,7 +207,9 @@ pub const CRASH_MEANS: [&str; 2] = [
 
 /// The further candidates of the crash row (CP-167 E2), a closed list, each added after the
 /// product's means by `cdp::CrashMeans::Candidate`; each switch name stands in the browser's own
-/// binary, and what each does is what the row records.
+/// binary, and what each does is what the row records. Behind the fence: a build without the
+/// feature `test-fence`, which is no test build, has no candidate (CP-186 N8).
+#[cfg(any(test, feature = "test-fence"))]
 pub const CRASH_CANDIDATES: [(&str, &[&str]); 3] = [
     (
         "system_port",
@@ -88,6 +218,26 @@ pub const CRASH_CANDIDATES: [(&str, &[&str]); 3] = [
     ("dumps_dir", &["--crash-dumps-dir={profile}/Crashpad"]),
     ("no_reporter", &["--disable-crash-reporter"]),
 ];
+
+/// The fence's marker (CP-186 N8, in the form of the capture run's W3-8 (b) (3)): a byte string
+/// that stands in a build with the feature `test-fence` and in no build without it, so that a
+/// check can read a built file for it (`fence/shipped.mjs`). The feature stands behind the crash
+/// row's two means (`cdp::CrashMeans::Without`, `cdp::CrashMeans::Candidate`), its forced crash
+/// (`cdp::Executor::crash`), `relay::Names::Fixture`, `CRASH_CANDIDATES` and the programs
+/// `web-probe`, `web-rows` and `web-standin`; the crate's dev-dependency on itself turns it on for
+/// its own tests, and no other manifest names it. Every path that reaches one of those means
+/// reads the marker, and each of the three programs reads it at its start, so that a built file
+/// that links them holds it; `CRASH_CANDIDATES` is a constant and reads none: a program that
+/// names it alone holds its flags and no marker.
+#[cfg(feature = "test-fence")]
+pub static FENCE_MARKER: [u8; 39] = *b"halvo-web:test-fence:this-build-has-it!";
+
+/// Reads the fence's marker, so that a build that links the caller holds it; each program behind
+/// the fence calls it at its start.
+#[cfg(feature = "test-fence")]
+pub fn fence_marker() {
+    std::hint::black_box(&FENCE_MARKER);
+}
 
 /// The policy of A4.2 that the executor adds to every document and worker script.
 pub const WS_POLICY: &str = "connect-src http: https: data: blob:";
@@ -111,4 +261,218 @@ pub fn extract_amount(text: &str) -> Option<u64> {
     let whole: u64 = whole.parse().ok()?;
     let cents: u64 = cents.parse().ok()?;
     whole.checked_mul(100)?.checked_add(cents)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    const FENCE: &str = r#"#[cfg(any(test, feature = "test-fence"))]"#;
+
+    /// CP-186 N8: the fence is on in this test target from its start: the crate's dev-dependency
+    /// on itself gives its own tests the feature `test-fence`.
+    #[test]
+    fn the_fence_is_on_in_this_test_target() {
+        assert!(
+            std::hint::black_box(cfg!(feature = "test-fence")),
+            "the fence is off in the library's test target"
+        );
+    }
+
+    /// CP-186 N8: every test target of the crate other than the library's own (`test_targets`: the
+    /// programs of src/bin, tests, examples and benches) holds the test
+    /// `the_fence_is_on_in_this_test_target`, each
+    /// program of src/bin needs the feature, and the manifest gives the crate's own tests the
+    /// feature through its dev-dependency on itself, so that no test target loses the fence's
+    /// means unseen.
+    #[test]
+    fn every_test_target_holds_the_test_that_its_fence_is_on() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let targets = test_targets(root);
+        assert!(targets.len() >= 2, "{targets:?}");
+        let missing = without_the_fence_test(&targets);
+        assert!(
+            missing.is_empty(),
+            "test targets without the test: {missing:?}"
+        );
+        let manifest = std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest");
+        assert!(
+            manifest.contains(r#"halvo-web = { path = ".", features = ["test-fence"] }"#),
+            "the manifest does not give the crate's own tests the feature test-fence"
+        );
+        let bins = manifest.matches("[[bin]]").count();
+        let fenced = manifest
+            .matches(r#"required-features = ["test-fence"]"#)
+            .count();
+        assert_eq!(
+            (bins, fenced),
+            (3, 3),
+            "each program needs the feature test-fence"
+        );
+    }
+
+    /// The test targets of the crate below `root` other than the library's own, as cargo finds
+    /// them: each `.rs` file of src/bin, tests, examples and benches, and the `main.rs` of each
+    /// directory directly below one of them.
+    fn test_targets(root: &Path) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        for dir in ["src/bin", "tests", "examples", "benches"] {
+            let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let main = path.join("main.rs");
+                    if main.is_file() {
+                        out.push(main);
+                    }
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+        out.sort();
+        out
+    }
+
+    /// Of `targets`, those whose text holds no fence-state test.
+    fn without_the_fence_test(targets: &[PathBuf]) -> Vec<PathBuf> {
+        targets
+            .iter()
+            .filter(|p| {
+                !std::fs::read_to_string(p)
+                    .unwrap_or_default()
+                    .contains("fn the_fence_is_on_in_this_test_target()")
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// U2.6 round 1, R5, failing first: the reader of test targets takes, as cargo does, the `.rs`
+    /// files of src/bin, tests, examples and benches and the `main.rs` of a directory below each,
+    /// and names each one of them that holds no fence-state test; a module beside a `main.rs` is
+    /// no target.
+    #[test]
+    fn r5_a_target_in_a_directory_of_tests_examples_or_benches_is_read() {
+        let dir = crate::child::scratch("fence-targets");
+        let with = "#[test]\nfn the_fence_is_on_in_this_test_target() {}\n";
+        for (path, text) in [
+            ("src/bin/a.rs", with),
+            ("src/bin/b/main.rs", ""),
+            ("tests/c.rs", with),
+            ("tests/d/main.rs", ""),
+            ("tests/d/helper.rs", ""),
+            ("examples/e.rs", ""),
+            ("benches/f/main.rs", ""),
+        ] {
+            let p = dir.join(path);
+            std::fs::create_dir_all(p.parent().expect("a directory")).expect("a directory");
+            std::fs::write(&p, text).expect("a file");
+        }
+        let missing: Vec<String> = without_the_fence_test(&test_targets(&dir))
+            .iter()
+            .map(|p| {
+                p.strip_prefix(&dir)
+                    .expect("below the directory")
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect();
+        assert_eq!(
+            missing,
+            vec![
+                "benches/f/main.rs",
+                "examples/e.rs",
+                "src/bin/b/main.rs",
+                "tests/d/main.rs"
+            ]
+        );
+    }
+
+    /// Whether the line that stands directly above the first line of `text` that begins with
+    /// `item` (leading spaces aside) is the fence's attribute.
+    fn fenced(text: &str, item: &str) -> bool {
+        let lines: Vec<&str> = text.lines().map(str::trim).collect();
+        lines
+            .iter()
+            .position(|l| l.starts_with(item))
+            .is_some_and(|i| i > 0 && lines[i - 1] == FENCE)
+    }
+
+    /// CP-186 N8: the crash means' two row-only entries, `Names::Fixture` and the closed list of
+    /// the crash row's candidates stand behind the fence: in a build without the feature, which
+    /// is no test build, none of them exists.
+    #[test]
+    fn the_row_only_means_stand_behind_the_fence() {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let read = |f: &str| std::fs::read_to_string(src.join(f)).expect("a source file");
+        let (cdp, relay, lib) = (read("cdp.rs"), read("relay.rs"), read("lib.rs"));
+        for (text, item) in [
+            (&cdp, "Without,"),
+            (&cdp, "Candidate(usize),"),
+            (&relay, "Fixture,"),
+            (&lib, "pub const CRASH_CANDIDATES"),
+            (&cdp, "pub async fn crash("),
+        ] {
+            assert!(fenced(text, item), "{item} stands outside the fence");
+        }
+        assert!(!fenced("#[test]\nWithout,", "Without,"));
+        assert!(fenced(&format!("x\n  {FENCE}\n  Without,"), "Without,"));
+    }
+
+    /// The manifests under `dir`, at any depth, but in a directory whose name begins with a dot or
+    /// is `target` or `node_modules`.
+    fn manifests(dir: &Path, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if path.is_dir() {
+                if !(name.starts_with('.') || name == "target" || name == "node_modules") {
+                    manifests(&path, out);
+                }
+            } else if name == "Cargo.toml" {
+                out.push(path);
+            }
+        }
+    }
+
+    /// CP-186 N8, with the capture run's W3-8 (b) (2): no manifest of the repository but the
+    /// crate's own turns halvo-web's feature `test-fence` on, and the crate's own `default` does
+    /// not, so that no build for a person turns the fence's means on through a manifest. Each
+    /// manifest is read as cargo decodes it (`fence_manifest::naming_the_fence`, U2.6 round 1,
+    /// R3); the forms that it reads and its cases stand in that module.
+    #[test]
+    fn no_other_manifest_names_the_fence() {
+        let own = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = own.ancestors().nth(2).expect("the repository");
+        let mut found = Vec::new();
+        manifests(root, &mut found);
+        assert!(found.len() > 10, "{found:?}");
+        let files: Vec<(PathBuf, String)> = found
+            .into_iter()
+            .map(|m| {
+                let text = std::fs::read_to_string(&m).expect("a manifest");
+                (m, text)
+            })
+            .collect();
+        let naming = crate::fence_manifest::naming_the_fence(&files, &own.join("Cargo.toml"));
+        assert!(naming.is_empty(), "{naming:?}");
+    }
+
+    /// CP-186 N8, with W3-8 (b) (3): a build with the feature holds the fence's marker, the byte
+    /// string that the check of the shipped files reads for: this test's own program holds it.
+    #[cfg(feature = "test-fence")]
+    #[test]
+    fn the_test_build_holds_the_marker() {
+        let exe = std::fs::read(std::env::current_exe().expect("this program")).expect("read");
+        let marker = &super::FENCE_MARKER[..];
+        assert!(
+            exe.windows(marker.len()).any(|w| w == marker),
+            "the test build lacks the marker"
+        );
+    }
 }

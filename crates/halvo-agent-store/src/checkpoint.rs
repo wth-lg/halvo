@@ -141,7 +141,7 @@ fn caution(state: EffectState) -> u8 {
         EffectState::Approved => 4,
         EffectState::Held => 3,
         EffectState::Cleared => 2,
-        EffectState::Rejected => 1,
+        EffectState::Rejected | EffectState::NotMade => 1,
         EffectState::Refused => 0,
     }
 }

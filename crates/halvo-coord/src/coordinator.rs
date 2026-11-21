@@ -14,21 +14,27 @@ use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
     FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
     OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind, Snapshot,
-    Status,
+    Status, System,
 };
 use crate::words;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::cell::RefCell;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 /// What the app's quit hook waits for after the first step of the quit (I5.7, ruling RD-8): the
 /// latest time, in milliseconds of `Clock::now`, at which it calls the second step,
 /// `cancel_grace_s` after the stop of each run that is still live, where the stop of a run that
 /// was stopped before the quit counts from that stop; the hook calls it sooner once no run is
-/// live (`Coordinator::live`).
+/// live (`Coordinator::live`). The hook waits for the distance from `at`, the first step's own
+/// read of the clock, to `until`, never longer than `cancel_grace_s`, and counts it from the
+/// return of the first step on its own monotonic time, not from `at`; it calls no clock port.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct QuitWait {
     /// The time of the second step at the latest.
     pub until: u64,
+    /// The time that the first step read on the clock, or the last time that this life read
+    /// when that read failed.
+    pub at: u64,
 }
 
 type Cfg<P> = <P as Owner>::Config;
@@ -55,6 +61,9 @@ pub struct Coordinator<P: Owner> {
     /// How many reads of the clock answered in this life, so that a tick knows whether its own
     /// work read one (ruling RD-138 (2)).
     reads: AtomicU64,
+    unstopped: Arc<Mutex<Vec<(AgentId, RunId)>>>,
+    live_runs: AtomicUsize,
+    quit_mark: Arc<AtomicBool>,
 }
 
 const NO_READ: u64 = 0;
@@ -152,6 +161,49 @@ struct Entered<'a, P: Owner + Page> {
     ports: &'a P,
     entry: Entry,
     unwinding: bool,
+    mark_before: Option<QuitLine>,
+}
+
+/// What the thread of a call that holds the coordinator's lock reads of the app's quit: the
+/// mark, and the list of the runs that did not stop, inside whose lock a start reads the mark
+/// for the last time.
+type QuitLine = (Arc<AtomicBool>, Arc<Mutex<Vec<(AgentId, RunId)>>>);
+
+thread_local! {
+    static QUIT_MARK: RefCell<Option<QuitLine>> = const { RefCell::new(None) };
+}
+
+fn mark_this_thread(line: Option<QuitLine>) -> Option<QuitLine> {
+    QUIT_MARK.with(|m| m.replace(line))
+}
+
+pub(crate) fn quit_marked() -> bool {
+    QUIT_MARK.with(|m| {
+        m.borrow()
+            .as_ref()
+            .is_some_and(|(mark, _)| mark.load(Ordering::SeqCst))
+    })
+}
+
+/// The last reading of the app's quit mark by a start, directly before `Runs::start` (ruling
+/// RD-147 (5)(i)): inside the lock of the list of the runs that did not stop, false where the
+/// quit is marked; otherwise it writes `run` with `agent` at the end of that list and is true.
+/// The quit hook marks the quit before it reads that list inside the same lock, so either the
+/// start finds the mark or the hook's list names the run. True on a thread that holds no
+/// coordinator's lock.
+pub(crate) fn past_the_mark(agent: &AgentId, run: &RunId) -> bool {
+    QUIT_MARK.with(|m| {
+        let line = m.borrow();
+        let Some((mark, unstopped)) = line.as_ref() else {
+            return true;
+        };
+        let mut listed = unstopped.lock().unwrap_or_else(PoisonError::into_inner);
+        if mark.load(Ordering::SeqCst) {
+            return false;
+        }
+        listed.push((agent.clone(), run.clone()));
+        true
+    })
 }
 
 impl<P: Owner + Page> std::ops::Deref for Entered<'_, P> {
@@ -170,6 +222,7 @@ impl<P: Owner + Page> std::ops::DerefMut for Entered<'_, P> {
 
 impl<P: Owner + Page> Drop for Entered<'_, P> {
     fn drop(&mut self) {
+        mark_this_thread(self.mark_before.take());
         if self.unwinding || !std::thread::panicking() {
             return;
         }
@@ -199,6 +252,28 @@ fn answered(report: &Report) -> Result<(), Cause> {
 
 fn index<C>(board: &Board<C>, agent: &AgentId) -> Option<usize> {
     board.members.iter().position(|m| &m.facts.agent == agent)
+}
+
+fn set_aside<C>(board: &mut Board<C>, agent: &AgentId) -> Option<Vec<schedule::Waiting>> {
+    let order = board.queue.entries().to_vec();
+    board.queue.remove(agent).then_some(order)
+}
+
+fn put_back<C>(board: &mut Board<C>, agent: &AgentId, order: &[schedule::Waiting]) {
+    let now = board.queue.entries().to_vec();
+    for w in &now {
+        board.queue.remove(&w.agent);
+    }
+    let kept = |w: &&schedule::Waiting| &w.agent == agent || now.iter().any(|n| n.agent == w.agent);
+    for w in order.iter().filter(kept) {
+        board.queue.push(w.clone());
+    }
+    for w in now
+        .iter()
+        .filter(|n| !order.iter().any(|o| o.agent == n.agent))
+    {
+        board.queue.push(w.clone());
+    }
 }
 
 /// The items ledger of the agent of member `i`, which takes the owner's events that the board
@@ -376,6 +451,9 @@ where
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
+            unstopped: Arc::new(Mutex::new(Vec::new())),
+            live_runs: AtomicUsize::new(0),
+            quit_mark: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -399,6 +477,10 @@ where
             ports: &self.ports,
             entry,
             unwinding: std::thread::panicking(),
+            mark_before: mark_this_thread(Some((
+                Arc::clone(&self.quit_mark),
+                Arc::clone(&self.unstopped),
+            ))),
         };
         if entry != Entry::Read {
             let tick = st.mark.tick;
@@ -415,6 +497,59 @@ where
             self.publish(&mut st);
         }
         st
+    }
+
+    fn enter_control(&self, agent: &AgentId, action: Action) -> Entered<'_, P> {
+        let mut st = Entered {
+            st: self.state.lock().unwrap_or_else(PoisonError::into_inner),
+            ports: &self.ports,
+            entry: Entry::Move,
+            unwinding: std::thread::panicking(),
+            mark_before: mark_this_thread(Some((
+                Arc::clone(&self.quit_mark),
+                Arc::clone(&self.unstopped),
+            ))),
+        };
+        let tick = st.mark.tick;
+        if let Some(board) = st.board.as_mut() {
+            board.hold_queue(tick);
+        }
+        let aside = if Self::takes_its_start_away(&st, agent, action) {
+            st.board.as_mut().and_then(|board| set_aside(board, agent))
+        } else {
+            None
+        };
+        let taken = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.take_up(&mut st);
+        }));
+        if let (Some(order), Some(board)) = (aside, st.board.as_mut()) {
+            put_back(board, agent, &order);
+        }
+        if let Err(unwind) = taken {
+            std::panic::resume_unwind(unwind);
+        }
+        let held = st.mark.tick;
+        if let Some(board) = st.board.as_mut() {
+            board.hold_queue(held);
+        }
+        if st.mark.unpublished {
+            self.publish(&mut st);
+        }
+        st
+    }
+
+    fn takes_its_start_away(st: &State<Cfg<P>>, agent: &AgentId, action: Action) -> bool {
+        let named = st
+            .board
+            .as_ref()
+            .is_some_and(|board| index(board, agent).is_some_and(|i| !Self::gone(st, board, i)));
+        let off = st.offs.contains(agent) || st.held_off.contains(agent);
+        named
+            && match action {
+                Action::TakeBack | Action::Stop => true,
+                Action::SwitchOff => !off,
+                Action::RunNow | Action::SwitchOn => false,
+            }
     }
 
     fn lock(&self) -> Entered<'_, P> {
@@ -747,7 +882,7 @@ where
             return;
         }
         let reads = self.reads.load(Ordering::Relaxed);
-        if st.quitting {
+        if st.quitting || self.quit_mark.load(Ordering::SeqCst) {
             let State { board, ledgers, .. } = &mut *st;
             if let Some(board) = board.as_mut() {
                 self.flush_ledgers(board, ledgers);
@@ -1068,7 +1203,12 @@ where
     /// through `raise_step` for any other, and moves the run to `waiting`; the second step of a `sign_in`
     /// item (`Bind`); and the runner's end, before which the run's open item lapses with
     /// `run_ended`. A request that ends the run (`kind`, `budget`) shows no card, stops the run
-    /// with that cause and is answered `state`.
+    /// with that cause and is answered `state`. A second step or a handback `account_link` whose
+    /// origin is `http` outside 127.0.0.0/8 is declined to the runner, with no item raised, only
+    /// where `raise_step` would raise an item or end the run with `budget`: after its state rule
+    /// (a run that is not `working` is refused with `state`) and its kind rule (a second request
+    /// while an item of the run is open ends the run with `kind` and raises nothing), and before
+    /// its budget rule; it never declines quietly (I1.4, ruling RD-116 R2).
     pub fn on_run(&self, run: &RunId, event: RunEvent) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
         if Self::waits_on_run(&st, run) {
@@ -1843,6 +1983,14 @@ where
     /// `choose` names its parameter and its candidate. `step` is the step mark of the item that
     /// the page showed: an answer whose step is no longer the item's current one is refused with
     /// `state`, a decline among them, and nothing is stored or sent (I3.4, ruling RD-28 (k)).
+    /// While the board holds stuck the record of the agent whose row shows an item that a run
+    /// raised, the agent of that run, a press of any choice on that item, from a page that drew
+    /// it before, answers `no_service` and is not taken: nothing of it is armed, stored or sent
+    /// to the run, and the item stays as it was, with its own time, and shows again once the
+    /// record can be saved. That holds for a confirmation, the second step of a sign-in and every
+    /// handback alike; the items that no run raises are answered as before. Such a refused press
+    /// ends as every other refusal of this move ends: what the entry of the move took up is
+    /// published (rulings RD-147 (5)(ii), RD-159, RD-164).
     pub fn answer(
         &self,
         item: &ItemId,
@@ -1856,18 +2004,28 @@ where
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
-        let by = AnsweredBy {
-            step: Some(step),
-            from: Presenter::Page,
-            now,
+        let out = if self.withdrawn(&st, item) {
+            Err(Cause::NoService)
+        } else {
+            let by = AnsweredBy {
+                step: Some(step),
+                from: Presenter::Page,
+                now,
+            };
+            self.answer_in(&mut st, item, choice, pick, by)
         };
-        let out = self.answer_in(&mut st, item, choice, pick, by);
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
     }
 
     /// The answer of the native dialog of a confirmation (I4.5), whose item keeps its one step.
+    /// While the board holds stuck the record of the agent whose row shows the item, the agent of
+    /// the run that raised it, a press of either control answers `no_service` and is not taken:
+    /// nothing of it is armed, stored or sent to the run, and the item stays held with its own
+    /// time, which `present` offers again once the record can be saved. Such a refused press ends
+    /// as every other refusal of this move ends: what the entry of the move took up is published
+    /// (rulings RD-147 (5)(ii), RD-164).
     pub fn answer_native(&self, item: &ItemId, answer: ConfirmAnswer) -> Result<(), Cause> {
         let choice = match answer {
             ConfirmAnswer::Allow => Choice::Allow,
@@ -1879,12 +2037,21 @@ where
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
-        let by = AnsweredBy {
-            step: None,
-            from: Presenter::Native,
-            now,
+        let out = if st
+            .held
+            .iter()
+            .find(|h| h.item() == item)
+            .is_some_and(|h| self.withdrawn(&st, h.item()))
+        {
+            Err(Cause::NoService)
+        } else {
+            let by = AnsweredBy {
+                step: None,
+                from: Presenter::Native,
+                now,
+            };
+            self.answer_in(&mut st, item, choice, None, by)
         };
-        let out = self.answer_in(&mut st, item, choice, None, by);
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
@@ -2152,7 +2319,9 @@ where
     }
 
     /// `agents_present` (I8.1): a confirmation whose presenter is native; `presenter` for the
-    /// page's.
+    /// page's; `no_service` for a native one while the board holds stuck the record of the agent
+    /// whose row shows it, the agent of the run that raised it, so that nobody is asked to allow
+    /// what Halvo cannot save (rulings RD-147 (5)(ii), RD-164).
     pub fn present(&self, item: &ItemId) -> Result<(), Cause> {
         let st = self.lock();
         let h = st
@@ -2161,6 +2330,7 @@ where
             .find(|h| h.item() == item)
             .ok_or(Cause::UnknownItem)?;
         match h.confirmation().presenter() {
+            Presenter::Native if self.withdrawn(&st, item) => Err(Cause::NoService),
             Presenter::Native => Ok(()),
             Presenter::Page => Err(Cause::Presenter),
         }
@@ -2169,8 +2339,10 @@ where
     /// The card of the native dialog of the confirmation `item` (I8.1 `agents_present`, ruling
     /// RD-77 12.1): `items::native_card` of the confirmation that the coordinator holds for that
     /// id, read under the lock; it calls no port and stores nothing. `unknown_item` for an id that
-    /// is no held confirmation, an item of another kind and no item among them, and the causes of
-    /// `items::native_card` otherwise.
+    /// is no held confirmation, an item of another kind and no item among them, the causes of
+    /// `items::native_card` otherwise, and then `no_service` while the board holds stuck the
+    /// record of the agent whose row shows the item, the agent of the run that raised it (rulings
+    /// RD-147 (5)(ii), RD-164).
     pub fn native_card(&self, item: &ItemId) -> Result<NativeCard, Cause> {
         let st = self.lock();
         let h = st
@@ -2178,7 +2350,20 @@ where
             .iter()
             .find(|h| h.item() == item)
             .ok_or(Cause::UnknownItem)?;
-        native_card(h)
+        let card = native_card(h)?;
+        if self.withdrawn(&st, item) {
+            return Err(Cause::NoService);
+        }
+        Ok(card)
+    }
+
+    fn withdrawn(&self, st: &State<Cfg<P>>, item: &ItemId) -> bool {
+        st.board.as_ref().is_some_and(|b| {
+            b.members.iter().any(|m| {
+                matches!(&m.facts.doing, Doing::Live(Live::Waiting(open)) if &open.item == item)
+                    && b.record_stuck(&m.facts.agent, &self.limits)
+            })
+        })
     }
 
     /// The page's report that it opened the page confirmation `item` at the step mark `step`
@@ -2255,7 +2440,7 @@ where
     /// step of the quit, and `no_service` while the mark of a tick that did not return stands
     /// (ruling RD-80 4.5).
     fn start_in(&self, st: &mut State<Cfg<P>>, agent: &AgentId) -> Result<(), Cause> {
-        if st.quitting {
+        if st.quitting || self.quit_mark.load(Ordering::SeqCst) {
             return Err(Cause::State);
         }
         if st.mark.tick {
@@ -2290,16 +2475,29 @@ where
     }
 
     /// A control of a row (I8.1 `agents_control`). Every control of an agent whose workflow a
-    /// tick saw gone, or whose setup body the owner ended, is answered `unknown_agent` at once
-    /// with nothing stored (I5.7, rulings IG-33, IG-36); after the first
+    /// tick saw gone, or whose setup body the owner ended, is answered `unknown_agent`, and the
+    /// control itself stores nothing; the take-up that the call makes first, below, can still
+    /// store and send before that answer (I5.7, rulings IG-33, IG-36); after the first
     /// step of the quit every start is `state`; while the mark of a tick that did not return
     /// stands, `run_now` and `switch_on` are `no_service` (ruling RD-80 4.5). The person's
     /// `stop` lapses the open item of a
     /// waiting run with `cancelled` and stops the run in one command, for every kind of item,
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
-    /// switch-off control lapses that item in the same way before its own move.
+    /// switch-off control lapses that item in the same way before its own move. Like every move,
+    /// the call first takes up what an earlier stop, switch-off or runner's end left waiting for
+    /// a read of the clock, which can read the clock, store and send for agents and their runs,
+    /// the named agent among them where its own earlier switch-off waited for the clock; for
+    /// `take_back`, `switch_off` and `stop`, after the refusals above, the named agent's
+    /// start that waits in the queue is set aside during that take-up and put back in its place
+    /// after it, so that no end that the take-up makes starts the agent that the control names
+    /// (RD-149, verifier-59 issue 1). The take-back's own move then takes that start out of the
+    /// queue and keeps the agent's open item; it reads no port and no clock, stores and sends
+    /// nothing, adds no hold and leaves every hold that stood, and it answers success also where
+    /// no start of the agent waits, a run that started before the call going on (rulings RD-54
+    /// (h), RD-52 (d)). The call ends, as every control does, by publishing the state, which
+    /// tells the page and the tray when it changed.
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
-        let mut st = self.enter(Entry::Move);
+        let mut st = self.enter_control(agent, action);
         let before = Self::agents_held_off(&st);
         let out = self.control_in(&mut st, agent, action);
         self.finish_switch_offs_after_reads(&mut st, &before);
@@ -2341,6 +2539,12 @@ where
                 },
             ),
             Action::Stop => self.stop_in(st, i),
+            Action::TakeBack => self.schedule(
+                st,
+                Move::TakeBack {
+                    agent: agent.clone(),
+                },
+            ),
         }
     }
 
@@ -2392,16 +2596,44 @@ where
         Ok(())
     }
 
-    /// The first step of the app's quit (I5.7, ruling RD-8): every open item lapses with
-    /// `app_ended` in the life that ends (I4.5), every live run that no stop has reached gets
-    /// `cancel` through the run drive's stop-all, the queue is emptied, and from then on every
-    /// start is refused, the person's, the queue's and a tick's. It returns at once, with the
-    /// time at which the hook calls the second step at the latest: `cancel_grace_s` after the
-    /// latest stop of a live run, where a stop that reads later than the first step counts from
-    /// the first step (ruling RD-28 (e)), and the first step's time when no run is live.
+    /// Marks the app's quit (I5.7): from this call on every start that has not passed its last
+    /// reading of the mark is refused, the person's, the queue's at the end of a run and a
+    /// tick's, also before the first step of the quit has taken the coordinator's lock and also
+    /// in a move that holds that lock now. A start reads the mark at its start of a run and last
+    /// directly before `Runs::start`, inside the lock of the list of `not_stopped`: a start that
+    /// passed that reading before this call stands in that list from its reading, and a later
+    /// one is refused there and ends its run `interrupted`. A tick after the mark makes only the
+    /// stages that start nothing, as after the first step. This call takes no lock and calls no port, so the app's
+    /// quit hook makes it first, before anything that can wait.
+    pub fn mark_quit(&self) {
+        self.quit_mark.store(true, Ordering::SeqCst);
+    }
+
+    /// The first step of the app's quit (I5.7, ruling RD-8): it marks the quit (`mark_quit`)
+    /// before it takes the coordinator's lock; then every open item lapses with `app_ended` in
+    /// the life that ends (I4.5), every live run that no stop has reached gets `cancel` through
+    /// the run drive's stop-all, and the queue is emptied before any port call of the step.
+    /// From the mark on every start that has not passed its last reading of the mark is refused,
+    /// the person's, the queue's and a tick's, also where a port panics in the step before its
+    /// own work. It returns at once, with the time at which the hook calls the second step at
+    /// the latest: `cancel_grace_s` after the latest stop of a live run, where a stop that reads
+    /// later than the first step counts from the first step (ruling RD-28 (e)), and the first
+    /// step's time when no run is live; and with the time that the step read on the clock, or
+    /// the last read of the life where that read fails: the hook waits for the distance from
+    /// that time to the first, counted from the return of this step, without a read of its own.
     pub fn quit_stop(&self) -> QuitWait {
+        self.mark_quit();
         let mut st = self.enter(Entry::Move);
         st.quitting = true;
+        if let Some(board) = st.board.as_mut() {
+            for m in &mut board.members {
+                if board.queue.remove(&m.facts.agent) {
+                    if let Doing::Queued(item) = &m.facts.doing {
+                        m.facts.doing = Doing::Idle(item.clone());
+                    }
+                }
+            }
+        }
         self.stop_for_settles(&mut st);
         let last = self.last_read.load(Ordering::Relaxed);
         let now = self.clock_now().unwrap_or(last);
@@ -2422,7 +2654,7 @@ where
             })
             .map_or(now, |at| at.saturating_add(grace));
         self.publish(&mut st);
-        QuitWait { until }
+        QuitWait { until, at: now }
     }
 
     /// The second step of the app's quit (I5.7, ruling RD-8), which the app's hook calls when no
@@ -2440,9 +2672,38 @@ where
         self.publish(&mut st);
     }
 
-    /// The count of live runs, for which the app's quit hook waits.
+    /// The count of live runs as the last publish found them, for which the app's quit hook
+    /// waits; a dying tree is no live run. This read takes no lock, so it answers while a kill
+    /// holds the coordinator's lock.
     pub fn live(&self) -> usize {
-        self.lock().board.as_ref().map_or(0, |b| b.runs.len())
+        self.live_runs.load(Ordering::Relaxed)
+    }
+
+    /// The runs whose processes the board does not know to be gone, each with its agent, in
+    /// the order of their starts, as the last publish found them (ruling RD-147 (5)(i), RD-151):
+    /// each live run, and each dying tree that the board still holds, a run that ended after
+    /// its stop and whose tree no kill has ended yet, named with the agent that the list gave
+    /// its run while it lived. The publish at the end of a move writes the list, before the quit
+    /// as after it, the first step, the end of a run and the second step among them, and it
+    /// writes it before it calls the notification ports: a port's panic before the write
+    /// leaves the list of the move before, a panic in a notification after the write leaves the
+    /// list as that move wrote it, and a move that returns before any change, such as a move
+    /// refused while a settle waits, writes none. So a run or a tree whose kill was refused stays
+    /// in the list, and a tree leaves it with the move whose kill of it was answered Ok. After a
+    /// move that did not return, the next call of the coordinator publishes at its entry and
+    /// writes the list from the board as that move left it. The run of a start stands at the end
+    /// of the list from the start's last reading of the quit's mark, directly before
+    /// `Runs::start` (`mark_quit`), until the publish of its move writes the list again, which
+    /// drops it where `Runs::start` failed. While a
+    /// kill of a tick or of the second step holds the coordinator's lock the list is the one from
+    /// before that move: a run whose kill returned earlier in that move stays named until the
+    /// move returns. This read takes no lock that a port call holds, so it answers while a kill
+    /// holds the coordinator's lock.
+    pub fn not_stopped(&self) -> Vec<(AgentId, RunId)> {
+        self.unstopped
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// The agents whose hold `off` stands in the owner's events as the coordinator has read
@@ -2498,9 +2759,9 @@ where
         st.table = st.table.stored(record);
     }
 
-    /// Whether the agent's record is stuck on the board, as the line `line.problem.record` will
-    /// read it once the unit that lands second wires it into compose (I5.7; rulings RD-64 2.5,
-    /// RD-122 T1); false where there is no board or no such agent.
+    /// Whether the agent's record is stuck on the board, which gives its row the line
+    /// `line.problem.record` (I5.7, I1.3; rulings RD-64 2.5, RD-122 T1); false where there is no
+    /// board or no such agent.
     pub fn record_stuck(&self, agent: &AgentId) -> bool {
         let st = self.lock();
         st.board
@@ -2520,8 +2781,12 @@ where
 
     /// The card of an agent (I8.1 `agents_card`, I2.6), read through `Owner::agent_history`,
     /// with the name of its row: two agents of one name get their ordinal among the agents whose
-    /// rows the page shows (I2.3). An agent that has no row, whose workflow a tick saw gone or
-    /// whose setup body the owner ended, is `unknown_agent`, as for every control.
+    /// rows the page shows (I2.3). Its first line is `card.records_dropped` with the count of
+    /// `records_dropped` where the board took off a record of the agent in this life. An agent
+    /// that has no row, whose workflow a tick saw gone or whose setup body the owner ended, is
+    /// `unknown_agent`, as for every control.
+    /// A run that this life's `Runs::reap` answered `alive` and that a record of the store names
+    /// takes its line from that record's end, as its row does (`Board::ended_after_reap`).
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
         let st = self.lock();
         let board = st
@@ -2540,7 +2805,19 @@ where
             .ports
             .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
             .map_err(|e| cause_of(&e))?;
-        roster::card(facts, &name, &history, &self.limits)
+        let records: Vec<_> = history.iter().map(|h| h.run.clone()).collect();
+        let after = board.ended_after_reap(facts, &records);
+        let mut card = roster::card(
+            after.as_ref().unwrap_or(facts),
+            &name,
+            &history,
+            &self.limits,
+        )?;
+        let count = board.dropped(agent).map_or(0, |(n, _, _)| n);
+        if let Some(line) = roster::dropped_line(count)? {
+            card.lines.insert(0, line);
+        }
+        Ok(card)
     }
 
     /// The reply of `agents_snapshot` (I8.1).
@@ -2562,6 +2839,10 @@ where
             ports: &self.ports,
             entry: Entry::Read,
             unwinding: std::thread::panicking(),
+            mark_before: mark_this_thread(Some((
+                Arc::clone(&self.quit_mark),
+                Arc::clone(&self.unstopped),
+            ))),
         };
         if st.mark.unpublished {
             self.publish(&mut st);
@@ -2581,6 +2862,28 @@ where
                     board.acknowledged(agent);
                 }
             }
+        }
+        if let Some(b) = st.board.as_ref() {
+            let mut listed = self
+                .unstopped
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let mut named: Vec<(u64, AgentId, RunId)> = b
+                .runs
+                .iter()
+                .map(|r| (r.rank, r.agent.clone(), r.run.clone()))
+                .collect();
+            for d in &b.dying {
+                if let Some((agent, _)) = listed.iter().find(|(_, run)| run == &d.run) {
+                    named.push((d.rank, agent.clone(), d.run.clone()));
+                }
+            }
+            named.sort_by_key(|(rank, _, _)| *rank);
+            *listed = named
+                .into_iter()
+                .map(|(_, agent, run)| (agent, run))
+                .collect();
+            self.live_runs.store(b.runs.len(), Ordering::Relaxed);
         }
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
@@ -2613,6 +2916,12 @@ where
             .iter()
             .map(|m| &m.facts)
             .filter(|f| board.gone.contains(&f.workflow.id) && matches!(f.doing, Doing::Live(_)))
+            .chain(board.members.iter().map(|m| &m.facts).filter(|f| {
+                board.gone.contains(&f.workflow.id)
+                    && !matches!(f.doing, Doing::Live(_))
+                    && board.alive_at_reap(&f.agent).is_some()
+            }))
+            .chain(board.kept_gone())
             .collect();
         shown.extend(still.iter().copied());
         shown.sort_by(|a, b| a.agent.cmp(&b.agent));
@@ -2630,8 +2939,10 @@ where
                 let stuck = board
                     .runs
                     .iter()
-                    .any(|r| r.agent == facts.agent && r.kill_refused);
-                if let Ok(row) = roster::gone_row(*facts, stuck, name) {
+                    .any(|r| r.agent == facts.agent && r.kill_refused)
+                    || board.alive_at_reap(&facts.agent).is_some()
+                    || board.kept_gone().iter().any(|f| f.agent == facts.agent);
+                if let Ok(row) = roster::gone_row(*facts, stuck, System::HOST, name) {
                     placed.push((Placed { row, raised: None }, None));
                 }
                 continue;
@@ -2640,8 +2951,31 @@ where
             let held = open
                 .as_ref()
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
-            let line = roster::status(*facts, &self.limits, held.map(|h| h.confirmation().state()));
-            let Ok(row) = roster::row(*facts, line, name) else {
+            let mut after = board.ended_after_reap(facts, &facts.runs);
+            if let Some(read) = after.as_mut() {
+                if Self::ready_only_by_interrupted(facts, read) {
+                    read.doing = Doing::Idle(None);
+                }
+            }
+            let line = match roster::status_of(
+                after.as_ref().unwrap_or(*facts),
+                &self.limits,
+                held.map(|h| h.confirmation().state()),
+                board.record_stuck(&facts.agent, &self.limits),
+            ) {
+                line @ crate::types::StatusLine::Record => line,
+                _ if board.alive_at_reap(&facts.agent).is_some() => {
+                    crate::types::StatusLine::KillStuck(System::HOST)
+                }
+                line => line,
+            };
+            let waiting = board
+                .queue
+                .entries()
+                .iter()
+                .find(|w| w.agent == facts.agent)
+                .map(|w| w.trigger);
+            let Ok(row) = roster::row(*facts, line, name, waiting, &self.limits) else {
                 continue;
             };
             let item = match (&open, line.status()) {
@@ -2693,6 +3027,27 @@ where
             None
         };
         (rows.into_iter().map(|p| p.row).collect(), items, note)
+    }
+
+    /// Whether the open `ready` item of `facts` is the stored raise of a run that a record of the
+    /// store names `completed` or `nothing_to_do` (`Board::raise_of_a_finished_run`, with `read`,
+    /// the facts with the ends that the row reads, from `Board::ended_after_reap`) while no new
+    /// slot has opened for it or while a hold of the agent stands (`schedule::holds` of `facts`).
+    /// Under any hold the stored item stays hidden, at a new slot too, whatever came first. A new
+    /// slot has opened when the agent's current slot is open by `slot_open` on `read`, where that
+    /// run's own end serves the slot in which it started; at such a slot with no hold standing,
+    /// the item stands for the ask of I5.3 for the next run. A named difference: where the slot
+    /// opened first and a hold came after, the ordinary way keeps its ready card under the hold,
+    /// and this rule hides the item until the hold ends. Such an item is not shown, not counted
+    /// and not given to a page, so that a task that the record names finished is never offered as
+    /// if it had not run while it is hidden. The rule asks no tick. Nothing is stored, and the item
+    /// stays open until a start of the person or the next life's recovery ends it (RD-156 (1),
+    /// RD-162 (1), RD-165).
+    fn ready_only_by_interrupted(facts: &Facts<Cfg<P>>, read: &Facts<Cfg<P>>) -> bool {
+        let new_slot = schedule::current_slot(&read.workflow, read.today)
+            .is_some_and(|s| schedule::slot_open(read, s));
+        Board::raise_of_a_finished_run(facts, read)
+            && (!new_slot || !schedule::holds(facts).is_empty())
     }
 
     fn item_of(

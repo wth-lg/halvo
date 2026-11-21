@@ -55,8 +55,9 @@ pub(crate) fn outcome(outcome: Outcome) -> learn::Outcome {
     }
 }
 
-/// The cause of a log line as halvo-learn names it. The four causes that the schema's list holds and halvo-learn's
-/// does not, `secret`, `unauthorized`, `not_selected` and `no_start`, are no counted cause (contracts.md L3.5 counts
+/// The cause of a log line as halvo-learn names it. The eleven causes that the schema's list holds and halvo-learn's
+/// does not, `secret`, `unauthorized`, `not_sent`, `not_replaced`, `throttled`, `not_selected`, `no_start`,
+/// `no_channel`, `browser_start`, `senders_unread` and `reproposed`, are no counted cause (contracts.md L3.5 counts
 /// `step_failed`, `class_mismatch` and `origin` alone) and map to none (CP-188).
 pub(crate) fn log_cause(cause: Cause) -> Option<learn::LogCause> {
     Some(match cause {
@@ -83,7 +84,17 @@ pub(crate) fn log_cause(cause: Cause) -> Option<learn::LogCause> {
         Cause::Effect => learn::LogCause::Effect,
         Cause::Ended => learn::LogCause::Ended,
         Cause::Changed => learn::LogCause::Changed,
-        Cause::Secret | Cause::Unauthorized | Cause::NotSelected | Cause::NoStart => return None,
+        Cause::Secret
+        | Cause::Unauthorized
+        | Cause::NotSent
+        | Cause::NotReplaced
+        | Cause::Throttled
+        | Cause::NotSelected
+        | Cause::NoStart
+        | Cause::NoChannel
+        | Cause::BrowserStart
+        | Cause::SendersUnread
+        | Cause::Reproposed => return None,
     })
 }
 
@@ -137,18 +148,25 @@ pub(crate) fn stored_state(
 mod tests {
     use super::*;
 
-    /// CP-188: `unauthorized`, `not_selected` and `no_start` map to none, as `secret` does, and every other cause of
-    /// the schema's list maps to a name of halvo-learn, so that a new cause of the schema fails this test and not only
-    /// the build.
+    /// CP-188: the ten causes after `secret` that halvo-learn does not hold map to none, as `secret` does, and every
+    /// other cause of the schema's list maps to a name of halvo-learn, so that a new cause of the schema fails this
+    /// test and not only the build.
     #[test]
     fn the_causes_that_halvo_learn_does_not_hold_map_to_none_and_every_other_cause_to_a_name() {
         let none = [
             Cause::Secret,
             Cause::Unauthorized,
+            Cause::NotSent,
+            Cause::NotReplaced,
+            Cause::Throttled,
             Cause::NotSelected,
             Cause::NoStart,
+            Cause::NoChannel,
+            Cause::BrowserStart,
+            Cause::SendersUnread,
+            Cause::Reproposed,
         ];
-        for cause in [Cause::Unauthorized, Cause::NotSelected, Cause::NoStart] {
+        for cause in none {
             assert_eq!(log_cause(cause), None, "{} maps to none", cause.as_str());
         }
         for cause in Cause::ALL.iter().filter(|c| !none.contains(c)) {

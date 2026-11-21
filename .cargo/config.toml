@@ -1,0 +1,3 @@
+[env]
+SQLCIPHER_LIB_DIR = { value = "crates/halvo-sqlcipher", relative = true, force = true }
+SQLCIPHER_NO_PKG_CONFIG = { value = "1", force = true }

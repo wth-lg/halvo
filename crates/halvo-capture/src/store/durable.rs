@@ -333,6 +333,11 @@ mod unix_dir {
             })
         }
 
+        pub(crate) fn from_fd(fd: OwnedFd) -> io::Result<Dir> {
+            let path = path_of(fd.as_raw_fd())?;
+            Ok(Dir { fd, path })
+        }
+
         pub(crate) fn open_dir(&self, name: &OsStr) -> io::Result<Dir> {
             let c = c_name(name)?;
             let at = self.fd.as_raw_fd();

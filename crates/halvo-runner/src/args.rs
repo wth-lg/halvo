@@ -8,9 +8,10 @@ use halvo_schema::{AgentId, WorkflowId};
 
 /// The arguments of A6.1: `--run <run id> --agent <agent id> --workflow <workflow id> --mode compile|replay
 /// --browser PATH --utc-offset SECONDS [--model FILE] [--headed]`, each once, in any order, and `[--data-dir DIR]`,
-/// Halvo's data directory, whose `agents/locks/` the file steps lock (the coordinator's ruling CP-134; optional until the
-/// supervisor passes the directory that the app resolved). This build starts no browser and no model, so it
-/// checks the form of `--browser`, `--model` and `--headed` and keeps none of them.
+/// Halvo's data directory, whose `agents/locks/` the file steps lock (the coordinator's ruling CP-134). The supervisor
+/// library passes `--data-dir` with the directory that its caller resolved (U4.7); the argument stays optional here,
+/// as A6.1 writes it, and a file step of a runner without it fails with `step_failed`. This build starts no browser
+/// and no model, so it checks the form of `--browser`, `--model` and `--headed` and keeps none of them.
 #[derive(Debug)]
 pub(crate) struct Args {
     pub run: RunId,
@@ -18,8 +19,8 @@ pub(crate) struct Args {
     pub workflow: WorkflowId,
     pub mode: Mode,
     /// The data directory of `--data-dir`, read by halvo-control's `DataDir::from_flag`, its
-    /// check of a data directory given as a flag; `None` without the argument, and the file
-    /// steps then take the app's default directory.
+    /// check of a data directory given as a flag; `None` without the argument, and every file
+    /// step then fails with `step_failed` before it opens a lock.
     pub data_dir: Option<DataDir>,
     /// The run's offset of `--utc-offset`: whole seconds east of UTC, from -50,400 to 50,400, by which the runner
     /// stamps the day of every row (`day_of`, the coordinator's ruling CP-204).

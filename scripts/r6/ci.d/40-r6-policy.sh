@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The policy table equals both what route-gate derive writes and the first table of the contract, the router product passes the gate, docs/r6/bar.md holds the two constants, the default cap line is the contract's and a cap file that does not parse gives no cap, and no tracked file sets compiler flags or the test configuration for a build or the plain name of a variable that starts with CARGO_TARGET_ and ends with _RUNNER, or that name in the escapes that the scan decodes (a name built from parts or escaped another way, and a file that the scan does not read, pass it), except scripts/r6/ci.d/80-r6-absent.sh while HEAD holds it as a regular file reached through trees alone whose git blob id is the one that this script names and the work-tree file is that blob.
+# rule: The policy table equals both what route-gate derive writes and the first table of the contract, the router product passes the gate, docs/r6/bar.md holds the two constants, the default cap line is the contract's and a cap file that does not parse gives no cap, and no tracked file sets compiler flags or the test configuration for a build or the plain name of a variable that starts with CARGO_TARGET_ and ends with _RUNNER, or that name in the escapes that the scan decodes (a name built from parts or escaped another way, and a file that the scan does not read, pass it), except scripts/r6/ci.d/80-r6-absent.sh while HEAD holds it as a regular file reached through trees alone whose git blob id is the one that this script names and the work-tree file is that blob; every tracked cargo configuration counts as such a file, but .cargo/config.toml at the root when its one table is [env] and each key of that table is SQLCIPHER_LIB_DIR or SQLCIPHER_NO_PKG_CONFIG and no name that cargo or rustc reads as flags or as a profile, and the check prints each key that it lets through.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -12,6 +12,7 @@ recorded=docs/r6/outcomes/recorded.tsv
 freeze=docs/r6/outcomes/freeze.txt
 pinned_path=scripts/r6/ci.d/80-r6-absent.sh
 pinned_blob=a0cbd1d17f92e6135678879353c57137fc2ac1fb
+env_keys='SQLCIPHER_LIB_DIR SQLCIPHER_NO_PKG_CONFIG'
 specimen=crates/halvo-route-gate/tests/data/specimen.tsv
 cap_line='default_cap amount=2000 period=month status=provisional'
 case $0 in
@@ -22,6 +23,9 @@ q="'"
 word_flags=rust
 word_flags=${word_flags}flags
 word_cfg=cfg
+upper_flags=$(printf '%s' "$word_flags" | tr '[:lower:]' '[:upper:]')
+denied_keys="$upper_flags CARGO_ENCODED_$upper_flags RUSTDOCFLAGS CARGO_ENCODED_RUSTDOCFLAGS RUSTC RUSTC_WRAPPER RUSTC_WORKSPACE_WRAPPER RUSTDOC"
+denied_prefixes='CARGO_BUILD_ CARGO_PROFILE_ CARGO_TARGET_'
 flag_pattern="${word_flags}|--${word_cfg}[[:space:]=,\"${q}]+test([^[:alnum:]_]|\$)|rustc-${word_cfg}=[\"${q}]?test([^[:alnum:]_]|\$)|cargo_target_[[:alnum:]_]*runner"
 
 first_table() {
@@ -217,6 +221,34 @@ EOF
   printf 'pin path=%s want=%s head=%s work=%s\n' "$pinned_path" "$pinned_blob" "$head_entry" "$work_entry"
 }
 
+env_table_alone() {
+  [ -f "$1" ] && [ ! -L "$1" ] || return 1
+  awk -v keys="$env_keys" -v denied="$denied_keys" -v prefixes="$denied_prefixes" '
+    BEGIN {
+      n = split(keys, list, " "); for (i = 1; i <= n; i++) allowed[list[i]] = 1
+      n = split(denied, list, " "); for (i = 1; i <= n; i++) refused[list[i]] = 1
+      np = split(prefixes, prefix, " ")
+    }
+    { line = $0; sub(/\r$/, "", line) }
+    line == "" { next }
+    line == "[env]" && !header { header = 1; next }
+    !header { bad = 1; exit }
+    {
+      key = line
+      if (index(key, "=") == 0) { bad = 1; exit }
+      sub(/ *=.*/, "", key)
+      if (key in refused) { bad = 1; exit }
+      for (i = 1; i <= np; i++) if (index(key, prefix[i]) == 1) { bad = 1; exit }
+      if (!(key in allowed)) { bad = 1; exit }
+      passed[++count] = key
+    }
+    END {
+      if (bad || !header) exit 1
+      for (i = 1; i <= count; i++) print passed[i]
+    }
+  ' "$1"
+}
+
 scan_flags() {
   exempt=
   if pinned_holds; then
@@ -226,10 +258,16 @@ scan_flags() {
   tr '\000' '\n' <"$scratch/tracked.z" >"$scratch/tracked.txt" || return 2
   found=0
   grep -E '(^|/)\.cargo/config(\.toml)?$' "$scratch/tracked.txt" >"$scratch/config.txt"
-  if [ -s "$scratch/config.txt" ]; then
-    sed 's/^/config /' "$scratch/config.txt"
+  while IFS= read -r config; do
+    if [ "$config" = .cargo/config.toml ] && env_table_alone "$config" >"$scratch/env-keys.txt"; then
+      while IFS= read -r key; do
+        printf 'let through %s [env] %s\n' "$config" "$key"
+      done <"$scratch/env-keys.txt"
+      continue
+    fi
+    printf 'config %s\n' "$config"
     found=1
-  fi
+  done <"$scratch/config.txt"
   grep -E '\.(sh|bash|zsh|ps1|psm1|bat|cmd|py|rb|pl|lua|js|mjs|cjs|ts|mts|cts|toml|mk)$|(^|/)(build\.rs|Makefile|GNUmakefile|makefile|justfile|Justfile|\.justfile|package\.json)$|^\.githooks/|^\.github/' \
     "$scratch/tracked.txt" >"$scratch/scan.txt"
   git grep -l -z -I -E -e '^#! ?/' >"$scratch/interpreter.z"
@@ -352,6 +390,7 @@ measure() {
       pin_report
     fi
   fi
+  grep '^let through ' "$artifacts/flags.txt"
 
   if [ -n "$cause" ]; then
     printf 'FAIL %s (%s)\n' "$name" "$cause"
@@ -657,6 +696,16 @@ PASS $name"
   cfg_eq=$(printf -- '--%s=test' "$word_cfg")
   build_cfg=$(printf 'rustc-%s=test' "$word_cfg")
   flags_case config-toml FAIL .cargo/config.toml '[build]'
+  flags_case config-env-key-off-the-list FAIL .cargo/config.toml '[env]
+SQLCIPHER_LIB_DIR = { value = "crates/halvo-sqlcipher", relative = true, force = true }
+SQLCIPHER_NO_PKG_CONFIG = { value = "1", force = true }
+SQLITE3_LIB_DIR = "lib"'
+  flags_case config-env-beside-another-table FAIL .cargo/config.toml '[env]
+SQLCIPHER_LIB_DIR = { value = "crates/halvo-sqlcipher", relative = true, force = true }
+SQLCIPHER_NO_PKG_CONFIG = { value = "1", force = true }
+
+[build]
+jobs = 1'
   flags_case config-legacy FAIL crates/x/.cargo/config 'jobs = 1'
   flags_case workflow-env FAIL .github/workflows/ci.yml "    env:
       $setting: -D warnings"

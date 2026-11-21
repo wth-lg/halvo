@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every proof line of the content floor, of the daemon's port and of the store's boundary (the store's database type, its key file, its segment files, its modules expiry and verify and DEFAULT_RETENTION cannot be named outside crate::store, by a path, a glob, a re-export or a macro) fails to build with its named error code and its twin builds, the daemon's in the macos job alone, where a build without tests holds src/daemon/. In the macos job every file under the crate's src/daemon/ that the dep-info of the lib's test build lists is listed by the dep-info of its product build too, or is one of the test-support files model_store.rs, owner_props.rs, scripted.rs and stop_tests.rs.The name searches read the tracked files of HEAD through git: the synthetic doors stand only at their two definitions, in the proof file, in daemon/prefill.rs and in this check and the changelog; TextFilterPoint only under the crate's src/floor/ and src/daemon/ and in those two files; SecureInputProbe only in its five files and those two; and the proof file holds every proof and its twin. The tests of crates/halvo-capture/tests/source_rules.rs read as tokens every file that the compiler can read there: TextFilterPoint has at most one implementor outside floor/cases.rs, under src/daemon/, SecureInputProbe has implementors only in the secure_input tree and the proof file, neither trait is renamed with as or stands inside an attribute or a macro, and #[path] and the include macros stand only at their listed uses; and the macOS entry hands the binary's signal flag to its one call of run_timed; and the binary's usage arm returns what usage_answer gives and its run arm what outcome_answer gives.
+# rule: Every proof line of the content floor, of the daemon's port and of the store's boundary (the store's database type, its key file, its segment files, its modules expiry and verify and DEFAULT_RETENTION cannot be named outside crate::store, by a path, a glob, a re-export or a macro) fails to build with its named error code and its twin builds, the daemon's in the macos job alone, where a build without tests holds src/daemon/. In the macos job every file under the crate's src/daemon/ that the dep-info of the lib's test build lists is listed by the dep-info of its product build too, or is one of the test-support files model_store.rs, owner_props.rs, process_tests.rs, scripted.rs and stop_tests.rs.The name searches read the tracked files of HEAD through git: the synthetic doors stand only at their two definitions, in the proof file, in daemon/prefill.rs and in this check and the changelog; TextFilterPoint only under the crate's src/floor/ and src/daemon/ and in those two files; SecureInputProbe only in its five files and those two; and the proof file holds every proof and its twin. The tests of crates/halvo-capture/tests/source_rules.rs read as tokens every file that the compiler can read there: TextFilterPoint has at most one implementor outside floor/cases.rs, under src/daemon/, SecureInputProbe has implementors only in the secure_input tree and the proof file, neither trait is renamed with as or stands inside an attribute or a macro, and #[path] and the include macros stand only at their listed uses; and the macOS entry hands the binary's signal flag to its one call of run_timed; and the binary's usage arm returns what usage_answer gives and its run arm what outcome_answer gives.
 set -u
 name=30-core-boundary-proofs
 crate=crates/halvo-capture
@@ -56,10 +56,11 @@ store_database_named_through_a_glob_of_the_store E0603 debug
 store_database_named_by_a_macro_of_path_segments E0603 debug
 store_database_named_by_an_alias_in_a_brace_list E0603 debug
 store_database_re_exported_under_a_new_name E0603 debug
+store_handle_named_from_the_daemon_owner E0603 debug
 synthetic_clearance_in_a_release_build E0425 release
 synthetic_keep_in_a_release_build E0425 release'
 proof_names=$(printf '%s\n' "$PROOFS" | awk '{ printf "%s ", $1 }')
-test_support="$src/daemon/model_store.rs $src/daemon/owner_props.rs $src/daemon/scripted.rs $src/daemon/stop_tests.rs"
+test_support="$src/daemon/model_store.rs $src/daemon/owner_props.rs $src/daemon/process_tests.rs $src/daemon/scripted.rs $src/daemon/stop_tests.rs"
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -252,7 +253,7 @@ build() {
 
 depinfo_of() {
   tr -d '\r' | grep -F '"reason":"compiler-artifact"' | grep -F '"name":"halvo_capture"' |
-    grep -F '"kind":["lib"]' | sed -n 's/.*"filenames":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | tr -d '"' |
+    grep -F '"kind":["lib"]' | grep -F "${1:-}" | sed -n 's/.*"filenames":\[\([^]]*\)\].*/\1/p' | tr ',' '\n' | tr -d '"' |
     grep -F '/deps/' | awk 'NR == 1 {
       n = split($0, part, "/")
       file = part[n]
@@ -269,7 +270,7 @@ daemon_reads() {
 
 module_verdict() {
   product_d=$(depinfo_of <"$1")
-  test_d=$(depinfo_of <"$2")
+  test_d=$(depinfo_of '"test":true},"features"' <"$2")
   if [ ! -f "$product_d" ] || [ ! -f "$test_d" ]; then
     printf 'the builds name no dep-info file of the lib\n'
     return 1
@@ -482,13 +483,19 @@ source_output() {
 module_case() {
   dir=$work/$1
   mkdir -p "$dir" || exit 2
-  artifact='{"reason":"compiler-artifact","target":{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture"},"filenames":["'
+  artifact='{"reason":"compiler-artifact","target":{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture"},"profile":{"test":false},"features":[],"filenames":["'
+  harness='{"reason":"compiler-artifact","target":{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture"},"profile":{"test":true},"features":[],"filenames":["'
   if [ -n "${4:-}" ]; then
     printf '{"reason":"build-finished","success":true}\n' >"$dir/product.json"
   else
     printf '%s%s","%s"]}\n' "$artifact" "$dir/libhalvo_capture.rlib" "$dir/deps/libhalvo_capture-p.rmeta" >"$dir/product.json"
   fi
-  printf '%s%s"]}\n' "$artifact" "$dir/deps/halvo_capture-t" >"$dir/test.json"
+  : >"$dir/test.json"
+  if [ -n "${5:-}" ]; then
+    printf '%s%s","%s"]}\n' "$artifact" "$dir/deps/libhalvo_capture-d.rlib" "$dir/deps/libhalvo_capture-d.rmeta" >>"$dir/test.json"
+    plant "$dir/deps/halvo_capture-d.d" "$dir/deps/halvo_capture-d.d: $2"
+  fi
+  printf '%s%s"]}\n' "$harness" "$dir/deps/halvo_capture-t" >>"$dir/test.json"
   plant "$dir/deps/halvo_capture-p.d" "$dir/deps/halvo_capture-p.d: $2"
   plant "$dir/deps/halvo_capture-t.d" "$dir/deps/halvo_capture-t.d: $3"
   module_verdict "$dir/product.json" "$dir/test.json" "$dir"
@@ -574,6 +581,7 @@ impl Stored for Passthrough {}'
   case_of daemon-files-read-by-both-builds PASS module_case both "$product" "$product $d/model_store.rs $d/scripted.rs"
   case_of a-module-that-the-test-build-alone-reads FAIL module_case test-alone "$product" "$product $d/v10state_c.rs"
   case_of a-module-under-a-directory-that-the-test-build-alone-reads FAIL module_case test-alone-nested "$product" "$product $d/r2/mod.rs"
+  case_of a-test-build-whose-first-lib-is-the-dev-dependency FAIL module_case dev-dependency-first "$product" "$product $d/v10state_c.rs" "" yes
   case_of a-product-build-without-the-daemon FAIL module_case no-daemon "$src/lib.rs" "$product"
   case_of a-product-build-that-names-no-dep-info FAIL module_case no-dep-info "$product" "$product" yes
   if [ -n "$wrong" ]; then

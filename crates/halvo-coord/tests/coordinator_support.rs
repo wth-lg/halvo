@@ -331,6 +331,10 @@ impl Tray for Both {
 
 impl Page for Both {
     fn changed(&self) -> Result<(), PortError> {
+        if self.panics.get() == Some("changed_once") {
+            self.panics.set(None);
+            panic!("the port changed panics once");
+        }
         self.ports.changed()
     }
 }
