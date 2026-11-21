@@ -148,7 +148,7 @@ pub struct Fill {
 pub enum Link {
     /// The gate host on the memory store, in this process.
     Host,
-    /// The product's owner through U9.2's link, on the control socket of `data_dir`, or of the product's own data
+    /// The product's owner through U9.2's link, on the control channel of `data_dir`, or of the product's own data
     /// directory where it is none; `workflow` is the approved workflow of the agent that the play makes.
     Product {
         workflow: WorkflowId,
