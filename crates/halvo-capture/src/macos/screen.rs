@@ -4277,6 +4277,7 @@ mod tests {
         updated_on: Mutex<Vec<(String, usize)>>,
         content_dropped_on: Mutex<Vec<String>>,
         selections: Mutex<Vec<(bool, bool, bool)>>,
+        ids_read_on: Mutex<Vec<String>>,
     }
 
     impl Seen {
@@ -4375,6 +4376,7 @@ mod tests {
         type Stream = StreamStandIn;
 
         fn display_ids(&self) -> Vec<u32> {
+            locked(&self.parts.stream.seen.ids_read_on).push(thread_name());
             self.parts.ids.clone()
         }
 
@@ -4939,6 +4941,27 @@ mod tests {
         reader.join();
         assert_eq!(rebuilt, Ok((5, true)), "the rebuild's answer");
         assert_eq!(facts.lists_app(), Some(true), "the rebuild's fact");
+    }
+
+    #[test]
+    fn every_read_of_the_content_runs_on_the_readers_thread() {
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream.clone(), &[5, 7, 9], LONG_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert!(
+            trial.answer.is_ok(),
+            "the start answered {:?}",
+            trial.error()
+        );
+        let facts = Arc::default();
+        let rebuilt = refilter_on(&reader, &stream, 7, &selection_under(None), &facts);
+        reader.join();
+        assert_eq!(rebuilt, Ok((7, true)), "the rebuild's answer");
+        assert_eq!(
+            *locked(&seen.ids_read_on),
+            vec![READER_THREAD.to_string(), READER_THREAD.to_string()],
+            "the threads of every read of the content's displays, at the start and at the rebuild"
+        );
     }
 
     fn probe_code(error: &CaptureError) -> String {
