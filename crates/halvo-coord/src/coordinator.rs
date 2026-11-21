@@ -505,6 +505,10 @@ where
             ports: &self.ports,
             entry: Entry::Move,
             unwinding: std::thread::panicking(),
+            mark_before: mark_this_thread(Some((
+                Arc::clone(&self.quit_mark),
+                Arc::clone(&self.unstopped),
+            ))),
         };
         let tick = st.mark.tick;
         if let Some(board) = st.board.as_mut() {
