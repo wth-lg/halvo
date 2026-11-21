@@ -378,6 +378,7 @@ fn what_name(w: &What) -> String {
             slot.map(|s| (s as i64 - DAY as i64).to_string())
                 .unwrap_or("-".into())
         ),
+        What::RunNotStopped { .. } => "run_not_stopped".into(),
     }
 }
 
