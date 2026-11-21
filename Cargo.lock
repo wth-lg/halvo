@@ -1757,6 +1757,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-owner"
+version = "0.0.0"
+dependencies = [
+ "getrandom 0.3.4",
+ "halvo-derived",
+ "halvo-identify",
+ "halvo-schema-core",
+ "halvo-seam",
+ "halvo-test-dir",
+ "libc",
+ "serde",
+ "serde_json",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "halvo-policy"
 version = "0.0.0"
 dependencies = [
