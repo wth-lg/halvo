@@ -1758,3 +1758,182 @@ fn u46b_the_stored_ready_of_a_finished_first_task_stays_hidden_under_a_hold_unti
         "case 3: the ask is reachable, and its Start starts one run as the ordinary way's"
     );
 }
+
+/// R14 (RD-165, the coordinator's word of round 5 as it stands, A1): under any hold the stored
+/// item stays hidden, at a new slot too, whatever came first, and when the hold ends it reads as
+/// the rule of round 4 has it. Form 1: Switch off on the day of the record, then the slot opens
+/// with the hold still on: the row, the items, the controls and the tray equal the ordinary
+/// way's, the off row with no item; Switch on at the slot brings the item back. Form 2: the hold
+/// not_yet before the slot: hidden at the slot, as the ordinary way. Form 3, the named
+/// difference, in the order of P11: the slot opens first and Switch off comes after; the ordinary
+/// way keeps its card, and this path hides the item until the hold ends. P11 itself: an agent
+/// that never ran keeps its ready under Switch off.
+#[test]
+fn u46b_under_any_hold_the_stored_ready_stays_hidden_also_at_a_new_slot_and_comes_back_when_it_ends(
+) {
+    let tray = |c: &Coordinator<Both>| (shown(c), attention(c));
+    let slot = |c: &Coordinator<Both>| {
+        c.ports().ports.set_clock(T0 + 2 * DAY_MS, DAY + 2);
+        c.tick();
+        c.ports().ports.set_clock(T0 + 2 * DAY_MS + 1_000, DAY + 2);
+        c.tick();
+    };
+    let later = |c: &Coordinator<Both>, k: u64| {
+        c.ports()
+            .ports
+            .set_clock(T0 + 2 * DAY_MS + k * 1_000, DAY + 2);
+        c.tick();
+    };
+    let runs = |c: &Coordinator<Both>| coord::started(c).len();
+    for person in [true, false] {
+        let a = A {
+            person,
+            slotted: true,
+        };
+        for cleared in [true, false] {
+            for (end, line) in [
+                (Outcome::Completed, "line.all_set.done"),
+                (Outcome::NothingToDo, "line.all_set.nothing"),
+            ] {
+                let form = format!("person={person} cleared={cleared} end={end:?}");
+                let (reference, _, _) = ordinary(cleared, a, end);
+                let (life, hidden) = stored_raise(cleared, a, end);
+                let id = serde_json::to_string(&hidden).unwrap();
+                assert_eq!(
+                    row(&life, 0).line,
+                    text(line),
+                    "{form}: the row reads the end"
+                );
+                let (ref_runs, life_runs) = (runs(&reference), runs(&life));
+                for c in [&reference, &life] {
+                    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+                    tick_at(c, 4);
+                    slot(c);
+                }
+                assert_eq!(
+                    tray(&life),
+                    tray(&reference),
+                    "{form}: form 1, switched off before the slot, at the slot"
+                );
+                assert_eq!(
+                    (row(&life, 0).line, attention(&life)),
+                    (text("line.off.person"), Some(0)),
+                    "{form}: form 1, the off row with the tray at 0"
+                );
+                assert!(
+                    !published(&life).contains(id.as_str()),
+                    "{form}: form 1, no snapshot and no card at the slot carries the id"
+                );
+                for c in [&reference, &life] {
+                    assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
+                    later(c, 3);
+                }
+                if person || end == Outcome::NothingToDo {
+                    assert_eq!(
+                        (tray(&life), shown(&life).3),
+                        (tray(&reference), vec!["Ready".to_string()]),
+                        "{form}: form 1, the hold ends at the slot and the item comes back"
+                    );
+                } else {
+                    assert_eq!(
+                        (
+                            shown(&life).3,
+                            runs(&life) - life_runs,
+                            runs(&reference) - ref_runs
+                        ),
+                        (vec!["Ready".to_string()], 0, 1),
+                        "{form}: form 1, the hold ends at the slot: the named limit, the ask in \
+                         place of the scheduler's own start"
+                    );
+                }
+                assert_eq!(
+                    runs(&life) - life_runs,
+                    0,
+                    "{form}: no run starts but by a press"
+                );
+            }
+        }
+    }
+
+    let a = A {
+        person: true,
+        slotted: true,
+    };
+    let (reference, _, _) = ordinary(true, a, Outcome::Completed);
+    let (life, hidden) = stored_raise(true, a, Outcome::Completed);
+    let id = serde_json::to_string(&hidden).unwrap();
+    for c in [&reference, &life] {
+        not_yet_hold(c);
+        tick_at(c, 4);
+        slot(c);
+    }
+    assert_eq!(
+        tray(&life),
+        tray(&reference),
+        "form 2, the hold not_yet before the slot, at the slot"
+    );
+    assert_eq!(
+        (row(&life, 0).line, attention(&life)),
+        (text("line.not_yet.category"), Some(0)),
+        "form 2, the not_yet row with the tray at 0"
+    );
+    assert!(
+        !published(&life).contains(id.as_str()),
+        "form 2, no page carries the id"
+    );
+
+    for (person, end) in [(true, Outcome::Completed), (false, Outcome::NothingToDo)] {
+        let a = A {
+            person,
+            slotted: true,
+        };
+        let form = format!("person={person} end={end:?}");
+        let (reference, _, _) = ordinary(true, a, end);
+        let (life, _) = stored_raise(true, a, end);
+        for c in [&reference, &life] {
+            slot(c);
+        }
+        assert_eq!(
+            (tray(&life), shown(&life).3),
+            (tray(&reference), vec!["Ready".to_string()]),
+            "{form}: form 3, the slot opens first with no hold"
+        );
+        for c in [&reference, &life] {
+            assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+            later(c, 3);
+        }
+        assert_eq!(
+            (row(&life, 0).line, shown(&life).3, attention(&life)),
+            (text("line.off.person"), Vec::<String>::new(), Some(0)),
+            "{form}: form 3, the named difference: Switch off after the slot opened hides the item"
+        );
+        assert_eq!(
+            shown(&reference).3,
+            vec!["Ready".to_string()],
+            "{form}: form 3, the named difference: the ordinary way keeps its card under the hold"
+        );
+        for c in [&reference, &life] {
+            assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
+            later(c, 4);
+        }
+        assert_eq!(
+            tray(&life),
+            tray(&reference),
+            "{form}: form 3, the hold ends and the item comes back, as the ordinary way"
+        );
+    }
+
+    let c = Coordinator::new(no_clean_run(true, MANUAL), room());
+    c.tick();
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    tick_at(&c, 1);
+    assert_eq!(
+        (row(&c, 0).line, shown(&c).3, attention(&c)),
+        (
+            text("line.needs_you.ready"),
+            vec!["Ready".to_string()],
+            Some(1)
+        ),
+        "P11: an agent that never ran keeps its ready under Switch off"
+    );
+}
