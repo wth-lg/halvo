@@ -533,7 +533,7 @@ fn u24q_the_six_partial_texts_stand_word_for_word() {
         ),
         (
             "run.effect.local_edit.partial",
-            "It changed this file, but Halvo shows only the details it could read.",
+            "It changed a file, but Halvo shows only the details it could read.",
         ),
     ]);
 }
