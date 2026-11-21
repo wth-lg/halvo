@@ -12446,6 +12446,7 @@ mod sent_statements {
 
     pub(super) fn record(act: impl FnOnce()) -> Vec<(usize, String)> {
         static REGISTERED: Once = Once::new();
+        halvo_sqlcipher::initialize().unwrap();
         REGISTERED.call_once(|| {
             assert_eq!(
                 unsafe { ffi::sqlite3_auto_extension(Some(opened)) },
