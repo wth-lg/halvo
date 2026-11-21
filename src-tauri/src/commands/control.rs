@@ -144,6 +144,13 @@ pub trait Control: Send + Sync {
         made: Made,
         permission: Permission,
     ) -> Result<RequestOutcome, ClientError>;
+
+    /// Relays one serialized request of the role `interface` to the owner of the derived store
+    /// and returns the owner's reply as it wrote it. A control with no relay call answers
+    /// `ClientError::Unsupported`.
+    fn relay(&self, _made: Made, _request: &[u8]) -> Result<Vec<u8>, ClientError> {
+        Err(ClientError::Unsupported)
+    }
 }
 
 fn the_same_for_each_request(left: Duration) -> Deadlines {

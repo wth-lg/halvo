@@ -54,28 +54,90 @@ test("a stored workflow is deleted only after the person confirms", async () => 
   assert.deepEqual(page.calls("delete_workflow").map((c) => c.args), [{ workflow: STORED }]);
 });
 
+/** The texts of the view's paragraphs that show, in the order of the page. */
+const textsShown = (page) =>
+  page
+    .byId("proposals-section")
+    .querySelectorAll("p")
+    .filter((p) => page.visible(p))
+    .map((p) => p.textContent);
+
 test("the two empty states say what is true", async () => {
   const off = await openPage();
-  assert.equal(off.visible("workflows-not-looking"), true);
-  assert.equal(off.text("workflows-not-looking"), "Halvo is not looking for repeated tasks yet.");
-  assert.equal(off.visible("workflows-nothing-found"), false);
-  assert.equal(off.text("error"), "");
+  assert.deepEqual(textsShown(off), ["Halvo is not looking for repeated tasks yet."]);
   const on = await openPage({ replies: { workflows: running([], []) } });
-  assert.equal(on.visible("workflows-nothing-found"), true);
-  assert.equal(on.text("workflows-nothing-found"), "Halvo has not found a repeated task yet.");
-  assert.equal(on.visible("workflows-not-looking"), false);
+  assert.deepEqual(textsShown(on), [
+    "Halvo has not found a repeated task yet.",
+    "Halvo looks for repeated tasks while this computer is plugged in and not in use.",
+  ]);
   for (const page of [off, on]) {
     assert.equal(page.byId("proposals-list").children.length, 0);
     assert.equal(page.byId("stored-workflows").children.length, 0);
-    assert.equal(page.visible("stored-workflows-line"), false);
     assert.equal(controlsOf(page).length, 0);
+    assert.equal(page.text("error"), "");
   }
+  const stored = { id: STORED, category: "ride_order", app: null, site: "example.org", count: 0 };
+  const some = await openPage({ replies: { workflows: running([], [stored]) } });
+  assert.deepEqual(textsShown(some), ["Workflows stored on this computer"]);
 });
 
-test("the view reads workflows once and not again on a status reply", async () => {
-  const page = await openPage();
+test("each state without a list shows its one text and no row", async () => {
+  const texts = {
+    not_running: "Halvo is not looking for repeated tasks yet.",
+    store_unavailable: "Halvo's store cannot be opened right now.",
+    deleting: "Halvo is deleting everything.",
+  };
+  for (const [state, text] of Object.entries(texts)) {
+    const page = await openPage({ replies: { workflows: () => ({ state }) } });
+    assert.deepEqual(textsShown(page), [text], state);
+    assert.equal(page.byId("proposals-list").children.length, 0, state);
+    assert.equal(page.byId("stored-workflows").children.length, 0, state);
+    assert.equal(controlsOf(page).length, 0, state);
+    assert.equal(page.text("error"), "", state);
+  }
+  const stored = { id: STORED, category: "ride_order", app: null, site: "example.org", count: 0 };
+  const held = await openPage({
+    replies: { workflows: running([], [stored]), delete_workflow: () => Promise.reject({ error: "in_use" }) },
+  });
+  const [start, yes] = controlsOf(held);
+  await held.click(start);
+  await held.click(yes);
+  assert.deepEqual(held.calls("delete_workflow").map((c) => c.args), [{ workflow: STORED }]);
+  assert.equal(held.text("error"), "Halvo did not delete this workflow, because an agent is still using it. Try again later.");
+  assert.equal(held.byId("stored-workflows").children.length, 1);
+  assert.deepEqual(
+    controlsOf(held).map((b) => [b.textContent, Boolean(b.disabled)]),
+    [
+      ["Delete", false],
+      ["Yes, delete it", false],
+      ["Cancel", false],
+    ],
+  );
+});
+
+test("the view reads again at a show and after a decision, and not on a status reply", async () => {
+  const proposal = { id: PROPOSED, category: "email", app: null, site: null, count: 2 };
+  const page = await openPage({
+    replies: {
+      workflows: running([proposal], []),
+      approve_workflow: () => null,
+      dismiss_workflow: () => Promise.reject({ error: "not_running" }),
+    },
+  });
+  const reads = () => page.calls("workflows").length;
+  assert.equal(reads(), 1, "the first show reads");
+  page.window.Halvo.views.window("shown");
+  await page.settle();
+  assert.equal(reads(), 2, "a second show reads again");
+  await page.click(controlsOf(page)[0]);
+  assert.equal(page.calls("approve_workflow").length, 1);
+  assert.equal(reads(), 3, "an Approve that succeeded reads again");
+  await page.click(controlsOf(page)[1]);
+  assert.equal(page.calls("dismiss_workflow").length, 1);
+  assert.equal(page.text("error"), "The request failed.");
+  assert.equal(reads(), 3, "a decision that found no service reads nothing");
   const statusBefore = page.calls("capture_status").length;
   await page.clock.advance(60000);
   assert.ok(page.calls("capture_status").length >= statusBefore + 2, "two status replies came in the 60 s");
-  assert.equal(page.calls("workflows").length, 1);
+  assert.equal(reads(), 3, "a status reply reads nothing");
 });
