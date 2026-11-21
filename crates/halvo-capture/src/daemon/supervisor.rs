@@ -14,16 +14,18 @@ use halvo_control::proto::{Platform, SourceName};
 
 use super::board::{Board, Capture, Drain};
 use super::counters::Snapshot;
+use super::lease::{self, Lease};
 use super::main_loop::{self, EndCall, MainLoop, Watchdog};
 use super::owner::{
     Answer, Command, OwnerGone, OwnerHandle, OwnerPanicked, OwnerThread, Pending, Report,
 };
 use super::permissions::{ProbeRunner, Probed};
 use super::report::FailedSource;
+use super::slot::Slot;
 use super::sources::{
     is_a_stop, past_bound, stop_bound, stop_order, RunningSources, SourceFactory,
 };
-use super::state::{StateError, StateFile};
+use super::state::{Desired, StateError, StateFile};
 use super::{DaemonError, RunSources, Waits};
 use crate::source::{
     CaptureError, HealthReason, SourceContext, SourceCounters, SourceState, StopCause,
@@ -398,6 +400,10 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     owner_gone_stops: Option<Vec<(SourceName, Result<(), CaptureError>)>>,
     entry_status: Option<i32>,
     state: Option<StateFile>,
+    served: Option<(SourceContext, Vec<SourceName>)>,
+    slot: Slot,
+    lease: Lease,
+    capturing: bool,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -432,6 +438,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             owner_gone_stops: None,
             entry_status: None,
             state: None,
+            served: None,
+            slot: Slot::Opening,
+            lease: Lease::NONE,
+            capturing: false,
         }
     }
 
@@ -534,6 +544,75 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         failed
     }
 
+    /// The sources of a service run (contracts.md C3.2 step 10): those of
+    /// `wanted`, each begun with a clone of `ctx`, only while the run
+    /// condition holds.
+    pub fn serve_sources(&mut self, ctx: SourceContext, wanted: Vec<SourceName>) {
+        self.served = Some((ctx, wanted));
+    }
+
+    /// The slot of the store as the owner holds it now; the run condition is
+    /// read at once.
+    pub fn set_slot(&mut self, slot: Slot, owner: Option<&dyn OwnerLink>) {
+        self.slot = slot;
+        self.read_the_condition(owner);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_lease(&mut self, lease: Lease, owner: Option<&dyn OwnerLink>) {
+        self.lease = lease;
+        self.read_the_condition(owner);
+    }
+
+    fn read_the_condition(&mut self, owner: Option<&dyn OwnerLink>) {
+        if let Some(ending) = self.follow_the_run_condition(owner, &mut |_| {}) {
+            self.ending = Some(ending);
+        }
+        self.publish();
+    }
+
+    /// Reads the run condition of a service run (contracts.md C14 item 3):
+    /// desired running in the state file, the slot Open and the lease fresh.
+    /// When it holds and the sources do not run, the owner closes its pause,
+    /// a barrier waited for at most [`BARRIER_WAIT`], and the sources start.
+    /// A run with no served sources, an entry begun or no owner reads
+    /// nothing.
+    pub fn follow_the_run_condition(
+        &mut self,
+        owner: Option<&dyn OwnerLink>,
+        reply: &mut dyn FnMut(&Board),
+    ) -> Option<Ending> {
+        let _ = reply;
+        let owner = owner?;
+        if self.entered || self.served.is_none() {
+            return None;
+        }
+        let desired = self
+            .state
+            .as_ref()
+            .map_or(Desired::Paused, |state| state.state().desired);
+        let holds = lease::holds(desired, &self.slot, self.lease, self.main_loop.now());
+        if holds && !self.capturing {
+            self.start_for_the_condition(owner);
+        }
+        None
+    }
+
+    fn start_for_the_condition(&mut self, owner: &dyn OwnerLink) {
+        let resumed = match owner.ask(Command::ClosePause) {
+            Ok(pending) => self.answer_within(&pending, BARRIER_WAIT),
+            Err(OwnerGone) => None,
+        };
+        if !matches!(resumed, Some(Answer::Resumed(_))) {
+            return;
+        }
+        let Some((ctx, wanted)) = self.served.clone() else {
+            return;
+        };
+        self.capturing = true;
+        self.start_sources(&ctx, &wanted);
+    }
+
     /// One tick: the source health, the owner's reports and snapshot, the
     /// restarts that are due and the permission answers. `Some` when the run
     /// must end. The health is read first, so that a source that died in the
@@ -564,6 +643,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             self.restart_due(now);
         }
         if let Some(ending) = self.read_permissions(now, owner) {
+            self.ending = Some(ending);
+        }
+        if let Some(ending) = self.follow_the_run_condition(owner, &mut |_| {}) {
             self.ending = Some(ending);
         }
         self.publish();

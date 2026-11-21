@@ -140,6 +140,75 @@ pub trait SourceFactory {
     fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>>;
 }
 
+/// The factory of a service run on macOS: the foreground, screen and input
+/// sources of macos-4 on the process's one foreground writer, the input
+/// source with no hold planned (ruling MA-9 part (3)) and the product's
+/// bound. The writer goes to the first foreground source made, so a second
+/// one reads off.
+#[cfg(all(target_os = "macos", debug_assertions))]
+pub struct ServiceSources {
+    foreground_writer: Option<crate::macos::foreground::ForegroundWriter>,
+    foreground_reader: crate::macos::foreground::ForegroundReader,
+    turns: crate::macos::run_loop::RunLoopTurns,
+    input_counters: crate::macos::input::InputCounters,
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl ServiceSources {
+    pub fn new(
+        writer: crate::macos::foreground::ForegroundWriter,
+        reader: crate::macos::foreground::ForegroundReader,
+        turns: crate::macos::run_loop::RunLoopTurns,
+    ) -> ServiceSources {
+        ServiceSources {
+            foreground_writer: Some(writer),
+            foreground_reader: reader,
+            turns,
+            input_counters: crate::macos::input::InputCounters::new(),
+        }
+    }
+
+    /// The hold plan of the input source that this factory makes: never.
+    pub fn input_plan(&self) -> crate::macos::input::HoldPlan {
+        crate::macos::input::HoldPlan::Never
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl SourceFactory for ServiceSources {
+    fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
+        use crate::macos::{foreground, input, screen};
+        match name {
+            SourceName::Foreground => Some(Box::new(foreground::ForegroundSource::new(
+                foreground::FOREGROUND_POLL,
+                self.foreground_writer.take()?,
+                self.turns.clone(),
+            ))),
+            SourceName::Screen => Some(Box::new(screen::ScreenSource::new(
+                screen::SCREEN_FRAME_CAP,
+                self.foreground_reader.clone(),
+            ))),
+            SourceName::Input => Some(Box::new(input::InputSource::new(
+                self.foreground_reader.clone(),
+                self.input_counters.clone(),
+                self.input_plan(),
+            ))),
+            SourceName::SystemAudio
+            | SourceName::Microphone
+            | SourceName::Keyboard
+            | SourceName::Pointer
+            | SourceName::WindowTitle => None,
+        }
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl super::supervisor::SystemSources for ServiceSources {
+    fn figures(&self) -> SourceCounters {
+        self.input_counters.figures()
+    }
+}
+
 /// The health state that a failed start or stop gives a source.
 pub fn failure(error: CaptureError) -> SourceState {
     let reason = match &error {

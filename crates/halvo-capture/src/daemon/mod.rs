@@ -1767,23 +1767,33 @@ pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::S
     use std::io::Write as _;
     #[cfg(target_os = "macos")]
     {
-        let main_loop = match crate::macos::run_loop::MainRunLoop::claim() {
-            Ok(run_loop) => ServiceLoop {
-                run_loop,
-                started: std::time::Instant::now(),
-            },
+        let mut run_loop = match crate::macos::run_loop::MainRunLoop::claim() {
+            Ok(run_loop) => run_loop,
             Err(error) => {
                 let _ = writeln!(std::io::stderr(), "halvo-capture: {error:?}");
                 return halvo_control::exit::ERROR;
             }
         };
-        serve(
+        let Some((front_writer, front_reader)) = run_loop.foreground_state() else {
+            let _ = writeln!(
+                std::io::stderr(),
+                "halvo-capture: the foreground state of the run loop was taken"
+            );
+            return halvo_control::exit::ERROR;
+        };
+        let factory = sources::ServiceSources::new(front_writer, front_reader, run_loop.turns());
+        let main_loop = ServiceLoop {
+            run_loop,
+            started: std::time::Instant::now(),
+        };
+        serve_on(
             dir,
             writer,
             main_loop,
             signal::flag(),
             std::sync::Arc::new(main_loop::ExitNow),
             &mut std::io::stderr(),
+            ServiceParts::of(factory),
         )
     }
     #[cfg(not(target_os = "macos"))]
@@ -1849,19 +1859,48 @@ pub(crate) fn serve<L: main_loop::MainLoop>(
     ending: std::sync::Arc<dyn main_loop::EndCall>,
     err: &mut dyn std::io::Write,
 ) -> i32 {
+    let parts = ServiceParts::of(NoSources);
+    serve_on(dir, writer, main_loop, stop, ending, err, parts)
+}
+
+/// What a service run serves beside its data directory: the factory of its
+/// sources, which start only while the run condition holds.
+#[cfg(all(target_os = "macos", debug_assertions))]
+pub(crate) struct ServiceParts<F> {
+    pub(crate) factory: F,
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl<F: supervisor::SystemSources> ServiceParts<F> {
+    pub(crate) fn of(factory: F) -> ServiceParts<F> {
+        ServiceParts { factory }
+    }
+}
+
+/// [`serve`] with the sources, the lifeline and the lease of `parts`.
+#[cfg(all(target_os = "macos", debug_assertions))]
+pub(crate) fn serve_on<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+    main_loop: L,
+    stop: &std::sync::atomic::AtomicBool,
+    ending: std::sync::Arc<dyn main_loop::EndCall>,
+    err: &mut dyn std::io::Write,
+    parts: ServiceParts<F>,
+) -> i32 {
     let lock = match take_the_data_dir(dir, err) {
         Ok(Some(lock)) => lock,
         Ok(None) => return halvo_control::exit::CLEAN,
         Err(status) => return status,
     };
-    serve_held(lock, dir, writer, main_loop, stop, ending, err)
+    serve_held_on(lock, dir, writer, main_loop, stop, ending, err, parts)
 }
 
 /// The service run after its take, on the data directory `dir` that `lock`
 /// holds: the check of the directory on the lock's descriptor, the state file
 /// in the folder that the lock holds, the backup mark, the wait and the
 /// shutdown entry, as [`serve`] describes them.
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(all(test, target_os = "macos", debug_assertions))]
 pub(crate) fn serve_held<L: main_loop::MainLoop>(
     lock: instance::InstanceLock,
     dir: &halvo_control::paths::DataDir,
@@ -1870,6 +1909,26 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
     stop: &std::sync::atomic::AtomicBool,
     ending: std::sync::Arc<dyn main_loop::EndCall>,
     err: &mut dyn std::io::Write,
+) -> i32 {
+    let parts = ServiceParts::of(NoSources);
+    serve_held_on(lock, dir, writer, main_loop, stop, ending, err, parts)
+}
+
+/// [`serve_held`] with the sources, the lifeline and the lease of `parts`:
+/// once the store is open for capture, the supervisor serves the sources of
+/// [`sources::starting`] for the switches of the state file, each begun on
+/// the owner's sink and floor.
+#[cfg(all(target_os = "macos", debug_assertions))]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    lock: instance::InstanceLock,
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+    main_loop: L,
+    stop: &std::sync::atomic::AtomicBool,
+    ending: std::sync::Arc<dyn main_loop::EndCall>,
+    err: &mut dyn std::io::Write,
+    parts: ServiceParts<F>,
 ) -> i32 {
     let mut dir_shut = match lock.check(dir) {
         Ok(_) => None,
@@ -1906,10 +1965,14 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
             error.kind()
         );
     }
-    let mut supervisor =
-        supervisor::Supervisor::new(halvo_control::proto::Platform::Macos, NoSources, main_loop)
-            .with_ending(ending)
-            .with_state(state);
+    let mut supervisor = supervisor::Supervisor::new(
+        halvo_control::proto::Platform::Macos,
+        parts.factory,
+        main_loop,
+    )
+    .with_ending(ending)
+    .with_state(state);
+    let root = None;
     if dir_shut.is_some() {
         let _ = writeln!(err, "{DIR_SHUT_LINE}");
     }
@@ -1963,9 +2026,19 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         };
         mark = mark_the_store_made(mark.at_the_answer(), &mut supervisor, err);
         store = match held {
-            owner::open::Held::Capture { store, .. } => {
-                match capture_owner(store, held_cap, switches) {
-                    Ok(owner) => HeldStore::Capture(Box::new(owner)),
+            owner::open::Held::Capture { store, id } => {
+                match capture_owner(store, held_cap, switches, root) {
+                    Ok(owner) => {
+                        let wanted = sources::starting(
+                            halvo_control::proto::Platform::Macos,
+                            sources::RunKind::Service,
+                            switches,
+                        );
+                        supervisor.serve_sources(owner.context(), wanted);
+                        let store = HeldStore::Capture(Box::new(owner));
+                        supervisor.set_slot(slot::Slot::Open { id }, store.link());
+                        store
+                    }
                     Err(error) => {
                         let _ = writeln!(
                             err,
@@ -2054,7 +2127,15 @@ impl HeldStore {
 #[cfg(all(target_os = "macos", debug_assertions))]
 struct CaptureOwner {
     watched: supervisor::Watched,
-    _sink: crate::sink::SinkHandle,
+    sink: crate::sink::SinkHandle,
+    floor: crate::floor::exclude::FloorHandle,
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl CaptureOwner {
+    fn context(&self) -> SourceContext {
+        SourceContext::with_floor(self.sink.clone(), self.floor.clone())
+    }
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]
@@ -2062,20 +2143,24 @@ fn capture_owner(
     store: Box<dyn port::CaptureStore + Send>,
     cap: halvo_control::model::StorageCap,
     switches: crate::floor::Switches,
+    root: Option<crate::floor::exclude::ProcessId>,
 ) -> std::io::Result<CaptureOwner> {
-    use crate::floor::exclude::{FloorHandle, NoLineage};
+    use crate::floor::exclude::FloorHandle;
+    use crate::macos::foreground::ProcessLineage;
     let (sink, writer) = crate::sink::channel(owner::QUEUE_SLOTS);
+    let floor = FloorHandle::new(root, std::sync::Arc::new(ProcessLineage), switches);
     let thread = owner::spawn(owner::OwnerParts {
         writer,
         store,
         clocks: maintenance::SystemClocks::new(),
-        floor: FloorHandle::new(None, std::sync::Arc::new(NoLineage), switches),
+        floor: floor.clone(),
         cap,
         shred_chunk: maintenance::SHRED_CHUNK,
     })?;
     Ok(CaptureOwner {
         watched: supervisor::Watched::new(thread, Box::new(std::io::stderr())),
-        _sink: sink,
+        sink,
+        floor,
     })
 }
 
