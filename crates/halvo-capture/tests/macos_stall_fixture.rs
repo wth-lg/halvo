@@ -206,7 +206,10 @@ fn seamed_with(
 ) -> (InputSource, DropCounts) {
     let drops = DropCounts::new();
     let source = InputSource::with_seam(
-        ForegroundReader::nothing_in_front(),
+        ForegroundReader::fixed_front(
+            &std::env::var(FIXTURE).unwrap_or_default(),
+            FRONT.load(Ordering::SeqCst),
+        ),
         InputCounters::new(),
         HoldPlan::Never,
         StallSeam {

@@ -400,6 +400,27 @@ impl ForegroundReader {
     }
 }
 
+#[cfg(all(debug_assertions, feature = "stall-seam"))]
+impl ForegroundReader {
+    /// A reader with no writer whose app in front is always the executable at
+    /// `executable_path` with `pid`: for the stall fixture alone, and no release
+    /// build holds it.
+    pub fn fixed_front(executable_path: &str, pid: libc::pid_t) -> Self {
+        let front = Foreground {
+            identity: AppIdentity::of(None, Some(executable_path)),
+            pid,
+        };
+        let read = front.clone();
+        Self {
+            state: Arc::new(Mutex::new(FrontState {
+                front: Some(front),
+                answered: true,
+            })),
+            read: Arc::new(move || Some(read.clone())),
+        }
+    }
+}
+
 impl ForegroundReader {
     /// The app in front, or `None` before the first reading and while nothing is
     /// in front.
