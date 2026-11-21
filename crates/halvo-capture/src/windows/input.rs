@@ -2709,6 +2709,53 @@ mod tests {
     }
 
     #[test]
+    fn a_cleared_key_held_at_the_stop_leaves_no_record_flag_or_count() {
+        let (sink, writer) = crate::sink::channel(8);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-stop-keys", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let mut state = GateState {
+            gate: Arc::new(clear_gate()),
+            held: VecDeque::new(),
+            counts: Arc::default(),
+        };
+        let now = super::super::now_tick();
+        let stroke = KeyStroke {
+            vkey: 0x41,
+            released: false,
+        };
+        let front = foreground_thread();
+        state.gate.read_at(
+            now.wrapping_sub(200),
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::NotCompared,
+        );
+        let held = state.gate.hold(now.wrapping_sub(160), false, front);
+        state
+            .held
+            .push_back((held, stroke, KeyClass::Printable, test_front("cleared")));
+        state.gate.read_at(
+            now.wrapping_sub(25),
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::Same,
+        );
+        release_held(&mut state, (&producer, &test_floor()), true);
+        let records = std::iter::from_fn(|| {
+            writer
+                .recv_timeout(std::time::Duration::from_millis(300))
+                .ok()
+        })
+        .count();
+        let flag = state.counts.withheld.load(Ordering::Relaxed);
+        let lost = handoff.counts().lost;
+        assert!(
+            records == 0 && !flag && lost == 0 && state.held.is_empty(),
+            "records={records} withheld_flag={flag} lost={lost} still_held={}",
+            state.held.len()
+        );
+    }
+
+    #[test]
     fn decided_keys_go_out_in_input_order_and_a_key_undecided_at_the_stop_is_withheld_uncounted() {
         let (sink, writer) = crate::sink::channel(8);
         let handoff = super::super::HandOff::start(sink, "halvo-test-forward", Arc::default())
