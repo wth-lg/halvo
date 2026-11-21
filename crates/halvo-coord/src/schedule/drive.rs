@@ -686,6 +686,9 @@ where
         answer,
         run,
     };
+    if crate::coordinator::quit_marked() {
+        return served(Err(Cause::State), None);
+    }
     let defer = || {
         cx.ports
             .defer(cx.move_stamp.now().saturating_add(go.defer_ms))

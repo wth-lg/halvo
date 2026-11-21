@@ -17,8 +17,9 @@ use crate::types::{
     Status, System,
 };
 use crate::words;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::cell::RefCell;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 /// What the app's quit hook waits for after the first step of the quit (I5.7, ruling RD-8): the
 /// latest time, in milliseconds of `Clock::now`, at which it calls the second step,
@@ -57,6 +58,7 @@ pub struct Coordinator<P: Owner> {
     reads: AtomicU64,
     unstopped: Mutex<Vec<(AgentId, RunId)>>,
     live_runs: AtomicUsize,
+    quit_mark: Arc<AtomicBool>,
 }
 
 const NO_READ: u64 = 0;
@@ -154,6 +156,23 @@ struct Entered<'a, P: Owner + Page> {
     ports: &'a P,
     entry: Entry,
     unwinding: bool,
+    mark_before: Option<Arc<AtomicBool>>,
+}
+
+thread_local! {
+    static QUIT_MARK: RefCell<Option<Arc<AtomicBool>>> = const { RefCell::new(None) };
+}
+
+fn mark_this_thread(mark: Option<Arc<AtomicBool>>) -> Option<Arc<AtomicBool>> {
+    QUIT_MARK.with(|m| m.replace(mark))
+}
+
+pub(crate) fn quit_marked() -> bool {
+    QUIT_MARK.with(|m| {
+        m.borrow()
+            .as_ref()
+            .is_some_and(|mark| mark.load(Ordering::SeqCst))
+    })
 }
 
 impl<P: Owner + Page> std::ops::Deref for Entered<'_, P> {
@@ -172,6 +191,7 @@ impl<P: Owner + Page> std::ops::DerefMut for Entered<'_, P> {
 
 impl<P: Owner + Page> Drop for Entered<'_, P> {
     fn drop(&mut self) {
+        mark_this_thread(self.mark_before.take());
         if self.unwinding || !std::thread::panicking() {
             return;
         }
@@ -380,6 +400,7 @@ where
             reads: AtomicU64::new(0),
             unstopped: Mutex::new(Vec::new()),
             live_runs: AtomicUsize::new(0),
+            quit_mark: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -403,6 +424,7 @@ where
             ports: &self.ports,
             entry,
             unwinding: std::thread::panicking(),
+            mark_before: mark_this_thread(Some(Arc::clone(&self.quit_mark))),
         };
         if entry != Entry::Read {
             let tick = st.mark.tick;
@@ -751,7 +773,7 @@ where
             return;
         }
         let reads = self.reads.load(Ordering::Relaxed);
-        if st.quitting {
+        if st.quitting || self.quit_mark.load(Ordering::SeqCst) {
             let State { board, ledgers, .. } = &mut *st;
             if let Some(board) = board.as_mut() {
                 self.flush_ledgers(board, ledgers);
@@ -2264,7 +2286,7 @@ where
     /// step of the quit, and `no_service` while the mark of a tick that did not return stands
     /// (ruling RD-80 4.5).
     fn start_in(&self, st: &mut State<Cfg<P>>, agent: &AgentId) -> Result<(), Cause> {
-        if st.quitting {
+        if st.quitting || self.quit_mark.load(Ordering::SeqCst) {
             return Err(Cause::State);
         }
         if st.mark.tick {
@@ -2401,16 +2423,27 @@ where
         Ok(())
     }
 
-    /// The first step of the app's quit (I5.7, ruling RD-8): every open item lapses with
-    /// `app_ended` in the life that ends (I4.5), every live run that no stop has reached gets
-    /// `cancel` through the run drive's stop-all, the queue is emptied before any port call of
-    /// the step, so that no start leaves it also where a port panics later in the step, and
-    /// from then on every start is refused, the person's, the queue's and a tick's. It returns
-    /// at once, with the time at which the hook calls the second step at the latest:
-    /// `cancel_grace_s` after the latest stop of a live run, where a stop that reads later than
-    /// the first step counts from the first step (ruling RD-28 (e)), and the first step's time
-    /// when no run is live.
+    /// Marks the app's quit (I5.7): from this call on every start is refused, the person's, the
+    /// queue's at the end of a run and a tick's, also before the first step of the quit has
+    /// taken the coordinator's lock and also in a move that holds that lock now, which reads
+    /// the mark at its start of a run. A tick after the mark makes only the stages that start
+    /// nothing, as after the first step. This call takes no lock and calls no port, so the app's
+    /// quit hook makes it first, before anything that can wait.
+    pub fn mark_quit(&self) {
+        self.quit_mark.store(true, Ordering::SeqCst);
+    }
+
+    /// The first step of the app's quit (I5.7, ruling RD-8): it marks the quit (`mark_quit`)
+    /// before it takes the coordinator's lock; then every open item lapses with `app_ended` in
+    /// the life that ends (I4.5), every live run that no stop has reached gets `cancel` through
+    /// the run drive's stop-all, and the queue is emptied before any port call of the step.
+    /// From the mark on every start is refused, the person's, the queue's and a tick's, also
+    /// where a port panics in the step before its own work. It returns at once, with the time at
+    /// which the hook calls the second step at the latest: `cancel_grace_s` after the latest stop
+    /// of a live run, where a stop that reads later than the first step counts from the first
+    /// step (ruling RD-28 (e)), and the first step's time when no run is live.
     pub fn quit_stop(&self) -> QuitWait {
+        self.mark_quit();
         let mut st = self.enter(Entry::Move);
         st.quitting = true;
         if let Some(board) = st.board.as_mut() {
@@ -2611,6 +2644,7 @@ where
             ports: &self.ports,
             entry: Entry::Read,
             unwinding: std::thread::panicking(),
+            mark_before: mark_this_thread(Some(Arc::clone(&self.quit_mark))),
         };
         if st.mark.unpublished {
             self.publish(&mut st);

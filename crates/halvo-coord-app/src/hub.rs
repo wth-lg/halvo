@@ -466,6 +466,7 @@ where
 
     fn quit(&self, budget: Option<Duration>) -> Vec<(AgentId, RunId)> {
         let start = Instant::now();
+        self.coord.mark_quit();
         let Some(wait) = self.step(Coordinator::quit_stop) else {
             return self.coord.not_stopped();
         };
