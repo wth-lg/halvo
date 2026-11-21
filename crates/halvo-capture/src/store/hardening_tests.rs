@@ -5443,7 +5443,8 @@ fn a_segment_write_whose_partial_file_became_a_link_at_its_sync_publishes_nothin
             }
         })
     };
-    store.use_fs(Arc::new(fs));
+    let fs = Arc::new(fs);
+    store.use_fs(fs.clone());
 
     let written = store
         .write_segment(&mut Cursor::new(
@@ -5461,6 +5462,15 @@ fn a_segment_write_whose_partial_file_became_a_link_at_its_sync_publishes_nothin
             })
         ),
         "a write whose partial file became a link answered {written:?}"
+    );
+    let renames: Vec<Call> = fs
+        .calls()
+        .into_iter()
+        .filter(|call| matches!(call, Call::Rename(_, _)))
+        .collect();
+    assert!(
+        renames.is_empty(),
+        "the write renamed its partial name, which held a link, to the segment's name: {renames:?}"
     );
     let published: Vec<String> = entries_below(&segment::segments_root(&store_dir))
         .into_iter()
