@@ -956,7 +956,7 @@ fn u46_r8_the_queues_start_at_an_end_held_at_its_send_across_the_hooks_call_neve
         "Runs::start was called after the hook's call, for the queue's start held behind its \
          first reading of the mark"
     );
-    assert_eq!(seen.before, [first.clone()]);
+    assert_eq!(seen.before, std::slice::from_ref(&first));
     assert!(seen.took < ms(1_900), "{:?}", seen.took);
     assert_eq!(
         seen.named,
