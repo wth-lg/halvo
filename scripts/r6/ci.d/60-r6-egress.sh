@@ -1979,6 +1979,17 @@ case_wanted() {
   return 1
 }
 
+case_environment() {
+  PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp
+  STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_LEAVE_COUNT=$work/leave-count STUB_SPAWN_PIDS=$work/spawn.pids
+  REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions
+  export PATH CI_D_REPO CI_D_ARTIFACTS TMPDIR STUB_TREE STUB_EXE STUB_COMMANDS STUB_PRINT_EXIT STUB_MARKER STUB_BUILD_TOUCH \
+    STUB_CONTROL STUB_HELD_PORT STUB_LEAVE STUB_TAKE STUB_PRINT_FILTER STUB_PRINT_HIDDEN STUB_LEAVE_AT STUB_LEAVE_COUNT \
+    STUB_CONTROL_LEAVE STUB_RUN_EXIT STUB_CHECK STUB_TOUCH STUB_FRESH STUB_CLIPPY_JSON STUB_CLIPPY_EXIT STUB_CANARY \
+    STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE STUB_CLIPPY_RELEASE_JSON STUB_CLIPPY_RELEASE_EXIT STUB_GRAPH REAL_CARGO \
+    CI_D_JOB GITHUB_ACTIONS STUB_SPAWN_PIDS
+}
+
 case_run() {
   if ! case_wanted "$1"; then
     case_reset
@@ -2002,13 +2013,10 @@ case_run() {
     return
   fi
   case_started=$(date +%s)
-  PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE STUB_TAKE=$STUB_TAKE STUB_PRINT_FILTER=$STUB_PRINT_FILTER STUB_PRINT_HIDDEN=$STUB_PRINT_HIDDEN STUB_LEAVE_AT=$STUB_LEAVE_AT STUB_LEAVE_COUNT=$work/leave-count STUB_CONTROL_LEAVE=$STUB_CONTROL_LEAVE \
-    STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
-    STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
-    STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
-    STUB_CLIPPY_RELEASE_JSON=$STUB_CLIPPY_RELEASE_JSON STUB_CLIPPY_RELEASE_EXIT=$STUB_CLIPPY_RELEASE_EXIT STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions \
-    STUB_SPAWN_PIDS=$work/spawn.pids env ${case_env:+"$case_env"} sh "${case_self:-$self}" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
+  (
+    case_environment
+    exec env ${case_env:+"$case_env"} sh "${case_self:-$self}" ${case_arg:+"$case_arg"}
+  ) >"$work/case.txt" 2>&1 </dev/null
   code=$?
   out=
   while IFS= read -r line || [ -n "$line" ]; do
@@ -2056,8 +2064,31 @@ case_run() {
 
 part_seconds() {
   case_wanted part-seconds || return 0
-  reps=10
-  for part in stand-in-start forbid-stub wrapped-call list-checks import-listing; do
+  case_job=$host_job
+  part_names=$(
+    case_environment
+    env_rules >/dev/null 2>&1
+    awk 'END { print NR }' "$work/env-names.txt"
+  ) || part_names=-
+  printf 'part-names env-rules %s names in the environment of a case\n' "$part_names"
+  (
+    case_environment
+    cd "$work/repo" || exit 1
+    artifacts=$work/artifacts
+    tree=$good_tree
+    job_system=unix
+    [ "$host_job" != windows ] || job_system=windows
+    forbid_table >"$work/forbid-table.txt" || exit 1
+    write_forbid_list
+    write_canary
+    forbid "$work/part-canary" --manifest-path "$canary/Cargo.toml" --lib --bins
+  ) >/dev/null 2>&1
+  for part in stand-in-start forbid-stub wrapped-call list-checks import-listing env-rules canary-match; do
+    reps=10
+    case $part in
+      env-rules) reps=2 ;;
+      canary-match) reps=5 ;;
+    esac
     started=$(date +%s) || started=0
     i=0
     while [ "$i" -lt "$reps" ]; do
@@ -2079,12 +2110,28 @@ part_seconds() {
             git -c core.fsmonitor=false diff --no-renames --name-status "$good_tree" -- >/dev/null 2>&1) ;;
         import-listing)
           (PATH=$work/bin:$PATH rustc --print sysroot >/dev/null 2>&1) ;;
+        env-rules)
+          (case_environment && env_rules >/dev/null 2>&1) ;;
+        canary-match)
+          (
+            case_environment
+            artifacts=$work/artifacts
+            canary=$artifacts/canary
+            root_abs=$work/repo
+            seconds_line=
+            forbid() {
+              cp "$work/part-canary.json" "$1.json" && : >"$1.err"
+              return 101
+            }
+            run_canary dev >/dev/null 2>&1
+          ) ;;
       esac
       i=$((i + 1))
     done
     ended=$(date +%s) || ended=$started
     printf 'part-seconds %s %s for %s calls\n' "$part" "$((ended - started))" "$reps"
   done
+  case_job=
 }
 
 marker_absent() {
