@@ -165,6 +165,9 @@ impl Floor {
 pub struct HandOffCounts {
     pub lost: u64,
     pub coalesced: u64,
+    /// The OS events that a pointer source's open folds held when it stopped:
+    /// a stop makes no record of them.
+    pub pointer_dropped_at_stop: u64,
 }
 
 pub(crate) const HANDOFF_CAPACITY: usize = 1_024;
@@ -179,6 +182,7 @@ struct Queue {
 pub(crate) struct LossCounts {
     lost: AtomicU64,
     coalesced: AtomicU64,
+    dropped_at_stop: AtomicU64,
 }
 
 impl LossCounts {
@@ -190,6 +194,7 @@ impl LossCounts {
         HandOffCounts {
             lost: self.lost.load(Ordering::Relaxed),
             coalesced: self.coalesced.load(Ordering::Relaxed),
+            pointer_dropped_at_stop: self.dropped_at_stop.load(Ordering::Relaxed),
         }
     }
 }
@@ -1328,7 +1333,8 @@ pub(crate) mod tests {
             handoff.counts(),
             HandOffCounts {
                 lost: 3,
-                coalesced: 0
+                coalesced: 0,
+                pointer_dropped_at_stop: 0
             }
         );
     }

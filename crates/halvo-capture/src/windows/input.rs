@@ -1754,7 +1754,7 @@ fn run_raw_input(
             if let Some(gate) = state.gate.as_mut() {
                 release_held(gate, (&state.producer, &state.floor), true);
             }
-            flush_folds(state, true);
+            folds_at_stop(&state.floor, &state.producer, &mut state.folds);
         }
     });
     if let Some(poll) = poll {
@@ -1808,6 +1808,13 @@ unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u
             }
         }
     });
+}
+
+/// What a stop does with the open folds of a pointer source.
+fn folds_at_stop(floor: &Floor, producer: &Producer, folds: &mut Folds) {
+    for due in folds.due(super::now_tick(), true).into_iter().flatten() {
+        emit_due(floor, producer, folds, due);
+    }
 }
 
 fn flush_folds(state: &mut InputState, all: bool) {
@@ -2655,6 +2662,40 @@ mod tests {
         let calls = registrations();
         let _ = (first, second);
         assert_eq!(calls, vec![(RawDevice::Keyboard.hid_usage(), true)]);
+    }
+
+    #[test]
+    fn a_stop_inside_an_open_interval_makes_no_record_and_counts_its_events() {
+        let (sink, writer) = crate::sink::channel(16);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-stop-folds", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let floor = test_floor();
+        let mut folds = Folds::default();
+        let front = test_front("C:\\Apps\\editor.exe");
+        let tick = super::super::now_tick();
+        let mut held = 0;
+        for step in 0..5 {
+            let parts = pointer_parts(&mut held, true, 0);
+            pointer_records(
+                (&floor, &producer, &mut folds),
+                &front,
+                parts,
+                tick.wrapping_add(step),
+            );
+        }
+        folds_at_stop(&floor, &producer, &mut folds);
+        let records_after_stop = std::iter::from_fn(|| {
+            writer
+                .recv_timeout(std::time::Duration::from_millis(300))
+                .ok()
+        })
+        .count();
+        let dropped_at_stop = handoff.counts().pointer_dropped_at_stop;
+        assert!(
+            records_after_stop == 0 && dropped_at_stop == 5,
+            "records_after_stop={records_after_stop} pointer_dropped_at_stop={dropped_at_stop}"
+        );
     }
 
     #[test]
