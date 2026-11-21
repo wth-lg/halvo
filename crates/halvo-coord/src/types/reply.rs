@@ -222,14 +222,16 @@ pub struct CardRun {
     pub day: String,
     /// `text`: the sentence of `line.run.<end>`.
     pub text: String,
-    /// `effects`: one entry for each committed effect of the run and for each effect whose last
-    /// row is `rejected` with a null cause, in the order of the reply of `agent_history`.
+    /// `effects`: one entry for each committed effect of the run, for each effect whose last row
+    /// is `rejected` with a null cause, and for each effect whose last state is `unknown`, in the
+    /// order of the reply of `agent_history`.
     pub effects: Vec<CardEffect>,
 }
 
-/// An effect of a past run on a card (I2.6, rulings H-8, RD-52 (f), RD-85): a sentence with no
-/// placeholder and kept fields of its class as fields of I3.4, made only by
-/// [`CardEffect::committed`], [`CardEffect::unshown`] and [`CardEffect::not_done`].
+/// An effect of a past run on a card (I2.6, rulings H-8, RD-52 (f) and (h) 4, RD-85, RD-126 item
+/// 10): a sentence with no placeholder and kept fields of its class as fields of I3.4, made only by
+/// [`CardEffect::committed`], [`CardEffect::unshown`], [`CardEffect::not_done`] and
+/// [`CardEffect::unknown`].
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct CardEffect {
     #[serde(skip)]
@@ -310,7 +312,8 @@ fn kept_field(class: Class, k: &Kept) -> Result<Field, Cause> {
 /// ruling RD-52 (h) 4): a field of the table of A-A9.3 for `class` stands where the row keeps its
 /// name exactly once and `kept_field` takes its value whole, shown as `committed` shows it and in
 /// the table's order; never the `items` of a `delete`, a name that the table does not hold for
-/// the class, a name kept twice, or any field of a class with no effect row.
+/// the class, a name kept twice, a value that holds no byte (no piece, or pieces that are all
+/// empty; ruling RD-158 (3)), or any field of a class with no effect row.
 fn standing(class: Class, kept: &[Kept]) -> Vec<Field> {
     let once = |name: &str| {
         let mut named = kept.iter().filter(|k| k.name.as_str() == name);
