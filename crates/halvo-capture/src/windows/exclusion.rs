@@ -274,6 +274,12 @@ pub(crate) fn incognito_of_names<S: AsRef<str>>(names: &[S]) -> Option<bool> {
     english.then_some(false)
 }
 
+/// What the names of a Chrome window's buttons tell of it, given the names of
+/// its toolbar's buttons and of every button below the window.
+pub(crate) fn incognito_of_buttons<S: AsRef<str>>(_toolbar: &[S], all: &[S]) -> Option<bool> {
+    incognito_of_names(all)
+}
+
 /// What the UI Automation query tells of a Chrome window, by the names of its
 /// buttons ([`incognito_of_names`]), and `None` when the query gives no answer.
 /// The calling thread must be in an apartment of COM.
@@ -313,7 +319,7 @@ pub(crate) fn chrome_window_is_incognito(
                     .to_string(),
             );
         }
-        incognito_of_names(&names)
+        incognito_of_buttons(&names, &names)
     }
 }
 
@@ -528,6 +534,34 @@ mod tests {
         assert!(
             matches!(verdict, Verdict::Drop(DropReason::ExclusionTree)),
             "{verdict:?}"
+        );
+    }
+
+    #[test]
+    fn a_chrome_button_outside_the_toolbar_does_not_tell_the_window_not_private() {
+        let toolbar = ["Zur\u{fc}ck", "Vorw\u{e4}rts", "Neu laden"];
+        let all = ["Zur\u{fc}ck", "Vorw\u{e4}rts", "Neu laden", "Back"];
+        let english = ["Back", "Forward", "Reload"];
+        let cases = [
+            (
+                "german-toolbar-and-a-button-named-back-elsewhere",
+                incognito_of_buttons(&toolbar, &all),
+                None,
+            ),
+            (
+                "english-toolbar",
+                incognito_of_buttons(&english, &english),
+                Some(false),
+            ),
+        ];
+        let wrong: Vec<&str> = cases
+            .iter()
+            .filter(|(_, told, wanted)| told != wanted)
+            .map(|(case, ..)| *case)
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "told against the window's toolbar: {wrong:?}"
         );
     }
 
