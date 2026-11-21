@@ -3623,8 +3623,9 @@ where
                 }
             }
             // While the raise of its setup is owed the row has no card, so its line says that the
-            // questions could not be shown yet (U3.12 (B); RD-155 (2), way B).
-            if owed && !st.deleting.iter().any(|d| d.agent == facts.agent) {
+            // questions could not be shown yet (U3.12 (B); RD-155 (2), way B), unless the row is
+            // the quit row, whose line says to check outside Halvo first (r4 U3.13).
+            if owed && !quit_line && !st.deleting.iter().any(|d| d.agent == facts.agent) {
                 if let Ok(text) = words::text("line.needs_you.setup_owed", &[]) {
                     row.line = text;
                 }
