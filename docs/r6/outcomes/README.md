@@ -20,7 +20,7 @@ No model drives and no model writes. So the derivation reads no row for the `com
 
 ## What the agent-setup run ruled, and what it left open
 
-The ruling CP-179, Addition 3, of the agent-setup run is carried into this run (the coordinator's ruling SG-72, R2, way A). Its point (a): "By (4) every model has a miss of its own at the mended commit, so the block's line driver=none path=B stands and is no longer provisional as far as the three rules of this ruling go". So this table is a result, and its freeze line is final with it.
+The ruling CP-179, Addition 3, of the agent-setup run is carried into this run (the coordinator's ruling SG-72, R2, way A). Its point (a): "By (4) every model has a miss of its own at the mended commit, so the block's line driver=none path=B stands and is no longer provisional as far as the three rules of this ruling go". So this table is a result, and its freeze line is no longer provisional as far as CP-179's three rules go.
 
 Its point (b) did not decide whether a harness may end a compile at the right state by its own reading. ministral_3_3b's cell at the mended commit is a miss and stays one, and that question goes to a later trial. The readings at the mended commit entered no block, so they are not in this table.
 
