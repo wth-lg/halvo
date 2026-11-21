@@ -25,8 +25,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 /// latest time, in milliseconds of `Clock::now`, at which it calls the second step,
 /// `cancel_grace_s` after the stop of each run that is still live, where the stop of a run that
 /// was stopped before the quit counts from that stop; the hook calls it sooner once no run is
-/// live (`Coordinator::live`). The hook counts the wait from `at`, the first step's own read of
-/// the clock, and reads no clock of its own.
+/// live (`Coordinator::live`). The hook waits for the distance from `at`, the first step's own
+/// read of the clock, to `until`, never longer than `cancel_grace_s`, and counts it from the
+/// return of the first step on its own monotonic time, not from `at`; it calls no clock port.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct QuitWait {
     /// The time of the second step at the latest.
@@ -60,7 +61,7 @@ pub struct Coordinator<P: Owner> {
     /// How many reads of the clock answered in this life, so that a tick knows whether its own
     /// work read one (ruling RD-138 (2)).
     reads: AtomicU64,
-    unstopped: Mutex<Vec<(AgentId, RunId)>>,
+    unstopped: Arc<Mutex<Vec<(AgentId, RunId)>>>,
     live_runs: AtomicUsize,
     quit_mark: Arc<AtomicBool>,
 }
@@ -160,22 +161,48 @@ struct Entered<'a, P: Owner + Page> {
     ports: &'a P,
     entry: Entry,
     unwinding: bool,
-    mark_before: Option<Arc<AtomicBool>>,
+    mark_before: Option<QuitLine>,
 }
+
+/// What the thread of a call that holds the coordinator's lock reads of the app's quit: the
+/// mark, and the list of the runs that did not stop, inside whose lock a start reads the mark
+/// for the last time.
+type QuitLine = (Arc<AtomicBool>, Arc<Mutex<Vec<(AgentId, RunId)>>>);
 
 thread_local! {
-    static QUIT_MARK: RefCell<Option<Arc<AtomicBool>>> = const { RefCell::new(None) };
+    static QUIT_MARK: RefCell<Option<QuitLine>> = const { RefCell::new(None) };
 }
 
-fn mark_this_thread(mark: Option<Arc<AtomicBool>>) -> Option<Arc<AtomicBool>> {
-    QUIT_MARK.with(|m| m.replace(mark))
+fn mark_this_thread(line: Option<QuitLine>) -> Option<QuitLine> {
+    QUIT_MARK.with(|m| m.replace(line))
 }
 
 pub(crate) fn quit_marked() -> bool {
     QUIT_MARK.with(|m| {
         m.borrow()
             .as_ref()
-            .is_some_and(|mark| mark.load(Ordering::SeqCst))
+            .is_some_and(|(mark, _)| mark.load(Ordering::SeqCst))
+    })
+}
+
+/// The last reading of the app's quit mark by a start, directly before `Runs::start` (ruling
+/// RD-147 (5)(i)): inside the lock of the list of the runs that did not stop, false where the
+/// quit is marked; otherwise it writes `run` with `agent` at the end of that list and is true.
+/// The quit hook marks the quit before it reads that list inside the same lock, so either the
+/// start finds the mark or the hook's list names the run. True on a thread that holds no
+/// coordinator's lock.
+pub(crate) fn past_the_mark(agent: &AgentId, run: &RunId) -> bool {
+    QUIT_MARK.with(|m| {
+        let line = m.borrow();
+        let Some((mark, unstopped)) = line.as_ref() else {
+            return true;
+        };
+        let mut listed = unstopped.lock().unwrap_or_else(PoisonError::into_inner);
+        if mark.load(Ordering::SeqCst) {
+            return false;
+        }
+        listed.push((agent.clone(), run.clone()));
+        true
     })
 }
 
@@ -402,7 +429,7 @@ where
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
-            unstopped: Mutex::new(Vec::new()),
+            unstopped: Arc::new(Mutex::new(Vec::new())),
             live_runs: AtomicUsize::new(0),
             quit_mark: Arc::new(AtomicBool::new(false)),
         }
@@ -428,7 +455,10 @@ where
             ports: &self.ports,
             entry,
             unwinding: std::thread::panicking(),
-            mark_before: mark_this_thread(Some(Arc::clone(&self.quit_mark))),
+            mark_before: mark_this_thread(Some((
+                Arc::clone(&self.quit_mark),
+                Arc::clone(&self.unstopped),
+            ))),
         };
         if entry != Entry::Read {
             let tick = st.mark.tick;
@@ -2427,11 +2457,14 @@ where
         Ok(())
     }
 
-    /// Marks the app's quit (I5.7): from this call on every start is refused, the person's, the
-    /// queue's at the end of a run and a tick's, also before the first step of the quit has
-    /// taken the coordinator's lock and also in a move that holds that lock now, which reads
-    /// the mark at its start of a run. A tick after the mark makes only the stages that start
-    /// nothing, as after the first step. This call takes no lock and calls no port, so the app's
+    /// Marks the app's quit (I5.7): from this call on every start that has not passed its last
+    /// reading of the mark is refused, the person's, the queue's at the end of a run and a
+    /// tick's, also before the first step of the quit has taken the coordinator's lock and also
+    /// in a move that holds that lock now. A start reads the mark at its start of a run and last
+    /// directly before `Runs::start`, inside the lock of the list of `not_stopped`: a start that
+    /// passed that reading before this call stands in that list from its reading, and a later
+    /// one is refused there and ends its run `interrupted`. A tick after the mark makes only the
+    /// stages that start nothing, as after the first step. This call takes no lock and calls no port, so the app's
     /// quit hook makes it first, before anything that can wait.
     pub fn mark_quit(&self) {
         self.quit_mark.store(true, Ordering::SeqCst);
@@ -2441,13 +2474,14 @@ where
     /// before it takes the coordinator's lock; then every open item lapses with `app_ended` in
     /// the life that ends (I4.5), every live run that no stop has reached gets `cancel` through
     /// the run drive's stop-all, and the queue is emptied before any port call of the step.
-    /// From the mark on every start is refused, the person's, the queue's and a tick's, also
-    /// where a port panics in the step before its own work. It returns at once, with the time at
-    /// which the hook calls the second step at the latest: `cancel_grace_s` after the latest stop
-    /// of a live run, where a stop that reads later than the first step counts from the first
-    /// step (ruling RD-28 (e)), and the first step's time when no run is live; and with the time
-    /// that the step read on the clock, from which the hook counts its wait without a read of
-    /// its own.
+    /// From the mark on every start that has not passed its last reading of the mark is refused,
+    /// the person's, the queue's and a tick's, also where a port panics in the step before its
+    /// own work. It returns at once, with the time at which the hook calls the second step at
+    /// the latest: `cancel_grace_s` after the latest stop of a live run, where a stop that reads
+    /// later than the first step counts from the first step (ruling RD-28 (e)), and the first
+    /// step's time when no run is live; and with the time that the step read on the clock, or
+    /// the last read of the life where that read fails: the hook waits for the distance from
+    /// that time to the first, counted from the return of this step, without a read of its own.
     pub fn quit_stop(&self) -> QuitWait {
         self.mark_quit();
         let mut st = self.enter(Entry::Move);
@@ -2516,7 +2550,12 @@ where
     /// leaves the list of the move before, a panic in a notification after the write leaves the
     /// list as that move wrote it, and a move that returns before any change, such as a move
     /// refused while a settle waits, writes none. So a run or a tree whose kill was refused stays
-    /// in the list, and a tree leaves it with the move whose kill of it was answered Ok. While a
+    /// in the list, and a tree leaves it with the move whose kill of it was answered Ok. After a
+    /// move that did not return, the next call of the coordinator publishes at its entry and
+    /// writes the list from the board as that move left it. The run of a start stands at the end
+    /// of the list from the start's last reading of the quit's mark, directly before
+    /// `Runs::start` (`mark_quit`), until the publish of its move writes the list again, which
+    /// drops it where `Runs::start` failed. While a
     /// kill of a tick or of the second step holds the coordinator's lock the list is the one from
     /// before that move: a run whose kill returned earlier in that move stays named until the
     /// move returns. A run that the move holding the lock has started is not in the list until
@@ -2653,7 +2692,10 @@ where
             ports: &self.ports,
             entry: Entry::Read,
             unwinding: std::thread::panicking(),
-            mark_before: mark_this_thread(Some(Arc::clone(&self.quit_mark))),
+            mark_before: mark_this_thread(Some((
+                Arc::clone(&self.quit_mark),
+                Arc::clone(&self.unstopped),
+            ))),
         };
         if st.mark.unpublished {
             self.publish(&mut st);

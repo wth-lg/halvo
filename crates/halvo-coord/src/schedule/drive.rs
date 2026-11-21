@@ -667,7 +667,12 @@ where
 /// starts. Such a start has sent the request to defer of step 5, as I5.5 says of a start that
 /// fails at step 6, but for an agent whose `run_started` was refused with a name other than `seq`
 /// and of which no store has been acknowledged since: its start sends the request only after its
-/// `run_started` is acknowledged (ruling RD-64 1.8).
+/// `run_started` is acknowledged (ruling RD-64 1.8). The start reads the app's quit mark twice
+/// (ruling RD-147 (5)(i)): at its top, where the mark refuses it with `state` before anything is
+/// stored or sent, and last directly before `Runs::start`, after the body `start_run`
+/// (`coordinator::past_the_mark`), where the mark refuses it with `state` and ends its run
+/// `interrupted`, as a failed step 7 or 8 ends it `failed`; where the quit is not marked there,
+/// the start names its run in the list of the runs that did not stop before `Runs::start`.
 fn start_steps_5_to_8<P, C>(
     cx: &MoveContext<'_, P>,
     board: &mut Board<C>,
@@ -743,9 +748,18 @@ where
         mode: go.mode,
         headed: go.headed,
     };
-    if cx.ports.send(&body).is_err() || cx.ports.start(&spec).is_err() {
+    let unlaunched = if cx.ports.send(&body).is_err() {
+        Some((RunEnd::Failed, Cause::NoService))
+    } else if !crate::coordinator::past_the_mark(&agent, &run) {
+        Some((RunEnd::Interrupted, Cause::State))
+    } else if cx.ports.start(&spec).is_err() {
+        Some((RunEnd::Failed, Cause::NoService))
+    } else {
+        None
+    };
+    if let Some((end, cause)) = unlaunched {
         board.members[i].facts.doing = Doing::Idle(None);
-        finish(cx, board, i, &run, RunEnd::Failed);
+        finish(cx, board, i, &run, end);
         let owed = Owed {
             agent: agent.clone(),
             workflow,
@@ -754,7 +768,7 @@ where
         if !send_owed(cx, board, &owed) {
             board.owed.push(owed);
         }
-        return served(Err(Cause::NoService), Some(run));
+        return served(Err(cause), Some(run));
     }
     let rank = board.rank();
     board.runs.push(LiveRun {
@@ -1957,7 +1971,9 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
 /// the read's cause, `busy` or `no_service`, wherever the entry or the store would decide. A
 /// start goes through `start_step` and then steps 5 to 8 of I5.5: the request to defer, the `run_started` event, which closes an open `ready`
 /// item in the same body, the body `start_run` and `Runs::start`; a failed step 7 or 8 stores
-/// `run_ended` with `failed` and answers `no_service`. The end of a run stores `run_ended`
+/// `run_ended` with `failed` and answers `no_service`, and a start that finds the app's quit
+/// mark at its last reading, after `start_run`, stores `run_ended` with `interrupted`, calls no
+/// `Runs::start` and answers `state`. The end of a run stores `run_ended`
 /// unless its workflow is gone, with `hold_set` of `failures` and `set_state` `paused` when the
 /// last `fails_to_pause` ends each have a cause of the failure class, which no end can find
 /// while that hold stands, and then takes one start from the queue; a failed start takes none. After what is owed
