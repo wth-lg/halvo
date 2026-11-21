@@ -14280,3 +14280,700 @@ fn u24s_rd168_the_line_of_a_switch_off_that_could_not_be_saved_does_not_show_whi
         assert_ne!(line, text("line.all_set.switch_not_saved"));
     }
 }
+
+thread_local! {
+    static U24T_HOLD_SET_PANICS_AT: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
+}
+
+fn u24t_hold_set_refused_or_panics(e: &halvo_coord::types::Event) -> bool {
+    if !matches!(e.what, What::HoldSet { .. }) {
+        return false;
+    }
+    U24T_HOLD_SET_PANICS_AT.with(|at| match at.get() {
+        Some(0) => {
+            at.set(None);
+            panic!("the store panics at this try of the hold_set");
+        }
+        Some(n) => {
+            at.set(Some(n - 1));
+            true
+        }
+        None => true,
+    })
+}
+
+fn u24t_switched_off_with_no_clock_and_a_store_that_refuses(
+    spec: &[support::A],
+    n: &[usize],
+) -> Coordinator<Both> {
+    let limits = Limits {
+        max_live_runs: 3,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(spec, limits);
+    clock_fails(&c);
+    c.ports()
+        .ports
+        .refuse_record(u24t_hold_set_refused_or_panics, PortError::NoService);
+    for k in n {
+        assert_eq!(c.control(&agent(*k), Action::SwitchOff), Ok(()));
+    }
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    for k in n {
+        assert_eq!(c.control(&agent(*k), Action::RunNow), Err(Cause::Hold));
+    }
+    c
+}
+
+fn u24t_tick_whose_hold_set_try_panics(c: &Coordinator<Both>, after: u32, at: u64) -> bool {
+    U24T_HOLD_SET_PANICS_AT.with(|p| p.set(Some(after)));
+    c.ports().ports.set_clock(at, DAY);
+    let tick = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.tick()));
+    U24T_HOLD_SET_PANICS_AT.with(|p| p.set(None));
+    tick.is_ok()
+}
+
+#[test]
+fn u24t_q1_the_ticks_retry_of_a_hold_whose_store_panics_keeps_the_agent_held_off() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(&[MANUAL, MANUAL], &[0]);
+    let returned = u24t_tick_whose_hold_set_try_panics(&c, 1, T0 + 2_000);
+    c.ports().ports.set_clock(T0 + 3_000, DAY);
+    c.tick();
+    let before = started(&c).len();
+    let run_now = c.control(&agent(0), Action::RunNow);
+    assert_eq!(
+        (
+            returned,
+            run_now,
+            started(&c).len() - before,
+            person_holds(&c, 0).len()
+        ),
+        (true, Err(Cause::Hold), 0, 0),
+        "(the tick returned, Run now, runs started by it, hold_set rows) while the store goes on refusing"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert_eq!(
+        (
+            person_holds(&c, 0).len(),
+            row_line(&c.snapshot(), 0),
+            c.control(&agent(0), Action::RunNow),
+            started(&c).len() - before
+        ),
+        (1, text("line.off.person"), Err(Cause::Hold), 0),
+        "(hold_set rows, the row, Run now, runs started) once the store takes the hold"
+    );
+}
+
+#[test]
+fn u24t_q1_a_panic_at_one_agents_retry_leaves_the_next_agent_held_off() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(
+        &[MANUAL, MANUAL, MANUAL],
+        &[0, 1],
+    );
+    let returned = u24t_tick_whose_hold_set_try_panics(&c, 2, T0 + 2_000);
+    c.ports().ports.set_clock(T0 + 3_000, DAY);
+    c.tick();
+    let before = started(&c).len();
+    let run_now = [
+        c.control(&agent(0), Action::RunNow),
+        c.control(&agent(1), Action::RunNow),
+    ];
+    assert_eq!(
+        (returned, run_now, started(&c).len() - before),
+        (true, [Err(Cause::Hold), Err(Cause::Hold)], 0),
+        "(the tick returned, Run now of each, runs started)"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert_eq!(
+        (person_holds(&c, 0).len(), person_holds(&c, 1).len()),
+        (1, 1),
+        "each hold stored once the store takes it"
+    );
+}
+
+#[test]
+fn u24t_q1_a_held_panic_at_the_ticks_retry_marks_the_move_and_rings_the_bell() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(&[MANUAL, MANUAL], &[0]);
+    let seq = c.snapshot().seq;
+    let changed = c
+        .ports()
+        .ports
+        .calls
+        .borrow()
+        .iter()
+        .filter(|t| matches!(t.call, Call::Changed))
+        .count();
+    let returned = u24t_tick_whose_hold_set_try_panics(&c, 1, T0 + 2_000);
+    let rang = c
+        .ports()
+        .ports
+        .calls
+        .borrow()
+        .iter()
+        .filter(|t| matches!(t.call, Call::Changed))
+        .count()
+        - changed;
+    assert_eq!(
+        (returned, c.snapshot().seq > seq, rang > 0),
+        (true, true, true),
+        "(the tick returned, seq raised, the bell rang)"
+    );
+}
+
+#[test]
+fn u24t_q1_a_tick_whose_retry_reads_no_clock_marks_nothing() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(&[MANUAL, MANUAL], &[0]);
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    c.tick();
+    let seq = c.snapshot().seq;
+    clock_fails(&c);
+    c.tick();
+    clock_answers(&c);
+    assert_eq!(
+        (c.snapshot().seq, c.control(&agent(0), Action::RunNow)),
+        (seq, Err(Cause::Hold)),
+        "(seq after a tick whose reads of the clock all failed, Run now): no mark, and the agent stays held off"
+    );
+}
+
+#[derive(Clone, Copy, Debug)]
+enum U24tFault {
+    Refuses,
+    Panics,
+    LosesTheReply,
+}
+
+fn u24t_switch_off_under(
+    c: &Coordinator<Both>,
+    n: usize,
+    fault: U24tFault,
+) -> Option<Result<(), Cause>> {
+    match fault {
+        U24tFault::Refuses => c
+            .ports()
+            .ports
+            .refuse_record(u24t_hold_set_refused_or_panics, PortError::NoService),
+        U24tFault::Panics => c.ports().panics.set(Some("log_hold_set")),
+        U24tFault::LosesTheReply => c.ports().loss.set(Some(support::Loss::Nothing)),
+    }
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(n), Action::SwitchOff)
+    }))
+    .ok();
+    c.ports().panics.set(None);
+    c.ports().loss.set(None);
+    c.ports().ports.clear_refusals();
+    pressed
+}
+
+#[test]
+fn u24t_case7_a_stamped_switch_off_whose_store_faults_at_the_hold_set_answers_no_service_and_does_nothing(
+) {
+    for fault in [U24tFault::Refuses, U24tFault::Panics] {
+        for card in [false, true] {
+            let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+            let run = start(&c, 0);
+            if card {
+                c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+            }
+            let line = row_line(&c.snapshot(), 0);
+            let items = c.snapshot().items;
+            let m = mark(&c);
+            let pressed = u24t_switch_off_under(&c, 0, fault);
+            assert_eq!(
+                (
+                    pressed,
+                    cancels_of(&c, m, &run),
+                    person_holds(&c, 0).len(),
+                    row_line(&c.snapshot(), 0) == line,
+                    c.snapshot().items == items,
+                    c.live()
+                ),
+                (Some(Err(Cause::NoService)), 0, 0, true, true, 1),
+                "{fault:?}, card {card}: (the press, cancels, hold_set rows, the row as it was, the items as they were, live runs)"
+            );
+            c.ports().ports.set_clock(T0 + 1_000, DAY);
+            c.tick();
+            c.tick();
+            assert_eq!(
+                (cancels_of(&c, m, &run), person_holds(&c, 0).len(), c.live()),
+                (0, 0, 1),
+                "{fault:?}, card {card}: nothing of the press is kept or made later"
+            );
+            assert_eq!(
+                c.control(&agent(0), Action::SwitchOff),
+                Ok(()),
+                "{fault:?}, card {card}: a second press with a store that works"
+            );
+            assert_eq!(
+                (
+                    cancels_of(&c, m, &run),
+                    person_holds(&c, 0).len(),
+                    row_line(&c.snapshot(), 0)
+                ),
+                (1, 1, text("line.off.person")),
+                "{fault:?}, card {card}: (cancels, hold_set rows, the row) after the second press"
+            );
+        }
+    }
+}
+
+#[test]
+fn u24t_c07_a_stamped_switch_off_whose_store_panics_at_the_hold_set_answers_no_service_and_the_run_goes_on(
+) {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    let m = mark(&c);
+    c.ports().ports.set_clock(T0 + 10_000, DAY);
+    let pressed = u24t_switch_off_under(&c, 0, U24tFault::Panics);
+    let run_now = c.control(&agent(0), Action::RunNow);
+    c.tick();
+    c.ports().ports.set_clock(
+        T0 + 10_000 + Limits::PRODUCT.cancel_grace_s * 1000 + 1_000,
+        DAY,
+    );
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (
+            pressed,
+            run_now,
+            cancels_of(&c, m, &run0),
+            kills_of(&c, m, &run0),
+            run_ends_of(&c, &run0),
+            person_holds(&c, 0).len(),
+            row_line(&c.snapshot(), 0)
+        ),
+        (
+            Some(Err(Cause::NoService)),
+            Err(Cause::State),
+            0,
+            0,
+            vec![],
+            0,
+            text("line.working.working")
+        ),
+        "(the press, Run now, cancels, kills, ends, hold_set rows, the row)"
+    );
+}
+
+#[test]
+fn u24t_c07c_a_stamped_switch_off_whose_store_answers_no_service_with_nothing_stored_does_nothing()
+{
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run0 = start(&c, 0);
+    let m = mark(&c);
+    let pressed = u24t_switch_off_under(&c, 0, U24tFault::LosesTheReply);
+    let in_move = cancels_of(&c, m, &run0);
+    c.tick();
+    assert_eq!(
+        (
+            pressed,
+            in_move,
+            cancels_of(&c, m, &run0),
+            person_holds(&c, 0).len(),
+            row_line(&c.snapshot(), 0)
+        ),
+        (
+            Some(Err(Cause::NoService)),
+            0,
+            0,
+            0,
+            text("line.working.working")
+        ),
+        "(the press, cancels in the move, cancels after a tick, hold_set rows, the row)"
+    );
+}
+
+#[test]
+fn u24t_a02_a_hold_behind_a_lost_reply_read_while_the_clock_fails_cancels_the_run_or_the_row_does_not_read_off(
+) {
+    let mut seen = Vec::new();
+    let mut table = Vec::new();
+    let mut wanted = Vec::new();
+    for k in 0..10u32 {
+        let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        let m = mark(&c);
+        c.ports().loss.set(Some(support::Loss::Unread));
+        let first = c.control(&agent(0), Action::SwitchOff);
+        c.ports().loss.set(None);
+        let stored = person_holds(&c, 0).len();
+        c.ports().fail_reads_after.set(Some(k));
+        let _ = c.on_run(&run, ask_confirm(&run, 0));
+        clock_answers(&c);
+        for _ in 0..3 {
+            c.tick();
+        }
+        after_the_grace(&c);
+        c.tick();
+        let line = row_line(&c.snapshot(), 0);
+        let off = line == text("line.off.person");
+        let cancels = cancels_of(&c, m, &run);
+        let ends = ends_of(&c, &run);
+        assert_eq!(
+            (first, stored),
+            (Err(Cause::NoService), 1),
+            "k={k}: the press behind the lost reply is answered no_service, and the owner holds the hold"
+        );
+        if off && !(cancels == 1 && ends == vec![RunEnd::Cancelled]) {
+            seen.push((k, line.clone(), cancels, ends.clone()));
+        }
+        let read_onto_the_board = k > 0;
+        table.push((k, line, cancels, ends));
+        wanted.push(if read_onto_the_board {
+            (k, text("line.off.person"), 1, vec![RunEnd::Cancelled])
+        } else {
+            (k, text("line.working.working"), 0, vec![])
+        });
+    }
+    assert!(
+        seen.is_empty(),
+        "the row reads switched off while the run was not cancelled and ended: {seen:?}"
+    );
+    assert_eq!(
+        table, wanted,
+        "(k, the row, cancels, ends): each row says what stands"
+    );
+}
+
+#[test]
+fn u24t_t5_a_kept_end_whose_take_up_panics_before_the_run_leaves_is_kept_again_and_sends_no_kill() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    let run1 = start(&c, 1);
+    c.ports().clock_fails.set(true);
+    c.ports().ports.end_runner(&run0);
+    let _ = c.on_run(&run0, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().clock_fails.set(false);
+    let m = mark(&c);
+    c.ports().panics.set(Some("agents"));
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(1), Action::Stop)
+    }));
+    c.ports().panics.set(None);
+    let stop1 = cancels_of(&c, m, &run1);
+    c.ports()
+        .ports
+        .set_clock(T0 + 10_000 + Limits::PRODUCT.cancel_grace_s * 1000, DAY);
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (
+            pressed.ok(),
+            stop1,
+            kills_of(&c, m, &run0),
+            run_ends_of(&c, &run0)
+        ),
+        (Some(Ok(())), 1, 0, vec![RunEnd::Completed]),
+        "(the other agent's Stop, its cancels, kills of the kept run, the kept run's ends): the kept end is kept again and made with the runner's outcome, with no kill"
+    );
+}
+
+fn u24t_check_card_with_a_kept_field() -> (Coordinator<Both>, RunId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(None));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        },
+    );
+    c.ports().ports.agents.borrow_mut()[0]
+        .unknown
+        .push(halvo_coord::types::Unknown {
+            run: run.clone(),
+            effect: halvo_coord::types::EffectId::parse(&format!("{:032x}", 0xe401)).unwrap(),
+            day: DAY,
+            class: Class::Send,
+            kept: vec![halvo_coord::types::Kept {
+                name: Name::parse("to").unwrap(),
+                value: vec!["Ann Lee".into()],
+            }],
+        });
+    c.ports().ports.set_clock(T0 + 5_000, DAY);
+    c.tick();
+    (c, run)
+}
+
+fn u24t_check_fields(c: &Coordinator<Both>) -> Option<Vec<Vec<String>>> {
+    c.snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Check)
+        .map(|card| card.fields().iter().map(|f| f.value.clone()).collect())
+}
+
+#[test]
+fn u24t_rd135_a_move_whose_roster_read_failed_shows_the_check_cards_kept_fields() {
+    let (c, _) = u24t_check_card_with_a_kept_field();
+    let ann = Some(vec![vec!["Ann Lee".to_string()]]);
+    assert_eq!(
+        u24t_check_fields(&c),
+        ann,
+        "the card raised with the entry's field"
+    );
+    c.ports().ports.refuse(Method::Agents, PortError::NoService);
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    let at_a_tick = u24t_check_fields(&c);
+    let pressed = c.control(&agent(0), Action::RunNow);
+    let at_a_press = u24t_check_fields(&c);
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 7_000, DAY);
+    c.tick();
+    assert_eq!(
+        (at_a_tick, pressed.is_err(), at_a_press, u24t_check_fields(&c)),
+        (ann.clone(), true, ann.clone(), ann),
+        "(the fields after a tick whose roster read failed, the press refused, after that press, after a tick whose read answers)"
+    );
+}
+
+#[test]
+fn u24t_rd135_a_read_that_no_longer_names_the_entry_keeps_the_fields_of_the_entry_that_made_the_hold(
+) {
+    let (c, _) = u24t_check_card_with_a_kept_field();
+    c.ports().ports.agents.borrow_mut()[0].unknown.clear();
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    assert_eq!(
+        u24t_check_fields(&c),
+        Some(vec![vec!["Ann Lee".to_string()]]),
+        "the open card keeps the field of the entry that made its hold stand"
+    );
+}
+
+#[test]
+fn u24t_rd135_a_failed_read_shows_the_fields_of_the_newest_read_that_named_the_entry() {
+    let (c, _) = u24t_check_card_with_a_kept_field();
+    c.ports().ports.agents.borrow_mut()[0].unknown[0].kept[0].value = vec!["Bo Li".into()];
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    let answered = u24t_check_fields(&c);
+    c.ports().ports.refuse(Method::Agents, PortError::NoService);
+    c.ports().ports.set_clock(T0 + 7_000, DAY);
+    c.tick();
+    c.ports().ports.clear_refusals();
+    let bo = Some(vec![vec!["Bo Li".to_string()]]);
+    assert_eq!(
+        (answered, u24t_check_fields(&c)),
+        (bo.clone(), bo),
+        "(the fields after a read that names the entry anew, after a read that failed)"
+    );
+}
+
+#[test]
+fn u24t_rd135_the_kept_fields_go_with_the_card_and_a_new_card_takes_its_own() {
+    let (c, run) = u24t_check_card_with_a_kept_field();
+    let item = item_of_agent(&c, 0);
+    assert_eq!(
+        c.answer(&item, Choice::WentThrough, None, 0),
+        Ok(()),
+        "the person answers the check"
+    );
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    assert_eq!(
+        u24t_check_fields(&c),
+        None,
+        "no check card after the answer"
+    );
+    let next = start(&c, 0);
+    assert_ne!(next, run);
+    c.ports().ports.end_runner(&next);
+    let _ = c.on_run(&next, RunEvent::Ended(None));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: next.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    c.ports().ports.agents.borrow_mut()[0].unknown.clear();
+    c.ports().ports.refuse(Method::Agents, PortError::NoService);
+    c.ports().ports.set_clock(T0 + 7_000, DAY);
+    c.tick();
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 8_000, DAY);
+    c.tick();
+    assert_eq!(
+        u24t_check_fields(&c),
+        Some(vec![]),
+        "the second card, raised by a record with no entry, shows no field of the first"
+    );
+}
+
+fn u24t_is_hold_set(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::HoldSet { .. })
+}
+
+fn u24t_is_hold_cleared(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::HoldCleared { .. })
+}
+
+#[test]
+fn u24t_pr42_probe_1_a_stamped_switch_off_or_on_that_the_store_refuses_never_enters_the_count() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    c.ports()
+        .ports
+        .refuse_record(u24t_is_hold_set, refused_name("too_large"));
+    let off = c.control(&agent(0), Action::SwitchOff);
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    c.ports()
+        .ports
+        .refuse_record(u24t_is_hold_cleared, refused_name("too_large"));
+    let on = c.control(&agent(0), Action::SwitchOn);
+    c.ports().ports.set_clock(T0 + 95 * 86_400_000, DAY + 95);
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (off.is_err(), on.is_err(), c.records_dropped(&agent(0))),
+        (true, true, None),
+        "(the Switch off refused, the Switch on refused, the count after 95 days)"
+    );
+}
+
+#[test]
+fn u24t_pr42_probe_2_a_clockless_switch_off_whose_record_the_store_refuses_enters_the_count() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.ports()
+        .ports
+        .refuse_record(u24t_is_hold_set, refused_name("too_large"));
+    clock_fails(&c);
+    let off = c.control(&agent(0), Action::SwitchOff);
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 95 * 86_400_000, DAY + 95);
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (off, c.records_dropped(&agent(0))),
+        (
+            Ok(()),
+            Some((1, "hold_set".to_string(), "too_large".to_string()))
+        ),
+        "(the clockless Switch off, the count with the event and the refusal)"
+    );
+}
+
+fn u24t_with_a_past_run(dropped: bool) -> Coordinator<Both> {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    c.ports().ports.histories.borrow_mut().push((
+        agent(0),
+        halvo_coord::types::RunHistory {
+            run: PastRun {
+                run: RunId::parse(&format!("{:032x}", 0x3e1)).unwrap(),
+                day: DAY,
+                outcome: Outcome::Completed,
+                unknown: 0,
+            },
+            effects: Vec::new(),
+        },
+    ));
+    if dropped {
+        let run = start(&c, 0);
+        c.ports()
+            .ports
+            .refuse_record(is_item_raise, refused_name("too_large"));
+        let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+        c.ports().ports.set_clock(T0 + 3 * 86_400_000, DAY + 3);
+        c.tick();
+        c.ports().ports.clear_refusals();
+    }
+    c
+}
+
+fn u24t_card_json(
+    c: &Coordinator<Both>,
+    history: Option<PortError>,
+) -> Result<serde_json::Value, Cause> {
+    if let Some(e) = history {
+        c.ports().ports.refuse(Method::AgentHistory, e);
+    }
+    let card = c.card(&agent(0));
+    c.ports().ports.clear_refusals();
+    card.map(|card| serde_json::to_value(card).unwrap())
+}
+
+#[test]
+fn u24t_r6_a_busy_history_read_shows_the_count_line_alone_and_a_later_good_read_shows_the_entries()
+{
+    let c = u24t_with_a_past_run(true);
+    let good = u24t_card_json(&c, None).unwrap();
+    assert_eq!(
+        (good.get("history"), good["runs"].as_array().map(Vec::len)),
+        (None, Some(1)),
+        "a read that answers: no key, the past run"
+    );
+    let busy = u24t_card_json(&c, Some(PortError::Busy));
+    let again = u24t_card_json(&c, None);
+    let count = words::text("card.records_dropped", &[("count", "1")]).unwrap();
+    assert_eq!(
+        busy.map(|b| (b["history"].clone(), b["lines"].clone(), b["runs"].clone())),
+        Ok((
+            serde_json::json!("busy"),
+            serde_json::json!([{ "key": "records_dropped", "text": count }]),
+            serde_json::json!([])
+        )),
+        "a busy read: (the key, the count's line alone, no run)"
+    );
+    assert_eq!(
+        again,
+        Ok(good),
+        "the next read that answers shows the card with its entries"
+    );
+}
+
+#[test]
+fn u24t_r6_a_busy_history_read_with_no_record_taken_off_gives_the_key_and_no_line() {
+    let c = u24t_with_a_past_run(false);
+    assert_eq!(
+        u24t_card_json(&c, Some(PortError::Busy)).map(|b| (
+            b["history"].clone(),
+            b["lines"].clone(),
+            b["runs"].clone()
+        )),
+        Ok((
+            serde_json::json!("busy"),
+            serde_json::json!([]),
+            serde_json::json!([])
+        )),
+        "(the key, no line, no run)"
+    );
+}
+
+#[test]
+fn u24t_r6_a_history_read_refused_otherwise_keeps_its_cause() {
+    let c = u24t_with_a_past_run(true);
+    assert_eq!(
+        (
+            u24t_card_json(&c, Some(PortError::NoService)),
+            u24t_card_json(&c, Some(refused_name("internal")))
+        ),
+        (Err(Cause::NoService), Err(Cause::NoService)),
+        "no_service and a refusal of the owner answer the cause, as before"
+    );
+}

@@ -12,9 +12,9 @@ use crate::schedule::{self, Board, Move, Report};
 use crate::sync::{Next, Sync};
 use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
-    FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
-    OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind, Snapshot,
-    Status, StatusLine, System, WorkflowId,
+    FullWorkflow, HandbackAsk, HistoryRead, Item, ItemId, ItemKind, LapseCause, Limits, Live,
+    OtherLapse, OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind,
+    Snapshot, Status, StatusLine, System, Unknown, WorkflowId,
 };
 use crate::words;
 use std::cell::RefCell;
@@ -149,6 +149,7 @@ struct State<C> {
     /// that the start was cancelled and that the agent asks again, in this life alone (the
     /// gates of U2.4e, ruling RD-152 (4)).
     taken_back: Vec<(AgentId, Option<ItemId>)>,
+    checks: Vec<(ItemId, Vec<Unknown>)>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -486,6 +487,7 @@ where
                 refused_on: Vec::new(),
                 deleting: Vec::new(),
                 taken_back: Vec::new(),
+                checks: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
@@ -734,26 +736,30 @@ where
 
     /// The tick's turn at the switch-offs whose `hold_set` the owner has not taken: each is
     /// tried again at one read of the clock, and the agent stays held off on the board until its
-    /// hold shows; then the board holds its place as its ledger says.
+    /// hold shows; then the board holds its place as its ledger says. Each agent's try is held
+    /// to that agent as the take-up's are (ruling RD-140 R1, RD-144 (1)): one that panics leaves
+    /// its agent held off and the others tried, and the answer says that a try panicked.
     fn held_off_at_tick(
         &self,
         board: &mut Board<Cfg<P>>,
         st_ledgers: &mut Vec<(AgentId, Ledger)>,
         held_off: &mut Vec<AgentId>,
-    ) {
+    ) -> bool {
         if held_off.is_empty() {
-            return;
+            return false;
         }
         let stamp = crate::ports::Stamp::read(&self.ports).ok();
         if let Some(stamp) = stamp {
             self.noted(Some(stamp.now()));
         }
+        let mut panicked = false;
         for agent in std::mem::take(held_off) {
             let rest = match stamp {
-                Some(stamp) => self.off_at_stamp(board, st_ledgers, &agent, stamp),
-                None => OffRest::Clock,
+                Some(stamp) => contain(|| self.off_at_stamp(board, st_ledgers, &agent, stamp)),
+                None => Some(OffRest::Clock),
             };
-            if rest == OffRest::Done {
+            panicked |= rest.is_none();
+            if rest == Some(OffRest::Done) {
                 let keep = st_ledgers
                     .iter()
                     .any(|(a, l)| a == &agent && l.holds_place());
@@ -763,6 +769,7 @@ where
                 held_off.push(agent);
             }
         }
+        panicked
     }
 
     /// The rest of a switch-off that no read of the clock stamped, at `stamp`, the first read
@@ -982,16 +989,19 @@ where
             self.noted(created.read);
             self.flush_ledgers(board, ledgers);
         }
-        {
+        let panicked = {
             let State {
                 board,
                 ledgers,
                 held_off,
                 ..
             } = &mut *st;
-            if let Some(board) = board.as_mut() {
-                self.held_off_at_tick(board, ledgers, held_off);
-            }
+            board
+                .as_mut()
+                .is_some_and(|board| self.held_off_at_tick(board, ledgers, held_off))
+        };
+        if panicked {
+            self.held_panic(st);
         }
         self.finish_switch_offs_after_reads(st, before);
         let State {
@@ -1874,7 +1884,6 @@ where
     }
 
     fn switch_off(&self, st: &mut State<Cfg<P>>, i: usize, mv: Move) -> Result<(), Cause> {
-        let person = matches!(mv, Move::SwitchOff { .. });
         let State {
             board,
             table,
@@ -1905,14 +1914,16 @@ where
         };
         let report = schedule::drive_with(&self.ports, board, &self.limits, mv, Some(&mut halt));
         self.noted(report.read);
-        if person && report.unstamped {
+        if report.unstamped {
             return self.switch_off_unstamped(st, i);
         }
         waits.retain(|w| !report.stopped.contains(&w.run));
         answered(&report)
     }
 
-    /// The person's switch-off when no read of the clock answers (ruling RD-133 1): the
+    /// The person's switch-off when no read of the clock answers (ruling RD-133 1), and so the
+    /// rest of a switch-off that a move's own read of the owner's events showed beside a live run
+    /// (RD-52 (b) rule 3) when that move's `Move::Off` finds no read (adversary 3's a/02): the
     /// agent's live run is stopped on the guard's table and the board at once and its open item
     /// lapses with `cancelled`, `Runs::cancel` goes out in this move, and its queued start
     /// leaves the queue; the run's stop time, the rows and the rest of the switch-off wait for
@@ -3185,9 +3196,12 @@ where
     /// The card of an agent (I8.1 `agents_card`, I2.6), read through `Owner::agent_history`,
     /// with the name of its row: two agents of one name get their ordinal among the agents whose
     /// rows the page shows (I2.3). Its first line is `card.records_dropped` with the count of
-    /// `records_dropped` where the board took off a record of the agent in this life. An agent
-    /// that has no row, whose workflow a tick saw gone or whose setup body the owner ended, is
-    /// `unknown_agent`, as for every control.
+    /// `records_dropped` where the board took off a record of the agent in this life. Where the
+    /// history read answers busy, the card holds that line alone, where the count is at least
+    /// 1, no run, and the key `history` with `busy`, so that the page asks again and never shows
+    /// it as a card with no history; any other refusal of the read answers its cause (the
+    /// coordinator's word on R6 of U2.4t). An agent that has no row, whose workflow a tick saw
+    /// gone or whose setup body the owner ended, is `unknown_agent`, as for every control.
     /// A run that this life's `Runs::reap` answered `alive` and that a record of the store names
     /// takes its line from that record's end, as its row does (`Board::ended_after_reap`).
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
@@ -3204,10 +3218,25 @@ where
             .ok_or(Cause::UnknownAgent)?;
         let facts = shown[k];
         let name = roster::names(&shown, self.label)?.swap_remove(k);
-        let history = self
-            .ports
-            .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
-            .map_err(|e| cause_of(&e))?;
+        let count = board.dropped(agent).map_or(0, |(n, _, _)| n);
+        let dropped = roster::dropped_line(count)?;
+        let history =
+            match self
+                .ports
+                .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
+            {
+                Ok(history) => history,
+                Err(PortError::Busy) => {
+                    return Ok(Card {
+                        agent: agent.clone(),
+                        name,
+                        lines: dropped.into_iter().collect(),
+                        runs: Vec::new(),
+                        history: Some(HistoryRead::Busy),
+                    })
+                }
+                Err(e) => return Err(cause_of(&e)),
+            };
         let records: Vec<_> = history.iter().map(|h| h.run.clone()).collect();
         let after = board.ended_after_reap(facts, &records);
         let mut card = roster::card(
@@ -3216,8 +3245,7 @@ where
             &history,
             &self.limits,
         )?;
-        let count = board.dropped(agent).map_or(0, |(n, _, _)| n);
-        if let Some(line) = roster::dropped_line(count)? {
+        if let Some(line) = dropped {
             card.lines.insert(0, line);
         }
         Ok(card)
@@ -3289,6 +3317,7 @@ where
                 .collect();
             self.live_runs.store(b.runs.len(), Ordering::Relaxed);
         }
+        Self::keep_check_fields(st);
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
         let changed = if st.mark.unpublished {
@@ -3303,6 +3332,34 @@ where
             let _ = self
                 .ports
                 .attention(u32::try_from(needs).unwrap_or(u32::MAX));
+        }
+    }
+
+    /// Keeps, for each open check card, the entries of the roster's key `unknown` that the
+    /// newest read naming them gave, and forgets those of a card that is no longer open: so the
+    /// card shows the kept fields of the entry that made its hold stand also in a move whose
+    /// roster read did not answer, or whose read no longer names that entry (rulings RD-81 8.3,
+    /// RD-135 item 4). The fields live in this life's state alone.
+    fn keep_check_fields(st: &mut State<Cfg<P>>) {
+        let State { board, checks, .. } = st;
+        let open: Vec<(ItemId, &Vec<Unknown>)> = board.as_ref().map_or_else(Vec::new, |b| {
+            b.members
+                .iter()
+                .filter_map(|m| {
+                    let item = m.facts.doing.item()?;
+                    (item.kind == ItemKind::Check).then_some((item.item, &m.facts.unknown))
+                })
+                .collect()
+        });
+        checks.retain(|(item, _)| open.iter().any(|(i, _)| i == item));
+        for (item, unknown) in open {
+            if unknown.is_empty() {
+                continue;
+            }
+            match checks.iter_mut().find(|(i, _)| *i == item) {
+                Some((_, kept)) => kept.clone_from(unknown),
+                None => checks.push((item, unknown.clone())),
+            }
         }
     }
 
@@ -3525,7 +3582,13 @@ where
                 .find(|s| s.item() == item)
                 .and_then(|s| s.page_item(name, &self.limits).ok()),
             ItemKind::Check => {
+                let kept = st
+                    .checks
+                    .iter()
+                    .find(|(i, _)| i == item)
+                    .map_or(&[][..], |(_, kept)| kept);
                 let unknown: &[_] = match &facts.doing {
+                    Doing::Idle(_) | Doing::Queued(_) if facts.unknown.is_empty() => kept,
                     Doing::Idle(_) | Doing::Queued(_) => &facts.unknown,
                     Doing::Live(_) => &[],
                 };

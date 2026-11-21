@@ -1,6 +1,7 @@
 (function () {
   var ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
   var CONTROL = { run_now: true, stop: true, take_back: true, switch_off: true, switch_on: true, delete: true };
+  var CARD_TRIES = 3;
   var CSS = [
     '.r4a{overflow-wrap:anywhere}',
     '.r4a-group{margin-top:16px}',
@@ -49,6 +50,7 @@
   var snapshot = null;
   var statuses = {};
   var card = null;
+  var again = null;
   var asking = 0;
   var busy = {};
   var pointerFrom = null;
@@ -299,6 +301,7 @@
       if (card !== null && card.agent === row.agent) {
         asking += 1;
         card = null;
+        again = null;
         render();
         return;
       }
@@ -309,10 +312,40 @@
       send(row.agent, 'agents_card', { agent: row.agent }).then(function (reply) {
         if (mine !== asking || asked !== turn || !isCard(reply, row.agent)) return;
         card = reply;
+        again = reply.history === 'busy' ? { agent: row.agent, left: CARD_TRIES } : null;
         render();
       });
     });
     return b;
+  }
+
+  function askAgain() {
+    if (again === null || again.flying || card === null || card.agent !== again.agent || again.left < 1 || busy[again.agent]) return;
+    again.left -= 1;
+    again.flying = true;
+    var mine = again;
+    var agent = again.agent;
+    var asked = turn;
+    call('agents_card', { agent: agent })
+      .then(
+        function (reply) {
+          return reply;
+        },
+        function () {
+          return null;
+        }
+      )
+      .then(function (reply) {
+        mine.flying = false;
+        if (mine !== again || asked !== turn || card === null || card.agent !== agent) return;
+        if (!isCard(reply, agent)) {
+          again = null;
+          return;
+        }
+        card = reply;
+        if (reply.history !== 'busy') again = null;
+        render();
+      });
   }
 
   function rowOf(row) {
@@ -408,6 +441,7 @@
         }
         brought = reads;
         if (reply.seq !== seq) take(reply);
+        askAgain();
         next(mine, seq);
       })
       .catch(function () {});

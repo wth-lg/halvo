@@ -1,5 +1,5 @@
 use super::{AgentId, CandidateFrom, Cause, Choice, Class, Control, FieldFrom, ItemId, ItemKind};
-use super::{Kept, LineKey, Origin, Param, Presenter, Status, WorkflowId, YesNo};
+use super::{HistoryRead, Kept, LineKey, Origin, Param, Presenter, Status, WorkflowId, YesNo};
 use crate::items::{field_from, kept_source};
 use crate::words;
 use serde::Serialize;
@@ -176,6 +176,12 @@ pub struct Card {
     pub lines: Vec<CardLine>,
     /// `runs`: at most `history_runs`, newest first.
     pub runs: Vec<CardRun>,
+    /// `history`: `busy` where the card's read of `Owner::agent_history` answered busy, and the
+    /// card then holds the line of the count of records taken off alone, where that count is
+    /// at least 1, and no run; the key is left out where the read answered (the coordinator's
+    /// word on R6 of U2.4t).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history: Option<HistoryRead>,
 }
 
 /// A settings line of a card (I2.2).
