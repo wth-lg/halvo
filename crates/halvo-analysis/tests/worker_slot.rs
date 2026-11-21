@@ -570,3 +570,35 @@ fn an_empty_worker_counts_for_nothing() {
         );
     }
 }
+
+/// The rule of the ends, for an end that the slot did not make and that `end` finds: the test kills the worker
+/// and waits until the slot's writer holds the line of that end. The thread that waits for the worker writes
+/// that line after it has reaped the worker and before it hands the kind of the end over, so the kill of `end`
+/// cannot reach the worker and `end` receives the kind. The end counts as it does in a pass: a pass at the same
+/// reading starts none, and a pass at a reading 60 s later starts one.
+#[test]
+fn an_end_that_the_slot_did_not_make_counts() {
+    let mut rig = Rig::new("slot-end-counts");
+    let (now, origin) = (Instant::now(), from_zero());
+    assert_eq!(rig.slot.pass(now, YES, &origin), Answer::Started);
+    kill(rig.slot.pid().expect("the slot names no worker"));
+    let until = Instant::now() + WAIT;
+    while rig.lines.text().is_empty() {
+        assert!(Instant::now() < until, "the slot wrote no line of the end");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    rig.slot.end();
+    assert_eq!(rig.slot.pid(), None);
+    assert_eq!(
+        rig.slot.pass(now, YES, &origin),
+        Answer::Waits,
+        "{}",
+        rig.lines.text()
+    );
+    assert_eq!(
+        rig.slot.pass(now + Duration::from_secs(60), YES, &origin),
+        Answer::Started,
+        "{}",
+        rig.lines.text()
+    );
+}

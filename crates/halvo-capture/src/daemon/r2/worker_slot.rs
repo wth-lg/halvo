@@ -18,7 +18,8 @@
 //!   line for it.
 //! - [`WorkerSlot::end`] kills the worker, on Windows through the Job, because the worker takes no request to end.
 //!   It waits at most 2 s for the reaping, closes the cursor (`Cursor::drop_open`), closes the slot's side of the
-//!   stream and joins the serving thread.
+//!   stream and joins the serving thread. A worker that had ended on its own before that kill reached it is settled
+//!   by the rule of the ends, as a pass settles it, at the clock's reading of the last call that gave one.
 //! - [`WorkerSlot::pass`] gets the clock's reading and the caller's answer ([`MayRun`]): on no it ends the worker,
 //!   on yes it starts one when none lives and the rule of the ends allows it. A yes carries the watermark of the
 //!   capture store that the cursor last read.
@@ -294,6 +295,8 @@ pub struct WorkerSlot {
     counted: Option<Counted>,
     /// The position that the last worker was started from, where that worker exited 0.
     empty: Option<Origin>,
+    /// The clock's reading of the last call that gave one.
+    reading: Option<Instant>,
     /// The line of a position of another store is written, and no start has named a position of the capture store
     /// since.
     told_other_store: bool,
@@ -326,6 +329,7 @@ impl WorkerSlot {
             living: None,
             counted: None,
             empty: None,
+            reading: None,
             told_other_store: false,
         }
     }
@@ -411,14 +415,23 @@ impl WorkerSlot {
     }
 
     /// Ends the worker that lives: kills it, waits at most 2 s for its reaping, closes the cursor and the slot's side
-    /// of the stream and joins the serving thread. The end counts for nothing.
+    /// of the stream and joins the serving thread. An end that this kill made counts for nothing. A worker that
+    /// had ended on its own before the kill reached it is settled as a pass settles it, at the clock's reading of
+    /// the last call that gave one.
     pub fn end(&mut self) {
         let Some(living) = self.living.take() else {
             return;
         };
         living.ender.end();
-        let reaped = living.ends.recv_timeout(REAP_WAIT).is_ok();
-        living.clear(reaped);
+        let ended = living.ends.recv_timeout(REAP_WAIT);
+        let from = living.from.clone();
+        living.clear(ended.is_ok());
+        let now = self.reading.unwrap_or_else(Instant::now);
+        match ended {
+            Ok(kind) => self.account(now, from, Some(kind)),
+            Err(mpsc::RecvTimeoutError::Disconnected) => self.account(now, from, None),
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+        }
     }
 
     /// The slot's part of a delete of everything: ends the worker, then closes the cursor, then stops the owner.
@@ -428,9 +441,10 @@ impl WorkerSlot {
         self.owner.stop();
     }
 
-    /// Takes the end of a worker that ended on its own: the slot's side is cleared. An exit 0 marks the position
-    /// that the worker was started from, and an end by the cap, by another code or by a signal counts there.
+    /// Keeps the clock's reading `now`, and takes the end of a worker that ended on its own: the slot's side is
+    /// cleared and the end is settled at that reading.
     fn settle(&mut self, now: Instant) {
+        self.reading = Some(now);
         let ended = match self.living.as_ref().map(|living| living.ends.try_recv()) {
             None | Some(Err(mpsc::TryRecvError::Empty)) => return,
             Some(Ok(kind)) => Some(kind),
@@ -441,6 +455,13 @@ impl WorkerSlot {
         };
         let from = living.from.clone();
         living.clear(true);
+        self.account(now, from, ended);
+    }
+
+    /// Settles the end of a worker that was started from `from`; none stands for an end whose kind the thread
+    /// that waited for the worker did not hand over. An end that the slot made counts for nothing, an exit 0 marks
+    /// the position, and an end by the cap, by another code or by a signal counts there at the reading `now`.
+    fn account(&mut self, now: Instant, from: Origin, ended: Option<EndKind>) {
         match ended {
             Some(EndKind::Ended) => {}
             Some(EndKind::Committed) => self.empty = Some(from),
