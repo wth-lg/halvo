@@ -52,6 +52,7 @@
 //! The owner writes to standard error only the faults of the store and of its channels, which hold no value of a
 //! record, and the refusals of a step's records, whose text names an index and a rule.
 
+mod agent;
 pub mod steps;
 
 #[cfg(unix)]

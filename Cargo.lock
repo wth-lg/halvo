@@ -1761,8 +1761,10 @@ name = "halvo-owner"
 version = "0.0.0"
 dependencies = [
  "getrandom 0.3.4",
+ "halvo-agent-store",
  "halvo-derived",
  "halvo-identify",
+ "halvo-schema",
  "halvo-schema-core",
  "halvo-seam",
  "halvo-test-dir",
