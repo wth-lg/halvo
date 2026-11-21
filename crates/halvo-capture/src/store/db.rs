@@ -306,6 +306,19 @@ impl KeyFilePlace {
         self.publish_keeping(key_file).0
     }
 
+    pub(in crate::store) fn publish_from(
+        &self,
+        temp: &OsStr,
+        key_file: &KeyFile,
+    ) -> StoreResult<()> {
+        let place = KeyFilePlace {
+            dir: self.dir.try_clone().map_err(io_error)?,
+            name: self.name.clone(),
+            temp: temp.to_os_string(),
+        };
+        place.publish_keeping(key_file).0
+    }
+
     fn publish_keeping(&self, key_file: &KeyFile) -> (StoreResult<()>, Published) {
         let mut published = Published {
             linked: false,

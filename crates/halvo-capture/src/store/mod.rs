@@ -19,6 +19,8 @@ pub mod state_file;
 pub(in crate::store) mod verify;
 
 #[cfg(test)]
+mod adapter_tests;
+#[cfg(test)]
 mod formal_tests;
 #[cfg(test)]
 mod hardening_tests;

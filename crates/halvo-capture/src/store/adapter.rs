@@ -443,3 +443,71 @@ fn free_bytes(dir: &Path) -> io::Result<u64> {
 fn free_bytes(_dir: &Path) -> io::Result<u64> {
     Err(io::Error::from(io::ErrorKind::Unsupported))
 }
+
+use crate::custody::{custody_for, RootsHandle, StoreKey};
+use crate::daemon::port::DerivedKeyFault;
+
+const DERIVED_LABEL: KeyLabel = KeyLabel::new("derived").expect("a label of the listed letters");
+
+impl DataDirStore {
+    /// The key of the derived store. Its wrap lies in derived/master.key,
+    /// made under the root that store/store.key names with the label
+    /// `derived`, so the delete that destroys the capture store's root ends
+    /// this key too. The call makes 32 random
+    /// bytes, wraps them, makes the folder derived/ and publishes the key
+    /// file create-only by a hard link from a temporary name of its own. It
+    /// opens no database, takes no lock, never replaces or removes a key
+    /// file, and makes nothing before its wrap answers.
+    pub fn derived_store_key(&self) -> Result<StoreKey, DerivedKeyFault> {
+        let roots_dir = self.roots();
+        let store = KeyFile::at(&self.store_dir().join("store.key"))
+            .and_then(|place| place.read(KeyLabel::STORE))
+            .map_err(|e| derived_fault(open_fault(&e)))?;
+        let custody = custody_for(&store.locator(&roots_dir)).map_err(|e| root_fault(&e))?;
+        let roots = RootsHandle::open(&roots_dir).map_err(|e| root_fault(&e))?;
+        let file = self.path().join("derived").join("master.key");
+        let key = StoreKey::random().map_err(|e| root_fault(&e))?;
+        let (wrapped, _) = custody
+            .wrap_store_key_in(&roots, &key, DERIVED_LABEL)
+            .map_err(|e| root_fault(&e))?;
+        let key_file = KeyFile::new(custody.as_ref(), DERIVED_LABEL, &wrapped);
+        match publish_derived(self.path(), &file, &key_file) {
+            Ok(()) => Ok(key),
+            Err(e) => Err(derived_fault(open_fault(&e))),
+        }
+    }
+}
+
+fn publish_derived(data_dir: &Path, file: &Path, key_file: &KeyFile) -> super::StoreResult<()> {
+    let io_fault = |e: io::Error| StoreError::Io(e.kind());
+    let dir = Dir::open(data_dir).map_err(io_fault)?;
+    dir.create_dir(OsStr::new("derived")).map_err(io_fault)?;
+    dir.sync().map_err(io_fault)?;
+    let mut tag = [0u8; 16];
+    crate::custody::dev_fallback::fill_random(&mut tag)
+        .map_err(|_| StoreError::Io(io::ErrorKind::Other))?;
+    let tag: String = tag.iter().map(|byte| format!("{byte:02x}")).collect();
+    KeyFile::at(file)?.publish_from(OsStr::new(&format!("master.key.{tag}.tmp")), key_file)
+}
+
+fn root_fault(e: &CustodyError) -> DerivedKeyFault {
+    derived_fault(custody_fault(e))
+}
+
+fn derived_fault(fault: OpenFault) -> DerivedKeyFault {
+    match fault {
+        OpenFault::Locked | OpenFault::Io | OpenFault::Database => DerivedKeyFault::Io,
+        OpenFault::NoSpace => DerivedKeyFault::NoSpace,
+        OpenFault::Obstructed => DerivedKeyFault::Obstructed,
+        OpenFault::CustodyLocked => DerivedKeyFault::CustodyLocked,
+        OpenFault::RootDenied => DerivedKeyFault::RootDenied,
+        OpenFault::IoNotRetried => DerivedKeyFault::IoNotRetried,
+        OpenFault::RootMissing => DerivedKeyFault::RootMissing,
+        OpenFault::RootCorrupt => DerivedKeyFault::RootCorrupt,
+        OpenFault::WrapAuth => DerivedKeyFault::WrapAuth,
+        OpenFault::KeyFile => DerivedKeyFault::StoreKeyFile,
+        OpenFault::CustodyKind => DerivedKeyFault::CustodyKind,
+        OpenFault::OlderStore => DerivedKeyFault::OlderStore,
+        OpenFault::NewerStore => DerivedKeyFault::NewerStore,
+    }
+}
