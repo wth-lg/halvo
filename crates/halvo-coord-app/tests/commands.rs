@@ -807,3 +807,38 @@ fn through_the_app_a_switch_on_and_a_start_refused_with_overlap_name_the_agent_t
         );
     }
 }
+
+/// The same row: the line `off.kept` that the unit adds (I5.4, RD-67 1.2), as the page reads it
+/// through the app's real wiring: an agent listed `paused` with no hold by its events shows the
+/// status `off`, the words of `line.off.kept` and the controls of the hold `off`.
+#[test]
+fn through_the_app_an_agent_listed_paused_with_no_hold_by_its_events_reads_the_line_off_kept() {
+    let shared = world(1, Limits::PRODUCT);
+    shared.with(|p| {
+        for w in p.workflows.borrow_mut().iter_mut() {
+            if let halvo_coord::types::Workflow::Full(f) = w {
+                f.state = halvo_coord::types::WorkflowState::Paused;
+            }
+        }
+    });
+    let hub = Hub::new(
+        shared,
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    Core::tick(&*hub);
+    let (_app, main, _other) = app(hub.clone());
+    let state: Value =
+        serde_json::from_str(&invoke(&main, "agents_snapshot", json!({})).unwrap()).unwrap();
+    let words: Value = serde_json::from_str(&fixture("words")).unwrap();
+    let row = &state["rows"][0];
+    assert_eq!(row["status"], "off");
+    assert_eq!(row["line"], words["line.off.kept"]);
+    assert_eq!(
+        row["controls"]
+            .as_array()
+            .map(|c| c.iter().map(|x| x["control"].clone()).collect::<Vec<_>>()),
+        Some(vec![json!("switch_on"), json!("delete")])
+    );
+}
