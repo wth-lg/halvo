@@ -1179,6 +1179,50 @@ pub(crate) mod tests {
         );
     }
 
+    #[cfg(target_os = "macos")]
+    struct LinkLeft;
+
+    #[cfg(target_os = "macos")]
+    impl StateWrite for LinkLeft {
+        fn write_whole(&self, dir: &StateDir, _name: &OsStr, _bytes: &[u8]) -> io::Result<()> {
+            let file = dir.file_for_words();
+            std::fs::remove_file(&file)?;
+            std::os::unix::fs::symlink(file.with_file_name("elsewhere"), &file)?;
+            Err(io::Error::from(io::ErrorKind::StorageFull))
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_failed_write_that_leaves_a_link_at_the_name_is_answered_not_written_and_memory_takes_paused(
+    ) {
+        let dir = test_dir();
+        let writer = TestWrite::default();
+        let mut first = open(dir.path(), &writer);
+        first
+            .update(|state| state.desired = Desired::Running)
+            .unwrap();
+        drop(first);
+        let mut file = StateFile::open(StateDir::open(dir.path()).unwrap(), Box::new(LinkLeft));
+        assert_eq!(file.state().desired, Desired::Running);
+        let answer = file.update(|state| state.store_made = true);
+        assert!(
+            matches!(
+                answer,
+                Err(StateError::NotWritten {
+                    kind: io::ErrorKind::StorageFull,
+                    ..
+                })
+            ),
+            "{answer:?}"
+        );
+        assert_eq!(file.state().desired, Desired::Paused);
+        assert!(std::fs::symlink_metadata(file_of(dir.path()))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
     #[cfg(windows)]
     struct WrittenThenHeld(Arc<std::sync::Mutex<Option<std::fs::File>>>);
 
