@@ -525,3 +525,21 @@ fn a_day_is_a_day_number_a_month_name_and_a_year() {
     assert_eq!(words::day(11_017), "1 March 2000");
     assert_eq!(words::day(20_818), "31 December 2026");
 }
+
+/// The two lines of the row after a Switch off whose `hold_set` the owner refused under class B,
+/// in the coordinator's words of 2026-11-21T05:03:14Z (U2.4s; ruling RD-155 (1)).
+#[test]
+fn u24s_the_two_lines_of_a_switch_off_that_could_not_be_saved_stand_in_the_coordinators_words() {
+    for (key, text) in [
+        (
+            "line.working.switch_not_saved",
+            "Halvo is stopping the task but could not switch this agent off. It may start again: press Switch off again.",
+        ),
+        (
+            "line.all_set.switch_not_saved",
+            "Halvo stopped the task but could not switch this agent off. It may start again: press Switch off again.",
+        ),
+    ] {
+        assert_eq!(words::text(key, &[]).unwrap(), text, "{key}");
+    }
+}
