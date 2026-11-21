@@ -123,12 +123,12 @@ fixed order. Check 2 is three tests: one over random races of processes
 that open a store, one over random races of processes that create one in
 an empty directory, and one of two fixed cases around the directory lock.
 The delete tail, `EncryptedStore::delete_data_dir`, is held
-by tests and rows, not by the formal checks: no move of check 1 calls it,
+by tests, not by the formal checks: no move of check 1 calls it,
 and a later unit adds it as a move (ruling ST-45 Addition 1). So is the
 root step by identity of store-3b, and its sweep of every regular file of
 the roots folder (ruling ST-47 T1): check 1 never moves a root file or the
 roots directory, and it reads the root as destroyed by its name; the
-hardening tests of `held_roots` and plain rows, not `formal-` rows, hold
+hardening tests of `held_roots` hold
 the identity, `at_its_path`, the made mark's identity and the sweep.
 
 ## Tool
@@ -147,11 +147,12 @@ mechanisms instead.
 ## Covered code
 
 A line of this table names code through which a check has been seen to
-fail. Each name in its last cell is a row of a `mutants.rows` file beside
-the code: `sh scripts/r1-gate/mutation-test.sh` applies the row's
-substitution to a copy of HEAD and requires that the one test of the row's
-verdict fails. No check holds a line of this table to a row. Code that the
-checks call and that no row fails through stands under Not covered.
+fail. Each name in its last cell is the name of a mutation row: a
+substitution in the named code under which the one test of the row's
+verdict failed when the row ran. The rows and their runner have left the
+tree, so this file names each row as a record, and no run applies one (see
+Sync). Code that the checks call and that no row failed through stands
+under Not covered.
 
 | Check | File | Functions | Rows that fail through it |
 |---|---|---|---|
@@ -705,22 +706,14 @@ property or the harness; report the counterexample.
 
 ## Break proofs
 
-Each check has been seen to fail on a broken store, and each break is a row
-of a `mutants.rows` file: `crates/halvo-capture/src/store/mutants.rows` for
-store code and `crates/halvo-capture/src/custody/mutants.rows` for custody
-code. The name of such a row starts with `formal-`, its verdict is `test`
-with one of the eight tests of the table under The checks, and its state is
-`required`.
+Each check has been seen to fail on a broken store. Each break was a row of
+a mutation list beside the code, and the rows have left the tree (see
+Sync). The name of such a row starts with `formal-`, and its verdict was
+one of the eight tests of the table under The checks.
 
-```sh
-sh scripts/r1-gate/mutation-test.sh --only formal-shredded-key-survives
-```
-
-The runner copies HEAD, requires that the test passes unmutated, applies
-the substitution, builds and requires that the test fails:
-`PASS mutation:<row> (test <name>: the one test failed)`. Without `--only`
-it runs every row. A row whose substitution matches nothing is a FAIL, so a
-row cannot go stale unseen.
+The runner copied HEAD, required that the test passed unmutated, applied
+the substitution, built and required that the test failed. The table keeps
+what each row broke and the message of its failing test.
 
 | Row | What it breaks | Test | Message |
 |---|---|---|---|
@@ -1104,13 +1097,8 @@ When a change to covered code is intended:
    effect to `Harness::apply` and `Harness::check`, extend the page reader,
    or extend the contender, so one step in the harness is still one step in
    the code.
-3. If the change moves the text that a row's substitution matches, change
-   the `formal-` row, and the row of the same substitution with another
-   verdict, in the same pull request.
-4. Run the rows on hosted jobs: `sh scripts/r1-gate/mutation-test.sh --only <row>` for each
-   row of the changed file, or every row with no argument. Each must print
-   `PASS mutation`. For new covered code, add a row that breaks it, see the
-   check fail, and name the row on the code's line of the covered table.
+3. For new covered code, break it in a copy of the tree, see the check
+   fail, and name the break on the code's line of the covered table.
 
 If the property itself is meant to change (for example, a shredded segment
 may stay readable until a later sweep), that is a product decision; record
@@ -2427,33 +2415,16 @@ set, and the root's own volume name answers the root.
 
 ## Sync
 
-This file describes the checks of the commit that holds it. Two runs keep
-that true for each merged commit, and neither needs a commit id that a
-squash merge would change:
+This file describes the checks of the commit that holds it. One run keeps
+that true for each merged commit, and it needs no commit id that a squash
+merge would change:
 
-- In every run of the CI workflow, `scripts/r1/ci.d/30-mutants.sh` runs
-  `sh scripts/r1-gate/mutation-test.sh --apply-only`, which applies each
-  row that a run would apply here, the `formal-` rows among them, and
-  compiles each mutant, except a row on code that the macOS build does not
-  compile: `cargo check` for a row on a file that cargo builds, the build for a row on a
-  build script or under crates/halvo-sqlcipher, and `sh -n`, `cc`, `perl` or
-  `swiftc` for a row on another file; the control row must not type-check,
-  and a transitional row whose
-  name another row file
-  holds prints MOVED and is not applied. A covered function that changes
-  shape under its row fails that run: the substitution no longer applies.
 - In every run of the CI workflow, `12-test` runs the eight tests.
 
-On each push to main, `30-mutants.sh` also runs, in the full mode, the
-rows that start within its budget, in an order that the commit id decides. It starts no row once its budget of
-seconds (`budget_s`) has passed since the first row started, lets the row
-in progress end, and fails when a row that ran is not caught by its
-verdict; another commit takes the rows in another order. The whole list,
-which requires that the test of every `formal-` row fails, runs by name on
-hosted jobs at the gate of each unit whose diff touches
-`crates/halvo-sqlcipher/`, `crates/halvo-capture/src/store/` or the
-database entries of `Cargo.lock` (ruling S-91 7), and on a person's machine
-only where the machine's rules let the rows' tests run.
+The mutation rows that this file names, their runner and the check that
+applied them have left the tree. So no run shows that a named test fails
+when its line of the source changes, and a line of the covered table that
+names no row fails no check.
 
 Outcome of the fourth formal step, over the 17 commits of
 the unit store-2 (an `open` that makes no database, format versions, the
@@ -2525,8 +2496,8 @@ requires that k of 0 to 3 take the lock after exactly k + 1 opens and that
 k of 4 answers `Io(NotFound)` after exactly 4, and
 `db::tests::a_take_hands_on_an_open_error_of_another_kind_after_one_try`
 requires one open for another kind of error. The row
-`lock-file-open-not-retried` of `store/mutants.rows` takes the retry out,
-and the first of those tests fails in every run. On
+`lock-file-open-not-retried` took the retry out,
+and the first of those tests failed in every run. On
 Windows a delete of the name while a holder keeps it open leaves it
 delete-pending, and the open answers access denied, not "no such file", so
 the retry changes no answer there.
