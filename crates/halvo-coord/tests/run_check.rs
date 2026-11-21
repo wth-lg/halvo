@@ -725,6 +725,40 @@ fn a_raised_check_row_carries_the_day_of_its_at_across_midnight() {
     assert!(days.contains(&DAY) && days.contains(&(DAY + 1)));
 }
 
+/// RD-77 part 6 (6.1, 6.4): a check that an act raises is stamped by that act's one read of the
+/// clock. In an end that raises a check, with the memory clock moving on 1 ms at each read, the
+/// check's `item_raised` row holds the `at` and the `day` of the `run_ended` row of the same act.
+#[test]
+fn a_check_that_an_end_raises_holds_the_at_and_the_day_of_its_run_ended_row() {
+    let mut w = world(&[MANUAL]);
+    let run = w.act(Act::Start { agent: agent(0) }).report.run.unwrap();
+    w.store_end(0, &run, Outcome::EffectUnknown, 1);
+    w.ports.step_reads(1);
+    let done = w.act(Act::End {
+        run: run.clone(),
+        outcome: None,
+    });
+    assert_eq!(done.checked, vec![agent(0)]);
+    let events = w.ports.events.borrow();
+    let ended = events
+        .iter()
+        .find(|e| matches!(&e.what, What::RunEnded { run: r, .. } if *r == run))
+        .unwrap();
+    let raised = events
+        .iter()
+        .find(|e| {
+            matches!(
+                e.what,
+                What::ItemRaised {
+                    raised: Raised::Check(None),
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    assert_eq!((raised.at, raised.day), (ended.at, ended.day));
+}
+
 /// The rows of the moves that go through the run drive and so through its clock wrapper `Watch`
 /// (src/run/drive.rs): a start, a tick and a switch-off, with the clock from 8 ms before local
 /// midnight to 3 ms after it and moving on 1 ms at each read. Every row carries the memory

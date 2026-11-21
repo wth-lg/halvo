@@ -607,7 +607,7 @@ where
         board.keep_unread(agent);
     }
     board.note_list(&workflows);
-    let checked = raise_checks(ports, &mut board, limits, None);
+    let checked = raise_checks(ports, &mut board, limits, None, stamp);
     Ok(Life {
         board,
         ended,

@@ -417,13 +417,33 @@ where
             lost.push(run);
         }
     }
+    let checked = checks_of_the_move(ports, board, limits, None, &report);
     Done {
         report,
         lost,
         gone: gone.map(|g| g.seen).unwrap_or_default(),
-        checked: raise_checks(ports, board, limits, None),
+        checked,
         killed: Vec::new(),
     }
+}
+
+/// The checks that an act raises after its move of the schedule, each stamped by that move's one
+/// read of the clock, which its report carries; none where no read of the clock answered (ruling
+/// RD-77 part 6).
+fn checks_of_the_move<P>(
+    ports: &P,
+    board: &mut Board<P::Config>,
+    limits: &Limits,
+    only: Option<&AgentId>,
+    report: &Report,
+) -> Vec<AgentId>
+where
+    P: Owner + Rng,
+    P::Config: ConfigView,
+{
+    report
+        .stamp
+        .map_or_else(Vec::new, |stamp| raise_checks(ports, board, limits, only, stamp))
 }
 
 /// Carries out a move of a run on the ports, the board and the guard's table (I5.6, I5.7,
@@ -473,7 +493,7 @@ where
                     agent: agent.clone(),
                 },
             ));
-            done.checked = raise_checks(ports, board, limits, Some(&agent));
+            done.checked = checks_of_the_move(ports, board, limits, Some(&agent), &done.report);
             done
         }
         Act::SwitchOff { agent } => {
@@ -516,7 +536,7 @@ where
                 limits,
                 Move::End { run, outcome },
             ));
-            done.checked = raise_checks(ports, board, limits, None);
+            done.checked = checks_of_the_move(ports, board, limits, None, &done.report);
             done
         }
         Act::StopAll => stop_all(ports, board, table),

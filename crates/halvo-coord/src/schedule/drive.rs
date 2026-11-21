@@ -138,6 +138,9 @@ pub struct Report {
     pub unstamped: bool,
     /// The read of the clock that stamped the move, where one answered.
     pub read: Option<u64>,
+    /// The move's one read of the clock, where one answered: the stamp of every row of the move,
+    /// and of a check that the act of the move raises after it (ruling RD-77 part 6).
+    pub stamp: Option<Stamp>,
     /// For a switch-on, or a start of the person that ends `failures`, whose state the owner
     /// refused with `overlap`, what the read `Owner::overlaps` that followed gave to show: its
     /// entries, or the half of the sentence that is known where it did not answer (I3.5 (f);
@@ -159,6 +162,7 @@ impl Default for Report {
             dropped: Vec::new(),
             unstamped: false,
             read: None,
+            stamp: None,
             shared: None,
         }
     }
@@ -2304,7 +2308,10 @@ where
         }
         Move::End { run, outcome } => {
             let Some(live) = board.runs.iter().find(|r| r.run == run) else {
-                return refused(Cause::State);
+                return Report {
+                    stamp: Some(stamp),
+                    ..refused(Cause::State)
+                };
             };
             let cause = match (live.stop, outcome) {
                 (Some(stop), _) => stop.cause,
@@ -2324,6 +2331,7 @@ where
     };
     Report {
         read: Some(stamp.now()),
+        stamp: Some(stamp),
         ..report
     }
 }

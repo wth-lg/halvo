@@ -1,4 +1,4 @@
-use crate::ports::{Clock, Owner, PortError, Rng, Stamp};
+use crate::ports::{Owner, PortError, Rng, Stamp};
 use crate::schedule::{
     holds, item_closed, owed_of_kind, owed_ready, read_back, seq_refusal, Board, Hold,
 };
@@ -85,20 +85,21 @@ where
 /// numbered, and an open check among them is the agent's, so that no second raise is stored
 /// (ruling RD-12 (b)). A refusal that comes after the count of a tick counts at the next tick's
 /// count, as a move of the person does, also at a tick whose read of the owner's list fails.
+/// Every row of the raise is stamped by `stamp`, the one read of the clock of the move or of the
+/// recovery that raises it, and the raise reads no clock, so that no row holds a day that the
+/// board has not taken (ruling RD-77 part 6).
 /// The agents that hold the item `check` so, in ascending agent id.
 pub(super) fn raise_checks<P, C>(
     ports: &P,
     board: &mut Board<C>,
     limits: &Limits,
     only: Option<&AgentId>,
+    stamp: Stamp,
 ) -> Vec<AgentId>
 where
-    P: Owner + Rng + Clock,
+    P: Owner + Rng,
     C: ConfigView,
 {
-    let Ok(stamp) = Stamp::read(ports) else {
-        return Vec::new();
-    };
     let mut raised = Vec::new();
     for i in 0..board.members.len() {
         let agent = board.members[i].facts.agent.clone();
@@ -239,7 +240,7 @@ fn retry_after_read_back<P, C>(
     item: &ItemId,
 ) -> Retried
 where
-    P: Owner + Rng + Clock,
+    P: Owner + Rng,
     C: ConfigView,
 {
     let newest = |board: &Board<C>| {
