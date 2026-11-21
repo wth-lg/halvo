@@ -515,7 +515,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "run.effect.delete.unknown",
-        "Something may have been removed; Halvo could not tell. Check that the things you need are still there.",
+        "Something may have been removed; Halvo could not tell. Look where this agent works for anything missing.",
     ),
     (
         "run.effect.submit.unknown",
@@ -531,7 +531,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "run.effect.unknown",
-        "One step of this task may have been done; Halvo could not tell. Check its results before running it again.",
+        "One step may have been done; Halvo could not tell. Check where this agent works before you run it again.",
     ),
     ("line.run.stopped", "It stopped before the task was done."),
     ("field.local_edit.file", "File"),
