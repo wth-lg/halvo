@@ -475,6 +475,258 @@ fn hand_over(owner: &mut Owner) -> (Stream, String) {
     (stream, owner.stream_answer())
 }
 
+/// The test's ends of the starter's channel, as the daemon's handler of `owner_stream` uses them.
+#[cfg(any(target_os = "macos", windows))]
+struct Starter<'a>(&'a mut Owner);
+
+#[cfg(any(target_os = "macos", windows))]
+impl halvo_control::r2::OwnerChannel for Starter<'_> {
+    #[cfg(target_os = "macos")]
+    fn send_stream(
+        &mut self,
+        frame: &[u8],
+        end: std::os::fd::BorrowedFd<'_>,
+    ) -> std::io::Result<()> {
+        use std::os::fd::AsFd;
+        let channel = self.0.requests.as_ref().unwrap().as_fd();
+        halvo_control::r2::send_with_end(channel, frame, end)
+    }
+
+    #[cfg(windows)]
+    fn owner_process(&self) -> std::os::windows::io::BorrowedHandle<'_> {
+        use std::os::windows::io::AsHandle;
+        self.0.child.as_handle()
+    }
+
+    #[cfg(windows)]
+    fn send_stream(&mut self, frame: &[u8]) -> std::io::Result<()> {
+        self.0.send(frame);
+        Ok(())
+    }
+
+    fn answer(&mut self, within: Duration) -> std::io::Result<Option<Vec<u8>>> {
+        let deadline = Mono::now() + within;
+        loop {
+            let left = deadline.saturating_duration_since(Mono::now());
+            match self.0.frames.recv_timeout(left) {
+                Ok(frame) if is_report(&frame).is_some() => {}
+                Ok(frame) => return Ok(Some(frame)),
+                Err(RecvTimeoutError::Timeout) => return Err(std::io::ErrorKind::TimedOut.into()),
+                Err(RecvTimeoutError::Disconnected) => return Ok(None),
+            }
+        }
+    }
+}
+
+/// A connector of the test that gives the client call the client's end of the control connection, once.
+#[cfg(any(target_os = "macos", windows))]
+struct Once<T>(std::sync::Mutex<Option<T>>);
+
+#[cfg(any(target_os = "macos", windows))]
+impl<T: halvo_control::client::Transport> halvo_control::client::Connector for Once<T> {
+    type Transport = T;
+
+    fn endpoint(&self) -> String {
+        "the test's control connection".to_owned()
+    }
+
+    fn connect(&self, _: Duration) -> Result<T, halvo_control::client::ClientError> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .take()
+            .expect("the client call connects once"))
+    }
+}
+
+/// The two ends of a control connection: the client's, then the server's.
+#[cfg(target_os = "macos")]
+fn control_connection() -> (
+    std::os::unix::net::UnixStream,
+    std::os::unix::net::UnixStream,
+) {
+    std::os::unix::net::UnixStream::pair().unwrap()
+}
+
+/// The client's end of a control connection on Windows: one end of a named pipe.
+#[cfg(windows)]
+struct PipeEnd(std::fs::File);
+
+#[cfg(windows)]
+impl Read for PipeEnd {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+#[cfg(windows)]
+impl Write for PipeEnd {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
+#[cfg(windows)]
+impl std::os::windows::io::AsHandle for PipeEnd {
+    fn as_handle(&self) -> std::os::windows::io::BorrowedHandle<'_> {
+        self.0.as_handle()
+    }
+}
+
+#[cfg(windows)]
+impl halvo_control::client::Transport for PipeEnd {
+    /// A pipe opened for synchronous use takes no timeout; the waits of the test bound the call.
+    fn set_timeout(&mut self, _: Duration) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    /// A pipe has no half to close; on Windows the handler holds no copy of the client's end and waits for no end.
+    fn end_request(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// The two ends of a control connection: the client's and the server's end of a new named pipe that no other machine
+/// may open.
+#[cfg(windows)]
+fn control_connection() -> (PipeEnd, std::fs::File) {
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::io::FromRawHandle;
+    // The test's own declaration: the windows-sys features of this crate do not hold the pipe functions.
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn CreateNamedPipeW(
+            name: *const u16,
+            open_mode: u32,
+            pipe_mode: u32,
+            instances: u32,
+            out_size: u32,
+            in_size: u32,
+            wait_ms: u32,
+            security: *const std::ffi::c_void,
+        ) -> *mut std::ffi::c_void;
+    }
+    const PIPE_ACCESS_DUPLEX: u32 = 0x3;
+    const FILE_FLAG_FIRST_PIPE_INSTANCE: u32 = 0x0008_0000;
+    const PIPE_REJECT_REMOTE_CLIENTS: u32 = 0x8;
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let name = format!(
+        r"\\.\pipe\halvo-owner-test-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    );
+    let wide: Vec<u16> = std::ffi::OsStr::new(&name)
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+    // SAFETY: the name is a wide string with its NUL that lives through the call; with no security attributes the
+    // handle is not inheritable.
+    let server = unsafe {
+        CreateNamedPipeW(
+            wide.as_ptr(),
+            PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            PIPE_REJECT_REMOTE_CLIENTS,
+            1,
+            65_536,
+            65_536,
+            0,
+            std::ptr::null(),
+        )
+    };
+    assert_ne!(
+        server.addr(),
+        usize::MAX,
+        "{}",
+        std::io::Error::last_os_error()
+    );
+    // SAFETY: the handle is new and open, and nothing else owns it.
+    let server = unsafe { std::fs::File::from_raw_handle(server) };
+    let client = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&name)
+        .unwrap();
+    (PipeEnd(client), server)
+}
+
+/// Serves one request on the server's end of the control connection as the daemon's server does: it reads the frame,
+/// decodes it and hands the unknown request to `dispatch_unknown` with the test's ends of the starter's channel.
+/// Returns whether the call wrote the reply.
+#[cfg(target_os = "macos")]
+fn serve_one(server: &std::os::unix::net::UnixStream, owner: &mut Owner) -> bool {
+    let frame =
+        halvo_control::wire::read_frame(&mut &*server, halvo_control::wire::REQUEST_MAX_BYTES)
+            .unwrap();
+    let Ok(halvo_control::proto::Decoded::Unknown(request)) =
+        halvo_control::proto::decode_request(&frame)
+    else {
+        panic!("the request is no body of version 2");
+    };
+    halvo_control::r2::dispatch_unknown(&request, server, &mut Starter(owner))
+}
+
+/// Serves one request as the macOS form does, on the server's end of a named pipe.
+#[cfg(windows)]
+fn serve_one(server: &std::fs::File, owner: &mut Owner) -> bool {
+    use std::os::windows::io::AsHandle;
+    let frame =
+        halvo_control::wire::read_frame(&mut &*server, halvo_control::wire::REQUEST_MAX_BYTES)
+            .unwrap();
+    let Ok(halvo_control::proto::Decoded::Unknown(request)) =
+        halvo_control::proto::decode_request(&frame)
+    else {
+        panic!("the request is no body of version 2");
+    };
+    halvo_control::r2::dispatch_unknown(&request, server.as_handle(), &mut Starter(owner))
+}
+
+/// The test's `Stream` over the end that the client call returned.
+#[cfg(target_os = "macos")]
+fn stream_of(end: halvo_control::r2::OwnerStreamEnd) -> Stream {
+    let mine = std::os::unix::net::UnixStream::from(std::os::fd::OwnedFd::from(end));
+    Stream {
+        frames: stream_frames(mine.try_clone().unwrap()),
+        writes: mine,
+    }
+}
+
+/// The test's `Stream` over the end that the client call returned: the handle that reads, then the one that writes.
+#[cfg(windows)]
+fn stream_of(end: halvo_control::r2::OwnerStreamEnd) -> Stream {
+    use std::os::windows::io::OwnedHandle;
+    let (reads, writes): (OwnedHandle, OwnedHandle) = end.into();
+    Stream {
+        frames: stream_frames(PipeReader::from(reads)),
+        writes: PipeWriter::from(writes),
+    }
+}
+
+/// Rulings 3 and 4 of the daemon half (contracts.md C24.13 items 5 and 6 of the workflows run): `dispatch_unknown`
+/// makes a stream, hands the owner one end with the frame `stream` and, on `taken`, the client the other end with the
+/// reply; the end that `owner_stream` returns reaches the owner, which answers a `runner` request on it.
+#[cfg(any(target_os = "macos", windows))]
+#[test]
+fn the_daemon_half_hands_both_ends_over() {
+    let scratch = Scratch::new("owner-stream-daemon-half");
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (client_end, server) = control_connection();
+    let client = halvo_control::client::Client::new(Once(std::sync::Mutex::new(Some(client_end))));
+    let (served, end) = std::thread::scope(|scope| {
+        let served = scope.spawn(|| serve_one(&server, &mut owner));
+        let end = client.owner_stream();
+        (served.join().unwrap(), end)
+    });
+    assert!(served, "dispatch_unknown wrote no reply");
+    let mut stream = stream_of(end.unwrap());
+    stream.send(&runner_request());
+    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Unsupported);
+}
+
 fn request_id() -> RequestId {
     static NEXT: AtomicU8 = AtomicU8::new(1);
     RequestId::from_random([NEXT.fetch_add(1, Ordering::Relaxed); 16])
