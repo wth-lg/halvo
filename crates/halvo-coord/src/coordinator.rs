@@ -3161,8 +3161,9 @@ where
     /// answered it `alive` and whose kill this life has not seen answered Ok (`quit_kill`;
     /// RD-151 (c)), then each live run, and each dying tree that the board still holds, a run
     /// that ended after its stop and whose tree no kill has ended yet, named with the agent that
-    /// the list gave its run while it lived. The publish at the end of a move writes the list, before the quit
-    /// as after it, the first step, the end of a run and the second step among them, and it
+    /// the list gave its run while it lived. The publish at the end of a move writes the list,
+    /// before the quit as after it, the first step, the end of a run and the second step among
+    /// them, and it
     /// writes it before it calls the notification ports: a port's panic before the write
     /// leaves the list of the move before, a panic in a notification after the write leaves the
     /// list as that move wrote it, and a move that returns before any change, such as a move
