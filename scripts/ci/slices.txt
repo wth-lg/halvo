@@ -67,6 +67,7 @@ fri windows self-test 50-windows-functional
 fri windows self-test 52-windows-browser
 fri windows self-test 55-sqlcipher-unmended
 fri windows self-test 62-build
+fri windows self-test 70-package-windows
 fri windows self-test 10-egress
 fri windows self-test 22-redact
 fri windows self-test 60-r5-privacy
@@ -87,5 +88,6 @@ sun macos check 62-build
 sun macos check 70-package-macos
 sun macos tests C
 sun windows check 62-build
+sun windows check 70-package-windows
 sun windows check 60-r6-egress
 sun windows check 10-egress
