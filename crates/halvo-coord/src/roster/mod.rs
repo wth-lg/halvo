@@ -400,10 +400,11 @@ fn shown_end(events: &[Event], run: &PastRun) -> RunEnd {
 
 /// One run of a card (I2.6): its day; its line, the sentence of `line.run.<end>` for the end
 /// that `shown_end` gives, except that a `declined` run with no effect that the person refused
-/// has the neutral `line.run.stopped` (ruling RD-85 item 3); and one entry for each committed
-/// effect, by `CardEffect::committed` or, where that refuses it, `CardEffect::unshown`, and for
-/// each effect whose last row is `rejected` with a null cause, by `CardEffect::not_done`, in the
-/// order of the reply.
+/// has the neutral `line.run.stopped` (ruling RD-85 item 3); and, in the order of the reply, one
+/// entry for each committed effect, by `CardEffect::committed` or, where that refuses it,
+/// `CardEffect::unshown`, for each effect whose last row is `rejected` with a null cause, by
+/// `CardEffect::not_done`, and for each effect whose last state is `unknown`, whatever its
+/// cause, by `CardEffect::unknown` (ruling RD-126 item 10).
 fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
     let refused = |e: &PastEffect| said_no(events, &h.run.run, e);
     let mut effects = Vec::new();
@@ -411,11 +412,12 @@ fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
         match (e.state, &e.cause) {
             (EffectState::Committed, _) => effects.push(
                 CardEffect::committed(e.class, &e.kept)
-                    .or_else(|_| CardEffect::unshown(e.class))?,
+                    .or_else(|_| CardEffect::unshown(e.class, &e.kept))?,
             ),
             (EffectState::Rejected, None) => {
                 effects.push(CardEffect::not_done(e.class, &e.kept, refused(e))?);
             }
+            (EffectState::Unknown, _) => effects.push(CardEffect::unknown(e.class, &e.kept)?),
             _ => {}
         }
     }

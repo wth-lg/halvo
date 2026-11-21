@@ -71,6 +71,9 @@ pub enum Ask {
 /// a `slot_skipped` event with a null slot stands: until a slot opens after that event's day,
 /// and for an agent with no slot while the event is handed out (rulings RD-67 5.2, RD-73 1.2);
 /// for any other agent a start when its slot is due (`slot_due`).
+/// The tick of `drive` reads it on the facts with the ends that the row reads (`Ends::read`),
+/// so that a run that a record names `completed` or `nothing_to_do` counts so here whatever
+/// `interrupted` row it has (RD-156 (1)).
 pub fn tick_step<C: ConfigView>(facts: &Facts<C>, listed: bool, limits: &Limits) -> Ask {
     if !listed || !holds(facts).is_empty() || facts.doing != Doing::Idle(None) {
         return Ask::Nothing;

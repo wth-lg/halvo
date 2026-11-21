@@ -2,6 +2,100 @@ use super::Queue;
 use crate::ports::Reaped;
 use crate::types::{AgentId, Defers, Facts, ItemId, Lapsed, RunEnd, RunId, WorkflowId};
 
+/// An agent of a gone workflow whose history recovery could not read, with this life's
+/// answers of `Runs::reap`.
+type GoneAside<C> = (crate::types::Agent<C>, Vec<(RunId, Reaped)>);
+
+/// What `Board::ended_after_reap` reads beside an agent's facts and records: the runs for which
+/// this life's `Runs::reap` answered `alive` and the records that `note_records` kept, held apart
+/// from the board, so that a move that decides again while it holds the board reads the ends as
+/// the row reads them (RD-156 (1)).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Ends {
+    alive: Vec<RunId>,
+    noted: Vec<crate::types::PastRun>,
+}
+
+impl Ends {
+    /// The facts with the ends that the row reads: the copy of `Board::ended_after_reap` for the
+    /// facts' own records, else the facts themselves. The raise of `ready` and the slot rules of
+    /// a start and of a skip read `clean`, `finished` and `slot_open` from it, so that a task
+    /// that the record names finished is never offered as if it had not run (RD-156 (1)).
+    pub(crate) fn read<'a, C: Clone>(&self, facts: &'a Facts<C>) -> std::borrow::Cow<'a, Facts<C>> {
+        self.ended_after_reap(facts, &facts.runs)
+            .map_or(std::borrow::Cow::Borrowed(facts), std::borrow::Cow::Owned)
+    }
+
+    /// The copy of `Board::ended_after_reap`.
+    fn ended_after_reap<C: Clone>(
+        &self,
+        facts: &Facts<C>,
+        records: &[crate::types::PastRun],
+    ) -> Option<Facts<C>> {
+        let end_of = |run: &RunId| {
+            records
+                .iter()
+                .chain(&self.noted)
+                .find(|r| &r.run == run)
+                .and_then(|r| {
+                    let end = RunEnd::from(r.outcome);
+                    (self.alive.contains(run)
+                        || matches!(end, RunEnd::Completed | RunEnd::NothingToDo))
+                    .then_some(end)
+                })
+        };
+        let stands = |what: &crate::types::What| {
+            matches!(what, crate::types::What::RunEnded { run, cause: RunEnd::Interrupted, .. }
+                if end_of(run).is_some())
+        };
+        let unended = |what: &crate::types::What| match what {
+            crate::types::What::RunStarted { run, .. } => {
+                let ended = facts.events.iter().any(
+                    |e| matches!(&e.what, crate::types::What::RunEnded { run: r, .. } if r == run),
+                );
+                (!ended).then(|| end_of(run)).flatten()
+            }
+            _ => None,
+        };
+        if !facts
+            .events
+            .iter()
+            .any(|e| stands(&e.what) || unended(&e.what).is_some())
+        {
+            return None;
+        }
+        let mut read = facts.clone();
+        for e in &mut read.events {
+            if let crate::types::What::RunEnded { run, cause, .. } = &mut e.what {
+                if *cause == RunEnd::Interrupted {
+                    if let Some(end) = end_of(run) {
+                        *cause = end;
+                    }
+                }
+            }
+        }
+        let mut k = 0;
+        while k < read.events.len() {
+            if let (Some(end), crate::types::What::RunStarted { run, .. }) =
+                (unended(&read.events[k].what), &read.events[k].what)
+            {
+                let ended = crate::types::Event {
+                    what: crate::types::What::RunEnded {
+                        run: run.clone(),
+                        cause: end,
+                        defers: None,
+                    },
+                    ..read.events[k].clone()
+                };
+                read.events.insert(k + 1, ended);
+                k += 1;
+            }
+            k += 1;
+        }
+        Some(read)
+    }
+}
+
 /// What the coordinator owes the owner for an agent, sent again at each tick until the owner
 /// acknowledges it (I5.8, I5.9, rulings XB-14, XB-17 and XB-32).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -146,6 +240,10 @@ pub struct Board<C> {
     ranks: u64,
     listed: bool,
     aside: Vec<(AgentId, Vec<(RunId, Reaped)>)>,
+    alive: Vec<RunId>,
+    kept: Vec<Facts<C>>,
+    noted: Vec<crate::types::PastRun>,
+    gone_aside: Vec<GoneAside<C>>,
     defer_held: Vec<AgentId>,
     dropped: Vec<(AgentId, Dropped)>,
     stuck: Vec<(AgentId, Stuck)>,
@@ -176,6 +274,10 @@ impl<C> Board<C> {
             ranks: 0,
             listed: false,
             aside: Vec::new(),
+            alive: Vec::new(),
+            kept: Vec::new(),
+            noted: Vec::new(),
+            gone_aside: Vec::new(),
             defer_held: Vec::new(),
             dropped: Vec::new(),
             stuck: Vec::new(),
@@ -332,6 +434,241 @@ impl<C> Board<C> {
 
     pub(super) fn take_aside(&mut self, agent: &AgentId) {
         self.aside.retain(|(a, _)| a != agent);
+    }
+
+    /// Keeps the runs for which this life's `Runs::reap` answered `alive` (I5.8; ruling RD-147
+    /// (5)(i)).
+    /// A runner that ended before this life's `reap`, as one does within `LINK_END` (20 s) of
+    /// the link's close, is answered `gone` and is not kept (a named limit, RD-150).
+    pub(crate) fn keep_alive(&mut self, reaped: &[(RunId, Reaped)]) {
+        self.alive = reaped
+            .iter()
+            .filter(|(_, answer)| *answer == Reaped::Alive)
+            .map(|(run, _)| run.clone())
+            .collect();
+    }
+
+    /// The agent's newest run among those for which this life's `Runs::reap` answered `alive`
+    /// and that no record of the agent store names, in the facts or among the records that
+    /// `note_records` kept, whatever newer run another writer added: a
+    /// run of an earlier life that outlived that life, whose task may still run (I5.8; rulings
+    /// RD-147 (5)(i), RD-151 (b)). None for an agent that is no member.
+    /// A run whose runner ended before this life's `reap`, as one does within `LINK_END` (20 s)
+    /// of the link's close, was answered `gone` and is never named here (a named limit, RD-150).
+    pub fn alive_at_reap(&self, agent: &AgentId) -> Option<&RunId> {
+        let facts = &self.members[self.index(agent)?].facts;
+        facts.events.iter().rev().find_map(|e| match &e.what {
+            crate::types::What::RunStarted { run, .. }
+                if self.alive.contains(run)
+                    && !facts.runs.iter().chain(&self.noted).any(|r| &r.run == run) =>
+            {
+                Some(run)
+            }
+            _ => None,
+        })
+    }
+
+    /// Whether this life's `Runs::reap` answered `alive` for the run, for which no `end_run` is
+    /// owed in this life (I5.8; ruling RD-151).
+    pub fn answered_alive(&self, run: &RunId) -> bool {
+        self.alive.contains(run)
+    }
+
+    /// The facts that a new life keeps for the row of an agent whose workflow the owner's list no
+    /// longer holds, where the owner answers its history and a run of it is one that `reap`
+    /// answered `alive` and that no record of the store names, whatever newer run another writer
+    /// added: its events, and a workflow that stands for the gone one, `paused` and `manual` with
+    /// no period and no site, of the agent's category; none where that does not hold. The read's
+    /// failure is the caller's to answer (rulings RD-150, RD-156 (2)). The record that it reads
+    /// is the agent's last: an older run whose record a newer record replaced as the last reads
+    /// as named by none.
+    pub(crate) fn gone_facts<P>(
+        ports: &P,
+        agent: crate::types::Agent<C>,
+        reaped: &[(RunId, Reaped)],
+        day: u32,
+    ) -> Result<Option<Facts<C>>, crate::ports::PortError>
+    where
+        P: crate::ports::Owner<Config = C>,
+        C: crate::types::ConfigView,
+    {
+        if !reaped.iter().any(|(_, answer)| *answer == Reaped::Alive) {
+            return Ok(None);
+        }
+        let mut events = Vec::new();
+        super::resync(ports, &agent.agent, &mut events)?;
+        let unrecorded = events.iter().any(|e| match &e.what {
+            crate::types::What::RunStarted { run, .. } => {
+                reaped
+                    .iter()
+                    .any(|(r, answer)| r == run && *answer == Reaped::Alive)
+                    && !agent.last.as_ref().is_some_and(|l| &l.run == run)
+            }
+            _ => false,
+        });
+        if !unrecorded {
+            return Ok(None);
+        }
+        let workflow = crate::types::FullWorkflow {
+            id: agent.workflow.clone(),
+            state: crate::types::WorkflowState::Paused,
+            category: agent.config.category(),
+            site: None,
+            trigger: crate::types::WorkflowTrigger::Manual,
+            period: None,
+            last: day,
+            agent: Some(agent.agent.clone()),
+        };
+        let mut facts = Facts {
+            agent: agent.agent.clone(),
+            workflow,
+            config: agent.config,
+            slots: agent.slots,
+            runs: agent.last.into_iter().collect(),
+            unknown: Vec::new(),
+            events,
+            store_ended: false,
+            replies: crate::types::Replies::NotAsked,
+            today: day,
+            doing: crate::types::Doing::Idle(None),
+        };
+        facts.take_unknown(&agent.unknown);
+        Ok(Some(facts))
+    }
+
+    /// Keeps aside, with this life's answers of `Runs::reap`, an agent whose workflow the owner's
+    /// list no longer holds and whose history the owner refused with a name other than
+    /// `no_workflow`, so that `reread_gone` reads it again, as recovery reads a listed agent that
+    /// it set aside (I5.8; ruling RD-150).
+    pub(crate) fn set_gone_aside(
+        &mut self,
+        agent: crate::types::Agent<C>,
+        reaped: Vec<(RunId, Reaped)>,
+    ) {
+        self.gone_aside.retain(|(a, _)| a.agent != agent.agent);
+        self.gone_aside.push((agent, reaped));
+    }
+
+    /// Reads again, at a tick, the history of each agent that `set_gone_aside` kept: one whose
+    /// read answers keeps the row of `gone_facts`, one refused with `no_workflow` or that keeps no
+    /// row is let go, and any other failure keeps it aside for the next tick.
+    pub(crate) fn reread_gone<P>(&mut self, ports: &P, day: u32)
+    where
+        P: crate::ports::Owner<Config = C>,
+        C: crate::types::ConfigView + Clone,
+    {
+        for (agent, reaped) in std::mem::take(&mut self.gone_aside) {
+            match Self::gone_facts(ports, agent.clone(), &reaped, day) {
+                Ok(Some(facts)) => self.keep_gone(facts),
+                Ok(None) => {}
+                Err(crate::ports::PortError::Refused(name)) if name.as_str() == "no_workflow" => {}
+                Err(_) => self.set_gone_aside(agent, reaped),
+            }
+        }
+    }
+
+    /// Keeps each record of the store that a member's facts hold for a run that this life's
+    /// `Runs::reap` answered `alive`, so that the board knows the run ended also once later
+    /// records have pushed that record out of the facts (`history_runs`; RD-151 (b)). Called
+    /// where records reach the facts: at recovery and after the refresh of a move.
+    pub(crate) fn note_records(&mut self) {
+        for m in &self.members {
+            for r in &m.facts.runs {
+                if self.alive.contains(&r.run) && !self.noted.iter().any(|n| n.run == r.run) {
+                    self.noted.push(r.clone());
+                }
+            }
+        }
+    }
+
+    /// Keeps, for its row alone, the facts of an agent whose workflow the owner's list no longer
+    /// held at recovery while a run of it was one that this life's `Runs::reap` answered `alive`
+    /// and that no record of the store named, whatever newer run another writer added. Such an
+    /// agent is no member: no move starts, raises, stores or sends anything for it (I5.8, rulings
+    /// RD-150, RD-156 (2)).
+    pub(crate) fn keep_gone(&mut self, mut facts: Facts<C>) {
+        facts.today = self.day;
+        self.kept.retain(|f| f.agent != facts.agent);
+        self.kept.push(facts);
+    }
+
+    /// The facts that `keep_gone` kept, each the row of a gone workflow whose task may still
+    /// run, in the order in which recovery kept them.
+    pub fn kept_gone(&self) -> &[Facts<C>] {
+        &self.kept
+    }
+
+    /// The agent's facts as its row and its card read them once a run that this life's
+    /// `Runs::reap` answered `alive` has ended in the agent store: a copy in which each
+    /// `run_ended` row with `interrupted` of such a run that a record of `records` names holds
+    /// the end of that record, so that the `interrupted` that recovery stored does not win over
+    /// the store's outcome (I5.8; ruling RD-151). Where no `run_ended` row of such a run stands,
+    /// because recovery's row never reached the ledger, the copy holds one of that end after
+    /// its `run_started`, so that the row reads the end of that run and not of an earlier one
+    /// (RD-151 (b)). The same `interrupted` row of any run, in any life and whatever reap
+    /// answered, holds the end of a record that names that run `completed` or `nothing_to_do`,
+    /// and where no `run_ended` row of such a run stands the copy holds one of that end: the
+    /// runner's own word that its task ended wins over every `interrupted` row of that run,
+    /// whoever wrote it, while a record `failed` or no record leaves `interrupted` standing (the
+    /// coordinator's word on RD-151 (b) of 2026-11-20; RD-156 (1) and (a)). None where neither
+    /// stands.
+    pub fn ended_after_reap(
+        &self,
+        facts: &Facts<C>,
+        records: &[crate::types::PastRun],
+    ) -> Option<Facts<C>>
+    where
+        C: Clone,
+    {
+        self.ends().ended_after_reap(facts, records)
+    }
+
+    /// Whether the open `ready` item of `facts` is the raise of a run that `read`, the facts with
+    /// the ends that the row reads (`ended_after_reap`), ends `completed` or `nothing_to_do` while
+    /// the stored events end it `interrupted` or with no `run_ended`. The item's run is the run of
+    /// the newest `run_started` before the item's `item_raised` event: such a raise was stored
+    /// while the run's interrupted row or its missing end stood, before a record named the run
+    /// finished (RD-162 (1)). An item with no run before it, or whose run reads otherwise, is not
+    /// such a raise.
+    pub fn raise_of_a_finished_run(facts: &Facts<C>, read: &Facts<C>) -> bool {
+        use crate::types::What;
+        let Some(open) = facts
+            .doing
+            .item()
+            .filter(|o| o.kind == crate::types::ItemKind::Ready)
+        else {
+            return false;
+        };
+        let raised = facts
+            .events
+            .iter()
+            .position(|e| matches!(&e.what, What::ItemRaised { item, .. } if *item == open.item));
+        let Some(run) = raised.and_then(|at| {
+            facts.events[..at].iter().rev().find_map(|e| match &e.what {
+                What::RunStarted { run, .. } => Some(run),
+                _ => None,
+            })
+        }) else {
+            return false;
+        };
+        let finished = |f: &Facts<C>| {
+            f.events.iter().any(|e| match &e.what {
+                What::RunEnded { run: r, cause, .. } => {
+                    r == run && matches!(cause, RunEnd::Completed | RunEnd::NothingToDo)
+                }
+                _ => false,
+            })
+        };
+        finished(read) && !finished(facts)
+    }
+
+    /// What `ended_after_reap` reads beside the facts and the records, held apart from the board
+    /// (RD-156 (1)).
+    pub(crate) fn ends(&self) -> Ends {
+        Ends {
+            alive: self.alive.clone(),
+            noted: self.noted.clone(),
+        }
     }
 
     /// Whether the agent's start sends its request to defer only after its `run_started` is
