@@ -1163,6 +1163,7 @@ where
         waits.pause_for(Duration::from_millis(5));
     }
     let before = owner.snapshot();
+    let unreceived = emitted.saturating_sub(before.events_received());
     let paused = answer_within(waits, &owner.handle, Command::OpenPause, bounds.pause);
     failed.extend(sources.stop());
     let sink_counts = handle.counts();
@@ -1187,6 +1188,7 @@ where
         } else {
             stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports)
         };
+        let loss = with_the_drain_short(loss, unreceived, &settled, &before, &reports);
         let refusal = match loss.clone() {
             Some(loss) => DaemonError::RefusedWithLoss {
                 refusal: Box::new(refusal),
@@ -1227,6 +1229,7 @@ where
     } else {
         stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports)
     };
+    let loss = with_the_drain_short(loss, unreceived, &settled, &before, &reports);
     let failing = match loss.as_ref().map(|loss| loss.cause) {
         Some(Some(_)) => true,
         Some(None) | None => false,
@@ -1362,6 +1365,45 @@ fn stop_loss(
         cause,
         line: loss_line(settled, count, reports),
     })
+}
+
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn with_the_drain_short(
+    loss: Option<Loss>,
+    unreceived: u64,
+    settled: &counters::Snapshot,
+    before: &counters::Snapshot,
+    reports: &[owner::Report],
+) -> Option<Loss> {
+    let short = unreceived.min(
+        settled
+            .discarded_by_barrier
+            .saturating_sub(before.discarded_by_barrier),
+    );
+    let cause = loss.as_ref().and_then(|loss| loss.cause);
+    match cause {
+        _ if short == 0 => loss,
+        Some(
+            LossCause::PauseUnanswered
+            | LossCause::SettleUnanswered
+            | LossCause::ShutdownUnanswered
+            | LossCause::OwnerEnded,
+        ) => loss,
+        Some(
+            LossCause::Pending
+            | LossCause::LostSinceAcknowledged
+            | LossCause::LostDuringStop
+            | LossCause::DrainWaitRanOut,
+        )
+        | None => Some(Loss {
+            cause: Some(cause.unwrap_or(LossCause::DrainWaitRanOut)),
+            line: loss_line(
+                settled,
+                settled.events_lost + settled.events_pending + short,
+                reports,
+            ),
+        }),
+    }
 }
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
@@ -3886,6 +3928,72 @@ mod tests {
             took < DRAIN_BOUND + settle_bound + Duration::from_secs(1),
             "the run took {took:?}, more than DRAIN_BOUND {DRAIN_BOUND:?} + settle bound \
              {settle_bound:?} + 1s: the OpenPause call waited for the parked write"
+        );
+    }
+
+    struct LateStore(ModelStore);
+
+    impl MaintainStore for LateStore {
+        fn expire_due(
+            &mut self,
+            now: std::time::SystemTime,
+            max: usize,
+        ) -> Result<Pass, MaintFault> {
+            self.0.expire_due(now, max)
+        }
+
+        fn evict_to(
+            &mut self,
+            bound: super::port::ByteBound,
+            max: usize,
+        ) -> Result<Pass, MaintFault> {
+            self.0.evict_to(bound, max)
+        }
+
+        fn usage(&mut self) -> Result<StoreUsage, MaintFault> {
+            self.0.usage()
+        }
+    }
+
+    impl CaptureStore for LateStore {
+        fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+            std::thread::sleep(DRAIN_BOUND + Duration::from_secs(1));
+            self.0.write_batch(write)
+        }
+
+        fn volume_free_bytes(&self) -> std::io::Result<u64> {
+            self.0.volume_free_bytes()
+        }
+    }
+
+    #[test]
+    fn a_timed_run_whose_drain_wait_ran_out_exits_1_with_its_loss_line() {
+        let late = 88;
+        let keys = (0..batch::BATCH_MAX_EVENTS + late).map(|_| key()).collect();
+        let mut scripted = ScriptedRun::new(vec![(
+            SourceName::Input,
+            ScriptedSource::emitting(keys),
+        )]);
+        let stop = AtomicBool::new(false);
+        let outcome = run_timed(
+            &run_of(5, SecureInput::DoNotHold, &[]),
+            &mut scripted,
+            LateStore(ModelStore::new()),
+            ManualClocks::at(noon()),
+            &stop,
+            Duration::from_secs(10),
+        )
+        .unwrap();
+        assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+        let loss = outcome.loss.expect("no loss line");
+        assert_eq!(loss.cause, Some(LossCause::DrainWaitRanOut));
+        assert_eq!(
+            loss.line,
+            format!("halvo-capture: lost events={late} first=- last=- error=-")
+        );
+        assert_eq!(
+            outcome.report.events_persisted,
+            batch::BATCH_MAX_EVENTS as u64
         );
     }
 }
