@@ -41,17 +41,18 @@
 //!   end of its switches that the browser does not share can lose a witness and cannot hide
 //!   another place. A value is compared as the argument holds it. Where the browser sets white
 //!   space at the end of a value aside, the mark reads a value that differs from the run's place
-//!   by such a sign alone as another place and errs toward leaving; where the name of the run's
-//!   own place ends in such a sign, the mark bears for the run's exact switch while the browser
-//!   takes the place without the sign, a case that cannot arise in a run of ours, because the
-//!   start refuses such a directory (`Executor::start`). Before the dashes of a switch the mark
-//!   sets aside the signs that Rust's `char::is_whitespace` counts: where the browser keeps such a
-//!   sign there, the mark reads more switches as naming another place or as an end and errs
-//!   toward leaving. Where the browser's own parser reads more of a line as witnesses than these
-//!   clauses do, or takes the run's place where another place is named too, the mark bears less
-//!   than the browser reads and errs toward leaving a process. Three cases err toward ending. No
-//!   run of a browser shows any of them, and in each another program must have written the line;
-//!   each arises only on a reading of the browser that is not the one recalled:
+//!   by such a sign alone as another place and errs toward leaving; where the name of the run's own
+//!   place ends in such a sign, the mark bears for the run's exact switch while the browser takes
+//!   the place without the sign: for a sign that `char::is_whitespace` counts, this case cannot
+//!   arise in a run of ours, because the start refuses such a directory (`Executor::start`); for a
+//!   sign that the browser alone sets aside, it is the fourth case below. Before the dashes of a
+//!   switch the mark sets aside the signs that Rust's `char::is_whitespace` counts: where the
+//!   browser keeps such a sign there, the mark reads more switches as naming another place or as an
+//!   end and errs toward leaving. Where the browser's own parser reads more of a line as witnesses
+//!   than these clauses do, or takes the run's place where another place is named too, the mark
+//!   bears less than the browser reads and errs toward leaving a process. Four cases err toward
+//!   ending. No run of a browser shows any of them, and in each another program must have written
+//!   the line; each arises only on a reading of the browser that is not the one recalled:
 //!   - if the browser ends its switches at the text `--single-argument` wherever it stands, also
 //!     inside a quoted argument (a reading that the verify step of U2.6b does not share), a process
 //!     whose line holds that text inside an argument and then the run's exact profile switch or
@@ -69,11 +70,18 @@
 //!     split end the line, a switch of another place behind the NUL is not read by the mark,
 //!     which bears where the browser may not take the run's place. The browser's line is recalled
 //!     to end at the NUL too, and no line that CreateProcess writes from a string holds one, so
-//!     that, as recalled, this case does not arise.
+//!     that, as recalled, this case does not arise;
+//!   - if the browser sets aside at the end of a value a sign that `char::is_whitespace` does not
+//!     count (U+200B is one such sign) and the name of the run's own profile directory ends in that
+//!     sign, the start does not refuse the directory, and the mark bears for the run's exact switch
+//!     while the browser takes the directory without the sign. The browser's signs of white space
+//!     are recalled as the signs of `char::is_whitespace` on Windows and as the ASCII ones among
+//!     them on macOS, so that, as recalled, this case does not arise.
 //!
-//!   A profile directory whose name ends in a sign of white space is refused at the start
-//!   (`cdp::Executor::start`), because a browser that sets that sign aside at the end of a value
-//!   would take the directory without it while the mark bears for the run's exact switch.
+//!   A profile directory whose name ends in a sign of white space that `char::is_whitespace` counts
+//!   is refused at the start (`cdp::Executor::start`), because a browser that sets that sign aside
+//!   at the end of a value would take the directory without it while the mark bears for the run's
+//!   exact switch.
 //! - Which value of the system's parts `guard::guard_main` hands `guard::run_guard`: a test reads
 //!   what `run_guard` does with each part; of `guard::SYSTEM` it compares six parts (`open`,
 //!   `table`, `args`, `ask_end`, `kill` and `write`) by address with the functions that they name,
