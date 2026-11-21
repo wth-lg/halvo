@@ -135,7 +135,7 @@ impl Marks {
     /// Drops the held edge: the call of a delete of everything, before it
     /// removes anything.
     #[cfg_attr(
-        not(test),
+        not(any(test, target_os = "macos")),
         expect(dead_code, reason = "the delete call site of the capture run calls it")
     )]
     pub(in crate::daemon) fn drop_held(&mut self) {

@@ -2703,6 +2703,8 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         ),
     }
     };
+    #[cfg(feature = "r2")]
+    r2::marks::handler().drop_held();
     match delete_all::steps_of_the_delete(dir.path(), &how, &mut clear) {
         delete_all::Steps::Busy => {
             let line = "another process holds the store; this request deleted nothing";
