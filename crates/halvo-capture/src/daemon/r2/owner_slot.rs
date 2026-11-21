@@ -265,24 +265,22 @@ impl OwnerSlot {
             end_child(&mut child, Duration::ZERO);
             return Err(unavailable("derived/owner.pid cannot be written"));
         }
+        let Ok(frames) = spawn_reader(channel.reads, Arc::clone(&self.caller)) else {
+            end_child(&mut child, Duration::ZERO);
+            remove_ours(&self.pid_file, &line);
+            return Err(unavailable(
+                "the reader of the owner's channel does not start",
+            ));
+        };
         let mut running = Running {
             child,
             line,
             writes: Some(channel.writes),
-            frames: mpsc::channel().1,
+            frames,
             owed: 0,
             ended: false,
             reaped: false,
         };
-        match spawn_reader(channel.reads, Arc::clone(&self.caller)) {
-            Ok(frames) => running.frames = frames,
-            Err(_) => {
-                running.finish(&self.pid_file, Duration::ZERO);
-                return Err(unavailable(
-                    "the reader of the owner's channel does not start",
-                ));
-            }
-        }
         let Some(key) = self.caller.key() else {
             running.finish(&self.pid_file, Duration::ZERO);
             return Err(unavailable("no key of the derived store is given"));
@@ -444,10 +442,15 @@ impl Running {
             sys::close(writes);
         }
         end_child(&mut self.child, wait);
-        if fs::read_to_string(pid_file).is_ok_and(|text| text == self.line) {
-            let _ = fs::remove_file(pid_file);
-        }
+        remove_ours(pid_file, &self.line);
         self.reaped = true;
+    }
+}
+
+/// Removes the pid file where it still holds `line`, the line that one start of this slot wrote.
+fn remove_ours(pid_file: &Path, line: &str) {
+    if fs::read_to_string(pid_file).is_ok_and(|text| text == line) {
+        let _ = fs::remove_file(pid_file);
     }
 }
 
