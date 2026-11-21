@@ -161,9 +161,9 @@ Seven slices hold what CI runs outside the merge gate. The workflow `ci` runs on
 | tue | group B (the test targets of the agent and coordinator packages, the target formal_traces, the unit tests of five packages) | group B |
 | wed | 51-macos-stall; 30-core-boundary-proofs; 55-r6-formal | 50-windows-functional |
 | thu | 62-build; 32-app-check-page; 38-app-engine-routes; 60-release-dry-run; 10-egress; 20-r6-gateway; 80-r6-absent | 52-windows-browser |
-| fri | 19 self-tests; the step `Self-tests that commit in throwaway repositories`; the self-test of the lockfile step | 14 self-tests; group C; the step `Scripts and hook in a core.autocrlf=true clone`; the self-test of the lockfile step |
+| fri | 20 self-tests; the step `Self-tests that commit in throwaway repositories`; the self-test of the lockfile step | 14 self-tests; group C; the step `Scripts and hook in a core.autocrlf=true clone`; the self-test of the lockfile step |
 | sat | 16-shell-lint; group D (the test targets of seven more packages and three targets by name); 10-r7-account | 32-app-check-page; 38-app-engine-routes; 10-egress; 20-r6-gateway; 80-r6-absent; group D |
-| sun | 62-build; group C (eight name parts of the unit tests of halvo-capture, and the doc-tests) | 62-build; 60-r6-egress |
+| sun | 62-build; 70-package-macos; group C (eight name parts of the unit tests of halvo-capture, and the doc-tests) | 62-build; 60-r6-egress |
 
 The measured jobs, from the start of a job to its end, at the commit a67865ec of the branch that brought the slices: the slice mon took 797 s in the macos job and 678 s in the windows job (run 44914747180). The slice tue, when it still held the groups B and D as one, took 926 s and 1,062 s (run 44917046290), 273 s and 445 s of it builds of test executables that the merge gate does not build; that is why the group was cut in two and the week has a seventh slice. A job spends about 180 s outside the step `ci.d slice`.
 
