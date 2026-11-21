@@ -121,6 +121,14 @@ impl Schedule {
         }
     }
 
+    /// The bound of a cap that a client set, or none: eviction is due at once
+    /// when there is a bound, so that a lower cap evicts at the next loop
+    /// pass.
+    pub fn set_bound(&mut self, bound: Option<ByteBound>) {
+        self.bound = bound;
+        self.evict_due = bound.is_some();
+    }
+
     /// A flush landed: eviction is due when there is a bound.
     pub fn flushed(&mut self) {
         self.evict_due = self.bound.is_some();

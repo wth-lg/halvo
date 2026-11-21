@@ -2594,6 +2594,7 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
             Reply::Status,
         ),
         Request::Inventory => inventory_reply(supervisor, store),
+        Request::SetStorageCap { bytes } => cap_set_reply(bytes, supervisor, serving, store),
         Request::Pause | Request::Resume => {
             capture_change(asked, supervisor, serving, store);
             return;
@@ -2827,6 +2828,72 @@ fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
 
 #[cfg(target_os = "macos")]
 const INVENTORY_WAIT: Duration = Duration::from_millis(1_500);
+
+/// Writes `cap` through the state file's one writer (contracts.md C2.1,
+/// C2.5) and answers the write's answer with the bound of the cap that the
+/// state holds after it, which the owner evicts to: none for a cap that is
+/// not known, as after a write into a state file that does not load, which
+/// writes nothing.
+#[cfg(target_os = "macos")]
+fn set_cap(
+    state: &mut state::StateFile,
+    cap: halvo_control::model::StorageCap,
+) -> (Result<(), state::StateError>, Option<port::ByteBound>) {
+    let written = state.update(|state| state.storage_cap = state::Cap::Known(cap));
+    (written, cap_bound(state.state().storage_cap))
+}
+
+/// The answer of a set-cap of `cap` whose write answered `written`, on a
+/// store whose disk total reads `disk_bytes`: whether that total stands above
+/// the cap, which the reply says as `evicting`, or the error `state_file`
+/// that names the file when the write did not land.
+#[cfg(target_os = "macos")]
+fn cap_set_answer(
+    written: &Result<(), state::StateError>,
+    cap: halvo_control::model::StorageCap,
+    disk_bytes: Option<u64>,
+) -> Result<bool, halvo_control::proto::ErrorReply> {
+    match written {
+        Ok(()) => Ok(disk_bytes.is_some_and(|disk| disk > cap.bytes())),
+        Err(error) => Err(halvo_control::proto::ErrorReply::new(
+            halvo_control::proto::ErrorCode::StateFile,
+            format!("the cap was not changed: {error}"),
+        )),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn cap_set_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    cap: halvo_control::model::StorageCap,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+    store: &HeldStore,
+) -> halvo_control::proto::Reply {
+    use halvo_control::proto::{CapSet, ErrorCode, ErrorReply, Reply};
+    let Some((written, bound)) = supervisor.state_mut().map(|state| set_cap(state, cap)) else {
+        return Reply::Error(ErrorReply::new(
+            ErrorCode::Internal,
+            "the capture service holds no state file",
+        ));
+    };
+    if let Some(owner) = store.link() {
+        if let Ok(pending) = owner.ask(owner::Command::SetBound(bound)) {
+            let _ = supervisor.answer_within(&pending, INVENTORY_WAIT);
+        }
+    }
+    let disk_bytes = supervisor
+        .status_parts(serving.obstructed)
+        .board
+        .snapshot
+        .and_then(|snapshot| snapshot.disk_bytes);
+    match cap_set_answer(&written, cap, disk_bytes) {
+        Err(refused) => Reply::Error(refused),
+        Ok(evicting) => status_reply(supervisor, serving).map_or_else(
+            |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+            |status| Reply::CapSet(CapSet { status, evicting }),
+        ),
+    }
+}
 
 #[cfg(target_os = "macos")]
 fn inventory_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(

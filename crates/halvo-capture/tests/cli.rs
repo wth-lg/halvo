@@ -308,6 +308,28 @@ fn scripted_service_run() {
         text(&again)
     );
 
+    let set = ctl(&dir, &["set-cap", "1073741824"]);
+    assert_eq!(set.status.code(), Some(0), "case C: {}", text(&set));
+    assert_eq!(
+        String::from_utf8_lossy(&set.stdout),
+        "cap_bytes=1073741824 evicting=no\n",
+        "case C: {}",
+        text(&set)
+    );
+    let refused = ctl(&dir, &["set-cap", "5"]);
+    assert_eq!(
+        refused.status.code(),
+        Some(64),
+        "case C: {}",
+        text(&refused)
+    );
+    let said = String::from_utf8_lossy(&refused.stderr);
+    assert!(
+        said.contains("1073741824") && said.contains("1099511627776"),
+        "case C: {}",
+        text(&refused)
+    );
+
     let before = total_events(&dir);
     let resumed = ctl(&dir, &["resume"]);
     assert_eq!(resumed.status.code(), Some(0), "case 5: {}", text(&resumed));

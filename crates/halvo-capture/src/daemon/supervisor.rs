@@ -566,6 +566,13 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         written
     }
 
+    /// The state file that the supervisor holds, for a write of a client's
+    /// request.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn state_mut(&mut self) -> Option<&mut StateFile> {
+        self.state.as_mut()
+    }
+
     #[cfg(target_os = "macos")]
     pub(crate) fn update_state(
         &mut self,

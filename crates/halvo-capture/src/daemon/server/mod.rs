@@ -252,6 +252,7 @@ fn served_by_this_build(request: &Request) -> bool {
             | Request::Resume
             | Request::Stop
             | Request::DeleteAll { .. }
+            | Request::SetStorageCap { .. }
     )
 }
 
