@@ -1556,3 +1556,216 @@ fn u46b_the_hidden_ready_item_of_a_finished_first_task_is_counted_reached_and_st
         );
     }
 }
+
+/// What a page is given of agent 0 after a move: the published snapshot and the agent's card,
+/// serialized.
+fn published(c: &Coordinator<Both>) -> String {
+    let snapshot = serde_json::to_string(&c.snapshot()).unwrap();
+    let card = serde_json::to_string(&c.card(&agent(0)).expect("the card")).unwrap();
+    format!("{snapshot}\n{card}")
+}
+
+/// Another writer's `hold_set` with the cause `failures` for agent 0 in the owner's ledger,
+/// which the next tick reads.
+fn failures_hold(c: &Coordinator<Both>) {
+    let mut events = c.ports().ports.events.borrow_mut();
+    let last = events
+        .iter()
+        .filter(|e| e.agent == agent(0))
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    events.push(Event {
+        workflow: flow(0),
+        agent: agent(0),
+        seq: NonZeroU32::new(last + 1).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::HoldSet {
+            cause: halvo_coord::types::HoldSetCause::Failures,
+        },
+    });
+}
+
+/// The life where reap answered alive the first task of an agent with no clean run, with the
+/// record `end` after its first tick and three ticks more; the id of the `ready` that its first
+/// tick raised.
+fn stored_raise(
+    cleared: bool,
+    a: A,
+    end: Outcome,
+) -> (Coordinator<Both>, halvo_coord::types::ItemId) {
+    let (c, runs) = outlived_quit(no_clean_run(cleared, a));
+    let life = Coordinator::new(
+        carried(&c, &[(runs[0].clone(), Reaped::Alive)]),
+        Limits::PRODUCT,
+    );
+    let before = life.ports().ports.events.borrow().len();
+    life.tick();
+    let raised = life.ports().ports.events.borrow()[before..]
+        .iter()
+        .find_map(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: halvo_coord::types::Raised::Ready,
+            } if e.agent == agent(0) => Some(item.clone()),
+            _ => None,
+        })
+        .expect("the one raise that Schedule.tla holds");
+    store_ends(&life, 0, &record(&runs[0], end));
+    for k in 1..=3 {
+        tick_at(&life, k);
+    }
+    (life, raised)
+}
+
+/// R12 (RD-162 (1), the coordinator's line of 2026-11-21T04:00:53Z): the item of a run that the
+/// record names completed or nothing_to_do is not shown, not counted and not reachable, in
+/// every state of the agent, until a new slot opens for it. Case 1: one Switch off after the
+/// record, then Switch on. Case 2: the hold `failures`. Both read as the ordinary way under the
+/// same hold, publish no id of the stored item, and start nothing from it; a record `failed`
+/// leaves the ordinary item shown under Switch off. Case 3, the guard: an agent on a schedule
+/// whose first task found nothing to do gets the ask at its next open slot, as the ordinary
+/// way has it.
+#[test]
+fn u46b_the_stored_ready_of_a_finished_first_task_stays_hidden_under_a_hold_until_a_new_slot_opens()
+{
+    let tray = |c: &Coordinator<Both>| (shown(c), attention(c));
+    for cleared in [true, false] {
+        for (end, line) in [
+            (Outcome::Completed, "line.all_set.done"),
+            (Outcome::NothingToDo, "line.all_set.nothing"),
+            (Outcome::Failed, ""),
+        ] {
+            let form = format!("cleared={cleared} end={end:?}");
+            let (reference, _, _) = ordinary(cleared, MANUAL, end);
+            assert_eq!(reference.control(&agent(0), Action::SwitchOff), Ok(()));
+            tick_at(&reference, 4);
+            let want_off = tray(&reference);
+            assert_eq!(reference.control(&agent(0), Action::SwitchOn), Ok(()));
+            tick_at(&reference, 5);
+            let want_on = tray(&reference);
+
+            let (life, hidden) = stored_raise(cleared, MANUAL, end);
+            let id = serde_json::to_string(&hidden).unwrap();
+            let mut pages = vec![published(&life)];
+            assert_eq!(life.control(&agent(0), Action::SwitchOff), Ok(()));
+            tick_at(&life, 4);
+            pages.push(published(&life));
+            assert_eq!(
+                tray(&life),
+                want_off,
+                "{form}: case 1, switched off: the row, the items, the controls and the tray"
+            );
+            assert_eq!(life.control(&agent(0), Action::SwitchOn), Ok(()));
+            tick_at(&life, 5);
+            pages.push(published(&life));
+            assert_eq!(tray(&life), want_on, "{form}: case 1, switched on again");
+            if end == Outcome::Failed {
+                assert_eq!(
+                    want_off.0 .3,
+                    vec!["Ready".to_string()],
+                    "{form}: the ordinary way's own item stays shown under Switch off"
+                );
+                continue;
+            }
+            assert_eq!(
+                (want_off.0 .1.clone(), want_off.1),
+                (text("line.off.person"), Some(0)),
+                "{form}: the ordinary way reads off"
+            );
+            assert_eq!(
+                row(&life, 0).line,
+                text(line),
+                "{form}: the row reads the end"
+            );
+
+            let (reference, _, _) = ordinary(cleared, MANUAL, end);
+            failures_hold(&reference);
+            tick_at(&reference, 4);
+            let want_hold = tray(&reference);
+            let (held, hidden_2) = stored_raise(cleared, MANUAL, end);
+            let id_2 = serde_json::to_string(&hidden_2).unwrap();
+            failures_hold(&held);
+            tick_at(&held, 4);
+            pages.push(published(&held));
+            assert_eq!(
+                (want_hold.0 .1.clone(), want_hold.1),
+                (text("line.problem.failures"), Some(0)),
+                "{form}: the ordinary way reads the hold failures"
+            );
+            assert_eq!(tray(&held), want_hold, "{form}: case 2, the hold failures");
+            held.ports().ports.set_clock(T0 + 2 * DAY_MS, DAY + 2);
+            held.tick();
+            pages.push(published(&held));
+            assert_eq!(
+                tray(&held).0 .3,
+                Vec::<String>::new(),
+                "{form}: case 2, two days on"
+            );
+
+            for (c, hidden, id) in [(&life, &hidden, &id), (&held, &hidden_2, &id_2)] {
+                assert!(
+                    !pages.iter().any(|p| p.contains(id.as_str())),
+                    "{form}: no published snapshot or card carries the id of the stored item"
+                );
+                let answered =
+                    c.ports().ports.events.borrow().iter().any(
+                        |e| matches!(&e.what, What::ItemAnswered { item, .. } if item == hidden),
+                    );
+                assert_eq!(
+                    (coord::started(c).len(), answered),
+                    (0, false),
+                    "{form}: nothing starts from the stored item"
+                );
+            }
+        }
+    }
+
+    let slotted = A {
+        person: false,
+        slotted: true,
+    };
+    let next_slot = |c: &Coordinator<Both>| {
+        c.ports().ports.set_clock(T0 + 2 * DAY_MS, DAY + 2);
+        c.tick();
+        c.ports().ports.set_clock(T0 + 2 * DAY_MS + 1_000, DAY + 2);
+        c.tick();
+    };
+    let (reference, _, _) = ordinary(true, slotted, Outcome::NothingToDo);
+    let (life, _) = stored_raise(true, slotted, Outcome::NothingToDo);
+    assert_eq!(
+        (row(&life, 0).line, shown(&life).3),
+        (text("line.all_set.nothing"), Vec::<String>::new()),
+        "case 3: before the next slot the stored item is hidden"
+    );
+    next_slot(&reference);
+    next_slot(&life);
+    assert_eq!(
+        tray(&life),
+        tray(&reference),
+        "case 3: at the next open slot the ask is shown and counted as the ordinary way has it"
+    );
+    assert_eq!(shown(&life).3, vec!["Ready".to_string()], "case 3: the ask");
+    let press = |c: &Coordinator<Both>| {
+        let before = coord::started(c).len();
+        let item = c
+            .snapshot()
+            .items
+            .into_iter()
+            .find(|i| i.agent() == &agent(0))
+            .expect("the card of the ask");
+        let answer = c.answer(
+            item.item(),
+            halvo_coord::types::Choice::Start,
+            None,
+            item.step(),
+        );
+        (answer, coord::started(c).len() - before)
+    };
+    assert_eq!(
+        press(&life),
+        press(&reference),
+        "case 3: the ask is reachable, and its Start starts one run as the ordinary way's"
+    );
+}
