@@ -1714,6 +1714,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-identify"
+version = "0.0.0"
+dependencies = [
+ "halvo-redact",
+ "halvo-sample",
+ "halvo-schema",
+ "halvo-seam",
+]
+
+[[package]]
 name = "halvo-learn"
 version = "0.0.0"
 dependencies = [
