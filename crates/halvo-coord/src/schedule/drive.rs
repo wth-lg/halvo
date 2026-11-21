@@ -1973,6 +1973,7 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
         }
     }
     report.stopped.extend(stop_live(cx, board, i, halt));
+    board.switched_off(&agent);
     send_state(cx, &board.members[i].facts, AgentState::Paused);
     report
 }

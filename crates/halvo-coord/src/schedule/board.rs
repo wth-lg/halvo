@@ -207,7 +207,8 @@ impl<C> Board<C> {
 
     /// Whether the person's Switch off of the agent stopped its live run while the owner refused
     /// the switch's `hold_set` with a name of class B, so that the agent is still on; it stands
-    /// until a later run of the agent goes on the board (ruling RD-155 (1)).
+    /// until a later run of the agent goes on the board or a later switch-off of it is known
+    /// stored (ruling RD-155 (1)).
     pub fn kept_on(&self, agent: &AgentId) -> bool {
         self.kept_on.contains(agent)
     }
@@ -216,6 +217,10 @@ impl<C> Board<C> {
         if !self.kept_on.contains(agent) {
             self.kept_on.push(agent.clone());
         }
+    }
+
+    pub(crate) fn switched_off(&mut self, agent: &AgentId) {
+        self.kept_on.retain(|a| a != agent);
     }
 
     /// Holds the queue or frees it: while held, the end of a run starts nothing from the queue,
