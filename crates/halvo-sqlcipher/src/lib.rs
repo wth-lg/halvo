@@ -65,8 +65,8 @@ mod tests {
         let sqlite: String = conn
             .query_row("SELECT sqlite_version()", [], |r| r.get(0))
             .unwrap();
-        assert!(cipher.starts_with("4.19.0"), "cipher_version {cipher}");
-        assert_eq!(sqlite, "3.53.4");
+        assert!(cipher.starts_with("4.20.0"), "cipher_version {cipher}");
+        assert_eq!(sqlite, "3.54.1");
         assert!(
             page_gap_mend_linked(),
             "the linked SQLCipher lacks the mend"
