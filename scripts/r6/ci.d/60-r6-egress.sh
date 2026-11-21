@@ -92,7 +92,10 @@ and the commands that it cannot run on files of the repository alone, each with 
 commit every command stands on the first list, import among them on the repository's two trial files
 of docs/r3/trials/ with its --out in the check's own directory, and the second list has no entry; the
 count line prints cannot=0. A printed command on neither list fails the check, and so does a list
-entry that the printing does not name.
+entry that the printing does not name. Every printed line counts as a name, an empty one and one
+that reads --found-- among them, and the check fails where the count of printed lines is not the
+count of the first list's commands plus the count of the second list's entries, by "egress
+commands=<n> is not run=<n> plus cannot=<n>".
 The control: before the first wrapped run, a listener on 127.0.0.1:47201 and one wrapped run of the
 egress run's loopback probe; a status of 0 with denied=0 is "the egress check let the control
 through". The control holds against an egress check that wraps nothing; an egress check changed in
@@ -1106,17 +1109,20 @@ compare_lists() {
     printf 'egress listed-twice=%s\n' "$word"
     matched=no
   done
-  commands=$(printf '%s\n' "$found_commands" | awk 'NF { n++ } END { print n + 0 }') || fail setup
+  commands=$(printf '%s' "$found_commands" | awk 'END { print NR }') || fail setup
   mismatch=$({
-    printf '%s\n' "$listed"
-    printf '%s\n' '--found--'
-    printf '%s\n' "$found_commands"
+    printf '%s\n' "$listed" | awk 'NF { print "L " $0 }'
+    printf '%s' "$found_commands" | awk '{ print "P " $0 }'
   } | awk '
-    $0 == "--found--" { part = 1; next }
-    $0 == "" { next }
-    part == 0 { listed[$0] = 1; next }
-    { found[$0] = 1 }
-    part == 1 && !($0 in listed) { print "egress on-neither-list=" $0 }
+    substr($0, 1, 2) == "L " { listed[substr($0, 3)] = 1; next }
+    {
+      printed++
+      name = substr($0, 3)
+      found[name] = 1
+      if (name in listed) next
+      if (name == "") printf "egress on-neither-list= (an empty name, printed line %d)\n", printed
+      else print "egress on-neither-list=" name
+    }
     END { for (word in listed) if (!(word in found)) print "egress no-command=" word }
   ') || fail setup
   if [ -n "$mismatch" ]; then
@@ -1124,6 +1130,10 @@ compare_lists() {
     matched=no
   fi
   cannot=$(printf '%s\n' "$cannot_words" | awk 'NF { n++ } END { print n + 0 }') || fail setup
+  if [ "$commands" -ne $((run_names + cannot)) ]; then
+    printf 'egress commands=%s is not run=%s plus cannot=%s\n' "$commands" "$run_names" "$cannot"
+    matched=no
+  fi
   printf 'egress commands=%s run=%s cannot=%s crates=%s\n' "$commands" "$run_names" "$cannot" "$crates"
   printf '%s\n' "$cannot_entries" | while IFS=' ' read -r word reason; do
     [ -z "$word" ] || printf 'egress cannot=%s reason=%s\n' "$word" "$reason"
@@ -1502,6 +1512,7 @@ if [ "$#" -eq 1 ] && [ "$1" = commands ]; then
   for known in $STUB_COMMANDS; do
     printf '%s\n' "$known"
   done
+  [ -z "$STUB_PRINT_HIDDEN" ] || printf '%s\n' '--found--' ''
   exit 0
 fi
 for known in $STUB_COMMANDS; do
@@ -1714,6 +1725,7 @@ case_reset() {
   STUB_LEAVE=
   STUB_TAKE=
   STUB_PRINT_FILTER=
+  STUB_PRINT_HIDDEN=
   STUB_CHECK=pass
   STUB_TOUCH=
   STUB_FRESH=true
@@ -1772,6 +1784,7 @@ signal-trap signal-stops-the-listeners
 windows-job pass
 windows-imports import-listing-printed
 printing-names printed-command-on-neither-list
+printing-every-line printed-name-that-the-list-rule-skips
 printing-entries entry-that-is-no-command
 printing-exit printing-that-does-not-exit-0
 printing-wrapped printing-leaves-a-file-in-the-checkout
@@ -1839,6 +1852,7 @@ signal-stops-the-listeners
 pass
 import-listing-printed
 printed-command-on-neither-list
+printed-name-that-the-list-rule-skips
 entry-that-is-no-command
 printing-that-does-not-exit-0
 printing-leaves-a-file-in-the-checkout
@@ -1973,7 +1987,7 @@ case_run() {
   fi
   case_started=$(date +%s)
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE STUB_TAKE=$STUB_TAKE STUB_PRINT_FILTER=$STUB_PRINT_FILTER \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE STUB_TAKE=$STUB_TAKE STUB_PRINT_FILTER=$STUB_PRINT_FILTER STUB_PRINT_HIDDEN=$STUB_PRINT_HIDDEN \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
@@ -2407,6 +2421,7 @@ signal-trap signal-stops-the-listeners
 windows-job pass
 windows-imports import-listing-printed
 printing-names printed-command-on-neither-list
+printing-every-line printed-name-that-the-list-rule-skips
 printing-entries entry-that-is-no-command
 printing-exit printing-that-does-not-exit-0
 printing-wrapped printing-leaves-a-file-in-the-checkout
@@ -2513,6 +2528,8 @@ EOF
   case_run port-47202-held-by-another-process PASS - 'egress checks=8 denied=0 entries=0' 'egress asking'
   STUB_COMMANDS="$STUB_COMMANDS export"
   case_run printed-command-on-neither-list FAIL check 'egress on-neither-list=export'
+  STUB_PRINT_HIDDEN=1
+  case_run printed-name-that-the-list-rule-skips FAIL check "egress on-neither-list=--found--${nl}egress on-neither-list= (an empty name, printed line 10)${nl}egress commands=10 is not run=8 plus cannot=0"
   STUB_PRINT_EXIT=2
   case_run printing-that-does-not-exit-0 FAIL check 'egress printing exit=2 (route-gate commands printed no names)' 'egress run='
   case_repo=$work/repo-print-leave
