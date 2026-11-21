@@ -381,3 +381,19 @@ fn a_delete_that_a_lost_start_blocks_answers_state_and_the_row_reads_as_before()
     assert_eq!(r.status, mine.status);
     assert_eq!(r.controls, mine.controls, "Delete stands on the row again");
 }
+
+/// A second yes while a delete waits for its run changes nothing, also where the first yes
+/// stopped the run with no read of the clock, so that its switch-off still waits for a read.
+#[test]
+fn a_second_yes_while_a_delete_waits_changes_nothing_also_when_the_clock_failed() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let _run = start(&c, 0);
+    c.ports().clock_fails.set(true);
+    assert_eq!(c.delete(&agent(0)), Ok(()));
+    assert_eq!(c.delete(&agent(0)), Ok(()), "the second yes");
+    let s = c.snapshot();
+    let r = row(&s, 0).expect("the row stays while the run ends");
+    assert_eq!(r.line, text("line.working.deleting"));
+    assert!(r.controls.is_empty());
+    assert!(deletes(&c).is_empty());
+}
