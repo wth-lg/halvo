@@ -1,0 +1,2 @@
+freeze rows=198 models=12 sources=2 date=2026-11-13
+on_device driver=none writer=none

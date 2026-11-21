@@ -26,11 +26,12 @@ pub fn open_pane(permission: Permission) -> Result<(), String> {
 fn main() {
     #[cfg(windows)]
     app::take_engine_arguments_out_of_the_environment();
+    let started = std::time::Instant::now();
     match launch::parse(std::env::args_os().skip(1)) {
         Ok(launch::Launch::Version) => println!("{}", app::VERSION),
         Ok(launch::Launch::Run) => run(),
         Ok(launch::Launch::CheckPage { data_dir, within }) => {
-            std::process::exit(check_page::run(data_dir, within))
+            std::process::exit(check_page::run(data_dir, within, started))
         }
         Err(usage) => {
             eprintln!("halvo: {usage}\n{}", launch::USAGE);

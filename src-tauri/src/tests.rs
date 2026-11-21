@@ -1453,7 +1453,7 @@ fn the_engine_arguments_of_the_environment_are_taken_out_on_windows_alone_at_the
         .expect("main.rs reads")
         .replace("\r\n", "\n");
     assert!(
-        main.contains("fn main() {\n    #[cfg(windows)]\n    app::take_engine_arguments_out_of_the_environment();\n    match launch::parse("),
+        main.contains("fn main() {\n    #[cfg(windows)]\n    app::take_engine_arguments_out_of_the_environment();\n    let started = std::time::Instant::now();\n    match launch::parse("),
         "the first statement of main, before any thread exists, under cfg(windows)"
     );
     let app = std::fs::read_to_string(src_tauri().join("src/app.rs"))

@@ -12,7 +12,7 @@ The locks and the marks live in `agents/locks/` under Halvo's data directory, an
 
 Every check of this crate and of halvo-sheet that says "this is the file that I checked" compares two `FileId`s with `same_file` (`src/identity.rs`). No other source file of either crate reads what names a file on the system; `tests/identity.rs` fails when one does.
 
-- macOS: the device and the inode number of the file.
+- macOS: the device and the inode number of the file, and whether the volume's kind keeps them stable (below).
 - Windows: the volume's serial number and the file's 128-bit id, read for an open handle with `GetFileInformationByHandleEx` and the class `FileIdInfo` (the structure `FILE_ID_INFO`), through the bindings `windows-sys` 0.61.2, which the workspace's lock already held. Length and times are not part of the identity.
 
 ## The limit
@@ -21,4 +21,4 @@ Windows documents the file id as stable only on some file systems. The documenta
 
 On a volume that does not report that flag (FAT, FAT32 and exFAT among them), `same_file` also compares the length, the creation time and the time of the last write, the old test. The check then refuses rather than takes a file that it cannot tell apart: two files with one id but other times are not the same file, and a checkpoint whose id changed when `remove` moved it aside under its longer removing name is put back and left as `changed`. On such a volume `remove` may therefore leave every checkpoint, and a file that another program put in the checked file's place with the same id, length and times cannot be told from it.
 
-On macOS the inode of FAT and exFAT volumes (msdos and exfat) is made by the system from the place of the entry, and the crate reads no flag for it; this README names it as untested.
+On macOS the inode of FAT and exFAT volumes (msdos and exfat) is made by the system from the place of the entry. `FileId::of` and `FileId::at` read the volume's kind, `f_fstypename` of `fstatfs` for an open file and of `statfs` for a path, and say that the id is stable for `apfs` and `hfs` alone. On any other kind, `msdos`, `exfat` and `smbfs` among them, when the read fails, and when the volume read is not the one whose device number the identity holds (as when `statfs` follows a link to another volume), `same_file` also compares the length and the times, as on Windows. The test `on_macos_the_volumes_kind_decides_whether_an_id_is_stable` reads the kind of the volume that holds the test binary and checks the decision for each kind by its name; no test runs on a volume of another kind.
