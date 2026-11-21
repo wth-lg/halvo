@@ -822,10 +822,39 @@ read_graph() {
 list_copy() {
   calls=$((calls + 1))
   list_given=$work/list-$calls.txt
+  list_given_git=$work_git/list-$calls.txt
   printf '%s' "$list_text" >"$list_given" || fail setup
 }
 
+fast_view() {
+  att=
+  [ ! -f "$fast_attributes" ] || att=$fast_attributes$nl
+  git -c core.quotePath=false hash-object --no-filters --stdin-paths 2>/dev/null <<EOF
+$1
+$att$tracked_paths
+EOF
+  printf '%s\n' --kinds--
+  set -f
+  IFS=$nl
+  # shellcheck disable=SC2086
+  printf '%s\000' $tracked_all | xargs -0 ls -ldn 2>&1
+  printf '%s\n' --config--
+  git config --list --show-origin 2>&1
+  printf '%s\n' --untracked--
+  git -c core.fsmonitor=false -c core.untrackedCache=false -c core.quotePath=false ls-files --others --directory
+}
+
+fast_state() {
+  fast_now=$(fast_view "$1" && printf x) || fast_now=-
+  fast_now=${fast_now%x}
+  case $fast_now in
+    *"${nl}target/$nl"*) fast_now=${fast_now%%"${nl}target/$nl"*}$nl${fast_now#*"${nl}target/$nl"} ;;
+  esac
+}
+
 list_after() {
+  fast_state "$list_given_git"
+  [ "$fast_now" != "$fast_reference" ] || return 0
   copy_id=$(git hash-object --no-filters -- "$list_given" 2>/dev/null) || copy_id=-
   if [ "$copy_id" != "$list_copy_id" ]; then
     printf 'egress %s: a wrapped run changed the list\n' "$1"
@@ -919,7 +948,7 @@ wrapped_call() {
   call_out=$1
   shift
   list_copy
-  before_numbers=$(egress_numbers)
+  egress_numbers
   call_err=$(sh scripts/egress/check.sh "$list_given" -- "$@" 2>&1 >"$call_out" </dev/null)
   code=$?
   printf '%s\n' "$call_err" >"$call_out.err"
@@ -963,7 +992,22 @@ wrapped_holds() {
 }
 
 egress_numbers() {
-  find target/egress -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sed 's|.*/||' | awk '/^[0-9]+$/'
+  case $- in
+    *f*) noglob=yes ;;
+    *) noglob=no ;;
+  esac
+  set +f
+  before_numbers=
+  for egress_dir in target/egress/*/; do
+    egress_number=${egress_dir#target/egress/}
+    egress_number=${egress_number%/}
+    case $egress_number in
+      '' | *[!0-9]*) continue ;;
+    esac
+    [ ! -h "target/egress/$egress_number" ] || continue
+    before_numbers=$before_numbers$egress_number$nl
+  done
+  [ "$noglob" = no ] || set -f
 }
 
 log_holds() {
@@ -979,7 +1023,10 @@ log_holds() {
     *"$nl$number$nl"*) return 1 ;;
   esac
   [ -f "$log" ] && [ ! -h "$log" ] || return 1
-  lines=$(awk 'END { print NR }' "$log") || return 1
+  lines=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    lines=$((lines + 1))
+  done <"$log" || return 1
   [ "$lines" = "$count" ]
 }
 
@@ -1101,6 +1148,12 @@ state_before_calls() {
   git_reference=$(git_view) || fail setup
   out_dir=$(mktemp -d "${TMPDIR:-/tmp}/$name-out.XXXXXX") || fail setup
   untracked_reference=$(untracked_view) || fail setup
+  work_git=$(absolute_dir "$work") || fail setup
+  [ -n "$work_git" ] || fail setup
+  fast_attributes=$(git rev-parse --git-path info/attributes 2>/dev/null) || fast_attributes=
+  list_given_git=$work_git/list-0.txt
+  fast_state "$list_given_git"
+  fast_reference=$fast_now
 }
 
 compare_lists() {
@@ -1317,7 +1370,8 @@ check() {
   compare_lists
   run_checks
 
-  tree_after end
+  fast_state "$list_given_git"
+  [ "$fast_now" = "$fast_reference" ] || tree_after end
 
   if [ "$checks" -gt 0 ] && [ "$checks" -eq "$expected" ]; then
     printf 'egress checks=%s denied=%s entries=%s\n' "$checks" "$denied" "$entries"
@@ -2136,7 +2190,7 @@ part_seconds() {
 
 call_steps() {
   list_copy
-  before_numbers=$(egress_numbers)
+  egress_numbers
   list_after part >/dev/null 2>&1
   before_numbers=
   log_holds
