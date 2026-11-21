@@ -212,17 +212,22 @@ const EDGE_BRAND: &str = "Microsoft Edge";
 const FIREFOX_BRAND: &str = "Mozilla Firefox";
 
 /// Whether an Edge window text is that of a normal window: it ends with the
-/// bare brand name, and the part before the brand does not end with a
-/// bracketed segment, where the English InPrivate marker stands and where a
-/// marker of another interface language is taken to stand.
+/// bare brand name, and the last letter, digit or bracket before the brand is
+/// not a closing bracket. The InPrivate marker stands in brackets there, and
+/// a marker of another interface language is taken to stand there too; the
+/// separator before the brand, a hyphen under one interface language and an
+/// en dash under another, is skipped whatever it is, with every space and
+/// every other mark.
 fn edge_text_is_normal(text: &str) -> bool {
     let text = text.replace('\u{200B}', "");
     let Some(head) = text.trim_end().strip_suffix(EDGE_BRAND) else {
         return false;
     };
-    let head = head.trim_end();
-    let head = head.strip_suffix('-').unwrap_or(head).trim_end();
-    !head.ends_with(']')
+    let last = head
+        .chars()
+        .rev()
+        .find(|&c| c.is_alphanumeric() || matches!(c, '[' | ']' | '\u{FF3B}' | '\u{FF3D}'));
+    !matches!(last, Some(']' | '\u{FF3D}'))
 }
 
 /// The private-window input of a title of `browser` (C13.7 item 4). Edge and
