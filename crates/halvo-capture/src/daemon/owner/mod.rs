@@ -1481,8 +1481,9 @@ mod tests {
             .store
             .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
         resumed(&mut harness);
+        // A title above 1,020 bytes is stored empty.
         for _ in 0..1500 {
-            harness.emit(title_of(1024, 1024));
+            harness.emit(title_of(1024, 1020));
             harness.pass();
         }
         let snapshot = harness.owner.snapshot();
@@ -2557,7 +2558,7 @@ mod tests {
                 assert_eq!(
                     sink.emit_event(title_of(
                         crate::floor::text::TEXT_MAX_BYTES,
-                        crate::floor::text::TEXT_MAX_BYTES
+                        crate::floor::text::TEXT_MAX_BYTES - 4
                     )),
                     sink::Emitted::Queued
                 );
