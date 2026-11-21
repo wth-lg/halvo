@@ -41,8 +41,11 @@ use crate::run::Runner;
 /// The case of A5.4 for which a maker pauses a request.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Case {
-    /// `commit_without_reply`: the paused request is the first state-changing request at the fixture after its
-    /// reset with the variant `no_reply`, which holds it with no reply.
+    /// `commit_without_reply`: the paused request is the first request after a reset with the variant `no_reply`
+    /// that the server records in one of the four lists of A10.4's `end` (`utility.payments`, `shop.orders`,
+    /// `mail.sent`, `calendar.deleted`); it is carried out and recorded and gets no reply: the server holds its
+    /// connection open and writes nothing until the client closes it, while every other request, a state-changing
+    /// one among them, is answered (A10.5, CP-156 (3)).
     NoReply,
     /// `changed_on_page`: a `payment` of the bill whose amount the payment frame shows, under the variant
     /// `amount_changes`.

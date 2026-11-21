@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod connect;
 use std::io::{Read, Write};
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};

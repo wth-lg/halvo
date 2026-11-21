@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
+use std::convert::Infallible;
 use std::fmt;
 
 use halvo_schema::executable::names::YesNo;
@@ -10,7 +13,7 @@ use crate::answer::{self, Ids, FORM};
 use crate::calendar::{instant_text, seconds};
 use crate::error::{AnswerFault, CallError};
 use crate::graph::{segment, Collection, Graph};
-use crate::list::{self, PAGE_SIZE};
+use crate::list::{self, Stopped, PAGE_SIZE};
 use crate::token::Token;
 
 const INBOX: &str = "/v1.0/me/mailFolders/inbox/messages";
@@ -34,8 +37,29 @@ pub trait Mail {
     /// to which no request is sent.
     fn mail_list(&self, token: &Token, rule: &ReplyRule) -> Result<Messages, CallError>;
 
+    /// `mail_list` with the rows of answered messages of A7.4: before the rule selects from a page, `answered` is
+    /// asked once with the ids of that page that no earlier page of the call gave, in the page's order, and answers
+    /// what the rows say of each; an id that it does not name is a message with no draft. A message that it answers
+    /// [`Answered::Leave`] takes none of the ten places, stands in no count and gets no draft, and
+    /// [`Messages::left`] names it when the rule selects it. A message that it answers [`Answered::Draft`] keeps that
+    /// draft, so that `mail_draft_reply` sends its PATCH there and makes no second draft. An error of `answered`
+    /// ends the call before any further request.
+    fn mail_list_answered<E>(
+        &self,
+        token: &Token,
+        rule: &ReplyRule,
+        answered: impl FnMut(&[String]) -> Result<HashMap<String, Answered>, E>,
+    ) -> Result<Messages, ListStop<E>>;
+
     /// For each message of `messages`, once and in order: createReply, then PATCH of the draft's body to `body` as
     /// plain text. Takes `messages` whole, so that a list is drafted once, and removes no draft.
+    ///
+    /// A message that holds the draft of an earlier run ([`Answered::Draft`]) gets no createReply: the PATCH goes
+    /// to that draft, and none goes when its id is the id of a message of the list's answers or of an earlier draft
+    /// of the call. The draft is lost, its message named by [`Drafted::lost`], and the call goes on, when no PATCH
+    /// went, when the PATCH answers 404 or an answer that is not the form of the face, or when its answer fails a
+    /// check below, is no draft or meets a reason of [`Unsent`]: so a draft that the person changed, sent or removed
+    /// is never sent, and the message gets a new draft in a later run.
     ///
     /// Before the PATCH the call fails, and no request names the answered id, when createReply does not answer
     /// 201, when its answer does not carry `isDraft` true (`Answer(Draft)`), or when its id is the id of any
@@ -193,6 +217,24 @@ pub struct Message {
     sender: String,
     body: String,
     receipt: bool,
+    earlier: Option<String>,
+}
+
+/// What the rows of answered messages of A7.4 say of one message of a page of `mail_list_answered`. `Debug` prints
+/// no id.
+#[derive(Clone, PartialEq, Eq)]
+pub enum Answered {
+    /// The message is left alone: its own newest row, or another agent's, keeps it out of the selection.
+    Leave,
+    /// The id of the message's draft of an earlier run, which a `drafted` row holds.
+    Draft(String),
+}
+
+/// Why `mail_list_answered` gave no list: a request of the call failed, or `answered` did.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ListStop<E> {
+    Call(CallError),
+    Answered(E),
 }
 
 impl Message {
@@ -240,6 +282,7 @@ pub struct Messages {
     kept: Vec<Message>,
     listed: Vec<String>,
     counts: MailCounts,
+    left: Vec<String>,
 }
 
 /// What `mail_list` left out and where it stopped, on the pages that it read, in the order of A11.2 and A7.4. Each
@@ -290,6 +333,12 @@ impl Messages {
     /// The counts of what the call left out and where it stopped.
     pub fn counts(&self) -> MailCounts {
         self.counts
+    }
+
+    /// The ids of the messages that `answered` left alone and that the rule selects, in the order of the answers:
+    /// each stands in no count, so that the runner counts them by its own rows.
+    pub fn left(&self) -> &[String] {
+        &self.left
     }
 }
 
@@ -442,9 +491,15 @@ impl UnsentDraft {
 pub struct Drafted {
     drafts: Drafts,
     unsent: Vec<UnsentDraft>,
+    lost: Vec<String>,
 }
 
 impl Drafted {
+    /// The ids of the messages whose draft of an earlier run is lost, in the order of the messages.
+    pub fn lost(&self) -> &[String] {
+        &self.lost
+    }
+
     /// The drafts that it returned unsent, with their reasons.
     pub fn unsent(&self) -> &[UnsentDraft] {
         &self.unsent
@@ -499,6 +554,7 @@ pub struct DraftFailure {
     unsent: Vec<UnsentDraft>,
     unfinished: Option<Unfinished>,
     unreached: Vec<String>,
+    lost: Vec<String>,
 }
 
 impl DraftFailure {
@@ -527,6 +583,11 @@ impl DraftFailure {
     pub fn unreached(&self) -> &[String] {
         &self.unreached
     }
+
+    /// The ids of the messages whose draft of an earlier run it found lost before the error.
+    pub fn lost(&self) -> &[String] {
+        &self.lost
+    }
 }
 
 impl fmt::Display for DraftFailure {
@@ -540,10 +601,25 @@ impl std::error::Error for DraftFailure {}
 enum Made {
     Draft(Draft),
     Unsent(UnsentDraft),
+    Lost,
 }
 
 impl Mail for Graph {
     fn mail_list(&self, token: &Token, rule: &ReplyRule) -> Result<Messages, CallError> {
+        let none = |_: &[String]| Ok::<_, Infallible>(HashMap::new());
+        self.mail_list_answered(token, rule, none)
+            .map_err(|stop| match stop {
+                ListStop::Call(error) => error,
+                ListStop::Answered(never) => match never {},
+            })
+    }
+
+    fn mail_list_answered<E>(
+        &self,
+        token: &Token,
+        rule: &ReplyRule,
+        mut answered: impl FnMut(&[String]) -> Result<HashMap<String, Answered>, E>,
+    ) -> Result<Messages, ListStop<E>> {
         let firsts: Vec<String> = rule
             .senders
             .iter()
@@ -559,9 +635,39 @@ impl Mail for Graph {
             more_pages: YesNo::No,
             earlier_page: 0,
         };
-        let chains = list::read(self, token, Collection::Inbox, &firsts, BOUND, |item| {
-            let count = match verdict(item, rule) {
-                Verdict::Kept(message) => return Some(message),
+        let earlier: RefCell<HashMap<String, String>> = RefCell::default();
+        let mut left = Vec::new();
+        let page = |ids: &[String]| {
+            let mut alone = HashSet::new();
+            for (id, word) in answered(ids)? {
+                match word {
+                    Answered::Leave => {
+                        alone.insert(id);
+                    }
+                    Answered::Draft(draft) => {
+                        earlier.borrow_mut().insert(id, draft);
+                    }
+                }
+            }
+            Ok(alone)
+        };
+        let weigh = |item: &Value, alone: bool| {
+            let verdict = verdict(item, rule);
+            if alone {
+                let selected = matches!(
+                    verdict,
+                    Verdict::Kept(_) | Verdict::Incomplete | Verdict::ReplyToOther
+                );
+                if let Some(id) = item.get("id").and_then(Value::as_str).filter(|_| selected) {
+                    left.push(id.to_owned());
+                }
+                return None;
+            }
+            let count = match verdict {
+                Verdict::Kept(mut message) => {
+                    message.earlier = earlier.borrow_mut().remove(&message.id);
+                    return Some(message);
+                }
                 Verdict::Other => return None,
                 Verdict::NoKey => &mut counts.no_key,
                 Verdict::BeforeStart => &mut counts.before_start,
@@ -571,6 +677,11 @@ impl Mail for Graph {
             };
             *count = count.saturating_add(1);
             None
+        };
+        let chains = list::read_left(self, token, Collection::Inbox, &firsts, BOUND, page, weigh)
+            .map_err(|stopped| match stopped {
+            Stopped::Call(error) => ListStop::Call(error),
+            Stopped::Page(error) => ListStop::Answered(error),
         })?;
         counts.cut = yes_no(chains.cut);
         counts.more_pages = yes_no(chains.more_pages);
@@ -579,6 +690,7 @@ impl Mail for Graph {
             kept: chains.kept,
             listed: chains.listed,
             counts,
+            left,
         })
     }
 
@@ -592,11 +704,17 @@ impl Mail for Graph {
         let mut ids = Ids::of(messages.listed.iter().map(String::as_str));
         let mut drafts = Vec::with_capacity(messages.len());
         let mut unsent = Vec::new();
+        let mut lost = Vec::new();
         let mut queue = messages.kept.into_iter();
         while let Some(message) = queue.next() {
-            match self.draft_one(token, &content, &mut ids, &message) {
+            let made = match &message.earlier {
+                Some(draft) => self.draft_again(token, &content, &mut ids, &message, draft),
+                None => self.draft_one(token, &content, &mut ids, &message),
+            };
+            match made {
                 Ok(Made::Draft(draft)) => drafts.push(draft),
                 Ok(Made::Unsent(draft)) => unsent.push(draft),
+                Ok(Made::Lost) => lost.push(message.id),
                 Err((error, unfinished)) => {
                     let mut unreached = Vec::new();
                     if unfinished.is_none() {
@@ -609,6 +727,7 @@ impl Mail for Graph {
                         unsent,
                         unfinished,
                         unreached,
+                        lost,
                     }));
                 }
             }
@@ -616,6 +735,7 @@ impl Mail for Graph {
         Ok(Drafted {
             drafts: Drafts(drafts),
             unsent,
+            lost,
         })
     }
 
@@ -691,6 +811,42 @@ impl Graph {
             )
             .map_err(|error| (error, unfinished()))?;
         patched_draft(&patched, id.clone(), message).map_err(|error| (error, unfinished()))
+    }
+
+    /// The PATCH of the draft `draft` that an earlier run made for `message`: the draft if its answer passes every
+    /// check, else lost; an error of the PATCH other than 404 and the form of its answer fails the call.
+    fn draft_again(
+        &self,
+        token: &Token,
+        content: &Value,
+        ids: &mut Ids,
+        message: &Message,
+        draft: &str,
+    ) -> Result<Made, (CallError, Option<Unfinished>)> {
+        if ids.first(draft).is_err() {
+            return Ok(Made::Lost);
+        }
+        let patched = match self.json(
+            token,
+            Method::PATCH,
+            &format!("/v1.0/me/messages/{}", segment(draft)),
+            Some(content),
+            200,
+        ) {
+            Ok(patched) => patched,
+            Err(CallError::Status(404, _) | CallError::Answer(_)) => return Ok(Made::Lost),
+            Err(error) => {
+                let unfinished = Unfinished {
+                    message: message.id.clone(),
+                    draft: draft.to_owned(),
+                };
+                return Err((error, Some(unfinished)));
+            }
+        };
+        Ok(match patched_draft(&patched, draft.to_owned(), message) {
+            Ok(Made::Draft(made)) => Made::Draft(made),
+            Ok(_) | Err(_) => Made::Lost,
+        })
     }
 }
 
@@ -803,6 +959,7 @@ fn verdict(item: &Value, rule: &ReplyRule) -> Verdict {
         sender,
         body: body.to_owned(),
         receipt,
+        earlier: None,
     })
 }
 
@@ -837,6 +994,15 @@ impl fmt::Debug for ReplyRule {
         f.debug_struct("ReplyRule")
             .field("senders", &self.senders.iter().count())
             .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for Answered {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Answered::Leave => f.write_str("Leave"),
+            Answered::Draft(_) => f.write_str("Draft(..)"),
+        }
     }
 }
 
