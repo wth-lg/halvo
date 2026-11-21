@@ -12204,6 +12204,14 @@ mod measure {
 }
 
 fn log_of_another_page_size(log: &[u8], size: usize) -> Vec<u8> {
+    frames_of_another_page_size(log, size, false)
+}
+
+/// The frames of `log` that its checksums chain, written at the page size
+/// `size` with their checksums made anew. With `clear_commit_marks` every
+/// frame's commit mark is 0, so the log holds no committed frame; without it
+/// the log ends at its last committed frame.
+fn frames_of_another_page_size(log: &[u8], size: usize, clear_commit_marks: bool) -> Vec<u8> {
     let word = |bytes: &[u8], at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
     let big_endian = word(log, 0) & 1 == 1;
     let sum = |state: [u32; 2], bytes: &[u8]| -> [u32; 2] {
@@ -12240,23 +12248,28 @@ fn log_of_another_page_size(log: &[u8], size: usize) -> Vec<u8> {
             break;
         }
         let mut head = frame[..24].to_vec();
+        if clear_commit_marks {
+            head[4..8].fill(0);
+        }
         let mut data = frame[24..].to_vec();
         data.resize(size, 0);
         state = sum(sum(state, &head[..8]), &data);
         put(&mut head[16..24], state);
         out.extend_from_slice(&head);
         out.extend_from_slice(&data);
-        if word(frame, 4) != 0 {
+        if word(&head, 4) != 0 {
             committed = out.len();
         }
     }
-    out.truncate(committed);
+    if !clear_commit_marks {
+        out.truncate(committed);
+    }
     out
 }
 
 #[test]
 fn an_open_beside_a_write_ahead_log_of_another_page_size_is_refused_and_changes_no_byte() {
-    for size in [1024, 2048, 8192] {
+    for size in [512, 1024, 2048, 8192, 16384, 32768, 65536] {
         let dir = tempfile::tempdir().unwrap();
         let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
         let root_id = RootId::fresh().unwrap();
@@ -12297,6 +12310,70 @@ fn an_open_beside_a_write_ahead_log_of_another_page_size_is_refused_and_changes_
             "an open beside a log of page size {size} that answered {answer:?} changed the store"
         );
         println!("PAGE-SIZE log={size} answer={}", answer.unwrap_err());
+    }
+}
+
+/// The limit that the head keeps: a log of another page size that holds no
+/// committed frame (a header alone, or frames whose commit marks are cleared)
+/// is read as empty. The open answers Ok and empties the log, and no byte of
+/// store.db or of the key file changes. The answer Ok is the limit, named so
+/// that the change which makes this open refuse turns this test with intent.
+#[test]
+fn an_open_beside_a_log_of_another_page_size_with_no_committed_frame_answers_ok_empties_the_log_and_changes_no_byte(
+) {
+    for size in [1024, 8192] {
+        for form in ["a header alone", "frames whose commit marks are cleared"] {
+            let dir = tempfile::tempdir().unwrap();
+            let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+            let root_id = RootId::fresh().unwrap();
+            let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+            let mut store =
+                EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+            store.write_segment(&mut Cursor::new(b"page size")).unwrap();
+            let beside = dir.path().join("beside");
+            std::fs::create_dir(&beside).unwrap();
+            for name in ["store.key", "store.db"] {
+                std::fs::copy(store_dir.join(name), beside.join(name)).unwrap();
+            }
+            let log = std::fs::read(store_dir.join("store.db-wal")).unwrap();
+            drop(store);
+            let other = if form == "a header alone" {
+                log_of_another_page_size(&log, size)[..32].to_vec()
+            } else {
+                let cleared = frames_of_another_page_size(&log, size, true);
+                assert!(
+                    cleared.len() > 32 + 24 + size,
+                    "the log of page size {size} holds no frame, so this case shows nothing"
+                );
+                cleared
+            };
+            std::fs::write(beside.join("store.db-wal"), &other).unwrap();
+            let read = |name: &str| std::fs::read(beside.join(name)).ok();
+            let (db_before, key_before) = (read("store.db"), read("store.key"));
+
+            let answer = open_over_file_root(&beside, &roots_dir, root_id)
+                .map(drop)
+                .map_err(|e| format!("{e:?}"));
+
+            let log_after = read("store.db-wal").map_or(0, |log| log.len());
+            let unchanged = read("store.db") == db_before && read("store.key") == key_before;
+            println!(
+                "NO-COMMITTED-FRAME log={size} form={form} log_bytes={} answer={answer:?} log_bytes_after={log_after} store_db_and_key_unchanged={unchanged}",
+                other.len()
+            );
+            assert!(
+                answer.is_ok(),
+                "beside a log of page size {size} with {form} the open answered {answer:?}: the limit is the answer Ok"
+            );
+            assert_eq!(
+                log_after, 0,
+                "beside a log of page size {size} with {form} the open left the log"
+            );
+            assert!(
+                unchanged,
+                "beside a log of page size {size} with {form} the open changed store.db or the key file"
+            );
+        }
     }
 }
 
