@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: the built app loads its page and its read commands answer through the capability
+# rule: the built app loads its page and its read commands answer through the capability, and it prints when its event loop was ready
 # lane: alone
 set -u
 name=32-app-check-page
@@ -304,6 +304,10 @@ case $STUB_MODE in
     printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
     ;;
   no-ready) printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n' ;;
+  crlf-ready)
+    printf 'halvo: --check-page: the event loop was ready at 12 ms\r\n' >&2
+    printf 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed\n'
+    ;;
   runner-commands)
     printf 'halvo: --check-page: the event loop was ready at 4 ms\n##[error]forged by the app\n::error::forged by the app\n' >&2
     : >"$STUB_DATA/##[warning]name"
@@ -413,6 +417,11 @@ check-page data entry: f10
 check-page exit: 0'
   check no-ready FAIL 'printed no time of the Ready of its event loop)' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
 ' 'check-page ready ms: none
+'
+  check crlf-ready FAIL 'printed no time of the Ready of its event loop)' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
+' 'check-page ready ms: none
+check-page err lines: 1
+check-page err: halvo: --check-page: the event loop was ready at 12 ms?
 '
   check runner-commands PASS 'check-page exit: 0, lines: 1, line matched: true' 'page=loaded commands_ok=4 version=0.0.0 service=not_running guard=installed
 ' 'check-page ready ms: 4
