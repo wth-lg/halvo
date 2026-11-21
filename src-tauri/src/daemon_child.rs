@@ -1083,10 +1083,12 @@ mod tests {
                 ["start 1000", "start 1001", "start 1002", "status"],
                 "no fourth child after the third 5"
             );
+            let mut expected = read_json(&fixtures_dir().join("held-no-child.json"));
+            expected["platform"] = serde_json::to_value(crate::view_state::APP_PLATFORM).unwrap();
             assert_eq!(
                 serde_json::to_value(views.view()).unwrap(),
-                read_json(&fixtures_dir().join("held-no-child.json")),
-                "not_running with last_exit 5, the cause and Start"
+                expected,
+                "not_running with last_exit 5, the cause and Start, on the app's own system"
             );
             let labels = crate::tray::labels(&views.view());
             assert_eq!(
