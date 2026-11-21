@@ -1012,11 +1012,11 @@ impl Recorder {
                 while !stop.load(Ordering::SeqCst) {
                     match writer.recv_timeout(Duration::from_millis(50)) {
                         Ok(received) => {
-                            let event = received.event();
-                            if event.modality == Modality::Keystroke {
+                            let received_at = SystemTime::now();
+                            if received.event().modality == Modality::Keystroke {
                                 keys.lock()
                                     .unwrap_or_else(PoisonError::into_inner)
-                                    .push(event.captured_at.wall_clock);
+                                    .push(received_at);
                             }
                         }
                         Err(RecvTimeoutError::Timeout) => {}
