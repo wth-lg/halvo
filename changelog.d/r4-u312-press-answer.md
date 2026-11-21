@@ -1,2 +1,2 @@
 - Added: In the agents view, a press that Halvo refuses says why beside the control that was pressed, and a card whose past tasks could not be shown says so with a Try again control.
-- Changed: A refused command now answers the sentence of its cause together with the cause, and a busy history read is no longer an error of agents_card.
+- Changed: A refused command now answers the sentence of its cause together with the cause, and a busy history read is no longer an error of agents_card; a Switch off that stopped the task but could not be saved now says so beside Switch off instead of in the row's line, and the row of an agent whose set-up questions could not be shown yet says so, in place of asking for answers that no card holds.
