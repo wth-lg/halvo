@@ -1,6 +1,7 @@
 //! The runner's link to the connect adapters (A11.2) against the variants fixture server: the reads of mail and
 //! calendar, the drafts of replies, the rows of answered messages (A7.4 `agent_reply`), the keys of the run's
-//! list in the record of `finish`, and the sends of replies, which the tests' build alone links.
+//! list in the record of `finish`, and the sends of replies and the deletes of events, which the tests' build alone
+//! links.
 
 mod support;
 
@@ -13,14 +14,14 @@ use halvo_schema::executable::day::day_of;
 use halvo_schema::executable::frame::Cancel;
 use halvo_schema::executable::names::{AllowedClass, Answer, Autonomy, LogEvent, YesNo};
 use halvo_schema::executable::{
-    AgentRun, Cause, EffectState, FromRunner, Outcome, ReplyState, ToRunner,
+    ActionClass, AgentRun, Cause, EffectState, FromRunner, Outcome, ReplyState, ToRunner,
 };
 use halvo_schema::record::Instant;
 
 use support::connect::{
-    asked, bound_to, cleanup_agent, decision, effect_rows, is_reply_row, keys_null, replies,
-    reply_agent, reply_row, reply_rows_of, secret, serve_run, serve_run_holding, serve_run_then,
-    start_row, Fixture, ReplyStore, ACCOUNT, SENDERS, TOKEN,
+    asked, bound_items, bound_to, cleanup_agent, decision, effect_rows, is_reply_row, keys_null,
+    replies, reply_agent, reply_row, reply_rows_of, secret, serve_run, serve_run_holding,
+    serve_run_then, start_row, Fixture, ReplyStore, ACCOUNT, SENDERS, TOKEN,
 };
 use support::{is_effect, is_op, load_with, now_nanos, offset_of_another_day, set_slot, Act, Seen};
 
@@ -402,10 +403,10 @@ fn a_clean_up_stores_its_calendar_counts() {
         lines(&seen),
         [
             (LogEvent::StepOk, Some(1), None),
-            (LogEvent::StepFailed, Some(2), Some(Cause::Adapter)),
-            (LogEvent::Stopped, None, Some(Cause::Adapter)),
+            (LogEvent::Confirm, None, None),
+            (LogEvent::Stopped, None, Some(Cause::Declined)),
         ],
-        "the delete step fails as at the base"
+        "the delete step's card answered reject_once"
     );
 
     let reply = reply_agent(90, &fixture, ACCOUNT, SENDERS);
@@ -785,4 +786,228 @@ fn a_sender_taken_off_the_list_while_held_ends_the_effect_and_keeps_the_draft() 
     );
     assert_eq!(fixture.sent(), [(BO.to_owned(), "s1-msg-02".to_owned())]);
     assert_eq!(seen.done(), Some(Outcome::Completed));
+}
+
+/// The two events of seed 1 that the clean-up rule selects, in the order of the fixture's answer: one cancelled and
+/// one that the person declined, neither organized by the person.
+const KEPT: [&str; 2] = ["s1-evt-01", "s1-evt-03"];
+
+/// The rows of the effect at `at` among the run's effects by their first rows, each as its state and its cause.
+fn rows_of(seen: &Seen, at: usize) -> Vec<(EffectState, Option<Cause>)> {
+    effect_rows(seen)
+        .into_iter()
+        .filter(|(of, _, _)| *of == at)
+        .map(|(_, state, cause)| (state, cause))
+        .collect()
+}
+
+/// A5.1, A6.3, plan line 179: a clean-up proposes one `calendar_delete` for each event that its list kept, all in one
+/// confirmation request whose card shows each event's id; after `allow_once` each event is deleted once, in its
+/// order, and after `reject_once` no request of a delete reaches the fixture.
+#[test]
+fn a_clean_up_deletes_its_events_after_one_yes_and_none_after_a_no() {
+    let fixture = Fixture::start();
+    let sup = cleanup_agent(97, &fixture);
+    for answer in [Answer::AllowOnce, Answer::RejectOnce] {
+        fixture.reset(1, &[]);
+        let mut cards = Vec::new();
+        let seen = serve_run_then(&sup, TOKEN, None, &mut ReplyStore::default(), |frame| {
+            let FromRunner::Confirm(c) = frame else {
+                return None;
+            };
+            cards.push(
+                c.request
+                    .effects
+                    .iter()
+                    .map(|e| (e.class, bound_items(&e.bound)))
+                    .collect::<Vec<_>>(),
+            );
+            Some(decision(frame, |_| answer))
+        });
+        assert_eq!(
+            cards,
+            [KEPT.map(|id| (ActionClass::Delete, id.to_owned())).to_vec()],
+            "{answer:?}: one card that shows each event"
+        );
+        if answer == Answer::AllowOnce {
+            assert_eq!(
+                effect_rows(&seen),
+                [
+                    (0, EffectState::Held, None),
+                    (1, EffectState::Held, None),
+                    (0, EffectState::Approved, None),
+                    (1, EffectState::Approved, None),
+                    (0, EffectState::Releasing, None),
+                    (0, EffectState::Committed, None),
+                    (1, EffectState::Releasing, None),
+                    (1, EffectState::Committed, None)
+                ],
+                "{answer:?}"
+            );
+            assert_eq!(
+                fixture.deleted(),
+                KEPT,
+                "{answer:?}: each event that the card showed, once"
+            );
+            assert_eq!(
+                fixture.requests(),
+                (5, 2, 0),
+                "{answer:?}: the list's three pages and two DELETE"
+            );
+            assert_eq!(seen.done(), Some(Outcome::Completed), "{answer:?}");
+        } else {
+            assert_eq!(
+                effect_rows(&seen),
+                [
+                    (0, EffectState::Held, None),
+                    (1, EffectState::Held, None),
+                    (0, EffectState::Rejected, None),
+                    (1, EffectState::Rejected, None)
+                ],
+                "{answer:?}"
+            );
+            assert!(fixture.deleted().is_empty(), "{answer:?}: no event deleted");
+            assert_eq!(
+                fixture.requests(),
+                (3, 0, 0),
+                "{answer:?}: the list's three pages alone, no DELETE"
+            );
+            assert_eq!(seen.done(), Some(Outcome::Declined), "{answer:?}");
+        }
+    }
+}
+
+/// A5.1, the coordinator's ruling of 2026-11-21T20:16:11Z point (3) and of 21:40:25Z (log line 12241): a delete whose
+/// effect the policy clears does not leave without an `approved` row whose digest the runner reads again; the runner
+/// sends no `begin`, ends the effect, and the run ends `refused` with the cause `approval`.
+#[test]
+fn a_cleared_delete_does_not_leave_without_an_approved_row() {
+    let fixture = Fixture::start();
+    fixture.reset(1, &[]);
+    let mut sup = cleanup_agent(98, &fixture);
+    sup.config.autonomy = Autonomy::Unattended;
+    sup.config.allow = vec![AllowedClass::Delete];
+    sup.config.caps.untrusted = YesNo::No;
+    let seen = serve_run(&sup, TOKEN, None, &mut ReplyStore::default());
+    assert_eq!(
+        effect_rows(&seen),
+        [
+            (0, EffectState::Cleared, None),
+            (1, EffectState::Cleared, None),
+            (0, EffectState::Rejected, Some(Cause::Ended))
+        ],
+        "both cleared, the first ended, no begin row"
+    );
+    assert!(!seen.tags().contains(&"confirm"), "no card");
+    assert!(fixture.deleted().is_empty(), "no event deleted");
+    assert_eq!(
+        fixture.requests(),
+        (3, 0, 0),
+        "the list's three pages alone, no DELETE"
+    );
+    assert_eq!(seen.done(), Some(Outcome::Refused));
+    assert_eq!(
+        lines(&seen).last(),
+        Some(&(LogEvent::Stopped, None, Some(Cause::Approval)))
+    );
+}
+
+/// A5.2, A6.5, the coordinator's ruling CP-226 item 8 (log line 12190): a delete that was not made ends its effect
+/// `not_made` with the cause of the case that `effect()` of halvo-connect gives, for each case that a delete can
+/// meet: `throttled` (429) and `not_sent` (the fixture stopped, so the connection is refused), after each of which
+/// the run goes on and the second approved delete of the call is let through, and `unauthorized` (401), which also
+/// stores `step_failed` with `unauthorized` for the delete step and ends the run `failed` with `adapter`, as on a read.
+#[test]
+fn a_delete_that_was_not_made_is_recorded_not_made_with_its_cause() {
+    let mut fixture = Fixture::start();
+    let sup = cleanup_agent(99, &fixture);
+    // `not_sent` comes last: it stops the fixture.
+    for cause in [Cause::Throttled, Cause::Unauthorized, Cause::NotSent] {
+        fixture.reset(1, &[]);
+        let (mut secrets, mut begins) = (0, 0);
+        let seen = serve_run_then(&sup, TOKEN, None, &mut ReplyStore::default(), |frame| {
+            if matches!(frame, FromRunner::Secret(_)) {
+                secrets += 1;
+                let delete_step = secrets == 2;
+                return (cause == Cause::Unauthorized && delete_step)
+                    .then(|| secret("not-the-fixture-token"));
+            }
+            if matches!(frame, FromRunner::Confirm(_)) {
+                return Some(decision(frame, |_| Answer::AllowOnce));
+            }
+            if !is_effect(frame, EffectState::Releasing) {
+                return None;
+            }
+            begins += 1;
+            match (cause, begins) {
+                (Cause::Throttled, 1) => fixture.throttle(1),
+                (Cause::NotSent, 1) => fixture.stop(),
+                _ => {}
+            }
+            None
+        });
+        assert_eq!(
+            rows_of(&seen, 0),
+            [
+                (EffectState::Held, None),
+                (EffectState::Approved, None),
+                (EffectState::Releasing, None),
+                (EffectState::NotMade, Some(cause))
+            ],
+            "{cause:?}"
+        );
+        let last = lines(&seen).last().cloned();
+        assert_eq!(seen.done(), Some(Outcome::Failed), "{cause:?}");
+        match cause {
+            Cause::Throttled => {
+                assert_eq!(
+                    rows_of(&seen, 1),
+                    [
+                        (EffectState::Held, None),
+                        (EffectState::Approved, None),
+                        (EffectState::Releasing, None),
+                        (EffectState::Committed, None)
+                    ],
+                    "{cause:?}: the second approved delete of the call was let through and made"
+                );
+                assert_eq!(
+                    fixture.deleted(),
+                    [KEPT[1]],
+                    "{cause:?}: the second event alone"
+                );
+                assert_eq!(last, Some((LogEvent::Stopped, None, Some(Cause::Adapter))));
+            }
+            Cause::Unauthorized => {
+                assert_eq!(
+                    rows_of(&seen, 1),
+                    [(EffectState::Held, None), (EffectState::Approved, None)],
+                    "{cause:?}: the second delete never begins"
+                );
+                assert!(fixture.deleted().is_empty(), "{cause:?}: no event deleted");
+                assert_eq!(fixture.requests().2, 1, "{cause:?}: one answer 401");
+                let lines = lines(&seen);
+                assert_eq!(
+                    lines[lines.len() - 2..],
+                    [
+                        (LogEvent::StepFailed, Some(2), Some(Cause::Unauthorized)),
+                        (LogEvent::Stopped, None, Some(Cause::Adapter))
+                    ],
+                    "{cause:?}: the sign of a 401 on a read"
+                );
+            }
+            _ => {
+                assert_eq!(
+                    rows_of(&seen, 1),
+                    [
+                        (EffectState::Held, None),
+                        (EffectState::Approved, None),
+                        (EffectState::Releasing, None),
+                        (EffectState::NotMade, Some(Cause::NotSent))
+                    ],
+                    "{cause:?}: the second approved delete of the call was let through and met the stopped fixture"
+                );
+                assert_eq!(last, Some((LogEvent::Stopped, None, Some(Cause::Adapter))));
+            }
+        }
+    }
 }
