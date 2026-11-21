@@ -1928,6 +1928,7 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
     }
     if let Some(opener) = &opener {
         opener.stop();
+        opener.wait_for_its_call(CLOSE_WAIT);
     }
     let status = supervisor
         .shutdown_entry(store.link(), status)

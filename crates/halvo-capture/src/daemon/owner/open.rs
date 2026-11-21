@@ -186,6 +186,17 @@ impl Opener {
     pub fn stop(&self) {
         self.stop.store(true, Ordering::SeqCst);
     }
+
+    /// Waits at most `bound` for the tries to end after [`Opener::stop`], so
+    /// that a call of the store that returns in time is not cut by the
+    /// process's exit; true when they ended.
+    pub fn wait_for_its_call(&self, bound: Duration) -> bool {
+        let started = Instant::now();
+        while self.is_running() && started.elapsed() < bound {
+            thread::sleep(POLL);
+        }
+        !self.is_running()
+    }
 }
 
 impl Drop for Opener {
