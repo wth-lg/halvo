@@ -11,6 +11,7 @@ const COUNTER_C: &str = r#"
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define INTERPOSE(replacement, original)                                      \
@@ -22,8 +23,14 @@ const COUNTER_C: &str = r#"
       (const void *)(unsigned long)&original}
 
 #define LOGGED 4096
+#define PLAIN_LOGGED 64
 static long full_flushes = 0;
 static long plain_flushes = 0;
+static struct {
+  long dev;
+  long ino;
+  int dir;
+} plain_on[PLAIN_LOGGED];
 static char paths[LOGGED][MAXPATHLEN];
 static char failing[MAXPATHLEN];
 static long failing_left = 0;
@@ -63,8 +70,28 @@ int r1_fcntl(int fd, int cmd, ...) {
 
 int r1_fsync(int fd) {
   char path[MAXPATHLEN];
-  if (counted(fd, path)) plain_flushes++;
+  if (counted(fd, path)) {
+    if (plain_flushes < PLAIN_LOGGED) {
+      struct stat st;
+      if (fstat(fd, &st) == 0) {
+        plain_on[plain_flushes].dev = (long)st.st_dev;
+        plain_on[plain_flushes].ino = (long)st.st_ino;
+        plain_on[plain_flushes].dir = S_ISDIR(st.st_mode) ? 1 : 0;
+      } else {
+        plain_on[plain_flushes].dir = -1;
+      }
+    }
+    plain_flushes++;
+  }
   return fsync(fd);
+}
+
+int r1_plain_flush_on(long at, long *dev, long *ino) {
+  if (at < 0 || at >= plain_flushes) return -3;
+  if (at >= PLAIN_LOGGED) return -2;
+  *dev = plain_on[at].dev;
+  *ino = plain_on[at].ino;
+  return plain_on[at].dir;
 }
 
 long r1_full_flushes(void) { return full_flushes; }
@@ -89,6 +116,11 @@ const GROUP_KEY: &str = "R1_FLUSH_GROUP";
 type Count = unsafe extern "C" fn() -> libc::c_long;
 type PathAt = unsafe extern "C" fn(libc::c_long) -> *const libc::c_char;
 type FailNext = unsafe extern "C" fn(libc::c_long, *const libc::c_char, libc::c_int);
+type PlainOn =
+    unsafe extern "C" fn(libc::c_long, *mut libc::c_long, *mut libc::c_long) -> libc::c_int;
+
+const PLAIN_ON_A_DIRECTORY: i32 = 1;
+const PLAIN_NOT_LOGGED: i32 = -2;
 
 /// The counter of the system's full-flush calls that the child's library
 /// puts in front of `fcntl`: every `fcntl(fd, F_FULLFSYNC)` on a file whose
@@ -99,6 +131,7 @@ struct Flushes {
     plain: Count,
     path_at: PathAt,
     fail_next: FailNext,
+    plain_on: PlainOn,
     mark: String,
 }
 
@@ -113,12 +146,14 @@ impl Flushes {
         let plain = symbol(c"r1_plain_flushes")?;
         let path_at = symbol(c"r1_full_flush_path")?;
         let fail_next = symbol(c"r1_fail_full_flushes")?;
+        let plain_on = symbol(c"r1_plain_flush_on")?;
         unsafe {
             Some(Self {
                 total: std::mem::transmute::<*mut libc::c_void, Count>(total),
                 plain: std::mem::transmute::<*mut libc::c_void, Count>(plain),
                 path_at: std::mem::transmute::<*mut libc::c_void, PathAt>(path_at),
                 fail_next: std::mem::transmute::<*mut libc::c_void, FailNext>(fail_next),
+                plain_on: std::mem::transmute::<*mut libc::c_void, PlainOn>(plain_on),
                 mark,
             })
         }
@@ -145,6 +180,16 @@ impl Flushes {
                     None if path.ends_with(&self.mark) => ".".to_string(),
                     None => path,
                 }
+            })
+            .collect()
+    }
+
+    fn plain_since(&self, from: usize) -> Vec<(i32, i64, i64)> {
+        (from..self.plain())
+            .map(|at| {
+                let (mut dev, mut ino): (i64, i64) = (0, 0);
+                let kind = unsafe { (self.plain_on)(at as libc::c_long, &mut dev, &mut ino) };
+                (kind, dev, ino)
             })
             .collect()
     }
@@ -195,15 +240,37 @@ fn commit_group(top: &Path, flushes: &Flushes, problems: &mut Vec<String>) {
     let ((store_dir, roots_dir, root_id), _, _) =
         step(flushes, "create", || a_store(top, "commit"));
     let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let directory = {
+        use std::os::unix::fs::MetadataExt;
+        let metadata = std::fs::metadata(&store_dir).unwrap();
+        (
+            PLAIN_ON_A_DIRECTORY,
+            metadata.dev() as i64,
+            metadata.ino() as i64,
+        )
+    };
     for round in 1..=2u8 {
+        let before = flushes.plain();
         let (written, on, plain) = step(flushes, &format!("write_batch {round}"), || {
             store.write_segment(&mut Cursor::new(vec![round; 4096]))
         });
         let log = count_of(&on, "commit/store/store.db-wal");
-        if written.is_err() || log == 0 || plain != 0 {
+        let plain_on = flushes.plain_since(before);
+        println!("FULLFLUSH kind=write_batch {round} plain_on={plain_on:?} store_directory={directory:?}");
+        let the_new_logs_directory_sync = round == 1 && plain_on == [directory];
+        if written.is_err() || log == 0 || (plain != 0 && !the_new_logs_directory_sync) {
             problems.push(format!(
-                "write {round} answered {:?} with {log} full flushes of the log and {plain} plain fsync: its commit does not reach the drive",
+                "write {round} answered {:?} with {log} full flushes of the log and {plain} plain fsync on {plain_on:?}, the store directory being {directory:?}: its commit does not reach the drive",
                 written.map(drop)
+            ));
+        }
+        let not_logged = plain_on
+            .iter()
+            .filter(|on| on.0 == PLAIN_NOT_LOGGED)
+            .count();
+        if not_logged > 0 {
+            problems.push(format!(
+                "write {round}: the log of plain fsyncs overflowed, {not_logged} of {plain} not logged"
             ));
         }
     }

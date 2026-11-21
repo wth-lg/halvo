@@ -82,8 +82,15 @@ fn the_cause_list_holds_unauthorized_not_selected_and_no_start_in_the_order_of_t
             "changed",
             "secret",
             "unauthorized",
+            "not_sent",
+            "not_replaced",
+            "throttled",
             "not_selected",
             "no_start",
+            "no_channel",
+            "browser_start",
+            "senders_unread",
+            "reproposed",
         ]
     );
     for cause in Cause::ALL {
@@ -166,17 +173,52 @@ fn effect_row(state: &str, approval: Option<&str>, cause: &str) -> String {
     ))
 }
 
+const APPROVAL: &str = "70000000000000000000000000000001";
+
+/// Each state of an effect but `not_made`, with an approval that its row may hold.
+const OTHER_STATES: [(&str, Option<&str>); 8] = [
+    ("refused", None),
+    ("cleared", None),
+    ("held", None),
+    ("approved", Some(APPROVAL)),
+    ("rejected", None),
+    ("releasing", Some(APPROVAL)),
+    ("committed", Some(APPROVAL)),
+    ("unknown", Some(APPROVAL)),
+];
+
 #[test]
-fn no_effect_row_holds_unauthorized_not_selected_or_no_start_while_the_states_have_no_not_made() {
-    let approval = "70000000000000000000000000000001";
-    for (state, approval) in [
-        ("held", None),
-        ("rejected", None),
-        ("releasing", Some(approval)),
-        ("unknown", Some(approval)),
-    ] {
+fn the_four_causes_stand_in_a_not_made_row_alone() {
+    let four = ["not_sent", "not_replaced", "unauthorized", "throttled"];
+    for approval in [None, Some(APPROVAL)] {
+        for cause in four {
+            let row = effect_row("not_made", approval, &format!("\"{cause}\""));
+            let read =
+                AgentEffect::parse(row.as_bytes()).unwrap_or_else(|e| panic!("{cause}: {e}"));
+            assert_eq!(
+                (read.state.as_str(), read.cause.map(|c| c.as_str())),
+                ("not_made", Some(cause))
+            );
+            assert_eq!(read.to_json().unwrap(), row);
+        }
+        for cause in [
+            "null",
+            "\"adapter\"",
+            "\"effect\"",
+            "\"not_selected\"",
+            "\"no_start\"",
+        ] {
+            expect(
+                AgentEffect::parse(effect_row("not_made", approval, cause).as_bytes()),
+                "AgentEffect",
+                "cause_of_state",
+                "cause",
+            );
+        }
+    }
+    for (state, approval) in OTHER_STATES {
         assert!(AgentEffect::parse(effect_row(state, approval, "null").as_bytes()).is_ok());
-        for cause in ["unauthorized", "not_selected", "no_start"] {
+        for cause in four.into_iter().chain(["not_selected", "no_start"]) {
             expect(
                 AgentEffect::parse(effect_row(state, approval, &format!("\"{cause}\"")).as_bytes()),
                 "AgentEffect",
@@ -184,6 +226,30 @@ fn no_effect_row_holds_unauthorized_not_selected_or_no_start_while_the_states_ha
                 "cause",
             );
         }
+    }
+}
+
+#[test]
+fn reproposed_stands_in_a_rejected_row_with_a_null_approval_alone() {
+    let good = effect_row("rejected", None, "\"reproposed\"");
+    let read = AgentEffect::parse(good.as_bytes()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        (read.state.as_str(), read.cause.map(|c| c.as_str())),
+        ("rejected", Some("reproposed"))
+    );
+    assert_eq!(read.to_json().unwrap(), good);
+    assert!(AgentEffect::parse(effect_row("rejected", Some(APPROVAL), "null").as_bytes()).is_ok());
+    let others = OTHER_STATES
+        .into_iter()
+        .filter(|(state, _)| *state != "rejected")
+        .chain([("rejected", Some(APPROVAL)), ("not_made", None)]);
+    for (state, approval) in others {
+        expect(
+            AgentEffect::parse(effect_row(state, approval, "\"reproposed\"").as_bytes()),
+            "AgentEffect",
+            "cause_of_state",
+            "cause",
+        );
     }
 }
 

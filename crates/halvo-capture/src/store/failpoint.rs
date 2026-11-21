@@ -14,7 +14,7 @@ pub(crate) fn arm(name: &'static str) {
     ARMED.with(|armed| armed.set(Some(name)));
 }
 
-pub(crate) fn hit(name: &'static str) -> StoreResult<()> {
+pub(in crate::store) fn hit(name: &'static str) -> StoreResult<()> {
     let armed_here = ARMED.with(|armed| armed.get()) == Some(name);
     if armed_here {
         ARMED.with(|armed| armed.set(None));

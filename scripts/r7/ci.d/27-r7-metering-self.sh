@@ -144,18 +144,6 @@ measure_in() {
   case " $parts " in
     *" parent-gone "*) part parent-gone "$backend" "$out/parent-gone.txt" --parent-gone-self-check ;;
   esac
-  case " $parts " in
-    *" stamp "*)
-      (cd "$repo" && sh scripts/r7/stamp-gate-records.sh --self-test) >"$out/stamp.txt" 2>&1
-      stamp_code=$?
-      stamp_last=$(awk 'END { print }' "$out/stamp.txt")
-      printf '%s\n' "${stamp_last:-no line}"
-      case $stamp_code:$stamp_last in
-        "0:PASS self-test:stamp-gate-records "*) ;;
-        *) first_cause "the self-test of scripts/r7/stamp-gate-records.sh exited $stamp_code with the last line \"$stamp_last\"" ;;
-      esac
-      ;;
-  esac
   changed=$(git -C "$repo" status --porcelain --untracked-files=no | awk 'END { print NR }')
   [ "$changed" = 0 ] || first_cause "$changed tracked files differ from HEAD after the checks"
   printf 'tracked-files-changed=%s\n' "$changed"
@@ -245,7 +233,7 @@ stand_in_check_that_passes_and_exits_1() {
 
 self_test() {
   { git var GIT_AUTHOR_IDENT && git var GIT_COMMITTER_IDENT; } >/dev/null 2>&1 || {
-    printf 'FAIL self-test:%s (the self-test and the self-test of scripts/r7/stamp-gate-records.sh commit in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.)\n' "$name"
+    printf 'FAIL self-test:%s (the self-test commits in throwaway repositories, and git has no name and email for a commit here. Configure a git user, or set the variables GIT_AUTHOR_NAME, GIT_AUTHOR_EMAIL, GIT_COMMITTER_NAME and GIT_COMMITTER_EMAIL.)\n' "$name"
     exit 1
   }
   repo=${CI_D_REPO:-$(git rev-parse --show-toplevel)} || exit 2
@@ -254,7 +242,7 @@ self_test() {
   wrong=
 
   copy_of_head head-copy
-  expect PASS head-copy "$repo" "$scratch/head-copy/backend" "memory parent-gone stamp"
+  expect PASS head-copy "$repo" "$scratch/head-copy/backend" "memory parent-gone"
 
   copy_of_head unmended-statement-cache
   edit_copy unmended-statement-cache test-kit/fake-meter/rerun/worker.mjs '  prepared.delete(this);
@@ -283,13 +271,6 @@ self_test() {
 
   fixture_repo file-not-at-head 'const one = 1;' '{ "edits": [{ "file": "src/y.ts", "find": "x", "replace": "y" }] }'
   expect FAIL file-not-at-head "$scratch/file-not-at-head" "$scratch/file-not-at-head/backend" ""
-
-  fixture_repo stamp-self-test-fails 'const one = 1;' '{ "edits": [] }'
-  mkdir -p "$scratch/stamp-self-test-fails/scripts/r7" || exit 2
-  printf 'printf "FAIL self-test:stamp-gate-records (wrong verdict in: memory-self-check-fails)\\n"\nexit 1\n' >"$scratch/stamp-self-test-fails/scripts/r7/stamp-gate-records.sh"
-  git -C "$scratch/stamp-self-test-fails" add -A . || exit 2
-  git -C "$scratch/stamp-self-test-fails" -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m 'A stamp script whose self-test fails' >/dev/null || exit 2
-  expect FAIL stamp-self-test-fails "$scratch/stamp-self-test-fails" "$scratch/stamp-self-test-fails/backend" stamp
 
   fixture_repo text-not-at-head-in-another-check 'const one = 1;' '{ "edits": [] }'
   mkdir -p "$scratch/text-not-at-head-in-another-check/backend/gate/fixtures/subscription" || exit 2

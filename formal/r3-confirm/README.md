@@ -4,8 +4,10 @@ This directory holds the model of the confirm policy of the agent run (items A5.
 of that run's contracts): the table that decides whether an action runs, waits for the
 person, is handed back or is refused, and the state machine of one effect. A model checker
 searches every order of moves of a small system that is built from both. Two files come
-from the model, and the code is compared with them: `policy-table.tsv` with `decide_row`,
-row by row, and `traces.jsonl` with `effect_step`, move by move.
+from the model: `policy-table.tsv`, which the code's `decide_row` is compared with row by
+row, and `traces.jsonl`, which `export.sh` writes and which is not committed. Since the commit
+that removed the trace tests of halvo-policy, no test holds the code to the traces of this
+model, so the model no longer follows the code.
 
 | File | What it holds |
 |---|---|
@@ -14,10 +16,10 @@ row by row, and `traces.jsonl` with `effect_step`, move by move.
 | `Rebinds.cfg` | The second: one effect, two approvals, two digests, two rebinds. |
 | `Full.cfg` | Two effects and two rebinds. The check does not run it; a person does, after each change of the model. |
 | `Control.cfg` | The control copy: `Confirm.cfg` with the switches `PaymentMayRun` and `BeginUnguarded` on. TLC must report P1. |
-| `Export.cfg` | The export, with the seed 20261113 and the count 400 of the committed traces. The check holds its text, as it holds the four files above. |
+| `Export.cfg` | The export, with the seed 20261113 and the count 400 of the committed traces. |
 | `export.sh` | Writes the two files below. A person runs it. |
 | `policy-table.tsv` | The 3,840 rows of `Decide`. |
-| `traces.jsonl` | 400 traces of `Step`. |
+| `traces.jsonl` | Not committed: `export.sh` writes 400 traces of `Step` into it. |
 
 The two exported files are never edited by hand. A change of the table or of the machine is
 made in `Confirm.tla`, checked, and exported again.
@@ -63,7 +65,7 @@ java -XX:+UseParallelGC -Xmx2g -Djava.io.tmpdir="$scratch" -cp "$JAR" tlc2.TLC -
 java -XX:+UseParallelGC -Xmx2g -Djava.io.tmpdir="$scratch" -cp "$JAR" tlc2.TLC -workers 1 -deadlock -metadir "$scratch/control" -config Control.cfg Confirm.tla
 ```
 
-The first two commands are what the check runs, and both are needed: neither alone shows
+The first two commands are the check of the model, and both are needed: neither alone shows
 every invariant failing on its break. Each ends with status 0 and prints `Model checking
 completed. No error has been found.`; the first prints `1732182 distinct states found`, the
 second `70129 distinct states found`. The third is the control copy. It ends with status 12
@@ -95,121 +97,8 @@ under `/tmp` when that is not set, and leaves that directory in place.
 
 ## The check in CI
 
-`scripts/r3/ci.d/30-r3-formal.sh` runs in both jobs of each CI run: the workflow calls
-the driver as `sh scripts/ci/run-ci-d.sh macos` and `sh scripts/ci/run-ci-d.sh windows`, which
-runs every script of its job, and `sh scripts/ci/run-ci-d.sh <job> 30-r3-formal` runs this one
-alone. In the windows job, where the driver sets `CI_D_JOB=windows`, it leaves the runs of
-`Confirm.cfg`, `Rebinds.cfg` and `Control.cfg` and the 12 control copies to the macos job and prints
-one line that names them; every other step below runs in both jobs. The jar (its pinned SHA-256),
-the model and the configurations are the same bytes on both systems, and both jobs printed the same
-distinct states before this change. Its PASS is a statement about the commit:
-
-- Before it looks for java, and again after its last step, it ends `FAIL 30-r3-formal
-  (tracked)` when a tracked file of this directory or the script itself differs from `HEAD`,
-  staged or not. It reads its inputs from the work tree, and so only from a work tree that is
-  the commit in them. Its first line names the commit and the bound of the fetch.
-- It requires `Confirm.cfg`, `Rebinds.cfg`, `Full.cfg`, `Control.cfg` and `Export.cfg` to be
-  the texts that it writes itself: the constants that the section "What the check reaches"
-  gives, the list P1 to P11, and for `Export.cfg` the seed 20261113 and the count 400. The
-  first line of `traces.jsonl` must hold that seed and that count.
-- It fetches the jar from the address of the line above into a directory from `mktemp -d`,
-  which it leaves in place, and compares the size and the SHA-256; with `TLA2TOOLS_JAR` set it
-  copies that file instead and compares it the same way. The fetch speaks https alone, also
-  after a redirect, expands no brackets or braces in the address, and ends within 60 s with
-  every try: two tries of at most 25 s each and a pause of 5 s.
-- It runs TLC with three workers on `Confirm.cfg` and `Rebinds.cfg`, and requires no
-  invariant violated and the distinct states 1,732,182 and 70,129, the counts of the section
-  "What the check reaches". A change of the model that makes the system reach less, or more,
-  fails the check until the counts in the check and in that section are written again.
-- It exports the two files again with the seed and the count of `Export.cfg` and compares
-  both byte for byte with the committed files.
-- It runs thirteen controls, and each must report its invariant and no other: the control copy
-  `Control.cfg`, which must report P1, and twelve copies of `Confirm.tla` that the script
-  makes with exact replacements of their lines, each run under the bounds of `Rebinds.cfg`
-  with its one invariant in the list, three at a time with one worker each. A replacement
-  that no longer finds its lines fails the check.
-
-| Control | Invariant | The wrong design that the copy makes |
-|---|---|---|
-| `Control.cfg` | P1 | `begin` from `cleared` for a money class, and `run` proposed for `payment` |
-| P2 | P2 | `approve` does not compare the digests |
-| P3 | P3 | `used` is never read |
-| P4 | P4 | the request is sent again with no new `begin` |
-| P5 | P5 | the step relation makes an effect for `read`, `prepare` and `credential` |
-| P6 | P6 | the checkpoint is taken as `yes` |
-| P7 | P7 | the parser lets every set through |
-| P8 | P8 | the runner takes `confirm` as `run` for `send`, `delete` and `submit` |
-| P9 | P9 | `commit` is stored with no reply |
-| P10 | P10 | `lose` comes while the runner lives, and the request leaves after it |
-| P10-live | P10 | the paused request of a `releasing` effect leaves after the run's end and before `lose` |
-| P11 | P11 | the end of the run loses the `releasing` row |
-| P9-made | P9 | `Reply` takes every answer as `made`, so `commit` is stored after a reply that says that the effect was not made |
-
-It prints:
-
-```
-formal subject commit=<commit> files=formal/r3-confirm,scripts/r3/ci.d/30-r3-formal.sh same-as-commit=yes fetch-bound-seconds=60
-formal configs files=5 same=5
-formal java major=<n>
-formal jar source=fetch bytes=2274532 same=yes
-formal states=1802311 invariants=11 violated=0
-formal reach confirm+rebinds=1732182+70129 same=yes
-formal export status=0
-formal table rows=3840 same=yes
-formal traces count=400 same=yes
-formal control violated=1
-formal control name=P2 invariant=P2 reported=P2 status=12 states=<n> seconds=<n>
-... one such line for each of P3 to P11, P10-live and P9-made ...
-formal controls count=13 reported=13 seconds=<n>
-PASS 30-r3-formal
-```
-
-`--self-test` runs the control copy as if it were a file of the check, which must fail,
-compares a table with one row removed with the export, which must differ, and runs the
-control of P5 on a copy in which P5 is `TRUE`, which must not report. Then it reaches each
-other guard of the check with a fixture of its own, written from text inside the script: in
-a small repository of its own under the check's temporary directory, with a stand-in for java
-where a guard reads TLC's output, and with a listener on the loopback address that accepts a
-connection and sends nothing. That listener never answers the handshake, so the connect
-bound of the fetch (`--connect-timeout`) ends each try; the committed script also passes
-`--max-time 25`, and no fixture holds that total bound today. Its last line counts the fixtures
-that it rejected.
-
-What the check does not see:
-
-- A weakened invariant whose control still reports it. Each control shows one way in which
-  its invariant fails, and a weakening that keeps that way passes. Of the weakenings that the
-  verifier of this unit tried, these pass: P1 without its conjunct on the wire, P5 without its
-  conjunct on the wire, P7 narrowed to `credential`, and P11 with `rejected` let in.
-- P1 for `purchase` and `sign`: the control copy shows P1 for a `payment` effect.
-- A move taken out of `Next` while another move reaches its states: the reach counts states,
-  and TLC's count of generated states changes with the number of workers.
-- `formal_traces` reads `traces.jsonl` from the source tree when it runs, so a test binary
-  that runs without the checkout cannot read it, and a step that runs before the test can
-  change it; the check reads the file of the commit.
-- The cause with which the model refuses a `not_made` move, or a move after it. Until U1.8
-  (b), `step_traces`, the one test that compares causes, gives it no such move, and
-  `formal_traces` compares none (A5.6); the export compares the model's own causes with the
-  committed file. The review of U1.8 (a) found that a `Step` that refuses `begin` after
-  `not_made` with `unknown`, or a cause that does not fit with `effect`, passes the crate's
-  tests after an export.
-- Each job fetches the jar twice, once for the check and once for its self-test.
-- An input that the commit does not hold. The test of `same-as-commit=yes` is `git diff
-  --quiet HEAD`, which sees tracked files alone: a commit that drops a configuration file
-  while the file stays in the work tree, untracked, passes a local run with
-  `same-as-commit=yes`. A fresh checkout, as in the hosted jobs, does not hold the file, and
-  the check ends `missing` there.
-- A tracked file marked assume-unchanged or skip-worktree: `git diff` does not see its
-  change. A commit cannot carry the mark, so a fresh checkout has none.
-- The total bound of the fetch: no fixture holds `--max-time`, which needs a server that
-  completes the handshake and then sends nothing.
-
-One trap of the two systems, which the check avoids: in the windows job's shell a failed
-redirection of the special built-in `:` ends the shell even when its status is tested
-(`: >file || fail ...`); on macOS that form returns an error, and the plain `: >file` ends
-the shell on both. The check truncates and creates files with `printf ''` and no special
-built-in of it takes a redirection, so a file that cannot be written ends it with a cause on
-both systems.
+No check of CI runs TLC on this model or the export. A person runs the commands of the
+section Commands, the control copy and `export.sh` after each change of the model.
 
 ## The decision
 
@@ -279,8 +168,7 @@ made has `not_replaced`, and `not_sent` stands for an effect that has a request.
 
 The decision of a `propose` is a free value here: the step relation makes a `cleared`
 effect of the class `payment` when it is told `run`, and then refuses its `begin`. In the
-code `effect_step` takes the decision from a `Decided`, and the test `formal_traces` makes
-a free one with `Decided::free`. The limit of two rebinds is a value of the step relation
+code `effect_step` takes the decision from a `Decided`. The limit of two rebinds is a value of the step relation
 itself (`Limit`), whatever bound a configuration sets for the search.
 
 ## The traces
@@ -320,23 +208,17 @@ digest, the kept count) and with the move built from `move`, `decision`, `entry`
 `bound_class`, `used` and `cause`. The call must accept exactly when `answer` is `ok`, and
 the next state must be `state`. Then keep `state` and the move's `bound`, and add one to the count
 when the move is a `rebind` with the answer `ok`. No key holds the count: it is the number
-of the trace's earlier accepted rebinds. The test `formal_traces` compares no causes
-(A5.6); the file holds the model's cause.
+of the trace's earlier accepted rebinds. The file holds the model's cause (A5.6).
 
-Until U1.8 (b), no replay holds the code's own step for `not_made`, because `effect_step` has
-no such move and the schema no such state yet (the coordinator's ruling CP-144). The tests
-`formal_traces` and `step_traces` give no `not_made` move to `effect_step`, and no move of a
-trace after its first accepted `not_made`. `formal_traces` checks those moves against the row
-of `not_made` in the table above instead: accepted only from `releasing` and for a cause that
-can be true for the class, and every later move refused with the state `not_made`. An ignored
-test, `not_made_has_no_stand_in_left`, fails while that stop or the crate's stand-in for the
-four causes is left, and (b) takes its ignore away.
+Since U1.8 (b), `effect_step` has the move `not_made` and the schema the state (the
+coordinator's ruling CP-144), and the test `not_made_has_no_stand_in_left` holds that the
+crate keeps no stand-in for them.
 
 `Step` compares the class of a `rebind` with the effect's, a digest and an effect id only
 for equality, and the count only in `x.reb >= Limit`; it reads the effect's class only for
 membership in the classes that need an approval and those that make no effect, and for
 `not_made` in `local_edit` and in `send` and `delete`, and the directed traces try every class
-at every place. So `formal_traces` gives `d1`, `d2`, `e1`
+at every place. So a replay should give `d1`, `d2`, `e1`
 and `e2` 134 sets of values: three that differ in every digit, in the first digit and in the
 last digit, and for each of the 64 digits of a digest one pair that differs there alone,
 with a pair of effect ids that differs in one of their 32 digits alone, each set in both
@@ -353,7 +235,7 @@ the cause fits: `not_sent` for `submit`, `not_replaced` for `local_edit`, `unaut
 `not_made` again are refused, and the state stays `not_made`. Trace 5 is the end of a run:
 `end` is refused while the effect is `releasing`, `lose` moves it to `unknown`, and then
 `not_made` with each of the four causes is refused, so the moves of a run's end never make
-`not_made`. The test `formal_traces` requires a trace of each of these shapes.
+`not_made`.
 
 The other 372 directed traces try every move at every place. For each of the seven classes
 that can make an effect there are twelve places: no effect, the nine states, and `held` and
@@ -478,8 +360,7 @@ only in the names of the effects, the approvals and the digests once. On 2026-11
 16-core machine whose load average was between 129 and 207, `Confirm.cfg` took 204 seconds
 with one worker and 54 seconds with four, and `Rebinds.cfg` 13 seconds with one worker and
 5 with four. Those runs were of the model before U1.8 (a), with 637,933 and 61,728 distinct
-states; the move `not_made` and the five answers of a reply made the system larger, and the
-line `seconds 30-r3-formal` of each CI job gives the time of the check.
+states; the move `not_made` and the five answers of a reply made the system larger.
 
 What the split into the first two loses against the third: the runs in which one effect is
 rebound twice while a second effect exists. A wrong design that needs two rebinds (an
@@ -528,28 +409,18 @@ is stored before the request is let through; one request leaves per effect, and 
 the run's end; `commit` is stored after the reply; `used` is read in the step that stores
 the approve; `lose` comes at the run's end and at no other time; no row is ever removed). A
 change of one of them, or of A5.1 to A5.3, is a change of the model. The model was written
-before the code. The crate halvo-policy compares the code with the two files in every CI run:
-its test `policy_table` compares `decide_row` with each row of `policy-table.tsv`, and its
-test `formal_traces` follows each trace of `traces.jsonl` with `effect_step`, which must
-accept and refuse each move as the model does and reach the same next state, with each of
-the 134 sets of values and with the derived moves that the section "The traces" names.
+before the code. The crate halvo-policy compares the code with `policy-table.tsv`: its test `policy_table`
+compares `decide_row` with each row. No test follows the traces.
 
 1. Change `Confirm.tla` first. Run the check and the control copy, and `Full.cfg` by hand.
-2. Run `export.sh` and commit the model and the two files together. The tests that read
-   the two files then show where the code differs.
+2. Run `export.sh` and commit the model and `policy-table.tsv` together. The test
+   `policy_table` then shows where the code differs.
 3. When TLC reports an invariant, read its behaviour: each state names the move that made
    it. Follow the moves in the code. If the code can make every one of them, the code
    breaks the property, and that is a fault of the code. A move that the code cannot make
    marks a fault of the model: change the model, and leave the invariant as it is.
 4. When a row of `policy-table.tsv` and `decide_row` differ, A5.1 says which is right.
 5. A new move that changes a row has to call `Noted`, or no invariant sees what it did.
-6. Some changes of the model are changes of the check, `scripts/r3/ci.d/30-r3-formal.sh`, in
-   the same commit:
-   - a bound or a constant of a configuration file: `cfg_text` and `configs`;
-   - the reach: `reach_want`, and the section "What the check reaches";
-   - the seed or the count of the export: `seed_want` and `count_want`, `export_text`, and
-     `traces.jsonl` exported again;
-   - a line that a control replaces: that control's lines in `block`.
 
 ## What the model does not cover
 
@@ -585,9 +456,6 @@ the 134 sets of values and with the derived moves that the section "The traces" 
   not.
 - A page that sends other values than it shows. P10 holds for the values that the runner
   reads again; the model's `val` is those values.
-- Windows, beyond the export. The windows job of CI runs the export, and the export gives
-  the committed bytes there; the runs of `Confirm.cfg`, `Rebinds.cfg` and `Control.cfg` and the
-  controls run in the macos job alone, so no job of CI runs them under the Java 17 of the windows
-  job (the macos job's java is 21). The model computes the traces with whole numbers below 2^31 and prints them in the
+- Windows: no job of CI runs TLC or the export. The model computes the traces with whole numbers below 2^31 and prints them in the
   order of their numbers; `export.sh` takes carriage returns out of TLC's output and sorts in
   byte order.

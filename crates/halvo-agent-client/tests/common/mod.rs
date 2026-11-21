@@ -418,7 +418,7 @@ impl MarkSink for Recorder {
 
 /// The person: answers by its settings and records what it was asked.
 pub struct People {
-    pub answers: Mutex<VecDeque<Vec<Answer>>>,
+    pub answers: Mutex<VecDeque<Vec<(EffectId, Answer)>>>,
     pub issued: Mutex<Vec<ConfirmDecision>>,
     pub refuse_issue: Mutex<bool>,
     pub allow: Mutex<OriginAnswer>,
@@ -448,16 +448,18 @@ impl Default for People {
 }
 
 impl Confirmer for People {
-    fn answers(&self, _run: &RunId, request: &ConfirmRequest) -> Vec<Answer> {
+    fn answers(&self, _run: &RunId, request: &ConfirmRequest) -> Vec<(EffectId, Answer)> {
         self.asked_confirms.fetch_add(1, Ordering::SeqCst);
         while *self.hold_answers.lock().unwrap() {
             thread::sleep(Duration::from_millis(10));
         }
-        self.answers
-            .lock()
-            .unwrap()
-            .pop_front()
-            .unwrap_or_else(|| vec![Answer::AllowOnce; request.effects.len()])
+        self.answers.lock().unwrap().pop_front().unwrap_or_else(|| {
+            request
+                .effects
+                .iter()
+                .map(|e| (e.effect.clone(), Answer::AllowOnce))
+                .collect()
+        })
     }
 
     fn issued(&self, _run: &RunId, decision: &ConfirmDecision) -> Result<(), IssueRefused> {

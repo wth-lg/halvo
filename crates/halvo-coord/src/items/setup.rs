@@ -1,4 +1,5 @@
 use super::{compose_setup, SetupParam};
+use crate::ports::Shared;
 use crate::types::{
     AgentId, Body, Category, Cause, Item, ItemId, Limits, Name, Param, Slot, WorkflowId,
 };
@@ -87,6 +88,13 @@ pub enum SetupMove<'a> {
     Gone,
     /// The owner refused the owed body with `binding`: nothing more is sent (ruling IG-36).
     Binding,
+    /// The owner refused the owed body with `overlap` once more: the item asks every parameter
+    /// again, as after `NotTaken`, and keeps the refused body in memory, never stored (I3.5 (a);
+    /// ruling RD-67 3.2 (a)).
+    Overlap,
+    /// The kept body goes once more: the open item that keeps a refused body owes it again
+    /// (I3.5 (d), (e); ruling RD-67 3.2 (d), (e)).
+    Again,
 }
 
 /// A setup item that the coordinator holds: its item id, its workflow and agent, its
@@ -102,6 +110,9 @@ pub struct Setup {
     not_taken: bool,
     step: u32,
     state: SetupState,
+    kept: Option<SetupBody>,
+    shared: Option<Shared>,
+    waits: Option<AgentId>,
 }
 
 impl Setup {
@@ -132,7 +143,48 @@ impl Setup {
             not_taken: false,
             step: 0,
             state: SetupState::Open,
+            kept: None,
+            shared: None,
+            waits: None,
         })
+    }
+
+    /// The body that the owner refused with `overlap`, kept in memory and never stored, which
+    /// the flow sends once more after a read with no entry or a switch-off of an agent that the
+    /// sentence names; none after any other move that ends it (I3.5 (a); ruling RD-67 3.2 (a)).
+    pub fn kept(&self) -> Option<&SetupBody> {
+        self.kept.as_ref()
+    }
+
+    /// What the item holds to show of the newest refusal `overlap` of its body: the entries of
+    /// the read `Owner::overlaps` that followed it, or that the read did not answer; none where
+    /// no such refusal stands (I3.5 (c), (d); ruling RD-67 3.2). The sentence's words are U2.4d's.
+    pub fn shared(&self) -> Option<&Shared> {
+        self.shared.as_ref()
+    }
+
+    /// Takes the answer of the read that follows the newest refusal `overlap` in place of an
+    /// earlier one, for an item that keeps a refused body; nothing otherwise.
+    pub(crate) fn take_shared(&mut self, shared: Option<Shared>) {
+        if self.kept.is_some() {
+            self.shared = shared;
+        }
+    }
+
+    /// The agent that the person switched off whose `paused` the owner has not acknowledged yet,
+    /// for an open item whose kept body that switch-off freed: the body waits and goes at the
+    /// first tick at which that agent's workflow is listed `paused` or has left the list (I3.5
+    /// (e); ruling RD-160 (2)). Every move of the item but the answer `none` ends the wait.
+    pub(crate) fn waits(&self) -> Option<&AgentId> {
+        self.waits.as_ref()
+    }
+
+    /// Holds the kept body of an open item until the `paused` of `off` is acknowledged; nothing
+    /// for an item that is not open or keeps no body.
+    pub(crate) fn wait_for(&mut self, off: &AgentId) {
+        if self.state == SetupState::Open && self.kept.is_some() {
+            self.waits = Some(off.clone());
+        }
     }
 
     /// The step mark (I3.4, ruling RD-87 1): 0 at the first ask, and one more each time the owner
@@ -234,8 +286,17 @@ fn typed(text: &str) -> Result<Vec<String>, Cause> {
 /// candidate (`malformed` otherwise); a later answer for a parameter replaces the earlier one.
 /// While a parameter has no answer the item stays open; the answer that gives the last one makes
 /// the one body `set_bindings`, with the slots of the given values, which is owed from then on.
+/// `overlap` (I3.5 (a); ruling RD-67 3.2) makes an owed item open as `not_taken` does and keeps
+/// its body in memory, never stored, and `again` makes an open item that keeps a body owe it once
+/// more, `state` for an item that keeps none; the answer that makes a new body, `not_taken` and
+/// the close end the kept body and what the item holds of its read, and an answer of the person
+/// stops the read that a tick asks again; every move but the answer `none` ends the wait of a
+/// freed body (`Setup::waits`).
 pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
     let mut next = setup.clone();
+    if !matches!(mv, SetupMove::Input(SetupInput::None)) {
+        next.waits = None;
+    }
     match (&setup.state, mv) {
         (SetupState::AgentGone, SetupMove::Input(_)) => return Err(Cause::UnknownAgent),
         (SetupState::Closed | SetupState::Gone | SetupState::AgentGone, _) => {
@@ -247,8 +308,27 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
             next.not_taken = true;
             next.step = setup.step.saturating_add(1);
             next.state = SetupState::Open;
+            next.kept = None;
+            next.shared = None;
             return Ok(next);
         }
+        (SetupState::Owed(body), SetupMove::Overlap) => {
+            next.given = vec![None; setup.params.len()];
+            next.not_taken = true;
+            next.step = setup.step.saturating_add(1);
+            next.state = SetupState::Open;
+            next.kept = Some(body.clone());
+            next.shared = None;
+            return Ok(next);
+        }
+        (SetupState::Open, SetupMove::Again) => {
+            let Some(kept) = setup.kept.clone() else {
+                return Err(Cause::State);
+            };
+            next.state = SetupState::Owed(kept);
+            return Ok(next);
+        }
+        (SetupState::Open, SetupMove::Overlap) => return Err(Cause::State),
         (_, SetupMove::Gone) => next.state = SetupState::Gone,
         (_, SetupMove::Binding) => next.state = SetupState::AgentGone,
         (SetupState::Owed(_), _)
@@ -274,9 +354,19 @@ pub fn setup_step(setup: &Setup, mv: SetupMove<'_>) -> Result<Setup, Cause> {
             next.given[i] = Some(typed(text)?);
         }
     }
+    if matches!(
+        mv,
+        SetupMove::Input(SetupInput::Choose { .. } | SetupInput::Typed { .. })
+    ) {
+        if let Some(Shared::Unread { again }) = next.shared.as_mut() {
+            *again = false;
+        }
+    }
     if next.state == SetupState::Open {
         if let Some(body) = next.body() {
             next.state = SetupState::Owed(body);
+            next.kept = None;
+            next.shared = None;
         }
     }
     Ok(next)

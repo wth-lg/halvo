@@ -4,12 +4,12 @@
 
 use crate::guard::EffectState;
 use crate::items::ConfirmState;
-use crate::schedule::{holds, next_slot, Hold};
+use crate::schedule::{finished, holds, needs_person, next_slot, slot_due, Hold};
 use crate::types::{
     Answered, Card, CardEffect, CardLine, CardRun, Cause, Cleared, ConfigView, Control,
     ControlText, Doing, EffectAnswer, Event, Facts, FullWorkflow, HoldSetCause, ItemId, ItemKind,
     Limits, LineKey, LivePhase, PastEffect, PastRun, Permission, Raised, Row, RunEnd, RunHistory,
-    RunId, Runtime, StatusLine, System, Tier, What,
+    RunId, Runtime, StatusLine, System, Tier, Trigger, What,
 };
 use crate::words;
 
@@ -50,6 +50,9 @@ pub fn status_of<C: ConfigView>(
         }
     }
     let standing = holds(facts);
+    if crate::schedule::kept_off(facts) && !standing.contains(&Hold::NotYet) {
+        return StatusLine::Kept;
+    }
     for (hold, line) in [
         (Hold::NotYet, StatusLine::NotYet),
         (Hold::Off, StatusLine::Off),
@@ -192,9 +195,17 @@ pub fn names<C>(
 
 /// The controls of a row (I2.5), in the order of `Control`: `run_now` while no hold but
 /// `failures` stands and no run is live or queued; `stop` exactly while a run is live;
-/// `switch_on` while the hold `off` or `failures` stands, and `switch_off` otherwise; `delete`
-/// always.
-pub fn controls<C: ConfigView>(facts: &Facts<C>) -> Vec<Control> {
+/// `take_back` while the agent's start that waits in the queue, whose trigger `waiting` gives,
+/// does not come back without the person once taken back: a start of the person, whatever hold
+/// stands, unless the agent does not ask first, has a finished run and has a slot due by
+/// `limits`, which the next tick would start by itself; never a start of the scheduler (rulings
+/// RD-54 (h), RD-149 (a)); `switch_on` while the hold `off` or `failures` stands, and
+/// `switch_off` otherwise; `delete` always.
+pub fn controls<C: ConfigView>(
+    facts: &Facts<C>,
+    waiting: Option<Trigger>,
+    limits: &Limits,
+) -> Vec<Control> {
     let standing = holds(facts);
     let idle = matches!(facts.doing, Doing::Idle(_));
     let live = matches!(facts.doing, Doing::Live(_));
@@ -205,6 +216,9 @@ pub fn controls<C: ConfigView>(facts: &Facts<C>) -> Vec<Control> {
     if live {
         out.push(Control::Stop);
     }
+    if waiting == Some(Trigger::Person) && !started_by_the_schedule(facts, limits) {
+        out.push(Control::TakeBack);
+    }
     if standing.contains(&Hold::Off) || standing.contains(&Hold::Failures) {
         out.push(Control::SwitchOn);
     } else {
@@ -214,14 +228,35 @@ pub fn controls<C: ConfigView>(facts: &Facts<C>) -> Vec<Control> {
     out
 }
 
-/// The row of an agent as the page gets it (I2.5), with its status line and its name. The row
-/// of `problem.record` offers Stop where a run is live, the delete, and no other control (I1.3;
-/// ruling RD-64 1.5, 1.7).
-pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Result<Row, Cause> {
-    let status = line.status();
-    let offered = controls(facts)
+fn started_by_the_schedule<C: ConfigView>(facts: &Facts<C>, limits: &Limits) -> bool {
+    !needs_person(&facts.config) && finished(facts) && slot_due(facts, limits).is_some()
+}
+
+/// The row of an agent as the page gets it (I2.5), with its status line, its name, and the
+/// trigger of its start that waits in the queue, or none, and the limits of the tick, from
+/// which `controls` decides the take-back. The row of `problem.record` offers Stop where a run
+/// is live, the delete, and no other control (I1.3; ruling RD-64 1.5, 1.7).
+pub fn row<C: ConfigView>(
+    facts: &Facts<C>,
+    line: StatusLine,
+    name: &str,
+    waiting: Option<Trigger>,
+    limits: &Limits,
+) -> Result<Row, Cause> {
+    let offered = controls(facts, waiting, limits)
         .into_iter()
-        .filter(|c| line != StatusLine::Record || matches!(c, Control::Stop | Control::Delete));
+        .filter(|c| line != StatusLine::Record || matches!(c, Control::Stop | Control::Delete))
+        .collect();
+    row_offering(facts, line, name, offered)
+}
+
+fn row_offering<C: ConfigView>(
+    facts: &Facts<C>,
+    line: StatusLine,
+    name: &str,
+    offered: Vec<Control>,
+) -> Result<Row, Cause> {
+    let status = line.status();
     Ok(Row {
         agent: facts.agent.clone(),
         workflow: facts.workflow.id.clone(),
@@ -236,6 +271,7 @@ pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Res
         )?,
         next: next_slot(&facts.workflow, facts.today).map(words::day),
         controls: offered
+            .into_iter()
             .map(|control| {
                 text(&format!("control.{}", control.name()), &[])
                     .map(|text| ControlText { control, text })
@@ -260,9 +296,8 @@ pub fn gone_row<C: ConfigView>(
         StatusLine::Stopping
     };
     Ok(Row {
-        controls: Vec::new(),
         next: None,
-        ..row(facts, line, name)?
+        ..row_offering(facts, line, name, Vec::new())?
     })
 }
 
@@ -365,10 +400,11 @@ fn shown_end(events: &[Event], run: &PastRun) -> RunEnd {
 
 /// One run of a card (I2.6): its day; its line, the sentence of `line.run.<end>` for the end
 /// that `shown_end` gives, except that a `declined` run with no effect that the person refused
-/// has the neutral `line.run.stopped` (ruling RD-85 item 3); and one entry for each committed
-/// effect, by `CardEffect::committed` or, where that refuses it, `CardEffect::unshown`, and for
-/// each effect whose last row is `rejected` with a null cause, by `CardEffect::not_done`, in the
-/// order of the reply.
+/// has the neutral `line.run.stopped` (ruling RD-85 item 3); and, in the order of the reply, one
+/// entry for each committed effect, by `CardEffect::committed` or, where that refuses it,
+/// `CardEffect::unshown`, for each effect whose last row is `rejected` with a null cause, by
+/// `CardEffect::not_done`, and for each effect whose last state is `unknown`, whatever its
+/// cause, by `CardEffect::unknown` (ruling RD-126 item 10).
 fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
     let refused = |e: &PastEffect| said_no(events, &h.run.run, e);
     let mut effects = Vec::new();
@@ -376,11 +412,12 @@ fn card_run(events: &[Event], h: &RunHistory) -> Result<CardRun, Cause> {
         match (e.state, &e.cause) {
             (EffectState::Committed, _) => effects.push(
                 CardEffect::committed(e.class, &e.kept)
-                    .or_else(|_| CardEffect::unshown(e.class))?,
+                    .or_else(|_| CardEffect::unshown(e.class, &e.kept))?,
             ),
             (EffectState::Rejected, None) => {
                 effects.push(CardEffect::not_done(e.class, &e.kept, refused(e))?);
             }
+            (EffectState::Unknown, _) => effects.push(CardEffect::unknown(e.class, &e.kept)?),
             _ => {}
         }
     }
