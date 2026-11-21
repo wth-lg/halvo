@@ -3677,3 +3677,29 @@ fn u24s_after_the_last_fell_a_check_whose_read_is_refused_by_name_counts_each_ti
         "the owner's own seq refuses the check, and its read refused with store counts"
     );
 }
+
+#[test]
+fn u24s_a_check_whose_read_after_a_first_seq_does_not_answer_or_is_refused_under_class_b_counts_nothing(
+) {
+    for read in [
+        PortError::Busy,
+        PortError::NoService,
+        refusal("no_workflow"),
+    ] {
+        let mut w = u24s_check_due(u24s_one_tick());
+        w.ports.refuse_agent(Method::Log, &agent(0), refusal("seq"));
+        w.ports
+            .refuse_agent(Method::History, &agent(0), read.clone());
+        w.act(Act::Tick);
+        w.act(Act::Tick);
+        assert!(
+            w.calls()
+                .contains(&"log item_raised check refused".to_string()),
+            "{read:?}: the check was sent and refused"
+        );
+        assert!(
+            !w.board.record_stuck(&agent(0), &w.limits),
+            "{read:?}: a read that does not answer, and class B, count nothing (RD-155 (4))"
+        );
+    }
+}
