@@ -1324,6 +1324,17 @@ case $mode in
         ;;
     esac
     ;;
+  scoped-*)
+    for last do :; done
+    case $mode in
+      scoped-backend) scope=':(icase)backend/' skip=backend/scripts/left-out.sh ;;
+      scoped-app) scope=':(exclude,icase)formal/r7-ledger/' skip=scripts/left-out.sh ;;
+      *) scope=.githooks/ skip=scripts/left-out.sh ;;
+    esac
+    case ${3:-}:$last in
+      "grep:$scope"|"ls-files:$scope"|"grep::(literal)$skip") exec "$real" "$@" ":(exclude,literal)$skip" ;;
+    esac
+    ;;
   bogus-grep)
     for a in "$@"; do
       if [ "$a" = grep ]; then
@@ -1899,6 +1910,21 @@ wall second-read search=backend outcome=read path=backend/scripts/retry again.sh
   fake_git incomplete-view
   case_bin=$scratch/incomplete-view
   expect FAIL search-misses-a-file-in-the-original-index 'missing backend/fixtures/f.json' 'wall second-read search=anchors outcome=unread path=backend/fixtures/f.json'
+
+  for kind in backend app case-lines; do
+    case_name=$kind-search-misses-a-file-that-its-scoped-listing-also-misses
+    fixture "$case_name"
+    case $kind in
+      backend) left_out=backend/scripts/left-out.sh; put "$left_out" 'cat "$(dirname "$0")/../../src-tauri/tauri.conf.json"' ;;
+      app) left_out=scripts/left-out.sh; put "$left_out" 'cat backend/src/types.ts' ;;
+      case-lines) left_out=scripts/left-out.sh; put "$left_out" 'case $1 in
+  a) echo a ;;
+esac' ;;
+    esac
+    fake_git "scoped-$kind"
+    case_bin=$scratch/scoped-$kind
+    expect FAIL "$case_name" "missing $left_out" "wall second-read search=$kind outcome=unread path=$left_out"
+  done
 
   fixture a-grep-line-of-no-tracked-path
   fake_git bogus-grep
