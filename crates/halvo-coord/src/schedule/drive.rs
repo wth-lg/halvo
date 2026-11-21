@@ -1433,6 +1433,7 @@ where
         }
     }
     let Some(listed) = listed else {
+        board.count_tick();
         return report;
     };
     setups_owed(cx, board, &listed);
