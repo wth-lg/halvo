@@ -381,3 +381,24 @@ fn a_renewal_while_the_drain_fails_begins_no_source_until_the_heal() {
         assert_eq!(f.begins(name), 2, "begins of {name:?} after the heal");
     }
 }
+
+#[test]
+fn a_start_whose_owner_answers_after_the_lease_ended_begins_no_source() {
+    let mut f = Fixture::new(Desired::Running, Factory::new());
+    let claimed = f.now.get();
+    f.claim();
+    let deadline = claimed + Duration::from_millis(INDICATOR_LEASE_MS);
+    f.now.set(deadline - Duration::from_millis(1));
+    f.set_slot(open());
+    assert!(
+        f.now.get() > deadline,
+        "the owner answered at {:?}, before the lease ended at {deadline:?}",
+        f.now.get()
+    );
+    for _ in 0..3 {
+        f.later(TICK);
+    }
+    for name in f.wanted.clone() {
+        assert_eq!(f.begins(name), 0, "{name:?} began after the lease ended");
+    }
+}

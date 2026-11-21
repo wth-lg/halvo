@@ -586,9 +586,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Reads the run condition of a service run (contracts.md C14 item 3):
     /// desired running in the state file, the slot Open and the lease fresh.
     /// When it holds and the sources do not run, the owner closes its pause,
-    /// a barrier waited for at most [`BARRIER_WAIT`], and the sources start;
-    /// while the drain fails they are only marked wanted, and the drain's
-    /// heal begins them.
+    /// a barrier waited for at most [`BARRIER_WAIT`], the condition is read
+    /// once more after the answer, and the sources start; a condition that
+    /// no longer holds begins none and draws the owner's pause again. While
+    /// the drain fails they are only marked wanted, and the drain's heal
+    /// begins them.
     /// When it fails while they run, the stop for capture off runs, of the
     /// kind Lapse when the lease is not fresh; it writes no state, and
     /// `reply` gets the Board of an end routine. After a stop the sources
@@ -652,6 +654,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if !matches!(resumed, Some(Answer::Resumed(_))) {
             return;
         }
+        if !lease::holds(self.desired(), &self.slot, self.lease, self.main_loop.now()) {
+            self.barrier(owner);
+            return;
+        }
         let Some((ctx, wanted)) = self.served.clone() else {
             return;
         };
@@ -667,6 +673,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     }
 
     /// One tick: the source health, the owner's reports and snapshot, the
+    /// run condition of a service run, read before the drain's heal and the
+    /// restarts so that neither begins a source in the tick of a lapse, the
     /// restarts that are due and the permission answers. `Some` when the run
     /// must end. The health is read first, so that a source that died in the
     /// slice of the owner's end or of a drain stop is named (ruling DM-25
@@ -690,15 +698,15 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 failing,
                 hold: snapshot.drain_hold,
             };
+            if let Some(ending) = self.follow_the_run_condition(Some(owner), &mut |_| {}) {
+                self.ending = Some(ending);
+            }
             self.follow_the_drain(now);
         }
         if !self.stopped_for_drain {
             self.restart_due(now);
         }
         if let Some(ending) = self.read_permissions(now, owner) {
-            self.ending = Some(ending);
-        }
-        if let Some(ending) = self.follow_the_run_condition(owner, &mut |_| {}) {
             self.ending = Some(ending);
         }
         self.publish();
