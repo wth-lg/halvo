@@ -32,6 +32,7 @@ fn args_of(command: &str) -> Value {
         "agents_present" => json!({"item": item}),
         "agents_control" => json!({"agent": agent(0).to_string(), "action": "run_now"}),
         "agents_shown" => json!({"item": item, "step": 0}),
+        "agents_delete" => json!({"agent": agent(0).to_string()}),
         other => panic!("no arguments for {other}"),
     }
 }
@@ -136,9 +137,27 @@ fn each_refusal_is_written_as_its_fixture_and_never_rejects() {
         .ports()
         .inner()
         .with(|p| p.refuse(Method::AgentHistory, PortError::Busy));
+    let card: serde_json::Value = serde_json::from_str(
+        &invoke(&main, "agents_card", json!({"agent": agent(0).to_string()})).unwrap(),
+    )
+    .unwrap();
     assert_eq!(
-        invoke(&main, "agents_card", json!({"agent": agent(0).to_string()})),
-        Ok(fixture("reply-error-busy"))
+        (card["history"].clone(), card["runs"].clone()),
+        (json!("busy"), json!([])),
+        "a busy history read gives the card with the key history busy and no run"
+    );
+    hub.coordinator()
+        .ports()
+        .inner()
+        .with(|p| p.refuse(Method::Agents, PortError::Busy));
+    assert_eq!(
+        invoke(
+            &main,
+            "agents_control",
+            json!({"agent": agent(0).to_string(), "action": "run_now"})
+        ),
+        Ok(fixture("reply-error-busy")),
+        "a start whose roster read answers busy is written as the fixture of busy"
     );
     let fresh = Hub::new(
         world(1, Limits::PRODUCT),
@@ -264,6 +283,38 @@ fn a_row_and_a_card_have_the_form_of_their_fixtures() {
         card["runs"],
         json!([]),
         "the memory owner holds no past run of the agent"
+    );
+}
+
+#[test]
+fn agents_delete_from_main_reaches_the_core_and_the_agents_row_leaves() {
+    let hub = hub(2);
+    let (_app, main, other) = app(hub.clone());
+    let delete = json!({"agent": agent(0).to_string()});
+    assert_eq!(
+        invoke(&other, "agents_delete", delete.clone()),
+        Err(json!(REFUSED))
+    );
+    assert!(hub
+        .coordinator()
+        .snapshot()
+        .rows
+        .iter()
+        .any(|r| r.agent == agent(0)));
+    assert_eq!(
+        invoke(&main, "agents_delete", delete.clone()),
+        Ok(fixture("reply-ok"))
+    );
+    let rows = hub.coordinator().snapshot().rows;
+    assert!(!rows.iter().any(|r| r.agent == agent(0)), "{rows:?}");
+    assert!(rows.iter().any(|r| r.agent == agent(1)));
+    assert_eq!(
+        Core::call(&*hub, "agents_delete", Some(&delete)),
+        Reply::Error(Cause::UnknownAgent)
+    );
+    assert_eq!(
+        Core::call(&*hub, "agents_delete", Some(&json!({"agent": 7}))),
+        Reply::Error(Cause::Malformed)
     );
 }
 
