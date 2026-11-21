@@ -3,6 +3,8 @@
 pub mod client;
 #[cfg(target_os = "macos")]
 pub mod client_unix;
+#[cfg(windows)]
+pub mod client_windows;
 pub mod ctl_text;
 #[cfg(target_os = "macos")]
 pub mod instance_lock;

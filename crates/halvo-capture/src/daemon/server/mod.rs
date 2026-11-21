@@ -5,6 +5,8 @@
 
 #[cfg(target_os = "macos")]
 pub mod unix;
+#[cfg(windows)]
+pub mod windows;
 
 use std::io::{ErrorKind, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -116,15 +118,23 @@ impl Written {
     }
 }
 
+/// How the request of a connection ends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequestEnd {
+    /// The frame, then the end of the stream: the client of a Unix socket
+    /// shuts down its writing side.
+    EndOfStream,
+    /// The frame's length alone: a byte-mode pipe has no half-close
+    /// (contracts.md C15.4).
+    Length,
+}
+
 /// Serves the one request of a connection on `stream`, whose peer has the
 /// effective user id `peer` (`None` when it could not be read), in a daemon
 /// whose own id is `own`. A peer of another user, or one whose id could not
-/// be read, gets the error `peer_rejected` and no read of its request. A
-/// request that the v1 table does not know is answered at its whole frame; a
-/// known one only once its stream has ended after the frame. An admitted
-/// request goes to the loop through `hand` and its answer is written. The
-/// answer is the sender that the caller signals once it has shut down the
-/// writing side and closed the connection, when the loop answered.
+/// be read, gets the error `peer_rejected` and no read of its request. Any
+/// other peer is served by [`serve_request`], whose known request ends at the
+/// end of its stream.
 pub fn serve_connection<S: Read + Write>(
     stream: &mut S,
     peer: Option<u32>,
@@ -142,7 +152,22 @@ pub fn serve_connection<S: Read + Write>(
         );
         return None;
     }
-    let request = match read_request(stream) {
+    serve_request(stream, RequestEnd::EndOfStream, admitting, hand)
+}
+
+/// Serves the one request of a connection on `stream` whose peer was
+/// admitted. A request that the v1 table does not know is answered at its
+/// whole frame; a known one once it has ended as `ends` says. An admitted
+/// request goes to the loop through `hand` and its answer is written. The
+/// answer is the sender that the caller signals once it has ended its writing
+/// side and closed the connection, when the loop answered.
+pub fn serve_request<S: Read + Write>(
+    stream: &mut S,
+    ends: RequestEnd,
+    admitting: &Arc<Admitting>,
+    hand: &Sender<Asked>,
+) -> Option<Sender<()>> {
+    let request = match read_request(stream, ends) {
         Got::Request(request) => request,
         Got::Answer(reply) => {
             write_reply(stream, &reply);
@@ -205,7 +230,7 @@ fn marked(edge: halvo_control::r2::RunEdge, admitting: &Admitting) -> Vec<u8> {
     halvo_control::r2::RunMarked { edge, stored }.encode()
 }
 
-fn read_request<S: Read>(stream: &mut S) -> Got {
+fn read_request<S: Read>(stream: &mut S, ends: RequestEnd) -> Got {
     let Ok(body) = wire::read_frame(stream, REQUEST_MAX_BYTES) else {
         return Got::Answer(Box::new(error(
             ErrorCode::InvalidArgument,
@@ -223,7 +248,9 @@ fn read_request<S: Read>(stream: &mut S) -> Got {
             }
             Got::Answer(Box::new(proto::unknown_answer(&unknown)))
         }
-        Ok(Decoded::Known(request)) if at_the_end(stream) => Got::Request(request),
+        Ok(Decoded::Known(request)) if ends == RequestEnd::Length || at_the_end(stream) => {
+            Got::Request(request)
+        }
         Ok(Decoded::Known(_)) => Got::Answer(Box::new(error(
             ErrorCode::InvalidArgument,
             "the request is not one frame followed by the end of its stream",
