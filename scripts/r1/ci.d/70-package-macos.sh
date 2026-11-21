@@ -154,6 +154,10 @@ SH
   [ -e "$measure_trace" ] && got=the-build-started
   verdict signing-variable-stops-before-the-build FAIL "$got"
 
+  stand_in_bundle daemon-with-the-test-seam halvo halvo-capture
+  printf '%s\n' '# halvo-capture:test-seam:this-build-has-it!' >>"$app/Contents/MacOS/halvo-capture" || exit 2
+  bundle_case daemon-with-the-test-seam '62-build --files: halvo-capture holds the marker halvo-capture:test-seam:this-build-has-it!'
+
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
