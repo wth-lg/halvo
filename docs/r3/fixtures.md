@@ -361,6 +361,11 @@ the variants in the order of this table, each once.
 | `reply_listed_id` | createReply makes no draft and answers 201 with a draft whose `id` is the id of the message that it answers, an id that the inbox list holds; a PATCH or a send that names that id gets 400 or 404 as for any inbox message |
 | `amount_changes` | turns on the control call `POST /change`: after it, the amount that the payment frame shows and the amount that `/charge` records are the seed's amount plus 100 minor units, until the next reset. Without this variant `/change` gets 404 |
 
+Two variants serve the runner's own cases of A5.4, which the port's suite of U4.2 runs
+(`crates/halvo-runner/src/release/suite.rs`): `no_reply` holds the request of the case
+`commit_without_reply` with no reply, and `amount_changes` changes the amount of the case
+`changed_on_page`, whose maker sends `POST /change` to the control host after the approval.
+
 ## State object
 
 `GET http://control.agent.test:<port>/state` answers compact JSON with the keys in this order:
