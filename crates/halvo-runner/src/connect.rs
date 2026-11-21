@@ -9,8 +9,8 @@ use std::num::NonZeroU32;
 use std::time::Duration;
 
 use halvo_connect::{
-    reply_senders, Answered, Calendar, CallError, Drafted, EventCounts, Graph, ListStop, Mail,
-    MailCounts, Messages, ReplyRule, Route, RunDay, Token,
+    reply_senders, Answered, Calendar, CallError, DraftStop, Drafting, EventCounts, Graph,
+    ListStop, Mail, MailCounts, Messages, ReplyRule, Route, RunDay, Token,
 };
 use halvo_schema::executable::body::{LoadReplies, LoadReply, PutReplyRow, Stored};
 use halvo_schema::executable::day::day_of;
@@ -267,9 +267,11 @@ impl Runner {
         Ok(words)
     }
 
-    /// `mail_draft_reply` of the messages that the list kept, with the fallback body, and a row of each: `drafted`
-    /// for a new draft, then `withheld` for one that the adapter held back, and `lost` for a draft of an earlier run
-    /// that the adapter found lost; a draft of an earlier run that passed gets no row.
+    /// `mail_draft_reply_each` of the messages that the list kept, with the fallback body. The rows of each draft
+    /// are stored as the adapter hands it over, before it drafts the next message, so that a run cut in this step
+    /// leaves at most one draft with no row: `drafted` for a new draft, then `withheld` for one that the adapter held
+    /// back, and `lost` for a draft of an earlier run that the adapter found lost; a draft of an earlier run that
+    /// passed gets no row. A failed call leaves the row of the draft whose PATCH gave no answer that passed.
     fn draft_replies(
         &mut self,
         step: &ExecutableStep,
@@ -283,52 +285,34 @@ impl Runner {
             .ok_or(Failure::Step(Cause::Adapter))?;
         let graph = self.graph(loaded)?;
         let body = FALLBACK.strip_suffix('\n').unwrap_or(FALLBACK);
-        match graph.mail_draft_reply(token, messages, body) {
+        match graph.mail_draft_reply_each(token, messages, body, |made| self.rows_of(made)) {
             Ok(drafted) => {
-                self.store_drafted(&drafted)?;
                 self.lists.held_recipient = Some(drafted.held_recipient());
                 Ok(())
             }
-            Err(failure) => {
-                for draft in failure.finished() {
-                    self.new_draft(draft.message(), draft.id())?;
-                }
-                for unsent in failure.unsent() {
-                    self.new_draft(unsent.message(), unsent.draft())?;
-                    if unsent.why().is_held() {
-                        self.reply_row(
-                            unsent.message(),
-                            ReplyState::Withheld,
-                            Some(unsent.draft()),
-                        )?;
-                    }
-                }
+            Err(DraftStop::Each(stop)) => Err(Failure::Stop(stop)),
+            Err(DraftStop::Call(failure)) => {
                 if let Some(unfinished) = failure.unfinished() {
                     self.new_draft(unfinished.message(), unfinished.draft())?;
-                }
-                for message in failure.lost() {
-                    self.reply_row(message, ReplyState::Lost, None)?;
                 }
                 Err(self.call_failed(step, failure.error()))
             }
         }
     }
 
-    /// The rows of an answer of `mail_draft_reply`.
-    fn store_drafted(&mut self, drafted: &Drafted) -> Result<(), Stop> {
-        for draft in drafted.drafts().iter() {
-            self.new_draft(draft.message(), draft.id())?;
-        }
-        for unsent in drafted.unsent() {
-            self.new_draft(unsent.message(), unsent.draft())?;
-            if unsent.why().is_held() {
-                self.reply_row(unsent.message(), ReplyState::Withheld, Some(unsent.draft()))?;
+    /// The rows of one draft that `mail_draft_reply_each` handed over.
+    fn rows_of(&mut self, made: Drafting<'_>) -> Result<(), Stop> {
+        match made {
+            Drafting::Kept(draft) => self.new_draft(draft.message(), draft.id()),
+            Drafting::Unsent(unsent) => {
+                self.new_draft(unsent.message(), unsent.draft())?;
+                if unsent.why().is_held() {
+                    self.reply_row(unsent.message(), ReplyState::Withheld, Some(unsent.draft()))?;
+                }
+                Ok(())
             }
+            Drafting::Lost(message) => self.reply_row(message, ReplyState::Lost, None),
         }
-        for message in drafted.lost() {
-            self.reply_row(message, ReplyState::Lost, None)?;
-        }
-        Ok(())
     }
 
     /// The row `drafted` of the draft `draft` of `message`, unless the agent's own newest row of the message is

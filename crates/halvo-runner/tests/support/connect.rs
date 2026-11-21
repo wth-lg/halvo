@@ -271,8 +271,22 @@ pub fn serve_run(
     start: Option<Instant>,
     store: &mut ReplyStore,
 ) -> Seen {
+    serve_run_then(sup, token, start, store, |_| None)
+}
+
+/// `serve_run`, in which `first` may take the act for a frame before the rules of `serve_run`.
+pub fn serve_run_then(
+    sup: &Supervisor,
+    token: &str,
+    start: Option<Instant>,
+    store: &mut ReplyStore,
+    mut first: impl FnMut(&FromRunner) -> Option<Act>,
+) -> Seen {
     sup.serve(
         |frame, _| {
+            if let Some(act) = first(frame) {
+                return act;
+            }
             if matches!(frame, FromRunner::Secret(_)) {
                 let value = SecretText::parse(token).expect("a stored secret");
                 return Act::With(ToRunner::SecretReply(SecretReply::Stored(value)));

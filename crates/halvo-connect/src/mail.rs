@@ -80,6 +80,18 @@ pub trait Mail {
         body: &str,
     ) -> Result<Drafted, Box<DraftFailure>>;
 
+    /// `mail_draft_reply`, which hands each draft to `each` as soon as its message is drafted and before the next
+    /// message's request: a draft with a send handle, a draft returned unsent, or the message whose draft of an
+    /// earlier run is lost. An error of `each` ends the call before any further request; what it made until then
+    /// went to `each`.
+    fn mail_draft_reply_each<E>(
+        &self,
+        token: &Token,
+        messages: Messages,
+        body: &str,
+        each: impl FnMut(Drafting<'_>) -> Result<(), E>,
+    ) -> Result<Drafted, DraftStop<E>>;
+
     /// POST send of the one draft that `draft` holds: one effect. `Drafts::into_sends` gives one handle per draft
     /// and this call takes the handle, so a draft is sent at most once:
     ///
@@ -228,6 +240,23 @@ pub enum Answered {
     Leave,
     /// The id of the message's draft of an earlier run, which a `drafted` row holds.
     Draft(String),
+}
+
+/// One draft of `mail_draft_reply_each`, handed over before the next message is drafted. `Debug` prints no id.
+pub enum Drafting<'a> {
+    /// A draft with a send handle: made by createReply in the call, or a draft of an earlier run whose PATCH passed.
+    Kept(&'a Draft),
+    /// A draft that createReply made in the call and that is returned unsent.
+    Unsent(&'a UnsentDraft),
+    /// The id of a message whose draft of an earlier run is lost.
+    Lost(&'a str),
+}
+
+/// Why `mail_draft_reply_each` gave no answer: the call failed, or `each` did.
+#[derive(Debug)]
+pub enum DraftStop<E> {
+    Call(Box<DraftFailure>),
+    Each(E),
 }
 
 /// Why `mail_list_answered` gave no list: a request of the call failed, or `answered` did.
@@ -700,6 +729,21 @@ impl Mail for Graph {
         messages: Messages,
         body: &str,
     ) -> Result<Drafted, Box<DraftFailure>> {
+        let none = |_: Drafting<'_>| Ok::<_, Infallible>(());
+        self.mail_draft_reply_each(token, messages, body, none)
+            .map_err(|stop| match stop {
+                DraftStop::Call(failure) => failure,
+                DraftStop::Each(never) => match never {},
+            })
+    }
+
+    fn mail_draft_reply_each<E>(
+        &self,
+        token: &Token,
+        messages: Messages,
+        body: &str,
+        mut each: impl FnMut(Drafting<'_>) -> Result<(), E>,
+    ) -> Result<Drafted, DraftStop<E>> {
         let content = json!({"body": {"contentType": "text", "content": body}});
         let mut ids = Ids::of(messages.listed.iter().map(String::as_str));
         let mut drafts = Vec::with_capacity(messages.len());
@@ -712,23 +756,32 @@ impl Mail for Graph {
                 None => self.draft_one(token, &content, &mut ids, &message),
             };
             match made {
-                Ok(Made::Draft(draft)) => drafts.push(draft),
-                Ok(Made::Unsent(draft)) => unsent.push(draft),
-                Ok(Made::Lost) => lost.push(message.id),
+                Ok(Made::Draft(draft)) => {
+                    each(Drafting::Kept(&draft)).map_err(DraftStop::Each)?;
+                    drafts.push(draft);
+                }
+                Ok(Made::Unsent(draft)) => {
+                    each(Drafting::Unsent(&draft)).map_err(DraftStop::Each)?;
+                    unsent.push(draft);
+                }
+                Ok(Made::Lost) => {
+                    each(Drafting::Lost(&message.id)).map_err(DraftStop::Each)?;
+                    lost.push(message.id);
+                }
                 Err((error, unfinished)) => {
                     let mut unreached = Vec::new();
                     if unfinished.is_none() {
                         unreached.push(message.id);
                     }
                     unreached.extend(queue.map(|message| message.id));
-                    return Err(Box::new(DraftFailure {
+                    return Err(DraftStop::Call(Box::new(DraftFailure {
                         error,
                         finished: drafts,
                         unsent,
                         unfinished,
                         unreached,
                         lost,
-                    }));
+                    })));
                 }
             }
         }
@@ -994,6 +1047,16 @@ impl fmt::Debug for ReplyRule {
         f.debug_struct("ReplyRule")
             .field("senders", &self.senders.iter().count())
             .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for Drafting<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Drafting::Kept(_) => "Kept(..)",
+            Drafting::Unsent(_) => "Unsent(..)",
+            Drafting::Lost(_) => "Lost(..)",
+        })
     }
 }
 

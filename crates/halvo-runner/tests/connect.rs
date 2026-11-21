@@ -15,10 +15,10 @@ use halvo_schema::executable::{AgentRun, Cause, Outcome, ReplyState};
 use halvo_schema::record::Instant;
 
 use support::connect::{
-    asked, cleanup_agent, keys_null, replies, reply_agent, reply_row, serve_run, Fixture,
-    ReplyStore, ACCOUNT, SENDERS, TOKEN,
+    asked, cleanup_agent, keys_null, replies, reply_agent, reply_row, serve_run, serve_run_then,
+    Fixture, ReplyStore, ACCOUNT, SENDERS, TOKEN,
 };
-use support::{now_nanos, offset_of_another_day, Seen};
+use support::{is_op, now_nanos, offset_of_another_day, Act, Seen};
 
 /// The log lines of a run, each as its event, its step and its cause.
 fn lines(seen: &Seen) -> Vec<(LogEvent, Option<u32>, Option<Cause>)> {
@@ -237,6 +237,36 @@ fn the_next_run_makes_no_second_draft() {
         "a draft that is no draft yet stays drafted and is not held"
     );
     assert_eq!(finish(&fifth).held_recipient, Some(0));
+}
+
+#[test]
+fn a_run_cut_at_its_first_reply_row_leaves_one_draft_at_most_for_a_second_draft() {
+    let fixture = Fixture::start();
+    let sup = reply_agent(91, &fixture, ACCOUNT, SENDERS);
+    fixture.reset(1, &[]);
+    let mut store = ReplyStore::default();
+    let mut at_first_row = None;
+    let cut = serve_run_then(&sup, TOKEN, start(), &mut store, |frame| {
+        if !is_op(frame, "reply_row") {
+            return None;
+        }
+        at_first_row = Some(fixture.drafts());
+        Some(Act::Close)
+    });
+    assert_eq!(cut.done(), None, "the run was cut");
+    assert!(store.rows.is_empty(), "no row was stored");
+    assert_eq!(
+        at_first_row,
+        Some(1),
+        "one draft stands in the mail host when the first reply_row comes"
+    );
+    let next = serve_run(&sup, TOKEN, start(), &mut store);
+    assert_eq!(replies(&next).len(), 2, "the next run drafts both messages");
+    assert!(
+        fixture.drafts() <= 3,
+        "at most three drafts for the two messages, found {}",
+        fixture.drafts()
+    );
 }
 
 #[test]
