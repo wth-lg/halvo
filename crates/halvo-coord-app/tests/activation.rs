@@ -3,9 +3,11 @@ mod activation;
 #[path = "hosted/reading.rs"]
 mod reading;
 
-use activation::{begun, late, run_loop, wait, Begun, Waited, LATE, LATE_MOST, RUN_LOOP_BOUND};
+use activation::{
+    begin, begun, late, run_loop, wait, Begun, Waited, LATE, LATE_MOST, RUN_LOOP_BOUND,
+};
 use std::cell::{Cell, RefCell};
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::Duration;
 
@@ -130,7 +132,7 @@ fn late_a_value_that_is_no_text_is_refused() {
 }
 
 #[test]
-fn late_the_setting_is_its_own_and_none_that_check_46_takes_out_or_a_target_sets() {
+fn late_the_setting_is_its_own_name_apart_from_the_other_settings_of_the_targets() {
     assert_eq!(LATE, "HALVO_HOSTED_LATE_RUN_MS");
     for other in [
         "GUARD_HOSTED_SCHEDULE",
@@ -369,6 +371,49 @@ fn begun_a_closed_channel_runs_no_case_and_the_line_names_the_closed_channel_and
             ),
             (line.to_string(), false),
             "{target} {waited}"
+        );
+    }
+}
+
+/// Runs `begin` over the setting `value` and a wait that gives 7: the result and the steps in the
+/// order in which they came.
+fn begin_over(value: Option<&str>) -> (Result<(Option<Duration>, u32), String>, Vec<&'static str>) {
+    let steps = RefCell::new(Vec::new());
+    let result = begin(
+        || {
+            steps.borrow_mut().push("read");
+            value.map(OsString::from)
+        },
+        || {
+            steps.borrow_mut().push("wait");
+            7
+        },
+    );
+    (result, steps.into_inner())
+}
+
+#[test]
+fn begin_reads_the_setting_before_the_wait_and_gives_the_hold_with_what_the_wait_gave() {
+    assert_eq!(
+        begin_over(Some("2000")),
+        (
+            Ok((Some(Duration::from_millis(2_000)), 7)),
+            vec!["read", "wait"]
+        )
+    );
+    assert_eq!(begin_over(None), (Ok((None, 7)), vec!["read", "wait"]));
+}
+
+#[test]
+fn begin_refuses_a_setting_that_is_no_hold_before_the_wait_runs() {
+    for value in ["abc", "0", ""] {
+        assert_eq!(
+            begin_over(Some(value)),
+            (
+                Err(format!("start FAIL: {LATE} is set and is not a whole number of milliseconds from 1 to {LATE_MOST}; no case ran")),
+                vec!["read"]
+            ),
+            "{value:?}"
         );
     }
 }

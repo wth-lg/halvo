@@ -1223,17 +1223,19 @@ mod cases {
     /// thread, the thread's first show after the sign that the run loop runs, as guard_hosted
     /// does (ruling RD-146 (4)); with no sign within `RUN_LOOP_BOUND`, or with the sign's channel
     /// closed and no sign, it prints its line, runs no case and ends as failed. The setting
-    /// `LATE` holds the run call back after the thread has started: the forced form of the race.
+    /// `LATE`, read and refused before the wait for the app to be active, holds the run call back
+    /// after the thread has started: the forced form of the race.
     pub fn run(card: Card) {
-        activate();
-        let late =
-            match super::activation::late(std::env::var_os(super::activation::LATE).as_deref()) {
-                Ok(late) => late,
-                Err(line) => {
-                    println!("dialog_hosted {line}");
-                    std::process::exit(1);
-                }
-            };
+        let late = match super::activation::begin(
+            || std::env::var_os(super::activation::LATE),
+            activate,
+        ) {
+            Ok((late, ())) => late,
+            Err(line) => {
+                println!("dialog_hosted {line}");
+                std::process::exit(1);
+            }
+        };
         let app = tauri::test::mock_app();
         let handle = app.handle().clone();
         let (ready, runs) = std::sync::mpsc::channel::<()>();

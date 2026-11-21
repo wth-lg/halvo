@@ -1205,21 +1205,23 @@ mod cases {
     /// loop gives at its start, before its first show, because the test runtime runs a task of
     /// `run_on_main_thread` at once on the calling thread until its run loop has begun; with no
     /// sign within `RUN_LOOP_BOUND`, or with the sign's channel closed and no sign, it prints its
-    /// line, runs no case and ends as failed. The setting `LATE` holds the run call back after the
-    /// thread has started: the forced form of the race.
+    /// line, runs no case and ends as failed. The setting `LATE`, read and refused before the
+    /// wait for the app to be active, holds the run call back after the thread has started: the
+    /// forced form of the race.
     pub fn run(card: Card) {
-        activate();
+        let late = match super::activation::begin(
+            || std::env::var_os(super::activation::LATE),
+            activate,
+        ) {
+            Ok((late, ())) => late,
+            Err(line) => {
+                println!("guard_hosted {line}");
+                std::process::exit(1);
+            }
+        };
         if let Some(mtm) = MainThreadMarker::new() {
             watch(mtm);
         }
-        let late =
-            match super::activation::late(std::env::var_os(super::activation::LATE).as_deref()) {
-                Ok(late) => late,
-                Err(line) => {
-                    println!("guard_hosted {line}");
-                    std::process::exit(1);
-                }
-            };
         let app = tauri::test::mock_app();
         let handle = app.handle().clone();
         let (ready, runs) = mpsc::channel::<()>();

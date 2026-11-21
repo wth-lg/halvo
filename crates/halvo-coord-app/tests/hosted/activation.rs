@@ -1,4 +1,4 @@
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::sync::mpsc::RecvTimeoutError;
 use std::time::Duration;
 
@@ -30,6 +30,18 @@ pub fn late(value: Option<&OsStr>) -> Result<Option<Duration>, String> {
             "start FAIL: {LATE} is set and is not a whole number of milliseconds from 1 to {LATE_MOST}; no case ran"
         )),
     }
+}
+
+/// The start of a hosted target in its order: reads the setting `LATE` through `read` and refuses
+/// it before anything else of the start runs, then runs `wait`, the wait for the app to be
+/// active. Gives the hold that the setting asks for with what `wait` gave, or the line of the
+/// refusal with `wait` not run.
+pub fn begin<T>(
+    read: impl FnOnce() -> Option<OsString>,
+    wait: impl FnOnce() -> T,
+) -> Result<(Option<Duration>, T), String> {
+    let late = late(read().as_deref())?;
+    Ok((late, wait()))
 }
 
 /// How the cases' thread's wait for the test runtime's run loop ended (ruling RD-146 (3)).
