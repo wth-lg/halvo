@@ -67,6 +67,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "Halvo can't read or save this agent's record. The agent starts nothing new. Stop works if shown.",
     ),
     (
+        "line.problem.quit",
+        "Its task was still running when Halvo quit and may have gone on. Check outside Halvo before repeating it.",
+    ),
+    (
         "card.records_dropped",
         "After Halvo started, {count} of this agent's records went unsaved. Its steps may have happened; check outside Halvo before repeating.",
     ),

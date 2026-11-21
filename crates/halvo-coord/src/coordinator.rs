@@ -3474,7 +3474,12 @@ where
                     .any(|r| r.agent == facts.agent && r.kill_refused)
                     || board.alive_at_reap(&facts.agent).is_some()
                     || board.kept_gone().iter().any(|f| f.agent == facts.agent);
-                if let Ok(row) = roster::gone_row(*facts, stuck, System::HOST, name) {
+                let row = if roster::not_stopped_at_quit(facts).is_some() {
+                    roster::quit_row(*facts, name, Vec::new()).map(|r| Row { next: None, ..r })
+                } else {
+                    roster::gone_row(*facts, stuck, System::HOST, name)
+                };
+                if let Ok(row) = row {
                     placed.push((Placed { row, raised: None }, None));
                 }
                 continue;
@@ -3513,8 +3518,17 @@ where
                 .iter()
                 .find(|w| w.agent == facts.agent)
                 .map(|w| w.trigger);
+            let quit_line = roster::not_stopped_at_quit(facts).is_some()
+                && !matches!(
+                    line,
+                    crate::types::StatusLine::Record
+                        | crate::types::StatusLine::NeedsYou(ItemKind::Check)
+                );
             let row = if st.deleting.iter().any(|d| d.agent == facts.agent) {
                 roster::deleting_row(*facts, name)
+            } else if quit_line {
+                let offered = roster::controls(*facts, waiting, &self.limits);
+                roster::quit_row(*facts, name, offered)
             } else {
                 roster::row(*facts, line, name, waiting, &self.limits)
             };
@@ -3526,7 +3540,7 @@ where
                     && item.is_some()
                     && open.as_ref().map(|o| &o.item) == item.as_ref()
             });
-            if asks_again && line == StatusLine::NeedsYou(ItemKind::Ready) {
+            if asks_again && !quit_line && line == StatusLine::NeedsYou(ItemKind::Ready) {
                 if let Ok(text) = words::text("line.needs_you.asks_again", &[]) {
                     row.line = text;
                 }
@@ -3548,7 +3562,9 @@ where
                 }
             }
             let item = match (&open, line.status()) {
-                (Some(o), Status::NeedsYou) => self.item_of(st, facts, held, o.kind, &o.item, name),
+                (Some(o), Status::NeedsYou) if !quit_line => {
+                    self.item_of(st, facts, held, o.kind, &o.item, name)
+                }
                 _ => None,
             };
             placed.push((
