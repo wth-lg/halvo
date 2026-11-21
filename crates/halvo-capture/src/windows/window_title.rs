@@ -215,23 +215,41 @@ pub(crate) fn kept_answer(
     Some(answer)
 }
 
+/// The answers of the Chrome query on the title thread.
+#[derive(Debug, Default)]
+pub(crate) struct ChromeAnswers {
+    answers: std::collections::HashMap<usize, bool>,
+}
+
+impl ChromeAnswers {
+    /// The answer for `window` at the OS time `now`, by [`kept_answer`].
+    pub(crate) fn answer(
+        &mut self,
+        window: usize,
+        _now: u32,
+        query: impl FnOnce() -> Option<bool>,
+    ) -> Option<bool> {
+        kept_answer(&mut self.answers, window, query)
+    }
+}
+
 /// The UI Automation query of a Chrome window, made on the title thread, with
 /// each answer kept for its window.
 #[derive(Default)]
 struct ChromeQuery {
     automation: Option<windows::Win32::UI::Accessibility::IUIAutomation>,
-    answers: std::collections::HashMap<usize, bool>,
+    answers: ChromeAnswers,
 }
 
 impl ChromeQuery {
-    fn ask(&mut self, window: HWND) -> Option<bool> {
+    fn ask(&mut self, window: HWND, now: u32) -> Option<bool> {
         use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
         use windows::Win32::UI::Accessibility::CUIAutomation;
         let ChromeQuery {
             automation,
             answers,
         } = self;
-        kept_answer(answers, window.0 as usize, || {
+        answers.answer(window.0 as usize, now, || {
             if automation.is_none() {
                 // SAFETY: CoCreateInstance makes the system's UI Automation
                 // object for this thread, which joined the process's MTA at
@@ -359,7 +377,7 @@ fn emit_front_title(front: HWND, time: u32, why: TitleWhy) {
                 PrivateWindow::Private
             } else {
                 told_private(Browser::of(app.path.as_deref()), &read, || {
-                    CHROME_QUERY.with(|query| query.borrow_mut().ask(front))
+                    CHROME_QUERY.with(|query| query.borrow_mut().ask(front, time))
                 })
             };
             let made = title_event(
@@ -628,9 +646,15 @@ mod tests {
         let mut answers = std::collections::HashMap::new();
         let first = kept_answer(&mut answers, 7, || Some(false));
         let second = kept_answer(&mut answers, 7, || Some(true));
+        let mut chrome = ChromeAnswers::default();
+        let young = [10_000, 10_500, 12_000].map(|now| chrome.answer(9, now, || Some(false)));
         assert!(
-            wrong.is_empty() && first == Some(false) && second == Some(true),
-            "told against its window: {wrong:?}; answers for one window: {first:?} then {second:?}"
+            wrong.is_empty()
+                && first == Some(false)
+                && second == Some(true)
+                && young == [None, None, Some(false)],
+            "told against its window: {wrong:?}; answers for one window: {first:?} then {second:?}; \
+             answers in a window's first two seconds and after: {young:?}"
         );
     }
 
