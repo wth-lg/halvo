@@ -138,6 +138,48 @@ fn the_read_leaves_out_rows_past_their_bound_with_no_expiry() {
 }
 
 #[test]
+fn rows_three_days_ahead_of_a_clock_set_back_answer_store_to_both_bodies() {
+    let (mut store, clock) = store_at(noon(TODAY), 0);
+    fill(&mut store, 2);
+    clock.set(noon(TODAY - 2));
+    assert_eq!(read(&mut store, None), Ok((vec![1, 2], 2)));
+    clock.set(noon(TODAY - 3));
+    assert_eq!(read(&mut store, None), Err(ErrorName::Store));
+    for seq in [1, 3] {
+        assert_eq!(
+            coordinator(&mut store, &log(&[row(seq, TODAY - 3)])),
+            Err(ErrorName::Store),
+            "seq {seq}"
+        );
+    }
+    clock.set(noon(TODAY));
+    assert_eq!(read(&mut store, None), Ok((vec![1, 2], 2)));
+}
+
+#[test]
+fn rows_of_another_workflow_three_days_ahead_stop_nothing() {
+    let (mut store, clock) = store_at(noon(TODAY), 0);
+    let theirs = log_body(2, 2, &[hold_set(2, 2, 1, TODAY, noon(TODAY))]);
+    assert_eq!(
+        coordinator(&mut store, &request("coordinator_write", &theirs)),
+        stored(1)
+    );
+    clock.set(noon(TODAY - 3));
+    assert_eq!(read(&mut store, None), Ok((vec![], 0)));
+    assert_eq!(
+        coordinator(&mut store, &log(&[row(1, TODAY - 3)])),
+        stored(1)
+    );
+    assert_eq!(
+        coordinator(
+            &mut store,
+            &request("coordinator_write", &history_body(2, 2, None))
+        ),
+        Err(ErrorName::Store)
+    );
+}
+
+#[test]
 fn takes_the_keys_of_the_body_in_any_order() {
     let mut store = store();
     fill(&mut store, 1);

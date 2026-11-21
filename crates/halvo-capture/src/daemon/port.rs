@@ -382,8 +382,17 @@ pub enum Access {
 /// What stands in a store directory, read without unlocking anything.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Probe {
-    /// No key file stands at store.key, or no store directory at its name.
+    /// No key file stands at store.key, or no store directory at its name, and
+    /// no database and no segments stand either.
     NoKeyFile,
+    /// No key file stands at store.key, while the store's database or its
+    /// segments stand: a store that lost its key file, over which nothing is
+    /// made.
+    KeylessStore,
+    /// No key file stands at store.key and no segments stand, while the
+    /// store's own marker create.pending does: an unfinished create, which a
+    /// create finishes.
+    UnfinishedCreate,
     /// A key file that records `custody`, of the store `id`.
     KeyFile { custody: Custody, id: StoreId },
     /// What stands at store.key cannot be read as a key file.
@@ -608,9 +617,8 @@ pub(crate) mod tests {
         let dir = tempfile::Builder::new()
             .prefix("adapter-tests-")
             .tempdir()
-            .unwrap()
-            .keep();
-        let made = ScratchDir::at(&dir).create().unwrap();
+            .unwrap();
+        let made = ScratchDir::at(dir.path()).create().unwrap();
         let mut store = made.store;
         let day = UtcDay::from_days_since_epoch(20_000).unwrap();
         let at = 20_000 * 86_400 * 1_000_000_000_i64;
@@ -641,5 +649,6 @@ pub(crate) mod tests {
         );
         drop(store);
         made.root.finish().unwrap();
+        dir.close().unwrap();
     }
 }

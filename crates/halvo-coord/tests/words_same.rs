@@ -169,7 +169,14 @@ fn expected_keys() -> BTreeSet<String> {
     for c in Category::ALL {
         k.insert(format!("category.{}", c.name()));
     }
-    for c in ["run_now", "stop", "switch_off", "switch_on", "delete"] {
+    for c in [
+        "run_now",
+        "stop",
+        "take_back",
+        "switch_off",
+        "switch_on",
+        "delete",
+    ] {
         k.insert(format!("control.{c}"));
     }
     let choices = [
@@ -250,6 +257,28 @@ fn expected_keys() -> BTreeSet<String> {
     for end in ["unshown", "not_done", "refused"] {
         k.insert(format!("run.effect.{end}"));
     }
+    for class in [
+        "payment",
+        "purchase",
+        "send",
+        "submit",
+        "sign",
+        "local_edit",
+    ] {
+        k.insert(format!("run.effect.{class}.partial"));
+    }
+    for class in [
+        "payment",
+        "purchase",
+        "send",
+        "delete",
+        "submit",
+        "sign",
+        "local_edit",
+    ] {
+        k.insert(format!("run.effect.{class}.unknown"));
+    }
+    k.insert("run.effect.unknown".to_owned());
     k.insert("line.run.stopped".to_owned());
     for key in [
         "line.quitting",
@@ -292,7 +321,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 253);
+    assert_eq!(seen.len(), 268);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -473,6 +502,108 @@ fn u24r_the_three_texts_stand_word_for_word() {
         let words = t(key, &[("count", "3")]).split_whitespace().count();
         assert!(words <= 20, "{key}: {words} words");
     }
+}
+
+/// The control that takes a queued start back says that this one start is gone and promises no
+/// later start, and it shares no text with another control or with a choice of an item (U2.4e;
+/// rulings RD-54 (h), RD-55 (b), and RD-149's note of 2026-11-20T20:02:32Z).
+#[test]
+fn u24e_the_take_back_stands_word_for_word_and_apart_from_every_other_control_and_choice() {
+    let take_back = words::text("control.take_back", &[]).unwrap();
+    assert_eq!(take_back, "Cancel this start");
+    let others: Vec<&str> = KEYS
+        .iter()
+        .filter(|(k, _)| {
+            (k.starts_with("control.") || k.starts_with("choice.")) && *k != "control.take_back"
+        })
+        .map(|(_, t)| *t)
+        .collect();
+    assert!(others.len() > 10, "{others:?}");
+    assert!(
+        others.iter().all(|t| !t.eq_ignore_ascii_case(&take_back)),
+        "{others:?}"
+    );
+}
+
+/// Each text of `texts` stands word for word under its key, in at most 20 words.
+fn pinned(texts: &[(&str, &str)]) {
+    for (key, text) in texts {
+        assert_eq!(words::text(key, &[]).unwrap(), *text, "{key}");
+        let words = text.split_whitespace().count();
+        assert!(words <= 20, "{key}: {words} words");
+    }
+}
+
+/// The texts of an entry that shows only the fields that the reader took whole (ruling RD-52 (h)
+/// 4), U2.4q.
+#[test]
+fn u24q_the_six_partial_texts_stand_word_for_word() {
+    pinned(&[
+        (
+            "run.effect.payment.partial",
+            "It made this payment, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.purchase.partial",
+            "It placed this order, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.send.partial",
+            "It sent this message, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.submit.partial",
+            "It sent this form, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.sign.partial",
+            "It signed this document, but Halvo shows only the details it could read.",
+        ),
+        (
+            "run.effect.local_edit.partial",
+            "It changed a file, but Halvo shows only the details it could read.",
+        ),
+    ]);
+}
+
+/// The texts of the entry of an effect whose last state is unknown (ruling RD-126 item 10),
+/// U2.4q.
+#[test]
+fn u24q_the_eight_unknown_texts_stand_word_for_word() {
+    pinned(&[
+        (
+            "run.effect.payment.unknown",
+            "A payment may have been made; Halvo could not tell. Check your bank or the site before you pay again.",
+        ),
+        (
+            "run.effect.purchase.unknown",
+            "An order may have been placed; Halvo could not tell. Check the shop's order page before you order again.",
+        ),
+        (
+            "run.effect.send.unknown",
+            "A message may have been sent; Halvo could not tell. Look in your sent messages before you send it again.",
+        ),
+        (
+            "run.effect.delete.unknown",
+            "Something may have been removed; Halvo could not tell. Look where this agent works for anything missing.",
+        ),
+        (
+            "run.effect.submit.unknown",
+            "A form may have been sent; Halvo could not tell. Check the site before you send it again.",
+        ),
+        (
+            "run.effect.sign.unknown",
+            "A document may have been signed for you; Halvo could not tell. Check your email before you sign it again.",
+        ),
+        (
+            "run.effect.local_edit.unknown",
+            "A file may have been changed; Halvo could not tell. Open it and look before you change it again.",
+        ),
+        (
+            "run.effect.unknown",
+            "One step may have been done; Halvo could not tell. Check where this agent works before you run it again.",
+        ),
+    ]);
 }
 
 /// The hold `failures` says what happened and its way out (ruling RD-81).

@@ -802,7 +802,8 @@ fn intent_root(bytes: &[u8]) -> Option<Option<String>> {
 /// The finish of an intent that a start of the service run finds in
 /// `data_dir` (contracts.md C17 item 3, "At start"), before the open's first
 /// call: an intent of store.key's root id, or one with no readable store.key
-/// beside it, is finished from step 3 through `host`'s tail and the walk over
+/// beside it (also where a database, segments or an unfinished create stand
+/// with no key file), is finished from step 3 through `host`'s tail and the walk over
 /// `rows` by `hands`, and `deleting` is called before that step; a tail that
 /// another process holds back deletes nothing, and no row is walked; the
 /// intent stays unless the finish is whole. An intent of another root is
@@ -824,7 +825,9 @@ pub fn at_start(
     };
     let ours = match host.probe() {
         Probe::KeyFile { id, .. } => named == Some(id.to_string()),
-        Probe::NoKeyFile | Probe::Fault { .. } => true,
+        Probe::NoKeyFile | Probe::KeylessStore | Probe::UnfinishedCreate | Probe::Fault { .. } => {
+            true
+        }
     };
     if !ours {
         let _ = DataDirStore::at(data_dir).remove_durably(INTENT_FILE);
