@@ -32,6 +32,7 @@ fn args_of(command: &str) -> Value {
         "agents_present" => json!({"item": item}),
         "agents_control" => json!({"agent": agent(0).to_string(), "action": "run_now"}),
         "agents_shown" => json!({"item": item, "step": 0}),
+        "agents_delete" => json!({"agent": agent(0).to_string()}),
         other => panic!("no arguments for {other}"),
     }
 }
@@ -136,9 +137,27 @@ fn each_refusal_is_written_as_its_fixture_and_never_rejects() {
         .ports()
         .inner()
         .with(|p| p.refuse(Method::AgentHistory, PortError::Busy));
+    let card: serde_json::Value = serde_json::from_str(
+        &invoke(&main, "agents_card", json!({"agent": agent(0).to_string()})).unwrap(),
+    )
+    .unwrap();
     assert_eq!(
-        invoke(&main, "agents_card", json!({"agent": agent(0).to_string()})),
-        Ok(fixture("reply-error-busy"))
+        (card["history"].clone(), card["runs"].clone()),
+        (json!("busy"), json!([])),
+        "a busy history read gives the card with the key history busy and no run"
+    );
+    hub.coordinator()
+        .ports()
+        .inner()
+        .with(|p| p.refuse(Method::Agents, PortError::Busy));
+    assert_eq!(
+        invoke(
+            &main,
+            "agents_control",
+            json!({"agent": agent(0).to_string(), "action": "run_now"})
+        ),
+        Ok(fixture("reply-error-busy")),
+        "a start whose roster read answers busy is written as the fixture of busy"
     );
     let fresh = Hub::new(
         world(1, Limits::PRODUCT),
@@ -264,6 +283,38 @@ fn a_row_and_a_card_have_the_form_of_their_fixtures() {
         card["runs"],
         json!([]),
         "the memory owner holds no past run of the agent"
+    );
+}
+
+#[test]
+fn agents_delete_from_main_reaches_the_core_and_the_agents_row_leaves() {
+    let hub = hub(2);
+    let (_app, main, other) = app(hub.clone());
+    let delete = json!({"agent": agent(0).to_string()});
+    assert_eq!(
+        invoke(&other, "agents_delete", delete.clone()),
+        Err(json!(REFUSED))
+    );
+    assert!(hub
+        .coordinator()
+        .snapshot()
+        .rows
+        .iter()
+        .any(|r| r.agent == agent(0)));
+    assert_eq!(
+        invoke(&main, "agents_delete", delete.clone()),
+        Ok(fixture("reply-ok"))
+    );
+    let rows = hub.coordinator().snapshot().rows;
+    assert!(!rows.iter().any(|r| r.agent == agent(0)), "{rows:?}");
+    assert!(rows.iter().any(|r| r.agent == agent(1)));
+    assert_eq!(
+        Core::call(&*hub, "agents_delete", Some(&delete)),
+        Reply::Error(Cause::UnknownAgent)
+    );
+    assert_eq!(
+        Core::call(&*hub, "agents_delete", Some(&json!({"agent": 7}))),
+        Reply::Error(Cause::Malformed)
     );
 }
 
@@ -716,4 +767,129 @@ fn the_day_of_an_instant_on_another_day_than_the_clocks_is_the_day_of_that_insta
         assert_eq!(clock.day(t0), Ok(day), "{who}: a day before now");
         assert_eq!(clock.today(), Ok(day + 3), "{who}: today follows now");
     }
+}
+
+/// The sentence that names `other` with the shared sender, as the core holds it for the page.
+fn names_other() -> Option<halvo_coord::ports::Shared> {
+    Some(halvo_coord::ports::Shared::Named(
+        halvo_coord::ports::Overlaps {
+            entries: vec![halvo_coord::ports::Overlap {
+                workflow: support::other_flow(),
+                agent: support::other(),
+                senders: vec![support::ANN.to_owned()],
+            }],
+            more: false,
+        },
+    ))
+}
+
+fn overlap_reads(hub: &Hub<support::Shared>) -> usize {
+    hub.coordinator()
+        .ports()
+        .inner()
+        .with(|p| p.overlap_reads.borrow().len())
+}
+
+/// The coordinator's row of 2026-11-21T07:03:55Z (round RD-160 of U2.4g), through the app's
+/// real wiring, `Hub` over `Wired`: a set-up answer that the owner refuses with `overlap` asks
+/// the owner's read `list_overlaps`, and the item holds the sentence that names the other agent
+/// with the shared sender (I3.5 (a) to (c)).
+#[test]
+fn through_the_app_a_set_up_answer_refused_with_overlap_names_the_agent_that_shares_the_sender() {
+    let hub = Hub::new(
+        support::sharing_set_up(),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    Core::tick(&*hub);
+    let (_app, main, _other) = app(hub.clone());
+    let setup = hub
+        .coordinator()
+        .snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == halvo_coord::types::ItemKind::Setup)
+        .map(|i| (i.item().clone(), i.step()))
+        .expect("the set-up item of the asking agent");
+    let reads = overlap_reads(&hub);
+    let reply = invoke(
+        &main,
+        "agents_setup_typed",
+        json!({"item": setup.0.to_string(), "step": setup.1, "param": "reply_senders", "text": support::ANN}),
+    );
+    println!("setup_typed answered: {reply:?}");
+    assert_eq!(overlap_reads(&hub), reads + 1, "the read reached the owner");
+    assert_eq!(hub.coordinator().setup_overlap(&setup.0), names_other());
+}
+
+/// The same row: through the app's real wiring, a Switch on and then a Start now of an agent
+/// held by `failures`, whose `active` the owner refuses with `overlap`, each ask the owner's read
+/// once, and the core holds the sentence that names the other agent with the shared sender
+/// (I3.5 (f), RD-160 (3)).
+#[test]
+fn through_the_app_a_switch_on_and_a_start_refused_with_overlap_name_the_agent_that_shares_the_sender(
+) {
+    let hub = Hub::new(
+        support::sharing_held(),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    Core::tick(&*hub);
+    let (_app, main, _other) = app(hub.clone());
+    for action in ["switch_on", "run_now"] {
+        let reads = overlap_reads(&hub);
+        let reply = invoke(
+            &main,
+            "agents_control",
+            json!({"agent": support::asking().to_string(), "action": action}),
+        );
+        println!("{action} answered: {reply:?}");
+        assert_eq!(
+            overlap_reads(&hub),
+            reads + 1,
+            "{action}: the read reached the owner"
+        );
+        assert_eq!(
+            hub.coordinator().switch_on_overlap(&support::asking()),
+            names_other(),
+            "{action}"
+        );
+    }
+}
+
+/// The same row: the line `off.kept` that the unit adds (I5.4, RD-67 1.2), as the page reads it
+/// through the app's real wiring: an agent listed `paused` with no hold by its events shows the
+/// status `off`, the words of `line.off.kept` and the controls of the hold `off`.
+#[test]
+fn through_the_app_an_agent_listed_paused_with_no_hold_by_its_events_reads_the_line_off_kept() {
+    let shared = world(1, Limits::PRODUCT);
+    shared.with(|p| {
+        for w in p.workflows.borrow_mut().iter_mut() {
+            if let halvo_coord::types::Workflow::Full(f) = w {
+                f.state = halvo_coord::types::WorkflowState::Paused;
+            }
+        }
+    });
+    let hub = Hub::new(
+        shared,
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    Core::tick(&*hub);
+    let (_app, main, _other) = app(hub.clone());
+    let state: Value =
+        serde_json::from_str(&invoke(&main, "agents_snapshot", json!({})).unwrap()).unwrap();
+    let words: Value = serde_json::from_str(&fixture("words")).unwrap();
+    let row = &state["rows"][0];
+    assert_eq!(row["status"], "off");
+    assert_eq!(row["line"], words["line.off.kept"]);
+    assert_eq!(
+        row["controls"]
+            .as_array()
+            .map(|c| c.iter().map(|x| x["control"].clone()).collect::<Vec<_>>()),
+        Some(vec![json!("switch_on"), json!("delete")])
+    );
 }

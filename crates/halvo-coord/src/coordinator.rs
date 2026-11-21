@@ -12,9 +12,9 @@ use crate::schedule::{self, Board, Move, Report};
 use crate::sync::{Next, Sync};
 use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
-    FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
-    OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind, Snapshot,
-    Status, System,
+    FullWorkflow, HandbackAsk, HistoryRead, Item, ItemId, ItemKind, LapseCause, Limits, Live,
+    OtherLapse, OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind,
+    Snapshot, Status, StatusLine, System, Unknown, WorkflowId,
 };
 use crate::words;
 use std::cell::RefCell;
@@ -104,6 +104,18 @@ struct Waited {
     raised_at: Option<u64>,
 }
 
+/// A delete that the person confirmed while a run of the agent was on the board, held in
+/// memory for this life alone and stored nowhere, so that a new life sends no delete from an
+/// earlier yes (I5.7; rulings RD-30 (1), RD-31 (4), RD-64 1.6 (b)).
+struct Deleting {
+    agent: AgentId,
+    workflow: WorkflowId,
+    run: RunId,
+    /// Whether the delete waits for the run to leave the board alone and not for its stored
+    /// `run_ended`: the agent's record was stuck at the yes (ruling RD-64 1.6 (b)).
+    board_end: bool,
+}
+
 #[derive(Clone, Copy)]
 struct AnsweredBy {
     step: Option<u32>,
@@ -130,6 +142,14 @@ struct State<C> {
     ended: Vec<(RunId, Option<crate::types::Outcome>)>,
     marked: Vec<RunId>,
     held_off: Vec<AgentId>,
+    refused_on: Vec<(AgentId, crate::ports::Shared)>,
+    deleting: Vec<Deleting>,
+    /// The agents that ask first whose queued start the person took back, each with the `ready`
+    /// item that a later tick raised for it since, or none until then: that item's row says
+    /// that the start was cancelled and that the agent asks again, in this life alone (the
+    /// gates of U2.4e, ruling RD-152 (4)).
+    taken_back: Vec<(AgentId, Option<ItemId>)>,
+    checks: Vec<(ItemId, Vec<Unknown>)>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -273,6 +293,22 @@ fn put_back<C>(board: &mut Board<C>, agent: &AgentId, order: &[schedule::Waiting
         .filter(|n| !order.iter().any(|o| o.agent == n.agent))
     {
         board.queue.push(w.clone());
+    }
+}
+
+/// Whether the owner has acknowledged the `paused` of `agent`, the task that the person switched
+/// off, for the kept body that its switch-off freed (I3.5 (e); ruling RD-160 (2)): its workflow is
+/// listed `paused`, has left the list or is the stand-in of a dismissed one, or the board holds
+/// no member of it.
+fn off_paused<C>(board: &Board<C>, agent: &AgentId) -> bool {
+    match index(board, agent) {
+        None => true,
+        Some(i) => {
+            let facts = &board.members[i].facts;
+            facts.stand_in
+                || facts.workflow.state == crate::types::WorkflowState::Paused
+                || board.gone.contains(&facts.workflow.id)
+        }
     }
 }
 
@@ -448,6 +484,10 @@ where
                 ended: Vec::new(),
                 marked: Vec::new(),
                 held_off: Vec::new(),
+                refused_on: Vec::new(),
+                deleting: Vec::new(),
+                taken_back: Vec::new(),
+                checks: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
@@ -499,7 +539,7 @@ where
         st
     }
 
-    fn enter_control(&self, agent: &AgentId, action: Action) -> Entered<'_, P> {
+    fn enter_control(&self, agent: &AgentId, action: Option<Action>) -> Entered<'_, P> {
         let mut st = Entered {
             st: self.state.lock().unwrap_or_else(PoisonError::into_inner),
             ports: &self.ports,
@@ -538,7 +578,7 @@ where
         st
     }
 
-    fn takes_its_start_away(st: &State<Cfg<P>>, agent: &AgentId, action: Action) -> bool {
+    fn takes_its_start_away(st: &State<Cfg<P>>, agent: &AgentId, action: Option<Action>) -> bool {
         let named = st
             .board
             .as_ref()
@@ -546,9 +586,9 @@ where
         let off = st.offs.contains(agent) || st.held_off.contains(agent);
         named
             && match action {
-                Action::TakeBack | Action::Stop => true,
-                Action::SwitchOff => !off,
-                Action::RunNow | Action::SwitchOn => false,
+                None | Some(Action::TakeBack | Action::Stop) => true,
+                Some(Action::SwitchOff) => !off,
+                Some(Action::RunNow | Action::SwitchOn) => false,
             }
     }
 
@@ -696,26 +736,30 @@ where
 
     /// The tick's turn at the switch-offs whose `hold_set` the owner has not taken: each is
     /// tried again at one read of the clock, and the agent stays held off on the board until its
-    /// hold shows; then the board holds its place as its ledger says.
+    /// hold shows; then the board holds its place as its ledger says. Each agent's try is held
+    /// to that agent as the take-up's are (ruling RD-140 R1, RD-144 (1)): one that panics leaves
+    /// its agent held off and the others tried, and the answer says that a try panicked.
     fn held_off_at_tick(
         &self,
         board: &mut Board<Cfg<P>>,
         st_ledgers: &mut Vec<(AgentId, Ledger)>,
         held_off: &mut Vec<AgentId>,
-    ) {
+    ) -> bool {
         if held_off.is_empty() {
-            return;
+            return false;
         }
         let stamp = crate::ports::Stamp::read(&self.ports).ok();
         if let Some(stamp) = stamp {
             self.noted(Some(stamp.now()));
         }
+        let mut panicked = false;
         for agent in std::mem::take(held_off) {
             let rest = match stamp {
-                Some(stamp) => self.off_at_stamp(board, st_ledgers, &agent, stamp),
-                None => OffRest::Clock,
+                Some(stamp) => contain(|| self.off_at_stamp(board, st_ledgers, &agent, stamp)),
+                None => Some(OffRest::Clock),
             };
-            if rest == OffRest::Done {
+            panicked |= rest.is_none();
+            if rest == Some(OffRest::Done) {
                 let keep = st_ledgers
                     .iter()
                     .any(|(a, l)| a == &agent && l.holds_place());
@@ -725,6 +769,7 @@ where
                 held_off.push(agent);
             }
         }
+        panicked
     }
 
     /// The rest of a switch-off that no read of the clock stamped, at `stamp`, the first read
@@ -897,6 +942,7 @@ where
             st.mark.tick = false;
         }
         st.returned = true;
+        self.deletes_due(&mut st);
         self.publish(&mut st);
     }
 
@@ -943,16 +989,19 @@ where
             self.noted(created.read);
             self.flush_ledgers(board, ledgers);
         }
-        {
+        let panicked = {
             let State {
                 board,
                 ledgers,
                 held_off,
                 ..
             } = &mut *st;
-            if let Some(board) = board.as_mut() {
-                self.held_off_at_tick(board, ledgers, held_off);
-            }
+            board
+                .as_mut()
+                .is_some_and(|board| self.held_off_at_tick(board, ledgers, held_off))
+        };
+        if panicked {
+            self.held_panic(st);
         }
         self.finish_switch_offs_after_reads(st, before);
         let State {
@@ -992,6 +1041,7 @@ where
             }
         }
         self.open_setups(st);
+        self.tick_waited_setups(st);
         self.tick_setups(st);
         self.tick_confirms(st);
         self.tick_binds(st);
@@ -1056,6 +1106,13 @@ where
 
     /// Takes what a move of the setup `k` answered; whether the setup stays.
     fn setup_done(&self, st: &mut State<Cfg<P>>, k: usize, done: Result<SetupDone, Cause>) -> bool {
+        if matches!(done, Ok(SetupDone::Overlap)) {
+            let again = self.overlap_once_more(st, k);
+            return self.setup_done(st, k, again);
+        }
+        if matches!(done, Ok(SetupDone::ActiveOverlap)) {
+            self.active_overlap(st, k);
+        }
         let agent = st.setups[k].agent().clone();
         let stays = matches!(
             done,
@@ -1080,6 +1137,107 @@ where
             st.forgotten.push(agent);
         }
         false
+    }
+
+    /// What follows a first refusal `overlap` of the body of the setup `k` (I3.5 (b); ruling
+    /// RD-67 3.2 (b)): every `paused` that the board owes, then the body once more; the answer of
+    /// that send, which is never `Overlap`.
+    fn overlap_once_more(&self, st: &mut State<Cfg<P>>, k: usize) -> Result<SetupDone, Cause> {
+        let State {
+            board,
+            ledgers,
+            setups,
+            ..
+        } = &mut *st;
+        let board = board.as_mut().ok_or(Cause::State)?;
+        schedule::pause_owed(&self.ports, board);
+        let i = index(board, setups[k].agent()).ok_or(Cause::State)?;
+        let l = ledger(ledgers, board, i);
+        let facts = &board.members[i].facts;
+        items::again_setup(&self.ports, l, &self.limits, &mut setups[k], facts)
+    }
+
+    /// The `active` that the rule of `active` sent after the acknowledged body of the setup `k`
+    /// was refused with `overlap`: its agent is marked for the life and gets `paused` (ruling
+    /// RD-67 4.3).
+    fn active_overlap(&self, st: &mut State<Cfg<P>>, k: usize) {
+        let agent = st.setups[k].agent().clone();
+        if let Some(board) = st.board.as_mut() {
+            if let Some(i) = index(board, &agent) {
+                schedule::refused_active(&self.ports, board, i);
+            }
+        }
+    }
+
+    /// After a switch-off of the agent `off` that the person made, the kept body of each setup
+    /// whose sentence names that agent, or names nobody, goes once more (I3.5 (e); ruling RD-67
+    /// 3.2 (e)), in this move where the owner has acknowledged the `paused` of `off`, else at the
+    /// first tick that finds it acknowledged (`tick_waited_setups`; ruling RD-160 (2)).
+    fn setups_freed(&self, st: &mut State<Cfg<P>>, off: &AgentId) {
+        let paused = st.board.as_ref().is_some_and(|b| off_paused(b, off));
+        let mut k = 0;
+        while k < st.setups.len() {
+            let State {
+                board,
+                ledgers,
+                setups,
+                ..
+            } = &mut *st;
+            let done = match board.as_mut() {
+                Some(board) => match index(board, setups[k].agent()) {
+                    Some(i) => {
+                        let l = ledger(ledgers, board, i);
+                        let facts = &board.members[i].facts;
+                        items::freed_setup(
+                            &self.ports,
+                            l,
+                            &self.limits,
+                            &mut setups[k],
+                            facts,
+                            off,
+                            paused,
+                        )
+                    }
+                    None => Err(Cause::State),
+                },
+                None => return,
+            };
+            if self.setup_done(st, k, done) {
+                k += 1;
+            }
+        }
+    }
+
+    /// At a tick, the kept body of each setup that waits for the `paused` of the task that the
+    /// person switched off goes once more, as `again_setup` sends it, once the owner has
+    /// acknowledged that `paused` (`off_paused`); a setup that still waits sends nothing (I3.5
+    /// (e); ruling RD-160 (2)).
+    fn tick_waited_setups(&self, st: &mut State<Cfg<P>>) {
+        let mut k = 0;
+        while k < st.setups.len() {
+            let State {
+                board,
+                ledgers,
+                setups,
+                ..
+            } = &mut *st;
+            let Some(board) = board.as_mut() else { return };
+            if !setups[k].waits().is_some_and(|off| off_paused(board, off)) {
+                k += 1;
+                continue;
+            }
+            let done = match index(board, setups[k].agent()) {
+                Some(i) => {
+                    let l = ledger(ledgers, board, i);
+                    let facts = &board.members[i].facts;
+                    items::again_setup(&self.ports, l, &self.limits, &mut setups[k], facts)
+                }
+                None => Err(Cause::State),
+            };
+            if self.setup_done(st, k, done) {
+                k += 1;
+            }
+        }
     }
 
     fn tick_confirms(&self, st: &mut State<Cfg<P>>) {
@@ -1217,6 +1375,7 @@ where
         let before = Self::agents_held_off(&st);
         let out = self.on_run_in(&mut st, run, &event);
         self.finish_switch_offs_after_reads(&mut st, &before);
+        self.deletes_due(&mut st);
         self.publish(&mut st);
         out
     }
@@ -1248,7 +1407,6 @@ where
                     self.act(st, Act::Resume { run: run.clone() })?;
                 }
                 self.lapse_held(st, i, run, LapseCause::RunEnded);
-                self.lapse_binds(st, i, run, OtherLapse::RunEnded);
                 st.handbacks.retain(|(_, a)| &a.run != run);
                 st.waits.retain(|w| &w.run != run);
                 self.end_of_run(st, run, *outcome)
@@ -1491,10 +1649,18 @@ where
             ledgers,
             ..
         } = st;
+        let start = match &act {
+            Act::Start { agent } => Some(agent.clone()),
+            _ => None,
+        };
         let board = board.as_mut().ok_or(Cause::State)?;
         share_lasts(board, ledgers);
         let done: Done = run::drive(&self.ports, board, table, &self.limits, act);
         self.noted(done.report.read);
+        if let (Some(agent), Some(shared)) = (start, done.report.shared.clone()) {
+            st.refused_on.retain(|(a, _)| a != &agent);
+            st.refused_on.push((agent, shared));
+        }
         answered(&done.report)
     }
 
@@ -1718,7 +1884,6 @@ where
     }
 
     fn switch_off(&self, st: &mut State<Cfg<P>>, i: usize, mv: Move) -> Result<(), Cause> {
-        let person = matches!(mv, Move::SwitchOff { .. });
         let State {
             board,
             table,
@@ -1749,14 +1914,16 @@ where
         };
         let report = schedule::drive_with(&self.ports, board, &self.limits, mv, Some(&mut halt));
         self.noted(report.read);
-        if person && report.unstamped {
+        if report.unstamped {
             return self.switch_off_unstamped(st, i);
         }
         waits.retain(|w| !report.stopped.contains(&w.run));
         answered(&report)
     }
 
-    /// The person's switch-off when no read of the clock answers (ruling RD-133 1): the
+    /// The person's switch-off when no read of the clock answers (ruling RD-133 1), and so the
+    /// rest of a switch-off that a move's own read of the owner's events showed beside a live run
+    /// (RD-52 (b) rule 3) when that move's `Move::Off` finds no read (adversary 3's a/02): the
     /// agent's live run is stopped on the guard's table and the board at once and its open item
     /// lapses with `cancelled`, `Runs::cancel` goes out in this move, and its queued start
     /// leaves the queue; the run's stop time, the rows and the rest of the switch-off wait for
@@ -2338,11 +2505,14 @@ where
 
     /// The card of the native dialog of the confirmation `item` (I8.1 `agents_present`, ruling
     /// RD-77 12.1): `items::native_card` of the confirmation that the coordinator holds for that
-    /// id, read under the lock; it calls no port and stores nothing. `unknown_item` for an id that
-    /// is no held confirmation, an item of another kind and no item among them, the causes of
-    /// `items::native_card` otherwise, and then `no_service` while the board holds stuck the
-    /// record of the agent whose row shows the item, the agent of the run that raised it (rulings
-    /// RD-147 (5)(ii), RD-164).
+    /// id, read under the lock. As the first call after a move or a tick that did not return it
+    /// publishes before it reads, as every call does then (rulings RD-80 3.4, 4.2): the snapshot's
+    /// `seq` rises, the page's bell rings (`Page::changed`) and the tray's count is set
+    /// (`Tray::attention`); any other call of it calls no port. It logs no row and sends no body.
+    /// `unknown_item` for an id that is no held confirmation, an item of another kind and no item
+    /// among them, the causes of `items::native_card` otherwise, and then `no_service` while the
+    /// board holds stuck the record of the agent whose row shows the item, the agent of the run
+    /// that raised it (rulings RD-147 (5)(ii), RD-164).
     pub fn native_card(&self, item: &ItemId) -> Result<NativeCard, Cause> {
         let st = self.lock();
         let h = st
@@ -2428,12 +2598,47 @@ where
     }
 
     fn schedule(&self, st: &mut State<Cfg<P>>, mv: Move) -> Result<(), Cause> {
+        let on = match &mv {
+            Move::SwitchOn { agent } => Some(agent.clone()),
+            _ => None,
+        };
         let State { board, ledgers, .. } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
         share_lasts(board, ledgers);
         let report = schedule::drive(&self.ports, board, &self.limits, mv);
         self.noted(report.read);
+        if let Some(agent) = on {
+            st.refused_on.retain(|(a, _)| a != &agent);
+            if let Some(shared) = report.shared.clone() {
+                st.refused_on.push((agent, shared));
+            }
+        }
         answered(&report)
+    }
+
+    /// What the open setup item `item` holds to show of the newest refusal `overlap` of its
+    /// body: the entries of the read that followed it, or that the read did not answer; none
+    /// otherwise (I3.5 (c), (d); ruling RD-67 3.2). The sentence's words are U2.4d's.
+    pub fn setup_overlap(&self, item: &ItemId) -> Option<crate::ports::Shared> {
+        let st = self.lock();
+        st.setups
+            .iter()
+            .find(|s| s.item() == item)
+            .and_then(|s| s.shared().cloned())
+    }
+
+    /// What the newest switch-on or start by the person of `agent` holds to show where the owner
+    /// refused its state with `overlap`: the entries of the read that followed, or the half of the
+    /// sentence that is known where that read did not answer; none after a later control of the
+    /// person on that agent that the owner did not refuse so, such as a switch-on or a Start now
+    /// that goes, a switch-off or a stop (I3.5 (c), (f); rulings RD-67 3.2 (f), 4.3, RD-160 (3)).
+    /// It keeps its name for the page that reads it.
+    pub fn switch_on_overlap(&self, agent: &AgentId) -> Option<crate::ports::Shared> {
+        let st = self.lock();
+        st.refused_on
+            .iter()
+            .find(|(a, _)| a == agent)
+            .map(|(_, s)| s.clone())
     }
 
     /// A start by the person, `run_now` or the `start` of a `ready` item: `state` after the first
@@ -2496,13 +2701,184 @@ where
     /// no start of the agent waits, a run that started before the call going on (rulings RD-54
     /// (h), RD-52 (d)). The call ends, as every control does, by publishing the state, which
     /// tells the page and the tray when it changed.
+    /// A switch-off
+    /// whose `hold_set` the owner refuses with a name of class B stops the agent's live run as
+    /// the stop does, stores no hold and answers the store's cause; the agent stays on, and its
+    /// row says both, that the task was stopped and that the switch-off could not be saved, until
+    /// a later run of it starts or a later switch-off of it is stored (ruling RD-155 (1)), while
+    /// the owner's list does not show its workflow dismissed (ruling RD-168).
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
-        let mut st = self.enter_control(agent, action);
+        let mut st = self.enter_control(agent, Some(action));
         let before = Self::agents_held_off(&st);
+        let off = matches!(action, Action::SwitchOff);
+        st.refused_on.retain(|(a, _)| a != agent);
         let out = self.control_in(&mut st, agent, action);
+        if off && out.is_ok() {
+            // Every owed `paused` before a freed body, where a set-up keeps one (ruling RD-160
+            // (2)); a switch-off that waits for a read of the clock sends its own with the rest
+            // of it (ruling RD-133 1).
+            let freed = !st.offs.contains(agent) && st.setups.iter().any(|s| s.kept().is_some());
+            if let (Some(board), true) = (st.board.as_mut(), freed) {
+                schedule::pause_owed(&self.ports, board);
+            }
+            self.setups_freed(&mut st, agent);
+        }
         self.finish_switch_offs_after_reads(&mut st, &before);
+        self.deletes_due(&mut st);
         self.publish(&mut st);
         out
+    }
+
+    /// The person's yes to the question of a row's Delete (I8.1 `agents_delete`; ruling RD-19
+    /// (c) rule 7), which removes the agent with its workflow through `Owner::delete`, the one
+    /// delete of W-C3.10, at that yes and in this life or not at all (ruling RD-30 (1)). Like a
+    /// Stop, the call first takes up what an earlier move left, with the agent's queued start
+    /// set aside during it. An agent with no run on the board, or one that a new life set
+    /// aside, is deleted at once, and a start that only waits its turn leaves the queue with the
+    /// agent, as I5.7 drops it; the row then leaves the state and every control of the agent answers
+    /// `unknown_agent`. With a run on the board the call stores the hold `off` and stops the run
+    /// as the switch-off does, so that the agent stays switched off after a quit, keeps the
+    /// intent in memory alone, and sends the delete once that run's `run_ended` is stored, at
+    /// the end of the move that stores it or of a later tick; meanwhile the row shows
+    /// `working.deleting` with no control. An agent whose record is stuck is stopped as Stop
+    /// stops it, with no row of the hold, and its delete is sent once the run has left the
+    /// board (ruling RD-64 1.6 (b)). After the first step of the quit no intent is sent and the
+    /// end of the next move forgets each, so nothing is deleted and the agent stands stopped and switched off, with Delete on its row
+    /// in the next life (I5.7). Causes: `no_service` with no board; `unknown_agent` for an agent
+    /// that has no row or whose workflow is gone; `state` after the quit's first step, while a
+    /// switch-off of the agent waits for a read, or where the owner refuses the delete, its
+    /// guard among them, which the page meets by reading the state anew (ruling RD-19 (d)
+    /// (1)); `busy` and `no_service` where the owner or the store of the hold answers so, and
+    /// then nothing is deleted and no run is stopped. A second yes while an intent stands
+    /// answers success and changes nothing. A refusal `no_workflow` of the delete counts as
+    /// done, since the owner holds no row of the workflow.
+    pub fn delete(&self, agent: &AgentId) -> Result<(), Cause> {
+        let mut st = self.enter_control(agent, None);
+        let before = Self::agents_held_off(&st);
+        let out = self.delete_in(&mut st, agent);
+        self.finish_switch_offs_after_reads(&mut st, &before);
+        self.deletes_due(&mut st);
+        self.publish(&mut st);
+        out
+    }
+
+    fn delete_in(&self, st: &mut State<Cfg<P>>, agent: &AgentId) -> Result<(), Cause> {
+        if st.quitting {
+            return Err(Cause::State);
+        }
+        let board = st.board.as_ref().ok_or(Cause::NoService)?;
+        let i = index(board, agent).ok_or(Cause::UnknownAgent)?;
+        if Self::gone(st, board, i) {
+            return Err(Cause::UnknownAgent);
+        }
+        if st.deleting.iter().any(|d| &d.agent == agent) {
+            return Ok(());
+        }
+        let workflow = board.members[i].facts.workflow.id.clone();
+        let on_board = board
+            .runs
+            .iter()
+            .find(|r| &r.agent == agent)
+            .map(|r| r.run.clone());
+        let Some(run) = on_board.filter(|_| !board.aside(agent)) else {
+            return self.send_delete(st, agent, &workflow);
+        };
+        if st.offs.contains(agent) || st.held_off.contains(agent) {
+            return Err(Cause::State);
+        }
+        let stuck = board.record_stuck(agent, &self.limits);
+        let unstopped =
+            live_unstopped_run(board, agent).filter(|r| !st.ended.iter().any(|(e, _)| e == r));
+        let off = schedule::holds(&board.members[i].facts).contains(&schedule::Hold::Off);
+        if stuck {
+            if unstopped.is_some() {
+                self.stop_in(st, i)?;
+            }
+        } else if unstopped.is_some() || !off {
+            self.switch_off(
+                st,
+                i,
+                Move::SwitchOff {
+                    agent: agent.clone(),
+                },
+            )?;
+        }
+        st.deleting.push(Deleting {
+            agent: agent.clone(),
+            workflow,
+            run,
+            board_end: stuck,
+        });
+        Ok(())
+    }
+
+    /// Sends the delete of `workflow` and, once the owner took it, forgets the agent as a tick
+    /// forgets one whose workflow it saw gone: its row, its items and its queued start go.
+    fn send_delete(
+        &self,
+        st: &mut State<Cfg<P>>,
+        agent: &AgentId,
+        workflow: &WorkflowId,
+    ) -> Result<(), Cause> {
+        match self.ports.delete(workflow) {
+            Ok(()) => {}
+            Err(PortError::Refused(name)) if name.as_str() == "no_workflow" => {}
+            Err(PortError::Refused(_)) => return Err(Cause::State),
+            Err(e) => return Err(cause_of(&e)),
+        }
+        st.deleting.retain(|d| &d.agent != agent);
+        if !st.forgotten.contains(agent) {
+            st.forgotten.push(agent.clone());
+        }
+        st.held.retain(|h| h.ask().agent() != agent);
+        st.binds.retain(|b| &b.ask().agent != agent);
+        st.handbacks.retain(|(_, a)| &a.agent != agent);
+        st.waits.retain(|w| &w.agent != agent);
+        st.setups.retain(|s| s.agent() != agent);
+        for (a, l) in st.ledgers.iter_mut() {
+            if a == agent {
+                *l = run::forgotten(workflow.clone(), agent.clone(), l);
+            }
+        }
+        if let Some(board) = st.board.as_mut() {
+            board.queue.remove(agent);
+        }
+        Ok(())
+    }
+
+    /// Sends each delete whose run has ended: its `run_ended` stored, which is so once the run
+    /// has left the board and the board owes no `run_ended` of it, or, for a delete of a stuck
+    /// record, once the run has left the board. A delete that the owner answers `busy` or
+    /// `no_service` is tried again at the end of a later move; one that it refuses is dropped,
+    /// so the agent stands stopped and switched off with Delete on its row. After the first
+    /// step of the quit every intent is forgotten and nothing is sent.
+    fn deletes_due(&self, st: &mut State<Cfg<P>>) {
+        if st.quitting {
+            st.deleting.clear();
+            return;
+        }
+        let Some(board) = st.board.as_ref() else {
+            return;
+        };
+        let due: Vec<(AgentId, WorkflowId)> = st
+            .deleting
+            .iter()
+            .filter(|d| {
+                let on_board = board.runs.iter().any(|r| r.run == d.run);
+                let owed = board.owed.iter().any(
+                    |o| matches!(&o.what, schedule::Owing::RunEnded { run, .. } if run == &d.run),
+                );
+                let kept = st.ended.iter().any(|(r, _)| r == &d.run);
+                !on_board && (d.board_end || (!owed && !kept))
+            })
+            .map(|d| (d.agent.clone(), d.workflow.clone()))
+            .collect();
+        for (agent, workflow) in due {
+            match self.send_delete(st, &agent, &workflow) {
+                Ok(()) | Err(Cause::Busy | Cause::NoService) => {}
+                Err(_) => st.deleting.retain(|d| d.agent != agent),
+            }
+        }
     }
 
     fn control_in(
@@ -2539,13 +2915,51 @@ where
                 },
             ),
             Action::Stop => self.stop_in(st, i),
-            Action::TakeBack => self.schedule(
-                st,
-                Move::TakeBack {
-                    agent: agent.clone(),
-                },
-            ),
+            Action::TakeBack => {
+                self.schedule(
+                    st,
+                    Move::TakeBack {
+                        agent: agent.clone(),
+                    },
+                )?;
+                let asks = st.board.as_ref().is_some_and(|b| {
+                    index(b, agent)
+                        .is_some_and(|i| schedule::needs_person(&b.members[i].facts.config))
+                });
+                st.taken_back.retain(|(a, _)| a != agent);
+                if asks {
+                    st.taken_back.push((agent.clone(), None));
+                }
+                Ok(())
+            }
         }
+    }
+
+    /// Follows each agent whose start the person took back: the first `ready` item that the
+    /// agent holds after it is that mark's item; the mark ends once the agent holds no item of
+    /// its own any more after that item, holds another one, runs or waits in the queue.
+    fn follow_taken_back(st: &mut State<Cfg<P>>) {
+        let Some(board) = st.board.as_ref() else {
+            return;
+        };
+        let mut kept = Vec::new();
+        for (agent, item) in std::mem::take(&mut st.taken_back) {
+            let Some(i) = index(board, &agent) else {
+                continue;
+            };
+            let facts = &board.members[i].facts;
+            let open = facts
+                .doing
+                .item()
+                .filter(|o| o.kind == ItemKind::Ready && matches!(facts.doing, Doing::Idle(_)));
+            match (open, item) {
+                (Some(o), None) => kept.push((agent, Some(o.item))),
+                (Some(o), Some(was)) if o.item == was => kept.push((agent, Some(was))),
+                (None, None) if matches!(facts.doing, Doing::Idle(_)) => kept.push((agent, None)),
+                _ => {}
+            }
+        }
+        st.taken_back = kept;
     }
 
     /// The person's Stop (I5.7). It is refused by no read of the clock (ruling RD-133 1): where
@@ -2782,9 +3196,12 @@ where
     /// The card of an agent (I8.1 `agents_card`, I2.6), read through `Owner::agent_history`,
     /// with the name of its row: two agents of one name get their ordinal among the agents whose
     /// rows the page shows (I2.3). Its first line is `card.records_dropped` with the count of
-    /// `records_dropped` where the board took off a record of the agent in this life. An agent
-    /// that has no row, whose workflow a tick saw gone or whose setup body the owner ended, is
-    /// `unknown_agent`, as for every control.
+    /// `records_dropped` where the board took off a record of the agent in this life. Where the
+    /// history read answers busy, the card holds that line alone, where the count is at least
+    /// 1, no run, and the key `history` with `busy`, so that the page asks again and never shows
+    /// it as a card with no history; any other refusal of the read answers its cause (the
+    /// coordinator's word on R6 of U2.4t). An agent that has no row, whose workflow a tick saw
+    /// gone or whose setup body the owner ended, is `unknown_agent`, as for every control.
     /// A run that this life's `Runs::reap` answered `alive` and that a record of the store names
     /// takes its line from that record's end, as its row does (`Board::ended_after_reap`).
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
@@ -2801,10 +3218,25 @@ where
             .ok_or(Cause::UnknownAgent)?;
         let facts = shown[k];
         let name = roster::names(&shown, self.label)?.swap_remove(k);
-        let history = self
-            .ports
-            .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
-            .map_err(|e| cause_of(&e))?;
+        let count = board.dropped(agent).map_or(0, |(n, _, _)| n);
+        let dropped = roster::dropped_line(count)?;
+        let history =
+            match self
+                .ports
+                .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
+            {
+                Ok(history) => history,
+                Err(PortError::Busy) => {
+                    return Ok(Card {
+                        agent: agent.clone(),
+                        name,
+                        lines: dropped.into_iter().collect(),
+                        runs: Vec::new(),
+                        history: Some(HistoryRead::Busy),
+                    })
+                }
+                Err(e) => return Err(cause_of(&e)),
+            };
         let records: Vec<_> = history.iter().map(|h| h.run.clone()).collect();
         let after = board.ended_after_reap(facts, &records);
         let mut card = roster::card(
@@ -2813,8 +3245,7 @@ where
             &history,
             &self.limits,
         )?;
-        let count = board.dropped(agent).map_or(0, |(n, _, _)| n);
-        if let Some(line) = roster::dropped_line(count)? {
+        if let Some(line) = dropped {
             card.lines.insert(0, line);
         }
         Ok(card)
@@ -2852,6 +3283,7 @@ where
     }
 
     fn publish(&self, st: &mut State<Cfg<P>>) {
+        Self::follow_taken_back(st);
         let State { board, ledgers, .. } = &mut *st;
         if let Some(board) = board.as_mut() {
             for (agent, l) in ledgers.iter_mut() {
@@ -2885,6 +3317,7 @@ where
                 .collect();
             self.live_runs.store(b.runs.len(), Ordering::Relaxed);
         }
+        Self::keep_check_fields(st);
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
         let changed = if st.mark.unpublished {
@@ -2899,6 +3332,34 @@ where
             let _ = self
                 .ports
                 .attention(u32::try_from(needs).unwrap_or(u32::MAX));
+        }
+    }
+
+    /// Keeps, for each open check card, the entries of the roster's key `unknown` that the
+    /// newest read naming them gave, and forgets those of a card that is no longer open: so the
+    /// card shows the kept fields of the entry that made its hold stand also in a move whose
+    /// roster read did not answer, or whose read no longer names that entry (rulings RD-81 8.3,
+    /// RD-135 item 4). The fields live in this life's state alone.
+    fn keep_check_fields(st: &mut State<Cfg<P>>) {
+        let State { board, checks, .. } = st;
+        let open: Vec<(ItemId, &Vec<Unknown>)> = board.as_ref().map_or_else(Vec::new, |b| {
+            b.members
+                .iter()
+                .filter_map(|m| {
+                    let item = m.facts.doing.item()?;
+                    (item.kind == ItemKind::Check).then_some((item.item, &m.facts.unknown))
+                })
+                .collect()
+        });
+        checks.retain(|(item, _)| open.iter().any(|(i, _)| i == item));
+        for (item, unknown) in open {
+            if unknown.is_empty() {
+                continue;
+            }
+            match checks.iter_mut().find(|(i, _)| *i == item) {
+                Some((_, kept)) => kept.clone_from(unknown),
+                None => checks.push((item, unknown.clone())),
+            }
         }
     }
 
@@ -2957,7 +3418,7 @@ where
                     read.doing = Doing::Idle(None);
                 }
             }
-            let line = match roster::status_of(
+            let mut line = match roster::status_of(
                 after.as_ref().unwrap_or(*facts),
                 &self.limits,
                 held.map(|h| h.confirmation().state()),
@@ -2969,15 +3430,52 @@ where
                 }
                 line => line,
             };
+            if board.setup_owed(&facts.agent)
+                && !board.workflow_dismissed(&facts.workflow.id)
+                && line.status() == Status::AllSet
+            {
+                line = crate::types::StatusLine::NeedsYou(ItemKind::Setup);
+            }
             let waiting = board
                 .queue
                 .entries()
                 .iter()
                 .find(|w| w.agent == facts.agent)
                 .map(|w| w.trigger);
-            let Ok(row) = roster::row(*facts, line, name, waiting, &self.limits) else {
+            let row = if st.deleting.iter().any(|d| d.agent == facts.agent) {
+                roster::deleting_row(*facts, name)
+            } else {
+                roster::row(*facts, line, name, waiting, &self.limits)
+            };
+            let Ok(mut row) = row else {
                 continue;
             };
+            let asks_again = st.taken_back.iter().any(|(a, item)| {
+                a == &facts.agent
+                    && item.is_some()
+                    && open.as_ref().map(|o| &o.item) == item.as_ref()
+            });
+            if asks_again && line == StatusLine::NeedsYou(ItemKind::Ready) {
+                if let Ok(text) = words::text("line.needs_you.asks_again", &[]) {
+                    row.line = text;
+                }
+            }
+            if board.kept_on(&facts.agent)
+                && !board.workflow_dismissed(&facts.workflow.id)
+                && matches!(
+                    row.status,
+                    Status::Working | Status::WaitingTurn | Status::AllSet
+                )
+            {
+                let key = if board.runs.iter().any(|r| r.agent == facts.agent) {
+                    "line.working.switch_not_saved"
+                } else {
+                    "line.all_set.switch_not_saved"
+                };
+                if let Ok(text) = words::text(key, &[]) {
+                    row.line = text;
+                }
+            }
             let item = match (&open, line.status()) {
                 (Some(o), Status::NeedsYou) => self.item_of(st, facts, held, o.kind, &o.item, name),
                 _ => None,
@@ -3084,7 +3582,13 @@ where
                 .find(|s| s.item() == item)
                 .and_then(|s| s.page_item(name, &self.limits).ok()),
             ItemKind::Check => {
+                let kept = st
+                    .checks
+                    .iter()
+                    .find(|(i, _)| i == item)
+                    .map_or(&[][..], |(_, kept)| kept);
                 let unknown: &[_] = match &facts.doing {
+                    Doing::Idle(_) | Doing::Queued(_) if facts.unknown.is_empty() => kept,
                     Doing::Idle(_) | Doing::Queued(_) => &facts.unknown,
                     Doing::Live(_) => &[],
                 };

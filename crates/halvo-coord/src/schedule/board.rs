@@ -1,6 +1,8 @@
 use super::Queue;
 use crate::ports::Reaped;
-use crate::types::{AgentId, Defers, Facts, ItemId, Lapsed, RunEnd, RunId, WorkflowId};
+use crate::types::{
+    AgentId, Defers, Facts, HoldSetCause, ItemId, Lapsed, RunEnd, RunId, What, WorkflowId,
+};
 
 /// An agent of a gone workflow whose history recovery could not read, with this life's
 /// answers of `Runs::reap`.
@@ -252,6 +254,8 @@ pub struct Board<C> {
     unread: Vec<AgentId>,
     dismissed: Vec<WorkflowId>,
     queue_held: bool,
+    kept_on: Vec<(AgentId, u32)>,
+    setup_owed: Vec<AgentId>,
 }
 
 impl<C> Board<C> {
@@ -286,7 +290,89 @@ impl<C> Board<C> {
             unread: Vec::new(),
             dismissed: Vec::new(),
             queue_held: false,
+            kept_on: Vec::new(),
+            setup_owed: Vec::new(),
         }
+    }
+
+    /// Marks for the rest of this life an agent whose `set_state` `active`, sent by the tick's
+    /// rule or by `activate` after a set-up, the owner refused with `overlap`
+    /// (`Facts::active_refused`): until an acknowledged switch-on the agent stands as off by the
+    /// derived hold, also while the `paused` that follows has no acknowledgement, and the tick
+    /// sends it `paused` while the list shows another state and no `active` (rulings RD-67 4.3,
+    /// RD-160 (1); I5.4). A new life holds no mark and may send `active` once more.
+    pub fn refuse_active(&mut self, agent: &AgentId) {
+        if let Some(i) = self.index(agent) {
+            self.members[i].facts.active_refused = true;
+        }
+    }
+
+    /// Whether this life marked the agent with `refuse_active` and no acknowledged switch-on has
+    /// come since.
+    pub fn active_refused(&self, agent: &AgentId) -> bool {
+        self.index(agent)
+            .is_some_and(|i| self.members[i].facts.active_refused)
+    }
+
+    /// Takes the mark of `refuse_active` off, at a switch-on whose state the owner acknowledged.
+    pub fn free_active(&mut self, agent: &AgentId) {
+        if let Some(i) = self.index(agent) {
+            self.members[i].facts.active_refused = false;
+        }
+    }
+
+    /// Whether a raise of the agent's `setup` that the life's first creation move or the tick of
+    /// its recovery made was not stored, so that each later tick makes it again until the owner
+    /// stores it or the agent's record is stuck (I5.8; ruling RD-155 (2)).
+    pub fn setup_owed(&self, agent: &AgentId) -> bool {
+        self.setup_owed.contains(agent)
+    }
+
+    pub(crate) fn owe_setup(&mut self, agent: &AgentId, owed: bool) {
+        self.setup_owed.retain(|a| a != agent);
+        if owed {
+            self.setup_owed.push(agent.clone());
+        }
+    }
+
+    /// Whether the person's Switch off of the agent stopped its live run while the owner refused
+    /// the switch's `hold_set` with a name of class B, so that the agent is still on; it stands
+    /// until a later run of the agent goes on the board or a later switch-off of it is known
+    /// stored (ruling RD-155 (1)). The mark `kept_on` ends wherever the head learns that the
+    /// switch-off stands, by a press or by a read (ruling RD-168): it reads as ended once the
+    /// board's facts of the agent hold a `hold_set` of the person above the newest `seq` that
+    /// they held at the press, whichever acknowledgement or read brought it there.
+    pub fn kept_on(&self, agent: &AgentId) -> bool {
+        let Some((_, since)) = self.kept_on.iter().find(|(a, _)| a == agent) else {
+            return false;
+        };
+        !self.members.iter().any(|m| {
+            &m.facts.agent == agent
+                && m.facts.events.iter().any(|e| {
+                    e.seq.get() > *since
+                        && matches!(
+                            e.what,
+                            What::HoldSet {
+                                cause: HoldSetCause::Person
+                            }
+                        )
+                })
+        })
+    }
+
+    pub(crate) fn keep_on(&mut self, agent: &AgentId) {
+        let since = self
+            .members
+            .iter()
+            .find(|m| &m.facts.agent == agent)
+            .and_then(|m| m.facts.events.last())
+            .map_or(0, |e| e.seq.get());
+        self.kept_on.retain(|(a, _)| a != agent);
+        self.kept_on.push((agent.clone(), since));
+    }
+
+    pub(crate) fn switched_off(&mut self, agent: &AgentId) {
+        self.kept_on.retain(|(a, _)| a != agent);
     }
 
     /// Holds the queue or frees it: while held, the end of a run starts nothing from the queue,
@@ -336,6 +422,9 @@ impl<C> Board<C> {
     /// Takes a run that this life put on the board with whether the defer of its launch was
     /// acknowledged (ruling RD-86 item 1).
     pub(crate) fn launched(&mut self, run: &RunId, launch: bool) {
+        if let Some(live) = self.runs.iter().find(|r| &r.run == run) {
+            self.kept_on.retain(|(a, _)| a != &live.agent);
+        }
         self.defers.retain(|(r, _)| r != run);
         self.defers.push((
             run.clone(),
@@ -505,6 +594,8 @@ impl<C> Board<C> {
             replies: crate::types::Replies::NotAsked,
             today: day,
             doing: crate::types::Doing::Idle(None),
+            stand_in: true,
+            active_refused: false,
         };
         facts.take_unknown(&agent.unknown);
         Ok(Some(facts))
@@ -722,6 +813,34 @@ impl<C> Board<C> {
     /// B, ruling RD-125 (1)).
     pub fn start_gone(&mut self, agent: &AgentId) {
         self.stuck_of(agent).gone = true;
+    }
+
+    /// Takes a refusal of a write of the agent, or of the read that follows a write's first
+    /// `seq`, by its class, the same for every sender (I5.7, I7.2, rulings RD-64 2.5, RD-123,
+    /// RD-125 (1), RD-126 item 9, RD-155 (4)): class B counts nothing toward the
+    /// stuck line and marks nothing for the life, but for a body that holds the start's
+    /// `run_started` (`start`), which stops the tick's start for the life (`start_gone`); a
+    /// refusal that cannot pass in this life (`lasts_the_life`) counts and marks the agent for the
+    /// life (`refused_for_life`); class C and every other name of class D count (`refused`);
+    /// `seq` and a failure that is no refusal by name count nothing here. `dismissed` says
+    /// whether the owner's list, as the sender last read it, shows the agent's workflow
+    /// dismissed.
+    pub(crate) fn note_refusal(
+        &mut self,
+        agent: &AgentId,
+        error: &crate::ports::PortError,
+        dismissed: bool,
+        start: bool,
+    ) {
+        use crate::items::drive::{class_of, lasts_the_life, Class};
+        match class_of(error, dismissed) {
+            Some(Class::Gone) if start => self.start_gone(agent),
+            Some(Class::Gone | Class::Seq) | None => {}
+            Some(Class::One | Class::Whole) if lasts_the_life(error, dismissed) => {
+                self.refused_for_life(agent);
+            }
+            Some(Class::One | Class::Whole) => self.refused(agent),
+        }
     }
 
     /// Whether a record or a body of the agent's items' list keeps its place under class D or as

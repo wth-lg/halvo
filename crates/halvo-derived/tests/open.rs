@@ -246,3 +246,137 @@ fn open_refuses_a_keyless_store_whose_page_size_is_not_4096() {
         Ok(())
     );
 }
+
+/// Ruling S-100, item 6 and pr-review-26 N1: an open that `auto_vacuum`, the page size or the schema refuses changes no
+/// byte of the database file, also of a file in rollback-journal mode. Three files, each made in that mode by a
+/// connection of the test's own, as `keyless_open_of_a_file_made_with` and `open_refuses_a_database_with_another_schema`
+/// make theirs: a keyless file with `auto_vacuum` FULL and one with a page size of 8,192, each opened by the keyless
+/// open of the test host, and a file under the store's key that holds a table `other`, opened with that key. Each open
+/// answers its refusal, and the bytes of derived.db after it are those before it.
+#[test]
+fn a_refused_open_of_a_rollback_journal_file_changes_no_byte() {
+    let made = |name: &str, keyed: bool, sql: &str| -> Scratch {
+        let scratch = Scratch::new(name);
+        std::fs::create_dir_all(scratch.path().join("derived")).unwrap();
+        let conn = if keyed {
+            raw(&scratch)
+        } else {
+            halvo_derived::test_host::start_sqlite();
+            halvo_sqlcipher::rusqlite::Connection::open(scratch.db()).unwrap()
+        };
+        conn.execute_batch(sql).unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(
+            mode, "delete",
+            "{name}: the file is in rollback-journal mode"
+        );
+        scratch
+    };
+    let keyless = |scratch: &Scratch| {
+        let host = Host::new(
+            Box::new(TestClock::at_day(20_767)),
+            Box::new(common::NoProposals),
+        );
+        halvo_derived::test_host::open_keyless(scratch.path(), &registry(), host, &mut Seq(1)).err()
+    };
+    let cases = [
+        (
+            made(
+                "refused-auto-vacuum",
+                false,
+                "PRAGMA auto_vacuum = FULL; CREATE TABLE t(x); DROP TABLE t;",
+            ),
+            false,
+            OpenError::Setting("auto_vacuum"),
+        ),
+        (
+            made(
+                "refused-page-size",
+                false,
+                "PRAGMA page_size = 8192; CREATE TABLE t(x); DROP TABLE t;",
+            ),
+            false,
+            OpenError::Setting("page_size"),
+        ),
+        (
+            made("refused-schema", true, "CREATE TABLE other (x INTEGER);"),
+            true,
+            OpenError::Schema,
+        ),
+    ];
+    for (scratch, keyed, refusal) in cases {
+        let before = std::fs::read(scratch.db()).unwrap();
+        let answer = if keyed {
+            open(&scratch, &TestClock::at_day(20_767)).err()
+        } else {
+            keyless(&scratch)
+        };
+        assert_eq!(answer, Some(refusal.clone()), "the open's answer");
+        assert!(
+            std::fs::read(scratch.db()).unwrap() == before,
+            "the bytes of derived.db after the open that {refusal:?} refused"
+        );
+    }
+}
+
+/// The coordinator's rulings of 2026-11-21: an open with a key that does not open a stored database answers `Sealed`,
+/// not `Locked`, while another holds the lock of derived/writer.lock, changes no byte of derived.db and leaves the
+/// entries of derived/ as they were: the read-only test of the key stands in front of the writer lock. The store is
+/// made and closed with the test's key, and the test holds the writer lock as
+/// `an_open_is_refused_while_another_holds_the_writer_lock_and_the_database_is_free` of tests/privacy.rs does. The
+/// control: an open with the test's key under the same lock answers `Locked` and changes no byte either.
+#[test]
+fn a_wrong_key_under_a_held_writer_lock_is_sealed_and_changes_no_byte() {
+    let scratch = Scratch::new("wrong-key-held-lock");
+    let clock = TestClock::at_day(20_000);
+    drop(open(&scratch, &clock).unwrap());
+    let entries = || -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(scratch.path().join("derived"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    };
+    let before = std::fs::read(scratch.db()).unwrap();
+    let listed = entries();
+    let holder = std::fs::File::options()
+        .write(true)
+        .open(scratch.path().join("derived").join("writer.lock"))
+        .unwrap();
+    holder.try_lock().unwrap();
+    let refused = Store::open(
+        scratch.path(),
+        &DbKey::new([8; 32]),
+        &registry(),
+        Host::new(Box::new(clock.clone()), Box::new(common::NoProposals)),
+        &mut Seq(1),
+    );
+    assert_eq!(refused.err(), Some(OpenError::Sealed), "another key");
+    assert!(
+        std::fs::read(scratch.db()).unwrap() == before,
+        "the bytes of derived.db after the open with another key"
+    );
+    assert_eq!(
+        entries(),
+        listed,
+        "the entries of derived/ after the open with another key"
+    );
+    assert_eq!(
+        open(&scratch, &clock).err(),
+        Some(OpenError::Locked),
+        "the control: the test's key under the held lock"
+    );
+    assert!(
+        std::fs::read(scratch.db()).unwrap() == before,
+        "the bytes of derived.db after the control"
+    );
+    assert_eq!(
+        entries(),
+        listed,
+        "the entries of derived/ after the control"
+    );
+    holder.unlock().unwrap();
+}

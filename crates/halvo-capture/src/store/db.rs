@@ -1,11 +1,12 @@
 //! SQLCipher metadata store and the [`EncryptedStore`].
 
+use std::collections::BTreeSet;
 use std::ffi::{OsStr, OsString};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -25,9 +26,9 @@ use super::durable::{self, Dir, DurableFs, EntryKind, OsFs, Refused};
 use super::lock::DirLock;
 use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{
-    DeleteReport, KindTotal, Layout, Met, Ordinal, Reconciled, Refusal, RootReading, SegmentStore,
-    SegmentWrite, StoreError, StoreName, StoreResult, UtcDay, WriteFault, Written, KINDS_MAX,
-    KIND_MAX_BYTES, PAYLOAD_MAX_BYTES,
+    DeleteReport, KindTotal, Layout, Met, OpenFor, Ordinal, Reconciled, Refusal, RootReading,
+    SegmentStore, SegmentWrite, StoreError, StoreName, StoreResult, UtcDay, WriteFault, Written,
+    KINDS_MAX, KIND_MAX_BYTES, PAYLOAD_MAX_BYTES,
 };
 
 const KEY_FILE_VERSION: u32 = 2;
@@ -914,6 +915,7 @@ pub(in crate::store) mod code_seams {
     pub(in crate::store) const CHECKPOINT_QUERY: &str =
         "the truncating checkpoint's query of checkpoint_truncate";
     pub(in crate::store) const LOG_ENTRY_READ: &str = "the read of the log's entry in log_look";
+    pub(in crate::store) const SHRED_COMMIT: &str = "the commit of an expiry chunk";
 
     thread_local! {
         static FORCED_IO_AT: Cell<Option<(&'static str, std::io::ErrorKind)>> =
@@ -1134,9 +1136,10 @@ pub(in crate::store) fn db_error(e: rusqlite::Error) -> StoreError {
     }
 }
 
+#[cfg(test)]
 pub(in crate::store) fn unix_secs_now() -> u64 {
     SystemTime::now()
-        .duration_since(UNIX_EPOCH)
+        .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
 }
@@ -1392,6 +1395,13 @@ pub(in crate::store) struct Instants {
 }
 
 impl Instants {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "only the old write calls it, which has no caller outside the store's tests until core-3 deletes it"
+        )
+    )]
     fn at(nanos: i64) -> Instants {
         Instants {
             day: UtcDay::of_instant(nanos),
@@ -1846,8 +1856,9 @@ impl Db {
     /// `changes_before`), the shred is committed in the log and not in
     /// `store.db`, so the handle keeps the failure as it keeps a failed look,
     /// its close does not checkpoint, and nothing of it reports the shred;
-    /// the next open's drain brings the log into `store.db` before it
-    /// answers.
+    /// a later expiry or eviction call on the handle finishes the checkpoint
+    /// and lifts the failure, or the next open's drain brings the log into
+    /// `store.db` before it answers.
     pub(in crate::store) fn kept_after_a_shred(
         &self,
         e: StoreError,
@@ -1864,6 +1875,19 @@ impl Db {
             Ok(_) => e,
             Err(config) => db_error(config),
         }
+    }
+
+    pub(in crate::store) fn owes_a_checkpoint(&self) -> bool {
+        matches!(self.look_failed.get(), Some(LookFailure::Checkpoint(_)))
+    }
+
+    pub(in crate::store) fn finish_owed_checkpoint(&self) -> StoreResult<()> {
+        if !self.owes_a_checkpoint() {
+            return Ok(());
+        }
+        self.checkpoint_truncate()?;
+        self.look_failed.set(None);
+        Ok(())
     }
 
     /// Whether this handle's look after its first commit failed because it
@@ -2000,6 +2024,18 @@ impl Db {
 
     pub(crate) fn pragma_int(&self, name: &str) -> StoreResult<i64> {
         pragma_int(&self.conn, name)
+    }
+
+    pub(in crate::store) fn live_page_bytes(&self) -> StoreResult<u64> {
+        let read = |name: &str| -> StoreResult<u64> {
+            pragma_number(&self.conn, name)
+                .map_err(db_error)?
+                .and_then(|n| u64::try_from(n).ok())
+                .ok_or_else(|| StoreError::Corrupt("a page count does not read".to_string()))
+        };
+        Ok(read("page_count")?
+            .saturating_sub(read("freelist_count")?)
+            .saturating_mul(read("page_size")?))
     }
 
     pub(crate) fn cipher_provider(&self) -> StoreResult<String> {
@@ -2395,7 +2431,7 @@ impl RootKeeping {
 
 /// The encrypted store: the SQLCipher database, the per-segment files
 /// under `dir`, and the one store key in the clear only in memory.
-pub struct EncryptedStore {
+pub(in crate::store) struct EncryptedStore {
     dir: Dir,
     retention: Duration,
     custody: Box<dyn KeyCustody + Send>,
@@ -2415,6 +2451,8 @@ pub struct EncryptedStore {
     root_destroyed_with: Option<RootsLeft>,
     roots: RootKeeping,
     reconciled: Reconciled,
+    pub(in crate::store) owed_files: BTreeSet<uuid::Uuid>,
+    access: OpenFor,
     _writer_lock: DirLock,
 }
 
@@ -2548,6 +2586,8 @@ impl EncryptedStore {
                 root_destroyed_with: None,
                 roots,
                 reconciled: Reconciled::default(),
+                owed_files: BTreeSet::new(),
+                access: OpenFor::Write,
                 _writer_lock,
             }),
             Err(e) => {
@@ -2701,9 +2741,19 @@ impl EncryptedStore {
     /// with the frames that it held. The one refusal that can follow the
     /// drain is that of a `store.db` that another program moves or exchanges
     /// at its name during the drain, which is the obstructed variant and
-    /// never `Ok`.
-    pub fn open(dir: &Path, roots: &Path, retention: Duration) -> StoreResult<Self> {
-        Self::open_with(dir, roots, retention, custody_for)
+    /// never `Ok`. `access` is the caller's decision, and the open runs the
+    /// same steps for both: a handle opened with [`OpenFor::Maintenance`]
+    /// expires, evicts, lists and deletes, and its batch write answers
+    /// [`WriteFault::MaintenanceOnly`].
+    pub fn open(
+        dir: &Path,
+        roots: &Path,
+        retention: Duration,
+        access: OpenFor,
+    ) -> StoreResult<Self> {
+        let mut opened = Self::open_with(dir, roots, retention, custody_for)?;
+        opened.access = access;
+        Ok(opened)
     }
 
     pub(in crate::store) fn open_with(
@@ -2774,6 +2824,8 @@ impl EncryptedStore {
             root_destroyed_with: None,
             roots: kept,
             reconciled: Reconciled::default(),
+            owed_files: BTreeSet::new(),
+            access: OpenFor::Write,
             _writer_lock,
         };
         opened.reconciled = opened.reconcile();
@@ -2797,6 +2849,21 @@ impl EncryptedStore {
 
     pub(in crate::store) fn db(&self) -> StoreResult<&Db> {
         self.keyed().map(|(db, _)| db)
+    }
+
+    fn writable(&self) -> StoreResult<(&Db, &StoreKey)> {
+        let keyed = self.keyed()?;
+        if self.access == OpenFor::Maintenance {
+            return Err(StoreError::MaintenanceOnly);
+        }
+        Ok(keyed)
+    }
+
+    pub(in crate::store) fn maintained_db(&self) -> StoreResult<&Db> {
+        match &self.keyed {
+            Keyed::Open { db, .. } if db.owes_a_checkpoint() => Ok(db),
+            _ => self.db(),
+        }
     }
 
     pub(in crate::store) fn dir(&self) -> &Path {
@@ -2883,7 +2950,8 @@ impl EncryptedStore {
     /// look could not read the log's entry, the log may stand at its name
     /// with the row, so the file stays: the next open keeps it with its row,
     /// or sweeps it as a file with no key row. The caller keeps the batch on
-    /// every answer.
+    /// every answer. A handle opened with [`OpenFor::Maintenance`] answers
+    /// [`WriteFault::MaintenanceOnly`] and writes nothing.
     ///
     /// Two named limits of the refusal, which bounds each batch and not the
     /// day: (a) the events or the bytes of one day and kind, summed over its
@@ -2896,10 +2964,10 @@ impl EncryptedStore {
     /// summary is the caller's fault, a malformed summary.
     pub fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
         if let Some(refusal) = refusal_of(&write) {
-            self.keyed()?;
+            self.writable()?;
             return Err(WriteFault::Refused(refusal));
         }
-        let (db, _) = self.keyed()?;
+        let (db, _) = self.writable()?;
         if let Some(ordinal) = db
             .ordinal_of(*write.segment_id)
             .map_err(|e| self.answer(e))?
@@ -2923,7 +2991,7 @@ impl EncryptedStore {
         bytes: &mut dyn Read,
         kinds: &[KindTotal<'_>],
     ) -> StoreResult<Written> {
-        let (db, store_key) = self.keyed()?;
+        let (db, store_key) = self.writable()?;
         let seg_key = SegmentKey::random()?;
         let wrapped = segment::wrap_segment_key(&*wrapping_key(store_key)?, segment_id, &seg_key)?;
         let header = SegmentHeader { segment_id };
@@ -2958,6 +3026,13 @@ impl EncryptedStore {
 
     /// The legacy write of [`SegmentStore::write_segment`]: a random id, no
     /// totals, both instants the write instant.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests: the adapter writes through write_batch, and core-3 deletes this call"
+        )
+    )]
     fn write_untallied(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)> {
         let segment_id = random_segment_id()?;
         let instants = Instants::at(crate::event::unix_nanos(SystemTime::now()));
@@ -3005,6 +3080,13 @@ impl EncryptedStore {
 
     /// What the reconcile of the open that made this handle did; zero for a
     /// handle from `create`.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests until daemon-3e shows the open's reconcile counts"
+        )
+    )]
     pub fn reconciled(&self) -> Reconciled {
         self.reconciled
     }
@@ -3554,7 +3636,7 @@ pub(in crate::store) mod test_support {
     use crate::store::roots::RootGuard;
     use crate::store::DEFAULT_RETENTION;
 
-    pub(crate) struct TestStore {
+    pub(in crate::store) struct TestStore {
         store: EncryptedStore,
         _root: RootGuard,
     }
@@ -3572,7 +3654,7 @@ pub(in crate::store) mod test_support {
         }
     }
 
-    pub(crate) fn make_store(dir: &Path) -> TestStore {
+    pub(in crate::store) fn make_store(dir: &Path) -> TestStore {
         let root = RootGuard::fresh();
         let custody = crate::store::roots::custody(root.id());
         TestStore {

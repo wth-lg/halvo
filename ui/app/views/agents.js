@@ -1,22 +1,31 @@
 (function () {
   var ORDER = ['needs_you', 'problem', 'working', 'waiting_turn', 'all_set', 'off', 'not_yet'];
-  var CONTROL = { run_now: true, stop: true, switch_off: true, switch_on: true };
+  var CONTROL = { run_now: true, stop: true, take_back: true, switch_off: true, switch_on: true, delete: true };
+  var CARD_TRIES = 3;
 
   var root = null;
   var status = null;
+  var say = null;
+  var held = [];
+  var asks = null;
+  var question = null;
   var note = null;
   var groups = null;
   var shown = false;
   var turn = 0;
+  var reads = 0;
+  var brought = 0;
   var seq = 0;
   var snapshot = null;
   var statuses = {};
   var card = null;
+  var again = null;
   var asking = 0;
   var busy = {};
   var pointerFrom = null;
   var keyFrom = null;
   var SPACE = String.fromCharCode(32);
+  var ASKS = { reject: true, allow: true, stop: true, done: true };
 
   function el(tag, cls, text) {
     var node = document.createElement(tag);
@@ -97,9 +106,71 @@
     b.setAttribute('aria-describedby', 'r4a-name-' + row.agent);
     b.addEventListener('click', function (event) {
       if (event.detail > 1 || !pressedOn(b, event) || busy[row.agent]) return;
-      send(row.agent, 'agents_control', { agent: row.agent, action: c.control });
+      if (c.control === 'delete') {
+        ask(row);
+        return;
+      }
+      send(row.agent, 'agents_control', { agent: row.agent, action: c.control }).then(reread);
     });
     return b;
+  }
+
+  function isAsk(value) {
+    return (
+      value !== null &&
+      typeof value === 'object' &&
+      isText(value.title) &&
+      listOf(value.text, isText) &&
+      listOf(value.effects, function (e) {
+        return (
+          e !== null &&
+          isText(e.text) &&
+          listOf(e.fields, function (f) {
+            return f !== null && isText(f.label) && isText(f.from_text) && listOf(f.value, isText);
+          })
+        );
+      }) &&
+      (value.record === null || isText(value.record)) &&
+      listOf(value.controls, function (c) {
+        return c !== null && isText(c.text) && ASKS[c.act] === true;
+      })
+    );
+  }
+
+  function ask(row) {
+    if (question !== null || Halvo.confirm.busy() || !isAsk(row.ask)) return;
+    var agent = row.agent;
+    var mine = { agent: agent, handle: null };
+    question = mine;
+    say.empty();
+    mine.handle = Halvo.confirm.ask(asks, {
+      title: row.ask.title,
+      text: row.ask.text,
+      effects: row.ask.effects,
+      record: row.ask.record,
+      controls: row.ask.controls,
+      param: agent,
+      answer: function (act) {
+        if (act === 'allow') send(agent, 'agents_delete', { agent: agent }).then(reread);
+        else if (act === 'stop') send(agent, 'agents_control', { agent: agent, action: 'stop' }).then(reread);
+      },
+      closed: function () {
+        if (question === mine) question = null;
+      }
+    });
+  }
+
+  function release() {
+    if (Halvo.confirm.busy() || held.length === 0) return;
+    var out = held;
+    held = [];
+    say.add(out);
+  }
+
+  function reread() {
+    if (!shown) return;
+    reads += 1;
+    next({ life: turn, read: reads }, 0);
   }
 
   function fields(list) {
@@ -199,6 +270,7 @@
       if (card !== null && card.agent === row.agent) {
         asking += 1;
         card = null;
+        again = null;
         render();
         return;
       }
@@ -209,10 +281,40 @@
       send(row.agent, 'agents_card', { agent: row.agent }).then(function (reply) {
         if (mine !== asking || asked !== turn || !isCard(reply, row.agent)) return;
         card = reply;
+        again = reply.history === 'busy' ? { agent: row.agent, left: CARD_TRIES } : null;
         render();
       });
     });
     return b;
+  }
+
+  function askAgain() {
+    if (again === null || again.flying || card === null || card.agent !== again.agent || again.left < 1 || busy[again.agent]) return;
+    again.left -= 1;
+    again.flying = true;
+    var mine = again;
+    var agent = again.agent;
+    var asked = turn;
+    call('agents_card', { agent: agent })
+      .then(
+        function (reply) {
+          return reply;
+        },
+        function () {
+          return null;
+        }
+      )
+      .then(function (reply) {
+        mine.flying = false;
+        if (mine !== again || asked !== turn || card === null || card.agent !== agent) return;
+        if (!isCard(reply, agent)) {
+          again = null;
+          return;
+        }
+        card = reply;
+        if (reply.history !== 'busy') again = null;
+        render();
+      });
   }
 
   function rowOf(row) {
@@ -275,7 +377,7 @@
     if (!reply || !Array.isArray(reply.rows) || typeof reply.seq !== 'number') return;
     var says = [];
     reply.rows.forEach(function (r) {
-      if (statuses[r.agent] && statuses[r.agent] !== r.status && ORDER.indexOf(r.status) >= 0) says.push(r.say);
+      if (statuses[r.agent] && statuses[r.agent] !== r.status && ORDER.indexOf(r.status) >= 0 && isText(r.say) && r.say !== '') says.push(r.say);
     });
     statuses = {};
     reply.rows.forEach(function (r) {
@@ -284,18 +386,32 @@
     seq = reply.seq;
     snapshot = reply;
     busy = {};
-    says.forEach(function (s) {
-      status.appendChild(el('p', null, s));
-    });
+    if (question !== null) {
+      var asked = question;
+      var still = reply.rows.some(function (r) {
+        return r.agent === asked.agent && isAsk(r.ask);
+      });
+      if (!still) Halvo.confirm.drop(asked.handle);
+    }
+    if (says.length > 0) {
+      if (Halvo.confirm.busy()) held = held.concat(says);
+      else say.add(says);
+    }
     render();
   }
 
-  function next(mine) {
-    call('agents_next', { after: seq })
+  function next(mine, after) {
+    call('agents_next', { after: after })
       .then(function (reply) {
-        if (mine !== turn || !shown || !reply || reply.closed === 'yes' || typeof reply.seq !== 'number') return;
-        if (reply.seq > seq) take(reply);
-        next(mine);
+        if (mine.life !== turn || !shown || !reply || reply.closed === 'yes' || typeof reply.seq !== 'number') return;
+        if (mine.read !== reads) {
+          if (brought < reads && reply.seq !== seq) take(reply);
+          return;
+        }
+        brought = reads;
+        if (reply.seq !== seq) take(reply);
+        askAgain();
+        next(mine, seq);
       })
       .catch(function () {});
   }
@@ -307,11 +423,14 @@
     mount: function (element) {
       root = element;
       root.className = 'r4a';
-      status = el('div', 'r4a-say', null);
-      status.setAttribute('role', 'status');
+      say = Halvo.confirm.region('r4a-say');
+      status = say.element;
       root.appendChild(status);
       note = el('div', null, null);
       root.appendChild(note);
+      asks = el('div', null, null);
+      root.appendChild(asks);
+      Halvo.confirm.whenFree(release);
       groups = el('div', null, null);
       root.appendChild(groups);
       root.addEventListener('keydown', function (event) {
@@ -329,14 +448,17 @@
       call('agents_snapshot', {})
         .then(function (reply) {
           if (mine !== turn || !shown) return;
+          brought = reads;
           take(reply);
-          next(mine);
+          next({ life: mine, read: reads }, seq);
         })
         .catch(function () {});
     },
     hide: function () {
       shown = false;
       turn += 1;
+      held = [];
+      if (say) say.empty();
     }
   });
 })();

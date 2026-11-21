@@ -1,7 +1,7 @@
 use crate::items::params;
 use crate::types::{
     Category, Cause, Cleared, ConfigView, Doing, Facts, HoldSetCause, OwnItemKind, Raised, Runtime,
-    What,
+    What, WorkflowState,
 };
 
 /// The holds of I5.4, in their order: each stops every start of its agent.
@@ -63,6 +63,25 @@ fn stands<C>(facts: &Facts<C>, hold: HoldSetCause) -> bool {
     })
 }
 
+/// Whether the hold `off` or the hold `failures` stands by the stored events (I5.4): from its
+/// `hold_set` event until a later `hold_cleared` event of the same cause.
+pub fn held_by_events<C>(facts: &Facts<C>) -> bool {
+    stands(facts, HoldSetCause::Person) || stands(facts, HoldSetCause::Failures)
+}
+
+/// The derived hold `off` of ruling RD-67 1.2 (I5.4): the owner's list holds the agent's workflow
+/// in the full shape with the state `paused` while neither the hold `off` nor the hold `failures`
+/// stands by the stored events, because only this coordinator's `set_state` writes `paused`; the
+/// stand-in of a dismissed workflow (I5.8) is no entry of that list and gives none. It stands as
+/// well while this life's mark of an `active` refused with `overlap` stands
+/// (`Facts::active_refused`), whatever the list shows, so that no start passes while the
+/// `paused` that follows has no acknowledgement (ruling RD-160 (1)). Only the control
+/// `switch_on` ends it, through an acknowledged state, and nothing is stored for it.
+pub fn kept_off<C>(facts: &Facts<C>) -> bool {
+    let listed_paused = facts.workflow.state == WorkflowState::Paused;
+    !facts.stand_in && (listed_paused || facts.active_refused) && !held_by_events(facts)
+}
+
 fn check<C>(facts: &Facts<C>) -> bool {
     let Some(newest) = facts.runs.first().filter(|_| facts.store_ended) else {
         return false;
@@ -91,10 +110,12 @@ fn check<C>(facts: &Facts<C>) -> bool {
         })
 }
 
-/// Each hold that stands for the agent, in the order of I5.4, read from the facts alone and
-/// never from the state of its workflow: `not_yet` while its runtime is `none`; `off` from a
-/// `hold_set` event with the cause `person` until a later `hold_cleared` event with the cause
-/// `person`; `failures` from a `hold_set` event with the cause `failures` until a later
+/// Each hold that stands for the agent, in the order of I5.4, read from the facts alone:
+/// `not_yet` while its runtime is `none`; `off` from a `hold_set` event with the cause `person`
+/// until a later `hold_cleared` event with the cause `person`, or by the derived hold of
+/// `kept_off`, the one test that reads the state of the workflow (ruling RD-67 1.2, which
+/// replaces ruling H-1 in that part); `failures` from a `hold_set` event with the cause `failures`
+/// until a later
 /// `hold_cleared` event with the cause `failures`; `check` while the agent store has ended its
 /// newest run and no `hold_cleared` event of the cause `check` names that run, and that run's
 /// record has `unknown` above 0, the roster's key `unknown` of the same read names an effect of
@@ -113,7 +134,7 @@ pub fn holds<C: ConfigView>(facts: &Facts<C>) -> Vec<Hold> {
     if facts.config.runtime() == Runtime::None {
         out.push(Hold::NotYet);
     }
-    if stands(facts, HoldSetCause::Person) {
+    if stands(facts, HoldSetCause::Person) || kept_off(facts) {
         out.push(Hold::Off);
     }
     if stands(facts, HoldSetCause::Failures) {

@@ -5778,9 +5778,10 @@ fn rd62a_question_no_move_sends_paused_for_a_hold_failures_whose_acknowledgement
             c.tick();
         }
         let _ = c.control(&agent(0), Action::RunNow);
-        assert!(
-            !states_sent(&c, m).contains(&AgentState::Paused),
-            "{order:?}: {:?}",
+        assert_eq!(
+            states_sent(&c, m).first(),
+            Some(&AgentState::Paused),
+            "{order:?}: turned by ruling RD-67 1.3 (b), the tick's paused: {:?}",
             states_sent(&c, m)
         );
     }
@@ -5961,12 +5962,15 @@ fn rd52b_a_switch_on_whose_hold_cleared_reply_is_lost_in_both_forms() {
         lose_the_next_holds_reply(&c, order);
         let out = c.control(&agent(0), Action::SwitchOn);
         c.ports().loss.set(None);
+        assert_eq!(
+            states_sent(&c, m).len(),
+            1,
+            "{order:?}: the state goes first (ruling RD-67 1.3 (a), 1.5 (iii))"
+        );
         if order == support::Loss::Reply {
             assert_eq!(out, Ok(()), "{order:?}");
-            assert_eq!(states_sent(&c, m).len(), 1, "{order:?}");
         } else {
             assert_eq!(out, Err(Cause::NoService), "{order:?}");
-            assert!(states_sent(&c, m).is_empty(), "{order:?}");
         }
     }
 }
@@ -13384,4 +13388,1592 @@ fn u24e_rd157_t_b_a_refused_switch_off_after_the_take_up_freed_a_place_keeps_the
         "the next end starts it"
     );
     assert_eq!(c.queued(), [(agent(1), false)]);
+}
+
+fn u24s_setup_raises_tried(c: &Coordinator<Both>, from: usize, made: &AgentId) -> usize {
+    c.ports().ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| {
+            matches!(&t.call, Call::Log(rows) if rows.iter().any(|e| &e.agent == made
+                && matches!(e.what, What::ItemRaised { raised: halvo_coord::types::Raised::Setup, .. })))
+        })
+        .count()
+}
+
+fn u24s_aside_with_setup() -> (Coordinator<Both>, AgentId, ItemId, WorkflowId) {
+    let (c, made, old) = setup_agent();
+    let flow = workflow_of(&c, &made);
+    let aside = made.clone();
+    let life = next_life(&c, move |o| {
+        o.ports
+            .refuse_agent(Method::History, &aside, refused_name("store"))
+    });
+    assert!(
+        life.record_stuck(&made),
+        "set aside: its row shows the stuck record"
+    );
+    assert_eq!(
+        setups_raised(&life),
+        1,
+        "the first creation move raises no setup for an agent set aside"
+    );
+    life.ports().ports.clear_refusals();
+    (life, made, old, flow)
+}
+
+#[test]
+fn u24s_i58_the_tick_that_makes_a_set_aside_agents_recovery_raises_its_setup_again_in_that_life() {
+    let (life, made, old) = {
+        let (life, made, old, _) = u24s_aside_with_setup();
+        (life, made, old)
+    };
+    life.tick();
+    assert!(
+        !life.record_stuck(&made),
+        "the read answers and the tick makes its recovery"
+    );
+    let rows = events(&life);
+    let lapse = rows
+        .iter()
+        .position(|w| {
+            *w == What::ItemLapsed {
+                item: old.clone(),
+                lapsed: Lapsed::Setup(OtherLapse::AppEnded),
+            }
+        })
+        .expect("the earlier life's setup item lapses with app_ended");
+    assert!(
+        matches!(rows.get(lapse + 1), Some(What::ItemRaised { item, raised: halvo_coord::types::Raised::Setup }) if *item != old),
+        "the raise follows the owed lapse in its body (RD-96 item 5 (b)): {rows:?}"
+    );
+    let s = life.snapshot();
+    let setups: Vec<_> = s
+        .items
+        .iter()
+        .filter(|i| i.kind() == ItemKind::Setup)
+        .collect();
+    assert_eq!(setups.len(), 1, "{s:?}");
+    assert_ne!(setups[0].item(), &old, "a new item");
+    assert_eq!(setups[0].params().len(), 3, "it asks every parameter");
+    let row = s.rows.iter().find(|r| r.agent == made).unwrap();
+    assert_eq!(row.status, Status::NeedsYou);
+    assert_eq!(setups_raised(&life), 2, "one raise in each life");
+    life.tick();
+    assert_eq!(setups_raised(&life), 2, "raised once in this life");
+}
+
+#[test]
+fn u24s_i58_no_setup_is_raised_at_the_recovery_of_an_agent_whose_workflow_has_left_the_list() {
+    let (life, made, _, flow) = u24s_aside_with_setup();
+    life.ports()
+        .ports
+        .workflows
+        .borrow_mut()
+        .retain(|w| w.id() != &flow);
+    let from = life.ports().ports.tried.borrow().len();
+    life.tick();
+    assert_eq!(
+        u24s_setup_raises_tried(&life, from, &made),
+        0,
+        "no event is sent for an agent whose workflow is gone (I5.7)"
+    );
+}
+
+#[test]
+fn u24s_i58_no_setup_is_raised_at_the_recovery_of_an_agent_whose_workflow_the_list_shows_dismissed()
+{
+    let (life, made, _, flow) = u24s_aside_with_setup();
+    for w in life.ports().ports.workflows.borrow_mut().iter_mut() {
+        if w.id() == &flow {
+            *w = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                id: flow.clone(),
+                category: Category::UtilityBillPayment,
+                site: Some("site1.example".into()),
+            });
+        }
+    }
+    let from = life.ports().ports.tried.borrow().len();
+    life.tick();
+    assert!(!life.record_stuck(&made), "its recovery is made");
+    assert_eq!(
+        u24s_setup_raises_tried(&life, from, &made),
+        0,
+        "as the first creation move, no setup for an agent of a dismissed workflow"
+    );
+}
+
+#[test]
+fn u24s_n6_the_read_back_after_a_second_steps_raise_places_its_row_by_its_raise() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let first = start(&c, 0);
+    c.on_run(&first, bind(&first, 0)).unwrap();
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    let second = start(&c, 1);
+    c.on_run(&second, handback(&second, 1, HandbackReason::StepFailed))
+        .unwrap();
+    let s = c.snapshot();
+    let order: Vec<AgentId> = s.rows.iter().map(|r| r.agent.clone()).collect();
+    assert_eq!(
+        order,
+        [agent(0), agent(1)],
+        "the second step was raised first, and its row stands first because the board read its raise back (pr-review-32 N6): {s:?}"
+    );
+}
+
+#[test]
+fn u24s_n6_at_the_runners_end_a_second_step_whose_answer_the_run_did_not_take_lapses_once_and_is_forgotten(
+) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.on_run(&run, bind(&run, 0)).unwrap();
+    let (item, _) = open_item(&c);
+    c.ports()
+        .ports
+        .refuse(Method::AnswerBind, PortError::NoService);
+    assert!(
+        c.answer(
+            &item,
+            Choice::Allow,
+            None,
+            shown_step_mark_or_zero(&c, &item)
+        )
+        .is_err(),
+        "the answer's row is stored and the run did not take it"
+    );
+    c.ports().ports.clear_refusals();
+    let lapses = |c: &Coordinator<Both>| {
+        events(c)
+            .iter()
+            .filter(|w| matches!(w, What::ItemLapsed { item: i, .. } if *i == item))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        c.on_run(&run, RunEvent::Ended(Some(Outcome::Completed))),
+        Ok(())
+    );
+    assert_eq!(
+        lapses(&c),
+        vec![What::ItemLapsed {
+            item: item.clone(),
+            lapsed: Lapsed::SignIn(OtherLapse::RunEnded),
+        }],
+        "the step that the run waited on lapses with run_ended at its end"
+    );
+    let m = mark(&c);
+    let past = T0 + (Limits::PRODUCT.wait_limit_s + 1) * 1000;
+    c.ports().ports.set_clock(past, DAY);
+    c.tick();
+    assert!(
+        !calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::AnswerBind(..))),
+        "the coordinator holds no second step of the ended run"
+    );
+    assert_eq!(lapses(&c).len(), 1, "and lapses it no second time");
+}
+
+fn u24s_is_lapse(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::ItemLapsed { .. })
+}
+
+#[test]
+fn u24s_rd126_17_a_raise_closes_an_open_same_kind_item_of_another_run_whatever_its_day() {
+    let earlier = RunId::parse(&format!("{:032x}", 0x0f09)).unwrap();
+    let old = ItemId::parse(&format!("{:032x}", 0x0e09)).unwrap();
+    for day in [DAY - 92, DAY - 1, DAY, DAY + 2] {
+        let both = owner(&[MANUAL], Limits::PRODUCT);
+        let seq = both.ports.events.borrow().len() as u32 + 1;
+        both.ports
+            .events
+            .borrow_mut()
+            .push(halvo_coord::types::Event {
+                workflow: support::flow(0),
+                agent: agent(0),
+                seq: std::num::NonZeroU32::new(seq).unwrap(),
+                day,
+                at: 0,
+                what: What::ItemRaised {
+                    item: old.clone(),
+                    raised: halvo_coord::types::Raised::Confirm(earlier.clone()),
+                },
+            });
+        both.ports
+            .refuse_record(u24s_is_lapse, refused_name("store"));
+        let c = Coordinator::new(both, Limits::PRODUCT);
+        c.tick();
+        assert!(
+            !events(&c)
+                .iter()
+                .any(|w| matches!(w, What::ItemLapsed { .. })),
+            "day {day}: recovery's lapse of the earlier item stays owed"
+        );
+        c.ports().ports.clear_refusals();
+        let run = start(&c, 0);
+        assert_eq!(c.on_run(&run, ask_confirm(&run, 0)), Ok(()));
+        let rows = events(&c);
+        let lapse = What::ItemLapsed {
+            item: old.clone(),
+            lapsed: Lapsed::Confirm(LapseCause::AppEnded),
+        };
+        let at = rows
+            .iter()
+            .position(|w| *w == lapse)
+            .unwrap_or_else(|| panic!("day {day}: the raise closes the earlier item: {rows:?}"));
+        assert!(
+            matches!(rows.get(at + 1), Some(What::ItemRaised { raised: halvo_coord::types::Raised::Confirm(r), .. }) if *r == run),
+            "day {day}: the lapse goes first in the body of the raise (RD-126 item 17): {rows:?}"
+        );
+        c.tick();
+        assert_eq!(
+            events(&c).iter().filter(|w| **w == lapse).count(),
+            1,
+            "day {day}: the owed lapse is paid by that close, with no second row"
+        );
+    }
+}
+
+fn u24s_r1_dismissed_live() -> (Coordinator<Both>, RunId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let flow = workflow_of(&c, &agent(0));
+    for w in c.ports().ports.workflows.borrow_mut().iter_mut() {
+        if w.id() == &flow {
+            *w = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                id: flow.clone(),
+                category: Category::CalendarCleanup,
+                site: None,
+            });
+        }
+    }
+    c.ports()
+        .ports
+        .agents
+        .borrow_mut()
+        .retain(|a| a.agent != agent(0));
+    c.tick();
+    (c, run)
+}
+
+fn u24s_r1_cancels(c: &Coordinator<Both>, from: usize, run: &RunId) -> usize {
+    calls_since(c, from)
+        .iter()
+        .filter(|call| matches!(call, Call::Cancel(r) if r == run))
+        .count()
+}
+
+fn u24s_r1_row(c: &Coordinator<Both>) -> halvo_coord::types::Row {
+    c.snapshot()
+        .rows
+        .into_iter()
+        .find(|r| r.agent == agent(0))
+        .unwrap()
+}
+
+fn u24s_r1_controls(row: &halvo_coord::types::Row) -> Vec<halvo_coord::types::Control> {
+    row.controls.iter().map(|t| t.control).collect()
+}
+
+#[test]
+fn u24s_r2_under_class_b_the_stop_of_the_row_stops_the_run() {
+    let (c, run) = u24s_r1_dismissed_live();
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    assert_eq!(u24s_r1_cancels(&c, m, &run), 1, "Runs::cancel once");
+    assert_eq!(u24s_r1_row(&c).line, text("line.working.stopping"));
+}
+
+#[test]
+fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_and_shows_the_agent_on(
+) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let m = mark(&c);
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(
+        u24s_r1_cancels(&c, m, &run),
+        1,
+        "the press stops the live run as Stop does (RD-155 (1))"
+    );
+    for tick in [false, true] {
+        if tick {
+            c.tick();
+        }
+        let row = u24s_r1_row(&c);
+        assert_eq!(row.status, Status::Working, "tick {tick}");
+        assert_eq!(
+            row.line,
+            text("line.working.switch_not_saved"),
+            "tick {tick}: while the run is stopping the line says both halves"
+        );
+        assert!(
+            u24s_r1_controls(&row).contains(&halvo_coord::types::Control::SwitchOff),
+            "tick {tick}: the switch shows on: {:?}",
+            u24s_r1_controls(&row)
+        );
+    }
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    for tick in [false, true] {
+        if tick {
+            c.tick();
+        }
+        let row = u24s_r1_row(&c);
+        assert_eq!(
+            row.line,
+            text("line.all_set.switch_not_saved"),
+            "tick {tick}: after the end the line says that the task was stopped and the switch could not be saved"
+        );
+        assert!(
+            u24s_r1_controls(&row).contains(&halvo_coord::types::Control::SwitchOff),
+            "tick {tick}: the switch shows on: {:?}",
+            u24s_r1_controls(&row)
+        );
+    }
+}
+
+#[test]
+fn u24s_r1_a_switch_off_refused_under_class_b_with_no_live_run_leaves_the_row_as_it_was() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let before = u24s_r1_row(&c).line;
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let m = mark(&c);
+    assert_eq!(
+        c.control(&agent(0), Action::SwitchOff),
+        Err(Cause::NoService)
+    );
+    assert!(
+        !calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Cancel(_))),
+        "no run to stop"
+    );
+    c.tick();
+    assert_eq!(
+        u24s_r1_row(&c).line,
+        before,
+        "no task was stopped, so the row says nothing of a stop"
+    );
+}
+
+fn u24s_r1_hold_set(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::HoldSet { .. })
+}
+
+#[test]
+fn u24s_r1_the_line_of_a_switch_off_that_could_not_be_saved_ends_when_a_later_run_starts() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 0,
+        },
+    );
+    c.tick();
+    assert_eq!(
+        u24s_r1_row(&c).line,
+        text("line.all_set.switch_not_saved"),
+        "the line stands after the end, read from state"
+    );
+    let next = start(&c, 0);
+    assert_ne!(next, run);
+    assert_ne!(
+        u24s_r1_row(&c).line,
+        text("line.working.switch_not_saved"),
+        "a later run of the agent ends the line"
+    );
+    assert_ne!(u24s_r1_row(&c).line, text("line.all_set.switch_not_saved"));
+}
+
+#[test]
+fn u24s_r1_a_later_switch_off_that_is_saved_ends_the_line_of_the_one_that_was_not() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    let row = u24s_r1_row(&c);
+    assert_eq!(
+        (row.status, row.line),
+        (Status::Off, text("line.off.person")),
+        "the switch is saved now, so the row shows the agent off"
+    );
+    assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
+    let line = u24s_r1_row(&c).line;
+    assert_ne!(
+        line,
+        text("line.all_set.switch_not_saved"),
+        "after a saved switch the row no longer says that a switch could not be saved"
+    );
+    assert_ne!(line, text("line.working.switch_not_saved"));
+}
+
+#[test]
+fn u24s_r1_a_card_after_the_switch_off_that_could_not_be_saved_has_its_own_line() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::EffectUnknown,
+            unknown: 1,
+        },
+    );
+    c.tick();
+    let row = u24s_r1_row(&c);
+    assert_eq!(
+        (row.status, row.line),
+        (Status::NeedsYou, text("line.needs_you.check")),
+        "the card's line, not the line of the switch, while a card waits"
+    );
+}
+
+fn u24s_r4_setup_raise(e: &halvo_coord::types::Event) -> bool {
+    matches!(
+        e.what,
+        What::ItemRaised {
+            raised: halvo_coord::types::Raised::Setup,
+            ..
+        }
+    )
+}
+
+fn u24s_r4_open_setups(c: &Coordinator<Both>) -> usize {
+    c.snapshot()
+        .items
+        .iter()
+        .filter(|i| i.kind() == ItemKind::Setup)
+        .count()
+}
+
+fn u24s_r4_status(c: &Coordinator<Both>, made: &AgentId) -> (Status, String) {
+    let s = c.snapshot();
+    let row = s.rows.iter().find(|r| &r.agent == made).unwrap();
+    (row.status, row.line.clone())
+}
+
+#[test]
+fn u24s_i58_a_setup_raise_that_fails_at_the_recovery_tick_is_made_again_in_that_life() {
+    for error in [refused_name("store"), PortError::NoService] {
+        let (life, made, _, _) = u24s_aside_with_setup();
+        life.ports()
+            .ports
+            .refuse_record(u24s_r4_setup_raise, error.clone());
+        life.tick();
+        assert_eq!(u24s_r4_open_setups(&life), 0, "{error:?}: the raise failed");
+        assert_eq!(
+            u24s_r4_status(&life, &made),
+            (Status::NeedsYou, text("line.needs_you.setup")),
+            "{error:?}: while the raise is owed the row does not say All set"
+        );
+        life.ports().ports.clear_refusals();
+        life.tick();
+        assert_eq!(
+            u24s_r4_open_setups(&life),
+            1,
+            "{error:?}: a later tick makes the raise again (RD-155 (2))"
+        );
+        assert_eq!(u24s_r4_status(&life, &made).0, Status::NeedsYou);
+        for _ in 0..3 {
+            life.tick();
+        }
+        assert_eq!(u24s_r4_open_setups(&life), 1, "{error:?}: one item");
+        assert_eq!(setups_raised(&life), 2, "{error:?}: one raise in each life");
+    }
+}
+
+#[test]
+fn u24s_i58_a_setup_raise_that_fails_at_the_first_creation_move_is_made_again_in_that_life() {
+    let (c, made, _) = setup_agent();
+    let life = next_life(&c, |o| {
+        o.ports
+            .refuse_record(u24s_r4_setup_raise, refused_name("store"))
+    });
+    assert_eq!(
+        u24s_r4_open_setups(&life),
+        0,
+        "the first creation move's raise failed"
+    );
+    assert_eq!(
+        u24s_r4_status(&life, &made),
+        (Status::NeedsYou, text("line.needs_you.setup"))
+    );
+    life.ports().ports.clear_refusals();
+    life.tick();
+    assert_eq!(
+        u24s_r4_open_setups(&life),
+        1,
+        "a later tick makes the raise again"
+    );
+    for _ in 0..3 {
+        life.tick();
+    }
+    assert_eq!(u24s_r4_open_setups(&life), 1);
+    assert_eq!(setups_raised(&life), 2);
+}
+
+#[test]
+fn u24s_i58_an_owed_setup_raise_ends_where_the_hold_setup_has_ended() {
+    let (life, made, _, _) = u24s_aside_with_setup();
+    life.ports()
+        .ports
+        .refuse_record(u24s_r4_setup_raise, PortError::NoService);
+    life.tick();
+    assert_eq!(
+        u24s_r4_status(&life, &made),
+        (Status::NeedsYou, text("line.needs_you.setup")),
+        "the raise is owed"
+    );
+    for a in life.ports().ports.agents.borrow_mut().iter_mut() {
+        if a.agent == made {
+            a.slots = ["start", "payee", "instrument"]
+                .iter()
+                .map(|s| Name::parse(s).unwrap())
+                .collect();
+        }
+    }
+    let raised = setups_raised(&life);
+    life.tick();
+    life.tick();
+    assert_ne!(
+        u24s_r4_status(&life, &made).1,
+        text("line.needs_you.setup"),
+        "the bindings came by another way: the hold setup has ended, and so has the debt"
+    );
+    assert_eq!(u24s_r4_open_setups(&life), 0);
+    let ready = life
+        .snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Ready)
+        .map(|i| i.item().clone());
+    if let Some(ready) = ready {
+        assert_eq!(
+            life.answer(
+                &ready,
+                Choice::Skip,
+                None,
+                shown_step_mark_or_zero(&life, &ready)
+            ),
+            Ok(())
+        );
+        life.tick();
+    }
+    assert_ne!(
+        u24s_r4_status(&life, &made),
+        (Status::NeedsYou, text("line.needs_you.setup")),
+        "with no item open the row is not made needs you by a debt that has ended"
+    );
+    assert_eq!(
+        setups_raised(&life),
+        raised,
+        "no raise after the hold has ended"
+    );
+}
+
+fn u24s_r4_aside(quit: bool) -> (Coordinator<Both>, AgentId) {
+    let (c, made, _) = setup_agent();
+    if quit {
+        let _ = c.quit_stop();
+        c.quit_kill();
+    }
+    let aside = made.clone();
+    let life = next_life(&c, move |o| {
+        o.ports
+            .refuse_agent(Method::History, &aside, refused_name("store"))
+    });
+    assert!(life.record_stuck(&made), "set aside");
+    life.ports().ports.clear_refusals();
+    (life, made)
+}
+
+#[test]
+fn u24s_i58_a_setup_raise_refused_at_every_tick_ends_in_the_record_line_and_never_says_all_set() {
+    for (quit, owed_lapse, expected) in [(false, true, 4), (true, false, 3)] {
+        let (life, made) = u24s_r4_aside(quit);
+        life.ports()
+            .ports
+            .refuse_record(u24s_r4_setup_raise, refused_name("store"));
+        let mut shown = None;
+        for k in 1..=10 {
+            let from = life.ports().ports.tried.borrow().len();
+            life.tick();
+            let tried = u24s_setup_raises_tried(&life, from, &made);
+            if shown.is_some() {
+                assert_eq!(
+                    tried, 0,
+                    "owed lapse {owed_lapse}: no raise after the record line, tick {k}"
+                );
+            } else {
+                assert_eq!(tried, 1, "owed lapse {owed_lapse}: one raise at tick {k}");
+            }
+            if shown.is_none() && life.record_stuck(&made) {
+                shown = Some(k);
+            }
+            assert_ne!(
+                u24s_r4_status(&life, &made).0,
+                Status::AllSet,
+                "owed lapse {owed_lapse}: tick {k}"
+            );
+            if shown.is_some() {
+                assert_eq!(
+                    u24s_r4_status(&life, &made),
+                    (Status::Problem, text("line.problem.record")),
+                    "owed lapse {owed_lapse}: the record line, not needs you, from the tick at which it shows, tick {k}"
+                );
+            }
+        }
+        assert_eq!(
+            shown,
+            Some(expected),
+            "owed lapse {owed_lapse}: the record line shows after this many ticks (I5.7)"
+        );
+    }
+    let (life, made) = u24s_r4_aside(false);
+    life.ports()
+        .ports
+        .refuse_record(u24s_r4_setup_raise, PortError::NoService);
+    for k in 1..=10 {
+        life.tick();
+        assert_eq!(
+            u24s_r4_status(&life, &made),
+            (Status::NeedsYou, text("line.needs_you.setup")),
+            "a lost reply at every tick: tick {k} does not say All set"
+        );
+        assert!(!life.record_stuck(&made), "no_service counts nothing");
+    }
+}
+
+fn u24s_r7_unknown_outcome(o: &Both, made: &AgentId, flow: &WorkflowId) {
+    let run = RunId::parse(&format!("{:032x}", 0x0700)).unwrap();
+    let last = o
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| &e.agent == made)
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    let event = |k: u32, what: What| halvo_coord::types::Event {
+        workflow: flow.clone(),
+        agent: made.clone(),
+        seq: std::num::NonZeroU32::new(last + k).unwrap(),
+        day: DAY,
+        at: 0,
+        what,
+    };
+    o.ports.events.borrow_mut().extend([
+        event(
+            1,
+            What::RunStarted {
+                run: run.clone(),
+                trigger: halvo_coord::types::Trigger::Person,
+                slot: None,
+            },
+        ),
+        event(
+            2,
+            What::RunEnded {
+                run: run.clone(),
+                cause: RunEnd::Completed,
+                defers: None,
+            },
+        ),
+    ]);
+    for a in o.ports.agents.borrow_mut().iter_mut() {
+        if &a.agent == made {
+            a.last = Some(PastRun {
+                run: run.clone(),
+                day: DAY,
+                outcome: Outcome::Completed,
+                unknown: 1,
+            });
+        }
+    }
+}
+
+fn u24s_r7_kinds(c: &Coordinator<Both>) -> Vec<ItemKind> {
+    c.snapshot().items.iter().map(|i| i.kind()).collect()
+}
+
+#[test]
+fn u24s_r7_a_set_aside_agent_with_an_unknown_outcome_gets_the_setup_card_then_the_check_card_and_no_run_between(
+) {
+    let (c, made, _) = setup_agent();
+    let _ = c.quit_stop();
+    c.quit_kill();
+    let flow = workflow_of(&c, &made);
+    let (m2, f2) = (made.clone(), flow.clone());
+    let life = next_life(&c, move |o| {
+        u24s_r7_unknown_outcome(o, &m2, &f2);
+        o.ports
+            .refuse_agent(Method::History, &m2, refused_name("store"))
+    });
+    life.ports().ports.clear_refusals();
+    let runs = started(&life).len();
+    life.tick();
+    assert_eq!(
+        u24s_r7_kinds(&life),
+        vec![ItemKind::Setup],
+        "the recovery tick: the setup alone"
+    );
+    assert_eq!(life.control(&made, Action::RunNow), Err(Cause::Hold));
+    let item = life
+        .snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Setup)
+        .map(|i| i.item().clone())
+        .unwrap();
+    for param in [Param::Start, Param::Payee] {
+        assert_eq!(
+            life.answer(
+                &item,
+                Choice::Choose,
+                Some((param, 1)),
+                shown_step_mark_or_zero(&life, &item)
+            ),
+            Ok(())
+        );
+    }
+    assert_eq!(
+        life.setup_typed(
+            &item,
+            Param::Instrument,
+            "Card 4242",
+            shown_step_mark_or_zero(&life, &item)
+        ),
+        Ok(())
+    );
+    assert_eq!(life.control(&made, Action::RunNow), Err(Cause::Hold));
+    life.tick();
+    assert_eq!(
+        u24s_r7_kinds(&life),
+        vec![ItemKind::Check],
+        "after the setup's answers the next tick raises the check"
+    );
+    assert_eq!(
+        started(&life).len(),
+        runs,
+        "no run started between the two cards"
+    );
+}
+
+/// Ruling RD-168 (the review's B2): a later Switch off that the owner stores while its reply is
+/// lost and the read of the same move does not answer, learnt by the read of a later move, ends
+/// the line of the switch-off that could not be saved; after a Switch on the row does not say it
+/// again.
+#[test]
+fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_ends_the_line_of_the_one_that_was_not() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 0,
+        },
+    );
+    c.tick();
+    assert_eq!(u24s_r1_row(&c).line, text("line.all_set.switch_not_saved"));
+    c.ports().ports.clear_refusals();
+    c.ports().loss.set(Some(support::Loss::Reply));
+    c.ports().next_history_fails.set(true);
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    let _ = c.control(&agent(0), Action::RunNow);
+    let off = u24s_r1_row(&c);
+    assert_eq!(
+        (off.status, off.line),
+        (Status::Off, text("line.off.person")),
+        "the read of the Start now brings the saved hold"
+    );
+    assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
+    let line = u24s_r1_row(&c).line;
+    assert_ne!(
+        line,
+        text("line.all_set.switch_not_saved"),
+        "the switch-off was saved and the person switched the agent on again"
+    );
+    assert_ne!(line, text("line.working.switch_not_saved"));
+}
+
+/// Ruling RD-168 (the verifier's finding 2): an owed setup raise does not make the row say that
+/// the agent needs answers while the list shows its workflow dismissed, where no tick makes it.
+#[test]
+fn u24s_rd168_an_owed_setup_raise_does_not_say_needs_you_while_the_list_shows_its_workflow_dismissed(
+) {
+    let (life, made, _, flow) = u24s_aside_with_setup();
+    life.ports()
+        .ports
+        .refuse_record(u24s_r4_setup_raise, PortError::NoService);
+    life.tick();
+    let owed = (Status::NeedsYou, text("line.needs_you.setup"));
+    assert_eq!(u24s_r4_status(&life, &made), owed, "the raise is owed");
+    life.ports().ports.clear_refusals();
+    for w in life.ports().ports.workflows.borrow_mut().iter_mut() {
+        if w.id() == &flow {
+            *w = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                id: flow.clone(),
+                category: Category::UtilityBillPayment,
+                site: None,
+            });
+        }
+    }
+    life.tick();
+    assert_ne!(
+        u24s_r4_status(&life, &made),
+        owed,
+        "no tick makes the raise for a dismissed workflow, so the row does not say that it does"
+    );
+}
+
+/// Ruling RD-168 (the verifier's finding 1): while the list shows the agent's workflow dismissed,
+/// where neither half of the line can come true, the row does not say that the switch-off could
+/// not be saved.
+#[test]
+fn u24s_rd168_the_line_of_a_switch_off_that_could_not_be_saved_does_not_show_while_its_workflow_is_dismissed(
+) {
+    let (c, run) = u24s_r1_dismissed_live();
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    let stopping = u24s_r1_row(&c).line;
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    c.tick();
+    let ended = u24s_r1_row(&c).line;
+    for line in [stopping, ended] {
+        assert_ne!(line, text("line.working.switch_not_saved"));
+        assert_ne!(line, text("line.all_set.switch_not_saved"));
+    }
+}
+
+thread_local! {
+    static U24T_HOLD_SET_PANICS_AT: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
+}
+
+fn u24t_hold_set_refused_or_panics(e: &halvo_coord::types::Event) -> bool {
+    if !matches!(e.what, What::HoldSet { .. }) {
+        return false;
+    }
+    U24T_HOLD_SET_PANICS_AT.with(|at| match at.get() {
+        Some(0) => {
+            at.set(None);
+            panic!("the store panics at this try of the hold_set");
+        }
+        Some(n) => {
+            at.set(Some(n - 1));
+            true
+        }
+        None => true,
+    })
+}
+
+fn u24t_switched_off_with_no_clock_and_a_store_that_refuses(
+    spec: &[support::A],
+    n: &[usize],
+) -> Coordinator<Both> {
+    let limits = Limits {
+        max_live_runs: 3,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(spec, limits);
+    clock_fails(&c);
+    c.ports()
+        .ports
+        .refuse_record(u24t_hold_set_refused_or_panics, PortError::NoService);
+    for k in n {
+        assert_eq!(c.control(&agent(*k), Action::SwitchOff), Ok(()));
+    }
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    for k in n {
+        assert_eq!(c.control(&agent(*k), Action::RunNow), Err(Cause::Hold));
+    }
+    c
+}
+
+fn u24t_tick_whose_hold_set_try_panics(c: &Coordinator<Both>, after: u32, at: u64) -> bool {
+    U24T_HOLD_SET_PANICS_AT.with(|p| p.set(Some(after)));
+    c.ports().ports.set_clock(at, DAY);
+    let tick = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.tick()));
+    U24T_HOLD_SET_PANICS_AT.with(|p| p.set(None));
+    tick.is_ok()
+}
+
+#[test]
+fn u24t_q1_the_ticks_retry_of_a_hold_whose_store_panics_keeps_the_agent_held_off() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(&[MANUAL, MANUAL], &[0]);
+    let returned = u24t_tick_whose_hold_set_try_panics(&c, 1, T0 + 2_000);
+    c.ports().ports.set_clock(T0 + 3_000, DAY);
+    c.tick();
+    let before = started(&c).len();
+    let run_now = c.control(&agent(0), Action::RunNow);
+    assert_eq!(
+        (
+            returned,
+            run_now,
+            started(&c).len() - before,
+            person_holds(&c, 0).len()
+        ),
+        (true, Err(Cause::Hold), 0, 0),
+        "(the tick returned, Run now, runs started by it, hold_set rows) while the store goes on refusing"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert_eq!(
+        (
+            person_holds(&c, 0).len(),
+            row_line(&c.snapshot(), 0),
+            c.control(&agent(0), Action::RunNow),
+            started(&c).len() - before
+        ),
+        (1, text("line.off.person"), Err(Cause::Hold), 0),
+        "(hold_set rows, the row, Run now, runs started) once the store takes the hold"
+    );
+}
+
+#[test]
+fn u24t_q1_a_panic_at_one_agents_retry_leaves_the_next_agent_held_off() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(
+        &[MANUAL, MANUAL, MANUAL],
+        &[0, 1],
+    );
+    let returned = u24t_tick_whose_hold_set_try_panics(&c, 2, T0 + 2_000);
+    c.ports().ports.set_clock(T0 + 3_000, DAY);
+    c.tick();
+    let before = started(&c).len();
+    let run_now = [
+        c.control(&agent(0), Action::RunNow),
+        c.control(&agent(1), Action::RunNow),
+    ];
+    assert_eq!(
+        (returned, run_now, started(&c).len() - before),
+        (true, [Err(Cause::Hold), Err(Cause::Hold)], 0),
+        "(the tick returned, Run now of each, runs started)"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert_eq!(
+        (person_holds(&c, 0).len(), person_holds(&c, 1).len()),
+        (1, 1),
+        "each hold stored once the store takes it"
+    );
+}
+
+#[test]
+fn u24t_q1_a_held_panic_at_the_ticks_retry_marks_the_move_and_rings_the_bell() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(&[MANUAL, MANUAL], &[0]);
+    let seq = c.snapshot().seq;
+    let changed = c
+        .ports()
+        .ports
+        .calls
+        .borrow()
+        .iter()
+        .filter(|t| matches!(t.call, Call::Changed))
+        .count();
+    let returned = u24t_tick_whose_hold_set_try_panics(&c, 1, T0 + 2_000);
+    let rang = c
+        .ports()
+        .ports
+        .calls
+        .borrow()
+        .iter()
+        .filter(|t| matches!(t.call, Call::Changed))
+        .count()
+        - changed;
+    assert_eq!(
+        (returned, c.snapshot().seq > seq, rang > 0),
+        (true, true, true),
+        "(the tick returned, seq raised, the bell rang)"
+    );
+}
+
+#[test]
+fn u24t_q1_a_tick_whose_retry_reads_no_clock_marks_nothing() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(&[MANUAL, MANUAL], &[0]);
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    c.tick();
+    let seq = c.snapshot().seq;
+    clock_fails(&c);
+    c.tick();
+    clock_answers(&c);
+    assert_eq!(
+        (c.snapshot().seq, c.control(&agent(0), Action::RunNow)),
+        (seq, Err(Cause::Hold)),
+        "(seq after a tick whose reads of the clock all failed, Run now): no mark, and the agent stays held off"
+    );
+}
+
+#[derive(Clone, Copy, Debug)]
+enum U24tFault {
+    Refuses,
+    Panics,
+    LosesTheReply,
+}
+
+fn u24t_switch_off_under(
+    c: &Coordinator<Both>,
+    n: usize,
+    fault: U24tFault,
+) -> Option<Result<(), Cause>> {
+    match fault {
+        U24tFault::Refuses => c
+            .ports()
+            .ports
+            .refuse_record(u24t_hold_set_refused_or_panics, PortError::NoService),
+        U24tFault::Panics => c.ports().panics.set(Some("log_hold_set")),
+        U24tFault::LosesTheReply => c.ports().loss.set(Some(support::Loss::Nothing)),
+    }
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(n), Action::SwitchOff)
+    }))
+    .ok();
+    c.ports().panics.set(None);
+    c.ports().loss.set(None);
+    c.ports().ports.clear_refusals();
+    pressed
+}
+
+#[test]
+fn u24t_case7_a_stamped_switch_off_whose_store_faults_at_the_hold_set_answers_no_service_and_does_nothing(
+) {
+    for fault in [U24tFault::Refuses, U24tFault::Panics] {
+        for card in [false, true] {
+            let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+            let run = start(&c, 0);
+            if card {
+                c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+            }
+            let line = row_line(&c.snapshot(), 0);
+            let items = c.snapshot().items;
+            let m = mark(&c);
+            let pressed = u24t_switch_off_under(&c, 0, fault);
+            assert_eq!(
+                (
+                    pressed,
+                    cancels_of(&c, m, &run),
+                    person_holds(&c, 0).len(),
+                    row_line(&c.snapshot(), 0) == line,
+                    c.snapshot().items == items,
+                    c.live()
+                ),
+                (Some(Err(Cause::NoService)), 0, 0, true, true, 1),
+                "{fault:?}, card {card}: (the press, cancels, hold_set rows, the row as it was, the items as they were, live runs)"
+            );
+            c.ports().ports.set_clock(T0 + 1_000, DAY);
+            c.tick();
+            c.tick();
+            assert_eq!(
+                (cancels_of(&c, m, &run), person_holds(&c, 0).len(), c.live()),
+                (0, 0, 1),
+                "{fault:?}, card {card}: nothing of the press is kept or made later"
+            );
+            assert_eq!(
+                c.control(&agent(0), Action::SwitchOff),
+                Ok(()),
+                "{fault:?}, card {card}: a second press with a store that works"
+            );
+            assert_eq!(
+                (
+                    cancels_of(&c, m, &run),
+                    person_holds(&c, 0).len(),
+                    row_line(&c.snapshot(), 0)
+                ),
+                (1, 1, text("line.off.person")),
+                "{fault:?}, card {card}: (cancels, hold_set rows, the row) after the second press"
+            );
+        }
+    }
+}
+
+#[test]
+fn u24t_c07_a_stamped_switch_off_whose_store_panics_at_the_hold_set_answers_no_service_and_the_run_goes_on(
+) {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    let m = mark(&c);
+    c.ports().ports.set_clock(T0 + 10_000, DAY);
+    let pressed = u24t_switch_off_under(&c, 0, U24tFault::Panics);
+    let run_now = c.control(&agent(0), Action::RunNow);
+    c.tick();
+    c.ports().ports.set_clock(
+        T0 + 10_000 + Limits::PRODUCT.cancel_grace_s * 1000 + 1_000,
+        DAY,
+    );
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (
+            pressed,
+            run_now,
+            cancels_of(&c, m, &run0),
+            kills_of(&c, m, &run0),
+            run_ends_of(&c, &run0),
+            person_holds(&c, 0).len(),
+            row_line(&c.snapshot(), 0)
+        ),
+        (
+            Some(Err(Cause::NoService)),
+            Err(Cause::State),
+            0,
+            0,
+            vec![],
+            0,
+            text("line.working.working")
+        ),
+        "(the press, Run now, cancels, kills, ends, hold_set rows, the row)"
+    );
+}
+
+#[test]
+fn u24t_c07c_a_stamped_switch_off_whose_store_answers_no_service_with_nothing_stored_does_nothing()
+{
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run0 = start(&c, 0);
+    let m = mark(&c);
+    let pressed = u24t_switch_off_under(&c, 0, U24tFault::LosesTheReply);
+    let in_move = cancels_of(&c, m, &run0);
+    c.tick();
+    assert_eq!(
+        (
+            pressed,
+            in_move,
+            cancels_of(&c, m, &run0),
+            person_holds(&c, 0).len(),
+            row_line(&c.snapshot(), 0)
+        ),
+        (
+            Some(Err(Cause::NoService)),
+            0,
+            0,
+            0,
+            text("line.working.working")
+        ),
+        "(the press, cancels in the move, cancels after a tick, hold_set rows, the row)"
+    );
+}
+
+#[test]
+fn u24t_a02_a_hold_behind_a_lost_reply_read_while_the_clock_fails_cancels_the_run_or_the_row_does_not_read_off(
+) {
+    let mut seen = Vec::new();
+    let mut table = Vec::new();
+    let mut wanted = Vec::new();
+    for k in 0..10u32 {
+        let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        let m = mark(&c);
+        c.ports().loss.set(Some(support::Loss::Unread));
+        let first = c.control(&agent(0), Action::SwitchOff);
+        c.ports().loss.set(None);
+        let stored = person_holds(&c, 0).len();
+        c.ports().fail_reads_after.set(Some(k));
+        let _ = c.on_run(&run, ask_confirm(&run, 0));
+        clock_answers(&c);
+        for _ in 0..3 {
+            c.tick();
+        }
+        after_the_grace(&c);
+        c.tick();
+        let line = row_line(&c.snapshot(), 0);
+        let off = line == text("line.off.person");
+        let cancels = cancels_of(&c, m, &run);
+        let ends = ends_of(&c, &run);
+        assert_eq!(
+            (first, stored),
+            (Err(Cause::NoService), 1),
+            "k={k}: the press behind the lost reply is answered no_service, and the owner holds the hold"
+        );
+        if off && !(cancels == 1 && ends == vec![RunEnd::Cancelled]) {
+            seen.push((k, line.clone(), cancels, ends.clone()));
+        }
+        let read_onto_the_board = k > 0;
+        table.push((k, line, cancels, ends));
+        wanted.push(if read_onto_the_board {
+            (k, text("line.off.person"), 1, vec![RunEnd::Cancelled])
+        } else {
+            (k, text("line.working.working"), 0, vec![])
+        });
+    }
+    assert!(
+        seen.is_empty(),
+        "the row reads switched off while the run was not cancelled and ended: {seen:?}"
+    );
+    assert_eq!(
+        table, wanted,
+        "(k, the row, cancels, ends): each row says what stands"
+    );
+}
+
+#[test]
+fn u24t_t5_a_kept_end_whose_take_up_panics_before_the_run_leaves_is_kept_again_and_sends_no_kill() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    let run1 = start(&c, 1);
+    c.ports().clock_fails.set(true);
+    c.ports().ports.end_runner(&run0);
+    let _ = c.on_run(&run0, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().clock_fails.set(false);
+    let m = mark(&c);
+    c.ports().panics.set(Some("agents"));
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(1), Action::Stop)
+    }));
+    c.ports().panics.set(None);
+    let stop1 = cancels_of(&c, m, &run1);
+    c.ports()
+        .ports
+        .set_clock(T0 + 10_000 + Limits::PRODUCT.cancel_grace_s * 1000, DAY);
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (
+            pressed.ok(),
+            stop1,
+            kills_of(&c, m, &run0),
+            run_ends_of(&c, &run0)
+        ),
+        (Some(Ok(())), 1, 0, vec![RunEnd::Completed]),
+        "(the other agent's Stop, its cancels, kills of the kept run, the kept run's ends): the kept end is kept again and made with the runner's outcome, with no kill"
+    );
+}
+
+fn u24t_check_card_with_a_kept_field() -> (Coordinator<Both>, RunId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(None));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        },
+    );
+    c.ports().ports.agents.borrow_mut()[0]
+        .unknown
+        .push(halvo_coord::types::Unknown {
+            run: run.clone(),
+            effect: halvo_coord::types::EffectId::parse(&format!("{:032x}", 0xe401)).unwrap(),
+            day: DAY,
+            class: Class::Send,
+            kept: vec![halvo_coord::types::Kept {
+                name: Name::parse("to").unwrap(),
+                value: vec!["Ann Lee".into()],
+            }],
+        });
+    c.ports().ports.set_clock(T0 + 5_000, DAY);
+    c.tick();
+    (c, run)
+}
+
+fn u24t_check_fields(c: &Coordinator<Both>) -> Option<Vec<Vec<String>>> {
+    c.snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Check)
+        .map(|card| card.fields().iter().map(|f| f.value.clone()).collect())
+}
+
+#[test]
+fn u24t_rd135_a_move_whose_roster_read_failed_shows_the_check_cards_kept_fields() {
+    let (c, _) = u24t_check_card_with_a_kept_field();
+    let ann = Some(vec![vec!["Ann Lee".to_string()]]);
+    assert_eq!(
+        u24t_check_fields(&c),
+        ann,
+        "the card raised with the entry's field"
+    );
+    c.ports().ports.refuse(Method::Agents, PortError::NoService);
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    let at_a_tick = u24t_check_fields(&c);
+    let pressed = c.control(&agent(0), Action::RunNow);
+    let at_a_press = u24t_check_fields(&c);
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 7_000, DAY);
+    c.tick();
+    assert_eq!(
+        (at_a_tick, pressed.is_err(), at_a_press, u24t_check_fields(&c)),
+        (ann.clone(), true, ann.clone(), ann),
+        "(the fields after a tick whose roster read failed, the press refused, after that press, after a tick whose read answers)"
+    );
+}
+
+#[test]
+fn u24t_rd135_a_read_that_no_longer_names_the_entry_keeps_the_fields_of_the_entry_that_made_the_hold(
+) {
+    let (c, _) = u24t_check_card_with_a_kept_field();
+    c.ports().ports.agents.borrow_mut()[0].unknown.clear();
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    assert_eq!(
+        u24t_check_fields(&c),
+        Some(vec![vec!["Ann Lee".to_string()]]),
+        "the open card keeps the field of the entry that made its hold stand"
+    );
+}
+
+#[test]
+fn u24t_rd135_a_failed_read_shows_the_fields_of_the_newest_read_that_named_the_entry() {
+    let (c, _) = u24t_check_card_with_a_kept_field();
+    c.ports().ports.agents.borrow_mut()[0].unknown[0].kept[0].value = vec!["Bo Li".into()];
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    let answered = u24t_check_fields(&c);
+    c.ports().ports.refuse(Method::Agents, PortError::NoService);
+    c.ports().ports.set_clock(T0 + 7_000, DAY);
+    c.tick();
+    c.ports().ports.clear_refusals();
+    let bo = Some(vec![vec!["Bo Li".to_string()]]);
+    assert_eq!(
+        (answered, u24t_check_fields(&c)),
+        (bo.clone(), bo),
+        "(the fields after a read that names the entry anew, after a read that failed)"
+    );
+}
+
+#[test]
+fn u24t_rd135_the_kept_fields_go_with_the_card_and_a_new_card_takes_its_own() {
+    let (c, run) = u24t_check_card_with_a_kept_field();
+    let item = item_of_agent(&c, 0);
+    assert_eq!(
+        c.answer(&item, Choice::WentThrough, None, 0),
+        Ok(()),
+        "the person answers the check"
+    );
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    assert_eq!(
+        u24t_check_fields(&c),
+        None,
+        "no check card after the answer"
+    );
+    let next = start(&c, 0);
+    assert_ne!(next, run);
+    c.ports().ports.end_runner(&next);
+    let _ = c.on_run(&next, RunEvent::Ended(None));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: next.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    c.ports().ports.agents.borrow_mut()[0].unknown.clear();
+    c.ports().ports.refuse(Method::Agents, PortError::NoService);
+    c.ports().ports.set_clock(T0 + 7_000, DAY);
+    c.tick();
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 8_000, DAY);
+    c.tick();
+    assert_eq!(
+        u24t_check_fields(&c),
+        Some(vec![]),
+        "the second card, raised by a record with no entry, shows no field of the first"
+    );
+}
+
+fn u24t_is_hold_set(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::HoldSet { .. })
+}
+
+fn u24t_is_hold_cleared(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::HoldCleared { .. })
+}
+
+#[test]
+fn u24t_pr42_probe_1_a_stamped_switch_off_or_on_that_the_store_refuses_never_enters_the_count() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    c.ports()
+        .ports
+        .refuse_record(u24t_is_hold_set, refused_name("too_large"));
+    let off = c.control(&agent(0), Action::SwitchOff);
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    c.ports()
+        .ports
+        .refuse_record(u24t_is_hold_cleared, refused_name("too_large"));
+    let on = c.control(&agent(0), Action::SwitchOn);
+    c.ports().ports.set_clock(T0 + 95 * 86_400_000, DAY + 95);
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (off.is_err(), on.is_err(), c.records_dropped(&agent(0))),
+        (true, true, None),
+        "(the Switch off refused, the Switch on refused, the count after 95 days)"
+    );
+}
+
+#[test]
+fn u24t_pr42_probe_2_a_clockless_switch_off_whose_record_the_store_refuses_enters_the_count() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.ports()
+        .ports
+        .refuse_record(u24t_is_hold_set, refused_name("too_large"));
+    clock_fails(&c);
+    let off = c.control(&agent(0), Action::SwitchOff);
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 95 * 86_400_000, DAY + 95);
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (off, c.records_dropped(&agent(0))),
+        (
+            Ok(()),
+            Some((1, "hold_set".to_string(), "too_large".to_string()))
+        ),
+        "(the clockless Switch off, the count with the event and the refusal)"
+    );
+}
+
+fn u24t_with_a_past_run(dropped: bool) -> Coordinator<Both> {
+    let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+    c.ports().ports.histories.borrow_mut().push((
+        agent(0),
+        halvo_coord::types::RunHistory {
+            run: PastRun {
+                run: RunId::parse(&format!("{:032x}", 0x3e1)).unwrap(),
+                day: DAY,
+                outcome: Outcome::Completed,
+                unknown: 0,
+            },
+            effects: Vec::new(),
+        },
+    ));
+    if dropped {
+        let run = start(&c, 0);
+        c.ports()
+            .ports
+            .refuse_record(is_item_raise, refused_name("too_large"));
+        let _ = c.on_run(&run, handback(&run, 0, HandbackReason::StepFailed));
+        c.ports().ports.set_clock(T0 + 3 * 86_400_000, DAY + 3);
+        c.tick();
+        c.ports().ports.clear_refusals();
+    }
+    c
+}
+
+fn u24t_card_json(
+    c: &Coordinator<Both>,
+    history: Option<PortError>,
+) -> Result<serde_json::Value, Cause> {
+    if let Some(e) = history {
+        c.ports().ports.refuse(Method::AgentHistory, e);
+    }
+    let card = c.card(&agent(0));
+    c.ports().ports.clear_refusals();
+    card.map(|card| serde_json::to_value(card).unwrap())
+}
+
+#[test]
+fn u24t_r6_a_busy_history_read_shows_the_count_line_alone_and_a_later_good_read_shows_the_entries()
+{
+    let c = u24t_with_a_past_run(true);
+    let good = u24t_card_json(&c, None).unwrap();
+    assert_eq!(
+        (good.get("history"), good["runs"].as_array().map(Vec::len)),
+        (None, Some(1)),
+        "a read that answers: no key, the past run"
+    );
+    let busy = u24t_card_json(&c, Some(PortError::Busy));
+    let again = u24t_card_json(&c, None);
+    let count = words::text("card.records_dropped", &[("count", "1")]).unwrap();
+    assert_eq!(
+        busy.map(|b| (b["history"].clone(), b["lines"].clone(), b["runs"].clone())),
+        Ok((
+            serde_json::json!("busy"),
+            serde_json::json!([{ "key": "records_dropped", "text": count }]),
+            serde_json::json!([])
+        )),
+        "a busy read: (the key, the count's line alone, no run)"
+    );
+    assert_eq!(
+        again,
+        Ok(good),
+        "the next read that answers shows the card with its entries"
+    );
+}
+
+#[test]
+fn u24t_r6_a_busy_history_read_with_no_record_taken_off_gives_the_key_and_no_line() {
+    let c = u24t_with_a_past_run(false);
+    assert_eq!(
+        u24t_card_json(&c, Some(PortError::Busy)).map(|b| (
+            b["history"].clone(),
+            b["lines"].clone(),
+            b["runs"].clone()
+        )),
+        Ok((
+            serde_json::json!("busy"),
+            serde_json::json!([]),
+            serde_json::json!([])
+        )),
+        "(the key, no line, no run)"
+    );
+}
+
+#[test]
+fn u24t_r6_a_history_read_refused_otherwise_keeps_its_cause() {
+    let c = u24t_with_a_past_run(true);
+    assert_eq!(
+        (
+            u24t_card_json(&c, Some(PortError::NoService)),
+            u24t_card_json(&c, Some(refused_name("internal")))
+        ),
+        (Err(Cause::NoService), Err(Cause::NoService)),
+        "no_service and a refusal of the owner answer the cause, as before"
+    );
 }

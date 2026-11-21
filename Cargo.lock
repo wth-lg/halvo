@@ -1611,6 +1611,7 @@ dependencies = [
  "getrandom 0.2.17",
  "halvo-capture",
  "halvo-control",
+ "halvo-redact",
  "halvo-sqlcipher",
  "libc",
  "objc2",
@@ -1715,6 +1716,16 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "halvo-identify"
+version = "0.0.0"
+dependencies = [
+ "halvo-redact",
+ "halvo-sample",
+ "halvo-schema",
+ "halvo-seam",
 ]
 
 [[package]]

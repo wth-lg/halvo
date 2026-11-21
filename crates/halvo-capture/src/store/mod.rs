@@ -1,5 +1,6 @@
 //! The encrypted segment store: its traits, types and errors.
 
+pub mod adapter;
 pub mod db;
 pub(crate) mod durable;
 pub(in crate::store) mod expiry;
@@ -161,12 +162,16 @@ pub enum WriteFault {
     Db(i32),
     /// The handle refuses writes because a delete-all began on it.
     Sealed,
+    /// The handle was opened for maintenance alone ([`OpenFor::Maintenance`])
+    /// and refuses every batch; a retry on it answers the same.
+    MaintenanceOnly,
 }
 
 impl From<StoreError> for WriteFault {
     fn from(e: StoreError) -> WriteFault {
         match e {
             StoreError::Sealed => WriteFault::Sealed,
+            StoreError::MaintenanceOnly => WriteFault::MaintenanceOnly,
             StoreError::Io(kind) => WriteFault::Io(kind),
             StoreError::Db(code) => WriteFault::Db(code),
             StoreError::Seal => WriteFault::Db(0),
@@ -197,18 +202,32 @@ pub struct InventoryRow {
 pub struct Reconciled {
     pub files_removed: u64,
     pub rows_shredded: u64,
-    /// A step failed; the next open or expiry pass does what it left.
+    /// A step failed; the next open does what it left.
     pub owed: bool,
 }
 
 /// The store the capture daemon appends to.
-pub trait SegmentStore {
+pub(in crate::store) trait SegmentStore {
     /// Refused with [`StoreError::NotImplemented`]: the store keeps no
     /// per-event row. It touches nothing.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests: the store keeps no per-event row, and core-3 deletes this call"
+        )
+    )]
     fn append_event(&mut self, event: &CaptureStreamEvent) -> StoreResult<()>;
 
     /// Write raw capture bytes as a new encrypted segment with no totals, its
     /// instants the write instant, and return its ref and its ordinal.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests: the adapter writes through write_batch, and core-3 deletes this call"
+        )
+    )]
     fn write_segment(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)>;
 
     /// The summed lengths of the files under the store directory, for the cost
@@ -219,12 +238,16 @@ pub trait SegmentStore {
 
 /// Window-expiry crypto-shred: destroy the per-segment key for every segment past
 /// its retention bound, so its ciphertext becomes unrecoverable.
-pub trait SegmentExpiry {
+pub(in crate::store) trait SegmentExpiry {
     /// Crypto-shred every segment past its retention bound. When a shred's
-    /// commit changed a row and the look after the commit or the checkpoint
-    /// after it then fails, the pass answers that failure and reports no
-    /// shred, the handle answers the same to every later call that reads or
-    /// writes the database, and a later open or pass finishes the shred.
+    /// commit changed a row and the look after the commit then fails, the
+    /// pass answers that failure and reports no shred, the handle answers
+    /// the same to every later call that reads or writes the database, and a
+    /// later open finishes the shred. When the checkpoint after the commit
+    /// fails, and fails again after the removal of the chunk's files, the
+    /// pass answers that failure, the handle answers it to every later call
+    /// that reads or writes the database but an expiry or eviction call, and
+    /// such a later call, or a later open, finishes the checkpoint.
     fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport>;
 
     /// Crypto-shred everything and destroy the store key (delete-all), in the
@@ -237,9 +260,41 @@ pub trait SegmentExpiry {
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport>;
 }
 
+/// The caller's access decision for [`db::EncryptedStore::open`]. `Write`
+/// gives a handle that stores batches. `Maintenance` gives a handle that
+/// expires, evicts, lists and deletes as a `Write` handle does and refuses
+/// every batch with [`WriteFault::MaintenanceOnly`]. The store decides
+/// nothing by the build profile or by a feature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenFor {
+    Write,
+    Maintenance,
+}
+
+/// What one expiry or eviction call did: the ordinals of the segments that it
+/// shredded, in ascending order, whether more segments are due, and whether
+/// the store still owes work that a call left undone.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Pass {
+    pub shredded: Vec<Ordinal>,
+    pub more_due: bool,
+    pub owed: bool,
+}
+
+/// The store's two byte totals. `disk_bytes` is what the files take on the
+/// volume: the allocated size of each live segment's file, the live pages of
+/// the database (its pages less its free pages, times the page size) and the
+/// bytes of its log. `logical_bytes` is the payload bytes of the live
+/// segments. The cap compares `disk_bytes`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Usage {
+    pub disk_bytes: u64,
+    pub logical_bytes: u64,
+}
+
 /// The result of a crypto-shred pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct ShredReport {
+pub(in crate::store) struct ShredReport {
     pub segments_shredded: u64,
     pub keys_destroyed: u64,
 }
@@ -400,7 +455,7 @@ impl DeleteReport {
 /// Debug form holds a path, a file name of the account, a segment id or a
 /// text that another library built.
 #[derive(Debug, thiserror::Error)]
-pub enum StoreError {
+pub(in crate::store) enum StoreError {
     #[error("store i/o failed: {0}")]
     Io(std::io::ErrorKind),
     /// SQLite returned this extended result code.
@@ -469,15 +524,29 @@ pub enum StoreError {
     #[error(transparent)]
     Custody(#[from] CustodyError),
     #[error("{0} is not implemented in this phase")]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "only append_event answers it, which has no caller outside the store's tests until core-3 deletes both"
+        )
+    )]
     NotImplemented(&'static str),
+    /// The handle was opened for maintenance alone and refuses every write.
+    #[error("the store was opened for maintenance alone and takes no write")]
+    MaintenanceOnly,
 }
 
-pub type StoreResult<T> = Result<T, StoreError>;
+pub(in crate::store) type StoreResult<T> = Result<T, StoreError>;
 
 /// Run the `--verify-store` measurements on a fresh store in the directory
 /// that HALVO_STORE_DIR names, or in a temporary one, with the marker of
 /// HALVO_GATE_MARKER, and return the line that the gate judges.
-pub fn verify_store() -> StoreResult<String> {
+#[expect(
+    dead_code,
+    reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)"
+)]
+pub(in crate::store) fn verify_store() -> StoreResult<String> {
     let dir = verify::StoreDir::from_env();
     measure_store(dir.path(), &verify::marker_from_env())
 }
@@ -485,7 +554,11 @@ pub fn verify_store() -> StoreResult<String> {
 /// Run the `--verify-deletion` measurements in the directory that
 /// HALVO_STORE_DIR names, or in a temporary one, and return the line that the
 /// gate judges.
-pub fn verify_deletion() -> StoreResult<String> {
+#[expect(
+    dead_code,
+    reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)"
+)]
+pub(in crate::store) fn verify_deletion() -> StoreResult<String> {
     let dir = verify::StoreDir::from_env();
     measure_deletion(dir.path())
 }
@@ -494,7 +567,7 @@ pub fn verify_deletion() -> StoreResult<String> {
 /// holds `marker`, and return the line that the gate judges. It reads neither
 /// HALVO_STORE_DIR nor HALVO_GATE_MARKER and uses no default marker.
 /// Fails when a file of the store holds the raw store key.
-pub fn measure_store(dir: &Path, marker: &str) -> StoreResult<String> {
+pub(in crate::store) fn measure_store(dir: &Path, marker: &str) -> StoreResult<String> {
     verify::run_store_check_in(dir, marker).map(|check| check.to_string())
 }
 
@@ -503,6 +576,6 @@ pub fn measure_store(dir: &Path, marker: &str) -> StoreResult<String> {
 /// the line that the gate judges. It reads neither HALVO_STORE_DIR nor
 /// HALVO_GATE_MARKER. Fails when the state of the root after delete-all is
 /// unknown.
-pub fn measure_deletion(dir: &Path) -> StoreResult<String> {
+pub(in crate::store) fn measure_deletion(dir: &Path) -> StoreResult<String> {
     verify::run_deletion_check_in(dir).map(|check| check.to_string())
 }

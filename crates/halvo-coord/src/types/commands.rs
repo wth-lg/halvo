@@ -127,7 +127,9 @@ const OK: &[&str] = &["reply-ok"];
 /// and its error causes. The `choice` of `agents_answer` takes the ten choices of I3.1 and not
 /// `present`, which the page sends as `agents_present`. `agents_shown` is the page's report that
 /// it opened a page confirmation at the step mark that it shows (ruling RD-80 5.1, 5.2).
-pub const LIST: [Command; 8] = [
+/// `agents_delete` is the person's yes to the question of a row's Delete, which removes the
+/// agent with its workflow (ruling RD-19 (c) rule 7).
+pub const LIST: [Command; 9] = [
     Command {
         name: "agents_snapshot",
         args: &[],
@@ -248,6 +250,18 @@ pub const LIST: [Command; 8] = [
             Cause::Stale,
             Cause::State,
             Cause::NoService,
+            Cause::Malformed,
+        ],
+    },
+    Command {
+        name: "agents_delete",
+        args: &[AGENT],
+        replies: OK,
+        errors: &[
+            Cause::State,
+            Cause::UnknownAgent,
+            Cause::NoService,
+            Cause::Busy,
             Cause::Malformed,
         ],
     },

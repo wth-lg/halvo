@@ -49,6 +49,12 @@ pub struct Both {
     /// events the owner held at the call.
     pub binds_at: std::cell::RefCell<Vec<(RunId, BindResult, bool, usize)>>,
     pub handbacks_at: std::cell::RefCell<Vec<(RunId, HandbackResult, bool, usize)>>,
+    /// How many of the next `set_state` `paused` bodies answer `busy` before they reach the
+    /// owner.
+    pub paused_busy: Cell<u32>,
+    /// Each `set_state` `paused` that `paused_busy` answered so, as `set_state <agent> paused
+    /// busy` with the last two digits of the agent.
+    pub refused_paused: std::cell::RefCell<Vec<String>>,
 }
 
 pub type LostAckRow = fn(&halvo_coord::types::What) -> bool;
@@ -181,6 +187,21 @@ impl Owner for Both {
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
         self.note("::send");
+        if let Body::SetState {
+            agent,
+            state: AgentState::Paused,
+            ..
+        } = body
+        {
+            let left = self.paused_busy.get();
+            if left > 0 {
+                self.paused_busy.set(left - 1);
+                self.refused_paused
+                    .borrow_mut()
+                    .push(format!("set_state {} paused busy", &agent.as_str()[30..]));
+                return Err(PortError::Busy);
+            }
+        }
         self.ports.send(body)
     }
 
@@ -200,6 +221,19 @@ impl Owner for Both {
         run: &halvo_coord::types::RunId,
     ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
         self.ports.replies(workflow, agent, run)
+    }
+
+    fn overlaps(
+        &self,
+        workflow: &halvo_coord::types::WorkflowId,
+        agent: &halvo_coord::types::AgentId,
+        slots: Option<&[halvo_coord::types::Slot]>,
+    ) -> Result<halvo_coord::ports::Overlaps, PortError> {
+        self.ports.overlaps(workflow, agent, slots)
+    }
+
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        self.ports.delete(workflow)
     }
 }
 
@@ -386,6 +420,8 @@ pub fn owner(spec: &[A], limits: Limits) -> Both {
         day_fails: Cell::new(false),
         binds_at: std::cell::RefCell::new(Vec::new()),
         handbacks_at: std::cell::RefCell::new(Vec::new()),
+        paused_busy: Cell::new(0),
+        refused_paused: std::cell::RefCell::new(Vec::new()),
     }
 }
 
