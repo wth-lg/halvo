@@ -1,15 +1,28 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every test of the workspace passes with the committed lockfile, and the test run leaves no entry in its temp directory.
+# rule: Every test of the workspace passes with the committed lockfile, and the test run leaves no entry in its temp directory. On the macos job a hold test whose secure-input hold the system refuses fails, and the job prints how often the shutdown of each real macOS source answered other than Ok.
 # lane: alone
 # limit: 1800
 set -u
 name=12-test
 exempt=halvo-consent-test-
+slow_list=scripts/ci/slow-tests.txt
+nl='
+'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
   exit 1
+}
+
+macos_sources='input foreground screen'
+
+shutdown_lines() {
+  [ "$CI_D_JOB" = macos ] || return 0
+  for source in $macos_sources; do
+    count=$(grep -c "^shutdown source=$source ok=false\$" "$answers")
+    printf 'shutdown_not_ok source=%s count=%s\n' "$source" "$count"
+  done
 }
 
 keychain_items() {
@@ -24,19 +37,143 @@ keychain_items() {
   printf 'login-keychain items of com.halvo.capture.dev-fallback %s the tests: %s\n' "$1" "$count"
 }
 
+fast_plan() {
+  { [ -f "$slow_list" ] && [ -r "$slow_list" ]; } ||
+    fail "$slow_list cannot be read; the form of the merge gate reads from it the test targets, the unit tests and the test names that it skips"
+  cr=$(printf '\r')
+  skipped_targets=' '
+  target_packages=' '
+  unit_packages=' '
+  target_excludes=
+  unit_excludes=
+  name_skips=
+  skipped_names=0
+  doc_tests=run
+  line_number=0
+  while read -r kind word _ || [ -n "$kind" ]; do
+    line_number=$((line_number + 1))
+    kind=${kind%"$cr"}
+    word=${word%"$cr"}
+    case $kind in
+      '' | '#'*) continue ;;
+      doc-tests)
+        doc_tests=skipped
+        continue
+        ;;
+    esac
+    case $kind:$word in
+      target: | targets: | units: | test: | target:*[!A-Za-z0-9_-]* | targets:*[!A-Za-z0-9_-]* | units:*[!A-Za-z0-9_-]* | test:*[!A-Za-z0-9_:]*)
+        fail "$slow_list line $line_number: after its first word a line names a test target or a package in letters, digits, - and _, or a part of a test name in letters, digits, _ and :"
+        ;;
+      target:*) skipped_targets="$skipped_targets$word " ;;
+      targets:*)
+        target_packages="$target_packages$word "
+        target_excludes="$target_excludes --exclude $word"
+        ;;
+      units:*)
+        unit_packages="$unit_packages$word "
+        unit_excludes="$unit_excludes --exclude $word"
+        ;;
+      test:*)
+        name_skips="$name_skips --skip $word"
+        skipped_names=$((skipped_names + 1))
+        ;;
+      *) fail "$slow_list line $line_number begins with another word than target, targets, units, test or doc-tests" ;;
+    esac
+  done <"$slow_list"
+  metadata=$(cargo metadata --no-deps --format-version 1 --locked) || fail "cargo metadata exited $?"
+  pairs=$(printf '%s\n' "$metadata" | perl -ne 'my $package = ""; while (/\{"name":"([A-Za-z0-9_-]+)","version":"|\{"kind":\["test"\],"crate_types":\["bin"\],"name":"([A-Za-z0-9_-]+)"/g) { if (defined $1) { $package = $1; print "package $1\n"; } else { print "target $package $2\n"; } }')
+  all_packages=$(printf '%s\n' "$pairs" | sed -n 's/^package //p' | sort -u)
+  all_targets=$(printf '%s\n' "$pairs" | sed -n 's/^target [^ ]* //p' | sort -u)
+  [ -n "$all_targets" ] && [ -n "$all_packages" ] ||
+    fail "cargo metadata names no test target or no package in the form that this check reads"
+  for package in $target_packages $unit_packages; do
+    case $nl$all_packages$nl in
+      *"$nl$package$nl"*) ;;
+      *) fail "$slow_list names the package $package, and the workspace has no package of that name; take the line out" ;;
+    esac
+  done
+  for target in $skipped_targets; do
+    case $nl$all_targets$nl in
+      *"$nl$target$nl"*) ;;
+      *) fail "$slow_list names the test target $target, and no package of the workspace has a test target of that name; take the line out" ;;
+    esac
+  done
+  kept_targets=
+  all_count=0
+  kept_count=0
+  seen_targets=' '
+  while read -r pair_kind package target; do
+    [ "$pair_kind" = target ] || continue
+    all_count=$((all_count + 1))
+    case $target_packages in *" $package "*) continue ;; esac
+    case $skipped_targets in *" $target "*) continue ;; esac
+    kept_count=$((kept_count + 1))
+    case $seen_targets in *" $target "*) continue ;; esac
+    seen_targets="$seen_targets$target "
+    kept_targets="$kept_targets --test $target"
+  done <<EOF
+$pairs
+EOF
+  [ -n "$kept_targets" ] || fail "$slow_list names every test target of the workspace"
+  skipped_units=0
+  for package in $unit_packages; do
+    skipped_units=$((skipped_units + 1))
+  done
+  printf 'form: the merge gate; %s names what this run skips: %s of %s test targets, the unit tests of %s packages, %s parts of a test name; doc-tests: %s\n' "$slow_list" "$((all_count - kept_count))" "$all_count" "$skipped_units" "$skipped_names" "$doc_tests"
+}
+
+build_tests() {
+  if [ -z "${CI_D_MERGE_GATE:-}" ]; then
+    cargo test --workspace --locked --no-run
+    return
+  fi
+  # shellcheck disable=SC2086
+  cargo test --workspace $unit_excludes --locked --lib --bins --no-run &&
+    cargo test --workspace $target_excludes --locked $kept_targets --no-run
+}
+
+run_tests() {
+  if [ -z "${CI_D_MERGE_GATE:-}" ]; then
+    TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked 2>&1
+    return
+  fi
+  # shellcheck disable=SC2086
+  TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace $unit_excludes --locked --lib --bins -- $name_skips 2>&1 &&
+    TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace $target_excludes --locked $kept_targets -- $name_skips 2>&1 || return
+  [ "$doc_tests" = skipped ] || TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked --doc 2>&1
+}
+
+line_seconds() {
+  if [ -z "${CI_D_MERGE_GATE:-}" ]; then
+    cat
+    return
+  fi
+  perl -e '$| = 1; my $start = time; open(my $file, ">", $ARGV[0]) or exit 2; while (my $line = <STDIN>) { print $line; printf $file "%d %s", time - $start, $line; }' "$CI_D_ARTIFACTS/line-seconds.txt"
+}
+
 measure() {
   cd "$CI_D_REPO" || exit 2
-  cargo test --workspace --locked --no-run || fail "the test build failed: cargo test --no-run exited $?"
+  [ -z "${CI_D_MERGE_GATE:-}" ] || fast_plan
+  build_tests || fail "the test build failed: cargo test --no-run exited $?"
   scratch=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/$name.XXXXXX") || fail "mktemp failed"
   output=$(mktemp -d "${TMPDIR:-/tmp}/$name-output.XXXXXX") || fail "mktemp failed"
+  answers=$output/shutdown-answers.txt
+  : >"$answers" || fail "the file of the shutdown answers cannot be made"
+  if [ "$CI_D_JOB" = macos ]; then
+    HALVO_SECURE_INPUT_HOLD_REQUIRED=1
+    HALVO_SHUTDOWN_ANSWERS=$answers
+    export HALVO_SECURE_INPUT_HOLD_REQUIRED HALVO_SHUTDOWN_ANSWERS
+  fi
   keychain_items before
   {
-    TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked 2>&1
+    run_tests
     printf '%s\n' "$?" >"$output/code"
-  } | tee "$output/cargo-test.txt"
+  } | line_seconds | tee "$output/cargo-test.txt"
   code=
   [ ! -s "$output/code" ] || read -r code <"$output/code"
   keychain_items after
+  shutdown_lines
   tr -d '\r' <"$output/cargo-test.txt" | grep -E '^ *(Running|Doc-tests) |^test .* \.\.\. (ok|FAILED|ignored)' >"$CI_D_ARTIFACTS/tests.txt" ||
     fail "the list of the tests that cargo test ran cannot be written to its artifacts directory"
   [ "$code" = 0 ] || fail "cargo test exited ${code:-without a status}"
@@ -75,6 +212,7 @@ check() {
     CI_D_ARTIFACTS=$work/artifacts/$1
     RUNNER_TEMP=$work/runner-temp
     export PATH CI_D_REPO CI_D_JOB CI_D_ARTIFACTS RUNNER_TEMP STUB_CALLS STUB_BUILD_EXIT STUB_TEST_EXIT STUB_LEAVES STUB_MOVES STUB_KILLS_PARENT
+    unset CI_D_MERGE_GATE
     sh "$0" 2>&1
   )
   code=$?
@@ -122,6 +260,9 @@ case $* in
     ;;
 esac
 grep -q -e '--no-run' "$STUB_CALLS" || exit 94
+[ "${HALVO_SECURE_INPUT_HOLD_REQUIRED:-}" = 1 ] || exit 92
+[ -f "${HALVO_SHUTDOWN_ANSWERS:-}" ] || exit 91
+printf 'shutdown source=input ok=false\nshutdown source=input ok=true\nshutdown source=screen ok=false\nshutdown source=screen ok=false\nshutdown source=inputs ok=false\n' >>"$HALVO_SHUTDOWN_ANSWERS"
 case ${TMPDIR:-} in
   "$RUNNER_TEMP"/?*) ;;
   *) exit 93 ;;
@@ -178,6 +319,7 @@ EOF
 
   repo=$work/literal-tracked
   check tests-pass PASS "login-keychain items of com.halvo.capture.dev-fallback before the tests: 2${nl}     Running unittests src/lib.rs (target/debug/deps/stub-0123456789abcdef)" "$passed"
+  check shutdown-answers-counted PASS "after the tests: 2${nl}shutdown_not_ok source=input count=1${nl}shutdown_not_ok source=foreground count=0${nl}shutdown_not_ok source=screen count=2${nl}"
   STUB_KILLS_PARENT=yes
   check test-status-lost FAIL 'cargo test exited without a status)'
   STUB_BUILD_EXIT=101

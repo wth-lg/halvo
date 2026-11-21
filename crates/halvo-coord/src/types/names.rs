@@ -400,7 +400,8 @@ names! {
 }
 
 names! {
-    /// The key of a settings line of a card (I2.2).
+    /// The key of a line of a card: the settings lines of I2.2, and the count of the agent's
+    /// records taken off since Halvo opened (`card.records_dropped`; ruling RD-64 2.6).
     LineKey {
         Level = "level",
         RunsOn = "runs_on",
@@ -408,6 +409,7 @@ names! {
         Time = "time",
         Files = "files",
         Spend = "spend",
+        RecordsDropped = "records_dropped",
     }
 }
 

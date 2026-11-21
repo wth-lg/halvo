@@ -97,7 +97,8 @@ fn expected_keys() -> BTreeSet<String> {
         "working.starting",
         "working.working",
         "working.stopping",
-        "working.kill_stuck",
+        "working.kill_stuck_mac",
+        "working.kill_stuck_windows",
         "waiting_turn.queued",
         "waiting_turn.store",
         "problem.failed",
@@ -291,7 +292,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 252);
+    assert_eq!(seen.len(), 253);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -442,22 +443,36 @@ fn fixed_texts_stand_word_for_word() {
     assert!(classes.contains(&"payment"));
 }
 
-/// The three texts of ruling RD-116 W1, the coordinator's word after two plain readings.
+/// The three texts of a stuck or unsaved record, written again from the plain readers' findings
+/// (U2.4r; rulings RD-116 W1, RD-118), `line.working.kill_stuck` with a text per system.
 #[test]
-fn rd116_w1_the_three_texts_stand_word_for_word() {
+fn u24r_the_three_texts_stand_word_for_word() {
     let t = |k: &str, pairs: &[(&str, &str)]| words::text(k, pairs).unwrap();
     assert_eq!(
-        t("line.working.kill_stuck", &[]),
-        "Part still runs, taking no step for you. Quit Halvo (Mac: app menu; Windows: icon by the clock), then reopen."
+        t("line.working.kill_stuck_mac", &[]),
+        "Its task may still run. Right-click Halvo in the Dock, choose Quit. Halvo stops all tasks; that can take seconds."
+    );
+    assert_eq!(
+        t("line.working.kill_stuck_windows", &[]),
+        "Its task may still run. Click Halvo's icon by the clock (or under ^), then Quit Halvo. All tasks stop."
     );
     assert_eq!(
         t("line.problem.record", &[]),
-        "Halvo can't save this agent's history now, so it starts no tasks and can't take your answers. Stop works."
+        "Halvo can't read or save this agent's record. The agent starts nothing new. Stop works if shown."
     );
     assert_eq!(
         t("card.records_dropped", &[("count", "3")]),
-        "Since Halvo opened, 3 things in this agent's history went unsaved. They may still have happened; check before repeating them."
+        "After Halvo started, 3 of this agent's records went unsaved. Its steps may have happened; check outside Halvo before repeating."
     );
+    for key in [
+        "line.working.kill_stuck_mac",
+        "line.working.kill_stuck_windows",
+        "line.problem.record",
+        "card.records_dropped",
+    ] {
+        let words = t(key, &[("count", "3")]).split_whitespace().count();
+        assert!(words <= 20, "{key}: {words} words");
+    }
 }
 
 /// The hold `failures` says what happened and its way out (ruling RD-81).
@@ -497,7 +512,7 @@ fn every_status_line_has_its_key_and_its_status() {
         assert_eq!(line.status().name(), status, "{key}");
         assert!(keys.insert(key));
     }
-    assert_eq!(keys.len(), 28);
+    assert_eq!(keys.len(), 30);
 }
 
 #[test]

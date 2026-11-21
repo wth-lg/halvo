@@ -14,7 +14,7 @@ use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
     FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
     OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind, Snapshot,
-    Status,
+    Status, System,
 };
 use crate::words;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -1068,7 +1068,12 @@ where
     /// through `raise_step` for any other, and moves the run to `waiting`; the second step of a `sign_in`
     /// item (`Bind`); and the runner's end, before which the run's open item lapses with
     /// `run_ended`. A request that ends the run (`kind`, `budget`) shows no card, stops the run
-    /// with that cause and is answered `state`.
+    /// with that cause and is answered `state`. A second step or a handback `account_link` whose
+    /// origin is `http` outside 127.0.0.0/8 is declined to the runner, with no item raised, only
+    /// where `raise_step` would raise an item or end the run with `budget`: after its state rule
+    /// (a run that is not `working` is refused with `state`) and its kind rule (a second request
+    /// while an item of the run is open ends the run with `kind` and raises nothing), and before
+    /// its budget rule; it never declines quietly (I1.4, ruling RD-116 R2).
     pub fn on_run(&self, run: &RunId, event: RunEvent) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
         if Self::waits_on_run(&st, run) {
@@ -2498,9 +2503,9 @@ where
         st.table = st.table.stored(record);
     }
 
-    /// Whether the agent's record is stuck on the board, as the line `line.problem.record` will
-    /// read it once the unit that lands second wires it into compose (I5.7; rulings RD-64 2.5,
-    /// RD-122 T1); false where there is no board or no such agent.
+    /// Whether the agent's record is stuck on the board, which gives its row the line
+    /// `line.problem.record` (I5.7, I1.3; rulings RD-64 2.5, RD-122 T1); false where there is no
+    /// board or no such agent.
     pub fn record_stuck(&self, agent: &AgentId) -> bool {
         let st = self.lock();
         st.board
@@ -2520,8 +2525,10 @@ where
 
     /// The card of an agent (I8.1 `agents_card`, I2.6), read through `Owner::agent_history`,
     /// with the name of its row: two agents of one name get their ordinal among the agents whose
-    /// rows the page shows (I2.3). An agent that has no row, whose workflow a tick saw gone or
-    /// whose setup body the owner ended, is `unknown_agent`, as for every control.
+    /// rows the page shows (I2.3). Its first line is `card.records_dropped` with the count of
+    /// `records_dropped` where the board took off a record of the agent in this life. An agent
+    /// that has no row, whose workflow a tick saw gone or whose setup body the owner ended, is
+    /// `unknown_agent`, as for every control.
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
         let st = self.lock();
         let board = st
@@ -2540,7 +2547,12 @@ where
             .ports
             .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
             .map_err(|e| cause_of(&e))?;
-        roster::card(facts, &name, &history, &self.limits)
+        let mut card = roster::card(facts, &name, &history, &self.limits)?;
+        let count = board.dropped(agent).map_or(0, |(n, _, _)| n);
+        if let Some(line) = roster::dropped_line(count)? {
+            card.lines.insert(0, line);
+        }
+        Ok(card)
     }
 
     /// The reply of `agents_snapshot` (I8.1).
@@ -2631,7 +2643,7 @@ where
                     .runs
                     .iter()
                     .any(|r| r.agent == facts.agent && r.kill_refused);
-                if let Ok(row) = roster::gone_row(*facts, stuck, name) {
+                if let Ok(row) = roster::gone_row(*facts, stuck, System::HOST, name) {
                     placed.push((Placed { row, raised: None }, None));
                 }
                 continue;
@@ -2640,7 +2652,12 @@ where
             let held = open
                 .as_ref()
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
-            let line = roster::status(*facts, &self.limits, held.map(|h| h.confirmation().state()));
+            let line = roster::status_of(
+                *facts,
+                &self.limits,
+                held.map(|h| h.confirmation().state()),
+                board.record_stuck(&facts.agent, &self.limits),
+            );
             let Ok(row) = roster::row(*facts, line, name) else {
                 continue;
             };

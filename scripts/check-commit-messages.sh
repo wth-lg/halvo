@@ -144,8 +144,8 @@ Three layers apply this predicate.
      where sh scripts/prerequisites.sh has not set core.hooksPath, or a commit
      that GitHub itself makes.
   3. The CI step "Commit messages" (scripts/ci-commit-messages.sh) cannot be
-     skipped from a clone. It reads the stored messages of every push and pull
-     request, and the title and description of a pull request. It reads them
+     skipped from a clone. It reads stored messages on pushes that start CI and on pull
+     requests, where it also reads the title and description. It reads them
      after the push, so it cannot stop a squash commit that GitHub writes on the
      default branch: scripts/merge-pr.sh checks that message before the merge.
      It does not run for a push whose newest commit says [skip ci], and it reads
