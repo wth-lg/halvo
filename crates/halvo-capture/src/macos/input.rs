@@ -555,11 +555,20 @@ impl Folds {
     }
 }
 
-fn events_of_interest(switches: Switches) -> Vec<CGEventType> {
+/// Typing on a Mac: whether a source that the product builds asks its tap for
+/// key events. Off until the owner answers item I-83 point 2, so a Mac build
+/// notes no typing. `InputSource::start_events` is its one reader.
+const TYPING_ON_MAC: bool = false;
+
+/// The event types of a tap: a key type only while `typing` and key_class are
+/// both on, a pointer type only while pointer_class is on.
+fn events_of_interest(switches: Switches, typing: bool) -> Vec<CGEventType> {
     TAP_EVENTS
         .iter()
         .filter(|&&(etype, _)| match tap_class(etype) {
-            Some(TapClass::KeyPress | TapClass::OtherKey) => switches.is_on(Switch::KeyClass),
+            Some(TapClass::KeyPress | TapClass::OtherKey) => {
+                typing && switches.is_on(Switch::KeyClass)
+            }
             Some(TapClass::DiscretePointer | TapClass::ContinuousPointer) => {
                 switches.is_on(Switch::PointerClass)
             }
@@ -634,7 +643,8 @@ fn tap_settings() -> TapSettings {
         location: TAP_LOCATION,
         placement: TAP_PLACEMENT,
         options: TAP_OPTIONS,
-        events: events_of_interest(Switches::default()),
+        // A start asks the types of its own switches (`start_events`).
+        events: Vec::new(),
         secure: secure_input_reading,
         session: read_session,
         clocks: CLOCKS,
@@ -2233,6 +2243,11 @@ pub struct InputSource {
     front: Option<fn() -> Option<libc::pid_t>>,
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
     drops: Option<DropCounts>,
+    /// Typing stays on in this source whatever TYPING_ON_MAC says: the stall
+    /// seam's source, whose fixture counts the keys that it records, and a
+    /// test's. A build without debug assertions has no such field.
+    #[cfg(all(debug_assertions, any(test, feature = "stall-seam")))]
+    typing_kept_on: bool,
     refusal: Arc<Mutex<Option<SecureInputRefused>>>,
     released: Arc<Mutex<Option<SecureInputReleaseRefused>>>,
     tap_enable: TapEnable,
@@ -2294,6 +2309,7 @@ impl InputSource {
         source.session = seam.session;
         source.front = Some(seam.front);
         source.drops = Some(seam.drops);
+        source.typing_kept_on = true;
         source
     }
 
@@ -2320,6 +2336,8 @@ impl InputSource {
             front: None,
             #[cfg(all(debug_assertions, feature = "stall-seam"))]
             drops: None,
+            #[cfg(all(debug_assertions, any(test, feature = "stall-seam")))]
+            typing_kept_on: false,
             refusal: Arc::new(Mutex::new(None)),
             released: Arc::new(Mutex::new(None)),
             tap_enable: CGEventTapEnable,
@@ -2339,6 +2357,19 @@ impl InputSource {
         *self.refusal.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// The event types that a start of this source asks its tap for, at the
+    /// floor's switches: the one read of TYPING_ON_MAC.
+    fn start_events(&self) -> Vec<CGEventType> {
+        let switches = self.floor.switches();
+        #[cfg(all(debug_assertions, any(test, feature = "stall-seam")))]
+        {
+            if self.typing_kept_on {
+                return events_of_interest(switches, true);
+            }
+        }
+        events_of_interest(switches, TYPING_ON_MAC)
+    }
+
     fn begin_with<M: TapMaker + Send + 'static>(
         &mut self,
         sink: SinkHandle,
@@ -2355,20 +2386,20 @@ impl InputSource {
         *self.released.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.counters.set_stalled(false);
         self.keys_missing.store(false, Ordering::SeqCst);
-        let switches = self.floor.switches();
-        self.off = !switches.is_on(Switch::KeyClass) && !switches.is_on(Switch::PointerClass);
+        let events = self.start_events();
+        self.off = events.is_empty();
         if self.off {
             self.failure = None;
             return Ok(Started::Off);
         }
-        if switches.is_on(Switch::KeyClass) && M::preflight_denied() {
+        if mask_of(&events) & KEY_EVENTS != 0 && M::preflight_denied() {
             let refused = CaptureError::PermissionDenied(Modality::Keystroke);
             self.failure = Some(refused.clone());
             return Err(refused);
         }
         let settings = TapSettings {
             session: self.session,
-            events: events_of_interest(switches),
+            events,
             ..tap_settings()
         };
         let stop = Arc::new(AtomicBool::new(false));
@@ -5148,7 +5179,7 @@ mod tests {
 
     #[test]
     fn the_tap_listens_for_exactly_the_types_that_it_holds_records_or_reads() {
-        let mask = events_of_interest(crate::floor::Switches::default());
+        let mask = events_of_interest(crate::floor::Switches::default(), true);
         for etype in EVERY_EVENT_TYPE {
             let masked = mask.iter().any(|&listed| listed as u32 == etype as u32);
             let handled = kind_of(etype, Some(0), 0, false) != Kind::Ignore;
@@ -5161,7 +5192,7 @@ mod tests {
 
     #[test]
     fn the_tap_mask_is_0x0e401cfe() {
-        let mask = events_of_interest(crate::floor::Switches::default())
+        let mask = events_of_interest(crate::floor::Switches::default(), true)
             .iter()
             .fold(0u64, |mask, &etype| mask | 1 << (etype as u64));
         assert_eq!(mask, 0x0E40_1CFE);
@@ -7080,8 +7111,10 @@ mod tests {
 
     #[test]
     fn the_tap_is_requested_for_the_events_of_the_table() {
-        let mask = tap_settings()
-            .events
+        let mut source = source_with(HoldPlan::Never);
+        source.typing_kept_on = true;
+        let mask = source
+            .start_events()
             .iter()
             .fold(0u64, |mask, &etype| mask | 1 << (etype as u64));
         assert_eq!(mask, 0x0E40_1CFE);
@@ -7886,21 +7919,47 @@ mod tests {
     }
 
     #[test]
-    fn the_mask_holds_the_key_types_only_with_key_class_on_and_the_mouse_types_only_with_pointer_class_on(
+    fn the_mask_holds_the_key_types_only_while_typing_on_a_mac_and_key_class_are_on_and_the_mouse_types_only_with_pointer_class_on(
     ) {
         let rows = [
-            (true, true, 0x0E40_1CFE),
-            (false, true, 0x0E40_00FE),
-            (true, false, 0x0000_1C00),
-            (false, false, 0),
+            (false, true, true, 0x0E40_00FE),
+            (false, false, true, 0x0E40_00FE),
+            (false, true, false, 0),
+            (false, false, false, 0),
+            (true, true, true, 0x0E40_1CFE),
+            (true, false, true, 0x0E40_00FE),
+            (true, true, false, 0x0000_1C00),
+            (true, false, false, 0),
         ];
-        for (key, pointer, mask) in rows {
+        for (typing, key, pointer, mask) in rows {
             assert_eq!(
-                mask_of(&events_of_interest(switches_with(key, pointer))),
+                mask_of(&events_of_interest(switches_with(key, pointer), typing)),
                 mask,
-                "key_class {key}, pointer_class {pointer}"
+                "typing on a Mac {typing}, key_class {key}, pointer_class {pointer}"
             );
         }
+    }
+
+    #[test]
+    fn typing_on_a_mac_stays_off_until_the_owner_answers_item_i_83_point_2() {
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
+        let key_types: Vec<u32> = source
+            .start_events()
+            .into_iter()
+            .filter(|&etype| {
+                matches!(
+                    tap_class(etype),
+                    Some(TapClass::KeyPress | TapClass::OtherKey)
+                )
+            })
+            .map(|etype| etype as u32)
+            .collect();
+        assert!(
+            key_types.is_empty(),
+            "typing on a Mac is switched on only by the owner's answer (1) to item I-83 \
+             point 2; a source of InputSource::new asks its tap for the key types {key_types:?}"
+        );
     }
 
     #[test]
@@ -7973,6 +8032,7 @@ mod tests {
         let (handle, _writer) = sink::channel(4);
         let made = Arc::new(AtomicUsize::new(0));
         let mut source = source_switched(switches_with(true, true));
+        source.typing_kept_on = true;
         let begun = source.begin_with(handle, DeniedMaker(made.clone()), || {});
         assert_eq!(
             begun,
@@ -8031,7 +8091,11 @@ mod tests {
         let held = held(100);
         let Held { ctx, .. } = held;
         let missing = Arc::new(AtomicBool::new(false));
-        let installed = install_tap(*ctx, stand_in_settings(), KeylessMaker, missing.clone());
+        let settings = TapSettings {
+            events: events_of_interest(Switches::default(), true),
+            ..stand_in_settings()
+        };
+        let installed = install_tap(*ctx, settings, KeylessMaker, missing.clone());
         assert_eq!(
             installed.err(),
             Some(CaptureError::PermissionDenied(Modality::Keystroke))
@@ -8440,11 +8504,57 @@ mod tests {
         assert_eq!(source.shutdown(), Ok(()));
     }
 
+    struct AskedMaker(Arc<Mutex<Vec<CGEventType>>>);
+
+    impl TapMaker for AskedMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            *self.0.lock().unwrap_or_else(PoisonError::into_inner) = settings.events;
+            Ok(())
+        }
+
+        fn listen_denied() -> bool {
+            true
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_source_of_new_with_the_default_switches_starts_without_the_grant_for_key_events_and_asks_no_key_type(
+    ) {
+        let (handle, _writer) = sink::channel(4);
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let mut source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
+        let begun = source.begin_with(handle, AskedMaker(asked.clone()), || {});
+        assert_eq!(
+            begun,
+            Ok(Started::Running),
+            "a Mac build asks no grant for key events"
+        );
+        let asked = mask_of(&asked.lock().unwrap_or_else(PoisonError::into_inner));
+        assert_eq!(
+            asked, 0x0E40_00FE,
+            "the tap is asked for every pointer type and no key type"
+        );
+        assert!(!source.counters.figures().keys_withheld);
+        assert_eq!(source.shutdown(), Ok(()));
+    }
+
     #[test]
     fn a_refused_start_after_a_keyless_refusal_reads_the_reason_permission() {
         let (handle, _writer) = sink::channel(4);
         let made = Arc::new(AtomicUsize::new(0));
         let mut source = source_switched(switches_with(true, true));
+        source.typing_kept_on = true;
         source.keys_missing.store(true, Ordering::SeqCst);
         let begun = source.begin_with(handle, DeniedMaker(made.clone()), || {});
         assert_eq!(
@@ -9712,7 +9822,10 @@ mod granted_tests {
             move || {
                 install_tap(
                     ctx,
-                    tap_settings(),
+                    TapSettings {
+                        events: events_of_interest(Switches::default(), true),
+                        ..tap_settings()
+                    },
                     SystemTapMaker,
                     Arc::new(AtomicBool::new(false)),
                 )
