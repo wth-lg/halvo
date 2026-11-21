@@ -76,21 +76,37 @@ the policy (ADR 0010).
 
 Each sentence names the unit that makes it true.
 
-- The title of a private window of Chrome, Edge, Firefox or Safari is not stored when
-  the browser runs with an English interface, and the title of any other private
-  window is stored (macos-4 and win-4). A source tells a private window by the ending
+- On macOS, the title of a private window of Chrome, Edge, Firefox or Safari is not
+  stored when the browser runs with an English interface, and the title of any other
+  private window is stored (macos-4). A source tells a private window by the ending
   that the browser gives its title, and only for the browser that the ending belongs
-  to: on macOS `(Incognito)` for Chrome, `(InPrivate)` for Edge, an em dash and
-  `Private Browsing` for Firefox and `, Private Browsing` for Safari; on Windows
-  `[InPrivate]` for Edge and `Mozilla Firefox Private Browsing` for Firefox. A page
-  whose own title holds the word private is kept, because a source matches the
-  ending and never the word alone.
+  to: `(Incognito)` for Chrome, `(InPrivate)` for Edge, an em dash and
+  `Private Browsing` for Firefox and `, Private Browsing` for Safari. A page whose own
+  title holds the word private is kept, because a source matches the ending and never
+  the word alone.
+- On Windows, Halvo records the titles of browser windows for Edge and Chrome alone.
+  It records no title of a Firefox window, and none of a window of another browser
+  whose program it knows by name, such as Brave, Opera or Vivaldi; the name of the
+  app and the time are recorded as for every app. A browser whose program it does not
+  know by name is recorded like any app, the title of its private windows too.
+- On Windows, an Edge title is kept only where it ends with the brand name,
+  `Microsoft Edge`, and no closing bracket stands before the brand with nothing but
+  characters that are neither letters nor digits between them. An InPrivate window
+  carries the marker `[InPrivate]` there; under the German and the Japanese interface
+  it read the same, with an en dash or a hyphen before the brand. A page whose own
+  title ends in a closing bracket is not kept. If Edge marked a private window
+  otherwise under some interface language, the titles of that window would be kept.
 - On Windows the title of a Chrome window does not tell a private window (it read
-  `PAGE - Google Chrome` in 3 of 3 runs). win-4 asks the window instead, through UI
-  Automation, and drops the title of every Chrome window that the query does not
-  tell as not private.
-- Limits of that rule. The endings are those of an English interface, measured on
-  the browser versions of the two hosted images: Chrome 157 and 156, Edge 156,
+  `PAGE - Google Chrome` in 3 of 3 runs). Halvo asks the window instead, through UI
+  Automation, and keeps a title only where the window's toolbar holds a button named
+  Back, Forward or Reload and no button of the window carries the word Incognito; it
+  keeps no title of a window in the first two seconds after it first sees the
+  window. So a Chrome window under another interface language keeps no title. If an
+  Incognito window showed one of those English names on its toolbar and no button
+  with the word Incognito, its titles would be kept; no run has yet opened Chrome in
+  Incognito to show the rule on a real window.
+- Limits of the macOS rule. The endings are those of an English interface, measured
+  on the browser versions of the two hosted images: Chrome 157 and 156, Edge 156,
   Firefox 159 and Safari 27.2. With another interface language, another browser or a
   title that ends otherwise, the window is not told and its title is stored. On
   macOS the trial read the title through the accessibility interface, which is how
