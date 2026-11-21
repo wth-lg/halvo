@@ -3602,3 +3602,48 @@ fn u24s_a_check_whose_acknowledgement_was_lost_after_the_stored_last_fell_is_not
         assert!(holds_check_item(&w, 0), "last {kept}: the board holds it");
     }
 }
+
+#[test]
+fn u24s_a_check_refused_at_ticks_whose_list_read_fails_counts_each_tick() {
+    let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refusal("store"));
+    w.act(Act::Tick);
+    w.ports.refuse(Method::Workflows, PortError::NoService);
+    let ticks = w.limits.record_stuck_ticks;
+    for _ in 0..ticks {
+        w.act(Act::Tick);
+    }
+    assert!(
+        w.calls()
+            .iter()
+            .filter(|c| c.as_str() == "log item_raised check refused")
+            .count()
+            > ticks as usize,
+        "the check was sent and refused at each tick"
+    );
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "I5.7: the ticks whose list read fails count, with the lag of one tick of the check (RD-155 (3))"
+    );
+}
+
+#[test]
+fn u24s_a_check_stored_at_a_tick_whose_list_read_fails_ends_the_record_line() {
+    let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+    w.ports
+        .refuse_agent(Method::Log, &agent(0), refusal("store"));
+    for _ in 0..=w.limits.record_stuck_ticks {
+        w.act(Act::Tick);
+    }
+    assert!(w.board.record_stuck(&agent(0), &w.limits));
+    w.ports.clear_refusals();
+    w.ports.refuse(Method::Workflows, PortError::NoService);
+    w.act(Act::Tick);
+    assert!(holds_check_item(&w, 0), "the check is stored");
+    w.act(Act::Tick);
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "the next tick's count ends the record line, also without a list (RD-155 (3))"
+    );
+}
