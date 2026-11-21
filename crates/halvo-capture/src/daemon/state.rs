@@ -1180,6 +1180,61 @@ pub(crate) mod tests {
     }
 
     #[cfg(target_os = "macos")]
+    #[test]
+    fn a_failed_write_whose_file_cannot_be_read_again_leaves_memory_paused_also_when_it_was_running(
+    ) {
+        let dir = test_dir();
+        let writer = TestWrite::default();
+        let mut first = open(dir.path(), &writer);
+        first
+            .update(|state| state.desired = Desired::Running)
+            .unwrap();
+        drop(first);
+        a_plain_open_is_refused_by_mode_000(&file_of(dir.path()));
+        let back = ModeBack(file_of(dir.path()));
+        let mut file = StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(WrittenThenUnreadable),
+        );
+        assert_eq!(file.state().desired, Desired::Running);
+        let answer = file.update(|state| state.store_made = true);
+        assert!(
+            matches!(answer, Err(StateError::MayHoldTheChange { .. })),
+            "{answer:?}"
+        );
+        assert_eq!(file.state().desired, Desired::Paused);
+        assert!(!file.state().store_made);
+        drop(back);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_file_that_cannot_be_read_at_the_start_is_corrupt_and_left_as_it_is() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = test_dir();
+        let writer = TestWrite::default();
+        let mut first = open(dir.path(), &writer);
+        first
+            .update(|state| state.desired = Desired::Running)
+            .unwrap();
+        drop(first);
+        let before = std::fs::read(file_of(dir.path())).unwrap();
+        a_plain_open_is_refused_by_mode_000(&file_of(dir.path()));
+        let back = ModeBack(file_of(dir.path()));
+        std::fs::set_permissions(file_of(dir.path()), std::fs::Permissions::from_mode(0o000))
+            .unwrap();
+        let later = TestWrite::default();
+        let file = open(dir.path(), &later);
+        drop(back);
+        assert_eq!(
+            (file.health(), file.state().desired),
+            (StateHealth::Corrupt, Desired::Paused)
+        );
+        assert_eq!(later.calls.load(Ordering::SeqCst), 0);
+        assert_eq!(std::fs::read(file_of(dir.path())).unwrap(), before);
+    }
+
+    #[cfg(target_os = "macos")]
     struct LinkLeft;
 
     #[cfg(target_os = "macos")]
