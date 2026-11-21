@@ -1847,7 +1847,12 @@ fn flush_folds(state: &mut InputState, all: bool) {
         folds,
         ..
     } = state;
-    for due in folds.due(super::now_tick(), all).into_iter().flatten() {
+    emit_folds((floor, producer, folds), super::now_tick(), all);
+}
+
+/// Emits the folds that are due at `now`, or every open fold when `all` is set.
+fn emit_folds((floor, producer, folds): (&Floor, &Producer, &mut Folds), now: u32, all: bool) {
+    for due in folds.due(now, all).into_iter().flatten() {
         emit_due(floor, producer, folds, due);
     }
 }
@@ -1877,6 +1882,151 @@ mod tests {
             count.add_one();
         }
         count
+    }
+
+    /// The fold records that reached `writer`: the app and the count of each.
+    fn fold_records(writer: &crate::sink::SinkWriter) -> Vec<(String, u64)> {
+        use crate::floor::record::DecodedPayload;
+        let mut records = Vec::new();
+        while let Ok(received) = writer.try_recv() {
+            let floor = received.into_floor().expect("a floor value");
+            let line = crate::floor::record::encode(&floor, &crate::floor::cases::IdentityPoint)
+                .expect("a record");
+            let record = crate::floor::record::decode(line.as_str()).expect("a decoded record");
+            if let DecodedPayload::Fold { count, .. } = record.payload() {
+                records.push((record.app().unwrap_or_default().to_string(), *count));
+            }
+        }
+        records
+    }
+
+    /// A lineage over a table that a test changes: a process that it does not
+    /// hold has an unknown parent.
+    #[derive(Default)]
+    struct TableLineage(
+        std::sync::Mutex<std::collections::HashMap<u32, crate::floor::exclude::Parent>>,
+    );
+
+    impl crate::floor::exclude::Lineage for TableLineage {
+        fn parent_of(
+            &self,
+            pid: crate::floor::exclude::ProcessId,
+        ) -> crate::floor::exclude::Parent {
+            self.0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .get(&pid.get())
+                .copied()
+                .unwrap_or(crate::floor::exclude::Parent::Unknown)
+        }
+    }
+
+    #[test]
+    fn a_fold_whose_last_process_ended_is_kept() {
+        use crate::floor::exclude::{FloorHandle, Parent, ProcessId};
+        let lineage = Arc::new(TableLineage::default());
+        for pid in [10, 20] {
+            lineage.0.lock().expect("table").insert(pid, Parent::None);
+        }
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(
+            FloorHandle::new(
+                Some(ProcessId::new(1)),
+                Arc::clone(&lineage) as Arc<dyn crate::floor::exclude::Lineage>,
+                crate::floor::Switches::default(),
+            ),
+            Arc::clone(&drops),
+        );
+        let (sink, writer) = crate::sink::channel(16);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-ended-fold", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let mut folds = Folds::default();
+        let editor = FrontApp {
+            pid: 10,
+            path: Some("C:\\Apps\\editor.exe".to_string()),
+        };
+        let viewer = FrontApp {
+            pid: 20,
+            path: Some("C:\\Apps\\viewer.exe".to_string()),
+        };
+        let mut held = 0;
+        for (step, front) in [&editor, &editor, &editor, &editor, &editor, &viewer]
+            .into_iter()
+            .enumerate()
+        {
+            let parts = pointer_parts(&mut held, true, 0);
+            pointer_records(
+                (&floor, &producer, &mut folds),
+                front,
+                parts,
+                10_000 + step as u32 * 10,
+            );
+        }
+        lineage.0.lock().expect("table").remove(&20);
+        emit_folds((&floor, &producer, &mut folds), 10_100, true);
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let records = fold_records(&writer);
+        let unknown_lineage = drops.read().unknown_lineage;
+        assert!(
+            records.iter().map(|(_, count)| count).sum::<u64>() == 6 && unknown_lineage == 0,
+            "fold_records={records:?} unknown_lineage={unknown_lineage}"
+        );
+    }
+
+    #[test]
+    fn a_fold_handed_back_at_a_full_sink_stays_under_its_own_app() {
+        let (sink, writer) = crate::sink::channel(1);
+        let floor = test_floor();
+        let filler_front = test_front("C:\\Apps\\filler.exe");
+        let keep = floor
+            .keep::<kind::Pointer>(
+                &filler_front,
+                PrivateWindow::Unknown,
+                &PasswordFieldProbe::default(),
+            )
+            .expect("kept");
+        let filler = FloorEvent::click(keep, Button::Primary, None, EventClock::system());
+        assert_eq!(sink.emit_event(filler), crate::sink::Emitted::Queued);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-hand-back", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let mut folds = Folds::default();
+        let editor = FrontApp {
+            pid: 10,
+            path: Some("C:\\Apps\\editor.exe".to_string()),
+        };
+        let viewer = FrontApp {
+            pid: 20,
+            path: Some("C:\\Apps\\viewer.exe".to_string()),
+        };
+        let mut held = 0;
+        for step in 0..30 {
+            let parts = pointer_parts(&mut held, true, 0);
+            pointer_records(
+                (&floor, &producer, &mut folds),
+                &editor,
+                parts,
+                10_000 + step * 10,
+            );
+        }
+        emit_folds((&floor, &producer, &mut folds), 11_000, false);
+        let parts = pointer_parts(&mut held, true, 0);
+        pointer_records((&floor, &producer, &mut folds), &viewer, parts, 11_010);
+        let _filler = writer.try_recv().expect("the filler");
+        let mut records = Vec::new();
+        for _ in 0..4 {
+            emit_folds((&floor, &producer, &mut folds), 11_025, true);
+            records.extend(fold_records(&writer));
+        }
+        assert_eq!(
+            records,
+            [
+                ("C:\\Apps\\editor.exe".to_string(), 30),
+                ("C:\\Apps\\viewer.exe".to_string(), 1)
+            ],
+            "a handed-back fold was stored under another app"
+        );
     }
 
     #[test]
