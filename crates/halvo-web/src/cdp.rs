@@ -466,7 +466,12 @@ impl Executor {
     /// Causes: `browser_start` (the browser could not be started or ended before its first
     /// reply), `guard` (no guard could be started), `no_channel` (the browser lived and gave no
     /// first reply in time; its tree is ended by the guard's rule), `no_route` (no refusal
-    /// recorded), `start` (any other step).
+    /// recorded), `start` (any other step). Before it makes a directory or starts a process it
+    /// refuses a profile whose path, in the form that the flags will hold (`resolve_profile`, as
+    /// `start_profile_form` gives it), or whose directory's name ends in a sign of white space
+    /// (`char::is_whitespace`), with the cause `start` and the detail `profile path ends in white
+    /// space` (U2.6b round 4, CP-242): a browser that sets white space at the end of a value aside
+    /// would take the directory without the sign, while the run's mark bears for its exact switch.
     pub async fn start(opts: &StartOptions) -> Result<Executor, StartFailure> {
         let refuse = |f: Fault| StartFailure {
             cause: f.0,
@@ -479,6 +484,23 @@ impl Executor {
         };
         if !opts.browser.is_absolute() || !opts.profile.is_absolute() {
             return Err(refuse(Fault::new("start", "relative_path")));
+        }
+        let written = resolve_profile(&opts.profile);
+        let ends_white = |s: &dyn std::fmt::Display| {
+            s.to_string()
+                .chars()
+                .next_back()
+                .is_some_and(char::is_whitespace)
+        };
+        if ends_white(&written.display())
+            || written
+                .file_name()
+                .is_some_and(|n| ends_white(&Path::new(n).display()))
+        {
+            return Err(refuse(Fault::new(
+                "start",
+                "profile path ends in white space",
+            )));
         }
         let (profile, temp) = session::make_dirs(&opts.profile).map_err(refuse)?;
         let made = session::RemoveOnDrop::new(&profile, &temp);
