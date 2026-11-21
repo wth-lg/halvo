@@ -551,6 +551,26 @@ mod tests {
     }
 
     #[test]
+    fn a_title_whose_process_was_not_resolved_is_not_kept() {
+        use crate::floor::exclude::FloorHandle;
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(FloorHandle::default(), Arc::clone(&drops));
+        let made = title_event(
+            &floor,
+            None,
+            (&FrontApp::default(), PrivateWindow::Unknown),
+            ("Notes".to_string(), TitleWhy::TitleChange),
+            OsTick::new(super::super::now_tick()),
+        )
+        .is_some();
+        let unknown_lineage = drops.read().unknown_lineage;
+        assert!(
+            !made && unknown_lineage == 1,
+            "title_record={made} unknown_lineage={unknown_lineage}"
+        );
+    }
+
+    #[test]
     fn a_title_source_whose_switch_is_off_answers_off() {
         use crate::floor::exclude::{FloorHandle, NoLineage};
         use crate::floor::Switches;
