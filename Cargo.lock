@@ -1789,6 +1789,7 @@ dependencies = [
 name = "halvo-owner"
 version = "0.0.0"
 dependencies = [
+ "base64 0.22.1",
  "getrandom 0.3.4",
  "halvo-agent-client",
  "halvo-agent-store",
