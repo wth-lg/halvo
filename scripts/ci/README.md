@@ -76,7 +76,6 @@ The seconds of each check as a check of the merge gate, from its `seconds` line:
 | 21-tree-bans | 2 | 9 |
 | 23-daemon-port-only | 1 | 2 |
 | 23-licences | 2 | - |
-| 30-formal-covered | 1 | 3 |
 | 31-app-page-layout | 12 | - |
 | 39-store-no-analyze | 1 | 0 |
 | 55-sqlcipher-unmended | 1 | 0 |
