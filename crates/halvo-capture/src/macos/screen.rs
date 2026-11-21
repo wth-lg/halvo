@@ -4278,6 +4278,7 @@ mod tests {
         content_dropped_on: Mutex<Vec<String>>,
         selections: Mutex<Vec<(bool, bool, bool)>>,
         ids_read_on: Mutex<Vec<String>>,
+        caps: Mutex<Vec<FrameRateCap>>,
     }
 
     impl Seen {
@@ -4384,12 +4385,13 @@ mod tests {
             &self,
             display: usize,
             selection: &Selection,
-            _cap: FrameRateCap,
+            cap: FrameRateCap,
             delegate: &ScreenOutput,
         ) -> (StreamStandIn, Vec<libc::pid_t>, bool) {
             std::thread::sleep(self.parts.makes_in);
             let seen = &self.parts.stream.seen;
             locked(&seen.selections).push(excludes_of(selection));
+            locked(&seen.caps).push(cap);
             locked(&seen.made_on).push((thread_name(), display));
             *locked(&seen.delegate) = Some(delegate as *const ScreenOutput as usize);
             (
@@ -5001,6 +5003,36 @@ mod tests {
                 "{error:?}: the holders of the facts once the late handler has run"
             );
         }
+    }
+
+    #[test]
+    fn a_read_that_gave_up_while_access_is_denied_answers_the_denial() {
+        let (stream, _seen) = StreamStandIn::starting();
+        let mut reader = ReaderStandIn::new(Answer::Never, stream, &[7], SHORT_WAIT);
+        reader.denied = true;
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert_eq!(
+            trial.error(),
+            Some(CaptureError::PermissionDenied(Modality::ScreenFrame)),
+            "a read that gave up while access is denied"
+        );
+    }
+
+    #[test]
+    fn the_handler_makes_the_stream_with_the_cap_that_the_caller_hands_in() {
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream, &[5, 7, 9], LONG_WAIT);
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert!(
+            trial.answer.is_ok(),
+            "the start answered {:?}",
+            trial.error()
+        );
+        assert_eq!(
+            *locked(&seen.caps),
+            vec![SCREEN_FRAME_CAP],
+            "the cap that reached new_stream"
+        );
     }
 
     fn probe_code(error: &CaptureError) -> String {
