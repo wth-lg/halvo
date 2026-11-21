@@ -158,6 +158,31 @@ impl Floor {
     }
 }
 
+impl Floor {
+    /// The decision on a value built after its events, such as a fold: a
+    /// fresh decision, except that an unknown lineage keeps `held`, the
+    /// decision that the last event got when it came, since its process may
+    /// have ended since.
+    pub(crate) fn keep_built_later<K: Recorded>(
+        &self,
+        front: &FrontApp,
+        held: Option<Keep<K>>,
+    ) -> Option<Keep<K>> {
+        match self.handle.decide::<K>(
+            front.subject(),
+            PrivateWindow::Unknown,
+            &PasswordFieldProbe::default(),
+        ) {
+            Verdict::Keep(keep) => Some(keep),
+            Verdict::Drop(DropReason::UnknownLineage) if held.is_some() => held,
+            Verdict::Drop(reason) => {
+                self.drops.count(reason);
+                None
+            }
+        }
+    }
+}
+
 /// The counts of a source's hand-off queue: events that a full or closed queue
 /// dropped, and pointer folds that a full sink handed back to be added to the
 /// next interval.

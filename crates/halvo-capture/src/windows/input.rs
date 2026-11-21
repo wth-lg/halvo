@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::event::{EventClock, FloorEvent, FoldEvent};
-use crate::floor::exclude::PrivateWindow;
+use crate::floor::exclude::{Keep, PrivateWindow};
 use crate::floor::kind;
 use crate::floor::payload::{Button, FoldClass, FoldCount, KeyClass, PointerFold};
 use crate::floor::{Switch, POINTER_FOLD_INTERVAL};
@@ -369,27 +369,62 @@ fn ms_since(since: u32, now: u32) -> u32 {
 
 /// A fold of one pointer class whose interval has ended: the count of OS
 /// events folded and the process of the last of them.
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DueFold {
     pub(crate) class: FoldClass,
     pub(crate) count: FoldCount,
     pub(crate) front: FrontApp,
     /// The OS time of the first event of the interval, which stamps the record.
     pub(crate) since: u32,
+    /// The decision that the last event got when it was added; a fold that a
+    /// full sink handed back holds none.
+    kept: Option<Keep<kind::Pointer>>,
 }
 
-#[derive(Debug)]
+impl std::fmt::Debug for DueFold {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DueFold")
+            .field("class", &self.class)
+            .field("count", &self.count)
+            .field("front", &self.front)
+            .field("since", &self.since)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for DueFold {
+    fn eq(&self, other: &DueFold) -> bool {
+        (self.class, self.count, &self.front, self.since)
+            == (other.class, other.count, &other.front, other.since)
+    }
+}
+
+impl Eq for DueFold {}
+
 struct OpenFold {
     since: u32,
     count: FoldCount,
     front: FrontApp,
+    kept: Option<Keep<kind::Pointer>>,
+}
+
+impl std::fmt::Debug for OpenFold {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenFold")
+            .field("since", &self.since)
+            .field("count", &self.count)
+            .field("front", &self.front)
+            .finish_non_exhaustive()
+    }
 }
 
 /// The open interval of each pointer class: move, drag and scroll are folded
-/// into one record for each class in each interval that had activity.
+/// into one record for each class in each interval that had activity. A fold
+/// that a full sink handed back while the open interval of its class was
+/// another app's waits in `back` under its own app.
 #[derive(Debug, Default)]
 pub(crate) struct Folds {
     open: [Option<OpenFold>; 3],
+    back: Vec<(FoldClass, OpenFold)>,
 }
 
 impl Folds {
@@ -407,13 +442,27 @@ impl Folds {
             count: open.count,
             front: open.front,
             since: open.since,
+            kept: open.kept,
         })
     }
 
     /// Adds one OS event of `class` at `tick`; the fold of that class whose
     /// interval had ended by `tick` comes back first, and the event opens the
     /// next interval.
+    #[cfg(test)]
     pub(crate) fn add(&mut self, class: FoldClass, front: &FrontApp, tick: u32) -> Option<DueFold> {
+        self.add_kept(class, front, tick, None)
+    }
+
+    /// Adds one OS event as `add` does, with `kept`, the decision that the
+    /// event got, which stands for the fold of the last event.
+    pub(crate) fn add_kept(
+        &mut self,
+        class: FoldClass,
+        front: &FrontApp,
+        tick: u32,
+        kept: Option<Keep<kind::Pointer>>,
+    ) -> Option<DueFold> {
         let slot = Self::slot(class);
         let due = match &self.open[slot] {
             Some(open) if ms_since(open.since, tick) >= FOLD_INTERVAL_MS => self.take(class),
@@ -425,12 +474,16 @@ impl Folds {
                 if open.front != *front {
                     open.front = front.clone();
                 }
+                if kept.is_some() {
+                    open.kept = kept;
+                }
             }
             None => {
                 self.open[slot] = Some(OpenFold {
                     since: tick,
                     count: FoldCount::one(),
                     front: front.clone(),
+                    kept,
                 });
             }
         }
@@ -452,24 +505,74 @@ impl Folds {
         })
     }
 
-    /// Takes every open fold, and answers how many OS events they held.
+    /// Takes every open fold and every fold that waits under its own app, and
+    /// answers how many OS events they held.
     pub(crate) fn drop_open(&mut self) -> u64 {
-        self.open
+        let open: u64 = self
+            .open
             .iter_mut()
             .filter_map(Option::take)
             .map(|open| open.count.get())
-            .sum()
+            .sum();
+        open + self
+            .back
+            .drain(..)
+            .map(|(_, waiting)| waiting.count.get())
+            .sum::<u64>()
+    }
+
+    /// The folds that wait under their own app, which go out before the open
+    /// intervals.
+    pub(crate) fn take_back(&mut self) -> Vec<DueFold> {
+        self.back
+            .drain(..)
+            .map(|(class, waiting)| DueFold {
+                class,
+                count: waiting.count,
+                front: waiting.front,
+                since: waiting.since,
+                kept: waiting.kept,
+            })
+            .collect()
     }
 
     /// Adds the count of a fold that a full sink handed back to the open
     /// interval of its class, which keeps the earlier first event of the two,
     /// or opens one with it at `since`, the time of its first event.
+    ///
+    /// When the open interval of its class is another app's, the fold waits
+    /// under its own app instead, joined to a fold of the same class and app
+    /// that waits already, and goes out before the open intervals.
     pub(crate) fn hand_back(&mut self, fold: PointerFold, front: FrontApp, since: u32) {
-        match &mut self.open[Self::slot(fold.class())] {
-            Some(open) => {
+        let class = fold.class();
+        match &mut self.open[Self::slot(class)] {
+            Some(open) if open.front == front => {
                 open.count.add(fold.count());
                 if ms_since(since, open.since) > 0 {
                     open.since = since;
+                }
+            }
+            Some(_) => {
+                let waiting = self
+                    .back
+                    .iter_mut()
+                    .find(|(of, waiting)| *of == class && waiting.front == front);
+                match waiting {
+                    Some((_, waiting)) => {
+                        waiting.count.add(fold.count());
+                        if ms_since(since, waiting.since) > 0 {
+                            waiting.since = since;
+                        }
+                    }
+                    None => self.back.push((
+                        class,
+                        OpenFold {
+                            since,
+                            count: fold.count(),
+                            front,
+                            kept: None,
+                        },
+                    )),
                 }
             }
             slot @ None => {
@@ -477,6 +580,7 @@ impl Folds {
                     since,
                     count: fold.count(),
                     front,
+                    kept: None,
                 });
             }
         }
@@ -484,20 +588,25 @@ impl Folds {
 }
 
 /// Emits one fold whose interval has ended, after a fresh decision on its
-/// process; a fold that a full sink hands back goes into the next interval.
+/// process; where that decision reads an unknown lineage, the decision that the
+/// fold's last event got when it was added stands, since its process may have
+/// ended since. A fold that a full sink hands back is handed back to `folds`.
 pub(crate) fn emit_due(floor: &Floor, producer: &Producer, folds: &mut Folds, due: DueFold) {
-    let Some(keep) = floor.keep::<kind::Pointer>(
-        &due.front,
-        PrivateWindow::Unknown,
-        &PasswordFieldProbe::default(),
-    ) else {
+    let DueFold {
+        class,
+        count,
+        front,
+        since,
+        kept,
+    } = due;
+    let Some(keep) = floor.keep_built_later::<kind::Pointer>(&front, kept) else {
         return;
     };
-    let fold = PointerFold::new(due.class, due.count);
-    let age = OsTick::new(due.since).age();
+    let fold = PointerFold::new(class, count);
+    let age = OsTick::new(since).age();
     let record = FoldEvent::new(keep, fold, age, EventClock::system());
     if let Some(back) = producer.emit_fold(record) {
-        folds.hand_back(back, due.front, due.since);
+        folds.hand_back(back, front, since);
     }
 }
 
@@ -528,15 +637,13 @@ pub(crate) fn pointer_records(
         .into_iter()
         .chain(parts.scroll.then_some(FoldClass::Scroll));
     for class in classes {
-        if floor
-            .keep::<kind::Pointer>(
-                front,
-                PrivateWindow::Unknown,
-                &PasswordFieldProbe::default(),
-            )
-            .is_some()
-        {
-            if let Some(due) = folds.add(class, front, tick) {
+        let kept = floor.keep::<kind::Pointer>(
+            front,
+            PrivateWindow::Unknown,
+            &PasswordFieldProbe::default(),
+        );
+        if kept.is_some() {
+            if let Some(due) = folds.add_kept(class, front, tick, kept) {
                 emit_due(floor, producer, folds, due);
             }
         }
@@ -1850,8 +1957,12 @@ fn flush_folds(state: &mut InputState, all: bool) {
     emit_folds((floor, producer, folds), super::now_tick(), all);
 }
 
-/// Emits the folds that are due at `now`, or every open fold when `all` is set.
+/// Emits the folds that wait under their own app, then the folds that are due
+/// at `now`, or every open fold when `all` is set.
 fn emit_folds((floor, producer, folds): (&Floor, &Producer, &mut Folds), now: u32, all: bool) {
+    for due in folds.take_back() {
+        emit_due(floor, producer, folds, due);
+    }
     for due in folds.due(now, all).into_iter().flatten() {
         emit_due(floor, producer, folds, due);
     }
