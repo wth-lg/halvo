@@ -452,6 +452,15 @@ impl Folds {
         })
     }
 
+    /// Takes every open fold, and answers how many OS events they held.
+    pub(crate) fn drop_open(&mut self) -> u64 {
+        self.open
+            .iter_mut()
+            .filter_map(Option::take)
+            .map(|open| open.count.get())
+            .sum()
+    }
+
     /// Adds the count of a fold that a full sink handed back to the open
     /// interval of its class, which keeps the earlier first event of the two,
     /// or opens one with it at `since`, the time of its first event.
@@ -1754,7 +1763,7 @@ fn run_raw_input(
             if let Some(gate) = state.gate.as_mut() {
                 release_held(gate, (&state.producer, &state.floor), true);
             }
-            folds_at_stop(&state.floor, &state.producer, &mut state.folds);
+            folds_at_stop(&state.producer, &mut state.folds);
         }
     });
     if let Some(poll) = poll {
@@ -1810,11 +1819,12 @@ unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u
     });
 }
 
-/// What a stop does with the open folds of a pointer source.
-fn folds_at_stop(floor: &Floor, producer: &Producer, folds: &mut Folds) {
-    for due in folds.due(super::now_tick(), true).into_iter().flatten() {
-        emit_due(floor, producer, folds, due);
-    }
+/// What a stop does with the open folds of a pointer source: nothing is
+/// written after a person has stopped the capture, so the stop makes no
+/// record of them and counts the OS events that they held, a fold handed back
+/// by a full sink with them, in `pointer_dropped_at_stop`.
+fn folds_at_stop(producer: &Producer, folds: &mut Folds) {
+    producer.drop_at_stop(folds.drop_open());
 }
 
 fn flush_folds(state: &mut InputState, all: bool) {
@@ -2684,7 +2694,7 @@ mod tests {
                 tick.wrapping_add(step),
             );
         }
-        folds_at_stop(&floor, &producer, &mut folds);
+        folds_at_stop(&producer, &mut folds);
         let records_after_stop = std::iter::from_fn(|| {
             writer
                 .recv_timeout(std::time::Duration::from_millis(300))

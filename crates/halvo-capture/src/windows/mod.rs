@@ -320,6 +320,14 @@ impl Producer {
     pub(crate) fn writer_gone(&self) -> bool {
         self.shared.lock().writer_gone
     }
+
+    /// Counts the OS events of the open folds that a stop dropped.
+    pub(crate) fn drop_at_stop(&self, events: u64) {
+        self.shared
+            .counts
+            .dropped_at_stop
+            .fetch_add(events, Ordering::Relaxed);
+    }
 }
 
 impl HandOff {
