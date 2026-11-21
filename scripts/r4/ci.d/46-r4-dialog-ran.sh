@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help, no report taken at a press and no report made before its window was visible, and its count of slipped schedules, each case run again by the target at most three times in all) and no case of guard_hosted whose schedule slipped in each of its runs (too few runs kept the schedule) and no line of the loop mode (a case SLIPPED), the targets run with GUARD_HOSTED_SCHEDULE and GUARD_HOSTED_TALLY unset and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
+# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive), no line of a target's start that ended it before its first case (a line start FAIL of either target or the inconclusive line of dialog_hosted, failed with the cause start) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help, no report taken at a press and no report made before its window was visible, and its count of slipped schedules, each case run again by the target at most three times in all) and no case of guard_hosted whose schedule slipped in each of its runs (too few runs kept the schedule) and no line of the loop mode (a case SLIPPED), the targets run with GUARD_HOSTED_SCHEDULE and GUARD_HOSTED_TALLY unset and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD; off a hosted runner it skips.
 # lane: alone
 set -u
 name=46-r4-dialog-ran
@@ -58,6 +58,15 @@ EOF
   [ "$looped" = 0 ] || broke "guard_hosted printed $looped lines of the loop mode (a case SLIPPED) in this check's own run, which runs each case once and again after a slip; GUARD_HOSTED_SCHEDULE reached the run"
 }
 
+started() {
+  awk '
+    /^(dialog_hosted|guard_hosted) start FAIL: / { ended = $1 "\047s start ended before its first case: " substr($0, length($1) + 14) }
+    /^dialog_hosted inconclusive: / { ended = $1 "\047s start ended before its first case: " substr($0, length($1) + 2) }
+    ended != "" { all = all (all == "" ? "" : "; ") ended; ended = "" }
+    END { if (all != "") print all }
+  ' "$1"
+}
+
 tracked() {
   status=$(git status --porcelain --untracked-files=no) || fail "git status failed $1 cargo ran"
   [ -z "$status" ] && return 0
@@ -86,12 +95,15 @@ measure() {
   env -u GUARD_HOSTED_SCHEDULE -u GUARD_HOSTED_TALLY cargo test -p halvo-coord-app --locked --no-fail-fast --test dialog_hosted --test guard_hosted >"$work/out" 2>&1
   code=$?
   tracked after
-  tr -d '\r' <"$work/out" >"$CI_D_ARTIFACTS/dialog-targets.txt" || fail "the output of the run cannot be written to the artifacts directory"
-  if grep -q '^guard_hosted inconclusive: ' "$CI_D_ARTIFACTS/dialog-targets.txt"; then
+  file=$CI_D_ARTIFACTS/dialog-targets.txt
+  tr -d '\r' <"$work/out" >"$file" || fail "the output of the run cannot be written to the artifacts directory"
+  broken=
+  decide "$file" "$code" "$want"
+  if grep -q '^guard_hosted inconclusive: ' "$file"; then
     fail "inconclusive: guard_hosted's app did not become active within 20 s on this runner, so the run is no result; run the job again"
   fi
-  broken=
-  decide "$CI_D_ARTIFACTS/dialog-targets.txt" "$code" "$want"
+  ended=$(started "$file") || fail "the lines of the targets' starts cannot be read"
+  [ -z "$ended" ] || fail "start: $ended"
   [ -z "$broken" ] || fail "$broken"
   printf 'PASS %s\n' "$name"
   exit 0
@@ -207,6 +219,29 @@ EOF
   check macos-inconclusive FAIL "FAIL $name (inconclusive: guard_hosted's app did not become active within 20 s" macos
   output inconclusive-in-a-line "$mac_dialog" "x guard_hosted inconclusive: is no line of the target" "$mac_guard"
   check macos-inconclusive-inside-another-line PASS 'the line of 7 of 7 with none failed 1' macos
+  bound_line="the test runtime's run loop gave no sign that it runs within 10 s, so a show would run off the main thread; no case ran"
+  output start-at-the-bound "$running" 'dialog_hosted start: brought its own panel to the front once, the app read active after 2 asks, and the panel is ordered out' "dialog_hosted start FAIL: $bound_line" "$mac_guard"
+  STUB_EXIT=101
+  check macos-a-start-that-ends-at-its-bound FAIL "FAIL $name (start: dialog_hosted's start ended before its first case: $bound_line)" macos
+  output guard-start-at-the-bound "$mac_dialog" "guard_hosted start FAIL: $bound_line"
+  STUB_EXIT=101
+  check macos-a-guard-start-that-ends-at-its-bound FAIL "FAIL $name (start: guard_hosted's start ended before its first case: $bound_line)" macos
+  closed_line="the channel of the run loop's sign closed after 0 ms with no sign: the main thread dropped its end without the sign that the test runtime's run loop runs; no case ran"
+  output start-closed "$mac_dialog" "guard_hosted start FAIL: $closed_line"
+  STUB_EXIT=101
+  check macos-a-start-whose-channel-closed FAIL "(start: guard_hosted's start ended before its first case: $closed_line)" macos
+  refused_line='HALVO_HOSTED_LATE_RUN_MS is set and is not a whole number of milliseconds from 1 to 60000; no case ran'
+  output start-refused "dialog_hosted start FAIL: $refused_line" "guard_hosted start FAIL: $refused_line"
+  STUB_EXIT=101
+  check macos-both-starts-refused-the-setting FAIL "(start: dialog_hosted's start ended before its first case: $refused_line; guard_hosted's start ended before its first case: $refused_line)" macos
+  output dialog-inconclusive 'dialog_hosted inconclusive: the app did not become active within 20 s; active=false key_window=false asks=21' "$mac_guard"
+  STUB_EXIT=101
+  check macos-the-inconclusive-start-of-dialog_hosted FAIL "(start: dialog_hosted's start ended before its first case: inconclusive: the app did not become active within 20 s; active=false key_window=false asks=21)" macos
+  output start-and-inconclusive "dialog_hosted start FAIL: $bound_line" 'guard_hosted inconclusive: the app did not become active within 20 s; active=false key_window=false asks=21'
+  STUB_EXIT=101
+  check macos-inconclusive-before-a-start-that-ended FAIL "FAIL $name (inconclusive: guard_hosted's app did not become active within 20 s" macos
+  output start-in-a-line "$mac_dialog" "x guard_hosted start FAIL: $bound_line" "$mac_guard"
+  check macos-a-start-line-inside-another-line PASS 'the line of 7 of 7 with none failed 1' macos
   output tail "$mac_dialog, FAIL: not every case ran" "$mac_guard"
   check macos-own-line-with-a-tail FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output helped "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 0, helped 1, moments at a press 0, retries 0'
