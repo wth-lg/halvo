@@ -381,4 +381,185 @@ mod tests {
         assert_eq!(file.state().desired, Desired::Running);
         assert_eq!(file.health(), StateHealth::Ok);
     }
+
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    mod held_folder {
+        use std::path::{Path, PathBuf};
+        use std::sync::atomic::AtomicBool;
+        use std::sync::Arc;
+        use std::time::Duration;
+
+        use halvo_control::onboarding::Permission;
+        use halvo_control::paths::DataDir;
+
+        use super::super::DurableStateWrite;
+        use crate::daemon::instance::tests::{backup_mark, kept_dir};
+        use crate::daemon::instance::InstanceLock;
+        use crate::daemon::main_loop::{EndCall, MainLoop};
+        use crate::daemon::state::{Desired, StateDir, StateFile, StateHealth, StateWrite};
+
+        struct NoTurn(Duration);
+
+        impl MainLoop for NoTurn {
+            fn turn(&mut self, wait: Duration) {
+                self.0 += wait;
+            }
+
+            fn now(&self) -> Duration {
+                self.0
+            }
+        }
+
+        struct NoEnding;
+
+        impl EndCall for NoEnding {
+            fn end(&self, status: i32) {
+                panic!("the service run made the ending call with {status}");
+            }
+        }
+
+        fn serve_with(dir: &Path, writer: Box<dyn StateWrite>) -> (i32, String) {
+            let stop = AtomicBool::new(true);
+            let mut err = Vec::new();
+            let status = crate::daemon::serve(
+                &named(dir),
+                writer,
+                NoTurn(Duration::ZERO),
+                &stop,
+                Arc::new(NoEnding),
+                &mut err,
+            );
+            (status, String::from_utf8(err).unwrap())
+        }
+
+        fn named(path: &Path) -> DataDir {
+            DataDir::from_flag(path.to_str().unwrap()).unwrap()
+        }
+
+        fn names(dir: &Path) -> Vec<String> {
+            let mut names: Vec<String> = std::fs::read_dir(dir)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            names
+        }
+
+        fn moved_folder(root: &Path) -> (PathBuf, PathBuf) {
+            let data = root.join("data");
+            std::fs::create_dir(&data).unwrap();
+            (data, root.join("moved"))
+        }
+
+        fn file_text(dir: &Path) -> String {
+            String::from_utf8(std::fs::read(dir.join("daemon-state.json")).unwrap()).unwrap()
+        }
+
+        #[test]
+        fn a_grant_recorded_after_the_held_folder_moved_lands_in_the_held_folder_and_not_at_its_old_name(
+        ) {
+            let root = kept_dir("state-file-tests-");
+            let (data, moved) = moved_folder(&root);
+            let lock = InstanceLock::take(&named(&data)).unwrap().unwrap();
+            let mut state = StateFile::open(
+                lock.state_dir().unwrap(),
+                Box::new(DurableStateWrite::new()),
+            );
+            assert_eq!(state.health(), StateHealth::Ok);
+            std::fs::rename(&data, &moved).unwrap();
+            std::fs::create_dir(&data).unwrap();
+            let second = InstanceLock::take(&named(&data)).unwrap();
+            assert!(second.is_some(), "a second take of the name answered held");
+            state
+                .record_granted(&[Permission::InputMonitoring])
+                .unwrap();
+            assert!(
+                file_text(&moved).contains("input_monitoring"),
+                "the grant is not in the folder that the lock holds: {}",
+                file_text(&moved)
+            );
+            assert!(names(&data).is_empty(), "{:?}", names(&data));
+            drop((second, lock));
+        }
+
+        struct MoveThenWrite {
+            held: PathBuf,
+            moved: PathBuf,
+            inner: DurableStateWrite,
+        }
+
+        impl StateWrite for MoveThenWrite {
+            fn write_whole(
+                &self,
+                dir: &StateDir,
+                name: &std::ffi::OsStr,
+                bytes: &[u8],
+            ) -> std::io::Result<()> {
+                if !self.moved.exists() {
+                    std::fs::rename(&self.held, &self.moved)?;
+                    std::fs::create_dir(&self.held)?;
+                }
+                self.inner.write_whole(dir, name, bytes)
+            }
+        }
+
+        #[test]
+        fn the_first_state_write_of_a_service_run_lands_in_the_held_folder_when_the_folder_moves_before_it(
+        ) {
+            let root = kept_dir("state-file-tests-");
+            let (data, moved) = moved_folder(&root);
+            let writer = MoveThenWrite {
+                held: data.clone(),
+                moved: moved.clone(),
+                inner: DurableStateWrite::new(),
+            };
+            let (status, err) = serve_with(&data, Box::new(writer));
+            assert_eq!((status, err.as_str()), (0, ""));
+            assert_eq!(names(&moved), vec!["daemon-state.json".to_owned()]);
+            assert!(backup_mark(&moved, false).is_some());
+            assert!(names(&data).is_empty(), "{:?}", names(&data));
+            assert!(backup_mark(&data, false).is_none());
+        }
+
+        #[test]
+        fn a_later_state_write_lands_in_the_held_folder_after_a_move_and_the_folder_at_the_name_gets_nothing(
+        ) {
+            let root = kept_dir("state-file-tests-");
+            let (data, moved) = moved_folder(&root);
+            let lock = InstanceLock::take(&named(&data)).unwrap().unwrap();
+            let mut state = StateFile::open(
+                lock.state_dir().unwrap(),
+                Box::new(DurableStateWrite::new()),
+            );
+            std::fs::rename(&data, &moved).unwrap();
+            std::fs::create_dir(&data).unwrap();
+            state
+                .update(|state| state.desired = Desired::Running)
+                .unwrap();
+            let second = InstanceLock::take(&named(&data)).unwrap();
+            assert!(second.is_some(), "a second take of the name answered held");
+            assert!(
+                file_text(&moved).contains("\"desired\":\"running\""),
+                "{}",
+                file_text(&moved)
+            );
+            assert!(names(&data).is_empty(), "{:?}", names(&data));
+            drop((second, lock));
+        }
+
+        #[test]
+        fn a_service_run_on_a_data_directory_reached_through_a_link_writes_its_state_file_in_the_linked_folder(
+        ) {
+            use std::os::unix::fs::PermissionsExt;
+            let root = kept_dir("state-file-tests-");
+            let real = root.join("real");
+            std::fs::create_dir(&real).unwrap();
+            std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o700)).unwrap();
+            let link = root.join("link");
+            std::os::unix::fs::symlink(&real, &link).unwrap();
+            let (status, err) = serve_with(&link, Box::new(DurableStateWrite::new()));
+            assert_eq!((status, err.as_str()), (0, ""));
+            assert_eq!(names(&real), vec!["daemon-state.json".to_owned()]);
+        }
+    }
 }
