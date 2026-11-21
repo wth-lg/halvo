@@ -6,7 +6,9 @@ publish = false
 
 [dependencies]
 halvo-checkpoint = { path = "../halvo-checkpoint" }
+halvo-control = { path = "../halvo-control", features = ["r2"] }
 halvo-schema = { path = "../halvo-schema" }
+halvo-seam = { path = "../halvo-seam" }
 
 [[bin]]
 name = "agent-client-peer"

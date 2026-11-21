@@ -309,4 +309,8 @@ record::run_list! { names_with_run_list
     "senders",
     "more",
     "next_playbook",
+    "list_agents",
+    "agents",
+    "session",
+    "last",
 }

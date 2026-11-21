@@ -372,6 +372,66 @@ pub enum OpenFault {
     NewerStore,
 }
 
+/// Why [`DataDirStore::derived_store_key`] answered no key. Every variant is
+/// another failure, and none carries a byte of a key or of a key file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum DerivedKeyFault {
+    /// No capture store: nothing stands at store/store.key.
+    #[error("no capture store stands in the data directory")]
+    NoStore,
+    /// store.key is empty, zeroed or does not parse, or holds a key of
+    /// another label.
+    #[error("the capture store's key file does not parse or holds another label")]
+    StoreKeyFile,
+    /// store.key is of a format before the one that this build reads.
+    #[error("the capture store's key file is of an older format")]
+    OlderStore,
+    /// store.key is of a format after the one that this build reads.
+    #[error("the capture store's key file is of a newer format")]
+    NewerStore,
+    /// store.key records a custody kind that this build does not handle.
+    #[error("this build has no custody of the kind that the capture store records")]
+    CustodyKind,
+    /// No root exists, or the root file is empty or all zero.
+    #[error("the capture store's root is missing")]
+    RootMissing,
+    /// The root file has a wrong length or is no regular file, a link or
+    /// another kind of entry stands at the roots directory's name, or the
+    /// wrap or the unwrap failed in a way that no other variant names.
+    #[error("the capture store's root is damaged")]
+    RootCorrupt,
+    /// The root cannot be read by this user or build.
+    #[error("this process may not read the capture store's root")]
+    RootDenied,
+    /// A custody state that can clear.
+    #[error("the capture store's root is locked for now")]
+    CustodyLocked,
+    /// The wrap that derived/master.key holds does not open under the root.
+    #[error("the derived key file does not open under the capture store's root")]
+    WrapAuth,
+    /// derived/master.key is empty, zeroed or does not parse, is of another
+    /// format, or holds a key of another label.
+    #[error("the derived key file does not parse, is of another format or holds another label")]
+    DerivedKeyFile,
+    /// derived/master.key names another custody kind or root than store.key.
+    #[error("the derived key file names another root than the capture store's")]
+    AnotherRoot,
+    /// A link or an entry of another kind stands at one of the names that
+    /// the call reads or makes.
+    #[error("a link or another kind of entry stands at a name of the key files")]
+    Obstructed,
+    /// An I/O fault that can clear.
+    #[error("an I/O fault that can clear")]
+    Io,
+    /// The volume is full.
+    #[error("the volume is full")]
+    NoSpace,
+    /// An I/O fault that no timer clears: a volume that refuses a hard link,
+    /// or a Windows path of which a part ends in a dot or a space.
+    #[error("an I/O fault that no retry clears")]
+    IoNotRetried,
+}
+
 /// Which handle an open asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Access {

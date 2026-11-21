@@ -252,6 +252,7 @@ pub struct Ports<C> {
     agent_refusals: RefCell<Vec<(Method, AgentId, PortError)>>,
     record_refusals: RefCell<Vec<(Names, PortError)>>,
     tie_days: Cell<bool>,
+    keep_days: Cell<Option<u32>>,
     limits: Limits,
     created: RefCell<Vec<(WorkflowId, AgentId)>>,
     marks: RefCell<Vec<(RunId, Reaped)>>,
@@ -290,6 +291,7 @@ impl<C> Ports<C> {
             agent_refusals: RefCell::new(Vec::new()),
             record_refusals: RefCell::new(Vec::new()),
             tie_days: Cell::new(false),
+            keep_days: Cell::new(None),
             limits,
             created: RefCell::new(Vec::new()),
             marks: RefCell::new(Vec::new()),
@@ -512,6 +514,38 @@ impl<C> Ports<C> {
         self.tie_days.set(on);
     }
 
+    /// Makes the owner's reads leave out each row whose day lies `days` days or more before the
+    /// clock's day, as the store's read of a bounded kind does: `history` hands out no such
+    /// event, and `agents` gives an entry no such `last` (I7.1; ruling RD-73 2.4). The rows stay
+    /// in `events`, so that a clock set back hands them out again. The `last` of `history` and
+    /// the `seq` rule of `log` count from the rows that the read hands out (ruling RD-64 3.1).
+    pub fn keep_rows_for(&self, days: u32) {
+        self.keep_days.set(Some(days));
+    }
+
+    /// Whether the owner's read hands out a row of `day` by the clock's day, read with no step
+    /// of the clock.
+    fn handed_out(&self, day: u32) -> bool {
+        let Some(days) = self.keep_days.get() else {
+            return true;
+        };
+        let Ok(today) = Clock::day(self, self.now.get()) else {
+            return true;
+        };
+        today.saturating_sub(day) < days
+    }
+
+    /// The largest `seq` of the agent's rows that the owner's read hands out, or 0 with none.
+    fn handed_last(&self, agent: &AgentId) -> u32 {
+        self.events
+            .borrow()
+            .iter()
+            .filter(|e| &e.agent == agent && self.handed_out(e.day))
+            .map(|e| e.seq.get())
+            .max()
+            .unwrap_or(0)
+    }
+
     /// Makes every method do its work again.
     pub fn clear_refusals(&self) {
         self.refusals.borrow_mut().clear();
@@ -615,7 +649,6 @@ impl<C> Ports<C> {
         {
             return Some("malformed");
         }
-        let stored = self.events.borrow();
         let mut last: Vec<(&AgentId, u32)> = Vec::new();
         for e in events {
             if !self
@@ -631,12 +664,7 @@ impl<C> Ports<C> {
             }
             let before = match last.iter().rev().find(|(a, _)| *a == &e.agent) {
                 Some((_, seq)) => *seq,
-                None => stored
-                    .iter()
-                    .filter(|s| s.agent == e.agent)
-                    .map(|s| s.seq.get())
-                    .max()
-                    .unwrap_or(0),
+                None => self.handed_last(&e.agent),
             };
             if before.checked_add(1) != Some(e.seq.get()) {
                 return Some("seq");
@@ -888,16 +916,11 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
         self.checked(Method::History, &Call::History(agent.clone(), after))?;
         self.checked_agent(Method::History, agent, &Call::History(agent.clone(), after))?;
         self.record(Call::History(agent.clone(), after));
+        let last = self.handed_last(agent);
         let events = self.events.borrow();
-        let last = events
-            .iter()
-            .filter(|e| &e.agent == agent)
-            .map(|e| e.seq.get())
-            .max()
-            .unwrap_or(0);
         let mut found: Vec<Event> = events
             .iter()
-            .filter(|e| &e.agent == agent && e.seq.get() > after)
+            .filter(|e| &e.agent == agent && e.seq.get() > after && self.handed_out(e.day))
             .cloned()
             .collect();
         found.sort_by_key(|e| e.seq);
@@ -914,7 +937,13 @@ impl<C: ConfigView + Clone> Owner for Ports<C> {
     fn agents(&self) -> Result<Vec<Agent<C>>, PortError> {
         self.checked(Method::Agents, &Call::Agents)?;
         self.record(Call::Agents);
-        Ok(self.agents.borrow().clone())
+        let mut agents = self.agents.borrow().clone();
+        for a in &mut agents {
+            if a.last.as_ref().is_some_and(|l| !self.handed_out(l.day)) {
+                a.last = None;
+            }
+        }
+        Ok(agents)
     }
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {

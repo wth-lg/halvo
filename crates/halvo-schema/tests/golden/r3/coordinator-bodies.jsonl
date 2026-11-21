@@ -12,3 +12,5 @@
 {"op":"mark_checkpoint","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"50505050505050505050505050505050","workbook":["/data/books/bills.xlsx"],"state":"left","left":"not_file"}
 {"op":"list_overlaps","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","slots":null}
 {"op":"list_overlaps","workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","slots":[{"name":"account_address","value":["me@mail.test"]},{"name":"reply_senders","value":["ann@people.test, bob@people.test"]}]}
+{"op":"list_agents","workflow":null,"agent":null,"after":null}
+{"op":"list_agents","workflow":null,"agent":null,"after":"40404040404040404040404040404040"}

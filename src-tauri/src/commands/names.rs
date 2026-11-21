@@ -29,4 +29,33 @@ pub const CAPTURE: Names = Names {
     ],
 };
 
-pub const MODULES: &[&Names] = &[&CAPTURE];
+pub const AGENTS: Names = Names {
+    #[cfg(test)]
+    module: "agents",
+    commands: &[
+        "agents_snapshot",
+        "agents_next",
+        "agents_card",
+        "agents_answer",
+        "agents_setup_typed",
+        "agents_present",
+        "agents_control",
+        "agents_shown",
+        "agents_delete",
+    ],
+    reads: &[],
+};
+
+pub const WORKFLOWS: Names = Names {
+    #[cfg(test)]
+    module: "workflows",
+    commands: &[
+        "workflows",
+        "approve_workflow",
+        "dismiss_workflow",
+        "delete_workflow",
+    ],
+    reads: &[],
+};
+
+pub const MODULES: &[&Names] = &[&CAPTURE, &AGENTS, &WORKFLOWS];

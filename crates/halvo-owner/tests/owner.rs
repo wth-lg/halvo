@@ -6,8 +6,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::sync::Mutex;
 use std::time::{Duration, Instant as Mono, SystemTime, UNIX_EPOCH};
 
+use halvo_agent_client::link::{End, Ends, Refusal, StreamLink};
+use halvo_agent_client::OwnerLink;
 use halvo_owner::exit;
 use halvo_schema_core::category::SeedCategory;
 use halvo_schema_core::ids::{Position, RequestId, StoreId, SummaryId, WorkflowId};
@@ -346,6 +349,23 @@ fn stream_frames(mut from: impl Read + Send + 'static) -> Receiver<Option<Vec<u8
 }
 
 impl Stream {
+    /// The test's end of a stream as the hand-over returns it, with a thread that reads its frames.
+    #[cfg(unix)]
+    fn over(end: Handed) -> Stream {
+        Stream {
+            frames: stream_frames(end.try_clone().unwrap()),
+            writes: end,
+        }
+    }
+
+    #[cfg(windows)]
+    fn over((reads, writes): Handed) -> Stream {
+        Stream {
+            frames: stream_frames(reads),
+            writes,
+        }
+    }
+
     /// Sends one request on the stream.
     fn send(&mut self, request: &[u8]) {
         write_frame(&mut self.writes, request, CLIENT_FRAME_MAX).unwrap();
@@ -376,13 +396,27 @@ impl Drop for Stream {
     }
 }
 
+/// The test's end of a stream, as the hand-over returns it: a socket on macOS; on Windows the pipe that reads and the
+/// pipe that writes.
+#[cfg(unix)]
+type Handed = std::os::unix::net::UnixStream;
+#[cfg(windows)]
+type Handed = (PipeReader, PipeWriter);
+
+/// Makes a new stream, hands the owner one end of it, and returns the test's end, with a thread that reads its
+/// frames, and the owner's answer.
+fn hand_over(owner: &mut Owner) -> (Stream, String) {
+    let (end, answer) = handed(owner);
+    (Stream::over(end), answer)
+}
+
 /// Makes a new stream, a socket pair, hands the owner one end of it as one descriptor in one SCM_RIGHTS message on
 /// the call that writes the frame `stream` on the starter's channel, and returns the test's end with the owner's
 /// answer. The test keeps its own descriptor of the owner's end until it has read the answer, as a starter does that
 /// closes what it holds after the answer: closed while the message is in flight, it leaves the owner on macOS a
 /// socket on which the first write of the test's end fails with a broken pipe.
 #[cfg(unix)]
-fn hand_over(owner: &mut Owner) -> (Stream, String) {
+fn handed(owner: &mut Owner) -> (Handed, String) {
     use std::os::fd::AsRawFd;
     use std::os::unix::net::UnixStream;
     let (mine, owners) = UnixStream::pair().unwrap();
@@ -428,18 +462,14 @@ fn hand_over(owner: &mut Owner) -> (Stream, String) {
     );
     let answer = owner.stream_answer();
     drop(owners);
-    let stream = Stream {
-        frames: stream_frames(mine.try_clone().unwrap()),
-        writes: mine,
-    };
-    (stream, answer)
+    (mine, answer)
 }
 
 /// Makes a new stream, two pipes, copies the owner's two ends of it into the owner's process, names the two copies
 /// by their values in the frame `stream` on the starter's channel, and returns the test's end with the owner's
 /// answer.
 #[cfg(windows)]
-fn hand_over(owner: &mut Owner) -> (Stream, String) {
+fn handed(owner: &mut Owner) -> (Handed, String) {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Foundation::{DuplicateHandle, DUPLICATE_SAME_ACCESS, HANDLE};
     use windows_sys::Win32::System::Threading::GetCurrentProcess;
@@ -468,11 +498,7 @@ fn hand_over(owner: &mut Owner) -> (Stream, String) {
     let write_value = give(owner_writes.as_raw_handle() as HANDLE);
     drop((owner_reads, owner_writes));
     owner.send(format!(r#"{{"stream":{{"handles":[{read_value},{write_value}]}}}}"#).as_bytes());
-    let stream = Stream {
-        frames: stream_frames(reads),
-        writes,
-    };
-    (stream, owner.stream_answer())
+    ((reads, writes), owner.stream_answer())
 }
 
 /// The test's ends of the starter's channel, as the daemon's handler of `owner_stream` uses them.
@@ -724,7 +750,7 @@ fn the_daemon_half_hands_both_ends_over() {
     assert!(served, "dispatch_unknown wrote no reply");
     let mut stream = stream_of(end.unwrap());
     stream.send(&runner_request());
-    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Unsupported);
+    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Malformed);
 }
 
 fn request_id() -> RequestId {
@@ -732,7 +758,8 @@ fn request_id() -> RequestId {
     RequestId::from_random([NEXT.fetch_add(1, Ordering::Relaxed); 16])
 }
 
-/// A `runner` request, with a body that no handler of the owner's step list takes.
+/// A `runner` request, with a body that is no runner call: the runner handler of the owner's step list answers it
+/// `malformed`.
 fn runner_request() -> Vec<u8> {
     let id = serde_json::to_string(&request_id()).unwrap();
     format!(r#"{{"v":1,"id":{id},"request":"runner","body":{{"probe":1}}}}"#).into_bytes()
@@ -1002,8 +1029,8 @@ fn a_fifth_stream_is_answered_full_and_a_dropped_end_frees_its_place() {
     }
 }
 
-/// Rulings 3 and 4 of the owner stream: on a stream a `runner` request reaches the store, which answers
-/// `unsupported` because the step list holds no handler, and an interface read answers `role`; on the starter's
+/// Rulings 3 and 4 of the owner stream: on a stream a `runner` request reaches the store, whose handler of `runner`
+/// requests answers `malformed` to a body with no `op`, and an interface read answers `role`; on the starter's
 /// channel the bytes of the same `runner` request answer `role`.
 #[test]
 fn on_a_stream_a_runner_request_reaches_the_store_and_an_interface_read_answers_role() {
@@ -1014,12 +1041,81 @@ fn on_a_stream_a_runner_request_reaches_the_store_and_an_interface_read_answers_
 
     let runner = runner_request();
     stream.send(&runner);
-    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Unsupported);
+    assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Malformed);
     stream.send(&read_workflows());
     assert_eq!(stream.reply().outcome.unwrap_err(), ErrorName::Role);
 
     owner.send(&runner);
     assert_eq!(owner.reply().outcome.unwrap_err(), ErrorName::Role);
+}
+
+/// The test's `Ends` in the product's link: the one end that the hand-over returned, once; after it `internal`.
+impl Ends for Once<End> {
+    fn end(&self) -> Result<End, Refusal> {
+        self.0.lock().unwrap().take().ok_or(Refusal::Internal)
+    }
+}
+
+/// A runner `load` of an agent that the store does not hold: the runner handler answers it `binding`, which no code of
+/// the owner but a handler gives.
+fn load(id: &RequestId) -> String {
+    format!(
+        r#"{{"v":1,"id":{},"request":"runner","body":{{"op":"load","agent":"{}","run":"{}"}}}}"#,
+        serde_json::to_string(id).unwrap(),
+        "40000000000000000000000000000001",
+        "50000000000000000000000000000001",
+    )
+}
+
+/// U9.2 point 1: the product's link over an end that the hand-over made. A runner `load` gets the runner handler's
+/// answer `binding`.
+#[test]
+fn a_runner_request_through_the_link_is_answered_by_the_handler() {
+    let scratch = Scratch::new("owner-stream-link");
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (end, answer) = handed(&mut owner);
+    assert_eq!(answer, TAKEN);
+    #[cfg(unix)]
+    let end = End::new(end.into());
+    #[cfg(windows)]
+    let end = End::new(end.0.into(), end.1.into());
+    let link = StreamLink::new(Once(Mutex::new(Some(end))));
+
+    let id = request_id();
+    let reply = decode_reply(&link.request(load(&id).as_bytes()).unwrap()).unwrap();
+    assert_eq!(reply.id, Some(id));
+    assert_eq!(
+        reply.outcome.unwrap_err(),
+        ErrorName::read("binding").unwrap()
+    );
+}
+
+/// U9.2 (second) ruling 1: the product's `Ends` over the client call. `serve_one` stands in for the daemon's server and
+/// calls `dispatch_unknown` in front of the owner binary; a runner `load` through `StreamLink::new(ClientEnds::new(..))`
+/// over `Client::owner_stream` gets the runner handler's answer `binding`.
+#[cfg(any(target_os = "macos", windows))]
+#[test]
+fn a_runner_request_through_the_product_ends_is_answered_by_the_handler() {
+    use halvo_agent_client::link::product::ClientEnds;
+    let scratch = Scratch::new("owner-stream-product-ends");
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (client_end, server) = control_connection();
+    let client = halvo_control::client::Client::new(Once(std::sync::Mutex::new(Some(client_end))));
+    let link = StreamLink::new(ClientEnds::new(move || client.owner_stream()));
+
+    let id = request_id();
+    let (served, reply) = std::thread::scope(|scope| {
+        let served = scope.spawn(|| serve_one(&server, &mut owner));
+        let reply = link.request(load(&id).as_bytes());
+        (served.join().unwrap(), reply)
+    });
+    assert!(served, "dispatch_unknown wrote no reply");
+    let reply = decode_reply(&reply.unwrap()).unwrap();
+    assert_eq!(reply.id, Some(id));
+    assert_eq!(
+        reply.outcome.unwrap_err(),
+        ErrorName::read("binding").unwrap()
+    );
 }
 
 /// Ruling 5 of the owner stream: a length above 65,536 ends its stream, whose far end reads end-of-file, and the
