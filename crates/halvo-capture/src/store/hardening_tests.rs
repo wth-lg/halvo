@@ -10412,6 +10412,84 @@ fn an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its
     assert_eq!(settings, Some((2, 1)));
 }
 
+/// An open over a file root whose read of the library meets `answers` is
+/// refused by the name `name` and changes no byte of the store directory or of
+/// the roots folder; the same open without the seam opens.
+fn an_open_that_meets_another_cipher_is_refused(
+    answers: super::db::pinned_cipher_seam::Answers,
+    name: &'static str,
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let files = |dir: &Path| -> Vec<(String, Vec<u8>)> {
+        files_with_bytes(dir)
+            .into_iter()
+            .filter(|(file, _)| !LOCK_FILES.contains(&file.as_str()))
+            .collect()
+    };
+    let before = (files(&store_dir), files(&roots_dir));
+    let opened = {
+        let _seam = super::db::pinned_cipher_seam::instead_of_the_library(answers);
+        open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+    };
+    let unchanged = (files(&store_dir), files(&roots_dir)) == before;
+    let control = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
+    println!(
+        "CIPHER-READ-BACK meets_another={name} answer={opened:?} unchanged={unchanged} control={control:?}"
+    );
+    assert!(
+        matches!(&opened, Err(StoreError::SettingNotInEffect(read)) if *read == name),
+        "an open that meets another {name} answered {opened:?}"
+    );
+    assert!(
+        unchanged,
+        "an open that meets another {name} changed a byte of the store"
+    );
+    assert!(
+        control.is_ok(),
+        "the open without the seam answered {control:?}"
+    );
+}
+
+/// The open reads the cipher version from the library: one that meets 4.19.0
+/// is refused by the name cipher_version.
+#[test]
+fn an_open_whose_cipher_version_reads_back_otherwise_is_refused_by_its_name() {
+    an_open_that_meets_another_cipher_is_refused(
+        super::db::pinned_cipher_seam::Answers {
+            version: Some("4.19.0 community"),
+            ..Default::default()
+        },
+        "cipher_version",
+    );
+}
+
+/// The open reads the cipher provider from the library: one that meets
+/// openssl is refused by the name cipher_provider.
+#[test]
+fn an_open_whose_cipher_provider_reads_back_otherwise_is_refused_by_its_name() {
+    an_open_that_meets_another_cipher_is_refused(
+        super::db::pinned_cipher_seam::Answers {
+            provider: Some("openssl"),
+            ..Default::default()
+        },
+        "cipher_provider",
+    );
+}
+
+/// The open asks the library whether its entropy hook is installed: one that
+/// meets no hook is refused by the name os_entropy_hook.
+#[test]
+fn an_open_that_meets_no_entropy_hook_is_refused_by_its_name() {
+    an_open_that_meets_another_cipher_is_refused(
+        super::db::pinned_cipher_seam::Answers {
+            os_entropy_hook: Some(false),
+            ..Default::default()
+        },
+        "os_entropy_hook",
+    );
+}
+
 /// A made mark of create.pending that records the identity of the file at
 /// `path`, written as another program could write it.
 #[cfg(unix)]

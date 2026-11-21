@@ -1015,6 +1015,54 @@ pub(in crate::store) mod read_back_seam {
     }
 }
 
+#[cfg(test)]
+pub(in crate::store) mod pinned_cipher_seam {
+    use std::cell::RefCell;
+
+    /// What a test hands the open in place of the library's answer. A field
+    /// left `None` is read from the library.
+    #[derive(Clone, Copy, Default)]
+    pub(in crate::store) struct Answers {
+        pub(in crate::store) provider: Option<&'static str>,
+        pub(in crate::store) version: Option<&'static str>,
+        pub(in crate::store) os_entropy_hook: Option<bool>,
+    }
+
+    thread_local! {
+        static ANSWERS: RefCell<Option<Answers>> = const { RefCell::new(None) };
+    }
+
+    /// Hands each open and create of this thread `answers` where it reads the
+    /// cipher provider, the cipher version and the entropy hook of the
+    /// library, until the guard is dropped.
+    pub(in crate::store) fn instead_of_the_library(answers: Answers) -> Guard {
+        ANSWERS.with(|slot| *slot.borrow_mut() = Some(answers));
+        Guard
+    }
+
+    pub(in crate::store) struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            ANSWERS.with(|slot| *slot.borrow_mut() = None);
+        }
+    }
+
+    pub(super) fn text(pragma: &str) -> Option<String> {
+        let answers = ANSWERS.with(|slot| *slot.borrow())?;
+        match pragma {
+            "PRAGMA cipher_provider" => answers.provider,
+            "PRAGMA cipher_version" => answers.version,
+            _ => None,
+        }
+        .map(str::to_string)
+    }
+
+    pub(super) fn os_entropy_hook() -> Option<bool> {
+        ANSWERS.with(|slot| *slot.borrow())?.os_entropy_hook
+    }
+}
+
 fn after_a_code(store_dir: &Dir, e: &rusqlite::Error) -> StoreError {
     let code = match e {
         rusqlite::Error::SqliteFailure(failure, _) => Some(failure.extended_code),
@@ -2119,12 +2167,23 @@ const CIPHER_VERSION: &str = "4.20.0";
 
 fn require_pinned_cipher(conn: &Connection) -> StoreResult<()> {
     let text = |pragma: &str| -> StoreResult<String> {
+        #[cfg(test)]
+        if let Some(answer) = pinned_cipher_seam::text(pragma) {
+            return Ok(answer);
+        }
         conn.query_row(pragma, [], |r| r.get(0)).map_err(db_error)
+    };
+    let os_entropy_hook = || {
+        #[cfg(test)]
+        if let Some(answer) = pinned_cipher_seam::os_entropy_hook() {
+            return answer;
+        }
+        halvo_sqlcipher::os_entropy_hook_installed()
     };
     cipher_in_effect(
         &text("PRAGMA cipher_provider")?,
         &text("PRAGMA cipher_version")?,
-        halvo_sqlcipher::os_entropy_hook_installed(),
+        os_entropy_hook(),
     )
 }
 
