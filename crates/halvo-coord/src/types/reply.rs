@@ -430,7 +430,9 @@ impl CardEffect {
         self.class
     }
 
-    /// `key`: of the family `run.effect.<class>` or its `unshown`, `not_done` or `refused` entry.
+    /// `key`: of the family `run.effect.<class>` or its `unshown`, `partial`, `unknown`,
+    /// `not_done` or `refused` entry, or the plain `run.effect.unshown`, `run.effect.unknown`,
+    /// `run.effect.not_done` or `run.effect.refused` of a class with no effect row.
     pub fn key(&self) -> String {
         self.key.clone()
     }
