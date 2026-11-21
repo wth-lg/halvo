@@ -4355,3 +4355,22 @@ fn rd73_a_switch_off_whose_row_passed_its_day_shows_off_kept_until_switch_on() {
     assert_eq!(on.answer, Ok(Answer::Ok));
     assert!(!holds(w.facts(0)).contains(&Hold::Off));
 }
+
+/// RD-73 2.2: the clock set past the bound with one move and back with one move gives the long
+/// life what a new life gets: the rows of the first day, which the owner hands out again, stand
+/// on the board again with the record of the newest run.
+#[test]
+fn rd73_a_clock_set_forward_and_back_brings_the_first_days_events_back() {
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    let (events, runs) = (w.facts(0).events.clone(), w.facts(0).runs.clone());
+    assert_eq!((events.len(), runs.len()), (2, 1));
+    days_on(&w, 94);
+    w.go(Move::Create);
+    let past = (w.facts(0).events.len(), w.facts(0).runs.len());
+    assert_eq!(past, (0, 0), "past the bound");
+    days_on(&w, 0);
+    w.go(Move::Owed);
+    assert_eq!(w.facts(0).events, events);
+    assert_eq!(w.facts(0).runs, runs);
+}
