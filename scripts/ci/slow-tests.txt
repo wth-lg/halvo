@@ -1,13 +1,15 @@
 # The slow tests: what 12-test skips in the merge gate (sh scripts/ci/run-ci-d.sh <job> --merge-gate),
 # and the group in which each of them runs in a slice (scripts/ci/slices.txt, the kind tests).
 #
-# A line is one of five words, then a name, the capital letter of a group, and a note:
+# A line is one of six words, then a name, the capital letter of a group, and a note:
 #   targets <package> <group>      every test target of that package; its unit tests stay
 #   target <name> <group>          every test target of that name, in whatever package has one
 #   units <package> <group>        the unit tests of that package's library and binaries
 #   test <part> <group> <package>  every test whose name holds the part (cargo test -- --skip <part>);
 #                                  the group runs the part in the unit tests of that package
 #   doc-tests <group>              the doc-tests of every package
+#   kept <package> <part>          the merge gate runs the unit tests of that package whose name holds
+#                                  the part, although a units line names the package; no group
 # The merge gate keeps the unit tests of every package that no units line names, and the test
 # targets of the packages that hold a core promise (scripts/ci/core-promises.txt): halvo,
 # halvo-capture, halvo-derived, halvo-learn, halvo-learn-gate, halvo-learn-store, halvo-redact,
@@ -47,6 +49,7 @@ target derive_rules B halvo-route-gate: 12 s macos, 8 s windows
 target drift_cli B halvo-learn-gate: 9 s macos, 5 s windows
 target macos_stall_fixture B halvo-capture: 10 s macos, every test ignored on windows
 units halvo-learn-gate B 42 s macos, 24 s windows
+kept halvo-learn-gate tests::privacy the deletion of learned rows: the module tests::privacy of the package's unit tests, and the four tests of its module privacy::tests whose own name begins with privacy; under 1 s on a Mac
 units halvo-sqlcipher A 27 s macos, 32 s windows
 units halvo-web B 24 s macos, 7 s windows
 units halvo-control B 16 s macos, 10 s windows
