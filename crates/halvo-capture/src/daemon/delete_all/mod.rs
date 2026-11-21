@@ -4,6 +4,8 @@
 
 #[cfg(test)]
 mod process_tests;
+#[cfg(all(test, windows))]
+mod windows_tests;
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -155,7 +157,25 @@ fn end_by_signal(owner: Owner) -> bool {
     gone_within(owner, OWNER_KILL_WAIT)
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+const OWNER_END_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+#[cfg(windows)]
+fn end_by_signal(owner: Owner) -> bool {
+    use windows::Win32::System::Threading::{
+        PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+    };
+    let access = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | PROCESS_SYNCHRONIZE;
+    let Some(process) = super::owner_pid::ProcessHandle::open(owner.pid, access) else {
+        return !runs(owner);
+    };
+    if process.started() != Some(owner.started) {
+        return true;
+    }
+    process.end_within(1, OWNER_END_WAIT)
+}
+
+#[cfg(not(any(unix, windows)))]
 fn end_by_signal(owner: Owner) -> bool {
     !runs(owner)
 }
