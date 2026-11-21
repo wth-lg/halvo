@@ -176,7 +176,7 @@ impl ServiceSources {
     /// The factory whose foreground sources read their titles through a
     /// stand-in that reads none, for a test that must read no title of the
     /// machine that runs it.
-    #[cfg(test)]
+    #[cfg(all(test, debug_assertions))]
     pub(crate) fn with_stand_in_titles(mut self) -> ServiceSources {
         self.stand_in_titles = true;
         self
