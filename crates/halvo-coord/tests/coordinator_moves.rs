@@ -12219,3 +12219,102 @@ fn u24v_6_one_agents_stuck_record_refuses_its_own_page_press_and_no_other_agents
     );
     assert_eq!(u24v_sent(&c, m, "AllowOnce"), 1);
 }
+
+fn u24v_two_agents_one_stuck() -> (Coordinator<Both>, RunId, ItemId, RunId, ItemId) {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run1 = start(&c, 1);
+    c.on_run(&run1, ask_confirm(&run1, 1)).unwrap();
+    let other = u24v_page_item_of(&c, 1);
+    assert_eq!(c.shown_on_page(&other, 0), Ok(()));
+    let run0 = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_agent(Method::Log, &agent(0), refused_name("store"));
+    c.on_run(&run0, ask_confirm_native_signature(&run0, 0))
+        .unwrap();
+    let own = u24v_item_of(&c, 0);
+    c.on_screen(&own);
+    for k in 1..=3u64 {
+        u24v_tick(&c, k);
+    }
+    assert!(c.record_stuck(&agent(0)));
+    assert!(!c.record_stuck(&agent(1)));
+    assert_eq!(c.present(&own), Err(Cause::NoService));
+    (c, run0, own, run1, other)
+}
+
+fn u24v_row(s: &Snapshot, n: usize) -> (Status, String) {
+    s.rows
+        .iter()
+        .find(|r| r.agent == agent(n))
+        .map(|r| (r.status, r.line.clone()))
+        .unwrap()
+}
+
+fn u24v_rows_of(c: &Coordinator<Both>, n: usize) -> usize {
+    c.ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .count()
+}
+
+#[test]
+fn u24v_7_a_refused_press_publishes_what_its_entry_took_up() {
+    let mut got = Vec::new();
+    let mut want = Vec::new();
+    for state in [
+        "an earlier move's settle",
+        "a stop and an end kept while the clock failed",
+    ] {
+        for presenter in ["native", "page"] {
+            let case = format!("{state}, the {presenter} press");
+            let (c, run0, own, run1, other) = u24v_two_agents_one_stuck();
+            if state.starts_with("an earlier") {
+                panicking(&c, "answer_confirm_after_send", || {
+                    c.answer(&other, Choice::Allow, None, 0)
+                });
+            } else {
+                c.ports().clock_fails.set(true);
+                let _ = c.control(&agent(1), Action::Stop);
+                c.ports().ports.end_runner(&run1);
+                let _ = c.on_run(&run1, RunEvent::Ended(None));
+                c.ports().clock_fails.set(false);
+            }
+            let (before, rows_before) = (c.snapshot(), u24v_rows_of(&c, 0));
+            let m = mark(&c);
+            let pressed = if presenter == "native" {
+                c.answer_native(&own, ConfirmAnswer::Allow)
+            } else {
+                c.answer(&own, Choice::Allow, None, 0)
+            };
+            let to_own_run = calls_since(&c, m)
+                .iter()
+                .filter(|call| matches!(call, Call::AnswerConfirm(r, _, _) if r == &run0))
+                .count();
+            let after = c.snapshot();
+            let rows_after = u24v_rows_of(&c, 0);
+            c.tick();
+            let next = c.snapshot();
+            got.push((
+                case.clone(),
+                pressed,
+                after.seq > before.seq,
+                u24v_row(&after, 1) == u24v_row(&next, 1),
+                to_own_run,
+                rows_after == rows_before,
+            ));
+            want.push((case, Err(Cause::NoService), true, true, 0, true));
+        }
+    }
+    assert_eq!(
+        got, want,
+        "(case, the press, seq raised by the press, agent 1's row after the press is the next tick's, decisions to agent 0's run, agent 0's rows unchanged)"
+    );
+}
