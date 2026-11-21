@@ -26,6 +26,9 @@ use crate::daemon::{EntriesLeft, TailAnswer, TailReport, TailRoot};
 
 struct Adapter {
     store: EncryptedStore,
+    /// The id of the store of this handle, as its open or its create read it.
+    #[cfg(feature = "r2")]
+    id: StoreId,
 }
 
 impl MaintainStore for Adapter {
@@ -92,6 +95,14 @@ impl CaptureStore for Adapter {
         free_bytes(self.store.dir())
     }
 
+    #[cfg(feature = "r2")]
+    fn read_segment(
+        &mut self,
+        from: Ordinal,
+    ) -> Result<crate::daemon::port::SegmentRead, MaintFault> {
+        read::first_at(&self.store, self.id, from).map_err(maint_fault)
+    }
+
     fn inventory(&mut self) -> Result<Vec<halvo_control::model::InventoryRow>, MaintFault> {
         let rows = self.store.inventory().map_err(maint_fault)?;
         Ok(rows
@@ -108,6 +119,129 @@ impl CaptureStore for Adapter {
                 })
             })
             .collect())
+    }
+}
+
+/// The read of the cursor on the encrypted store.
+#[cfg(feature = "r2")]
+mod read {
+    use std::io;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use halvo_sqlcipher::rusqlite::OptionalExtension;
+    use zeroize::{Zeroize, Zeroizing};
+
+    use crate::daemon::port::{
+        DataDirStore, LiveSegment, Ordinal, SegmentRead, StoreId, PAYLOAD_MAX_BYTES,
+    };
+    use crate::store::db::{db_error, EncryptedStore};
+    use crate::store::expiry::expiry_instant;
+    use crate::store::{StoreError, StoreResult};
+
+    const NANOS_PER_SECOND: i64 = 1_000_000_000;
+
+    /// How many times a read of this process met a live key row whose
+    /// segment could not be read.
+    static DAMAGED: AtomicU64 = AtomicU64::new(0);
+
+    impl DataDirStore {
+        /// How many times the cursor's reads of this process passed a
+        /// damaged segment: one whose key row stands while its file is gone
+        /// or does not authenticate. Such a segment answers no line, so this
+        /// count is all that tells of it. A segment counts once for each
+        /// read that meets it.
+        pub fn damaged_reads() -> u64 {
+            DAMAGED.load(Ordering::Relaxed)
+        }
+    }
+
+    /// A writer into a buffer that never makes it grow: it refuses the bytes
+    /// that the capacity of the buffer does not hold, so no growth leaves a
+    /// copy of plain bytes behind that nothing wipes.
+    struct Within<'a>(&'a mut Vec<u8>);
+
+    impl io::Write for Within<'_> {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            if bytes.len() > self.0.capacity() - self.0.len() {
+                return Err(io::Error::from(io::ErrorKind::FileTooLarge));
+            }
+            self.0.extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// What `store`, whose id is `id`, answers to a read at `from`: its id
+    /// and the highest ordinal that it gave, and the first row at or after
+    /// `from` that holds its key, with the plain lines of its segment and
+    /// its expiry instant. A row that expiry or eviction shredded holds no
+    /// key and is passed with no byte of its file read; an ask above every
+    /// row reads no file.
+    ///
+    /// The call reads one segment at most: two queries on the key rows and
+    /// one file. It takes no lock and no transaction and writes no file. The
+    /// plain bytes stand in one buffer that is wiped when it drops, made
+    /// with the capacity of the largest payload before the read and never
+    /// grown.
+    ///
+    /// A row whose file is gone or does not authenticate is damage: it
+    /// answers its ordinal and its expiry with no line, and the read counts
+    /// it, so the caller goes on at the next ordinal. A database error, a
+    /// handle on which a delete began and every other error of the file
+    /// answer the error and no line.
+    pub(super) fn first_at(
+        store: &EncryptedStore,
+        id: StoreId,
+        from: Ordinal,
+    ) -> StoreResult<SegmentRead> {
+        let keys = store.db()?.connection();
+        let highest: Option<i64> = keys
+            .query_row("SELECT max(id) FROM segment_keys", [], |row| row.get(0))
+            .map_err(db_error)?;
+        let ordinal = |row: i64| Ordinal::new(crate::store::Ordinal::of_row(row).get());
+        let mut read = SegmentRead {
+            store: id,
+            highest: highest.map(ordinal),
+            segment: None,
+        };
+        let Ok(from) = i64::try_from(from.get()) else {
+            return Ok(read);
+        };
+        let keyed: Option<(i64, String, i64)> = keys
+            .query_row(
+                "SELECT id, segment_id, first_capture FROM segment_keys \
+                 WHERE id >= ?1 AND wrapped_key IS NOT NULL ORDER BY id LIMIT 1",
+                [from],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()
+            .map_err(db_error)?;
+        let Some((row, segment_id, first_capture)) = keyed else {
+            return Ok(read);
+        };
+        let mut lines = Zeroizing::new(Vec::with_capacity(PAYLOAD_MAX_BYTES));
+        let file = match uuid::Uuid::parse_str(&segment_id) {
+            Ok(segment_id) => store.read_segment(segment_id, &mut Within(&mut lines)),
+            Err(_) => Err(StoreError::SegmentMissing),
+        };
+        match file {
+            Ok(_) => {}
+            Err(StoreError::SegmentMissing | StoreError::Corrupt(_)) => {
+                lines.zeroize();
+                DAMAGED.fetch_add(1, Ordering::Relaxed);
+            }
+            Err(fault) => return Err(fault),
+        }
+        read.segment = Some(LiveSegment {
+            ordinal: ordinal(row),
+            lines,
+            expiry: expiry_instant(first_capture, store.retention())
+                .saturating_mul(NANOS_PER_SECOND),
+        });
+        Ok(read)
     }
 }
 
@@ -269,7 +403,11 @@ fn custody_for_create(
 }
 
 fn opened(store: EncryptedStore, id: StoreId, access: Access) -> Opened {
-    let adapter = Adapter { store };
+    let adapter = Adapter {
+        store,
+        #[cfg(feature = "r2")]
+        id,
+    };
     match access {
         Access::ReadWrite => Opened::ReadWrite {
             store: Box::new(adapter),
@@ -454,7 +592,11 @@ impl ScratchDir {
             .map_err(|e| open_fault(&e))?;
         let root = RootGuard::new(Box::new(move || destroy_root(own, root_id, &roots)));
         Ok(ScratchStore {
-            store: Box::new(Adapter { store }),
+            store: Box::new(Adapter {
+                store,
+                #[cfg(feature = "r2")]
+                id: store_id(root_id),
+            }),
             root,
         })
     }
@@ -651,5 +793,107 @@ fn resolved_data_dir(data_dir: &Path) -> io::Result<std::path::PathBuf> {
     match std::fs::symlink_metadata(data_dir) {
         Ok(entry) if entry.file_type().is_symlink() => std::fs::canonicalize(data_dir),
         _ => Ok(data_dir.to_path_buf()),
+    }
+}
+
+#[cfg(all(test, feature = "r2"))]
+mod tests {
+    use std::collections::BTreeMap;
+    use std::path::{Path, PathBuf};
+
+    use super::key_id;
+    use crate::daemon::port::tests::write_at;
+    use crate::daemon::port::{
+        ByteBound, CaptureStore, DataDirStore, MaintainStore, Ordinal, ScratchDir,
+    };
+
+    const SECOND: i64 = 1_000_000_000;
+
+    /// Every entry under `dir`, in every folder under it, with its size.
+    fn listing(dir: &Path) -> BTreeMap<PathBuf, u64> {
+        let mut entries = BTreeMap::new();
+        let mut folders = vec![dir.to_path_buf()];
+        while let Some(folder) = folders.pop() {
+            for entry in std::fs::read_dir(&folder).unwrap() {
+                let path = entry.unwrap().path();
+                let meta = std::fs::symlink_metadata(&path).unwrap();
+                if meta.is_dir() {
+                    folders.push(path.clone());
+                }
+                entries.insert(path, meta.len());
+            }
+        }
+        entries
+    }
+
+    #[test]
+    fn a_read_answers_the_first_live_segment_of_a_real_store() {
+        let dir = tempfile::Builder::new()
+            .prefix("adapter-read-")
+            .tempdir()
+            .unwrap();
+        let made = ScratchDir::at(dir.path()).create().unwrap();
+        let mut store = made.store;
+        let noon = (20_000 * 86_400 + 43_200) * SECOND;
+        let captured = [
+            noon + 250,
+            noon + 61 * SECOND + 500,
+            noon + 122 * SECOND + 750,
+        ];
+        let batches: [&[u8]; 3] = [b"{\"n\":1}\n", b"{\"n\":2}\n{\"n\":22}\n", b"{\"n\":3}\n"];
+        let first = write_at(&mut store, captured[0], batches[0]);
+        let before_the_second = listing(dir.path());
+        let second = write_at(&mut store, captured[1], batches[1]);
+        let segments = dir.path().join("segments");
+        let files_of_the_second: Vec<PathBuf> = listing(dir.path())
+            .into_iter()
+            .filter(|(path, _)| path.starts_with(&segments) && path.is_file())
+            .filter(|(path, _)| !before_the_second.contains_key(path))
+            .map(|(path, _)| path)
+            .collect();
+        assert_eq!(files_of_the_second.len(), 1);
+        let third = write_at(&mut store, captured[2], batches[2]);
+        let evicted = store.evict_to(ByteBound::raw(0), 1).unwrap();
+        assert_eq!(evicted.shredded, [first.ordinal]);
+
+        let id = key_id(dir.path()).unwrap();
+        let expiry = (captured[1].div_euclid(SECOND) + 1_209_600) * SECOND;
+        let unread = listing(dir.path());
+        let read = store.read_segment(Ordinal::new(0)).unwrap();
+        assert_eq!((read.store, read.highest), (id, Some(third.ordinal)));
+        let live = read.segment.unwrap();
+        assert_eq!(live.ordinal, second.ordinal);
+        assert_eq!(live.lines.as_slice(), batches[1]);
+        assert_eq!(live.expiry, expiry);
+        let past = store.read_segment(Ordinal::new(u64::MAX)).unwrap();
+        assert_eq!((past.store, past.highest), (id, Some(third.ordinal)));
+        assert!(
+            past.segment.is_none(),
+            "a read above every segment read one"
+        );
+        assert_eq!(listing(dir.path()), unread, "a read made or changed a file");
+
+        let counted = DataDirStore::damaged_reads();
+        std::fs::remove_file(&files_of_the_second[0]).unwrap();
+        let damaged = listing(dir.path());
+        let read = store.read_segment(Ordinal::new(0)).unwrap();
+        let passed = read.segment.unwrap();
+        assert_eq!((passed.ordinal, passed.expiry), (second.ordinal, expiry));
+        assert!(passed.lines.is_empty(), "a damaged segment answered a line");
+        assert_eq!(DataDirStore::damaged_reads() - counted, 1);
+        let next = Ordinal::new(second.ordinal.get() + 1);
+        let live = store.read_segment(next).unwrap().segment.unwrap();
+        assert_eq!(live.ordinal, third.ordinal);
+        assert_eq!(live.lines.as_slice(), batches[2]);
+        assert_eq!(DataDirStore::damaged_reads() - counted, 1);
+        assert_eq!(
+            listing(dir.path()),
+            damaged,
+            "a read made or changed a file"
+        );
+
+        drop(store);
+        made.root.finish().unwrap();
+        dir.close().unwrap();
     }
 }
