@@ -39,6 +39,9 @@ pub enum EffectMove {
     Commit,
     /// The run ended while the effect was `releasing`.
     Lose,
+    /// The runner knows that the effect was not made: no request left the machine, the `replace` was not made, or
+    /// the service answered 401 or 429. The runner alone makes it, never the end of a run.
+    NotMade { cause: Cause },
 }
 
 /// The cause of a refused move: one of the seven causes of the step relation.
@@ -129,6 +132,30 @@ pub fn effect_step(effect: Option<&Effect>, step: EffectMove) -> Result<EffectSt
             Some(EffectState::Releasing) => Ok(EffectState::Unknown),
             _ => Err(StepCause::Effect),
         },
+        EffectMove::NotMade { cause } => {
+            let e = effect.ok_or(StepCause::Effect)?;
+            if e.state != EffectState::Releasing {
+                return Err(StepCause::Effect);
+            }
+            if !fits(*cause, e.class) {
+                return Err(StepCause::Class);
+            }
+            Ok(EffectState::NotMade)
+        }
+    }
+}
+
+/// Whether the plain words of a `not_made` cause can be true for an effect of the class (A5.2): `not_replaced` for
+/// a local edit alone, `not_sent` for every class but a local edit, `unauthorized` and `throttled` for a send and a
+/// delete alone. No other cause is a cause of `not_made`.
+pub(crate) fn fits(cause: Cause, class: ActionClass) -> bool {
+    match cause {
+        Cause::NotReplaced => class == ActionClass::LocalEdit,
+        Cause::NotSent => class != ActionClass::LocalEdit,
+        Cause::Unauthorized | Cause::Throttled => {
+            matches!(class, ActionClass::Send | ActionClass::Delete)
+        }
+        _ => false,
     }
 }
 
@@ -160,7 +187,8 @@ fn begin(effect: Option<&Effect>, digest: &Digest) -> Result<EffectState, StepCa
         EffectState::Refused
         | EffectState::Rejected
         | EffectState::Committed
-        | EffectState::Releasing => return Err(StepCause::Effect),
+        | EffectState::Releasing
+        | EffectState::NotMade => return Err(StepCause::Effect),
         EffectState::Unknown => return Err(StepCause::Unknown),
         EffectState::Held => return Err(StepCause::Approval),
         EffectState::Cleared if needs_approval => return Err(StepCause::Approval),

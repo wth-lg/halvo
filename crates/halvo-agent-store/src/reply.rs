@@ -159,6 +159,8 @@ fn not_made_of_run(host: &dyn Host, row: &AgentReply) -> Result<bool, ErrorName>
     Ok(newest.is_some_and(|e| not_made(e.state)))
 }
 
+/// No state answers yes while the store refuses a `not_made` row of an effect, so a reply row does not go back from
+/// `begun` to `drafted`.
 fn not_made(state: EffectState) -> bool {
     match state {
         EffectState::Refused
@@ -168,7 +170,8 @@ fn not_made(state: EffectState) -> bool {
         | EffectState::Rejected
         | EffectState::Releasing
         | EffectState::Committed
-        | EffectState::Unknown => false,
+        | EffectState::Unknown
+        | EffectState::NotMade => false,
     }
 }
 
