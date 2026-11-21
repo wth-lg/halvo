@@ -1718,6 +1718,23 @@ pub(crate) fn serve<L: main_loop::MainLoop>(
         Ok(None) => return halvo_control::exit::CLEAN,
         Err(status) => return status,
     };
+    serve_held(lock, dir, writer, main_loop, stop, ending, err)
+}
+
+/// The service run after its take, on the data directory `dir` that `lock`
+/// holds: the check of the directory on the lock's descriptor, the state file
+/// in the folder that the lock holds, the backup mark, the wait and the
+/// shutdown entry, as [`serve`] describes them.
+#[cfg(all(target_os = "macos", debug_assertions))]
+pub(crate) fn serve_held<L: main_loop::MainLoop>(
+    lock: instance::InstanceLock,
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+    main_loop: L,
+    stop: &std::sync::atomic::AtomicBool,
+    ending: std::sync::Arc<dyn main_loop::EndCall>,
+    err: &mut dyn std::io::Write,
+) -> i32 {
     if let Err(fault) = lock.check(dir) {
         let _ = writeln!(err, "{}", obstructed_line(fault));
     }

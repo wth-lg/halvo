@@ -14,7 +14,7 @@ use super::instance::InstanceLock;
 use super::main_loop::{self, MainLoop};
 use super::state::tests::TestWrite;
 use super::state::{DaemonState, StateDir, StateFile, StateWrite};
-use super::{serve, signal};
+use super::{serve, serve_held, signal};
 
 const SERVE: &str = "HALVO_DAEMON_SERVE_DIR";
 const SERVER: &str = "daemon::process_tests::serve_for_parent";
@@ -499,4 +499,48 @@ fn a_first_state_write_that_fails_is_named_by_one_line_with_its_kind() {
     );
     assert_eq!((status, err), (0, line));
     assert_eq!(writer.calls.load(Ordering::SeqCst), 1);
+}
+
+struct SearchBack(PathBuf);
+
+impl Drop for SearchBack {
+    fn drop(&mut self) {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o700));
+    }
+}
+
+#[test]
+fn the_held_service_run_opens_its_state_folder_through_the_lock_when_the_folder_above_cannot_be_searched(
+) {
+    use std::os::unix::fs::PermissionsExt;
+    let root = kept_dir("service-tests-");
+    let above = root.join("above");
+    let data = above.join("data");
+    std::fs::create_dir_all(&data).unwrap();
+    std::fs::set_permissions(&data, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let named = data_dir(&data);
+    let lock = InstanceLock::take(&named).unwrap().unwrap();
+    let back = SearchBack(above.clone());
+    std::fs::set_permissions(&above, std::fs::Permissions::from_mode(0o000)).unwrap();
+    assert!(
+        std::fs::metadata(&data).is_err(),
+        "the folder above the data directory still lets its name be walked, so the case is not made here"
+    );
+    let stop = AtomicBool::new(true);
+    let mut err = Vec::new();
+    let status = serve_held(
+        lock,
+        &named,
+        Box::new(TestWrite::default()),
+        SleepLoop(Instant::now()),
+        &stop,
+        Arc::new(Recorded),
+        &mut err,
+    );
+    drop(back);
+    let err = String::from_utf8(err).unwrap();
+    assert_eq!(status, 0, "{err}");
+    assert!(!err.contains("folder of the data directory"), "{err}");
+    assert_eq!(names(&data), vec!["daemon-state.json".to_owned()]);
 }
