@@ -198,16 +198,12 @@ fn u46b_an_agent_with_no_clean_run_shows_no_ready_card_while_its_run_may_still_r
         next_life(&c, &[(runs[0].clone(), Reaped::Alive)]),
         Limits::PRODUCT,
     );
+    let before = readies(&life);
     life.tick();
-    assert!(
-        life.ports().ports.events.borrow().iter().any(|e| matches!(
-            e.what,
-            What::ItemRaised {
-                raised: halvo_coord::types::Raised::Ready,
-                ..
-            }
-        )),
-        "the tick raised ready for an agent with no clean run"
+    assert_eq!(
+        readies(&life),
+        before,
+        "no ready is raised while the run that reap answered alive has no record"
     );
     let s = life.snapshot();
     let first = s.rows.iter().find(|r| r.agent == agent(0)).unwrap();
@@ -1106,4 +1102,355 @@ fn u46b_the_second_of_two_runs_that_reap_answered_alive_reads_its_record() {
         life.card(&agent(1)).expect("the card").runs[0].text,
         text("line.run.failed")
     );
+}
+
+/// The `ready` items raised for agent 0 that the ledger holds.
+fn readies(c: &Coordinator<Both>) -> usize {
+    c.ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            e.agent == agent(0)
+                && matches!(
+                    e.what,
+                    What::ItemRaised {
+                        raised: halvo_coord::types::Raised::Ready,
+                        ..
+                    }
+                )
+        })
+        .count()
+}
+
+/// What the person sees of agent 0: the status, the line and the controls of its row, and the
+/// kinds of its items.
+type Shown = (Status, String, Vec<Control>, Vec<String>);
+
+fn shown(c: &Coordinator<Both>) -> Shown {
+    let s = c.snapshot();
+    let r = s.rows.iter().find(|r| r.agent == agent(0)).unwrap();
+    let items = s
+        .items
+        .iter()
+        .filter(|i| i.agent() == &agent(0))
+        .map(|i| format!("{:?}", i.kind()))
+        .collect();
+    (r.status, r.line.clone(), controls(r), items)
+}
+
+/// An owner whose one agent has no clean run: its seeded history cleared, or its one earlier run
+/// failed.
+fn no_clean_run(cleared: bool, a: A) -> Both {
+    let owner = coord::owner(&[a], room());
+    if cleared {
+        owner.ports.events.borrow_mut().clear();
+        owner.ports.agents.borrow_mut()[0].last = None;
+    } else {
+        for e in owner.ports.events.borrow_mut().iter_mut() {
+            if let What::RunEnded { cause, .. } = &mut e.what {
+                *cause = RunEnd::Failed;
+            }
+        }
+        if let Some(last) = owner.ports.agents.borrow_mut()[0].last.as_mut() {
+            last.outcome = Outcome::Failed;
+        }
+    }
+    owner
+}
+
+/// The owner of the life after `c`: the store of `c` with its histories, the marks, and the
+/// library's ids moved on.
+fn carried(c: &Coordinator<Both>, marks: &[(RunId, Reaped)]) -> Both {
+    let next = next_life(c, marks);
+    next.ports
+        .histories
+        .borrow_mut()
+        .clone_from(&c.ports().ports.histories.borrow());
+    for _ in 0..32 {
+        let _ = next.ports.bytes16();
+    }
+    next
+}
+
+/// Refuses every `run_ended` as `malformed` until `drop_lost`, so that recovery's never reaches
+/// the ledger.
+fn lose_run_ended(next: &Both) {
+    next.ports.refuse_record(
+        |e| matches!(e.what, What::RunEnded { .. }),
+        PortError::Refused(Name::parse("malformed").unwrap()),
+    );
+}
+
+/// Drops the refused `run_ended` as a debt of a day that stands alone (the clock 3 days back),
+/// then sets the clock to the day again.
+fn drop_lost(life: &Coordinator<Both>) {
+    life.ports().ports.set_clock(T0 - 3 * DAY_MS, DAY - 3);
+    life.tick();
+    life.ports().ports.clear_refusals();
+    life.ports().ports.set_clock(T0 + 1_000, DAY);
+}
+
+/// The reference world: the agent of `no_clean_run`, whose run the person starts and whose runner
+/// ends it with `end` in the ordinary way, its record first; what the person sees after three
+/// ticks, and in the life after a Quit with nothing live.
+fn ordinary(cleared: bool, a: A, end: Outcome) -> (Coordinator<Both>, Shown, Shown) {
+    let c = Coordinator::new(no_clean_run(cleared, a), room());
+    c.tick();
+    assert_eq!(c.control(&agent(0), Action::RunNow), Ok(()));
+    let run = coord::started(&c).last().cloned().unwrap();
+    assert_eq!(c.on_run(&run, RunEvent::Hello), Ok(()));
+    store_ends(&c, 0, &record(&run, end));
+    assert_eq!(c.on_run(&run, RunEvent::Ended(Some(end))), Ok(()));
+    for k in 1..=3 {
+        tick_at(&c, k);
+    }
+    let in_life = shown(&c);
+    let later = Coordinator::new(carried(&c, &[]), Limits::PRODUCT);
+    later.tick();
+    for k in 4..=6 {
+        tick_at(&later, k);
+    }
+    let after = shown(&later);
+    (c, in_life, after)
+}
+
+/// What R8 asks of a read of a run that the record names `end`: what the person sees equals the
+/// reference world; for `completed` and `nothing_to_do` also the row's line and the card's run by
+/// key, no item and no `ready` raised since the record, and a row that reads that the task
+/// finished before it offers Start now.
+fn reads_as(c: &Coordinator<Both>, form: &str, end: Outcome, want: &Shown, at_record: usize) {
+    assert_eq!(
+        &shown(c),
+        want,
+        "{form}: the row, its items and its controls, as where the run ended so in the ordinary way"
+    );
+    let (line, card) = match end {
+        Outcome::Completed => ("line.all_set.done", "line.run.completed"),
+        Outcome::NothingToDo => ("line.all_set.nothing", "line.run.nothing_to_do"),
+        _ => return,
+    };
+    let r = row(c, 0);
+    assert_eq!(r.line, text(line), "{form}: the row's line");
+    assert_eq!(
+        c.card(&agent(0)).expect("the card").runs[0].text,
+        text(card),
+        "{form}: the card"
+    );
+    assert_eq!(shown(c).3, Vec::<String>::new(), "{form}: no item");
+    assert_eq!(
+        readies(c),
+        at_record,
+        "{form}: no ready raised since the record"
+    );
+    let json = serde_json::to_string(&r).unwrap();
+    let said = json
+        .find(&serde_json::to_string(&text(line)).unwrap())
+        .expect("the line");
+    let start = json.find("\"run_now\"").expect("Start now");
+    assert!(
+        said < start,
+        "{form}: the row reads that the task finished before it offers Start now"
+    );
+}
+
+/// R8 (RD-156 (1)): for an agent with no clean run, a first task that outlived Quit and that the
+/// record names `completed` or `nothing_to_do` is never offered as ready to start: not in the life
+/// where reap answered it alive, not in the life after, not in a first next life whose reap
+/// answered it gone, and not where its own life ended it with no outcome; a record `failed` reads
+/// as where the run failed in the ordinary way. A scheduled agent that needs no person starts
+/// nothing more in the slot that the finished run served, and a run in the next slot.
+#[test]
+fn u46b_a_first_task_that_the_record_names_finished_is_never_offered_as_ready_to_start() {
+    for cleared in [true, false] {
+        for end in [Outcome::Completed, Outcome::NothingToDo, Outcome::Failed] {
+            let (_, in_life, after) = ordinary(cleared, MANUAL, end);
+            for lost in [false, true] {
+                let form =
+                    format!("cleared={cleared} end={end:?} recovery's run_ended lost={lost}");
+
+                let (c, runs) = outlived_quit(no_clean_run(cleared, MANUAL));
+                let next = carried(&c, &[(runs[0].clone(), Reaped::Alive)]);
+                if lost {
+                    lose_run_ended(&next);
+                }
+                let life = Coordinator::new(next, Limits::PRODUCT);
+                life.tick();
+                if lost {
+                    drop_lost(&life);
+                }
+                store_ends(&life, 0, &record(&runs[0], end));
+                let at_record = readies(&life);
+                for k in 1..=3 {
+                    tick_at(&life, k);
+                }
+                let place = format!("{form}, the life where reap answered alive");
+                reads_as(&life, &place, end, &in_life, at_record);
+                for marks in [vec![(runs[0].clone(), Reaped::Gone)], Vec::new()] {
+                    let later = Coordinator::new(carried(&life, &marks), Limits::PRODUCT);
+                    later.tick();
+                    for k in 4..=6 {
+                        tick_at(&later, k);
+                    }
+                    let place = format!("{form}, the life after with the marks {marks:?}");
+                    reads_as(&later, &place, end, &after, at_record);
+                }
+
+                let (c, runs) = outlived_quit(no_clean_run(cleared, MANUAL));
+                store_ends(&c, 0, &record(&runs[0], end));
+                let at_record = readies(&c);
+                let next = carried(&c, &[(runs[0].clone(), Reaped::Gone)]);
+                if lost {
+                    lose_run_ended(&next);
+                }
+                let first = Coordinator::new(next, Limits::PRODUCT);
+                first.tick();
+                if lost {
+                    drop_lost(&first);
+                }
+                for k in 1..=3 {
+                    tick_at(&first, k);
+                }
+                let place = format!("{form}, a first next life whose reap answered gone");
+                reads_as(&first, &place, end, &after, at_record);
+            }
+
+            let c = Coordinator::new(no_clean_run(cleared, MANUAL), room());
+            c.tick();
+            assert_eq!(c.control(&agent(0), Action::RunNow), Ok(()));
+            let run = coord::started(&c).last().cloned().unwrap();
+            assert_eq!(c.on_run(&run, RunEvent::Hello), Ok(()));
+            store_ends(&c, 0, &record(&run, end));
+            assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+            let at_record = readies(&c);
+            for k in 1..=3 {
+                tick_at(&c, k);
+            }
+            let place =
+                format!("cleared={cleared} end={end:?}, its own life ended it with no outcome");
+            reads_as(&c, &place, end, &in_life, at_record);
+        }
+    }
+
+    let slotted = A {
+        person: false,
+        slotted: true,
+    };
+    let next_slot = |c: &Coordinator<Both>| {
+        let before = coord::started(c).len();
+        c.ports().ports.set_clock(T0 + 2 * DAY_MS, DAY + 2);
+        c.tick();
+        coord::started(c).len() - before
+    };
+    let (reference, in_life, _) = ordinary(true, slotted, Outcome::Completed);
+    let (c, runs) = outlived_quit(no_clean_run(true, slotted));
+    let life = Coordinator::new(
+        carried(&c, &[(runs[0].clone(), Reaped::Alive)]),
+        Limits::PRODUCT,
+    );
+    life.tick();
+    store_ends(&life, 0, &record(&runs[0], Outcome::Completed));
+    let at_record = readies(&life);
+    for k in 1..=3 {
+        tick_at(&life, k);
+    }
+    let place = "a scheduled agent that needs no person, the life where reap answered alive";
+    reads_as(&life, place, Outcome::Completed, &in_life, at_record);
+    assert_eq!(
+        coord::started(&life),
+        Vec::<RunId>::new(),
+        "the slot that the finished run served starts nothing more"
+    );
+    assert_eq!(
+        (next_slot(&life), next_slot(&reference)),
+        (1, 1),
+        "the next slot starts one run of the scheduler, as in the ordinary world"
+    );
+}
+
+/// R9 (RD-156 (2)): the workflow is gone at recovery and the owner reads the history; the older
+/// run, which reap answered alive, has no record, and a newer run of another writer has its
+/// record. Whatever reap answered for the newer run, and in either order of the answers, the row
+/// stands with the stuck-kill line and no control, and nothing is logged, sent or started.
+#[test]
+fn u46b_a_gone_workflow_keeps_its_row_whatever_newer_run_another_writer_added() {
+    let r2 = RunId::parse("00000000000000000000000000009999").unwrap();
+    for newer in [Some(Reaped::Alive), Some(Reaped::Gone), None] {
+        for older_first in [true, false] {
+            let (c, runs) = outlived_quit(coord::owner(&[MANUAL], room()));
+            another_writers_run(&c, 0, &r2);
+            let mut marks = vec![(runs[0].clone(), Reaped::Alive)];
+            marks.extend(newer.map(|answer| (r2.clone(), answer)));
+            if !older_first {
+                marks.reverse();
+            }
+            let next = next_life(&c, &marks);
+            next.ports.workflows.borrow_mut().clear();
+            let life = Coordinator::new(next, Limits::PRODUCT);
+            life.tick();
+            tick_at(&life, 1);
+            assert_eq!(
+                seen(&life, 0),
+                Some((Status::Working, kill_stuck(), Vec::new())),
+                "reap's answers {marks:?}"
+            );
+            let effects = life
+                .ports()
+                .ports
+                .tried
+                .borrow()
+                .iter()
+                .filter(|t| matches!(t.call, Call::Log(_) | Call::Send(_) | Call::Start(_)))
+                .count();
+            assert_eq!(effects, 0, "nothing logged, sent or started: {marks:?}");
+        }
+    }
+}
+
+/// R10 (RD-156 (a)): a run that its own life ends with no outcome, whose `run_ended` that life
+/// writes `interrupted`, reads the end of a later record `completed` or `nothing_to_do`, the word
+/// of the runner itself; a record `failed` leaves the interrupted row standing.
+#[test]
+fn u46b_a_run_that_its_own_life_ended_with_no_outcome_reads_the_end_that_the_record_names() {
+    for (end, line, card) in [
+        (
+            Outcome::Completed,
+            "line.all_set.done",
+            "line.run.completed",
+        ),
+        (
+            Outcome::NothingToDo,
+            "line.all_set.nothing",
+            "line.run.nothing_to_do",
+        ),
+        (
+            Outcome::Failed,
+            "line.all_set.stopped_early",
+            "line.run.interrupted",
+        ),
+    ] {
+        let c = Coordinator::new(coord::owner(&[MANUAL], room()), room());
+        c.tick();
+        assert_eq!(c.control(&agent(0), Action::RunNow), Ok(()));
+        let run = coord::started(&c).last().cloned().unwrap();
+        assert_eq!(c.on_run(&run, RunEvent::Hello), Ok(()));
+        assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+        tick_at(&c, 1);
+        assert!(
+            c.ports().ports.events.borrow().iter().any(|e| matches!(
+                &e.what,
+                What::RunEnded { run: r, cause: RunEnd::Interrupted, .. } if *r == run
+            )),
+            "the life wrote its own interrupted"
+        );
+        store_ends(&c, 0, &record(&run, end));
+        tick_at(&c, 2);
+        assert_eq!(row(&c, 0).line, text(line), "the record {end:?}");
+        assert_eq!(
+            c.card(&agent(0)).expect("the card").runs[0].text,
+            text(card),
+            "the record {end:?}: the card"
+        );
+    }
 }
