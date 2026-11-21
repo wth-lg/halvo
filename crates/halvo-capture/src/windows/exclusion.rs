@@ -16,9 +16,20 @@ pub trait ProcessTable: Send + Sync {
     /// a FILETIME, or `None` when it is gone or cannot be opened.
     fn created(&self, pid: u32) -> Option<u64>;
 
-    /// The parent id that a process snapshot holds for `pid`, or `None` when
-    /// the snapshot does not hold it.
-    fn parent(&self, pid: u32) -> Option<u32>;
+    /// What a process snapshot holds of `pid`.
+    fn listing(&self, pid: u32) -> Listing;
+}
+
+/// What a process snapshot holds of one process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Listing {
+    /// The process runs, with this parent id.
+    Parent(u32),
+    /// The snapshot does not list the process: it has ended, though a handle
+    /// that another process holds may still open it.
+    NotListed,
+    /// No snapshot could be taken.
+    NoSnapshot,
 }
 
 /// The process table of the system.
@@ -47,7 +58,7 @@ impl ProcessTable for SystemTable {
         Some((u64::from(times[0].dwHighDateTime) << 32) | u64::from(times[0].dwLowDateTime))
     }
 
-    fn parent(&self, pid: u32) -> Option<u32> {
+    fn listing(&self, pid: u32) -> Listing {
         use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::System::Diagnostics::ToolHelp::{
             CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
@@ -55,18 +66,20 @@ impl ProcessTable for SystemTable {
         };
         // SAFETY: CreateToolhelp32Snapshot takes plain values; the snapshot
         // handle that it returns is closed once, after the walk.
-        let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }.ok()?;
+        let Ok(snapshot) = (unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }) else {
+            return Listing::NoSnapshot;
+        };
         let mut entry = PROCESSENTRY32W {
             dwSize: core::mem::size_of::<PROCESSENTRY32W>() as u32,
             ..Default::default()
         };
-        let mut parent = None;
+        let mut listing = Listing::NotListed;
         // SAFETY: `entry` is a live PROCESSENTRY32W whose size field holds its
         // size, and `snapshot` is open for the walk.
         let mut more = unsafe { Process32FirstW(snapshot, &mut entry) }.is_ok();
         while more {
             if entry.th32ProcessID == pid {
-                parent = Some(entry.th32ParentProcessID);
+                listing = Listing::Parent(entry.th32ParentProcessID);
                 break;
             }
             // SAFETY: as for Process32FirstW above.
@@ -77,7 +90,7 @@ impl ProcessTable for SystemTable {
         unsafe {
             let _ = CloseHandle(snapshot);
         }
-        parent
+        listing
     }
 }
 
@@ -115,10 +128,11 @@ impl<T: ProcessTable> ProcessLineage<T> {
     }
 
     fn read(&self, pid: u32, created: u64) -> Parent {
-        match self.table.parent(pid) {
-            None => Parent::Unknown,
-            Some(parent) if parent == 0 || parent == pid => Parent::None,
-            Some(parent) => match self.table.created(parent) {
+        match self.table.listing(pid) {
+            Listing::NoSnapshot => Parent::Unknown,
+            Listing::NotListed => Parent::Unknown,
+            Listing::Parent(parent) if parent == 0 || parent == pid => Parent::None,
+            Listing::Parent(parent) => match self.table.created(parent) {
                 Some(parent_created) if parent_created <= created => {
                     Parent::Of(ProcessId::new(parent))
                 }
@@ -132,10 +146,9 @@ impl<T: ProcessTable> Lineage for ProcessLineage<T> {
     fn parent_of(&self, pid: ProcessId) -> Parent {
         let pid = pid.get();
         let Some(created) = self.table.created(pid) else {
-            return if self.table.parent(pid).is_some() {
-                Parent::None
-            } else {
-                Parent::Unknown
+            return match self.table.listing(pid) {
+                Listing::Parent(_) => Parent::None,
+                Listing::NotListed | Listing::NoSnapshot => Parent::Unknown,
             };
         };
         let mut cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
@@ -269,6 +282,7 @@ mod tests {
     struct Table {
         processes: HashMap<u32, (u32, u64)>,
         unopened: Vec<u32>,
+        ended: Vec<u32>,
         snapshots: AtomicUsize,
     }
 
@@ -282,6 +296,11 @@ mod tests {
             self.unopened.push(pid);
             self
         }
+
+        fn end(mut self, pid: u32) -> Table {
+            self.ended.push(pid);
+            self
+        }
     }
 
     impl ProcessTable for Table {
@@ -292,9 +311,14 @@ mod tests {
             self.processes.get(&pid).map(|(_, created)| *created)
         }
 
-        fn parent(&self, pid: u32) -> Option<u32> {
+        fn listing(&self, pid: u32) -> Listing {
             self.snapshots.fetch_add(1, Ordering::SeqCst);
-            self.processes.get(&pid).map(|(parent, _)| *parent)
+            if self.ended.contains(&pid) {
+                return Listing::NotListed;
+            }
+            self.processes
+                .get(&pid)
+                .map_or(Listing::NotListed, |(parent, _)| Listing::Parent(*parent))
         }
     }
 
@@ -307,6 +331,8 @@ mod tests {
     const LOOP_B: u32 = 700;
     const UNOPENED: u32 = 800;
     const UNDER_UNOPENED: u32 = 900;
+    const ENDED: u32 = 1000;
+    const UNDER_ENDED: u32 = 1100;
 
     fn table() -> Table {
         Table::default()
@@ -321,6 +347,9 @@ mod tests {
             .with(UNOPENED, 4, 2)
             .with(UNDER_UNOPENED, UNOPENED, 60)
             .unopen(UNOPENED)
+            .with(ENDED, ROOT, 25)
+            .with(UNDER_ENDED, ENDED, 35)
+            .end(ENDED)
     }
 
     fn decide(lineage: Arc<dyn Lineage>, pid: u32) -> Option<DropReason> {
@@ -348,6 +377,7 @@ mod tests {
             (999, Some(DropReason::UnknownLineage)),
             (UNOPENED, None),
             (UNDER_UNOPENED, None),
+            (UNDER_ENDED, None),
         ] {
             assert_eq!(decide(Arc::clone(&lineage), pid), expected, "pid {pid}");
         }
