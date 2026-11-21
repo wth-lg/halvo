@@ -163,7 +163,7 @@ Number forms, each a run of letters and digits of its own:
   hash              7 or more of 0-9 and a-f with at least one digit and one letter: 38082c0e
 A word: a run whose parts, split at _ and at capital letters, are each a word of the vocabulary, or such a word with digits at its end.
   The vocabulary holds the parts of the identifiers of the Rust code of crates/halvo-capture at HEAD outside string literals and
-  comments, and the parts of its file paths, both read in the Windows view that the ledger of check 50 binds (no path that the
+  comments, and the parts of its file paths, both read in the Windows view (no path that the
   list macos_only_paths of check 50 names), and the fixed list of wpr_fixed_words, each word with its reason.
 A lone letter passes only as: an upper-case letter right after the word phase, or after phases and then after and once more
   (at most two for one phase word); the token a; the s of 's; the f of the token fixture-native-f; the t of t+Ns; and the

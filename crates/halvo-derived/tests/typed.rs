@@ -8,8 +8,8 @@ use common::{
     TestClock, FRONT, NOTE, NOTE_UNKEYED, OWN, TRACE,
 };
 use halvo_derived::{
-    Cause, Committed, DayFault, Error, Handler, HandlerCx, HeldRefusal, Host, OpenError, Refusal,
-    Store, StoredFault, Takes,
+    Cause, Committed, DayFault, DeleteGuard, Error, GuardAnswer, Handler, HandlerCx, HeldRefusal,
+    Host, OpenError, Refusal, Store, StoredFault, Takes,
 };
 use halvo_schema_core::ids::WorkflowId;
 use halvo_schema_core::kinds::{FieldType, KindEntry, Origin, RetentionClass};
@@ -2145,6 +2145,210 @@ fn held_ahead_is_no_after_the_delete_of_the_workflow() {
     let after = fx.held("test_note", &w1);
     drop(fx.store);
     assert_eq!((before, after), (Ok(true), Ok(false)));
+}
+
+/// What one call of the test guard got: the workflow id, the rows of `test_note` that its read visited and the answer
+/// of its held-ahead call for `test_note`.
+type GuardCall = (String, Vec<String>, Result<bool, HeldRefusal>);
+type GuardCalls = Rc<RefCell<Vec<GuardCall>>>;
+
+/// A delete guard that reads the rows of `test_note`, asks the held-ahead call for `test_note`, keeps both in `calls`
+/// and answers what `answer` makes of them.
+fn test_guard(
+    calls: &GuardCalls,
+    answer: fn(&[String], Result<bool, HeldRefusal>) -> GuardAnswer,
+) -> DeleteGuard {
+    let calls = Rc::clone(calls);
+    Box::new(move |workflow, rows, held_ahead| {
+        let mut visited = Vec::new();
+        rows.for_each("test_note", &mut |row| visited.push(row.to_owned()));
+        let held = held_ahead("test_note");
+        let answered = answer(&visited, held);
+        calls
+            .borrow_mut()
+            .push((workflow.as_str().to_owned(), visited, held));
+        answered
+    })
+}
+
+/// Stores `notes` through a step of the family `test`, at the clock's day.
+fn store_notes(scratch: &Scratch, clock: &TestClock, notes: Vec<TypedRecord>) {
+    let stored = notes.len() as u64;
+    let records: Records = Rc::new(RefCell::new(notes));
+    let mut store = open_entries(scratch, with_step(clock, &records, vec![]), &[&NOTE]).unwrap();
+    let outcome = store
+        .commit_batch(&store_id(1), &[], position(2, 0), &mut Seq(200))
+        .unwrap();
+    assert_eq!(outcome.steps, vec![Ok(Committed { stored, dropped: 0 })]);
+}
+
+/// The store of `scratch`, opened with `guard` as the delete guard of the family `test`.
+fn guarded(scratch: &Scratch, clock: &TestClock, guard: DeleteGuard) -> Store {
+    let host = base(clock, Grouping { min: 1 }).delete_guard("test", guard);
+    open_entries(scratch, host, &[&NOTE]).unwrap()
+}
+
+/// The answer of the delete of the workflow `id`.
+fn delete_answer(store: &mut Store, id: &str) -> Result<(), Error> {
+    store.decide(&halvo_schema_core::request::InterfaceDecision::delete(
+        &halvo_schema_core::request::InterfaceRole::claim(),
+        halvo_schema_core::ids::RequestId::from_random([1; 16]),
+        WorkflowId::parse(id).unwrap(),
+    ))
+}
+
+/// A stored row by the test's own connection: its id, its kind, its workflow column and its text in hex.
+type StoredRow = (i64, String, Option<String>, String);
+
+/// Every stored row and the revision of every family, read by the test's own connection while no store is open.
+fn everything(scratch: &Scratch) -> (Vec<StoredRow>, Vec<(String, i64)>) {
+    let conn = common::raw(scratch);
+    let mut statement = conn
+        .prepare("SELECT id, kind, workflow, hex(body) FROM rows ORDER BY id")
+        .unwrap();
+    let rows: Vec<StoredRow> = statement
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    let mut statement = conn
+        .prepare("SELECT family, n FROM revisions ORDER BY family")
+        .unwrap();
+    let revisions: Vec<(String, i64)> = statement
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    (rows, revisions)
+}
+
+/// The reader of the test guard below: it takes a note whose `n` fits one byte for a run that is still at work and
+/// refuses every other note.
+#[derive(serde::Deserialize)]
+#[allow(dead_code)]
+struct LiveRun {
+    n: u8,
+}
+
+/// C3.10, C25.5 and the ruled text of the guard's inputs: a guard that holds keeps every row, and its read visits the
+/// rows of the delete's workflow alone. The first workflow holds a note that the guard's reader takes for a live run,
+/// the second one a note that this reader refuses. The guard answers go where its read visited a row that its reader
+/// refuses, and else wait for a live run, so a read that also reached the second workflow's note would let the delete
+/// go. The delete of the first workflow answers `state`, every row and every revision is as before, and the guard
+/// got the id of the delete and visited the first workflow's note alone.
+#[test]
+fn a_guard_that_holds_keeps_every_row_and_reads_its_workflow_alone() {
+    let scratch = Scratch::new("guard-holds");
+    let clock = TestClock::at_day(DAY);
+    let (w1, w2) = two_workflows(&scratch, &clock);
+    store_notes(
+        &scratch,
+        &clock,
+        vec![note(&w1, DAY, 1), note(&w2, DAY, 300)],
+    );
+    let before = everything(&scratch);
+    let calls: GuardCalls = Rc::new(RefCell::new(Vec::new()));
+    let guard = test_guard(&calls, |visited, _| {
+        let refused = |row: &String| serde_json::from_str::<LiveRun>(row).is_err();
+        if visited.is_empty() || visited.iter().any(refused) {
+            GuardAnswer::Go
+        } else {
+            GuardAnswer::Wait
+        }
+    });
+    let mut store = guarded(&scratch, &clock, guard);
+    let answer = delete_answer(&mut store, &w1);
+    drop(store);
+    assert_eq!(answer, Err(Error::Refused(ErrorName::State)));
+    assert_eq!(
+        everything(&scratch),
+        before,
+        "(every stored row, every revision) after the delete that the guard held"
+    );
+    assert_eq!(
+        *calls.borrow(),
+        [(
+            w1.clone(),
+            vec![format!(r#"{{"v":1,"workflow":"{w1}","day":{DAY},"n":1}}"#)],
+            Ok(false)
+        )]
+    );
+}
+
+/// S-59 (a), part 5, under a delete: the guard gets the yes or no of the held-ahead call and never `Role`. A note of
+/// DAY + 3 is stored while the clock stands on that day, and the clock is set back to noon of DAY. The guard waits on
+/// a yes: the first delete answers `state` with a yes for the guard, `Store::expire` removes the note, and the second
+/// delete gives the guard a no and removes the workflow.
+#[test]
+fn a_guard_gets_yes_three_days_ahead_and_no_after_the_expiry() {
+    let scratch = Scratch::new("guard-held");
+    let clock = TestClock::at_day(DAY);
+    let (w1, _) = two_workflows(&scratch, &clock);
+    clock.set_day(DAY + 3);
+    store_notes(&scratch, &clock, vec![note(&w1, DAY + 3, 1)]);
+    let calls: GuardCalls = Rc::new(RefCell::new(Vec::new()));
+    let guard = test_guard(&calls, |_, held| match held {
+        Ok(true) => GuardAnswer::Wait,
+        _ => GuardAnswer::Go,
+    });
+    let mut store = guarded(&scratch, &clock, guard);
+    clock.set(noon(DAY));
+    let first = delete_answer(&mut store, &w1);
+    let removed = store.expire().unwrap();
+    let second = delete_answer(&mut store, &w1);
+    drop(store);
+    assert_eq!(
+        (first, removed, second),
+        (Err(Error::Refused(ErrorName::State)), 1, Ok(())),
+        "(the first delete, the rows that the expiry removed, the second delete)"
+    );
+    assert_eq!(
+        *calls.borrow(),
+        [
+            (w1.clone(), vec![], Ok(true)),
+            (w1.clone(), vec![], Ok(false))
+        ]
+    );
+    assert_eq!(
+        count(
+            &scratch,
+            &format!("SELECT count(*) FROM rows WHERE workflow = '{w1}'")
+        ),
+        0
+    );
+}
+
+/// The coordinator's ruling of 2026-11-21 on a fault: a fault of the read that the store gives the guard is the
+/// store's. The one note of the workflow holds bytes that are no UTF-8, written by the test's own connection, so the
+/// guard's read meets a fault of the store and visits nothing. The guard answers go, and the delete answers the fault
+/// and removes nothing.
+#[test]
+fn a_fault_of_the_guard_s_read_answers_the_delete() {
+    let scratch = Scratch::new("guard-fault");
+    let clock = TestClock::at_day(DAY);
+    let (w1, _) = two_workflows(&scratch, &clock);
+    store_notes(&scratch, &clock, vec![note(&w1, DAY, 1)]);
+    let mut bytes = format!(r#"{{"v":1,"workflow":"{w1}","day":{DAY},"n":1,"x":""#).into_bytes();
+    bytes.extend_from_slice(&[0xff, b'"', b'}']);
+    let changed = common::raw(&scratch)
+        .execute(
+            "UPDATE rows SET body = CAST(?1 AS TEXT) WHERE kind = 'test_note' AND workflow = ?2",
+            (bytes, &w1),
+        )
+        .unwrap();
+    assert_eq!(changed, 1);
+    let before = everything(&scratch);
+    let calls: GuardCalls = Rc::new(RefCell::new(Vec::new()));
+    let mut store = guarded(&scratch, &clock, test_guard(&calls, |_, _| GuardAnswer::Go));
+    let answer = delete_answer(&mut store, &w1);
+    drop(store);
+    assert_eq!(answer, Err(Error::Fault(halvo_derived::Fault::Row)));
+    assert_eq!(*calls.borrow(), [(w1.clone(), vec![], Ok(false))]);
+    assert_eq!(
+        everything(&scratch),
+        before,
+        "(every stored row, every revision) after the delete that met the fault"
+    );
 }
 
 /// S-59 (a) 1 and 2: a row three days ahead answers for its kind and its workflow alone: no for the other workflow and

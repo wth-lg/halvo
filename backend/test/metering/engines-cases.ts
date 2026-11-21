@@ -138,4 +138,30 @@ export const engineCases: EngineCase[] = [
       });
     },
   },
+  {
+    name: "the run of unexplained totals: the stored time of its first read, a read at the late point less than a span after it, and the close with the cause unexplained-total and its two sums",
+    run(step) {
+      const metering = makeMetering({ intervalSeconds: 3600, marginSeconds: 300 });
+      const seen: [string, unknown][] = [];
+      const note = (label: string, value: unknown) => seen.push([label, value]);
+      step((sql) => {
+        metering.init(sql);
+        metering.begin(sql, ACCOUNT, T0);
+        metering.intervalAt(sql, T0 + 10);
+        const open = metering.oldestUnsealed(sql);
+        if (open === null) throw new Error("no interval");
+        metering.seal(sql, open.interval, 30_000, open.end);
+        const sent = metering.send(sql, open.end);
+        if (sent.call === null) throw new Error("no call");
+        note("record failed", metering.record(sql, sent.call, { kind: "failed" }, open.end));
+        const read: UsageCall = { kind: "read", interval: open.interval, from: 0, to: 60 };
+        const total = { kind: "total", from: 0, to: 60, totalMinor: 8 } as const;
+        note("an unexplained read before the late point", metering.record(sql, read, total, open.end + H));
+        note("an unexplained read at the late point", metering.record(sql, read, total, open.end + 86_100_000));
+        note("an unexplained read one span after the first", metering.record(sql, read, total, open.end + H + 86_100_000));
+        note("settled", metering.settled(sql));
+      });
+      return { seen, tables: dump(step) };
+    },
+  },
 ];
