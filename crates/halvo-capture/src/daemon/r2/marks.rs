@@ -43,7 +43,7 @@ pub(in crate::daemon) trait MarkEntry {
     fn take_mark(&mut self, mark: RunMark) -> bool;
 }
 
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+#[cfg(any(test, target_os = "macos"))]
 impl<S, C> MarkEntry for crate::daemon::owner::Owner<S, C>
 where
     S: crate::daemon::port::CaptureStore,
@@ -90,7 +90,7 @@ impl Marks {
     /// `stored` of the reply: true when the owner took the record of this
     /// request.
     #[cfg_attr(
-        not(any(test, all(target_os = "macos", debug_assertions))),
+        not(any(test, target_os = "macos")),
         expect(
             dead_code,
             reason = "the store owner, whose mark command calls it, is built in tests and in macOS debug builds alone"

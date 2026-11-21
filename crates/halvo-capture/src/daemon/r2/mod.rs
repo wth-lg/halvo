@@ -15,7 +15,7 @@ pub(crate) fn site_reader<P>(_pid: P) -> Option<String> {
 /// handler offers the edge that it holds, with the wall clock's reading, and
 /// the cursor serves the message that waits, unless the pass took an event.
 #[cfg_attr(
-    not(any(test, all(target_os = "macos", debug_assertions))),
+    not(any(test, target_os = "macos")),
     expect(
         dead_code,
         reason = "the store owner, its one caller, is built in tests and in macOS debug builds alone"
@@ -28,7 +28,7 @@ pub(super) fn owner_pass<T: marks::MarkEntry + cursor::ReadEntry>(owner: &mut T,
 
 /// The R2 children that the supervisor starts after its sources: none yet.
 #[cfg_attr(
-    not(any(test, all(target_os = "macos", debug_assertions))),
+    not(any(test, target_os = "macos")),
     expect(
         dead_code,
         reason = "the supervisor, its one caller, is built in tests and in macOS debug builds alone"

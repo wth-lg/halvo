@@ -805,7 +805,7 @@ impl RunMark {
 
     /// The record of the mark with the number that the receiver gave it.
     #[cfg_attr(
-        not(any(test, all(target_os = "macos", debug_assertions))),
+        not(any(test, target_os = "macos")),
         expect(
             dead_code,
             reason = "Owner::append_run_mark, its one caller, is built in tests and in macOS debug builds alone"
