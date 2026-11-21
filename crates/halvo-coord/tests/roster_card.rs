@@ -2005,3 +2005,18 @@ fn u24q_a_value_stands_by_any_piece_with_a_byte_and_a_name_counts_by_its_whole_s
         differ.len()
     );
 }
+
+/// A name that a row keeps more than once stands on no entry, the entry of a rejected effect
+/// among them, under either of its keys (U2.4w, ruling RD-161 R5).
+#[test]
+fn u24w_a_rejected_send_that_keeps_to_twice_shows_no_field_of_that_name_under_either_key() {
+    let kept = vec![one_kept("to", "Ann Lee"), one_kept("to", "Zq7 Other")];
+    for (refused, key) in [
+        (false, "run.effect.send.not_done"),
+        (true, "run.effect.send.refused"),
+    ] {
+        let e = CardEffect::not_done(Class::Send, &kept, refused).unwrap();
+        assert_eq!(e.key(), key);
+        assert_eq!(shown(&e), Vec::new(), "{key}");
+    }
+}

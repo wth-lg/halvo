@@ -428,25 +428,28 @@ fn kept_field(class: Class, k: &Kept) -> Result<Field, Cause> {
     })
 }
 
+/// The one kept field of the name `name` where the row keeps that name exactly once; none where
+/// it keeps it twice or more, as no entry shows such a name (ruling RD-161 R5).
+fn once<'a>(kept: &'a [Kept], name: &str) -> Option<&'a Kept> {
+    let mut named = kept.iter().filter(|k| k.name.as_str() == name);
+    match (named.next(), named.next()) {
+        (Some(k), None) => Some(k),
+        _ => None,
+    }
+}
+
 /// The one rule for which kept fields stand on an entry that the reader cannot fully show (I2.6,
 /// ruling RD-52 (h) 4): a field of the table of A-A9.3 for `class` stands where the row keeps its
-/// name exactly once and `kept_field` takes its value whole, shown as `committed` shows it and in
-/// the table's order; never the `items` of a `delete`, a name that the table does not hold for
-/// the class, a name kept twice, a value that holds no byte (no piece, or pieces that are all
-/// empty; ruling RD-158 (3)), or any field of a class with no effect row.
+/// name exactly once (`once`) and `kept_field` takes its value whole, shown as `committed` shows
+/// it and in the table's order; never the `items` of a `delete`, a name that the table does not
+/// hold for the class, a name kept twice, a value that holds no byte (no piece, or pieces that
+/// are all empty; ruling RD-158 (3)), or any field of a class with no effect row.
 fn standing(class: Class, kept: &[Kept]) -> Vec<Field> {
-    let once = |name: &str| {
-        let mut named = kept.iter().filter(|k| k.name.as_str() == name);
-        match (named.next(), named.next()) {
-            (Some(k), None) => Some(k),
-            _ => None,
-        }
-    };
     kept_names(class)
         .unwrap_or_default()
         .iter()
         .filter(|name| !(class == Class::Delete && **name == "items"))
-        .filter_map(|name| once(name))
+        .filter_map(|name| once(kept, name))
         .filter(|k| k.value.iter().any(|piece| !piece.is_empty()))
         .filter_map(|k| kept_field(class, k).ok())
         .collect()
@@ -524,7 +527,7 @@ impl CardEffect {
     /// the person pressed, and `run.effect.<class>.not_done` otherwise, or `run.effect.refused`
     /// and `run.effect.not_done` for a class with no effect row; with the first kept field of
     /// its class as `committed` shows it, and with no field for a `delete` or where that field
-    /// is not kept or does not read.
+    /// is not kept, is kept twice or more (ruling RD-161 R5) or does not read.
     pub fn not_done(class: Class, kept: &[Kept], refused: bool) -> Result<CardEffect, Cause> {
         let end = if refused { "refused" } else { "not_done" };
         let names = kept_names(class);
@@ -535,7 +538,7 @@ impl CardEffect {
         let first = names
             .and_then(|n| n.first())
             .filter(|_| class != Class::Delete)
-            .and_then(|first| kept.iter().find(|k| k.name.as_str() == *first))
+            .and_then(|first| once(kept, first))
             .and_then(|k| kept_field(class, k).ok());
         Ok(CardEffect {
             class,
