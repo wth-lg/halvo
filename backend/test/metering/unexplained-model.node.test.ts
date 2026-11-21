@@ -243,4 +243,25 @@ describe("check 55's model with a foreign event at the meter in an interval's mi
       scripted.sendsOneMinorUnitMore = false;
     }
   });
+
+  test("a foreign event that the meter receives before the close, but so late that no read before the close can show it under the read lag, cannot make the close lawful: the scripted close under a read lag of 23 hours, the event received 80,000 s after the interval's hour", async () => {
+    const kept = behindAForeignEvent({ kind: "response-lost" }, false);
+    const [reserve, settle] = kept.commands;
+    const lagged: Scenario = {
+      ...kept,
+      meter: { ...kept.meter, readLagSeconds: 23 * HOUR },
+      commands: [reserve, settle, { kind: "advance", seconds: HOUR }, { kind: "advance", seconds: 80_000 }, { kind: "foreign-event", account: 0, amountMinor: 5 }, { kind: "advance", seconds: 3 * DAY - 80_000 }] as Command[],
+    };
+    scripted.closesAnAcknowledgedRead = true;
+    try {
+      const report = await runScenario(lagged, { downtimeBudgetSeconds: RULE_DOWNTIME_BUDGET, onFailedCheck: "list" });
+      const checks = report.findings.map((finding) => finding.check);
+      expect({ disagrees: checks.includes("the record disagrees with the provider"), facts: [report.facts["foreign-events"], report.facts["not-billable-unexplained-total"]] }).toEqual({
+        disagrees: true,
+        facts: [1, 0],
+      });
+    } finally {
+      scripted.closesAnAcknowledgedRead = false;
+    }
+  });
 });
