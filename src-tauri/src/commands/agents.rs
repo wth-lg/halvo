@@ -29,9 +29,10 @@ pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
     halvo_coord_app::handler::<R>()(invoke)
 }
 
-/// The one place where the app makes its `Core`: until the coordinator's ports exist (U5.4)
-/// it is `NoService`.
-pub fn core() -> Agents {
+/// The one place where the app makes its `Core`. Until the coordinator's ports exist (U5.4)
+/// it is `NoService`, and nothing calls `tray`, the sink of the count of agents that need the
+/// person, which the hub of U5.4 takes.
+pub fn core(_tray: Box<dyn Fn(u32) + Send + Sync>) -> Agents {
     Agents(Arc::new(NoService))
 }
 

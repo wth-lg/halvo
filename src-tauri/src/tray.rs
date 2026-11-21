@@ -1,5 +1,9 @@
+use std::sync::{Mutex, PoisonError};
+
 use halvo_control::model::CaptureState;
 use halvo_control::proto::Capture;
+use halvo_coord_app::Attention;
+use tauri::image::Image;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager, Runtime};
@@ -202,12 +206,108 @@ pub fn refresh<R: Runtime>(app: &AppHandle<R>, view: &StatusView) {
         return;
     };
     let texts = shown(app, view);
-    let _ = handles.tray.set_title(Some(texts.title));
-    let _ = handles.tray.set_tooltip(Some(texts.tooltip));
+    let marked = with_attention(app, view);
+    let _ = handles.tray.set_title(Some(&marked.title));
+    let _ = handles.tray.set_tooltip(Some(&marked.tooltip));
     let _ = handles.status_item.set_text(texts.status_text);
     let _ = handles.toggle_item.set_text(texts.toggle_text);
     let _ = handles.toggle_item.set_enabled(texts.toggle_enabled);
     let _ = handles.open_item.set_enabled(texts.open_enabled);
+}
+
+/// The count of agents that need the person, as the tray last took it (I10.3).
+#[derive(Default)]
+pub struct Needs(Mutex<u32>);
+
+/// What the tray shows for a status and the count of agents that need the person.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Marked {
+    pub title: String,
+    pub tooltip: String,
+    pub variant: bool,
+}
+
+/// What the tray shows for `view` with the count that it last took, by `Attention::of`
+/// (I10.3): above zero the icon variant and the tooltip `tray.needs` with the count; on macOS
+/// the tray's own title with the count after it, never the count alone, because the title says
+/// whether Halvo captures; at zero the tray's own title, tooltip and icon.
+pub fn with_attention<R: Runtime>(app: &AppHandle<R>, view: &StatusView) -> Marked {
+    let count = app
+        .try_state::<Needs>()
+        .map_or(0, |needs| *needs.0.lock().unwrap_or_else(PoisonError::into_inner));
+    let own = shown(app, view);
+    let attention = Attention::of(count);
+    Marked {
+        title: match attention.title {
+            Some(count) => format!("{} {count}", own.title),
+            None => own.title.to_string(),
+        },
+        tooltip: attention
+            .tooltip
+            .unwrap_or_else(|| own.tooltip.to_string()),
+        variant: attention.variant,
+    }
+}
+
+/// The tray method of `Tray::attention(count)` (I10.3). The hub calls it with the
+/// coordinator's lock held, so it posts the change to the main thread and does not wait for
+/// it: a wait there while the main thread calls a hook that waits for that lock would stop the
+/// app for good.
+pub fn set_attention<R: Runtime>(app: &AppHandle<R>, count: u32) {
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if handle.try_state::<Needs>().is_none() {
+            handle.manage(Needs::default());
+        }
+        *handle
+            .state::<Needs>()
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = count;
+        let Some(handles) = handle.try_state::<TrayHandles<R>>() else {
+            return;
+        };
+        let marked = with_attention(&handle, &handle.state::<AppState>().views.view());
+        let _ = handles.tray.set_title(Some(&marked.title));
+        let _ = handles.tray.set_tooltip(Some(&marked.tooltip));
+        if let Some(icon) = handle.default_window_icon() {
+            let icon = if marked.variant {
+                with_dot(icon)
+            } else {
+                icon.clone()
+            };
+            let _ = handles.tray.set_icon(Some(icon));
+            #[cfg(target_os = "macos")]
+            let _ = handles.tray.set_icon_as_template(true);
+        }
+    });
+}
+
+/// The tray's icon with the mark of agents that need the person: a filled dot in its upper
+/// right corner inside a clear ring, so that the mark also stands out in the template form of
+/// macOS, which reads the alpha alone.
+fn with_dot(icon: &Image<'_>) -> Image<'static> {
+    let (width, height) = (icon.width(), icon.height());
+    let mut rgba = icon.rgba().to_vec();
+    let radius = width.min(height) as f32 / 4.0;
+    let (cx, cy) = (width as f32 - radius, radius);
+    for y in 0..height {
+        for x in 0..width {
+            let dx = x as f32 + 0.5 - cx;
+            let dy = y as f32 + 0.5 - cy;
+            let distance = (dx * dx + dy * dy).sqrt();
+            let at = ((y * width + x) * 4) as usize;
+            let Some(pixel) = rgba.get_mut(at..at + 4) else {
+                continue;
+            };
+            if distance <= radius * 0.7 {
+                pixel.copy_from_slice(&[0xd7, 0x26, 0x1e, 0xff]);
+            } else if distance <= radius {
+                pixel[3] = 0;
+            }
+        }
+    }
+    Image::new_owned(rgba, width, height)
 }
 
 fn toggle<R: Runtime>(app: &AppHandle<R>) {

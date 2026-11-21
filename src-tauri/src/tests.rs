@@ -4,8 +4,9 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use halvo_control::model::CaptureState;
 use halvo_control::onboarding::Permission;
-use halvo_control::proto::{Platform, Request};
+use halvo_control::proto::{Capture, Platform, Request};
 use halvo_control::testing::{sample_inventory, sample_status, ScriptedConnector, ScriptedDaemon};
 use serde::Deserialize;
 use serde_json::Value;
@@ -22,6 +23,7 @@ use crate::engine::{self, EngineSite, GuardAnswer, GuardInstalled};
 use crate::launch::Exit;
 use crate::poller;
 use crate::tray::{self, TrayInstalled};
+use crate::view_state::StatusView;
 
 pub const APP_URL: &str = if cfg!(windows) {
     "http://tauri.localhost"
@@ -1643,5 +1645,46 @@ fn no_manifest_turns_the_feature_scripted_of_halvo_coord_app_on_for_the_app() {
     assert!(
         defaults.is_empty(),
         "crates/halvo-coord-app/Cargo.toml turns scripted on by default: {defaults:?}"
+    );
+}
+
+/// The tray's count of agents that need the person (I10.3): above zero the icon variant and
+/// the tooltip of `Attention::of`, and on macOS the tray's own title with the count after it,
+/// so that the title still says whether Halvo captures; at zero the tray's own.
+#[test]
+fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives_it() {
+    let test = test_app(scratch_dir("tray-count"));
+    let handle = test.app.handle();
+    let view = test.app.state::<AppState>().views.view();
+    let own = tray::shown(handle, &view);
+    for count in [0, 1, 12] {
+        tray::set_attention(handle, count);
+        let attention = halvo_coord_app::Attention::of(count);
+        let shown = tray::with_attention(handle, &view);
+        assert_eq!(shown.variant, attention.variant, "{count}");
+        let tooltip = attention
+            .tooltip
+            .unwrap_or_else(|| own.tooltip.to_string());
+        assert_eq!(shown.tooltip, tooltip, "{count}");
+        let title = if count > 0 && cfg!(target_os = "macos") {
+            format!("{} {count}", own.title)
+        } else {
+            own.title.to_string()
+        };
+        assert_eq!(shown.title, title, "{count}");
+    }
+    let title_with = |capture, desired| {
+        let StatusView::Running(mut running) = StatusView::of(&sample_status(Platform::Macos))
+        else {
+            panic!("the sample status makes a running view")
+        };
+        running.capture = capture;
+        running.desired = desired;
+        tray::with_attention(handle, &StatusView::Running(running)).title
+    };
+    assert_ne!(
+        title_with(Capture::Running, CaptureState::Running),
+        title_with(Capture::Paused, CaptureState::Paused),
+        "with 12 agents that need the person, the title still says whether Halvo captures"
     );
 }

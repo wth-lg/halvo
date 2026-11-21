@@ -95,7 +95,10 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
             app.manage(parts.state);
             app.manage(PageLoads::default());
             if app.try_state::<Agents>().is_none() {
-                app.manage(commands::agents::core());
+                let handle = app.handle().clone();
+                app.manage(commands::agents::core(Box::new(move |count| {
+                    tray::set_attention(&handle, count)
+                })));
             }
             let (sender, answer) = mpsc::channel();
             match main_window(
