@@ -42,6 +42,20 @@ disk_max_bytes_per_day=2000000000
 # JB-6 (2), 60 (2026-11-11 08:25Z), 30 (RD-45). The workflow lint compares
 # each job's timeout with it.
 ci_job_timeout_min=180
+# ci_gate_job_timeout_min: the limit of a job of the merge gate, the events push
+# and pull_request; ci_job_timeout_min stays the limit of the Sunday run and of
+# a run by hand, which run the whole table. The rule, by the coordinator's
+# ruling of 2026-11-21 on unit ci-fast-1: the smallest of 30, 45 and 60 minutes
+# that is at least twice the wall of the slowest green job sample of the merge
+# gate, so that a job on a slow runner or with a cold build cache still ends
+# green and saves its cache. The rule that a run ends in under 20 minutes is
+# held by the measure of the run's wall, not by this limit. The workflow lint
+# compares each job's timeout line with both keys. 45: the slowest green job
+# sample is the windows job of the push run 44895943466, 989 s on a runner with
+# an Intel Xeon Platinum 8370C; twice that is 1,978 s, above 30 minutes and
+# under 45. The macos job of that run took 787 s, and the macos job of the
+# push run 44895970784, with the macos list as it stands, 851 s.
+ci_gate_job_timeout_min=45
 # child_deadline_extra_s: the screen source's start waits of 10 s and 5 s and
 # its stop wait of 5 s, plus 5 s. Every measured child gets its duration plus
 # this many seconds before the gate ends it and prints FAIL: each timed run,
