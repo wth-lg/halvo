@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-agents-present"
+description = "Enables the agents_present command without any pre-configured scope."
+commands.allow = ["agents_present"]
+
+[[permission]]
+identifier = "deny-agents-present"
+description = "Denies the agents_present command without any pre-configured scope."
+commands.deny = ["agents_present"]
