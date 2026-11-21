@@ -1688,3 +1688,177 @@ fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives
         "with 12 agents that need the person, the title still says whether Halvo captures"
     );
 }
+
+/// A stand-in for the app's `Core` that records each call with the thread that made it, and
+/// whose tick panics at the numbers in `panics`.
+struct Recorder {
+    calls: Mutex<Vec<(&'static str, std::thread::ThreadId)>>,
+    panics: Vec<usize>,
+}
+
+impl Recorder {
+    fn new(panics: &[usize]) -> Arc<Recorder> {
+        Arc::new(Recorder {
+            calls: Mutex::new(Vec::new()),
+            panics: panics.to_vec(),
+        })
+    }
+
+    fn record(&self, name: &'static str) -> usize {
+        let mut calls = self
+            .calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        calls.push((name, std::thread::current().id()));
+        calls.iter().filter(|(n, _)| *n == name).count()
+    }
+
+    fn calls(&self) -> Vec<(&'static str, std::thread::ThreadId)> {
+        self.calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    fn names(&self) -> Vec<&'static str> {
+        self.calls().into_iter().map(|(name, _)| name).collect()
+    }
+
+    fn wait_for(&self, name: &str, count: usize) {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while self.names().iter().filter(|n| **n == name).count() < count {
+            assert!(
+                Instant::now() < deadline,
+                "the stand-in saw {:?}",
+                self.names()
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+}
+
+impl halvo_coord_app::Core for Recorder {
+    fn call(&self, _command: &str, _args: Option<&Value>) -> halvo_coord_app::Reply {
+        self.record("call");
+        halvo_coord_app::Reply::Closed
+    }
+
+    fn shown(&self) {
+        self.record("shown");
+    }
+
+    fn hidden(&self) {
+        self.record("hidden");
+    }
+
+    fn destroyed(&self) {
+        self.record("destroyed");
+    }
+
+    fn tick(&self) {
+        let n = self.record("tick");
+        assert!(!self.panics.contains(&n), "tick {n} of the stand-in panics");
+    }
+
+    fn quit(&self, budget: Option<Duration>) {
+        self.record(if budget.is_none() {
+            "quit"
+        } else {
+            "quit with a budget"
+        });
+    }
+
+    fn on_screen(&self, _item: &halvo_coord::types::ItemId) {
+        self.record("on_screen");
+    }
+
+    fn answer_native(
+        &self,
+        _item: &halvo_coord::types::ItemId,
+        _answer: halvo_coord::items::ConfirmAnswer,
+    ) -> Result<(), halvo_coord::types::Cause> {
+        self.record("answer_native");
+        Err(halvo_coord::types::Cause::NoService)
+    }
+}
+
+/// The app on the mock runtime with `core` as the Core that it manages.
+fn app_with_core(
+    name: &str,
+    core: Arc<Recorder>,
+    guard: engine::GuardInstall<MockRuntime>,
+    tray: Option<app::TrayInstall<MockRuntime>>,
+) -> TestApp {
+    let connector = ScriptedConnector::new(macos_fixture_daemon());
+    let mut parts = test_parts(scratch_dir(name), state_of(&connector));
+    parts.guard = guard;
+    parts.tray = tray;
+    let core: Arc<dyn halvo_coord_app::Core> = core;
+    let builder = mock_builder()
+        .manage(GuardCalls::default())
+        .manage(halvo_coord_app::Agents(core));
+    let mut app = app::build(builder, parts)
+        .build(app::context())
+        .expect("the app builds on the mock runtime");
+    first_iteration_runs_the_set_up(&mut app);
+    TestApp {
+        app,
+        daemon: connector,
+    }
+}
+
+/// The hooks of the app's Core from its own poller and window (contracts I10, ruling RD-74
+/// 3.6), on the mock runtime: a tick at the start, off the thread that ran the set-up; a tick
+/// at each pass of the poller, also after a tick that panicked; `shown` at a show, before the
+/// page hears of it; `hidden` where the close handler hides the window; and `destroyed` where
+/// the app destroys it. The mock runtime fires no close request and runs no script, so the test
+/// calls the function that the close handler calls and reads the order of the show in tray.rs.
+#[test]
+fn the_app_calls_the_hooks_of_its_core_from_its_poller_and_its_window() {
+    let set_up = std::thread::current().id();
+    let core = Recorder::new(&[2]);
+    let test = app_with_core("hooks", core.clone(), guard_installed, None);
+    core.wait_for("tick", 1);
+    assert_eq!(core.names(), ["tick"], "the start");
+    assert!(
+        core.calls().iter().all(|(_, thread)| *thread != set_up),
+        "the tick of the start runs off the thread of the set-up"
+    );
+    let state = test.app.state::<AppState>();
+    poller::round(state.control.as_ref(), &state.views, None);
+    poller::round(state.control.as_ref(), &state.views, None);
+    assert_eq!(
+        core.names(),
+        ["tick", "tick", "tick"],
+        "a tick at each pass of the poller, also after a tick that panicked"
+    );
+    tray::show_main_window(test.app.handle());
+    assert_eq!(core.names().last(), Some(&"shown"));
+    let tray_rs = std::fs::read_to_string(src_tauri().join("src/tray.rs"))
+        .expect("tray.rs reads")
+        .replace("\r\n", "\n");
+    let show = tray_rs
+        .find("pub fn show_main_window<")
+        .expect("show_main_window");
+    let shown = tray_rs[show..]
+        .find("core.shown()")
+        .expect("show_main_window calls Core::shown");
+    let heard = tray_rs[show..]
+        .find("window.eval(crate::app::WINDOW_SHOWN)")
+        .expect("show_main_window tells the page");
+    assert!(shown < heard, "Core::shown comes before the page hears of the show");
+    app::hide_on_close(&main_window(&test.app).as_ref().window());
+    assert_eq!(core.names().last(), Some(&"hidden"));
+    let without_window = Recorder::new(&[]);
+    let _app = app_with_core(
+        "hooks-destroyed",
+        without_window.clone(),
+        guard_refused,
+        Some(tray_stand_in),
+    );
+    assert!(
+        without_window.names().contains(&"destroyed"),
+        "{:?}",
+        without_window.names()
+    );
+}

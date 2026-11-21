@@ -1,13 +1,14 @@
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
 use std::sync::Arc;
 use std::time::Duration;
 
-use halvo_coord_app::Agents;
+use halvo_coord_app::{Agents, Core};
 use tauri::webview::PageLoadEvent;
 use tauri::{
-    AppHandle, Builder, Context, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Builder, Context, Manager, Runtime, Url, WebviewUrl, Window, WebviewWindowBuilder,
     WindowEvent,
 };
 
@@ -100,6 +101,8 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                     tray::set_attention(&handle, count)
                 })));
             }
+            let ticker = app.handle().clone();
+            std::thread::spawn(move || tick(&ticker));
             let (sender, answer) = mpsc::channel();
             match main_window(
                 app.handle(),
@@ -136,7 +139,10 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 .map(|module| module.registration)
                 .collect();
             views.set_drawer(poller::Drawer::new(
-                Box::new(move |view| tray::refresh(&handle, view)),
+                Box::new(move |view| {
+                    tray::refresh(&handle, view);
+                    tick(&handle);
+                }),
                 modules,
             ));
             if parts.poll {
@@ -159,10 +165,7 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
-                if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
-                    let _ = webview.eval(WINDOW_HIDDEN);
-                }
-                let _ = window.hide();
+                hide_on_close(window);
             }
         })
         .on_page_load(|webview, payload| {
@@ -176,6 +179,34 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                 }
             }
         })
+}
+
+/// What the close handler does once it has kept the window: it tells the page that the window
+/// hides, hides the window, and then calls `Core::hidden` for the window main, since no window
+/// event stands behind a hide.
+pub(crate) fn hide_on_close<R: Runtime>(window: &Window<R>) {
+    if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
+        let _ = webview.eval(WINDOW_HIDDEN);
+    }
+    let _ = window.hide();
+    if window.label() == "main" {
+        if let Some(agents) = core_of(window.app_handle()) {
+            agents.hidden();
+        }
+    }
+}
+
+/// The app's Core for a hook.
+pub(crate) fn core_of<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<dyn Core>> {
+    app.try_state::<Agents>().map(|agents| agents.0.clone())
+}
+
+/// `Core::tick`, called off the main thread: once at the start and at each draw of the view,
+/// which the poller makes at each of its passes. A tick that panics ends no later tick.
+pub(crate) fn tick<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(agents) = core_of(app) {
+        let _ = catch_unwind(AssertUnwindSafe(|| agents.tick()));
+    }
 }
 
 /// The navigation rule of the window main: whether it may navigate to
@@ -356,6 +387,9 @@ fn open<R: Runtime>(app: &AppHandle<R>, opening: Opening, visible: bool) {
     };
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.destroy();
+        if let Some(agents) = core_of(app) {
+            agents.destroyed();
+        }
     }
     match opening {
         Opening::Load(_) => {}
