@@ -3,7 +3,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync 
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { ACTS_FILE, FIXTURES_DIR, NAMES, RUN_VIEWS, SNAPSHOTS_DIR, VIEWS_DIR, denyLines, fileRules, spreadCount, statesOf, viewRules } from './files.mjs';
+import { ACTS_FILE, FIXTURES_DIR, NAMES, OTHER_RUN_VIEWS, RUN_VIEWS, SNAPSHOTS_DIR, VIEWS_DIR, denyLines, fileRules, spreadCount, statesOf, viewRules } from './files.mjs';
 import { RECORD_FILE, committedRecord, factsOf, packagesCheck, readRecord, recordForm, stampOf, treeBeside } from './record.mjs';
 import { joined, loadHarness, pageConfirmFirst, plan, runStates, sayRule, verdict } from './run.mjs';
 
@@ -85,6 +85,11 @@ const FILE_CASES = [
   ['words-in-a-file-in-a-subdirectory', 'names', (d) => {
     mkdirSync(join(d, VIEWS_DIR, 'parts'), { recursive: true });
     writeFileSync(join(d, VIEWS_DIR, 'parts', 'helper.js'), 'document.body.innerHTML = 1;\n');
+  }],
+  ['a-timer-in-a-view-of-the-capture-run', 'pass', (d) => append(d, join(VIEWS_DIR, OTHER_RUN_VIEWS[0]), '\nsetTimeout(function () {}, 1);\n')],
+  ['a-timer-in-a-subdirectory-file-named-as-a-view-of-the-capture-run', 'names', (d) => {
+    mkdirSync(join(d, VIEWS_DIR, 'parts'), { recursive: true });
+    writeFileSync(join(d, VIEWS_DIR, 'parts', OTHER_RUN_VIEWS[0]), 'setTimeout(function () {}, 1);\n');
   }],
   ['a-needs-structure-file-missing', 'structure', (d) => renameSync(join(d, 'ui', 'tests', 'r4', 'needs', 'structure', 'card.txt'), join(d, 'ui', 'tests', 'r4', 'needs', 'card.txt'))],
   ['a-stale-agents-structure-file', 'structure', (d) => writeFileSync(join(d, 'ui', 'tests', 'r4', 'agents', 'structure', 'ghost.txt'), '- {"role":"main"}\n')],

@@ -34,6 +34,9 @@ export const FIXTURES_DIR = join('ui', 'tests', 'fixtures', 'coord');
 export const SNAPSHOTS_DIR = join('ui', 'tests', 'r4', 'snapshots');
 export const ACTS_FILE = join('ui', 'tests', 'r4', 'page', 'acts.json');
 export const RUN_VIEWS = { 'needs.js': '/app/views/needs.js', 'agents.js': '/app/views/agents.js' };
+
+/** The view files of the capture run's app under ui/app/views/ (main d099e906): no view file of this run, so the rules of contracts.md I8.4 do not read them and no run of the check loads them. */
+export const OTHER_RUN_VIEWS = ['cap.js', 'delete.js', 'keeps.js', 'permissions.js', 'status.js', 'stored.js'];
 const OTHER_STRUCTURE = [
   join('ui', 'tests', 'r4', 'needs', 'structure'),
   join('ui', 'tests', 'r4', 'agents', 'structure'),
@@ -217,10 +220,11 @@ export function fileRules(repo, acornDir) {
     return { lines, cause: 'features' };
   }
   const views = filesUnder(join(repo, VIEWS_DIR)).sort();
+  const runViews = views.filter((v) => !OTHER_RUN_VIEWS.includes(v));
   const committed = viewsOfCommit(repo);
   const total = { syntax: 0, template: 0, names: 0, deny: 0 };
   let unrun = 0;
-  for (const v of views) {
+  for (const v of runViews) {
     const found = viewRules(acorn, readFileSync(join(repo, VIEWS_DIR, v), 'utf8'), denies);
     for (const rule of Object.keys(total)) {
       total[rule] += found[rule].length;
@@ -232,8 +236,8 @@ export function fileRules(repo, acornDir) {
     }
   }
   lines.push(
-    'files views=' + views.length + ' syntax=' + total.syntax + ' template=' + total.template + ' names=' + total.names + ' deny=' + total.deny +
-      ' deny_lines=' + denies.length + ' unrun=' + unrun + ' commit_views=' + (committed === null ? '-' : committed),
+    'files views=' + runViews.length + ' other_runs=' + (views.length - runViews.length) + ' syntax=' + total.syntax + ' template=' + total.template + ' names=' + total.names +
+      ' deny=' + total.deny + ' deny_lines=' + denies.length + ' unrun=' + unrun + ' commit_views=' + (committed === null ? '-' : committed),
   );
   const states = statesOf(join(repo, FIXTURES_DIR));
   let acts;
@@ -273,7 +277,7 @@ export function fileRules(repo, acornDir) {
     : total.names ? 'names'
     : total.deny ? 'deny'
     : unrun ? 'unrun'
-    : views.length === 0 || (committed !== null && committed !== views.length) ? 'views'
+    : runViews.length === 0 || (committed !== null && committed !== views.length) ? 'views'
     : states.length === 0 ? 'states'
     : acts.unknown ? 'acts'
     : missing || stale ? 'structure'

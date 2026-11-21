@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every view file keeps to the rules of a view file, and each job makes the whole run of the six checks, the status-region rule and page.mjs on every state of ui/tests/fixtures/coord/ in its own browser; the macos job also requires the committed record to be the record of its run byte for byte.
+# rule: Every view file of this run keeps to the rules of a view file, and each job makes the whole run of the six checks, the status-region rule and page.mjs on every state of ui/tests/fixtures/coord/ in its own browser; the macos job also requires the committed record to be the record of its run byte for byte.
 set -u
 name=40-r4-page
 nested=self-test-of-$name
@@ -23,6 +23,10 @@ driver's job name, reads ui/tests/r4/page/record.txt first and then requires
 it to be the record of its run byte for byte. The job windows compares nothing
 with the record. --record writes the committed record and is run through the
 helper for timed runs.
+
+The rules of a view file read the view files of this run under ui/app/views/.
+The capture run's view files there, which ui/tests/r4/page/files.mjs names,
+are not read; any other file there that no run of the check loads fails.
 
 The stamp holds every tracked file under ui/ and tools/r4-page/,
 docs/r4/page-features.txt and this script, as the index holds them. Before a
