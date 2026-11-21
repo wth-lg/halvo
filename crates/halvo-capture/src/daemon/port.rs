@@ -96,37 +96,19 @@ pub struct KindEntry {
 
 /// One batch as the store takes it, all or nothing. The record count is the
 /// sum of the counts of `entries`. It has no row, span or id per record and no
-/// text field: captured text is only in `payload`. Its fields are private and
-/// its one constructor is visible inside `daemon` alone, so no code outside
+/// text field: captured text is only in `payload`. Its fields and its one
+/// constructor are visible inside `daemon` alone, so no code outside
 /// the daemon can fill one: a store reads it.
 pub struct SegmentWrite<'a> {
-    segment_id: &'a SegmentId,
-    day: UtcDay,
-    first_capture: i64,
-    last_capture: i64,
-    entries: &'a [KindEntry],
-    payload: &'a [u8],
+    pub(super) segment_id: &'a SegmentId,
+    pub(super) day: UtcDay,
+    pub(super) first_capture: i64,
+    pub(super) last_capture: i64,
+    pub(super) entries: &'a [KindEntry],
+    pub(super) payload: &'a [u8],
 }
 
 impl<'a> SegmentWrite<'a> {
-    pub(super) fn new(
-        segment_id: &'a SegmentId,
-        day: UtcDay,
-        first_capture: i64,
-        last_capture: i64,
-        entries: &'a [KindEntry],
-        payload: &'a [u8],
-    ) -> SegmentWrite<'a> {
-        SegmentWrite {
-            segment_id,
-            day,
-            first_capture,
-            last_capture,
-            entries,
-            payload,
-        }
-    }
-
     pub fn segment_id(&self) -> &'a SegmentId {
         self.segment_id
     }

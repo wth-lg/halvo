@@ -24,7 +24,6 @@ pub mod owner;
 #[cfg(test)]
 mod owner_props;
 pub mod permissions;
-#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod port;
 #[cfg(test)]
 mod process_tests;
@@ -1671,6 +1670,27 @@ pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
     {
         let _ = run;
         Err(DaemonError::NotImplemented("timed-run on this platform"))
+    }
+}
+
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+impl<'a> port::SegmentWrite<'a> {
+    fn new(
+        segment_id: &'a port::SegmentId,
+        day: halvo_control::model::UtcDay,
+        first_capture: i64,
+        last_capture: i64,
+        entries: &'a [port::KindEntry],
+        payload: &'a [u8],
+    ) -> port::SegmentWrite<'a> {
+        port::SegmentWrite {
+            segment_id,
+            day,
+            first_capture,
+            last_capture,
+            entries,
+            payload,
+        }
     }
 }
 

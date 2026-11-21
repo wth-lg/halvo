@@ -950,10 +950,7 @@ mod tests {
 
     use super::open::{try_open, CreateRule, Held, Opener};
     use crate::daemon::custody_policy::{self, Custody, Selection};
-    use crate::daemon::port::{
-        Access, MaintainStore, OpenFault, Opened, Ordinal, Pass, Probe, SegmentWrite, StoreHost,
-        StoreId, Usage, Written,
-    };
+    use crate::daemon::port::{Access, OpenFault, Opened, Probe, StoreHost, StoreId};
     use crate::daemon::slot::Slot;
 
     fn resumed(harness: &mut Harness) -> Barrier {
@@ -3649,36 +3646,50 @@ mod tests {
         the_count_starts_again(&mut harness, "in the hold");
     }
 
-    struct KeepsNothing(u64);
+    #[cfg(target_os = "macos")]
+    mod keeps_nothing {
+        use std::io;
+        use std::time::SystemTime;
 
-    impl MaintainStore for KeepsNothing {
-        fn expire_due(&mut self, _now: SystemTime, _max: usize) -> Result<Pass, MaintFault> {
-            Ok(Pass::default())
+        use crate::daemon::port::{
+            ByteBound, CaptureStore, MaintFault, MaintainStore, Ordinal, Pass, SegmentWrite, Usage,
+            WriteFault, Written,
+        };
+
+        pub(super) struct KeepsNothing(pub(super) u64);
+
+        impl MaintainStore for KeepsNothing {
+            fn expire_due(&mut self, _now: SystemTime, _max: usize) -> Result<Pass, MaintFault> {
+                Ok(Pass::default())
+            }
+
+            fn evict_to(&mut self, _bound: ByteBound, _max: usize) -> Result<Pass, MaintFault> {
+                Ok(Pass::default())
+            }
+
+            fn usage(&mut self) -> Result<Usage, MaintFault> {
+                Ok(Usage::default())
+            }
         }
 
-        fn evict_to(&mut self, _bound: ByteBound, _max: usize) -> Result<Pass, MaintFault> {
-            Ok(Pass::default())
-        }
+        impl CaptureStore for KeepsNothing {
+            fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+                self.0 += 1;
+                Ok(Written {
+                    ordinal: Ordinal::new(self.0),
+                    logical_bytes: write.payload().len() as u64,
+                    disk_bytes: 0,
+                })
+            }
 
-        fn usage(&mut self) -> Result<Usage, MaintFault> {
-            Ok(Usage::default())
+            fn volume_free_bytes(&self) -> io::Result<u64> {
+                Ok(u64::MAX)
+            }
         }
     }
 
-    impl CaptureStore for KeepsNothing {
-        fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
-            self.0 += 1;
-            Ok(Written {
-                ordinal: Ordinal::new(self.0),
-                logical_bytes: write.payload().len() as u64,
-                disk_bytes: 0,
-            })
-        }
-
-        fn volume_free_bytes(&self) -> io::Result<u64> {
-            Ok(u64::MAX)
-        }
-    }
+    #[cfg(target_os = "macos")]
+    use keeps_nothing::KeepsNothing;
 
     #[derive(Clone)]
     struct ModelHost {
