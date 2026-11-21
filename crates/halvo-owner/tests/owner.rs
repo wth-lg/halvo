@@ -23,6 +23,7 @@ use halvo_schema_core::request::{
 };
 use halvo_schema_core::site::AppId;
 use halvo_seam::frame::{read_frame, write_frame, CLIENT_FRAME_MAX, SERVER_FRAME_MAX};
+use halvo_sqlcipher::rusqlite::Connection;
 use serde_json::Value;
 
 const KEY: [u8; 32] = [7; 32];
@@ -123,6 +124,27 @@ fn start_on(
     worker: bool,
     extra: &[&str],
 ) -> Owner {
+    start_with(
+        channel,
+        dir,
+        key,
+        first_live,
+        worker,
+        extra,
+        Stdio::inherit(),
+    )
+}
+
+/// Starts the owner as `start_on` does, with `stderr` as its standard error.
+fn start_with(
+    channel: Channel,
+    dir: &Path,
+    key: [u8; 32],
+    first_live: u64,
+    worker: bool,
+    extra: &[&str],
+    stderr: Stdio,
+) -> Owner {
     let ((owner_reads, owner_writes), (requests, replies)) = channel;
     let mut ends = vec![(owner_reads, owner_writes)];
     let mut test_ends = None;
@@ -138,7 +160,7 @@ fn start_on(
         .args(extra)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit());
+        .stderr(stderr);
     let mut child = launch(&mut cmd, ends);
     let mut stdin = child.stdin.take().unwrap();
     stdin.write_all(&key).unwrap();
@@ -1061,6 +1083,69 @@ fn the_report_of_a_commit_ends_with_its_position() {
     assert!(text.ends_with(&tail), "{text}");
     owner.close();
     assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+}
+
+/// The ruling on a malformed row of `meta`: an owner commits a batch whose three summaries make one workflow, and the
+/// test then writes a store id that is no store id into the row of `meta` through a connection of its own with the
+/// owner's key. A second owner over that directory stays up: its first report holds `position` null, it answers the
+/// read of the workflows with the one workflow, it exits 0 at the end of its channel, and its standard error holds one
+/// line for the row and no value of it.
+#[test]
+fn a_malformed_meta_row_keeps_the_owner_up() {
+    let scratch = Scratch::new("owner-position-malformed");
+    let day = two_days_ago();
+    let mut first = start(&scratch.0, KEY, 1, true, &[]);
+    first.write(&analysis_write(
+        vec![
+            episode(1, day, FAR),
+            episode(2, day, FAR),
+            episode(3, day, FAR),
+        ],
+        Position { seg: 4, idx: 0 },
+    ));
+    assert!(matches!(
+        first.worker_reply().outcome,
+        Ok(ReplyResult::Null)
+    ));
+    first.send(&read_workflows());
+    let found = workflows(first.reply());
+    assert_eq!(found.len(), 1);
+    first.close();
+    assert_eq!(first.exit_code(WAIT), Some(exit::END));
+
+    let planted = "no-store-id-424242";
+    halvo_sqlcipher::initialize().unwrap();
+    let conn = Connection::open(scratch.0.join("derived").join("derived.db")).unwrap();
+    let hex: String = KEY.iter().map(|b| format!("{b:02x}")).collect();
+    conn.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))
+        .unwrap();
+    let changed = conn
+        .execute(
+            "UPDATE meta SET store = ?1, seg = 424243, idx = 424244 WHERE one = 1",
+            [planted],
+        )
+        .unwrap();
+    assert_eq!(changed, 1);
+    drop(conn);
+
+    let mut second = start_with(pipes(), &scratch.0, KEY, 1, false, &[], Stdio::piped());
+    let mut stderr = second.child.stderr.take().unwrap();
+    let (opened, text) = second
+        .report_where(Mono::now() + WAIT, |_| true)
+        .expect("the owner over a malformed row of meta reports its open");
+    assert_eq!(opened.get("position"), Some(&Value::Null), "{text}");
+    second.send(&read_workflows());
+    assert_eq!(workflows(second.reply()), found);
+    second.close();
+    assert_eq!(second.exit_code(WAIT), Some(exit::END));
+    let mut said = String::new();
+    stderr.read_to_string(&mut said).unwrap();
+    let lines: Vec<&str> = said.lines().collect();
+    assert_eq!(lines.len(), 1, "{said}");
+    assert!(lines[0].contains("table meta is malformed"), "{said}");
+    for value in [planted, "424243", "424244"] {
+        assert!(!said.contains(value), "{said}");
+    }
 }
 
 /// Rulings 1 and 2 of the owner stream: the owner refuses a frame `stream` beside which no end came, takes four

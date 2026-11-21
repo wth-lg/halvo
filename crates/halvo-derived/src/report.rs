@@ -20,20 +20,34 @@ pub struct CommittedPosition {
     pub position: Position,
 }
 
+/// What the one row of the table `meta` holds of the store id and the committed position.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PositionState {
+    /// No store id and no position: the database is bound to no store, as a new store is and one made new after a
+    /// delete.
+    Unbound,
+    /// The store id and the position of the last committed batch.
+    Committed(CommittedPosition),
+    /// A row that no write of the store leaves: a store id that is no store id, a position that is not two whole
+    /// numbers from 0 to 2^63 - 1, one of the store id and the position without the other, or no row at all. A batch
+    /// meets the same row at its commit as before.
+    Malformed,
+}
+
 /// The five values that the store gives its host after each committed transaction, which the owner's report to the
 /// daemon carries: the revision of every family of the entries, in their order; the count per class; the bytes on
 /// disk of the database file, its write-ahead log and its shared-memory file, summed; the next expiry deadline,
-/// the first instant at which a stored row passes its bound, or none where no stored row expires; and the committed
-/// position, or none while the database is bound to no store. A row whose day lies more than two days after the
-/// clock's day, and a bounded row with no day, is due now: the deadline is then the clock's instant at the report, and
-/// the row stays counted in its class (bounded) until the expiry removes it.
+/// the first instant at which a stored row passes its bound, or none where no stored row expires; and the state of the
+/// committed position. A row whose day lies more than two days after the clock's day, and a bounded row with no day,
+/// is due now: the deadline is then the clock's instant at the report, and the row stays counted in its class
+/// (bounded) until the expiry removes it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Report {
     pub revisions: Vec<(&'static str, u64)>,
     pub counts: Counts,
     pub disk_bytes: u64,
     pub expiry: Option<Instant>,
-    pub position: Option<CommittedPosition>,
+    pub position: PositionState,
 }
 
 impl Store {

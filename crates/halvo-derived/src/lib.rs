@@ -138,7 +138,7 @@ pub use guard::{DeleteGuard, GuardAnswer, HeldAhead};
 pub use handler::{Cause, Committed, DayFault, Handler, HandlerCx, Refusal, Takes};
 pub use host::{Clock, DbKey, Host, IdSource, ReportSink};
 pub use read::ReadHandle;
-pub use report::{CommittedPosition, Counts, Report};
+pub use report::{CommittedPosition, Counts, PositionState, Report};
 pub use state::{HeldRefusal, MoveTo};
 pub use typed::Rows;
 

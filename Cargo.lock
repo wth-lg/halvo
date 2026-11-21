@@ -1799,6 +1799,7 @@ dependencies = [
  "halvo-schema",
  "halvo-schema-core",
  "halvo-seam",
+ "halvo-sqlcipher",
  "halvo-test-dir",
  "libc",
  "serde",

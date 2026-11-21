@@ -10,12 +10,13 @@ use std::time::Duration;
 use halvo_schema_core::ids::{Position, StoreId};
 use halvo_schema_core::kinds::{self, KindEntry, RetentionClass};
 use halvo_schema_core::record::Instant;
+use halvo_sqlcipher::rusqlite::types::Value;
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags, Params, Row};
 
 use crate::error::{db_fault, io_fault, Fault, OpenError, StoredFault};
 use crate::handler::DayFault;
 use crate::host::{Clock, DbKey, IdSource, ReportSink};
-use crate::report::{CommittedPosition, Counts, Report};
+use crate::report::{CommittedPosition, Counts, PositionState, Report};
 use crate::sql::{self, Sql};
 
 pub(crate) const PAGE_CACHE_KIB: i64 = 4096;
@@ -696,8 +697,8 @@ impl Db {
 
     /// The five values of the owner's report: the revision of every family of the entries in their order, the count
     /// of rows per retention class, the bytes on disk of the database with its log and its shared-memory file, the
-    /// next expiry deadline, and the store id with the committed position from the one row of `meta`, none unless that
-    /// row holds both.
+    /// next expiry deadline, and the state of the store id and the committed position in the one row of `meta`, read
+    /// as SQLite values so that a row of another type is `Malformed` and no fault; a fault of the read stays a fault.
     pub(crate) fn report(&self) -> Result<Report, Fault> {
         let mut revisions = Vec::new();
         for family in &self.families {
@@ -737,15 +738,29 @@ impl Db {
             .into_iter()
             .flatten()
             .min();
-        let position = match self.meta()? {
-            Meta {
-                store: Some(store),
-                position: Some(position),
-            } => Some(CommittedPosition {
-                store: StoreId::parse(&store).map_err(|_| Fault::Row)?,
-                position,
-            }),
-            _ => None,
+        let row = one(&self.conn, sql::META_READ, [], |r| {
+            Ok((
+                r.get::<_, Value>(0)?,
+                r.get::<_, Value>(1)?,
+                r.get::<_, Value>(2)?,
+            ))
+        })?;
+        let position = match row {
+            Some((Value::Null, Value::Null, Value::Null)) => PositionState::Unbound,
+            Some((Value::Text(store), Value::Integer(seg), Value::Integer(idx))) => {
+                match (
+                    StoreId::parse(&store),
+                    u64::try_from(seg),
+                    u64::try_from(idx),
+                ) {
+                    (Ok(store), Ok(seg), Ok(idx)) => PositionState::Committed(CommittedPosition {
+                        store,
+                        position: Position { seg, idx },
+                    }),
+                    _ => PositionState::Malformed,
+                }
+            }
+            _ => PositionState::Malformed,
         };
         Ok(Report {
             revisions,
