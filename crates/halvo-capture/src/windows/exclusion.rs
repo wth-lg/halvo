@@ -205,26 +205,41 @@ impl Browser {
     }
 }
 
-const EDGE_PRIVATE_ENDING: &str = "[InPrivate] - Microsoft Edge";
+/// The bare brand name that ends the window text of a normal Edge window.
+const EDGE_BRAND: &str = "Microsoft Edge";
 
-const FIREFOX_PRIVATE_ENDING: &str = "Mozilla Firefox Private Browsing";
+/// The bare brand name that ends the window text of a normal Firefox window.
+const FIREFOX_BRAND: &str = "Mozilla Firefox";
+
+/// Whether an Edge window text is that of a normal window: it ends with the
+/// bare brand name, and the part before the brand does not end with a
+/// bracketed segment, where the English InPrivate marker stands and where a
+/// marker of another interface language is taken to stand.
+fn edge_text_is_normal(text: &str) -> bool {
+    let text = text.replace('\u{200B}', "");
+    let Some(head) = text.trim_end().strip_suffix(EDGE_BRAND) else {
+        return false;
+    };
+    let head = head.trim_end();
+    let head = head.strip_suffix('-').unwrap_or(head).trim_end();
+    !head.ends_with(']')
+}
 
 /// The private-window input of a title of `browser` (C13.7 item 4). Edge and
-/// Firefox are told by the ending of the title that the source has just read,
-/// and never by a word alone; a Chrome window is private unless `query` tells
-/// it as not private, so a query with no answer drops its title; every other
-/// window is Unknown, which drops nothing.
+/// Firefox fail closed: a title is kept only where the window text ends with
+/// the bare brand name (for Edge, with no bracketed marker before it), and
+/// every other text, the private ending of any interface language among them,
+/// is told Private; never by a word alone. A Chrome window is private unless
+/// `query` tells it as not private, so a query with no answer drops its title;
+/// every other window is Unknown, which drops nothing.
 pub(crate) fn private_window(
     browser: Browser,
     title: &str,
     query: impl FnOnce() -> Option<bool>,
 ) -> PrivateWindow {
     let private = match browser {
-        Browser::Edge => title
-            .replace('\u{200B}', "")
-            .trim_end()
-            .ends_with(EDGE_PRIVATE_ENDING),
-        Browser::Firefox => title.trim_end().ends_with(FIREFOX_PRIVATE_ENDING),
+        Browser::Edge => !edge_text_is_normal(title),
+        Browser::Firefox => !title.trim_end().ends_with(FIREFOX_BRAND),
         Browser::Chrome => query() != Some(false),
         Browser::Other => false,
     };
