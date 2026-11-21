@@ -36,6 +36,8 @@ mod process_tests;
 mod report;
 #[cfg(test)]
 mod scripted;
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub mod server;
 pub mod signal;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod slot;
