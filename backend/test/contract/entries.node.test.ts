@@ -79,8 +79,8 @@ function defaults(): Answers {
     storedHolds: null,
     intervalOpen: 0,
     oldestUnsealed: () => null,
-    send: { call: null, notBillable: 0 },
-    record5: { call: null, notBillable: 0 },
+    send: { call: null, notBillable: 0, unexplained: 0 },
+    record5: { call: null, notBillable: 0, unexplained: 0 },
     nextSend: null,
     settled: true,
     closeOpen: 0,
@@ -745,8 +745,8 @@ describe("alarm", () => {
   test("the chain of provider calls stops at ALARM_CALL_LIMIT", async () => {
     const w = world({ clock: () => 9000 });
     await w.seeded({ customerId: "cus_one" });
-    w.answers.send = { call: SEND, notBillable: 1 };
-    w.answers.record5 = { call: SEND, notBillable: 0 };
+    w.answers.send = { call: SEND, notBillable: 1, unexplained: 0 };
+    w.answers.record5 = { call: SEND, notBillable: 0, unexplained: 0 };
     await w.entries.alarm();
     expect(w.portCalls.filter((call) => call[0] === "sendUsage")).toHaveLength(ALARM_CALL_LIMIT);
     expect(w.portCalls[0]).toEqual([
@@ -756,10 +756,30 @@ describe("alarm", () => {
     expect(events()).toEqual(["usage-not-billable"]);
   });
 
+  test("steps 5 and 6: after each step has committed the alarm logs usage-not-billable for each interval that n.notBillable counts and then usage-total-unexplained for each interval that n.unexplained counts (unit 5.7, ruling P7-86 C)", async () => {
+    const w = world({ clock: () => 9000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.send = { call: SEND, notBillable: 0, unexplained: 1 };
+    w.answers.record5 = { call: null, notBillable: 1, unexplained: 2 };
+    await w.entries.alarm();
+    expect(w.portCalls.map((call) => call[0])).toEqual(["sendUsage"]);
+    expect(events()).toEqual(["usage-total-unexplained", "usage-not-billable", "usage-total-unexplained", "usage-total-unexplained"]);
+  });
+
+  test("destroy's step 3 logs usage-total-unexplained for each interval that n.unexplained counts, after its step has committed (unit 5.7, contract 3.4)", async () => {
+    const w = world({ clock: () => 8000 });
+    await w.seeded({ customerId: "cus_one" });
+    w.answers.send = { call: SEND, notBillable: 0, unexplained: 1 };
+    w.answers.record5 = { call: null, notBillable: 0, unexplained: 1 };
+    expect(await w.entries.destroy(HASH)).toEqual({ result: "deleted" });
+    expect(w.portCalls.map((call) => call[0])).toEqual(["sendUsage", "cancelSubscription"]);
+    expect(events()).toEqual(["usage-total-unexplained", "usage-total-unexplained"]);
+  });
+
   test("after a provider call, an object that is no longer metered gets no call of metering.record", async () => {
     const w = world({ clock: () => 9000 });
     await w.seeded({ customerId: "cus_one" });
-    w.answers.send = { call: SEND, notBillable: 0 };
+    w.answers.send = { call: SEND, notBillable: 0, unexplained: 0 };
     w.host.port.sendUsage = async (event) => {
       w.portCalls.push(["sendUsage", event]);
       w.answers.subscription = null;
@@ -1510,7 +1530,7 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     const w = world({ clock: () => 8000 });
     await w.seeded({ customerId: "cus_one" });
     w.answers.settled = false;
-    w.answers.send = { call: SEND, notBillable: 0 };
+    w.answers.send = { call: SEND, notBillable: 0, unexplained: 0 };
     let release: (answer: { kind: "recorded" }) => void = () => {};
     const waiting = new Promise<{ kind: "recorded" }>((resolve) => {
       release = resolve;
@@ -1519,7 +1539,7 @@ describe("the closed list of P7-110 (unit 5.6 part 1)", () => {
     w.answers.sendInFlight = (at) => (at < 8000 + CALL_IN_FLIGHT_MS ? 8000 + CALL_IN_FLIGHT_MS : null);
     const first = w.entries.destroy(HASH);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    w.answers.send = { call: null, notBillable: 0 };
+    w.answers.send = { call: null, notBillable: 0, unexplained: 0 };
     const second = await w.entries.destroy(HASH);
     const during = { calls: w.portCalls.filter((call) => call[0] === "cancelSubscription").length, due: (await skeletonOf(w))?.due };
     w.answers.sendInFlight = () => null;
@@ -1991,7 +2011,7 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     let now = 8000;
     const w = world({ clock: () => now });
     await w.seeded({ customerId: "cus_one" });
-    w.answers.send = { call: SEND, notBillable: 0 };
+    w.answers.send = { call: SEND, notBillable: 0, unexplained: 0 };
     let release: (answer: { kind: "recorded" }) => void = () => {};
     w.host.port.sendUsage = async () =>
       new Promise((resolve) => {
@@ -1999,7 +2019,7 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
       });
     const first = w.entries.destroy(HASH);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    w.answers.send = { call: null, notBillable: 0 };
+    w.answers.send = { call: null, notBillable: 0, unexplained: 0 };
     const second = makeEntries(w.host, w.modules);
     now = 9000;
     expect(await second.destroy(HASH)).toEqual({ result: "deleted" });
@@ -2252,7 +2272,7 @@ describe("the second closed list of P7-111 (unit 5.6 part 1)", () => {
     w.answers.openHolds = 1;
     await w.entries.destroy(HASH);
     w.answers.openHolds = 0;
-    w.answers.send = { call: SEND, notBillable: 0 };
+    w.answers.send = { call: SEND, notBillable: 0, unexplained: 0 };
     w.host.port.sendUsage = async () => {
       throw new SyntaxError("the send throws");
     };
@@ -2287,7 +2307,7 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
     let now = 8000;
     const w = world({ clock: () => now });
     await w.seeded({ customerId: "cus_one" });
-    w.answers.send = { call: SEND, notBillable: 0 };
+    w.answers.send = { call: SEND, notBillable: 0, unexplained: 0 };
     let reject: (error: Error) => void = () => {};
     w.host.port.sendUsage = async () =>
       new Promise((_, rejecting) => {
@@ -2295,7 +2315,7 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
       });
     const run = w.entries.alarm();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    w.answers.send = { call: null, notBillable: 0 };
+    w.answers.send = { call: null, notBillable: 0, unexplained: 0 };
     now = 9000;
     expect(await makeEntries(w.host, w.modules).destroy(HASH)).toEqual({ result: "deleted" });
     const armsBefore = w.alarms.length;
@@ -2318,7 +2338,7 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
     expect(skeleton(w)?.alarm_failures).toBe(4);
     now = Math.max(now, w.alarmAt() ?? now);
     const runAt = now;
-    w.answers.send = { call: SEND, notBillable: 0 };
+    w.answers.send = { call: SEND, notBillable: 0, unexplained: 0 };
     let reject: (error: Error) => void = () => {};
     w.host.port.sendUsage = async () =>
       new Promise((_, rejecting) => {
@@ -2326,7 +2346,7 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
       });
     const run = w.entries.alarm();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    w.answers.send = { call: null, notBillable: 0 };
+    w.answers.send = { call: null, notBillable: 0, unexplained: 0 };
     w.answers.sendInFlight = (at) => (at < runAt + CALL_IN_FLIGHT_MS ? runAt + CALL_IN_FLIGHT_MS : null);
     now = runAt + 1000;
     expect(await w.entries.destroy(HASH)).toEqual({ result: "not-finished" });
@@ -2445,9 +2465,9 @@ describe("the third closed list of P7-113 (unit 5.6 part 1)", () => {
     let now = 8000;
     const w = world({ clock: () => now });
     await w.seeded({ customerId: "cus_one" });
-    w.answers.send = { call: SEND, notBillable: 0 };
+    w.answers.send = { call: SEND, notBillable: 0, unexplained: 0 };
     await w.entries.alarm();
-    w.answers.send = { call: null, notBillable: 0 };
+    w.answers.send = { call: null, notBillable: 0, unexplained: 0 };
     expect(w.portCalls.filter((call) => call[0] === "sendUsage")).toHaveLength(1);
     const secondPlan = now + 10_000;
     w.answers.sendInFlight = (at) => (at < secondPlan + CALL_IN_FLIGHT_MS ? secondPlan + CALL_IN_FLIGHT_MS : null);

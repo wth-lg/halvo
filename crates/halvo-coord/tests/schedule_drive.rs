@@ -3306,3 +3306,364 @@ fn rd86_an_end_owed_in_this_life_keeps_its_values_and_counts_no_tick_after_the_r
         "the owed end is stored with what this life saw while the run stood on the board"
     );
 }
+
+fn queued_with_a_lost_acknowledgement(w: &mut World, n: usize) -> Report {
+    let from = w.ports.tried.borrow().len();
+    w.ports.refuse(Method::Log, PortError::NoService);
+    let r = w.start(n);
+    w.ports.clear_refusals();
+    let refused: Vec<Vec<Event>> = w.ports.tried.borrow()[from..]
+        .iter()
+        .filter_map(|t| match (&t.call, &t.refused) {
+            (Call::Log(events), Some(_)) => Some(events.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(refused.len(), 1, "one body: {refused:?}");
+    w.ports.events.borrow_mut().extend(refused[0].clone());
+    r
+}
+
+#[test]
+fn u24e_a_stale_skip_of_a_queued_agent_keeps_the_open_check_that_its_read_brought() {
+    let mut w = world(&[person(), manual()]);
+    assert_eq!(w.tick().raised, vec![agent(0)]);
+    ok_run(&w.start(1));
+    let queued = queued_with_a_lost_acknowledgement(&mut w, 0);
+    assert_eq!(queued.answer, Ok(Answer::Queued));
+    assert!(
+        matches!(&w.facts(0).doing, Doing::Queued(Some(o)) if o.kind == OwnItemKind::Ready),
+        "the board still holds the ready item whose start the owner stored: {:?}",
+        w.facts(0).doing
+    );
+    let check = halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x24e1)).unwrap();
+    stored_at_owner(
+        &mut w,
+        0,
+        What::ItemRaised {
+            item: check.clone(),
+            raised: Raised::Check(None),
+        },
+        false,
+    );
+    w.forget();
+    let skip = w.go(Move::Skip { agent: agent(0) });
+    assert_eq!(skip.answer, Err(Cause::Stale), "{skip:?}");
+    assert_eq!(
+        skip.dropped,
+        vec![agent(0)],
+        "the skip drops the queued start"
+    );
+    assert!(
+        !w.calls().iter().any(|c| c.contains("slot_skipped")),
+        "a stale skip stores nothing: {:?}",
+        w.calls()
+    );
+    assert!(
+        matches!(
+            &w.facts(0).doing,
+            Doing::Idle(Some(o)) if o.item == check && o.kind == OwnItemKind::Check
+        ),
+        "the board holds the open check that the skip's own read brought: {:?}",
+        w.facts(0).doing
+    );
+}
+
+fn take_back(w: &mut World, n: usize) -> Report {
+    w.go(Move::TakeBack { agent: agent(n) })
+}
+
+fn port_calls(w: &World) -> usize {
+    w.ports.tried.borrow().len()
+}
+
+#[test]
+fn u24e_a_take_back_drops_the_queued_start_stores_no_hold_and_the_agent_asks_again() {
+    let mut w = world(&[person(), manual()]);
+    assert_eq!(w.tick().raised, vec![agent(0)]);
+    let other = ok_run(&w.start(1));
+    assert_eq!(w.start(0).answer, Ok(Answer::Queued));
+    let rows = w.stored().len();
+    let calls = port_calls(&w);
+    let r = take_back(&mut w, 0);
+    assert_eq!(r.answer, Ok(Answer::Ok), "{r:?}");
+    assert_eq!(r.dropped, vec![agent(0)], "{r:?}");
+    assert!(
+        r.stopped.is_empty() && r.started.is_empty() && r.next.is_empty(),
+        "{r:?}"
+    );
+    assert_eq!(r.read, None, "no read of the clock");
+    assert_eq!(port_calls(&w), calls, "no port is called");
+    assert_eq!(w.stored().len(), rows, "no row is stored");
+    assert!(w.board.queue.is_empty(), "the start left the queue");
+    assert_eq!(w.facts(0).doing, Doing::Idle(None));
+    assert!(holds(w.facts(0)).is_empty(), "no hold stands");
+    let end = w.end(&other, Some(Outcome::Completed));
+    assert!(
+        end.ended[0].next.is_empty(),
+        "the end takes no start: {end:?}"
+    );
+    assert_eq!(
+        w.tick().raised,
+        vec![agent(0)],
+        "the agent stays on and a later tick asks again (I5.3, ruling RD-55 (b))"
+    );
+}
+
+#[test]
+fn u24e_a_take_back_of_the_schedulers_start_stores_no_skip_so_a_later_tick_starts_its_due_slot() {
+    let mut w = world(&[manual(), AUTO]);
+    let other = ok_run(&w.start(0));
+    w.tick();
+    assert!(
+        w.board.queue.holds(&agent(1)),
+        "the scheduler queued its start"
+    );
+    let r = take_back(&mut w, 1);
+    assert_eq!((r.answer, r.dropped), (Ok(Answer::Ok), vec![agent(1)]));
+    assert_eq!(count(&w.stored(), "slot_skipped"), 0, "no slot is skipped");
+    let end = w.end(&other, Some(Outcome::Completed));
+    assert!(
+        end.ended[0].next.is_empty(),
+        "the end takes no start: {end:?}"
+    );
+    let tick = w.tick();
+    assert_eq!(
+        tick.started
+            .iter()
+            .map(|s| (s.agent.clone(), s.answer, s.run.is_some()))
+            .collect::<Vec<_>>(),
+        vec![(agent(1), Ok(Answer::Ok), true)],
+        "its slot stays open by I5.3's own rule (ruling RD-52 (d)): {tick:?}"
+    );
+}
+
+#[test]
+fn u24e_a_take_back_after_the_run_started_changes_nothing_as_a_stop_from_a_page_that_is_behind() {
+    let mut w = world(&[manual(), manual()]);
+    let first = ok_run(&w.start(0));
+    assert_eq!(w.start(1).answer, Ok(Answer::Queued));
+    let end = w.end(&first, Some(Outcome::Completed));
+    let run = end.ended[0].next[0]
+        .run
+        .clone()
+        .expect("the end started it");
+    let rows = w.stored().len();
+    let calls = port_calls(&w);
+    let r = take_back(&mut w, 1);
+    assert_eq!(r.answer, Ok(Answer::Ok), "{r:?}");
+    assert!(r.dropped.is_empty() && r.stopped.is_empty(), "{r:?}");
+    assert_eq!(port_calls(&w), calls, "no cancel and no other call");
+    assert_eq!(w.stored().len(), rows, "no row is stored");
+    assert_eq!(w.run_of(1), run);
+    assert!(
+        w.board.runs.iter().all(|r| r.stop.is_none()),
+        "the run goes on"
+    );
+    assert!(matches!(w.facts(1).doing, Doing::Live(_)));
+}
+
+#[test]
+fn u24e_a_take_back_reads_no_port_and_answers_ok_where_no_start_waits() {
+    let mut w = world(&[manual(), manual()]);
+    let live = ok_run(&w.start(0));
+    assert_eq!(w.start(1).answer, Ok(Answer::Queued));
+    w.clock(halvo_coord::ports::Stamp::LAST + 1, DAY);
+    for method in [
+        Method::History,
+        Method::Workflows,
+        Method::Agents,
+        Method::Log,
+        Method::Send,
+        Method::Cancel,
+    ] {
+        w.ports.refuse(method, PortError::NoService);
+    }
+    let calls = port_calls(&w);
+    let r = take_back(&mut w, 1);
+    assert_eq!(
+        (r.answer, r.dropped, r.unstamped),
+        (Ok(Answer::Ok), vec![agent(1)], false),
+        "no clock and no owner answer, and the start still leaves the queue"
+    );
+    let again = take_back(&mut w, 1);
+    assert_eq!((again.answer, again.dropped), (Ok(Answer::Ok), Vec::new()));
+    let running = take_back(&mut w, 0);
+    assert_eq!(
+        (running.answer, running.dropped, running.stopped),
+        (Ok(Answer::Ok), Vec::new(), Vec::new())
+    );
+    assert_eq!(port_calls(&w), calls, "no port is called");
+    assert_eq!(w.run_of(0), live);
+    assert_eq!(
+        w.go(Move::TakeBack { agent: agent(7) }).answer,
+        Err(Cause::UnknownAgent)
+    );
+}
+
+/// The row's controls offer the take-back exactly while the agent's start that waits in the
+/// queue would not come back without the person once taken back, whatever hold stands beside
+/// it: a start of the person, but not one of an agent that does not ask first, has a finished
+/// run and has a slot due, and never a start of the scheduler; a hold that a later read brings,
+/// as `check` from a record whose effect is not known, leaves the start in the queue until it
+/// leaves it (I2.5, I5.3, I5.5; rulings RD-54 (h), RD-149 (a)).
+#[test]
+fn u24e_the_controls_offer_take_back_while_the_persons_waiting_start_would_not_come_back_whatever_hold_stands(
+) {
+    use halvo_coord::roster::controls;
+    use halvo_coord::types::Control::{Delete, RunNow, Stop, SwitchOff, SwitchOn, TakeBack};
+    use halvo_coord::types::Live;
+    let first_run = A {
+        finished: false,
+        ..AUTO
+    };
+    let w = world(&[manual(), AUTO, person(), first_run]);
+    for n in 0..4 {
+        assert!(holds(w.facts(n)).is_empty(), "{n}");
+    }
+    let facts = |n: usize, doing: &Doing, hold: &str| {
+        let mut f = w.facts(n).clone();
+        f.doing = doing.clone();
+        let set = |f: &Facts<halvo_coord::mem::Config>, cause| Event {
+            what: What::HoldSet { cause },
+            ..f.events[0].clone()
+        };
+        match hold {
+            "off" => f.events.push(set(&f, HoldSetCause::Person)),
+            "failures" => f.events.push(set(&f, HoldSetCause::Failures)),
+            "check" => f.runs[0].unknown = 1,
+            _ => {}
+        }
+        f
+    };
+    let queued = Doing::Queued(None);
+    let idle = Doing::Idle(None);
+    let live = Doing::Live(Live::Working);
+    let person = Some(Trigger::Person);
+    let schedule = Some(Trigger::Schedule);
+    let waiting = [TakeBack, SwitchOff, Delete];
+    let switch_off_alone = [SwitchOff, Delete];
+    for (n, doing, hold, trigger, want, standing, case) in [
+        (
+            0,
+            &queued,
+            "none",
+            person,
+            waiting.to_vec(),
+            vec![],
+            "kind 1, no slot",
+        ),
+        (
+            0,
+            &queued,
+            "check",
+            person,
+            waiting.to_vec(),
+            vec![Hold::Check],
+            "a check that a later read brought",
+        ),
+        (
+            0,
+            &queued,
+            "off",
+            person,
+            vec![TakeBack, SwitchOn, Delete],
+            vec![Hold::Off],
+            "off",
+        ),
+        (
+            0,
+            &queued,
+            "failures",
+            person,
+            vec![TakeBack, SwitchOn, Delete],
+            vec![Hold::Failures],
+            "failures",
+        ),
+        (
+            0,
+            &queued,
+            "none",
+            None,
+            switch_off_alone.to_vec(),
+            vec![],
+            "no start in the queue",
+        ),
+        (
+            1,
+            &queued,
+            "none",
+            schedule,
+            switch_off_alone.to_vec(),
+            vec![],
+            "kind 3",
+        ),
+        (
+            0,
+            &queued,
+            "none",
+            schedule,
+            switch_off_alone.to_vec(),
+            vec![],
+            "a start of the scheduler, whatever its slot",
+        ),
+        (
+            1,
+            &queued,
+            "none",
+            person,
+            switch_off_alone.to_vec(),
+            vec![],
+            "Start now, does not ask first, slot due",
+        ),
+        (
+            2,
+            &queued,
+            "none",
+            person,
+            waiting.to_vec(),
+            vec![],
+            "asks first, slot due",
+        ),
+        (
+            3,
+            &queued,
+            "none",
+            person,
+            waiting.to_vec(),
+            vec![],
+            "does not ask first, no finished run",
+        ),
+        (
+            0,
+            &idle,
+            "none",
+            None,
+            vec![RunNow, SwitchOff, Delete],
+            vec![],
+            "idle",
+        ),
+        (
+            0,
+            &idle,
+            "check",
+            None,
+            switch_off_alone.to_vec(),
+            vec![Hold::Check],
+            "idle with a check",
+        ),
+        (
+            0,
+            &live,
+            "none",
+            None,
+            vec![Stop, SwitchOff, Delete],
+            vec![],
+            "live",
+        ),
+    ] {
+        let f = facts(n, doing, hold);
+        assert_eq!(holds(&f), standing, "{case}");
+        assert_eq!(controls(&f, trigger, &w.limits), want, "{case}");
+    }
+}
