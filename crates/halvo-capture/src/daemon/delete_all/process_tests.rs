@@ -355,6 +355,41 @@ fn the_offline_delete_in_a_linked_data_directory_answers_0() {
 }
 
 #[test]
+fn a_start_in_a_linked_data_directory_finishes_the_delete_and_a_new_store_opens() {
+    let root = kept_dir("delete-all-linked-start-");
+    let target = root.join("data");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let linked = root.join("linked");
+    std::os::unix::fs::symlink(&target, &linked).unwrap();
+    let old = a_store_with_a_segment(&linked);
+    let key_file = std::fs::read(target.join("store/store.key")).unwrap();
+    assert_eq!(files_that_unwrap(&target, &key_file).len(), 1);
+    std::fs::write(
+        target.join(super::INTENT_FILE),
+        format!("{{\"v\":1,\"started_at\":\"2026-11-21T00:00:00Z\",\"entries\":[{{\"name\":\"store\",\"custody_kind\":\"root_file\",\"root_id\":\"{old}\"}}]}}"),
+    )
+    .unwrap();
+    let host = DataDirStore::at(&linked);
+
+    let found = at_start(&linked, &rows(), &SystemHands, &host, &|| {});
+
+    assert_eq!(found, AtStart::Finished { whole: true });
+    assert!(!target.join("store/store.key").exists());
+    assert!(segment_files(&target).is_empty());
+    assert!(files_that_unwrap(&target, &key_file).is_empty());
+    assert!(!target.join(super::INTENT_FILE).exists());
+    assert!(matches!(
+        host.create(Custody::RootFile),
+        Opened::ReadWrite { .. }
+    ));
+    assert!(matches!(
+        host.open(Access::ReadWrite),
+        Opened::ReadWrite { .. }
+    ));
+}
+
+#[test]
 fn every_state_on_disk_is_deleted_by_the_offline_caller() {
     fn maintenance_alone(recorded: Option<Custody>) -> Selection {
         match recorded {

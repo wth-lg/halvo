@@ -293,10 +293,8 @@ impl StoreHost for DataDirStore {
     }
 
     fn delete(&self) -> TailAnswer {
-        tail_answer(EncryptedStore::delete_data_dir(
-            self.path(),
-            Layout::DataDirectory,
-        ))
+        let dir = resolved_data_dir(self.path()).unwrap_or_else(|_| self.path().to_path_buf());
+        tail_answer(EncryptedStore::delete_data_dir(&dir, Layout::DataDirectory))
     }
 }
 
