@@ -2529,8 +2529,10 @@ impl CaptureSource for InputSource {
     /// drop by doubt does not read as impaired. A late key-up, or another
     /// reading event, whose reading finds a new mark or a standing doubt
     /// leaves the stalled flag unset, because the mark's drop takes the held
-    /// keys first; with no mark it sets it. The figure max_lag_ms has no
-    /// writer on a Mac and reads 0.
+    /// keys first; with no mark it sets it. The figure max_lag_ms is the
+    /// largest age in ms of a key at its arrival, from its OS time to its
+    /// entry (`note_lag`); a pointer event, and a key whose times give no age
+    /// (untimed, asleep, unclocked or noticed), leave it as it is.
     fn health(&self) -> SourceHealth {
         let state = match (&self.tap, &self.failure) {
             (Some(tap), _) if tap.ended() => source_failure(CaptureError::ThreadEnded),
