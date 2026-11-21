@@ -486,7 +486,7 @@ fn u24r_the_three_texts_stand_word_for_word() {
     }
 }
 
-const WORDS_OF_AN_END: [&str; 22] = [
+const WORDS_OF_AN_END: [&str; 41] = [
     "stop",
     "stops",
     "stopped",
@@ -503,12 +503,31 @@ const WORDS_OF_AN_END: [&str; 22] = [
     "complete",
     "completes",
     "completed",
+    "completing",
     "halt",
     "halts",
     "halted",
+    "halting",
     "cease",
     "ceases",
     "ceased",
+    "ceasing",
+    "cancel",
+    "cancels",
+    "cancelled",
+    "canceled",
+    "cancelling",
+    "canceling",
+    "kill",
+    "kills",
+    "killed",
+    "killing",
+    "close",
+    "closes",
+    "closed",
+    "closing",
+    "terminate",
+    "terminated",
 ];
 
 const WORDS_OF_A_TIME: [&str; 15] = [
@@ -535,7 +554,7 @@ fn promises_an_end_or_a_time(text: &str) -> Vec<String> {
         .filter(|word| {
             WORDS_OF_AN_END.contains(word)
                 || WORDS_OF_A_TIME.contains(word)
-                || word.contains(|c: char| c.is_ascii_digit())
+                || word.contains(|c: char| c.is_numeric())
         })
         .map(str::to_string)
         .collect()
@@ -559,8 +578,18 @@ fn u46_the_guard_of_text_2_reads_words_not_letters() {
     );
 }
 
+const WORDS_OF_A_REOPEN: [&str; 4] = ["reopen", "reopens", "restart", "restarts"];
+
+const PHRASES_OF_A_REOPEN: [&str; 2] = ["open halvo again", "start halvo again"];
+
 fn sends_the_person_to_reopen(text: &str) -> bool {
-    text.contains("open Halvo again")
+    let lower = text.to_lowercase();
+    PHRASES_OF_A_REOPEN
+        .iter()
+        .any(|phrase| lower.contains(phrase))
+        || lower
+            .split(|c: char| !c.is_alphanumeric())
+            .any(|word| WORDS_OF_A_REOPEN.contains(&word))
 }
 
 const TEXT_2: &str =
