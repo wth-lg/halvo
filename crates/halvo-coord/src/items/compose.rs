@@ -8,8 +8,8 @@ use super::raise::choices;
 use super::{ConfirmState, Confirmation};
 use crate::guard::Table;
 use crate::types::{
-    AgentId, AskedEffect, BindResult, BoundField, BoundFrom, Candidate, CandidateFrom, Cause,
-    Choice, ChoiceText, Class, ConfirmAsk, Field, FieldFrom, Item, ItemId, ItemKind, Limits,
+    AgentId, AskedEffect, BindResult, BoundField, BoundFrom, Candidate, CandidateFrom, CardEffect,
+    Cause, Choice, ChoiceText, Class, ConfirmAsk, Field, FieldFrom, Item, ItemId, ItemKind, Limits,
     Origin, Param, ParamEntry, Presenter, Unknown, YesNo,
 };
 
@@ -583,10 +583,10 @@ pub fn compose_link_account(
     .said_by(name)
 }
 
-/// The item `check` (I3.4): the plain parts and the kept fields of the effects of an unknown
-/// outcome, each labelled `field.<class>.<name>` with `from` by the source that A-A9.3 admits
-/// for it. `malformed` for a kept field that A-A9.3 does not keep or that the words table has
-/// no label for.
+/// The item `check` (I3.4): the plain parts and, for each effect of an unknown outcome in order,
+/// the kept fields that the card's entry of that effect shows (`CardEffect::unknown`, ruling
+/// RD-158 (5)): each labelled `field.<class>.<name>` with `from` by the source that A-A9.3 admits
+/// for it, and no byte of a kept value that does not stand on that entry.
 pub fn compose_check(
     item: &ItemId,
     agent: &AgentId,
@@ -596,15 +596,7 @@ pub fn compose_check(
     let (title, text) = title_and_text(ItemKind::Check, name)?;
     let mut fields = Vec::new();
     for effect in unknown {
-        for kept in &effect.kept {
-            let from = kept_source(effect.class, kept.name.as_str()).ok_or(Cause::Malformed)?;
-            fields.push(field(
-                effect.class,
-                kept.name.as_str(),
-                &kept.value,
-                field_from(from),
-            )?);
-        }
+        fields.extend_from_slice(CardEffect::unknown(effect.class, &effect.kept)?.fields());
     }
     Item::check(
         item.clone(),
