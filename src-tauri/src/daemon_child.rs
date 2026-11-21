@@ -12,6 +12,7 @@ use halvo_control::paths::DataDir;
 use halvo_control::service::{DAEMON_ARG, DATA_DIR_ARG};
 
 use crate::commands::control::ChildPid;
+use crate::poller::Views;
 use crate::view_state::Hold;
 
 /// The flag that makes the daemon watch its parent through the descriptor on its standard
@@ -335,19 +336,20 @@ pub struct Supervisor<C, K> {
 }
 
 impl<C: Watched, K: Clock> Supervisor<C, K> {
-    /// `start_holding` with a hold of its own.
+    /// `start_holding` with views of its own.
     #[cfg(test)]
     pub fn start<S: Spawner<Child = C>>(spawner: S, pid: Arc<ChildPid>, clock: Arc<K>) -> Self {
         Self::start_holding(spawner, pid, clock, Arc::default())
     }
 
     /// Starts the supervisor's thread, which starts the child off the main thread, gives `pid`
-    /// the pid of the child of the moment and tells `hold` each start and end of a child.
+    /// the pid of the child of the moment, tells the hold of `views` each start and end of a
+    /// child and draws the views after each end.
     pub fn start_holding<S: Spawner<Child = C>>(
         spawner: S,
         pid: Arc<ChildPid>,
         clock: Arc<K>,
-        hold: Arc<Hold>,
+        views: Arc<Views>,
     ) -> Self {
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
@@ -360,7 +362,7 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
         let started = std::thread::Builder::new()
             .name("halvo-daemon-child".to_owned())
             .spawn(move || {
-                supervise_and_start_again(spawner, &watched, &pid, time.as_ref(), &hold)
+                supervise_and_start_again(spawner, &watched, &pid, time.as_ref(), &views)
             });
         if let Err(e) = started {
             eprintln!("halvo: the capture service is not started: {e}");
@@ -423,11 +425,11 @@ fn supervise_and_start_again<S: Spawner, K: Clock>(
     shared: &Shared<S::Child>,
     pid: &ChildPid,
     clock: &K,
-    hold: &Hold,
+    views: &Views,
 ) {
     let mut spawner = spawner;
-    while let Some(back) = supervise(spawner, shared, pid, clock, hold) {
-        if !asked_to_start_before_a_quit(shared, clock, hold) {
+    while let Some(back) = supervise(spawner, shared, pid, clock, views) {
+        if !asked_to_start_before_a_quit(shared, clock, views.hold()) {
             return;
         }
         spawner = back;
@@ -448,14 +450,16 @@ fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold
 }
 
 /// Starts the child and starts it again by the rule of `next`; hands the spawner back after
-/// the third end with 5 in a row, and none otherwise.
+/// the third end with 5 in a row, and none otherwise. After each end it draws the views, so
+/// that the set of the hold reaches the tray's menu at once.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
     pid: &ChildPid,
     clock: &K,
-    hold: &Hold,
+    views: &Views,
 ) -> Option<S> {
+    let hold = views.hold();
     let mut restarts = Restarts::default();
     loop {
         let began = clock.now();
@@ -482,6 +486,7 @@ fn supervise<S: Spawner, K: Clock>(
             Ending::Status(status) => Some(status),
             Ending::Signal | Ending::NotStarted => None,
         });
+        views.draw_now();
         eprintln!("halvo: the capture service ended: {ending:?}");
         let (step, after) = next(
             ending,
@@ -493,6 +498,7 @@ fn supervise<S: Spawner, K: Clock>(
             Next::Attach => return None,
             Next::NoMoreChild => {
                 hold.no_more_child();
+                views.draw_now();
                 return Some(spawner);
             }
             Next::StartNow => {}
@@ -831,13 +837,13 @@ mod tests {
             .collect(),
             record: Arc::clone(&record),
         };
-        let views = Views::default();
+        let views = Arc::new(Views::default());
         let pid = Arc::<ChildPid>::default();
         let supervisor = Supervisor::start_holding(
             spawner,
             Arc::clone(&pid),
             Arc::clone(&clock),
-            Arc::clone(views.hold()),
+            Arc::clone(&views),
         );
         let control = Recording::new(&record, Some(held_child_status()));
         let tray = crate::tray::installed_for_tests();
@@ -1055,13 +1061,13 @@ mod tests {
                 .collect(),
                 record: Arc::clone(&record),
             };
-            let views = Views::default();
+            let views = Arc::new(Views::default());
             let pid = Arc::<ChildPid>::default();
             let supervisor = Supervisor::start_holding(
                 spawner,
                 Arc::clone(&pid),
                 Arc::clone(&clock),
-                Arc::clone(views.hold()),
+                Arc::clone(&views),
             );
             let tray = crate::tray::installed_for_tests();
 
@@ -1128,6 +1134,77 @@ mod tests {
                 assert!(after[1..].iter().all(|line| *line == "status"), "{after:?}");
             }
         }
+    }
+
+    #[test]
+    fn a_press_on_the_tray_sends_what_its_drawn_item_said_and_the_set_of_the_hold_draws_it() {
+        use crate::poller::Drawer;
+        use crate::tray::{labels_with, DrawnMenu, TogglePress, HELD};
+        let drawn_into = |views: &Views, menu: &Arc<DrawnMenu>| {
+            let menu = Arc::clone(menu);
+            views.set_drawer(Drawer::new(
+                Box::new(move |view| menu.drew(labels_with(view, None, false, None))),
+                Vec::new(),
+            ));
+        };
+        let press = |views: &Views, menu: &DrawnMenu| {
+            let view = views.view();
+            menu.press(&view, &labels_with(&view, None, false, None))
+        };
+        let record = Record::default();
+        let tray = crate::tray::installed_for_tests();
+
+        let views = Views::default();
+        let menu = Arc::new(DrawnMenu::default());
+        drawn_into(&views, &menu);
+        let capturing = Recording::new(&record, Some(sample_status(Platform::Macos)));
+        pass(&capturing, &views, Some(&tray));
+        views.draw_now();
+        assert_eq!(
+            press(&views, &menu),
+            TogglePress::Send(CaptureChange::Pause)
+        );
+        views.hold().child_ended(Some(5));
+        assert_eq!(
+            press(&views, &menu),
+            TogglePress::DrawAnew,
+            "an item drawn while capturing sends no Resume after the end with 5"
+        );
+        assert!(views.hold().stands(), "the hold stands");
+        views.draw_now();
+        assert_eq!(menu.last().map(|labels| labels.status_text), Some(HELD));
+        assert_eq!(
+            press(&views, &menu),
+            TogglePress::Send(CaptureChange::Resume),
+            "a press on the drawn line that names the cause"
+        );
+
+        let clock = Arc::new(StandInClock::default());
+        let ends = Later::default();
+        let spawner = StandInSpawner {
+            children: [StandInChild {
+                later: Some(Arc::clone(&ends)),
+                ends_at_close: true,
+                ..StandInChild::new(1000, &clock, &record)
+            }]
+            .into_iter()
+            .collect(),
+            record: Arc::clone(&record),
+        };
+        let views = Arc::new(Views::default());
+        let menu = Arc::new(DrawnMenu::default());
+        drawn_into(&views, &menu);
+        let pid = Arc::<ChildPid>::default();
+        let supervisor =
+            Supervisor::start_holding(spawner, Arc::clone(&pid), clock, Arc::clone(&views));
+        until("the child starts", || pid.get() == Some(1000));
+        views.draw_now();
+        assert_ne!(menu.last().map(|labels| labels.status_text), Some(HELD));
+        *ends.lock().unwrap() = Some(Ending::Status(5));
+        until("the set of the hold draws the menu", || {
+            menu.last().map(|labels| labels.status_text) == Some(HELD)
+        });
+        drop(supervisor.close());
     }
 
     #[test]
@@ -1218,7 +1295,7 @@ mod tests {
                 changed: Condvar::new(),
             };
             let pid = ChildPid::default();
-            supervise(spawner, &shared, &pid, clock.as_ref(), &Hold::default());
+            supervise(spawner, &shared, &pid, clock.as_ref(), &Views::default());
             let started = record
                 .lock()
                 .unwrap()

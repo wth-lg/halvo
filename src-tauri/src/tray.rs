@@ -25,6 +25,56 @@ pub struct TrayHandles<R: Runtime> {
     status_item: MenuItem<R>,
     toggle_item: MenuItem<R>,
     open_item: MenuItem<R>,
+    drawn: DrawnMenu,
+}
+
+/// The labels that the tray's menu shows since its last draw, so that a press on the toggle
+/// does what its item said.
+#[derive(Debug, Default)]
+pub struct DrawnMenu(std::sync::Mutex<Option<TrayLabels>>);
+
+/// What a press on the tray's toggle does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TogglePress {
+    /// The change that the drawn item named.
+    Send(CaptureChange),
+    /// The drawn item was not enabled.
+    Nothing,
+    /// The view or the hold changed since the draw: nothing is sent, and the menu is drawn anew,
+    /// so that the person reads the new line before a second press.
+    DrawAnew,
+}
+
+impl DrawnMenu {
+    fn drawn(&self) -> std::sync::MutexGuard<'_, Option<TrayLabels>> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// The menu now shows `labels`.
+    pub fn drew(&self, labels: TrayLabels) {
+        *self.drawn() = Some(labels);
+    }
+
+    /// The labels of the last draw.
+    #[cfg(test)]
+    pub fn last(&self) -> Option<TrayLabels> {
+        *self.drawn()
+    }
+
+    /// What a press does for `view`, the view of the moment, whose labels are `now`: the change
+    /// that the drawn item named where the drawn labels are those of the moment, so that a
+    /// Resume that ends the hold leaves only where the drawn status line named the cause;
+    /// otherwise nothing is sent and the menu is drawn anew (contracts.md C14 item 4).
+    pub fn press(&self, view: &StatusView, now: &TrayLabels) -> TogglePress {
+        match *self.drawn() {
+            Some(drawn) if drawn == *now => {
+                toggled(view, now).map_or(TogglePress::Nothing, TogglePress::Send)
+            }
+            _ => TogglePress::DrawAnew,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -288,11 +338,14 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayInstalled> {
     }
     let tray = builder.build(app)?;
 
+    let drawn = DrawnMenu::default();
+    drawn.drew(initial);
     app.manage(TrayHandles {
         tray,
         status_item,
         toggle_item,
         open_item,
+        drawn,
     });
     Ok(TrayInstalled(()))
 }
@@ -309,6 +362,7 @@ pub fn refresh<R: Runtime>(app: &AppHandle<R>, view: &StatusView) {
     let _ = handles.toggle_item.set_text(texts.toggle_text);
     let _ = handles.toggle_item.set_enabled(texts.toggle_enabled);
     let _ = handles.open_item.set_enabled(texts.open_enabled);
+    handles.drawn.drew(texts);
 }
 
 /// The count of agents that need the person, as the tray last took it (I10.3).
@@ -406,13 +460,21 @@ fn with_dot(icon: &Image<'_>) -> Image<'static> {
 
 fn toggle<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AppState>();
-    let view = state.views.view();
-    let Some(change) = toggled(&view, &shown(app, &view)) else {
+    let Some(handles) = app.try_state::<TrayHandles<R>>() else {
         return;
+    };
+    let view = state.views.view();
+    let views = std::sync::Arc::clone(&state.views);
+    let change = match handles.drawn.press(&view, &shown(app, &view)) {
+        TogglePress::Send(change) => change,
+        TogglePress::Nothing => return,
+        TogglePress::DrawAnew => {
+            std::thread::spawn(move || views.draw_now());
+            return;
+        }
     };
     let made = state.control.places().make();
     let control = std::sync::Arc::clone(&state.control);
-    let views = std::sync::Arc::clone(&state.views);
     std::thread::spawn(move || {
         let (answer, call) = press(control.as_ref(), &views, made, change, START_ANSWER_WAIT);
         sort_change_answer(&views, change, &answer);
