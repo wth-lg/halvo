@@ -170,6 +170,20 @@ SH
   printf '%s\n' '# halvo-capture:test-seam:this-build-has-it!' >>"$app/Contents/MacOS/halvo-capture" || exit 2
   bundle_case daemon-with-the-test-seam '62-build --files: halvo-capture holds the marker halvo-capture:test-seam:this-build-has-it!'
 
+  config_repo=$work/config
+  mkdir -p "$config_repo/src-tauri" || exit 2
+  git init -q "$config_repo" || exit 2
+  printf '%s\n' '{"bundle":{"macOS":{"signingIdentity":"stand-in identity"}}}' >"$config_repo/src-tauri/tauri.conf.json" || exit 2
+  git -C "$config_repo" add -- src-tauri/tauri.conf.json || exit 2
+  output=$(config_defect "$config_repo")
+  code=$?
+  got=unexpected-exit-$code
+  [ "$code" = 0 ] && got=PASS
+  case $code:$output in
+    "1:the tracked file src-tauri/tauri.conf.json names signingIdentity; "*) got=FAIL ;;
+  esac
+  verdict tracked-configuration-with-a-signing-identity FAIL "$got"
+
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
