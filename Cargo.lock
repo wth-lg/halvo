@@ -1546,6 +1546,8 @@ version = "0.0.0"
 dependencies = [
  "block2",
  "halvo-control",
+ "halvo-coord",
+ "halvo-coord-app",
  "halvo-test-dir",
  "objc2",
  "objc2-foundation",

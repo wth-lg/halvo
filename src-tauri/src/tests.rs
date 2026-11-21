@@ -1576,3 +1576,34 @@ fn a_window_that_cannot_open_keeps_the_trays_other_texts_and_disables_open() {
         )
     );
 }
+
+/// This test reads the manifests: no build of the app turns on the feature `scripted` of
+/// halvo-coord-app, the stand-in presenter of that crate's tests, neither by the app's own
+/// line nor by a default feature of the crate.
+#[test]
+fn no_manifest_turns_the_feature_scripted_of_halvo_coord_app_on_for_the_app() {
+    let read = |path: &str| {
+        std::fs::read_to_string(src_tauri().join(path))
+            .unwrap_or_else(|e| panic!("cannot read {path}: {e}"))
+            .replace("\r\n", "\n")
+    };
+    let app = read("Cargo.toml");
+    let lines: Vec<&str> = app
+        .lines()
+        .filter(|line| line.contains("halvo-coord-app"))
+        .collect();
+    assert_eq!(
+        lines,
+        [r#"halvo-coord-app = { path = "../crates/halvo-coord-app" }"#],
+        "src-tauri/Cargo.toml names halvo-coord-app on these lines"
+    );
+    let own = read("../crates/halvo-coord-app/Cargo.toml");
+    let defaults: Vec<&str> = own
+        .lines()
+        .filter(|line| line.trim_start().starts_with("default") && line.contains("scripted"))
+        .collect();
+    assert!(
+        defaults.is_empty(),
+        "crates/halvo-coord-app/Cargo.toml turns scripted on by default: {defaults:?}"
+    );
+}
