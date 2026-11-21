@@ -226,7 +226,7 @@ fn store_bytes(dir: &Path) -> StoreBytes {
     found
 }
 
-const MADE: [&str; 3] = ["daemon-state.json", "roots", "store"];
+const MADE: [&str; 4] = ["daemon-state.json", "roots", "run", "store"];
 
 fn second_start(dir: &Path) -> (Option<i32>, Duration) {
     let started = Instant::now();
@@ -727,7 +727,10 @@ fn a_missing_data_directory_is_made_with_mode_0700_and_an_open_one_is_set_to_070
     let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode(&missing), 0o700);
     assert_eq!(mode(&root.join("below")), 0o700);
-    assert_eq!(names(&missing), vec!["daemon-state.json".to_owned()]);
+    assert_eq!(
+        names(&missing),
+        vec!["daemon-state.json".to_owned(), "run".to_owned()]
+    );
     let open = root.join("open");
     std::fs::create_dir(&open).unwrap();
     std::fs::set_permissions(&open, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -951,7 +954,7 @@ impl Drop for SearchBack {
 }
 
 #[test]
-fn the_held_service_run_opens_its_state_folder_through_the_lock_when_the_folder_above_cannot_be_searched(
+fn a_held_service_run_whose_folder_above_cannot_be_searched_cannot_bind_and_exits_1_writing_nothing(
 ) {
     use std::os::unix::fs::PermissionsExt;
     let root = kept_dir("service-tests-");
@@ -980,9 +983,12 @@ fn the_held_service_run_opens_its_state_folder_through_the_lock_when_the_folder_
     );
     drop(back);
     let err = String::from_utf8(err).unwrap();
-    assert_eq!(status, 0, "{err}");
-    assert!(!err.contains("folder of the data directory"), "{err}");
-    assert_eq!(names(&data), vec!["daemon-state.json".to_owned()]);
+    assert_eq!(status, 1, "{err}");
+    assert!(
+        err.ends_with("halvo-capture: the control channel could not be bound: permission denied\n"),
+        "{err}"
+    );
+    assert!(names(&data).is_empty(), "{:?}", names(&data));
 }
 
 const SECOND: Duration = Duration::from_secs(1);
@@ -1284,5 +1290,118 @@ fn a_maintenance_only_store_expires_and_takes_no_batch() {
         waits,
         [Duration::ZERO, MAINTENANCE_INTERVAL, MAINTENANCE_INTERVAL],
         "the pass was not due at the start and then every 60 s"
+    );
+}
+
+struct PanicsAtWrite {
+    inner: Box<dyn super::port::CaptureStore + Send>,
+    died: Arc<std::sync::Mutex<Option<Instant>>>,
+}
+
+impl super::port::MaintainStore for PanicsAtWrite {
+    fn expire_due(
+        &mut self,
+        now: SystemTime,
+        max_segments: usize,
+    ) -> Result<super::port::Pass, super::port::MaintFault> {
+        self.inner.expire_due(now, max_segments)
+    }
+
+    fn evict_to(
+        &mut self,
+        bound: super::port::ByteBound,
+        max_segments: usize,
+    ) -> Result<super::port::Pass, super::port::MaintFault> {
+        self.inner.evict_to(bound, max_segments)
+    }
+
+    fn usage(&mut self) -> Result<super::port::Usage, super::port::MaintFault> {
+        self.inner.usage()
+    }
+}
+
+impl super::port::CaptureStore for PanicsAtWrite {
+    fn write_batch(
+        &mut self,
+        _write: super::port::SegmentWrite<'_>,
+    ) -> Result<super::port::Written, super::port::WriteFault> {
+        *self.died.lock().unwrap() = Some(Instant::now());
+        panic!("the store of this case panics at its first write");
+    }
+
+    fn volume_free_bytes(&self) -> std::io::Result<u64> {
+        self.inner.volume_free_bytes()
+    }
+}
+
+#[test]
+fn a_service_run_whose_owner_thread_ended_ends_through_its_shutdown_entry_with_1_inside_the_budget()
+{
+    use super::state::Desired;
+    let dir = kept_dir("service-tests-");
+    std::fs::create_dir_all(&dir).unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    )
+    .update(|state| state.desired = Desired::Running)
+    .unwrap();
+    let factory = super::sources::tests::Factory::adjusting(|source| {
+        if source.name == super::SourceName::Foreground {
+            source.on_begin = Some(Box::new(|ctx: &crate::source::SourceContext| {
+                let _ = ctx.sink().emit_event(super::model_store::foreground_now());
+            }));
+        }
+    });
+    let died = Arc::new(std::sync::Mutex::new(None));
+    let marked = died.clone();
+    let parts = super::ServiceParts {
+        lease: super::lease::Lease::never_lapsing(),
+        wrap_store: Some(Box::new(move |inner| {
+            Box::new(PanicsAtWrite {
+                inner,
+                died: marked,
+            })
+        })),
+        ..super::ServiceParts::of(factory)
+    };
+    let stop = Arc::new(AtomicBool::new(false));
+    let flag = stop.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(60));
+        flag.store(true, Ordering::SeqCst);
+    });
+    let quiet = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let mut err = Vec::new();
+    let status = super::serve_on(
+        &data_dir(&dir),
+        Box::new(TestWrite::default()),
+        SleepLoop(Instant::now()),
+        &stop,
+        Arc::new(Recorded),
+        &mut err,
+        parts,
+    );
+    let ended = Instant::now();
+    std::panic::set_hook(quiet);
+    let err = String::from_utf8(err).unwrap();
+    let died = died
+        .lock()
+        .unwrap()
+        .expect("the owner's store was never written");
+    let took = ended.duration_since(died);
+    assert!(
+        took < Duration::from_millis(super::supervisor::SHUTDOWN_BUDGET_MS),
+        "the run ended {took:?} after its owner's thread died: {err}"
+    );
+    assert_eq!(status, 1, "{err}");
+    assert!(
+        err.contains("halvo-capture: owner ended; events accepted and not persisted="),
+        "{err}"
     );
 }

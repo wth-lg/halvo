@@ -5,16 +5,16 @@
 
 use super::{choices, compose_bind, compose_confirm, confirm_step, handback_kind, handback_result};
 use super::{setup_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
-use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
+use super::{Setup, SetupBody, SetupInput, SetupMove, SetupParam, SetupState};
 use crate::guard::Table;
-use crate::ports::{Clock, Owner, PortError, Rng, Runs, Shared, Stamp};
+use crate::ports::{Clock, Owner, PortError, Reading, Rng, Runs, Senders, Shared, Stamp};
 use crate::schedule::wants_active;
 use crate::types::{
-    hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Cause, CheckAnswer,
-    Choice, Cleared, ConfigView, ConfirmAsk, DecisionEntry, DoneAnswer, Event, Facts, HandbackAsk,
-    HandbackResult, Item, ItemId, ItemKind, LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse,
-    OwnItem, OwnItemKind, Presenter, Raised, RunId, RunItem, RunItemKind, SetupAnswer,
-    SignInAnswer, What, WorkflowId,
+    hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Category, Cause,
+    CheckAnswer, Choice, Cleared, ConfigView, ConfirmAsk, DecisionEntry, DoneAnswer, Event, Facts,
+    HandbackAsk, HandbackResult, Item, ItemId, ItemKind, LapseCause, Lapsed, Limits, LinkAnswer,
+    OtherLapse, OwnItem, OwnItemKind, Param, Presenter, Raised, RunId, RunItem, RunItemKind,
+    SetupAnswer, SignInAnswer, What, WorkflowId,
 };
 use serde::Serialize;
 use std::num::NonZeroU32;
@@ -2277,16 +2277,71 @@ pub fn freed_setup<P: Owner + Clock, C: ConfigView + Clone>(
     }
 }
 
+/// Opens the setup item `item` of the agent `agent` of `workflow`, of the category `category`,
+/// that asks `params` (I3.5; rulings RD-81 9.2, RD-90 item 6): a value offered for
+/// `reply_senders` that the reader of senders refuses is not offered, nor a value offered for a
+/// parameter that binds a deciding field that fails that field's predicate, so that a parameter
+/// left with no offered value takes a typed line and no card keeps a choice that can only fail;
+/// then `Setup::new`. A reader that did not answer is `busy` or `no_service`, and nothing is
+/// opened.
+pub fn open_setup<P: Senders>(
+    ports: &P,
+    item: ItemId,
+    workflow: WorkflowId,
+    agent: AgentId,
+    category: Category,
+    params: Vec<SetupParam>,
+) -> Result<Setup, Cause> {
+    let mut asked = Vec::with_capacity(params.len());
+    for p in params {
+        let mut candidates = Vec::with_capacity(p.candidates.len());
+        for (value, from) in p.candidates {
+            if offers(ports, category, p.param, &value)? {
+                candidates.push((value, from));
+            }
+        }
+        asked.push(SetupParam {
+            param: p.param,
+            candidates,
+        });
+    }
+    Setup::new(item, workflow, agent, category, asked)
+}
+
+/// Whether the set-up may offer `value` for `param` of an agent of `category`: where the value's
+/// text, its pieces joined, holds to the predicate of a deciding field that the parameter binds
+/// (`setup::fits`), and for `reply_senders` only where the reader of senders takes that text.
+fn offers<P: Senders>(
+    ports: &P,
+    category: Category,
+    param: Param,
+    value: &[String],
+) -> Result<bool, Cause> {
+    let text = value.concat();
+    if !super::setup::fits(category, param, &text) {
+        return Ok(false);
+    }
+    if param != Param::ReplySenders {
+        return Ok(true);
+    }
+    let read = ports.read(&text).map_err(|e| cause_of(&e))?;
+    Ok(read == Reading::Taken)
+}
+
 /// The person's answer to a setup item (I3.5), with the facts and the ledger of its agent:
 /// `state` for the facts or the ledger of another agent, and the refusal of `setup_step`, `stale`
 /// for an item that closed, `state` while its body is owed (ruling IG-10) and `malformed` for an
-/// answer that does not fit it; then nothing is sent and nothing stored. `none` keeps the item
-/// open with its answers and stores and sends nothing (I3.5, ruling RD-23 (b)). When the answer
-/// gives the last parameter, the one body
+/// answer that does not fit it; then nothing is sent and nothing stored. A typed answer for
+/// `reply_senders` that fits goes to the reader of senders (`Senders::read`): a refusal by entry
+/// is `malformed`, the parameter then holds no value and carries the refusal (`Setup::refuse`),
+/// the item stays open and nothing is kept, sent or stored, also where the answer was the last
+/// open parameter (ruling RD-81 9.1, 9.2); a reader that did not answer is `busy` or
+/// `no_service` and changes nothing. `none` keeps the item open with its answers and stores and
+/// sends nothing (I3.5, ruling RD-23 (b)). When the answer gives the last parameter, the one body
 /// `set_bindings` goes to the owner in this move; at its acknowledgement the item closes, its row
 /// is stored and the rule of `active` of I5.5 runs once for the agent, and a refusal decides as
 /// `refused_body` gives.
-pub fn answer_setup<P: Owner + Clock, C: ConfigView + Clone>(
+pub fn answer_setup<P: Owner + Clock + Senders, C: ConfigView + Clone>(
     ports: &P,
     ledger: &mut Ledger,
     limits: &Limits,
@@ -2296,6 +2351,16 @@ pub fn answer_setup<P: Owner + Clock, C: ConfigView + Clone>(
 ) -> Result<SetupDone, Cause> {
     same_agent(setup, facts, ledger)?;
     let next = setup_step(setup, SetupMove::Input(answer))?;
+    if let SetupInput::Typed {
+        param: param @ Param::ReplySenders,
+        text,
+    } = answer
+    {
+        if let Reading::Refused(refused) = ports.read(text).map_err(|e| cause_of(&e))? {
+            setup.refuse(param, refused);
+            return Err(Cause::Malformed);
+        }
+    }
     let at = match next.state() {
         SetupState::Owed(_) => clock_at(ports)?,
         SetupState::Open | SetupState::Closed | SetupState::Gone | SetupState::AgentGone => {

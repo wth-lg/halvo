@@ -19,7 +19,7 @@ use crate::run::{cause_of, Runner, Stop};
 /// may come after the row was stored, so a row that met a fault and was not stored in the end counts as stored
 /// in the direction that tells the person more: a `propose` counts as an effect, a `begin` as `releasing`, for
 /// which the runner lets no request leave and which it hands back as `effect_unknown` before its `finish`, and a
-/// `commit` as not stored, so that the effect stays `releasing`.
+/// `commit` or a `not_made` as not stored, so that the effect stays `releasing`.
 const ROW_SENDS: u32 = 3;
 
 /// An effect of this run as its last stored row has it.
@@ -131,7 +131,7 @@ impl Runner {
     }
 
     /// One move of the effect at `at` through the step relation and, when it takes it, the row that the move
-    /// stores: the next state.
+    /// stores, with the cause `ended` for `end` and the move's own cause for `not_made`: the next state.
     pub(crate) fn advance(&mut self, at: usize, step: EffectMove) -> Result<EffectState, Stop> {
         let e = &self.effects[at];
         let now = Effect {
@@ -141,7 +141,11 @@ impl Runner {
             digest: e.digest.clone(),
             rebinds: e.rebinds,
         };
-        let cause = matches!(step, EffectMove::End).then_some(Cause::Ended);
+        let cause = match &step {
+            EffectMove::End => Some(Cause::Ended),
+            EffectMove::NotMade { cause } => Some(*cause),
+            _ => None,
+        };
         let next = effect_step(Some(&now), step).map_err(|cause| failed(cause.cause()))?;
         self.store_row(at, next, cause)?;
         Ok(next)
@@ -264,7 +268,7 @@ impl Runner {
             }
         };
         if let Some(cause) = cause {
-            if faulted && state != EffectState::Committed {
+            if faulted && !matches!(state, EffectState::Committed | EffectState::NotMade) {
                 let e = &mut self.effects[at];
                 e.seq += 1;
                 e.state = state;

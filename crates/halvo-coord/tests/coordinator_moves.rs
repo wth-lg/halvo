@@ -13081,7 +13081,9 @@ fn u24e_r4_a_take_back_is_no_service_with_no_board_and_ok_with_no_call_after_the
 mod clock_panics {
     use super::support::Both;
     use halvo_coord::mem::Config;
-    use halvo_coord::ports::{Analysis, Clock, Owner, Page, PortError, Reaped, Rng, Runs, Tray};
+    use halvo_coord::ports::{
+        Analysis, Clock, Owner, Page, PortError, Reading, Reaped, Rng, Runs, Senders, Tray,
+    };
     use halvo_coord::types::{
         Agent, AgentId, Answer, BindResult, Body, Class, Decision, Event, HandbackResult, Reply,
         ReplyRow, RunHistory, RunId, RunSpec, Workflow, WorkflowId,
@@ -13212,6 +13214,12 @@ mod clock_panics {
 
         fn gives_run(&self, config: &Config, class: Class) -> Result<bool, PortError> {
             self.both.gives_run(config, class)
+        }
+    }
+
+    impl Senders for ClockPanics {
+        fn read(&self, text: &str) -> Result<Reading, PortError> {
+            self.both.read(text)
         }
     }
 }
@@ -13688,7 +13696,7 @@ fn u24s_r2_under_class_b_the_stop_of_the_row_stops_the_run() {
 }
 
 #[test]
-fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_and_shows_the_agent_on(
+fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_answer_says_both_halves_and_the_row_shows_the_agent_on(
 ) {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
@@ -13696,7 +13704,13 @@ fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_a
         .ports
         .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
     let m = mark(&c);
-    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(
+        c.control_reply(&agent(0), Action::SwitchOff),
+        Err(halvo_coord::types::Refusal::SwitchNotSaved(
+            Cause::NoService
+        )),
+        "the answer at the press says both halves (term (5) of RD-161 R1)"
+    );
     assert_eq!(
         u24s_r1_cancels(&c, m, &run),
         1,
@@ -13708,11 +13722,6 @@ fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_a
         }
         let row = u24s_r1_row(&c);
         assert_eq!(row.status, Status::Working, "tick {tick}");
-        assert_eq!(
-            row.line,
-            text("line.working.switch_not_saved"),
-            "tick {tick}: while the run is stopping the line says both halves"
-        );
         assert!(
             u24s_r1_controls(&row).contains(&halvo_coord::types::Control::SwitchOff),
             "tick {tick}: the switch shows on: {:?}",
@@ -13725,11 +13734,6 @@ fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_a
             c.tick();
         }
         let row = u24s_r1_row(&c);
-        assert_eq!(
-            row.line,
-            text("line.all_set.switch_not_saved"),
-            "tick {tick}: after the end the line says that the task was stopped and the switch could not be saved"
-        );
         assert!(
             u24s_r1_controls(&row).contains(&halvo_coord::types::Control::SwitchOff),
             "tick {tick}: the switch shows on: {:?}",
@@ -13769,7 +13773,7 @@ fn u24s_r1_hold_set(e: &halvo_coord::types::Event) -> bool {
 }
 
 #[test]
-fn u24s_r1_the_line_of_a_switch_off_that_could_not_be_saved_ends_when_a_later_run_starts() {
+fn u24s_r1_a_later_run_starts_after_a_switch_off_that_could_not_be_saved() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
     c.ports()
@@ -13787,23 +13791,12 @@ fn u24s_r1_the_line_of_a_switch_off_that_could_not_be_saved_ends_when_a_later_ru
         },
     );
     c.tick();
-    assert_eq!(
-        u24s_r1_row(&c).line,
-        text("line.all_set.switch_not_saved"),
-        "the line stands after the end, read from state"
-    );
     let next = start(&c, 0);
-    assert_ne!(next, run);
-    assert_ne!(
-        u24s_r1_row(&c).line,
-        text("line.working.switch_not_saved"),
-        "a later run of the agent ends the line"
-    );
-    assert_ne!(u24s_r1_row(&c).line, text("line.all_set.switch_not_saved"));
+    assert_ne!(next, run, "the agent is still on: a later run starts");
 }
 
 #[test]
-fn u24s_r1_a_later_switch_off_that_is_saved_ends_the_line_of_the_one_that_was_not() {
+fn u24s_r1_a_later_switch_off_that_is_saved_shows_the_agent_off() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
     c.ports()
@@ -13820,13 +13813,6 @@ fn u24s_r1_a_later_switch_off_that_is_saved_ends_the_line_of_the_one_that_was_no
         "the switch is saved now, so the row shows the agent off"
     );
     assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
-    let line = u24s_r1_row(&c).line;
-    assert_ne!(
-        line,
-        text("line.all_set.switch_not_saved"),
-        "after a saved switch the row no longer says that a switch could not be saved"
-    );
-    assert_ne!(line, text("line.working.switch_not_saved"));
 }
 
 #[test]
@@ -13891,7 +13877,7 @@ fn u24s_i58_a_setup_raise_that_fails_at_the_recovery_tick_is_made_again_in_that_
         assert_eq!(u24s_r4_open_setups(&life), 0, "{error:?}: the raise failed");
         assert_eq!(
             u24s_r4_status(&life, &made),
-            (Status::NeedsYou, text("line.needs_you.setup")),
+            (Status::NeedsYou, text("line.needs_you.setup_owed")),
             "{error:?}: while the raise is owed the row does not say All set"
         );
         life.ports().ports.clear_refusals();
@@ -13924,7 +13910,7 @@ fn u24s_i58_a_setup_raise_that_fails_at_the_first_creation_move_is_made_again_in
     );
     assert_eq!(
         u24s_r4_status(&life, &made),
-        (Status::NeedsYou, text("line.needs_you.setup"))
+        (Status::NeedsYou, text("line.needs_you.setup_owed"))
     );
     life.ports().ports.clear_refusals();
     life.tick();
@@ -13949,7 +13935,7 @@ fn u24s_i58_an_owed_setup_raise_ends_where_the_hold_setup_has_ended() {
     life.tick();
     assert_eq!(
         u24s_r4_status(&life, &made),
-        (Status::NeedsYou, text("line.needs_you.setup")),
+        (Status::NeedsYou, text("line.needs_you.setup_owed")),
         "the raise is owed"
     );
     for a in life.ports().ports.agents.borrow_mut().iter_mut() {
@@ -13965,7 +13951,7 @@ fn u24s_i58_an_owed_setup_raise_ends_where_the_hold_setup_has_ended() {
     life.tick();
     assert_ne!(
         u24s_r4_status(&life, &made).1,
-        text("line.needs_you.setup"),
+        text("line.needs_you.setup_owed"),
         "the bindings came by another way: the hold setup has ended, and so has the debt"
     );
     assert_eq!(u24s_r4_open_setups(&life), 0);
@@ -13989,7 +13975,7 @@ fn u24s_i58_an_owed_setup_raise_ends_where_the_hold_setup_has_ended() {
     }
     assert_ne!(
         u24s_r4_status(&life, &made),
-        (Status::NeedsYou, text("line.needs_you.setup")),
+        (Status::NeedsYou, text("line.needs_you.setup_owed")),
         "with no item open the row is not made needs you by a debt that has ended"
     );
     assert_eq!(
@@ -14065,7 +14051,7 @@ fn u24s_i58_a_setup_raise_refused_at_every_tick_ends_in_the_record_line_and_neve
         life.tick();
         assert_eq!(
             u24s_r4_status(&life, &made),
-            (Status::NeedsYou, text("line.needs_you.setup")),
+            (Status::NeedsYou, text("line.needs_you.setup_owed")),
             "a lost reply at every tick: tick {k} does not say All set"
         );
         assert!(!life.record_stuck(&made), "no_service counts nothing");
@@ -14193,7 +14179,7 @@ fn u24s_r7_a_set_aside_agent_with_an_unknown_outcome_gets_the_setup_card_then_th
 /// the line of the switch-off that could not be saved; after a Switch on the row does not say it
 /// again.
 #[test]
-fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_ends_the_line_of_the_one_that_was_not() {
+fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_shows_the_agent_off() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
     c.ports()
@@ -14211,7 +14197,6 @@ fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_ends_the_line_of_the_on
         },
     );
     c.tick();
-    assert_eq!(u24s_r1_row(&c).line, text("line.all_set.switch_not_saved"));
     c.ports().ports.clear_refusals();
     c.ports().loss.set(Some(support::Loss::Reply));
     c.ports().next_history_fails.set(true);
@@ -14224,13 +14209,6 @@ fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_ends_the_line_of_the_on
         "the read of the Start now brings the saved hold"
     );
     assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
-    let line = u24s_r1_row(&c).line;
-    assert_ne!(
-        line,
-        text("line.all_set.switch_not_saved"),
-        "the switch-off was saved and the person switched the agent on again"
-    );
-    assert_ne!(line, text("line.working.switch_not_saved"));
 }
 
 /// Ruling RD-168 (the verifier's finding 2): an owed setup raise does not make the row say that
@@ -14243,7 +14221,7 @@ fn u24s_rd168_an_owed_setup_raise_does_not_say_needs_you_while_the_list_shows_it
         .ports
         .refuse_record(u24s_r4_setup_raise, PortError::NoService);
     life.tick();
-    let owed = (Status::NeedsYou, text("line.needs_you.setup"));
+    let owed = (Status::NeedsYou, text("line.needs_you.setup_owed"));
     assert_eq!(u24s_r4_status(&life, &made), owed, "the raise is owed");
     life.ports().ports.clear_refusals();
     for w in life.ports().ports.workflows.borrow_mut().iter_mut() {
@@ -14264,21 +14242,16 @@ fn u24s_rd168_an_owed_setup_raise_does_not_say_needs_you_while_the_list_shows_it
 }
 
 /// Ruling RD-168 (the verifier's finding 1): while the list shows the agent's workflow dismissed,
-/// where neither half of the line can come true, the row does not say that the switch-off could
-/// not be saved.
+/// where neither half of the sentence can come true, the answer at the press does not say that
+/// the switch-off could not be saved (the row said it until term (5) of RD-161 R1).
 #[test]
-fn u24s_rd168_the_line_of_a_switch_off_that_could_not_be_saved_does_not_show_while_its_workflow_is_dismissed(
-) {
-    let (c, run) = u24s_r1_dismissed_live();
-    let _ = c.control(&agent(0), Action::SwitchOff);
-    let stopping = u24s_r1_row(&c).line;
-    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
-    c.tick();
-    let ended = u24s_r1_row(&c).line;
-    for line in [stopping, ended] {
-        assert_ne!(line, text("line.working.switch_not_saved"));
-        assert_ne!(line, text("line.all_set.switch_not_saved"));
-    }
+fn u24s_rd168_the_answer_of_a_switch_off_does_not_say_both_halves_while_its_workflow_is_dismissed()
+{
+    let (c, _run) = u24s_r1_dismissed_live();
+    assert!(!matches!(
+        c.control_reply(&agent(0), Action::SwitchOff),
+        Err(halvo_coord::types::Refusal::SwitchNotSaved(_))
+    ));
 }
 
 thread_local! {
@@ -14975,5 +14948,35 @@ fn u24t_r6_a_history_read_refused_otherwise_keeps_its_cause() {
         ),
         (Err(Cause::NoService), Err(Cause::NoService)),
         "no_service and a refusal of the owner answer the cause, as before"
+    );
+}
+
+/// U3.12 (B), RD-155 (2) way B: while a setup raise is owed the row says so in a line of its own,
+/// in place of the line of a card that is not there; once the raise is stored the card is open
+/// and the row says the standing line again.
+#[test]
+fn u312_b_while_a_setup_raise_is_owed_the_row_says_so_in_a_line_of_its_own() {
+    let (life, made, _, _) = u24s_aside_with_setup();
+    life.ports()
+        .ports
+        .refuse_record(u24s_r4_setup_raise, PortError::NoService);
+    life.tick();
+    assert_eq!(
+        u24s_r4_open_setups(&life),
+        0,
+        "the raise failed: it is owed"
+    );
+    assert_eq!(
+        u24s_r4_status(&life, &made),
+        (Status::NeedsYou, text("line.needs_you.setup_owed")),
+        "while the raise is owed"
+    );
+    life.ports().ports.clear_refusals();
+    life.tick();
+    assert_eq!(u24s_r4_open_setups(&life), 1, "the raise is stored");
+    assert_eq!(
+        u24s_r4_status(&life, &made),
+        (Status::NeedsYou, text("line.needs_you.setup")),
+        "with its card open"
     );
 }

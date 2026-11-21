@@ -1,6 +1,7 @@
 use super::{AgentId, CandidateFrom, Cause, Choice, Class, Control, FieldFrom, ItemId, ItemKind};
 use super::{HistoryRead, Kept, LineKey, Origin, Param, Presenter, Status, WorkflowId, YesNo};
 use crate::items::{field_from, kept_source};
+use crate::ports::Refused;
 use crate::words;
 use serde::Serialize;
 
@@ -176,12 +177,45 @@ pub struct Card {
     pub lines: Vec<CardLine>,
     /// `runs`: at most `history_runs`, newest first.
     pub runs: Vec<CardRun>,
-    /// `history`: `busy` where the card's read of `Owner::agent_history` answered busy, and the
-    /// card then holds the line of the count of records taken off alone, where that count is
-    /// at least 1, and no run; the key is left out where the read answered (the coordinator's
-    /// word on R6 of U2.4t).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub history: Option<HistoryRead>,
+    /// `history` and `unread`, where the card's read of `Owner::agent_history` answered busy:
+    /// the card then holds the line of the count of records taken off alone, where that count
+    /// is at least 1, and no run. Both keys are left out where the read answered (the
+    /// coordinator's word on R6 of U2.4t).
+    #[serde(flatten)]
+    pub history: Option<BusyHistory>,
+}
+
+/// The two keys of a card whose history read answered busy (I2.6): `history`, which says
+/// `busy` and nothing else, and on which alone the page asks the card again and, once it asks
+/// no more, shows `unread` (RD-148 R6, way C).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct BusyHistory {
+    /// `history`: `busy`.
+    pub history: HistoryRead,
+    /// `unread`.
+    pub unread: Unread,
+}
+
+/// What the card of a busy history read shows once the page asks no more.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Unread {
+    /// `text`: the sentence of `card.history_busy`.
+    pub text: String,
+    /// `again`: the text of the card's control that reads it again, `card.read_again`.
+    pub again: String,
+}
+
+impl BusyHistory {
+    /// The keys of a busy history read, with their words.
+    pub fn new() -> Result<BusyHistory, Cause> {
+        Ok(BusyHistory {
+            history: HistoryRead::Busy,
+            unread: Unread {
+                text: words::text("card.history_busy", &[])?,
+                again: words::text("card.read_again", &[])?,
+            },
+        })
+    }
 }
 
 /// A settings line of a card (I2.2).
@@ -935,6 +969,15 @@ impl Item {
     pub fn at_step(self, step: u32) -> Item {
         Item { step, ..self }
     }
+
+    /// The item with `refused` as the key `refused` of its parameter `param` (I3.5, I8.1;
+    /// ruling RD-81 9.3); the item as it was where it asks no such parameter.
+    pub fn refused_at(mut self, param: Param, refused: Refused) -> Item {
+        for p in self.params.iter_mut().filter(|p| p.name == param) {
+            p.refused = Some(refused);
+        }
+        self
+    }
 }
 
 /// A field of an item (I3.4).
@@ -969,6 +1012,11 @@ pub struct ParamEntry {
     /// which the card shows below the typed line after an input was refused below the bound
     /// (I3.5); empty for every other parameter.
     pub too_long: String,
+    /// `refused`: the refusal by entry that the reader of senders gave the newest answer for the
+    /// parameter, the entry's number and kind and no sentence, which is the card's (I3.5, I8.1;
+    /// ruling RD-81 9.1 to 9.3); the key is left out while none stands.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refused: Option<Refused>,
 }
 
 /// A candidate of a parameter (I3.5).
@@ -1025,9 +1073,68 @@ pub struct ClosedReply {
     pub closed: YesNo,
 }
 
-/// The reply of a refused command (I8.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+/// The reply of a refused command (I8.1): `error`, its cause, and `text`, the sentence of the
+/// words key `refused.<cause>`, which the page shows beside the control that was pressed
+/// (ruling RD-161 R1). The sentence is composed when the reply is written; nothing is stored
+/// for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ErrorReply {
     /// `error`.
     pub error: Cause,
+}
+
+impl ErrorReply {
+    /// `text`: the sentence of `refused.<cause>`.
+    pub fn text(&self) -> Result<String, Cause> {
+        words::text(&format!("refused.{}", self.error.name()), &[])
+    }
+}
+
+impl Serialize for ErrorReply {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        Refusal::Cause(self.error).serialize(s)
+    }
+}
+
+/// A refused control of a row (I8.1 `agents_control`) as its reply writes it: `error`, the
+/// cause, and `text`, the sentence that the page shows beside the control (RD-161 R1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    /// Any refusal: the sentence of `refused.<cause>`.
+    Cause(Cause),
+    /// A Switch off that stopped the agent's live run while the owner refused to store its hold
+    /// under class B, with the cause of that refusal: the sentence of `refused.switch_not_saved`,
+    /// which says both halves, that the task is stopped and that the agent is still on
+    /// (RD-155 (1); term (5) of RD-161 R1).
+    SwitchNotSaved(Cause),
+}
+
+impl Refusal {
+    /// The cause.
+    pub fn cause(self) -> Cause {
+        match self {
+            Refusal::Cause(cause) | Refusal::SwitchNotSaved(cause) => cause,
+        }
+    }
+
+    /// `text`: the sentence of its words key.
+    pub fn text(self) -> Result<String, Cause> {
+        match self {
+            Refusal::Cause(cause) => ErrorReply { error: cause }.text(),
+            Refusal::SwitchNotSaved(_) => words::text("refused.switch_not_saved", &[]),
+        }
+    }
+}
+
+impl Serialize for Refusal {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{Error, SerializeStruct};
+        let text = self
+            .text()
+            .map_err(|_| S::Error::custom("a refusal with no sentence"))?;
+        let mut reply = s.serialize_struct("ErrorReply", 2)?;
+        reply.serialize_field("error", &self.cause())?;
+        reply.serialize_field("text", &text)?;
+        reply.end()
+    }
 }

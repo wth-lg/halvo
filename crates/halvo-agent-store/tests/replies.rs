@@ -409,6 +409,56 @@ fn a_drafted_row_after_begun_is_refused_unless_its_effect_s_newest_row_is_not_ma
 }
 
 #[test]
+fn a_begun_row_that_names_again_a_not_made_effect_is_refused() {
+    let mut store = two_agents();
+    ok(
+        &mut store,
+        reply(1, 1, 1, "m1", Some("d1"), None, "drafted"),
+    );
+    put(&mut store, row(1, 1, 1, "held", "send", 1, None, None)).expect("held");
+    put(
+        &mut store,
+        row(1, 1, 2, "approved", "send", 1, Some(1), None),
+    )
+    .expect("approved");
+    ok(
+        &mut store,
+        reply(1, 1, 2, "m1", Some("d1"), Some(1), "begun"),
+    );
+    put(
+        &mut store,
+        row(1, 1, 3, "releasing", "send", 1, Some(1), None),
+    )
+    .expect("releasing");
+    put(
+        &mut store,
+        row(
+            1,
+            1,
+            4,
+            "not_made",
+            "send",
+            1,
+            Some(1),
+            Some("unauthorized"),
+        ),
+    )
+    .expect("not_made");
+    ok(
+        &mut store,
+        reply(1, 1, 3, "m1", Some("d1"), Some(1), "drafted"),
+    );
+    refused(
+        &mut store,
+        reply(1, 1, 4, "m1", Some("d1"), Some(1), "begun"),
+    );
+    assert_eq!(
+        newest(&store, 1, "m1").map(|r| (r.seq.get(), r.state.as_str())),
+        Some((3, "drafted"))
+    );
+}
+
+#[test]
 fn withheld_is_allowed_after_a_first_drafted_row() {
     let mut store = two_agents();
     ok(

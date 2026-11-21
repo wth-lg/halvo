@@ -67,7 +67,7 @@ fn i8_1() -> Value {
         {"command": "agents_snapshot", "args": [], "replies": states, "errors": []},
         {"command": "agents_next", "args": [arg("after", "count", None, None)], "replies": next, "errors": []},
         {"command": "agents_card", "args": [arg("agent", "id", None, None)], "replies": ["state-card"],
-         "errors": ["unknown_agent", "no_service", "busy", "malformed"]},
+         "errors": ["unknown_agent", "no_service", "malformed"]},
         {"command": "agents_answer", "args": [
             arg("item", "id", None, None),
             arg("step", "count", None, None),

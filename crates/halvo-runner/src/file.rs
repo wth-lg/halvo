@@ -107,6 +107,18 @@ fn digest_of(loaded: &LoadReply, target: &FileTarget) -> Option<Digest> {
     digest(&edit_bound(&workbook, &range)?).ok()
 }
 
+/// Whether an error of `replace` says that the call left the workbook as it was, which the executor's doc of
+/// `replace` gives for each error that it answers: `NotReplaced`, `CopyLeft`, and `Path` with `Outside`, which
+/// touches no file (A11.3).
+fn left_as_it_was(error: &halvo_sheet::Error) -> bool {
+    matches!(
+        error,
+        halvo_sheet::Error::NotReplaced(_)
+            | halvo_sheet::Error::CopyLeft(_)
+            | halvo_sheet::Error::Path(halvo_sheet::PathRefusal::Outside)
+    )
+}
+
 /// The end of a file edit that `decide` refuses: `refused`, with the cause `autonomy` under `observe` and else
 /// `checkpoint`.
 fn refused(config: &AgentConfig) -> Stop {
@@ -277,8 +289,11 @@ impl Runner {
     /// file ends the run too: another source ends the effect and then the run `failed` with `changed`, after the
     /// permission and the decision (CP-159 G3). A cancel or a passed
     /// `wall` limit before the `propose` or the `begin` ends the run there, and a cancel read under the lock after
-    /// the answered `begin` lets nothing reach the workbook. A close that the runner's reader has returned before
-    /// the `replace` lets nothing reach the workbook. A propose or begin row, or the replace after an answered
+    /// the answered `begin` lets nothing reach the workbook: the effect takes the move `not_made` with the cause
+    /// `not_replaced`, and the run ends `declined`. When `replace` answers that it left the workbook as it was, the
+    /// effect takes the same move and the step fails with the cause of that error; another error of `replace`
+    /// leaves the effect `releasing` (A5.2, CP-135 (4), CP-139 (c)). A close that the runner's reader has returned
+    /// before the `replace` lets nothing reach the workbook. A propose or begin row, or the replace after an answered
     /// begin row, can go while the system has not yet given the end of file to the reader's read; the reader marks
     /// the end as the first thing after that read returns, and nothing of an effect follows the mark; the
     /// supervisor drops what it reads after its close. The prepared copy goes when its value is dropped, and stays
@@ -383,15 +398,24 @@ impl Runner {
             {
                 let digest = rebuilt.ok_or(Failure::Step(Cause::StepFailed))?;
                 self.advance(at, EffectMove::Begin { digest })?;
-                self.check()?;
+                let not_replaced = EffectMove::NotMade {
+                    cause: Cause::NotReplaced,
+                };
                 match self.link.settle(|| folder.replace(&prepared))? {
                     Some(Ok(())) => {}
+                    Some(Err(error)) if left_as_it_was(&error) => {
+                        self.advance(at, not_replaced)?;
+                        return Err(Failure::Step(sheet_cause(&error)));
+                    }
                     Some(Err(_)) => {
                         return Err(
                             Stop::End(Outcome::EffectUnknown, Some(Cause::StepFailed)).into()
                         )
                     }
-                    None => return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)).into()),
+                    None => {
+                        self.advance(at, not_replaced)?;
+                        return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)).into());
+                    }
                 }
                 self.advance(at, EffectMove::Commit)?;
                 return Ok(());

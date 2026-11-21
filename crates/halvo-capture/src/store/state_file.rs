@@ -586,7 +586,10 @@ mod tests {
             };
             let (status, err) = serve_with(&data, Box::new(writer));
             assert_eq!((status, err.as_str()), (0, ""));
-            assert_eq!(names(&moved), vec!["daemon-state.json".to_owned()]);
+            assert_eq!(
+                names(&moved),
+                vec!["daemon-state.json".to_owned(), "run".to_owned()]
+            );
             assert!(backup_mark(&moved, false).is_some());
             assert!(names(&data).is_empty(), "{:?}", names(&data));
             assert!(backup_mark(&data, false).is_none());
@@ -630,7 +633,10 @@ mod tests {
             std::os::unix::fs::symlink(&real, &link).unwrap();
             let (status, err) = serve_with(&link, Box::new(DurableStateWrite::new()));
             assert_eq!((status, err.as_str()), (0, ""));
-            assert_eq!(names(&real), vec!["daemon-state.json".to_owned()]);
+            assert_eq!(
+                names(&real),
+                vec!["daemon-state.json".to_owned(), "run".to_owned()]
+            );
         }
 
         struct SearchBack(PathBuf);

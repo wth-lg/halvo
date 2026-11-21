@@ -22,6 +22,7 @@
   var again = null;
   var asking = 0;
   var busy = {};
+  var answers = [];
   var pointerFrom = null;
   var keyFrom = null;
   var SPACE = String.fromCharCode(32);
@@ -58,6 +59,64 @@
         return null;
       }
     );
+  }
+
+  function keep(stays) {
+    var before = answers.length;
+    answers = answers.filter(function (a) {
+      if (stays(a)) return true;
+      if (a.said) a.said.remove();
+      return false;
+    });
+    return answers.length !== before;
+  }
+
+  function drop(agent) {
+    return keep(function (a) {
+      return a.agent !== agent;
+    });
+  }
+
+  function answer(agent, act, text, rereads) {
+    var row = null;
+    if (snapshot !== null) {
+      snapshot.rows.forEach(function (r) {
+        if (r.agent === agent) row = r;
+      });
+    }
+    if (row === null) return;
+    drop(agent);
+    var said = null;
+    if (Halvo.confirm.busy()) {
+      held = held.concat([text]);
+    } else {
+      say.add([text]);
+      said = status.firstChild;
+    }
+    answers.push({ agent: agent, act: act, line: rereads ? null : row.line, text: text, said: said });
+    render();
+  }
+
+  function press(row, act, name, args, rereads) {
+    var drawn = turn;
+    if (drop(row.agent)) render();
+    return send(row.agent, name, args).then(function (reply) {
+      if (drawn === turn && reply && typeof reply.error === 'string' && isText(reply.text) && reply.text !== '') answer(row.agent, act, reply.text, rereads);
+      return reply;
+    });
+  }
+
+  function beside(b, row) {
+    var a = null;
+    answers.forEach(function (x) {
+      if (x.agent === row.agent && x.act === b.getAttribute('data-act')) a = x;
+    });
+    if (a === null) return null;
+    var p = el('p', 'r4a-answer', a.text);
+    p.id = 'r4a-answer-' + row.agent;
+    var by = b.getAttribute('aria-describedby');
+    b.setAttribute('aria-describedby', by ? by + SPACE + p.id : p.id);
+    return p;
   }
 
   function controlOf(node) {
@@ -107,10 +166,11 @@
     b.addEventListener('click', function (event) {
       if (event.detail > 1 || !pressedOn(b, event) || busy[row.agent]) return;
       if (c.control === 'delete') {
+        if (drop(row.agent)) render();
         ask(row);
         return;
       }
-      send(row.agent, 'agents_control', { agent: row.agent, action: c.control }).then(reread);
+      press(row, c.control, 'agents_control', { agent: row.agent, action: c.control }, true).then(reread);
     });
     return b;
   }
@@ -220,6 +280,17 @@
       runs.appendChild(item);
     });
     box.appendChild(runs);
+    if (c.history === 'busy' && (again === null || (again.left < 1 && !again.flying))) {
+      box.appendChild(el('p', 'r4a-unread', c.unread.text));
+      var read = button('read_card', row.agent, c.unread.again);
+      read.addEventListener('click', function (event) {
+        if (event.detail > 1 || !pressedOn(read, event) || busy[row.agent]) return;
+        askCard(row, 'read_card');
+      });
+      box.appendChild(read);
+      var told = beside(read, row);
+      if (told) box.appendChild(told);
+    }
     return box;
   }
 
@@ -237,6 +308,7 @@
       typeof reply === 'object' &&
       reply.agent === agent &&
       isText(reply.name) &&
+      (reply.history !== 'busy' || (reply.unread !== null && typeof reply.unread === 'object' && isText(reply.unread.text) && isText(reply.unread.again))) &&
       listOf(reply.lines, function (l) {
         return l !== null && isText(l.text);
       }) &&
@@ -268,6 +340,7 @@
     b.addEventListener('click', function (event) {
       if (event.detail > 1 || !pressedOn(b, event)) return;
       if (card !== null && card.agent === row.agent) {
+        drop(row.agent);
         asking += 1;
         card = null;
         again = null;
@@ -275,17 +348,21 @@
         return;
       }
       if (busy[row.agent]) return;
-      asking += 1;
-      var mine = asking;
-      var asked = turn;
-      send(row.agent, 'agents_card', { agent: row.agent }).then(function (reply) {
-        if (mine !== asking || asked !== turn || !isCard(reply, row.agent)) return;
-        card = reply;
-        again = reply.history === 'busy' ? { agent: row.agent, left: CARD_TRIES } : null;
-        render();
-      });
+      askCard(row, 'open_card');
     });
     return b;
+  }
+
+  function askCard(row, act) {
+    asking += 1;
+    var mine = asking;
+    var asked = turn;
+    press(row, act, 'agents_card', { agent: row.agent }, false).then(function (reply) {
+      if (mine !== asking || asked !== turn || !isCard(reply, row.agent)) return;
+      card = reply;
+      again = reply.history === 'busy' ? { agent: row.agent, left: CARD_TRIES } : null;
+      render();
+    });
   }
 
   function askAgain() {
@@ -309,6 +386,7 @@
         if (mine !== again || asked !== turn || card === null || card.agent !== agent) return;
         if (!isCard(reply, agent)) {
           again = null;
+          render();
           return;
         }
         card = reply;
@@ -320,8 +398,11 @@
   function rowOf(row) {
     var li = el('li', 'r4a-row', null);
     var name = el('h4', 'r4a-name', null);
-    name.appendChild(toggle(row));
+    var t = toggle(row);
+    name.appendChild(t);
     li.appendChild(name);
+    var named = beside(t, row);
+    if (named) li.appendChild(named);
     var word = el('p', 'r4a-status', null);
     var icon = el('span', 'r4a-icon', null);
     icon.classList.add('r4a-icon-' + row.status);
@@ -332,10 +413,15 @@
     li.appendChild(el('p', 'r4a-level', row.level));
     li.appendChild(el('p', 'r4a-line', row.line));
     var controls = el('div', 'r4a-controls', null);
+    var after = null;
     row.controls.forEach(function (c) {
-      if (CONTROL[c.control]) controls.appendChild(control(row, c));
+      if (!CONTROL[c.control]) return;
+      var b = control(row, c);
+      controls.appendChild(b);
+      after = after || beside(b, row);
     });
     li.appendChild(controls);
+    if (after) li.appendChild(after);
     if (card !== null && card.agent === row.agent) li.appendChild(cardOf(row, card));
     return li;
   }
@@ -386,6 +472,15 @@
     seq = reply.seq;
     snapshot = reply;
     busy = {};
+    keep(function (a) {
+      var row = null;
+      reply.rows.forEach(function (r) {
+        if (r.agent === a.agent) row = r;
+      });
+      if (row === null) return false;
+      if (a.line === null) a.line = row.line;
+      return row.line === a.line;
+    });
     if (question !== null) {
       var asked = question;
       var still = reply.rows.some(function (r) {
@@ -444,6 +539,10 @@
       if (shown) return;
       shown = true;
       turn += 1;
+      var dropped = keep(function () {
+        return false;
+      });
+      if (dropped) render();
       var mine = turn;
       call('agents_snapshot', {})
         .then(function (reply) {

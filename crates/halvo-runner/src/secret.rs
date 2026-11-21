@@ -3,7 +3,7 @@ use halvo_schema::executable::frame::{Secret, SecretReply};
 use halvo_schema::executable::names::{HandbackOutcome, HandbackReason};
 use halvo_schema::executable::step::ApiTarget;
 use halvo_schema::executable::text::{Name, SecretText};
-use halvo_schema::executable::{Cause, FromRunner, Outcome, ToRunner};
+use halvo_schema::executable::{Cause, ExecutableStep, FromRunner, Outcome, ToRunner};
 
 use crate::link::Broken;
 use crate::run::{Failure, Runner, Stop};
@@ -18,16 +18,16 @@ impl Runner {
     /// `secret_reply` (A8.6): with the secret it makes the call; with `none` it asks the handback `account_link`
     /// once, with the base address of the bindings as its origin, and reads the secret that the result names,
     /// whose `none` ends the run `handed_back`;
-    /// with `unreadable` it makes no call, asks nothing and ends the run `failed` with the cause `secret`. This
-    /// build links no adapter, so the call itself fails with the cause `adapter`.
+    /// with `unreadable` it makes no call, asks nothing and ends the run `failed` with the cause `secret`. The call
+    /// goes to the adapter of halvo-connect (`Runner::connect`), which links the reads and the drafts alone.
     pub(crate) fn api_call(
         &mut self,
+        step: &ExecutableStep,
         target: &ApiTarget,
         loaded: &LoadReply,
     ) -> Result<(), Failure> {
         let token = self.token(target, loaded)?;
-        drop(token);
-        Err(Failure::Step(Cause::Adapter))
+        self.connect(step, target.op, token, loaded)
     }
 
     fn token(&mut self, target: &ApiTarget, loaded: &LoadReply) -> Result<SecretText, Stop> {

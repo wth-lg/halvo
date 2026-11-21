@@ -128,7 +128,9 @@ fn follows(host: &dyn Host, mine: &[&AgentReply], row: &AgentReply) -> Result<bo
     }
     let same_send = row.draft == last.draft && row.run == last.run;
     Ok(match (last.state, row.state) {
-        (ReplyState::Drafted, ReplyState::Begun) => row.draft == last.draft,
+        (ReplyState::Drafted, ReplyState::Begun) => {
+            row.draft == last.draft && !names_a_not_made_effect(host, row)?
+        }
         (ReplyState::Drafted, ReplyState::Lost) => true,
         (ReplyState::Drafted, ReplyState::Withheld) => made_by_create_reply(earlier) && same_send,
         (ReplyState::Lost, ReplyState::Drafted) => {
@@ -155,6 +157,19 @@ fn not_made_of_run(host: &dyn Host, row: &AgentReply) -> Result<bool, ErrorName>
     let newest = rows::effects(host.rows())?
         .into_iter()
         .filter(|e| &e.effect == effect && e.run == row.run)
+        .max_by_key(|e| e.seq);
+    Ok(newest.is_some_and(|e| not_made(e.state)))
+}
+
+/// Whether a `begun` row names an effect whose newest row is `not_made`, so that one `not_made` row opens the way back
+/// to `drafted` once (A7.4).
+fn names_a_not_made_effect(host: &dyn Host, row: &AgentReply) -> Result<bool, ErrorName> {
+    let Some(effect) = &row.effect else {
+        return Ok(false);
+    };
+    let newest = rows::effects(host.rows())?
+        .into_iter()
+        .filter(|e| &e.effect == effect)
         .max_by_key(|e| e.seq);
     Ok(newest.is_some_and(|e| not_made(e.state)))
 }

@@ -6,6 +6,7 @@ use halvo_schema::executable::text::SecretText;
 use halvo_schema::executable::{Cause, FromRunner, Outcome, ToRunner, WebOrigin};
 use halvo_schema::Category;
 
+use support::connect::Fixture;
 use support::{handback_reply, Act, Seen, Supervisor, LONG};
 
 const TOKEN: &str = "Zq7-halvo-marker-token";
@@ -145,41 +146,55 @@ fn token() -> SecretText {
 }
 
 #[test]
-fn a_stored_secret_reaches_the_call_which_has_no_adapter_in_this_build() {
+fn a_stored_secret_reaches_the_call() {
+    let fixture = Fixture::start();
     for secrets in [
-        vec![SecretReply::Stored(token())],
-        vec![SecretReply::None, SecretReply::Stored(token())],
+        vec![SecretReply::Stored(token()), SecretReply::Stored(token())],
+        vec![
+            SecretReply::None,
+            SecretReply::Stored(token()),
+            SecretReply::Stored(token()),
+        ],
     ] {
-        let linked = secrets.len() == 2;
-        let sup = agent(66, Category::Email);
+        fixture.reset(1, &[]);
+        let linked = secrets.len() == 3;
+        let mut sup = agent(66, Category::CalendarCleanup);
+        sup.origins = vec![fixture.origin("calendar")];
         let seen = serve(
             &sup,
             secrets,
-            vec![
-                handback_reply(HandbackOutcome::Done, Some("fixture_token")),
-                handback_reply(HandbackOutcome::Done, None),
-            ],
+            vec![handback_reply(HandbackOutcome::Done, Some("fixture_token"))],
         );
         let want: &[HandbackReason] = if linked {
-            &[HandbackReason::AccountLink, HandbackReason::StepFailed]
+            &[HandbackReason::AccountLink]
         } else {
-            &[HandbackReason::StepFailed]
+            &[]
         };
-        assert_eq!(
-            seen.handbacks(),
-            want,
-            "the step of the call failed and was handed back"
-        );
-        let failed = seen
+        assert_eq!(seen.handbacks(), want, "no step was handed back");
+        let lines: Vec<(LogEvent, Option<u32>, Option<Cause>)> = seen
             .logs()
-            .into_iter()
-            .find(|l| l.event == LogEvent::StepFailed)
-            .expect("a failed step");
+            .iter()
+            .map(|l| (l.event, l.step.map(|s| s.get()), l.cause))
+            .collect();
+        let mut want = Vec::new();
+        if linked {
+            want.push((LogEvent::Handback, None, None));
+        }
+        want.extend([
+            (LogEvent::StepOk, Some(1), None),
+            (LogEvent::StepFailed, Some(2), Some(Cause::Adapter)),
+            (LogEvent::Stopped, None, Some(Cause::Adapter)),
+        ]);
         assert_eq!(
-            (failed.step.map(|s| s.get()), failed.cause),
-            (Some(1), Some(Cause::Adapter))
+            lines, want,
+            "the list took the token, and the delete fails as at the base"
         );
-        assert_eq!(seen.done(), Some(Outcome::HandedBack));
+        let (total, _, unauthorized) = fixture.requests();
+        assert!(
+            total > 0 && unauthorized == 0,
+            "the fixture took the token of the call"
+        );
+        assert_eq!(seen.done(), Some(Outcome::Failed));
         assert!(
             !seen.stderr.contains(TOKEN),
             "standard error holds no secret"

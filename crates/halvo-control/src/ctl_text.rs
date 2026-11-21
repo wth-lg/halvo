@@ -208,6 +208,9 @@ pub fn status_text(status: &DaemonStatus) -> String {
     if let Some(met) = f.secure_input_keystrokes {
         line(format!("secure_input_keystrokes={}", yes_no(met)));
     }
+    if let Some(typing) = f.typing {
+        line(format!("typing={}", if typing { "on" } else { "off" }));
+    }
     line(format!("keys_withheld={}", yes_no(f.keys_withheld)));
     line(format!("title_read_errors={}", f.title_read_errors));
     line(format!("last_flush_at={}", or_dash(f.last_flush_at)));

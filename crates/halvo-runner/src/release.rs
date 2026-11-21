@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 
+use halvo_connect::NotMade;
 use halvo_policy::{admit, decide, digest, Checkpoint, Decision, EffectMove, Facts, LIMITS};
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::frame::{Confirm, ConfirmEffect, ConfirmReply, ConfirmRequest};
@@ -60,11 +61,13 @@ pub(crate) trait Left {
 }
 
 /// What came of a request that left: an answer that the maker reads as made, from the one success status that its
-/// request has; an answer that it does not read as made, which may be a refusal, an error or a redirect; or no
-/// answer (CP-159 G4).
+/// request has; an answer that the maker reads as not made, with the case of A11.2 that `effect()` of halvo-connect
+/// gives for a send or a delete, from which the runner takes the cause and reads no status; an answer that it reads
+/// as neither, which may be a refusal, an error or a redirect; or no answer (CP-159 G4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Replied {
     Made,
+    NotMade(NotMade),
     Answered,
     NoReply,
 }
@@ -81,6 +84,15 @@ fn refused(config: &AgentConfig) -> Stop {
 
 fn failed(cause: Cause) -> Stop {
     Stop::End(Outcome::Failed, Some(cause))
+}
+
+/// The cause of `not_made` that a case of A11.2 gives (A5.2): the runner maps the case and reads no status.
+fn not_made_cause(case: NotMade) -> Cause {
+    match case {
+        NotMade::NotSent => Cause::NotSent,
+        NotMade::Unauthorized => Cause::Unauthorized,
+        NotMade::Throttled => Cause::Throttled,
+    }
 }
 
 /// The bound fields that a slot of the same name gives, the slots of a class (A5.1, A9.3, A9.4).
@@ -169,8 +181,11 @@ impl Runner {
     /// proposes effects again are at most `LIMITS.rebinds`, a batch of case (iv) counting once, after which every
     /// open effect of the step is ended and the run ends `failed` with `changed`. `begin` carries the digest of
     /// the values read again; the request is let through once under the lock of the link, where a held `cancel`
-    /// lets nothing through, and `commit` is stored only after its reply. A request with no reply leaves its effect
-    /// `releasing`, and the run ends `effect_unknown`.
+    /// lets nothing through, makes the move `not_made` with the cause `not_sent` and ends the run `declined`, and
+    /// `commit` is stored only after its reply. A reply that the maker reads as not made makes the move `not_made`
+    /// with the cause of its case, and the run ends `failed` with the cause `adapter`. A request with no reply, or
+    /// with an answer read as neither made nor not made, leaves its effect `releasing`, and the run ends
+    /// `effect_unknown`.
     ///
     /// A `reject_once` ends its effect `rejected`, and that effect alone, whatever a later load gives, on the first
     /// card, on the card of a batch of case (iv) and on a later card for one effect; its paused request is failed and
@@ -331,12 +346,21 @@ impl Runner {
                 self.advance(one.at, EffectMove::Begin { digest: read })?;
                 let request = one.request;
                 let Some(left) = self.link.settle(|| request.release())? else {
+                    let not_sent = EffectMove::NotMade {
+                        cause: Cause::NotSent,
+                    };
+                    self.advance(one.at, not_sent)?;
                     return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)));
                 };
                 return match left.reply() {
                     Replied::Made => self
                         .advance(one.at, EffectMove::Commit)
                         .map(|_| Through::Left),
+                    Replied::NotMade(case) => {
+                        let cause = not_made_cause(case);
+                        self.advance(one.at, EffectMove::NotMade { cause })?;
+                        Err(failed(Cause::Adapter))
+                    }
                     Replied::Answered | Replied::NoReply => {
                         Err(Stop::End(Outcome::EffectUnknown, Some(Cause::Unknown)))
                     }

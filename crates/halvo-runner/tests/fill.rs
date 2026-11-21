@@ -628,51 +628,54 @@ fn a_begin_that_meets_a_store_fault_is_sent_again_with_its_request_id() {
     assert_eq!(range_texts(&files.dir, &files.workbook), files.rows);
 }
 
+/// A5.2, A11.3: a workbook that changes under the paused edit makes `replace` answer that it left the workbook as
+/// it was; the effect takes the move `not_made` with the cause `not_replaced`, no handback follows, and the step
+/// fails, so that the run ends `failed` with `step_failed`.
 #[test]
-fn a_workbook_changed_under_the_paused_edit_is_not_replaced_and_its_effect_is_handed_back_unknown()
-{
+fn a_workbook_changed_under_the_paused_edit_is_not_replaced_and_its_effect_is_not_made() {
     let files = FillFiles::new("changed-under", 1);
     let sup = fill(50, &files);
     let workbook = files.workbook.clone();
+    let mut changed = Vec::new();
     let seen = sup.serve(
         |frame, _| {
             if is_effect(frame, EffectState::Releasing) {
                 let mut bytes = std::fs::read(&workbook).expect("read");
                 bytes.push(0);
                 std::fs::write(&workbook, &bytes).expect("change the workbook");
+                changed = bytes;
             }
             Act::Answer
         },
         LONG,
     );
+    assert_eq!(files.workbook_bytes(), changed, "not replaced");
+    let rows: Vec<(EffectState, Option<Cause>)> =
+        seen.effects().iter().map(|e| (e.state, e.cause)).collect();
     assert_eq!(
-        seen.states(),
-        [EffectState::Cleared, EffectState::Releasing]
+        rows,
+        [
+            (EffectState::Cleared, None),
+            (EffectState::Releasing, None),
+            (EffectState::NotMade, Some(Cause::NotReplaced))
+        ]
     );
-    assert_eq!(seen.handbacks(), [HandbackReason::EffectUnknown]);
-    assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
-    let stopped = seen.logs().into_iter().last().expect("a line");
+    assert!(seen.handbacks().is_empty());
+    assert_eq!(seen.done(), Some(Outcome::Failed), "{}", seen.stderr);
+    let lines: Vec<(LogEvent, Option<Cause>)> =
+        seen.logs().iter().map(|l| (l.event, l.cause)).collect();
     assert_eq!(
-        (stopped.event, stopped.cause),
-        (LogEvent::Stopped, Some(Cause::Unknown)),
-        "the stopped line of a run that ends effect_unknown names unknown"
+        lines[lines.len() - 2..],
+        [
+            (LogEvent::StepFailed, Some(Cause::StepFailed)),
+            (LogEvent::Stopped, Some(Cause::StepFailed))
+        ]
     );
     let finish = seen.finish().expect("finish");
     assert_eq!(
         (finish.effects, finish.unknown, finish.handbacks),
-        (1, 1, 1)
+        (1, 0, 0)
     );
-    let tags = seen.tags();
-    let handback = tags
-        .iter()
-        .position(|t| *t == "handback")
-        .expect("handback");
-    let finish_at = seen
-        .frames
-        .iter()
-        .position(|f| is_op(f, "finish"))
-        .expect("finish");
-    assert!(handback < finish_at, "the handback comes before the finish");
 }
 
 fn step(json: &str) -> ExecutableStep {
@@ -829,15 +832,19 @@ fn a_cancel_that_comes_with_the_begins_ack_lets_no_byte_reach_the_workbook() {
     );
     assert_eq!(
         seen.states(),
-        [EffectState::Cleared, EffectState::Releasing]
+        [
+            EffectState::Cleared,
+            EffectState::Releasing,
+            EffectState::NotMade
+        ]
     );
     assert_eq!(
         files.workbook_bytes(),
         before,
         "the paused edit did not leave"
     );
-    assert_eq!(seen.handbacks(), [HandbackReason::EffectUnknown]);
-    assert_eq!(seen.done(), Some(Outcome::EffectUnknown));
+    assert!(seen.handbacks().is_empty());
+    assert_eq!(seen.done(), Some(Outcome::Declined));
     assert_eq!(
         files.names(),
         [

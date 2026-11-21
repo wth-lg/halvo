@@ -3,7 +3,7 @@ use crate::bell::Bell;
 use crate::wired::Wired;
 use halvo_coord::guard::Policy;
 use halvo_coord::items::ConfirmAnswer;
-use halvo_coord::ports::{Analysis, Clock, Owner, Rng, Runs};
+use halvo_coord::ports::{Analysis, Clock, Owner, Rng, Runs, Senders};
 use halvo_coord::sync::Next;
 use halvo_coord::types::commands::LIST;
 use halvo_coord::types::{
@@ -30,6 +30,9 @@ pub enum Reply {
     Closed,
     /// `{"error":"<cause>"}`.
     Error(Cause),
+    /// A refused control of a row whose sentence says more than its cause
+    /// (`Refusal::SwitchNotSaved`); a refusal with the sentence of its cause alone is `Error`.
+    Refused(halvo_coord::types::Refusal),
 }
 
 impl Serialize for Reply {
@@ -40,6 +43,7 @@ impl Serialize for Reply {
             Reply::Ok => OkReply.serialize(s),
             Reply::Closed => ClosedReply { closed: YesNo::Yes }.serialize(s),
             Reply::Error(cause) => ErrorReply { error: *cause }.serialize(s),
+            Reply::Refused(refusal) => refusal.serialize(s),
         }
     }
 }
@@ -255,7 +259,16 @@ pub struct Hub<P: Owner> {
 
 impl<P> Hub<P>
 where
-    P: Owner + Runs + Analysis + Clock + Rng + Policy<Config = Cfg<P>> + Send + Sync + 'static,
+    P: Owner
+        + Runs
+        + Analysis
+        + Clock
+        + Rng
+        + Policy<Config = Cfg<P>>
+        + Senders
+        + Send
+        + Sync
+        + 'static,
     Cfg<P>: ConfigView + Clone + Send + 'static,
 {
     /// A hub of a new life over `ports` and `limits`, whose count of agents under `needs_you`
@@ -372,12 +385,16 @@ where
                     self.coord.shown_on_page(&i, step)
                 })
                 .into(),
-            "agents_control" => agent()
-                .and_then(|a| {
-                    let action = Action::parse(args.text("action"))?;
-                    self.coord.control(&a, action)
-                })
-                .into(),
+            "agents_control" => {
+                match agent().and_then(|a| Ok((a, Action::parse(args.text("action"))?))) {
+                    Ok((a, action)) => match self.coord.control_reply(&a, action) {
+                        Ok(()) => Reply::Ok,
+                        Err(halvo_coord::types::Refusal::Cause(cause)) => Reply::Error(cause),
+                        Err(refusal) => Reply::Refused(refusal),
+                    },
+                    Err(cause) => Reply::Error(cause),
+                }
+            }
             "agents_delete" => agent().and_then(|a| self.coord.delete(&a)).into(),
             _ => return None,
         })
@@ -485,7 +502,16 @@ where
 
 impl<P> Core for Hub<P>
 where
-    P: Owner + Runs + Analysis + Clock + Rng + Policy<Config = Cfg<P>> + Send + Sync + 'static,
+    P: Owner
+        + Runs
+        + Analysis
+        + Clock
+        + Rng
+        + Policy<Config = Cfg<P>>
+        + Senders
+        + Send
+        + Sync
+        + 'static,
     Cfg<P>: ConfigView + Clone + Send + 'static,
 {
     fn call(&self, command: &str, args: Option<&Value>) -> Reply {
