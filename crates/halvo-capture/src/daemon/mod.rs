@@ -11,9 +11,11 @@ pub mod children;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod counters;
 pub mod custody_policy;
+pub mod delete_all;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod discard_port;
 pub mod instance;
+pub mod lease;
 pub mod main_loop;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod maintenance;
@@ -165,6 +167,15 @@ pub enum Mode {
     ServiceRun {
         data_dir: halvo_control::paths::DataDir,
     },
+    /// The mode of daemon-3c's cut in daemon/lease/. No command line parses
+    /// to it until that cut fills it, and the binary answers it with usage.
+    #[cfg(debug_assertions)]
+    Lease,
+    /// The mode of daemon-3d's cut in daemon/delete_all/. No command line
+    /// parses to it until that cut fills it, and the binary answers it with
+    /// usage.
+    #[cfg(debug_assertions)]
+    DeleteAllOfADataDir,
 }
 
 impl Mode {

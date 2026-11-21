@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 use std::io;
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
@@ -20,6 +20,8 @@ use super::port::{ByteBound, CaptureStore, EntryKind, MaintFault, WriteFault, PA
 use crate::floor::exclude::FloorHandle;
 use crate::floor::record;
 use crate::sink::{Barrier, Received, SinkWriter};
+
+mod commands;
 
 /// The slots of the sink's queue that the owner drains.
 pub const QUEUE_SLOTS: usize = 1_024;
@@ -482,49 +484,6 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             Err(RecvTimeoutError::Disconnected) => {
                 thread::sleep(wait);
                 None
-            }
-        }
-    }
-
-    fn handle_commands(&mut self) {
-        loop {
-            match self.commands.try_recv() {
-                Ok(asked) => {
-                    let answer = self.handle(asked.command);
-                    let _ = asked.reply.send(answer);
-                }
-                Err(TryRecvError::Empty) => return,
-                Err(TryRecvError::Disconnected) => {
-                    if !self.stopping {
-                        self.settle();
-                        self.stopping = true;
-                    }
-                    return;
-                }
-            }
-            if self.stopping {
-                return;
-            }
-        }
-    }
-
-    fn handle(&mut self, command: Command) -> Answer {
-        match command {
-            Command::OpenPause => Answer::Paused(self.gate.open_pause(&self.writer)),
-            Command::ClosePause => {
-                if let Some(received) = self.inbox.take() {
-                    self.take(received);
-                }
-                while let Ok(received) = self.writer.try_recv() {
-                    self.take(received);
-                }
-                Answer::Resumed(self.gate.close_pause(&self.writer))
-            }
-            Command::Settle => Answer::Settled(self.settle()),
-            Command::Shutdown => {
-                let snapshot = self.settle();
-                self.stopping = true;
-                Answer::ShutDown(snapshot)
             }
         }
     }

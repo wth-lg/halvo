@@ -62,6 +62,10 @@ fn main() -> ExitCode {
             &data_dir,
             Box::new(halvo_capture::store::state_file::DurableStateWrite::new()),
         )),
+        #[cfg(debug_assertions)]
+        Ok(Mode::Lease) => status(exit::USAGE),
+        #[cfg(debug_assertions)]
+        Ok(Mode::DeleteAllOfADataDir) => status(exit::USAGE),
         Err(usage) => status(daemon::usage_answer(&usage, &mut std::io::stderr())),
     }
 }
