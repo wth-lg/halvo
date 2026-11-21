@@ -1932,3 +1932,76 @@ fn u24q_a_name_kept_more_than_once_never_stands_in_any_class_or_count() {
         differ.len()
     );
 }
+
+/// The verifier's finding 5 (d7, h41, h02): a kept value stands where any of its pieces holds a
+/// byte, whatever the count of its pieces, with its pieces as the row keeps them, and a kept name
+/// is counted by its whole spelling, on the entry of a refused committed effect and on the unknown
+/// entry. Every case whose entry differs is named.
+#[test]
+fn u24q_a_value_stands_by_any_piece_with_a_byte_and_a_name_counts_by_its_whole_spelling() {
+    let pieces = |label: &str, values: &[&str]| {
+        (
+            label.to_owned(),
+            values
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>(),
+        )
+    };
+    let cases = [
+        (
+            "a byte in the third piece alone",
+            Class::Payment,
+            vec![kept_pieces("payee", &["", "", "City Power"])],
+            vec![pieces("Pay to", &["", "", "City Power"])],
+            "",
+        ),
+        (
+            "a value in three pieces that each read",
+            Class::Send,
+            vec![
+                kept_pieces("to", &["Ann Lee, ", "Bob Ray, ", "Cy Dow"]),
+                one_kept("note", "x"),
+            ],
+            vec![pieces("To", &["Ann Lee, ", "Bob Ray, ", "Cy Dow"])],
+            "",
+        ),
+        (
+            "a second name that begins as the table's name does",
+            Class::Send,
+            vec![one_kept("to", "Ann Lee"), one_kept("total", "zq5")],
+            vec![pair("To", "Ann Lee")],
+            "zq5",
+        ),
+    ];
+    let mut differ = Vec::new();
+    for (case, class, kept, fields, hidden) in cases {
+        for (effect, key) in [
+            (
+                committed(class, kept.clone()),
+                format!("run.effect.{}.partial", class.name()),
+            ),
+            (
+                unknown(class, kept.clone()),
+                format!("run.effect.{}.unknown", class.name()),
+            ),
+        ] {
+            let c = beside_a_good_run(effect);
+            let e = &c.runs[0].effects[1];
+            let all = serde_json::to_string(&c).unwrap();
+            let got = (
+                e.key(),
+                shown(e),
+                !hidden.is_empty() && all.contains(hidden),
+            );
+            if got != (key.clone(), fields.clone(), false) {
+                differ.push(format!("{case}, as {key}: {got:?}"));
+            }
+        }
+    }
+    assert!(
+        differ.is_empty(),
+        "{} cases differ: {differ:?}",
+        differ.len()
+    );
+}
