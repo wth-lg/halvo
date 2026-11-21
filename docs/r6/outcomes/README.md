@@ -1,6 +1,6 @@
 # Recorded outcome table
 
-The four files beside this text are the recorded table of the routing work: `recorded.tsv`, `models.tsv`, `sources.tsv` and `freeze.txt`. `route-gate import` wrote them, and they were copied unchanged from its output directory. Nobody edits them by hand. When `docs/r3/trials/driver.md` or `docs/r3/trials/model-cells.md` changes, `35-r6-outcomes.sh` fails. To fix it, the same pull request runs `route-gate import` again into a new, empty directory and `route-gate derive` again into a file path that does not exist yet, and copies their five files over these four files and `crates/halvo-route/data/policy.tsv`.
+The four files beside this text are the recorded table of the routing work: `recorded.tsv`, `models.tsv`, `sources.tsv` and `freeze.txt`. `route-gate import` wrote them, and they were copied unchanged from its output directory. Nobody edits them by hand. When `docs/r3/trials/driver.md` or `docs/r3/trials/model-cells.md` changes, no check says that these files are stale: the same pull request runs `route-gate import` again into a new, empty directory and `route-gate derive` again into a file path that does not exist yet, and copies their five files over these four files and `crates/halvo-route/data/policy.tsv`.
 
 ## How the table was made
 

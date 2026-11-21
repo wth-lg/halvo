@@ -1,5 +1,0 @@
-line: FAIL storage: stub, not built yet (P6)
-stamp: 2026-11-18T20:05:46Z
-load: 5.38
-tree: 23eefe24ce63336b59f8544b5491c0196a8dba36
-model: efc73a58fa67ac4a85640e3eeedb7b7c3648f6c3

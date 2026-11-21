@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: learn-gate privacy --data-dir DIR, run with TMPDIR, TMP and TEMP set to an empty directory of the check's own, prints the six lines of contracts.md L11.4 in their order, learn_deleted and learn_outside result=ok on the memory store and learn_listed, learn_scrub, learn_delete_all and learn_expired result=not-run, alone on standard output with exit 0; learn-gate delete --what workflow --data-dir DIR --store memory prints delete what=workflow store=memory rows_left=0 other_rows=<n above 0> other_served=yes result=ok with exit 0, and learn-gate delete --what all --data-dir DIR --store memory prints delete what=all store=memory exit=- files_left=- result=not-run with exit 0; each command gets a data directory of its own, and one that ends with status 0 or 1 writes nothing on standard error, else the check fails with the cause stderr ahead of the causes of the lines; before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; and no cargo command or binary of the check changes the tree; whenever the privacy output is six lines of their form, the line directly before the last, on PASS and on FAIL, is privacy checks=6 ok=<n> miss=<n> not-run=<n> made from them; what the two ok lines rest on: in this pull request `learn_deleted` checks the delete of the gate's own test store in memory (its own cascade), not the app's delete, and reads no file: after that cascade no learned row names the first seeded workflow by its kind's workflow key, holds its id as a JSON string or holds its marker, and the second workflow's rows are the same rows, by kind and bytes, with none added, and `learn_outside` searches only the directory that the command is given, to which nothing of the command writes in this build, and, in the process's temporary directory, each entry whose name was not at its top before the seed, at every depth, and nothing else on the computer, where the search looks for the markers' bytes in names, in regular files and in the target texts of links, follows no link below those places, reads no extended attribute (on Windows, no alternate data stream) and no other encoding, and counts an entry that cannot be read as holding a marker; a limit until the second pull request: the check runs the binary under ${CARGO_TARGET_DIR:-target}/debug that its build is expected to write.
+# rule: learn-gate privacy --data-dir DIR, run with TMPDIR, TMP and TEMP set to an empty directory of the check's own, prints the six lines of contracts.md L11.4 in their order, learn_listed, learn_scrub and learn_expired result=ok on the derived store under DIR, learn_deleted and learn_outside result=ok on the memory store and learn_delete_all result=not-run, alone on standard output with exit 0; learn-gate delete --what workflow --data-dir DIR --store memory prints delete what=workflow store=memory rows_left=0 other_rows=<n above 0> other_served=yes result=ok with exit 0, and learn-gate delete --what all --data-dir DIR --store memory prints delete what=all store=memory exit=- files_left=- result=not-run with exit 0; each command gets a data directory of its own, and one that ends with status 0 or 1 writes nothing on standard error, else the check fails with the cause stderr ahead of the causes of the lines; before its first cargo command the check fails when a tracked file differs from HEAD (changed or staged, its own file among them) or carries an index flag, prints for the changed ones the one line tree changed=before files=<n> with their count and no path, and keeps git's status and index list in tree-before.txt of its artifacts, and a file that git does not track is allowed; and no cargo command or binary of the check changes the tree; whenever the privacy output is six lines of their form, the line directly before the last, on PASS and on FAIL, is privacy checks=6 ok=<n> miss=<n> not-run=<n> made from them; what the five ok lines rest on: the three lines of the derived store read it through the store's own calls with its key, a key that the command's process makes, on the store that the command opens under DIR and leaves there; `learn_listed` is ok when the store's counts per retention class, which its report to its host carries after each committed transaction, changed across the transactions that raise the revision of the family learn alone by the gate's own count of the learned rows by class; `learn_scrub` is ok when after the decision delete of the first seeded workflow no learned row of it is read and the second workflow's rows are the same rows, by kind and bytes, and across that one call the store committed one transaction, which raised the revision of learn, with no request to the family's handlers, no batch and no open, so that the removal went through the store's own delete call; it reads rows, not bytes. No byte search of this unit shows the scrub. Every open of the store sets secure_delete; the store's own page check reads purges of evidence rows today, and a unit of the workflows run widens it to every removal: until then no check reads the file's pages after a delete of learned rows. `learn_expired` is ok when the learn_run and learn_routine rows of their earliest day stand after an open on the last of their 93 days and, after an open one day past, are not read on a clock set back to that last day, while the rows of later days are; `learn_deleted` checks the delete of the gate's own test store in memory (its own cascade), not the app's delete, and reads no file: after that cascade no learned row names the first seeded workflow by its kind's workflow key, holds its id as a JSON string or holds its marker, and the second workflow's rows are the same rows, by kind and bytes, with none added, and `learn_outside` searches only the directory that the command is given, which holds the derived store's directory derived/ with its files, and, in the process's temporary directory, each entry whose name was not at its top before the command's first seed, at every depth, and nothing else on the computer, where the search looks for the markers' bytes in names, in regular files and in the target texts of links, follows no link below those places, reads no extended attribute (on Windows, no alternate data stream) and no other encoding, and counts an entry that cannot be read as holding a marker; a limit: the check runs the binary under ${CARGO_TARGET_DIR:-target}/debug that its build is expected to write.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -9,12 +9,12 @@ script_path=scripts/r5/ci.d/60-r5-privacy.sh
 lfx=$(printf '\nx')
 nl=${lfx%x}
 start_path=$PATH
-want_privacy="privacy check=learn_listed result=not-run
+want_privacy="privacy check=learn_listed result=ok
 privacy check=learn_deleted result=ok
-privacy check=learn_scrub result=not-run
+privacy check=learn_scrub result=ok
 privacy check=learn_delete_all result=not-run
 privacy check=learn_outside result=ok
-privacy check=learn_expired result=not-run"
+privacy check=learn_expired result=ok"
 want_workflow='^delete what=workflow store=memory rows_left=0 other_rows=[1-9][0-9]* other_served=yes result=ok$'
 want_all='delete what=all store=memory exit=- files_left=- result=not-run'
 
@@ -437,7 +437,7 @@ tree_cases() {
   case_change_file=files
   tree_case play-flags-a-file FAIL-tree 'tree changed=after-gate' "" gate "h crates/halvo-learn-gate/src/main.rs" ok yes
   tree_case own-changed FAIL-own "FAIL $name (own)" "$own" "" "" ok yes
-  tree_case untracked-before PASS "privacy checks=6 ok=2 miss=0 not-run=4${nl}PASS $name" '? notes.txt' "" "" ok yes
+  tree_case untracked-before PASS "privacy checks=6 ok=5 miss=0 not-run=1${nl}PASS $name" '? notes.txt' "" "" ok yes
   tree_case build-changes FAIL-tree 'tree changed=after-build' "" build "$later" ok yes
   tree_case play-changes FAIL-tree 'tree changed=after-gate' "" gate "$later" ok yes
   tree_case no-cargo FAIL-cargo "FAIL $name (cargo)" "" "" "" ok no
@@ -557,49 +557,49 @@ delete --what all --data-dir all-data --store memory"
   passed=0
   deleted_miss=$(changed 's/learn_deleted result=ok/learn_deleted result=miss/') || broken
   outside_miss=$(changed 's/learn_outside result=ok/learn_outside result=miss/') || broken
-  listed_ok=$(changed 's/learn_listed result=not-run/learn_listed result=ok/') || broken
-  scrub_ok=$(changed 's/learn_scrub result=not-run/learn_scrub result=ok/') || broken
+  listed_not_run=$(changed 's/learn_listed result=ok/learn_listed result=not-run/') || broken
+  scrub_not_run=$(changed 's/learn_scrub result=ok/learn_scrub result=not-run/') || broken
   delete_all_ok=$(changed 's/learn_delete_all result=not-run/learn_delete_all result=ok/') || broken
-  expired_ok=$(changed 's/learn_expired result=not-run/learn_expired result=ok/') || broken
+  expired_not_run=$(changed 's/learn_expired result=ok/learn_expired result=not-run/') || broken
   deleted_not_run=$(changed 's/learn_deleted result=ok/learn_deleted result=not-run/') || broken
   outside_not_run=$(changed 's/learn_outside result=ok/learn_outside result=not-run/') || broken
   swapped=$(changed '1{h;d;};2{G;}') || broken
   five=$(changed "\$d") || broken
   marked=$(changed 's/learn_outside result=ok/learn_outside result=ok Zq7-halvo-marker-learn-a/') || broken
-  self_case good "" "$p" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case good-other-rows-20 "" "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=20 other_served=yes result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case deleted-miss privacy "$deleted_miss$nl" "" 1 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=1 miss=1 not-run=4"
-  self_case outside-miss privacy "$outside_miss$nl" "" 1 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=1 miss=1 not-run=4"
-  self_case listed-ok privacy "$listed_ok$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=3 miss=0 not-run=3"
-  self_case scrub-ok privacy "$scrub_ok$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=3 miss=0 not-run=3"
-  self_case delete-all-ok privacy "$delete_all_ok$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=3 miss=0 not-run=3"
-  self_case expired-ok privacy "$expired_ok$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=3 miss=0 not-run=3"
-  self_case deleted-not-run privacy "$deleted_not_run$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=1 miss=0 not-run=5"
-  self_case outside-not-run privacy "$outside_not_run$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=1 miss=0 not-run=5"
-  self_case lines-swapped privacy "$swapped$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
+  self_case good "" "$p" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case good-other-rows-20 "" "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=20 other_served=yes result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case deleted-miss privacy "$deleted_miss$nl" "" 1 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=4 miss=1 not-run=1"
+  self_case outside-miss privacy "$outside_miss$nl" "" 1 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=4 miss=1 not-run=1"
+  self_case listed-not-run privacy "$listed_not_run$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=4 miss=0 not-run=2"
+  self_case scrub-not-run privacy "$scrub_not_run$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=4 miss=0 not-run=2"
+  self_case delete-all-ok privacy "$delete_all_ok$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=6 miss=0 not-run=0"
+  self_case expired-not-run privacy "$expired_not_run$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=4 miss=0 not-run=2"
+  self_case deleted-not-run privacy "$deleted_not_run$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=4 miss=0 not-run=2"
+  self_case outside-not-run privacy "$outside_not_run$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=4 miss=0 not-run=2"
+  self_case lines-swapped privacy "$swapped$nl" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
   self_case five-lines privacy "$five$nl" "" 0 "$wf" "" 0 "$all" "" 0 none
   self_case a-line-twice privacy "$p$pl check=learn_outside result=ok$nl" "" 0 "$wf" "" 0 "$all" "" 0 none
-  self_case last-line-unended privacy "$want_privacy" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case ok-with-exit-1 privacy "$p" "" 1 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case privacy-standard-error stderr "$p" "a warning$nl" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
+  self_case last-line-unended privacy "$want_privacy" "" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case ok-with-exit-1 privacy "$p" "" 1 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case privacy-standard-error stderr "$p" "a warning$nl" 0 "$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
   self_case privacy-line-with-a-marker privacy "$marked$nl" "" 0 "$wf" "" 0 "$all" "" 0 none
   self_case privacy-refused refused "" "REFUSED store: the seed$nl" 2 "$wf" "" 0 "$all" "" 0 none
-  self_case workflow-refused refused "$p" "" 0 "" "REFUSED usage: x$nl" 2 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case all-refused refused "$p" "" 0 "$wf" "" 0 "" "REFUSED usage: x$nl" 2 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-rows-left delete "$p" "" 0 "delete what=workflow store=memory rows_left=1 other_rows=9 other_served=yes result=miss$nl" "" 1 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-rows-left-read-as-ok delete "$p" "" 0 "delete what=workflow store=memory rows_left=1 other_rows=9 other_served=yes result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-not-served-read-as-ok delete "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=9 other_served=no result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-no-other-rows delete "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=0 other_served=yes result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-on-derived delete "$p" "" 0 "delete what=workflow store=derived rows_left=0 other_rows=9 other_served=yes result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-ok-with-exit-1 delete "$p" "" 0 "$wf" "" 1 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-two-lines delete "$p" "" 0 "$wf$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case all-ok all "$p" "" 0 "$wf" "" 0 "delete what=all store=memory exit=0 files_left=0 result=ok$nl" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case all-standard-error stderr "$p" "" 0 "$wf" "" 0 "$all" "a warning$nl" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case all-exit-1 all "$p" "" 0 "$wf" "" 0 "$all" "" 1 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-standard-error-at-0 stderr "$p" "" 0 "$wf" "a warning$nl" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-standard-error-at-1 stderr "$p" "" 0 "delete what=workflow store=memory rows_left=1 other_rows=9 other_served=yes result=miss$nl" "a warning$nl" 1 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-text-after delete "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=9 other_served=yes result=ok extra$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
-  self_case workflow-text-before delete "$p" "" 0 "x delete what=workflow store=memory rows_left=0 other_rows=9 other_served=yes result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=2 miss=0 not-run=4"
+  self_case workflow-refused refused "$p" "" 0 "" "REFUSED usage: x$nl" 2 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case all-refused refused "$p" "" 0 "$wf" "" 0 "" "REFUSED usage: x$nl" 2 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-rows-left delete "$p" "" 0 "delete what=workflow store=memory rows_left=1 other_rows=9 other_served=yes result=miss$nl" "" 1 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-rows-left-read-as-ok delete "$p" "" 0 "delete what=workflow store=memory rows_left=1 other_rows=9 other_served=yes result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-not-served-read-as-ok delete "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=9 other_served=no result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-no-other-rows delete "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=0 other_served=yes result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-on-derived delete "$p" "" 0 "delete what=workflow store=derived rows_left=0 other_rows=9 other_served=yes result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-ok-with-exit-1 delete "$p" "" 0 "$wf" "" 1 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-two-lines delete "$p" "" 0 "$wf$wf" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case all-ok all "$p" "" 0 "$wf" "" 0 "delete what=all store=memory exit=0 files_left=0 result=ok$nl" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case all-standard-error stderr "$p" "" 0 "$wf" "" 0 "$all" "a warning$nl" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case all-exit-1 all "$p" "" 0 "$wf" "" 0 "$all" "" 1 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-standard-error-at-0 stderr "$p" "" 0 "$wf" "a warning$nl" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-standard-error-at-1 stderr "$p" "" 0 "delete what=workflow store=memory rows_left=1 other_rows=9 other_served=yes result=miss$nl" "a warning$nl" 1 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-text-after delete "$p" "" 0 "delete what=workflow store=memory rows_left=0 other_rows=9 other_served=yes result=ok extra$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
+  self_case workflow-text-before delete "$p" "" 0 "x delete what=workflow store=memory rows_left=0 other_rows=9 other_served=yes result=ok$nl" "" 0 "$all" "" 0 "privacy checks=6 ok=5 miss=0 not-run=1"
   tree_cases
   removal_cases
   if [ -n "$wrong" ]; then

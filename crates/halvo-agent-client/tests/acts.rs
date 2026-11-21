@@ -8,7 +8,7 @@ use common::{wait_until, Rig};
 use halvo_agent_client::{CallError, Forced, ForcedPath, OriginAnswer, RunEnd};
 use halvo_schema::executable::frame::HandbackResult;
 use halvo_schema::executable::names::{Answer, HandbackOutcome, HandbackReason, Outcome};
-use halvo_schema::executable::text::{Name, RunId, V1};
+use halvo_schema::executable::text::{EffectId, Name, RunId, V1};
 
 const SHORT: Duration = Duration::from_secs(10);
 
@@ -18,6 +18,27 @@ fn confirm(new_origin: Option<&str>) -> String {
     CONFIRM.replace(
         "NEW",
         &new_origin.map_or_else(|| "null".to_owned(), |o| format!("\"{o}\"")),
+    )
+}
+
+/// The effect id of 16 bytes `n`; `effect_id(0x60)` is the effect of `CONFIRM`.
+fn effect_id(n: u8) -> EffectId {
+    EffectId::from_random([n; 16])
+}
+
+/// An effect of the class `send`, which may stand beside another effect in one request.
+const SEND: &str = r#"{"effect":"EFFECT","class":"send","digest":"DIGEST","bound":{"class":"send","fields":[{"name":"to","from":"extract","origin":null,"value":["landlord@mail.test"]},{"name":"subject","from":"extract","origin":null,"value":["Re: rent"]},{"name":"body","from":"model","origin":null,"value":["Thank you."]}]},"new_origin":null}"#;
+
+/// A confirm of two effects of the class `send`, `first` and then `second`.
+fn confirm_two(first: &EffectId, second: &EffectId) -> String {
+    let send = |id: &EffectId| {
+        SEND.replace("EFFECT", id.as_str())
+            .replace("DIGEST", &id.as_str().repeat(2))
+    };
+    format!(
+        r#"ask {{"t":"confirm","request":{{"v":1,"run":"{{run}}","agent":"{{agent}}","cut":null,"effects":[{},{}]}}}}"#,
+        send(first),
+        send(second)
     )
 }
 
@@ -246,7 +267,7 @@ fn a_rejected_effect_with_a_new_origin_sends_no_add_origin() {
         .answers
         .lock()
         .unwrap()
-        .push_back(vec![Answer::RejectOnce]);
+        .push_back(vec![(effect_id(0x60), Answer::RejectOnce)]);
     let script = rig.script(&[
         "hello",
         &confirm(Some("http://pay.test:18090")),
@@ -266,11 +287,10 @@ fn a_rejected_effect_with_a_new_origin_sends_no_add_origin() {
 #[test]
 fn a_confirmer_that_answers_for_another_count_of_effects_gets_every_effect_rejected() {
     let rig = Rig::new("confirm-count");
-    rig.people
-        .answers
-        .lock()
-        .unwrap()
-        .push_back(vec![Answer::AllowOnce, Answer::AllowOnce]);
+    rig.people.answers.lock().unwrap().push_back(vec![
+        (effect_id(0x60), Answer::AllowOnce),
+        (effect_id(0x60), Answer::AllowOnce),
+    ]);
     let script = rig.script(&["hello", &confirm(None), "log answered", "idle"]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
@@ -278,6 +298,79 @@ fn a_confirmer_that_answers_for_another_count_of_effects_gets_every_effect_rejec
     assert!(script.wait_log("answered", SHORT), "{}", script.log());
     assert!(script.replies()[0].contains(r#""answer":"reject_once""#));
     assert!(!script.replies()[0].contains(r#""answer":"allow_once""#));
+    rig.sup.kill(&run).unwrap();
+}
+
+/// U4.7, CP-226 item 1 reading (b), contracts.md A6.6: each answer of `Confirmer::answers` names its effect by id,
+/// and the library releases a decision only when the ids match the asked effects in their order. The answers of two
+/// effects in the asked order are applied each to its effect; the same answers in the other order, and a set of
+/// answers that names an effect that the request does not ask for, reject both effects; the runner gets the decision
+/// that `issued` saw.
+#[test]
+fn answers_in_the_asked_order_go_each_to_their_effect_and_another_order_or_a_wrong_id_rejects_every_effect(
+) {
+    let rig = Rig::new("confirm-by-id");
+    let (first, second) = (effect_id(0x61), effect_id(0x62));
+    let asked = vec![
+        (first.clone(), Answer::AllowOnce),
+        (second.clone(), Answer::RejectOnce),
+    ];
+    let other_order = asked.iter().rev().cloned().collect();
+    rig.people.answers.lock().unwrap().extend([
+        asked,
+        other_order,
+        vec![
+            (first.clone(), Answer::AllowOnce),
+            (effect_id(0x63), Answer::AllowOnce),
+        ],
+    ]);
+    let ask = confirm_two(&first, &second);
+    let script = rig.script(&[
+        "hello",
+        &ask,
+        "log asked-order",
+        &ask,
+        "log other-order",
+        &ask,
+        "log wrong-id",
+        "idle",
+    ]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    rig.sup.start(spec).unwrap();
+    assert!(script.wait_log("wrong-id", SHORT), "{}", script.log());
+    let issued = rig.people.issued.lock().unwrap().clone();
+    let applied: Vec<Vec<(EffectId, Answer)>> = issued
+        .iter()
+        .map(|d| {
+            d.approvals
+                .iter()
+                .map(|a| (a.effect.clone(), a.answer))
+                .collect()
+        })
+        .collect();
+    let rejected = vec![
+        (first.clone(), Answer::RejectOnce),
+        (second.clone(), Answer::RejectOnce),
+    ];
+    assert_eq!(
+        applied,
+        [
+            vec![(first, Answer::AllowOnce), (second, Answer::RejectOnce)],
+            rejected.clone(),
+            rejected,
+        ]
+    );
+    let sent: Vec<String> = issued
+        .iter()
+        .map(|d| {
+            format!(
+                r#"{{"t":"confirm_reply","decision":{}}}"#,
+                d.to_json().unwrap()
+            )
+        })
+        .collect();
+    assert_eq!(script.replies(), sent);
     rig.sup.kill(&run).unwrap();
 }
 
