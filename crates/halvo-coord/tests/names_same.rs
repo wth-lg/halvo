@@ -90,18 +90,25 @@ fn choice_names_are_those_of_i3_1_and_present_of_i3_4() {
 }
 
 #[test]
-fn control_names_are_the_five_of_i2_5() {
+fn control_names_are_the_six_of_i2_5() {
     assert_eq!(
         names(Control::ALL, Control::name),
-        ["run_now", "stop", "switch_off", "switch_on", "delete"]
+        [
+            "run_now",
+            "stop",
+            "take_back",
+            "switch_off",
+            "switch_on",
+            "delete"
+        ]
     );
 }
 
 #[test]
-fn action_names_are_the_four_of_agents_control_in_i8_1() {
+fn action_names_are_the_five_of_agents_control_in_i8_1() {
     assert_eq!(
         names(Action::ALL, Action::name),
-        ["run_now", "stop", "switch_off", "switch_on"]
+        ["run_now", "stop", "take_back", "switch_off", "switch_on"]
     );
 }
 

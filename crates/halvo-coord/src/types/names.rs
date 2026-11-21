@@ -98,6 +98,7 @@ names! {
     Control {
         RunNow = "run_now",
         Stop = "stop",
+        TakeBack = "take_back",
         SwitchOff = "switch_off",
         SwitchOn = "switch_on",
         Delete = "delete",
@@ -109,6 +110,7 @@ names! {
     Action {
         RunNow = "run_now",
         Stop = "stop",
+        TakeBack = "take_back",
         SwitchOff = "switch_off",
         SwitchOn = "switch_on",
     }
