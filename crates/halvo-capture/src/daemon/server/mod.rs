@@ -379,6 +379,9 @@ pub struct StatusParts {
     pub switches: Switches,
     pub once_granted: Vec<Permission>,
     pub asked: Vec<Permission>,
+    /// Whether the hold of a record in the run marker stands (ruling PL-3
+    /// part (5)): capture reads `awaiting_resume` while desired is running.
+    pub held: bool,
 }
 
 /// The status of a service run on a Mac (contracts.md C2.1, C2.3), built from
@@ -394,7 +397,16 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
     };
     let lines = board.source_lines();
     let fresh = parts.lease == proto::Lease::Fresh;
-    let (capture, capture_reason) = capture_of(board, &lines, desired, fresh);
+    let (capture, capture_reason) = match capture_of(board, &lines, desired, fresh) {
+        (capture, _)
+            if parts.held
+                && desired == CaptureState::Running
+                && capture != proto::Capture::Pausing =>
+        {
+            (proto::Capture::AwaitingResume, None)
+        }
+        read => read,
+    };
     let (store, store_id, store_error, store_retry_in_s) = store_of(parts);
     let failing = board.drain.failing || board.drain.hold;
     let enabled_sources = lines

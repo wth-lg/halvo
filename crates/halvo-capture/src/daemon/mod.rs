@@ -2274,7 +2274,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         main_loop,
     )
     .with_ending(ending)
-    .with_state(state);
+    .with_state(state)
+    .with_marker(Box::new(supervisor::MarkerFile::new(dir.run_marker())))
+    .with_hold(run_marker::held(dir));
     if let Some(lifeline) = parts.lifeline {
         supervisor = supervisor.with_parent(Box::new(lifeline));
     }
@@ -2299,9 +2301,14 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     let mut status = halvo_control::exit::CLEAN;
     let mut stop_asked = None;
     let mut deleted = None;
+    let mut delete_ends = false;
+    let mut delete_written = None;
     #[cfg(test)]
     let mut wrap_store = parts.wrap_store;
     loop {
+        if delete_ends && deleted.is_none() {
+            break;
+        }
         let opening = matches!(store, HeldStore::None)
             && opener.as_ref().is_some_and(owner::open::Opener::is_running);
         let window = match (dir_shut, opening, mark) {
@@ -2337,6 +2344,10 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                     err,
                 ) {
                     DeleteAsked::Answered => {}
+                    DeleteAsked::Ending(written) => {
+                        delete_written = Some(written);
+                        break;
+                    }
                     DeleteAsked::Reopen => {
                         mark = Mark::NotYet;
                         let health = supervisor.status_parts(None).health;
@@ -2351,20 +2362,23 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                         asked,
                         report,
                         whole,
+                        ending,
                     } => {
                         mark = Mark::NotYet;
                         opener = None;
+                        delete_ends = ending;
                         match report {
                             None => {
-                                let _ = asked.answer(halvo_control::proto::Reply::Error(
+                                delete_written = Some(asked.answer(halvo_control::proto::Reply::Error(
                                     halvo_control::proto::ErrorReply::new(
                                         halvo_control::proto::ErrorCode::Internal,
                                         "the delete did not finish and its report could not be read; delete-all.intent stays",
                                     ),
-                                ));
+                                )));
                             }
                             Some(report) if !whole => {
-                                answer_the_delete(&mut Some((asked, report)), None)
+                                delete_written =
+                                    answer_the_delete(&mut Some((asked, report)), None);
                             }
                             Some(report) => {
                                 rule = owner::open::CreateRule::of(
@@ -2377,7 +2391,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                                 }
                                 deleted = Some((asked, report));
                                 if opener.is_none() {
-                                    answer_the_delete(&mut deleted, None);
+                                    delete_written = answer_the_delete(&mut deleted, None);
                                 }
                             }
                         }
@@ -2419,7 +2433,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         }
         let Some(held) = opener.as_ref().and_then(owner::open::Opener::take) else {
             if opener.as_ref().is_some_and(made_none) {
-                answer_the_delete(&mut deleted, None);
+                delete_written = answer_the_delete(&mut deleted, None).or(delete_written);
             }
             continue;
         };
@@ -2471,7 +2485,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 )))
             }
         };
-        answer_the_delete(&mut deleted, Some(made));
+        delete_written = answer_the_delete(&mut deleted, Some(made)).or(delete_written);
     }
     answer_the_delete(&mut deleted, None);
     #[cfg(feature = "r2")]
@@ -2485,6 +2499,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         }
     }
     mark_the_store_made(mark, &mut supervisor, err);
+    if let Some(written) = delete_written.filter(|_| delete_ends) {
+        let _ = written.wait(WRITTEN_WAIT);
+    }
     let outcome = supervisor.shutdown_entry(store.link(), status);
     #[cfg(test)]
     if let Some(settled) = parts.settled {
@@ -2636,10 +2653,12 @@ const WRITTEN_WAIT: Duration = Duration::from_millis(2_500);
 enum DeleteAsked {
     Answered,
     Reopen,
+    Ending(server::Written),
     Ran {
         asked: server::Asked,
         report: Option<halvo_control::proto::DeleteReport>,
         whole: bool,
+        ending: bool,
     },
 }
 
@@ -2691,21 +2710,11 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         let _ = asked.answer(reply);
         return DeleteAsked::Answered;
     }
-    let mut pending = Some(asked);
+    let mut went_on = false;
     supervisor.set_slot_answering(slot::Slot::Deleting, store.link(), &mut |_| {
-        if let Some(asked) = pending.take() {
-            serving.listening.admitting().end_the_life();
-            let _ = asked
-                .answer(Reply::Error(ErrorReply::new(
-                    ErrorCode::Busy,
-                    "a source did not stop in time; this request deleted nothing, and the capture service is ending",
-                )))
-                .wait(WRITTEN_WAIT);
-        }
+        serving.listening.admitting().end_the_life();
+        went_on = true;
     });
-    let Some(asked) = pending else {
-        return DeleteAsked::Answered;
-    };
     if let Some(tries) = opener.take() {
         tries.stop();
         tries.wait_for_its_call(CLOSE_WAIT);
@@ -2713,8 +2722,13 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     }
     #[cfg(feature = "r2")]
     serving.listening.admitting().hold_owner(None);
+    let figures = store.link().map(supervisor::OwnerLink::snapshot);
     if let HeldStore::Capture(owner) = std::mem::replace(store, HeldStore::None) {
-        let _ = close_the_store(*owner, halvo_control::exit::CLEAN, err);
+        let _ = if went_on {
+            close_unsettled(*owner, err)
+        } else {
+            close_the_store(*owner, halvo_control::exit::CLEAN, err)
+        };
     }
     let rows = delete_all::rows();
     let how = delete_all::Offline {
@@ -2722,8 +2736,14 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
         select: custody_policy::of_this_build,
         hands: &delete_all::SystemHands,
     };
+    let tail = std::cell::RefCell::new(&mut *supervisor);
+    let mut after_the_intent = || {
+        if went_on {
+            tail.borrow_mut().record_the_delete(figures.as_ref(), false);
+        }
+    };
     let mut clear = || {
-        match supervisor.update_state(|state| state.store_made = false) {
+        match tail.borrow_mut().update_state(|state| state.store_made = false) {
         None | Some(Ok(())) | Some(Err(state::StateError::LeftAsItIs { .. })) => None,
         Some(Err(_)) => Some(
             "halvo-capture: state_file=write_failed: the mark store_made was not cleared in daemon-state.json"
@@ -2733,14 +2753,24 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     };
     #[cfg(feature = "r2")]
     r2::marks::handler().drop_held();
-    match delete_all::steps_of_the_delete(dir.path(), &how, &mut clear) {
+    match delete_all::steps_of_the_delete(dir.path(), &how, &mut after_the_intent, &mut clear) {
         delete_all::Steps::Busy => {
             let line = "another process holds the store; this request deleted nothing";
             let _ = writeln!(err, "halvo-capture: {line}");
-            let _ = asked.answer(Reply::Error(ErrorReply::new(ErrorCode::Busy, line)));
-            DeleteAsked::Reopen
+            if went_on {
+                supervisor.record_the_delete(figures.as_ref(), true);
+            }
+            let written = asked.answer(Reply::Error(ErrorReply::new(ErrorCode::Busy, line)));
+            if went_on {
+                DeleteAsked::Ending(written)
+            } else {
+                DeleteAsked::Reopen
+            }
         }
         delete_all::Steps::Ran(ran) => {
+            if went_on {
+                supervisor.record_the_delete(None, true);
+            }
             for cause in &ran.causes {
                 let _ = writeln!(err, "{cause}");
             }
@@ -2766,6 +2796,7 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
                 asked,
                 report,
                 whole,
+                ending: went_on,
             }
         }
     }
@@ -2808,15 +2839,17 @@ fn delete_report(
 type DeletedReply = Option<(server::Asked, halvo_control::proto::DeleteReport)>;
 
 #[cfg(target_os = "macos")]
-fn answer_the_delete(deleted: &mut DeletedReply, store: Option<port::StoreId>) {
-    if let Some((asked, report)) = deleted.take() {
-        let _ = asked.answer(halvo_control::proto::Reply::Deleted(
-            halvo_control::proto::Deleted {
-                report,
-                store: store.map(|id| halvo_control::model::StoreId::from_bytes(*id.as_bytes())),
-            },
-        ));
-    }
+fn answer_the_delete(
+    deleted: &mut DeletedReply,
+    store: Option<port::StoreId>,
+) -> Option<server::Written> {
+    let (asked, report) = deleted.take()?;
+    Some(asked.answer(halvo_control::proto::Reply::Deleted(
+        halvo_control::proto::Deleted {
+            report,
+            store: store.map(|id| halvo_control::model::StoreId::from_bytes(*id.as_bytes())),
+        },
+    )))
 }
 
 #[cfg(target_os = "macos")]
@@ -3007,10 +3040,30 @@ const CLOSE_WAIT: Duration = Duration::from_secs(1);
 
 #[cfg(target_os = "macos")]
 fn close_the_store(owner: CaptureOwner, status: i32, err: &mut dyn std::io::Write) -> i32 {
+    close_by(owner, owner::Command::Shutdown, status, err)
+}
+
+#[cfg(target_os = "macos")]
+fn close_unsettled(owner: CaptureOwner, err: &mut dyn std::io::Write) -> i32 {
+    close_by(
+        owner,
+        owner::Command::EndUnsettled,
+        halvo_control::exit::CLEAN,
+        err,
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn close_by(
+    owner: CaptureOwner,
+    command: owner::Command,
+    status: i32,
+    err: &mut dyn std::io::Write,
+) -> i32 {
     let answered = owner
         .watched
         .handle
-        .ask(owner::Command::Shutdown)
+        .ask(command)
         .ok()
         .and_then(|pending| pending.wait_for(CLOSE_WAIT));
     let unclosed = if !matches!(answered, Some(owner::Answer::ShutDown(_))) {
