@@ -150,6 +150,9 @@ struct State<C> {
     /// gates of U2.4e, ruling RD-152 (4)).
     taken_back: Vec<(AgentId, Option<ItemId>)>,
     checks: Vec<(ItemId, Vec<Unknown>)>,
+    /// The runs of an earlier life that this life's `Runs::reap` answered `alive` and whose kill
+    /// at the second step of the quit this life's library answered Ok.
+    killed_kept: Vec<RunId>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -272,6 +275,33 @@ fn answered(report: &Report) -> Result<(), Cause> {
 
 fn index<C>(board: &Board<C>, agent: &AgentId) -> Option<usize> {
     board.members.iter().position(|m| &m.facts.agent == agent)
+}
+
+/// The runs of an earlier life that the board keeps, each with its agent (rulings RD-151 (c),
+/// RD-150): for each member the run that `Board::alive_at_reap` names, and for each agent of a
+/// gone workflow that recovery kept for its row (`Board::kept_gone`) its newest run for which
+/// this life's `Runs::reap` answered `alive` and that the store's record does not name; a run
+/// whose kill this life's library answered Ok (`killed`) is left out.
+fn kept_runs<C>(board: &Board<C>, killed: &[RunId]) -> Vec<(AgentId, RunId)> {
+    let members = board.members.iter().filter_map(|m| {
+        board
+            .alive_at_reap(&m.facts.agent)
+            .map(|run| (m.facts.agent.clone(), run.clone()))
+    });
+    let gone = board.kept_gone().iter().filter_map(|f| {
+        f.events.iter().rev().find_map(|e| match &e.what {
+            crate::types::What::RunStarted { run, .. }
+                if board.answered_alive(run) && !f.runs.iter().any(|r| &r.run == run) =>
+            {
+                Some((f.agent.clone(), run.clone()))
+            }
+            _ => None,
+        })
+    });
+    members
+        .chain(gone)
+        .filter(|(_, run)| !killed.contains(run))
+        .collect()
 }
 
 fn set_aside<C>(board: &mut Board<C>, agent: &AgentId) -> Option<Vec<schedule::Waiting>> {
@@ -488,6 +518,7 @@ where
                 deleting: Vec::new(),
                 taken_back: Vec::new(),
                 checks: Vec::new(),
+                killed_kept: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
@@ -3075,7 +3106,12 @@ where
     /// run is live any more or at `QuitWait::until`: sends the rows that still wait in the
     /// agents' ledgers, the lapses of the first step among them, kills every live run and every
     /// dying tree through the run drive's kill-all and stores no `run_ended`, so that recovery
-    /// ends those runs `interrupted` in the next life.
+    /// ends those runs `interrupted` in the next life. Then it sends `Runs::kill` for each run
+    /// of an earlier life that the board keeps because this life's `Runs::reap` answered it
+    /// `alive` (`Board::alive_at_reap`, and the kept row of a gone workflow), so that the Quit
+    /// that such a row names reaches its run (ruling RD-151 (c)); a kill that this life's
+    /// library answers Ok takes the run out of `not_stopped`, and any other answer, such as the
+    /// `unknown_run` of a library that never started the run, leaves it named.
     pub fn quit_kill(&self) {
         let mut st = self.enter(Entry::Move);
         let State { board, ledgers, .. } = &mut *st;
@@ -3083,6 +3119,15 @@ where
             self.flush_ledgers(board, ledgers);
         }
         let _ = self.act(&mut st, Act::KillAll);
+        let kept = st
+            .board
+            .as_ref()
+            .map_or_else(Vec::new, |b| kept_runs(b, &st.killed_kept));
+        for (_, run) in kept {
+            if Runs::kill(&self.ports, &run).is_ok() {
+                st.killed_kept.push(run);
+            }
+        }
         self.publish(&mut st);
     }
 
@@ -3095,9 +3140,11 @@ where
 
     /// The runs whose processes the board does not know to be gone, each with its agent, in
     /// the order of their starts, as the last publish found them (ruling RD-147 (5)(i), RD-151):
-    /// each live run, and each dying tree that the board still holds, a run that ended after
-    /// its stop and whose tree no kill has ended yet, named with the agent that the list gave
-    /// its run while it lived. The publish at the end of a move writes the list, before the quit
+    /// first each run of an earlier life that the board keeps because this life's `Runs::reap`
+    /// answered it `alive` and whose kill this life has not seen answered Ok (`quit_kill`;
+    /// RD-151 (c)), then each live run, and each dying tree that the board still holds, a run
+    /// that ended after its stop and whose tree no kill has ended yet, named with the agent that
+    /// the list gave its run while it lived. The publish at the end of a move writes the list, before the quit
     /// as after it, the first step, the end of a run and the second step among them, and it
     /// writes it before it calls the notification ports: a port's panic before the write
     /// leaves the list of the move before, a panic in a notification after the write leaves the
@@ -3311,9 +3358,9 @@ where
                 }
             }
             named.sort_by_key(|(rank, _, _)| *rank);
-            *listed = named
+            *listed = kept_runs(b, &st.killed_kept)
                 .into_iter()
-                .map(|(_, agent, run)| (agent, run))
+                .chain(named.into_iter().map(|(_, agent, run)| (agent, run)))
                 .collect();
             self.live_runs.store(b.runs.len(), Ordering::Relaxed);
         }
