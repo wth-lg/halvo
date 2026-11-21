@@ -1,6 +1,6 @@
 //! Screen capture via Windows.Graphics.Capture (`FrameArrived`).
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -15,17 +15,20 @@ use windows_capture::settings::{
     MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
 };
 
+use crate::event::{EventClock, FloorEvent};
+use crate::floor::exclude::PrivateWindow;
+use crate::floor::kind;
+use crate::floor::Switch;
+use crate::secure_input::windows::{PasswordFieldProbe, PasswordGate};
 use crate::source::{
     CaptureError, CaptureSource, HealthReason, SourceContext, SourceCounters, SourceHealth,
     SourceState, Started, StopCause,
 };
 
-use super::{HandOff, HandOffCounts, LossCounts, Observed, Packet, Producer};
+use super::{DropCounts, Drops, Floor, FrontCache, HandOff, HandOffCounts, LossCounts, Producer};
 
 /// The default minimum interval between captured frames.
 pub const DEFAULT_MIN_FRAME_INTERVAL: Duration = Duration::from_millis(500);
-
-const BGRA8_BYTES_PER_PIXEL: u64 = 4;
 
 const SINK_GONE: &str = "the capture writer has stopped";
 const NO_PRIMARY_MONITOR: &str = "the primary monitor could not be read";
@@ -131,39 +134,99 @@ fn keep_frame(
 }
 const SCREEN_START_FAILED: &str = "the screen capture could not start";
 
-pub(crate) fn frame_packet(
-    width: u32,
-    height: u32,
-    foreground_app: Option<String>,
-    tick: u32,
-) -> Option<Packet> {
-    if width == 0 || height == 0 {
-        return None;
+/// Whether the system reports the changed regions of a frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RegionReport {
+    Reported,
+    Missing,
+}
+
+impl RegionReport {
+    fn settings(self) -> DirtyRegionSettings {
+        match self {
+            RegionReport::Reported => DirtyRegionSettings::ReportOnly,
+            RegionReport::Missing => DirtyRegionSettings::Default,
+        }
     }
-    Some(Packet::observed(
-        Observed::ScreenFrame,
-        foreground_app,
-        u64::from(width) * u64::from(height) * BGRA8_BYTES_PER_PIXEL,
-        tick,
-    ))
+}
+
+fn probe_region_report() -> RegionReport {
+    match GraphicsCaptureApi::is_dirty_region_supported() {
+        Ok(true) => RegionReport::Reported,
+        Ok(false) | Err(_) => RegionReport::Missing,
+    }
+}
+
+/// Whether a delivered frame is screen activity (RD-01): where the system
+/// reports changed regions, a frame with none is idle; where it does not, or
+/// the regions of a frame cannot be read, every delivered frame counts.
+pub(crate) fn frame_is_activity(report: RegionReport, changed_regions: Option<usize>) -> bool {
+    !matches!((report, changed_regions), (RegionReport::Reported, Some(0)))
+}
+
+/// The frames that a screen source was handed and the frames among them that
+/// were screen activity, since it was made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct FrameCounts {
+    pub delivered: u64,
+    pub with_changed_region: u64,
+    /// Whether the last start found the system's report of changed regions.
+    pub regions_reported: bool,
+}
+
+#[derive(Debug, Default)]
+struct FrameCounters {
+    delivered: AtomicU64,
+    with_changed_region: AtomicU64,
+    regions_reported: AtomicBool,
+}
+
+impl FrameCounters {
+    fn read(&self) -> FrameCounts {
+        FrameCounts {
+            delivered: self.delivered.load(Ordering::Relaxed),
+            with_changed_region: self.with_changed_region.load(Ordering::Relaxed),
+            regions_reported: self.regions_reported.load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// The screen record of one changed frame: the floor's decision on the
+/// process in front when the frame arrives, with the reading of the keyboard
+/// source's gate where one runs. It holds no pixel and no size.
+pub(crate) fn frame_event(
+    floor: &Floor,
+    gate: Option<&PasswordGate>,
+    front: &super::FrontApp,
+) -> Option<FloorEvent> {
+    let probe = gate.map_or_else(PasswordFieldProbe::default, PasswordGate::content_probe);
+    let keep = floor.keep::<kind::ScreenFrame>(front, PrivateWindow::Unknown, &probe)?;
+    Some(FloorEvent::screen_frame(keep, None, EventClock::system()))
 }
 
 /// What the capture handler needs, passed through the settings flags.
 pub struct ScreenFlags {
     producer: Producer,
-    last_app: Arc<Mutex<Option<String>>>,
+    floor: Floor,
+    gate: Option<Arc<PasswordGate>>,
     drop_within: Option<Duration>,
     closed: Arc<AtomicBool>,
+    report: RegionReport,
+    frames: Arc<FrameCounters>,
 }
 
 /// The `windows-capture` frame handler: one packet for each frame that it
 /// keeps, handed to the source's queue.
 pub struct ScreenHandler {
     producer: Producer,
-    last_app: Arc<Mutex<Option<String>>>,
+    floor: Floor,
+    gate: Option<Arc<PasswordGate>>,
+    front: FrontCache,
     drop_within: Option<Duration>,
     last_kept: Option<Instant>,
     closed: Arc<AtomicBool>,
+    report: RegionReport,
+    frames: Arc<FrameCounters>,
 }
 
 impl GraphicsCaptureApiHandler for ScreenHandler {
@@ -173,10 +236,14 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
     fn new(ctx: Context<Self::Flags>) -> Result<Self, Self::Error> {
         Ok(Self {
             producer: ctx.flags.producer,
-            last_app: ctx.flags.last_app,
+            floor: ctx.flags.floor,
+            gate: ctx.flags.gate,
+            front: FrontCache::default(),
             drop_within: ctx.flags.drop_within,
             last_kept: None,
             closed: ctx.flags.closed,
+            report: ctx.flags.report,
+            frames: ctx.flags.frames,
         })
     }
 
@@ -185,13 +252,20 @@ impl GraphicsCaptureApiHandler for ScreenHandler {
         frame: &mut Frame,
         _control: InternalCaptureControl,
     ) -> Result<(), Self::Error> {
+        self.frames.delivered.fetch_add(1, Ordering::Relaxed);
+        let changed = frame.dirty_regions().ok().map(|regions| regions.len());
+        if !frame_is_activity(self.report, changed) {
+            return Ok(());
+        }
+        self.frames
+            .with_changed_region
+            .fetch_add(1, Ordering::Relaxed);
         if !keep_frame(self.drop_within, &mut self.last_kept, Instant::now()) {
             return Ok(());
         }
-        let (width, height) = (frame.width(), frame.height());
-        let app = super::app_of(&self.last_app);
-        if let Some(packet) = frame_packet(width, height, app, super::now_tick()) {
-            self.producer.push(packet);
+        let front = self.front.now();
+        if let Some(event) = frame_event(&self.floor, self.gate.as_deref(), &front) {
+            self.producer.push(event);
         }
         if self.producer.writer_gone() {
             return Err(CaptureError::Start(SINK_GONE.to_string()));
@@ -212,23 +286,32 @@ type Control = CaptureControl<ScreenHandler, CaptureError>;
 /// that is gone each read as failed health. The source asks for the system's
 /// capture border (`DrawBorderSettings::Default`) by decision RD-04.
 pub struct ScreenSource {
-    last_app: Arc<Mutex<Option<String>>>,
+    gate: Option<Arc<PasswordGate>>,
+    drops: Arc<DropCounts>,
     min_interval: Duration,
     life: ScreenLife<Control>,
     handoff: Option<HandOff>,
     counts: Arc<LossCounts>,
     closed: Arc<AtomicBool>,
+    frames: Arc<FrameCounters>,
+    off: bool,
 }
 
 impl ScreenSource {
-    pub fn new(last_app: Arc<Mutex<Option<String>>>) -> Self {
+    /// A screen source. Each record belongs to the process of the window in
+    /// front when its frame arrives; the cell of the foreground source is not
+    /// read.
+    pub fn new(_last_app: Arc<Mutex<Option<String>>>) -> Self {
         Self {
-            last_app,
+            gate: None,
+            drops: Arc::default(),
             min_interval: DEFAULT_MIN_FRAME_INTERVAL,
             life: ScreenLife::default(),
             handoff: None,
             counts: Arc::default(),
             closed: Arc::default(),
+            frames: Arc::default(),
+            off: false,
         }
     }
 
@@ -242,12 +325,33 @@ impl ScreenSource {
     pub fn handoff_counts(&self) -> HandOffCounts {
         self.counts.read()
     }
+
+    /// A screen source that reads the gate of a keyboard source: no record
+    /// leaves while the gate reads Password.
+    pub fn with_password_gate(mut self, gate: Arc<PasswordGate>) -> Self {
+        self.gate = Some(gate);
+        self
+    }
+
+    /// The events that this source dropped at the floor's decision.
+    pub fn drops(&self) -> Drops {
+        self.drops.read()
+    }
+
+    /// The frames that this source was handed and those that were activity.
+    pub fn frame_counts(&self) -> FrameCounts {
+        self.frames.read()
+    }
 }
 
 impl CaptureSource for ScreenSource {
     fn begin(&mut self, ctx: SourceContext) -> Result<Started, CaptureError> {
         if self.life.is_busy() {
             return Err(CaptureError::AlreadyStarted);
+        }
+        self.off = !ctx.floor().switches().is_on(Switch::ScreenActivity);
+        if self.off {
+            return Ok(Started::Off);
         }
         let mta = hold_process_mta()?;
         let choice = choose_settings(probe_support, self.min_interval)?;
@@ -258,11 +362,18 @@ impl CaptureSource for ScreenSource {
             Arc::clone(&self.counts),
         )?;
         let closed = Arc::new(AtomicBool::new(false));
+        let report = probe_region_report();
+        self.frames
+            .regions_reported
+            .store(report == RegionReport::Reported, Ordering::Relaxed);
         let flags = ScreenFlags {
             producer: handoff.producer(),
-            last_app: Arc::clone(&self.last_app),
+            floor: Floor::new(ctx.floor().clone(), Arc::clone(&self.drops)),
+            gate: self.gate.clone(),
             drop_within: choice.drop_within(),
             closed: Arc::clone(&closed),
+            report,
+            frames: Arc::clone(&self.frames),
         };
         let settings = Settings::new(
             monitor,
@@ -270,7 +381,7 @@ impl CaptureSource for ScreenSource {
             DrawBorderSettings::Default,
             SecondaryWindowSettings::Default,
             choice.interval(),
-            DirtyRegionSettings::Default,
+            report.settings(),
             ColorFormat::Bgra8,
             flags,
         );
@@ -290,6 +401,12 @@ impl CaptureSource for ScreenSource {
     }
 
     fn health(&self) -> SourceHealth {
+        if self.off && !self.life.is_busy() {
+            return SourceHealth {
+                state: SourceState::Off,
+                counters: SourceCounters::default(),
+            };
+        }
         SourceHealth {
             state: self.life.state(
                 self.closed.load(Ordering::Relaxed),
@@ -565,16 +682,6 @@ fn start_error(error: GraphicsCaptureApiError<CaptureError>) -> CaptureError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event::Modality;
-
-    #[test]
-    fn a_frame_maps_to_a_screen_frame_packet_of_its_byte_count() {
-        let packet = frame_packet(1920, 1080, Some("C:\\browser.exe".to_string()), 1)
-            .expect("a sized frame produces a packet");
-        assert_eq!(packet.kind(), Modality::ScreenFrame);
-        assert_eq!(packet.app.as_deref(), Some("C:\\browser.exe"));
-        assert_eq!(packet.byte_len, 1920 * 1080 * 4);
-    }
 
     fn asked(
         support: CaptureSupport,
@@ -592,6 +699,75 @@ mod tests {
             Duration::from_millis(500),
         );
         (choice, calls)
+    }
+
+    /// The context of a screen source that a test starts: the switch
+    /// screen_activity is off by default.
+    #[test]
+    fn a_frame_with_no_known_front_gives_no_record() {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::Switches;
+        let mut switches = Switches::default();
+        switches.set(Switch::ScreenActivity, true);
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(
+            FloorHandle::new(None, Arc::new(NoLineage), switches),
+            Arc::clone(&drops),
+        );
+        let made = frame_event(&floor, None, &super::super::FrontApp::default()).is_some();
+        let unknown_lineage = drops.read().unknown_lineage;
+        assert!(
+            !made && unknown_lineage == 1,
+            "frame_record={made} unknown_lineage={unknown_lineage}"
+        );
+    }
+
+    fn screen_on(sink: crate::sink::SinkHandle) -> SourceContext {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        let mut switches = crate::floor::Switches::default();
+        switches.set(Switch::ScreenActivity, true);
+        SourceContext::with_floor(sink, FloorHandle::new(None, Arc::new(NoLineage), switches))
+    }
+
+    #[test]
+    fn a_frame_with_no_changed_region_is_idle_where_the_system_reports_regions() {
+        for (report, changed, activity) in [
+            (RegionReport::Reported, Some(0), false),
+            (RegionReport::Reported, Some(1), true),
+            (RegionReport::Reported, Some(7), true),
+            (RegionReport::Reported, None, true),
+            (RegionReport::Missing, Some(0), true),
+            (RegionReport::Missing, None, true),
+        ] {
+            assert_eq!(
+                frame_is_activity(report, changed),
+                activity,
+                "{report:?} {changed:?}"
+            );
+        }
+        assert_eq!(
+            RegionReport::Reported.settings(),
+            DirtyRegionSettings::ReportOnly
+        );
+        assert_eq!(
+            RegionReport::Missing.settings(),
+            DirtyRegionSettings::Default
+        );
+    }
+
+    #[test]
+    fn the_screen_source_with_the_default_switches_answers_off_and_delivers_no_frame() {
+        let (sink, writer) = crate::sink::channel(64);
+        let mut source = ScreenSource::new(Arc::new(Mutex::new(None)));
+        let started = source.begin(SourceContext::new(sink));
+        let state = source.health().state;
+        let frame = writer.recv_timeout(Duration::from_millis(1_500));
+        let stopped = source.shutdown();
+        assert_eq!(started, Ok(Started::Off));
+        assert_eq!(state, SourceState::Off);
+        assert!(frame.is_err(), "a frame arrived");
+        assert_eq!(source.frame_counts(), FrameCounts::default());
+        assert_eq!(stopped, Ok(()));
     }
 
     #[test]
@@ -722,10 +898,17 @@ mod tests {
         let closed = Arc::new(AtomicBool::new(false));
         let mut handler = ScreenHandler {
             producer: handoff.producer(),
-            last_app: Arc::default(),
+            floor: Floor::new(
+                crate::floor::exclude::FloorHandle::default(),
+                Arc::default(),
+            ),
+            gate: None,
+            front: FrontCache::default(),
             drop_within: None,
             last_kept: None,
             closed: Arc::clone(&closed),
+            report: RegionReport::Reported,
+            frames: Arc::default(),
         };
         assert!(handler.on_closed().is_ok());
         let failed = crate::windows::thread_ended();
@@ -976,7 +1159,7 @@ mod tests {
         let (sink, writer) = crate::sink::channel(64);
         let mut source = ScreenSource::new(Arc::default());
         source.life = ScreenLife::with_spawner(always_refuses);
-        let started = source.begin(crate::source::SourceContext::new(sink));
+        let started = source.begin(screen_on(sink));
         let first = writer.recv_timeout(Duration::from_secs(10)).is_ok();
         drop(source);
         let dropped = Instant::now();
@@ -1014,7 +1197,8 @@ mod tests {
         let producer = handoff.producer();
         source.handoff = Some(handoff);
         let stopped = source.shutdown();
-        producer.push(frame_packet(1920, 1080, None, 1).expect("a frame"));
+        let keep = crate::floor::cases::keep(crate::event::AppIdentity::unknown(), 7);
+        producer.push(FloorEvent::screen_frame(keep, None, EventClock::system()));
         let arrived = writer.recv_timeout(Duration::from_millis(500)).is_ok();
         assert_eq!(stopped, Ok(()));
         assert!(
@@ -1074,11 +1258,5 @@ mod tests {
         .join()
         .expect("the probe thread");
         assert_eq!(apartment, Ok((APTTYPE_MTA, APTTYPEQUALIFIER_IMPLICIT_MTA)));
-    }
-
-    #[test]
-    fn a_zero_area_frame_is_not_recorded() {
-        assert!(frame_packet(0, 1080, None, 1).is_none());
-        assert!(frame_packet(1920, 0, None, 1).is_none());
     }
 }

@@ -2,11 +2,15 @@
 
 use std::sync::{Arc, Mutex};
 
+use crate::event::{EventClock, FloorEvent};
+use crate::floor::exclude::PrivateWindow;
+use crate::floor::kind;
+use crate::secure_input::windows::PasswordFieldProbe;
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
 
-use super::{Lifecycle, Observed, Packet, Producer, PumpReady};
+use super::{DropCounts, Drops, Floor, FrontApp, Lifecycle, OsTick, Producer, PumpReady};
 
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
@@ -41,10 +45,6 @@ pub(crate) fn set_win_event_hook(event: u32, callback: WINEVENTPROC) -> HWINEVEN
     // SAFETY: SetWinEventHook takes the event range, no module and a callback
     // with the WINEVENTPROC signature; out-of-context hooks need no module.
     unsafe { SetWinEventHook(event, event, None, callback, 0, 0, HOOK_FLAGS) }
-}
-
-pub(crate) fn foreground_packet(exe_path: Option<String>, tick: u32) -> Packet {
-    Packet::observed(Observed::ForegroundApp, exe_path, 0, tick)
 }
 
 /// The executable path of the current foreground window's process, or `None` when
@@ -113,14 +113,8 @@ pub(crate) fn image_path_with(
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct FrontApp {
-    pub(crate) pid: u32,
-    pub(crate) path: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Change {
-    pub(crate) emit: Option<Option<String>>,
+    pub(crate) emit: Option<FrontApp>,
     pub(crate) read_title: bool,
 }
 
@@ -154,7 +148,7 @@ impl FrontTracker {
         }
         self.last_pid = Some(front.pid);
         Change {
-            emit: Some(front.path),
+            emit: Some(front),
             read_title: true,
         }
     }
@@ -187,6 +181,7 @@ pub(crate) fn capped_app(mut path: String) -> String {
 
 struct ForegroundState {
     producer: Producer,
+    floor: Floor,
     last_app: Arc<Mutex<Option<String>>>,
     tracker: FrontTracker,
 }
@@ -195,6 +190,7 @@ struct ForegroundState {
 pub struct ForegroundAppSource {
     last_app: Arc<Mutex<Option<String>>>,
     life: Lifecycle,
+    drops: Arc<DropCounts>,
     installer: HookInstaller,
     remover: HookRemover,
 }
@@ -204,6 +200,7 @@ impl ForegroundAppSource {
         Self {
             last_app: Arc::new(Mutex::new(None)),
             life: Lifecycle::default(),
+            drops: Arc::default(),
             installer: set_win_event_hook,
             remover: unhook_win_event,
         }
@@ -233,6 +230,11 @@ impl ForegroundAppSource {
     /// The counts of this source's hand-off queues since it was made.
     pub fn handoff_counts(&self) -> super::HandOffCounts {
         self.life.handoff_counts()
+    }
+
+    /// The events that this source dropped at the floor's decision.
+    pub fn drops(&self) -> Drops {
+        self.drops.read()
     }
 }
 
@@ -272,13 +274,28 @@ unsafe extern "system" fn foreground_poll(_hwnd: HWND, _msg: u32, _id: usize, ti
 
 #[cfg(target_os = "windows")]
 fn on_foreground_window(hwnd: HWND, time: u32) {
+    if super::reading_at_stop() {
+        return;
+    }
     FOREGROUND_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
             let change = state
                 .tracker
                 .on_window(&state.last_app, hwnd, resolve_front);
-            if let Some(app) = change.emit {
-                state.producer.push(foreground_packet(app, time));
+            let Some(front) = change.emit else {
+                return;
+            };
+            let probe = PasswordFieldProbe::default();
+            let keep =
+                state
+                    .floor
+                    .keep::<kind::ForegroundApp>(&front, PrivateWindow::Unknown, &probe);
+            if let Some(keep) = keep {
+                state.producer.push(FloorEvent::foreground_app(
+                    keep,
+                    OsTick::new(time).age(),
+                    EventClock::system(),
+                ));
             }
         }
     });
@@ -344,10 +361,12 @@ impl CaptureSource for ForegroundAppSource {
         let last_app = Arc::clone(&self.last_app);
         let installer = self.installer;
         let remover = self.remover;
+        let floor = Floor::new(ctx.floor().clone(), Arc::clone(&self.drops));
         self.life
             .begin(&ctx, "halvo-foreground-forward", move |producer| {
                 let state = ForegroundState {
                     producer,
+                    floor,
                     last_app,
                     tracker: FrontTracker::default(),
                 };
@@ -416,15 +435,6 @@ fn run_foreground_hook(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::event::Modality;
-
-    #[test]
-    fn a_foreground_change_maps_to_a_foreground_app_packet() {
-        let packet = foreground_packet(Some("C:\\Windows\\explorer.exe".to_string()), 5);
-        assert_eq!(packet.kind(), Modality::ForegroundApp);
-        assert_eq!(packet.app.as_deref(), Some("C:\\Windows\\explorer.exe"));
-        assert_eq!(packet.tick, 5);
-    }
 
     fn app(pid: u32, path: &str) -> Option<FrontApp> {
         Some(FrontApp {
@@ -442,7 +452,10 @@ mod tests {
             _ => None,
         };
         let first = tracker.on_window(&cell, 0, resolver);
-        assert_eq!(first.emit, Some(Some("C:\\apps\\editor.exe".to_string())));
+        assert_eq!(
+            first.emit.map(|front| front.path),
+            Some(Some("C:\\apps\\editor.exe".to_string()))
+        );
         assert_eq!(
             cell.lock().unwrap().as_deref(),
             Some("C:\\apps\\editor.exe")
@@ -461,7 +474,7 @@ mod tests {
                 path: None,
             })
         });
-        assert_eq!(change.emit, Some(None));
+        assert_eq!(change.emit.map(|front| front.path), Some(None));
         assert_eq!(*cell.lock().unwrap(), None);
     }
 

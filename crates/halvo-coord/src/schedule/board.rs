@@ -289,6 +289,32 @@ impl<C> Board<C> {
         }
     }
 
+    /// Marks for the rest of this life an agent whose `set_state` `active`, sent by the tick's
+    /// rule or by `activate` after a set-up, the owner refused with `overlap`
+    /// (`Facts::active_refused`): until an acknowledged switch-on the agent stands as off by the
+    /// derived hold, also while the `paused` that follows has no acknowledgement, and the tick
+    /// sends it `paused` while the list shows another state and no `active` (rulings RD-67 4.3,
+    /// RD-160 (1); I5.4). A new life holds no mark and may send `active` once more.
+    pub fn refuse_active(&mut self, agent: &AgentId) {
+        if let Some(i) = self.index(agent) {
+            self.members[i].facts.active_refused = true;
+        }
+    }
+
+    /// Whether this life marked the agent with `refuse_active` and no acknowledged switch-on has
+    /// come since.
+    pub fn active_refused(&self, agent: &AgentId) -> bool {
+        self.index(agent)
+            .is_some_and(|i| self.members[i].facts.active_refused)
+    }
+
+    /// Takes the mark of `refuse_active` off, at a switch-on whose state the owner acknowledged.
+    pub fn free_active(&mut self, agent: &AgentId) {
+        if let Some(i) = self.index(agent) {
+            self.members[i].facts.active_refused = false;
+        }
+    }
+
     /// Holds the queue or frees it: while held, the end of a run starts nothing from the queue,
     /// which keeps its starts and gives them no reply, and a tick still serves it (ruling RD-133
     /// 3: a queued start waits while the mark of a tick that did not return stands).
@@ -505,6 +531,8 @@ impl<C> Board<C> {
             replies: crate::types::Replies::NotAsked,
             today: day,
             doing: crate::types::Doing::Idle(None),
+            stand_in: true,
+            active_refused: false,
         };
         facts.take_unknown(&agent.unknown);
         Ok(Some(facts))

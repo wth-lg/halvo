@@ -563,6 +563,7 @@ impl Supervisor {
             RunnerCall::LoadSteps(b) => {
                 let from = b.from.get() as usize;
                 RunnerReply::Steps(StepsReply {
+                    agent: self.config.agent.clone(),
                     steps: self.steps.iter().skip(from - 1).take(16).cloned().collect(),
                 })
             }

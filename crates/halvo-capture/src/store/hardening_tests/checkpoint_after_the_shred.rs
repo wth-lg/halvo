@@ -3,10 +3,12 @@ use std::path::Path;
 use uuid::Uuid;
 
 use super::super::db::{code_seams, random_segment_id, EncryptedStore};
+use super::super::expiry::SEAM_BEFORE_THE_RETRIED_CHECKPOINT;
+use super::super::failpoint;
 use super::super::pages::{places_of, store_pages};
 use super::super::segment::segment_path;
 use super::super::{
-    KindTotal, SegmentExpiry, SegmentWrite, StoreError, UtcDay, WriteFault, Written,
+    KindTotal, SegmentExpiry, SegmentWrite, ShredReport, StoreError, UtcDay, WriteFault, Written,
     DEFAULT_RETENTION,
 };
 use super::{file_root_store, open_over_file_root};
@@ -107,7 +109,7 @@ fn an_open_whose_reconcile_shred_commits_and_whose_checkpoint_then_fails_does_no
 }
 
 #[test]
-fn a_pass_whose_shred_commits_and_whose_checkpoint_then_fails_answers_its_error_to_every_later_call_and_the_next_open_leaves_clean_pages(
+fn a_pass_whose_checkpoint_fails_twice_after_its_commit_answers_its_error_to_reads_and_writes_until_a_later_pass_finishes_it_and_the_next_open_leaves_clean_pages(
 ) {
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
@@ -120,7 +122,11 @@ fn a_pass_whose_shred_commits_and_whose_checkpoint_then_fails_answers_its_error_
     };
     let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     code_seams::force_at(code_seams::CHECKPOINT_QUERY, Some(IO_ERROR));
+    let retried = failpoint::at(SEAM_BEFORE_THE_RETRIED_CHECKPOINT, || {
+        code_seams::force_at(code_seams::CHECKPOINT_QUERY, Some(IO_ERROR))
+    });
     let pass = store.crypto_shred_expired();
+    drop(retried);
     code_seams::force_at(code_seams::CHECKPOINT_QUERY, None);
     let other = random_segment_id().unwrap();
     let write_after = write(&mut store, &other, noon_today());
@@ -151,8 +157,8 @@ fn a_pass_whose_shred_commits_and_whose_checkpoint_then_fails_answers_its_error_
         "the inventory on that handle answered {inventory_after:?}"
     );
     assert!(
-        matches!(&pass_after, Err(e) if the_checkpoint_failed(e)),
-        "a later pass on that handle answered {pass_after:?}"
+        matches!(&pass_after, Ok(report) if *report == ShredReport::default()),
+        "a later pass on that handle did not finish the owed checkpoint: {pass_after:?}"
     );
     assert!(
         places.is_empty(),
@@ -161,8 +167,8 @@ fn a_pass_whose_shred_commits_and_whose_checkpoint_then_fails_answers_its_error_
 }
 
 #[test]
-fn a_pass_with_nothing_due_whose_checkpoint_fails_keeps_nothing_so_a_later_write_and_pass_answer_ok(
-) {
+fn a_pass_with_nothing_due_and_nothing_owed_runs_no_checkpoint_so_a_later_write_and_pass_answer_ok()
+{
     let dir = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
     let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
@@ -174,8 +180,8 @@ fn a_pass_with_nothing_due_whose_checkpoint_fails_keeps_nothing_so_a_later_write
     let pass_after = store.crypto_shred_expired();
     println!("S10 pass={pass:?} write_after={write_after:?} pass_after={pass_after:?}");
     assert!(
-        matches!(&pass, Err(e) if the_checkpoint_failed(e)),
-        "the seam did not reach the empty pass's checkpoint: the pass answered {pass:?}"
+        pass.is_ok(),
+        "a pass with nothing due and nothing owed ran a checkpoint: it answered {pass:?}"
     );
     assert!(
         write_after.is_ok(),

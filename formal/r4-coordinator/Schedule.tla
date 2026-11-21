@@ -40,7 +40,7 @@ NoMark == [run |-> 0, dead |-> FALSE, left |-> FALSE, sent |-> FALSE, by |-> "no
 Init0 ==
     [day |-> 1, life |-> 1, nrun |-> 0, dels |-> 0,
      runs |-> {}, queue |-> <<>>, ready |-> {}, off |-> {}, gone |-> {}, lost |-> {}, cleared |-> {},
-     paused |-> {}, dying |-> {}, owing |-> {}, f |-> NoFacts,
+     paused |-> {}, shown |-> {}, dying |-> {}, owing |-> {}, f |-> NoFacts,
      fin |-> Finished, clean |-> Finished,
      starts |-> [a \in Agents |-> [d \in Days |-> 0]],
      fails |-> [a \in Agents |-> 0],
@@ -79,7 +79,7 @@ Open(s, a) ==
        \/ s.done[a] < CurSlot(s.day) - (Period \div 2)
 
 Checked(s, a) == s.f.unknown[a] # 0 /\ s.f.unknown[a] \notin s.cleared
-Held(s, a) == a \notin s.lost /\ (a \in s.off \/ a \in s.paused \/ Checked(s, a))
+Held(s, a) == a \notin s.lost /\ (a \in s.off \/ a \in s.paused \/ Checked(s, a) \/ a \in s.shown)
 Lag(s, a) == a \in s.f.offs /\ a \notin s.off
 Learn(s, a) == IF Lag(s, a) THEN [s EXCEPT !.off = @ \cup {a}] ELSE s
 
@@ -185,10 +185,12 @@ Start(s, a, trig, port) ==
 
 Pressed(s, a, port) ==
     LET ends == a \notin s.gone /\ a \in s.paused
-        s1 == IF a \in s.gone THEN s ELSE [s EXCEPT !.paused = @ \ {a}]
+        on == ends /\ a \notin Learn(s, a).off
+        s1 == IF a \in s.gone THEN s
+              ELSE [s EXCEPT !.paused = @ \ {a}, !.shown = IF on THEN @ \ {a} ELSE @]
         x == Start(IF ends THEN Learn(s1, a) ELSE s1, a, "person", port)
-    IN [x EXCEPT !.out = (IF ends THEN <<[k |-> "hold_cleared", agent |-> a, cause |-> "failures"]>> ELSE <<>>)
-                         \o (IF ends /\ a \notin Learn(s, a).off THEN <<State(a, "active")>> ELSE <<>>)
+    IN [x EXCEPT !.out = (IF on THEN <<State(a, "active")>> ELSE <<>>)
+                         \o (IF ends THEN <<[k |-> "hold_cleared", agent |-> a, cause |-> "failures"]>> ELSE <<>>)
                          \o @
                          \o (IF ends THEN Paused(s, a) ELSE <<>>)]
 
@@ -261,7 +263,7 @@ TickAgent(s, a, port) ==
     THEN [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF a \in NeedsPerson \/ a \notin s.fin
     THEN IF (Open(s, a) \/ a \notin s.clean) /\ a \notin s.ready
-         THEN IF Lag(s, a) THEN [st |-> Learn(s, a), raised |-> <<>>, started |-> <<>>, out |-> <<>>]
+         THEN IF Lag(s, a) THEN [st |-> Learn(s, a), raised |-> <<>>, started |-> <<>>, out |-> Paused(s, a)]
               ELSE [st |-> [s EXCEPT !.ready = @ \cup {a}], raised |-> <<a>>, started |-> <<>>, out |-> <<>>]
          ELSE [st |-> s, raised |-> <<>>, started |-> <<>>, out |-> <<>>]
     ELSE IF SlotDue(s, a)
@@ -283,6 +285,21 @@ Sends(ids) ==
     ELSE LET m == CHOOSE x \in ids : \A y \in ids : x <= y
          IN <<[k |-> "end_run", run |-> m]>> \o Sends(ids \ {m})
 
+LastState(out, a) ==
+    LET is == {i \in DOMAIN out : out[i].k = "set_state" /\ out[i].agent = a}
+    IN IF is = {} THEN "none" ELSE out[CHOOSE i \in is : \A j \in is : j <= i].state
+
+Shown(sh, out) ==
+    {a \in Agents : LastState(out, a) = "paused" \/ (a \in sh /\ LastState(out, a) = "none")}
+
+Pausing(s) == {a \in Agents : a \notin s.gone /\ a \notin s.lost /\ (a \in s.off \/ a \in s.paused) /\ a \notin s.shown}
+
+RECURSIVE Pauses(_)
+Pauses(as) ==
+    IF as = {} THEN <<>>
+    ELSE LET m == CHOOSE x \in as : \A y \in as : x <= y
+         IN <<State(m, "paused")>> \o Pauses(as \ {m})
+
 Owed(s) == {id \in s.owing : \E a \in Agents : s.f.open[a] = id}
 Kept(s, pay) == {id \in pay : \E a \in Agents \ s.gone : s.f.open[a] = id}
 
@@ -301,7 +318,8 @@ Tick(s, d, g, port) ==
         t == TickFrom([st |-> i.st, raised |-> <<>>, started |-> <<>>, out |-> <<>>], 1, port)
     IN [r |-> "ok", stopped |-> v.stopped, ended |-> k.ended, next |-> i.next,
         raised |-> t.raised, started |-> t.started, st |-> Unready(t.st, Agents),
-        out |-> again \o v.out \o k.out \o Sends(pay) \o i.out \o t.out]
+        out |-> again \o v.out \o k.out \o Sends(pay)
+                \o Pauses(Pausing([paid EXCEPT !.shown = Shown(@, v.out \o k.out)])) \o i.out \o t.out]
 
 RECURSIVE Recover(_, _, _)
 Recover(s, ended, out) ==
@@ -387,7 +405,9 @@ Read(s, mv) ==
       [] mv.m = "ack" -> [r |-> "ok", st |-> s, out |-> <<>>]
       [] OTHER -> RunStep(s, mv)
 
-Step(s, mv, f) == [Read([s EXCEPT !.f = f], mv) EXCEPT !.st.f = NoFacts]
+Step(s, mv, f) ==
+    LET x == Read([s EXCEPT !.f = f], mv)
+    IN [x EXCEPT !.st.f = NoFacts, !.st.shown = Shown(x.st.shown, x.out)]
 
 RunMoves(s, r) ==
     (IF r.phase = "starting" THEN {[m |-> "hello", run |-> r.id]} ELSE {})
