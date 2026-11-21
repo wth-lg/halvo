@@ -192,7 +192,12 @@ fn a_row_that_names_a_key_outside_its_shape_or_holds_a_value_of_another_type_is_
             r#""at":"2026-11-13T00:00:00Z""#,
             "at: string_form",
         ),
-        ("agent_finished", r#""steps":2"#, r#""steps":true"#, "steps: boolean"),
+        (
+            "agent_finished",
+            r#""steps":2"#,
+            r#""steps":true"#,
+            "steps: boolean",
+        ),
     ];
     for (name, from, to, rule) in cases {
         let kind = entry(name);

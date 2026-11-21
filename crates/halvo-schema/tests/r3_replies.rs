@@ -579,8 +579,9 @@ fn the_reply_of_load_holds_the_agent_s_start_row_or_null_under_the_key_start() {
         };
         assert_eq!(through, read);
     }
-    let without =
-        format!(r#"{{"config":{LOAD_CONFIG},"playbook":null,"next_playbook":1,"bindings":null,"sessions":[]}}"#);
+    let without = format!(
+        r#"{{"config":{LOAD_CONFIG},"playbook":null,"next_playbook":1,"bindings":null,"sessions":[]}}"#
+    );
     expect(
         LoadReply::parse(without.as_bytes()),
         "LoadReply",
