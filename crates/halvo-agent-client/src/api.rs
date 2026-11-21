@@ -140,6 +140,12 @@ pub struct RunSpec {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LinkError;
 
+/// The failure of a read of the list of checkpoints, which gives no page: the owner's reply was not the list answer
+/// of that request (a link error, a reply that `decode_reply` refuses, a reply with another id, an error reply or a
+/// reply of another form), or no request id could be made.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ListFailed;
+
 /// The owner link: one call, request bytes in, reply bytes out.
 pub trait OwnerLink: Send + Sync {
     fn request(&self, request: &[u8]) -> Result<Vec<u8>, LinkError>;

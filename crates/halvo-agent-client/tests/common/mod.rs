@@ -160,8 +160,9 @@ pub struct Rows {
 }
 
 /// The owner behind the link, in memory: it records each request, answers each runner body as stored, `add_origin`
-/// with the next revision and `end_run` with `{"ok":"yes"}`, and makes the moves of the run's end of A7.5 for the
-/// effects of a run whose `end_run` it gets: `end` for `held`, `cleared` and `approved`, `lose` for `releasing`.
+/// with the next revision, `end_run` with `{"ok":"yes"}` and `list_checkpoints` with a page of `pages`, and makes
+/// the moves of the run's end of A7.5 for the effects of a run whose `end_run` it gets: `end` for `held`, `cleared`
+/// and `approved`, `lose` for `releasing`.
 #[derive(Default)]
 pub struct Store {
     pub requests: Mutex<Vec<String>>,
@@ -179,6 +180,9 @@ pub struct Store {
     pub wrong_form_runner: AtomicUsize,
     pub wrong_id_coord: AtomicUsize,
     pub wrong_form_coord: AtomicUsize,
+    /// The pages that a `list_checkpoints` is answered with, by its `after`: each the text that follows `"ok":` as
+    /// the test wrote it, white space included. A body whose `after` names no page is answered `unsupported`.
+    pub pages: Mutex<Vec<(Option<RunId>, String)>>,
 }
 
 impl Store {
@@ -343,6 +347,13 @@ impl Store {
                 }
                 r.ended = true;
                 Ok(Store::reply(&id, r#"{"ok":"yes"}"#))
+            }
+            CoordinatorCall::ListCheckpoints(list) => {
+                let pages = self.pages.lock().unwrap();
+                Ok(match pages.iter().find(|(after, _)| *after == list.after) {
+                    Some((_, page)) => Store::reply(&id, page),
+                    None => Store::error(&id, "unsupported"),
+                })
             }
             _ => Ok(Store::error(&id, "unsupported")),
         }
