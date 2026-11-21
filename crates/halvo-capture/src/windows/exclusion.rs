@@ -646,6 +646,50 @@ mod tests {
     }
 
     #[test]
+    fn no_title_of_another_listed_browser_is_kept_and_a_plain_app_keeps_its_title() {
+        let never = || -> Option<bool> { panic!("the query ran for a window that is not Chrome") };
+        let told = |path: &str, title: &str| private_window(Browser::of(Some(path)), title, never);
+        let brave = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe";
+        let vivaldi = r"C:\Program Files\Vivaldi\Application\vivaldi.exe";
+        let cases = [
+            (
+                "brave-normal",
+                told(brave, "PAGE - Brave"),
+                PrivateWindow::Private,
+            ),
+            (
+                "brave-private",
+                told(brave, "PAGE - Private - Brave"),
+                PrivateWindow::Private,
+            ),
+            (
+                "vivaldi-normal",
+                told(vivaldi, "PAGE - Vivaldi"),
+                PrivateWindow::Private,
+            ),
+            (
+                "vivaldi-private",
+                told(vivaldi, "PAGE - Vivaldi - Private"),
+                PrivateWindow::Private,
+            ),
+            (
+                "notepad",
+                told(r"C:\Windows\System32\notepad.exe", "notes.txt - Notepad"),
+                PrivateWindow::Unknown,
+            ),
+        ];
+        let wrong: Vec<&str> = cases
+            .iter()
+            .filter(|(_, told, wanted)| told != wanted)
+            .map(|(case, ..)| *case)
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "told against the list of browsers: {wrong:?}"
+        );
+    }
+
+    #[test]
     fn an_edge_title_is_kept_only_with_the_bare_brand_ending() {
         let told = |browser, title: &str| private_window(browser, title, || None);
         let cases = [
