@@ -1562,6 +1562,7 @@ dependencies = [
 name = "halvo-agent-client"
 version = "0.0.0"
 dependencies = [
+ "halvo-checkpoint",
  "halvo-schema",
  "halvo-test-dir",
 ]
