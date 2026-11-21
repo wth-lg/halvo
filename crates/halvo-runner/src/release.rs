@@ -145,6 +145,21 @@ fn facts_of(request: &dyn Paused, loaded: &LoadReply, allowed: Option<&WebOrigin
     }
 }
 
+/// The paused request of an effect of a batch of case (iv) made again from the slots of `loaded`, with the bound
+/// object read from it after `admit` passed for it with that load's origins: the runner's own part, before the
+/// new `propose`, of an effect that the batch proposes again.
+fn made_again(
+    request: Box<dyn Paused>,
+    loaded: &LoadReply,
+) -> Result<(Box<dyn Paused>, Bound), Stop> {
+    let class = request.class();
+    let mut request = request.renew(&class_slots(loaded, class)).map_err(failed)?;
+    let bound = request.bound(&class_slots(loaded, class)).map_err(failed)?;
+    admit(class, &bound, &facts_of(request.as_ref(), loaded, None))
+        .map_err(|refusal| failed(refusal.cause()))?;
+    Ok((request, bound))
+}
+
 /// One effect of the confirm path: its index among the run's effects, its paused request and the bound object
 /// that its last row was made for.
 struct Open {
@@ -179,7 +194,10 @@ impl Runner {
     /// person is asked again with the new values, at most `LIMITS.rebinds` times, then the effect is ended and the
     /// run ends `failed` with `changed`; a `cleared` one is ended and proposed again. The times that one step
     /// proposes effects again are at most `LIMITS.rebinds`, a batch of case (iv) counting once, after which every
-    /// open effect of the step is ended and the run ends `failed` with `changed`. `begin` carries the digest of
+    /// open effect of the step is ended and the run ends `failed` with `changed`. The end of a `cleared` effect that
+    /// the runner proposes again holds the cause `reproposed`, and it is stored after the renewal of the request, the
+    /// bound object, `admit`, the read of a `cancel` and the wall bound, right before the new `propose`; an exit
+    /// before that `propose` and every end at `LIMITS.rebinds` hold `ended` (CP-181). `begin` carries the digest of
     /// the values read again; the request is let through once under the lock of the link, where a held `cancel`
     /// lets nothing through, makes the move `not_made` with the cause `not_sent` and ends the run `declined`, and
     /// `commit` is stored only after its reply. A reply that the maker reads as not made makes the move `not_made`
@@ -245,25 +263,18 @@ impl Runner {
             }
             renewed += 1;
             let mut asked = Vec::new();
-            for mut o in batch {
-                self.advance(o.at, EffectMove::End)?;
-                let class = o.request.class();
-                o.request = o
-                    .request
-                    .renew(&class_slots(&again, class))
-                    .map_err(failed)?;
-                o.bound = o
-                    .request
-                    .bound(&class_slots(&again, class))
-                    .map_err(failed)?;
-                admit(class, &o.bound, &facts_of(o.request.as_ref(), &again, None))
-                    .map_err(|refusal| failed(refusal.cause()))?;
-                self.check()?;
-                self.within_wall()?;
-                o.at = self.propose(decide(&again.config, class, Checkpoint::No), &o.bound)?;
-                match self.effects[o.at].state {
+            for o in batch {
+                let made = made_again(o.request, &again);
+                let (request, bound) = self.or_ended(o.at, made)?;
+                let checked = self.check().and_then(|()| self.within_wall());
+                self.or_ended(o.at, checked)?;
+                let decided = decide(&again.config, request.class(), Checkpoint::No);
+                let at = self.propose_again(o.at, decided, &bound)?;
+                match self.effects[at].state {
                     EffectState::Refused => return Err(refused(&again.config)),
-                    EffectState::Held | EffectState::Cleared => asked.push(o),
+                    EffectState::Held | EffectState::Cleared => {
+                        asked.push(Open { at, request, bound })
+                    }
                     _ => return Err(failed(Cause::Effect)),
                 }
             }
@@ -296,8 +307,9 @@ impl Runner {
     /// maker's (none: the runner's confirmations name none in the mode `replay`), else the effect is
     /// ended and the run ends `refused` with `origin` (A9.2); then `admit` is asked with that load's origins, and its
     /// refusal ends the run `failed` with `provenance` (CP-159 G1). A `cleared` effect whose values
-    /// changed is ended and a new effect is proposed from the load's values; `renewed` counts the times that the
-    /// step proposes effects again (A5.2, CP-157 E4). A `reject_once` on a later card for the effect, after a
+    /// changed is ended with the cause `reproposed`, after the renewal of its request, the read of a `cancel` and the
+    /// wall bound, and a new effect is proposed from the load's values; `renewed` counts the times that the
+    /// step proposes effects again (A5.2, CP-157 E4, CP-181). A `reject_once` on a later card for the effect, after a
     /// `rebind` or for a `cleared` effect proposed again as `held`, ends that effect alone: it gives back
     /// `Through::Rejected`, so that the loop goes on with the queue and reads the reject from that answer and never
     /// from the state `rejected`, which the runner's own `end` leaves too (CP-174 Part 1). The arm for a `cleared`
@@ -377,15 +389,16 @@ impl Runner {
                 return Err(failed(Cause::Changed));
             }
             if cleared {
-                self.advance(one.at, EffectMove::End)?;
                 *renewed += 1;
-                one.request = one
+                let request = one
                     .request
                     .renew(&class_slots(&again, class))
-                    .map_err(failed)?;
-                self.check()?;
-                self.within_wall()?;
-                one.at = self.propose(decide(&again.config, class, Checkpoint::No), &now)?;
+                    .map_err(failed);
+                one.request = self.or_ended(one.at, request)?;
+                let checked = self.check().and_then(|()| self.within_wall());
+                self.or_ended(one.at, checked)?;
+                let decided = decide(&again.config, class, Checkpoint::No);
+                one.at = self.propose_again(one.at, decided, &now)?;
                 one.bound = now;
                 match self.effects[one.at].state {
                     EffectState::Cleared => continue,

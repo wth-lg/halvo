@@ -1,8 +1,9 @@
 mod common;
 
 use common::*;
-use halvo_agent_store::MemoryStore;
+use halvo_agent_store::{allowed_not_done, MemoryStore};
 use halvo_schema::executable::names::EffectState;
+use halvo_schema::executable::AgentRun;
 use halvo_schema::ErrorName;
 use serde_json::{json, Value};
 
@@ -794,4 +795,67 @@ fn a_reproposed_row_is_taken_after_cleared_alone() {
         (last.seq.get(), last.state, last.cause.map(|c| c.as_str())),
         (2, EffectState::Rejected, Some("reproposed"))
     );
+}
+
+/// The count of what a person allowed and Halvo did not do for the run record `record`.
+fn count(store: &MemoryStore, record: &Value) -> Option<u32> {
+    let record = AgentRun::parse(record.to_string().as_bytes()).expect("a run record");
+    allowed_not_done(store, &record).expect("the count")
+}
+
+/// A6.5, CP-181: the count takes each effect of the run whose newest row is `rejected` with `ended` and whose row
+/// before it is `approved` or `cleared`, the runner's end and the end that the handler of `finish` writes alike; an
+/// ended `held` effect and a `reject_once` are not in it. A record that names one effect more than the rows hold
+/// gets none.
+#[test]
+fn the_count_takes_ended_allowed_effects_and_is_none_for_a_missing_one() {
+    let mut store = unattended_sender();
+    let ended = |e, seq, class| row(1, e, seq, "rejected", class, 1, None, Some("ended"));
+    ok(&mut store, row(1, 1, 1, "held", "delete", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 1, 2, "approved", "delete", 1, Some(1), None),
+    );
+    ok(&mut store, ended(1, 3, "delete"));
+    ok(&mut store, row(1, 2, 1, "cleared", "send", 1, None, None));
+    ok(&mut store, ended(2, 2, "send"));
+    ok(&mut store, row(1, 3, 1, "cleared", "send", 1, None, None));
+    ok(&mut store, row(1, 4, 1, "held", "delete", 1, None, None));
+    ok(&mut store, ended(4, 2, "delete"));
+    ok(&mut store, row(1, 5, 1, "held", "delete", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 5, 2, "rejected", "delete", 1, None, None),
+    );
+    let mut record = run_record(1, Some("replay"), "declined");
+    record["effects"] = json!(5);
+    assert_eq!(finish(&mut store, record.clone()), Ok(stored(1)));
+    let third = last_of(&store, &effect(3));
+    assert_eq!(
+        (third.state, third.cause.map(|c| c.as_str())),
+        (EffectState::Rejected, Some("ended")),
+        "the handler of finish ends the open cleared effect"
+    );
+    assert_eq!(count(&store, &record), Some(3));
+    record["effects"] = json!(6);
+    assert_eq!(count(&store, &record), None);
+}
+
+/// CP-181: an effect that the runner ended with the cause `reproposed` and proposed again is not in the count: a run
+/// of that effect and its `committed` successor counts 0.
+#[test]
+fn a_reproposed_effect_is_not_counted_as_allowed_and_not_done() {
+    let mut store = unattended_sender();
+    ok(&mut store, row(1, 1, 1, "cleared", "send", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 1, 2, "rejected", "send", 1, None, Some("reproposed")),
+    );
+    ok(&mut store, row(1, 2, 1, "cleared", "send", 2, None, None));
+    ok(&mut store, row(1, 2, 2, "releasing", "send", 2, None, None));
+    ok(&mut store, row(1, 2, 3, "committed", "send", 2, None, None));
+    let mut record = run_record(1, Some("replay"), "completed");
+    record["effects"] = json!(2);
+    assert_eq!(finish(&mut store, record.clone()), Ok(stored(1)));
+    assert_eq!(count(&store, &record), Some(0));
 }
