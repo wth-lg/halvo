@@ -4276,6 +4276,7 @@ mod tests {
         made_on: Mutex<Vec<(String, usize)>>,
         updated_on: Mutex<Vec<(String, usize)>>,
         content_dropped_on: Mutex<Vec<String>>,
+        selections: Mutex<Vec<(bool, bool, bool)>>,
     }
 
     impl Seen {
@@ -4380,12 +4381,13 @@ mod tests {
         fn new_stream(
             &self,
             display: usize,
-            _selection: &Selection,
+            selection: &Selection,
             _cap: FrameRateCap,
             delegate: &ScreenOutput,
         ) -> (StreamStandIn, Vec<libc::pid_t>, bool) {
             std::thread::sleep(self.parts.makes_in);
             let seen = &self.parts.stream.seen;
+            locked(&seen.selections).push(excludes_of(selection));
             locked(&seen.made_on).push((thread_name(), display));
             *locked(&seen.delegate) = Some(delegate as *const ScreenOutput as usize);
             (
@@ -4399,9 +4401,10 @@ mod tests {
             &self,
             _stream: &StreamStandIn,
             display: usize,
-            _selection: &Selection,
+            selection: &Selection,
             facts: Arc<StreamFacts>,
         ) -> bool {
+            locked(&self.parts.stream.seen.selections).push(excludes_of(selection));
             locked(&self.parts.stream.seen.updated_on).push((thread_name(), display));
             facts.filter(self.parts.listed.clone(), self.parts.lists_app);
             self.parts.lists_app
@@ -4869,6 +4872,47 @@ mod tests {
             "a filter with no display"
         );
         assert!(locked(&seen.made_on).is_empty(), "a rebuild made a stream");
+    }
+
+    fn excludes_of(selection: &Selection) -> (bool, bool, bool) {
+        (
+            selection.excludes(std::process::id() as libc::pid_t, "com.example.own", None),
+            selection.excludes(900, "", Some(SIBLING)),
+            selection.excludes(
+                502,
+                "com.example.other",
+                Some("/Applications/Other.app/Contents/MacOS/Other"),
+            ),
+        )
+    }
+
+    #[test]
+    fn the_start_and_the_rebuild_hand_the_filter_maker_the_callers_selection() {
+        let (stream, seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream, &[5, 7, 9], LONG_WAIT);
+        let (handle, _writer) = sink::channel(8);
+        let (_front, foreground) = in_front_for_test();
+        let frames = frames_of(handle, foreground);
+        let facts = frames.facts.clone();
+        let opened = open_on(
+            &reader,
+            frames,
+            selection_under(Some(500)),
+            SCREEN_FRAME_CAP,
+            LONG_WAIT,
+        );
+        reader.join();
+        let Ok((made, _output, _queue, display)) = &opened else {
+            panic!("the start answered {:?}", opened.as_ref().err());
+        };
+        let rebuilt = refilter_on(&reader, made, *display, &selection_under(Some(500)), &facts);
+        reader.join();
+        assert_eq!(rebuilt, Ok((7, true)), "the rebuild's answer");
+        assert_eq!(
+            *locked(&seen.selections),
+            vec![(true, true, true), (true, true, true)],
+            "what the selection that reached the filter maker excludes (this process, Halvo's app, pid 502 under root 500), at the start and at the rebuild"
+        );
     }
 
     fn probe_code(error: &CaptureError) -> String {
