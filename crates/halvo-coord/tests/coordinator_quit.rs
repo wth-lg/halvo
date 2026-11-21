@@ -325,7 +325,7 @@ fn u46d_the_quit_of_the_next_life_kills_the_run_that_reap_kept_and_names_it() {
         .collect();
     assert_eq!(
         kills,
-        [run.clone()],
+        std::slice::from_ref(&run),
         "the second step of the next life's quit sends its kill for the run that reap kept"
     );
     assert_eq!(
