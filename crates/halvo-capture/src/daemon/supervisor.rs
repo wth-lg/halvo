@@ -406,6 +406,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     capturing: bool,
     pausing: bool,
     parent: Option<Box<dyn ParentWatch>>,
+    held_paused: bool,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -446,6 +447,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             capturing: false,
             pausing: false,
             parent: None,
+            held_paused: false,
         }
     }
 
@@ -501,6 +503,67 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     pub fn board(&self) -> &Board {
         &self.board
+    }
+
+    /// What a status of a service run reads of this supervisor, with the
+    /// time left before the next check of a data directory that failed its
+    /// check, if one did.
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    pub(crate) fn status_parts(&self, obstructed: Option<Duration>) -> super::server::StatusParts {
+        let state = self.state.as_ref().map(StateFile::state);
+        super::server::StatusParts {
+            board: self.board.clone(),
+            desired: self.desired(),
+            lease: self.lease.reading(self.main_loop.now()),
+            slot: self.slot.clone(),
+            obstructed,
+            health: self
+                .state
+                .as_ref()
+                .map_or(super::state::StateHealth::Ok, StateFile::health),
+            cap: state.map_or(
+                super::state::Cap::Known(halvo_control::model::StorageCap::DEFAULT),
+                |state| state.storage_cap,
+            ),
+            switches: state.map_or_else(crate::floor::Switches::default, |state| state.switches),
+            once_granted: state
+                .map_or_else(Vec::new, |state| state.permissions_once_granted.clone()),
+            asked: state.map_or_else(Vec::new, |state| state.permissions_asked.clone()),
+        }
+    }
+
+    /// The word of a Pause or a Resume of a client (contracts.md C2.5):
+    /// `desired` written through the state file, then the run condition read
+    /// at once, so that a Pause stops the sources and a Resume with a fresh
+    /// lease starts them. A Pause whose write fails still holds capture off
+    /// in this life; a Resume lets that hold go only once its own write
+    /// succeeded. `reply` gets the Board of an end routine, as
+    /// [`Self::follow_the_run_condition`] gives it. The answer is the write's,
+    /// `None` with no state file.
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    pub(crate) fn set_desired(
+        &mut self,
+        desired: Desired,
+        owner: Option<&dyn OwnerLink>,
+        reply: &mut dyn FnMut(&Board),
+    ) -> Option<Result<(), StateError>> {
+        let written = self
+            .state
+            .as_mut()
+            .map(|state| state.update(|state| state.desired = desired));
+        match desired {
+            Desired::Paused => self.held_paused = !matches!(written, Some(Ok(()))),
+            Desired::Running => {
+                if matches!(written, Some(Ok(()))) {
+                    self.held_paused = false;
+                }
+            }
+        }
+        if let Some(ending) = self.follow_the_run_condition(owner, reply) {
+            self.ending = Some(ending);
+        }
+        self.publish();
+        written
     }
 
     #[cfg(all(target_os = "macos", debug_assertions))]
@@ -570,6 +633,16 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.read_the_condition(owner);
     }
 
+    /// Renews the indicator lease at the supervisor's clock, as a client's
+    /// Status with `indicator: true` asks (contracts.md C14 item 3), and reads
+    /// the run condition at once, so that a claim with desired running and
+    /// the store open starts the sources.
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    pub(crate) fn renew_lease(&mut self, owner: Option<&dyn OwnerLink>) {
+        self.lease = Lease::renewed_at(self.main_loop.now());
+        self.read_the_condition(owner);
+    }
+
     #[cfg(test)]
     pub(crate) fn set_lease(&mut self, lease: Lease, owner: Option<&dyn OwnerLink>) {
         self.lease = lease;
@@ -634,6 +707,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     }
 
     fn desired(&self) -> Desired {
+        if self.held_paused {
+            return Desired::Paused;
+        }
         self.state
             .as_ref()
             .map_or(Desired::Paused, |state| state.state().desired)

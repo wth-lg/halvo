@@ -1,0 +1,2 @@
+- Changed: The runner records a file edit that a cancel stopped or whose workbook changed under it, and a send or a delete that a cancel stopped or that the service answered as not made, as not made with its cause, instead of leaving it for the run's end to make unknown.
+- Fixed: The store refuses a begun reply row that names an effect whose newest row is not_made, so that one not_made row lets a reply go back to drafted only once.

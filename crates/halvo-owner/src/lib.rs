@@ -66,10 +66,16 @@
 //! the starter's channel before the reply to the request that made it, and once more before it exits:
 //!
 //! ```text
-//! {"report":{"revisions":{"workflow":<n>,..},"counts":{"window":<n>,"bounded":<n>,"kept":<n>},"disk_bytes":<n>,"expiry":<instant>|null}}
+//! {"report":{"revisions":{"workflow":<n>,..},"counts":{"window":<n>,"bounded":<n>,"kept":<n>},"disk_bytes":<n>,"expiry":<instant>|null,"position":{"store":"<store id>","seg":<n>,"idx":<n>}|null}}
 //! ```
 //!
-//! `revisions` holds the families in the order of the registry. At every periodic check the owner calls
+//! `revisions` holds the families in the order of the registry. `position` is the store id that the database is bound
+//! to and the position up to which batches are committed, from the store's own table `meta`, or null while the
+//! database is bound to no store: the report before the first request holds what an earlier owner committed over the
+//! same directory, and the report of a committed batch its store id and commit position. A batch at or before the
+//! committed position commits nothing and makes no report. Where the row of `meta` is malformed, `position` is null as
+//! well: the owner stays up and answers its requests, and writes one line on standard error that names the row and
+//! holds no value of it. At every periodic check the owner calls
 //! `Store::expire` with no request, and writes the report of that call only when it removed a row.
 //!
 //! # How the owner ends
@@ -106,7 +112,10 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::time::{Duration, Instant as Mono, SystemTime, UNIX_EPOCH};
 
-use halvo_derived::{Clock, Counts, DbKey, Error, IdSource, OpenError, Report, Store};
+use halvo_derived::{
+    Clock, CommittedPosition, Counts, DbKey, Error, IdSource, OpenError, PositionState, Report,
+    Store,
+};
 use halvo_schema_core::ids::StoreId;
 use halvo_schema_core::kinds::{self, KindEntry};
 use halvo_schema_core::record::{Episode, Instant, Ordinal};
@@ -518,6 +527,7 @@ fn serve(args: &Args, key: DbKey, ends: Ends) -> i32 {
         pending: None,
         streams: Vec::new(),
         next_stream: 0,
+        told_malformed: false,
     };
     if let Err(fault) = owner.store.purge_below(args.first_live) {
         eprintln!("halvo-owner: the purge below the lowest live ordinal failed: {fault}");
@@ -550,7 +560,14 @@ struct Owner {
     streams: Vec<Stream>,
     /// The number of the next stream.
     next_stream: u64,
+    /// Whether the line `MALFORMED_META` stands on standard error: the owner writes it once, at the first report
+    /// that finds the row of `meta` malformed.
+    told_malformed: bool,
 }
+
+/// The one line on standard error for a malformed row of the store's table `meta`. It holds no value of the row.
+const MALFORMED_META: &str =
+    "halvo-owner: the row of the derived store's table meta is malformed; each report holds position null";
 
 impl Owner {
     /// Serves the channels and the streams until the owner ends. `tx` is the sender that the reader thread of each
@@ -828,6 +845,10 @@ impl Owner {
     fn flush_reports(&mut self) -> Result<(), i32> {
         let reports = std::mem::take(&mut *self.reports.borrow_mut());
         for report in &reports {
+            if report.position == PositionState::Malformed && !self.told_malformed {
+                self.told_malformed = true;
+                eprintln!("{MALFORMED_META}");
+            }
             if write_frame(&mut self.starter, &report_frame(report), SERVER_FRAME_MAX).is_err() {
                 eprintln!("halvo-owner: a report cannot be written on the starter's channel");
                 return Err(exit::CHANNEL);
@@ -877,12 +898,29 @@ struct Body<'a>(&'a Report);
 
 impl Serialize for Body<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut body = serializer.serialize_struct("report", 4)?;
+        let mut body = serializer.serialize_struct("report", 5)?;
         body.serialize_field("revisions", &Revisions(&self.0.revisions))?;
         body.serialize_field("counts", &CountsOf(&self.0.counts))?;
         body.serialize_field("disk_bytes", &self.0.disk_bytes)?;
         body.serialize_field("expiry", &self.0.expiry.map(|at| at.0))?;
+        let position = match &self.0.position {
+            PositionState::Committed(committed) => Some(PositionOf(committed)),
+            PositionState::Unbound | PositionState::Malformed => None,
+        };
+        body.serialize_field("position", &position)?;
         body.end()
+    }
+}
+
+struct PositionOf<'a>(&'a CommittedPosition);
+
+impl Serialize for PositionOf<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut position = serializer.serialize_struct("position", 3)?;
+        position.serialize_field("store", self.0.store.as_str())?;
+        position.serialize_field("seg", &self.0.position.seg)?;
+        position.serialize_field("idx", &self.0.position.idx)?;
+        position.end()
     }
 }
 

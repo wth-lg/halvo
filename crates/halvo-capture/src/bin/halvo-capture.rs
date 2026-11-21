@@ -73,6 +73,17 @@ fn main() -> ExitCode {
         )),
         #[cfg(all(not(target_os = "macos"), debug_assertions))]
         Ok(Mode::DeleteAllOfADataDir { .. }) => status(exit::USAGE),
+        #[cfg(debug_assertions)]
+        Ok(Mode::Ctl(ctl)) => status(daemon::ctl(
+            &ctl,
+            &mut std::io::stdout().lock(),
+            &mut std::io::stderr(),
+        )),
+        #[cfg(all(debug_assertions, feature = "test-seam"))]
+        Ok(Mode::ScriptedServiceRun { data_dir }) => status(daemon::seam::scripted_service_run(
+            &data_dir,
+            daemon::DurableState::writer(),
+        )),
         Err(usage) => status(daemon::usage_answer(&usage, &mut std::io::stderr())),
     }
 }

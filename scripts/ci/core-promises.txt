@@ -39,7 +39,7 @@ secure-input units halvo-capture::daemon::stop_tests gate
 secure-input units halvo-capture::floor gate
 secure-input target halvo-capture/source_rules gate
 secure-input check 18-hook-scan gate macos job, which alone has the check
-secure-input check 62-build scheduled thu and sun the macos job, 68 s there as a check of the merge gate in the push run 44895970784; neither built executable may import the call that holds secure input
+secure-input check 62-build scheduled thu and sun the macos job, 68 s there as a check of the merge gate in the push run 44895970784; no built executable may import the call that holds secure input
 secure-input check 62-build scheduled sun the windows job, 153 s there as a check of the merge gate in the push run 44893237714; it is the one build in the release profile
 secure-input check 24-hook-imports scheduled mon 28 s in the windows job, which alone has the check; it makes debug builds of two executables
 secure-input target halvo-capture/macos_stall_fixture scheduled wed the macos job, the group E; 10 s there; 51-macos-stall runs after it in that slice and reads from the list of 12-test that its launch-path test ran

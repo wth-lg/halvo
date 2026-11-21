@@ -18,8 +18,8 @@ use super::state::Desired;
 
 /// The indicator lease of a service run: a deadline on the supervisor's
 /// monotonic clock, `INDICATOR_LEASE_MS` after the renewal that set it, or
-/// none before the first claim. Outside a test build nothing renews it (the
-/// renewal is daemon-3e's), so a service run of this build starts no source.
+/// none before the first claim. A client's Status with `indicator: true`
+/// renews it (contracts.md C14 item 3).
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Lease {
@@ -36,7 +36,17 @@ impl Lease {
         self.deadline.is_some_and(|deadline| now < deadline)
     }
 
-    #[cfg(test)]
+    /// The lease as Status reports it at `now`: none before the first claim,
+    /// fresh before its deadline and lapsed after it.
+    pub fn reading(self, now: Duration) -> halvo_control::proto::Lease {
+        match self.deadline {
+            None => halvo_control::proto::Lease::None,
+            Some(_) if self.is_fresh(now) => halvo_control::proto::Lease::Fresh,
+            Some(_) => halvo_control::proto::Lease::Lapsed,
+        }
+    }
+
+    /// The lease renewed at `now`: fresh until `INDICATOR_LEASE_MS` after it.
     pub(crate) fn renewed_at(now: Duration) -> Lease {
         Lease {
             deadline: Some(now + Duration::from_millis(halvo_control::INDICATOR_LEASE_MS)),

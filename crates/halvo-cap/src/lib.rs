@@ -57,12 +57,18 @@
 //!
 //! On macOS the cap ends a child at most one poll after the first read above the limit; it
 //! does not keep it under the limit, and `peak_bytes` then shows how far the child went.
+//!
+//! [`start`] starts one child under a limit and returns at once: the child of an
+//! [`EndsSpec`], which inherits the ends that the spec names and no other descriptor or
+//! handle of its starter. [`Started::wait`] blocks as [`run`] does and returns the same
+//! outcome, and an [`Ender`] ends the child from another thread.
 
 use std::ffi::OsString;
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod lock;
@@ -262,6 +268,105 @@ impl ChildSpec {
     }
 }
 
+/// An end of a stream that a child inherits: a descriptor on macOS, a handle on Windows.
+pub type End = platform::End;
+
+/// What [`start`] starts: a program, its arguments and the ends of its starter that it
+/// inherits.
+///
+/// The child gets the environment and the current directory of this process. Its standard
+/// input and its standard output are the null device, and its standard error is that of
+/// this process, or the null device where this process has none. Beside those three it
+/// holds the ends of the spec and no other descriptor or handle of this process: on macOS
+/// every other descriptor is closed before the program runs, and on Windows the child is
+/// created with the list of exactly these handles (`PROC_THREAD_ATTRIBUTE_HANDLE_LIST`),
+/// so a handle that another thread of this process holds inheritable at that moment does
+/// not reach it.
+#[derive(Debug)]
+pub struct EndsSpec {
+    /// The program, started directly with no shell.
+    pub program: OsString,
+    /// Its arguments.
+    pub args: Vec<OsString>,
+    #[cfg_attr(
+        not(any(target_os = "macos", windows)),
+        expect(dead_code, reason = "no child is started on this system")
+    )]
+    ends: Vec<End>,
+}
+
+impl EndsSpec {
+    /// `program` with no argument and no end.
+    pub fn new<P: Into<OsString>>(program: P) -> EndsSpec {
+        EndsSpec {
+            program: program.into(),
+            args: Vec::new(),
+            ends: Vec::new(),
+        }
+    }
+
+    /// Lets the child inherit `end`, which this process closes when the start returns,
+    /// and returns the number that names the end in the child: on macOS its descriptor, 3
+    /// for the first end of the spec, 4 for the second and so on; on Windows the value of
+    /// the handle. No two ends of one spec are one handle.
+    pub fn inherit<E: Into<End>>(&mut self, end: E) -> u64 {
+        let end = end.into();
+        let name = platform::name_of(self.ends.len(), &end);
+        self.ends.push(end);
+        name
+    }
+}
+
+/// A child that [`start`] started under a limit.
+pub struct Started(platform::Started);
+
+impl Started {
+    /// The pid of the child; none for a program that could not be started.
+    pub fn pid(&self) -> Option<u32> {
+        self.0.pid()
+    }
+
+    /// The system's error number for a program that could not be started, where the system
+    /// gave one; none for a child that was started.
+    pub fn start_error(&self) -> Option<i32> {
+        self.0.start_error()
+    }
+
+    /// The call that ends this child, for another thread than the one that waits.
+    pub fn ender(&self) -> Ender {
+        Ender(self.0.ending())
+    }
+
+    /// Blocks until the child has ended and returns what [`run`] returns: its exit, its
+    /// peak, whether the cap stopped it, and the instants of its start and its end. A
+    /// program that could not be started gives `Exit::NotStarted` at once. The error means
+    /// that the cap could not be read; the child is then killed and reaped before the call
+    /// returns. A value that is dropped with no call of `wait` ends its child.
+    pub fn wait(self) -> Result<Outcome, CapError> {
+        self.0.wait()
+    }
+}
+
+/// Ends one child that [`start`] started.
+#[derive(Clone)]
+pub struct Ender(Arc<platform::Ending>);
+
+impl Ender {
+    /// Kills the child, unless [`Started::wait`] has seen it ended: on macOS with SIGKILL,
+    /// which reaches the started process alone and never a later process of its pid; on
+    /// Windows by the end of the Job, which ends every process of it. The call returns at
+    /// once, and `wait` returns the outcome.
+    pub fn end(&self) {
+        self.0.end();
+    }
+
+    /// Whether a call of [`Ender::end`] reached the child before `wait` saw it ended. A
+    /// child that had exited on its own in that moment keeps its own exit.
+    pub fn reached(&self) -> bool {
+        self.0.reached()
+    }
+}
+
 #[cfg(any(windows, test))]
 const PRIVILEGE_NOT_HELD: i32 = 1314;
 
@@ -326,6 +431,17 @@ pub fn check_supported(limit: Limit) -> Result<Mode, CapError> {
 /// reads the process table after the run and ends what the run started.
 pub fn run(spec: ChildSpec, limit: Limit) -> Result<Outcome, CapError> {
     platform::run(spec, limit)
+}
+
+/// Starts the child of `spec` under `limit` and returns at once. The cap is that of
+/// [`run`]: [`Started::wait`] holds it and returns the outcome, on a thread that the caller
+/// gives it, and [`Started::ender`] ends the child from another thread.
+///
+/// A program that cannot be started gives a value whose `pid` is none, not an error. The
+/// error means that the cap could not be set; a child that was started is then killed and
+/// reaped before the call returns.
+pub fn start(spec: EndsSpec, limit: Limit) -> Result<Started, CapError> {
+    platform::start(spec, limit).map(Started)
 }
 
 #[cfg(test)]

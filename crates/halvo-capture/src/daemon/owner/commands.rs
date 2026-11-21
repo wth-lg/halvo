@@ -48,6 +48,12 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 self.stopping = true;
                 Answer::ShutDown(snapshot)
             }
+            Command::Inventory => Answer::Inventory(self.store.inventory()),
+            #[cfg(feature = "r2")]
+            Command::Mark(edge) => {
+                let at = self.clocks.wall();
+                Answer::Marked(crate::daemon::r2::marks::handler().request(self, at, edge))
+            }
         }
     }
 }

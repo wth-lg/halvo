@@ -34,8 +34,12 @@ mod process_tests;
 #[rustfmt::skip]
 #[cfg(feature = "r2")] pub mod r2;
 mod report;
+#[cfg(all(target_os = "macos", debug_assertions))]
+mod run_marker;
 #[cfg(test)]
 mod scripted;
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub mod server;
 pub mod signal;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod slot;
@@ -115,7 +119,8 @@ pub const USAGE: &str = "usage: halvo-capture --version
        halvo-capture --verify-deletion --store-dir DIR
        halvo-capture --delete-all --store-dir DIR
        halvo-capture --delete-all --data-dir DIR
-       halvo-capture --service-run [--lifeline] [--data-dir DIR]";
+       halvo-capture --service-run [--lifeline] [--data-dir DIR]
+       halvo-capture ctl [--data-dir DIR] VERB";
 
 /// What a command line asks for. The gate's modes exist only in builds with
 /// debug assertions.
@@ -185,6 +190,18 @@ pub enum Mode {
     DeleteAllOfADataDir {
         data_dir: halvo_control::paths::DataDir,
     },
+    /// `ctl [--data-dir DIR] VERB` (contracts.md C2.2 to C2.7): one request
+    /// to the service run of the data directory, through halvo-control's
+    /// client and its text.
+    #[cfg(debug_assertions)]
+    Ctl(halvo_control::ctl_text::Ctl),
+    /// `--service-run [--data-dir DIR] --scripted-sources`, in a build with
+    /// the feature test-seam alone: the service run with the scripted sources
+    /// of [`seam`] in place of the system's.
+    #[cfg(all(debug_assertions, feature = "test-seam"))]
+    ScriptedServiceRun {
+        data_dir: halvo_control::paths::DataDir,
+    },
 }
 
 impl Mode {
@@ -194,6 +211,10 @@ impl Mode {
     /// entry.
     #[cfg(debug_assertions)]
     pub fn reads_the_signal_flag(&self) -> bool {
+        #[cfg(feature = "test-seam")]
+        if matches!(self, Mode::ScriptedServiceRun { .. }) {
+            return true;
+        }
         matches!(
             self,
             Mode::TimedRun(_) | Mode::ServiceRun { .. } | Mode::LifelineServiceRun { .. }
@@ -251,6 +272,11 @@ pub enum Refusal {
     /// directory; it exits 1.
     #[error("halvo-capture: the account gives no data directory: {0}")]
     NoServiceDir(PathError),
+    /// A refused line of `ctl`, with the reason and ctl's own usage; it exits
+    /// 64.
+    #[cfg(debug_assertions)]
+    #[error("halvo-capture: {0}\n{usage}", usage = halvo_control::ctl_text::USAGE)]
+    Ctl(String),
 }
 
 /// The binary's answer to a command line that is not run: the refusal's text
@@ -263,6 +289,8 @@ pub fn usage_answer<R: Clone + Into<Refusal>>(refused: &R, err: &mut dyn std::io
         Refusal::Usage(_) | Refusal::DataDirLayout(_) | Refusal::DataDirUnread(_) => {
             halvo_control::exit::USAGE
         }
+        #[cfg(debug_assertions)]
+        Refusal::Ctl(_) => halvo_control::exit::USAGE,
         Refusal::NoDataDir(_) | Refusal::NoServiceDir(_) => halvo_control::exit::ERROR,
     }
 }
@@ -680,6 +708,19 @@ pub fn parse(
             let store_dir =
                 gate::store_dir(flags.store_dir, account)?.without_a_data_directory_layout()?;
             Ok(Mode::DeleteAll { store_dir })
+        }
+        #[cfg(debug_assertions)]
+        Some("ctl") => {
+            let words: Vec<OsString> = args[1..].iter().map(OsString::from).collect();
+            halvo_control::ctl_text::parse(&words)
+                .map(Mode::Ctl)
+                .map_err(|refused| Refusal::Ctl(refused.0))
+        }
+        #[cfg(all(debug_assertions, feature = "test-seam"))]
+        Some("--service-run") if args.last().is_some_and(|flag| flag == seam::FLAG) => {
+            Ok(Mode::ScriptedServiceRun {
+                data_dir: service_dir(&args[1..args.len() - 1], account)?,
+            })
         }
         #[cfg(debug_assertions)]
         Some("--service-run") if args.get(1).is_some_and(|flag| flag == "--lifeline") => {
@@ -1815,11 +1856,164 @@ pub fn lifeline_service_run(
     }
 }
 
+/// Runs `ctl` (contracts.md C2.2 to C2.7): the request of its verb to the
+/// service run of its data directory through halvo-control's client, the
+/// text of the answer on `out` and `err`, and the exit status of C2.7.
+#[cfg(debug_assertions)]
+pub fn ctl(
+    ctl: &halvo_control::ctl_text::Ctl,
+    out: &mut dyn std::io::Write,
+    err: &mut dyn std::io::Write,
+) -> i32 {
+    let printed = match ctl.data_dir() {
+        Ok(dir) => {
+            let result = halvo_control::client::system_connector(&dir).and_then(|connector| {
+                halvo_control::client::Client::new(connector).send(&ctl.verb.request())
+            });
+            halvo_control::ctl_text::print(&ctl.verb, result, &dir)
+        }
+        Err(error) => halvo_control::ctl_text::Printed {
+            stdout: String::new(),
+            stderr: format!("halvo-capture: the account gives no data directory: {error}\n"),
+            status: halvo_control::exit::ERROR,
+        },
+    };
+    let _ = out
+        .write_all(printed.stdout.as_bytes())
+        .and_then(|()| out.flush());
+    let _ = err
+        .write_all(printed.stderr.as_bytes())
+        .and_then(|()| err.flush());
+    printed.status
+}
+
+/// The switch of the feature test-seam: `--scripted-sources` after the
+/// flags of `--service-run` gives the service run scripted sources in place
+/// of the system's, so that a test of the built binary starts no real source.
+/// A build without the feature has none of it and refuses the flag as usage.
+#[cfg(all(debug_assertions, feature = "test-seam"))]
+pub mod seam {
+    /// The flag of the switch.
+    pub const FLAG: &str = "--scripted-sources";
+
+    /// The marker of a build with the seam, the bytes that check 62-build
+    /// scans every shipped file for.
+    pub static MARKER: [u8; 42] = *b"halvo-capture:test-seam:this-build-has-it!";
+
+    /// The first line on standard error of a service run with scripted
+    /// sources.
+    pub const FIRST_LINE: &str =
+        "halvo-capture: sources=scripted: this build has the feature test-seam";
+
+    /// The app that each scripted foreground event names.
+    pub const MARK_APP: &str = "dev.halvo.test-seam.scripted-front";
+
+    /// The foreground events that a scripted source emits at each start.
+    pub const EVENTS_A_START: u64 = 3;
+
+    /// The factory of the scripted sources: a foreground source that emits
+    /// [`EVENTS_A_START`] events naming [`MARK_APP`] at each start, and no
+    /// other source.
+    #[cfg(target_os = "macos")]
+    pub struct ScriptedSources;
+
+    #[cfg(target_os = "macos")]
+    impl super::sources::SourceFactory for ScriptedSources {
+        fn make(
+            &mut self,
+            name: super::SourceName,
+        ) -> Option<Box<dyn crate::source::CaptureSource>> {
+            (name == super::SourceName::Foreground)
+                .then(|| Box::new(ScriptedFront) as Box<dyn crate::source::CaptureSource>)
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    impl super::supervisor::SystemSources for ScriptedSources {}
+
+    #[cfg(target_os = "macos")]
+    struct ScriptedFront;
+
+    #[cfg(target_os = "macos")]
+    impl crate::source::CaptureSource for ScriptedFront {
+        fn begin(
+            &mut self,
+            ctx: crate::source::SourceContext,
+        ) -> Result<crate::source::Started, crate::source::CaptureError> {
+            use crate::floor::exclude::{PrivateWindow, ProcessId, Subject, Verdict};
+            let probe = crate::secure_input_macos::SystemProbe::new();
+            for _ in 0..EVENTS_A_START {
+                let subject = Subject::new(
+                    crate::event::AppIdentity::bundle_id(MARK_APP.to_owned()),
+                    ProcessId::new(1),
+                );
+                let verdict = ctx.floor().decide::<crate::floor::kind::ForegroundApp>(
+                    subject,
+                    PrivateWindow::Unknown,
+                    &probe,
+                );
+                if let Verdict::Keep(keep) = verdict {
+                    ctx.sink()
+                        .emit_event(crate::event::FloorEvent::foreground_app(
+                            keep,
+                            None,
+                            crate::event::EventClock::system(),
+                        ));
+                }
+            }
+            Ok(crate::source::Started::Running)
+        }
+
+        fn shutdown(&mut self) -> Result<(), crate::source::CaptureError> {
+            Ok(())
+        }
+    }
+
+    /// Runs the service run on `dir` with [`ScriptedSources`], after
+    /// [`FIRST_LINE`] on standard error; on another system it answers as
+    /// the service run does there.
+    pub fn scripted_service_run(
+        dir: &halvo_control::paths::DataDir,
+        writer: Box<dyn super::state::StateWrite>,
+    ) -> i32 {
+        use std::io::Write as _;
+        std::hint::black_box(&MARKER);
+        let _ = writeln!(std::io::stderr(), "{FIRST_LINE}");
+        #[cfg(target_os = "macos")]
+        {
+            super::serve_the_mac_with(dir, writer, None, |_| ScriptedSources)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            super::service_run(dir, writer)
+        }
+    }
+}
+
 #[cfg(all(target_os = "macos", debug_assertions))]
 fn serve_the_mac(
     dir: &halvo_control::paths::DataDir,
     writer: Box<dyn state::StateWrite>,
     lifeline: Option<lease::lifeline::Lifeline>,
+) -> i32 {
+    serve_the_mac_with(dir, writer, lifeline, |(writer, reader, turns)| {
+        sources::ServiceSources::new(writer, reader, turns)
+    })
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+type FrontParts = (
+    crate::macos::foreground::ForegroundWriter,
+    crate::macos::foreground::ForegroundReader,
+    crate::macos::run_loop::RunLoopTurns,
+);
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn serve_the_mac_with<F: supervisor::SystemSources>(
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+    lifeline: Option<lease::lifeline::Lifeline>,
+    factory_of: impl FnOnce(FrontParts) -> F,
 ) -> i32 {
     use std::io::Write as _;
     let mut run_loop = match crate::macos::run_loop::MainRunLoop::claim() {
@@ -1836,7 +2030,7 @@ fn serve_the_mac(
         );
         return halvo_control::exit::ERROR;
     };
-    let factory = sources::ServiceSources::new(front_writer, front_reader, run_loop.turns());
+    let factory = factory_of((front_writer, front_reader, run_loop.turns()));
     let main_loop = ServiceLoop {
         run_loop,
         started: std::time::Instant::now(),
@@ -1926,7 +2120,13 @@ pub(crate) struct ServiceParts<F> {
     pub(crate) lease: lease::Lease,
     #[cfg(test)]
     pub(crate) settled: Option<Box<dyn FnOnce(Option<counters::Snapshot>)>>,
+    #[cfg(test)]
+    pub(crate) wrap_store: Option<WrapStore>,
 }
+
+#[cfg(all(test, target_os = "macos", debug_assertions))]
+pub(crate) type WrapStore =
+    Box<dyn FnOnce(Box<dyn port::CaptureStore + Send>) -> Box<dyn port::CaptureStore + Send>>;
 
 #[cfg(all(target_os = "macos", debug_assertions))]
 impl<F: supervisor::SystemSources> ServiceParts<F> {
@@ -1938,6 +2138,8 @@ impl<F: supervisor::SystemSources> ServiceParts<F> {
             lease: lease::Lease::NONE,
             #[cfg(test)]
             settled: None,
+            #[cfg(test)]
+            wrap_store: None,
         }
     }
 }
@@ -2002,6 +2204,36 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             Some(DirShut::first())
         }
     };
+    let (last_stop, marked) = run_marker::begin(dir);
+    if let Err(error) = marked {
+        let _ = writeln!(
+            err,
+            "halvo-capture: the run marker was not written: {}",
+            error.kind()
+        );
+    }
+    let listening = match server::unix::Listening::bind(dir) {
+        Ok(listening) => listening,
+        Err(error) => {
+            let _ = writeln!(
+                err,
+                "halvo-capture: the control channel could not be bound: {}",
+                error.kind()
+            );
+            let _ = run_marker::end(dir);
+            return halvo_control::exit::ERROR;
+        }
+    };
+    let facts = server::RunFacts {
+        started_at: second_now(),
+        parent: if parts.lifeline.is_some() {
+            halvo_control::proto::Parent::Watched
+        } else {
+            halvo_control::proto::Parent::None
+        },
+        last_stop,
+        rss_peak_bytes: 0,
+    };
     let folder = match lock.state_dir() {
         Ok(folder) => folder,
         Err(error) => {
@@ -2060,6 +2292,9 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         Mark::NotYet
     };
     let mut status = halvo_control::exit::CLEAN;
+    let mut stop_asked = None;
+    #[cfg(test)]
+    let mut wrap_store = parts.wrap_store;
     loop {
         let opening = matches!(store, HeldStore::None)
             && opener.as_ref().is_some_and(owner::open::Opener::is_running);
@@ -2073,11 +2308,26 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             HeldStore::Maintenance(upkeep) => window.min(upkeep.wait()),
             HeldStore::None | HeldStore::Capture(_) => window,
         };
-        if supervisor.wait_on(window, stop, store.link()) {
-            break;
+        let serving = Serving {
+            listening: &listening,
+            facts: &facts,
+            obstructed: dir_shut.map(|shut| shut.left()),
+        };
+        match wait_serving(&mut supervisor, &serving, window, stop, &store) {
+            Waited::Window => {}
+            Waited::Ended => break,
+            Waited::Stop(asked) => {
+                listening.admitting().end_the_life();
+                stop_asked = Some(asked);
+                break;
+            }
         }
         if RunSources::restart_asked(&supervisor) {
             status = halvo_control::exit::RESTART;
+            break;
+        }
+        if store.link().is_some_and(|owner| !owner.is_running()) {
+            status = halvo_control::exit::ERROR;
             break;
         }
         if let Some(shut) = dir_shut {
@@ -2104,6 +2354,11 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         mark = mark_the_store_made(mark.at_the_answer(), &mut supervisor, err);
         store = match held {
             owner::open::Held::Capture { store, id } => {
+                #[cfg(test)]
+                let store = match wrap_store.take() {
+                    Some(wrap) => wrap(store),
+                    None => store,
+                };
                 match capture_owner(store, held_cap, switches, root) {
                     Ok(owner) => {
                         let wanted = sources::starting(
@@ -2112,6 +2367,10 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                             switches,
                         );
                         supervisor.serve_sources(owner.context(), wanted);
+                        #[cfg(feature = "r2")]
+                        listening
+                            .admitting()
+                            .hold_owner(Some(owner.watched.handle.clone()));
                         let store = HeldStore::Capture(Box::new(owner));
                         supervisor.set_slot(slot::Slot::Open { id }, store.link());
                         store
@@ -2131,6 +2390,8 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             )),
         };
     }
+    #[cfg(feature = "r2")]
+    listening.admitting().hold_owner(None);
     if let Some(opener) = &opener {
         opener.stop();
         opener.wait_for_its_call(CLOSE_WAIT);
@@ -2145,13 +2406,242 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     if let Some(settled) = parts.settled {
         settled(outcome.as_ref().and_then(|outcome| outcome.settled));
     }
+    let events_lost = outcome
+        .as_ref()
+        .and_then(|outcome| outcome.settled)
+        .map_or(0, |settled| {
+            settled.events_lost.saturating_add(settled.events_pending)
+        });
     let status = outcome.map_or(status, |outcome| outcome.status);
+    if let HeldStore::Capture(owner) = &store {
+        if !supervisor::OwnerLink::is_running(&owner.watched) {
+            let _ = writeln!(
+                err,
+                "{}",
+                owner_ended(&owner.watched.snapshot(), &owner.sink.counts()).line
+            );
+        }
+    }
     let status = match store {
         HeldStore::Capture(owner) => close_the_store(*owner, status, err),
         HeldStore::None | HeldStore::Maintenance(_) => status,
     };
+    if status == halvo_control::exit::CLEAN {
+        if let Err(error) = run_marker::end(dir) {
+            let _ = writeln!(
+                err,
+                "halvo-capture: the run marker was not removed: {}",
+                error.kind()
+            );
+        }
+    }
+    if let Some(asked) = stop_asked {
+        let stopped = halvo_control::proto::Stopped {
+            flushed: status != halvo_control::exit::ERROR,
+            events_lost,
+        };
+        let _ = asked
+            .answer(halvo_control::proto::Reply::Stopped(stopped))
+            .wait(WRITTEN_WAIT);
+    }
+    drop(listening);
     drop(lock);
     status
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn second_now() -> halvo_control::model::UtcSecond {
+    let seconds = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs());
+    halvo_control::model::UtcSecond::from_unix_seconds(i64::try_from(seconds).unwrap_or(0))
+        .unwrap_or_else(|_| {
+            halvo_control::model::UtcSecond::from_unix_seconds(0)
+                .expect("the epoch is a second of the model")
+        })
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+struct Serving<'a> {
+    listening: &'a server::unix::Listening,
+    facts: &'a server::RunFacts,
+    obstructed: Option<Duration>,
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+enum Waited {
+    Window,
+    Ended,
+    Stop(server::Asked),
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn wait_serving<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+    window: Duration,
+    stop: &std::sync::atomic::AtomicBool,
+    store: &HeldStore,
+) -> Waited {
+    let until = supervisor.main_loop().now() + window;
+    loop {
+        let began = supervisor.main_loop().now();
+        let Some(slice) = main_loop::slice(began, until) else {
+            return Waited::Window;
+        };
+        if supervisor.wait_on(slice, stop, store.link()) {
+            return Waited::Ended;
+        }
+        while let Some(asked) = serving.listening.next() {
+            if matches!(asked.request, halvo_control::proto::Request::Stop) {
+                return Waited::Stop(asked);
+            }
+            serve_request(asked, supervisor, serving, store);
+        }
+        if supervisor.main_loop().now() < began + slice {
+            return Waited::Window;
+        }
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    asked: server::Asked,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+    store: &HeldStore,
+) {
+    use halvo_control::proto::{ErrorCode, ErrorReply, Reply, Request};
+    if asked.request.claims_the_indicator() {
+        supervisor.renew_lease(store.link());
+    }
+    let reply = match asked.request {
+        Request::Status { .. } => status_reply(supervisor, serving).map_or_else(
+            |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+            Reply::Status,
+        ),
+        Request::Inventory => inventory_reply(supervisor, store),
+        Request::Pause | Request::Resume => {
+            capture_change(asked, supervisor, serving, store);
+            return;
+        }
+        _ => Reply::Error(ErrorReply::new(
+            ErrorCode::UnsupportedOp,
+            "this build of the capture service does not serve the op",
+        )),
+    };
+    let _ = asked.answer(reply);
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+const WRITTEN_WAIT: Duration = Duration::from_millis(2_500);
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    asked: server::Asked,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+    store: &HeldStore,
+) {
+    use halvo_control::proto::{ErrorCode, ErrorReply, Reply, Request};
+    let desired = match asked.request {
+        Request::Resume => state::Desired::Running,
+        _ => state::Desired::Paused,
+    };
+    let facts = server::RunFacts {
+        rss_peak_bytes: server::unix::rss_peak_bytes(),
+        ..*serving.facts
+    };
+    let changed = |parts: &server::StatusParts| {
+        server::status_of(parts, &facts).map_or_else(
+            |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+            Reply::CaptureChanged,
+        )
+    };
+    let before = supervisor.status_parts(serving.obstructed);
+    let mut pending = Some(asked);
+    let _ = supervisor.set_desired(desired, store.link(), &mut |board| {
+        if let Some(asked) = pending.take() {
+            serving.listening.admitting().end_the_life();
+            let parts = server::StatusParts {
+                board: board.clone(),
+                ..before.clone()
+            };
+            let _ = asked.answer(changed(&parts)).wait(WRITTEN_WAIT);
+        }
+    });
+    if let Some(asked) = pending {
+        let _ = asked.answer(changed(&supervisor.status_parts(serving.obstructed)));
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+const INVENTORY_WAIT: Duration = Duration::from_millis(1_500);
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn inventory_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    store: &HeldStore,
+) -> halvo_control::proto::Reply {
+    use halvo_control::proto::{ErrorCode, ErrorReply, InventoryReply, Reply, Totals};
+    let parts = supervisor.status_parts(None);
+    let (slot::Slot::Open { id }, Some(owner)) = (&parts.slot, store.link()) else {
+        return Reply::Error(ErrorReply::new(
+            ErrorCode::StoreUnavailable,
+            parts.slot.state().as_str(),
+        ));
+    };
+    let answer = match owner.ask(owner::Command::Inventory) {
+        Ok(pending) => supervisor.answer_within(&pending, INVENTORY_WAIT),
+        Err(owner::OwnerGone) => None,
+    };
+    let rows = match answer {
+        Some(owner::Answer::Inventory(Ok(rows))) => rows,
+        Some(owner::Answer::Inventory(Err(_))) => {
+            return Reply::Error(ErrorReply::new(
+                ErrorCode::StoreUnavailable,
+                "the store's listing could not be read",
+            ))
+        }
+        _ => {
+            return Reply::Error(ErrorReply::new(
+                ErrorCode::Internal,
+                "the store owner did not answer the listing in time",
+            ))
+        }
+    };
+    let totals = Totals {
+        events: rows.iter().map(|row| row.events).sum(),
+        bytes: rows.iter().map(|row| row.bytes).sum(),
+        disk_bytes: parts
+            .board
+            .snapshot
+            .and_then(|snapshot| snapshot.disk_bytes)
+            .unwrap_or(0),
+    };
+    InventoryReply::new(
+        halvo_control::model::StoreId::from_bytes(*id.as_bytes()),
+        second_now(),
+        rows,
+        totals,
+        Vec::new(),
+    )
+    .map_or_else(
+        |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.to_string())),
+        Reply::Inventory,
+    )
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn status_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    supervisor: &supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+) -> Result<halvo_control::proto::DaemonStatus, halvo_control::proto::StatusError> {
+    let facts = server::RunFacts {
+        rss_peak_bytes: server::unix::rss_peak_bytes(),
+        ..*serving.facts
+    };
+    server::status_of(&supervisor.status_parts(serving.obstructed), &facts)
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]

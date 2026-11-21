@@ -69,6 +69,13 @@ use crate::daemon::port::{LiveSegment, MaintFault, Ordinal, SegmentRead};
 /// from the store's segments (contracts.md C5.7 item 5).
 pub(in crate::daemon) const READ_MAX: usize = 262_144;
 
+/// The most segments that one pass asks the store for, a segment that
+/// answers no line among them. A capture write waits on the owner's thread
+/// while a read runs, so it never waits behind more than one read of this
+/// bound: a read that reaches it ends there, and the client's next read goes
+/// on at the first segment that was not read.
+const PASS_SEGMENTS_MAX: usize = 64;
+
 /// The ordinal that an `open_cursor` asks the store at: above every segment,
 /// so the store answers its id and its highest ordinal and reads no line.
 const PAST_EVERY_SEGMENT: Ordinal = Ordinal::new(u64::MAX);
@@ -217,13 +224,6 @@ impl Cursor {
     /// ends. The cursor of the connection ends with it. While it waits in a
     /// read of `input`, nothing but a frame or the end of the stream wakes
     /// it.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the worker's supervisor of the workflows run calls it"
-        )
-    )]
     pub(in crate::daemon) fn serve<R: Read, W: Write>(&self, mut input: R, mut output: W) -> Ended {
         {
             let mut state = self.state();
@@ -348,13 +348,15 @@ impl Cursor {
     }
 
     /// The Batch of one read from the position of `cursor` (C5.7): it asks
-    /// the store for segment after segment until a bound stops it inside one
-    /// or no live segment follows.
+    /// the store for segment after segment until a bound stops it, inside a
+    /// segment or after [`PASS_SEGMENTS_MAX`] of them, or no live segment
+    /// follows.
     fn batch(&self, cursor: &Open, owner: &mut impl ReadEntry) -> Result<Batch, Refused> {
         let unreadable = (Cause::StoreError, UNREADABLE);
         let mut taken = Taken::new(&cursor.store);
         let mut seg = cursor.position.seg;
         let mut idx = cursor.position.idx;
+        let mut asked = 0;
         loop {
             let (answer, now) = owner.read_from(Ordinal::new(seg));
             let read = answer.map_err(|_| unreadable.clone())?;
@@ -382,6 +384,10 @@ impl Cursor {
             }
             seg = ordinal + 1;
             idx = 0;
+            asked += 1;
+            if asked == PASS_SEGMENTS_MAX {
+                return Ok(taken.batch(store, watermark, Position { seg, idx }));
+            }
         }
     }
 
@@ -425,10 +431,6 @@ impl Cursor {
     /// it returns at once when it waits for a pass, and at its next frame or
     /// at the end of its stream when it waits in a read. A reply that it took
     /// from a pass before this call it may still write.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the delete call site of the capture run calls it")
-    )]
     pub(in crate::daemon) fn drop_open(&self) {
         let mut state = self.state();
         state.open = None;
@@ -638,7 +640,7 @@ mod tests {
     };
     use halvo_seam::record::{Kind, Payload, ServedKind};
 
-    use super::{Cursor, Ended, Turn, READ_MAX};
+    use super::{Cursor, Ended, Turn, PASS_SEGMENTS_MAX, READ_MAX};
     use crate::daemon::model_store::{
         app, noon, open_floor, write_one, Harness, ModelStore, AT_NOON, MODEL_ID, PID,
     };
@@ -1143,6 +1145,36 @@ mod tests {
         assert_eq!(served[1].record.kind(), Kind::Keystroke);
         assert_eq!(read.next, read.watermark);
         assert_eq!(of_this_thread().left_out(), 1);
+        assert_eq!(client.end(), Ended::EndOfFile);
+    }
+
+    #[test]
+    fn a_pass_reads_at_most_the_bound_of_segments() {
+        let line = concat!(
+            r#"{"v":1,"id":"019b78c9-0a80-7a1b-8f21-3b5d6c7e8f90","at":1767258000000000000,"seq":0,"kind":"foreground_app","app":"org.example.editor","p":{}}"#,
+            "\n",
+        );
+        let bound = u64::try_from(PASS_SEGMENTS_MAX).unwrap();
+        let mut harness = Harness::new();
+        for _ in 0..bound + 2 {
+            write_one(&mut harness.store, line.as_bytes()).unwrap();
+        }
+        let mut client = Connection::new();
+        batch(client.open(&mut harness, OpenCursor::fresh(None, None)));
+        let asked = harness.store.read_calls().len();
+        let first = batch(client.read(&mut harness));
+        assert_eq!(
+            harness.store.read_calls().len() - asked,
+            PASS_SEGMENTS_MAX,
+            "the pass asked the store past its bound"
+        );
+        let to_the_bound: Vec<Position> = (1..=bound).map(|seg| pos(seg, 0)).collect();
+        assert_eq!(positions(&first), to_the_bound);
+        assert_eq!(first.next, pos(bound + 1, 0));
+        assert!(first.next < first.watermark, "the read ended at the store");
+        let second = batch(client.read(&mut harness));
+        assert_eq!(positions(&second), [pos(bound + 1, 0), pos(bound + 2, 0)]);
+        assert_eq!(second.next, second.watermark);
         assert_eq!(client.end(), Ended::EndOfFile);
     }
 }

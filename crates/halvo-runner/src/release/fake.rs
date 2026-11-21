@@ -5,10 +5,9 @@
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+use halvo_connect::NotMade;
 use halvo_schema::executable::day::{day_of, UTC_OFFSET_S_MAX};
-use halvo_schema::executable::names::{
-    AllowedClass, Answer, FieldName, HandbackReason, LogEvent, Source,
-};
+use halvo_schema::executable::names::{AllowedClass, Answer, FieldName, LogEvent, Source};
 use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::OwnValue;
 use halvo_schema::executable::{
@@ -37,6 +36,7 @@ struct Fake {
     fixed: Option<Bound>,
     fixed_reads: Vec<Bound>,
     no_reply: bool,
+    not_made: Option<NotMade>,
 }
 
 struct Answers;
@@ -53,6 +53,16 @@ struct Silent;
 impl Left for Silent {
     fn reply(self: Box<Self>) -> Replied {
         Replied::NoReply
+    }
+}
+
+/// A request that left and whose answer the maker reads as not made, with the case of A11.2 that `effect()` of
+/// halvo-connect gives.
+struct Unmade(NotMade);
+
+impl Left for Unmade {
+    fn reply(self: Box<Self>) -> Replied {
+        Replied::NotMade(self.0)
     }
 }
 
@@ -131,6 +141,9 @@ impl Paused for Fake {
         }
         if self.no_reply {
             return Box::new(Silent);
+        }
+        if let Some(cause) = self.not_made {
+            return Box::new(Unmade(cause));
         }
         Box::new(Answers)
     }
@@ -271,8 +284,9 @@ fn values_that_change_at_every_read_end_the_effect_after_two_rebinds() {
     );
 }
 
-/// A6.2, CP-135 (4), reading 1: a cancel that the link holds when the answer to `begin` is taken lets nothing
-/// leave; the effect is `releasing` at the `finish` and the run ends `effect_unknown`.
+/// A6.2, CP-135 (4), reading 1, A5.2: a cancel that the link holds when the answer to `begin` is taken lets nothing
+/// leave; the effect takes the move `not_made` with the cause `not_sent`, and the run ends `declined` with no
+/// handback.
 #[test]
 fn a_cancel_held_at_the_answer_to_begin_lets_nothing_leave() {
     let plan = Plan {
@@ -282,15 +296,73 @@ fn a_cancel_held_at_the_answer_to_begin_lets_nothing_leave() {
     let (record, released) = run(vec![delete("a", Source::Extract)], plan);
     assert_eq!(released, 0, "nothing leaves after the cancel");
     assert_eq!(
-        record.states(),
+        rows_with_causes(&record),
         [
-            EffectState::Held,
-            EffectState::Approved,
-            EffectState::Releasing
+            (EffectState::Held, None),
+            (EffectState::Approved, None),
+            (EffectState::Releasing, None),
+            (EffectState::NotMade, Some(Cause::NotSent))
         ]
     );
-    assert_eq!(record.handbacks(), [HandbackReason::EffectUnknown]);
-    assert_eq!(record.done(), Some(Outcome::EffectUnknown));
+    assert!(record.handbacks().is_empty());
+    assert_eq!(record.done(), Some(Outcome::Declined));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Declined)))
+    );
+}
+
+/// The rows of a run of one effect, each with its cause.
+fn rows_with_causes(record: &Record) -> Vec<(EffectState, Option<Cause>)> {
+    record
+        .effects()
+        .iter()
+        .map(|e| (e.state, e.cause))
+        .collect()
+}
+
+/// A5.2, A11.2, A6.5: a request that left and whose answer the maker reads as not made, with one of the three cases
+/// of halvo-connect, takes the move `not_made` with that case's cause, which the runner maps from the case and from
+/// no status; no handback follows, and the run ends `failed` with the cause `adapter`.
+#[test]
+fn a_reply_that_names_a_cause_is_recorded_not_made() {
+    for (case, cause) in [
+        (NotMade::NotSent, Cause::NotSent),
+        (NotMade::Unauthorized, Cause::Unauthorized),
+        (NotMade::Throttled, Cause::Throttled),
+    ] {
+        let released = Arc::new(AtomicU32::new(0));
+        let fake = Fake {
+            reads: vec![delete("a", Source::Extract)],
+            released: Arc::clone(&released),
+            not_made: Some(case),
+            ..Fake::default()
+        };
+        let record = run_path(
+            Category::CalendarCleanup,
+            (Vec::new(), Vec::new()),
+            Box::new(fake),
+            Plan::plain(),
+        );
+        assert_eq!(released.load(Ordering::SeqCst), 1, "{case:?}");
+        assert_eq!(
+            rows_with_causes(&record),
+            [
+                (EffectState::Held, None),
+                (EffectState::Approved, None),
+                (EffectState::Releasing, None),
+                (EffectState::NotMade, Some(cause))
+            ],
+            "{case:?}"
+        );
+        assert!(record.handbacks().is_empty(), "{case:?}");
+        assert_eq!(record.done(), Some(Outcome::Failed), "{case:?}");
+        assert_eq!(
+            stopped(&record),
+            Some((LogEvent::Stopped, Some(Cause::Adapter))),
+            "{case:?}"
+        );
+    }
 }
 
 /// A5.1, CP-139: a later load whose `decide` gives `refuse` ends the effect, and the run ends `refused` with the

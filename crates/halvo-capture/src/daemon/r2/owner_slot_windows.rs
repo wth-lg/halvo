@@ -1,6 +1,6 @@
 //! The owner slot on Windows: the channel is two anonymous pipes whose owner's ends the child inherits and finds by
-//! their handle values; the start time of a process is the creation time of `GetProcessTimes`; an orphan is ended
-//! by `TerminateProcess` on the handle whose creation time was read.
+//! their handle values, as it does its two ends of a worker's channel; the start time of a process is the creation
+//! time of `GetProcessTimes`; an orphan is ended by `TerminateProcess` on the handle whose creation time was read.
 
 use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{self, ErrorKind, PipeReader, PipeWriter};
@@ -29,13 +29,20 @@ pub(super) struct Channel {
     pub(super) reads: Reads,
 }
 
-/// Starts `command` with the owner's ends of two new pipes made inheritable and named by `--channel=<r>,<w>`. The
-/// ends are inheritable from here until the start returns.
-pub(super) fn launch(command: &mut Command) -> io::Result<(Child, Channel)> {
+/// Starts `command` with the owner's ends of two new pipes made inheritable and named by `--channel=<r>,<w>`, and
+/// with the two ends of `worker`, where it holds them, made inheritable and named by `--worker=<r>,<w>`. The ends
+/// are inheritable from here until the start returns.
+pub(super) fn launch(
+    command: &mut Command,
+    worker: Option<(PipeReader, PipeWriter)>,
+) -> io::Result<(Child, Channel)> {
     let (owner_reads, writes) = std::io::pipe()?;
     let (reads, owner_writes) = std::io::pipe()?;
     let ends = [owner_reads.as_raw_handle(), owner_writes.as_raw_handle()];
-    for end in ends {
+    let pair = worker.as_ref().map(|(worker_reads, worker_writes)| {
+        [worker_reads.as_raw_handle(), worker_writes.as_raw_handle()]
+    });
+    for end in ends.into_iter().chain(pair.into_iter().flatten()) {
         // SAFETY: the handle is an open end that this process owns; the call sets its inherit flag alone.
         if unsafe { SetHandleInformation(end, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) } == 0 {
             return Err(io::Error::last_os_error());
@@ -45,9 +52,16 @@ pub(super) fn launch(command: &mut Command) -> io::Result<(Child, Channel)> {
         "--channel={},{}",
         ends[0] as usize, ends[1] as usize
     ));
+    if let Some(pair) = pair {
+        command.arg(format!(
+            "--worker={},{}",
+            pair[0] as usize, pair[1] as usize
+        ));
+    }
     let child = command.spawn();
     drop(owner_reads);
     drop(owner_writes);
+    drop(worker);
     Ok((child?, Channel { writes, reads }))
 }
 
