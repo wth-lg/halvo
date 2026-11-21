@@ -6,6 +6,7 @@ export LC_ALL
 usage() {
   cat <<'EOF'
 usage: sh scripts/ci/run-ci-d.sh <job> [--self-test] [NAME...]
+       sh scripts/ci/run-ci-d.sh <job> --merge-gate
        sh scripts/ci/run-ci-d.sh --list [<job>]
        sh scripts/ci/run-ci-d.sh --rules
 <job> is macos or windows. Start it at the repo root.
@@ -28,6 +29,7 @@ st_perl="setpgrp(0, 0); my \$f = delete \$ENV{RUN_CI_D_PID_FILE}; if (defined \$
 mode=run
 job=
 wanted=
+gate=
 seen=' '
 
 case ${1:-} in
@@ -50,10 +52,15 @@ case ${1:-} in
     for arg in "$@"; do
       case $arg in
         --self-test) mode='self-test' ;;
+        --merge-gate) gate=yes ;;
         '' | -* | *[!a-z0-9-]*) usage >&2; exit 64 ;;
         *) wanted="$wanted $arg" ;;
       esac
     done
+    if [ -n "$gate" ] && { [ "$mode" != run ] || [ -n "$wanted" ]; }; then
+      usage >&2
+      exit 64
+    fi
     ;;
   *)
     usage >&2
@@ -64,6 +71,11 @@ case $mode:$job in
   rules: | list: | *:macos | *:windows) ;;
   *) usage >&2; exit 64 ;;
 esac
+unset CI_D_MERGE_GATE
+if [ -n "$gate" ]; then
+  CI_D_MERGE_GATE=1
+  export CI_D_MERGE_GATE
+fi
 
 if [ -n "$job" ] && [ "$mode" != list ] && [ -n "${RUN_CI_D_NESTED+set}" ]; then
   printf 'FAIL run-ci-d (RUN_CI_D_NESTED is set; the driver refuses it, also when it is empty)\n'
@@ -3076,6 +3088,7 @@ st_naps=0
 st_alone=' '
 st_list=$root/ci/self-test-alone.txt
 st_first_list=$root/ci/self-test-first.txt
+gate_list=$root/ci/merge-gate.txt
 st_firsts=
 st_first_words=
 st_d=
@@ -3187,6 +3200,38 @@ if [ "$mode" = self-test ]; then
   fi
 fi
 
+if [ -n "$gate" ]; then
+  { [ -f "$gate_list" ] && [ -r "$gate_list" ]; } || {
+    printf 'FAIL run-ci-d (%s cannot be read)\n' "$gate_list"
+    exit 1
+  }
+  gate_n=0
+  while IFS= read -r st_line || [ -n "$st_line" ]; do
+    gate_n=$((gate_n + 1))
+    st_entry "$st_line"
+    case $st_word in
+      '' | '#'*) continue ;;
+    esac
+    case $st_word:$st_reason in
+      macos:*[!a-z0-9-]* | windows:*[!a-z0-9-]* | macos: | windows:) gate_n=-$gate_n ;;
+      macos:* | windows:*) ;;
+      *) gate_n=-$gate_n ;;
+    esac
+    if [ "$gate_n" -lt 0 ]; then
+      printf 'FAIL run-ci-d (%s line %s is not a job, macos or windows, a blank and the name of a check)\n' "$gate_list" "${gate_n#-}"
+      exit 1
+    fi
+    [ "$st_word" != "$job" ] || wanted="$wanted $st_reason"
+  done <"$gate_list" || {
+    printf 'FAIL run-ci-d (%s cannot be read)\n' "$gate_list"
+    exit 1
+  }
+  [ -n "$wanted" ] || {
+    printf 'FAIL run-ci-d (%s names no check for %s)\n' "$gate_list" "$job"
+    exit 1
+  }
+fi
+
 tree_start
 ran=' '
 if [ "$mode" = self-test ]; then
@@ -3270,6 +3315,18 @@ EOF
     st_i=$((st_i + 1))
   done
 else
+  if [ -n "$gate" ]; then
+    for name in $wanted; do
+      case $ran in
+        *" $name "*) ;;
+        *)
+          printf 'FAIL run-ci-d (%s names %s, which is no check of the job %s)\n' "$gate_list" "$name" "$job"
+          status=1
+          ;;
+      esac
+    done
+    [ "$status" -eq 0 ] || exit 1
+  fi
   st_lanes
 fi
 st_i=0
