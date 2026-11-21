@@ -306,6 +306,41 @@ mod tests {
         assert_eq!(next_start(dir.path()), (StateHealth::Ok, Desired::Paused));
     }
 
+    #[test]
+    fn a_change_that_leaves_the_state_as_it_was_is_answered_not_written_when_its_write_fails_at_any_step(
+    ) {
+        for step in [
+            Kind::RemoveFile,
+            Kind::CreateNew,
+            Kind::SyncFile,
+            Kind::Rename,
+            Kind::SyncDir,
+        ] {
+            let dir = crate::daemon::state::tests::test_dir();
+            let fs = Arc::new(RecordingFs::new());
+            let mut file = recorded(dir.path(), &fs);
+            assert_eq!(file.state().desired, Desired::Paused);
+            fs.fail(step);
+            let answer = file.update(|state| state.desired = Desired::Paused);
+            assert!(
+                matches!(
+                    answer,
+                    Err(StateError::NotWritten {
+                        kind: io::ErrorKind::StorageFull,
+                        ..
+                    })
+                ),
+                "{step:?}: {answer:?}"
+            );
+            assert_eq!(file.state().desired, Desired::Paused, "{step:?}");
+            assert_eq!(
+                next_start(dir.path()),
+                (StateHealth::Ok, Desired::Paused),
+                "{step:?}"
+            );
+        }
+    }
+
     struct StepFs(Arc<std::sync::Mutex<Option<Kind>>>);
 
     impl StepFs {
