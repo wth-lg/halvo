@@ -48,10 +48,12 @@ function read(file, args) {
 }
 
 // Each file of packaging/helpers.d is one helper; its name is the installed name.
+// A name that starts with a dot, such as Finder's .DS_Store, is no helper.
 function helpers() {
   const directory = path.join(root, "packaging", "helpers.d");
   return fs
     .readdirSync(directory)
+    .filter((name) => !name.startsWith("."))
     .sort()
     .map((name) => {
       const where = `packaging/helpers.d/${name}`;
