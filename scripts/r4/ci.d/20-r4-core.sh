@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Clippy with clippy::disallowed_methods forbidden passes over the library, binary and example targets of halvo-coord, halvo-coord-app and halvo-coord-store with all their features in both jobs, and the macos job runs that alone; in the windows job the code of the three crates outside tests/ names no cfg but test, feature, target_os, windows, unix, any, all and not, holds no dollar sign in a cfg predicate and no rustc-cfg line, the three committed clippy.toml files stand byte for byte with no other clippy configuration in or below the three, at the root or in crates/, no package lies inside them, no cargo configuration is tracked in them, at the root or in crates/, and neither CLIPPY_CONF_DIR nor a flags variable with an allow flag, cap-lints or a cfg flag is set; a normal build of the workspace resolves tauri with neither unstable nor test; the crates that the app links and the three crates hold no start of a child in the named spellings that the check reads, counted call by call, but the two named limits, each as its committed statement, open with its one argument in halvo-control and sw_vers -productVersion in halvo-capture; every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile and changes no tracked file, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed; it does not hold a name that a macro pastes, a name inside a string (link_name, dlsym), code that a build script writes, a start through a library that is not yet a dependency, a call into another crate's function that starts a child, the code of other runs' crates that the three call, a wrapper variable (RUSTC_WRAPPER, RUSTC_WORKSPACE_WRAPPER), include! in a crate that the app links, a test attribute on a closure parameter or a generic parameter, which hides the body after it from the start search, or a type alias of Command or an import alias declared in one file and used in another, in a crate that the app links.
+# rule: Clippy with clippy::disallowed_methods forbidden passes over the library, binary and example targets of halvo-coord, halvo-coord-app and halvo-coord-store with all their features, and clippy with that lint forced to warn and the methods of scripts/r4/linked-disallowed-methods.txt, given through CLIPPY_CONF_DIR, finds none of them called in the library target of a crate that the app links or in the app's binary, as the app builds them and as cargo's JSON names the targets, but the two named limits, each keyed by its file, its pair of findings and the text between them, open with its one argument in halvo-control and sw_vers -productVersion in halvo-capture, both in both jobs, and the macos job runs those two passes alone; in the windows job the code of the three crates outside tests/ names no cfg but test, feature, target_os, windows, unix, any, all and not, holds no dollar sign in a cfg predicate and no rustc-cfg line, the three committed clippy.toml files stand byte for byte with no other clippy configuration in or below the three, at the root or in crates/, no package lies inside them, no cargo configuration is tracked in them, at the root or in crates/, and neither CLIPPY_CONF_DIR nor a flags variable with an allow flag, cap-lints or a cfg flag is set; a normal build of the workspace resolves tauri with neither unstable nor test; the crates that the app links and the three crates hold no start of a child in the named spellings that the check reads, counted call by call, but the two named limits, each as its committed statement; every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile and changes no tracked file, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed; it does not hold a name that a macro pastes, a name inside a string (link_name, dlsym), code that a build script writes, a start through a library that is not yet a dependency, a call into another crate's function that starts a child, the code of other runs' crates that the three call and the app does not link, a wrapper variable (RUSTC_WRAPPER, RUSTC_WORKSPACE_WRAPPER), a start in a test target of the three crates, which no pass reads, code of a crate that the app links that no clippy run of the job compiles, a build script or a proc-macro crate that the app links, or, in a crate that the app links, a start in a spelling other than the methods of the list through include!, behind a test attribute on a closure parameter or a generic parameter, or through a type alias or an import alias declared in another file.
 set -u
 name=20-r4-core
 
@@ -35,25 +35,35 @@ help() {
   cat <<'EOF'
 usage: sh scripts/r4/ci.d/20-r4-core.sh [--self-test | --help]
 Run it through the driver: sh scripts/ci/run-ci-d.sh <macos|windows> [--self-test] 20-r4-core.
-The macos job runs clippy with clippy::disallowed_methods forbidden over the library, binary and
-example targets of halvo-coord, halvo-coord-app and halvo-coord-store with all their features.
-The windows job runs that, the text rules over the three crates, the tauri line, the start search,
+Both jobs run two clippy passes. The forbid run: clippy with clippy::disallowed_methods forbidden
+over the library, binary and example targets of halvo-coord, halvo-coord-app and halvo-coord-store
+with all their features. The compiler pass: clippy with that lint forced to warn and the methods
+of scripts/r4/linked-disallowed-methods.txt, which the check writes as the configuration that it
+hands to clippy through CLIPPY_CONF_DIR, over the library target of every crate that the app links
+and the app's binary, as the app builds them; cargo's JSON names the targets, and each finding
+fails but the two named limits, each keyed by its file, its pair of findings and the text between
+them. The macos job runs the two passes alone.
+The windows job runs them, the text rules over the three crates, the tauri line, the start search,
 the crates' tests with the changed line, and the count of the refusal tests.
-Causes: usage, setup, allow, lock, lock-wording, tree, tauri, start, cargo, changed, missing.
+Causes: usage, setup, allow, list, linked, linked-wording, lock, lock-wording, tree, tauri, start,
+cargo, changed, missing.
 Named limits, which the check does not hold:
 - a name that a macro pastes;
 - a name inside a string (link_name, dlsym);
 - code that a build script writes;
 - a start through a library that is not yet a dependency;
 - a call into another crate's function that starts a child;
-- the code of other runs' crates that the three call;
+- the code of other runs' crates that the three call and the app does not link;
 - a wrapper variable (RUSTC_WRAPPER, RUSTC_WORKSPACE_WRAPPER);
-- include! in a crate that the app links: the start search does not read the included file, and
-  the forbid run compiles included code in the three crates alone;
-- a test attribute on a closure parameter or a generic parameter, which hides the body after it
-  from the start search;
-- a type alias of Command, or an import alias declared in one file and used in another, in a crate
-  that the app links; in the three crates the forbid run holds both.
+- a start in a test target of halvo-coord, halvo-coord-app or halvo-coord-store: no pass reads
+  their test targets, and the review reads each test file that a unit adds for a start;
+- in a crate that the app links, code that no clippy run of the job compiles (a cfg that names
+  clippy or debug_assertions, a cfg that a macro pastes or a build script sets, a feature that the
+  app does not turn on, another system), and a build script or a proc-macro crate: the compiler
+  pass reads the library targets and the app's binary as the app builds them on the job's system;
+- in a crate that the app links, a start in a spelling other than the methods of the list through
+  include!, behind a test attribute on a closure parameter or a generic parameter, or through a
+  type alias or an import alias declared in another file: the start search reads the text alone.
 EOF
 }
 
@@ -561,6 +571,265 @@ exit($found ? 1 : 0);
 EOF
 }
 
+reader() {
+  cat <<'EOF'
+use strict;
+use warnings;
+use JSON::PP;
+
+my $mode = shift @ARGV // '';
+my $mask = sub {
+  my ($t) = @_;
+  $t =~ s{(?:^|(?<=[\s(=\x27"`]))(?:[A-Za-z]:[\\/]|/)[^\s:"\x27()`]+}{<path>}g;
+  $t =~ s/[\x00-\x1f]+/ /g;
+  return $t;
+};
+my $slurp = sub {
+  my ($f) = @_;
+  open my $h, '<', $f or return undef;
+  binmode $h;
+  local $/;
+  my $t = <$h>;
+  close $h;
+  return $t;
+};
+
+if ($mode eq 'conf') {
+  my ($list, $out) = @ARGV;
+  my $t = $slurp->($list);
+  exit 2 unless defined $t;
+  my (@rows, $n);
+  for my $line (split /\n/, $t, -1) {
+    $n++;
+    last if $line eq '' && $n == 1 + ($t =~ tr/\n//);
+    next if $line =~ /\A#/;
+    if ($line =~ /\A((?:[A-Za-z_][A-Za-z0-9_]*::)+[A-Za-z_][A-Za-z0-9_]*)\t([^\t"\\\x00-\x1f\x7f]+)\z/) {
+      push @rows, [$1, $2];
+    } else {
+      print "list line=$n holds no method path, one tab and a reason\n";
+      exit 1;
+    }
+  }
+  if (!@rows) {
+    print "list holds no method\n";
+    exit 1;
+  }
+  open my $o, '>', $out or exit 2;
+  binmode $o;
+  print $o "disallowed-methods = [\n";
+  print $o "  { path = \"$_->[0]\", reason = \"$_->[1]\" },\n" for @rows;
+  print $o "]\n";
+  close $o or exit 2;
+  printf "list methods=%d\n", scalar @rows;
+  exit 0;
+}
+
+my $j = JSON::PP->new;
+if ($mode eq 'errors') {
+  my ($jsonfile) = @ARGV;
+  open my $in, '<', $jsonfile or exit 2;
+  binmode $in;
+  while (my $line = <$in>) {
+    my $o = eval { $j->decode($line) };
+    next unless ref $o eq 'HASH' && ($o->{reason} // '') eq 'compiler-message' && ref $o->{message} eq 'HASH';
+    my $m = $o->{message};
+    next unless ($m->{level} // '') =~ /\Aerror/;
+    my ($s) = grep { ref $_ eq 'HASH' && $_->{is_primary} } @{ ref $m->{spans} eq 'ARRAY' ? $m->{spans} : [] };
+    my $at = $s ? ($s->{file_name} // '') . ':' . ($s->{line_start} // '') : '';
+    $at =~ tr{\\}{/};
+    print $mask->("linked error $at " . ($m->{message} // '')), "\n";
+  }
+  exit 0;
+}
+exit 2 unless $mode eq 'linked';
+
+my ($jsonfile, $metafile, $outfile, $app) = @ARGV;
+my $meta = eval { $j->decode($slurp->($metafile) // '') };
+exit 2 unless ref $meta eq 'HASH' && defined $meta->{workspace_root} && !ref $meta->{workspace_root} && ref $meta->{packages} eq 'ARRAY';
+my $root = $meta->{workspace_root};
+my %member;
+for my $p (@{ $meta->{packages} }) {
+  $member{ $p->{manifest_path} } = 1 if ref $p eq 'HASH' && defined $p->{manifest_path} && !ref $p->{manifest_path};
+}
+my $rel = sub {
+  my ($abs) = @_;
+  return undef unless defined $abs && !ref $abs && length($abs) > length($root) && substr($abs, 0, length $root) eq $root;
+  my $t = substr($abs, length $root);
+  $t =~ s{\A[\\/]}{} or return undef;
+  $t =~ tr{\\}{/};
+  return $t;
+};
+my $int = sub { defined $_[0] && !ref $_[0] && $_[0] =~ /\A[0-9]+\z/ };
+
+my %known = map { $_ => 1 } qw(compiler-artifact compiler-message build-script-executed build-finished);
+my (@wording, @list, @outside, %target, %crate, @find, %seen);
+my $bin = 0;
+open my $in, '<', $jsonfile or exit 2;
+binmode $in;
+my $n = 0;
+LINE: while (my $line = <$in>) {
+  $n++;
+  my $o = eval { $j->decode($line) };
+  if (ref $o ne 'HASH') { push @wording, "line=$n (not a JSON object)"; next }
+  my $r = $o->{reason};
+  if (!defined $r || ref $r || !$known{$r}) { push @wording, "line=$n (reason)"; next }
+  next if $r eq 'build-script-executed' || $r eq 'build-finished';
+  my $t = $o->{target};
+  my @kind = ref $t eq 'HASH' && ref $t->{kind} eq 'ARRAY' ? grep { defined && !ref } @{ $t->{kind} } : ();
+  my $pid = $o->{package_id};
+  if (!@kind || !defined $pid || ref $pid) { push @wording, "line=$n (target)"; next }
+  my $mp = $o->{manifest_path};
+  my $local = $pid =~ m{(?:\A|\()path\+file://};
+  if ($r eq 'compiler-artifact') {
+    next unless $local;
+    my $dir = $rel->($mp);
+    $dir =~ s{/?Cargo\.toml\z}{} if defined $dir;
+    if (!defined $dir || !$member{$mp}) {
+      push @outside, defined $dir ? $dir : '<path>';
+      next;
+    }
+    $dir = '.' if $dir eq '';
+    $target{ "$dir " . join(',', @kind) } = 1;
+    $crate{$dir} = 1;
+    $bin = 1 if grep({ $_ eq 'bin' } @kind) && ($t->{name} // '') eq $app;
+    next;
+  }
+  my $m = $o->{message};
+  if (ref $m ne 'HASH') { push @wording, "line=$n (message)"; next }
+  my @spans = ref $m->{spans} eq 'ARRAY' ? @{ $m->{spans} } : ();
+  for my $s (@spans) {
+    next unless ref $s eq 'HASH' && defined $s->{file_name} && !ref $s->{file_name};
+    if ($s->{file_name} =~ m{(?:\A|[\\/])\.?clippy\.toml\z}) {
+      push @list, $mask->($m->{message} // '');
+      next LINE;
+    }
+  }
+  my $code = ref $m->{code} eq 'HASH' ? $m->{code}{code} : undef;
+  next unless defined $code && !ref $code && $code eq 'clippy::disallowed_methods';
+  my $text = $m->{message};
+  my ($method) = defined $text && !ref $text ? $text =~ /\Ause of a disallowed method `((?:[A-Za-z_][A-Za-z0-9_]*::)+[A-Za-z_][A-Za-z0-9_]*)`\z/ : ();
+  if (!defined $method) { push @wording, "line=$n (text)"; next }
+  if (($m->{level} // '') ne 'warning') { push @wording, "line=$n (level)"; next }
+  my @primary = grep { ref $_ eq 'HASH' && $_->{is_primary} } @spans;
+  my $s = $primary[0];
+  if (@primary != 1 || !defined $s->{file_name} || ref $s->{file_name} || !$int->($s->{byte_start}) || !$int->($s->{byte_end}) || !$int->($s->{line_start}) || $s->{byte_end} < $s->{byte_start}) {
+    push @wording, "line=$n (span)";
+    next;
+  }
+  my $file = $s->{file_name};
+  $file =~ tr{\\}{/};
+  my $skip = grep({ /\A(?:lib|rlib|dylib|cdylib|staticlib|bin)\z/ } @kind) ? '' : join(',', @kind);
+  next if $seen{ join "\0", $file, $s->{byte_start}, $s->{byte_end}, $method }++;
+  push @find, { file => $file, from => $s->{byte_start}, to => $s->{byte_end}, line => $s->{line_start}, method => $method, skip => $skip, expansion => defined $s->{expansion} ? 1 : 0 };
+}
+close $in;
+
+my @limits = (
+  ['crates/halvo-control/src/onboarding.rs', 'std::process::Command::new', 'std::process::Command::status', '("/usr/bin/open").arg(url).'],
+  ['crates/halvo-capture/src/consent/onboarding.rs', 'std::process::Command::new', 'std::process::Command::output', '("/usr/bin/sw_vers").arg("-productVersion").'],
+);
+my %src;
+my $source = sub {
+  my ($f) = @_;
+  $src{$f} = $f =~ m{\A(?:/|[A-Za-z]:)} ? undef : $slurp->($f) unless exists $src{$f};
+  return $src{$f};
+};
+my $between = sub {
+  my ($t, $from, $to) = @_;
+  return undef unless defined $t && $from <= $to && $to <= length $t;
+  my $x = substr($t, $from, $to - $from);
+  $x =~ s/\r//g;
+  $x =~ s/[ \t]*\n\s*//g;
+  return $x;
+};
+my $statement = sub {
+  my ($t, $from) = @_;
+  return '' unless defined $t && $from < length $t;
+  my ($d, $k, $len) = (0, $from, length $t);
+  while ($k < $len) {
+    my $ch = substr($t, $k, 1);
+    if ($ch eq '"') {
+      $k++;
+      while ($k < $len && substr($t, $k, 1) ne '"') { $k += substr($t, $k, 1) eq '\\' ? 2 : 1 }
+    } elsif ($ch =~ /[(\[{]/) {
+      $d++;
+    } elsif ($ch =~ /[)\]}]/) {
+      last if $d == 0;
+      $d--;
+    } elsif ($ch eq ';' && $d == 0) {
+      last;
+    }
+    $k++;
+  }
+  my $x = $between->($t, $from, $k > $len ? $len : $k);
+  $x = substr($x, 0, 200) . '...' if length $x > 200;
+  return $x;
+};
+my %byfile;
+push @{ $byfile{ $_->{file} } }, $_ for grep { !$_->{skip} } @find;
+for my $l (@limits) {
+  my ($f, $first, $second, $want) = @$l;
+  my @s = sort { $a->{from} <=> $b->{from} } @{ $byfile{$f} // [] };
+  my $t = $source->($f);
+  for my $i (0 .. $#s - 1) {
+    my ($x, $y) = @s[$i, $i + 1];
+    next if $x->{expansion} || $y->{expansion} || $x->{method} ne $first || $y->{method} ne $second;
+    my $b = $between->($t, $x->{to}, $y->{from});
+    next unless defined $b && $b eq $want;
+    $x->{used} = $y->{used} = 1;
+    $x->{limit} = 1;
+    last;
+  }
+}
+
+my @say = map { "linked target $_" } sort keys %target;
+push @say, "linked outside $_" for @outside;
+push @say, "linked no binary $app" unless $bin;
+push @say, "linked wording $_" for @wording;
+push @say, "linked list $_" for @list;
+my ($lim, $other, $skipped, %told) = (0, 0, 0);
+for my $x (sort { $a->{file} cmp $b->{file} || $a->{from} <=> $b->{from} } @find) {
+  my $abs = $x->{file} =~ m{\A(?:/|[A-Za-z]:)};
+  my $where = $abs ? '<path>' : $x->{file};
+  if ($x->{skip}) {
+    $skipped++;
+    push @say, "linked skip $where:$x->{line} $x->{skip}";
+    next;
+  }
+  if ($x->{used}) {
+    if ($x->{limit}) {
+      $lim++;
+      push @say, "start limit $where:$x->{line}";
+    }
+    next;
+  }
+  $other++;
+  my $t = $abs ? undef : $source->($x->{file});
+  push @say, "start linked $where:$x->{line} $x->{method} " . $statement->($t, $x->{from});
+  for my $l (grep { $_->[0] eq $x->{file} } @limits) {
+    push @say, "start limit $where committed=$l->[3]" unless $told{$where}++;
+    next unless $x->{method} eq $l->[1];
+    my ($y) = sort { $a->{from} <=> $b->{from} } grep { $_->{from} >= $x->{to} } @{ $byfile{ $x->{file} } };
+    my $b = $y ? $between->($t, $x->{to}, $y->{from}) : undef;
+    push @say, "start limit $where found=" . (defined $b ? $b : '(no finding after it)');
+  }
+}
+push @say, sprintf 'linked crates=%d targets=%d findings=%d limits=%d other=%d skipped=%d', scalar keys %crate, scalar keys %target, scalar @find, $lim, $other, $skipped;
+open my $out, '>', $outfile or exit 2;
+binmode $out;
+for my $l (@say) {
+  print "$l\n";
+  print $out "$l\n";
+}
+close $out or exit 2;
+exit 3 if @wording;
+exit 4 if @list;
+exit 5 if @outside || !$bin;
+exit 1 if $other;
+exit 0;
+EOF
+}
+
 lint_config() {
   cat <<'EOF'
 disallowed-methods = [
@@ -622,6 +891,47 @@ forbid_run() {
   [ "$code" -eq 0 ] || cargo_failed allow "$artifacts/clippy-forbid.txt"
 }
 
+linked_pass() {
+  conf=$artifacts/linked-conf
+  [ -d "$conf" ] || mkdir -p "$conf" 2>/dev/null || fail setup
+  if ! git cat-file blob ":$methods" >"$artifacts/linked-list.txt" 2>/dev/null; then
+    printf 'list %s is not in the index\n' "$methods"
+    fail list
+  fi
+  perl "$json_reader" conf "$artifacts/linked-list.txt" "$conf/clippy.toml"
+  code=$?
+  case $code in
+    0) ;;
+    1) fail list ;;
+    *) fail setup ;;
+  esac
+  cargo metadata --format-version 1 --no-deps --locked >"$artifacts/linked-members.json" 2>"$artifacts/linked-members.txt"
+  code=$?
+  [ "$code" -eq 0 ] || cargo_failed linked "$artifacts/linked-members.txt"
+  conf_dir=$conf
+  if command -v cygpath >/dev/null 2>&1; then
+    conf_dir=$(cygpath -m "$conf") || fail setup
+  fi
+  CLIPPY_CONF_DIR=$conf_dir cargo clippy -p halvo --bin halvo --locked --message-format=json -- --force-warn clippy::disallowed_methods \
+    >"$artifacts/linked.json" 2>"$artifacts/linked.txt"
+  code=$?
+  printf 'linked clippy with the lint forced to warn: exit=%s\n' "$code"
+  if [ "$code" -ne 0 ]; then
+    perl "$json_reader" errors "$artifacts/linked.json" || fail setup
+    cargo_failed linked "$artifacts/linked.txt"
+  fi
+  perl "$json_reader" linked "$artifacts/linked.json" "$artifacts/linked-members.json" "$artifacts/linked-findings.txt" halvo
+  code=$?
+  case $code in
+    0) ;;
+    1) fail start ;;
+    3) fail linked-wording ;;
+    4) fail list ;;
+    5) fail linked ;;
+    *) fail setup ;;
+  esac
+}
+
 tauri_features() {
   cargo tree -e normal --workspace --target all -i tauri --depth 0 --format '{f}' --locked \
     >"$artifacts/tauri-features.txt" 2>"$artifacts/tauri-tree.txt"
@@ -680,17 +990,26 @@ measure() {
   sources=$artifacts/refusal-sources.txt
   scan=$artifacts/scan.pl
   scanner >"$scan" || fail setup
+  json_reader=$artifacts/read.pl
+  reader >"$json_reader" || fail setup
+  methods=scripts/r4/linked-disallowed-methods.txt
+  git diff --binary >"$artifacts/tracked-before.txt" || fail setup
   if [ "$job" = macos ]; then
     forbid_run
     seconds forbid
+    linked_pass
+    seconds linked
+    git diff --binary >"$artifacts/tracked-after.txt" || fail setup
+    cmp -s "$artifacts/tracked-before.txt" "$artifacts/tracked-after.txt" || fail changed
     printf 'PASS %s\n' "$name"
     return 0
   fi
-  git diff --binary >"$artifacts/tracked-before.txt" || fail setup
   lint_allows
   seconds text
   forbid_run
   seconds forbid
+  linked_pass
+  seconds linked
   tauri_features
   seconds tauri
   child_starts
@@ -743,27 +1062,37 @@ measure() {
 
 check() {
   label=$1
-  want=$2
+  want=${2%%:*}
+  need=${2#"$want"}
   text=$3
   shift 3
   out=$(
     PATH=$work/bin:$PATH
-    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_CLIPPY_EXIT STUB_CLIPPY_TEXT STUB_TREE_TEXT STUB_TAURI STUB_TAURI_EXIT STUB_LINKED_EXIT STUB_LINKED STUB_WRITE
+    export PATH STUB_OUT STUB_EXIT STUB_ARGS STUB_CLIPPY_EXIT STUB_CLIPPY_TEXT STUB_TREE_TEXT STUB_TAURI STUB_TAURI_EXIT STUB_LINKED_EXIT STUB_LINKED STUB_WRITE \
+      STUB_CP_JSON STUB_CP_CONF STUB_CP_FINDINGS STUB_CP_EXTRA STUB_CP_EXIT STUB_CP_TEXT STUB_CP_NO_BIN STUB_CP_OUTSIDE STUB_CP_WRITE
     "$@" 2>&1
   )
   code=$?
   last=${out##*"
 "}
+  cause=
   case $code:$last in
     "0:PASS $name") got=PASS ;;
-    "1:FAIL $name ("*")") got=FAIL ;;
+    "1:FAIL $name ("*")")
+      got=FAIL
+      cause=${last#"FAIL $name ("}
+      cause=" cause=${cause%)}"
+      ;;
     *) got=exit-$code ;;
   esac
   case $out in
     *"$text"*) ;;
     *) got=$got-without-the-text ;;
   esac
-  printf 'case %s/%s want=%s got=%s\n' "$name" "$label" "$want" "$got"
+  if [ -n "$need" ] && [ "$got" = FAIL ] && [ " cause=${need#:}" != "$cause" ]; then
+    got=FAIL-with-another-cause
+  fi
+  printf 'case %s/%s want=%s got=%s%s\n' "$name" "$label" "$want" "$got" "$cause"
   if [ "$got" != "$want" ]; then
     wrong="$wrong $label"
   elif [ "$want" = FAIL ]; then
@@ -777,6 +1106,27 @@ check() {
   STUB_LINKED_EXIT=0
   STUB_TAURI=default,wry
   STUB_WRITE=
+  STUB_CP_FINDINGS=$work/findings.none
+  STUB_CP_EXTRA=
+  STUB_CP_EXIT=0
+  STUB_CP_TEXT=
+  STUB_CP_NO_BIN=
+  STUB_CP_OUTSIDE=
+  STUB_CP_WRITE=
+}
+
+findings() {
+  STUB_CP_FINDINGS=$work/findings.$1
+  shift
+  : >"$STUB_CP_FINDINGS" || exit 2
+  for spec in "$@"; do
+    printf '%b\n' "$spec" >>"$STUB_CP_FINDINGS" || exit 2
+  done
+}
+
+extra() {
+  STUB_CP_EXTRA=$work/extra.$1
+  printf '%b\n' "$2" >"$STUB_CP_EXTRA" || exit 2
 }
 
 put() {
@@ -821,6 +1171,8 @@ fixture() {
   put "$dir/crates/halvo-control/tests/start.rs" 'fn t() { let _ = std::process::Command::new("/bin/ls"); }\n'
   put "$dir/crates/halvo-other/Cargo.toml" '[package]\nname = "halvo-other"\n'
   put "$dir/crates/halvo-other/src/lib.rs" 'pub fn t() { let _ = std::process::Command::new("/bin/ls"); }\n'
+  mkdir -p "$dir/scripts/r4" || exit 2
+  cp "$methods_file" "$dir/scripts/r4/linked-disallowed-methods.txt" || exit 2
   git -C "$dir" init -q >/dev/null 2>&1 || exit 2
   git -C "$dir" add . >/dev/null 2>&1 || exit 2
 }
@@ -852,6 +1204,31 @@ run_mac() {
   CI_D_REPO=$work/$1 CI_D_ARTIFACTS=$work/artifacts-macos-$1 CI_D_JOB=macos sh "$here/$name.sh"
 }
 
+run_real() {
+  target=$work/target-$1
+  if command -v cygpath >/dev/null 2>&1; then
+    target=$(cygpath -m "$target") || exit 2
+  fi
+  STUB_REAL=$real_cargo CARGO_TARGET_DIR=$target CI_D_REPO=$work/$1 CI_D_ARTIFACTS=$work/artifacts-real-$1 CI_D_JOB=macos sh "$here/$name.sh"
+}
+
+real_tree() {
+  dir=$work/$1
+  put "$dir/Cargo.toml" '[workspace]\nmembers = ["src-tauri", "crates/*"]\nresolver = "2"\n'
+  put "$dir/src-tauri/Cargo.toml" '[package]\nname = "halvo"\nversion = "0.0.0"\nedition = "2021"\n\n[dependencies]\nhalvo-control = { path = "../crates/halvo-control" }\n'
+  put "$dir/src-tauri/src/main.rs" 'fn main() {\n    halvo_control::f();\n}\n'
+  put "$dir/crates/halvo-control/Cargo.toml" '[package]\nname = "halvo-control"\nversion = "0.0.0"\nedition = "2021"\n'
+  mkdir -p "$dir/scripts/r4" || exit 2
+  cp "$methods_file" "$dir/scripts/r4/linked-disallowed-methods.txt" || exit 2
+  cp "$repo/rust-toolchain.toml" "$dir/rust-toolchain.toml" || exit 2
+}
+
+real_commit() {
+  (cd "$work/$1" && cargo generate-lockfile --offline) >"$work/lock-$1.txt" 2>&1 || exit 2
+  git -C "$work/$1" init -q >/dev/null 2>&1 || exit 2
+  git -C "$work/$1" add . >/dev/null 2>&1 || exit 2
+}
+
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   trap 'rm -rf "$work"' EXIT
@@ -871,13 +1248,33 @@ for c in halvo-coord halvo-coord-app halvo-coord-store; do
   fi
 done
 want="$want --lib --bins --examples --all-features --locked -- -F clippy::disallowed_methods"
-if [ "$CI_D_JOB" = macos ] && [ "$*" != "$want" ]; then
-  exit 92
+meta='metadata --format-version 1 --no-deps --locked'
+pass='clippy -p halvo --bin halvo --locked --message-format=json -- --force-warn clippy::disallowed_methods'
+if [ "$CI_D_JOB" = macos ]; then
+  case $* in
+    "$want" | "$meta" | "$pass") ;;
+    *) exit 92 ;;
+  esac
 fi
+[ -z "${STUB_REAL:-}" ] || exec "$STUB_REAL" "$@"
 case $* in
   "$want")
+    [ -z "${CLIPPY_CONF_DIR:-}" ] || exit 90
     printf '%b' "$STUB_CLIPPY_TEXT"
     exit "$STUB_CLIPPY_EXIT"
+    ;;
+  "$meta")
+    perl "$STUB_CP_JSON" meta "$PWD"
+    exit $?
+    ;;
+  "$pass")
+    [ -n "${CLIPPY_CONF_DIR:-}" ] || exit 91
+    cmp -s "$CLIPPY_CONF_DIR/clippy.toml" "$STUB_CP_CONF" || exit 91
+    [ -z "$STUB_CP_EXTRA" ] || cat "$STUB_CP_EXTRA"
+    perl "$STUB_CP_JSON" pass "$PWD" "$STUB_CP_FINDINGS" || exit 89
+    printf '%b' "$STUB_CP_TEXT" >&2
+    [ -z "$STUB_CP_WRITE" ] || printf 'changed\n' >>"$STUB_CP_WRITE"
+    exit "$STUB_CP_EXIT"
     ;;
   clippy*) exit 93 ;;
   'tree -e normal --workspace --target all -i tauri --depth 0 --format {f} --locked')
@@ -901,6 +1298,73 @@ cat "$STUB_OUT"
 exit "$STUB_EXIT"
 EOF
   chmod +x "$work/bin/cargo" || exit 2
+  cat >"$work/bin/json.pl" <<'EOF'
+use strict;
+use warnings;
+use JSON::PP;
+my ($mode, $root, $specs) = @ARGV;
+my $j = JSON::PP->new->canonical;
+my @members = grep { -f } ('src-tauri/Cargo.toml', glob('crates/*/Cargo.toml'));
+if ($mode eq 'meta') {
+  print $j->encode({ workspace_root => $root, packages => [map { { manifest_path => "$root/$_" } } @members] }), "\n";
+  exit 0;
+}
+exit 2 unless $mode eq 'pass';
+my $pkg = sub {
+  my ($dir) = @_;
+  my $n = $dir eq 'src-tauri' ? 'halvo' : (split m{/}, $dir)[-1];
+  return "path+file://$root/$dir#$n\@0.0.0";
+};
+my $art = sub {
+  my ($dir, $kind, $t) = @_;
+  return { reason => 'compiler-artifact', package_id => $pkg->($dir), manifest_path => "$root/$dir/Cargo.toml", target => { kind => [$kind], name => $t }, fresh => JSON::PP::false };
+};
+my (@out, %pos);
+open my $s, '<', $specs or exit 2;
+while (my $line = <$s>) {
+  chomp $line;
+  next if $line eq '';
+  my ($file, $method, $before, $span, $kind, $again, $exp) = split /\t/, $line;
+  $kind = 'lib' if !defined $kind || $kind eq '';
+  open my $f, '<', $file or exit 2;
+  binmode $f;
+  my $t = do { local $/; <$f> };
+  close $f;
+  my $key = "$file\0$before$span";
+  my $start = $pos{$key} // 0;
+  $start-- if $again && $start > 0;
+  my $at = index($t, $before . $span, $start);
+  exit 3 if $at < 0;
+  $pos{$key} = $at + 1;
+  my $from = $at + length $before;
+  my ($dir) = $file =~ m{\A(src-tauri|crates/[^/]+)/};
+  push @out, { reason => 'compiler-message', package_id => $pkg->($dir), manifest_path => "$root/$dir/Cargo.toml", target => { kind => [$kind], name => 'x' },
+    message => { message => "use of a disallowed method `$method`", code => { code => 'clippy::disallowed_methods' }, level => 'warning',
+      spans => [{ file_name => $file, byte_start => $from, byte_end => $from + length $span, line_start => 1 + (substr($t, 0, $from) =~ tr/\n//), is_primary => JSON::PP::true, expansion => $exp ? { macro_decl_name => "$exp!" } : undef }] } };
+}
+close $s;
+push @out, $art->('crates/halvo-control', 'lib', 'halvo_control') if -f 'crates/halvo-control/Cargo.toml';
+push @out, $art->('account', 'lib', 'account') if $ENV{STUB_CP_OUTSIDE};
+push @out, $art->('src-tauri', 'custom-build', 'build-script-build');
+push @out, $art->('src-tauri', 'bin', 'halvo') unless $ENV{STUB_CP_NO_BIN};
+push @out, { reason => 'build-finished', success => JSON::PP::true };
+print $j->encode($_), "\n" for @out;
+EOF
+  methods_file=$here/../linked-disallowed-methods.txt
+  STUB_CP_JSON=$work/bin/json.pl
+  STUB_CP_CONF=$work/conf.expected
+  printf 'disallowed-methods = [\n' >"$STUB_CP_CONF" || exit 2
+  awk -F '\t' '!/^#/ { printf "  { path = \"%s\", reason = \"%s\" },\n", $1, $2 }' "$methods_file" >>"$STUB_CP_CONF" || exit 2
+  printf ']\n' >>"$STUB_CP_CONF" || exit 2
+  : >"$work/findings.none" || exit 2
+  STUB_CP_FINDINGS=$work/findings.none
+  STUB_CP_EXTRA=
+  STUB_CP_EXIT=0
+  STUB_CP_TEXT=
+  STUB_CP_NO_BIN=
+  STUB_CP_OUTSIDE=
+  STUB_CP_WRITE=
+  real_cargo=$(command -v cargo) || exit 2
   STUB_ARGS=$work/args
   STUB_EXIT=0
   STUB_CLIPPY_EXIT=0
@@ -926,9 +1390,37 @@ EOF
   check pass PASS 'refusals=2' run_one
   check app-crate-in-the-tree PASS 'halvo-coord-app=yes' \
     env -u CI_D_JOB CI_D_REPO="$work/app" CI_D_ARTIFACTS="$work/artifacts-app" sh "$here/$name.sh"
-  check macos-job-runs-the-forbid-run-alone PASS 'allow clippy with the lint forbidden: exit=0' run_mac app
+  check macos-job-runs-the-two-clippy-passes-alone PASS 'linked crates=2 targets=3 findings=0 limits=0 other=0 skipped=0' run_mac app
   batch=$out
   seen seconds-of-the-forbid-run-in-the-macos-job 'part forbid seconds='
+  seen seconds-of-the-compiler-pass-in-the-macos-job 'part linked seconds='
+  seen the-compiler-pass-names-the-library-of-a-linked-crate 'linked target crates/halvo-control lib'
+  seen the-compiler-pass-names-the-app-binary 'linked target src-tauri bin'
+  real_tree r1
+  put "$work/r1/crates/halvo-control/src/lib.rs" 'include!("inc.rs");\nmod other;\npub use std::process::Command as Spawner;\ntype Run = std::process::Command;\npub fn f() {\n    let _ = |#[cfg(test)] _x: u8| {\n        let _ = std::process::Command::new("b").spawn();\n    };\n    let _ = Run::new("c").status();\n}\n'
+  put "$work/r1/crates/halvo-control/src/inc.rs" 'pub fn i() {\n    let _ = std::process::Command::new("a").output();\n}\n'
+  put "$work/r1/crates/halvo-control/src/other.rs" 'pub fn o() {\n    let _ = crate::Spawner::new("d").output();\n}\n'
+  real_commit r1
+  check a-start-through-include-in-a-linked-crate-fails FAIL:start 'start linked crates/halvo-control/src/inc.rs:2 std::process::Command::new std::process::Command::new("a").output()' run_real r1
+  batch=$out
+  found a-start-behind-a-test-attribute-on-a-closure-parameter-in-a-linked-crate 'start linked crates/halvo-control/src/lib.rs:7 std::process::Command::new std::process::Command::new("b").spawn()'
+  found a-start-through-a-type-alias-in-a-linked-crate 'start linked crates/halvo-control/src/lib.rs:9 std::process::Command::new Run::new("c").status()'
+  found a-start-through-an-import-alias-of-another-file-in-a-linked-crate 'start linked crates/halvo-control/src/other.rs:2 std::process::Command::new crate::Spawner::new("d").output()'
+  real_tree r2
+  put "$work/r2/crates/halvo-control/src/lib.rs" 'pub mod onboarding;\npub fn f() {}\n'
+  put "$work/r2/crates/halvo-control/src/onboarding.rs" 'pub fn open(url: &str) -> std::io::Result<bool> {\n    let status = std::process::Command::new("/usr/bin/open")\n        .arg(url)\n        .status()?;\n    Ok(status.success())\n}\n'
+  put "$work/r2/crates/halvo-coord/Cargo.toml" '[package]\nname = "halvo-coord"\nversion = "0.0.0"\nedition = "2021"\n'
+  lint_config >"$work/r2/crates/halvo-coord/clippy.toml" || exit 2
+  put "$work/r2/crates/halvo-coord/src/lib.rs" 'pub fn c() {}\n'
+  put "$work/r2/crates/halvo-coord/tests/start.rs" '#[test]\nfn t() {\n    let _ = std::process::Command::new("x").status();\n}\n'
+  put "$work/r2/crates/halvo-agent-client/Cargo.toml" '[package]\nname = "halvo-agent-client"\nversion = "0.0.0"\nedition = "2021"\n'
+  put "$work/r2/crates/halvo-agent-client/src/lib.rs" 'pub fn a() {}\n'
+  put "$work/r2/crates/halvo-agent-client/src/bin/peer.rs" 'fn main() {\n    let _ = std::process::Command::new("peer").spawn();\n}\n'
+  real_commit r2
+  check the-compiler-passes-the-open-limit-and-an-unlinked-binary PASS 'linked crates=2 targets=2 findings=2 limits=1 other=0 skipped=0' run_real r2
+  batch=$out
+  seen the-open-limit-matches-the-real-findings 'start limit crates/halvo-control/src/onboarding.rs:2'
+  seen named-limit-a-start-in-a-test-target-of-the-three-crates-passes 'allow clippy with the lint forbidden: exit=0'
   STUB_CLIPPY_EXIT=101
   STUB_CLIPPY_TEXT='    Checking halvo-coord v0.0.0 (/fixture/abs/crates/halvo-coord)\nerror: use of a disallowed method \0140std::process::Command::new\0140\n --> crates/halvo-coord/src/lib.rs:3:13\nerror: could not compile \0140halvo-coord\0140 (lib) due to 1 previous error\n'
   check macos-job-forbid-run-fails FAIL " --> crates/halvo-coord/src/lib.rs:3:13" run_mac app
@@ -943,12 +1435,15 @@ EOF
     finish
   fi
   batch=$(sh "$here/$name.sh" --help 2>&1)
-  seen the-help-names-include-in-a-linked-crate 'include! in a crate that the app links'
-  seen the-help-names-a-test-attribute-on-a-closure-or-generic-parameter 'a test attribute on a closure parameter or a generic parameter'
-  seen the-help-names-a-type-alias-and-an-alias-of-another-file 'a type alias of Command, or an import alias declared in one file and used in another'
+  seen the-help-names-a-start-in-a-test-target 'a start in a test target of halvo-coord, halvo-coord-app or halvo-coord-store'
+  seen the-help-names-code-that-no-clippy-run-compiles 'code that no clippy run of the job compiles'
+  seen the-help-names-other-spellings-through-include-and-aliases 'a start in a spelling other than the methods of the list through'
+  batch=$(grep '^# rule: ' "$here/$name.sh")
+  seen the-rule-names-a-start-in-a-test-target 'a start in a test target of the three crates, which no pass reads'
   check text-rules-pass-their-controls PASS 'allow crates=2 files=' run_one
   batch=$out
-  for part in text forbid tauri starts tests refusals; do
+  seen the-windows-job-runs-the-compiler-pass 'linked crates=2 targets=3 findings=0 limits=0 other=0 skipped=0'
+  for part in text forbid linked tauri starts tests refusals; do
     seen "seconds-of-the-part-$part-in-the-windows-job" "part $part seconds="
   done
   check starts-in-tests-and-unlinked-crates-only PASS 'starts crates=4 files=7 hits=1 limits=1 other=0 unresolved=1' run_one
@@ -1047,10 +1542,6 @@ EOF
   check the-statement-of-a-limit-in-another-file FAIL "start other src-tauri/src/agents.rs:2" run_in limit-elsewhere
   variant limit-reflowed crates/halvo-control/src/onboarding.rs 'pub fn open(url: &str) -> Result<(), E> {\n    let status = /* one line */ std::process::Command::new("/usr/bin/open").arg(url) // the url\n        .status().map_err(PaneError::Spawn)?;\n    Ok(())\n}\n'
   check a-limit-on-other-lines-with-comments PASS 'starts crates=5 files=8 hits=1 limits=1 other=0' run_in limit-reflowed
-  variant limit-include crates/halvo-control/src/lib.rs '#[cfg(feature = "absent")]\nmod absent;\npub mod onboarding;\n#[cfg(test)]\nmod testing;\n#[cfg(test)]\nmod nowhere;\ninclude!("inc.rs");\n'
-  put "$work/limit-include/crates/halvo-control/src/inc.rs" 'pub fn f() {\n    let _ = std::process::Command::new("x");\n}\n'
-  git -C "$work/limit-include" add -A . >/dev/null 2>&1 || exit 2
-  check named-limit-a-start-through-include-in-a-linked-crate-passes-until-the-compiler-pass-holds-it PASS 'hits=1 limits=1 other=0' run_in limit-include
   variant start-app src-tauri/src/agents.rs 'pub fn spawn() {\n    let _ = unsafe { libc::posix_spawn(p, f, a, s, v, e) };\n}\n'
   check a-posix-spawn-in-the-app-crate FAIL "FAIL $name (start)" run_in start-app
 
@@ -1149,6 +1640,100 @@ EOF
   found two-starts-on-one-line-count-twice "other=39"
   variant refusal-in-app crates/halvo-coord-app/tests/refusal.rs '#[test]\nfn refusal_hold_start() {}\n'
   check a-refusal-test-of-the-app-crate-that-did-not-run FAIL "FAIL $name (missing)" run_in refusal-in-app
+  open_at=crates/halvo-control/src/onboarding.rs
+  open_new="$open_at\tstd::process::Command::new\t= \tstd::process::Command::new"
+  open_status="$open_at\tstd::process::Command::status\t.\tstatus"
+  open_head='// std::process::Command::new("/bin/ls")\npub fn open(url: &str) -> Result<(), E> {\n'
+  open_tail='        .map_err(PaneError::Spawn)?;\n    Ok(())\n}\n'
+  open_body='    let status = std::process::Command::new("/usr/bin/open")\n        .arg(url)\n        .status()\n'
+  findings open "$open_new" "$open_status"
+  check the-open-limit-as-its-pair-of-findings PASS 'start limit crates/halvo-control/src/onboarding.rs:3' run_mac app
+  batch=$out
+  seen the-open-limit-counts-once 'linked crates=2 targets=3 findings=2 limits=1 other=0 skipped=0'
+  variant cp-other "$open_at" "$open_head$open_body$open_tail"'pub fn ls() {\n    let _ = std::process::Command::new("/bin/ls").output();\n}\n'
+  findings other "$open_new" "$open_status" "$open_at\tstd::process::Command::new\t_ = \tstd::process::Command::new" "$open_at\tstd::process::Command::output\t.\toutput"
+  check a-start-in-the-lib-of-a-linked-crate-fails-by-its-file-and-statement FAIL:start 'start linked crates/halvo-control/src/onboarding.rs:10 std::process::Command::new std::process::Command::new("/bin/ls").output()
+start limit crates/halvo-control/src/onboarding.rs committed=("/usr/bin/open").arg(url).
+start limit crates/halvo-control/src/onboarding.rs found=("/bin/ls").
+start linked crates/halvo-control/src/onboarding.rs:10 std::process::Command::output output()
+' run_mac cp-other
+  findings expansion "$open_at\tstd::process::Command::new\t= \tstd::process::Command::new\tlib\t\tm" "$open_status"
+  check a-finding-of-a-limit-inside-a-macro-expansion FAIL:start 'start linked crates/halvo-control/src/onboarding.rs:3 std::process::Command::new' run_mac app
+  findings twice "$open_new" "$open_status" "$open_at\tstd::process::Command::new\t_ = \tstd::process::Command::new" "$open_at\tstd::process::Command::new\t_ = \tstd::process::Command::new\tlib\tsame" "$open_at\tstd::process::Command::output\t.\toutput"
+  check a-finding-that-cargo-reports-twice-counts-once FAIL:start 'linked crates=2 targets=3 findings=4 limits=1 other=2 skipped=0' run_mac cp-other
+  variant cp-changed "$open_at" "$open_head"'    let status = std::process::Command::new("/usr/bin/open")\n        .arg("-W")\n        .arg(url)\n        .status()\n'"$open_tail"
+  findings open "$open_new" "$open_status"
+  check a-limit-whose-text-between-its-findings-changed FAIL:start 'start limit crates/halvo-control/src/onboarding.rs found=("/usr/bin/open").arg("-W").arg(url).' run_mac cp-changed
+  variant cp-comment "$open_at" "$open_head"'    let status = std::process::Command::new("/usr/bin/open") // the pane\n        .arg(url)\n        .status()\n'"$open_tail"
+  findings open "$open_new" "$open_status"
+  check a-limit-with-a-comment-between-its-findings FAIL:start 'start limit crates/halvo-control/src/onboarding.rs committed=("/usr/bin/open").arg(url).' run_mac cp-comment
+  variant cp-one-line "$open_at" "$open_head"'    let status = std::process::Command::new("/usr/bin/open").arg(url).status()\n'"$open_tail"
+  findings open "$open_new" "$open_status"
+  check a-limit-on-one-line PASS 'findings=2 limits=1 other=0' run_mac cp-one-line
+  variant cp-crlf "$open_at" '// std::process::Command::new("/bin/ls")\r\npub fn open(url: &str) -> Result<(), E> {\r\n    let status = std::process::Command::new("/usr/bin/open")\r\n        .arg(url)\r\n        .status()\r\n        .map_err(PaneError::Spawn)?;\r\n    Ok(())\r\n}\r\n'
+  findings open "$open_new" "$open_status"
+  check a-limit-with-crlf-line-ends PASS 'findings=2 limits=1 other=0' run_mac cp-crlf
+  variant cp-twice "$open_at" "$open_head$open_body$open_body$open_tail"
+  findings twice "$open_new" "$open_status" "$open_new" "$open_status"
+  check the-pair-of-a-limit-twice-in-one-file FAIL:start 'findings=4 limits=1 other=2' run_mac cp-twice
+  variant cp-elsewhere src-tauri/src/agents.rs "$open_head$open_body$open_tail"
+  findings elsewhere "src-tauri/src/agents.rs\tstd::process::Command::new\t= \tstd::process::Command::new" "src-tauri/src/agents.rs\tstd::process::Command::status\t.\tstatus"
+  check the-pair-of-a-limit-in-another-file FAIL:start 'start linked src-tauri/src/agents.rs:3 std::process::Command::new' run_mac cp-elsewhere
+  variant cp-output "$open_at" "$open_head"'    let status = std::process::Command::new("/usr/bin/open")\n        .arg(url)\n        .output()\n'"$open_tail"
+  findings output "$open_new" "$open_at\tstd::process::Command::output\t.\toutput"
+  check a-limit-whose-second-finding-is-another-method FAIL:start 'start linked crates/halvo-control/src/onboarding.rs:5 std::process::Command::output' run_mac cp-output
+  variant cp-sw-vers crates/halvo-capture/src/consent/onboarding.rs 'pub fn v() -> Option<String> {\n    let output = std::process::Command::new("/usr/bin/sw_vers")\n        .arg("-productVersion")\n        .output()\n        .ok()?;\n    String::from_utf8(output.stdout).ok()\n}\n'
+  findings sw-vers "crates/halvo-capture/src/consent/onboarding.rs\tstd::process::Command::new\t= \tstd::process::Command::new" "crates/halvo-capture/src/consent/onboarding.rs\tstd::process::Command::output\t.\toutput"
+  check the-sw-vers-limit-as-its-pair-of-findings PASS 'start limit crates/halvo-capture/src/consent/onboarding.rs:2' run_mac cp-sw-vers
+  variant cp-build src-tauri/build.rs 'fn main() {\n    let _ = std::process::Command::new("git").output();\n}\n'
+  findings build "src-tauri/build.rs\tstd::process::Command::new\t= \tstd::process::Command::new\tcustom-build"
+  check a-finding-in-a-build-script-is-not-counted PASS 'linked skip src-tauri/build.rs:2 custom-build' run_mac cp-build
+  message='{"reason":"compiler-message","package_id":"path+file:///fixture/abs/crates/halvo-control#0.0.0","manifest_path":"/fixture/abs/crates/halvo-control/Cargo.toml","target":{"kind":["lib"],"name":"halvo_control"},"message":'
+  span='"spans":[{"file_name":"crates/halvo-control/src/onboarding.rs","byte_start":3,"byte_end":6,"line_start":1,"is_primary":true,"expansion":null}]}}'
+  extra wording "$message"'{"message":"use of disallowed method \0140std::process::Command::new\0140","code":{"code":"clippy::disallowed_methods"},"level":"warning",'"$span"
+  check a-finding-in-a-wording-that-the-check-does-not-know FAIL:linked-wording "FAIL $name (linked-wording)" run_mac app
+  batch=$out
+  found the-unknown-wording-names-its-line 'linked wording line=1 (text)'
+  extra not-json 'warning: unused import: \0140std::process::Stdio\0140'
+  check a-line-of-cargo-that-is-not-json FAIL:linked-wording 'linked wording line=1 (not a JSON object)' run_mac app
+  extra reason '{"reason":"compiler-note","package_id":"x"}'
+  check a-message-of-a-reason-that-the-check-does-not-know FAIL:linked-wording 'linked wording line=1 (reason)' run_mac app
+  extra no-target '{"reason":"compiler-message","package_id":"path+file:///fixture/abs/crates/halvo-control#0.0.0","message":{}}'
+  check a-message-without-its-target FAIL:linked-wording 'linked wording line=1 (target)' run_mac app
+  extra no-span "$message"'{"message":"use of a disallowed method \0140std::process::Command::new\0140","code":{"code":"clippy::disallowed_methods"},"level":"warning","spans":[]}}'
+  check a-finding-without-one-primary-span FAIL:linked-wording 'linked wording line=1 (span)' run_mac app
+  extra level "$message"'{"message":"use of a disallowed method \0140std::process::Command::new\0140","code":{"code":"clippy::disallowed_methods"},"level":"error",'"$span"
+  check a-finding-at-another-level FAIL:linked-wording 'linked wording line=1 (level)' run_mac app
+  extra unresolved "$message"'{"message":"\0140std::process::Command::nope\0140 does not refer to a reachable function","code":null,"level":"warning","spans":[{"file_name":"/fixture/abs/target/linked-conf/clippy.toml","byte_start":1,"byte_end":2,"line_start":3,"is_primary":true,"expansion":null}]}}'
+  check a-method-of-the-list-that-clippy-does-not-resolve FAIL:list 'does not refer to a reachable function' run_mac app
+  extra abs "$message"'{"message":"use of a disallowed method \0140std::process::Command::new\0140","code":{"code":"clippy::disallowed_methods"},"level":"warning","spans":[{"file_name":"/fixture/abs/x.rs","byte_start":3,"byte_end":6,"line_start":1,"is_primary":true,"expansion":null}]}}'
+  check a-finding-in-a-file-outside-the-workspace FAIL:start 'start linked <path>:1 std::process::Command::new' run_mac app
+  STUB_CP_OUTSIDE=1
+  check a-linked-crate-outside-the-workspace FAIL:linked 'linked outside account' run_mac app
+  STUB_CP_NO_BIN=1
+  check the-app-binary-missing-from-the-json FAIL:linked 'linked no binary halvo' run_mac app
+  extra error "$message"'{"message":"cannot find value \0140x\0140 in this scope","code":{"code":"E0425"},"level":"error",'"$span"
+  STUB_CP_EXIT=101
+  STUB_CP_TEXT='error: could not compile \0140halvo-control\0140 (lib) due to 1 previous error\n'
+  check the-compiler-pass-that-does-not-compile FAIL:linked 'linked error crates/halvo-control/src/onboarding.rs:1 cannot find value' run_mac app
+  STUB_CP_EXIT=101
+  STUB_CP_TEXT='error: cannot update the lock file /fixture/abs/Cargo.lock because --locked was passed to prevent this\n'
+  check a-lockfile-mismatch-in-the-compiler-pass FAIL:lock "FAIL $name (lock)" run_mac app
+  fixture cp-write app
+  STUB_CP_WRITE=$work/cp-write/src-tauri/src/main.rs
+  check a-compiler-pass-that-changes-a-tracked-file-in-the-macos-job FAIL:changed "FAIL $name (changed)" run_mac cp-write
+  fixture list-moved app
+  git -C "$work/list-moved" mv scripts/r4/linked-disallowed-methods.txt scripts/r4/methods.txt >/dev/null 2>&1 || exit 2
+  check the-list-that-is-not-in-the-index FAIL:list 'list scripts/r4/linked-disallowed-methods.txt is not in the index' run_mac list-moved
+  variant list-quote scripts/r4/linked-disallowed-methods.txt '# a comment\nstd::process::Command::new\tsays "no"\n'
+  check a-list-line-of-no-known-form FAIL:list 'list line=2 holds no method path, one tab and a reason' run_mac list-quote
+  variant list-empty scripts/r4/linked-disallowed-methods.txt '# a comment alone\n'
+  check a-list-with-no-method FAIL:list 'list holds no method' run_mac list-empty
+  variant list-bare scripts/r4/linked-disallowed-methods.txt 'Command\tno path\n'
+  check a-list-line-whose-method-has-no-path FAIL:list 'list line=1 holds no method path, one tab and a reason' run_mac list-bare
+  fixture list-index app
+  printf 'std::process::Command::exec\tx\n' >>"$work/list-index/scripts/r4/linked-disallowed-methods.txt" || exit 2
+  check the-list-is-read-from-the-index PASS 'list methods=4' run_mac list-index
   fixture dirty
   printf '// edited\n' >>"$work/dirty/src-tauri/src/main.rs" || exit 2
   check a-tree-edited-outside-crates-before-the-tests PASS 'refusals=2' run_in dirty

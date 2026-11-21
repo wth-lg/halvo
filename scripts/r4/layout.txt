@@ -74,6 +74,7 @@ U4.1	crates/halvo-coord-app/**
 U4.5	scripts/r4/ci.d/46-r4-dialog-ran.sh
 U4.2	crates/halvo-coord-app/src/present/**
 U4.3	crates/halvo-coord/clippy.toml
+U4.3	scripts/r4/linked-disallowed-methods.txt
 U5.2	crates/halvo-coord-store/**
 U5.3	crates/halvo-coord-gate/**
 U5.4	crates/halvo-coord-app/src/product/**
