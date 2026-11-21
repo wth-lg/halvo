@@ -1309,7 +1309,7 @@ case $mode in
     ;;
   incomplete-view)
     case " $* " in
-      *' grep '*|*' ls-files -s -- '*) exec "$real" "$@" ':(exclude,literal)backend/fixtures/f.json' ;;
+      *' grep '*|*' ls-files -s -- '*) exec "$real" "$@" ':(exclude,literal)formal/r7-ledger/check.mjs' ;;
     esac
     ;;
   second-*)
@@ -1941,7 +1941,7 @@ wall second-read search=backend outcome=read path=backend/scripts/retry again.sh
   fixture search-misses-a-file-in-the-original-index
   fake_git incomplete-view
   case_bin=$scratch/incomplete-view
-  expect FAIL search-misses-a-file-in-the-original-index 'missing backend/fixtures/f.json' 'wall second-read search=anchors outcome=unread path=backend/fixtures/f.json'
+  expect FAIL search-misses-a-file-in-the-original-index 'missing formal/r7-ledger/check.mjs' 'wall second-read search=anchors outcome=unread path=formal/r7-ledger/check.mjs'
 
   for kind in backend app case-lines; do
     case_name=$kind-search-misses-a-file-that-its-scoped-listing-also-misses
