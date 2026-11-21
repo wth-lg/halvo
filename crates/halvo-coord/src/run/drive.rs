@@ -262,6 +262,15 @@ impl<P: Owner> Owner for Watch<'_, P> {
     ) -> Result<Vec<ReplyRow>, PortError> {
         self.ports.replies(workflow, agent, run)
     }
+
+    fn overlaps(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        slots: Option<&[crate::types::Slot]>,
+    ) -> Result<crate::ports::Overlaps, PortError> {
+        self.ports.overlaps(workflow, agent, slots)
+    }
 }
 
 impl<P: Runs> Runs for Watch<'_, P> {
