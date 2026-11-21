@@ -1,11 +1,42 @@
 #![allow(dead_code)]
 
 use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
 const WAIT: Duration = Duration::from_secs(60);
+
+/// Builds the binary `bin` of the package `package` beside `agent-gate` and returns its path. A test binary of this
+/// package gets the gate's binary from cargo and no binary of another package, so the cargo that built this test
+/// builds the other binary in the same target directory and profile (the form of halvo-learn-gate's test of its
+/// product link). The gate looks for the runner's binary there.
+pub fn build_beside(package: &str, bin: &str) -> PathBuf {
+    let gate = Path::new(env!("CARGO_BIN_EXE_agent-gate"));
+    let profile_dir = gate.parent().expect("the gate's directory");
+    let mut cmd = Command::new(env!("CARGO"));
+    cmd.args(["build", "--locked", "-p", package, "--bin", bin])
+        .arg("--target-dir")
+        .arg(profile_dir.parent().expect("the target directory"))
+        .current_dir(env!("CARGO_MANIFEST_DIR"));
+    match profile_dir.file_name().and_then(|name| name.to_str()) {
+        Some("debug") => {}
+        Some("release") => {
+            cmd.arg("--release");
+        }
+        other => panic!("the gate's binary lies in the directory {other:?}, of no known profile"),
+    }
+    let built = cmd.output().expect("cargo runs");
+    assert!(
+        built.status.success(),
+        "cargo did not build the binary {bin}: {}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    let path = profile_dir.join(format!("{bin}{}", std::env::consts::EXE_SUFFIX));
+    assert!(path.is_file(), "{}", path.display());
+    path
+}
 
 /// A child process of a test that is killed and reaped when the guard is dropped, on every path.
 pub struct Guarded {
@@ -30,11 +61,26 @@ pub struct Output {
 impl Guarded {
     /// Runs `agent-gate` with the arguments and no standard input, and returns its status and output.
     pub fn run(args: &[&str]) -> Output {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_agent-gate"));
+        cmd.args(args);
+        Guarded::run_command(cmd, WAIT)
+    }
+
+    /// Runs `agent-gate` as `run` does, with `tmp` as the system's temporary directory, under which the command
+    /// makes its own, and ends it when it has not ended within `wait`.
+    pub fn run_in(args: &[&str], tmp: &Path, wait: Duration) -> Output {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_agent-gate"));
+        cmd.args(args)
+            .env("TMPDIR", tmp)
+            .env("TMP", tmp)
+            .env("TEMP", tmp);
+        Guarded::run_command(cmd, wait)
+    }
+
+    fn run_command(mut cmd: Command, wait: Duration) -> Output {
         let mut guard = Guarded { child: None };
         guard.child = Some(
-            Command::new(env!("CARGO_BIN_EXE_agent-gate"))
-                .args(args)
-                .stdin(Stdio::null())
+            cmd.stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
@@ -51,7 +97,7 @@ impl Guarded {
             let mut text = String::new();
             stderr.read_to_string(&mut text).map(|_| text)
         });
-        let deadline = Instant::now() + WAIT;
+        let deadline = Instant::now() + wait;
         let status = loop {
             if let Some(status) = child.try_wait().expect("try_wait") {
                 break status;

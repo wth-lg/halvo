@@ -13,6 +13,7 @@ getrandom = "0.3"
 halvo-agent-client = { path = "../halvo-agent-client" }
 halvo-agent-store = { path = "../halvo-agent-store" }
 halvo-checkpoint = { path = "../halvo-checkpoint" }
+halvo-control = { path = "../halvo-control", features = ["r2"] }
 halvo-derived = { path = "../halvo-derived" }
 halvo-owner = { path = "../halvo-owner" }
 halvo-policy = { path = "../halvo-policy" }
@@ -21,7 +22,11 @@ halvo-sheet = { path = "../halvo-sheet" }
 serde_json = { version = "1", features = ["raw_value"] }
 
 [dev-dependencies]
+halvo-seam = { path = "../halvo-seam" }
 halvo-test-dir = { path = "../halvo-test-dir" }
+
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"
 
 [[bin]]
 name = "agent-gate"

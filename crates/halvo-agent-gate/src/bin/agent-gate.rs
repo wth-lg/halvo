@@ -10,9 +10,12 @@
 //! refuses a step of the play). The store stays under `DIR`.
 //!
 //! `agent-gate task fill --mode replay --seed N [--link host] [--browser PATH]` plays the task `fill` with the runner
-//! through the gate host and prints the one line of A14.5 with `store=memory` (`halvo_agent_gate::task`). Exit 0
-//! when the line has `marks=start,end`, `fixture=ok` and `result=completed`, 1 when it has not, and 2 for a
-//! refusal: `usage`, for every other form of A14.5 and for a play that cannot run, or `fixture`.
+//! through the gate host and prints the one line of A14.5 with `store=memory` (`halvo_agent_gate::task`). With
+//! `--link product --workflow ID [--data-dir DIR]` in place of `--link host` it plays the task through the product's
+//! owner over U9.2's link, with no gate host, and the line holds `store=owner`. Exit 0 when the line has
+//! `marks=start,end`, `fixture=ok` and `result=completed`, 1 when it has not, and 2 for a refusal: `usage`, for every
+//! other form of A14.5 and for a play that cannot run, such as an owner that gives no reply over the product link, or
+//! `fixture`.
 
 use std::ffi::OsString;
 use std::io::Write;
@@ -23,7 +26,7 @@ use halvo_agent_gate::configs::configs;
 use halvo_agent_gate::privacy::{self, Outcome};
 use halvo_agent_gate::{task, GateHost};
 
-const USAGE: &str = "agent-gate configs | agent-gate privacy --data-dir DIR | agent-gate task fill --mode replay --seed N [--link host] [--browser PATH]";
+const USAGE: &str = "agent-gate configs | agent-gate privacy --data-dir DIR | agent-gate task fill --mode replay --seed N [--link host | --link product --workflow ID [--data-dir DIR]] [--browser PATH]";
 
 fn refuse(cause: &str, detail: &str) -> ExitCode {
     eprintln!("REFUSED {cause}: {detail}");
