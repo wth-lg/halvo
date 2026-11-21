@@ -1656,3 +1656,81 @@ fn u24q_a_kept_value_that_holds_a_byte_stands_white_space_among_them() {
         }
     }
 }
+
+/// The verifier's finding 1 (h38) under RD-126 item 10: an unknown send keeps its entry, with its
+/// text and its address, under the line of each end that the coordinator alone gives. Every end
+/// whose card differs is named.
+#[test]
+fn u24q_an_unknown_send_stands_under_each_end_that_the_coordinator_alone_gives() {
+    let mut differ = Vec::new();
+    for (end, key) in [
+        (RunEnd::Cancelled, "line.run.cancelled"),
+        (RunEnd::Lapsed, "line.run.lapsed"),
+        (RunEnd::Interrupted, "line.run.interrupted"),
+        (RunEnd::Deleted, "line.run.deleted"),
+        (RunEnd::Budget, "line.run.budget"),
+        (RunEnd::Kind, "line.run.kind"),
+    ] {
+        let mut f = facts(State::Card).remove(0);
+        row(
+            &mut f,
+            What::RunEnded {
+                run: run_of(2),
+                cause: end,
+                defers: None,
+            },
+        );
+        let mut h = history(2, Outcome::EffectUnknown);
+        h.effects = vec![unknown(Class::Send, vec![one_kept("to", "Ann Lee")])];
+        let c = card(&f, "N", &[h], &Limits::PRODUCT).unwrap();
+        let got = (
+            c.runs[0].text.clone(),
+            keys(&c, 0),
+            c.runs[0]
+                .effects
+                .iter()
+                .map(|e| (e.text().to_owned(), shown(e)))
+                .collect::<Vec<_>>(),
+        );
+        let want = (
+            line(key),
+            vec!["run.effect.send.unknown".to_owned()],
+            vec![(line("run.effect.send.unknown"), vec![pair("To", "Ann Lee")])],
+        );
+        if got != want {
+            differ.push(format!("{end:?}: {got:?}"));
+        }
+    }
+    assert!(
+        differ.is_empty(),
+        "{} ends differ: {differ:?}",
+        differ.len()
+    );
+}
+
+/// The verifier's finding 1 (h58): in a declined run, an unknown payment keeps its entry, its text
+/// and its four fields after a send that was not done.
+#[test]
+fn u24q_an_unknown_payment_stands_beside_a_rejected_send_in_a_declined_run() {
+    let mut h = history(2, Outcome::Declined);
+    h.effects = vec![
+        rejected(0xe9, "ab"),
+        unknown(Class::Payment, payment().kept),
+    ];
+    let c = card(&facts(State::Card).remove(0), "N", &[h], &Limits::PRODUCT).unwrap();
+    assert_eq!(
+        keys(&c, 0),
+        ["run.effect.send.not_done", "run.effect.payment.unknown"]
+    );
+    let e = &c.runs[0].effects[1];
+    assert_eq!(e.text(), line("run.effect.payment.unknown"));
+    assert_eq!(
+        shown(e),
+        [
+            pair("Pay to", "City Power"),
+            pair("Amount", "42.10 USD"),
+            pair("Pay with", "Card ending 4242"),
+            pair("Site", "site1.example")
+        ]
+    );
+}
