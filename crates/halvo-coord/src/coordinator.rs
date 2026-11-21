@@ -561,26 +561,30 @@ where
 
     /// The tick's turn at the switch-offs whose `hold_set` the owner has not taken: each is
     /// tried again at one read of the clock, and the agent stays held off on the board until its
-    /// hold shows; then the board holds its place as its ledger says.
+    /// hold shows; then the board holds its place as its ledger says. Each agent's try is held
+    /// to that agent as the take-up's are (ruling RD-140 R1, RD-144 (1)): one that panics leaves
+    /// its agent held off and the others tried, and the answer says that a try panicked.
     fn held_off_at_tick(
         &self,
         board: &mut Board<Cfg<P>>,
         st_ledgers: &mut Vec<(AgentId, Ledger)>,
         held_off: &mut Vec<AgentId>,
-    ) {
+    ) -> bool {
         if held_off.is_empty() {
-            return;
+            return false;
         }
         let stamp = crate::ports::Stamp::read(&self.ports).ok();
         if let Some(stamp) = stamp {
             self.noted(Some(stamp.now()));
         }
+        let mut panicked = false;
         for agent in std::mem::take(held_off) {
             let rest = match stamp {
-                Some(stamp) => self.off_at_stamp(board, st_ledgers, &agent, stamp),
-                None => OffRest::Clock,
+                Some(stamp) => contain(|| self.off_at_stamp(board, st_ledgers, &agent, stamp)),
+                None => Some(OffRest::Clock),
             };
-            if rest == OffRest::Done {
+            panicked |= rest.is_none();
+            if rest == Some(OffRest::Done) {
                 let keep = st_ledgers
                     .iter()
                     .any(|(a, l)| a == &agent && l.holds_place());
@@ -590,6 +594,7 @@ where
                 held_off.push(agent);
             }
         }
+        panicked
     }
 
     /// The rest of a switch-off that no read of the clock stamped, at `stamp`, the first read
@@ -808,16 +813,19 @@ where
             self.noted(created.read);
             self.flush_ledgers(board, ledgers);
         }
-        {
+        let panicked = {
             let State {
                 board,
                 ledgers,
                 held_off,
                 ..
             } = &mut *st;
-            if let Some(board) = board.as_mut() {
-                self.held_off_at_tick(board, ledgers, held_off);
-            }
+            board
+                .as_mut()
+                .is_some_and(|board| self.held_off_at_tick(board, ledgers, held_off))
+        };
+        if panicked {
+            self.held_panic(st);
         }
         self.finish_switch_offs_after_reads(st, before);
         let State {

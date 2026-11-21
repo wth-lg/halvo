@@ -11853,3 +11853,148 @@ fn rd140_r1_c08_a_switch_off_beside_another_agents_waiting_row_that_panics() {
         "(the press, cancels in the move, hold_set rows, Run now)"
     );
 }
+
+thread_local! {
+    static U24T_HOLD_SET_PANICS_AT: std::cell::Cell<Option<u32>> = const { std::cell::Cell::new(None) };
+}
+
+fn u24t_hold_set_refused_or_panics(e: &halvo_coord::types::Event) -> bool {
+    if !matches!(e.what, What::HoldSet { .. }) {
+        return false;
+    }
+    U24T_HOLD_SET_PANICS_AT.with(|at| match at.get() {
+        Some(0) => {
+            at.set(None);
+            panic!("the store panics at this try of the hold_set");
+        }
+        Some(n) => {
+            at.set(Some(n - 1));
+            true
+        }
+        None => true,
+    })
+}
+
+fn u24t_switched_off_with_no_clock_and_a_store_that_refuses(
+    spec: &[support::A],
+    n: &[usize],
+) -> Coordinator<Both> {
+    let limits = Limits {
+        max_live_runs: 3,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(spec, limits);
+    clock_fails(&c);
+    c.ports()
+        .ports
+        .refuse_record(u24t_hold_set_refused_or_panics, PortError::NoService);
+    for k in n {
+        assert_eq!(c.control(&agent(*k), Action::SwitchOff), Ok(()));
+    }
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    for k in n {
+        assert_eq!(c.control(&agent(*k), Action::RunNow), Err(Cause::Hold));
+    }
+    c
+}
+
+fn u24t_tick_whose_hold_set_try_panics(c: &Coordinator<Both>, after: u32, at: u64) -> bool {
+    U24T_HOLD_SET_PANICS_AT.with(|p| p.set(Some(after)));
+    c.ports().ports.set_clock(at, DAY);
+    let tick = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| c.tick()));
+    U24T_HOLD_SET_PANICS_AT.with(|p| p.set(None));
+    tick.is_ok()
+}
+
+#[test]
+fn u24t_q1_the_ticks_retry_of_a_hold_whose_store_panics_keeps_the_agent_held_off() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(&[MANUAL, MANUAL], &[0]);
+    let returned = u24t_tick_whose_hold_set_try_panics(&c, 1, T0 + 2_000);
+    c.ports().ports.set_clock(T0 + 3_000, DAY);
+    c.tick();
+    let before = started(&c).len();
+    let run_now = c.control(&agent(0), Action::RunNow);
+    assert_eq!(
+        (
+            returned,
+            run_now,
+            started(&c).len() - before,
+            person_holds(&c, 0).len()
+        ),
+        (true, Err(Cause::Hold), 0, 0),
+        "(the tick returned, Run now, runs started by it, hold_set rows) while the store goes on refusing"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert_eq!(
+        (
+            person_holds(&c, 0).len(),
+            row_line(&c.snapshot(), 0),
+            c.control(&agent(0), Action::RunNow),
+            started(&c).len() - before
+        ),
+        (1, text("line.off.person"), Err(Cause::Hold), 0),
+        "(hold_set rows, the row, Run now, runs started) once the store takes the hold"
+    );
+}
+
+#[test]
+fn u24t_q1_a_panic_at_one_agents_retry_leaves_the_next_agent_held_off() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(
+        &[MANUAL, MANUAL, MANUAL],
+        &[0, 1],
+    );
+    let returned = u24t_tick_whose_hold_set_try_panics(&c, 2, T0 + 2_000);
+    c.ports().ports.set_clock(T0 + 3_000, DAY);
+    c.tick();
+    let before = started(&c).len();
+    let run_now = [
+        c.control(&agent(0), Action::RunNow),
+        c.control(&agent(1), Action::RunNow),
+    ];
+    assert_eq!(
+        (returned, run_now, started(&c).len() - before),
+        (true, [Err(Cause::Hold), Err(Cause::Hold)], 0),
+        "(the tick returned, Run now of each, runs started)"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 4_000, DAY);
+    c.tick();
+    assert_eq!(
+        (person_holds(&c, 0).len(), person_holds(&c, 1).len()),
+        (1, 1),
+        "each hold stored once the store takes it"
+    );
+}
+
+#[test]
+fn u24t_q1_a_held_panic_at_the_ticks_retry_marks_the_move_and_rings_the_bell() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(&[MANUAL, MANUAL], &[0]);
+    let seq = c.snapshot().seq;
+    let changed = c
+        .ports()
+        .ports
+        .calls
+        .borrow()
+        .iter()
+        .filter(|t| matches!(t.call, Call::Changed))
+        .count();
+    let returned = u24t_tick_whose_hold_set_try_panics(&c, 1, T0 + 2_000);
+    let rang = c
+        .ports()
+        .ports
+        .calls
+        .borrow()
+        .iter()
+        .filter(|t| matches!(t.call, Call::Changed))
+        .count()
+        - changed;
+    assert_eq!(
+        (returned, c.snapshot().seq > seq, rang > 0),
+        (true, true, true),
+        "(the tick returned, seq raised, the bell rang)"
+    );
+}
