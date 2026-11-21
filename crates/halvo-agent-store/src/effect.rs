@@ -117,7 +117,13 @@ fn later(
             digest: row.digest.clone(),
         },
         (EffectState::Committed, _) => EffectMove::Commit,
-        (EffectState::Refused | EffectState::Cleared | EffectState::Unknown, _) => {
+        (
+            EffectState::Refused
+            | EffectState::Cleared
+            | EffectState::Unknown
+            | EffectState::NotMade,
+            _,
+        ) => {
             return Err(Own::Effect.into());
         }
     };

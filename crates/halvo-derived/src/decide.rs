@@ -111,7 +111,8 @@ impl Store {
     /// the database in a guard's read or in its held-ahead call is the store's: the delete answers the fault and
     /// removes nothing, whatever the guard answered, so while a guard reads a kind, a workflow with a row of that kind
     /// that the store cannot read is not deleted by itself; the delete of everything still removes it. A delete of a
-    /// workflow that is not stored calls no guard, and a delete that calls no guard does not read the clock.
+    /// workflow that is not stored calls no guard. A delete that calls no guard takes no reading of the clock for a
+    /// guard; the report that a host with a sink gets after the commit reads the clock, as it did before.
     pub fn decide(&mut self, decision: &InterfaceDecision) -> Result<(), Error> {
         let db = &self.db;
         db.arm();

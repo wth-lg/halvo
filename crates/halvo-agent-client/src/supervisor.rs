@@ -350,7 +350,9 @@ impl Supervisor {
             .arg("--browser")
             .arg(&spec.browser)
             .arg("--utc-offset")
-            .arg(spec.utc_offset_s.to_string());
+            .arg(spec.utc_offset_s.to_string())
+            .arg("--data-dir")
+            .arg(&self.inner.config.data_dir);
         if let Some(model) = &spec.model {
             cmd.arg("--model").arg(model);
         }
@@ -965,7 +967,7 @@ mod tests {
             ConfirmDecision, ConfirmRequest, HandbackRequest, SecretReply,
         };
         use halvo_schema::executable::names::{Answer, Mode};
-        use halvo_schema::executable::text::WebOrigin;
+        use halvo_schema::executable::text::{EffectId, WebOrigin};
         use halvo_schema::{AgentId, WorkflowId};
 
         use super::*;
@@ -991,7 +993,7 @@ mod tests {
         }
 
         impl Confirmer for Calls {
-            fn answers(&self, _: &RunId, _: &ConfirmRequest) -> Vec<Answer> {
+            fn answers(&self, _: &RunId, _: &ConfirmRequest) -> Vec<(EffectId, Answer)> {
                 self.note("answers");
                 Vec::new()
             }

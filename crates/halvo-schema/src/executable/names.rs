@@ -182,11 +182,12 @@ names! {
         Releasing = "releasing",
         Committed = "committed",
         Unknown = "unknown",
+        NotMade = "not_made",
     }
 }
 
 impl EffectState {
-    /// `refused`, `rejected`, `committed` or `unknown`, the states that no move leaves.
+    /// `refused`, `rejected`, `committed`, `unknown` or `not_made`, the states that no move leaves.
     pub fn is_final(self) -> bool {
         matches!(
             self,
@@ -194,6 +195,7 @@ impl EffectState {
                 | EffectState::Rejected
                 | EffectState::Committed
                 | EffectState::Unknown
+                | EffectState::NotMade
         )
     }
 }
@@ -201,10 +203,15 @@ impl EffectState {
 names! {
     /// The one closed list of the `cause` keys of `agent_effect` and `agent_log`. `secret` ends a run whose token
     /// store could not be read, with the outcome `failed`. `unauthorized` stands in a `step_failed` line, the line of
-    /// a step whose adapter call the service answered with 401; `not_selected` stands in a `stopped` line, the line of
-    /// a send whose message the reply rule no longer selects at the load before its `begin`; `no_start` stands in a
-    /// `stopped` line, the line of the list step of a run whose load holds no start row. None of the three stands in
-    /// a row of an effect while the states of an effect have no `not_made` (A7.4).
+    /// a step whose adapter call the service answered with 401. `not_sent`, `not_replaced`, `unauthorized` and
+    /// `throttled` are the causes of an effect that was not made: each stands in a `not_made` row and in no other row
+    /// of an effect, and a `not_made` row holds one of the four (A5.2). `not_selected` stands in a `stopped` line, the
+    /// line of a send whose message the reply rule no longer selects at the load before its `begin`; `no_start`
+    /// stands in a `stopped` line, the line of the list step of a run whose load holds no start row; neither stands in
+    /// a row of an effect. `no_channel` and `browser_start` are causes of a browser start that failed (A11.1), and
+    /// `senders_unread` of a slot of senders that its reader refuses at the load before the list (A5.1).
+    /// `reproposed` is the cause of the runner's end of an effect that it then proposes again, and stands only in a
+    /// `rejected` row of an effect with a null approval (A7.4).
     pub enum Cause {
         Approval = "approval",
         Digest = "digest",
@@ -231,8 +238,15 @@ names! {
         Changed = "changed",
         Secret = "secret",
         Unauthorized = "unauthorized",
+        NotSent = "not_sent",
+        NotReplaced = "not_replaced",
+        Throttled = "throttled",
         NotSelected = "not_selected",
         NoStart = "no_start",
+        NoChannel = "no_channel",
+        BrowserStart = "browser_start",
+        SendersUnread = "senders_unread",
+        Reproposed = "reproposed",
     }
 }
 

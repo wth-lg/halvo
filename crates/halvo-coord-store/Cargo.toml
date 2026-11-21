@@ -6,7 +6,9 @@ edition = "2021"
 publish = false
 
 [dependencies]
+halvo-derived = { path = "../halvo-derived" }
 halvo-schema = { path = "../halvo-schema" }
+serde_json = { version = "1.0.154", features = ["raw_value"] }
 
 [dev-dependencies]
 halvo-coord = { path = "../halvo-coord" }

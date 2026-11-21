@@ -25,6 +25,7 @@ const SQLITE_SWITCHES: &[(&str, Option<&str>)] = &[
     ("SQLCIPHER_CRYPTO_LIBTOMCRYPT", None),
     ("SQLITE_EXTRA_INIT", Some("halvo_sqlcipher_extra_init")),
     ("SQLITE_EXTRA_SHUTDOWN", Some("sqlcipher_extra_shutdown")),
+    ("SQLCIPHER_LOG_LEVEL_DEFAULT", Some("SQLCIPHER_LOG_NONE")),
     ("SQLITE_TEMP_STORE", Some("2")),
     ("SQLITE_THREADSAFE", Some("1")),
     ("SQLITE_DEFAULT_FOREIGN_KEYS", Some("1")),
@@ -39,9 +40,9 @@ const SQLITE_SWITCHES: &[(&str, Option<&str>)] = &[
 
 const ENTROPY_SHIM: &str = "csrc/entropy.c";
 
-const PINNED: &str = "sqlcipher-src 419.0.6 (SQLCipher 4.19.0 on SQLite 3.53.4)";
+const PINNED: &str = "sqlcipher-src 420.0.0 (SQLCipher 4.20.0 on SQLite 3.54.1)";
 
-const PINNED_SHA256: &str = "838b2ed8a586b8b77f03e82c5a25b97e1a55e524ebac0de05354193865703072";
+const PINNED_SHA256: &str = "8cd2347d18886fee4651153fabeeeffb7cec008700987dab1c00261febc4220f";
 
 const FIX: &str = "read rebuildPage, editPage, pageInsertArray, pageFreeArray, balance_quick and \
     balance_nonroot from its divider loop again in the new source, with every row of the table of \
@@ -327,7 +328,7 @@ fn main() {
         .unwrap_or_else(|error| panic!("halvo-sqlcipher: write {}: {error}", copy.display()));
 
     let mut sqlcipher = libtomcrypt_build(source_dir);
-    sqlcipher.file(&copy).file(ENTROPY_SHIM);
+    sqlcipher.include(source_dir).file(&copy).file(ENTROPY_SHIM);
     for (name, value) in SQLITE_SWITCHES {
         sqlcipher.define(name, *value);
     }

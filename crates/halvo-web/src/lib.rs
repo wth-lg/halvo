@@ -9,6 +9,120 @@
 //! system's temporary directory. The stop removes the profile and the temporary directory
 //! that its start made and nothing else (A11.1), so nothing in this crate removes those files, and
 //! no text of this run says who does. On Windows the same readings left none.
+//!
+//! The named limits of the mark and the guard that U2.6b leaves (the coordinator's rulings CP-231
+//! (5) and CP-233, the planner's object of U2.6b), each held by reading and by no test:
+//!
+//! - M5: `checks::same_path_on` counts up to two leading separators on both systems, while macOS
+//!   reads two or three leading slashes as one; a process that names the run's profile with two
+//!   or three leading slashes bears no mark and is left. It errs toward leaving a process, and
+//!   the executor writes the profile in its resolved form with one.
+//! - M7: `procs::adopted` takes only rows whose parent number is 1, which Windows does not give,
+//!   so on Windows `checks::tree_of` takes no adopted process into the tree; a process that the
+//!   tree misses for that reason is neither waited for nor ended as a member of the tree unless
+//!   another clause of `guard::members` takes it, which errs toward leaving a process. That holds
+//!   for the tree alone: the end at a stop (`checks::end_runs_own_with`) reads every row of the
+//!   process table by its mark (`Mark::owns`), not by the tree.
+//! - N9: the hosted row `killed_start` of web-rows does not say whether the guard or the close of
+//!   the pipe ended the browser; in the draws of U2.6 the browser was gone before the guard could
+//!   end anything. The reading of its draws comes from the rows step of the built-head run of
+//!   landing-68. It is a limit of a reading, on neither side.
+//! - The mark's reading of a command line (`checks::switch_args`, `checks::switch_of`,
+//!   `checks::bears_profile`) rests on the browser's own parser as it is recalled and not run:
+//!   argument 0 is no switch, a Windows line is read from its first sign that is not white space
+//!   and ends at its first NUL, the switches end at an argument `--` and, on Windows, at the
+//!   single-argument switch in the spellings `--`, `-` and `/` and any letter case, and a switch of
+//!   the profile's or the database's key that names another place takes the mark away, whichever
+//!   value of a repeated switch the browser takes. A key that is another beginning of the word
+//!   `database` is read as the database's key, because the crash handler's `getopt_long` may take
+//!   a unique beginning of a long option, a reading that is recalled and not run; there the mark
+//!   errs toward leaving. The mark finds the run's exact place only before the end of its switches
+//!   and reads a switch that names another place over every argument after its argument 0, so an
+//!   end of its switches that the browser does not share can lose a witness and cannot hide
+//!   another place. A value is compared as the argument holds it. Where the browser sets white
+//!   space at the end of a value aside, the mark reads a value that differs from the run's place
+//!   by such a sign alone as another place and errs toward leaving; where the name of the run's own
+//!   place ends in such a sign, the mark bears for the run's exact switch while the browser takes
+//!   the place without the sign: for a sign that `char::is_whitespace` counts, this case cannot
+//!   arise in a run of ours, because the start refuses such a directory (`Executor::start`); for a
+//!   sign that the browser alone sets aside, it is the fourth case below. Before the dashes of a
+//!   switch the mark sets aside the signs that Rust's `char::is_whitespace` counts: where the
+//!   browser keeps such a sign there, the mark reads more switches as naming another place or as an
+//!   end and errs toward leaving. Where the browser's own parser reads more of a line as witnesses
+//!   than these clauses do, or takes the run's place where another place is named too, the mark
+//!   bears less than the browser reads and errs toward leaving a process. These cases err toward
+//!   ending. No run of a browser shows any of them, and in each another program must have written
+//!   the line; each arises only on a reading of the browser that is not the one recalled:
+//!   - if the browser ends its switches at the text `--single-argument` wherever it stands, also
+//!     inside a quoted argument (a reading that the verify step of U2.6b does not share), a process
+//!     whose line holds that text inside an argument and then the run's exact profile switch or
+//!     exact database switch bears the mark where the browser does not take that place (row
+//!     `win_single_argument_inside_quotes`);
+//!   - if the browser sets aside before the dashes of a switch a sign that `char::is_whitespace`
+//!     does not count, or keeps at the start of its Windows line a sign that the mark sets aside
+//!     there, so that its argument 0 ends before the mark's, it reads a switch, or an end of the
+//!     switches, that the mark does not read; with a switch of another place, or an end, before
+//!     the run's exact switch, the mark bears where the browser may not take the run's place. The
+//!     browser's signs of white space are recalled as the signs of `char::is_whitespace` on
+//!     Windows and as the ASCII ones among them on macOS, so that, as recalled, this case does
+//!     not arise;
+//!   - if the browser reads its Windows line past the first NUL, where the mark and the system's
+//!     split end the line, a switch of another place behind the NUL is not read by the mark,
+//!     which bears where the browser may not take the run's place. The browser's line is recalled
+//!     to end at the NUL too, and no line that CreateProcess writes from a string holds one, so
+//!     that, as recalled, this case does not arise;
+//!   - if the browser sets aside at the end of a value a sign that `char::is_whitespace` does not
+//!     count (U+200B is one such sign) and the name of the run's own profile directory ends in that
+//!     sign, the start does not refuse the directory, and the mark bears for the run's exact switch
+//!     while the browser takes the directory without the sign. The browser's signs of white space
+//!     are recalled as the signs of `char::is_whitespace` on Windows and as the ASCII ones among
+//!     them on macOS, so that, as recalled, this case does not arise;
+//!   - if the browser sets aside at the end of an argument a sign that `char::is_whitespace` does
+//!     not count (U+200B is one such sign), it ends its switches at the argument `--` with that
+//!     sign behind it, and on Windows at the single-argument switch with that sign behind it, where
+//!     the mark does not end its own, because it sets aside there the signs of
+//!     `char::is_whitespace` alone; with such an argument before the run's exact switch, the mark
+//!     reads a witness and bears where the browser reads no switch and does not take the run's
+//!     place. The browser's signs of white space are recalled as the signs of `char::is_whitespace`
+//!     on Windows and as the ASCII ones among them on macOS, so that, as recalled, this case does
+//!     not arise;
+//!   - if the browser sets aside at the end of an argument a sign that `char::is_whitespace` does
+//!     not count (U+200B is one such sign), it reads an argument such as `--user-data-dir` or
+//!     `--database` with no `=` and that sign behind it as the profile's or the database's key with
+//!     an empty value, where the mark reads it under another key, because it sets aside at the end
+//!     of a key that has no `=` the signs of `char::is_whitespace` alone, and takes no mark away;
+//!     with the run's exact switch on the line, the mark bears where the browser may not take the
+//!     run's place. The browser's signs of white space are recalled as the signs of
+//!     `char::is_whitespace` on Windows and as the ASCII ones among them on macOS, so that, as
+//!     recalled, this case does not arise.
+//!
+//!   The class that these cases belong to is named by its rule and not by this list: a sign that
+//!   `char::is_whitespace` does not count and that a browser may set aside, at any of the places
+//!   where the mark reads (the start of a Windows line, before the dashes of an argument, the end
+//!   of an argument that ends the switches, the end of a key that has no `=`, the end of a value);
+//!   the cases above that turn on such a sign are examples of it; one of these places is open, not
+//!   worked through for such a browser and with no side named for it, the start of a Windows line;
+//!   and the browser row of U2.6c reads the class. A profile directory whose name ends in a sign of
+//!   white space that `char::is_whitespace` counts is refused at the start
+//!   (`cdp::Executor::start`), because a browser that sets that sign aside at the end of a value
+//!   would take the directory without it while the mark bears for the run's exact switch.
+//! - Which value of the system's parts `guard::guard_main` hands `guard::run_guard`: a test reads
+//!   what `run_guard` does with each part; of `guard::SYSTEM` it compares six parts (`open`,
+//!   `table`, `args`, `ask_end`, `kill` and `write`) by address with the functions that they name,
+//!   and of `sleep` and `now` it reads bounds: a sleep of `POLL` timed by `now` is at least `POLL`
+//!   and, the least of five, under ten times `POLL`, and a sleep of `UNREAD_PAUSE` is at least
+//!   `UNREAD_PAUSE` and, the least of ten, under `POLL`. No test reads that `guard_main` hands
+//!   `SYSTEM`; a change there passes every test, on either side.
+//! - Below the base of U2.6 (adversary 3 of its stress step, confirmed by the verify step): after
+//!   one read in which a timed member's row has no creation time, the executor's end of a start
+//!   with no first reply (`guard::Trigger::Now`) reads that member as gone and returns with the
+//!   cause `tree_gone` at 20 ms with no forced end, or `now_left` at 2,020 ms, which errs toward
+//!   leaving a process; and on Windows `checks::inside` folds the letter case of a program's path
+//!   with Unicode's rule, where the mark's path rule folds A to Z alone, so that a program whose
+//!   path folds into the browser's install directory only by Unicode's rule lies inside it, which
+//!   errs toward ending. Its third note, a browser left without a guard when the first process has
+//!   no creation time at the start, no longer holds: such a start starts no guard and ends its own
+//!   new child (M8).
 
 pub mod cdp;
 pub mod checks;

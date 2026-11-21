@@ -2,6 +2,7 @@ mod common;
 
 use common::{config, config_json, digest_of, effect_id};
 use halvo_policy::{decide, effect_step, Checkpoint, Effect, EffectMove, StepCause, LIMITS};
+use halvo_schema::executable::names::Cause;
 use halvo_schema::executable::{ActionClass as C, Digest, EffectState as S};
 
 fn effect(state: S, class: C, digest: Digest, rebinds: u32) -> Effect {
@@ -38,7 +39,7 @@ fn begin(digest: Digest) -> EffectMove {
     EffectMove::Begin { digest }
 }
 
-const STATES: [S; 8] = [
+const STATES: [S; 9] = [
     S::Refused,
     S::Cleared,
     S::Held,
@@ -47,6 +48,7 @@ const STATES: [S; 8] = [
     S::Releasing,
     S::Committed,
     S::Unknown,
+    S::NotMade,
 ];
 
 const EFFECT_CLASSES: [C; 7] = [
@@ -261,7 +263,7 @@ fn begin_answers_effect_unknown_approval_digest_in_that_order() {
             let same = effect_step(Some(&e), begin(d1()));
             let other = effect_step(Some(&e), begin(d2()));
             let (want_same, want_other) = match state {
-                S::Refused | S::Rejected | S::Committed | S::Releasing => {
+                S::Refused | S::Rejected | S::Committed | S::Releasing | S::NotMade => {
                     (Err(StepCause::Effect), Err(StepCause::Effect))
                 }
                 S::Unknown => (Err(StepCause::Unknown), Err(StepCause::Unknown)),
@@ -305,7 +307,13 @@ fn no_move_leaves_a_final_state() {
         ("yes", "yes", "yes"),
         "graph_mail",
     ));
-    for state in [S::Refused, S::Rejected, S::Committed, S::Unknown] {
+    for state in [
+        S::Refused,
+        S::Rejected,
+        S::Committed,
+        S::Unknown,
+        S::NotMade,
+    ] {
         let e = effect(state, C::Payment, d1(), 0);
         for m in [
             EffectMove::Propose(decide(&confirm, C::Payment, Checkpoint::No)),
@@ -316,6 +324,9 @@ fn no_move_leaves_a_final_state() {
             begin(d1()),
             EffectMove::Commit,
             EffectMove::Lose,
+            EffectMove::NotMade {
+                cause: Cause::NotSent,
+            },
         ] {
             let shown = format!("{m:?}");
             assert!(effect_step(Some(&e), m).is_err(), "{state:?} {shown}");

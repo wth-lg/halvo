@@ -5443,7 +5443,8 @@ fn a_segment_write_whose_partial_file_became_a_link_at_its_sync_publishes_nothin
             }
         })
     };
-    store.use_fs(Arc::new(fs));
+    let fs = Arc::new(fs);
+    store.use_fs(fs.clone());
 
     let written = store
         .write_segment(&mut Cursor::new(
@@ -5461,6 +5462,15 @@ fn a_segment_write_whose_partial_file_became_a_link_at_its_sync_publishes_nothin
             })
         ),
         "a write whose partial file became a link answered {written:?}"
+    );
+    let renames: Vec<Call> = fs
+        .calls()
+        .into_iter()
+        .filter(|call| matches!(call, Call::Rename(_, _)))
+        .collect();
+    assert!(
+        renames.is_empty(),
+        "the write renamed its partial name, which held a link, to the segment's name: {renames:?}"
     );
     let published: Vec<String> = entries_below(&segment::segments_root(&store_dir))
         .into_iter()
@@ -10412,6 +10422,111 @@ fn an_open_whose_synchronous_or_fullfsync_reads_back_otherwise_is_refused_by_its
     assert_eq!(settings, Some((2, 1)));
 }
 
+/// An open over a file root whose read of the library meets `answers` is
+/// refused by the name `name` and changes no byte of the store directory or of
+/// the roots folder; the same open without the seam opens.
+fn an_open_that_meets_another_cipher_is_refused(
+    answers: super::db::pinned_cipher_seam::Answers,
+    name: &'static str,
+) {
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let files = |dir: &Path| -> Vec<(String, Vec<u8>)> {
+        files_with_bytes(dir)
+            .into_iter()
+            .filter(|(file, _)| !LOCK_FILES.contains(&file.as_str()))
+            .collect()
+    };
+    let before = (files(&store_dir), files(&roots_dir));
+    let opened = {
+        let _seam = super::db::pinned_cipher_seam::instead_of_the_library(answers);
+        open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+    };
+    let unchanged = (files(&store_dir), files(&roots_dir)) == before;
+    let control = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
+    println!(
+        "CIPHER-READ-BACK meets_another={name} answer={opened:?} unchanged={unchanged} control={control:?}"
+    );
+    assert!(
+        matches!(&opened, Err(StoreError::SettingNotInEffect(read)) if *read == name),
+        "an open that meets another {name} answered {opened:?}"
+    );
+    assert!(
+        unchanged,
+        "an open that meets another {name} changed a byte of the store"
+    );
+    assert!(
+        control.is_ok(),
+        "the open without the seam answered {control:?}"
+    );
+}
+
+/// The open reads the cipher version from the library: one that meets 4.19.0
+/// is refused by the name cipher_version.
+#[test]
+fn an_open_whose_cipher_version_reads_back_otherwise_is_refused_by_its_name() {
+    an_open_that_meets_another_cipher_is_refused(
+        super::db::pinned_cipher_seam::Answers {
+            version: Some("4.19.0 community"),
+            ..Default::default()
+        },
+        "cipher_version",
+    );
+}
+
+/// The open reads the cipher provider from the library: one that meets
+/// openssl is refused by the name cipher_provider.
+#[test]
+fn an_open_whose_cipher_provider_reads_back_otherwise_is_refused_by_its_name() {
+    an_open_that_meets_another_cipher_is_refused(
+        super::db::pinned_cipher_seam::Answers {
+            provider: Some("openssl"),
+            ..Default::default()
+        },
+        "cipher_provider",
+    );
+}
+
+/// The open asks the library whether its entropy hook is installed: one that
+/// meets no hook is refused by the name os_entropy_hook.
+#[test]
+fn an_open_that_meets_no_entropy_hook_is_refused_by_its_name() {
+    an_open_that_meets_another_cipher_is_refused(
+        super::db::pinned_cipher_seam::Answers {
+            os_entropy_hook: Some(false),
+            ..Default::default()
+        },
+        "os_entropy_hook",
+    );
+}
+
+/// The LibTomCrypt sources supply the salt of every new store, and no check
+/// reads them: two stores made over file roots differ in the first 16 bytes
+/// of store.db, the salt, and neither salt is one byte sixteen times. The test
+/// prints true or false and no byte of a salt.
+#[test]
+fn two_new_stores_have_salts_of_their_own() {
+    let salt = || -> Vec<u8> {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+        let opened = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
+        assert!(
+            opened.is_ok(),
+            "the open of a new store answered {opened:?}"
+        );
+        std::fs::read(store_dir.join("store.db")).unwrap()[..16].to_vec()
+    };
+    let (first, second) = (salt(), salt());
+    let one_byte = |salt: &[u8]| salt.iter().all(|b| *b == salt[0]);
+    let equal = first == second;
+    let repeated = one_byte(&first) || one_byte(&second);
+    println!("SALT salts_equal={equal} one_byte_sixteen_times={repeated}");
+    assert!(
+        !equal && !repeated,
+        "two new stores: salts_equal={equal} one_byte_sixteen_times={repeated}"
+    );
+}
+
 /// A made mark of create.pending that records the identity of the file at
 /// `path`, written as another program could write it.
 #[cfg(unix)]
@@ -12096,4 +12211,495 @@ mod measure {
             ),
         }
     }
+}
+
+fn log_of_another_page_size(log: &[u8], size: usize) -> Vec<u8> {
+    frames_of_another_page_size(log, size, false)
+}
+
+/// The frames of `log` that its checksums chain, written at the page size
+/// `size` with their checksums made anew. With `clear_commit_marks` every
+/// frame's commit mark is 0, so the log holds no committed frame; without it
+/// the log ends at its last committed frame.
+fn frames_of_another_page_size(log: &[u8], size: usize, clear_commit_marks: bool) -> Vec<u8> {
+    let word = |bytes: &[u8], at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
+    let big_endian = word(log, 0) & 1 == 1;
+    let sum = |state: [u32; 2], bytes: &[u8]| -> [u32; 2] {
+        bytes
+            .as_chunks::<8>()
+            .0
+            .iter()
+            .fold(state, |[s1, s2], pair| {
+                let read = |half: &[u8]| {
+                    let half: [u8; 4] = half.try_into().unwrap();
+                    if big_endian {
+                        u32::from_be_bytes(half)
+                    } else {
+                        u32::from_le_bytes(half)
+                    }
+                };
+                let s1 = s1.wrapping_add(read(&pair[..4])).wrapping_add(s2);
+                [s1, s2.wrapping_add(read(&pair[4..])).wrapping_add(s1)]
+            })
+    };
+    let put = |bytes: &mut [u8], [s1, s2]: [u32; 2]| {
+        bytes[..4].copy_from_slice(&s1.to_be_bytes());
+        bytes[4..8].copy_from_slice(&s2.to_be_bytes());
+    };
+    let page = word(log, 8) as usize;
+    let mut out = log[..32].to_vec();
+    out[8..12].copy_from_slice(&u32::try_from(size).unwrap().to_be_bytes());
+    let mut state = sum([0, 0], &out[..24]);
+    put(&mut out[24..32], state);
+    let (mut read, mut committed) = (sum([0, 0], &log[..24]), out.len());
+    for frame in log[32..].chunks_exact(24 + page) {
+        read = sum(sum(read, &frame[..8]), &frame[24..]);
+        if frame[8..16] != log[16..24] || [word(frame, 16), word(frame, 20)] != read {
+            break;
+        }
+        let mut head = frame[..24].to_vec();
+        if clear_commit_marks {
+            head[4..8].fill(0);
+        }
+        let mut data = frame[24..].to_vec();
+        data.resize(size, 0);
+        state = sum(sum(state, &head[..8]), &data);
+        put(&mut head[16..24], state);
+        out.extend_from_slice(&head);
+        out.extend_from_slice(&data);
+        if word(&head, 4) != 0 {
+            committed = out.len();
+        }
+    }
+    if !clear_commit_marks {
+        out.truncate(committed);
+    }
+    out
+}
+
+#[test]
+fn an_open_beside_a_write_ahead_log_of_another_page_size_is_refused_and_changes_no_byte() {
+    for size in [512, 1024, 2048, 8192, 16384, 32768, 65536] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+        let root_id = RootId::fresh().unwrap();
+        let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+        let mut store =
+            EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+        store.write_segment(&mut Cursor::new(b"page size")).unwrap();
+        let beside = dir.path().join("beside");
+        std::fs::create_dir(&beside).unwrap();
+        for name in ["store.key", "store.db"] {
+            std::fs::copy(store_dir.join(name), beside.join(name)).unwrap();
+        }
+        let log = std::fs::read(store_dir.join("store.db-wal")).unwrap();
+        drop(store);
+        let other = log_of_another_page_size(&log, size);
+        assert!(
+            other.len() > 32 + 24 + size,
+            "the log of page size {size} holds no committed frame, so this case shows nothing"
+        );
+        std::fs::write(beside.join("store.db-wal"), &other).unwrap();
+        let before = store_files_and_lengths(&beside);
+        let db_before = std::fs::read(beside.join("store.db")).unwrap();
+
+        let answer = open_over_file_root(&beside, &roots_dir, root_id)
+            .map(drop)
+            .map_err(|e| format!("{e:?}"));
+
+        let db_after = std::fs::read(beside.join("store.db")).unwrap();
+        let log_after = std::fs::read(beside.join("store.db-wal")).ok();
+        assert!(
+            answer.is_err(),
+            "a store beside a write-ahead log of page size {size} opened"
+        );
+        assert!(
+            store_files_and_lengths(&beside) == before
+                && db_after == db_before
+                && log_after.as_deref() == Some(&other[..]),
+            "an open beside a log of page size {size} that answered {answer:?} changed the store"
+        );
+        println!("PAGE-SIZE log={size} answer={}", answer.unwrap_err());
+    }
+}
+
+/// The limit that the head keeps: a log of another page size that holds no
+/// committed frame (a header alone, or frames whose commit marks are cleared)
+/// is read as empty. The open answers Ok and empties the log, and no byte of
+/// store.db or of the key file changes. The answer Ok is the limit, named so
+/// that the change which makes this open refuse turns this test with intent.
+#[test]
+fn an_open_beside_a_log_of_another_page_size_with_no_committed_frame_answers_ok_empties_the_log_and_changes_no_byte(
+) {
+    for size in [1024, 8192] {
+        for form in ["a header alone", "frames whose commit marks are cleared"] {
+            let dir = tempfile::tempdir().unwrap();
+            let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+            let root_id = RootId::fresh().unwrap();
+            let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+            let mut store =
+                EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+            store.write_segment(&mut Cursor::new(b"page size")).unwrap();
+            let beside = dir.path().join("beside");
+            std::fs::create_dir(&beside).unwrap();
+            for name in ["store.key", "store.db"] {
+                std::fs::copy(store_dir.join(name), beside.join(name)).unwrap();
+            }
+            let log = std::fs::read(store_dir.join("store.db-wal")).unwrap();
+            drop(store);
+            let other = if form == "a header alone" {
+                log_of_another_page_size(&log, size)[..32].to_vec()
+            } else {
+                let cleared = frames_of_another_page_size(&log, size, true);
+                assert!(
+                    cleared.len() > 32 + 24 + size,
+                    "the log of page size {size} holds no frame, so this case shows nothing"
+                );
+                cleared
+            };
+            std::fs::write(beside.join("store.db-wal"), &other).unwrap();
+            let read = |name: &str| std::fs::read(beside.join(name)).ok();
+            let (db_before, key_before) = (read("store.db"), read("store.key"));
+
+            let answer = open_over_file_root(&beside, &roots_dir, root_id)
+                .map(drop)
+                .map_err(|e| format!("{e:?}"));
+
+            let log_after = read("store.db-wal").map_or(0, |log| log.len());
+            let unchanged = read("store.db") == db_before && read("store.key") == key_before;
+            println!(
+                "NO-COMMITTED-FRAME log={size} form={form} log_bytes={} answer={answer:?} log_bytes_after={log_after} store_db_and_key_unchanged={unchanged}",
+                other.len()
+            );
+            assert!(
+                answer.is_ok(),
+                "beside a log of page size {size} with {form} the open answered {answer:?}: the limit is the answer Ok"
+            );
+            assert_eq!(
+                log_after, 0,
+                "beside a log of page size {size} with {form} the open left the log"
+            );
+            assert!(
+                unchanged,
+                "beside a log of page size {size} with {form} the open changed store.db or the key file"
+            );
+        }
+    }
+}
+
+const STALE_ROW: &str = "stale bytes of the cache 01";
+
+#[test]
+fn a_page_read_from_a_log_of_smaller_pages_holds_no_byte_that_the_log_did_not_write() {
+    halvo_sqlcipher::initialize().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let make = |name: &str, text: &str| {
+        let conn = Connection::open(dir.path().join(name)).unwrap();
+        conn.execute_batch(&format!(
+            "PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0;
+             CREATE TABLE t(id INTEGER PRIMARY KEY, v TEXT);
+             INSERT INTO t VALUES (1, '{text}');
+             PRAGMA wal_checkpoint(TRUNCATE);"
+        ))
+        .unwrap();
+        conn
+    };
+    drop(make("old.db", STALE_ROW));
+    let stale_page = std::fs::read(dir.path().join("old.db")).unwrap()[4096..8192].to_vec();
+    let fresh = make("fresh.db", "fresh bytes of the log 0001");
+    fresh
+        .execute_batch("UPDATE t SET v = 'fresh bytes of the log 0002' WHERE id = 1;")
+        .unwrap();
+    let copy = dir.path().join("copy");
+    std::fs::create_dir(&copy).unwrap();
+    std::fs::copy(dir.path().join("fresh.db"), copy.join("fresh.db")).unwrap();
+    let log = std::fs::read(dir.path().join("fresh.db-wal")).unwrap();
+    drop(fresh);
+    let short = log_of_another_page_size(&log, 1024);
+    assert!(
+        short.len() == 32 + 24 + 1024 && short[32 + 24 + 8..32 + 24 + 10] == stale_page[8..10],
+        "the log does not hold one frame of page 2 whose cell stands where the stale page has its cell, so this case shows nothing"
+    );
+    std::fs::write(copy.join("fresh.db-wal"), &short).unwrap();
+    std::fs::write(dir.path().join("stale-page"), &stale_page).unwrap();
+    let out = dir.path().join("answer");
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::a_page_cache_of_stale_bytes_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_STALE_PAGE_DIR", dir.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    let answer = std::fs::read_to_string(&out)
+        .unwrap_or_else(|_| format!("the child wrote nothing and exited {child}"));
+    assert!(
+        answer.starts_with("config=0 ") && !answer.contains(STALE_ROW),
+        "a read of page 2 through a log of 1024-byte pages: {answer}"
+    );
+    println!("STALE-PAGE {answer}");
+}
+
+#[test]
+fn a_page_cache_of_stale_bytes_for_parent() {
+    let Some(dir) = std::env::var_os("HALVO_TEST_STALE_PAGE_DIR") else {
+        println!("a_page_cache_of_stale_bytes_for_parent: HALVO_TEST_STALE_PAGE_DIR is not set, so no parent asked for a read");
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    const SLOT: usize = 8192;
+    const SLOTS: usize = 64;
+    let stale_page = std::fs::read(dir.join("stale-page")).unwrap();
+    let cache: &mut [u8] = Box::leak(vec![0u8; SLOT * SLOTS].into_boxed_slice());
+    for slot in cache.as_chunks_mut::<SLOT>().0 {
+        slot[..stale_page.len()].copy_from_slice(&stale_page);
+    }
+    let config = unsafe {
+        halvo_sqlcipher::rusqlite::ffi::sqlite3_config(
+            halvo_sqlcipher::rusqlite::ffi::SQLITE_CONFIG_PAGECACHE,
+            cache.as_mut_ptr().cast::<std::ffi::c_void>(),
+            SLOT as std::ffi::c_int,
+            SLOTS as std::ffi::c_int,
+        )
+    };
+    let answer = Connection::open(dir.join("copy").join("fresh.db")).and_then(|conn| {
+        conn.query_row("SELECT v FROM t WHERE id = 1", [], |r| {
+            r.get::<_, String>(0)
+        })
+    });
+    std::fs::write(
+        dir.join("answer"),
+        format!("config={config} answer={answer:?}"),
+    )
+    .unwrap();
+}
+
+mod sent_statements {
+    use std::cell::Cell;
+    use std::ffi::{c_char, c_int, c_uint, c_void, CStr};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Mutex, Once};
+
+    use halvo_sqlcipher::rusqlite::ffi;
+
+    thread_local! {
+        static RECORDING: Cell<bool> = const { Cell::new(false) };
+    }
+    static CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
+    static SENT: Mutex<Vec<(usize, String)>> = Mutex::new(Vec::new());
+
+    unsafe extern "C" fn sent(
+        _: c_uint,
+        connection: *mut c_void,
+        _: *mut c_void,
+        sql: *mut c_void,
+    ) -> c_int {
+        let text = unsafe { CStr::from_ptr(sql.cast::<c_char>()) }.to_string_lossy();
+        let mut words = text
+            .split(|c: char| c.is_whitespace() || c == '=' || c == ';')
+            .filter(|word| !word.is_empty());
+        let name = match words.next() {
+            Some(first) if first.eq_ignore_ascii_case("PRAGMA") => {
+                format!("PRAGMA {}", words.next().unwrap_or_default())
+            }
+            first => first.unwrap_or_default().to_string(),
+        };
+        SENT.lock().unwrap().push((connection as usize, name));
+        0
+    }
+
+    unsafe extern "C" fn opened(
+        db: *mut ffi::sqlite3,
+        _: *mut *mut c_char,
+        _: *const ffi::sqlite3_api_routines,
+    ) -> c_int {
+        if RECORDING.with(Cell::get) {
+            let connection = CONNECTIONS.fetch_add(1, Ordering::SeqCst) + 1;
+            unsafe {
+                ffi::sqlite3_trace_v2(
+                    db,
+                    ffi::SQLITE_TRACE_STMT,
+                    Some(sent),
+                    connection as *mut c_void,
+                )
+            };
+        }
+        ffi::SQLITE_OK
+    }
+
+    pub(super) fn record(act: impl FnOnce()) -> Vec<(usize, String)> {
+        static REGISTERED: Once = Once::new();
+        halvo_sqlcipher::initialize().unwrap();
+        REGISTERED.call_once(|| {
+            assert_eq!(
+                unsafe { ffi::sqlite3_auto_extension(Some(opened)) },
+                ffi::SQLITE_OK
+            );
+        });
+        let from = SENT.lock().unwrap().len();
+        RECORDING.with(|recording| recording.set(true));
+        act();
+        RECORDING.with(|recording| recording.set(false));
+        SENT.lock().unwrap()[from..].to_vec()
+    }
+}
+
+#[test]
+fn the_open_sets_the_library_log_level_to_none_before_it_sends_the_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let store_dir = super::durable::Dir::open(dir.path()).unwrap();
+    let sent = sent_statements::record(|| {
+        drop(super::db::Db::open(&store_dir, &[7u8; 32]).unwrap());
+        drop(super::db::Db::open_existing(&store_dir, &[7u8; 32]).unwrap());
+    });
+    let keyed: std::collections::BTreeSet<usize> = sent
+        .iter()
+        .filter(|(_, name)| name == "PRAGMA key")
+        .map(|(connection, _)| *connection)
+        .collect();
+    assert_eq!(
+        keyed.len(),
+        2,
+        "a create and an open sent the key on {keyed:?}: {sent:?}"
+    );
+    for connection in keyed {
+        let names: Vec<&str> = sent
+            .iter()
+            .filter(|(of, _)| *of == connection)
+            .map(|(_, name)| name.as_str())
+            .collect();
+        let level = names
+            .iter()
+            .position(|name| *name == "PRAGMA cipher_log_level");
+        let key = names.iter().position(|name| *name == "PRAGMA key");
+        assert!(
+            matches!((level, key), (Some(level), Some(key)) if level < key),
+            "the open sent these statements in this order: {names:?}"
+        );
+    }
+}
+
+#[test]
+fn a_refused_open_with_a_wrong_key_leaves_the_library_log_level_at_none() {
+    let (dir, out) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    drop(super::db::Db::open(&super::durable::Dir::open(dir.path()).unwrap(), &[7u8; 32]).unwrap());
+    let levels = out.path().join("levels");
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::a_wrong_key_open_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_WRONG_KEY_DIR", dir.path())
+        .env("HALVO_TEST_WRONG_KEY_OUT", &levels)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap();
+    let library_lines = String::from_utf8_lossy(&child.stderr)
+        .lines()
+        .filter(|line| line.contains(" CORE "))
+        .count();
+    let text = std::fs::read_to_string(&levels)
+        .unwrap_or_else(|_| format!("the child wrote nothing and exited {}", child.status));
+    assert_eq!(
+        (text.as_str(), library_lines),
+        ("before=NONE answer=DatabaseUnreadable after=NONE", 0),
+        "a first open of a process with a wrong key"
+    );
+}
+
+#[test]
+fn a_wrong_key_open_for_parent() {
+    let (Some(dir), Some(out)) = (
+        std::env::var_os("HALVO_TEST_WRONG_KEY_DIR"),
+        std::env::var_os("HALVO_TEST_WRONG_KEY_OUT"),
+    ) else {
+        println!("a_wrong_key_open_for_parent: HALVO_TEST_WRONG_KEY_DIR is not set, so no parent asked for an open");
+        return;
+    };
+    let level = || -> String {
+        Connection::open_in_memory()
+            .unwrap()
+            .query_row("PRAGMA cipher_log_level", [], |r| r.get(0))
+            .unwrap()
+    };
+    halvo_sqlcipher::initialize().unwrap();
+    let before = level();
+    let answer = super::db::Db::open_existing(
+        &super::durable::Dir::open(Path::new(&dir)).unwrap(),
+        &[8u8; 32],
+    )
+    .map(drop)
+    .map_err(|e| format!("{e:?}"));
+    let after = level();
+    std::fs::write(
+        out,
+        format!(
+            "before={before} answer={} after={after}",
+            answer.err().unwrap_or_else(|| "Ok".to_string())
+        ),
+    )
+    .unwrap();
+}
+
+/// The open reads back the library's log level: an open over a file root whose
+/// level reads back WARN is refused by the name cipher_log_level. The level is
+/// one setting of the process, so the open runs in a child of its own, where no
+/// other test sets the level between the seam and the read-back.
+#[test]
+fn an_open_whose_cipher_log_level_reads_back_otherwise_is_refused_by_its_name() {
+    let out = tempfile::tempdir().unwrap();
+    let answer = out.path().join("answer");
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::an_open_with_the_log_level_warn_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_LOG_LEVEL_OUT", &answer)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    let text = std::fs::read_to_string(&answer)
+        .unwrap_or_else(|_| format!("the child wrote nothing and exited {child}"));
+    println!("LOG-LEVEL-READ-BACK {text}");
+    assert_eq!(
+        text, "set_before_the_read_backs=WARN answer=SettingNotInEffect(\"cipher_log_level\")",
+        "an open whose log level read back WARN"
+    );
+}
+
+#[test]
+fn an_open_with_the_log_level_warn_for_parent() {
+    let Some(out) = std::env::var_os("HALVO_TEST_LOG_LEVEL_OUT") else {
+        println!("an_open_with_the_log_level_warn_for_parent: HALVO_TEST_LOG_LEVEL_OUT is not set, so no parent asked for an open");
+        return;
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let answer = {
+        let _seam = super::db::read_back_seam::before_the_read_backs(|conn| {
+            conn.execute_batch("PRAGMA cipher_log_level = WARN;")
+                .unwrap();
+        });
+        open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+    };
+    std::fs::write(
+        out,
+        format!(
+            "set_before_the_read_backs=WARN answer={}",
+            answer
+                .err()
+                .map_or_else(|| "Ok".to_string(), |e| format!("{e:?}"))
+        ),
+    )
+    .unwrap();
 }
