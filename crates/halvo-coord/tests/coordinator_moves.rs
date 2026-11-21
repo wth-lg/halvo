@@ -11999,6 +11999,22 @@ fn u24t_q1_a_held_panic_at_the_ticks_retry_marks_the_move_and_rings_the_bell() {
     );
 }
 
+#[test]
+fn u24t_q1_a_tick_whose_retry_reads_no_clock_marks_nothing() {
+    let c = u24t_switched_off_with_no_clock_and_a_store_that_refuses(&[MANUAL, MANUAL], &[0]);
+    c.ports().ports.set_clock(T0 + 2_000, DAY);
+    c.tick();
+    let seq = c.snapshot().seq;
+    clock_fails(&c);
+    c.tick();
+    clock_answers(&c);
+    assert_eq!(
+        (c.snapshot().seq, c.control(&agent(0), Action::RunNow)),
+        (seq, Err(Cause::Hold)),
+        "(seq after a tick whose reads of the clock all failed, Run now): no mark, and the agent stays held off"
+    );
+}
+
 #[derive(Clone, Copy, Debug)]
 enum U24tFault {
     Refuses,
