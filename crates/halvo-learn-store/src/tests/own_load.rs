@@ -746,3 +746,23 @@ fn a_store_fault_at_a_start_run_under_another_agent_leaves_a_start_held_with_no_
     );
     assert!(!w.handlers.facts.contains_key(&id(42)));
 }
+
+/// R2 (L4.2, LM-58 (b)): a replay `put_playbook`, which is never passed on, is answered with its count also when a
+/// passing `store` fault of the agent store meets the handlers' own `load` of the run; the learning part is left out.
+#[test]
+fn a_replay_put_playbook_at_a_passing_fault_of_its_own_load_answers_its_count() {
+    let mut w = learned_world();
+    let served = w.replay(3);
+    let next = locator("role", "button", Some("Next"));
+    let proposal = with_locators(served[2].clone(), "button Next page", vec![loc("N"), next]);
+    let body = json!({"op": "put_playbook", "agent": agent(1), "run": run(3), "number": 1, "steps": [proposal]});
+    let commits = w.host.commits.get();
+    let answer = runner_at(&mut w, 1, body);
+    assert!(
+        matches!(answer, Ok(RunnerReply::Stored(ref s)) if s.stored == 0),
+        "{answer:?}"
+    );
+    assert!(left_out(&w));
+    assert!(w.handlers.facts[&id(3)].candidates.is_empty());
+    assert_eq!(w.host.commits.get(), commits);
+}

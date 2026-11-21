@@ -132,6 +132,9 @@ impl LearnHandlers {
         };
         if let Read::Stopped = rows::runs(host, &workflow) {
             self.facts.remove(&b.run);
+            if let Some(start) = self.starts.get_mut(&b.run).filter(|s| s.agent == b.agent) {
+                start.row = false;
+            }
             return Ok(RunnerReply::Steps(StepsReply { agent, steps }));
         }
         let newest = match self.newest_of(host, &b.agent, &b.run) {

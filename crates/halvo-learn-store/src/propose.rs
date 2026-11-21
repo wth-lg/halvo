@@ -144,11 +144,12 @@ impl LearnHandlers {
             Mode::Replay => {
                 let mut taken = 0;
                 if readable {
-                    taken = self
-                        .propose(host, b)?
-                        .iter()
-                        .filter(|(_, answer)| answer.is_ok())
-                        .count();
+                    match self.propose(host, b) {
+                        Ok(answers) => {
+                            taken = answers.iter().filter(|(_, answer)| answer.is_ok()).count();
+                        }
+                        Err(name) => self.leave(Err(name.into())),
+                    }
                 }
                 Ok(RunnerReply::Stored(Stored {
                     stored: u32::try_from(taken).unwrap_or(u32::MAX),
