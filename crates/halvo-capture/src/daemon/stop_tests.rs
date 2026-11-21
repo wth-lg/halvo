@@ -436,12 +436,14 @@ fn a_signalled_run_behind_a_slow_write_waits_for_it_inside_the_stop_bound() {
     )
     .unwrap();
     let took = started.elapsed();
-    assert_eq!(outcome.status, exit::TIMED_RUN_INTERRUPTED, "{outcome:?}");
-    assert!(outcome.loss.is_none(), "{:?}", outcome.loss);
+    assert_eq!(outcome.status, exit::ERROR, "{outcome:?}");
+    let loss = outcome.loss.as_ref().expect("no loss line");
+    assert_eq!(loss.cause, Some(LossCause::DrainWaitRanOut));
+    assert_eq!(loss.line, "halvo-capture: lost events=88 first=- last=- error=-");
     assert_eq!(
         model.records().len() as u64 + outcome.report.events_discarded,
         600,
-        "every captured event is stored or discarded at the run's own pause"
+        "every captured event is stored, or discarded at the run's own pause and counted lost"
     );
     assert!(took >= Duration::from_secs(3), "a wait was cut: {took:?}");
     assert!(
