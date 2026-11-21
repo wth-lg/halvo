@@ -2284,6 +2284,7 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         Mark::NotYet
     };
     let mut status = halvo_control::exit::CLEAN;
+    let mut stop_asked = None;
     loop {
         let opening = matches!(store, HeldStore::None)
             && opener.as_ref().is_some_and(owner::open::Opener::is_running);
@@ -2305,6 +2306,11 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         match wait_serving(&mut supervisor, &serving, window, stop, &store) {
             Waited::Window => {}
             Waited::Ended => break,
+            Waited::Stop(asked) => {
+                listening.admitting().end_the_life();
+                stop_asked = Some(asked);
+                break;
+            }
         }
         if RunSources::restart_asked(&supervisor) {
             status = halvo_control::exit::RESTART;
@@ -2375,6 +2381,12 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     if let Some(settled) = parts.settled {
         settled(outcome.as_ref().and_then(|outcome| outcome.settled));
     }
+    let events_lost = outcome
+        .as_ref()
+        .and_then(|outcome| outcome.settled)
+        .map_or(0, |settled| {
+            settled.events_lost.saturating_add(settled.events_pending)
+        });
     let status = outcome.map_or(status, |outcome| outcome.status);
     let status = match store {
         HeldStore::Capture(owner) => close_the_store(*owner, status, err),
@@ -2388,6 +2400,15 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
                 error.kind()
             );
         }
+    }
+    if let Some(asked) = stop_asked {
+        let stopped = halvo_control::proto::Stopped {
+            flushed: status != halvo_control::exit::ERROR,
+            events_lost,
+        };
+        let _ = asked
+            .answer(halvo_control::proto::Reply::Stopped(stopped))
+            .wait(WRITTEN_WAIT);
     }
     drop(listening);
     drop(lock);
@@ -2417,6 +2438,7 @@ struct Serving<'a> {
 enum Waited {
     Window,
     Ended,
+    Stop(server::Asked),
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]
@@ -2437,6 +2459,9 @@ fn wait_serving<F: supervisor::SystemSources, L: main_loop::MainLoop>(
             return Waited::Ended;
         }
         while let Some(asked) = serving.listening.next() {
+            if matches!(asked.request, halvo_control::proto::Request::Stop) {
+                return Waited::Stop(asked);
+            }
             serve_request(asked, supervisor, serving, store);
         }
         if supervisor.main_loop().now() < began + slice {
