@@ -226,7 +226,7 @@ fn the_derived_off_shows_the_line_off_kept_takes_switch_on_and_refuses_a_start_w
     assert_eq!(line.status(), halvo_coord::types::Status::Off);
     assert!(halvo_coord::words::text(&line.key(), &[]).is_ok());
     assert_eq!(
-        halvo_coord::roster::controls(&f),
+        halvo_coord::roster::controls(&f, None, &halvo_coord::types::Limits::PRODUCT),
         vec![
             halvo_coord::types::Control::SwitchOn,
             halvo_coord::types::Control::Delete

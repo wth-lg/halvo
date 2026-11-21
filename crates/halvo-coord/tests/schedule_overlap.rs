@@ -1257,7 +1257,7 @@ fn c_a_paused_with_no_acknowledgement_after_a_refused_active_holds_every_start()
             );
             assert_eq!(line_of(&board, 0), StatusLine::Kept, "{form} tick {k}");
             assert_eq!(
-                halvo_coord::roster::controls(&board.members[0].facts),
+                halvo_coord::roster::controls(&board.members[0].facts, None, &L),
                 vec![Control::SwitchOn, Control::Delete],
                 "{form} tick {k}"
             );
