@@ -12562,3 +12562,45 @@ fn u24v_12_page_an_ask_that_names_another_agent_than_its_runs_is_refused_by_its_
         "(case, agents_shown, record_stuck of the run's agent, its row reads line.problem.record at the press, the Allow of the page, AllowOnce sent to the run)"
     );
 }
+
+#[test]
+fn u24v_13_a_page_press_on_an_item_that_no_run_raised_is_answered_as_before_while_the_record_is_stuck(
+) {
+    let slotted = support::A {
+        person: true,
+        slotted: true,
+    };
+    let c = coordinator(&[slotted], Limits::PRODUCT);
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::Ready);
+    c.ports().ports.refuse(Method::Log, refused_name("store"));
+    let mut refused = Vec::new();
+    for k in 1..=3u64 {
+        refused.push(c.answer(&item, Choice::Skip, None, 0));
+        u24v_tick(&c, k);
+    }
+    assert_eq!(
+        refused,
+        [Err(Cause::NoService); 3],
+        "the store refused each Skip"
+    );
+    assert!(c.record_stuck(&agent(0)));
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.problem.record"));
+    c.ports().ports.clear_refusals();
+    assert_eq!(
+        c.answer(&item, Choice::Skip, None, 0),
+        Ok(()),
+        "a ready item, which no run raised, is answered as before while the record is stuck"
+    );
+}
+
+#[test]
+fn u24v_14_a_page_press_before_the_first_tick_keeps_its_cause() {
+    let c = Coordinator::new(owner(&[MANUAL], Limits::PRODUCT), Limits::PRODUCT);
+    let none = ItemId::parse(&format!("{:032x}", 0xabcd)).unwrap();
+    assert_eq!(
+        c.answer(&none, Choice::Allow, None, 0),
+        Err(Cause::UnknownItem),
+        "no board yet"
+    );
+}
