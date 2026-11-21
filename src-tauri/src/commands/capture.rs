@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use halvo_control::client::ClientError;
 use halvo_control::model::{CaptureState, StorageCap, StoreId};
@@ -15,7 +16,8 @@ use super::Registration;
 use crate::poller::{self, Views};
 use crate::view_state::{
     command_view, delete_view, inventory_view, read_error, removes_nothing, ActionError,
-    CapSetView, CaptureSet, DeleteView, InventoryView, LastDelete, OutcomeError, StatusView,
+    CapSetView, CaptureSet, DeleteView, Hold, InventoryView, LastDelete, OutcomeError, Press,
+    StatusView,
 };
 
 pub struct AppState {
@@ -119,12 +121,13 @@ pub async fn set_capture_state(
 ) -> Result<CaptureSet, ActionError> {
     let made = state.control.places().make();
     let control = Arc::clone(&state.control);
+    let views = Arc::clone(&state.views);
     let change = match capture {
         CaptureState::Paused => CaptureChange::Pause,
         CaptureState::Running => CaptureChange::Resume,
     };
     let (answer, call, next_number_at_answer) = off_the_main_thread(move || {
-        let (answer, call) = press(control.as_ref(), made, change);
+        let (answer, call) = press(control.as_ref(), &views, made, change, START_ANSWER_WAIT);
         (answer, call, control.places().next_number())
     })
     .await?;
@@ -133,20 +136,72 @@ pub async fn set_capture_state(
     set
 }
 
+/// How long a press on Start waits for the child that it starts to answer a Status.
+pub const START_ANSWER_WAIT: Duration = Duration::from_secs(10);
+
+/// How long a press on Start waits between two Status requests to its child.
+const START_STATUS_STEP: Duration = Duration::from_millis(250);
+
 /// What a person's press of Pause or Resume sends, from the page's command and from the tray's
-/// toggle: the request of `change` in the place `made`. Answers its answer with the number of
-/// the call that it answers.
+/// toggle: the request of `change` in the place `made`, and in place of a Resume a Start where
+/// the hold reads that no further child starts, which waits up to `within` for its child.
+/// Answers its answer with the number of the call that it answers.
 pub fn press(
     control: &dyn Control,
+    views: &Views,
     made: Made,
     change: CaptureChange,
+    within: Duration,
 ) -> (Result<DaemonStatus, ClientError>, u64) {
+    let start = views
+        .hold()
+        .view()
+        .is_some_and(|hold| hold.press == Press::Start);
+    if change == CaptureChange::Resume && start {
+        drop(made);
+        return start_and_resume(control, views.hold(), within);
+    }
     let call = made.number();
     let answer = match change {
         CaptureChange::Pause => control.pause(made),
         CaptureChange::Resume => control.resume(made),
     };
     (answer, call)
+}
+
+/// The press on Start after the third end with 5 in a row (contracts.md C14 item 4): asks the
+/// supervisor for exactly one child, waits up to `within` for that child to answer a plain
+/// Status, and then sends the Resume; with no answer in time it answers the deadline, sends no
+/// Resume, and the hold stands.
+fn start_and_resume(
+    control: &dyn Control,
+    hold: &Hold,
+    within: Duration,
+) -> (Result<DaemonStatus, ClientError>, u64) {
+    let until = Instant::now() + within;
+    hold.ask_start();
+    let answered = hold.wait_for_the_asked_child(until)
+        && loop {
+            if control.status(control.places().make(), false).is_ok() {
+                break true;
+            }
+            let left = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                break false;
+            }
+            std::thread::sleep(left.min(START_STATUS_STEP));
+        };
+    let made = control.places().make();
+    let call = made.number();
+    if !answered {
+        return (
+            Err(ClientError::Deadline {
+                seconds: within.as_secs(),
+            }),
+            call,
+        );
+    }
+    (control.resume(made), call)
 }
 
 /// Sorts the answer of a press of Pause or Resume, for the page's command and for the tray's

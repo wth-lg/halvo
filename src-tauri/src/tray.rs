@@ -9,7 +9,7 @@ use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::commands::capture::{press, sort_change_answer, AppState};
+use crate::commands::capture::{press, sort_change_answer, AppState, START_ANSWER_WAIT};
 use crate::view_state::{NoStatusService, Press, StatusView};
 
 const TRAY_ID: &str = "halvo-status";
@@ -390,7 +390,7 @@ fn toggle<R: Runtime>(app: &AppHandle<R>) {
     let control = std::sync::Arc::clone(&state.control);
     let views = std::sync::Arc::clone(&state.views);
     std::thread::spawn(move || {
-        let (answer, call) = press(control.as_ref(), made, change);
+        let (answer, call) = press(control.as_ref(), &views, made, change, START_ANSWER_WAIT);
         sort_change_answer(&views, change, &answer);
         take_toggle_answer(&views, call, control.places().next_number(), &answer);
         views.draw_now();

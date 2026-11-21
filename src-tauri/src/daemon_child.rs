@@ -359,7 +359,9 @@ impl<C: Watched, K: Clock> Supervisor<C, K> {
         let (watched, time) = (Arc::clone(&shared), Arc::clone(&clock));
         let started = std::thread::Builder::new()
             .name("halvo-daemon-child".to_owned())
-            .spawn(move || supervise(spawner, &watched, &pid, time.as_ref(), &hold));
+            .spawn(move || {
+                supervise_and_start_again(spawner, &watched, &pid, time.as_ref(), &hold)
+            });
         if let Err(e) = started {
             eprintln!("halvo: the capture service is not started: {e}");
         }
@@ -413,30 +415,62 @@ fn end_child<C: Watched, K: Clock>(child: &mut C, clock: &K, wait: Duration) {
     }
 }
 
+/// The supervisor's thread: after the third end with 5 in a row it starts no further child
+/// until a person's press on Start asks for one, and then supervises again with the count of
+/// 5s at zero; a quit ends the wait.
+fn supervise_and_start_again<S: Spawner, K: Clock>(
+    spawner: S,
+    shared: &Shared<S::Child>,
+    pid: &ChildPid,
+    clock: &K,
+    hold: &Hold,
+) {
+    let mut spawner = spawner;
+    while let Some(back) = supervise(spawner, shared, pid, clock, hold) {
+        if !asked_to_start_before_a_quit(shared, clock, hold) {
+            return;
+        }
+        spawner = back;
+    }
+}
+
+fn asked_to_start_before_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, hold: &Hold) -> bool {
+    let mut state = shared.lock();
+    loop {
+        if state.quitting {
+            return false;
+        }
+        if hold.take_start() {
+            return true;
+        }
+        state = clock.wait(&shared.changed, state, CHILD_POLL);
+    }
+}
+
+/// Starts the child and starts it again by the rule of `next`; hands the spawner back after
+/// the third end with 5 in a row, and none otherwise.
 fn supervise<S: Spawner, K: Clock>(
     mut spawner: S,
     shared: &Shared<S::Child>,
     pid: &ChildPid,
     clock: &K,
     hold: &Hold,
-) {
+) -> Option<S> {
     let mut restarts = Restarts::default();
     loop {
         let began = clock.now();
         let ending = match spawner.start() {
-            Ok(None) => return,
+            Ok(None) => return None,
             Ok(Some(child)) => {
                 let mut state = shared.lock();
                 if state.quitting {
-                    return;
+                    return None;
                 }
                 pid.0.store(child.pid(), Ordering::SeqCst);
                 state.child = Some(child);
                 drop(state);
-                match watch(shared, clock) {
-                    Some(ending) => ending,
-                    None => return,
-                }
+                hold.child_started();
+                watch(shared, clock)?
             }
             Err(e) => {
                 eprintln!("halvo: the capture service did not start: {e}");
@@ -456,11 +490,15 @@ fn supervise<S: Spawner, K: Clock>(
         );
         restarts = after;
         match step {
-            Next::Attach | Next::NoMoreChild => return,
+            Next::Attach => return None,
+            Next::NoMoreChild => {
+                hold.no_more_child();
+                return Some(spawner);
+            }
             Next::StartNow => {}
             Next::StartAfter(period) => {
                 if waited_into_a_quit(shared, clock, period) {
-                    return;
+                    return None;
                 }
             }
         }
@@ -678,12 +716,13 @@ mod tests {
     use halvo_control::testing::sample_status;
 
     use super::*;
-    use crate::commands::capture::{capture_set, press};
+    use crate::commands::capture::{capture_set, press, START_ANSWER_WAIT};
     use crate::commands::control::{Control, Made, Places};
     #[cfg(unix)]
     use crate::launch::{parse, Launch};
     use crate::poller::{pass, Views};
     use crate::tests::{fixtures_dir, read_json};
+    use crate::view_state::{ActionError, Press};
     use stand_in::{note, Later, Record, StandInChild, StandInClock, StandInSpawner};
 
     /// A control whose Status answers `status`, or no daemon where it holds none, and whose
@@ -815,7 +854,9 @@ mod tests {
         until("the child after the 1 starts", || pid.get() == Some(1002));
         pass(&control, &views, Some(&tray));
 
-        let (answer, call) = press(&control, control.places().make(), CaptureChange::Resume);
+        let resume = CaptureChange::Resume;
+        let within = START_ANSWER_WAIT;
+        let (answer, call) = press(&control, &views, control.places().make(), resume, within);
         let next = control.places().next_number();
         let set = capture_set(&views, call, next, CaptureChange::Resume, answer)
             .expect("the press's Resume answers a status");
@@ -986,6 +1027,107 @@ mod tests {
             format!("{expected}eof\n")
         );
         drop(held);
+    }
+
+    #[test]
+    fn after_the_third_5_the_view_names_the_cause_and_start_brings_one_child_back() {
+        assert_eq!(START_ANSWER_WAIT, Duration::from_secs(10));
+        for answers in [true, false] {
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let fourth = Later::default();
+            let child = |pid, ending, later| StandInChild {
+                ending,
+                later,
+                ends_at_close: true,
+                ..StandInChild::new(pid, &clock, &record)
+            };
+            let five = Some(Ending::Status(5));
+            let spawner = StandInSpawner {
+                children: [
+                    child(1000, five, None),
+                    child(1001, five, None),
+                    child(1002, five, None),
+                    child(1003, None, Some(Arc::clone(&fourth))),
+                    child(1004, None, None),
+                ]
+                .into_iter()
+                .collect(),
+                record: Arc::clone(&record),
+            };
+            let views = Views::default();
+            let pid = Arc::<ChildPid>::default();
+            let supervisor = Supervisor::start_holding(
+                spawner,
+                Arc::clone(&pid),
+                Arc::clone(&clock),
+                Arc::clone(views.hold()),
+            );
+            let tray = crate::tray::installed_for_tests();
+
+            until("the hold reads Start after the third 5", || {
+                views
+                    .hold()
+                    .view()
+                    .is_some_and(|hold| hold.press == Press::Start)
+            });
+            pass(&Recording::new(&record, None), &views, Some(&tray));
+            assert_eq!(
+                *record.lock().unwrap(),
+                ["start 1000", "start 1001", "start 1002", "status"],
+                "no fourth child after the third 5"
+            );
+            assert_eq!(
+                serde_json::to_value(views.view()).unwrap(),
+                read_json(&fixtures_dir().join("held-no-child.json")),
+                "not_running with last_exit 5, the cause and Start"
+            );
+            let labels = crate::tray::labels(&views.view());
+            assert_eq!(
+                (
+                    labels.status_text,
+                    labels.toggle_text,
+                    labels.toggle_enabled
+                ),
+                (crate::tray::HELD, "Start capture", true)
+            );
+
+            let control = Recording::new(&record, answers.then(held_child_status));
+            let within = if answers {
+                START_ANSWER_WAIT
+            } else {
+                Duration::from_secs(1)
+            };
+            let resume = CaptureChange::Resume;
+            let (answer, call) = press(&control, &views, control.places().make(), resume, within);
+            let next = control.places().next_number();
+            let set = capture_set(&views, call, next, resume, answer);
+            if answers {
+                assert!(set.expect("the Start's Resume answers a status").reached);
+                assert_eq!(
+                    views.hold().view(),
+                    None,
+                    "the Start's Resume ends the hold"
+                );
+                *fourth.lock().unwrap() = five;
+                until("a 5 after the Start counts as the first", || {
+                    pid.get() == Some(1004)
+                });
+            } else {
+                assert!(matches!(set, Err(ActionError::Deadline { .. })));
+                assert!(views.hold().stands(), "with no answer the hold stands");
+            }
+            let seen = record.lock().unwrap().clone();
+            drop(supervisor.close());
+            let after: Vec<&str> = seen[4..].iter().map(String::as_str).collect();
+            if answers {
+                assert_eq!(after, ["start 1003", "status", "resume", "start 1004"]);
+            } else {
+                assert_eq!(after[0], "start 1003", "one child by the Start");
+                assert!(after.len() > 1, "the Start asked its child for a Status");
+                assert!(after[1..].iter().all(|line| *line == "status"), "{after:?}");
+            }
+        }
     }
 
     #[test]

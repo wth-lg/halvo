@@ -9,6 +9,7 @@ use halvo_control::proto::{
 use halvo_control::texts::{texts, Texts};
 use serde::{Deserialize, Serialize};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -153,13 +154,17 @@ pub struct HoldView {
 #[derive(Debug, Default)]
 struct HoldState {
     held: bool,
+    last_exit: Option<i32>,
+    child_lives: bool,
     no_more_child: bool,
+    start_asked: bool,
 }
 
 /// The app's hold on capture after a child of the app ended itself with status 5 (contracts.md
-/// C14 item 4), and beside it what the supervisor of the children tells the view. An end with 5
-/// sets the hold, and only a Resume of a person's press that reached its end clears it, by
-/// [`Hold::release`].
+/// C14 item 4), and beside it what the supervisor of the children tells the view: the status of
+/// the last end while no child lives, whether no further child starts, and a Start that waits
+/// for the supervisor. An end with 5 sets the hold, and only a Resume of a person's press that
+/// reached its end clears it, by [`Hold::release`].
 #[derive(Debug, Default)]
 pub struct Hold {
     state: Mutex<HoldState>,
@@ -189,9 +194,11 @@ impl Hold {
         })
     }
 
-    /// `view` with the hold.
+    /// `view` with the hold, and on `not_running` the status of the last end while no child of
+    /// the app lives.
     pub fn mark(&self, view: StatusView) -> StatusView {
         let hold = self.view();
+        let last_exit = self.state().last_exit;
         match view {
             StatusView::Running(mut view) => {
                 view.hold = hold;
@@ -199,6 +206,9 @@ impl Hold {
             }
             StatusView::NoStatus(mut view) => {
                 view.hold = hold;
+                if view.service == NoStatusService::NotRunning {
+                    view.last_exit = last_exit;
+                }
                 StatusView::NoStatus(view)
             }
         }
@@ -210,11 +220,68 @@ impl Hold {
         self.changed.notify_all();
     }
 
+    /// A person's press on Start asks the supervisor for one child.
+    pub fn ask_start(&self) {
+        self.state().start_asked = true;
+        self.changed.notify_all();
+    }
+
+    /// Waits until `until` for the child that a Start asked for: true once the supervisor took
+    /// the ask and a child lives.
+    pub fn wait_for_the_asked_child(&self, until: Instant) -> bool {
+        let mut state = self.state();
+        loop {
+            if !state.start_asked && state.child_lives {
+                return true;
+            }
+            let left = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return false;
+            }
+            state = self
+                .changed
+                .wait_timeout(state, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+    }
+
+    /// After the third end with 5 in a row no further child starts until a Start.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn no_more_child(&self) {
+        self.state().no_more_child = true;
+        self.changed.notify_all();
+    }
+
+    /// Takes the ask of a Start, if one waits: the press then asked for the next child.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn take_start(&self) -> bool {
+        let mut state = self.state();
+        let asked = state.start_asked;
+        if asked {
+            state.start_asked = false;
+            state.no_more_child = false;
+        }
+        asked
+    }
+
+    /// A child of the app started.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn child_started(&self) {
+        let mut state = self.state();
+        state.child_lives = true;
+        state.last_exit = None;
+        drop(state);
+        self.changed.notify_all();
+    }
+
     /// The child of the moment ended, with its exit status where it has one; an end with 5
     /// sets the hold.
     #[cfg(any(target_os = "macos", test))]
     pub fn child_ended(&self, status: Option<i32>) {
         let mut state = self.state();
+        state.child_lives = false;
+        state.last_exit = status;
         if status == Some(halvo_control::exit::SOURCE_NOT_STOPPED) {
             state.held = true;
         }
