@@ -12198,6 +12198,70 @@ fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_a
     }
 }
 
+#[test]
+fn u24s_r1_a_switch_off_refused_under_class_b_with_no_live_run_leaves_the_row_as_it_was() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let before = u24s_r1_row(&c).line;
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let m = mark(&c);
+    assert_eq!(
+        c.control(&agent(0), Action::SwitchOff),
+        Err(Cause::NoService)
+    );
+    assert!(
+        !calls_since(&c, m)
+            .iter()
+            .any(|call| matches!(call, Call::Cancel(_))),
+        "no run to stop"
+    );
+    c.tick();
+    assert_eq!(
+        u24s_r1_row(&c).line,
+        before,
+        "no task was stopped, so the row says nothing of a stop"
+    );
+}
+
+fn u24s_r1_hold_set(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::HoldSet { .. })
+}
+
+#[test]
+fn u24s_r1_the_line_of_a_switch_off_that_could_not_be_saved_ends_when_a_later_run_starts() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 0,
+        },
+    );
+    c.tick();
+    assert_eq!(
+        u24s_r1_row(&c).line,
+        text("line.all_set.switch_not_saved"),
+        "the line stands after the end, read from state"
+    );
+    let next = start(&c, 0);
+    assert_ne!(next, run);
+    assert_ne!(
+        u24s_r1_row(&c).line,
+        text("line.working.switch_not_saved"),
+        "a later run of the agent ends the line"
+    );
+    assert_ne!(u24s_r1_row(&c).line, text("line.all_set.switch_not_saved"));
+}
+
 fn u24s_r4_setup_raise(e: &halvo_coord::types::Event) -> bool {
     matches!(
         e.what,
@@ -12326,6 +12390,13 @@ fn u24s_i58_a_setup_raise_refused_at_every_tick_ends_in_the_record_line_and_neve
                 Status::AllSet,
                 "owed lapse {owed_lapse}: tick {k}"
             );
+            if shown.is_some() {
+                assert_eq!(
+                    u24s_r4_status(&life, &made),
+                    (Status::Problem, text("line.problem.record")),
+                    "owed lapse {owed_lapse}: the record line, not needs you, from the tick at which it shows, tick {k}"
+                );
+            }
         }
         assert_eq!(
             shown,
