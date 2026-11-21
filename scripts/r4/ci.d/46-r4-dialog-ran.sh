@@ -255,6 +255,7 @@ EOF
   STUB_EXIT=101
   check macos-inconclusive FAIL "FAIL $name (inconclusive: guard_hosted's app did not become active within 20 s" macos
   output inconclusive-in-a-line "$mac_dialog" "x guard_hosted inconclusive: is no line of the target" "$mac_guard"
+  absent='its own lines'
   check macos-inconclusive-inside-another-line PASS 'the line of 7 of 7 with none failed 1' macos
   bound_line="the test runtime's run loop gave no sign that it runs within 10 s, so a show would run off the main thread; no case ran"
   output start-at-the-bound "$running" 'dialog_hosted start: brought its own panel to the front once, the app read active after 2 asks, and the panel is ordered out' "dialog_hosted start FAIL: $bound_line" "$mac_guard"
@@ -278,6 +279,7 @@ EOF
   STUB_EXIT=101
   check macos-inconclusive-before-a-start-that-ended FAIL "FAIL $name (inconclusive: guard_hosted's app did not become active within 20 s" macos
   output start-in-a-line "$mac_dialog" "x guard_hosted start FAIL: $bound_line" "$mac_guard"
+  absent='its own lines'
   check macos-a-start-line-inside-another-line PASS 'the line of 7 of 7 with none failed 1' macos
   sign="guard_hosted start: the test runtime's run loop gave its sign after 1 ms, and the first show goes out after it"
   output first-case "$running" "$mac_dialog" "$sign" \
@@ -377,6 +379,7 @@ FAIL 46-r4-dialog-ran (' macos
   output no-visible-count "$win_dialog" 'guard_hosted end: cases ran 8 of 8, failed 0, schedule slipped 0, helped 0, moments at a press 0, retries 0'
   check windows-a-guard-line-with-no-count-of-reports-before-visible FAIL 'retries 0", not' windows
   output loop-mode-inside-a-line "$mac_dialog" 'x guard_hosted case macos allow_click_at_300ms_and_250ms_after_it SLIPPED: is no line of the target' "$mac_guard"
+  absent='its own lines'
   check macos-the-loop-mode-text-inside-another-line PASS 'the line of 7 of 7 with none failed 1' macos
   output no-counts "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0'
   check macos-a-guard-line-with-no-counts FAIL 'guard_hosted printed "guard_hosted end: cases ran 7 of 7, failed 0", not' macos
