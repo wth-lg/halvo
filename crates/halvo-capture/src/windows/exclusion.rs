@@ -275,13 +275,26 @@ pub(crate) fn incognito_of_names<S: AsRef<str>>(names: &[S]) -> Option<bool> {
 }
 
 /// What the names of a Chrome window's buttons tell of it, given the names of
-/// its toolbar's buttons and of every button below the window.
-pub(crate) fn incognito_of_buttons<S: AsRef<str>>(_toolbar: &[S], all: &[S]) -> Option<bool> {
-    incognito_of_names(all)
+/// its toolbar's own buttons and of every button below the window: `Some(true)`
+/// when any button holds the word Incognito, and otherwise what the toolbar's
+/// names tell by [`incognito_of_names`], so that a button named Back, Forward
+/// or Reload outside the toolbar (a bookmark, an extension, the page) makes no
+/// window English.
+pub(crate) fn incognito_of_buttons<S: AsRef<str>>(toolbar: &[S], all: &[S]) -> Option<bool> {
+    if all
+        .iter()
+        .any(|name| name.as_ref().to_ascii_lowercase().contains("incognito"))
+    {
+        return Some(true);
+    }
+    incognito_of_names(toolbar)
 }
 
 /// What the UI Automation query tells of a Chrome window, by the names of its
-/// buttons ([`incognito_of_names`]), and `None` when the query gives no answer.
+/// buttons ([`incognito_of_buttons`]): the English names count only among the
+/// own buttons of the first element below the window whose control type is
+/// ToolBar, and a window with no such element is told by the word Incognito
+/// alone; `None` when the query gives no answer.
 /// The calling thread must be in an apartment of COM.
 #[cfg(target_os = "windows")]
 pub(crate) fn chrome_window_is_incognito(
@@ -290,36 +303,59 @@ pub(crate) fn chrome_window_is_incognito(
 ) -> Option<bool> {
     use windows::Win32::System::Variant::{VARIANT, VT_I4};
     use windows::Win32::UI::Accessibility::{
-        TreeScope_Descendants, UIA_ButtonControlTypeId, UIA_ControlTypePropertyId,
+        IUIAutomationElementArray, TreeScope_Children, TreeScope_Descendants,
+        UIA_ButtonControlTypeId, UIA_ControlTypePropertyId, UIA_ToolBarControlTypeId,
     };
-    let mut button = VARIANT::default();
-    // SAFETY: the value holds nothing; the tag and the member that it names
-    // are written together, and an integer owns nothing to free.
-    unsafe {
-        (*button.Anonymous.Anonymous).vt = VT_I4;
-        (*button.Anonymous.Anonymous).Anonymous.lVal = UIA_ButtonControlTypeId.0;
-    }
+    let of_type = |control: i32| {
+        let mut value = VARIANT::default();
+        // SAFETY: the value holds nothing; the tag and the member that it
+        // names are written together, and an integer owns nothing to free.
+        unsafe {
+            (*value.Anonymous.Anonymous).vt = VT_I4;
+            (*value.Anonymous.Anonymous).Anonymous.lVal = control;
+        }
+        value
+    };
+    let names = |found: &IUIAutomationElementArray| -> Option<Vec<String>> {
+        // SAFETY: the calls read a live array of elements and their names.
+        unsafe {
+            let count = found.Length().ok()?;
+            let mut names = Vec::new();
+            for index in 0..count {
+                names.push(
+                    found
+                        .GetElement(index)
+                        .ok()?
+                        .CurrentName()
+                        .ok()?
+                        .to_string(),
+                );
+            }
+            Some(names)
+        }
+    };
     // SAFETY: the calls take the live client, a window handle value and the
-    // condition that they made; each returns an owned COM pointer or an error.
+    // conditions that they made; each returns an owned COM pointer or an error.
     unsafe {
         let element = automation.ElementFromHandle(window).ok()?;
-        let condition = automation
-            .CreatePropertyCondition(UIA_ControlTypePropertyId, &button)
+        let button = automation
+            .CreatePropertyCondition(
+                UIA_ControlTypePropertyId,
+                &of_type(UIA_ButtonControlTypeId.0),
+            )
             .ok()?;
-        let buttons = element.FindAll(TreeScope_Descendants, &condition).ok()?;
-        let count = buttons.Length().ok()?;
-        let mut names = Vec::new();
-        for index in 0..count {
-            names.push(
-                buttons
-                    .GetElement(index)
-                    .ok()?
-                    .CurrentName()
-                    .ok()?
-                    .to_string(),
-            );
-        }
-        incognito_of_buttons(&names, &names)
+        let toolbar = automation
+            .CreatePropertyCondition(
+                UIA_ControlTypePropertyId,
+                &of_type(UIA_ToolBarControlTypeId.0),
+            )
+            .ok()?;
+        let all = names(&element.FindAll(TreeScope_Descendants, &button).ok()?)?;
+        let toolbar_names = match element.FindFirst(TreeScope_Descendants, &toolbar) {
+            Ok(toolbar) => names(&toolbar.FindAll(TreeScope_Children, &button).ok()?)?,
+            Err(_) => Vec::new(),
+        };
+        incognito_of_buttons(&toolbar_names, &all)
     }
 }
 
