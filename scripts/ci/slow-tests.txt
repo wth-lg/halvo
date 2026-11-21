@@ -38,7 +38,7 @@ targets halvo-web 1 test target: 33 s macos, 33 s windows
 target privacy halvo-derived: 52 s macos, 60 s windows
 target replaced halvo-derived: 8 s macos, 7 s windows
 target page_gap_check halvo-derived: 6 s macos, 4 s windows
-target formal_traces halvo-route: 15 s macos, 10 s windows; halvo-learn holds a target of the same name, under 1 s
+target formal_traces halvo-route: 15 s macos, 10 s windows
 target derive_rules halvo-route-gate: 12 s macos, 8 s windows
 target drift_cli halvo-learn-gate: 9 s macos, 5 s windows
 target macos_stall_fixture halvo-capture: 10 s macos, every test ignored on windows
