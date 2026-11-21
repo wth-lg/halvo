@@ -239,6 +239,36 @@ fn set_state_active_needs_a_playbook_for_a_web_agent() {
 }
 
 #[test]
+fn a_web_agent_with_a_half_recorded_playbook_is_not_switched_on() {
+    let mut store = store_with("utility_bill_payment");
+    let approved = (WorkflowState::Approved, Some(agent(1)));
+    let one = vec![step(1, "navigate", "read")];
+    assert_eq!(put_steps(&mut store, 1, one.clone()), Ok(stored(1)));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(state_of(&store, 1), approved);
+    let mut failed = run_record(1, Some("compile"), "failed");
+    failed["playbook"] = json!(1);
+    assert_eq!(finish(&mut store, failed), Ok(stored(1)));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(state_of(&store, 1), approved);
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of the second compile");
+    let body = json!({"op": "put_playbook", "agent": agent(1), "run": run(2), "number": 2, "steps": one});
+    assert_eq!(runner(&mut store, body), Ok(stored(1)));
+    assert_eq!(end_run(&mut store, 2), Ok(accepted()));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(state_of(&store, 1), approved);
+}
+
+#[test]
 fn set_state_passes_the_state_call_refusal_on() {
     let mut store = MemoryStore::new();
     store.put_workflow(workflow(&wf(1), "email", "proposed", Some(&agent(1))));

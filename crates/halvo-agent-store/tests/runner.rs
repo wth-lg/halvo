@@ -680,6 +680,17 @@ fn playbook_row(a: u32, number: u32, n: u32) -> halvo_schema::TypedRecord {
     }
 }
 
+fn finished_row(a: u32, number: u32, steps: u32) -> halvo_schema::TypedRecord {
+    let row = json!({
+        "v": 1, "workflow": wf(1), "agent": agent(a), "number": number, "steps": steps,
+        "run": run(90 + number),
+    });
+    halvo_schema::TypedRecord {
+        kind: "agent_finished",
+        json: row.to_string(),
+    }
+}
+
 #[test]
 fn newest_playbook_and_the_key_playbook_of_load_agree_over_drawn_rows() {
     let mut seed: u64 = 0x5eed_0049;
@@ -687,42 +698,64 @@ fn newest_playbook_and_the_key_playbook_of_load_agree_over_drawn_rows() {
         seed = seed
             .wrapping_mul(6_364_136_223_846_793_005)
             .wrapping_add(1_442_695_040_888_963_407);
-        (seed >> 33) % below
+        u32::try_from((seed >> 33) % below).expect("a small number")
     };
-    let mut some = 0;
+    let (mut some, mut half, mut past) = (0, 0, 0);
     for case in 0..200 {
         let mut store = store_with("utility_bill_payment");
-        let mut held = std::collections::BTreeSet::new();
-        for _ in 0..draw(12) {
-            let a = 1 + u32::try_from(draw(3)).expect("a small number");
-            let number = 1 + u32::try_from(draw(4)).expect("a small number");
-            let n = 1 + u32::try_from(draw(5)).expect("a small number");
-            if held.insert((a, number, n)) {
+        let mut held = std::collections::BTreeMap::new();
+        let mut finished = std::collections::BTreeMap::new();
+        for _ in 0..draw(8) {
+            let (a, number) = (1 + draw(3), 1 + draw(4));
+            if held.contains_key(&(a, number)) {
+                continue;
+            }
+            let count = 1 + draw(5);
+            let rows = (1..=count).map(|n| playbook_row(a, number, n)).collect();
+            store.typed_commit(rows).expect("playbook rows");
+            held.insert((a, number), count);
+            if draw(2) == 0 {
                 store
-                    .typed_commit(vec![playbook_row(a, number, n)])
-                    .expect("a playbook row");
+                    .typed_commit(vec![finished_row(a, number, count)])
+                    .expect("a finished row");
+                finished.insert((a, number), count);
+                let more = draw(3);
+                let rows = (count + 1..=count + more)
+                    .map(|n| playbook_row(a, number, n))
+                    .collect();
+                store.typed_commit(rows).expect("rows stored after the finish");
+                past += usize::from(a == 1 && more > 0);
             }
         }
         let read =
             halvo_agent_store::newest_playbook(&store, &agent_1()).expect("the rows are read");
         let loaded = load(&mut store, 1).expect("load").playbook;
         assert_eq!(read, loaded, "case {case}");
-        let want = held
+        let want = finished
             .iter()
-            .filter(|(a, _, _)| *a == 1)
-            .map(|(_, number, _)| *number)
+            .filter(|((a, _), _)| *a == 1)
+            .map(|((_, number), steps)| (*number, *steps))
             .max();
-        assert_eq!(read.as_ref().map(|p| p.number.get()), want, "case {case}");
-        if let Some(p) = &read {
-            let steps = held
-                .iter()
-                .filter(|(a, number, _)| *a == 1 && *number == p.number.get())
-                .count();
-            assert_eq!(p.steps.get() as usize, steps, "case {case}");
-            some += 1;
+        let got = read.as_ref().map(|p| (p.number.get(), p.steps.get()));
+        assert_eq!(got, want, "case {case}");
+        some += usize::from(read.is_some());
+        for &(a, number) in held.keys() {
+            if a != 1 {
+                continue;
+            }
+            let handed = load_steps(&mut store, number, 1);
+            match finished.get(&(a, number)) {
+                Some(&steps) => assert_eq!(handed, Ok((1..=steps).collect()), "case {case}"),
+                None => {
+                    assert_eq!(handed, Err(declared("playbook")), "case {case}");
+                    half += 1;
+                }
+            }
         }
     }
-    assert!(some > 50, "{some} of 200 cases had a playbook of the agent");
+    assert!(some > 50, "{some} of 200 cases had a finished playbook");
+    assert!(half > 50, "{half} numbers of half playbooks were asked");
+    assert!(past > 20, "{past} finished numbers had steps stored after their finish");
 }
 
 #[test]

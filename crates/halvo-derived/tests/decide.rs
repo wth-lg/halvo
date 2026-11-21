@@ -315,6 +315,36 @@ fn delete_of_a_dismissed_workflow_removes_the_summaries_of_its_key() {
     assert_eq!(bodies(&scratch, "evidence").len(), 0);
 }
 
+#[test]
+fn delete_removes_the_agent_finished_rows_of_the_workflow_with_its_agent_s_other_rows() {
+    let scratch = Scratch::new("delete-agent-finished");
+    let clock = TestClock::at_day(DAY);
+    let (store, id) = proposed(&scratch, &clock);
+    drop(store);
+    let agent = "40404040404040404040404040404040";
+    let finished = format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{agent}","number":1,"steps":1,"run":"50505050505050505050505050505050"}}"#,
+        id.as_str()
+    );
+    let start = format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{agent}","day":{DAY},"at":1}}"#,
+        id.as_str()
+    );
+    raw(&scratch)
+        .execute(
+            "INSERT INTO rows (kind, family, class, body) VALUES ('agent_finished', 'agent', 2, ?1), \
+             ('agent_start', 'agent', 2, ?2)",
+            (finished, start),
+        )
+        .unwrap();
+    let mut store = open_host(&scratch, host(&clock, Grouping { min: 3 })).unwrap();
+    assert_eq!(delete(&mut store, &id), Ok(()));
+    drop(store);
+    assert_eq!(workflows(&scratch).len(), 0);
+    assert_eq!(bodies(&scratch, "agent_start").len(), 0);
+    assert_eq!(bodies(&scratch, "agent_finished").len(), 0);
+}
+
 fn common_proposal(ids: &[u64]) -> Proposal {
     Proposal {
         category: halvo_schema_core::category::SeedCategory::UtilityBillPayment,
