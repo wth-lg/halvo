@@ -248,19 +248,94 @@ fn a_copy_that_a_killed_pass_left_under_its_removing_name_is_finished_or_reporte
     fs::write(&moved, theirs).expect("other bytes under the removing name");
     let got = answer(&scratch, &workbook, made(COPY));
     assert_eq!(got, Ok(Removal::Left(Left::Changed)), "other bytes");
-    assert_eq!(fs::read(&moved).expect("the file stays"), theirs);
+    assert_eq!(
+        fs::read(&copy).expect("moved back under its own name"),
+        theirs
+    );
+    assert!(fs::symlink_metadata(&moved).is_err(), "no removing name");
 
     let outside = scratch.write("outside/kept.xlsx", COPY);
-    fs::rename(&moved, scratch.path("folder/theirs.xlsx")).expect("move it away");
+    fs::rename(&copy, scratch.path("folder/theirs.xlsx")).expect("move it away");
     link_file(&outside, &moved);
     let got = answer(&scratch, &workbook, made(COPY));
     assert_eq!(
         got,
-        Ok(Removal::Left(Left::Link)),
+        Ok(Removal::LeftAside(Left::Link)),
         "a link under the removing name"
     );
     assert_eq!(fs::read(&outside).expect("the file outside stays"), COPY);
     assert!(fs::symlink_metadata(&moved).is_ok(), "the link stays");
+}
+
+/// U2.4b (1): a pass killed between the move aside and the removal left the copy under its
+/// removing name, and then the person changed the workbook, so the copy of a planned row is no
+/// longer what the row expects. The next pass moves it back under the copy's own name, where an
+/// application opens it, and answers `left` with `changed`; when an entry stands at the copy's
+/// name, the move replaces nothing and both files stay.
+#[test]
+fn a_leftover_whose_workbook_changed_is_moved_back_under_the_copys_name() {
+    let scratch = Scratch::new("remove-moved-back");
+    let workbook = scratch.write("folder/values.xlsx", COPY);
+    let copy = workbook.with_file_name(copy_name("values.xlsx"));
+    let moved = workbook.with_file_name(removing(&copy_name("values.xlsx")));
+    fs::write(&moved, COPY).expect("what a kill after the move aside leaves");
+    fs::write(&workbook, b"the workbook as the person saved it").expect("the person's edit");
+    let got = answer(&scratch, &workbook, Expect::Planned);
+    assert_eq!(got, Ok(Removal::Left(Left::Changed)), "moved back");
+    assert_eq!(fs::read(&copy).expect("the copy under its own name"), COPY);
+    let names = vec![copy_name("values.xlsx"), "values.xlsx".to_string()];
+    assert_eq!(scratch.names("folder"), names);
+
+    fs::rename(&copy, &moved).expect("the state that a kill after the move aside leaves");
+    let theirs = b"a file of the person's own at the copy's name";
+    fs::write(&copy, theirs).expect("an entry at the copy's name");
+    let got = answer(&scratch, &workbook, Expect::Planned);
+    assert_eq!(
+        got,
+        Ok(Removal::Left(Left::Changed)),
+        "the copy's name taken"
+    );
+    assert_eq!(fs::read(&copy).expect("the person's file stays"), theirs);
+    assert_eq!(fs::read(&moved).expect("the leftover stays"), COPY);
+}
+
+/// U2.4b (2): a `left` answer says which of the two names holds the bytes. A directory under
+/// the removing name, with the copy's own name empty, stays there: `left` with `not_file` at
+/// the removing name. A copy that the person changed under its own name stays there: `left`
+/// with `changed` at the copy's name.
+#[test]
+fn a_left_answer_names_the_name_that_holds_the_bytes() {
+    let scratch = Scratch::new("remove-left-where");
+    let workbook = scratch.write("folder/values.xlsx", b"the workbook now");
+    let copy = workbook.with_file_name(copy_name("values.xlsx"));
+    let moved = workbook.with_file_name(removing(&copy_name("values.xlsx")));
+    fs::create_dir(&moved).expect("a directory under the removing name");
+    fs::write(moved.join("inside.xlsx"), COPY).expect("a file inside it");
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(
+        got,
+        Ok(Removal::LeftAside(Left::NotFile)),
+        "the removing name"
+    );
+    assert!(
+        fs::symlink_metadata(&copy).is_err(),
+        "the copy's name is empty"
+    );
+
+    let mut changed = COPY.to_vec();
+    changed.push(b'!');
+    fs::write(&copy, &changed).expect("a copy that the person changed");
+    let got = answer(&scratch, &workbook, made(COPY));
+    assert_eq!(got, Ok(Removal::Left(Left::Changed)), "the copy's own name");
+    assert_eq!(fs::read(&copy).expect("the copy stays"), changed);
+    let inside = fs::read(moved.join("inside.xlsx")).expect("the directory stays");
+    assert_eq!(inside, COPY);
+    for left in [
+        Removal::LeftAside(Left::NotFile),
+        Removal::Left(Left::Changed),
+    ] {
+        assert_eq!(left.state(), "left", "{left:?}");
+    }
 }
 
 #[test]

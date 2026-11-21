@@ -52,8 +52,8 @@ const STOPS: [&str; 24] = [
     "#endif",
 ];
 const MENDS: [(usize, &str); 2] = [
-    (81262, " if( pPg->pBt->btsFlags & BTS_FAST_SECURE ){ memset(pCellptr, 0, (size_t)(pData - pCellptr)); }"),
-    (81517, " if( (pPg->pBt->btsFlags & BTS_FAST_SECURE) && pData>pBegin ){ memset(pBegin, 0, (size_t)(pData - pBegin)); }"),
+    (80796, " if( pPg->pBt->btsFlags & BTS_FAST_SECURE ){ memset(pCellptr, 0, (size_t)(pData - pCellptr)); }"),
+    (81051, " if( (pPg->pBt->btsFlags & BTS_FAST_SECURE) && pData>pBegin ){ memset(pBegin, 0, (size_t)(pData - pBegin)); }"),
 ];
 const KEY: &str =
     "PRAGMA key = \"x'000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'\";";

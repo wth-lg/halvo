@@ -167,7 +167,9 @@ impl Native {
 
     /// The person's answer in the dialog: `Err(Early)` until the first tick after `arm_ms`
     /// from `on_screen`, after which I4.9 has the dialog shown once more, and
-    /// `Err(UnknownItem)` after an answer.
+    /// `Err(UnknownItem)` after an answer. While the board holds the record of the item's agent
+    /// stuck, `Err(NoService)`: the press is not taken, and the item stays held with its own
+    /// time, so that a later `agents_present` shows it again once the record can be saved.
     pub fn answer(&self, answer: ConfirmAnswer) -> Result<(), Cause> {
         self.core.answer_native(&self.item, answer)
     }

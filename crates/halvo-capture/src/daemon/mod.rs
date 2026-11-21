@@ -12,6 +12,7 @@ pub mod children;
 pub mod counters;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod discard_port;
+pub mod instance;
 pub mod main_loop;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod maintenance;
@@ -26,6 +27,8 @@ mod owner_props;
 pub mod permissions;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod port;
+#[cfg(test)]
+mod process_tests;
 #[rustfmt::skip]
 #[cfg(feature = "r2")] mod r2;
 mod report;
@@ -33,6 +36,7 @@ mod report;
 mod scripted;
 pub mod signal;
 pub mod sources;
+pub mod state;
 #[cfg(test)]
 mod stop_tests;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
@@ -105,7 +109,8 @@ pub const USAGE: &str = "usage: halvo-capture --version
        halvo-capture --timed-run SECONDS --store-dir DIR [--hold-secure-input] [--switch NAME=on|off]...
        halvo-capture --verify-store --store-dir DIR --marker MARKER
        halvo-capture --verify-deletion --store-dir DIR
-       halvo-capture --delete-all --store-dir DIR";
+       halvo-capture --delete-all --store-dir DIR
+       halvo-capture --service-run [--data-dir DIR]";
 
 /// What a command line asks for. The gate's modes exist only in builds with
 /// debug assertions.
@@ -121,6 +126,12 @@ pub enum Mode {
     /// while a second thread queues a block on the main run loop.
     #[cfg(debug_assertions)]
     SelfCheckRunLoop,
+    /// `--self-check service-run --data-dir DIR`: the service run on DIR in
+    /// its wait, while a second thread queues a block on the main run loop.
+    #[cfg(debug_assertions)]
+    SelfCheckServiceRun {
+        data_dir: halvo_control::paths::DataDir,
+    },
     #[cfg(debug_assertions)]
     TimedRun(TimedRun),
     #[cfg(debug_assertions)]
@@ -149,15 +160,22 @@ pub enum Mode {
     DeleteAll {
         store_dir: PathBuf,
     },
+    /// `--service-run [--data-dir DIR]` (contracts.md C3.2): built with debug
+    /// assertions alone until daemon-3e, so a release build answers usage.
+    #[cfg(debug_assertions)]
+    ServiceRun {
+        data_dir: halvo_control::paths::DataDir,
+    },
 }
 
 impl Mode {
     /// Whether the mode reads the signal flag that [`signal::prepare`]
-    /// installs: the timed run alone, which stops its sources, settles and
-    /// reports on it.
+    /// installs: the timed run, which stops its sources, settles and reports
+    /// on it, and the service run, which ends on it through the shutdown
+    /// entry.
     #[cfg(debug_assertions)]
     pub fn reads_the_signal_flag(&self) -> bool {
-        matches!(self, Mode::TimedRun(_))
+        matches!(self, Mode::TimedRun(_) | Mode::ServiceRun { .. })
     }
 
     /// Whether the mode reads the signal flag: no mode of a release build does.
@@ -207,6 +225,10 @@ pub enum Refusal {
         "halvo-capture: the names store and roots in {0} cannot be read, so the scratch delete cannot tell whether it holds a data directory's layout; nothing in it was opened or removed"
     )]
     DataDirUnread(String),
+    /// A service run with no `--data-dir` whose account gives no data
+    /// directory; it exits 1.
+    #[error("halvo-capture: the account gives no data directory: {0}")]
+    NoServiceDir(PathError),
 }
 
 /// The binary's answer to a command line that is not run: the refusal's text
@@ -219,7 +241,7 @@ pub fn usage_answer<R: Clone + Into<Refusal>>(refused: &R, err: &mut dyn std::io
         Refusal::Usage(_) | Refusal::DataDirLayout(_) | Refusal::DataDirUnread(_) => {
             halvo_control::exit::USAGE
         }
-        Refusal::NoDataDir(_) => halvo_control::exit::ERROR,
+        Refusal::NoDataDir(_) | Refusal::NoServiceDir(_) => halvo_control::exit::ERROR,
     }
 }
 
@@ -592,6 +614,15 @@ pub fn parse(
         #[cfg(debug_assertions)]
         Some("--self-check") if args[1..] == ["run-loop"] => Ok(Mode::SelfCheckRunLoop),
         #[cfg(debug_assertions)]
+        Some("--self-check") if args.get(1).is_some_and(|form| form == "service-run") => {
+            match &args[2..] {
+                [flag, _] if flag == "--data-dir" => Ok(Mode::SelfCheckServiceRun {
+                    data_dir: service_dir(&args[2..], account)?,
+                }),
+                _ => Err(Usage("--self-check service-run takes --data-dir DIR").into()),
+            }
+        }
+        #[cfg(debug_assertions)]
         Some("--timed-run") => gate::timed_run(&args[1..], account),
         #[cfg(debug_assertions)]
         Some("--verify-store") => {
@@ -618,7 +649,26 @@ pub fn parse(
                 gate::store_dir(flags.store_dir, account)?.without_a_data_directory_layout()?;
             Ok(Mode::DeleteAll { store_dir })
         }
+        #[cfg(debug_assertions)]
+        Some("--service-run") => Ok(Mode::ServiceRun {
+            data_dir: service_dir(&args[1..], account)?,
+        }),
         _ => Err(Usage("no mode of this build").into()),
+    }
+}
+
+#[cfg(debug_assertions)]
+fn service_dir(
+    args: &[String],
+    account: &dyn AccountLookup,
+) -> Result<halvo_control::paths::DataDir, Refusal> {
+    use halvo_control::paths::DataDir;
+    match args {
+        [] => DataDir::for_account(account).map_err(Refusal::NoServiceDir),
+        [flag] if flag == "--data-dir" => Err(Usage("--data-dir needs DIR").into()),
+        [flag, dir] if flag == "--data-dir" => DataDir::from_flag(dir.as_str())
+            .map_err(|_| Usage("--data-dir takes an absolute directory").into()),
+        _ => Err(Usage("--service-run takes --data-dir DIR and no other flag").into()),
     }
 }
 
@@ -1441,6 +1491,113 @@ pub fn self_check_run_loop(out: &mut dyn std::io::Write) -> i32 {
     }
 }
 
+/// Runs the service form of the run-loop self-check on `dir`: the service run
+/// of [`service_run`], writing its state file through `writer`, in its wait
+/// on the main run loop, while a second thread, once the state file stands,
+/// queues a block on the main run loop and ends the wait when the block ran or
+/// after [`main_loop::SELF_CHECK_WINDOW`]. It prints the self-check's line on
+/// `out` and answers the service run's status when that is not 0, else the
+/// self-check's.
+#[cfg(debug_assertions)]
+pub fn self_check_service_run(
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+    out: &mut dyn std::io::Write,
+) -> i32 {
+    #[cfg(target_os = "macos")]
+    {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::{Arc, Mutex, PoisonError};
+        use std::time::Instant;
+
+        let main_loop = match crate::macos::run_loop::MainRunLoop::claim() {
+            Ok(run_loop) => ServiceLoop {
+                run_loop,
+                started: Instant::now(),
+            },
+            Err(_) => return halvo_control::exit::ERROR,
+        };
+        let stop = Arc::new(AtomicBool::new(false));
+        let ran_after: Arc<Mutex<Option<Duration>>> = Arc::default();
+        let queue = {
+            let stop = stop.clone();
+            let ran_after = ran_after.clone();
+            let state_file = dir.state_file();
+            std::thread::spawn(move || {
+                let waiting = Instant::now();
+                while !state_file.exists() && waiting.elapsed() < main_loop::SELF_CHECK_WINDOW {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                std::thread::sleep(Duration::from_millis(100));
+                let queued = Instant::now();
+                let ran = ran_after.clone();
+                let ended = stop.clone();
+                on_the_main_run_loop(move || {
+                    *ran.lock().unwrap_or_else(PoisonError::into_inner) = Some(queued.elapsed());
+                    ended.store(true, Ordering::SeqCst);
+                });
+                while !stop.load(Ordering::SeqCst)
+                    && queued.elapsed() < main_loop::SELF_CHECK_WINDOW
+                {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                stop.store(true, Ordering::SeqCst);
+            })
+        };
+        let status = serve(
+            dir,
+            writer,
+            main_loop,
+            &stop,
+            Arc::new(main_loop::ExitNow),
+            &mut std::io::stderr(),
+        );
+        let _ = queue.join();
+        let ran_after = *ran_after.lock().unwrap_or_else(PoisonError::into_inner);
+        let (line, checked) = main_loop::self_check_answer(ran_after);
+        if writeln!(out, "{line}").is_err() {
+            return halvo_control::exit::ERROR;
+        }
+        if status == halvo_control::exit::CLEAN {
+            checked
+        } else {
+            status
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (dir, writer, out);
+        halvo_control::exit::ERROR
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn on_the_main_run_loop(work: impl Fn() + 'static) {
+    use core_foundation::base::TCFType;
+    use core_foundation::runloop::{kCFRunLoopCommonModes, CFRunLoop, CFRunLoopRef};
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
+        fn CFRunLoopPerformBlock(
+            run_loop: CFRunLoopRef,
+            mode: *const std::ffi::c_void,
+            block: &block2::Block<dyn Fn()>,
+        );
+        fn CFRunLoopWakeUp(run_loop: CFRunLoopRef);
+    }
+
+    let block = block2::RcBlock::new(work);
+    let main = CFRunLoop::get_main();
+    unsafe {
+        CFRunLoopPerformBlock(
+            main.as_concrete_TypeRef(),
+            kCFRunLoopCommonModes.cast(),
+            &block,
+        );
+        CFRunLoopWakeUp(main.as_concrete_TypeRef());
+    }
+}
+
 /// Runs the gate's timed run on this system.
 #[cfg(debug_assertions)]
 pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
@@ -1462,6 +1619,247 @@ pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
     {
         let _ = run;
         Err(DaemonError::NotImplemented("timed-run on this platform"))
+    }
+}
+
+/// Runs `--service-run` on `dir` (contracts.md C3.2) on the process main
+/// thread's run loop until SIGINT or SIGTERM, writing the state file through
+/// `writer`, and answers its exit status: 0 after a clean stop or when another
+/// process holds the data directory, 1 when the directory cannot be used.
+/// This cut opens no store, starts no source and binds no socket. On Windows
+/// it answers that the service run is not built yet (win-5) with status 1.
+#[cfg(debug_assertions)]
+pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::StateWrite>) -> i32 {
+    use std::io::Write as _;
+    #[cfg(target_os = "macos")]
+    {
+        let main_loop = match crate::macos::run_loop::MainRunLoop::claim() {
+            Ok(run_loop) => ServiceLoop {
+                run_loop,
+                started: std::time::Instant::now(),
+            },
+            Err(error) => {
+                let _ = writeln!(std::io::stderr(), "halvo-capture: {error:?}");
+                return halvo_control::exit::ERROR;
+            }
+        };
+        serve(
+            dir,
+            writer,
+            main_loop,
+            signal::flag(),
+            std::sync::Arc::new(main_loop::ExitNow),
+            &mut std::io::stderr(),
+        )
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (dir, writer);
+        let refused = DaemonError::NotImplemented("the service run on this system");
+        let _ = writeln!(std::io::stderr(), "halvo-capture: {refused}");
+        halvo_control::exit::ERROR
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+struct ServiceLoop {
+    run_loop: crate::macos::run_loop::MainRunLoop,
+    started: std::time::Instant,
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl main_loop::MainLoop for ServiceLoop {
+    fn turn(&mut self, wait: Duration) {
+        self.run_loop.turn_for(wait);
+    }
+
+    fn now(&self) -> Duration {
+        self.started.elapsed()
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+struct NoSources;
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl sources::SourceFactory for NoSources {
+    fn make(&mut self, _name: SourceName) -> Option<Box<dyn crate::source::CaptureSource>> {
+        None
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl supervisor::SystemSources for NoSources {}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+const SERVICE_WAIT: Duration = Duration::from_secs(60);
+
+/// The service run of contracts.md C3.2 up to its wait, on the data directory
+/// `dir`, with the loop `main_loop`, the stop flag `stop` and the ending
+/// `ending`; its lines go to `err`. Step 2: an entry at the directory's path
+/// that leads nowhere or is no directory exits 1, and a missing directory is
+/// made with mode 0700. Step 3: the instance lock; when another process holds
+/// it, the run answers 0 and writes and prints nothing; then the check of the
+/// directory on the lock's descriptor, whose fault is a line and never ends
+/// the run. Step 7: the state file in the folder that the lock holds, loaded
+/// or written with the defaults, then the backup mark through the lock's
+/// descriptor, whose failure is a line. Then the supervisor holds the state
+/// and waits, paused and with no source, until `stop` reads true; the shutdown
+/// entry, with no owner, gives the status.
+#[cfg(all(target_os = "macos", debug_assertions))]
+pub(crate) fn serve<L: main_loop::MainLoop>(
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+    main_loop: L,
+    stop: &std::sync::atomic::AtomicBool,
+    ending: std::sync::Arc<dyn main_loop::EndCall>,
+    err: &mut dyn std::io::Write,
+) -> i32 {
+    let lock = match take_the_data_dir(dir, err) {
+        Ok(Some(lock)) => lock,
+        Ok(None) => return halvo_control::exit::CLEAN,
+        Err(status) => return status,
+    };
+    serve_held(lock, dir, writer, main_loop, stop, ending, err)
+}
+
+/// The service run after its take, on the data directory `dir` that `lock`
+/// holds: the check of the directory on the lock's descriptor, the state file
+/// in the folder that the lock holds, the backup mark, the wait and the
+/// shutdown entry, as [`serve`] describes them.
+#[cfg(all(target_os = "macos", debug_assertions))]
+pub(crate) fn serve_held<L: main_loop::MainLoop>(
+    lock: instance::InstanceLock,
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+    main_loop: L,
+    stop: &std::sync::atomic::AtomicBool,
+    ending: std::sync::Arc<dyn main_loop::EndCall>,
+    err: &mut dyn std::io::Write,
+) -> i32 {
+    if let Err(fault) = lock.check(dir) {
+        let _ = writeln!(err, "{}", obstructed_line(fault));
+    }
+    let folder = match lock.state_dir() {
+        Ok(folder) => folder,
+        Err(error) => {
+            let _ = writeln!(
+                err,
+                "halvo-capture: the folder of the data directory could not be read on its lock: {}",
+                error.kind()
+            );
+            return halvo_control::exit::ERROR;
+        }
+    };
+    let state = state::StateFile::open(folder, writer);
+    if let Some(line) = state_line(state.health()) {
+        let _ = writeln!(err, "{line}");
+    }
+    if let Err(error) = lock.exclude_from_backup() {
+        let _ = writeln!(
+            err,
+            "halvo-capture: backup_exclusion=not_set error={}",
+            error.kind()
+        );
+    }
+    let mut supervisor =
+        supervisor::Supervisor::new(halvo_control::proto::Platform::Macos, NoSources, main_loop)
+            .with_ending(ending)
+            .with_state(state);
+    let mut status = halvo_control::exit::CLEAN;
+    while !supervisor.wait_on(SERVICE_WAIT, stop, None) {
+        if RunSources::restart_asked(&supervisor) {
+            status = halvo_control::exit::RESTART;
+            break;
+        }
+    }
+    let status = supervisor
+        .shutdown_entry(None, status)
+        .map_or(status, |outcome| outcome.status);
+    drop(lock);
+    status
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn take_the_data_dir(
+    dir: &halvo_control::paths::DataDir,
+    err: &mut dyn std::io::Write,
+) -> Result<Option<instance::InstanceLock>, i32> {
+    use halvo_control::paths::EntryAtDataDir;
+    use std::os::unix::fs::DirBuilderExt;
+
+    match dir.is_provisioned() {
+        Err(cause @ (EntryAtDataDir::LinkLeadsNowhere | EntryAtDataDir::NotADirectory)) => {
+            let _ = writeln!(err, "halvo-capture: {cause}");
+            return Err(halvo_control::exit::ERROR);
+        }
+        Ok(_) | Err(EntryAtDataDir::CannotBeRead) => {}
+    }
+    if std::fs::symlink_metadata(dir.path())
+        .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+    {
+        let made = std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(dir.path());
+        if let Err(error) = made {
+            let _ = writeln!(
+                err,
+                "halvo-capture: the data directory could not be made: {}",
+                error.kind()
+            );
+            return Err(halvo_control::exit::ERROR);
+        }
+    }
+    instance::InstanceLock::take(dir).map_err(|error| {
+        let _ = match halvo_control::paths::entry_cause(&error) {
+            Some(cause) => writeln!(err, "halvo-capture: {cause}"),
+            None => writeln!(
+                err,
+                "halvo-capture: the data directory could not be opened: {}",
+                error.kind()
+            ),
+        };
+        halvo_control::exit::ERROR
+    })
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn obstructed_line(fault: halvo_control::paths::DataDirFault) -> String {
+    use halvo_control::paths::{DataDirFault, EntryAtDataDir};
+    let cause = match fault {
+        DataDirFault::Entry(EntryAtDataDir::LinkLeadsNowhere) => "link_leads_nowhere".to_owned(),
+        DataDirFault::Entry(EntryAtDataDir::NotADirectory) => "not_a_directory".to_owned(),
+        DataDirFault::Entry(EntryAtDataDir::CannotBeRead) => "cannot_be_read".to_owned(),
+        DataDirFault::OtherOwner => "other_owner".to_owned(),
+        DataDirFault::LinkedAndOpenToOthers => "linked_and_open_to_others".to_owned(),
+        DataDirFault::Io(kind) => format!("io error={kind}"),
+        DataDirFault::OwnOnAVolumeThatIgnoresOwnership => {
+            "own_on_a_volume_that_ignores_ownership".to_owned()
+        }
+        DataDirFault::LinkedToAVolumeThatIgnoresOwnership => {
+            "linked_to_a_volume_that_ignores_ownership".to_owned()
+        }
+        DataDirFault::ModeDidNotTake => "mode_did_not_take".to_owned(),
+    };
+    format!("halvo-capture: data_dir=obstructed cause={cause}")
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn state_line(health: state::StateHealth) -> Option<String> {
+    use state::StateHealth;
+    match health {
+        StateHealth::Ok => None,
+        StateHealth::Corrupt => Some(
+            "halvo-capture: state_file=corrupt; capture stays paused and the file is left as it is"
+                .to_owned(),
+        ),
+        StateHealth::NewerVersion(version) => Some(format!(
+            "halvo-capture: state_file=newer_version version={version}; capture stays paused and the file is left as it is"
+        )),
+        StateHealth::WriteFailed(kind) => {
+            Some(format!("halvo-capture: state_file=write_failed error={kind}"))
+        }
     }
 }
 
@@ -1637,6 +2035,76 @@ mod tests {
         assert!(parsed(&["--self-check"]).is_err());
         assert!(parsed(&["--self-check", "run-loop", "again"]).is_err());
         assert!(parsed(&["--self-check", "other"]).is_err());
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_service_run_takes_an_absolute_data_dir_or_the_accounts_own() {
+        let dirs = dirs();
+        let absolute = dirs.data.to_str().unwrap();
+        let parsed = |line: &[&str]| parse(args(line), &dirs.account);
+        assert_eq!(
+            parsed(&["--service-run", "--data-dir", absolute]),
+            Ok(Mode::ServiceRun {
+                data_dir: DataDir::from_flag(absolute).unwrap()
+            })
+        );
+        assert_eq!(
+            parsed(&["--service-run"]),
+            Ok(Mode::ServiceRun {
+                data_dir: DataDir::for_account(&dirs.account).unwrap()
+            })
+        );
+        for line in [
+            &["--service-run", "--data-dir", "relative/path"][..],
+            &["--service-run", "--data-dir", "/a/../b"][..],
+            &["--service-run", "--data-dir"][..],
+            &["--service-run", "--data-dir", "/a", "--data-dir", "/b"][..],
+            &["--service-run", "--lifeline"][..],
+            &["--service-run", "--store-dir", "/a"][..],
+        ] {
+            let refused = parsed(line);
+            let Err(refusal @ Refusal::Usage(_)) = refused else {
+                panic!("{line:?} gave {refused:?}");
+            };
+            assert_eq!(usage_answer(&refusal, &mut Vec::new()), 64, "{line:?}");
+        }
+        let without = parse(args(&["--service-run"]), &FailedLookup(Ok(None)));
+        let Err(refusal @ Refusal::NoServiceDir(_)) = without else {
+            panic!("{without:?}");
+        };
+        assert_eq!(usage_answer(&refusal, &mut Vec::new()), 1);
+        let mode = parsed(&["--service-run", "--data-dir", absolute]).unwrap();
+        assert!(mode.reads_the_signal_flag());
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_service_form_of_the_self_check_takes_its_data_dir_alone() {
+        let dirs = dirs();
+        let absolute = dirs.data.to_str().unwrap();
+        let parsed = |line: &[&str]| parse(args(line), &dirs.account);
+        assert_eq!(
+            parsed(&["--self-check", "service-run", "--data-dir", absolute]),
+            Ok(Mode::SelfCheckServiceRun {
+                data_dir: DataDir::from_flag(absolute).unwrap()
+            })
+        );
+        for line in [
+            &["--self-check", "service-run"][..],
+            &["--self-check", "service-run", "--data-dir"][..],
+            &["--self-check", "service-run", "--data-dir", "relative"][..],
+            &["--self-check", "service-run", "--data-dir", "/a", "x"][..],
+            &["--self-check", "service-run", "--store-dir", "/a"][..],
+        ] {
+            assert!(
+                matches!(parsed(line), Err(Refusal::Usage(_))),
+                "{line:?} gave {:?}",
+                parsed(line)
+            );
+        }
+        let mode = parsed(&["--self-check", "service-run", "--data-dir", absolute]).unwrap();
+        assert!(!mode.reads_the_signal_flag());
     }
 
     #[cfg(all(target_os = "macos", debug_assertions))]
@@ -2614,6 +3082,8 @@ mod tests {
             ][..],
             &["--verify-deletion", "--store-dir", d][..],
             &["--delete-all", "--store-dir", d][..],
+            &["--service-run", "--data-dir", d][..],
+            &["--service-run"][..],
         ] {
             let without_a_data_dir = parse(args(line), &FailedLookup(Ok(None)));
             assert!(

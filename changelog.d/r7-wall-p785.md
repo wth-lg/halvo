@@ -1,0 +1,1 @@
+- Fixed: A pull request could pass the billing wall check when Git could not read a file. CI now searches each missing file again, checks the lines it recovers and reports any search error or file that stays unread. Each parallel self-test case uses its own Git object store.
