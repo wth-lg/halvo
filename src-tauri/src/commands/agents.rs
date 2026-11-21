@@ -12,7 +12,7 @@ use halvo_coord::words;
 use halvo_coord_app::{Agents, Core, Reply};
 use serde_json::Value;
 use tauri::ipc::Invoke;
-use tauri::Runtime;
+use tauri::{Manager, Runtime};
 
 use super::names::{Names, AGENTS};
 use super::Registration;
@@ -25,8 +25,18 @@ impl Registration for Module {
     }
 }
 
+/// The handler of halvo-coord-app, but once the tray's Quit has begun: from then on every command
+/// of `LIST` gets the fixed reply of `NoService` and reaches no call of the Core, while the quit
+/// hook runs and after it has returned.
 pub fn handler<R: Runtime>(invoke: Invoke<R>) -> bool {
-    halvo_coord_app::handler::<R>()(invoke)
+    let quitting = crate::app::quitting(invoke.message.webview().app_handle());
+    match LIST.iter().find(|c| c.name == invoke.message.command()) {
+        Some(command) if quitting => {
+            invoke.resolver.resolve(NoService.call(command.name, None));
+            true
+        }
+        _ => halvo_coord_app::handler::<R>()(invoke),
+    }
 }
 
 /// The one place where the app makes its `Core`. Until the coordinator's ports exist (U5.4)

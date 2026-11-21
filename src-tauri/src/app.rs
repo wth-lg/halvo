@@ -206,12 +206,15 @@ pub struct Hooks {
     turn: Mutex<()>,
 }
 
+/// Whether the tray's Quit has begun.
+pub(crate) fn quitting<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.try_state::<Hooks>()
+        .is_some_and(|hooks| hooks.quitting.load(Ordering::SeqCst))
+}
+
 /// The app's Core for a hook, or none once the tray's Quit has begun.
 pub(crate) fn core_of<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<dyn Core>> {
-    if app
-        .try_state::<Hooks>()
-        .is_some_and(|hooks| hooks.quitting.load(Ordering::SeqCst))
-    {
+    if quitting(app) {
         return None;
     }
     app.try_state::<Agents>().map(|agents| agents.0.clone())

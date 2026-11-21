@@ -1692,6 +1692,7 @@ fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives
 struct Recorder {
     calls: Mutex<Vec<(&'static str, std::thread::ThreadId)>>,
     panics: Vec<usize>,
+    hold: Mutex<Option<std::sync::mpsc::Receiver<()>>>,
 }
 
 impl Recorder {
@@ -1699,6 +1700,16 @@ impl Recorder {
         Arc::new(Recorder {
             calls: Mutex::new(Vec::new()),
             panics: panics.to_vec(),
+            hold: Mutex::new(None),
+        })
+    }
+
+    /// A recorder whose quit hook waits until `release` is sent or dropped.
+    fn holding_quit(release: std::sync::mpsc::Receiver<()>) -> Arc<Recorder> {
+        Arc::new(Recorder {
+            calls: Mutex::new(Vec::new()),
+            panics: Vec::new(),
+            hold: Mutex::new(Some(release)),
         })
     }
 
@@ -1764,6 +1775,14 @@ impl halvo_coord_app::Core for Recorder {
         } else {
             "quit with a budget"
         });
+        let hold = self
+            .hold
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        if let Some(release) = hold {
+            let _ = release.recv();
+        }
     }
 
     fn on_screen(&self, _item: &halvo_coord::types::ItemId) {
@@ -1914,5 +1933,51 @@ fn the_trays_quit_calls_the_quit_hook_once_before_the_exit_and_nothing_after_it(
         core.names(),
         names,
         "no call of the Core follows the quit hook"
+    );
+}
+
+/// Once the tray's Quit has begun, every command of the page gets the fixed reply that the app's
+/// `NoService` gives it and reaches no call of the Core, while `Core::quit` runs and after it has
+/// returned.
+#[test]
+fn once_the_trays_quit_has_begun_every_command_of_the_page_gets_its_fixed_reply_and_no_call_of_the_core(
+) {
+    let (release, held) = std::sync::mpsc::channel();
+    let core = Recorder::holding_quit(held);
+    let test = app_with_core("quit-commands", core.clone(), guard_installed, None);
+    core.wait_for("tick", 1);
+    let window = main_window(&test.app);
+    let check = |moment: &str| {
+        for command in halvo_coord::types::commands::LIST.iter().map(|c| c.name) {
+            let fixed = serde_json::to_value(halvo_coord_app::Core::call(
+                &commands::agents::NoService,
+                command,
+                None,
+            ))
+            .expect("a reply is JSON");
+            assert_eq!(
+                invoke(&window, APP_URL, command, serde_json::json!({})),
+                Ok(fixed),
+                "{command} {moment}"
+            );
+        }
+    };
+    let (sender, exits) = std::sync::mpsc::channel();
+    tray::quit(test.app.handle(), move |_| {
+        let _ = sender.send(());
+    });
+    core.wait_for("quit", 1);
+    check("while Core::quit runs");
+    release
+        .send(())
+        .expect("the quit hook waits for the release");
+    exits
+        .recv_timeout(Duration::from_secs(20))
+        .expect("the Quit asks for the exit");
+    check("after Core::quit has returned");
+    assert!(
+        !core.names().contains(&"call"),
+        "a command reached the Core: {:?}",
+        core.names()
     );
 }
