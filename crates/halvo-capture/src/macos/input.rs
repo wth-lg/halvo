@@ -1,9 +1,11 @@
+#![deny(clippy::let_underscore_must_use)]
+
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use core_foundation::base::TCFType;
 use core_foundation::date::CFDate;
@@ -17,11 +19,18 @@ use core_graphics::event::{
 };
 
 use crate::event::Modality;
-use crate::macos::foreground::{emit_metadata_only, Foreground, ForegroundReader, Unpersisted};
+use crate::event::{EventClock, FloorEvent, FoldEvent};
+use crate::floor::exclude::{
+    DropReason, FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict,
+};
+use crate::floor::kind::{self as floor_kind, Recorded};
+use crate::floor::payload::{Button, FoldClass, FoldCount, KeyClass, PointerFold};
+use crate::floor::{Switch, Switches, POINTER_FOLD_INTERVAL};
+use crate::macos::foreground::{Foreground, ForegroundReader};
 use crate::macos::source_failure;
 use crate::secure_input_macos::hold::{
-    timing, timing_at_reading, Admission, Bounds, Cause, Entry, HeldKeys, Marks, Monotonic, Stamps,
-    Step, Timing, Uptime, PAIR_TRIES, PAIR_WIDTH, READING_STEP, SESSION_STEP, WAKE_MARGIN,
+    timing, timing_at_reading, Admission, Bounds, Cause, Entry, Marks, Monotonic, Stamps, Step,
+    Timing, Uptime, PAIR_TRIES, PAIR_WIDTH, READING_STEP, SESSION_STEP, WAKE_MARGIN,
 };
 #[cfg(all(debug_assertions, feature = "stall-seam"))]
 use crate::secure_input_macos::notice::MarkKind;
@@ -31,10 +40,10 @@ use crate::secure_input_macos::notice::{NoticeMark, NoticeThread};
 #[cfg(any(test, debug_assertions))]
 use crate::secure_input_macos::{hold_secure_input, SecureInputHold};
 use crate::secure_input_macos::{
-    read_session, secure_input_reading, Reading, SecureInputRefused, SecureInputReleaseRefused,
-    Session,
+    read_session, secure_input_reading, KeyQueue, Reading, Released, SecureInputRefused,
+    SecureInputReleaseRefused, Session, SystemProbe,
 };
-use crate::sink::SinkHandle;
+use crate::sink::{Emitted, FoldEmitted, SinkHandle};
 use crate::source::{
     CaptureError, CaptureSource, HealthReason, HeldSamples, SourceContext, SourceCounters,
     SourceHealth, SourceState, Started, StopCause, SuppressedKeys,
@@ -45,6 +54,71 @@ extern "C" {
     fn CGEventTapEnable(tap: *mut c_void, enable: bool);
     fn CGPreflightListenEventAccess() -> bool;
     fn CGEventGetTimestamp(event: *const c_void) -> u64;
+    fn CGGetEventTapList(max: u32, list: *mut TapInformation, count: *mut u32) -> i32;
+    #[cfg(any(test, debug_assertions))]
+    fn CGEventSourceCounterForEventType(state: i32, event_type: u32) -> u32;
+}
+
+#[cfg(any(test, debug_assertions))]
+const HID_SYSTEM_STATE: i32 = 1;
+
+#[cfg(any(test, debug_assertions))]
+fn hid_key_downs() -> u32 {
+    // SAFETY: a counter query of the system that takes two values and touches no
+    // memory of the caller.
+    unsafe { CGEventSourceCounterForEventType(HID_SYSTEM_STATE, CGEventType::KeyDown as u32) }
+}
+
+/// The step of the samples of the secure-input state in the held phase.
+pub const HELD_SAMPLE_STEP: Duration = Duration::from_millis(250);
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct TapInformation {
+    event_tap_id: u32,
+    tap_point: u32,
+    options: u32,
+    events_of_interest: u64,
+    tapping_process: libc::pid_t,
+    process_being_tapped: libc::pid_t,
+    enabled: bool,
+    min_usec_latency: f32,
+    avg_usec_latency: f32,
+    max_usec_latency: f32,
+}
+
+const NO_TAP: TapInformation = TapInformation {
+    event_tap_id: 0,
+    tap_point: 0,
+    options: 0,
+    events_of_interest: 0,
+    tapping_process: 0,
+    process_being_tapped: 0,
+    enabled: false,
+    min_usec_latency: 0.0,
+    avg_usec_latency: 0.0,
+    max_usec_latency: 0.0,
+};
+
+const TAP_LIST_MAX: usize = 256;
+
+fn own_taps() -> Option<Vec<TapInformation>> {
+    let mut list = [NO_TAP; TAP_LIST_MAX];
+    let mut count = 0u32;
+    // SAFETY: `list` holds TAP_LIST_MAX entries, the maximum passed, and `count`
+    // is a valid place for the number of entries written.
+    let err = unsafe { CGGetEventTapList(TAP_LIST_MAX as u32, list.as_mut_ptr(), &mut count) };
+    if err != 0 {
+        return None;
+    }
+    let own = libc::pid_t::try_from(std::process::id()).ok()?;
+    Some(
+        list[..(count as usize).min(TAP_LIST_MAX)]
+            .iter()
+            .copied()
+            .filter(|tap| tap.tapping_process == own)
+            .collect(),
+    )
 }
 
 extern "C" {
@@ -168,10 +242,74 @@ impl InputCounters {
         self.0.late_events.fetch_add(1, Ordering::Relaxed);
     }
 
+    fn count_tap_disabled(&self, etype: CGEventType) {
+        let counter = match etype {
+            CGEventType::TapDisabledByUserInput => &self.0.tap_disabled_user_input,
+            _ => &self.0.tap_disabled_timeout,
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn note_lag(&self, lag: Duration) {
+        let ms = u64::try_from(lag.as_millis()).unwrap_or(u64::MAX);
+        self.0.max_lag_ms.fetch_max(ms, Ordering::Relaxed);
+    }
+
+    fn count_recorded_key(&self, held_phase: bool) {
+        let counter = if held_phase {
+            &self.0.secure_held_keystrokes
+        } else {
+            &self.0.secure_released_keystrokes
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn count_held_suppressed(&self, etype: CGEventType) {
+        let counter = match etype {
+            CGEventType::KeyDown => &self.0.secure_held_suppressed_down,
+            CGEventType::KeyUp => &self.0.secure_held_suppressed_up,
+            CGEventType::FlagsChanged => &self.0.secure_held_suppressed_modifier,
+            _ => return,
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn count_window_pointer(&self) {
+        self.0.secure_window_pointer.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[cfg(any(test, debug_assertions))]
+    fn sample(&self, held: bool) {
+        self.0.secure_input_samples.fetch_add(1, Ordering::Relaxed);
+        if held {
+            self.0.secure_input_held.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    #[cfg(any(test, debug_assertions))]
+    fn keys_typed(&self, typed: bool) {
+        self.0
+            .secure_window_keys_typed
+            .store(typed, Ordering::Relaxed);
+    }
+
+    fn count_pointer_coalesced(&self) {
+        self.0.pointer_coalesced.fetch_add(1, Ordering::Relaxed);
+    }
+
     fn count_pointer_dropped_at_stop(&self) {
         self.0
             .pointer_dropped_at_stop
             .fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn count_folds_dropped_at_stop(&self, folds: &[PointerFold]) {
+        let events = folds
+            .iter()
+            .fold(0u64, |sum, fold| sum.saturating_add(fold.count().get()));
+        self.0
+            .pointer_dropped_at_stop
+            .fetch_add(events, Ordering::Relaxed);
     }
 
     #[cfg(test)]
@@ -302,7 +440,12 @@ const _: () = {
     }
 };
 
+const CAPS_LOCK: i64 = 0x39;
+
 fn modifier_pressed(key_code: Option<i64>, flags: u64) -> bool {
+    if key_code == Some(CAPS_LOCK) {
+        return true;
+    }
     let Some(&(_, side, family)) = MODIFIER_KEYS
         .iter()
         .find(|&&(code, _, _)| Some(code) == key_code)
@@ -316,34 +459,139 @@ fn modifier_pressed(key_code: Option<i64>, flags: u64) -> bool {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Kind {
-    Key,
-    Reading,
-    Pointer,
-    Ignore,
-}
+const CHORD_MASKS: u64 = 0x001C_0000;
 
-fn kind_of(etype: CGEventType, key_code: Option<i64>, flags: u64) -> Kind {
-    match tap_class(etype) {
-        Some(TapClass::KeyPress) => Kind::Key,
-        Some(TapClass::OtherKey)
-            if etype as u32 == CGEventType::FlagsChanged as u32
-                && modifier_pressed(key_code, flags) =>
-        {
-            Kind::Key
+fn key_class(key_code: Option<i64>, flags: u64) -> KeyClass {
+    if flags & CHORD_MASKS != 0 {
+        return KeyClass::Shortcut;
+    }
+    match key_code {
+        Some(0x24 | 0x4C) => KeyClass::Enter,
+        Some(0x30) => KeyClass::Tab,
+        Some(0x33 | 0x72 | 0x75) => KeyClass::Editing,
+        Some(0x73 | 0x74 | 0x77 | 0x79 | 0x7B..=0x7E) => KeyClass::Navigation,
+        Some(0x00..=0x32 | 0x41 | 0x43 | 0x45 | 0x4B | 0x4E | 0x51..=0x59 | 0x5B..=0x5F) => {
+            KeyClass::Printable
         }
-        Some(TapClass::OtherKey) => Kind::Reading,
-        Some(TapClass::DiscretePointer | TapClass::ContinuousPointer) => Kind::Pointer,
-        None => Kind::Ignore,
+        _ => KeyClass::Other,
     }
 }
 
-fn events_of_interest() -> Vec<CGEventType> {
-    TAP_EVENTS.iter().map(|&(etype, _)| etype).collect()
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Key(KeyClass),
+    Reading,
+    Click(Button),
+    ButtonUp,
+    Fold(FoldClass),
+    Ignore,
 }
 
-const TAP_LOCATION: CGEventTapLocation = CGEventTapLocation::HID;
+impl Kind {
+    fn is_key(self) -> bool {
+        matches!(self, Kind::Key(_))
+    }
+
+    fn is_pointer(self) -> bool {
+        matches!(self, Kind::Click(_) | Kind::ButtonUp | Kind::Fold(_))
+    }
+}
+
+fn kind_of(etype: CGEventType, key_code: Option<i64>, flags: u64, autorepeat: bool) -> Kind {
+    match etype {
+        CGEventType::KeyDown if autorepeat => Kind::Reading,
+        CGEventType::KeyDown => Kind::Key(key_class(key_code, flags)),
+        CGEventType::FlagsChanged if modifier_pressed(key_code, flags) => {
+            Kind::Key(KeyClass::Other)
+        }
+        CGEventType::KeyUp | CGEventType::FlagsChanged => Kind::Reading,
+        CGEventType::LeftMouseDown => Kind::Click(Button::Primary),
+        CGEventType::RightMouseDown => Kind::Click(Button::Secondary),
+        CGEventType::OtherMouseDown => Kind::Click(Button::Other),
+        CGEventType::LeftMouseUp | CGEventType::RightMouseUp | CGEventType::OtherMouseUp => {
+            Kind::ButtonUp
+        }
+        CGEventType::MouseMoved => Kind::Fold(FoldClass::Move),
+        CGEventType::LeftMouseDragged
+        | CGEventType::RightMouseDragged
+        | CGEventType::OtherMouseDragged => Kind::Fold(FoldClass::Drag),
+        CGEventType::ScrollWheel => Kind::Fold(FoldClass::Scroll),
+        _ => Kind::Ignore,
+    }
+}
+
+#[derive(Default)]
+struct Folds([Option<FoldCount>; 3]);
+
+impl Folds {
+    fn slot(&mut self, class: FoldClass) -> &mut Option<FoldCount> {
+        let at = FoldClass::ALL
+            .iter()
+            .position(|&listed| listed == class)
+            .unwrap_or(0);
+        &mut self.0[at]
+    }
+
+    fn add(&mut self, class: FoldClass) {
+        match self.slot(class) {
+            Some(count) => count.add_one(),
+            slot @ None => *slot = Some(FoldCount::one()),
+        }
+    }
+
+    fn carry(&mut self, fold: PointerFold) {
+        match self.slot(fold.class()) {
+            Some(count) => count.add(fold.count()),
+            slot @ None => *slot = Some(fold.count()),
+        }
+    }
+
+    fn take(&mut self) -> Vec<PointerFold> {
+        FoldClass::ALL
+            .iter()
+            .zip(std::mem::take(&mut self.0))
+            .filter_map(|(&class, count)| count.map(|count| PointerFold::new(class, count)))
+            .collect()
+    }
+}
+
+/// Typing on a Mac: whether a source that the product builds asks its tap for
+/// key events. Off until the owner answers item I-83 point 2, so a Mac build
+/// notes no typing. In this crate `InputSource::start_events` is its one
+/// reader; the app reads it as `halvo_capture::macos::input::TYPING_ON_MAC`.
+pub const TYPING_ON_MAC: bool = false;
+
+/// The event types of a tap: a key type only while `typing` and key_class are
+/// both on, a pointer type only while pointer_class is on.
+fn events_of_interest(switches: Switches, typing: bool) -> Vec<CGEventType> {
+    TAP_EVENTS
+        .iter()
+        .filter(|&&(etype, _)| match tap_class(etype) {
+            Some(TapClass::KeyPress | TapClass::OtherKey) => {
+                typing && switches.is_on(Switch::KeyClass)
+            }
+            Some(TapClass::DiscretePointer | TapClass::ContinuousPointer) => {
+                switches.is_on(Switch::PointerClass)
+            }
+            None => false,
+        })
+        .map(|&(etype, _)| etype)
+        .collect()
+}
+
+fn mask_of(events: &[CGEventType]) -> u64 {
+    events
+        .iter()
+        .fold(0u64, |mask, &etype| mask | 1 << (etype as u64))
+}
+
+const KEY_EVENTS: u64 = 1 << (CGEventType::KeyDown as u64) | 1 << (CGEventType::KeyUp as u64);
+
+fn key_events_granted(requested: u64, granted: u64) -> bool {
+    granted & requested & KEY_EVENTS == requested & KEY_EVENTS
+}
+
+const TAP_LOCATION: CGEventTapLocation = CGEventTapLocation::Session;
 const TAP_PLACEMENT: CGEventTapPlacement = CGEventTapPlacement::HeadInsertEventTap;
 const TAP_OPTIONS: CGEventTapOptions = CGEventTapOptions::ListenOnly;
 
@@ -396,7 +644,8 @@ fn tap_settings() -> TapSettings {
         location: TAP_LOCATION,
         placement: TAP_PLACEMENT,
         options: TAP_OPTIONS,
-        events: events_of_interest(),
+        // A start asks the types of its own switches (`start_events`).
+        events: Vec::new(),
         secure: secure_input_reading,
         session: read_session,
         clocks: CLOCKS,
@@ -427,6 +676,14 @@ trait TapMaker {
 
     fn listen_denied() -> bool;
 
+    fn preflight_denied() -> bool {
+        Self::listen_denied()
+    }
+
+    fn granted_events(_tap: &Self::Tap, requested: u64) -> u64 {
+        requested
+    }
+
     fn enable(tap: Self::Tap, port: TapPort) -> Result<Self::Enabled, CaptureError>;
 }
 
@@ -447,6 +704,18 @@ impl TapMaker for SystemTapMaker {
     fn listen_denied() -> bool {
         // SAFETY: a parameterless predicate of the system with no side effect.
         !unsafe { CGPreflightListenEventAccess() }
+    }
+
+    fn granted_events(_tap: &Self::Tap, requested: u64) -> u64 {
+        own_taps()
+            .and_then(|taps| {
+                taps.into_iter()
+                    .filter(|tap| {
+                        tap.tap_point == TAP_LOCATION as u32 && tap.options == TAP_OPTIONS as u32
+                    })
+                    .max_by_key(|tap| tap.event_tap_id)
+            })
+            .map_or(requested, |tap| tap.events_of_interest)
     }
 
     fn enable(tap: Self::Tap, port: TapPort) -> Result<Self::Enabled, CaptureError> {
@@ -482,8 +751,9 @@ fn tap_refusal(denied: bool) -> CaptureError {
 }
 
 struct HeldKey {
-    instant: SystemTime,
-    app: Option<Foreground>,
+    class: KeyClass,
+    front: Option<Foreground>,
+    held_phase: bool,
 }
 
 struct ReadingTimer(CFRunLoopTimer);
@@ -495,7 +765,7 @@ struct ReadingTimer(CFRunLoopTimer);
 unsafe impl Send for ReadingTimer {}
 
 struct HoldState {
-    keys: HeldKeys<HeldKey>,
+    keys: KeyQueue<HeldKey>,
     session: Session,
     session_at: Option<Monotonic>,
     timer: Option<ReadingTimer>,
@@ -550,10 +820,23 @@ impl OwnTake {
 #[derive(Clone, Copy)]
 struct TimerCalls {
     make: fn(*mut c_void, Duration) -> CFRunLoopTimer,
+    fold: fn(*mut c_void, Duration) -> CFRunLoopTimer,
     invalidate: fn(&CFRunLoopTimer),
 }
 
 fn reading_timer(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
+    repeating_timer(info, step, reading_timer_fired)
+}
+
+fn fold_timer(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
+    repeating_timer(info, step, fold_timer_fired)
+}
+
+fn repeating_timer(
+    info: *mut c_void,
+    step: Duration,
+    callout: extern "C" fn(CFRunLoopTimerRef, *mut c_void),
+) -> CFRunLoopTimer {
     let mut context = CFRunLoopTimerContext {
         version: 0,
         info,
@@ -567,7 +850,7 @@ fn reading_timer(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
         step,
         0,
         0,
-        reading_timer_fired,
+        callout,
         &mut context,
     );
     add_to_this_run_loop(&timer);
@@ -576,6 +859,7 @@ fn reading_timer(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
 
 const TIMER_CALLS: TimerCalls = TimerCalls {
     make: reading_timer,
+    fold: fold_timer,
     invalidate,
 };
 
@@ -583,6 +867,7 @@ const TIMER_CALLS: TimerCalls = TimerCalls {
 struct Keyed {
     event: TapEvent,
     key_code: Option<i64>,
+    autorepeat: bool,
 }
 
 impl From<TapEvent> for Keyed {
@@ -590,6 +875,7 @@ impl From<TapEvent> for Keyed {
         Self {
             event,
             key_code: None,
+            autorepeat: false,
         }
     }
 }
@@ -615,6 +901,12 @@ struct TapContext {
     step: Duration,
     hold: SharedHold,
     notices: NoticeMark,
+    floor: FloorHandle,
+    probe: SystemProbe,
+    clock: &'static EventClock,
+    folds: Mutex<Folds>,
+    fold_timer: Mutex<Option<ReadingTimer>>,
+    held_phase: Arc<AtomicBool>,
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
     drops: Option<DropCounts>,
 }
@@ -997,7 +1289,30 @@ impl TapContext {
                 self.dropped(keys, cause);
             }
         }
+        if !state.keys.is_empty() && self.front_excluded() {
+            state.keys.drop_all();
+        }
         (reading, Stamps { before, after })
+    }
+
+    fn front_excluded(&self) -> bool {
+        let Some(front) = self.foreground.get() else {
+            return false;
+        };
+        let Ok(pid) = u32::try_from(front.pid) else {
+            return true;
+        };
+        let subject = Subject::new(front.identity.to_event(), ProcessId::new(pid));
+        matches!(
+            self.floor.decide::<floor_kind::Keystroke>(
+                subject,
+                PrivateWindow::Unknown,
+                &self.probe
+            ),
+            Verdict::Drop(
+                DropReason::ListedApp | DropReason::ExclusionTree | DropReason::UnknownLineage
+            )
+        )
     }
 
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -1091,7 +1406,7 @@ impl TapContext {
         }
     }
 
-    fn admitted(&self, admission: Admission, timing: Timing) {
+    fn admitted(&self, admission: Admission, late: bool) {
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
         if let Some(drops) = &self.drops {
             drops.arrival(admission);
@@ -1116,14 +1431,12 @@ impl TapContext {
                 }
             }
         }
-        if let Timing::Late { lag } = timing {
-            if lag > crate::secure_input_macos::hold::LATE_BOUND {
-                self.counters.count_late_key();
-            }
+        if late {
+            self.counters.count_late_key();
         }
     }
 
-    fn release(&self, state: &mut HoldState, mut step: Step<HeldKey>) {
+    fn release(&self, state: &mut HoldState, mut step: Step<Released<HeldKey>>) {
         loop {
             let key = match step {
                 Step::Waiting => return,
@@ -1135,17 +1448,15 @@ impl TapContext {
                 self.dropped(keys, Cause::Stop);
                 return;
             }
-            let emitted = emit_metadata_only(
-                &self.sink,
-                Modality::Keystroke,
-                key.app,
-                Unpersisted::EMPTY,
-                key.instant,
-            );
-            if emitted.is_err() {
-                let keys = state.keys.drop_all() + 1;
-                self.dropped(keys, Cause::Refused);
-                return;
+            let (clearance, key) = key.into_parts();
+            if let Some(keep) = self.keep::<floor_kind::Keystroke>(key.front.as_ref()) {
+                let event = FloorEvent::keystroke(keep, clearance, key.class, self.clock);
+                if self.sink.emit_event(event) == Emitted::Refused {
+                    let keys = state.keys.drop_all() + 1;
+                    self.dropped(keys, Cause::Refused);
+                    return;
+                }
+                self.counters.count_recorded_key(key.held_phase);
             }
             #[cfg(all(debug_assertions, feature = "stall-seam"))]
             if let Some(drops) = &self.drops {
@@ -1189,14 +1500,132 @@ impl Drop for TapContext {
         if let Some(ReadingTimer(timer)) = timer {
             (self.timers.invalidate)(&timer);
         }
+        let fold = self
+            .fold_timer
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        if let Some(ReadingTimer(timer)) = fold {
+            (self.timers.invalidate)(&timer);
+        }
+        let left = self
+            .folds
+            .get_mut()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        self.counters.count_folds_dropped_at_stop(&left);
     }
 }
 
+impl TapContext {
+    fn keep<K: Recorded>(&self, front: Option<&Foreground>) -> Option<Keep<K>> {
+        let front = front?;
+        let pid = ProcessId::new(u32::try_from(front.pid).ok()?);
+        let subject = Subject::new(front.identity.to_event(), pid);
+        match self
+            .floor
+            .decide::<K>(subject, PrivateWindow::Unknown, &self.probe)
+        {
+            Verdict::Keep(keep) => Some(keep),
+            Verdict::Drop(_) => None,
+        }
+    }
+
+    fn in_held_phase(&self) -> bool {
+        self.held_phase.load(Ordering::SeqCst)
+    }
+
+    fn folds(&self) -> MutexGuard<'_, Folds> {
+        self.folds.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn start_folds(&self) {
+        let info = std::ptr::from_ref(self).cast_mut().cast::<c_void>();
+        let timer = (self.timers.fold)(info, POINTER_FOLD_INTERVAL);
+        *self
+            .fold_timer
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(ReadingTimer(timer));
+    }
+}
+
+fn event_age(event: &TapEvent) -> Option<Duration> {
+    match timing(event.entry.uptime, event.os_time, Duration::MAX) {
+        Timing::InTime { lag } | Timing::Late { lag } => Some(lag),
+        Timing::Untimed | Timing::Asleep | Timing::Unclocked | Timing::Noticed => None,
+    }
+}
+
+fn on_pointer(ctx: &TapContext, kind: Kind, event: &TapEvent) {
+    if ctx.stop.load(Ordering::SeqCst) {
+        ctx.counters.count_pointer_dropped_at_stop();
+        return;
+    }
+    if ctx.in_held_phase() && matches!(kind, Kind::Click(_) | Kind::Fold(_)) {
+        ctx.counters.count_window_pointer();
+    }
+    match kind {
+        Kind::Click(button) => {
+            let front = ctx.foreground.read_now();
+            if let Some(keep) = ctx.keep::<floor_kind::Pointer>(front.as_ref()) {
+                ctx.sink
+                    .emit_event(FloorEvent::click(keep, button, event_age(event), ctx.clock));
+            }
+        }
+        Kind::Fold(class) => {
+            let front = ctx.foreground.get();
+            if ctx.keep::<floor_kind::Pointer>(front.as_ref()).is_some() {
+                ctx.folds().add(class);
+            }
+        }
+        Kind::Key(_) | Kind::Reading | Kind::ButtonUp | Kind::Ignore => {}
+    }
+}
+
+fn close_interval(ctx: &TapContext) {
+    let folds = ctx.folds().take();
+    if ctx.stop.load(Ordering::SeqCst) {
+        ctx.counters.count_folds_dropped_at_stop(&folds);
+        return;
+    }
+    if folds.is_empty() {
+        return;
+    }
+    let front = ctx.foreground.get();
+    for fold in folds {
+        let Some(keep) = ctx.keep::<floor_kind::Pointer>(front.as_ref()) else {
+            continue;
+        };
+        match ctx
+            .sink
+            .emit_continuous(FoldEvent::new(keep, fold, None, ctx.clock))
+        {
+            FoldEmitted::Queued | FoldEmitted::Refused => {}
+            FoldEmitted::Coalesced(back) => {
+                ctx.counters.count_pointer_coalesced();
+                ctx.folds().carry(back.fold());
+            }
+        }
+    }
+}
+
+extern "C" fn fold_timer_fired(_timer: CFRunLoopTimerRef, info: *mut c_void) {
+    // SAFETY: as in `reading_timer_fired`: `info` is the address of the boxed
+    // TapContext that armed this timer and invalidates it in its Drop.
+    let ctx = unsafe { &*info.cast::<TapContext>() };
+    close_interval(ctx);
+}
+
 fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
-    let Keyed { event, key_code } = keyed.into();
+    let Keyed {
+        event,
+        key_code,
+        autorepeat,
+    } = keyed.into();
     let hold = ctx.hold.clone();
     let mut state = lock(&hold);
     if is_tap_disabled(event.etype) {
+        ctx.counters.count_tap_disabled(event.etype);
         let stopped = ctx.stop.load(Ordering::SeqCst);
         let keys = state.keys.drop_all();
         ctx.dropped_unread(keys, Cause::TapSwitchedOff);
@@ -1207,7 +1636,10 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
         }
         return;
     }
-    let kind = kind_of(event.etype, key_code, event.flags);
+    let kind = match kind_of(event.etype, key_code, event.flags, autorepeat) {
+        Kind::Key(_) if !ctx.floor.switches().is_on(Switch::KeyClass) => Kind::Reading,
+        kind => kind,
+    };
     if kind == Kind::Ignore {
         return;
     }
@@ -1217,23 +1649,27 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
     } else {
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
         ctx.mark(Caller::Event);
-        let (reading, at) = ctx.reading(&mut state, kind == Kind::Key);
+        let (reading, at) = ctx.reading(&mut state, kind.is_key());
         if ctx.stop.load(Ordering::SeqCst) {
             let keys = state.keys.drop_all();
             ctx.dropped(keys, Cause::Stop);
-            if kind == Kind::Key {
+            if kind.is_key() {
                 let lag_bound = state.keys.bounds().lag;
                 ctx.withheld_at_a_stop(timing(event.entry.uptime, event.os_time, lag_bound));
             }
             ctx.settle_timer(&mut state);
             drop(state);
-            if kind == Kind::Pointer {
-                emit_pointer(ctx);
+            if kind.is_pointer() {
+                on_pointer(ctx, kind, &event);
             }
             return;
         }
+        if reading == Reading::On && ctx.in_held_phase() {
+            ctx.counters.count_held_suppressed(event.etype);
+        }
         let arrival = at.before;
         let lag_bound = state.keys.bounds().lag;
+        #[cfg(all(debug_assertions, feature = "stall-seam"))]
         let at_entry = timing(event.entry.uptime, event.os_time, lag_bound);
         let at_reading = timing_at_reading(
             event.entry,
@@ -1255,13 +1691,13 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             at_reading
         };
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
-        if let (Some(drops), Kind::Key | Kind::Reading, Timing::Late { .. }) =
+        if let (Some(drops), Kind::Key(_) | Kind::Reading, Timing::Late { .. }) =
             (&ctx.drops, kind, at_entry)
         {
             drops.late_at_entry();
         }
         let step = match (kind, at_reading.refusal()) {
-            (Kind::Key | Kind::Reading, Some(_)) => state.keys.late_reading(at, at_reading),
+            (Kind::Key(_) | Kind::Reading, Some(_)) => state.keys.late_reading(at, at_reading),
             _ => state.keys.reading(reading, at),
         };
         let step = match step {
@@ -1271,41 +1707,26 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             }
             other => other,
         };
-        if kind == Kind::Key {
-            let lag = match at_reading {
-                Timing::InTime { lag } => lag,
-                _ => Duration::ZERO,
-            };
+        if let Kind::Key(class) = kind {
+            let age = event_age(&event);
+            if let Some(lag) = age {
+                ctx.counters.note_lag(lag);
+            }
             let key = HeldKey {
-                instant: SystemTime::now()
-                    .checked_sub(lag)
-                    .unwrap_or(SystemTime::UNIX_EPOCH),
-                app: ctx.foreground.get(),
+                class,
+                front: ctx.foreground.read_now(),
+                held_phase: ctx.in_held_phase(),
             };
-            let admission = state.keys.admit(reading, at_reading, arrival, key);
-            ctx.admitted(admission, at_entry);
+            let admitted = state.keys.admit(reading, at_reading, arrival, age, key);
+            ctx.admitted(admitted.admission, admitted.late);
         }
         ctx.release(&mut state, step);
     }
     ctx.settle_timer(&mut state);
     drop(state);
-    if kind == Kind::Pointer {
-        emit_pointer(ctx);
+    if kind.is_pointer() {
+        on_pointer(ctx, kind, &event);
     }
-}
-
-fn emit_pointer(ctx: &TapContext) {
-    if ctx.stop.load(Ordering::SeqCst) {
-        ctx.counters.count_pointer_dropped_at_stop();
-        return;
-    }
-    let _ = emit_metadata_only(
-        &ctx.sink,
-        Modality::Pointer,
-        ctx.foreground.get(),
-        Unpersisted::EMPTY,
-        SystemTime::now(),
-    );
 }
 
 fn on_reading_tick(ctx: &TapContext) {
@@ -1353,7 +1774,7 @@ fn tap_context(
         timers: TIMER_CALLS,
         step: READING_STEP,
         hold: Arc::new(Mutex::new(HoldState {
-            keys: HeldKeys::new(bounds),
+            keys: KeyQueue::new(bounds),
             session: Session::NoDictionary,
             session_at: None,
             timer: None,
@@ -1364,6 +1785,12 @@ fn tap_context(
             doubt_at_reading: false,
         })),
         notices: NoticeMark::new(),
+        floor: FloorHandle::default(),
+        probe: SystemProbe::new(),
+        clock: EventClock::system(),
+        folds: Mutex::new(Folds::default()),
+        fold_timer: Mutex::new(None),
+        held_phase: Arc::new(AtomicBool::new(false)),
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
         drops: None,
     }
@@ -1393,6 +1820,7 @@ fn tap_event(ctx: &TapContext, etype: CGEventType, event: &CGEvent) -> Keyed {
             entry: Entry { monotonic, uptime },
         },
         key_code: Some(event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE)),
+        autorepeat: event.get_integer_value_field(EventField::KEYBOARD_EVENT_AUTOREPEAT) != 0,
     }
 }
 
@@ -1401,6 +1829,7 @@ fn tap_callback(
 ) -> impl Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static {
     let ctx = Box::new(ctx);
     ctx.start(&mut lock(&ctx.hold));
+    ctx.start_folds();
     move |_proxy, etype, event: &CGEvent| {
         on_tap_event(&ctx, tap_event(&ctx, etype, event));
         CallbackResult::Keep
@@ -1411,11 +1840,17 @@ fn install_tap<M: TapMaker>(
     ctx: TapContext,
     settings: TapSettings,
     maker: M,
+    keys_missing: Arc<AtomicBool>,
 ) -> Result<M::Enabled, CaptureError> {
     let port = ctx.port.clone();
+    let requested = mask_of(&settings.events);
     let tap = maker
         .make(settings, tap_callback(ctx))
         .map_err(|()| tap_refusal(M::listen_denied()))?;
+    if !key_events_granted(requested, M::granted_events(&tap, requested)) {
+        keys_missing.store(true, Ordering::SeqCst);
+        return Err(CaptureError::PermissionDenied(Modality::Keystroke));
+    }
     M::enable(tap, port)
 }
 
@@ -1442,6 +1877,63 @@ struct HoldSlot {
     held: Option<SecureInputHold>,
     refusal: Arc<Mutex<Option<SecureInputRefused>>>,
     own_take: Option<OwnTake>,
+    phase: Option<HeldPhase>,
+}
+
+#[cfg(any(test, debug_assertions))]
+struct HeldPhase {
+    held: Arc<AtomicBool>,
+    counters: InputCounters,
+    secure: fn(Session) -> Reading,
+    session: fn() -> Session,
+    typed: fn() -> u32,
+    typed_at_take: Option<u32>,
+    sampler: Option<ReadingTimer>,
+}
+
+#[cfg(any(test, debug_assertions))]
+impl HeldPhase {
+    fn enter(&mut self) {
+        self.held.store(true, Ordering::SeqCst);
+        self.typed_at_take = Some((self.typed)());
+        let info = std::ptr::from_mut(self).cast::<c_void>();
+        self.sampler = Some(ReadingTimer(repeating_timer(
+            info,
+            HELD_SAMPLE_STEP,
+            held_sample_fired,
+        )));
+    }
+
+    fn sample(&self) {
+        let held = (self.secure)((self.session)()) == Reading::On;
+        self.counters.sample(held);
+    }
+
+    fn end(&mut self) {
+        if let Some(ReadingTimer(timer)) = self.sampler.take() {
+            invalidate(&timer);
+        }
+        if let Some(start) = self.typed_at_take.take() {
+            self.held.store(false, Ordering::SeqCst);
+            self.counters.keys_typed((self.typed)() > start);
+        }
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+impl Drop for HeldPhase {
+    fn drop(&mut self) {
+        self.end();
+    }
+}
+
+#[cfg(any(test, debug_assertions))]
+extern "C" fn held_sample_fired(_timer: CFRunLoopTimerRef, info: *mut c_void) {
+    // SAFETY: `info` is the HeldPhase that armed this timer, in the boxed slot of
+    // a TimedHold; the phase invalidates the timer when it ends and in its Drop,
+    // and the timer fires on the tap thread alone, which owns the slot.
+    let phase = unsafe { &*info.cast::<HeldPhase>() };
+    phase.sample();
 }
 
 #[cfg(any(test, debug_assertions))]
@@ -1452,6 +1944,9 @@ impl HoldSlot {
                 self.held = Some(held);
                 if let Some(own_take) = &self.own_take {
                     own_take.taken();
+                }
+                if let Some(phase) = &mut self.phase {
+                    phase.enter();
                 }
             }
             Err(refused) => {
@@ -1493,6 +1988,9 @@ impl TimedHold {
 
     fn give_back(mut self) -> Result<(), SecureInputReleaseRefused> {
         let held = self.slot.held.take();
+        if let Some(phase) = &mut self.slot.phase {
+            phase.end();
+        }
         drop(self);
         held.map_or(Ok(()), SecureInputHold::release)
     }
@@ -1573,6 +2071,8 @@ struct TapPlan {
     released: Arc<Mutex<Option<SecureInputReleaseRefused>>>,
     #[cfg(any(test, debug_assertions))]
     own_take: Option<OwnTake>,
+    #[cfg(any(test, debug_assertions))]
+    phase: Option<HeldPhase>,
 }
 
 impl TapThread {
@@ -1597,6 +2097,8 @@ impl TapThread {
                         released,
                         #[cfg(any(test, debug_assertions))]
                         own_take,
+                        #[cfg(any(test, debug_assertions))]
+                        phase,
                     } = tap_plan;
                     #[cfg(not(any(test, debug_assertions)))]
                     let _ = (plan, refusal);
@@ -1606,6 +2108,7 @@ impl TapThread {
                         held: None,
                         refusal,
                         own_take,
+                        phase,
                     });
                     #[cfg(any(test, debug_assertions))]
                     if plan == HoldPlan::After(Duration::ZERO) {
@@ -1614,7 +2117,7 @@ impl TapThread {
                     let installed = match install() {
                         Ok(installed) => installed,
                         Err(e) => {
-                            let _ = loop_tx.send(Err(e));
+                            loop_tx.send(Err(e)).ok();
                             return;
                         }
                     };
@@ -1630,7 +2133,7 @@ impl TapThread {
                         std::ptr::null_mut(),
                     );
                     add_to_this_run_loop(&idle);
-                    let _ = loop_tx.send(Ok(CFRunLoop::get_current()));
+                    loop_tx.send(Ok(CFRunLoop::get_current())).ok();
                     before_run();
                     while !stop.load(Ordering::SeqCst) {
                         // SAFETY: `kCFRunLoopDefaultMode` is a constant CFString
@@ -1658,11 +2161,11 @@ impl TapThread {
                 thread: Some(thread),
             }),
             Ok(Err(e)) => {
-                let _ = thread.join();
+                thread.join().ok();
                 Err(e)
             }
             Err(_) => {
-                let _ = thread.join();
+                thread.join().ok();
                 Err(CaptureError::ThreadEnded)
             }
         }
@@ -1726,6 +2229,11 @@ impl TapThread {
 
 pub struct InputSource {
     foreground: ForegroundReader,
+    floor: FloorHandle,
+    off: bool,
+    keys_missing: Arc<AtomicBool>,
+    #[cfg(any(test, debug_assertions))]
+    typed: fn() -> u32,
     counters: InputCounters,
     plan: HoldPlan,
     #[cfg(any(test, debug_assertions))]
@@ -1736,6 +2244,11 @@ pub struct InputSource {
     front: Option<fn() -> Option<libc::pid_t>>,
     #[cfg(all(debug_assertions, feature = "stall-seam"))]
     drops: Option<DropCounts>,
+    /// Typing stays on in this source whatever TYPING_ON_MAC says: the stall
+    /// seam's source, whose fixture counts the keys that it records, and a
+    /// test's. A build without debug assertions has no such field.
+    #[cfg(all(debug_assertions, any(test, feature = "stall-seam")))]
+    typing_kept_on: bool,
     refusal: Arc<Mutex<Option<SecureInputRefused>>>,
     released: Arc<Mutex<Option<SecureInputReleaseRefused>>>,
     tap_enable: TapEnable,
@@ -1797,6 +2310,7 @@ impl InputSource {
         source.session = seam.session;
         source.front = Some(seam.front);
         source.drops = Some(seam.drops);
+        source.typing_kept_on = true;
         source
     }
 
@@ -1808,6 +2322,11 @@ impl InputSource {
     ) -> Self {
         Self {
             foreground,
+            floor: FloorHandle::default(),
+            off: false,
+            keys_missing: Arc::new(AtomicBool::new(false)),
+            #[cfg(any(test, debug_assertions))]
+            typed: hid_key_downs,
             counters,
             plan,
             #[cfg(any(test, debug_assertions))]
@@ -1818,6 +2337,8 @@ impl InputSource {
             front: None,
             #[cfg(all(debug_assertions, feature = "stall-seam"))]
             drops: None,
+            #[cfg(all(debug_assertions, any(test, feature = "stall-seam")))]
+            typing_kept_on: false,
             refusal: Arc::new(Mutex::new(None)),
             released: Arc::new(Mutex::new(None)),
             tap_enable: CGEventTapEnable,
@@ -1837,6 +2358,19 @@ impl InputSource {
         *self.refusal.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    /// The event types that a start of this source asks its tap for, at the
+    /// floor's switches: the one read of TYPING_ON_MAC.
+    fn start_events(&self) -> Vec<CGEventType> {
+        let switches = self.floor.switches();
+        #[cfg(all(debug_assertions, any(test, feature = "stall-seam")))]
+        {
+            if self.typing_kept_on {
+                return events_of_interest(switches, true);
+            }
+        }
+        events_of_interest(switches, TYPING_ON_MAC)
+    }
+
     fn begin_with<M: TapMaker + Send + 'static>(
         &mut self,
         sink: SinkHandle,
@@ -1852,8 +2386,21 @@ impl InputSource {
         *self.refusal.lock().unwrap_or_else(PoisonError::into_inner) = None;
         *self.released.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.counters.set_stalled(false);
+        self.keys_missing.store(false, Ordering::SeqCst);
+        let events = self.start_events();
+        self.off = events.is_empty();
+        if self.off {
+            self.failure = None;
+            return Ok(Started::Off);
+        }
+        if mask_of(&events) & KEY_EVENTS != 0 && M::preflight_denied() {
+            let refused = CaptureError::PermissionDenied(Modality::Keystroke);
+            self.failure = Some(refused.clone());
+            return Err(refused);
+        }
         let settings = TapSettings {
             session: self.session,
+            events,
             ..tap_settings()
         };
         let stop = Arc::new(AtomicBool::new(false));
@@ -1867,6 +2414,7 @@ impl InputSource {
             stop.clone(),
         );
         ctx.step = self.step;
+        ctx.floor = self.floor.clone();
         ctx.port = TapPort::with_enable(self.tap_enable);
         let port = ctx.port.clone();
         #[cfg(all(debug_assertions, feature = "stall-seam"))]
@@ -1894,8 +2442,19 @@ impl InputSource {
             #[cfg(all(debug_assertions, feature = "stall-seam"))]
             clock: ctx.clocks.stamps,
         };
+        #[cfg(any(test, debug_assertions))]
+        let phase = HeldPhase {
+            held: ctx.held_phase.clone(),
+            counters: self.counters.clone(),
+            secure: settings.secure,
+            session: settings.session,
+            typed: self.typed,
+            typed_at_take: None,
+            sampler: None,
+        };
+        let keys_missing = self.keys_missing.clone();
         let started = TapThread::spawn(
-            move || install_tap(ctx, settings, maker),
+            move || install_tap(ctx, settings, maker, keys_missing),
             TapPlan {
                 plan: self.plan,
                 #[cfg(any(test, debug_assertions))]
@@ -1904,6 +2463,8 @@ impl InputSource {
                 released: self.released.clone(),
                 #[cfg(any(test, debug_assertions))]
                 own_take: Some(own_take),
+                #[cfg(any(test, debug_assertions))]
+                phase: Some(phase),
             },
             stop,
             port,
@@ -1964,6 +2525,7 @@ impl CaptureSource for InputSource {
         {
             self.real = true;
         }
+        self.floor = ctx.floor().clone();
         self.begin_with(ctx.sink().clone(), SystemTapMaker, || {})
     }
 
@@ -1999,8 +2561,10 @@ impl CaptureSource for InputSource {
     /// drop by doubt does not read as impaired. A late key-up, or another
     /// reading event, whose reading finds a new mark or a standing doubt
     /// leaves the stalled flag unset, because the mark's drop takes the held
-    /// keys first; with no mark it sets it. The figure max_lag_ms has no
-    /// writer on a Mac and reads 0.
+    /// keys first; with no mark it sets it. The figure max_lag_ms is the
+    /// largest age in ms of a key at its arrival, from its OS time to its
+    /// entry (`note_lag`); a pointer event, and a key whose times give no age
+    /// (untimed, asleep, unclocked or noticed), leave it as it is.
     fn health(&self) -> SourceHealth {
         let state = match (&self.tap, &self.failure) {
             (Some(tap), _) if tap.ended() => source_failure(CaptureError::ThreadEnded),
@@ -2008,7 +2572,14 @@ impl CaptureSource for InputSource {
                 reason: HealthReason::RunLoopStalled,
             },
             (Some(_), _) => SourceState::Running,
+            (None, Some(error)) if self.keys_missing.load(Ordering::SeqCst) => {
+                SourceState::Failed {
+                    reason: HealthReason::NoKeyEvents,
+                    error: error.clone(),
+                }
+            }
             (None, Some(error)) => source_failure(error.clone()),
+            (None, None) if self.off => SourceState::Off,
             (None, None) if self.stopped => SourceState::Stopped(StopCause::Request),
             (None, None) => SourceState::NotReported,
         };
@@ -2054,7 +2625,7 @@ impl Drop for InputSource {
         if self.unstopped.is_some() {
             return;
         }
-        let _ = self.shutdown();
+        self.shutdown().ok();
     }
 }
 
@@ -2067,7 +2638,7 @@ mod proofs {
 
     #[cfg(halvo_proof = "held_key_printed_twin")]
     fn held_key_printed_twin(key: &super::HeldKey) -> String {
-        format!("{:?}", key.instant)
+        format!("{:?}", key.class)
     }
 
     #[cfg(halvo_proof = "tap_event_printed")]
@@ -2209,6 +2780,7 @@ fn events_until_the_sink_closes(writer: &crate::sink::SinkWriter) -> Vec<Modalit
 #[cfg(all(test, debug_assertions))]
 mod tests {
     use super::*;
+    use crate::floor::cases;
     use crate::macos::foreground::foreground_state_for_test;
     use crate::secure_input_macos::hold::Timing;
     use crate::secure_input_macos::test_support::{
@@ -2368,6 +2940,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         ));
         ctx.start(&mut lock(&ctx.hold));
+        fg_writer.set_for_test(Some(APP.front()));
         Held {
             ctx,
             writer,
@@ -2378,6 +2951,136 @@ mod tests {
 
     fn held(bound_ms: u64) -> Held {
         held_with(bound_ms, 64, 64)
+    }
+
+    struct TestApp(&'static str, libc::pid_t);
+
+    impl TestApp {
+        fn front(&self) -> Foreground {
+            crate::macos::foreground::tests_support::front(self.0, self.1)
+        }
+    }
+
+    const APP: TestApp = TestApp("com.example.editor", 4242);
+    const LISTED: TestApp = TestApp("com.apple.Passwords", 4343);
+
+    fn pointer_records(writer: &sink::SinkWriter) -> Vec<(&'static str, u64)> {
+        received(writer)
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .filter_map(|floor| match floor.event().observation() {
+                crate::floor::payload::Observation::Click(button) => Some((button.as_str(), 1)),
+                crate::floor::payload::Observation::Fold(fold) => {
+                    Some((fold.class().as_str(), fold.count().get()))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn pointer(ctx: &TapContext, etype: CGEventType, times: usize) {
+        for _ in 0..times {
+            advance(1);
+            on_tap_event(ctx, event(etype));
+        }
+    }
+
+    #[test]
+    fn a_press_fifty_drags_and_a_release_give_one_click_and_one_drag_record_of_50() {
+        let held = held(100);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::LeftMouseDragged, 50);
+        pointer(&held.ctx, CGEventType::LeftMouseUp, 1);
+        assert_eq!(pointer_records(&held.writer), [("primary", 1)]);
+        close_interval(&held.ctx);
+        assert_eq!(pointer_records(&held.writer), [("drag", 50)]);
+        close_interval(&held.ctx);
+        assert_eq!(
+            pointer_records(&held.writer),
+            [],
+            "an interval with no activity"
+        );
+    }
+
+    #[test]
+    fn thirty_scrolls_give_one_scroll_record_of_30_and_each_button_its_click() {
+        let held = held(100);
+        pointer(&held.ctx, CGEventType::ScrollWheel, 30);
+        pointer(&held.ctx, CGEventType::RightMouseDown, 1);
+        pointer(&held.ctx, CGEventType::OtherMouseDown, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 100);
+        assert_eq!(
+            pointer_records(&held.writer),
+            [("secondary", 1), ("other", 1)]
+        );
+        close_interval(&held.ctx);
+        assert_eq!(
+            pointer_records(&held.writer),
+            [("scroll", 30), ("move", 100)]
+        );
+    }
+
+    #[test]
+    fn after_a_flood_of_drags_and_scrolls_a_key_is_queued_at_once() {
+        let held = held_with(100, 64, 4);
+        for _ in 0..1_024 {
+            pointer(&held.ctx, CGEventType::LeftMouseDragged, 1);
+            pointer(&held.ctx, CGEventType::ScrollWheel, 1);
+        }
+        key_down(&held.ctx);
+        ticks(&held.ctx, 120);
+        assert_eq!(keystrokes(&held.writer), 1);
+        close_interval(&held.ctx);
+        assert_eq!(
+            pointer_records(&held.writer),
+            [("scroll", 1_024), ("drag", 1_024)]
+        );
+    }
+
+    #[test]
+    fn a_fold_that_a_full_queue_hands_back_is_counted_and_goes_into_the_next_interval() {
+        let held = held_with(100, 64, 1);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 3);
+        close_interval(&held.ctx);
+        assert_eq!(held.counters.figures().pointer_coalesced, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 2);
+        assert_eq!(pointer_records(&held.writer), [("primary", 1)]);
+        close_interval(&held.ctx);
+        assert_eq!(pointer_records(&held.writer), [("move", 5)]);
+        assert_eq!(held.counters.figures().pointer_coalesced, 1);
+    }
+
+    #[test]
+    fn no_pointer_record_leaves_for_a_listed_app_in_front_or_with_nothing_in_front() {
+        for front in [Some(LISTED.front()), None] {
+            let held = held(100);
+            held.fg_writer.set_for_test(front);
+            pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+            pointer(&held.ctx, CGEventType::MouseMoved, 5);
+            close_interval(&held.ctx);
+            held.fg_writer.set_for_test(Some(APP.front()));
+            close_interval(&held.ctx);
+            assert_eq!(pointer_records(&held.writer), []);
+        }
+    }
+
+    #[test]
+    fn a_click_carries_the_time_of_its_os_event() {
+        let held = held(100);
+        let mut click = event(CGEventType::LeftMouseDown);
+        click.os_time = Uptime::from_nanos(click.entry.uptime.nanos() - 3_000 * MS);
+        on_tap_event(&held.ctx, click);
+        let floor = received(&held.writer)
+            .into_iter()
+            .find_map(|received| received.into_floor().ok())
+            .expect("a click");
+        let now = crate::event::unix_nanos(std::time::SystemTime::now());
+        let age = now - floor.event().at();
+        assert!(
+            (3_000 * MS as i64..6_000 * MS as i64).contains(&age),
+            "the click's time lies 3 s back, at its resolution of 1 s: {age} ns"
+        );
     }
 
     fn event(etype: CGEventType) -> TapEvent {
@@ -2431,6 +3134,7 @@ mod tests {
                 ..event(etype)
             },
             key_code: Some(key_code),
+            autorepeat: false,
         }
     }
 
@@ -2876,6 +3580,7 @@ mod tests {
                 drops: held.ctx.drops.clone(),
                 clock: held.ctx.clocks.stamps,
             }),
+            phase: None,
         };
         slot.take();
         assert_eq!(held_now(&held.ctx), 0);
@@ -3310,13 +4015,14 @@ mod tests {
         SLOW_SESSION_NS.with(|ns| ns.set(20 * MS));
         SLOW_READ_NS.with(|ns| ns.set(0));
         key_at(&held.ctx, CGEventType::KeyDown, os_time);
-        let after_call = SystemTime::now();
+        let after_call = std::time::SystemTime::now();
         SLOW_SESSION_NS.with(|ns| ns.set(0));
         ticks(&held.ctx, 300);
-        let instants: Vec<SystemTime> = received(&held.writer)
-            .iter()
-            .filter(|received| received.event().modality == Modality::Keystroke)
-            .map(|received| received.event().captured_at.wall_clock)
+        let instants: Vec<i64> = received(&held.writer)
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .filter(|floor| floor.event().kind() == Modality::Keystroke)
+            .map(|floor| floor.event().at())
             .collect();
         assert_eq!(
             instants.len(),
@@ -3324,7 +4030,7 @@ mod tests {
             "a read of 20 ms keeps the key under a lag bound of 30 ms"
         );
         assert!(
-            instants[0] <= after_call - Duration::from_millis(20),
+            instants[0] <= crate::event::unix_nanos(after_call - Duration::from_millis(20)),
             "the instant is the key's time, 20 ms before the end of its reading, which came before the \
              wall time read after the call"
         );
@@ -3507,7 +4213,7 @@ mod tests {
     #[test]
     fn a_late_key_at_a_stop_between_the_lag_and_the_gap_bound_counts_as_late() {
         let held = slow_held(1_000);
-        lock(&held.ctx.hold).keys = HeldKeys::new(Bounds {
+        lock(&held.ctx.hold).keys = KeyQueue::new(Bounds {
             hold: Duration::from_millis(1_000),
             gap: Duration::from_millis(1_000),
             lag: Duration::from_millis(30),
@@ -3920,10 +4626,16 @@ mod tests {
         let command = CGEventFlags::CGEventFlagCommand.bits();
         let left_command = 0x8;
         let flags = CGEventType::FlagsChanged;
-        assert_eq!(kind_of(CGEventType::KeyDown, Some(0), 0), Kind::Key);
-        assert_eq!(kind_of(CGEventType::KeyUp, Some(0), 0), Kind::Reading);
         assert_eq!(
-            kind_of(flags, None, shift | LEFT_SHIFT_BIT),
+            kind_of(CGEventType::KeyDown, Some(0), 0, false),
+            Kind::Key(KeyClass::Printable)
+        );
+        assert_eq!(
+            kind_of(CGEventType::KeyUp, Some(0), 0, false),
+            Kind::Reading
+        );
+        assert_eq!(
+            kind_of(flags, None, shift | LEFT_SHIFT_BIT, false),
             Kind::Reading,
             "a flags change whose key code was not read"
         );
@@ -3931,13 +4643,13 @@ mod tests {
             (
                 LEFT_SHIFT,
                 shift | LEFT_SHIFT_BIT,
-                Kind::Key,
+                Kind::Key(KeyClass::Other),
                 "a shift press",
             ),
             (
                 LEFT_COMMAND,
                 command | left_command | shift | LEFT_SHIFT_BIT,
-                Kind::Key,
+                Kind::Key(KeyClass::Other),
                 "a command press while shift is down",
             ),
             (LEFT_SHIFT, 0, Kind::Reading, "a shift release"),
@@ -3950,7 +4662,7 @@ mod tests {
             (
                 RIGHT_SHIFT,
                 shift | LEFT_SHIFT_BIT | RIGHT_SHIFT_BIT,
-                Kind::Key,
+                Kind::Key(KeyClass::Other),
                 "the right shift pressed while the left one is down",
             ),
             (
@@ -3966,9 +4678,19 @@ mod tests {
                 "a posted shift press, with no device bits, is a reading alone (ruling MA-30 M1)",
             ),
             (LEFT_SHIFT, 0x100, Kind::Reading, "a posted shift release"),
-            (0x39, 0x1_0000, Kind::Key, "caps lock turned on"),
-            (0x39, 0, Kind::Reading, "caps lock turned off"),
-            (0x3F, 0x80_0000, Kind::Key, "a fn press"),
+            (
+                0x39,
+                0x1_0000,
+                Kind::Key(KeyClass::Other),
+                "caps lock turned on",
+            ),
+            (
+                0x39,
+                0,
+                Kind::Key(KeyClass::Other),
+                "caps lock turned off is a press too",
+            ),
+            (0x3F, 0x80_0000, Kind::Key(KeyClass::Other), "a fn press"),
             (0x3F, 0, Kind::Reading, "a fn release"),
             (
                 0,
@@ -3978,7 +4700,7 @@ mod tests {
             ),
         ];
         for (key_code, bits, kind, what) in rows {
-            assert_eq!(kind_of(flags, Some(key_code), bits), kind, "{what}");
+            assert_eq!(kind_of(flags, Some(key_code), bits, false), kind, "{what}");
         }
     }
 
@@ -4007,7 +4729,12 @@ mod tests {
             }
         }
         assert_eq!(
-            kind_of(CGEventType::FlagsChanged, Some(LEFT_SHIFT), shift | 0x100),
+            kind_of(
+                CGEventType::FlagsChanged,
+                Some(LEFT_SHIFT),
+                shift | 0x100,
+                false
+            ),
             Kind::Reading,
             "the left release while the right stays down is no press"
         );
@@ -4018,7 +4745,7 @@ mod tests {
         let shift = 0x2_0000;
         for flags in [0x100, shift | 0x100] {
             assert_eq!(
-                kind_of(CGEventType::FlagsChanged, Some(LEFT_SHIFT), flags),
+                kind_of(CGEventType::FlagsChanged, Some(LEFT_SHIFT), flags, false),
                 Kind::Reading,
                 "flags {flags:#x}"
             );
@@ -4053,49 +4780,52 @@ mod tests {
         );
         let flags = CGEventType::FlagsChanged;
         let mut checked = 0;
-        for &(code, side, family) in &iokit {
+        for &(code, side, family) in iokit.iter().filter(|row| row.0 != CAPS_LOCK) {
             assert_eq!(
-                kind_of(flags, Some(code), 0),
+                kind_of(flags, Some(code), 0, false),
                 Kind::Reading,
                 "{code:#x} released"
             );
             if side == 0 {
                 assert_eq!(
-                    kind_of(flags, Some(code), family),
-                    Kind::Key,
+                    kind_of(flags, Some(code), family, false),
+                    Kind::Key(KeyClass::Other),
                     "{code:#x} on by its family bit"
                 );
                 assert_eq!(
-                    kind_of(flags, Some(code), 0x100),
+                    kind_of(flags, Some(code), 0x100, false),
                     Kind::Reading,
                     "{code:#x} off"
                 );
             } else {
                 assert_eq!(
-                    kind_of(flags, Some(code), family | side),
-                    Kind::Key,
+                    kind_of(flags, Some(code), family | side, false),
+                    Kind::Key(KeyClass::Other),
                     "{code:#x} pressed with its device bit"
                 );
                 let others = MODIFIER_SIDE_BITS & !side;
                 assert_eq!(
-                    kind_of(flags, Some(code), family | others),
+                    kind_of(flags, Some(code), family | others, false),
                     Kind::Reading,
                     "{code:#x} released while the other device bits stay set"
                 );
                 assert_eq!(
-                    kind_of(flags, Some(code), family | 0x100),
+                    kind_of(flags, Some(code), family | 0x100, false),
                     Kind::Reading,
                     "{code:#x} posted with its family bit alone"
                 );
                 assert_eq!(
-                    kind_of(flags, Some(code), 0x100),
+                    kind_of(flags, Some(code), 0x100, false),
                     Kind::Reading,
                     "{code:#x} posted release"
                 );
             }
             checked += 1;
         }
-        assert_eq!(checked, 10);
+        assert_eq!(
+            checked, 9,
+            "the nine keys but caps lock, which its own test reads"
+        );
     }
 
     #[test]
@@ -4123,23 +4853,307 @@ mod tests {
     }
 
     #[test]
-    fn pointer_events_are_recorded_and_the_tap_notices_are_no_event_of_the_mask() {
-        for &(etype, class) in &TAP_EVENTS {
-            if matches!(
-                class,
-                TapClass::DiscretePointer | TapClass::ContinuousPointer
-            ) {
-                assert_eq!(kind_of(etype, Some(0), 0), Kind::Pointer, "{etype:?}");
-            }
+    fn button_presses_are_clicks_moves_drags_and_scrolls_fold_and_the_notices_are_no_event() {
+        let rows = [
+            (CGEventType::LeftMouseDown, Kind::Click(Button::Primary)),
+            (CGEventType::RightMouseDown, Kind::Click(Button::Secondary)),
+            (CGEventType::OtherMouseDown, Kind::Click(Button::Other)),
+            (CGEventType::LeftMouseUp, Kind::ButtonUp),
+            (CGEventType::RightMouseUp, Kind::ButtonUp),
+            (CGEventType::OtherMouseUp, Kind::ButtonUp),
+            (CGEventType::MouseMoved, Kind::Fold(FoldClass::Move)),
+            (CGEventType::LeftMouseDragged, Kind::Fold(FoldClass::Drag)),
+            (CGEventType::RightMouseDragged, Kind::Fold(FoldClass::Drag)),
+            (CGEventType::OtherMouseDragged, Kind::Fold(FoldClass::Drag)),
+            (CGEventType::ScrollWheel, Kind::Fold(FoldClass::Scroll)),
+        ];
+        for (etype, kind) in rows {
+            assert_eq!(kind_of(etype, Some(0), 0, false), kind, "{etype:?}");
         }
         for etype in [
             CGEventType::TapDisabledByTimeout,
             CGEventType::TapDisabledByUserInput,
         ] {
-            assert_eq!(kind_of(etype, Some(0), 0), Kind::Ignore);
+            assert_eq!(kind_of(etype, Some(0), 0, false), Kind::Ignore);
             assert!(is_tap_disabled(etype));
         }
         assert!(!is_tap_disabled(CGEventType::KeyDown));
+    }
+
+    #[test]
+    fn the_key_table_maps_a_fixed_list_of_codes_and_flags_to_their_class() {
+        let shift = 0x2_0000;
+        let control = 0x4_0000;
+        let option = 0x8_0000;
+        let command = 0x10_0000;
+        let pad = 0x20_0000;
+        let fn_bit = 0x80_0000;
+        let rows: [(i64, u64, KeyClass, &str); 24] = [
+            (0x00, 0, KeyClass::Printable, "a letter"),
+            (0x2D, shift, KeyClass::Printable, "a letter with shift"),
+            (0x12, 0, KeyClass::Printable, "a digit"),
+            (0x31, 0, KeyClass::Printable, "space"),
+            (0x2B, 0, KeyClass::Printable, "punctuation"),
+            (0x52, pad, KeyClass::Printable, "a digit of the keypad"),
+            (0x33, 0, KeyClass::Editing, "delete"),
+            (0x75, fn_bit, KeyClass::Editing, "forward delete"),
+            (
+                0x72,
+                fn_bit,
+                KeyClass::Editing,
+                "help, insert on a PC keyboard",
+            ),
+            (0x7B, pad | fn_bit, KeyClass::Navigation, "an arrow"),
+            (0x7E, pad | fn_bit, KeyClass::Navigation, "the up arrow"),
+            (0x73, fn_bit, KeyClass::Navigation, "home"),
+            (0x77, fn_bit, KeyClass::Navigation, "end"),
+            (0x74, fn_bit, KeyClass::Navigation, "page up"),
+            (0x79, fn_bit, KeyClass::Navigation, "page down"),
+            (0x24, 0, KeyClass::Enter, "return"),
+            (0x4C, pad, KeyClass::Enter, "the enter key of the keypad"),
+            (0x30, 0, KeyClass::Tab, "tab"),
+            (0x35, 0, KeyClass::Other, "escape"),
+            (0x7A, fn_bit, KeyClass::Other, "F1"),
+            (0x00, command, KeyClass::Shortcut, "a letter with command"),
+            (
+                0x7B,
+                control | pad | fn_bit,
+                KeyClass::Shortcut,
+                "an arrow with control",
+            ),
+            (0x00, option, KeyClass::Shortcut, "a letter with option"),
+            (
+                0x24,
+                command | shift,
+                KeyClass::Shortcut,
+                "return with command and shift",
+            ),
+        ];
+        for (code, flags, class, what) in rows {
+            assert_eq!(
+                kind_of(CGEventType::KeyDown, Some(code), flags, false),
+                Kind::Key(class),
+                "{what}"
+            );
+        }
+        assert_eq!(
+            kind_of(CGEventType::KeyDown, None, 0, false),
+            Kind::Key(KeyClass::Other),
+            "a key down whose key code was not read"
+        );
+        assert_eq!(
+            kind_of(
+                CGEventType::FlagsChanged,
+                Some(LEFT_SHIFT),
+                shift | LEFT_SHIFT_BIT,
+                false
+            ),
+            Kind::Key(KeyClass::Other),
+            "shift pressed alone"
+        );
+        assert_eq!(
+            kind_of(
+                CGEventType::FlagsChanged,
+                Some(LEFT_COMMAND),
+                command | 0x8 | control | 0x1,
+                false
+            ),
+            Kind::Key(KeyClass::Other),
+            "command pressed while control is held is a modifier's key down, not a shortcut"
+        );
+    }
+
+    #[test]
+    fn an_autorepeat_a_key_up_and_a_released_modifier_are_readings_alone() {
+        let shift = 0x2_0000;
+        assert_eq!(
+            kind_of(CGEventType::KeyDown, Some(0x00), 0, true),
+            Kind::Reading,
+            "an automatic repeat"
+        );
+        assert_eq!(
+            kind_of(CGEventType::KeyDown, Some(0x00), 0x10_0000, true),
+            Kind::Reading,
+            "an automatic repeat of a shortcut"
+        );
+        assert_eq!(
+            kind_of(CGEventType::KeyUp, Some(0x00), 0, false),
+            Kind::Reading
+        );
+        assert_eq!(
+            kind_of(CGEventType::FlagsChanged, Some(LEFT_SHIFT), 0, false),
+            Kind::Reading,
+            "shift released"
+        );
+        assert_eq!(
+            kind_of(
+                CGEventType::FlagsChanged,
+                Some(LEFT_SHIFT),
+                shift | RIGHT_SHIFT_BIT,
+                false
+            ),
+            Kind::Reading,
+            "the left shift released while the right one stays down"
+        );
+    }
+
+    #[test]
+    fn caps_lock_is_a_press_each_time_that_it_toggles() {
+        for flags in [0x1_0000, 0, 0x100] {
+            assert_eq!(
+                kind_of(CGEventType::FlagsChanged, Some(0x39), flags, false),
+                Kind::Key(KeyClass::Other),
+                "flags {flags:#x}"
+            );
+        }
+    }
+
+    #[derive(Default)]
+    struct MacMapper {
+        flags: u64,
+        folds: Folds,
+    }
+
+    fn code_of(key: cases::Key) -> i64 {
+        match key {
+            cases::Key::Letter => 0x00,
+            cases::Key::Digit => 0x12,
+            cases::Key::Space => 0x31,
+            cases::Key::Punctuation => 0x2B,
+            cases::Key::Backspace => 0x33,
+            cases::Key::Delete => 0x75,
+            cases::Key::Insert => 0x72,
+            cases::Key::Arrow => 0x7B,
+            cases::Key::Home => 0x73,
+            cases::Key::End => 0x77,
+            cases::Key::PageUp => 0x74,
+            cases::Key::PageDown => 0x79,
+            cases::Key::Enter => 0x24,
+            cases::Key::Tab => 0x30,
+            cases::Key::Escape => 0x35,
+            cases::Key::Function => 0x7A,
+            cases::Key::Modifier(modifier) => modifier_row(modifier).0,
+        }
+    }
+
+    fn modifier_row(modifier: cases::Modifier) -> (i64, u64, u64) {
+        let code = match modifier {
+            cases::Modifier::Shift => 0x38,
+            cases::Modifier::Control => 0x3B,
+            cases::Modifier::OptionOrAlt => 0x3A,
+            cases::Modifier::CommandOrWindows => 0x37,
+        };
+        *MODIFIER_KEYS
+            .iter()
+            .find(|row| row.0 == code)
+            .expect("a modifier of the table")
+    }
+
+    fn button_type(button: Button, down: bool) -> CGEventType {
+        match (button, down) {
+            (Button::Primary, true) => CGEventType::LeftMouseDown,
+            (Button::Primary, false) => CGEventType::LeftMouseUp,
+            (Button::Secondary, true) => CGEventType::RightMouseDown,
+            (Button::Secondary, false) => CGEventType::RightMouseUp,
+            (Button::Other, true) => CGEventType::OtherMouseDown,
+            (Button::Other, false) => CGEventType::OtherMouseUp,
+        }
+    }
+
+    impl cases::Mapper for MacMapper {
+        fn input(&mut self, input: cases::Input) -> Vec<cases::Expected> {
+            use cases::Input;
+            let (etype, code, autorepeat) = match input {
+                Input::KeyDown(cases::Key::Modifier(modifier)) => {
+                    let (code, side, family) = modifier_row(modifier);
+                    self.flags |= side | family;
+                    (CGEventType::FlagsChanged, code, false)
+                }
+                Input::KeyUp(cases::Key::Modifier(modifier)) => {
+                    let (code, side, family) = modifier_row(modifier);
+                    self.flags &= !side;
+                    if self.flags & MODIFIER_SIDE_BITS & !side == 0 {
+                        self.flags &= !family;
+                    }
+                    (CGEventType::FlagsChanged, code, false)
+                }
+                Input::KeyDown(key) => (CGEventType::KeyDown, code_of(key), false),
+                Input::KeyRepeat(key) => (CGEventType::KeyDown, code_of(key), true),
+                Input::KeyUp(key) => (CGEventType::KeyUp, code_of(key), false),
+                Input::ButtonDown(button) => (button_type(button, true), 0, false),
+                Input::ButtonUp(button) => (button_type(button, false), 0, false),
+                Input::Move => (CGEventType::MouseMoved, 0, false),
+                Input::Drag => (CGEventType::LeftMouseDragged, 0, false),
+                Input::Scroll => (CGEventType::ScrollWheel, 0, false),
+                Input::IntervalEnd => {
+                    return self
+                        .folds
+                        .take()
+                        .into_iter()
+                        .map(|fold| cases::Expected::Fold(fold.class(), fold.count().get()))
+                        .collect();
+                }
+            };
+            match kind_of(etype, Some(code), self.flags, autorepeat) {
+                Kind::Key(class) => vec![cases::Expected::Key(class)],
+                Kind::Click(button) => vec![cases::Expected::Click(button)],
+                Kind::Fold(class) => {
+                    self.folds.add(class);
+                    Vec::new()
+                }
+                Kind::Reading | Kind::ButtonUp | Kind::Ignore => Vec::new(),
+            }
+        }
+    }
+
+    #[test]
+    fn the_shared_list_of_inputs_gives_its_events_through_the_macos_mapper() {
+        assert_eq!(cases::failing_cases(MacMapper::default), Vec::<&str>::new());
+    }
+
+    #[test]
+    fn a_hundred_moves_fold_into_one_record_with_count_100() {
+        let mut folds = Folds::default();
+        for _ in 0..100 {
+            match kind_of(CGEventType::MouseMoved, None, 0, false) {
+                Kind::Fold(class) => folds.add(class),
+                other => panic!("a move is {other:?}"),
+            }
+        }
+        let taken = folds.take();
+        assert_eq!(
+            taken
+                .iter()
+                .map(|fold| (fold.class(), fold.count().get()))
+                .collect::<Vec<_>>(),
+            [(FoldClass::Move, 100)]
+        );
+        assert!(folds.take().is_empty(), "the interval after it is empty");
+    }
+
+    #[test]
+    fn a_fold_handed_back_adds_its_count_to_the_next_interval() {
+        let mut folds = Folds::default();
+        folds.add(FoldClass::Scroll);
+        let back = folds.take();
+        folds.add(FoldClass::Scroll);
+        for fold in back {
+            folds.carry(fold);
+        }
+        assert_eq!(
+            folds
+                .take()
+                .iter()
+                .map(|fold| (fold.class(), fold.count().get()))
+                .collect::<Vec<_>>(),
+            [(FoldClass::Scroll, 2)]
+        );
+    }
+
+    #[test]
+    fn the_tap_sits_at_the_session_level() {
+        assert_eq!(TAP_LOCATION as u32, CGEventTapLocation::Session as u32);
+        assert_eq!(tap_settings().location as u32, 1);
     }
 
     const EVERY_EVENT_TYPE: [CGEventType; 19] = [
@@ -4166,10 +5180,10 @@ mod tests {
 
     #[test]
     fn the_tap_listens_for_exactly_the_types_that_it_holds_records_or_reads() {
-        let mask = events_of_interest();
+        let mask = events_of_interest(crate::floor::Switches::default(), true);
         for etype in EVERY_EVENT_TYPE {
             let masked = mask.iter().any(|&listed| listed as u32 == etype as u32);
-            let handled = kind_of(etype, Some(0), 0) != Kind::Ignore;
+            let handled = kind_of(etype, Some(0), 0, false) != Kind::Ignore;
             assert_eq!(
                 masked, handled,
                 "{etype:?}: masked {masked}, handled {handled}"
@@ -4179,7 +5193,7 @@ mod tests {
 
     #[test]
     fn the_tap_mask_is_0x0e401cfe() {
-        let mask = events_of_interest()
+        let mask = events_of_interest(crate::floor::Switches::default(), true)
             .iter()
             .fold(0u64, |mask, &etype| mask | 1 << (etype as u64));
         assert_eq!(mask, 0x0E40_1CFE);
@@ -4506,6 +5520,7 @@ mod tests {
                 drops: held.ctx.drops.clone(),
                 clock: held.ctx.clocks.stamps,
             }),
+            phase: None,
         };
         slot.take();
         assert_eq!(held_now(&held.ctx), 0);
@@ -4658,7 +5673,7 @@ mod tests {
                 "com.example.editor",
                 41,
             )));
-        let before_arrival = SystemTime::now();
+        let before_arrival = std::time::SystemTime::now();
         advance(1);
         on_tap_event(
             &held.ctx,
@@ -4675,46 +5690,40 @@ mod tests {
                 42,
             )));
         advance(1);
-        on_tap_event(&held.ctx, event(CGEventType::MouseMoved));
+        on_tap_event(&held.ctx, event(CGEventType::LeftMouseDown));
         ticks(&held.ctx, 1_010);
-        let records: Vec<(
-            Modality,
-            String,
-            SystemTime,
-            crate::event::MonotonicSequence,
-        )> = received(&held.writer)
-            .iter()
-            .map(|r| {
-                let e = r.event();
-                (
-                    e.modality,
-                    e.foreground_app.clone(),
-                    e.captured_at.wall_clock,
-                    e.captured_at.sequence,
-                )
-            })
+        let all = received(&held.writer);
+        assert_eq!(all.len(), 2);
+        assert!(
+            all[0].number() < all[1].number(),
+            "the key takes its number at its release"
+        );
+        let floor: Vec<_> = all
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
             .collect();
-        assert_eq!(records.len(), 2);
-        let (pointer, key) = (&records[0], &records[1]);
+        let (pointer, key) = (floor[0].event(), floor[1].event());
         assert_eq!(
-            (pointer.0, pointer.1.as_str()),
-            (Modality::Pointer, "com.example.other")
+            (pointer.kind(), pointer.pid()),
+            (Modality::Pointer, ProcessId::new(42)),
+            "the click's app"
         );
         assert_eq!(
-            (key.0, key.1.as_str()),
-            (Modality::Keystroke, "com.example.editor")
+            (key.kind(), key.pid()),
+            (Modality::Keystroke, ProcessId::new(41)),
+            "the app of the key's arrival"
         );
         assert!(
-            key.2 <= before_arrival - Duration::from_millis(19),
+            key.at() <= crate::event::unix_nanos(before_arrival - Duration::from_millis(19)),
             "the key's instant is its own time, its arrival less its lag"
         );
-        assert!(pointer.3 < key.3, "the key takes its number at its release");
     }
 
     #[test]
-    fn a_held_key_holds_its_time_and_app_alone() {
+    fn a_held_key_holds_its_class_and_app_alone() {
         struct Mirror {
-            _instant: SystemTime,
+            _class: KeyClass,
+            _held_phase: bool,
             _app: Option<Foreground>,
         }
         assert_eq!(
@@ -4727,7 +5736,7 @@ mod tests {
     fn the_held_keys_at_their_cap_stay_under_the_bytes_of_the_ledger() {
         const LEDGER_BYTES: usize = 4_718_592;
         const SLOT_ALLOWANCE: usize = 128;
-        let slot = crate::secure_input_macos::hold::slot_bytes::<HeldKey>();
+        let slot = KeyQueue::<HeldKey>::slot_bytes();
         assert!(slot <= SLOT_ALLOWANCE, "a slot of {slot} bytes");
         let bytes = crate::secure_input_macos::hold::QUEUE_CAP
             * (SLOT_ALLOWANCE + crate::floor::text::TEXT_MAX_BYTES);
@@ -5077,7 +6086,7 @@ mod tests {
     #[test]
     fn a_key_is_judged_late_by_the_lag_bound_and_not_by_the_gap_bound() {
         let held = held(1_000);
-        lock(&held.ctx.hold).keys = HeldKeys::new(Bounds {
+        lock(&held.ctx.hold).keys = KeyQueue::new(Bounds {
             hold: Duration::from_millis(1_000),
             gap: Duration::from_millis(60),
             lag: Duration::from_millis(30),
@@ -5413,10 +6422,7 @@ mod tests {
             suppressed,
             asked,
         } = outcome;
-        let is_pointer = matches!(
-            tap_class(etype),
-            Some(TapClass::DiscretePointer | TapClass::ContinuousPointer)
-        );
+        let is_pointer = matches!(kind_of(etype, None, 0, false), Kind::Click(_));
         let key_down = etype as u32 == CGEventType::KeyDown as u32;
         let want = (
             usize::from(is_pointer),
@@ -5707,7 +6713,7 @@ mod tests {
             .begin_with(handle, FakeMaker(ended_tx), || {})
             .expect("the source starts with a stand-in tap");
         if let Some(refused) = source.hold_refusal() {
-            let _ = source.shutdown();
+            source.shutdown().ok();
             assert!(
                 skip_allowed(std::env::var_os(HOLD_REQUIRED).as_deref()),
                 "a_new_source_with_a_hold_plan_holds_secure_input_through_the_system_while_it_runs: \
@@ -5764,21 +6770,22 @@ mod tests {
         );
         source.hold = stand_in_hold;
         let blocked = handle.clone();
-        let (in_emit_tx, in_emit_rx) = channel::<()>();
+        let (reached_tx, reached_rx) = channel::<()>();
         let (ended_tx, _ended_rx) = channel();
         source
             .begin_with(handle, FakeMaker(ended_tx), move || {
-                let _ = in_emit_tx.send(());
-                let _ = emit_metadata_only(
-                    &blocked,
-                    Modality::Keystroke,
+                reached_tx
+                    .send(())
+                    .expect("the test waits for the tap thread");
+                blocked.emit_event(FloorEvent::click(
+                    crate::floor::cases::keep(crate::event::AppIdentity::unknown(), 1),
+                    Button::Primary,
                     None,
-                    Unpersisted::EMPTY,
-                    SystemTime::now(),
-                );
+                    EventClock::system(),
+                ));
             })
             .expect("the source starts with a stand-in tap");
-        in_emit_rx
+        reached_rx
             .recv_timeout(Duration::from_secs(5))
             .expect("the tap thread reached its emit");
         let shut = source.shutdown();
@@ -5806,7 +6813,7 @@ mod tests {
                 ms: 1000
             })
         );
-        assert_eq!(read, Ok(Modality::Keystroke));
+        assert_eq!(read, Ok(Modality::Pointer));
         assert_eq!(
             released_on.as_deref(),
             Some("halvo-input-tap"),
@@ -5865,6 +6872,10 @@ mod tests {
 
         fn listen_denied() -> bool {
             true
+        }
+
+        fn preflight_denied() -> bool {
+            false
         }
 
         fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
@@ -6027,7 +7038,9 @@ mod tests {
         let counters = InputCounters::new();
         let mut source = InputSource::new(reader, counters.clone(), HoldPlan::Never);
         source.session = || Session::NoDictionary;
-        let _ = source.begin_with(handle, KeepingMaker(kept.clone()), || {});
+        source
+            .begin_with(handle, KeepingMaker(kept.clone()), || {})
+            .ok();
         let callback = kept
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -6085,7 +7098,7 @@ mod tests {
     }
 
     #[test]
-    fn the_tap_is_requested_listen_only_at_the_hid_location() {
+    fn the_tap_is_requested_listen_only_at_the_session_location() {
         let settings = tap_settings();
         assert_eq!(
             (
@@ -6093,14 +7106,16 @@ mod tests {
                 settings.location as u32,
                 settings.placement as u32
             ),
-            (1, 0, 0)
+            (1, 1, 0)
         );
     }
 
     #[test]
     fn the_tap_is_requested_for_the_events_of_the_table() {
-        let mask = tap_settings()
-            .events
+        let mut source = source_with(HoldPlan::Never);
+        source.typing_kept_on = true;
+        let mask = source
+            .start_events()
             .iter()
             .fold(0u64, |mask, &etype| mask | 1 << (etype as u64));
         assert_eq!(mask, 0x0E40_1CFE);
@@ -6217,6 +7232,7 @@ mod tests {
             held: None,
             refusal: Arc::new(Mutex::new(None)),
             own_take: None,
+            phase: None,
         }
     }
 
@@ -6252,6 +7268,7 @@ mod tests {
             refusal: Arc::new(Mutex::new(None)),
             released: Arc::new(Mutex::new(None)),
             own_take: None,
+            phase: None,
         }
     }
 
@@ -6659,21 +7676,1129 @@ mod tests {
     }
 
     #[test]
-    fn the_figure_max_lag_ms_has_no_writer_on_a_mac_and_reads_zero_after_a_late_key() {
+    fn max_lag_ms_is_the_largest_lag_of_a_key_at_its_arrival() {
         let held = held(1_000);
+        for lag in [5, 300, 20] {
+            advance(1);
+            on_tap_event(
+                &held.ctx,
+                timed(
+                    CGEventType::KeyDown,
+                    Timing::InTime {
+                        lag: Duration::from_millis(lag),
+                    },
+                ),
+            );
+        }
+        let figures = held.counters.figures();
+        assert_eq!(figures.max_lag_ms, 300);
+        assert_eq!(figures.late_events, 1, "only the key above 250 ms is late");
+    }
+
+    fn keystroke_classes(writer: &sink::SinkWriter) -> Vec<KeyClass> {
+        received(writer)
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .filter_map(|floor| match floor.event().observation() {
+                crate::floor::payload::Observation::Keystroke(class) => Some(*class),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn key_with_code(ctx: &TapContext, etype: CGEventType, code: i64, flags: u64) {
+        advance(1);
+        on_tap_event(ctx, with_key(etype, code, flags));
+    }
+
+    #[test]
+    fn a_released_key_is_one_keystroke_record_that_holds_its_class_and_nothing_else() {
+        let held = held(100);
+        key_with_code(&held.ctx, CGEventType::KeyDown, 0x24, 0);
+        key_with_code(&held.ctx, CGEventType::KeyUp, 0x24, 0);
+        key_with_code(&held.ctx, CGEventType::KeyDown, 0x00, 0x10_0000);
+        let mut repeat = with_key(CGEventType::KeyDown, 0x00, 0x10_0000);
+        repeat.autorepeat = true;
+        advance(1);
+        on_tap_event(&held.ctx, repeat);
+        key_with_code(
+            &held.ctx,
+            CGEventType::FlagsChanged,
+            LEFT_SHIFT,
+            0x2_0000 | LEFT_SHIFT_BIT,
+        );
+        key_with_code(&held.ctx, CGEventType::FlagsChanged, LEFT_SHIFT, 0);
+        ticks(&held.ctx, 200);
+        assert_eq!(
+            keystroke_classes(&held.writer),
+            [KeyClass::Enter, KeyClass::Shortcut, KeyClass::Other],
+            "a key up, a repeat and a released modifier are no record"
+        );
+    }
+
+    #[test]
+    fn a_key_older_than_the_late_bound_raises_late_events_only_and_leaves_no_record() {
+        let held = held(100);
         advance(1);
         on_tap_event(
             &held.ctx,
             timed(
                 CGEventType::KeyDown,
                 Timing::Late {
-                    lag: Duration::from_millis(400),
+                    lag: Duration::from_millis(300),
                 },
             ),
         );
+        ticks(&held.ctx, 200);
         let figures = held.counters.figures();
-        assert_eq!(figures.late_events, 1, "the key was not judged late");
-        assert_eq!(figures.max_lag_ms, 0);
+        assert_eq!(figures.late_events, 1);
+        assert_eq!(figures.secure_input_keystrokes, 0);
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    #[test]
+    fn a_key_late_for_the_hold_but_not_for_the_check_is_withheld_and_not_counted_late() {
+        let held = held(100);
+        advance(1);
+        on_tap_event(
+            &held.ctx,
+            timed(
+                CGEventType::KeyDown,
+                Timing::Late {
+                    lag: Duration::from_millis(100),
+                },
+            ),
+        );
+        ticks(&held.ctx, 200);
+        let figures = held.counters.figures();
+        assert_eq!((figures.late_events, figures.keys_withheld), (0, true));
+        assert_eq!(keystrokes(&held.writer), 0);
+    }
+
+    fn fixed_time() -> std::time::SystemTime {
+        std::time::UNIX_EPOCH + Duration::from_millis(101_010)
+    }
+
+    static FIXED_CLOCK: EventClock = EventClock::new(fixed_time);
+
+    #[test]
+    fn a_released_key_is_stamped_with_its_age_at_the_arrival_and_the_hold() {
+        let mut held = held(1_000);
+        held.ctx.clock = &FIXED_CLOCK;
+        advance(1);
+        on_tap_event(
+            &held.ctx,
+            timed(
+                CGEventType::KeyDown,
+                Timing::InTime {
+                    lag: Duration::from_millis(20),
+                },
+            ),
+        );
+        ticks(&held.ctx, 1_100);
+        let stamps: Vec<i64> = received(&held.writer)
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .map(|floor| floor.event().at())
+            .collect();
+        assert_eq!(
+            stamps,
+            [99_000_000_000],
+            "101.010 s less 20 ms of age at the arrival and 1,000 ms held, at the resolution of 1 s"
+        );
+    }
+
+    #[test]
+    fn no_key_record_leaves_for_a_listed_app_in_front_at_the_arrival_or_during_the_hold() {
+        let held = held(100);
+        held.fg_writer.set_for_test(Some(LISTED.front()));
+        key_down(&held.ctx);
+        held.fg_writer.set_for_test(Some(APP.front()));
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 0, "listed at the arrival");
+
+        key_down(&held.ctx);
+        tick(&held.ctx);
+        held.fg_writer.set_for_test(Some(LISTED.front()));
+        tick(&held.ctx);
+        held.fg_writer.set_for_test(Some(APP.front()));
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 0, "listed during the hold");
+
+        key_down(&held.ctx);
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 1, "any other app in front");
+    }
+
+    struct UnderRoot;
+
+    impl crate::floor::exclude::Lineage for UnderRoot {
+        fn parent_of(&self, pid: ProcessId) -> crate::floor::exclude::Parent {
+            match pid.get() {
+                4242 => crate::floor::exclude::Parent::Of(ProcessId::new(500)),
+                _ => crate::floor::exclude::Parent::None,
+            }
+        }
+    }
+
+    #[test]
+    fn no_key_or_pointer_record_leaves_for_a_process_under_the_exclusion_root() {
+        let mut held = held(100);
+        held.ctx.floor = FloorHandle::new(
+            Some(ProcessId::new(500)),
+            Arc::new(UnderRoot),
+            crate::floor::Switches::default(),
+        );
+        key_down(&held.ctx);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 3);
+        ticks(&held.ctx, 200);
+        close_interval(&held.ctx);
+        assert_eq!(received(&held.writer).len(), 0);
+
+        held.fg_writer
+            .set_for_test(Some(TestApp("com.example.other", 4444).front()));
+        key_down(&held.ctx);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        ticks(&held.ctx, 200);
+        assert_eq!(
+            received(&held.writer).len(),
+            2,
+            "a process outside the tree"
+        );
+    }
+
+    #[test]
+    fn with_the_key_switch_off_a_key_down_holds_nothing_and_gives_no_record() {
+        let mut held = held(100);
+        let mut switches = crate::floor::Switches::default();
+        switches.set(crate::floor::Switch::KeyClass, false);
+        held.ctx.floor =
+            FloorHandle::new(None, Arc::new(crate::floor::exclude::NoLineage), switches);
+        key_down(&held.ctx);
+        assert_eq!(held_now(&held.ctx), 0);
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 0);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        assert_eq!(pointer_records(&held.writer), [("primary", 1)]);
+    }
+
+    #[test]
+    fn with_the_pointer_switch_off_no_pointer_record_leaves() {
+        let mut held = held(100);
+        let mut switches = crate::floor::Switches::default();
+        switches.set(crate::floor::Switch::PointerClass, false);
+        held.ctx.floor =
+            FloorHandle::new(None, Arc::new(crate::floor::exclude::NoLineage), switches);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::ScrollWheel, 4);
+        close_interval(&held.ctx);
+        assert_eq!(pointer_records(&held.writer), []);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 1);
+    }
+
+    #[test]
+    fn a_reading_of_unknown_withholds_the_key_and_records_nothing() {
+        let held = held(100);
+        answer(Reading::Unknown);
+        key_down(&held.ctx);
+        answer(Reading::Off);
+        ticks(&held.ctx, 200);
+        let figures = held.counters.figures();
+        assert_eq!(keystroke_classes(&held.writer), []);
+        assert!(figures.keys_withheld);
+        assert_eq!(figures.secure_input_keystrokes, 0);
+    }
+
+    fn switches_with(key: bool, pointer: bool) -> crate::floor::Switches {
+        let mut switches = crate::floor::Switches::default();
+        switches.set(crate::floor::Switch::KeyClass, key);
+        switches.set(crate::floor::Switch::PointerClass, pointer);
+        switches
+    }
+
+    #[test]
+    fn the_mask_holds_the_key_types_only_while_typing_on_a_mac_and_key_class_are_on_and_the_mouse_types_only_with_pointer_class_on(
+    ) {
+        let rows = [
+            (false, true, true, 0x0E40_00FE),
+            (false, false, true, 0x0E40_00FE),
+            (false, true, false, 0),
+            (false, false, false, 0),
+            (true, true, true, 0x0E40_1CFE),
+            (true, false, true, 0x0E40_00FE),
+            (true, true, false, 0x0000_1C00),
+            (true, false, false, 0),
+        ];
+        for (typing, key, pointer, mask) in rows {
+            assert_eq!(
+                mask_of(&events_of_interest(switches_with(key, pointer), typing)),
+                mask,
+                "typing on a Mac {typing}, key_class {key}, pointer_class {pointer}"
+            );
+        }
+    }
+
+    #[test]
+    fn typing_on_a_mac_stays_off_until_the_owner_answers_item_i_83_point_2() {
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
+        let key_types: Vec<u32> = source
+            .start_events()
+            .into_iter()
+            .filter(|&etype| {
+                matches!(
+                    tap_class(etype),
+                    Some(TapClass::KeyPress | TapClass::OtherKey)
+                )
+            })
+            .map(|etype| etype as u32)
+            .collect();
+        assert!(
+            key_types.is_empty(),
+            "typing on a Mac is switched on only by the owner's answer (1) to item I-83 \
+             point 2; a source of InputSource::new asks its tap for the key types {key_types:?}"
+        );
+    }
+
+    #[test]
+    fn a_granted_mask_without_the_key_types_fails_and_any_other_passes() {
+        assert!(!key_events_granted(0x0E40_1CFE, 0x0E40_10FE));
+        assert!(!key_events_granted(0x0E40_1CFE, 0x0E40_14FE));
+        assert!(key_events_granted(0x0E40_1CFE, 0x0E40_1CFE));
+        assert!(
+            key_events_granted(0x0E40_00FE, 0x0E40_00FE),
+            "with key_class off no key type is asked for"
+        );
+        assert!(key_events_granted(0x0E40_00FE, 0));
+    }
+
+    struct DeniedMaker(Arc<AtomicUsize>);
+
+    impl TapMaker for DeniedMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(())
+        }
+
+        fn listen_denied() -> bool {
+            true
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    struct MadeMaker(Arc<AtomicUsize>);
+
+    impl TapMaker for MadeMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Err(())
+        }
+
+        fn listen_denied() -> bool {
+            false
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    fn source_switched(switches: crate::floor::Switches) -> InputSource {
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let mut source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
+        source.floor = FloorHandle::new(None, Arc::new(crate::floor::exclude::NoLineage), switches);
+        source
+    }
+
+    #[test]
+    fn a_start_without_the_grant_for_key_events_fails_with_the_permission_error_and_makes_no_tap() {
+        let (handle, _writer) = sink::channel(4);
+        let made = Arc::new(AtomicUsize::new(0));
+        let mut source = source_switched(switches_with(true, true));
+        source.typing_kept_on = true;
+        let begun = source.begin_with(handle, DeniedMaker(made.clone()), || {});
+        assert_eq!(
+            begun,
+            Err(CaptureError::PermissionDenied(Modality::Keystroke))
+        );
+        assert_eq!(made.load(Ordering::SeqCst), 0, "no tap was asked for");
+        assert!(matches!(
+            source.health().state,
+            SourceState::Failed {
+                reason: HealthReason::Permission,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn with_both_switches_off_the_source_answers_off_and_makes_no_tap() {
+        let (handle, _writer) = sink::channel(4);
+        let made = Arc::new(AtomicUsize::new(0));
+        let mut source = source_switched(switches_with(false, false));
+        let begun = source.begin_with(handle, MadeMaker(made.clone()), || {});
+        assert_eq!(begun, Ok(Started::Off));
+        assert_eq!(made.load(Ordering::SeqCst), 0, "no tap was asked for");
+        assert_eq!(source.health().state, SourceState::Off);
+        assert_eq!(source.shutdown(), Ok(()));
+    }
+
+    struct KeylessMaker;
+
+    impl TapMaker for KeylessMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            Ok(())
+        }
+
+        fn listen_denied() -> bool {
+            false
+        }
+
+        fn granted_events(_tap: &(), _requested: u64) -> u64 {
+            0x0E40_10FE
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            panic!("a tap granted without key events is not enabled")
+        }
+    }
+
+    #[test]
+    fn a_tap_granted_without_the_key_types_fails_its_start_and_reads_no_key_events() {
+        let held = held(100);
+        let Held { ctx, .. } = held;
+        let missing = Arc::new(AtomicBool::new(false));
+        let settings = TapSettings {
+            events: events_of_interest(Switches::default(), true),
+            ..stand_in_settings()
+        };
+        let installed = install_tap(*ctx, settings, KeylessMaker, missing.clone());
+        assert_eq!(
+            installed.err(),
+            Some(CaptureError::PermissionDenied(Modality::Keystroke))
+        );
+        assert!(missing.load(Ordering::SeqCst));
+        let mut source = source_switched(switches_with(true, true));
+        source.keys_missing = missing;
+        source.failure = Some(CaptureError::PermissionDenied(Modality::Keystroke));
+        assert!(matches!(
+            source.health().state,
+            SourceState::Failed {
+                reason: HealthReason::NoKeyEvents,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn each_tap_disabled_notice_raises_its_own_counter() {
+        let held = held(100);
+        for etype in [
+            CGEventType::TapDisabledByTimeout,
+            CGEventType::TapDisabledByUserInput,
+            CGEventType::TapDisabledByTimeout,
+        ] {
+            advance(1);
+            on_tap_event(&held.ctx, event(etype));
+        }
+        let figures = held.counters.figures();
+        assert_eq!(
+            (
+                figures.tap_disabled_timeout,
+                figures.tap_disabled_user_input
+            ),
+            (2, 1)
+        );
+    }
+
+    thread_local! {
+        static TYPED: RefCell<Vec<u32>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn stand_in_typed() -> u32 {
+        TYPED.with(|typed| typed.borrow_mut().remove(0))
+    }
+
+    fn phase_of(counters: &InputCounters, held: Arc<AtomicBool>) -> HeldPhase {
+        HeldPhase {
+            held,
+            counters: counters.clone(),
+            secure: stand_in_reader,
+            session: stand_in_session,
+            typed: stand_in_typed,
+            typed_at_take: None,
+            sampler: None,
+        }
+    }
+
+    #[test]
+    fn the_held_phase_samples_every_250_ms() {
+        assert_eq!(HELD_SAMPLE_STEP, Duration::from_millis(250));
+    }
+
+    #[test]
+    fn eight_samples_under_a_held_reading_give_8_of_8_and_under_off_0_of_8() {
+        for (reading, held) in [(Reading::On, 8), (Reading::Off, 0)] {
+            reset_stand_ins();
+            answer(reading);
+            let counters = InputCounters::new();
+            let phase = phase_of(&counters, Arc::new(AtomicBool::new(true)));
+            for _ in 0..8 {
+                phase.sample();
+            }
+            assert_eq!(
+                counters.figures().secure_input_held,
+                HeldSamples { held, taken: 8 },
+                "{reading:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn hid_counts_of_10_then_12_read_keys_typed_and_10_then_10_read_none() {
+        for (end, typed) in [(12, true), (10, false)] {
+            reset_stand_ins();
+            TYPED.with(|counts| *counts.borrow_mut() = vec![10, end]);
+            let counters = InputCounters::new();
+            let flag = Arc::new(AtomicBool::new(false));
+            let mut phase = phase_of(&counters, flag.clone());
+            phase.enter();
+            assert!(flag.load(Ordering::SeqCst), "the held phase began");
+            phase.end();
+            assert!(!flag.load(Ordering::SeqCst), "the held phase ended");
+            assert_eq!(
+                counters.figures().secure_window_keys_typed,
+                typed,
+                "10 then {end}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_taken_hold_begins_the_held_phase_and_its_give_back_ends_it() {
+        reset_stand_ins();
+        TYPED.with(|counts| *counts.borrow_mut() = vec![3, 4]);
+        let counters = InputCounters::new();
+        let flag = Arc::new(AtomicBool::new(false));
+        let mut slot = TimedHold::new(HoldSlot {
+            hold: stand_in_hold,
+            held: None,
+            refusal: Arc::new(Mutex::new(None)),
+            own_take: None,
+            phase: Some(phase_of(&counters, flag.clone())),
+        });
+        slot.take_now();
+        assert!(flag.load(Ordering::SeqCst));
+        assert_eq!(slot.give_back(), Ok(()));
+        assert!(!flag.load(Ordering::SeqCst));
+        assert!(counters.figures().secure_window_keys_typed);
+    }
+
+    #[test]
+    fn a_key_counts_in_the_phase_of_its_arrival() {
+        let held = held(100);
+        key_down(&held.ctx);
+        held.ctx.held_phase.store(true, Ordering::SeqCst);
+        key_down(&held.ctx);
+        held.ctx.held_phase.store(false, Ordering::SeqCst);
+        ticks(&held.ctx, 200);
+        assert_eq!(keystrokes(&held.writer), 2);
+        let figures = held.counters.figures();
+        assert_eq!(
+            (
+                figures.secure_released_keystrokes,
+                figures.secure_held_keystrokes
+            ),
+            (1, 1)
+        );
+    }
+
+    #[test]
+    fn a_key_recorded_in_the_released_phase_raises_the_released_count_alone() {
+        let held = held(100);
+        key_down(&held.ctx);
+        ticks(&held.ctx, 200);
+        let figures = held.counters.figures();
+        assert_eq!(
+            (
+                figures.secure_released_keystrokes,
+                figures.secure_held_keystrokes,
+                figures.secure_window_pointer
+            ),
+            (1, 0, 0)
+        );
+    }
+
+    #[test]
+    fn the_key_events_suppressed_in_the_held_phase_are_counted_by_type() {
+        let held = held(100);
+        held.ctx.held_phase.store(true, Ordering::SeqCst);
+        answer(Reading::On);
+        key_with_code(&held.ctx, CGEventType::KeyDown, 0x00, 0);
+        let mut repeat = with_key(CGEventType::KeyDown, 0x00, 0);
+        repeat.autorepeat = true;
+        advance(1);
+        on_tap_event(&held.ctx, repeat);
+        key_with_code(&held.ctx, CGEventType::KeyUp, 0x00, 0);
+        key_with_code(
+            &held.ctx,
+            CGEventType::FlagsChanged,
+            LEFT_SHIFT,
+            0x2_0000 | LEFT_SHIFT_BIT,
+        );
+        key_with_code(&held.ctx, CGEventType::FlagsChanged, LEFT_SHIFT, 0);
+        held.ctx.held_phase.store(false, Ordering::SeqCst);
+        key_with_code(&held.ctx, CGEventType::KeyDown, 0x00, 0);
+        let figures = held.counters.figures();
+        assert_eq!(
+            figures.secure_held_suppressed,
+            SuppressedKeys {
+                down: 2,
+                up: 1,
+                modifier: 2
+            }
+        );
+    }
+
+    #[test]
+    fn a_pointer_action_in_the_held_phase_raises_the_pointer_counter_and_no_suppression() {
+        let held = held(100);
+        held.ctx.held_phase.store(true, Ordering::SeqCst);
+        answer(Reading::On);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::LeftMouseUp, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 2);
+        held.ctx.held_phase.store(false, Ordering::SeqCst);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        let figures = held.counters.figures();
+        assert_eq!(figures.secure_window_pointer, 3);
+        assert_eq!(figures.secure_input_keystrokes, 0);
+        assert_eq!(figures.secure_held_suppressed, SuppressedKeys::default());
+    }
+
+    fn record_lines(writer: &sink::SinkWriter) -> Vec<serde_json::Value> {
+        received(writer)
+            .into_iter()
+            .filter_map(|received| received.into_floor().ok())
+            .map(|floor| {
+                let record = crate::floor::record::encode(&floor, &cases::IdentityPoint)
+                    .expect("the encoder writes the record");
+                let line = record.as_str();
+                crate::floor::record::decode(line).expect("the decoder reads the record");
+                serde_json::from_str(line).expect("a record is a JSON object")
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_records_of_a_key_a_click_and_a_fold_hold_a_class_a_button_and_a_count_and_nothing_else()
+    {
+        let held = held(100);
+        key_with_code(&held.ctx, CGEventType::KeyDown, 0x00, 0x2_0000);
+        pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&held.ctx, CGEventType::MouseMoved, 3);
+        ticks(&held.ctx, 200);
+        close_interval(&held.ctx);
+        let records = record_lines(&held.writer);
+        let shapes: Vec<(String, String)> = records
+            .iter()
+            .map(|record| {
+                let keys: Vec<&str> = record
+                    .as_object()
+                    .expect("an object")
+                    .keys()
+                    .map(String::as_str)
+                    .collect();
+                assert_eq!(keys, ["app", "at", "id", "kind", "p", "seq", "v"]);
+                (record["kind"].to_string(), record["p"].to_string())
+            })
+            .collect();
+        assert_eq!(
+            shapes,
+            [
+                (
+                    "\"pointer\"".to_string(),
+                    r#"{"button":"primary","class":"click"}"#.to_string()
+                ),
+                (
+                    "\"keystroke\"".to_string(),
+                    r#"{"class":"printable"}"#.to_string()
+                ),
+                (
+                    "\"pointer\"".to_string(),
+                    r#"{"class":"move","count":3}"#.to_string()
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_key_a_click_and_a_fold_of_the_tap_pass_the_owners_flush_as_a_class_a_button_and_a_count() {
+        use crate::daemon::model_store::Harness;
+        use crate::daemon::owner::Command;
+        use crate::floor::record::DecodedPayload;
+        reset_stand_ins();
+        let mut harness = Harness::new();
+        harness.ask(Command::ClosePause);
+        let (fg_writer, reader) = foreground_state_for_test();
+        fg_writer.set_for_test(Some(APP.front()));
+        let ctx = Box::new(tap_context(
+            harness.sink.clone(),
+            reader,
+            InputCounters::new(),
+            &stand_in_settings(),
+            Bounds {
+                hold: Duration::from_millis(100),
+                gap: Duration::from_millis(30),
+                lag: Duration::from_millis(30),
+                cap: 64,
+            },
+            Arc::new(AtomicBool::new(false)),
+        ));
+        ctx.start(&mut lock(&ctx.hold));
+        key_with_code(&ctx, CGEventType::KeyDown, 0x24, 0);
+        pointer(&ctx, CGEventType::RightMouseDown, 1);
+        pointer(&ctx, CGEventType::ScrollWheel, 4);
+        ticks(&ctx, 200);
+        close_interval(&ctx);
+        harness.ask(Command::Settle);
+        let records = harness.store.records();
+        let read: Vec<(&str, Option<&str>, String)> = records
+            .iter()
+            .map(|record| {
+                let payload = match record.payload() {
+                    DecodedPayload::Keystroke(class) => class.as_str().to_string(),
+                    DecodedPayload::Click(button) => format!("click {}", button.as_str()),
+                    DecodedPayload::Fold { class, count } => format!("{} {count}", class.as_str()),
+                    _ => panic!("a record of another kind"),
+                };
+                (record.kind(), record.app(), payload)
+            })
+            .collect();
+        assert_eq!(
+            read,
+            [
+                ("pointer", Some(APP.0), "click secondary".to_string()),
+                ("keystroke", Some(APP.0), "enter".to_string()),
+                ("pointer", Some(APP.0), "scroll 4".to_string()),
+            ]
+        );
+        drop(ctx);
+        drop(fg_writer);
+    }
+
+    #[test]
+    fn moves_in_a_listed_app_then_a_kept_app_at_the_interval_end_give_no_record() {
+        for under_root in [false, true] {
+            let mut held = held(100);
+            let excluded = if under_root {
+                held.ctx.floor = FloorHandle::new(
+                    Some(ProcessId::new(500)),
+                    Arc::new(UnderRoot),
+                    crate::floor::Switches::default(),
+                );
+                APP.front()
+            } else {
+                LISTED.front()
+            };
+            held.fg_writer.set_for_test(Some(excluded));
+            pointer(&held.ctx, CGEventType::MouseMoved, 5);
+            pointer(&held.ctx, CGEventType::ScrollWheel, 3);
+            held.fg_writer
+                .set_for_test(Some(TestApp("com.example.other", 4444).front()));
+            close_interval(&held.ctx);
+            assert_eq!(
+                pointer_records(&held.writer),
+                [],
+                "under the root: {under_root}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_key_record_leaves_when_a_process_under_the_root_comes_in_front_during_the_hold() {
+        let mut held = held(100);
+        held.ctx.floor = FloorHandle::new(
+            Some(ProcessId::new(500)),
+            Arc::new(UnderRoot),
+            crate::floor::Switches::default(),
+        );
+        held.fg_writer
+            .set_for_test(Some(TestApp("com.example.other", 4444).front()));
+        key_down(&held.ctx);
+        tick(&held.ctx);
+        held.fg_writer.set_for_test(Some(APP.front()));
+        tick(&held.ctx);
+        held.fg_writer
+            .set_for_test(Some(TestApp("com.example.other", 4444).front()));
+        ticks(&held.ctx, 200);
+        assert_eq!(
+            keystrokes(&held.writer),
+            0,
+            "a process under the root in front during the hold"
+        );
+    }
+
+    struct GrantlessMaker(Arc<AtomicUsize>);
+
+    impl TapMaker for GrantlessMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn listen_denied() -> bool {
+            true
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_start_with_key_class_off_goes_on_to_the_maker_while_the_grant_for_key_events_is_refused() {
+        let (handle, _writer) = sink::channel(4);
+        let made = Arc::new(AtomicUsize::new(0));
+        let mut source = source_switched(switches_with(false, true));
+        let begun = source.begin_with(handle, GrantlessMaker(made.clone()), || {});
+        assert_eq!(
+            begun,
+            Ok(Started::Running),
+            "with key_class off the grant for key events is not asked"
+        );
+        assert_eq!(
+            made.load(Ordering::SeqCst),
+            1,
+            "the maker was asked for the tap"
+        );
+        assert_eq!(source.shutdown(), Ok(()));
+    }
+
+    struct AskedMaker(Arc<Mutex<Vec<CGEventType>>>);
+
+    impl TapMaker for AskedMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            *self.0.lock().unwrap_or_else(PoisonError::into_inner) = settings.events;
+            Ok(())
+        }
+
+        fn listen_denied() -> bool {
+            true
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_source_of_new_with_the_default_switches_starts_without_the_grant_for_key_events_and_asks_no_key_type(
+    ) {
+        let (handle, _writer) = sink::channel(4);
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let (_fg_writer, reader) = foreground_state_for_test();
+        let mut source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
+        let begun = source.begin_with(handle, AskedMaker(asked.clone()), || {});
+        assert_eq!(
+            begun,
+            Ok(Started::Running),
+            "a Mac build asks no grant for key events"
+        );
+        let asked = mask_of(&asked.lock().unwrap_or_else(PoisonError::into_inner));
+        assert_eq!(
+            asked, 0x0E40_00FE,
+            "the tap is asked for every pointer type and no key type"
+        );
+        assert!(!source.counters.figures().keys_withheld);
+        assert_eq!(source.shutdown(), Ok(()));
+    }
+
+    #[test]
+    fn a_refused_start_after_a_keyless_refusal_reads_the_reason_permission() {
+        let (handle, _writer) = sink::channel(4);
+        let made = Arc::new(AtomicUsize::new(0));
+        let mut source = source_switched(switches_with(true, true));
+        source.typing_kept_on = true;
+        source.keys_missing.store(true, Ordering::SeqCst);
+        let begun = source.begin_with(handle, DeniedMaker(made.clone()), || {});
+        assert_eq!(
+            begun,
+            Err(CaptureError::PermissionDenied(Modality::Keystroke))
+        );
+        assert_eq!(made.load(Ordering::SeqCst), 0, "no tap was asked for");
+        let reason = match source.health().state {
+            SourceState::Failed { reason, .. } => Some(reason),
+            _ => None,
+        };
+        assert_eq!(reason, Some(HealthReason::Permission));
+    }
+
+    fn fold_fifty(ctx: &TapContext) {
+        pointer(ctx, CGEventType::MouseMoved, 40);
+        pointer(ctx, CGEventType::ScrollWheel, 7);
+        pointer(ctx, CGEventType::LeftMouseDragged, 3);
+    }
+
+    thread_local! {
+        static FOLD_ASKS: RefCell<Vec<(usize, Duration)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    fn fold_recorder(info: *mut c_void, step: Duration) -> CFRunLoopTimer {
+        FOLD_ASKS.with(|asks| asks.borrow_mut().push((info as usize, step)));
+        timer_at(
+            Duration::from_secs(86_400),
+            idle_timer_fired,
+            std::ptr::null_mut(),
+        )
+    }
+
+    #[test]
+    fn the_callback_arms_the_fold_timer_at_the_floor_interval_and_its_fire_gives_the_records() {
+        FOLD_ASKS.with(|asks| asks.borrow_mut().clear());
+        let mut held = held(100);
+        held.ctx.timers.fold = fold_recorder;
+        fold_fifty(&held.ctx);
+        let writer = held.writer;
+        let callback = tap_callback(*held.ctx);
+        let asks = FOLD_ASKS.with(|asks| asks.borrow().clone());
+        let steps: Vec<Duration> = asks.iter().map(|&(_, step)| step).collect();
+        assert_eq!(
+            steps,
+            [Duration::from_millis(1_000)],
+            "the callback arms one fold timer at the floor's interval"
+        );
+        fold_timer_fired(std::ptr::null_mut(), asks[0].0 as *mut c_void);
+        assert_eq!(
+            pointer_records(&writer),
+            [("scroll", 7), ("drag", 3), ("move", 40)]
+        );
+        drop(callback);
+        drop(held.fg_writer);
+    }
+
+    #[test]
+    fn the_held_phase_arms_its_sampler_at_250_ms_and_a_fire_takes_one_sample() {
+        reset_stand_ins();
+        answer(Reading::On);
+        TYPED.with(|counts| *counts.borrow_mut() = vec![3, 3]);
+        let counters = InputCounters::new();
+        let mut phase = phase_of(&counters, Arc::new(AtomicBool::new(false)));
+        phase.enter();
+        let ReadingTimer(timer) = phase.sampler.as_ref().expect("an armed sampler");
+        // SAFETY: the sampler is a live timer that the phase holds until its end.
+        let step = unsafe {
+            core_foundation::runloop::CFRunLoopTimerGetInterval(timer.as_concrete_TypeRef())
+        };
+        assert_eq!(step, 0.25, "the sampler's step in seconds");
+        held_sample_fired(
+            std::ptr::null_mut(),
+            std::ptr::from_ref(&phase).cast_mut().cast(),
+        );
+        assert_eq!(
+            counters.figures().secure_input_held,
+            HeldSamples { held: 1, taken: 1 }
+        );
+        phase.end();
+    }
+
+    struct CallbackMaker(Arc<Mutex<Option<KeptCallback>>>);
+
+    impl TapMaker for CallbackMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(Box::new(callback));
+            Ok(())
+        }
+
+        fn listen_denied() -> bool {
+            false
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_started_source_sends_the_moves_of_one_interval_as_one_record_from_its_own_timer() {
+        let kept = Arc::new(Mutex::new(None));
+        let (handle, writer) = sink::channel(8);
+        let (fg_writer, reader) = foreground_state_for_test();
+        fg_writer.set_for_test(Some(APP.front()));
+        let mut source = InputSource::new(reader, InputCounters::new(), HoldPlan::Never);
+        source
+            .begin_with(handle, CallbackMaker(kept.clone()), || {})
+            .expect("the source starts behind a stand-in maker");
+        let callback = kept
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+            .expect("the maker was given a callback");
+        for _ in 0..5 {
+            let event = event_object(CGEventType::MouseMoved, 0);
+            set_stamp(&event, uptime_raw().nanos());
+            callback(std::ptr::null(), CGEventType::MouseMoved, &event);
+        }
+        let received = writer
+            .recv_timeout(Duration::from_secs(3))
+            .expect("a record within 3 s from the source's own fold timer");
+        let floor = received.into_floor().expect("a floor value");
+        let fold = match floor.event().observation() {
+            crate::floor::payload::Observation::Fold(fold) => {
+                (fold.class().as_str(), fold.count().get())
+            }
+            _ => panic!("a record that is no fold"),
+        };
+        assert_eq!(fold, ("move", 5));
+        assert_eq!(source.shutdown(), Ok(()));
+        drop(callback);
+        drop(fg_writer);
+    }
+
+    #[test]
+    fn no_fold_record_leaves_after_a_stop_is_asked() {
+        let held = held(100);
+        fold_fifty(&held.ctx);
+        held.ctx.stop.store(true, Ordering::SeqCst);
+        close_interval(&held.ctx);
+        assert_eq!(pointer_records(&held.writer), []);
+        assert_eq!(held.counters.pointer_dropped_at_stop(), 50);
+    }
+
+    #[test]
+    fn the_folds_of_the_interval_open_at_a_stop_leave_a_record_or_a_count() {
+        let fired = held(100);
+        fold_fifty(&fired.ctx);
+        fired.ctx.stop.store(true, Ordering::SeqCst);
+        close_interval(&fired.ctx);
+        assert_eq!(
+            (
+                pointer_records(&fired.writer),
+                fired.counters.pointer_dropped_at_stop()
+            ),
+            (vec![], 50),
+            "the timer fires after the stop"
+        );
+
+        let dropped = held(100);
+        fold_fifty(&dropped.ctx);
+        dropped.ctx.stop.store(true, Ordering::SeqCst);
+        drop(dropped.ctx);
+        assert_eq!(
+            (
+                pointer_records(&dropped.writer),
+                dropped.counters.pointer_dropped_at_stop()
+            ),
+            (vec![], 50),
+            "the context drops at the stop"
+        );
+
+        let handed = held_with(100, 64, 1);
+        pointer(&handed.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&handed.ctx, CGEventType::MouseMoved, 3);
+        close_interval(&handed.ctx);
+        handed.ctx.stop.store(true, Ordering::SeqCst);
+        drop(handed.ctx);
+        assert_eq!(
+            (
+                pointer_records(&handed.writer),
+                handed.counters.figures().pointer_coalesced,
+                handed.counters.pointer_dropped_at_stop()
+            ),
+            (vec![("primary", 1)], 1, 3),
+            "a full queue handed counts back, then the stop"
+        );
+    }
+
+    #[test]
+    fn a_click_gives_no_record_when_the_front_read_at_the_click_is_listed_or_under_the_root() {
+        for under_root in [false, true] {
+            let mut held = held(100);
+            let (stored, read) = if under_root {
+                held.ctx.floor = FloorHandle::new(
+                    Some(ProcessId::new(500)),
+                    Arc::new(UnderRoot),
+                    crate::floor::Switches::default(),
+                );
+                (TestApp("com.example.other", 4444).front(), APP.front())
+            } else {
+                (APP.front(), LISTED.front())
+            };
+            let (_front_writer, reader) =
+                crate::macos::foreground::tests_support::stored_and_read(stored, read);
+            held.ctx.foreground = reader;
+            pointer(&held.ctx, CGEventType::LeftMouseDown, 1);
+            assert_eq!(
+                pointer_records(&held.writer),
+                [],
+                "under the root: {under_root}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_key_typed_in_a_listed_app_in_front_for_200_ms_with_no_poll_tick_leaves_no_record() {
+        for under_root in [false, true] {
+            let mut held = held(100);
+            let (stored, read) = if under_root {
+                held.ctx.floor = FloorHandle::new(
+                    Some(ProcessId::new(500)),
+                    Arc::new(UnderRoot),
+                    crate::floor::Switches::default(),
+                );
+                (TestApp("com.example.other", 4444).front(), APP.front())
+            } else {
+                (APP.front(), LISTED.front())
+            };
+            let (_front_writer, reader) =
+                crate::macos::foreground::tests_support::stored_and_read(stored, read);
+            held.ctx.foreground = reader;
+            key_down(&held.ctx);
+            ticks(&held.ctx, 200);
+            assert_eq!(keystrokes(&held.writer), 0, "under the root: {under_root}");
+        }
     }
 
     #[test]
@@ -6936,6 +9061,10 @@ mod tests {
 
         fn listen_denied() -> bool {
             true
+        }
+
+        fn preflight_denied() -> bool {
+            false
         }
 
         fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
@@ -7582,34 +9711,6 @@ mod granted_tests {
     use crate::macos::foreground::foreground_state_for_test;
     use crate::sink;
 
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct TapInformation {
-        event_tap_id: u32,
-        tap_point: u32,
-        options: u32,
-        events_of_interest: u64,
-        tapping_process: libc::pid_t,
-        process_being_tapped: libc::pid_t,
-        enabled: bool,
-        min_usec_latency: f32,
-        avg_usec_latency: f32,
-        max_usec_latency: f32,
-    }
-
-    const NO_TAP: TapInformation = TapInformation {
-        event_tap_id: 0,
-        tap_point: 0,
-        options: 0,
-        events_of_interest: 0,
-        tapping_process: 0,
-        process_being_tapped: 0,
-        enabled: false,
-        min_usec_latency: 0.0,
-        avg_usec_latency: 0.0,
-        max_usec_latency: 0.0,
-    };
-
     #[test]
     fn tap_information_has_the_layout_of_cg_event_tap_information() {
         use std::mem::{align_of, offset_of, size_of};
@@ -7636,7 +9737,6 @@ mod granted_tests {
 
     #[link(name = "CoreGraphics", kind = "framework")]
     extern "C" {
-        fn CGGetEventTapList(max: u32, list: *mut TapInformation, count: *mut u32) -> i32;
         fn CGEventTapIsEnabled(tap: *mut c_void) -> bool;
     }
 
@@ -7743,13 +9843,24 @@ mod granted_tests {
         );
         let port = ctx.port.clone();
         let mut tap = TapThread::spawn(
-            move || install_tap(ctx, tap_settings(), SystemTapMaker),
+            move || {
+                install_tap(
+                    ctx,
+                    TapSettings {
+                        events: events_of_interest(Switches::default(), true),
+                        ..tap_settings()
+                    },
+                    SystemTapMaker,
+                    Arc::new(AtomicBool::new(false)),
+                )
+            },
             TapPlan {
                 plan: HoldPlan::Never,
                 hold: hold_secure_input,
                 refusal: Arc::new(Mutex::new(None)),
                 released: Arc::new(Mutex::new(None)),
                 own_take: None,
+                phase: None,
             },
             stop,
             port.clone(),
@@ -7867,9 +9978,19 @@ mod secure_input_invariant {
     use super::*;
     use crate::sink;
 
-    fn context(secure: fn(Session) -> Reading) -> (TapContext, sink::SinkWriter) {
+    fn context(
+        secure: fn(Session) -> Reading,
+    ) -> (
+        TapContext,
+        sink::SinkWriter,
+        crate::macos::foreground::ForegroundWriter,
+    ) {
         let (handle, writer) = sink::channel(8);
-        let (_writer, reader) = crate::macos::foreground::foreground_state_for_test();
+        let (front, reader) = crate::macos::foreground::foreground_state_for_test();
+        front.set_for_test(Some(crate::macos::foreground::tests_support::front(
+            "com.example.editor",
+            4242,
+        )));
         let settings = TapSettings {
             secure,
             session: || Session::AtConsole,
@@ -7887,7 +10008,7 @@ mod secure_input_invariant {
             Arc::new(AtomicBool::new(false)),
         );
         ctx.start(&mut lock(&ctx.hold));
-        (ctx, writer)
+        (ctx, writer, front)
     }
 
     fn event(etype: CGEventType, flags: u64) -> TapEvent {
@@ -7896,7 +10017,7 @@ mod secure_input_invariant {
 
     #[test]
     fn a_key_press_under_secure_input_records_nothing_and_is_counted() {
-        let (ctx, writer) = context(|_| Reading::On);
+        let (ctx, writer, _front) = context(|_| Reading::On);
         let shift = core_graphics::event::CGEventFlags::CGEventFlagShift.bits();
         on_tap_event(&ctx, event(CGEventType::KeyDown, 0));
         on_tap_event(&ctx, event(CGEventType::KeyUp, 0));
@@ -7905,6 +10026,7 @@ mod secure_input_invariant {
             Keyed {
                 event: event(CGEventType::FlagsChanged, shift | 0x2),
                 key_code: Some(0x38),
+                autorepeat: false,
             },
         );
         on_tap_event(
@@ -7912,9 +10034,10 @@ mod secure_input_invariant {
             Keyed {
                 event: event(CGEventType::FlagsChanged, 0),
                 key_code: Some(0x38),
+                autorepeat: false,
             },
         );
-        on_tap_event(&ctx, event(CGEventType::MouseMoved, 0));
+        on_tap_event(&ctx, event(CGEventType::LeftMouseDown, 0));
         assert_eq!(
             ctx.counters.suppressed_keys(),
             2,
@@ -7930,7 +10053,7 @@ mod secure_input_invariant {
 
     #[test]
     fn a_suppressed_key_raises_the_count_from_zero_to_one() {
-        let (ctx, _writer) = context(|_| Reading::On);
+        let (ctx, _writer, _front) = context(|_| Reading::On);
         assert_eq!(ctx.counters.suppressed_keys(), 0);
         on_tap_event(&ctx, event(CGEventType::KeyDown, 0));
         assert_eq!(ctx.counters.suppressed_keys(), 1);
@@ -7939,8 +10062,8 @@ mod secure_input_invariant {
 
     #[test]
     fn pointer_events_record_under_secure_input_without_a_count() {
-        let (ctx, writer) = context(|_| Reading::On);
-        on_tap_event(&ctx, event(CGEventType::MouseMoved, 0));
+        let (ctx, writer, _front) = context(|_| Reading::On);
+        on_tap_event(&ctx, event(CGEventType::RightMouseDown, 0));
         on_tap_event(&ctx, event(CGEventType::LeftMouseDown, 0));
         assert_eq!(ctx.counters.suppressed_keys(), 0);
         drop(ctx);
@@ -7950,14 +10073,14 @@ mod secure_input_invariant {
 
     #[test]
     fn a_key_event_without_secure_input_is_recorded_at_its_release_and_not_at_its_arrival() {
-        let (ctx, writer) = context(|_| Reading::Off);
+        let (ctx, writer, _front) = context(|_| Reading::Off);
         on_tap_event(&ctx, event(CGEventType::KeyDown, 0));
         assert_eq!(ctx.counters.suppressed_keys(), 0);
         assert!(
             writer.try_recv().is_err(),
             "a key was recorded at its arrival"
         );
-        on_tap_event(&ctx, event(CGEventType::MouseMoved, 0));
+        on_tap_event(&ctx, event(CGEventType::LeftMouseDown, 0));
         drop(ctx);
         assert_eq!(
             events_until_the_sink_closes(&writer),
