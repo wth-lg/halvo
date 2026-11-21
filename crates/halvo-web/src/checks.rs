@@ -119,11 +119,15 @@ pub fn bears_profile(args: &[String], profile: &str) -> bool {
 /// it reads fewer witnesses and errs toward leaving a process, and it still reads each switch
 /// behind that argument that names another place, so that an earlier end can lose a witness and
 /// cannot hide another place; where the browser sets aside white space at the end of its line,
-/// the mark keeps it in the last value and errs toward leaving. Two cases are on the ending side,
-/// and the crate's doc names them: where the browser would end at a text inside an argument, the
-/// mark reads as witnesses switches that the browser does not; and where the browser keeps at the
-/// start of its line a sign that the mark sets aside, the browser's argument 0 ends before the
-/// mark's, and the browser reads as a switch what the mark takes for argument 0.
+/// the mark keeps it in the last value: it reads a value that differs from the run's place by
+/// such a sign alone as another place and errs toward leaving, and for a run whose own place ends
+/// in such a sign it bears where the browser takes the place without the sign, a case that cannot
+/// arise in a run of ours, because the start refuses such a directory (`Executor::start`). The
+/// crate's doc names every case on the ending side; two more of them are: where the browser
+/// would end at a text inside an argument, the mark reads as witnesses switches that the browser
+/// does not; and where the browser keeps at the start of its line a sign that the mark sets
+/// aside, the browser's argument 0 ends before the mark's, and the browser reads as a switch what
+/// the mark takes for argument 0.
 fn switch_args(args: &[String], windows: bool) -> Vec<String> {
     let split: Vec<String> = if windows {
         args.iter()
@@ -149,10 +153,14 @@ fn switch_args(args: &[String], windows: bool) -> Vec<String> {
 /// browser sets white space aside at both ends of an argument before it reads a switch, and which
 /// signs it counts (recalled: the signs of `char::is_whitespace` on Windows, the ASCII ones among
 /// them on macOS), is recalled and not run. Where the browser sets aside white space at the end
-/// of a value, the mark reads the run's place as another one; where it keeps a sign before the
-/// dashes that the mark sets aside, the mark reads a switch that the browser does not: each errs
-/// toward leaving. Where it sets aside there a sign that `char::is_whitespace` does not count, it
-/// reads a switch that the mark does not, a case on the ending side that the crate's doc names.
+/// of a value, the mark reads a value that differs from the run's place by such a sign alone as
+/// another place and errs toward leaving, and for a run whose own place ends in such a sign it
+/// bears where the browser takes the place without the sign, a case that cannot arise in a run
+/// of ours, because the start refuses such a directory (`Executor::start`). Where the browser
+/// keeps a sign before the dashes that the mark sets aside, the mark reads a switch that the
+/// browser does not and errs toward leaving. Where it sets aside there a sign that
+/// `char::is_whitespace` does not count, it reads a switch that the mark does not, a case on the
+/// ending side that the crate's doc names.
 fn switch_of(arg: &str) -> Option<(String, &str)> {
     let a = arg.trim_start();
     let rest = a
