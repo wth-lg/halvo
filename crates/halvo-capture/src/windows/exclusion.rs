@@ -211,22 +211,33 @@ const EDGE_BRAND: &str = "Microsoft Edge";
 /// The bare brand name that ends the window text of a normal Firefox window.
 const FIREFOX_BRAND: &str = "Mozilla Firefox";
 
+/// Whether `c` counts as nothing in an Edge window text: a zero-width
+/// character or a mark of writing direction.
+fn is_invisible_mark(c: char) -> bool {
+    matches!(
+        c,
+        '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{2069}' | '\u{FEFF}'
+    )
+}
+
 /// Whether an Edge window text is that of a normal window: it ends with the
-/// bare brand name, and the last letter, digit or bracket before the brand is
-/// not a closing bracket. The InPrivate marker stands in brackets there, and
-/// a marker of another interface language is taken to stand there too; the
-/// separator before the brand, a hyphen under one interface language and an
-/// en dash under another, is skipped whatever it is, with every space and
-/// every other mark.
+/// bare brand name, and the last letter, digit or closing bracket before the
+/// brand is not a closing bracket. So a text is private where nothing but
+/// characters that are neither letters nor digits (a hyphen, an en dash, a
+/// middle dot, a blank of any kind) stands between a closing bracket, where
+/// the InPrivate marker ends, and the brand. Zero-width characters and marks
+/// of writing direction count as nothing anywhere in the text, so the match
+/// of the brand tolerates them inside, before and after the brand, and
+/// blanks after it; any other character after the brand fails the match.
 fn edge_text_is_normal(text: &str) -> bool {
-    let text = text.replace('\u{200B}', "");
+    let text: String = text.chars().filter(|&c| !is_invisible_mark(c)).collect();
     let Some(head) = text.trim_end().strip_suffix(EDGE_BRAND) else {
         return false;
     };
     let last = head
         .chars()
         .rev()
-        .find(|&c| c.is_alphanumeric() || matches!(c, '[' | ']' | '\u{FF3B}' | '\u{FF3D}'));
+        .find(|&c| c.is_alphanumeric() || matches!(c, ']' | '\u{FF3D}'));
     !matches!(last, Some(']' | '\u{FF3D}'))
 }
 
@@ -649,6 +660,22 @@ mod tests {
                 told(
                     Browser::Edge,
                     "\u{65B0}\u{3057}\u{3044} InPrivate \u{30BF}\u{30D6} - [InPrivate] - Microsoft\u{200B} Edge",
+                ),
+                PrivateWindow::Private,
+            ),
+            (
+                "edge-middle-dot-separator",
+                told(
+                    Browser::Edge,
+                    "Seite - [InPrivate] \u{00B7} Microsoft\u{200B} Edge",
+                ),
+                PrivateWindow::Private,
+            ),
+            (
+                "edge-right-to-left-mark-after-the-bracket",
+                told(
+                    Browser::Edge,
+                    "Seite - [InPrivate]\u{200F} - Microsoft\u{200B} Edge",
                 ),
                 PrivateWindow::Private,
             ),
