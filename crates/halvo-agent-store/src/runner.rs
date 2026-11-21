@@ -153,8 +153,9 @@ pub fn newest_playbook(
 
 /// The agent's finished playbooks (CP-182): each number for which a row `agent_finished` of the agent stands, with
 /// the count of steps of that row, the first row by the store's order where two rows name one number. It is the one
-/// function of A7.1 that `load`, `newest_playbook`, `load_steps` and the test of `set_state` for `active` read: a
-/// stored step of a number with no such row, or past the count of that row, is no step of a finished playbook.
+/// function of A7.1 that `load`, `newest_playbook`, `load_steps`, the test of `set_state` for `active` and the
+/// roster of `list_agents` read: a stored step of a number with no such row, or past the count of that row, is no
+/// step of a finished playbook.
 pub(crate) fn finished(
     rows: &dyn RowRead,
     agent: &AgentId,
@@ -216,7 +217,10 @@ fn load(host: &dyn Host, now: Now, b: &Load) -> Result<RunnerReply, ErrorName> {
     }))
 }
 
-fn newest_sessions(rows: &[AgentSession]) -> Vec<LoadedSession> {
+/// For each origin of the rows, in byte order, the newest session revision whose parts 1 to `of` are all stored,
+/// with `of` as its count of parts: the key `sessions` of `load`, and `session` of the roster, `yes` where it holds
+/// one.
+pub(crate) fn newest_sessions(rows: &[AgentSession]) -> Vec<LoadedSession> {
     let mut revisions: BTreeMap<(&WebOrigin, NonZeroU32), Vec<&AgentSession>> = BTreeMap::new();
     for row in rows {
         revisions
