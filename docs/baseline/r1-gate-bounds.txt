@@ -32,22 +32,11 @@ cpu_max_pct_of_one_core=20
 # length to a day. No figure per event is written here: gate-4 measures it on
 # the real store.
 disk_max_bytes_per_day=2000000000
-# ci_job_timeout_min: 180 by ruling WS-9 of 2026-11-18: main's push run
-# 44373816491 at 68c80599 read 8,342 s in its windows job of 9,000 s.
-# 150 before it, by ruling JB-52 of 2026-11-18: the macos job had
-# stood within minutes of 7,200 s for five landings, and land-56's push run
-# 44201520845 read 6,486 s with no dash pass of 15-gate-self-test and no
-# budget pass of 30-mutants; scripts/ci/README.md holds the arithmetic of the
-# margin. Before it: 120 by ruling PR-31 item 1 of 2026-11-14, 90 by ruling
-# JB-6 (2), 60 (2026-11-11 08:25Z), 30 (RD-45). Until 2026-11-21 the workflow
-# lint compared each job's timeout with it; see ci_gate_job_timeout_min below.
-ci_job_timeout_min=180
 # ci_gate_job_timeout_min: the limit of every job of CI, on every event: a job
 # of the merge gate (push and pull_request), of a slice (the schedule) and of a
 # run by hand. Since the unit slices-1 of 2026-11-21 no run of CI runs the whole
-# table, and no workflow line and no script of the tree reads
-# ci_job_timeout_min any more; the key above stays as the record of the limit
-# that the whole table had. The rule, by the
+# table; the key ci_job_timeout_min, its limit of 180 minutes, had no reader
+# left and is gone. The rule, by the
 # coordinator's ruling of 2026-11-21 on unit ci-fast-1: the smallest of 30, 45
 # and 60 minutes that is at least twice the wall of the slowest green job sample
 # of the merge gate, so that a job on a slow runner or with a cold build cache
