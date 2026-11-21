@@ -8564,6 +8564,16 @@ mod tests {
 
 
     #[test]
+    fn no_fold_record_leaves_after_a_stop_is_asked() {
+        let held = held(100);
+        fold_fifty(&held.ctx);
+        held.ctx.stop.store(true, Ordering::SeqCst);
+        close_interval(&held.ctx);
+        assert_eq!(pointer_records(&held.writer), []);
+    }
+
+
+    #[test]
     fn each_type_of_the_table_has_its_class() {
         use TapClass::{
             ContinuousPointer as C, DiscretePointer as D, KeyPress as K, OtherKey as O,

@@ -584,3 +584,4 @@ private-ending-read-from-the-head
 fold-arrival-front-not-read
 root-not-read-during-the-hold
 fold-timer-not-armed
+fold-record-after-a-stop
