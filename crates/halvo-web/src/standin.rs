@@ -1,6 +1,7 @@
 // Stand-in programs for the tests of a run's own processes (CP-126 E1). The stand-in is this test
 // binary, copied into a fake app bundle and run with `HALVO_WEB_STAND_IN` naming its mode; each passes the
-// arguments that it got on, so each names the run's profile as the browser's processes do.
+// arguments that it got on, so each names the run's profile as the browser's processes do, also
+// before the harness's `--`, where the mark reads it (U2.6b: no switch after a terminator).
 //
 // - `browser`: answers the executor on its debugging pipe as far as a start and a stop need; when
 //   it is asked to close it starts `late` and ends.
@@ -33,8 +34,23 @@ use super::start::Start;
 pub const VAR: &str = "HALVO_WEB_STAND_IN";
 /// The test that a stand-in runs.
 pub const ENTRY: &str = "standin::entry";
-/// The arguments of the test harness before the stand-in's own: `--` ends the harness's options.
-const HARNESS: [&str; 4] = ["--exact", "--quiet", "--test-threads=1", "--"];
+/// The options of the test harness before the stand-in's own arguments, which follow `--`.
+const HARNESS: [&str; 3] = ["--exact", "--quiet", "--test-threads=1"];
+
+/// The harness's arguments of a stand-in with its own arguments `args`: `HARNESS`, each of `args`
+/// that names a profile (`--user-data-dir=`) as the value of `--skip`, which skips no test of this
+/// binary, so that the stand-in names the run's profile before any switch terminator as the
+/// browser's processes do (U2.6b: the mark reads no switch after `--`), then `--` and `args`.
+fn harness_args(args: &[String]) -> Vec<String> {
+    let mut v: Vec<String> = HARNESS.iter().map(|a| a.to_string()).collect();
+    for a in args.iter().filter(|a| a.starts_with("--user-data-dir=")) {
+        v.push("--skip".to_string());
+        v.push(a.clone());
+    }
+    v.push("--".to_string());
+    v.extend(args.iter().cloned());
+    v
+}
 
 /// A fake app bundle with the stand-in in it.
 pub struct Bundle {
@@ -57,15 +73,20 @@ pub fn launcher(dir: &Path, mode: &str) -> PathBuf {
 }
 
 /// `launcher` under the file name `name`, such as `Google Chrome`, which the trial program takes as a
-/// browser's.
+/// browser's. It passes the start's arguments as `harness_args` does, for the start's one
+/// `--user-data-dir=`.
 pub fn launcher_as(dir: &Path, mode: &str, name: &str) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let script = dir.join(name);
+    let run = format!(
+        "{VAR}={mode} exec \"$(dirname \"$0\")/stand-in\" {ENTRY} {}",
+        HARNESS.join(" ")
+    );
     std::fs::write(
         &script,
         format!(
-            "#!/bin/sh\n{VAR}={mode} exec \"$(dirname \"$0\")/stand-in\" {ENTRY} {} \"$@\"\n",
-            HARNESS.join(" ")
+            "#!/bin/sh\nskip=\nfor a do\n  case $a in --user-data-dir=*) skip=$a ;; esac\ndone\n\
+             if [ -n \"$skip\" ]; then\n  {run} --skip \"$skip\" -- \"$@\"\nfi\n{run} -- \"$@\"\n"
         ),
     )
     .unwrap();
@@ -77,8 +98,7 @@ pub fn launcher_as(dir: &Path, mode: &str, name: &str) -> PathBuf {
 pub fn run(binary: &Path, mode: &str, args: &[String]) -> std::io::Result<Child> {
     Command::new(binary)
         .arg(ENTRY)
-        .args(HARNESS)
-        .args(args)
+        .args(harness_args(args))
         .env(VAR, mode)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
