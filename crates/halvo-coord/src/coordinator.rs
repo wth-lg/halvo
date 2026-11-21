@@ -2393,7 +2393,8 @@ where
     /// whose `hold_set` the owner refuses with a name of class B stops the agent's live run as
     /// the stop does, stores no hold and answers the store's cause; the agent stays on, and its
     /// row says both, that the task was stopped and that the switch-off could not be saved, until
-    /// a later run of it starts or a later switch-off of it is stored (ruling RD-155 (1)).
+    /// a later run of it starts or a later switch-off of it is stored (ruling RD-155 (1)), while
+    /// the owner's list does not show its workflow dismissed (ruling RD-168).
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter_control(agent, action);
         let before = Self::agents_held_off(&st);
@@ -2771,6 +2772,7 @@ where
                 continue;
             };
             if board.kept_on(&facts.agent)
+                && !board.workflow_dismissed(&facts.workflow.id)
                 && matches!(
                     row.status,
                     Status::Working | Status::WaitingTurn | Status::AllSet
