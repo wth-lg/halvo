@@ -449,11 +449,13 @@ impl<C> Board<C> {
     }
 
     /// The facts that a new life keeps for the row of an agent whose workflow the owner's list no
-    /// longer holds, where the owner answers its history and its newest run is one that `reap`
-    /// answered `alive` and that no record of the store names: its events, and a workflow that
-    /// stands for the gone one, `paused` and `manual` with no period and no site, of the agent's
-    /// category; none where that does not hold. The read's failure is the caller's to answer
-    /// (ruling RD-150).
+    /// longer holds, where the owner answers its history and a run of it is one that `reap`
+    /// answered `alive` and that no record of the store names, whatever newer run another writer
+    /// added: its events, and a workflow that stands for the gone one, `paused` and `manual` with
+    /// no period and no site, of the agent's category; none where that does not hold. The read's
+    /// failure is the caller's to answer (rulings RD-150, RD-156 (2)). The record that it reads
+    /// is the agent's last: an older run whose record a newer record replaced as the last reads
+    /// as named by none.
     pub(crate) fn gone_facts<P>(
         ports: &P,
         agent: crate::types::Agent<C>,
@@ -469,16 +471,16 @@ impl<C> Board<C> {
         }
         let mut events = Vec::new();
         super::resync(ports, &agent.agent, &mut events)?;
-        let Some(newest) = events.iter().rev().find_map(|e| match &e.what {
-            crate::types::What::RunStarted { run, .. } => Some(run),
-            _ => None,
-        }) else {
-            return Ok(None);
-        };
-        let alive = reaped
-            .iter()
-            .any(|(run, answer)| run == newest && *answer == Reaped::Alive);
-        if !alive || agent.last.as_ref().is_some_and(|l| &l.run == newest) {
+        let unrecorded = events.iter().any(|e| match &e.what {
+            crate::types::What::RunStarted { run, .. } => {
+                reaped
+                    .iter()
+                    .any(|(r, answer)| r == run && *answer == Reaped::Alive)
+                    && !agent.last.as_ref().is_some_and(|l| &l.run == run)
+            }
+            _ => false,
+        });
+        if !unrecorded {
             return Ok(None);
         }
         let workflow = crate::types::FullWorkflow {
@@ -554,9 +556,10 @@ impl<C> Board<C> {
     }
 
     /// Keeps, for its row alone, the facts of an agent whose workflow the owner's list no longer
-    /// held at recovery while its newest run was one that this life's `Runs::reap` answered
-    /// `alive` and that no record of the store named. Such an agent is no member: no move
-    /// starts, raises, stores or sends anything for it (I5.8, ruling RD-150).
+    /// held at recovery while a run of it was one that this life's `Runs::reap` answered `alive`
+    /// and that no record of the store named, whatever newer run another writer added. Such an
+    /// agent is no member: no move starts, raises, stores or sends anything for it (I5.8, rulings
+    /// RD-150, RD-156 (2)).
     pub(crate) fn keep_gone(&mut self, mut facts: Facts<C>) {
         facts.today = self.day;
         self.kept.retain(|f| f.agent != facts.agent);

@@ -252,8 +252,9 @@ impl<C> Found<C> {
 /// Where `reap` answered `alive` for a run, recovery also reads the history of each agent whose
 /// workflow the list lacks: `Busy` and `NoService` fail the recovery, as for a listed agent;
 /// `no_workflow` leaves the agent out; any other refusal keeps it aside for
-/// `Board::reread_gone`; and where its newest run is one that `reap` answered `alive` and that
-/// no record of the store names, the board keeps its row (`Board::keep_gone`; ruling RD-150).
+/// `Board::reread_gone`; and where a run of it is one that `reap` answered `alive` and that no
+/// record of the store names, whatever newer run another writer added, the board keeps its row
+/// (`Board::keep_gone`; rulings RD-150, RD-156 (2)).
 /// A runner that ended before this life's `reap`, as one does within `LINK_END` (20 s) of the
 /// link's close, is answered `gone`, and its run gets no line (a named limit, RD-150).
 pub fn recover<P>(ports: &P, limits: &Limits) -> Result<Life<P::Config>, Cause>
