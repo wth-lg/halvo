@@ -70,49 +70,6 @@ fn a_refused_log_line_does_not_keep_the_effect_unknown_handback_from_opening() {
     );
 }
 
-/// A6.4: a releasing effect is handed back with effect_unknown before finish, even when the store refuses the log
-/// line of the handback. close() ignores a Stop::End from handback(), whose log() runs before the Handback frame.
-#[test]
-fn the_effect_unknown_handback_opens_when_its_log_line_is_refused() {
-    let files = FillFiles::new("acting-1-handback-log", 1);
-    let before = files.workbook_bytes();
-    let sup = fill(101, &files);
-    let seen = sup.serve(
-        |frame, _| {
-            if is_effect(frame, EffectState::Releasing) {
-                return Act::Then(ToRunner::Cancel(Cancel {}), Box::new(Act::Answer));
-            }
-            if let FromRunner::Store(s) = frame {
-                if let halvo_schema::executable::RunnerCall::Log(b) = s.request.body() {
-                    if b.records.iter().any(|r| r.event == LogEvent::Handback) {
-                        return Act::With(store_error(frame, "store"));
-                    }
-                }
-            }
-            Act::Answer
-        },
-        LONG,
-    );
-    assert_eq!(
-        files.workbook_bytes(),
-        before,
-        "no replace after the cancel"
-    );
-    assert_eq!(
-        seen.handbacks(),
-        [HandbackReason::EffectUnknown],
-        "the releasing effect is handed back before finish: {}",
-        seen.stderr
-    );
-    let tags = seen.tags();
-    let hb = tags.iter().position(|t| *t == "handback");
-    let fin = seen.frames.iter().position(|f| is_op(f, "finish"));
-    assert!(
-        hb.is_some() && fin.is_some() && hb < fin,
-        "handback before finish: {tags:?}"
-    );
-}
-
 /// The wall limit passes while the edit waits for the load before its `prepare`: the run ends with `limit` and
 /// `wall` at the read before the `propose`, with no effect row and no replace.
 #[test]

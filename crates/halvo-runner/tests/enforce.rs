@@ -532,14 +532,14 @@ fn a_cancel_during_the_wait_for_a_secret_reply_is_read_when_it_comes() {
     assert!(seen.handbacks().is_empty());
 }
 
-/// CP-135 (4), A6.5: a cancel that the runner holds once it has taken the answer to the edit's `begin`, and before
-/// its `replace`, leaves the workbook byte for byte, and the run ends `effect_unknown` after the handback
-/// `effect_unknown`, with the effect `releasing` at the `finish`, which the store's handler of the run's end makes
-/// `unknown`. The supervisor writes the cancel before the answer, so that the runner holds it when it takes the
-/// answer; a cancel that comes after the act is reading 1's limit, and the lock's own read of a held cancel is the
-/// link's test `a_cancel_that_the_link_holds_lets_no_effect_act`.
+/// CP-135 (4), A6.5, A5.2: a cancel that the runner holds once it has taken the answer to the edit's `begin`, and
+/// before its `replace`, is read under the lock, leaves the workbook byte for byte, and the effect takes the move
+/// `not_made` with the cause `not_replaced`; no check item follows, and the run ends `declined` with no handback.
+/// The supervisor writes the cancel before the answer, so that the runner holds it when it takes the answer; a
+/// cancel that comes after the act is reading 1's limit, and the lock's own read of a held cancel is the link's
+/// test `a_cancel_that_the_link_holds_lets_no_effect_act`.
 #[test]
-fn a_cancel_after_the_answer_to_begin_leaves_the_workbook_and_ends_effect_unknown() {
+fn a_cancel_after_the_answer_to_begin_leaves_the_workbook_and_ends_the_effect_not_made() {
     let files = FillFiles::new("cancel-after-begin", 1);
     let before = files.workbook_bytes();
     let sup = fill(154, &files);
@@ -555,14 +555,24 @@ fn a_cancel_after_the_answer_to_begin_leaves_the_workbook_and_ends_effect_unknow
         LONG,
     );
     assert_eq!(files.workbook_bytes(), before, "no replace");
+    let rows: Vec<(EffectState, Option<Cause>)> =
+        seen.effects().iter().map(|e| (e.state, e.cause)).collect();
     assert_eq!(
-        seen.states(),
-        [EffectState::Cleared, EffectState::Releasing],
+        rows,
+        [
+            (EffectState::Cleared, None),
+            (EffectState::Releasing, None),
+            (EffectState::NotMade, Some(Cause::NotReplaced))
+        ],
         "no commit"
     );
-    assert_eq!(seen.handbacks(), [HandbackReason::EffectUnknown]);
-    assert_eq!(seen.done(), Some(Outcome::EffectUnknown), "{}", seen.stderr);
-    assert_eq!(seen.finish().map(|f| f.unknown), Some(1));
+    assert!(seen.handbacks().is_empty());
+    assert_eq!(seen.done(), Some(Outcome::Declined), "{}", seen.stderr);
+    assert_eq!(
+        stopped(&seen),
+        Some((LogEvent::Stopped, Some(Cause::Declined)))
+    );
+    assert_eq!(seen.finish().map(|f| f.unknown), Some(0));
 }
 
 /// A6.5, CP-135 (4): a cancel before any `begin`, here after the answer to the edit's `propose`, ends the run
