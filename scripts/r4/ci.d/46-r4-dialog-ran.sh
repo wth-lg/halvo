@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive), no line of a target's start that ended it before its first case (a line start FAIL of either target or the inconclusive line of dialog_hosted, failed with the cause start) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help, no report taken at a press and no report made before its window was visible, and its count of slipped schedules, each case run again by the target at most three times in all) and no case of guard_hosted whose schedule slipped in each of its runs (too few runs kept the schedule) and no line of the loop mode (a case SLIPPED), the targets run with GUARD_HOSTED_SCHEDULE and GUARD_HOSTED_TALLY unset and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD, and it prints into the job's log, above its verdict, the own lines of each failed case and of each start, watchdog or cut-short run that ended a target, with their line numbers in dialog-targets.txt; off a hosted runner it skips.
+# rule: On a hosted runner the job's own run of the dialog targets of halvo-coord-app prints no inconclusive line of guard_hosted (its app did not become active within 20 s, failed with the cause inconclusive), no line of a target's start that ended it before its first case (a line start FAIL of either target or the inconclusive line of dialog_hosted, failed with the cause start) and each target's own end line with every case of that system run and none failed (dialog_hosted 4 of 4 on macOS and 5 of 5 on Windows, guard_hosted 7 of 7 on macOS and 8 of 8 on Windows, with no help, no report taken at a press and no report made before its window was visible, and its count of slipped schedules, each case run again by the target at most three times in all) and no case of guard_hosted whose schedule slipped in each of its runs (too few runs kept the schedule) and no line of the loop mode (a case SLIPPED), the targets run with GUARD_HOSTED_SCHEDULE, GUARD_HOSTED_TALLY and HALVO_HOSTED_LATE_RUN_MS unset and no line that a target was not run, cargo exits 0 and no tracked file differs from HEAD, and it prints into the job's log, above its verdict, the own lines of each failed case and of each start, watchdog or cut-short run that ended a target, with their line numbers in dialog-targets.txt; off a hosted runner it skips.
 # lane: alone
 set -u
 name=46-r4-dialog-ran
@@ -117,7 +117,7 @@ measure() {
   [ -d "$CI_D_ARTIFACTS" ] || mkdir -p "$CI_D_ARTIFACTS" || fail "the artifacts directory cannot be made"
   tracked before
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail "mktemp failed"
-  env -u GUARD_HOSTED_SCHEDULE -u GUARD_HOSTED_TALLY cargo test -p halvo-coord-app --locked --no-fail-fast --test dialog_hosted --test guard_hosted >"$work/out" 2>&1
+  env -u GUARD_HOSTED_SCHEDULE -u GUARD_HOSTED_TALLY -u HALVO_HOSTED_LATE_RUN_MS cargo test -p halvo-coord-app --locked --no-fail-fast --test dialog_hosted --test guard_hosted >"$work/out" 2>&1
   code=$?
   tracked after
   file=$CI_D_ARTIFACTS/dialog-targets.txt
@@ -197,6 +197,9 @@ self_test() {
 #!/bin/sh
 printf '%s\n' "$*" >>"$STUB_CALLS"
 [ "$*" = 'test -p halvo-coord-app --locked --no-fail-fast --test dialog_hosted --test guard_hosted' ] || exit 97
+[ -z "${HALVO_HOSTED_LATE_RUN_MS+set}" ] || { printf 'HALVO_HOSTED_LATE_RUN_MS reached cargo\n'; exit 96; }
+[ -z "${GUARD_HOSTED_SCHEDULE+set}" ] || { printf 'GUARD_HOSTED_SCHEDULE reached cargo\n'; exit 96; }
+[ -z "${GUARD_HOSTED_TALLY+set}" ] || { printf 'GUARD_HOSTED_TALLY reached cargo\n'; exit 96; }
 [ "$STUB_WRITES" = no ] || printf 'written by a test\n' >>tracked.txt
 cat "$STUB_OUT"
 exit "$STUB_EXIT"
@@ -372,6 +375,13 @@ FAIL 46-r4-dialog-ran (' macos
   check macos-two-end-lines FAIL 'dialog_hosted printed 2 end lines, not one' macos
   output prefix "x $mac_dialog" "$mac_guard"
   check macos-line-inside-another FAIL 'dialog_hosted printed 0 end lines, not one' macos
+  output settings "$mac_dialog" "$mac_guard"
+  check macos-the-late-run-setting-is-taken-out PASS 'the line of 7 of 7 with none failed 1' macos HALVO_HOSTED_LATE_RUN_MS=2000
+  check macos-an-empty-late-run-setting-is-taken-out PASS 'the line of 7 of 7 with none failed 1' macos HALVO_HOSTED_LATE_RUN_MS=
+  check macos-the-loop-mode-setting-is-taken-out PASS 'the line of 7 of 7 with none failed 1' macos GUARD_HOSTED_SCHEDULE=loop
+  check macos-the-tally-setting-is-taken-out PASS 'the line of 7 of 7 with none failed 1' macos GUARD_HOSTED_TALLY=tally
+  output win-settings "$win_dialog" "$win_guard"
+  check windows-the-late-run-setting-is-taken-out PASS 'the line of 8 of 8 with none failed 1' windows HALVO_HOSTED_LATE_RUN_MS=12000
   output cargo "$mac_dialog" "$mac_guard"
   STUB_EXIT=101
   check macos-cargo-failed FAIL 'exited 101' macos
