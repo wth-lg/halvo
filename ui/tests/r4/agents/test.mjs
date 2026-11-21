@@ -857,5 +857,126 @@ if (want('card')) {
   });
 }
 
+if (want('card')) {
+  const { trail } = await import(pathToFileURL(join(REPO, 'tools', 'r4-page', 'index.mjs')).href);
+  const state = json('state-card.json');
+  const A = state.card.agent;
+  const snap = state.snapshot;
+  const B = snap.rows.find((r) => r.agent !== A).agent;
+  const row = snap.rows.find((r) => r.agent === A);
+  const tries = /^ {2}var CARD_TRIES = (\d+);$/m.exec(readFileSync(join(REPO, 'ui', 'app', 'views', 'agents.js'), 'utf8'));
+  const N = tries ? Number(tries[1]) : 0;
+  const count = { key: 'records_dropped', text: 'One record went unsaved.' };
+  const busyCard = { agent: A, name: state.card.name, lines: [count], runs: [], history: 'busy' };
+  const same0 = { state: { ...snap } };
+  const cardCall = (reply) => ({ call: 'agents_card', args: { agent: A }, reply });
+  const syncLine = { call: 'agents_control', args: { agent: B, action: 'run_now' }, reply: { ok: 'yes' } };
+  const sync = async (h) => {
+    await h.page.evaluate((b) => window.Halvo.ipc.call('agents_control', { agent: b, action: 'run_now' }), B);
+    await settleCalls(h);
+    await settleCalls(h);
+  };
+  const strays = (h) => trail(h).filter((l) => l.includes('not_next_in_transcript')).length;
+  const cardsAsked = (out) => calls(out).filter((c) => c.call === 'agents_card').length;
+  const cardOf = (h) =>
+    h.page.evaluate((a) => {
+      const c = document.getElementById('r4a-card-' + a);
+      if (c === null) return null;
+      return {
+        runs: c.querySelectorAll('.r4a-runs > li').length,
+        texts: [...c.querySelectorAll('*')].filter((e) => e.children.length === 0 && e.textContent !== '').map((e) => e.textContent),
+      };
+    }, A);
+  const busyTexts = [count.text].concat(typeof row.next === 'string' && row.next !== '' ? [row.next] : []);
+
+  await test('a_busy_card_is_asked_again_at_the_next_reply_and_shows_its_runs_without_a_close', async () => {
+    const out = outDir();
+    const replies = [{ state: snap }, cardCall(busyCard), syncLine, same0, cardCall(state.card), syncLine, same0];
+    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      await sync(h);
+      const shown = await cardOf(h);
+      await sync(h);
+      const asked = cardsAsked(out);
+      return [N >= 1 && shown !== null && shown.runs === state.card.runs.length && asked === 2 && strays(h) === 0, { N, shown, asked, trail: trail(h) }];
+    });
+  });
+
+  await test('a_busy_card_whose_next_ask_is_refused_is_not_asked_again_and_keeps_its_count_line', async () => {
+    const out = outDir();
+    const replies = [{ state: snap }, cardCall(busyCard), syncLine, same0, cardCall({ error: 'no_service' }), syncLine, same0];
+    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      await sync(h);
+      await sync(h);
+      const shown = await cardOf(h);
+      const asked = cardsAsked(out);
+      return [N >= 2 && asked === 2 && strays(h) === 0 && shown !== null && same(shown.texts, busyTexts), { N, asked, shown, trail: trail(h) }];
+    });
+  });
+
+  await test('a_busy_card_is_asked_again_at_most_CARD_TRIES_times_and_then_keeps_the_count_line_alone', async () => {
+    const out = outDir();
+    const replies = [{ state: snap }, cardCall(busyCard)];
+    for (let k = 1; k <= N; k++) replies.push(syncLine, same0, cardCall(busyCard));
+    replies.push(syncLine, same0);
+    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      for (let k = 0; k <= N; k++) await sync(h);
+      const shown = await cardOf(h);
+      const asked = cardsAsked(out);
+      return [N >= 1 && asked === N + 1 && strays(h) === 0 && shown !== null && shown.runs === 0 && same(shown.texts, busyTexts), { N, asked, shown, busyTexts, trail: trail(h) }];
+    });
+  });
+
+  await test('no_card_is_asked_for_behind_a_busy_card_that_was_closed', async () => {
+    const out = outDir();
+    const replies = [{ state: snap }, cardCall(busyCard), syncLine, same0];
+    return withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      await act(h, { act: 'close_card', param: A });
+      await settleCalls(h);
+      await sync(h);
+      const asked = cardsAsked(out);
+      const cards = await cardsOf(h);
+      return [asked === 1 && strays(h) === 0 && same(cards, []), { asked, cards, trail: trail(h) }];
+    });
+  });
+
+  await test('only_the_busy_key_is_asked_again_and_a_busy_refusal_or_a_card_that_answered_is_not', async () => {
+    const seen = [];
+    for (const first of [{ error: 'busy' }, state.card]) {
+      const out = outDir();
+      const replies = [{ state: snap }, cardCall(first), syncLine, same0];
+      const one = await withPage({ origin, replies, views: [VIEW], out }, async (h) => {
+        await act(h, { act: 'open_card', param: A });
+        await settleCalls(h);
+        await sync(h);
+        return { asked: cardsAsked(out), strays: strays(h), cards: await cardsOf(h) };
+      });
+      seen.push(one);
+    }
+    const ok = same(seen, [
+      { asked: 1, strays: 0, cards: [] },
+      { asked: 1, strays: 0, cards: ['r4a-card-' + A] },
+    ]);
+    return [ok, seen];
+  });
+
+  await test('a_busy_card_shows_the_count_line_and_no_words_of_a_card_with_no_history', async () => {
+    const replies = [{ state: snap }, cardCall(busyCard)];
+    return withPage({ origin, replies, views: [VIEW] }, async (h) => {
+      await act(h, { act: 'open_card', param: A });
+      await settleCalls(h);
+      const shown = await cardOf(h);
+      return [shown !== null && shown.runs === 0 && same(shown.texts, busyTexts) && h.errors === 0, { shown, busyTexts }];
+    });
+  });
+}
+
 console.log('agents tests passed=' + passed + ' failed=' + failed + ' states=' + STATES.length);
 process.exit(failed === 0 ? 0 : 1);

@@ -413,6 +413,7 @@ pub fn card<C: ConfigView>(
             .take(limits.history_runs as usize)
             .map(|h| card_run(&facts.events, h))
             .collect::<Result<_, _>>()?,
+        history: None,
     })
 }
 

@@ -1052,6 +1052,7 @@ fn card(b: &Built) -> Card {
                     .collect(),
             })
             .collect(),
+        history: None,
     }
 }
 
