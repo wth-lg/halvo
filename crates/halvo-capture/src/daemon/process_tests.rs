@@ -11,12 +11,13 @@ use halvo_control::instance_lock::{self, LockRead};
 use halvo_control::model::{StorageCap, UtcDay};
 use halvo_control::paths::DataDir;
 
-use super::custody_policy::Custody;
+use super::custody_policy::{select, Custody, System};
 use super::instance::tests::{backup_mark, kept_dir};
 use super::instance::InstanceLock;
 use super::main_loop::{self, MainLoop};
-use super::maintenance::{Clocks, MAINTENANCE_INTERVAL, SHRED_CHUNK};
+use super::maintenance::{Clocks, Upkeep, MAINTENANCE_INTERVAL, SHRED_CHUNK};
 use super::model_store::{foreground, noon, open_floor, ManualClocks, APP, AT_NOON};
+use super::owner::open::{try_open, CreateRule, Held};
 use super::owner::{Answer, Owner, OwnerHandle, OwnerParts};
 use super::port::{
     Access, ByteBound, CaptureStore, DataDirStore, EntryKind, KindEntry, MaintFault, MaintainStore,
@@ -1242,5 +1243,46 @@ fn an_eviction_after_a_flush_brings_the_disk_total_under_the_cap() {
     assert!(
         read[2..].iter().all(Option::is_some),
         "a segment was shredded under a stored cap out of range"
+    );
+}
+
+#[test]
+fn a_maintenance_only_store_expires_and_takes_no_batch() {
+    let dir = kept_dir("upkeep-tests-");
+    let mut store = made_store(&dir);
+    segment_at(&mut *store, noon() - 15 * DAY, b"due\n");
+    segment_at(&mut *store, noon() - DAY, b"kept\n");
+    drop(store);
+    let (slot, held) = try_open(
+        &DataDirStore::at(&dir),
+        |recorded| select(true, System::Macos, recorded),
+        CreateRule::StoreMade,
+        SECOND,
+    );
+    let Some(Held::Maintenance { store, .. }) = held else {
+        panic!("the policy did not open the store for maintenance alone: {slot:?}");
+    };
+    let clocks = ManualClocks::at(noon());
+    let mut upkeep = Upkeep::new(
+        store,
+        clocks.clone(),
+        Some(ByteBound::of_cap(StorageCap::DEFAULT)),
+    );
+    let mut waits = vec![upkeep.wait()];
+    for _ in 0..2 {
+        upkeep.turn();
+        waits.push(upkeep.wait());
+        clocks.advance(MAINTENANCE_INTERVAL);
+    }
+    drop(upkeep);
+    assert_eq!(
+        DataDirStore::at(&dir).read_back(),
+        [None, Some(b"kept\n".to_vec())],
+        "the pass on a maintenance handle left its due segment, or the store holds a segment that it did not hold before"
+    );
+    assert_eq!(
+        waits,
+        [Duration::ZERO, MAINTENANCE_INTERVAL, MAINTENANCE_INTERVAL],
+        "the pass was not due at the start and then every 60 s"
     );
 }

@@ -264,10 +264,17 @@ fn opened(store: EncryptedStore, id: StoreId, access: Access) -> Opened {
     }
 }
 
+fn open_for(access: Access) -> OpenFor {
+    match access {
+        Access::ReadWrite => OpenFor::Write,
+        Access::MaintenanceOnly => OpenFor::Maintenance,
+    }
+}
+
 fn open_at(store_dir: &Path, roots: &Path, access: Access) -> Opened {
     let id = key_id(store_dir);
     match (
-        EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION, OpenFor::Write),
+        EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION, open_for(access)),
         id,
     ) {
         (Ok(store), Some(id)) => opened(store, id, access),

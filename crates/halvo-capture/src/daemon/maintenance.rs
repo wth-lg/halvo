@@ -240,6 +240,50 @@ impl Schedule {
     }
 }
 
+/// The upkeep of a store that is open for maintenance alone: the schedule's
+/// expiry at its start and at each deadline, and its cap check after each
+/// expiry call, one shred call a turn. It writes no batch.
+pub struct Upkeep<S, C> {
+    store: S,
+    clocks: C,
+    schedule: Schedule,
+}
+
+impl<S: MaintainStore, C: Clocks> Upkeep<S, C> {
+    /// The upkeep of `store` on the clocks `clocks`, evicting to `bound`, or
+    /// evicting nothing when there is no bound.
+    pub fn new(store: S, clocks: C, bound: Option<ByteBound>) -> Upkeep<S, C> {
+        Upkeep {
+            store,
+            clocks,
+            schedule: Schedule::new(SHRED_CHUNK, bound),
+        }
+    }
+
+    /// How long the next turn may wait: zero when a shred call is due.
+    pub fn wait(&self) -> Duration {
+        self.schedule.deadline().map_or(Duration::ZERO, |deadline| {
+            deadline.saturating_sub(self.clocks.monotonic())
+        })
+    }
+
+    /// Runs the one shred call that is due now, if any. After an expiry call
+    /// it reads the disk total, so that an eviction is due while the total is
+    /// above the bound.
+    pub fn turn(&mut self) {
+        let Some(job) = self.schedule.next(self.clocks.now()) else {
+            return;
+        };
+        let answer = self.schedule.run(&mut self.store, job);
+        self.schedule.done(job, &answer);
+        if let Job::Expire { .. } = job {
+            if let Ok(usage) = self.store.usage() {
+                self.schedule.measured(usage.disk_bytes);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::UNIX_EPOCH;
