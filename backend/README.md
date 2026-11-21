@@ -139,9 +139,8 @@ as a name. In the name of a tracked file, which it prints as line
 or `Users` is a common name in a source tree. The gate runs it before its checks, so the gate
 needs a git checkout.
 With `--staged` it reads only the files that the index adds or changes against the last
-commit, for a pre-commit or a pre-merge-commit hook; no hook of the app repository runs it, and
-in CI `scripts/r7/ci.d/23-r7-machine-paths.sh` runs it over the tracked files under `backend/`
-and `formal/r7-ledger/`. Write such a path relative to the repository, take the location from an environment
+commit, for a pre-commit or a pre-merge-commit hook; no hook of the app repository and no CI
+job runs it. Write such a path relative to the repository, take the location from an environment
 variable, or write the name as one of those placeholders.
 
 The gate has 13 checks. Four are stubs that print FAIL until their unit replaces the file:
@@ -302,18 +301,16 @@ What it cannot see:
   on an address outside loopback, such as 192.0.2.1, ends its process. A connection to such a
   listener from another host was not tried.
 
-## Checks in CI and the gate's records
+## Checks in CI
 
 The one workflow of the app repository runs the backend's checks through its driver,
-`scripts/ci/run-ci-d.sh`, as five scripts under `scripts/r7/ci.d/`: 10-r7-layout (every tracked
-file under `backend/` and `formal/r7-ledger/` matches a line of `scripts/r7/layout.txt`, which
-names its owner), 20-r7-backend-static (the typecheck and the lint), 21-r7-backend-test (the test
-script, in the macos job alone: on windows-2025 the stack needs lsof and `ps -o`, which Git Bash
-lacks, and the test script does not end, so the windows job runs no test of the backend),
-22-r7-backend-records and 23-r7-machine-paths (`scripts/check-machine-paths.sh` over
-`backend/` and `formal/r7-ledger/`). 21-r7-backend-test runs the test script, whose vitest run
-holds the workerd tests and the node tests (`test/**/*.node.test.ts`), and then the records of
-check 50, `gate/fixtures/concurrency/records.mjs` run on `backend/` as the commit holds it.
+`scripts/ci/run-ci-d.sh`, as scripts under `scripts/r7/ci.d/`, among them 20-r7-backend-static
+(the typecheck and the lint) and 21-r7-backend-test (the test script, in the macos job alone: on
+windows-2025 the stack needs lsof and `ps -o`, which Git Bash lacks, and the test script does not
+end, so the windows job runs no test of the backend). 21-r7-backend-test runs the test script,
+whose vitest run holds the workerd tests and the node tests (`test/**/*.node.test.ts`), and then
+the records of check 50, `gate/fixtures/concurrency/records.mjs` run on `backend/` as the commit
+holds it.
 
 A node test starts a server through the test kit, `test/ledger/process-group.ts`, in a process
 group of its own, and marks it in `backend/.tmp/groups/` (a test can name another directory with
@@ -348,23 +345,8 @@ that started after a dead owner, is trusted. Nothing empties `backend/.tmp/`: ea
 tests adds the state directories of the wrangler, gateway and stop-case tests; remove them by
 hand when no run of the checkout is going.
 
-The gate runs in no CI job: it needs the stack and the sandbox of macOS. Its lines are kept as
-records, `docs/r7/gate/NN-name.txt`, one for each check: the line that the gate printed, the UTC
-time and the 1-minute load at which it came, and the trees of `backend/` and of
-`formal/r7-ledger/` that it ran on. 22-r7-backend-records fails in both jobs when a record names
-other trees than HEAD's, so any commit that changes `backend/` or `formal/r7-ledger/` makes all 13
-stale. Stamp them again at the top of the repository, on macOS, with nothing uncommitted under
-either directory, and commit them with that change:
-
-```sh
-sh scripts/r7/stamp-gate-records.sh
-```
-
-It brings the stack up, runs `sh backend/scripts/gate.sh` once, brings the stack down and writes
-the 13 records, and nothing else in the repository; the gate's logs stay under `.tmp/`. It takes
-about half an hour: 1,684 to 1,911 s in the three runs of the fold, under a 1-minute load of 16 to
-46. It writes no record when the trees are not clean, the stack does not come up, the trees change
-during the run, or a check prints no line or more than one.
+The gate runs in no CI job: it needs the stack and the sandbox of macOS. The repository keeps no
+record of the lines that it prints.
 
 ## Commits
 
