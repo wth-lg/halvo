@@ -1536,7 +1536,7 @@ where
         let facts = &board.members[i].facts;
         if listed.contains(&facts.workflow.id) && owes_paused(board, i) {
             let _ = send_state(cx, &mut board.members[i].facts, AgentState::Paused);
-        } else if starts && wants_active(facts) {
+        } else if starts && !facts.active_refused && wants_active(facts) {
             let sent = send_state(cx, &mut board.members[i].facts, AgentState::Active);
             if sent.as_ref().is_err_and(refused_overlap) {
                 refused_active(cx.ports, board, i);
