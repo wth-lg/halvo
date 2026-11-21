@@ -57,9 +57,13 @@ told() {
   [ -f "$work/ready-$1" ] || return 0
   tr -d '\r' < "$work/ready-$1" > "$work/ready-$1.lf"
   asked=$(sed -n 's/^asked //p' "$work/ready-$1.lf")
-  refused=$(grep -c -v -e '^asked ' -e '^interface ' "$work/ready-$1.lf")
+  refused=$(grep -c -v -e '^asked ' -e '^interface ' -e '^interfaces ' "$work/ready-$1.lf")
   echo "$name listeners $1: asked ${asked:-no address}, $refused refused"
-  sed -n "s/^interface /$name interface at a refused bind of $1: /p" "$work/ready-$1.lf"
+  relay "$work/ready-$1.lf" "at a refused bind of $1"
+}
+
+relay() {
+  sed -n -e "s/^interface /$name interface $2: /p" -e "s/^interfaces /$name interfaces $2: /p" "$1"
 }
 
 self_test() {
@@ -127,8 +131,10 @@ told_cases() {
   printf '%s\n' "$name listeners taken-steps: asked 10.0.0.5, 0 refused" > "$work/told-taken.want"
   printf 'resolver port 5354: [Errno 48] Address already in use\n' > "$work/ready-unasked-steps"
   printf '%s\n' "$name listeners unasked-steps: asked no address, 1 refused" > "$work/told-unasked.want"
+  printf "s03-ip port 47030: [Errno 49] Can't assign requested address\nasked 203.0.113.9\ninterfaces read 3, reader failed false, asked address among them false, error numbers 49\n" > "$work/ready-elsewhere-steps"
+  printf '%s\n' "$name listeners elsewhere-steps: asked 203.0.113.9, 1 refused" "$name interfaces at a refused bind of elsewhere-steps: read 3, reader failed false, asked address among them false, error numbers 49" > "$work/told-elsewhere.want"
   : > "$work/told-unwritten.want"
-  for label in refused taken unasked unwritten; do
+  for label in refused taken unasked elsewhere unwritten; do
     told "$label-steps" > "$work/told-$label.got" 2>&1
     got=mis-told
     cmp -s "$work/told-$label.want" "$work/told-$label.got" && got=told
@@ -150,7 +156,7 @@ helper_cases() {
   rejected=$((rejected + right))
   bad=$(sed -n 's/^case [^ /]*\/\([^ ]*\) .* wrong$/\1/p' "$work/helper-cases.txt" | paste -s -d ' ' -)
   [ -z "$bad" ] || wrong="$wrong $bad"
-  if [ "$code" != 0 ] || [ "$right" != 7 ]; then wrong="$wrong helper-cases"; fi
+  if [ "$code" != 0 ] || [ "$right" != 8 ]; then wrong="$wrong helper-cases"; fi
   shown=$(verdict "$work/helper/judged.txt" macos)
   got=green
   [ "$shown" = "FAIL $name (s03-ip:open-or-unread s18-ip:open-or-unread)" ] && got=red
@@ -260,10 +266,18 @@ def quiet(call, *args):
         return call(*args)
 
 
-def listen(label):
-    open(os.path.join(directory, f"stop-{label}"), "w").close()
-    measure.listen(directory, label)
-    return lines_of(f"ready-{label}")
+def listen(label, where=directory):
+    open(os.path.join(where, f"stop-{label}"), "w").close()
+    measure.listen(where, label)
+    with open(os.path.join(where, f"ready-{label}"), encoding="utf-8") as f:
+        return f.read().splitlines()
+
+
+def machine(value):
+    if value is None:
+        os.environ.pop("GITHUB_ACTIONS", None)
+    else:
+        os.environ["GITHUB_ACTIONS"] = value
 
 
 def refused_binds_are_written_and_told():
@@ -273,6 +287,7 @@ def refused_binds_are_written_and_told():
     with open(os.path.join(directory, "plan.json"), encoding="utf-8") as f:
         targets = json.load(f)["targets"]
     expected = [f"{t['step']}-{t['form']} port {t['port']}: {REFUSED}" for t in targets if not t.get("pf") and not t.get("loop")]
+    machine("true")
     lines = listen("engine-alone-steps")
     with open(os.path.join(directory, "counts-engine-alone-steps.json"), encoding="utf-8") as f:
         failures = json.load(f)["listen_failures"]
@@ -299,6 +314,7 @@ def one_refused_bind_is_told_with_the_interfaces():
         port = json.load(f)["dns_port"]
     held.add("203.0.113.9")
     refused[port] = (48, "Address already in use")
+    machine("true")
     try:
         lines = listen("one-refusal-steps")
     finally:
@@ -306,6 +322,42 @@ def one_refused_bind_is_told_with_the_interfaces():
         del refused[port]
     want = [f"resolver port {port}: [Errno 48] Address already in use", "asked 203.0.113.9"] + [f"interface {line}" for line in MAC_LINES]
     return "told" if lines == want else f"lines-{len(lines)}"
+
+
+def refused_binds_elsewhere_are_told_by_counts():
+    with open(os.path.join(directory, "plan.json"), encoding="utf-8") as f:
+        port = json.load(f)["dns_port"]
+    refusals = [line for line in lines_of("ready-engine-alone-steps") if line.endswith(REFUSED)]
+    count = "interfaces read 3, reader failed false, asked address among them false, error numbers 49"
+    machine(None)
+    lines = listen("elsewhere-unset-steps")
+    if lines != refusals + ["asked 203.0.113.9", count]:
+        return f"unset-{sum(line.startswith('interface ') for line in lines)}-interface-lines"
+    near = os.path.join(directory, "near")
+    os.environ["HALVO_MEASURE_TEST_IP"] = "10.0.0.5"
+    quiet(measure.plan, near)
+    os.environ.pop("HALVO_MEASURE_TEST_IP")
+    machine("false")
+    refused[port] = (48, "Address already in use")
+    try:
+        lines = listen("elsewhere-false-steps", near)
+    finally:
+        del refused[port]
+    if lines != [f"resolver port {port}: [Errno 48] Address already in use", "asked 10.0.0.5", "interfaces read 3, reader failed false, asked address among them true, error numbers 48"]:
+        return f"false-{sum(line.startswith('interface ') for line in lines)}-interface-lines"
+    machine(None)
+
+    def broken():
+        raise OSError("no reader")
+
+    measure.interface_text = broken
+    try:
+        lines = listen("elsewhere-unread-steps")
+    finally:
+        measure.interface_text = text_of_the_minute
+    if lines != refusals + ["asked 203.0.113.9", "interfaces read 0, reader failed true, asked address among them false, error numbers 49"]:
+        return "unread-misread"
+    return "counted"
 
 
 def windows_interfaces_are_read():
@@ -382,6 +434,7 @@ def case(label, want, run):
 case("refused-binds-written-and-told", "told", refused_binds_are_written_and_told)
 case("taken-binds-tell-the-address-alone", "asked-alone", taken_binds_tell_the_address_alone)
 case("one-refused-bind-told-with-the-interfaces", "told", one_refused_bind_is_told_with_the_interfaces)
+case("refused-binds-elsewhere-told-by-counts", "counted", refused_binds_elsewhere_are_told_by_counts)
 case("windows-interfaces-read", "read", windows_interfaces_are_read)
 case("unread-interfaces-told", "told", an_unread_list_is_told)
 case("unbound-listener-reads-not-measured", "not-measured", an_unbound_listener_reads_not_measured)
@@ -1181,11 +1234,7 @@ def interface_text():
     return subprocess.run(command, capture_output=True, text=True, errors="replace", timeout=30, check=False).stdout
 
 
-def interfaces():
-    try:
-        text = interface_text()
-    except (OSError, subprocess.SubprocessError) as e:
-        return [f"not read: {e}"]
+def interface_rows(text):
     rows = []
     for line in text.splitlines():
         if not line.strip():
@@ -1205,7 +1254,29 @@ def interfaces():
             rows[-1].append(" ".join(words[:2]))
         elif "Address" in key or "Media State" in key:
             rows[-1].append(value)
-    return [" ".join(row) for row in rows] or ["none read"]
+    return rows
+
+
+def interfaces():
+    try:
+        text = interface_text()
+    except (OSError, subprocess.SubprocessError) as e:
+        return [f"not read: {e}"]
+    return [" ".join(row) for row in interface_rows(text)] or ["none read"]
+
+
+def told_lines(ip, errnos):
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return [f"interface {line}" for line in interfaces()]
+    try:
+        rows = interface_rows(interface_text())
+        failed = "false"
+    except (OSError, subprocess.SubprocessError):
+        rows, failed = [], "true"
+    words = " ".join(" ".join(row) for row in rows).split()
+    asked = "no address asked" if ip is None else f"asked address among them {str(ip in words).lower()}"
+    numbers = " ".join(sorted({str(n) for n in errnos}))
+    return [f"interfaces read {len(rows)}, reader failed {failed}, {asked}, error numbers {numbers}"]
 
 
 def failed_keys(failures, keys):
@@ -1226,6 +1297,7 @@ def listen(directory, label):
     counts = Counts()
     sockets = []
     failures = []
+    errnos = []
     for t in planned["targets"]:
         key = f"{t['step']}-{t['form']}"
         if t.get("pf"):
@@ -1247,6 +1319,7 @@ def listen(directory, label):
                         threading.Thread(target=serve_udp, args=(u, key, counts), daemon=True).start()
                 except OSError as e:
                     failures.append(f"{key} port {t['port']} at {address}: {e}")
+                    errnos.append(e.errno)
             continue
         try:
             s = bound_socket(socket.SOCK_STREAM, (t.get("bind", ip), t["port"]))
@@ -1259,15 +1332,17 @@ def listen(directory, label):
                 threading.Thread(target=serve_udp, args=(u, key, counts), daemon=True).start()
         except OSError as e:
             failures.append(f"{key} port {t['port']}: {e}")
+            errnos.append(e.errno)
     try:
         d = bound_socket(socket.SOCK_DGRAM, ("127.0.0.1", planned["dns_port"]))
         sockets.append(d)
         threading.Thread(target=serve_dns, args=(d, ip, planned["targets"], counts), daemon=True).start()
     except OSError as e:
         failures.append(f"resolver port {planned['dns_port']}: {e}")
+        errnos.append(e.errno)
     told = failures + [f"asked {ip}"]
     if failures:
-        told += [f"interface {line}" for line in interfaces()]
+        told += told_lines(ip, errnos)
     with open(os.path.join(directory, f"ready-{label}"), "w", encoding="utf-8") as f:
         f.write("\n".join(told) + "\n")
     stop = os.path.join(directory, f"stop-{label}")
