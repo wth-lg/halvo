@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No package of the workspace links openssl-sys, and halvo, halvo-control, halvo-capture and halvo-agent-client, which relays a run, link no network client on the shipped targets; the feature test-seam stands in crates/halvo-capture/Cargo.toml alone, on its features line and on the crate's dev-dependency on itself, and in no other manifest (ruling W3-8 (b) (2)).
+# rule: No package of the workspace links openssl-sys, and halvo, halvo-control, halvo-capture, halvo-agent-client, which relays a run, halvo-owner, which opens the derived store, and halvo-analysis, which reads the capture records, link no network client on the shipped targets; the feature test-seam stands in crates/halvo-capture/Cargo.toml alone, on its features line and on the crate's dev-dependency on itself, and in no other manifest (ruling W3-8 (b) (2)).
 set -u
 name=21-tree-bans
 clients='reqwest hyper ureq rustls ring aws-lc-rs native-tls openssl-sys'
@@ -55,7 +55,7 @@ measure() {
 
   metadata=$(cargo metadata --no-deps --locked --format-version 1) || fail "cargo metadata failed"
   members=$(printf '%s\n' "$metadata" | tr '{' '\n' | sed -n 's/^"name":"\([^"]*\)","version":.*/\1/p')
-  for package in halvo halvo-control halvo-capture halvo-agent-client; do
+  for package in halvo halvo-control halvo-capture halvo-agent-client halvo-owner halvo-analysis; do
     case $nl$members$nl in
       *"$nl$package$nl"*) ;;
       *)
@@ -163,11 +163,13 @@ EOF
   printf '[features]\nr2 = []\ntest-seam = []\n\n[dev-dependencies]\nhalvo-capture = { path = ".", features = ["test-seam"] }\n' >"$work/repo/crates/halvo-capture/Cargo.toml"
   printf '[dependencies]\nhalvo-capture = { path = "../crates/halvo-capture" }\n' >"$work/repo/src-tauri/Cargo.toml"
   printf 'halvo v0.0.0 (/w/src-tauri)\nhalvo-capture v0.0.0 (/w/crates/halvo-capture)\ntauri v2.12.5\nreqwest v0.13.5\nhyper v1.9.0\n' >"$work/main/workspace.txt"
-  printf '{"packages":[{"name":"halvo","version":"0.0.0","id":"path+file:///w/src-tauri#halvo@0.0.0","dependencies":[{"name":"halvo-capture","source":null,"req":"*"}],"targets":[{"kind":["bin"],"crate_types":["bin"],"name":"halvo","src_path":"/w/src-tauri/src/main.rs"}]},{"name":"halvo-capture","version":"0.0.0","id":"path+file:///w/crates/halvo-capture#0.0.0","dependencies":[],"targets":[{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture","src_path":"/w/crates/halvo-capture/src/lib.rs"}]},{"name":"halvo-agent-client","version":"0.0.0","id":"path+file:///w/crates/halvo-agent-client#0.0.0","dependencies":[],"targets":[]}],"version":1}\n' >"$work/main/metadata.json"
+  printf '{"packages":[{"name":"halvo","version":"0.0.0","id":"path+file:///w/src-tauri#halvo@0.0.0","dependencies":[{"name":"halvo-capture","source":null,"req":"*"}],"targets":[{"kind":["bin"],"crate_types":["bin"],"name":"halvo","src_path":"/w/src-tauri/src/main.rs"}]},{"name":"halvo-capture","version":"0.0.0","id":"path+file:///w/crates/halvo-capture#0.0.0","dependencies":[],"targets":[{"kind":["lib"],"crate_types":["lib"],"name":"halvo_capture","src_path":"/w/crates/halvo-capture/src/lib.rs"}]},{"name":"halvo-agent-client","version":"0.0.0","id":"path+file:///w/crates/halvo-agent-client#0.0.0","dependencies":[],"targets":[]},{"name":"halvo-owner","version":"0.0.0","id":"path+file:///w/crates/halvo-owner#0.0.0","dependencies":[],"targets":[]},{"name":"halvo-analysis","version":"0.0.0","id":"path+file:///w/crates/halvo-analysis#0.0.0","dependencies":[],"targets":[]}],"version":1}\n' >"$work/main/metadata.json"
   for triple in aarch64-apple-darwin x86_64-pc-windows-msvc; do
     printf 'halvo v0.0.0 (/w/src-tauri)\nhalvo-capture v0.0.0 (/w/crates/halvo-capture)\ntauri v2.12.5\n' >"$work/main/halvo-$triple.txt"
     printf 'halvo-capture v0.0.0 (/w/crates/halvo-capture)\nrusqlite v0.41.1\n' >"$work/main/halvo-capture-$triple.txt"
     printf 'halvo-agent-client v0.0.0 (/w/crates/halvo-agent-client)\nhalvo-control v0.0.0 (/w/crates/halvo-control)\n' >"$work/main/halvo-agent-client-$triple.txt"
+    printf 'halvo-owner v0.0.0 (/w/crates/halvo-owner)\nhalvo-derived v0.0.0 (/w/crates/halvo-derived)\n' >"$work/main/halvo-owner-$triple.txt"
+    printf 'halvo-analysis v0.0.0 (/w/crates/halvo-analysis)\nhalvo-seam v0.0.0 (/w/crates/halvo-seam)\n' >"$work/main/halvo-analysis-$triple.txt"
   done
   rejected=0
   wrong=
