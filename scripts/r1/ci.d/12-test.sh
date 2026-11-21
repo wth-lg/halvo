@@ -42,10 +42,13 @@ fast_plan() {
     fail "$slow_list cannot be read; the form of the merge gate reads from it the test targets, the unit tests and the test names that it skips"
   cr=$(printf '\r')
   skipped_targets=' '
-  skipped_packages=' '
+  target_packages=' '
+  unit_packages=' '
+  target_excludes=
   unit_excludes=
   name_skips=
   skipped_names=0
+  doc_tests=run
   line_number=0
   while read -r kind word _ || [ -n "$kind" ]; do
     line_number=$((line_number + 1))
@@ -53,36 +56,41 @@ fast_plan() {
     word=${word%"$cr"}
     case $kind in
       '' | '#'*) continue ;;
+      doc-tests)
+        doc_tests=skipped
+        continue
+        ;;
     esac
     case $kind:$word in
-      target: | units: | test: | target:*[!A-Za-z0-9_-]* | units:*[!A-Za-z0-9_-]* | test:*[!A-Za-z0-9_:]*)
+      target: | targets: | units: | test: | target:*[!A-Za-z0-9_-]* | targets:*[!A-Za-z0-9_-]* | units:*[!A-Za-z0-9_-]* | test:*[!A-Za-z0-9_:]*)
         fail "$slow_list line $line_number: after its first word a line names a test target or a package in letters, digits, - and _, or a part of a test name in letters, digits, _ and :"
         ;;
       target:*) skipped_targets="$skipped_targets$word " ;;
+      targets:*)
+        target_packages="$target_packages$word "
+        target_excludes="$target_excludes --exclude $word"
+        ;;
       units:*)
-        skipped_packages="$skipped_packages$word "
+        unit_packages="$unit_packages$word "
         unit_excludes="$unit_excludes --exclude $word"
         ;;
       test:*)
         name_skips="$name_skips --skip $word"
         skipped_names=$((skipped_names + 1))
         ;;
-      *) fail "$slow_list line $line_number begins with another word than target, units or test" ;;
+      *) fail "$slow_list line $line_number begins with another word than target, targets, units, test or doc-tests" ;;
     esac
   done <"$slow_list"
   metadata=$(cargo metadata --no-deps --format-version 1 --locked) || fail "cargo metadata exited $?"
-  all_targets=$(printf '%s\n' "$metadata" | perl -ne 'while (/\{"kind":\["test"\],"crate_types":\["bin"\],"name":"([A-Za-z0-9_-]+)"/g) { print "$1\n" }' | sort -u)
-  all_packages=$(printf '%s\n' "$metadata" | perl -ne 'while (/\{"name":"([A-Za-z0-9_-]+)","version":"/g) { print "$1\n" }' | sort -u)
+  pairs=$(printf '%s\n' "$metadata" | perl -ne 'my $package = ""; while (/\{"name":"([A-Za-z0-9_-]+)","version":"|\{"kind":\["test"\],"crate_types":\["bin"\],"name":"([A-Za-z0-9_-]+)"/g) { if (defined $1) { $package = $1; print "package $1\n"; } else { print "target $package $2\n"; } }')
+  all_packages=$(printf '%s\n' "$pairs" | sed -n 's/^package //p' | sort -u)
+  all_targets=$(printf '%s\n' "$pairs" | sed -n 's/^target [^ ]* //p' | sort -u)
   [ -n "$all_targets" ] && [ -n "$all_packages" ] ||
     fail "cargo metadata names no test target or no package in the form that this check reads"
-  kept_targets=
-  all_count=0
-  skipped_count=0
-  for target in $all_targets; do
-    all_count=$((all_count + 1))
-    case $skipped_targets in
-      *" $target "*) skipped_count=$((skipped_count + 1)) ;;
-      *) kept_targets="$kept_targets --test $target" ;;
+  for package in $target_packages $unit_packages; do
+    case $nl$all_packages$nl in
+      *"$nl$package$nl"*) ;;
+      *) fail "$slow_list names the package $package, and the workspace has no package of that name; take the line out" ;;
     esac
   done
   for target in $skipped_targets; do
@@ -91,16 +99,28 @@ fast_plan() {
       *) fail "$slow_list names the test target $target, and no package of the workspace has a test target of that name; take the line out" ;;
     esac
   done
-  skipped_units=0
-  for package in $skipped_packages; do
-    skipped_units=$((skipped_units + 1))
-    case $nl$all_packages$nl in
-      *"$nl$package$nl"*) ;;
-      *) fail "$slow_list names the unit tests of $package, and the workspace has no package of that name; take the line out" ;;
-    esac
-  done
+  kept_targets=
+  all_count=0
+  kept_count=0
+  seen_targets=' '
+  while read -r pair_kind package target; do
+    [ "$pair_kind" = target ] || continue
+    all_count=$((all_count + 1))
+    case $target_packages in *" $package "*) continue ;; esac
+    case $skipped_targets in *" $target "*) continue ;; esac
+    kept_count=$((kept_count + 1))
+    case $seen_targets in *" $target "*) continue ;; esac
+    seen_targets="$seen_targets$target "
+    kept_targets="$kept_targets --test $target"
+  done <<EOF
+$pairs
+EOF
   [ -n "$kept_targets" ] || fail "$slow_list names every test target of the workspace"
-  printf 'form: the merge gate; %s names what this run skips: %s of %s names of test targets, the unit tests of %s packages and %s parts of a test name\n' "$slow_list" "$skipped_count" "$all_count" "$skipped_units" "$skipped_names"
+  skipped_units=0
+  for package in $unit_packages; do
+    skipped_units=$((skipped_units + 1))
+  done
+  printf 'form: the merge gate; %s names what this run skips: %s of %s test targets, the unit tests of %s packages, %s parts of a test name; doc-tests: %s\n' "$slow_list" "$((all_count - kept_count))" "$all_count" "$skipped_units" "$skipped_names" "$doc_tests"
 }
 
 build_tests() {
@@ -110,7 +130,7 @@ build_tests() {
   fi
   # shellcheck disable=SC2086
   cargo test --workspace $unit_excludes --locked --lib --bins --no-run &&
-    cargo test --workspace --locked $kept_targets --no-run
+    cargo test --workspace $target_excludes --locked $kept_targets --no-run
 }
 
 run_tests() {
@@ -120,8 +140,8 @@ run_tests() {
   fi
   # shellcheck disable=SC2086
   TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace $unit_excludes --locked --lib --bins -- $name_skips 2>&1 &&
-    TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked $kept_targets -- $name_skips 2>&1 &&
-    TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked --doc 2>&1
+    TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace $target_excludes --locked $kept_targets -- $name_skips 2>&1 || return
+  [ "$doc_tests" = skipped ] || TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked --doc 2>&1
 }
 
 line_seconds() {
