@@ -80,8 +80,7 @@ fn give_up(started: Instant, within: Duration, ready: &mpsc::Receiver<Duration>)
     std::process::exit(Exit::PageNotLoaded.code());
 }
 
-pub fn run(data_dir: PathBuf, within: Duration) -> i32 {
-    let started = Instant::now();
+pub fn run(data_dir: PathBuf, within: Duration, started: Instant) -> i32 {
     let (ready_tx, ready_rx) = mpsc::channel();
     std::thread::spawn(move || give_up(started, within, &ready_rx));
     let engine_rules_dir = Some(data_dir.join(app::ENGINE_RULES_DIR));
