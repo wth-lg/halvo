@@ -1,6 +1,10 @@
 //! The lease of contracts.md C14 item 3, the run condition that reads it, and
 //! the lifeline of C14 item 2.
 
+#[cfg(all(target_os = "macos", debug_assertions))]
+pub mod lifeline;
+#[cfg(all(test, target_os = "macos"))]
+mod process_tests;
 #[cfg(test)]
 mod tests;
 
@@ -38,6 +42,13 @@ impl Lease {
             deadline: Some(now + Duration::from_millis(halvo_control::INDICATOR_LEASE_MS)),
         }
     }
+
+    #[cfg(all(test, target_os = "macos"))]
+    pub(crate) fn never_lapsing() -> Lease {
+        Lease {
+            deadline: Some(Duration::MAX),
+        }
+    }
 }
 
 /// The run condition of contracts.md C3.2 step 10 and C14 item 3: desired
@@ -45,4 +56,11 @@ impl Lease {
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub fn holds(desired: Desired, slot: &Slot, lease: Lease, now: Duration) -> bool {
     desired == Desired::Running && slot.is_open() && lease.is_fresh(now)
+}
+
+/// What ends a run with its parent: on unix the lifeline, whose read end
+/// reached its end of file or whose parent is no longer the one of its start.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub trait ParentWatch: Send {
+    fn ended(&self) -> bool;
 }

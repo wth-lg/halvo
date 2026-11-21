@@ -114,7 +114,7 @@ pub const USAGE: &str = "usage: halvo-capture --version
        halvo-capture --verify-deletion --store-dir DIR
        halvo-capture --delete-all --store-dir DIR
        halvo-capture --delete-all --data-dir DIR
-       halvo-capture --service-run [--data-dir DIR]";
+       halvo-capture --service-run [--lifeline] [--data-dir DIR]";
 
 /// What a command line asks for. The gate's modes exist only in builds with
 /// debug assertions.
@@ -170,10 +170,12 @@ pub enum Mode {
     ServiceRun {
         data_dir: halvo_control::paths::DataDir,
     },
-    /// The mode of daemon-3c's cut in daemon/lease/. No command line parses
-    /// to it until that cut fills it, and the binary answers it with usage.
+    /// `--service-run --lifeline [--data-dir DIR]` (contracts.md C3.2 item 4,
+    /// C14 item 2): the service run that ends with the app that started it.
     #[cfg(debug_assertions)]
-    Lease,
+    LifelineServiceRun {
+        data_dir: halvo_control::paths::DataDir,
+    },
     /// `--delete-all --data-dir DIR`, the offline delete of a data directory
     /// (contracts.md C3.3), with DIR absolute. A macOS build runs it; a build
     /// of another system answers it with usage until the service run comes
@@ -191,7 +193,10 @@ impl Mode {
     /// entry.
     #[cfg(debug_assertions)]
     pub fn reads_the_signal_flag(&self) -> bool {
-        matches!(self, Mode::TimedRun(_) | Mode::ServiceRun { .. })
+        matches!(
+            self,
+            Mode::TimedRun(_) | Mode::ServiceRun { .. } | Mode::LifelineServiceRun { .. }
+        )
     }
 
     /// Whether the mode reads the signal flag: no mode of a release build does.
@@ -674,6 +679,12 @@ pub fn parse(
             let store_dir =
                 gate::store_dir(flags.store_dir, account)?.without_a_data_directory_layout()?;
             Ok(Mode::DeleteAll { store_dir })
+        }
+        #[cfg(debug_assertions)]
+        Some("--service-run") if args.get(1).is_some_and(|flag| flag == "--lifeline") => {
+            Ok(Mode::LifelineServiceRun {
+                data_dir: service_dir(&args[2..], account)?,
+            })
         }
         #[cfg(debug_assertions)]
         Some("--service-run") => Ok(Mode::ServiceRun {
@@ -1764,45 +1775,83 @@ pub struct DurableState;
 /// status 1.
 #[cfg(debug_assertions)]
 pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::StateWrite>) -> i32 {
-    use std::io::Write as _;
     #[cfg(target_os = "macos")]
     {
-        let mut run_loop = match crate::macos::run_loop::MainRunLoop::claim() {
-            Ok(run_loop) => run_loop,
-            Err(error) => {
-                let _ = writeln!(std::io::stderr(), "halvo-capture: {error:?}");
-                return halvo_control::exit::ERROR;
-            }
-        };
-        let Some((front_writer, front_reader)) = run_loop.foreground_state() else {
-            let _ = writeln!(
-                std::io::stderr(),
-                "halvo-capture: the foreground state of the run loop was taken"
-            );
-            return halvo_control::exit::ERROR;
-        };
-        let factory = sources::ServiceSources::new(front_writer, front_reader, run_loop.turns());
-        let main_loop = ServiceLoop {
-            run_loop,
-            started: std::time::Instant::now(),
-        };
-        serve_on(
-            dir,
-            writer,
-            main_loop,
-            signal::flag(),
-            std::sync::Arc::new(main_loop::ExitNow),
-            &mut std::io::stderr(),
-            ServiceParts::of(factory),
-        )
+        serve_the_mac(dir, writer, None)
     }
     #[cfg(not(target_os = "macos"))]
     {
+        use std::io::Write as _;
         let _ = (dir, writer);
         let refused = DaemonError::NotImplemented("the service run on this system");
         let _ = writeln!(std::io::stderr(), "halvo-capture: {refused}");
         halvo_control::exit::ERROR
     }
+}
+
+/// Runs `--service-run --lifeline` on `dir` (contracts.md C3.2 item 4, C14
+/// item 2): a standard input that is no pipe exits 64 and a parent that is
+/// gone already exits 0, each before the store opens; then the run of
+/// [`service_run`], which also ends through its one shutdown entry once the
+/// lifeline reaches its end of file or its parent is gone, with 0, or 1 when
+/// the final flush failed. The parent's pid is the exclusion root of the
+/// floor. On Windows it answers as [`service_run`] does (win-5).
+#[cfg(debug_assertions)]
+pub fn lifeline_service_run(
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+) -> i32 {
+    #[cfg(target_os = "macos")]
+    {
+        match lease::lifeline::start_or_status(&mut std::io::stderr()) {
+            Ok(lifeline) => serve_the_mac(dir, writer, Some(lifeline)),
+            Err(status) => status,
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        service_run(dir, writer)
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn serve_the_mac(
+    dir: &halvo_control::paths::DataDir,
+    writer: Box<dyn state::StateWrite>,
+    lifeline: Option<lease::lifeline::Lifeline>,
+) -> i32 {
+    use std::io::Write as _;
+    let mut run_loop = match crate::macos::run_loop::MainRunLoop::claim() {
+        Ok(run_loop) => run_loop,
+        Err(error) => {
+            let _ = writeln!(std::io::stderr(), "halvo-capture: {error:?}");
+            return halvo_control::exit::ERROR;
+        }
+    };
+    let Some((front_writer, front_reader)) = run_loop.foreground_state() else {
+        let _ = writeln!(
+            std::io::stderr(),
+            "halvo-capture: the foreground state of the run loop was taken"
+        );
+        return halvo_control::exit::ERROR;
+    };
+    let factory = sources::ServiceSources::new(front_writer, front_reader, run_loop.turns());
+    let main_loop = ServiceLoop {
+        run_loop,
+        started: std::time::Instant::now(),
+    };
+    serve_on(
+        dir,
+        writer,
+        main_loop,
+        signal::flag(),
+        std::sync::Arc::new(main_loop::ExitNow),
+        &mut std::io::stderr(),
+        ServiceParts {
+            lifeline,
+            ..ServiceParts::of(factory)
+        },
+    )
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]
@@ -1864,16 +1913,31 @@ pub(crate) fn serve<L: main_loop::MainLoop>(
 }
 
 /// What a service run serves beside its data directory: the factory of its
-/// sources, which start only while the run condition holds.
+/// sources, which start only while the run condition holds, the lifeline of
+/// a run started with `--lifeline`, and in a test build the lease that the
+/// run starts with and a call that gets the last settle of its shutdown
+/// entry.
 #[cfg(all(target_os = "macos", debug_assertions))]
 pub(crate) struct ServiceParts<F> {
     pub(crate) factory: F,
+    pub(crate) lifeline: Option<lease::lifeline::Lifeline>,
+    #[cfg(test)]
+    pub(crate) lease: lease::Lease,
+    #[cfg(test)]
+    pub(crate) settled: Option<Box<dyn FnOnce(Option<counters::Snapshot>)>>,
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]
 impl<F: supervisor::SystemSources> ServiceParts<F> {
     pub(crate) fn of(factory: F) -> ServiceParts<F> {
-        ServiceParts { factory }
+        ServiceParts {
+            factory,
+            lifeline: None,
+            #[cfg(test)]
+            lease: lease::Lease::NONE,
+            #[cfg(test)]
+            settled: None,
+        }
     }
 }
 
@@ -1965,6 +2029,10 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
             error.kind()
         );
     }
+    let root = parts
+        .lifeline
+        .as_ref()
+        .map(|lifeline| crate::floor::exclude::ProcessId::new(lifeline.parent()));
     let mut supervisor = supervisor::Supervisor::new(
         halvo_control::proto::Platform::Macos,
         parts.factory,
@@ -1972,7 +2040,11 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     )
     .with_ending(ending)
     .with_state(state);
-    let root = None;
+    if let Some(lifeline) = parts.lifeline {
+        supervisor = supervisor.with_parent(Box::new(lifeline));
+    }
+    #[cfg(test)]
+    supervisor.set_lease(parts.lease, None);
     if dir_shut.is_some() {
         let _ = writeln!(err, "{DIR_SHUT_LINE}");
     }
@@ -2063,9 +2135,12 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         }
     }
     mark_the_store_made(mark, &mut supervisor, err);
-    let status = supervisor
-        .shutdown_entry(store.link(), status)
-        .map_or(status, |outcome| outcome.status);
+    let outcome = supervisor.shutdown_entry(store.link(), status);
+    #[cfg(test)]
+    if let Some(settled) = parts.settled {
+        settled(outcome.as_ref().and_then(|outcome| outcome.settled));
+    }
+    let status = outcome.map_or(status, |outcome| outcome.status);
     let status = match store {
         HeldStore::Capture(owner) => close_the_store(*owner, status, err),
         HeldStore::None | HeldStore::Maintenance { .. } => status,
@@ -2578,7 +2653,8 @@ mod tests {
             &["--service-run", "--data-dir", "/a/../b"][..],
             &["--service-run", "--data-dir"][..],
             &["--service-run", "--data-dir", "/a", "--data-dir", "/b"][..],
-            &["--service-run", "--lifeline"][..],
+            &["--service-run", "--data-dir", absolute, "--lifeline"][..],
+            &["--service-run", "--lifeline", "--lifeline"][..],
             &["--service-run", "--store-dir", "/a"][..],
         ] {
             let refused = parsed(line);
@@ -2594,6 +2670,20 @@ mod tests {
         assert_eq!(usage_answer(&refusal, &mut Vec::new()), 1);
         let mode = parsed(&["--service-run", "--data-dir", absolute]).unwrap();
         assert!(mode.reads_the_signal_flag());
+        let lifeline = parsed(&["--service-run", "--lifeline", "--data-dir", absolute]);
+        assert_eq!(
+            lifeline,
+            Ok(Mode::LifelineServiceRun {
+                data_dir: DataDir::from_flag(absolute).unwrap()
+            })
+        );
+        assert!(lifeline.unwrap().reads_the_signal_flag());
+        assert_eq!(
+            parsed(&["--service-run", "--lifeline"]),
+            Ok(Mode::LifelineServiceRun {
+                data_dir: DataDir::for_account(&dirs.account).unwrap()
+            })
+        );
     }
 
     #[cfg(debug_assertions)]

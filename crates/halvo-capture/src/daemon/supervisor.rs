@@ -14,7 +14,7 @@ use halvo_control::proto::{Platform, SourceName};
 
 use super::board::{Board, Capture, Drain};
 use super::counters::Snapshot;
-use super::lease::{self, Lease};
+use super::lease::{self, Lease, ParentWatch};
 use super::main_loop::{self, EndCall, MainLoop, Watchdog};
 use super::owner::{
     Answer, Command, OwnerGone, OwnerHandle, OwnerPanicked, OwnerThread, Pending, Report,
@@ -405,6 +405,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     lease: Lease,
     capturing: bool,
     pausing: bool,
+    parent: Option<Box<dyn ParentWatch>>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -444,6 +445,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             lease: Lease::NONE,
             capturing: false,
             pausing: false,
+            parent: None,
         }
     }
 
@@ -465,6 +467,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     pub fn with_ending(mut self, end_call: Arc<dyn EndCall>) -> Supervisor<F, L> {
         self.watchdog = Some(Watchdog::start(end_call.clone()));
         self.end_call = Some(end_call);
+        self
+    }
+
+    /// The watch of a run started with `--lifeline`: a wait ends once it
+    /// reads ended, as it ends on the stop flag, so that the run goes on to
+    /// its one shutdown entry.
+    pub fn with_parent(mut self, parent: Box<dyn ParentWatch>) -> Supervisor<F, L> {
+        self.parent = Some(parent);
         self
     }
 
@@ -1301,8 +1311,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         answers
     }
 
-    /// Turns the main loop until `window` has passed, `stop` reads true or the
-    /// run must end; true when `stop` ended the wait.
+    /// Turns the main loop until `window` has passed, `stop` or the parent
+    /// watch reads true or the run must end; true when one of those two ended
+    /// the wait.
     pub fn wait_on(
         &mut self,
         window: Duration,
@@ -1311,7 +1322,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     ) -> bool {
         let until = self.main_loop.now() + window;
         loop {
-            if stop.load(Ordering::SeqCst) {
+            if stop.load(Ordering::SeqCst)
+                || self.parent.as_ref().is_some_and(|parent| parent.ended())
+            {
                 if !self.stopped_for_drain {
                     self.read_health(self.main_loop.now());
                 }
