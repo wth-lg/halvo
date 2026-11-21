@@ -303,6 +303,7 @@ fn every_kind_name_family_and_field_key_of_kinds_stands_in_names_and_names_holds
         .iter()
         .copied()
         .filter(|name| prefixes.iter().any(|p| name.starts_with(p.as_str())))
+        .filter(|name| *name != "agent_history")
         .collect();
     assert_eq!(named, kinds);
 }

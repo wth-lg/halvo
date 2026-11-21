@@ -6,6 +6,8 @@
 //! not send again, because the owner may have committed it. The next request asks `Ends` for a new end. The link sets
 //! no deadline on a reply.
 
+pub mod product;
+
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 

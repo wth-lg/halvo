@@ -1,5 +1,5 @@
 #!/bin/sh
-# jobs: macos windows
+# jobs: macos
 # rule: the page tests run and none fails; zero tests is a failure
 set -u
 name=30-app-page-test

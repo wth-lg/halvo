@@ -866,6 +866,7 @@ fn param(param: Param, candidate: Option<&str>) -> ParamEntry {
         } else {
             String::new()
         },
+        refused: None,
     }
 }
 

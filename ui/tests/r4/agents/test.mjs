@@ -1343,7 +1343,9 @@ if (want('card')) {
   const tries = /^ {2}var CARD_TRIES = (\d+);$/m.exec(readFileSync(join(REPO, 'ui', 'app', 'views', 'agents.js'), 'utf8'));
   const N = tries ? Number(tries[1]) : 0;
   const count = { key: 'records_dropped', text: 'One record went unsaved.' };
-  const busyCard = { agent: A, name: state.card.name, lines: [count], runs: [], history: 'busy' };
+  const words = json('words.json');
+  const unread = { text: words['card.history_busy'], again: words['card.read_again'] };
+  const busyCard = { agent: A, name: state.card.name, lines: [count], runs: [], history: 'busy', unread };
   const same0 = { state: { ...snap } };
   const cardCall = (reply) => ({ call: 'agents_card', args: { agent: A }, reply });
   const syncLine = { call: 'agents_control', args: { agent: B, action: 'run_now' }, reply: { ok: 'yes' } };
@@ -1364,6 +1366,7 @@ if (want('card')) {
       };
     }, A);
   const busyTexts = [count.text].concat(typeof row.next === 'string' && row.next !== '' ? [row.next] : []);
+  const unreadTexts = busyTexts.concat([unread.text, unread.again]);
 
   await test('a_busy_card_is_asked_again_at_the_next_reply_and_shows_its_runs_without_a_close', async () => {
     const out = outDir();
@@ -1389,22 +1392,28 @@ if (want('card')) {
       await sync(h);
       const shown = await cardOf(h);
       const asked = cardsAsked(out);
-      return [N >= 2 && asked === 2 && strays(h) === 0 && shown !== null && same(shown.texts, busyTexts), { N, asked, shown, trail: trail(h) }];
+      return [N >= 2 && asked === 2 && strays(h) === 0 && shown !== null && same(shown.texts, unreadTexts), { N, asked, shown, trail: trail(h) }];
     });
   });
 
-  await test('a_busy_card_is_asked_again_at_most_CARD_TRIES_times_and_then_keeps_the_count_line_alone', async () => {
+  await test('a_busy_card_asked_no_more_after_CARD_TRIES_says_so_and_its_control_reads_again', async () => {
     const out = outDir();
     const replies = [{ state: snap }, cardCall(busyCard)];
     for (let k = 1; k <= N; k++) replies.push(syncLine, same0, cardCall(busyCard));
-    replies.push(syncLine, same0);
+    replies.push(syncLine, same0, cardCall(state.card));
     return withPage({ origin, replies, views: [CONFIRM, VIEW], out }, async (h) => {
       await act(h, { act: 'open_card', param: A });
       await settleCalls(h);
       for (let k = 0; k <= N; k++) await sync(h);
       const shown = await cardOf(h);
       const asked = cardsAsked(out);
-      return [N >= 1 && asked === N + 1 && strays(h) === 0 && shown !== null && shown.runs === 0 && same(shown.texts, busyTexts), { N, asked, shown, busyTexts, trail: trail(h) }];
+      await act(h, { act: 'read_card', param: A });
+      await settleCalls(h);
+      const read = await cardOf(h);
+      const ok =
+        N >= 1 && asked === N + 1 && shown !== null && shown.runs === 0 && same(shown.texts, unreadTexts) &&
+        cardsAsked(out) === N + 2 && read !== null && read.runs === state.card.runs.length && strays(h) === 0;
+      return [ok, { N, asked, shown, unreadTexts, read, trail: trail(h) }];
     });
   });
 
@@ -1483,6 +1492,96 @@ if (want('card')) {
       const cards = await cardsOf(h);
       return [same(cards, ['r4a-card-' + B]) && strays(h) === 0, { cards, calls: calls(out), trail: trail(h) }];
     });
+  });
+}
+
+if (want('ten')) {
+  const ten = json('state-ten.json').snapshot;
+  const [A, , C] = ten.rows;
+  const words = json('words.json');
+  const CAUSES = readdirSync(FIXTURES)
+    .map((f) => /^reply-error-(.+)\.json$/.exec(f))
+    .filter(Boolean)
+    .map((m) => m[1])
+    .sort();
+  const refused = (cause) => ({ ...callOf(A, 'run_now'), reply: json('reply-error-' + cause + '.json') });
+  const answerOf = (h, control) =>
+    h.page.evaluate(
+      ([a, c]) => {
+        const b = document.querySelector('[data-act="' + c + '"][data-param="' + a + '"]');
+        const p = b ? b.closest('li').querySelector('.r4a-answer') : null;
+        return {
+          text: p ? p.textContent : null,
+          beside: Boolean(p && p.previousElementSibling === b.parentElement),
+          described: Boolean(p && (b.getAttribute('aria-describedby') || '').split(' ').includes(p.id)),
+          said: [...document.querySelectorAll('[role="status"]')].map((s) => [...s.children].map((x) => x.textContent)),
+        };
+      },
+      [A.agent, control],
+    );
+
+  await test('a_refused_press_shows_the_sentence_of_each_cause_beside_the_control_and_the_status_region_says_it', async () => {
+    const seen = [];
+    await withPage({ origin, replies: [{ state: ten }, ...CAUSES.map(refused)], views: [CONFIRM, VIEW] }, async (h) => {
+      for (const cause of CAUSES) {
+        await press(h, 'run_now', A.agent);
+        seen.push({ cause, ...(await answerOf(h, 'run_now')) });
+      }
+    });
+    const ok =
+      CAUSES.length === 12 &&
+      seen.every((s) => typeof words['refused.' + s.cause] === 'string' && s.text === words['refused.' + s.cause] && s.beside && s.described && same(s.said, [[s.text]]));
+    return [ok, seen];
+  });
+
+  await test('a_refused_press_answer_stands_through_a_state_that_keeps_its_row_and_goes_at_each_end', async () => {
+    const line = [words['line.all_set.done'], words['line.all_set.new']].find((l) => typeof l === 'string' && l !== A.line);
+    const changed = { ...ten, seq: 4, rows: ten.rows.map((r) => (r.agent === A.agent ? { ...r, line } : r)) };
+    const syncCall = { ...callOf(C, 'run_now'), reply: { ok: 'yes' } };
+    const replies = [
+      { state: ten },
+      refused('busy'),
+      syncCall,
+      { state: { ...ten, seq: 2 } },
+      { ...callOf(A, 'switch_off'), reply: { ok: 'yes' } },
+      refused('busy'),
+      syncCall,
+      { state: { ...ten, seq: 3 } },
+      syncCall,
+      { state: changed },
+      refused('busy'),
+    ];
+    const sync = async (h) => {
+      await h.page.evaluate((c) => window.Halvo.ipc.call('agents_control', { agent: c, action: 'run_now' }), C.agent);
+      await settleCalls(h);
+      await settleCalls(h);
+    };
+    const seen = {};
+    await withPage({ origin, replies, views: [CONFIRM, VIEW] }, async (h) => {
+      await press(h, 'run_now', A.agent);
+      await sync(h);
+      seen.kept = await answerOf(h, 'run_now');
+      await press(h, 'switch_off', A.agent);
+      seen.pressed = await answerOf(h, 'run_now');
+      await press(h, 'run_now', A.agent);
+      seen.before_line = await answerOf(h, 'run_now');
+      await sync(h);
+      seen.after_reread = await answerOf(h, 'run_now');
+      await sync(h);
+      seen.line = await answerOf(h, 'run_now');
+      await press(h, 'run_now', A.agent);
+      seen.before_drawn = await answerOf(h, 'run_now');
+      await h.page.evaluate(() => window.Halvo.views.window('hidden'));
+      await h.page.evaluate(() => window.Halvo.views.window('shown'));
+      await settleCalls(h);
+      seen.drawn = await answerOf(h, 'run_now');
+    });
+    const sentence = words['refused.busy'];
+    const stands = (s) => typeof sentence === 'string' && s.text === sentence && s.beside && same(s.said, [[sentence]]);
+    const gone = (s) => s.text === null && same(s.said, [[]]);
+    const ok =
+      typeof line === 'string' && stands(seen.kept) && gone(seen.pressed) && stands(seen.before_line) && stands(seen.after_reread) && gone(seen.line) && stands(seen.before_drawn) && gone(seen.drawn);
+    return [ok, seen];
   });
 }
 

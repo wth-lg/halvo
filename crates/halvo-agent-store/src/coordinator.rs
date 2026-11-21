@@ -1,18 +1,22 @@
+use std::cmp::Reverse;
 use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
 use halvo_policy::{preset, validate};
 use halvo_schema::executable::body::{
-    Accepted, AgentsReply, CreateAgent, ListAgents, ListedAgent, RevReply, SetState, StartRun,
-    StateReply, UnknownEffect, CHECKPOINTS_REPLY_MAX,
+    Accepted, AgentHistory, AgentsReply, CreateAgent, HistoryReply, HistoryRun, ListAgents,
+    ListedAgent, PastCheckpoint, PastEffect, RevReply, SetState, StartRun, StateReply,
+    UnknownEffect, CHECKPOINTS_REPLY_MAX,
 };
-use halvo_schema::executable::names::{AgentState, EffectState, LogEvent, Mode, YesNo};
+use halvo_schema::executable::names::{
+    ActionClass, AgentState, CheckpointState, EffectState, FieldName, LogEvent, Mode, YesNo,
+};
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
-    AgentConfig, AgentEffect, AgentLog, AgentRun, AgentSession, AgentStart, CoordinatorCall,
-    CoordinatorReply, EffectId, Runtime,
+    AgentCheckpoint, AgentConfig, AgentEffect, AgentLog, AgentRun, AgentSession, AgentStart,
+    CoordinatorCall, CoordinatorReply, EffectId, OwnText, RunId, Runtime,
 };
-use halvo_schema::{AgentId, Category, ErrorName, Instant, Workflow, WorkflowState};
+use halvo_schema::{AgentId, Category, ErrorName, Instant, RowRead, Workflow, WorkflowState};
 
 use crate::errors::{refused, Own};
 use crate::host::{Host, Now};
@@ -99,6 +103,14 @@ use crate::{bind, bindings, checkpoint, day, end, runner};
 ///   day, the class and the kept fields of that row, whatever a record's count says. A page holds whole entries while
 ///   the writer takes it, and `next` names its last agent where agents are left; `length` where the first entry of
 ///   the page alone does not fit.
+/// - `agent_history`: `no_workflow`; `binding`. It stores nothing and changes no state. Of the agent's runs, only
+///   those whose `agent_run` record is stored count, in the order of `last` of `list_agents`, newest first, and it
+///   gives the first `runs` of them: each with its record and the effects whose rows name the run, in ascending order
+///   of effect id, each as its newest row by seq holds it: its id, digest, class, state, cause and kept fields. An
+///   effect of the class `local_edit` also gives `checkpoint`: the newest row by seq of the run's checkpoint of the
+///   workbook path that is the effect's kept `file`, with its state, its instant and the copy's name, or null where
+///   no such row stands or that row is `planned`; `store` where that name is longer than one `own_text`. The reply
+///   is bounded as every reply: one that does not fit is refused by the writer, never cut.
 pub fn coordinator(
     host: &mut dyn Host,
     now: Now,
@@ -115,6 +127,7 @@ pub fn coordinator(
         CoordinatorCall::MarkCheckpoint(b) => checkpoint::mark(host, now, &b),
         CoordinatorCall::ListOverlaps(b) => bindings::list_overlaps(&*host, &b),
         CoordinatorCall::ListAgents(b) => list_agents(&*host, &b),
+        CoordinatorCall::AgentHistory(b) => agent_history(&*host, &b),
     }
 }
 
@@ -136,10 +149,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
     let sessions = rows::sessions(rows)?;
     let runs = rows::runs(rows)?;
     let effects = rows::effects(rows)?;
-    let starts: Vec<AgentLog> = rows::logs(rows)?
-        .into_iter()
-        .filter(|l| l.event == LogEvent::StartAccepted)
-        .collect();
+    let starts = start_rows(rows)?;
     let mut entries = Vec::new();
     for (agent, mut config) in newest {
         let Some(state) = named_state(host, &config) else {
@@ -168,7 +178,7 @@ fn list_agents(host: &dyn Host, b: &ListAgents) -> Result<CoordinatorReply, Erro
         let last = runs
             .iter()
             .filter(|r| r.agent == agent)
-            .max_by_key(|r| (r.day, started(&starts, r), r.run.clone()))
+            .max_by_key(|r| age(&starts, r))
             .cloned();
         let unknown = unknown_of(&effects, &agent);
         entries.push(ListedAgent {
@@ -197,6 +207,13 @@ fn named_state(host: &dyn Host, config: &AgentConfig) -> Option<AgentState> {
     }
 }
 
+fn start_rows(rows: &dyn RowRead) -> Result<Vec<AgentLog>, ErrorName> {
+    Ok(rows::logs(rows)?
+        .into_iter()
+        .filter(|l| l.event == LogEvent::StartAccepted)
+        .collect())
+}
+
 fn started(starts: &[AgentLog], record: &AgentRun) -> Option<Instant> {
     starts
         .iter()
@@ -205,14 +222,27 @@ fn started(starts: &[AgentLog], record: &AgentRun) -> Option<Instant> {
         .min()
 }
 
-fn unknown_of(effects: &[AgentEffect], agent: &AgentId) -> Vec<UnknownEffect> {
+/// The order of an agent's run records, the newest last: the day, then the start row, then the run id.
+fn age(starts: &[AgentLog], record: &AgentRun) -> (u32, Option<Instant>, RunId) {
+    (record.day, started(starts, record), record.run.clone())
+}
+
+/// The newest row by seq of each effect of the rows, in ascending order of effect id.
+fn last_rows<'a>(
+    rows: impl Iterator<Item = &'a AgentEffect>,
+) -> BTreeMap<&'a EffectId, &'a AgentEffect> {
     let mut last: BTreeMap<&EffectId, &AgentEffect> = BTreeMap::new();
-    for row in effects.iter().filter(|r| &r.agent == agent) {
+    for row in rows {
         if last.get(&row.effect).is_none_or(|held| held.seq < row.seq) {
             last.insert(&row.effect, row);
         }
     }
-    last.into_values()
+    last
+}
+
+fn unknown_of(effects: &[AgentEffect], agent: &AgentId) -> Vec<UnknownEffect> {
+    last_rows(effects.iter().filter(|r| &r.agent == agent))
+        .into_values()
         .filter(|row| row.state == EffectState::Unknown)
         .map(|row| UnknownEffect {
             run: row.run.clone(),
@@ -255,6 +285,73 @@ fn page(entries: Vec<ListedAgent>) -> Result<AgentsReply, ErrorName> {
         agents.push(entry);
     }
     Ok(AgentsReply { agents, next: None })
+}
+
+fn agent_history(host: &dyn Host, b: &AgentHistory) -> Result<CoordinatorReply, ErrorName> {
+    bind::of_agent(host, &b.workflow, &b.agent)?;
+    let rows = host.rows();
+    let starts = start_rows(rows)?;
+    let mut records: Vec<AgentRun> = rows::runs(rows)?
+        .into_iter()
+        .filter(|r| r.agent == b.agent)
+        .collect();
+    records.sort_by_cached_key(|r| Reverse(age(&starts, r)));
+    records.truncate(usize::try_from(b.runs).unwrap_or(usize::MAX));
+    let effects = rows::effects(rows)?;
+    let checkpoints = rows::checkpoints(rows)?;
+    let mut runs = Vec::with_capacity(records.len());
+    for record in records {
+        let mut past = Vec::new();
+        for row in last_rows(effects.iter().filter(|r| r.run == record.run)).into_values() {
+            let checkpoint = if row.class == ActionClass::LocalEdit {
+                checkpoint_of(&checkpoints, row)?
+            } else {
+                None
+            };
+            past.push(PastEffect {
+                effect: row.effect.clone(),
+                digest: row.digest.clone(),
+                class: row.class,
+                state: row.state,
+                cause: row.cause,
+                kept: row.kept.clone(),
+                checkpoint,
+            });
+        }
+        runs.push(HistoryRun {
+            run: record,
+            effects: past,
+        });
+    }
+    Ok(CoordinatorReply::History(HistoryReply { runs }))
+}
+
+/// The checkpoint of a `local_edit` effect: the newest row by seq of its run's checkpoint of the workbook path that
+/// is its kept `file`, or none where no such row stands or that row is `planned`.
+fn checkpoint_of(
+    checkpoints: &[AgentCheckpoint],
+    edit: &AgentEffect,
+) -> Result<Option<PastCheckpoint>, ErrorName> {
+    let Some(file) = edit
+        .kept
+        .iter()
+        .find(|k| k.name == FieldName::File)
+        .map(|k| k.value.joined())
+    else {
+        return Ok(None);
+    };
+    let newest = checkpoints
+        .iter()
+        .filter(|c| c.run == edit.run && c.workbook.joined() == file)
+        .max_by_key(|c| c.seq);
+    match newest {
+        Some(row) if row.state != CheckpointState::Planned => Ok(Some(PastCheckpoint {
+            state: row.state,
+            at: row.at,
+            name: OwnText::parse(&row.copy.joined()).map_err(|_| ErrorName::Store)?,
+        })),
+        _ => Ok(None),
+    }
 }
 
 fn create_agent(

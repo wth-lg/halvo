@@ -131,7 +131,8 @@ One version covers every package of the workspace and both binaries, `halvo` and
 of `[workspace.package]` in the root `Cargo.toml`, which is `0.0.0` now. The other
 packages of the workspace inherit that value or write the same value in their own
 manifests, and the
-check `61-version` fails when any package reports another.
+check `61-version` fails when any package reports another. No run of CI runs
+that check; run it by name, `sh scripts/ci/run-ci-d.sh macos 61-version`.
 
 - Both binaries read it at compile time through `env!("CARGO_PKG_VERSION")`, in
   `src-tauri/src/app.rs` and in `crates/halvo-capture/src/bin/halvo-capture.rs`,

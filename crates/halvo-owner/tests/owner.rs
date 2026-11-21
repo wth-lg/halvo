@@ -1056,8 +1056,19 @@ impl Ends for Once<End> {
     }
 }
 
-/// U9.2 point 1: the product's link over an end that the hand-over made. A runner `load` of an agent that the store
-/// does not hold gets the runner handler's answer `binding`, which no code of the owner but a handler gives.
+/// A runner `load` of an agent that the store does not hold: the runner handler answers it `binding`, which no code of
+/// the owner but a handler gives.
+fn load(id: &RequestId) -> String {
+    format!(
+        r#"{{"v":1,"id":{},"request":"runner","body":{{"op":"load","agent":"{}","run":"{}"}}}}"#,
+        serde_json::to_string(id).unwrap(),
+        "40000000000000000000000000000001",
+        "50000000000000000000000000000001",
+    )
+}
+
+/// U9.2 point 1: the product's link over an end that the hand-over made. A runner `load` gets the runner handler's
+/// answer `binding`.
 #[test]
 fn a_runner_request_through_the_link_is_answered_by_the_handler() {
     let scratch = Scratch::new("owner-stream-link");
@@ -1071,13 +1082,35 @@ fn a_runner_request_through_the_link_is_answered_by_the_handler() {
     let link = StreamLink::new(Once(Mutex::new(Some(end))));
 
     let id = request_id();
-    let load = format!(
-        r#"{{"v":1,"id":{},"request":"runner","body":{{"op":"load","agent":"{}","run":"{}"}}}}"#,
-        serde_json::to_string(&id).unwrap(),
-        "40000000000000000000000000000001",
-        "50000000000000000000000000000001",
+    let reply = decode_reply(&link.request(load(&id).as_bytes()).unwrap()).unwrap();
+    assert_eq!(reply.id, Some(id));
+    assert_eq!(
+        reply.outcome.unwrap_err(),
+        ErrorName::read("binding").unwrap()
     );
-    let reply = decode_reply(&link.request(load.as_bytes()).unwrap()).unwrap();
+}
+
+/// U9.2 (second) ruling 1: the product's `Ends` over the client call. `serve_one` stands in for the daemon's server and
+/// calls `dispatch_unknown` in front of the owner binary; a runner `load` through `StreamLink::new(ClientEnds::new(..))`
+/// over `Client::owner_stream` gets the runner handler's answer `binding`.
+#[cfg(any(target_os = "macos", windows))]
+#[test]
+fn a_runner_request_through_the_product_ends_is_answered_by_the_handler() {
+    use halvo_agent_client::link::product::ClientEnds;
+    let scratch = Scratch::new("owner-stream-product-ends");
+    let mut owner = start_on(stream_channel(), &scratch.0, KEY, 1, false, &[]);
+    let (client_end, server) = control_connection();
+    let client = halvo_control::client::Client::new(Once(std::sync::Mutex::new(Some(client_end))));
+    let link = StreamLink::new(ClientEnds::new(move || client.owner_stream()));
+
+    let id = request_id();
+    let (served, reply) = std::thread::scope(|scope| {
+        let served = scope.spawn(|| serve_one(&server, &mut owner));
+        let reply = link.request(load(&id).as_bytes());
+        (served.join().unwrap(), reply)
+    });
+    assert!(served, "dispatch_unknown wrote no reply");
+    let reply = decode_reply(&reply.unwrap()).unwrap();
     assert_eq!(reply.id, Some(id));
     assert_eq!(
         reply.outcome.unwrap_err(),

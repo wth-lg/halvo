@@ -362,6 +362,7 @@ fn debug_prints_no_value() {
         sender: "ann@people.test".to_owned(),
         body: "b1".to_owned(),
         receipt: false,
+        earlier: None,
     };
     let draft = Draft {
         id: "d1".to_owned(),
@@ -388,6 +389,7 @@ fn debug_prints_no_value() {
                     more_pages: YesNo::No,
                     earlier_page: 0,
                 },
+                left: Vec::new(),
             }
         ),
         "Messages { len: 1 }"

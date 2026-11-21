@@ -4,10 +4,11 @@ use std::path::{Path, PathBuf};
 
 use halvo_schema::category::SeedCategory;
 use halvo_schema::executable::body::{
-    Accepted, AddOrigin, AgentsReply, CheckpointsReply, CoordinatorCall, CoordinatorReply,
-    CreateAgent, EndRun, Finish, ListAgents, ListCheckpoints, ListOverlaps, ListedAgent,
-    ListedCheckpoint, Load, LoadReplies, LoadRepliesReply, LoadReply, LoadSession, LoadSteps,
-    LoadedBindings, LoadedPlaybook, LoadedSession, MarkCheckpoint, Overlap, OverlapsReply,
+    Accepted, AddOrigin, AgentHistory, AgentsReply, CheckpointsReply, CoordinatorCall,
+    CoordinatorReply, CreateAgent, EndRun, Finish, HistoryReply, HistoryRun, ListAgents,
+    ListCheckpoints, ListOverlaps, ListedAgent, ListedCheckpoint, Load, LoadReplies,
+    LoadRepliesReply, LoadReply, LoadSession, LoadSteps, LoadedBindings, LoadedPlaybook,
+    LoadedSession, MarkCheckpoint, Overlap, OverlapsReply, PastCheckpoint, PastEffect,
     PutCheckpoint, PutEffect, PutLog, PutPlaybook, PutReplyRow, PutSession, RevReply, RunnerCall,
     RunnerReply, SessionReply, SetBindings, SetState, StartRun, StateReply, StepsReply, Stored,
     UnknownEffect,
@@ -939,6 +940,11 @@ fn coordinator_bodies() -> Vec<CoordinatorCall> {
             agent: Null,
             after: Some(agent()),
         }),
+        CoordinatorCall::AgentHistory(AgentHistory {
+            workflow: workflow(),
+            agent: agent(),
+            runs: 5,
+        }),
     ]
 }
 
@@ -961,6 +967,48 @@ fn listed_agent() -> ListedAgent {
             class: row.class,
             kept: row.kept,
         }],
+    }
+}
+
+/// The newest run record of `listed_agent` in the reply of `agent_history`, with three effects: the payment that the
+/// run's end rejected, a `local_edit` of the checkpoint's workbook whose checkpoint was made, and a refused
+/// `local_edit` with no checkpoint.
+fn history_run() -> HistoryRun {
+    let ended = effect_row(5, EffectState::Rejected, None, Some(Cause::Ended));
+    let made = checkpoint_row(2, CheckpointState::Made, None);
+    let edit = |effect: u8, d: char, state: EffectState, cause: Option<Cause>| PastEffect {
+        effect: effect_id(effect),
+        digest: digest(d),
+        class: ActionClass::LocalEdit,
+        state,
+        cause,
+        kept: vec![
+            kept(FieldName::File, "/data/books/bills.xlsx"),
+            kept(FieldName::Range, "B2:D6"),
+        ],
+        checkpoint: None,
+    };
+    let mut committed = edit(0x62, 'c', EffectState::Committed, None);
+    committed.checkpoint = Some(PastCheckpoint {
+        state: made.state,
+        at: made.at,
+        name: OwnText::parse(&made.copy.joined()).unwrap(),
+    });
+    HistoryRun {
+        run: runs().remove(2),
+        effects: vec![
+            PastEffect {
+                effect: ended.effect,
+                digest: ended.digest,
+                class: ended.class,
+                state: ended.state,
+                cause: ended.cause,
+                kept: ended.kept,
+                checkpoint: None,
+            },
+            committed,
+            edit(0x63, 'd', EffectState::Refused, Some(Cause::Checkpoint)),
+        ],
     }
 }
 
@@ -1061,6 +1109,10 @@ fn coordinator_replies() -> Vec<CoordinatorReply> {
             agents: vec![],
             next: None,
         }),
+        CoordinatorReply::History(HistoryReply {
+            runs: vec![history_run()],
+        }),
+        CoordinatorReply::History(HistoryReply { runs: vec![] }),
     ]
 }
 

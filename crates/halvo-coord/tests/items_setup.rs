@@ -1,13 +1,13 @@
 #[path = "items_support.rs"]
 mod support;
 
-use halvo_coord::items::drive::{answer_setup, tick_setup, Ledger, SetupDone};
+use halvo_coord::items::drive::{answer_setup, open_setup, tick_setup, Ledger, SetupDone};
 use halvo_coord::items::{
     params, raise_step, setup_step, Raise, Setup, SetupInput, SetupMove, SetupParam, SetupState,
     Source,
 };
 use halvo_coord::mem::{Call, Config, Ports};
-use halvo_coord::ports::{Clock, Owner, PortError};
+use halvo_coord::ports::{Clock, Owner, PortError, Reading, Refused, Senders};
 use halvo_coord::schedule::{holds, Hold};
 use halvo_coord::types::fixtures::{self, State};
 use halvo_coord::types::{
@@ -229,6 +229,12 @@ impl Clock for Lossy<'_> {
 
     fn day(&self, at: u64) -> Result<u32, PortError> {
         self.inner.day(at)
+    }
+}
+
+impl Senders for Lossy<'_> {
+    fn read(&self, text: &str) -> Result<Reading, PortError> {
+        self.inner.read(text)
     }
 }
 
@@ -934,21 +940,188 @@ fn a_setup_asks_parameters_of_its_category_each_once() {
     );
     let one = made(Category::Email, vec![p(Param::ReplySenders)]).unwrap();
     assert_eq!(one.item(), &item_id(1));
-    let done = setup_step(
-        &one,
-        SetupMove::Input(SetupInput::Typed {
+}
+
+fn entry(n: u32) -> NonZeroU32 {
+    NonZeroU32::new(n).unwrap()
+}
+
+/// The setup item of an email agent that asks `reply_senders` alone, with no offered answer.
+fn senders_setup() -> Setup {
+    let senders = SetupParam {
+        param: Param::ReplySenders,
+        candidates: vec![],
+    };
+    Setup::new(item_id(1), flow(), agent(), Category::Email, vec![senders]).unwrap()
+}
+
+/// The item as the page gets it, as JSON.
+fn page(setup: &Setup) -> serde_json::Value {
+    serde_json::to_value(setup.page_item("Mail", &LIMITS).unwrap()).unwrap()
+}
+
+/// RD-81 9.1 and 9.2, step one (U2.4n): the typed name `Anna Berg`, which the reader of senders
+/// refuses at entry 1, for the one open parameter of an email agent's set-up, so also its last:
+/// the call is refused, the refusal by entry stands as the key `refused` of that parameter, the
+/// item stays open, and no body is owed, stored or sent. This is the last part of
+/// `a_setup_asks_parameters_of_its_category_each_once`, in which that name completed the body,
+/// turned and named so.
+#[test]
+fn a_typed_name_that_the_reader_refuses_at_entry_1_is_kept_nowhere_and_the_item_stays_open() {
+    let f = facts(Category::Email, "graph_mail", WorkflowState::Approved);
+    let p = ports(&f);
+    p.senders
+        .borrow_mut()
+        .push(("Anna Berg".to_owned(), Refused::NotAnAddress(entry(1))));
+    let mut setup = senders_setup();
+    let typed = SetupInput::Typed {
+        param: Param::ReplySenders,
+        text: "Anna Berg",
+    };
+    let answer = answer_setup(&p, &mut ledger(), &LIMITS, &mut setup, &f, typed);
+    assert_eq!(answer, Err(Cause::Malformed));
+    assert_eq!(setup.state(), &SetupState::Open);
+    assert_eq!(
+        page(&setup)["params"][0]["refused"],
+        serde_json::json!({"entry": 1, "kind": "not_an_address"})
+    );
+    assert_eq!(setup.given(Param::ReplySenders), None);
+    assert!(p.calls.borrow().is_empty(), "no body is stored or sent");
+    assert_eq!(
+        setup_step(&setup, SetupMove::Acknowledged),
+        Err(Cause::State),
+        "no body is owed"
+    );
+}
+
+/// RD-81 9.1 (U2.4n): a typed list of three senders whose second entry the reader refuses is
+/// refused whole with that entry's number, and the set-up holds no value for the parameter.
+#[test]
+fn a_typed_list_with_one_refused_entry_is_refused_whole_with_that_entrys_number() {
+    let f = facts(Category::Email, "graph_mail", WorkflowState::Approved);
+    let p = ports(&f);
+    let list = "ann@people.test, bob at people.test, cy@people.test";
+    p.senders
+        .borrow_mut()
+        .push((list.to_owned(), Refused::NotAnAddress(entry(2))));
+    let mut setup = senders_setup();
+    let typed = SetupInput::Typed {
+        param: Param::ReplySenders,
+        text: list,
+    };
+    let answer = answer_setup(&p, &mut ledger(), &LIMITS, &mut setup, &f, typed);
+    assert_eq!(answer, Err(Cause::Malformed));
+    assert_eq!(page(&setup)["params"][0]["refused"]["entry"], 2);
+    assert_eq!(setup.given(Param::ReplySenders), None);
+}
+
+/// RD-81 9.1 (U2.4n): the reader decides and never rewrites: a typed list that it takes
+/// completes the body, and the slot holds the text byte for byte as typed, with its blanks, its
+/// tab and its capitals.
+#[test]
+fn a_typed_list_that_the_reader_takes_is_stored_byte_for_byte_as_typed() {
+    let f = facts(Category::Email, "graph_mail", WorkflowState::Approved);
+    let p = ports(&f);
+    let list = " ann@people.test,Bob@People.TEST ,\tcy@people.test";
+    let mut setup = senders_setup();
+    let typed = SetupInput::Typed {
+        param: Param::ReplySenders,
+        text: list,
+    };
+    let answer = answer_setup(&p, &mut ledger(), &LIMITS, &mut setup, &f, typed);
+    assert!(matches!(answer, Ok(SetupDone::Closed { .. })), "{answer:?}");
+    assert_eq!(*p.sender_reads.borrow(), vec![list.to_owned()]);
+    let sent: Vec<Body> = p
+        .calls
+        .borrow()
+        .iter()
+        .filter_map(|t| match &t.call {
+            Call::Send(b @ Body::SetBindings { .. }) => Some(b.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(slots_of(&sent[0]), vec![slot("reply_senders", &[list])]);
+}
+
+/// RD-81 9.2 (U2.4n): an offered sender that the reader refuses is not offered, and a parameter
+/// left with no offered sender takes a typed line, so that no card keeps a choice that can only
+/// fail.
+#[test]
+fn an_offered_sender_that_the_reader_refuses_is_not_offered() {
+    let f = facts(Category::Email, "graph_mail", WorkflowState::Approved);
+    let p = ports(&f);
+    p.senders.borrow_mut().extend([
+        (
+            "bob at people.test".to_owned(),
+            Refused::NotAnAddress(entry(1)),
+        ),
+        (
+            "ännchen@people.test".to_owned(),
+            Refused::NotAscii(entry(1)),
+        ),
+    ]);
+    let open = |values: &[&str]| {
+        let senders = SetupParam {
             param: Param::ReplySenders,
-            text: "Anna Berg",
-        }),
+            candidates: values
+                .iter()
+                .map(|v| (values_of(v), CandidateFrom::Records))
+                .collect(),
+        };
+        open_setup(
+            &p,
+            item_id(1),
+            flow(),
+            agent(),
+            Category::Email,
+            vec![senders],
+        )
+        .unwrap()
+    };
+    let one = open(&["ann@people.test", "bob at people.test"]);
+    assert_eq!(
+        one.params()[0].candidates,
+        vec![(values_of("ann@people.test"), CandidateFrom::Records)]
+    );
+    assert_eq!(page(&one)["params"][0]["typed"], "no");
+    let none = open(&["ännchen@people.test", "bob at people.test"]);
+    assert!(none.params()[0].candidates.is_empty());
+    assert_eq!(page(&none)["params"][0]["typed"], "yes");
+}
+
+fn values_of(value: &str) -> Vec<String> {
+    vec![value.to_owned()]
+}
+
+/// RD-90 item 6 at the set-up's typed line (U2.4n): a payee typed with a zero-width space, a
+/// character with no visible form of the ruling's item 7, fails the predicate of a deciding
+/// field and is refused at that question; nothing of it is stored or sent.
+#[test]
+fn a_typed_payee_with_a_character_that_cannot_be_seen_is_refused_at_its_question() {
+    let f = facts(Category::UtilityBillPayment, "web", WorkflowState::Approved);
+    let p = ports(&f);
+    let payee = SetupParam {
+        param: Param::Payee,
+        candidates: vec![],
+    };
+    let mut setup = Setup::new(
+        item_id(1),
+        flow(),
+        agent(),
+        Category::UtilityBillPayment,
+        vec![payee],
     )
     .unwrap();
-    let SetupState::Owed(body) = done.state() else {
-        panic!("one answer completes a setup of one parameter");
+    let mut l = ledger();
+    let typed = SetupInput::Typed {
+        param: Param::Payee,
+        text: "City\u{200b}Water",
     };
-    assert_eq!(
-        slots_of(&body.body()),
-        vec![slot("reply_senders", &["Anna Berg"])]
-    );
+    let answer = answer_setup(&p, &mut l, &LIMITS, &mut setup, &f, typed);
+    assert_eq!(answer, Err(Cause::Malformed));
+    assert_eq!(setup.state(), &SetupState::Open);
+    assert!(p.calls.borrow().is_empty(), "nothing is stored or sent");
 }
 
 fn past(n: u32, outcome: Outcome) -> PastRun {

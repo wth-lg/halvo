@@ -266,6 +266,28 @@ pub trait MaintainStore {
 /// The answer of a handle or a host that has no delete of its own.
 pub const NO_DELETE: &str = "this store has no delete of its own";
 
+/// What a store answers to [`CaptureStore::read_segment`]: its id and the
+/// highest ordinal that it has given, always, and the first live segment at
+/// or after the ordinal asked for, when one stands.
+#[cfg(feature = "r2")]
+pub struct SegmentRead {
+    pub store: StoreId,
+    /// None for a store that has given no ordinal.
+    pub highest: Option<Ordinal>,
+    pub segment: Option<LiveSegment>,
+}
+
+/// One live segment as its store read it: the plain lines of its payload,
+/// each with its line end, in a buffer that is wiped when it drops, and the
+/// instant at which the store destroys the segment, in signed unix
+/// nanoseconds.
+#[cfg(feature = "r2")]
+pub struct LiveSegment {
+    pub ordinal: Ordinal,
+    pub lines: zeroize::Zeroizing<Vec<u8>>,
+    pub expiry: i64,
+}
+
 /// The read-write handle that the owner holds.
 pub trait CaptureStore: MaintainStore {
     /// Stores one batch, all or nothing.
@@ -273,6 +295,15 @@ pub trait CaptureStore: MaintainStore {
 
     /// The free bytes of the volume that holds the store directory.
     fn volume_free_bytes(&self) -> io::Result<u64>;
+
+    /// Reads the first live segment whose ordinal is at or after `from`: a
+    /// segment that expiry or eviction shredded is passed. A handle with no
+    /// read of its own answers that the read failed.
+    #[cfg(feature = "r2")]
+    fn read_segment(&mut self, from: Ordinal) -> Result<SegmentRead, MaintFault> {
+        let _ = from;
+        Err(MaintFault::Io(io::ErrorKind::Unsupported))
+    }
 }
 
 impl<S: MaintainStore + ?Sized> MaintainStore for Box<S> {
@@ -300,6 +331,11 @@ impl<S: CaptureStore + ?Sized> CaptureStore for Box<S> {
 
     fn volume_free_bytes(&self) -> io::Result<u64> {
         (**self).volume_free_bytes()
+    }
+
+    #[cfg(feature = "r2")]
+    fn read_segment(&mut self, from: Ordinal) -> Result<SegmentRead, MaintFault> {
+        (**self).read_segment(from)
     }
 }
 
@@ -370,6 +406,66 @@ pub enum OpenFault {
     OlderStore,
     /// A store of a format after the one that this build reads.
     NewerStore,
+}
+
+/// Why [`DataDirStore::derived_store_key`] answered no key. Every variant is
+/// another failure, and none carries a byte of a key or of a key file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum DerivedKeyFault {
+    /// No capture store: nothing stands at store/store.key.
+    #[error("no capture store stands in the data directory")]
+    NoStore,
+    /// store.key is empty, zeroed or does not parse, or holds a key of
+    /// another label.
+    #[error("the capture store's key file does not parse or holds another label")]
+    StoreKeyFile,
+    /// store.key is of a format before the one that this build reads.
+    #[error("the capture store's key file is of an older format")]
+    OlderStore,
+    /// store.key is of a format after the one that this build reads.
+    #[error("the capture store's key file is of a newer format")]
+    NewerStore,
+    /// store.key records a custody kind that this build does not handle.
+    #[error("this build has no custody of the kind that the capture store records")]
+    CustodyKind,
+    /// No root exists, or the root file is empty or all zero.
+    #[error("the capture store's root is missing")]
+    RootMissing,
+    /// The root file has a wrong length or is no regular file, a link or
+    /// another kind of entry stands at the roots directory's name, or the
+    /// wrap or the unwrap failed in a way that no other variant names.
+    #[error("the capture store's root is damaged")]
+    RootCorrupt,
+    /// The root cannot be read by this user or build.
+    #[error("this process may not read the capture store's root")]
+    RootDenied,
+    /// A custody state that can clear.
+    #[error("the capture store's root is locked for now")]
+    CustodyLocked,
+    /// The wrap that derived/master.key holds does not open under the root.
+    #[error("the derived key file does not open under the capture store's root")]
+    WrapAuth,
+    /// derived/master.key is empty, zeroed or does not parse, is of another
+    /// format, or holds a key of another label.
+    #[error("the derived key file does not parse, is of another format or holds another label")]
+    DerivedKeyFile,
+    /// derived/master.key names another custody kind or root than store.key.
+    #[error("the derived key file names another root than the capture store's")]
+    AnotherRoot,
+    /// A link or an entry of another kind stands at one of the names that
+    /// the call reads or makes.
+    #[error("a link or another kind of entry stands at a name of the key files")]
+    Obstructed,
+    /// An I/O fault that can clear.
+    #[error("an I/O fault that can clear")]
+    Io,
+    /// The volume is full.
+    #[error("the volume is full")]
+    NoSpace,
+    /// An I/O fault that no timer clears: a volume that refuses a hard link,
+    /// or a Windows path of which a part ends in a dot or a space.
+    #[error("an I/O fault that no retry clears")]
+    IoNotRetried,
 }
 
 /// Which handle an open asks for.

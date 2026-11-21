@@ -99,6 +99,10 @@ fn root_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 fn files_that_unwrap(dir: &Path, key_file: &[u8]) -> Vec<PathBuf> {
+    files_that_unwrap_under(dir, key_file, KeyLabel::STORE)
+}
+
+fn files_that_unwrap_under(dir: &Path, key_file: &[u8], label: KeyLabel) -> Vec<PathBuf> {
     let parsed: serde_json::Value = serde_json::from_slice(key_file).unwrap();
     let root_id = RootId::parse(parsed["root_id"].as_str().unwrap()).unwrap();
     let wrapped = WrappedKey(
@@ -115,7 +119,7 @@ fn files_that_unwrap(dir: &Path, key_file: &[u8]) -> Vec<PathBuf> {
             std::fs::write(&at, std::fs::read(file).unwrap()).unwrap();
             std::fs::set_permissions(&at, std::fs::Permissions::from_mode(0o600)).unwrap();
             DevFallbackCustody::new(root_id, probe.clone())
-                .unwrap_store_key(&wrapped, KeyLabel::STORE)
+                .unwrap_store_key(&wrapped, label)
                 .is_ok()
         })
         .collect()
@@ -184,6 +188,9 @@ fn the_offline_delete_leaves_no_store() {
         format!("pid={} started=1700000000123456\n", std::process::id()),
     )
     .unwrap();
+    let profile = dir.join("agents/profiles/50000000000000000000000000000001");
+    std::fs::create_dir_all(&profile).unwrap();
+    std::fs::write(profile.join("Preferences"), b"a runner's profile").unwrap();
     std::fs::create_dir(dir.join("spare")).unwrap();
     std::fs::write(dir.join("spare/spare.key"), [9u8; 32]).unwrap();
     std::fs::write(dir.join("planted.txt"), b"not the registry's").unwrap();
@@ -224,7 +231,7 @@ fn the_offline_delete_leaves_no_store() {
     );
     assert!(deleted.contains(" root_destroyed=yes "), "{deleted}");
     assert!(
-        deleted.contains(" entries_removed=6 entries_left=0 unknown_entries=1 intent=written"),
+        deleted.contains(" entries_removed=7 entries_left=0 unknown_entries=1 intent=written"),
         "{deleted}"
     );
     assert!(!deleted.contains("store_id="), "{deleted}");
@@ -233,6 +240,7 @@ fn the_offline_delete_leaves_no_store() {
     assert!(segment_files(&dir).is_empty());
     assert!(root_files(&dir).is_empty(), "{:?}", root_files(&dir));
     assert!(!dir.join("derived").exists());
+    assert!(!dir.join("agents").exists());
     assert!(!dir.join("spare").exists());
     assert!(!dir.join("delete-all.intent").exists());
     assert_eq!(
@@ -250,6 +258,7 @@ fn the_offline_delete_leaves_no_store() {
             ),
             "key derived/master.key".to_owned(),
             "remove derived".to_owned(),
+            "remove agents".to_owned(),
             "key spare/spare.key".to_owned(),
             "remove spare".to_owned(),
         ]
@@ -262,6 +271,121 @@ fn the_offline_delete_leaves_no_store() {
     let (again, out, err) = offline_run(&dir, &how);
     assert_eq!(again, 0, "err: {err}");
     assert_eq!(out, format!("data_dir={shown}\nno_store\n"));
+}
+
+#[test]
+fn a_delete_ends_the_derived_key_and_a_new_store_makes_a_new_one() {
+    let dir = kept_dir("delete-all-derived-");
+    a_store_with_a_segment(&dir);
+    let derived = KeyLabel::new("derived").unwrap();
+    let first = DataDirStore::at(&dir).derived_store_key().unwrap();
+    let key_file = std::fs::read(dir.join("derived/master.key")).unwrap();
+    assert_eq!(files_that_unwrap_under(&dir, &key_file, derived).len(), 1);
+    let mut table = rows();
+    if !table.iter().any(|row| row.name == "derived") {
+        table.push(Row {
+            name: "derived",
+            key_files: &["derived/master.key"],
+            owner_pid_file: Some("derived/owner.pid"),
+        });
+    }
+    let how = Offline {
+        rows: &table,
+        select: custody_policy::of_this_build,
+        hands: &SystemHands,
+    };
+
+    let (status, out, err) = offline_run(&dir, &how);
+
+    assert_eq!(status, 0, "out: {out} err: {err}");
+    assert!(!dir.join("derived/master.key").exists());
+    assert!(!dir.join("derived").exists());
+    assert!(files_that_unwrap_under(&dir, &key_file, derived).is_empty());
+    assert!(matches!(
+        DataDirStore::at(&dir).create(Custody::RootFile),
+        Opened::ReadWrite { .. }
+    ));
+    let second = DataDirStore::at(&dir).derived_store_key().unwrap();
+    assert_ne!(second.expose(), first.expose());
+}
+
+#[test]
+fn the_offline_delete_in_a_linked_data_directory_answers_0() {
+    let root = kept_dir("delete-all-linked-");
+    let target = root.join("data");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let linked = root.join("linked");
+    std::os::unix::fs::symlink(&target, &linked).unwrap();
+    a_store_with_a_segment(&linked);
+    std::fs::write(
+        target.join("daemon-state.json"),
+        b"{\"version\":1,\"desired\":\"paused\",\"store_made\":true}",
+    )
+    .unwrap();
+    let table = rows();
+    let how = Offline {
+        rows: &table,
+        select: custody_policy::of_this_build,
+        hands: &SystemHands,
+    };
+
+    let (status, out, err) = offline_run(&linked, &how);
+
+    let state: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(target.join("daemon-state.json")).unwrap()).unwrap();
+    let host = DataDirStore::at(&linked);
+    let start = at_start(&linked, &rows(), &SystemHands, &host, &|| {});
+    assert_eq!(
+        (
+            status,
+            out.contains(" intent=written"),
+            state["store_made"].as_bool().unwrap_or(false),
+            start,
+            host.probe()
+        ),
+        (0, true, false, AtStart::NoIntent, Probe::NoKeyFile),
+        "out: {out} err: {err}"
+    );
+    assert!(!target.join("store/store.key").exists());
+    assert!(segment_files(&target).is_empty());
+    assert!(root_files(&target).is_empty(), "{:?}", root_files(&target));
+    assert!(!target.join(super::INTENT_FILE).exists());
+}
+
+#[test]
+fn a_start_in_a_linked_data_directory_finishes_the_delete_and_a_new_store_opens() {
+    let root = kept_dir("delete-all-linked-start-");
+    let target = root.join("data");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let linked = root.join("linked");
+    std::os::unix::fs::symlink(&target, &linked).unwrap();
+    let old = a_store_with_a_segment(&linked);
+    let key_file = std::fs::read(target.join("store/store.key")).unwrap();
+    assert_eq!(files_that_unwrap(&target, &key_file).len(), 1);
+    std::fs::write(
+        target.join(super::INTENT_FILE),
+        format!("{{\"v\":1,\"started_at\":\"2026-11-21T00:00:00Z\",\"entries\":[{{\"name\":\"store\",\"custody_kind\":\"root_file\",\"root_id\":\"{old}\"}}]}}"),
+    )
+    .unwrap();
+    let host = DataDirStore::at(&linked);
+
+    let found = at_start(&linked, &rows(), &SystemHands, &host, &|| {});
+
+    assert_eq!(found, AtStart::Finished { whole: true });
+    assert!(!target.join("store/store.key").exists());
+    assert!(segment_files(&target).is_empty());
+    assert!(files_that_unwrap(&target, &key_file).is_empty());
+    assert!(!target.join(super::INTENT_FILE).exists());
+    assert!(matches!(
+        host.create(Custody::RootFile),
+        Opened::ReadWrite { .. }
+    ));
+    assert!(matches!(
+        host.open(Access::ReadWrite),
+        Opened::ReadWrite { .. }
+    ));
 }
 
 #[test]

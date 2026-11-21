@@ -12,6 +12,7 @@ agent_checkpoint
 agent_config
 agent_effect
 agent_finished
+agent_history
 agent_log
 agent_playbook
 agent_reply
