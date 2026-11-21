@@ -1021,6 +1021,10 @@ fn the_two_replies_name_the_agent_of_their_rows() {
     let mut store = store_with("utility_bill_payment");
     let origin = "https://pay.test:443";
     assert_eq!(put_steps(&mut store, 1, navs(1, 3)), Ok(stored(3)));
+    let fact = finished_row(1, 1, 3, 9);
+    store
+        .typed_commit(vec![fact])
+        .expect("the fact of the compile");
     put_session(&mut store, origin, 1, 1, 1, vec!["QUJD".into()]).expect("a part");
     let text = |reply: Result<RunnerReply, ErrorName>| {
         reply.expect("a reply").to_json().expect("its text")
