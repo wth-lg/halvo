@@ -520,6 +520,7 @@ case "$tool:$*" in
     ;;
   python*:*measure.py\ plan*)
     if [ "${FIXTURE_PLAN:-}" = fail ]; then exit 1; fi
+    if [ "${FIXTURE_PLAN:-}" = fail-second ] && [ "$(grep -c 'measure\.py plan ' "$FIXTURE_CALLS")" = 2 ]; then exit 1; fi
     if [ "${FIXTURE_LAUNCH:-}" = run ]; then printf 's03-ip\tplan %s\n' "$(grep -c 'measure\.py plan ' "$FIXTURE_CALLS")" > "$3/steps.tsv"; fi
     ;;
   python*:*measure.py\ listen*)
@@ -687,6 +688,15 @@ run_cases() {
   n=$(grep -c 'measure\.py listen ' "$work/a-failed-plan-fails-the-check.calls")
   is "$n" 0 ran
   report a-failed-plan-fails-the-check "$got"
+  run_fixture second-copy-failed-plan-fails-the-check true macos FIXTURE_LAUNCH=run FIXTURE_PLAN=fail-second FIXTURE_READY="$work/ready-made-up"
+  got=refused
+  code=$(cat "$work/second-copy-failed-plan-fails-the-check.code")
+  is "$code" 1 ran
+  last=$(tail -n 1 "$work/second-copy-failed-plan-fails-the-check.out")
+  is "$last" "FAIL $name (the plan could not read an address of the runner for the copy no-layer)" ran
+  order=$(sed -n -e 's/^cargo .*/build/p' -e 's/^python[0-9]* .*measure\.py plan .*/plan/p' -e 's/^python[0-9]* .*measure\.py listen .* engine-alone-steps$/listen-engine-alone/p' -e 's/^python[0-9]* .*measure\.py listen .*/listen-other/p' "$work/second-copy-failed-plan-fails-the-check.calls" | paste -s -d ' ' -)
+  is "$order" "build plan listen-engine-alone build plan" ran
+  report second-copy-failed-plan-fails-the-check "$got"
 }
 
 hosted_only() {
