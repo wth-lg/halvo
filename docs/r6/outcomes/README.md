@@ -40,7 +40,7 @@ The ruling CP-175 of the same run found that "the replay results of the order ce
 
 ## Lines that a later rule would print otherwise
 
-Under the agent-setup run's ruling CP-179, a body is the text after the model's thinking and has three words or more. Counted that way, three `mac` lines of the block would read otherwise: the `reply` lines of minicpm5_2b seed 1 and ministral_3_3b seed 1, and the `write` attempt line of the second, which the block prints with `pass=yes`. The block's lines stay as printed, and the importer takes them as printed. So `recorded.tsv` holds one row that the ruled count would not print: ministral_3_3b, `mac`, seed 1, `write`, `pass=yes`. With `writer=none` it decides nothing.
+The agent-setup run's ruling CP-179, point (6), rules what the body of a reply is, in its (a), and when a body is counted, in its (c): "a body is counted when it holds at least three words divided by white space, no marker of A10.4 and no address by the list of CP-178 (4) (b)". Counted that way, three `mac` lines of the block would read otherwise: the `reply` lines of minicpm5_2b seed 1 and ministral_3_3b seed 1, and the `write` attempt line of the second, which the block prints with `pass=yes`. The block's lines stay as printed, and the importer takes them as printed. So `recorded.tsv` holds one row that the ruled count would not print: ministral_3_3b, `mac`, seed 1, `write`, `pass=yes`. With `writer=none` it decides nothing.
 
 ## Limits
 
