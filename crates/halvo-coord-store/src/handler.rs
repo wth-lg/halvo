@@ -51,7 +51,10 @@ fn declared(name: &str) -> ErrorName {
 ///    typed reader refuses or whose text names another workflow: such a row answers `store` to both bodies for every
 ///    agent of that workflow, because the seq rule and `last` rest on every row of the asker's pair and such a row
 ///    cannot be put to its pair. The handler reads no row held under another workflow's key, so a row of another
-///    workflow stops nothing (RD-64 1.1).
+///    workflow stops nothing (RD-64 1.1). Then `store` unless the fifth call of the host answers no for the kind
+///    `coord_event` and the body's workflow: a yes, a row of that workflow held back more than two days after the
+///    clock's day, which the keyed read does not hand out, and any refusal of the call answer `store` to both bodies
+///    (RD-64 3.3), so that nothing is numbered over the rows that a clock set back hides.
 /// 7. `coord_log` alone: `seq` unless the records' `seq` are the stored last `seq` of the workflow and agent plus 1,
 ///    2 and on, the last being 0 where none is stored.
 /// 8. `coord_log` alone: one typed commit of the text that `CoordEvent::to_json` writes for each record, never the
@@ -104,6 +107,9 @@ fn stored_of(
         },
     );
     if unfit {
+        return Err(ErrorName::Store);
+    }
+    if host.held_ahead(KIND, workflow) != Ok(false) {
         return Err(ErrorName::Store);
     }
     out.sort_by_key(|e| e.seq);

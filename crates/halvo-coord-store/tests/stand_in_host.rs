@@ -1,7 +1,7 @@
 mod common;
 
 use common::*;
-use halvo_coord_store::{coordinator, CommitRefused, DayFault, Host};
+use halvo_coord_store::{coordinator, CommitRefused, DayFault, HeldRefused, Host};
 use halvo_schema::ErrorName;
 
 #[test]
@@ -61,6 +61,8 @@ fn one_unreadable_row_of_another_agent_is_store_for_every_agent() {
         store: readable,
         extra: vec![(2, theirs)],
         refusal: None,
+        held: None,
+        asks: Default::default(),
     };
     assert_eq!(coordinator(&mut host, &log(&[row(3, TODAY)])), stored(1));
     assert_eq!(rows(&host.store).len(), 3);
@@ -102,6 +104,59 @@ fn a_row_under_the_askers_key_that_names_another_workflow_is_store() {
         Err(ErrorName::Store)
     );
     assert!(rows(&host.store).is_empty());
+}
+
+#[test]
+fn a_yes_or_any_refusal_of_the_fifth_call_is_store_to_both_bodies_and_stores_nothing() {
+    for held in [
+        Ok(true),
+        Err(HeldRefused::Role),
+        Err(HeldRefused::UnknownKind),
+        Err(HeldRefused::WorkflowRun),
+        Err(HeldRefused::OtherFamily),
+        Err(HeldRefused::NoWorkflowKey),
+        Err(HeldRefused::Fault),
+    ] {
+        let mut host = stand_in(Vec::new(), None);
+        host.held = Some(held);
+        assert_eq!(
+            coordinator(&mut host, &log(&[row(1, TODAY)])),
+            Err(ErrorName::Store),
+            "{held:?}"
+        );
+        assert_eq!(
+            coordinator(&mut host, &history(None)),
+            Err(ErrorName::Store),
+            "{held:?}"
+        );
+        assert!(rows(&host.store).is_empty(), "{held:?}");
+    }
+    let mut host = stand_in(Vec::new(), None);
+    host.held = Some(Ok(false));
+    assert_eq!(coordinator(&mut host, &log(&[row(1, TODAY)])), stored(1));
+    assert!(matches!(
+        coordinator(&mut host, &history(None)),
+        Ok(halvo_coord_store::CoordReply::History(_))
+    ));
+}
+
+#[test]
+fn the_handler_asks_the_fifth_call_of_coord_event_under_the_askers_workflow() {
+    let mut host = stand_in(Vec::new(), None);
+    host.held = Some(Ok(false));
+    assert_eq!(coordinator(&mut host, &log(&[row(1, TODAY)])), stored(1));
+    assert!(coordinator(
+        &mut host,
+        &request("coordinator_write", &history_body(2, 2, None))
+    )
+    .is_ok());
+    assert_eq!(
+        host.asks.take(),
+        [
+            ("coord_event".to_owned(), wf(1)),
+            ("coord_event".to_owned(), wf(2))
+        ]
+    );
 }
 
 #[test]

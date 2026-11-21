@@ -2,16 +2,18 @@ use std::collections::BTreeMap;
 
 use halvo_schema::coordinator::record::CoordEvent;
 use halvo_schema::coordinator::KINDS;
-use halvo_schema::kinds::check_record;
+use halvo_schema::kinds::{check_record, registry};
 use halvo_schema::{
     KindEntry, Origin, RetentionClass, RowRead, Summary, SummaryRead, TypedRecord, Workflow,
     WorkflowId, WorkflowItem, WriterStep,
 };
 use serde_json::{Map, Value};
 
-use crate::host::{Clock, CommitRefused, DayFault, Host};
+use crate::host::{Clock, CommitRefused, DayFault, HeldRefused, Host};
 
 const AHEAD_DAYS: i64 = 2;
+const FAMILY: &str = "coord";
+const COORDINATOR_WRITE: &str = "coordinator_write";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Caller {
@@ -66,24 +68,34 @@ impl Row {
 /// ahead of the clock, is never handed out, called `expire` or not. A row is dated by its top-level day alone, so a
 /// row that the typed reader refuses is handed out while it lies inside its bound and goes at its own day, and is
 /// never due because the typed reader refuses it; a row of a bounded kind whose day cannot be read is not handed out
-/// and is due (DS-4, DS-2 E3). What this stand-in lacks against the derived store: one reading of the clock for a
-/// whole request, which is the adapter's; here each read and each commit reads the clock anew. This store holds no
-/// delete of a workflow: the cascade of W-C3.10 is the derived store's.
+/// and is due (DS-4, DS-2 E3).
+///
+/// Its fifth call answers as the derived store's `HandlerCx::held_ahead` does, the refusals included: it holds the
+/// entries of `halvo_schema::kinds::registry` and those that `with_kind` adds, it answers `HeldRefused::Role` while it
+/// serves a request that is no `coordinator_write` by `serve_as`, and it dates a row by the day kept beside it, so a
+/// row that the typed reader refuses makes a yes while it lies more than two days ahead. Its fifth call has no fault.
+/// What this stand-in lacks against the derived store: one reading of the clock for a whole request, which is the
+/// adapter's; here each read, each fifth call and each commit reads the clock anew. This store holds no delete of a
+/// workflow: the cascade of W-C3.10 is the derived store's.
 pub struct MemoryStore {
     clock: Box<dyn Clock>,
     workflows: BTreeMap<WorkflowId, Workflow>,
     rows: Vec<Row>,
     steps: Vec<Box<dyn WriterStep>>,
+    kinds: Vec<&'static KindEntry>,
+    request: &'static str,
 }
 
 impl MemoryStore {
-    /// A store on the clock, with no workflow, no row and no step.
+    /// A store on the clock, with no workflow, no row and no step, serving a `coordinator_write`.
     pub fn new(clock: Box<dyn Clock>) -> MemoryStore {
         MemoryStore {
             clock,
             workflows: BTreeMap::new(),
             rows: Vec::new(),
             steps: Vec::new(),
+            kinds: Vec::new(),
+            request: COORDINATOR_WRITE,
         }
     }
 
@@ -91,6 +103,19 @@ impl MemoryStore {
     pub fn with_step(mut self, step: Box<dyn WriterStep>) -> MemoryStore {
         self.steps.push(step);
         self
+    }
+
+    /// The store with one more entry beside the registry's, as the derived store is opened with the entries that its
+    /// host gives. The fifth call reads it; the commit takes the kinds of `halvo_schema::coordinator::KINDS` alone.
+    pub fn with_kind(mut self, entry: &'static KindEntry) -> MemoryStore {
+        self.kinds.push(entry);
+        self
+    }
+
+    /// The store answers the handler's calls from now on as under a request of the name `request`; the fifth call
+    /// answers `HeldRefused::Role` under every name but `coordinator_write`.
+    pub fn serve_as(&mut self, request: &'static str) {
+        self.request = request;
     }
 
     /// Stores a workflow as the recurrence step and the person's decisions leave it, or replaces the stored
@@ -228,6 +253,31 @@ impl Host for MemoryStore {
     fn clock(&self) -> &dyn Clock {
         &*self.clock
     }
+
+    fn held_ahead(&self, kind: &str, workflow: &WorkflowId) -> Result<bool, HeldRefused> {
+        if self.request != COORDINATOR_WRITE {
+            return Err(HeldRefused::Role);
+        }
+        let entry = registry()
+            .chain(self.kinds.iter().copied())
+            .find(|e| e.name == kind)
+            .ok_or(HeldRefused::UnknownKind)?;
+        if entry.family == "workflow" {
+            return Err(HeldRefused::WorkflowRun);
+        }
+        if entry.family != FAMILY {
+            return Err(HeldRefused::OtherFamily);
+        }
+        if entry.workflow_key.is_none() {
+            return Err(HeldRefused::NoWorkflowKey);
+        }
+        let today = self.today();
+        Ok(self.rows.iter().any(|row| {
+            row.kind == kind
+                && row.workflow.as_deref() == Some(workflow.as_str())
+                && row.day.is_some_and(|day| day - today > AHEAD_DAYS)
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -332,6 +382,24 @@ mod tests {
         let mut seen = 0;
         store.rows_under("agent_run", &id(1), &mut |_| seen += 1);
         assert_eq!(seen, 0);
+    }
+
+    #[test]
+    fn a_row_that_the_typed_reader_refuses_makes_a_yes_by_the_day_kept_beside_it() {
+        let (mut store, now) = store();
+        store
+            .rows
+            .push(Row::stored("coord_event", text(2, 1, TODAY + 3)));
+        store.rows.push(Row::stored(
+            "coord_event",
+            format!(r#"{{"v":2,"workflow":"{}"}}"#, wf(2)),
+        ));
+        assert_eq!(Host::held_ahead(&store, "coord_event", &id(1)), Ok(true));
+        assert_eq!(Host::held_ahead(&store, "coord_event", &id(2)), Ok(false));
+        assert!(under(&store, 1).is_empty());
+        now.set(i64::from(TODAY + 1) * DAY_NS);
+        assert_eq!(Host::held_ahead(&store, "coord_event", &id(1)), Ok(false));
+        assert_eq!(under(&store, 1), [text(2, 1, TODAY + 3)]);
     }
 
     #[test]

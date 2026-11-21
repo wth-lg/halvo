@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use halvo_coord_store::{Clock, CommitRefused, CoordReply, Host, MemoryStore};
+use halvo_coord_store::{Clock, CommitRefused, CoordReply, HeldRefused, Host, MemoryStore};
 use halvo_schema::coordinator::body::Stored;
 use halvo_schema::coordinator::record::CoordEvent;
 use halvo_schema::request::decode;
@@ -109,12 +109,14 @@ pub fn store() -> MemoryStore {
 }
 
 /// A host over a store whose keyed read hands out, after the store's own rows, each extra row held under the
-/// workflow of its number, as rows that another build stored, and whose commit answers the refusal where one is
-/// given.
+/// workflow of its number, as rows that another build stored, whose commit answers the refusal where one is given,
+/// and whose fifth call answers `held` where it is given; it keeps the kind and the workflow of each fifth call.
 pub struct StandIn {
     pub store: MemoryStore,
     pub extra: Vec<(u32, String)>,
     pub refusal: Option<CommitRefused>,
+    pub held: Option<Result<bool, HeldRefused>>,
+    pub asks: RefCell<Vec<(String, String)>>,
 }
 
 impl Host for StandIn {
@@ -134,6 +136,16 @@ impl Host for StandIn {
         }
     }
 
+    fn held_ahead(&self, kind: &str, workflow: &WorkflowId) -> Result<bool, HeldRefused> {
+        self.asks
+            .borrow_mut()
+            .push((kind.to_owned(), workflow.as_str().to_owned()));
+        match self.held {
+            Some(held) => held,
+            None => self.store.held_ahead(kind, workflow),
+        }
+    }
+
     fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
         Host::workflow(&self.store, id)
     }
@@ -149,6 +161,8 @@ pub fn stand_in(extra: Vec<(u32, String)>, refusal: Option<CommitRefused>) -> St
         store: store(),
         extra,
         refusal,
+        held: None,
+        asks: RefCell::default(),
     }
 }
 

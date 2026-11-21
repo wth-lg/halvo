@@ -1,7 +1,7 @@
 mod common;
 
 use common::*;
-use halvo_coord_store::{CommitRefused, DayFault, Host};
+use halvo_coord_store::{CommitRefused, DayFault, HeldRefused, Host};
 use halvo_schema::{RowRead, SummaryRead, TypedRecord, WriterStep};
 
 struct Returns(Vec<TypedRecord>);
@@ -218,4 +218,74 @@ fn the_store_reads_the_workflow_it_holds() {
         Host::clock(&store).day(halvo_schema::Instant(noon(TODAY))),
         TODAY
     );
+}
+
+fn wid(n: u32) -> halvo_schema::WorkflowId {
+    halvo_schema::WorkflowId::parse(&wf(n)).unwrap()
+}
+
+#[test]
+fn the_fifth_call_is_yes_for_a_row_more_than_two_days_ahead_under_its_workflow_alone() {
+    let (mut store, clock) = store_at(noon(TODAY), 0);
+    assert_eq!(Host::held_ahead(&store, "coord_event", &wid(1)), Ok(false));
+    assert_eq!(Host::commit(&mut store, vec![typed(row(1, TODAY))]), Ok(()));
+    assert_eq!(Host::held_ahead(&store, "coord_event", &wid(1)), Ok(false));
+    clock.set(noon(TODAY - 2));
+    assert_eq!(Host::held_ahead(&store, "coord_event", &wid(1)), Ok(false));
+    clock.set(noon(TODAY - 3));
+    assert_eq!(Host::held_ahead(&store, "coord_event", &wid(1)), Ok(true));
+    assert_eq!(Host::held_ahead(&store, "coord_event", &wid(2)), Ok(false));
+    assert_eq!(store.expire(), 1);
+    assert_eq!(Host::held_ahead(&store, "coord_event", &wid(1)), Ok(false));
+}
+
+#[test]
+fn a_row_past_its_day_of_going_makes_no_yes() {
+    let (mut store, clock) = store_at(noon(TODAY), 0);
+    assert_eq!(
+        Host::commit(&mut store, vec![typed(row(1, TODAY - 92))]),
+        Ok(())
+    );
+    clock.set(noon(TODAY + 1));
+    assert!(rows(&store).is_empty());
+    assert_eq!(Host::held_ahead(&store, "coord_event", &wid(1)), Ok(false));
+}
+
+static PLAIN: halvo_schema::KindEntry = halvo_schema::KindEntry {
+    name: "coord_plain",
+    class: halvo_schema::RetentionClass::Bounded { days: 93 },
+    origin: halvo_schema::Origin::Own,
+    family: "coord",
+    workflow_key: None,
+    fields: &[],
+    example: "{}",
+};
+
+#[test]
+fn the_fifth_call_refuses_by_the_names_of_the_store() {
+    let mut store = store().with_kind(&PLAIN);
+    for (kind, refusal) in [
+        ("no_such_kind", HeldRefused::UnknownKind),
+        ("workflow", HeldRefused::WorkflowRun),
+        ("agent_run", HeldRefused::OtherFamily),
+        ("coord_plain", HeldRefused::NoWorkflowKey),
+    ] {
+        assert_eq!(
+            Host::held_ahead(&store, kind, &wid(1)),
+            Err(refusal),
+            "{kind}"
+        );
+    }
+    for name in ["runner", "probe_role"] {
+        store.serve_as(name);
+        for kind in ["coord_event", "no_such_kind", "workflow", "coord_plain"] {
+            assert_eq!(
+                Host::held_ahead(&store, kind, &wid(1)),
+                Err(HeldRefused::Role),
+                "{name} {kind}"
+            );
+        }
+    }
+    store.serve_as("coordinator_write");
+    assert_eq!(Host::held_ahead(&store, "coord_event", &wid(1)), Ok(false));
 }
