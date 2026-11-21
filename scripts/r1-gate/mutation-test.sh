@@ -1973,7 +1973,8 @@ late_fork_meet() {
   fallback_events=$(tr '\n' ';' < "$fallback_dir/bin/events")
   fallback_started=$(cat "$fallback_dir/bin/wrapper")
   fallback_reads=${fallback_events%"pgrep 1;pkill -TERM -P $fallback_started;"}
-  if [ "$fallback_reads" = "$fallback_events" ] || [ -z "$fallback_reads" ] || [ -n "$(printf '%s' "$fallback_reads" | sed 's/pgrep 0;//g')" ]; then
+  fallback_other=$(printf '%s' "$fallback_reads" | sed 's/pgrep 0;//g')
+  if [ "$fallback_reads" = "$fallback_events" ] || [ -z "$fallback_reads" ] || [ -n "$fallback_other" ]; then
     printf 'events: %s\n' "$fallback_events"
     return 1
   fi
@@ -2051,7 +2052,8 @@ exit 0
 STUB
   late_fork_answer start_wrapper_with_its_child
   if [ "$late_fork_status:$late_fork_said" = '1:the wrapper ended before it had a child' ] && ! grep -q '^pkill' "$fallback_dir/bin/events"; then return 0; fi
-  printf 'the late-fork case answered %s: %s; events: %s\n' "$late_fork_status" "$late_fork_said" "$(tr '\n' ';' < "$fallback_dir/bin/events")"
+  late_fork_events=$(tr '\n' ';' < "$fallback_dir/bin/events")
+  printf 'the late-fork case answered %s: %s; events: %s\n' "$late_fork_status" "$late_fork_said" "$late_fork_events"
   return 1
 }
 
