@@ -10,7 +10,7 @@ pub mod screen;
 pub mod window_title;
 
 use crate::daemon::{DaemonError, TimedRunReport};
-use crate::event::{AppIdentity, FloorEvent, FoldEvent};
+use crate::event::{AppIdentity, FloorEvent, FoldEvent, Modality};
 use crate::floor::exclude::{
     DropReason, FloorHandle, Keep, PrivateWindow, ProcessId, Subject, Verdict,
 };
@@ -125,6 +125,15 @@ impl DropCounts {
     }
 }
 
+/// Whether a source cannot place `front` against the rules: a process whose
+/// image it could not read, which no list entry and no tree rule can match,
+/// gives no event of any kind, and with no app known to be in front a screen
+/// frame is dropped (contracts.md C13.7). Such a drop is counted under
+/// unknown_lineage.
+fn unplaced<K: Recorded>(front: &FrontApp) -> bool {
+    front.path.is_none() && (front.pid != 0 || K::KIND == Modality::ScreenFrame)
+}
+
 /// The floor's decision as a source asks it: the keep verdict of one event, or
 /// a drop that is counted under its reason.
 #[derive(Clone)]
@@ -148,6 +157,10 @@ impl Floor {
         window: PrivateWindow,
         probe: &PasswordFieldProbe,
     ) -> Option<Keep<K>> {
+        if unplaced::<K>(front) {
+            self.drops.count(DropReason::UnknownLineage);
+            return None;
+        }
         match self.handle.decide::<K>(front.subject(), window, probe) {
             Verdict::Keep(keep) => Some(keep),
             Verdict::Drop(reason) => {
@@ -168,6 +181,10 @@ impl Floor {
         front: &FrontApp,
         held: Option<Keep<K>>,
     ) -> Option<Keep<K>> {
+        if unplaced::<K>(front) {
+            self.drops.count(DropReason::UnknownLineage);
+            return None;
+        }
         match self.handle.decide::<K>(
             front.subject(),
             PrivateWindow::Unknown,
