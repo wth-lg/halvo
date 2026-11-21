@@ -590,9 +590,8 @@ pub(crate) mod tests {
         let dir = tempfile::Builder::new()
             .prefix("adapter-tests-")
             .tempdir()
-            .unwrap()
-            .keep();
-        let made = ScratchDir::at(&dir).create().unwrap();
+            .unwrap();
+        let made = ScratchDir::at(dir.path()).create().unwrap();
         let mut store = made.store;
         let day = UtcDay::from_days_since_epoch(20_000).unwrap();
         let at = 20_000 * 86_400 * 1_000_000_000_i64;
@@ -623,5 +622,6 @@ pub(crate) mod tests {
         );
         drop(store);
         made.root.finish().unwrap();
+        dir.close().unwrap();
     }
 }
