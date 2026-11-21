@@ -1,0 +1,3 @@
+- Added: The app runs learning: the owner links the learning handlers and step, so a run keeps its run record and its routine mark in the app's store and the refinements list answers what was learned, and learn-gate drift --link product plays a development case through the owner on a Mac.
+- Fixed: A replay put_playbook whose own load meets a passing store fault answers with its count, and a run dropped at a refused learn_run row, at its load or its load_steps, is served no learned target after that row leaves by its bound.
+- Security: The egress check 21-tree-bans names halvo-learn-store among the packages that link no network client.

@@ -225,10 +225,7 @@ fn a_store_fault_of_the_agent_store_is_answered_as_that_error_and_never_as_a_ref
         w.coordinator(json!({"op": "list_refinements", "workflow": wf(1), "agent": agent(1)}));
     assert_eq!(read, Err(Refused::Error(ErrorName::Store)));
     let proposal = with_locators(served[1].clone(), "button Pay now", vec![loc("A"), pay()]);
-    assert_eq!(
-        w.put(2, 1, vec![proposal]),
-        Err(Refused::Error(ErrorName::Store))
-    );
+    assert_eq!(w.put(2, 1, vec![proposal]), Ok(stored(0)));
     w.host.agent.fault = false;
     assert!(matches!(
         w.coordinator(json!({"op": "list_refinements", "workflow": wf(1), "agent": agent(1)})),

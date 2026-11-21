@@ -1,0 +1,2 @@
+- Added: The store counts, for each run, what a person allowed and Halvo did not do (`allowed_not_done`).
+- Changed: The runner ends a `cleared` effect that it proposes again with the cause `reproposed`, so that this count leaves it out.

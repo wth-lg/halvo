@@ -10,6 +10,7 @@ name = "learn-gate"
 path = "src/main.rs"
 
 [dependencies]
+getrandom = "0.3"
 halvo-agent-store = { path = "../halvo-agent-store" }
 halvo-derived = { path = "../halvo-derived" }
 halvo-learn = { path = "../halvo-learn" }
@@ -17,6 +18,12 @@ halvo-learn-store = { path = "../halvo-learn-store" }
 halvo-policy = { path = "../halvo-policy" }
 halvo-schema = { path = "../halvo-schema" }
 serde_json = { version = "1", features = ["raw_value"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+halvo-agent-client = { path = "../halvo-agent-client" }
+halvo-control = { path = "../halvo-control", features = ["r2"] }
+halvo-seam = { path = "../halvo-seam" }
+rustix = "1"
 
 [dev-dependencies]
 halvo-test-dir = { path = "../halvo-test-dir" }

@@ -18,6 +18,7 @@ getrandom = "0.3"
 halvo-agent-store = { path = "../halvo-agent-store" }
 halvo-derived = { path = "../halvo-derived" }
 halvo-identify = { path = "../halvo-identify" }
+halvo-learn-store = { path = "../halvo-learn-store" }
 halvo-schema = { path = "../halvo-schema" }
 halvo-schema-core = { path = "../halvo-schema-core" }
 halvo-seam = { path = "../halvo-seam" }

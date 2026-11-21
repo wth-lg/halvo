@@ -315,7 +315,7 @@ fn every_wrong_call_is_refused_with_usage() {
             "disk",
         ],
         &[
-            "drift", "--case", "x.jsonl", "--arm", "admit", "--link", "product",
+            "drift", "--case", "x.jsonl", "--arm", "none", "--link", "product",
         ],
         &["privacy", "--data-dir", absent],
         &["routine", "--extra"],

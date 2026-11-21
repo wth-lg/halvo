@@ -3,7 +3,9 @@ use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 
 use halvo_control::paths::DataDir;
-use halvo_policy::{admit, decide, digest, Checkpoint, Decision, EffectMove, Facts, LIMITS};
+use halvo_policy::{
+    admit, decide, digest, Checkpoint, Decided, Decision, EffectMove, Facts, LIMITS,
+};
 use halvo_schema::executable::body::{LoadReply, PutCheckpoint, Stored};
 use halvo_schema::executable::names::{Autonomy, FieldName, Permission, Source};
 use halvo_schema::executable::step::FileTarget;
@@ -12,7 +14,7 @@ use halvo_schema::executable::{
     ActionClass, AgentCheckpoint, AgentConfig, Bound, BoundField, Cause, CheckpointState, Digest,
     EffectState, ExecutableStep, Outcome, RunnerCall, RunnerReply,
 };
-use halvo_sheet::{Folder, Locks, Range, Sha256, Value};
+use halvo_sheet::{Folder, Locks, Prepared, Range, Sha256, Value};
 
 use halvo_schema::executable::day::day_of;
 
@@ -268,7 +270,10 @@ impl Runner {
     /// `user_files` holds, `decide` gives `run` and that digest is the row's. Otherwise the prepared copy goes and
     /// the effect is ended: without the permission the step fails as at the first load; on `refuse` the run ends
     /// `refused`; on another digest a new effect is proposed from that load with its own `prepare`, at most
-    /// `LIMITS.rebinds` times for the step, and then the run ends `failed` with `changed`; after such an end the
+    /// `LIMITS.rebinds` times for the step, and then the run ends `failed` with `changed`. The effect that a load
+    /// before the `begin` stops so is ended with the cause `reproposed` in the next turn, after that turn's `prepare`,
+    /// `admit`, the read of a `cancel` and the wall bound, right before the new `propose`; an exit before that
+    /// `propose` and the end at `LIMITS.rebinds` hold `ended` (CP-181). After such an end the
     /// prepared copy is gone and the run's checkpoint stays as `prepare` made it, until the library removes it for the
     /// stored end (A11.3); the runner removes no checkpoint. After the load before the edit and before `prepare` the
     /// runner stores the checkpoint's row `planned`, and once `prepare` has made the copy its row `made` with the
@@ -321,60 +326,23 @@ impl Runner {
             .ok_or(Failure::Step(Cause::StepFailed))?;
         let mut loaded = self.load()?;
         let mut renewed = 0;
+        let mut stopped = None;
         loop {
-            let (workbook, dir) = workbook_of(&loaded, &target.file)?;
-            if let Some(read) = &self.read_under {
-                slot_path(&loaded, &read.slot)?;
-                let source = slot_text(&loaded, Some(&read.slot))?;
-                if source != read.source || dir != read.folder {
-                    return Err(Stop::End(Outcome::Failed, Some(Cause::Changed)).into());
-                }
-            }
-            let sheet = slot_text(&loaded, target.sheet.as_ref())?;
-            let range_text = slot_text(&loaded, target.range.as_ref())?;
-            let range = Range::parse(&range_text).map_err(|e| Failure::Step(sheet_cause(&e)))?;
-            let folder = folder_at(&dir, self.args.data_dir.as_ref())?;
-            if !self.checkpoints.values().all(Taken::stands) {
-                return Err(Failure::Step(Cause::StepFailed));
-            }
-            let taken = self
-                .checkpoints
-                .get(workbook.to_string_lossy().as_ref())
-                .cloned();
-            if taken.is_none() {
-                let planned = halvo_checkpoint::checkpoint_name(&workbook, &run)
-                    .ok_or(Failure::Step(Cause::StepFailed))?;
-                self.checkpoint_row(&dir, &workbook, &planned, None)?;
-            }
-            let prepared = folder
-                .prepare(&workbook, &run, &sheet, range, &rows)
-                .map_err(|e| Failure::Step(sheet_cause(&e)))?;
-            let copy = (prepared.checkpoint_sha256(), prepared.checkpoint_bytes());
-            match taken {
-                Some(Taken::Made { sha, len, .. }) if (sha, len) != copy => {
-                    return Err(Failure::Step(Cause::StepFailed));
-                }
-                Some(Taken::Made { .. }) => {}
-                _ => {
-                    self.checkpoint_row(&dir, &workbook, prepared.checkpoint_name(), Some(copy))?
-                }
-            }
-            let bound =
-                edit_bound(&workbook, &range_text).ok_or(Failure::Step(Cause::StepFailed))?;
-            let facts = Facts {
-                origins: loaded
-                    .bindings
-                    .as_ref()
-                    .map(|b| b.origins.clone())
-                    .unwrap_or_default(),
-                ..Facts::default()
+            let turn = self.edit_turn(step, target, &loaded, &rows, &run);
+            let Turn {
+                folder,
+                prepared,
+                bound,
+                decided,
+                sheet,
+            } = match stopped {
+                Some(ended) => self.or_ended(ended, turn)?,
+                None => turn?,
             };
-            admit(step.class, &bound, &facts)
-                .map_err(|refused| Stop::End(Outcome::Failed, Some(refused.cause())))?;
-            let decided = decide(&loaded.config, step.class, Checkpoint::Yes);
-            self.check()?;
-            self.within_wall()?;
-            let at = self.propose(decided, &bound)?;
+            let at = match stopped {
+                Some(ended) => self.propose_again(ended, decided, &bound)?,
+                None => self.propose(decided, &bound)?,
+            };
             match self.effects[at].state {
                 EffectState::Cleared => {}
                 EffectState::Refused => return Err(refused(&loaded.config).into()),
@@ -421,25 +389,107 @@ impl Runner {
                 return Ok(());
             }
             drop(prepared);
-            self.advance(at, EffectMove::End)?;
-            if !held {
-                return Err(Failure::Step(Cause::StepFailed));
-            }
-            match decision {
-                Decision::Run => {}
-                Decision::Refuse => return Err(refused(&again.config).into()),
-                _ => return Err(Stop::End(Outcome::Failed, Some(Cause::Effect)).into()),
-            }
-            if !same_source {
-                return Err(Stop::End(Outcome::Failed, Some(Cause::Changed)).into());
-            }
-            if renewed >= LIMITS.rebinds {
-                return Err(Stop::End(Outcome::Failed, Some(Cause::Changed)).into());
+            let end: Option<Failure> = if !held {
+                Some(Failure::Step(Cause::StepFailed))
+            } else if decision == Decision::Refuse {
+                Some(refused(&again.config).into())
+            } else if decision != Decision::Run {
+                Some(Stop::End(Outcome::Failed, Some(Cause::Effect)).into())
+            } else if !same_source || renewed >= LIMITS.rebinds {
+                Some(Stop::End(Outcome::Failed, Some(Cause::Changed)).into())
+            } else {
+                None
+            };
+            if let Some(end) = end {
+                self.advance(at, EffectMove::End)?;
+                return Err(end);
             }
             renewed += 1;
             loaded = again;
+            stopped = Some(at);
         }
     }
+
+    /// One turn of a file edit up to its `propose`, under the load `loaded`: the workbook, the sheet and the range of
+    /// that load held against the read step's source and folder, the run's checkpoint rows, `prepare`, the bound
+    /// object, `admit` and `decide`, and then the read of a `cancel` and the wall bound. Every exit of a turn before
+    /// its `propose` is here, so that `file_write` ends the effect that the load before the `begin` stopped with the
+    /// cause `ended` on each of them, and with `reproposed` only once all of them have passed (CP-181).
+    fn edit_turn(
+        &mut self,
+        step: &ExecutableStep,
+        target: &FileTarget,
+        loaded: &LoadReply,
+        rows: &[Vec<Value>],
+        run: &halvo_sheet::RunId,
+    ) -> Result<Turn, Failure> {
+        let (workbook, dir) = workbook_of(loaded, &target.file)?;
+        if let Some(read) = &self.read_under {
+            slot_path(loaded, &read.slot)?;
+            let source = slot_text(loaded, Some(&read.slot))?;
+            if source != read.source || dir != read.folder {
+                return Err(Stop::End(Outcome::Failed, Some(Cause::Changed)).into());
+            }
+        }
+        let sheet = slot_text(loaded, target.sheet.as_ref())?;
+        let range_text = slot_text(loaded, target.range.as_ref())?;
+        let range = Range::parse(&range_text).map_err(|e| Failure::Step(sheet_cause(&e)))?;
+        let folder = folder_at(&dir, self.args.data_dir.as_ref())?;
+        if !self.checkpoints.values().all(Taken::stands) {
+            return Err(Failure::Step(Cause::StepFailed));
+        }
+        let taken = self
+            .checkpoints
+            .get(workbook.to_string_lossy().as_ref())
+            .cloned();
+        if taken.is_none() {
+            let planned = halvo_checkpoint::checkpoint_name(&workbook, run)
+                .ok_or(Failure::Step(Cause::StepFailed))?;
+            self.checkpoint_row(&dir, &workbook, &planned, None)?;
+        }
+        let prepared = folder
+            .prepare(&workbook, run, &sheet, range, rows)
+            .map_err(|e| Failure::Step(sheet_cause(&e)))?;
+        let copy = (prepared.checkpoint_sha256(), prepared.checkpoint_bytes());
+        match taken {
+            Some(Taken::Made { sha, len, .. }) if (sha, len) != copy => {
+                return Err(Failure::Step(Cause::StepFailed));
+            }
+            Some(Taken::Made { .. }) => {}
+            _ => self.checkpoint_row(&dir, &workbook, prepared.checkpoint_name(), Some(copy))?,
+        }
+        let bound = edit_bound(&workbook, &range_text).ok_or(Failure::Step(Cause::StepFailed))?;
+        let facts = Facts {
+            origins: loaded
+                .bindings
+                .as_ref()
+                .map(|b| b.origins.clone())
+                .unwrap_or_default(),
+            ..Facts::default()
+        };
+        admit(step.class, &bound, &facts)
+            .map_err(|refused| Stop::End(Outcome::Failed, Some(refused.cause())))?;
+        let decided = decide(&loaded.config, step.class, Checkpoint::Yes);
+        self.check()?;
+        self.within_wall()?;
+        Ok(Turn {
+            folder,
+            prepared,
+            bound,
+            decided,
+            sheet,
+        })
+    }
+}
+
+/// What one turn of a file edit made before its `propose`: the folder of the workbook, the prepared copy, the bound
+/// object of the edit, the decision for its class and the sheet of its load.
+struct Turn {
+    folder: Folder,
+    prepared: Prepared,
+    bound: Bound,
+    decided: Decided,
+    sheet: String,
 }
 
 #[cfg(test)]
