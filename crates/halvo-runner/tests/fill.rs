@@ -53,6 +53,39 @@ fn a_file_step_locks_under_the_data_directory_that_the_harness_gives() {
     );
 }
 
+/// U4.7, A6.1: a runner started with no `--data-dir` has no directory to lock under. Its first file step, the read of
+/// step 1, ends with `step_failed` before it opens a lock, no effect is proposed, and the workbook's folder holds the
+/// names that it held before. Run it only at a head whose runner takes no default data directory (see
+/// `Runner::start_without_data_dir`).
+#[test]
+fn a_file_step_with_no_data_dir_fails_with_step_failed_and_makes_no_file() {
+    let files = FillFiles::new("no-data-dir", 1);
+    let names = files.names();
+    let before = files.workbook_bytes();
+    let mut sup = fill(63, &files);
+    sup.data_dir = false;
+    let seen = sup.serve(|_, _| Act::Answer, LONG);
+    assert!(
+        !seen.line.iter().any(|a| a == "--data-dir"),
+        "{:?}",
+        seen.line
+    );
+    let first = seen
+        .logs()
+        .first()
+        .map(|l| (l.event, l.step.map(|s| s.get()), l.cause));
+    assert_eq!(
+        first,
+        Some((LogEvent::StepFailed, Some(1), Some(Cause::StepFailed))),
+        "{}",
+        seen.stderr
+    );
+    assert_eq!(seen.handbacks(), [HandbackReason::StepFailed]);
+    assert!(seen.effects().is_empty());
+    assert_eq!(files.names(), names);
+    assert_eq!(files.workbook_bytes(), before);
+}
+
 /// CP-204 D3 and D7, CP-212 V2: every log line and every row of an effect carries day_of(at, the run's offset), and
 /// the run's finish, which holds no instant, the day of an instant of the run; a row is held to differ from the UTC
 /// day only where the two days of its instant differ, so a run across 00:00 UTC does not fail a correct runner.

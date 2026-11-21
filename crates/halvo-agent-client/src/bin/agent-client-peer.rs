@@ -1046,6 +1046,14 @@ fn runner(args: &[String]) {
         "utc-offset {}",
         offset.map_or("none", String::as_str)
     ));
+    let data_dir = args
+        .iter()
+        .position(|a| a == "--data-dir")
+        .and_then(|i| args.get(i + 1));
+    log.line(&format!(
+        "data-dir {}",
+        data_dir.map_or("none", String::as_str)
+    ));
     let me = std::process::id();
     let created = process::creation_time(me)
         .map(|t| t.to_string())
