@@ -692,6 +692,171 @@ mod tests {
         assert_eq!(answer, Err(Error::Refused(ErrorName::Store)));
     }
 
+    impl Owner {
+        /// A replay run's `start_run` and its first `load`.
+        fn start_replay(&mut self, run: &str) {
+            let start = format!(r#","run":"{run}","mode":"replay""#);
+            assert_eq!(
+                self.coordinator("start_run", &start).as_deref(),
+                Ok(r#"{"ok":"yes"}"#)
+            );
+            self.runner("load", run, "");
+        }
+
+        /// The run's `put_playbook` under number 1 that proposes a new target for step 2.
+        fn propose(&mut self, run: &str) -> Result<String, Error> {
+            let proposed = Value::Array(vec![
+                step(1, "", &[]),
+                step(2, "Pay now", &["A", "Pay"]),
+                step(3, "Next", &["Next"]),
+            ]);
+            let body = format!(
+                r#"{{"op":"put_playbook","agent":"{AGENT}","run":"{run}","number":1,"steps":{proposed}}}"#
+            );
+            self.send("runner", &body)
+        }
+
+        /// The request with every read of a workflow behind answered as a fault of the store.
+        fn faulted(&mut self, name: &str, body: &str) -> Result<String, Error> {
+            crate::learn::tests::FAULTED_WORKFLOW_READS.with(|on| on.set(true));
+            let answer = self.send(name, body);
+            crate::learn::tests::FAULTED_WORKFLOW_READS.with(|on| on.set(false));
+            answer
+        }
+    }
+
+    /// verifier-32's case y2 (sentence 1 through the owner): a replay `put_playbook` whose own load meets a fault of
+    /// the store at the workflow read answers its count, not `store`.
+    #[test]
+    fn a_replay_put_at_a_faulted_workflow_read_answers_its_count_through_the_owner() {
+        let scratch = Scratch::new("owner-learn-fault-put");
+        let mut owner = Owner::open(&scratch);
+        owner.compile();
+        owner.start_replay(RUN_2);
+        owner.runner("load_steps", RUN_2, r#","number":1,"from":1"#);
+        crate::learn::tests::FAULTED_WORKFLOW_READS.with(|on| on.set(true));
+        let stored = owner.propose(RUN_2);
+        crate::learn::tests::FAULTED_WORKFLOW_READS.with(|on| on.set(false));
+        assert_eq!(stored.as_deref(), Ok(r#"{"stored":0}"#));
+    }
+
+    /// verifier-32's case y1 (L4.2, the row of `load`): one `load` of a replay run that meets a fault of the store at
+    /// the workflow read is answered `store` and keeps the run: after a good `load` its proposal is taken and the
+    /// learned list holds the edit after its finish.
+    #[test]
+    fn one_faulted_load_does_not_lose_a_replay_run_through_the_owner() {
+        let scratch = Scratch::new("owner-learn-fault-load");
+        let mut owner = Owner::open(&scratch);
+        owner.compile();
+        owner.start_replay(RUN_2);
+        let load = format!(r#"{{"op":"load","agent":"{AGENT}","run":"{RUN_2}"}}"#);
+        assert_eq!(
+            owner.faulted("runner", &load),
+            Err(Error::Refused(ErrorName::Store))
+        );
+        owner.runner("load", RUN_2, "");
+        let served = owner.runner("load_steps", RUN_2, r#","number":1,"from":1"#);
+        let served: Value = serde_json::from_str(&served).unwrap();
+        assert_eq!(served["steps"], compiled());
+        assert_eq!(owner.propose(RUN_2).as_deref(), Ok(r#"{"stored":1}"#));
+        let line = |seq: u32, event: &str| {
+            serde_json::json!({
+                "v": 1, "workflow": owner.workflow.as_str(), "agent": AGENT, "run": RUN_2, "seq": seq,
+                "day": DAY, "at": Noon.now().0, "event": event, "step": 2, "cause": null, "model": null,
+                "ms": null, "tokens_in": null, "tokens_out": null,
+            })
+        };
+        let records = Value::Array(vec![line(2, "recovered"), line(3, "step_ok")]);
+        owner.runner("log", RUN_2, &format!(r#","records":{records}"#));
+        owner.finish(RUN_2, "replay", "null");
+        assert_eq!(
+            owner.refinements().as_deref(),
+            Ok(format!(r#"{{"refinements":[{{"day":{DAY},"what":"target_learned"}}]}}"#).as_str())
+        );
+    }
+
+    const AGENT_2: &str = "40000000000000000000000000000002";
+
+    impl Owner {
+        /// A second workflow, which `Proposer` proposes for three summaries of another app, approved by the person.
+        fn second_workflow(&mut self) -> WorkflowId {
+            let episodes: Vec<Episode> = (4u8..=6)
+                .map(|n| {
+                    let mut episode = episode(n, DAY + u32::from(n) - 6);
+                    episode.app = AppId::parse("com.example.mail").unwrap();
+                    episode
+                })
+                .collect();
+            self.store
+                .commit_batch(
+                    &StoreId::parse(&"1".repeat(32)).unwrap(),
+                    &episodes,
+                    Position { seg: 8, idx: 0 },
+                    &mut Seq(200),
+                )
+                .unwrap();
+            let role = InterfaceRole::claim();
+            let read = InterfaceRead::workflows(&role, RequestId::from_random([9; 16]), None);
+            let Ok(ReplyResult::Workflows(page)) = self.store.interface_read(&read) else {
+                panic!("the read of the workflows fails");
+            };
+            let other = page
+                .workflows
+                .iter()
+                .map(|item| item.workflow.id().clone())
+                .find(|id| *id != self.workflow)
+                .expect("a second workflow");
+            let approve =
+                InterfaceDecision::approve(&role, RequestId::from_random([10; 16]), other.clone());
+            self.store.decide(&approve).unwrap();
+            other
+        }
+    }
+
+    /// The condition of round 2: `list_overlaps` reads the workflow of every other agent with bindings and takes one
+    /// that it cannot read as not live, so the agent store's code answers `Ok` from a read that met a fault. Through
+    /// the owner, no door of the handlers takes that fault, and the answer is `store`, though the handlers answered
+    /// `Ok`.
+    #[test]
+    fn an_overlaps_read_at_a_faulted_workflow_read_is_answered_store_through_the_owner() {
+        let scratch = Scratch::new("owner-learn-fault-overlaps");
+        let mut owner = Owner::open(&scratch);
+        let other = owner.second_workflow();
+        assert_eq!(
+            owner.coordinator("create_agent", "").as_deref(),
+            Ok(r#"{"rev":1}"#)
+        );
+        let slots = r#"[{"name":"account_address","value":["me@mail.test"]},{"name":"reply_senders","value":["ann@people.test"]}]"#;
+        for (op, more) in [
+            ("create_agent", String::new()),
+            ("set_bindings", format!(r#","slots":{slots}"#)),
+        ] {
+            let body = format!(
+                r#"{{"op":"{op}","workflow":"{}","agent":"{AGENT_2}"{more}}}"#,
+                other.as_str()
+            );
+            assert_eq!(
+                owner.send("coordinator_write", &body).as_deref(),
+                Ok(r#"{"rev":1}"#),
+                "{op}"
+            );
+        }
+        let more = format!(r#","slots":{slots}"#);
+        let listed: Value =
+            serde_json::from_str(&owner.coordinator("list_overlaps", &more).unwrap()).unwrap();
+        assert_eq!(
+            listed,
+            serde_json::json!({
+                "overlaps": [{"workflow": other.as_str(), "agent": AGENT_2, "senders": ["ann@people.test"]}],
+                "more": "no",
+            })
+        );
+        crate::learn::tests::FAULTED_WORKFLOW.with(|one| *one.borrow_mut() = Some(other.clone()));
+        let answer = owner.coordinator("list_overlaps", &more);
+        crate::learn::tests::FAULTED_WORKFLOW.with(|one| *one.borrow_mut() = None);
+        assert_eq!(answer, Err(Error::Refused(ErrorName::Store)));
+    }
+
     /// U8.1 sentence 4 (L2.2): `list_refinements` through the owner answers the learned list: empty while nothing
     /// proposes, and after a replay run whose proposal for step 2 was taken, the one edit that it learned.
     #[test]

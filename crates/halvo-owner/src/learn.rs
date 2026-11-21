@@ -7,6 +7,11 @@
 //! the handler `Behind` of the family `agent`, which makes it with its own `HandlerCx` (the form of the learning run's
 //! gate host, crates/halvo-learn-gate/src/derived.rs). One value of `LearnHandlers` serves every request of the
 //! host's life (L4.1, L11.5).
+//!
+//! The agent store's code can read a workflow that met a fault of the store only as nothing. So the bridge counts
+//! such faults, the handlers' two doors to that code (`runner` and `newest_number` of halvo-learn-store's `agent`)
+//! ask `LearnHost::agent_faulted` after each call and take a faulted call as refused `store`, the true name, and the
+//! front answers `store` for every fault that no door took.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -153,7 +158,7 @@ impl Handler for Behind {
 /// The read of one stored workflow behind: its item, or `Failed` at a fault of the store.
 fn read_workflow(cx: &HandlerCx<'_>, id: &WorkflowId) -> Answer {
     #[cfg(test)]
-    if tests::FAULTED_WORKFLOW_READS.with(Cell::get) {
+    if tests::faulted(id) {
         return Answer::Failed;
     }
     match cx.workflow(id) {
@@ -167,9 +172,13 @@ struct Bridge<'r, 'c, 'x> {
     cx: &'r RefCell<&'c mut HandlerCx<'x>>,
     channel: &'r Channel,
     clock: &'r dyn Clock,
-    /// A fault of the store at the read of a workflow, which makes the request's answer `store`, as the agent store's
-    /// handler of the list answers it.
-    fault: Cell<bool>,
+    /// The reads of a workflow in this request that met a fault of the store, which the agent store's code read as
+    /// nothing.
+    faults: Cell<u32>,
+    /// `faults` when the handlers began their last call of the agent store's code (`LearnHost::agent_host`).
+    mark: Cell<u32>,
+    /// The faults that a door of the handlers took as the refusal `store` (`LearnHost::agent_faulted`).
+    spent: Cell<u32>,
 }
 
 impl Bridge<'_, '_, '_> {
@@ -217,7 +226,7 @@ impl AgentHost for Bridge<'_, '_, '_> {
         match self.ask(Call::Workflow(id.clone())) {
             Some(Answer::Workflow(item)) => item,
             Some(Answer::Failed) => {
-                self.fault.set(true);
+                self.faults.set(self.faults.get().saturating_add(1));
                 None
             }
             _ => None,
@@ -255,8 +264,24 @@ impl Today for Host<'_, '_, '_> {
 }
 
 impl LearnHost for Host<'_, '_, '_> {
+    /// The bridge, for one call of the agent store's code: the faults of the request so far are those of the calls
+    /// before it.
     fn agent_host(&mut self) -> &mut dyn AgentHost {
+        self.agent.mark.set(self.agent.faults.get());
         &mut self.agent
+    }
+
+    /// Whether a read of the last call met a fault of the store; the faults of that call are then spent, and the
+    /// handlers answer that call `store`.
+    fn agent_faulted(&mut self) -> bool {
+        let (faults, mark) = (self.agent.faults.get(), self.agent.mark.get());
+        if faults == mark {
+            return false;
+        }
+        let spent = self.agent.spent.get();
+        self.agent.spent.set(spent.saturating_add(faults - mark));
+        self.agent.mark.set(faults);
+        true
     }
 
     fn agent_now(&self) -> Now {
@@ -314,8 +339,10 @@ struct Front {
 }
 
 impl Handler for Front {
-    /// Reads the clock once for the request. A call that goes unanswered behind is answered `internal`, and a fault
-    /// of the store at the agent store's read of a workflow `store`.
+    /// Reads the clock once for the request. A call that goes unanswered behind is answered `internal`. A fault of the
+    /// store at the agent store's read of a workflow is answered `store` whatever the handlers answered, unless a door
+    /// of the handlers took it as the refusal `store` of its call (`LearnHost::agent_faulted`), so that no answer of
+    /// the handlers, an `Ok` among them, leaves computed from a read that met a fault.
     fn handle(
         &self,
         request: &RawRequest,
@@ -330,7 +357,9 @@ impl Handler for Front {
                 cx: &cx,
                 channel: &self.channel,
                 clock: &*self.clock,
-                fault: Cell::new(false),
+                faults: Cell::new(0),
+                mark: Cell::new(0),
+                spent: Cell::new(0),
             },
             at,
             day: self.clock.day(at),
@@ -351,7 +380,7 @@ impl Handler for Front {
         if self.channel.broken.get() {
             return Err(ErrorName::Internal);
         }
-        if host.agent.fault.get() {
+        if host.agent.faults.get() > host.agent.spent.get() {
             return Err(ErrorName::Store);
         }
         RawValue::from_string(json?).map_err(|_| ErrorName::Internal)
@@ -360,10 +389,20 @@ impl Handler for Front {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::cell::Cell;
+    use std::cell::{Cell, RefCell};
+
+    use halvo_schema::WorkflowId;
 
     thread_local! {
         /// In a test alone: every read of a workflow behind answers as a fault of the store does, on this thread.
         pub(crate) static FAULTED_WORKFLOW_READS: Cell<bool> = const { Cell::new(false) };
+        /// In a test alone: every read of this one workflow behind answers as a fault of the store does.
+        pub(crate) static FAULTED_WORKFLOW: RefCell<Option<WorkflowId>> = const { RefCell::new(None) };
+    }
+
+    /// Whether the read of `id` behind answers as a fault of the store in this test.
+    pub(super) fn faulted(id: &WorkflowId) -> bool {
+        FAULTED_WORKFLOW_READS.with(Cell::get)
+            || FAULTED_WORKFLOW.with(|one| one.borrow().as_ref() == Some(id))
     }
 }

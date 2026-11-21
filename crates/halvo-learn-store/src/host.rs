@@ -38,4 +38,12 @@ pub trait LearnHost: Clock {
 
     /// The item of the read `workflows` for one stored workflow, or none where it is not stored (W-C2.10).
     fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem>;
+
+    /// Whether a read of the agent store's handler in its last call through `agent_host` met a fault of the store,
+    /// which that handler could read only as nothing; asking spends the report of that call. The handlers ask it after
+    /// each call of `agent::runner` and `agent::newest_number` and then take the call as refused `store`. A host whose
+    /// reads hand a fault to nobody answers false, the default.
+    fn agent_faulted(&mut self) -> bool {
+        false
+    }
 }
