@@ -14,3 +14,4 @@
           - {"role":"paragraph","text":"It needs your answer before it can go on."}
           - {"name":"Stop","role":"button"}
           - {"name":"Switch off","role":"button"}
+          - {"name":"Delete","role":"button"}
