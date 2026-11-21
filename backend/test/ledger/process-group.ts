@@ -381,16 +381,19 @@ async function endKnown(state: Live, group: Group): Promise<void> {
     return;
   }
   state.confirmed.add(group);
-  send(group, "SIGTERM");
-  if (!(await gone(group, state.grace))) {
-    send(group, "SIGKILL");
-    await gone(group, state.grace);
-  }
-  if (members(group).length > 0) {
-    throw new Error(`process group ${group.pid} (started ${group.started}) still has members ${members(group).join(" ")}`);
+  try {
+    send(group, "SIGTERM");
+    if (!(await gone(group, state.grace))) {
+      send(group, "SIGKILL");
+      await gone(group, state.grace);
+    }
+    if (members(group).length > 0) {
+      throw new Error(`process group ${group.pid} (started ${group.started}) still has members ${members(group).join(" ")}`);
+    }
+  } finally {
+    state.confirmed.delete(group);
   }
   state.groups.delete(group);
-  state.confirmed.delete(group);
   if (entry !== undefined) release(entry.path, entry.text);
 }
 
