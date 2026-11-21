@@ -293,6 +293,18 @@ test("endGroup and stopAll remove a mark only while it reads as they wrote it", 
     afterExit: kept(markOf(f.pid), laterText),
   };
 
+  fresh();
+  const g = startGroup("server", [], opts);
+  rowOf(g.pid).termProof = true;
+  const written = JSON.parse(textOf(markOf(g.pid)) as string);
+  written.checkout = `${written.checkout}/another`;
+  const writtenText = JSON.stringify(written);
+  events = [];
+  const ending = endGroup(g);
+  onPs = () => writeFileSync(markOf(g.pid), writtenText);
+  await ending;
+  cases["a mark of another text written at the path while endGroup waits after its TERM"] = { signals: groupSignals(g.pid), mark: kept(markOf(g.pid), writtenText) };
+
   expect(cases).toEqual({
     "a later mark of another owner": { afterEndGroup: [`group-${a.pid}.json`], afterExit: [`group-${a.pid}.json`, `group-${b.pid}.json`] },
     "the same owner, the same pid and start second, another spawn second": { samePidAndStart: true, signalsOfTheFirstEnding: [], laterMark: "kept byte for byte" },
@@ -300,6 +312,7 @@ test("endGroup and stopAll remove a mark only while it reads as they wrote it", 
     "a mark of another checkout at the path, then exit": { signals: [], mark: "kept byte for byte" },
     "no mark at the path, then endGroup": { term: true },
     "the same owner's later group of the pid with another start time": { samePid: true, afterEndA: "kept byte for byte", termToTheLaterGroupAtExit: true, afterExit: "removed" },
+    "a mark of another text written at the path while endGroup waits after its TERM": { signals: [`SIGTERM -${g.pid}`, `SIGKILL -${g.pid}`], mark: "kept byte for byte" },
   });
 });
 
@@ -404,4 +417,27 @@ test("after an ending that rejects, the owner's handlers send no signal to the g
     };
   }
   expect(cases).toEqual(want);
+}, 20_000);
+
+test("endGroup: a stop inside the wait, after the group's processes ended and a new process with the group's pid and another start time leads its own group, sends that group nothing", async () => {
+  useProcesses(world, 5_000);
+  const a = startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+  rowOf(a.pid).termProof = true;
+  const ending = endGroup(a);
+  await pause(150);
+  const insideTheWait = groupSignals(a.pid);
+  rows = rows.filter((row) => row.pgid !== a.pid);
+  rows.push({ pid: a.pid, pgid: a.pid, stat: "S", started: OTHER });
+  events = [];
+  fire("SIGINT");
+  const signalsAtStop = groupSignals(a.pid);
+  fire("exit");
+  const signalsAtExit = groupSignals(a.pid);
+  await ending;
+  expect({ insideTheWait, signalsAtStop, signalsAtExit, newLeader: rows.some((row) => row.pid === a.pid && row.started === OTHER) }).toEqual({
+    insideTheWait: [`SIGTERM -${a.pid}`],
+    signalsAtStop: [],
+    signalsAtExit: [],
+    newLeader: true,
+  });
 }, 20_000);
