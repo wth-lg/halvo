@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: A tracked file under backend/ reads no tracked file outside backend/ and formal/r7-ledger/, and a tracked file of the app (every file outside those two roots but .md files and the files under docs/ that are no script) reads no file under backend/, but for the files under scripts/r7/ that --help lists, the step of scripts/prerequisites.sh that installs backend/'s packages and the four files of the wire contract named whole under account/schema/, and a tree that the check cannot read fails, with the 15 named limits of --help: names-v0, computed-path, bare-module, file-or-environment, nul-byte, model-side, absolute-path, both-sides-path, unread-variable, bare-operand, bracket-glob, name-in-a-variable, case-in-text, quote-before-glob, backend-glob.
+# rule: A tracked file under backend/ reads no tracked file outside backend/ and formal/r7-ledger/ (a path that begins $HOME/.cargo, the cargo home of the person, is no path of the checkout), and a tracked file of the app (every file outside those two roots but .md files and the files under docs/ that are no script) reads no file under backend/, but for the files under scripts/r7/ that --help lists, the step of scripts/prerequisites.sh that installs backend/'s packages and the four files of the wire contract named whole under account/schema/, and a tree that the check cannot read fails, with the 15 named limits of --help: names-v0, computed-path, bare-module, file-or-environment, nul-byte, model-side, absolute-path, both-sides-path, unread-variable, bare-operand, bracket-glob, name-in-a-variable, case-in-text, quote-before-glob, backend-glob.
 # lane: free
 # shellcheck disable=SC2016
 set -u
@@ -226,6 +226,7 @@ judge() {
       else if (kind == "plain") base = dir_of(path)
       else if (kind == "top") base = ""
       if (kind == "root") {
+        if (sg[1] "/" sg[2] == person_cargo_home) return
         i = rest_index(sg, from, n)
         r = walk("", sg, i, n)
         rb = walk("backend", sg, i, n)
@@ -587,6 +588,7 @@ judge() {
       fix_four = "; name the four files whole in account/schema/, or ask for a ruling"
       fix_name = "; give it another name, or ask for a ruling"
       fix_ask = "; ask for a ruling"
+      person_cargo_home = "$HOME/.cargo"
       max_run = 64
       split(contract, list, " ")
       for (k in list) copied[list[k]] = 1
@@ -998,7 +1000,8 @@ dirname of a realpath) is walked in the app from the top and from the file's
 own directory, and when a walk climbs above the top, what follows the climbs
 is read from the top. In backend/ such a path, with its climbs taken off, is
 placed by the index: when it names a tracked path of the app from the top and
-no tracked path from backend/, it is refused. A token ends at a quote, a space, a bracket, a comma, a
+no tracked path from backend/, it is refused; a path that begins $HOME/.cargo,
+the cargo home of the person, is no path of the checkout. A token ends at a quote, a space, a bracket, a comma, a
 semicolon, a pipe, an ampersand or an equals sign, at :- or := of a parameter
 default, and at a carriage return at the end of a line.
 
@@ -1239,6 +1242,7 @@ cat "$ROOT/package.json" "$ROOT/scripts/stack.sh" "${0%/*}/../../src/types.ts"'
   put backend/scripts/spread.mjs 'const all = [...one, ...two]; const range = "1..10"; const parent = "..";'
   put backend/scripts/names-v0.sh 'ENUM_PATH=crates/halvo-capture/src/event.rs'
   put backend/spikes/s3/run.sh 'ROOT=$(cd "$(dirname "$0")/../.." && pwd -P)'
+  put .cargo/config.toml '[env]'
   put formal/r7-ledger/check.mjs 'import x from "../../src-tauri/src/main.rs";'
   put formal/r3-confirm/README.md 'the backend repository'
   put src-tauri/src/main.rs 'store_backend: unwired_store::DESCRIPTION,'
@@ -2121,6 +2125,7 @@ name = "peek"'
   pass_with backend-names-its-own-scripts backend/test/x/a.ts 'const s = "../../scripts/stack.sh";' 'read:backend/test/x/a.ts'
   pass_with backend-names-its-own-docs backend/test/x/a.ts 'const s = "../../docs/baseline/a.txt";' 'read:backend/test/x/a.ts'
   pass_with backend-names-its-own-fixtures backend/test/x/a.ts 'const s = "../../fixtures/f.json";' 'read:backend/test/x/a.ts'
+  pass_with backend-names-the-cargo-home-of-the-person backend/scripts/cargo.sh 'CARGO_HOME=${CARGO_HOME:-$HOME/.cargo}' 'read:backend/scripts/cargo.sh'
   pass_with backend-names-its-own-package-json backend/test/x/a.ts 'const s = "../../package.json";' 'read:backend/test/x/a.ts'
   pass_with backend-names-its-own-readme backend/test/x/a.ts 'const s = "../../README.md";' 'read:backend/test/x/a.ts'
 
