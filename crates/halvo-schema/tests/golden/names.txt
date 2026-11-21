@@ -18,6 +18,7 @@ agent_reply
 agent_run
 agent_session
 agent_start
+agents
 allow
 allow_once
 analysis
@@ -188,6 +189,7 @@ limit
 limits
 link
 link_account
+list_agents
 list_checkpoints
 list_overlaps
 list_refinements
@@ -326,6 +328,7 @@ send
 senders
 senders_unread
 seq
+session
 session_size
 sessions
 set_bindings
