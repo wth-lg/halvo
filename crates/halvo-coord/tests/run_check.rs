@@ -3647,3 +3647,33 @@ fn u24s_a_check_stored_at_a_tick_whose_list_read_fails_ends_the_record_line() {
         "the next tick's count ends the record line, also without a list (RD-155 (3))"
     );
 }
+
+#[test]
+fn u24s_a_check_whose_read_after_a_first_seq_is_refused_by_name_counts_each_tick() {
+    let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+    w.ports.refuse_agent(Method::Log, &agent(0), refusal("seq"));
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refusal("store"));
+    for _ in 0..=w.limits.record_stuck_ticks {
+        w.act(Act::Tick);
+    }
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "I5.7: a read of the agent refused with a name of class C or D counts (RD-155 (4))"
+    );
+}
+
+#[test]
+fn u24s_after_the_last_fell_a_check_whose_read_is_refused_by_name_counts_each_tick() {
+    let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+    w.ports.events.borrow_mut().retain(|e| e.agent != agent(0));
+    w.ports
+        .refuse_agent(Method::History, &agent(0), refusal("store"));
+    for _ in 0..=w.limits.record_stuck_ticks {
+        w.act(Act::Tick);
+    }
+    assert!(
+        w.board.record_stuck(&agent(0), &w.limits),
+        "the owner's own seq refuses the check, and its read refused with store counts"
+    );
+}

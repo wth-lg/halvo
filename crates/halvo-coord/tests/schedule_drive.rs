@@ -3888,3 +3888,25 @@ fn u24s_a_switch_off_refused_with_class_b_for_an_agent_with_no_live_run_stops_no
     );
     assert!(!w.calls().iter().any(|c| c.starts_with("set_state")));
 }
+
+#[test]
+fn u24s_a_schedule_log_whose_read_after_a_first_seq_is_refused_by_name_counts() {
+    for (name, counts) in [("store", true), ("no_workflow", false)] {
+        let mut w = world_with(&[manual()], u24s_one_tick());
+        w.ports
+            .refuse_agent(Method::Log, &agent(0), u24s_refused("seq"));
+        w.ports
+            .refuse_agent(Method::History, &agent(0), u24s_refused(name));
+        assert_ne!(
+            w.go(Move::SwitchOff { agent: agent(0) }).answer,
+            Ok(Answer::Ok)
+        );
+        w.ports.clear_refusals();
+        w.tick();
+        assert_eq!(
+            w.board.record_stuck(&agent(0), &w.limits),
+            counts,
+            "{name}: a read refused with a name of class C or D counts (I5.7), class B counts nothing"
+        );
+    }
+}
