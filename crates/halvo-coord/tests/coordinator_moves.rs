@@ -11998,3 +11998,156 @@ fn u24t_q1_a_held_panic_at_the_ticks_retry_marks_the_move_and_rings_the_bell() {
         "(the tick returned, seq raised, the bell rang)"
     );
 }
+
+#[derive(Clone, Copy, Debug)]
+enum U24tFault {
+    Refuses,
+    Panics,
+    LosesTheReply,
+}
+
+fn u24t_switch_off_under(
+    c: &Coordinator<Both>,
+    n: usize,
+    fault: U24tFault,
+) -> Option<Result<(), Cause>> {
+    match fault {
+        U24tFault::Refuses => c
+            .ports()
+            .ports
+            .refuse_record(u24t_hold_set_refused_or_panics, PortError::NoService),
+        U24tFault::Panics => c.ports().panics.set(Some("log_hold_set")),
+        U24tFault::LosesTheReply => c.ports().loss.set(Some(support::Loss::Nothing)),
+    }
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(n), Action::SwitchOff)
+    }))
+    .ok();
+    c.ports().panics.set(None);
+    c.ports().loss.set(None);
+    c.ports().ports.clear_refusals();
+    pressed
+}
+
+#[test]
+fn u24t_case7_a_stamped_switch_off_whose_store_faults_at_the_hold_set_answers_no_service_and_does_nothing(
+) {
+    for fault in [U24tFault::Refuses, U24tFault::Panics] {
+        for card in [false, true] {
+            let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+            let run = start(&c, 0);
+            if card {
+                c.on_run(&run, ask_confirm(&run, 0)).unwrap();
+            }
+            let line = row_line(&c.snapshot(), 0);
+            let items = c.snapshot().items;
+            let m = mark(&c);
+            let pressed = u24t_switch_off_under(&c, 0, fault);
+            assert_eq!(
+                (
+                    pressed,
+                    cancels_of(&c, m, &run),
+                    person_holds(&c, 0).len(),
+                    row_line(&c.snapshot(), 0) == line,
+                    c.snapshot().items == items,
+                    c.live()
+                ),
+                (Some(Err(Cause::NoService)), 0, 0, true, true, 1),
+                "{fault:?}, card {card}: (the press, cancels, hold_set rows, the row as it was, the items as they were, live runs)"
+            );
+            c.ports().ports.set_clock(T0 + 1_000, DAY);
+            c.tick();
+            c.tick();
+            assert_eq!(
+                (cancels_of(&c, m, &run), person_holds(&c, 0).len(), c.live()),
+                (0, 0, 1),
+                "{fault:?}, card {card}: nothing of the press is kept or made later"
+            );
+            assert_eq!(
+                c.control(&agent(0), Action::SwitchOff),
+                Ok(()),
+                "{fault:?}, card {card}: a second press with a store that works"
+            );
+            assert_eq!(
+                (
+                    cancels_of(&c, m, &run),
+                    person_holds(&c, 0).len(),
+                    row_line(&c.snapshot(), 0)
+                ),
+                (1, 1, text("line.off.person")),
+                "{fault:?}, card {card}: (cancels, hold_set rows, the row) after the second press"
+            );
+        }
+    }
+}
+
+#[test]
+fn u24t_c07_a_stamped_switch_off_whose_store_panics_at_the_hold_set_answers_no_service_and_the_run_goes_on(
+) {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    let m = mark(&c);
+    c.ports().ports.set_clock(T0 + 10_000, DAY);
+    let pressed = u24t_switch_off_under(&c, 0, U24tFault::Panics);
+    let run_now = c.control(&agent(0), Action::RunNow);
+    c.tick();
+    c.ports().ports.set_clock(
+        T0 + 10_000 + Limits::PRODUCT.cancel_grace_s * 1000 + 1_000,
+        DAY,
+    );
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (
+            pressed,
+            run_now,
+            cancels_of(&c, m, &run0),
+            kills_of(&c, m, &run0),
+            run_ends_of(&c, &run0),
+            person_holds(&c, 0).len(),
+            row_line(&c.snapshot(), 0)
+        ),
+        (
+            Some(Err(Cause::NoService)),
+            Err(Cause::State),
+            0,
+            0,
+            vec![],
+            0,
+            text("line.working.working")
+        ),
+        "(the press, Run now, cancels, kills, ends, hold_set rows, the row)"
+    );
+}
+
+#[test]
+fn u24t_c07c_a_stamped_switch_off_whose_store_answers_no_service_with_nothing_stored_does_nothing()
+{
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run0 = start(&c, 0);
+    let m = mark(&c);
+    let pressed = u24t_switch_off_under(&c, 0, U24tFault::LosesTheReply);
+    let in_move = cancels_of(&c, m, &run0);
+    c.tick();
+    assert_eq!(
+        (
+            pressed,
+            in_move,
+            cancels_of(&c, m, &run0),
+            person_holds(&c, 0).len(),
+            row_line(&c.snapshot(), 0)
+        ),
+        (
+            Some(Err(Cause::NoService)),
+            0,
+            0,
+            0,
+            text("line.working.working")
+        ),
+        "(the press, cancels in the move, cancels after a tick, hold_set rows, the row)"
+    );
+}

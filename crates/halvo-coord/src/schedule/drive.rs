@@ -1869,7 +1869,11 @@ where
                 let set = What::HoldSet {
                     cause: HoldSetCause::Person,
                 };
-                if let Err(e) = store(cx, board, i, vec![set]) {
+                let stored = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    store(cx, board, i, vec![set])
+                }))
+                .unwrap_or(Err(PortError::NoService));
+                if let Err(e) = stored {
                     let shown = !seq_refusal(&e)
                         && read_once(cx, board, i).is_ok()
                         && holds(&board.members[i].facts).contains(&Hold::Off);
@@ -1978,7 +1982,9 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
 /// The switch-off (I5.7, ruling RD-52 (b) rules 1, 2 and 4) stores `hold_set` with the cause
 /// `person` first and does nothing else until the hold is known stored, by the acknowledgement or
 /// by one read after a store that got none whose events show the hold standing; it then stops the
-/// agent's live run and sends `set_state` `paused`. For an agent whose hold `off` stands in the
+/// agent's live run and sends `set_state` `paused`. A store that panics is one that got no
+/// acknowledgement, so the press that the read does not show stored answers `no_service` and
+/// does nothing (ruling RD-142). For an agent whose hold `off` stands in the
 /// board's events it answers `state` where no live run stands that a stop can still reach;
 /// where one stands it reads the owner's events first and goes on with no second `hold_set`
 /// while the hold stands, stores `hold_set` as a new press where the hold has ended, and answers
