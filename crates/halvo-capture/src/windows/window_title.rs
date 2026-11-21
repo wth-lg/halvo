@@ -190,6 +190,27 @@ struct TitleState {
     last: LastTitle,
 }
 
+/// The most answers of the Chrome query that the title thread keeps.
+const CHROME_ANSWERS_KEPT: usize = 256;
+
+/// The answer of the Chrome query for `window`: a kept answer, or `query`,
+/// whose answer is kept for the window.
+pub(crate) fn kept_answer(
+    answers: &mut std::collections::HashMap<usize, bool>,
+    window: usize,
+    query: impl FnOnce() -> Option<bool>,
+) -> Option<bool> {
+    if let Some(answer) = answers.get(&window) {
+        return Some(*answer);
+    }
+    let answer = query()?;
+    if answers.len() >= CHROME_ANSWERS_KEPT {
+        answers.clear();
+    }
+    answers.insert(window, answer);
+    Some(answer)
+}
+
 /// The UI Automation query of a Chrome window, made on the title thread, with
 /// each answer kept for its window.
 #[derive(Default)]
@@ -199,26 +220,23 @@ struct ChromeQuery {
 }
 
 impl ChromeQuery {
-    const KEPT: usize = 256;
-
     fn ask(&mut self, window: HWND) -> Option<bool> {
         use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_INPROC_SERVER};
         use windows::Win32::UI::Accessibility::CUIAutomation;
-        if let Some(answer) = self.answers.get(&(window.0 as usize)) {
-            return Some(*answer);
-        }
-        if self.automation.is_none() {
-            // SAFETY: CoCreateInstance makes the system's UI Automation object
-            // for this thread, which joined the process's MTA at its start.
-            self.automation =
-                unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) }.ok();
-        }
-        let answer = chrome_window_is_incognito(self.automation.as_ref()?, window)?;
-        if self.answers.len() >= Self::KEPT {
-            self.answers.clear();
-        }
-        self.answers.insert(window.0 as usize, answer);
-        Some(answer)
+        let ChromeQuery {
+            automation,
+            answers,
+        } = self;
+        kept_answer(answers, window.0 as usize, || {
+            if automation.is_none() {
+                // SAFETY: CoCreateInstance makes the system's UI Automation
+                // object for this thread, which joined the process's MTA at
+                // its start.
+                *automation =
+                    unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) }.ok();
+            }
+            chrome_window_is_incognito(automation.as_ref()?, window)
+        })
     }
 }
 
@@ -553,6 +571,62 @@ mod tests {
         assert!(
             wrong.is_empty(),
             "a window told against its class and owner: {wrong:?}"
+        );
+    }
+
+    #[test]
+    fn a_chrome_window_in_another_language_is_told_private() {
+        use super::super::exclusion::incognito_of_names;
+        let told =
+            |names: &[&str]| private_window(Browser::Chrome, "Notes", || incognito_of_names(names));
+        let cases = [
+            (
+                "german-incognito",
+                told(&["Zur\u{fc}ck", "Vorw\u{e4}rts", "Neu laden", "Inkognito"]),
+                PrivateWindow::Private,
+            ),
+            (
+                "spanish-incognito",
+                told(&[
+                    "Atr\u{e1}s",
+                    "Adelante",
+                    "Volver a cargar",
+                    "Inc\u{f3}gnito",
+                ]),
+                PrivateWindow::Private,
+            ),
+            (
+                "french-incognito",
+                told(&[
+                    "Pr\u{e9}c\u{e9}dente",
+                    "Suivante",
+                    "Actualiser",
+                    "Navigation priv\u{e9}e",
+                ]),
+                PrivateWindow::Private,
+            ),
+            (
+                "english-incognito",
+                told(&["Back", "Forward", "Reload", "Incognito"]),
+                PrivateWindow::Private,
+            ),
+            (
+                "english-plain",
+                told(&["Back", "Forward", "Reload", "Person 1"]),
+                PrivateWindow::Unknown,
+            ),
+        ];
+        let wrong: Vec<&str> = cases
+            .iter()
+            .filter(|(_, told, wanted)| told != wanted)
+            .map(|(case, ..)| *case)
+            .collect();
+        let mut answers = std::collections::HashMap::new();
+        let first = kept_answer(&mut answers, 7, || Some(false));
+        let second = kept_answer(&mut answers, 7, || Some(true));
+        assert!(
+            wrong.is_empty() && first == Some(false) && second == Some(true),
+            "told against its window: {wrong:?}; answers for one window: {first:?} then {second:?}"
         );
     }
 

@@ -227,6 +227,20 @@ pub(crate) fn private_window(
     }
 }
 
+/// What the names of a Chrome window's buttons tell of it: `Some(true)` when
+/// one is named Incognito, `Some(false)` when there are buttons and none is,
+/// and `None` when there is none.
+pub(crate) fn incognito_of_names<S: AsRef<str>>(names: &[S]) -> Option<bool> {
+    if names.is_empty() {
+        return None;
+    }
+    Some(
+        names
+            .iter()
+            .any(|name| name.as_ref().to_ascii_lowercase().contains("incognito")),
+    )
+}
+
 /// What the UI Automation query tells of a Chrome window: `Some(true)` when a
 /// button of the window is named Incognito, `Some(false)` when the window holds
 /// buttons and none is, and `None` when the query gives no answer. The calling
@@ -256,16 +270,18 @@ pub(crate) fn chrome_window_is_incognito(
             .ok()?;
         let buttons = element.FindAll(TreeScope_Descendants, &condition).ok()?;
         let count = buttons.Length().ok()?;
-        if count == 0 {
-            return None;
-        }
+        let mut names = Vec::new();
         for index in 0..count {
-            let name = buttons.GetElement(index).ok()?.CurrentName().ok()?;
-            if name.to_string().to_ascii_lowercase().contains("incognito") {
-                return Some(true);
-            }
+            names.push(
+                buttons
+                    .GetElement(index)
+                    .ok()?
+                    .CurrentName()
+                    .ok()?
+                    .to_string(),
+            );
         }
-        Some(false)
+        incognito_of_names(&names)
     }
 }
 
