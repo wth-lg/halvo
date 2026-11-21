@@ -915,6 +915,7 @@ pub(in crate::store) mod code_seams {
     pub(in crate::store) const CHECKPOINT_QUERY: &str =
         "the truncating checkpoint's query of checkpoint_truncate";
     pub(in crate::store) const LOG_ENTRY_READ: &str = "the read of the log's entry in log_look";
+    pub(in crate::store) const SHRED_COMMIT: &str = "the commit of an expiry chunk";
 
     thread_local! {
         static FORCED_IO_AT: Cell<Option<(&'static str, std::io::ErrorKind)>> =

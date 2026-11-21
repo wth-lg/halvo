@@ -12939,3 +12939,33 @@ fn a_later_call_with_nothing_due_finishes_what_an_earlier_call_owed() {
         "the first call did not leave its checkpoint and one removal owed: (reads refused, files)"
     );
 }
+
+#[test]
+fn a_full_database_at_the_commit_still_loses_the_key() {
+    use super::db::code_seams::{force_at, SHRED_COMMIT};
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let due = (NOW_SECONDS - window_seconds() - DAY_SECONDS) * SECOND;
+    let (expired, ordinal) = batch_first_captured_at(
+        &mut store,
+        due,
+        b"a segment whose shred meets a full database",
+    );
+
+    force_at(
+        SHRED_COMMIT,
+        Some(halvo_sqlcipher::rusqlite::ffi::SQLITE_FULL),
+    );
+    let pass = store.expire_due(at_second(NOW_SECONDS), 64);
+    force_at(SHRED_COMMIT, None);
+
+    assert!(
+        matches!(&pass, Ok(pass) if pass.shredded == vec![ordinal]),
+        "a chunk whose commit met a full database answered {pass:?}"
+    );
+    assert!(reads_sealed(&store, expired), "the segment still reads");
+    assert!(
+        !segment_path(dir.path(), expired).exists(),
+        "the segment's file stays"
+    );
+}

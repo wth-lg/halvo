@@ -92,6 +92,9 @@ fn clear_keys(db: &Db, ids: &[Uuid]) -> StoreResult<()> {
     for segment_id in ids {
         shred_in_place(&tx, &segment_id.simple().to_string())?;
     }
+    #[cfg(test)]
+    super::db::code_seams::or_forced_at(super::db::code_seams::SHRED_COMMIT, Ok(()))
+        .map_err(db_error)?;
     tx.commit().map_err(db_error)
 }
 
@@ -181,7 +184,13 @@ impl EncryptedStore {
         let (left, first_failure) = {
             let db = self.maintained_db()?;
             let changes_before = db.connection().total_changes();
-            clear_keys(db, &ids)?;
+            match clear_keys(db, &ids) {
+                Err(StoreError::Db(code)) if code & 0xff == rusqlite::ffi::SQLITE_FULL => {
+                    let _ = self.remove_shredded_files(&ids);
+                    clear_keys(db, &ids)?;
+                }
+                cleared => cleared?,
+            }
             db.look_after_the_first_commit(changes_before)?;
             let checkpointed = db
                 .checkpoint_truncate()
@@ -217,10 +226,13 @@ impl EncryptedStore {
     /// `max_segments` live segments whose first capture, floored to whole
     /// seconds, plus this handle's window is at or before `now`, the oldest
     /// first capture first, in one transaction that clears each key in place
-    /// and takes its totals out of the rollup. After the commit it attempts
-    /// the checkpoint and the removal of exactly that chunk's files, and the
-    /// checkpoint once more after the removal when the first one failed, and
-    /// answers the first error after every step ran; the handle keeps what
+    /// and takes its totals out of the rollup. When that commit fails with
+    /// SQLITE_FULL it removes the chunk's files and runs the transaction once
+    /// more: the one case where a file goes before its key. After the commit
+    /// it attempts the checkpoint and the removal of exactly that chunk's
+    /// files, and the checkpoint once more after the removal when the first
+    /// one failed, and answers the first error after every step ran; the
+    /// handle keeps what
     /// the call owes, and a later call finishes it. With nothing due and
     /// nothing owed it writes nothing and reads no directory. It returns the
     /// ordinals of the chunk in ascending order, whether more segments are
