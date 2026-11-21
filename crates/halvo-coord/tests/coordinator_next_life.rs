@@ -1565,26 +1565,15 @@ fn published(c: &Coordinator<Both>) -> String {
     format!("{snapshot}\n{card}")
 }
 
-/// Another writer's `hold_set` with the cause `failures` for agent 0 in the owner's ledger,
-/// which the next tick reads.
-fn failures_hold(c: &Coordinator<Both>) {
-    let mut events = c.ports().ports.events.borrow_mut();
-    let last = events
-        .iter()
-        .filter(|e| e.agent == agent(0))
-        .map(|e| e.seq.get())
-        .max()
-        .unwrap_or(0);
-    events.push(Event {
-        workflow: flow(0),
-        agent: agent(0),
-        seq: NonZeroU32::new(last + 1).unwrap(),
-        day: DAY,
-        at: 0,
-        what: What::HoldSet {
-            cause: halvo_coord::types::HoldSetCause::Failures,
-        },
-    });
+/// The owner's entry of agent 0 gains the runtime `none`, the hold `not_yet` of I5.4, which the
+/// next tick's read of the agents gives the board.
+fn not_yet_hold(c: &Coordinator<Both>) {
+    let text = format!(
+        "{{\"v\":1,\"workflow\":\"{}\",\"agent\":\"{}\",\"rev\":1,\"category\":\"calendar_cleanup\",\"tier\":\"on_device\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"no\"}},\"limits\":{{\"steps\":20,\"wall_s\":120,\"model_tokens\":0}},\"budget\":null,\"permissions\":[],\"runtime\":\"none\",\"playbook\":null}}",
+        flow(0),
+        agent(0),
+    );
+    c.ports().ports.agents.borrow_mut()[0].config = halvo_coord::mem::Config::parse(&text).unwrap();
 }
 
 /// The life where reap answered alive the first task of an agent with no clean run, with the
@@ -1622,7 +1611,7 @@ fn stored_raise(
 /// R12 (RD-162 (1), the coordinator's line of 2026-11-21T04:00:53Z): the item of a run that the
 /// record names completed or nothing_to_do is not shown, not counted and not reachable, in
 /// every state of the agent, until a new slot opens for it. Case 1: one Switch off after the
-/// record, then Switch on. Case 2: the hold `failures`. Both read as the ordinary way under the
+/// record, then Switch on. Case 2: the hold `not_yet`. Both read as the ordinary way under the
 /// same hold, publish no id of the stored item, and start nothing from it; a record `failed`
 /// leaves the ordinary item shown under Switch off. Case 3, the guard: an agent on a schedule
 /// whose first task found nothing to do gets the ask at its next open slot, as the ordinary
@@ -1681,20 +1670,20 @@ fn u46b_the_stored_ready_of_a_finished_first_task_stays_hidden_under_a_hold_unti
             );
 
             let (reference, _, _) = ordinary(cleared, MANUAL, end);
-            failures_hold(&reference);
+            not_yet_hold(&reference);
             tick_at(&reference, 4);
             let want_hold = tray(&reference);
             let (held, hidden_2) = stored_raise(cleared, MANUAL, end);
             let id_2 = serde_json::to_string(&hidden_2).unwrap();
-            failures_hold(&held);
+            not_yet_hold(&held);
             tick_at(&held, 4);
             pages.push(published(&held));
             assert_eq!(
                 (want_hold.0 .1.clone(), want_hold.1),
-                (text("line.problem.failures"), Some(0)),
-                "{form}: the ordinary way reads the hold failures"
+                (text("line.not_yet.category"), Some(0)),
+                "{form}: the ordinary way reads the hold not_yet"
             );
-            assert_eq!(tray(&held), want_hold, "{form}: case 2, the hold failures");
+            assert_eq!(tray(&held), want_hold, "{form}: case 2, the hold not_yet");
             held.ports().ports.set_clock(T0 + 2 * DAY_MS, DAY + 2);
             held.tick();
             pages.push(published(&held));
