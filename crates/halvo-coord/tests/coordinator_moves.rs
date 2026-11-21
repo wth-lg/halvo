@@ -12150,3 +12150,50 @@ fn u24s_r2_under_class_b_the_stop_of_the_row_stops_the_run() {
     assert_eq!(u24s_r1_cancels(&c, m, &run), 1, "Runs::cancel once");
     assert_eq!(u24s_r1_row(&c).line, text("line.working.stopping"));
 }
+
+#[test]
+fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_and_shows_the_agent_on(
+) {
+    let (c, run) = u24s_r1_dismissed_live();
+    let m = mark(&c);
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(
+        u24s_r1_cancels(&c, m, &run),
+        1,
+        "the press stops the live run as Stop does (RD-155 (1))"
+    );
+    for tick in [false, true] {
+        if tick {
+            c.tick();
+        }
+        let row = u24s_r1_row(&c);
+        assert_eq!(row.status, Status::Working, "tick {tick}");
+        assert_eq!(
+            row.line,
+            text("line.working.switch_not_saved"),
+            "tick {tick}: while the run is stopping the line says both halves"
+        );
+        assert!(
+            u24s_r1_controls(&row).contains(&halvo_coord::types::Control::SwitchOff),
+            "tick {tick}: the switch shows on: {:?}",
+            u24s_r1_controls(&row)
+        );
+    }
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    for tick in [false, true] {
+        if tick {
+            c.tick();
+        }
+        let row = u24s_r1_row(&c);
+        assert_eq!(
+            row.line,
+            text("line.all_set.switch_not_saved"),
+            "tick {tick}: after the end the line says that the task was stopped and the switch could not be saved"
+        );
+        assert!(
+            u24s_r1_controls(&row).contains(&halvo_coord::types::Control::SwitchOff),
+            "tick {tick}: the switch shows on: {:?}",
+            u24s_r1_controls(&row)
+        );
+    }
+}

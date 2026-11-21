@@ -3773,3 +3773,118 @@ fn u24s_a_first_seq_refusal_counts_nothing_also_where_the_read_after_it_fails() 
     w.tick();
     assert!(!w.board.record_stuck(&agent(0), &w.limits));
 }
+
+fn u24s_r1_live(dismissed: bool) -> (World, RunId) {
+    let mut w = world_with(&[manual()], Limits::PRODUCT);
+    let run = ok_run(&w.start(0));
+    if dismissed {
+        for wf in w.ports.workflows.borrow_mut().iter_mut() {
+            if wf.id() == &flow(0) {
+                *wf = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                    id: flow(0),
+                    category: Category::CalendarCleanup,
+                    site: None,
+                });
+            }
+        }
+        w.ports.agents.borrow_mut().retain(|a| a.agent != agent(0));
+    }
+    (w, run)
+}
+
+fn u24s_r1_cancels(w: &World, from: usize, run: &RunId) -> usize {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| matches!(&t.call, Call::Cancel(r) if r == run))
+        .count()
+}
+
+fn u24s_r1_hold_sets_refused(w: &World, from: usize) -> usize {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| {
+            t.refused.is_some()
+                && matches!(&t.call, Call::Log(rows) if rows.iter().any(u24s_is_hold_set))
+        })
+        .count()
+}
+
+#[test]
+fn u24s_a_switch_off_refused_with_class_b_stops_the_live_run_or_names_stop() {
+    for (case, dismissed) in [
+        ("binding of a workflow that the list shows dismissed", true),
+        ("no_workflow of a listed workflow", false),
+    ] {
+        let (mut w, run) = u24s_r1_live(dismissed);
+        if !dismissed {
+            w.ports
+                .refuse_record(u24s_is_hold_set, u24s_refused("no_workflow"));
+        }
+        let from = w.ports.tried.borrow().len();
+        let _ = w.go(Move::SwitchOff { agent: agent(0) });
+        assert_eq!(
+            u24s_r1_hold_sets_refused(&w, from),
+            1,
+            "{case}: the store of hold_set is refused"
+        );
+        assert_eq!(
+            u24s_r1_cancels(&w, from, &run),
+            1,
+            "{case}: one press sends Runs::cancel once for the run, as a Stop does (RD-155 (1))"
+        );
+        let live = w.board.runs.iter().find(|l| l.run == run).unwrap();
+        assert_eq!(
+            live.stop.map(|s| s.cause),
+            Some(RunEnd::Cancelled),
+            "{case}: the run is stopping"
+        );
+        assert!(
+            !w.stored().iter().any(u24s_is_hold_set),
+            "{case}: no hold is stored"
+        );
+        assert!(
+            !holds(w.facts(0)).contains(&Hold::Off),
+            "{case}: the agent stays on"
+        );
+        assert!(
+            !w.calls().iter().any(|c| c.starts_with("set_state")),
+            "{case}: no set_state, the agent stays on: {:?}",
+            w.calls()
+        );
+    }
+}
+
+#[test]
+fn u24s_a_switch_off_refused_with_a_class_that_can_pass_stops_nothing() {
+    let (mut w, run) = u24s_r1_live(false);
+    w.ports
+        .refuse_record(u24s_is_hold_set, u24s_refused("store"));
+    let from = w.ports.tried.borrow().len();
+    let r = w.go(Move::SwitchOff { agent: agent(0) });
+    assert_eq!(r.answer, Err(Cause::NoService));
+    assert_eq!(u24s_r1_hold_sets_refused(&w, from), 1);
+    assert_eq!(u24s_r1_cancels(&w, from, &run), 0, "class D stops nothing");
+    assert!(w
+        .board
+        .runs
+        .iter()
+        .any(|l| l.run == run && l.stop.is_none()));
+}
+
+#[test]
+fn u24s_a_switch_off_refused_with_class_b_for_an_agent_with_no_live_run_stops_nothing() {
+    let mut w = world_with(&[manual()], Limits::PRODUCT);
+    w.ports
+        .refuse_record(u24s_is_hold_set, u24s_refused("no_workflow"));
+    let from = w.ports.tried.borrow().len();
+    let r = w.go(Move::SwitchOff { agent: agent(0) });
+    assert_eq!(r.answer, Err(Cause::NoService));
+    assert_eq!(u24s_r1_hold_sets_refused(&w, from), 1);
+    assert!(
+        !w.ports.tried.borrow()[from..]
+            .iter()
+            .any(|t| matches!(t.call, Call::Cancel(_))),
+        "no run to stop"
+    );
+    assert!(!w.calls().iter().any(|c| c.starts_with("set_state")));
+}
