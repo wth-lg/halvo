@@ -2660,9 +2660,25 @@ where
                 held.map(|h| h.confirmation().state()),
                 board.record_stuck(&facts.agent, &self.limits),
             );
-            let Ok(row) = roster::row(*facts, line, name) else {
+            let Ok(mut row) = roster::row(*facts, line, name) else {
                 continue;
             };
+            if board.kept_on(&facts.agent)
+                && matches!(
+                    row.status,
+                    Status::Working | Status::WaitingTurn | Status::AllSet
+                )
+                && !matches!(line, crate::types::StatusLine::KillStuck(_))
+            {
+                let key = if board.runs.iter().any(|r| r.agent == facts.agent) {
+                    "line.working.switch_not_saved"
+                } else {
+                    "line.all_set.switch_not_saved"
+                };
+                if let Ok(text) = words::text(key, &[]) {
+                    row.line = text;
+                }
+            }
             let item = match (&open, line.status()) {
                 (Some(o), Status::NeedsYou) => self.item_of(st, facts, held, o.kind, &o.item, name),
                 _ => None,
