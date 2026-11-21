@@ -12097,3 +12097,188 @@ mod measure {
         }
     }
 }
+
+fn log_of_another_page_size(log: &[u8], size: usize) -> Vec<u8> {
+    let word = |bytes: &[u8], at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
+    let big_endian = word(log, 0) & 1 == 1;
+    let sum = |state: [u32; 2], bytes: &[u8]| -> [u32; 2] {
+        bytes.chunks_exact(8).fold(state, |[s1, s2], pair| {
+            let read = |half: &[u8]| {
+                let half: [u8; 4] = half.try_into().unwrap();
+                if big_endian {
+                    u32::from_be_bytes(half)
+                } else {
+                    u32::from_le_bytes(half)
+                }
+            };
+            let s1 = s1.wrapping_add(read(&pair[..4])).wrapping_add(s2);
+            [s1, s2.wrapping_add(read(&pair[4..])).wrapping_add(s1)]
+        })
+    };
+    let put = |bytes: &mut [u8], [s1, s2]: [u32; 2]| {
+        bytes[..4].copy_from_slice(&s1.to_be_bytes());
+        bytes[4..8].copy_from_slice(&s2.to_be_bytes());
+    };
+    let page = word(log, 8) as usize;
+    let mut out = log[..32].to_vec();
+    out[8..12].copy_from_slice(&u32::try_from(size).unwrap().to_be_bytes());
+    let mut state = sum([0, 0], &out[..24]);
+    put(&mut out[24..32], state);
+    let (mut read, mut committed) = (sum([0, 0], &log[..24]), out.len());
+    for frame in log[32..].chunks_exact(24 + page) {
+        read = sum(sum(read, &frame[..8]), &frame[24..]);
+        if frame[8..16] != log[16..24] || [word(frame, 16), word(frame, 20)] != read {
+            break;
+        }
+        let mut head = frame[..24].to_vec();
+        let mut data = frame[24..].to_vec();
+        data.resize(size, 0);
+        state = sum(sum(state, &head[..8]), &data);
+        put(&mut head[16..24], state);
+        out.extend_from_slice(&head);
+        out.extend_from_slice(&data);
+        if word(frame, 4) != 0 {
+            committed = out.len();
+        }
+    }
+    out.truncate(committed);
+    out
+}
+
+#[test]
+fn an_open_beside_a_write_ahead_log_of_another_page_size_is_refused_and_changes_no_byte() {
+    for size in [1024, 2048, 8192] {
+        let dir = tempfile::tempdir().unwrap();
+        let (store_dir, roots_dir) = (dir.path().join("store"), dir.path().join("roots"));
+        let root_id = RootId::fresh().unwrap();
+        let custody = file_root_custody(&roots_dir, TestProtector::new(0x5a).0, root_id);
+        let mut store =
+            EncryptedStore::create(&store_dir, Box::new(custody), DEFAULT_RETENTION).unwrap();
+        store.write_segment(&mut Cursor::new(b"page size")).unwrap();
+        let beside = dir.path().join("beside");
+        std::fs::create_dir(&beside).unwrap();
+        for name in ["store.key", "store.db"] {
+            std::fs::copy(store_dir.join(name), beside.join(name)).unwrap();
+        }
+        let log = std::fs::read(store_dir.join("store.db-wal")).unwrap();
+        drop(store);
+        let other = log_of_another_page_size(&log, size);
+        assert!(
+            other.len() > 32 + 24 + size,
+            "the log of page size {size} holds no committed frame, so this case shows nothing"
+        );
+        std::fs::write(beside.join("store.db-wal"), &other).unwrap();
+        let before = store_files_and_lengths(&beside);
+        let db_before = std::fs::read(beside.join("store.db")).unwrap();
+
+        let answer = open_over_file_root(&beside, &roots_dir, root_id)
+            .map(drop)
+            .map_err(|e| format!("{e:?}"));
+
+        let db_after = std::fs::read(beside.join("store.db")).unwrap();
+        let log_after = std::fs::read(beside.join("store.db-wal")).ok();
+        assert!(
+            answer.is_err(),
+            "a store beside a write-ahead log of page size {size} opened"
+        );
+        assert!(
+            store_files_and_lengths(&beside) == before
+                && db_after == db_before
+                && log_after.as_deref() == Some(&other[..]),
+            "an open beside a log of page size {size} that answered {answer:?} changed the store"
+        );
+        println!("PAGE-SIZE log={size} answer={}", answer.unwrap_err());
+    }
+}
+
+const STALE_ROW: &str = "stale bytes of the cache 01";
+
+#[test]
+fn a_page_read_from_a_log_of_smaller_pages_holds_no_byte_that_the_log_did_not_write() {
+    halvo_sqlcipher::initialize().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let make = |name: &str, text: &str| {
+        let conn = Connection::open(dir.path().join(name)).unwrap();
+        conn.execute_batch(&format!(
+            "PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0;
+             CREATE TABLE t(id INTEGER PRIMARY KEY, v TEXT);
+             INSERT INTO t VALUES (1, '{text}');
+             PRAGMA wal_checkpoint(TRUNCATE);"
+        ))
+        .unwrap();
+        conn
+    };
+    drop(make("old.db", STALE_ROW));
+    let stale_page = std::fs::read(dir.path().join("old.db")).unwrap()[4096..8192].to_vec();
+    let fresh = make("fresh.db", "fresh bytes of the log 0001");
+    fresh
+        .execute_batch("UPDATE t SET v = 'fresh bytes of the log 0002' WHERE id = 1;")
+        .unwrap();
+    let copy = dir.path().join("copy");
+    std::fs::create_dir(&copy).unwrap();
+    std::fs::copy(dir.path().join("fresh.db"), copy.join("fresh.db")).unwrap();
+    let log = std::fs::read(dir.path().join("fresh.db-wal")).unwrap();
+    drop(fresh);
+    let short = log_of_another_page_size(&log, 1024);
+    assert!(
+        short.len() == 32 + 24 + 1024 && short[32 + 24 + 8..32 + 24 + 10] == stale_page[8..10],
+        "the log does not hold one frame of page 2 whose cell stands where the stale page has its cell, so this case shows nothing"
+    );
+    std::fs::write(copy.join("fresh.db-wal"), &short).unwrap();
+    std::fs::write(dir.path().join("stale-page"), &stale_page).unwrap();
+    let out = dir.path().join("answer");
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::a_page_cache_of_stale_bytes_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_STALE_PAGE_DIR", dir.path())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    let answer = std::fs::read_to_string(&out)
+        .unwrap_or_else(|_| format!("the child wrote nothing and exited {child}"));
+    assert!(
+        answer.starts_with("config=0 ") && !answer.contains(STALE_ROW),
+        "a read of page 2 through a log of 1024-byte pages: {answer}"
+    );
+    println!("STALE-PAGE {answer}");
+}
+
+#[test]
+fn a_page_cache_of_stale_bytes_for_parent() {
+    let Some(dir) = std::env::var_os("HALVO_TEST_STALE_PAGE_DIR") else {
+        println!("a_page_cache_of_stale_bytes_for_parent: HALVO_TEST_STALE_PAGE_DIR is not set, so no parent asked for a read");
+        return;
+    };
+    let dir = PathBuf::from(dir);
+    const SLOT: usize = 8192;
+    const SLOTS: usize = 64;
+    let stale_page = std::fs::read(dir.join("stale-page")).unwrap();
+    let cache: &mut [u8] = Box::leak(vec![0u8; SLOT * SLOTS].into_boxed_slice());
+    for slot in cache.chunks_exact_mut(SLOT) {
+        slot[..stale_page.len()].copy_from_slice(&stale_page);
+    }
+    let config = unsafe {
+        halvo_sqlcipher::rusqlite::ffi::sqlite3_config(
+            halvo_sqlcipher::rusqlite::ffi::SQLITE_CONFIG_PAGECACHE,
+            cache.as_mut_ptr().cast::<std::ffi::c_void>(),
+            SLOT as std::ffi::c_int,
+            SLOTS as std::ffi::c_int,
+        )
+    };
+    let answer = Connection::open(dir.join("copy").join("fresh.db")).and_then(|conn| {
+        conn.query_row("SELECT v FROM t WHERE id = 1", [], |r| {
+            r.get::<_, String>(0)
+        })
+    });
+    std::fs::write(
+        dir.join("answer"),
+        format!("config={config} answer={answer:?}"),
+    )
+    .unwrap();
+}
+
