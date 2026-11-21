@@ -7,6 +7,7 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
+use halvo_control::exit;
 use halvo_control::paths::DataDir;
 use halvo_control::service::{DAEMON_ARG, DATA_DIR_ARG};
 
@@ -18,6 +19,16 @@ pub const LIFELINE_ARG: &str = "--lifeline";
 
 /// How often the supervisor reads whether the child of the moment has ended.
 pub const CHILD_POLL: Duration = Duration::from_millis(250);
+
+/// The first wait of the backoff before a child starts again.
+pub const BACKOFF_FIRST: Duration = Duration::from_secs(1);
+
+/// The longest wait of the backoff; a child that lived as long starts the backoff again from
+/// its first wait.
+pub const BACKOFF_MAX: Duration = Duration::from_secs(60);
+
+/// After this many ends with status 5 in a row no further child starts.
+pub const FIVES_IN_A_ROW: u32 = 3;
 
 /// The program that the app starts and the arguments that stand before the daemon's own: the
 /// daemon beside the app's executable with none in the app, the test binary with its child
@@ -48,6 +59,62 @@ pub enum Ending {
     NotStarted,
 }
 
+/// What the supervisor does after the child of the moment has ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Next {
+    /// No start again: where a daemon then answers, another daemon holds the directory, and
+    /// the app talks to it with no expected pid and no descriptor.
+    Attach,
+    StartNow,
+    StartAfter(Duration),
+    /// No further child in this life of the app.
+    NoMoreChild,
+}
+
+/// What the rule keeps from one end of a child to the next: the last wait of the backoff and
+/// the count of ends with status 5 in a row.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Restarts {
+    waited: Option<Duration>,
+    fives: u32,
+}
+
+/// The rule of a start again (contracts.md C14 item 4), by how the child ended and how long it
+/// lived: 0 no start; 4 a start at once; 5 the backoff, and no child after the third 5 in a
+/// row; 1, a status that this list does not name, an end by a signal and a failed start the
+/// backoff, which doubles from 1 s to 60 s and starts again from 1 s after a 4 and after a
+/// child that lived 60 s.
+pub fn next(ending: Ending, lived: Duration, before: Restarts) -> (Next, Restarts) {
+    let fives = match ending {
+        Ending::Status(exit::SOURCE_NOT_STOPPED) => before.fives + 1,
+        _ => 0,
+    };
+    match ending {
+        Ending::Status(exit::CLEAN) => (Next::Attach, Restarts::default()),
+        Ending::Status(exit::RESTART) => (Next::StartNow, Restarts::default()),
+        _ if fives >= FIVES_IN_A_ROW => (
+            Next::NoMoreChild,
+            Restarts {
+                waited: None,
+                fives,
+            },
+        ),
+        _ => {
+            let waited = match before.waited {
+                Some(last) if lived < BACKOFF_MAX => (last * 2).min(BACKOFF_MAX),
+                _ => BACKOFF_FIRST,
+            };
+            (
+                Next::StartAfter(waited),
+                Restarts {
+                    waited: Some(waited),
+                    fives,
+                },
+            )
+        }
+    }
+}
+
 /// A started child as the supervisor watches it.
 pub trait Watched: Send + 'static {
     fn pid(&self) -> u32;
@@ -64,6 +131,7 @@ pub trait Spawner: Send + 'static {
 
 /// The time of the supervisor: the system's in the app, a stand-in in the tests.
 pub trait Clock: Send + Sync + 'static {
+    fn now(&self) -> Instant;
     fn wait<'a, T>(
         &self,
         changed: &Condvar,
@@ -77,6 +145,10 @@ pub trait Clock: Send + Sync + 'static {
 pub struct SystemClock;
 
 impl Clock for SystemClock {
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+
     fn wait<'a, T>(
         &self,
         changed: &Condvar,
@@ -285,28 +357,62 @@ fn supervise<S: Spawner, K: Clock>(
     pid: &ChildPid,
     clock: &K,
 ) {
-    let ending = match spawner.start() {
-        Ok(None) => return,
-        Ok(Some(child)) => {
-            let mut state = shared.lock();
-            if state.quitting {
-                return;
+    let mut restarts = Restarts::default();
+    loop {
+        let began = clock.now();
+        let ending = match spawner.start() {
+            Ok(None) => return,
+            Ok(Some(child)) => {
+                let mut state = shared.lock();
+                if state.quitting {
+                    return;
+                }
+                pid.0.store(child.pid(), Ordering::SeqCst);
+                state.child = Some(child);
+                drop(state);
+                match watch(shared, clock) {
+                    Some(ending) => ending,
+                    None => return,
+                }
             }
-            pid.0.store(child.pid(), Ordering::SeqCst);
-            state.child = Some(child);
-            drop(state);
-            match watch(shared, clock) {
-                Some(ending) => ending,
-                None => return,
+            Err(e) => {
+                eprintln!("halvo: the capture service did not start: {e}");
+                Ending::NotStarted
+            }
+        };
+        pid.0.store(0, Ordering::SeqCst);
+        eprintln!("halvo: the capture service ended: {ending:?}");
+        let (step, after) = next(
+            ending,
+            clock.now().saturating_duration_since(began),
+            restarts,
+        );
+        restarts = after;
+        match step {
+            Next::Attach | Next::NoMoreChild => return,
+            Next::StartNow => {}
+            Next::StartAfter(period) => {
+                if waited_into_a_quit(shared, clock, period) {
+                    return;
+                }
             }
         }
-        Err(e) => {
-            eprintln!("halvo: the capture service did not start: {e}");
-            Ending::NotStarted
+    }
+}
+
+fn waited_into_a_quit<C, K: Clock>(shared: &Shared<C>, clock: &K, period: Duration) -> bool {
+    let until = clock.now() + period;
+    let mut state = shared.lock();
+    loop {
+        if state.quitting {
+            return true;
         }
-    };
-    pid.0.store(0, Ordering::SeqCst);
-    eprintln!("halvo: the capture service ended: {ending:?}");
+        let left = until.saturating_duration_since(clock.now());
+        if left.is_zero() {
+            return false;
+        }
+        state = clock.wait(&shared.changed, state, left);
+    }
 }
 
 fn watch<C: Watched, K: Clock>(shared: &Shared<C>, clock: &K) -> Option<Ending> {
@@ -325,6 +431,123 @@ fn watch<C: Watched, K: Clock>(shared: &Shared<C>, clock: &K) -> Option<Ending> 
 }
 
 #[cfg(test)]
+pub mod stand_in {
+    use std::collections::VecDeque;
+
+    use super::*;
+
+    /// A record of what the stand-ins and the test saw, in order.
+    pub type Record = Arc<Mutex<Vec<String>>>;
+
+    pub fn note(record: &Record, line: impl Into<String>) {
+        record
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(line.into());
+    }
+
+    /// A clock whose time moves only by its waits, which it records.
+    #[derive(Debug)]
+    pub struct StandInClock {
+        base: Instant,
+        at: Mutex<Duration>,
+        pub waits: Mutex<Vec<Duration>>,
+    }
+
+    impl Default for StandInClock {
+        fn default() -> Self {
+            StandInClock {
+                base: Instant::now(),
+                at: Mutex::new(Duration::ZERO),
+                waits: Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl StandInClock {
+        pub fn advance(&self, by: Duration) {
+            *self.at.lock().unwrap_or_else(PoisonError::into_inner) += by;
+        }
+
+        pub fn waits(&self) -> Vec<Duration> {
+            self.waits
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clone()
+        }
+    }
+
+    impl Clock for StandInClock {
+        fn now(&self) -> Instant {
+            self.base + *self.at.lock().unwrap_or_else(PoisonError::into_inner)
+        }
+
+        fn wait<'a, T>(
+            &self,
+            changed: &Condvar,
+            held: MutexGuard<'a, T>,
+            period: Duration,
+        ) -> MutexGuard<'a, T> {
+            self.waits
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(period);
+            self.advance(period);
+            changed
+                .wait_timeout(held, Duration::from_millis(5))
+                .unwrap_or_else(PoisonError::into_inner)
+                .0
+        }
+    }
+
+    /// A child that ends as its row says, after the clock has moved by the time it lived.
+    #[derive(Debug)]
+    pub struct StandInChild {
+        pub pid: u32,
+        pub ending: Option<Ending>,
+        pub lived: Duration,
+        pub clock: Arc<StandInClock>,
+        pub record: Record,
+    }
+
+    impl Watched for StandInChild {
+        fn pid(&self) -> u32 {
+            self.pid
+        }
+
+        fn ended(&mut self) -> io::Result<Option<Ending>> {
+            if self.ending.is_some() {
+                self.clock.advance(self.lived);
+            }
+            Ok(self.ending)
+        }
+
+        fn close_lifeline(&mut self) {
+            note(&self.record, "closed descriptor");
+        }
+    }
+
+    /// A spawner that hands out its children in order and then answers that no child may
+    /// start.
+    pub struct StandInSpawner {
+        pub children: VecDeque<StandInChild>,
+        pub record: Record,
+    }
+
+    impl Spawner for StandInSpawner {
+        type Child = StandInChild;
+
+        fn start(&mut self) -> io::Result<Option<StandInChild>> {
+            let child = self.children.pop_front();
+            if let Some(child) = &child {
+                note(&self.record, format!("start {}", child.pid));
+            }
+            Ok(child)
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     #[cfg(unix)]
@@ -332,6 +555,7 @@ mod tests {
 
     #[cfg(unix)]
     const STUB: &str = "daemon_child::tests::stub_child";
+    type Row = (&'static str, Vec<(Ending, u64)>, usize, Vec<Duration>);
     #[cfg(unix)]
     const WITHIN: Duration = Duration::from_secs(60);
 
@@ -476,5 +700,108 @@ mod tests {
             format!("{expected}eof\n")
         );
         drop(held);
+    }
+
+    #[test]
+    fn the_child_is_started_again_by_its_exit_status() {
+        use stand_in::{Record, StandInChild, StandInClock, StandInSpawner};
+        let s = Duration::from_secs;
+        let status = Ending::Status;
+        let rows: Vec<Row> = vec![
+            (
+                "0: no start again",
+                vec![(status(0), 0), (status(1), 0)],
+                1,
+                vec![],
+            ),
+            (
+                "1: the backoff from 1 s to 60 s",
+                vec![(status(1), 0); 8],
+                8,
+                vec![s(1), s(2), s(4), s(8), s(16), s(32), s(60), s(60)],
+            ),
+            ("4: a start at once", vec![(status(4), 0); 3], 3, vec![]),
+            (
+                "5: the backoff, and no child after the third 5 in a row",
+                vec![(status(5), 0); 4],
+                3,
+                vec![s(1), s(2)],
+            ),
+            (
+                "5: a 1 between them ends the row",
+                vec![
+                    (status(5), 0),
+                    (status(5), 0),
+                    (status(1), 0),
+                    (status(5), 0),
+                    (status(5), 0),
+                    (status(5), 0),
+                    (status(1), 0),
+                ],
+                6,
+                vec![s(1), s(2), s(4), s(8), s(16)],
+            ),
+            (
+                "a status that the list does not name and a signal: as 1",
+                vec![(status(3), 0), (Ending::Signal, 0)],
+                2,
+                vec![s(1), s(2)],
+            ),
+            (
+                "4 and a child that lived 60 s start the backoff again",
+                vec![
+                    (status(1), 0),
+                    (status(1), 0),
+                    (status(4), 0),
+                    (status(1), 0),
+                    (status(1), 0),
+                    (status(1), 60),
+                    (status(1), 0),
+                ],
+                7,
+                vec![s(1), s(2), s(1), s(2), s(1), s(2)],
+            ),
+        ];
+        for (name, endings, starts, waits) in rows {
+            let record = Record::default();
+            let clock = Arc::new(StandInClock::default());
+            let children = endings
+                .into_iter()
+                .enumerate()
+                .map(|(n, (ending, lived))| StandInChild {
+                    pid: 1000 + n as u32,
+                    ending: Some(ending),
+                    lived: s(lived),
+                    clock: Arc::clone(&clock),
+                    record: Arc::clone(&record),
+                })
+                .collect();
+            let spawner = StandInSpawner {
+                children,
+                record: Arc::clone(&record),
+            };
+            let shared = Shared {
+                state: Mutex::new(State {
+                    quitting: false,
+                    child: None,
+                }),
+                changed: Condvar::new(),
+            };
+            let pid = ChildPid::default();
+            supervise(spawner, &shared, &pid, clock.as_ref());
+            let started = record
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|line| line.starts_with("start"))
+                .count();
+            assert_eq!(started, starts, "{name}: children started");
+            assert_eq!(
+                clock.waits(),
+                waits,
+                "{name}: the waits before a start again"
+            );
+            assert_eq!(pid.get(), None, "{name}: no pid once no child lives");
+        }
     }
 }
