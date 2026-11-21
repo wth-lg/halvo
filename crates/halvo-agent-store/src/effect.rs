@@ -1,7 +1,11 @@
+use std::collections::BTreeMap;
+
 use halvo_policy::{decide, effect_step, Checkpoint, Decision, Effect, EffectMove};
 use halvo_schema::executable::body::{PutEffect, Stored};
 use halvo_schema::executable::names::{Cause, EffectState};
-use halvo_schema::executable::{AgentConfig, AgentEffect, ApprovalId, RunnerReply};
+use halvo_schema::executable::{
+    AgentConfig, AgentEffect, AgentRun, ApprovalId, EffectId, RunnerReply,
+};
 use halvo_schema::ErrorName;
 
 use crate::errors::Own;
@@ -152,6 +156,42 @@ fn last_approval<'a>(mine: &[&'a AgentEffect]) -> Option<&'a ApprovalId> {
         .rev()
         .find(|r| r.state == EffectState::Approved)
         .and_then(|r| r.approval.as_ref())
+}
+
+/// The count of what a person allowed and Halvo did not do, for the run of the run record `record` (A6.5, CP-181):
+/// the number of the run's effects whose newest row is `rejected` with the cause `ended` and whose row before it is
+/// `approved` or `cleared`, whoever wrote that row. An effect that the runner ended with the cause `reproposed` and
+/// proposed again is not in it. None, and never 0, when the rows hold fewer effects of the run than the record's
+/// `effects`.
+pub fn allowed_not_done(host: &dyn Host, record: &AgentRun) -> Result<Option<u32>, ErrorName> {
+    let all = rows::effects(host.rows())?;
+    let mut of_run: BTreeMap<&EffectId, Vec<&AgentEffect>> = BTreeMap::new();
+    for row in all.iter().filter(|r| r.run == record.run) {
+        of_run.entry(&row.effect).or_default().push(row);
+    }
+    if of_run.len() < usize::try_from(record.effects).unwrap_or(usize::MAX) {
+        return Ok(None);
+    }
+    let count = of_run
+        .into_values()
+        .filter(|rows_of| allowed_then_ended(rows_of))
+        .count();
+    Ok(Some(u32::try_from(count).unwrap_or(u32::MAX)))
+}
+
+/// Whether the newest of the rows of one effect is `rejected` with the cause `ended` and the row before it is
+/// `approved` or `cleared`.
+fn allowed_then_ended(rows_of: &[&AgentEffect]) -> bool {
+    let mut by_seq = rows_of.to_vec();
+    by_seq.sort_by_key(|r| r.seq);
+    match by_seq.as_slice() {
+        [.., before, last] => {
+            last.state == EffectState::Rejected
+                && last.cause == Some(Cause::Ended)
+                && matches!(before.state, EffectState::Approved | EffectState::Cleared)
+        }
+        _ => false,
+    }
 }
 
 pub(crate) fn rebinds(mine: &[&AgentEffect]) -> u32 {
