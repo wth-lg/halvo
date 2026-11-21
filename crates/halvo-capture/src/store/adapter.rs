@@ -1,6 +1,6 @@
 //! The adapter: the daemon's store port over the encrypted store, the one
-//! code outside the store module's own files that opens a store (ruling PR-30
-//! PR1). It makes a data directory's store a [`StoreHost`], hands the owner a
+//! code through which any caller outside the store module opens a store
+//! (ruling PR-30 PR1). It makes a data directory's store a [`StoreHost`], hands the owner a
 //! [`CaptureStore`] or a [`MaintainStore`], maps every error of an open to
 //! the port's [`OpenFault`] by the store's own variants, and gives a scratch
 //! directory the gate's calls.
