@@ -41,7 +41,7 @@ bundle_defect() {
   plist=$app/Contents/Info.plist
   [ -d "$app" ] || { printf 'the build made no Halvo.app\n'; return 1; }
   [ -f "$plist" ] || { printf 'Halvo.app holds no Contents/Info.plist\n'; return 1; }
-  for executable in halvo; do
+  for executable in halvo "$@"; do
     file=$app/Contents/MacOS/$executable
     if [ -L "$file" ] || [ ! -f "$file" ] || [ ! -x "$file" ]; then
       printf 'Halvo.app holds no executable file Contents/MacOS/%s\n' "$executable"
