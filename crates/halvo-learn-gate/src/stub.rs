@@ -267,6 +267,19 @@ impl<'c, H: PlayHost> Play<'c, H> {
         id('5', self.runs)
     }
 
+    /// In the arm `plain` alone, after the put of its replay: the stand-in for the writer that finishes a replay's
+    /// playbook. A compile run of its own (`a` and the replay's count) starts and finishes with the outcome `completed`
+    /// for `number`, the number that the replay stored, so that the agent store's `finish` keeps the row
+    /// `agent_finished` of it and the next occurrence loads it, as the arm's recovery carries over.
+    fn finish_in_plain(&mut self, number: u32, steps: usize) -> Result<(), String> {
+        let (workflow, agent) = (self.workflow.clone(), self.agent.clone());
+        let run = id('a', self.runs);
+        self.coordinator(json!({"op": "start_run", "workflow": workflow, "agent": agent, "run": run, "mode": "compile"}))?;
+        let record = self.record(&run, Mode::Compile, Outcome::Completed, number, steps)?;
+        self.runner(json!({"op": "finish", "agent": agent, "run": run, "record": record}))?;
+        Ok(())
+    }
+
     fn record(
         &self,
         run: &str,
@@ -425,6 +438,9 @@ impl<'c, H: PlayHost> Play<'c, H> {
         self.runner(json!({"op": "log", "agent": agent, "run": run, "records": records}))?;
         if recovered {
             self.runner(json!({"op": "put_playbook", "agent": agent, "run": run, "number": number + 1, "steps": put}))?;
+            if self.arm == Arm::Plain {
+                self.finish_in_plain(number + 1, put.len())?;
+            }
         }
         let outcome = if completed {
             Outcome::Completed
