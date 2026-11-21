@@ -130,6 +130,7 @@ fn member(world: &World, n: usize) -> Member<Config> {
             today: world.board.day,
             doing: Doing::Idle(None),
             stand_in: false,
+            active_refused: false,
         },
         session: true,
     }

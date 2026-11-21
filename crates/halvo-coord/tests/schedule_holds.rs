@@ -64,6 +64,7 @@ fn facts(category: Category, runtime: &str, whats: Vec<(u32, What)>) -> Facts<Co
         today: 107,
         doing: Doing::Idle(None),
         stand_in: false,
+        active_refused: false,
     }
 }
 

@@ -154,7 +154,6 @@ pub struct Board<C> {
     unread: Vec<AgentId>,
     dismissed: Vec<WorkflowId>,
     queue_held: bool,
-    active_refused: Vec<AgentId>,
 }
 
 impl<C> Board<C> {
@@ -185,30 +184,33 @@ impl<C> Board<C> {
             unread: Vec::new(),
             dismissed: Vec::new(),
             queue_held: false,
-            active_refused: Vec::new(),
         }
     }
 
     /// Marks for the rest of this life an agent whose `set_state` `active`, sent by the tick's
-    /// rule or by `activate` after a set-up, the owner refused with `overlap`: until a move of the
-    /// person on it the tick sends it `paused` while the list shows another state, and no
-    /// `active` (ruling RD-67 4.3; I5.4). A new life holds no mark and may send `active` once
-    /// more.
+    /// rule or by `activate` after a set-up, the owner refused with `overlap`
+    /// (`Facts::active_refused`): until an acknowledged switch-on the agent stands as off by the
+    /// derived hold, also while the `paused` that follows has no acknowledgement, and the tick
+    /// sends it `paused` while the list shows another state and no `active` (rulings RD-67 4.3,
+    /// RD-160 (1); I5.4). A new life holds no mark and may send `active` once more.
     pub fn refuse_active(&mut self, agent: &AgentId) {
-        if !self.active_refused.contains(agent) {
-            self.active_refused.push(agent.clone());
+        if let Some(i) = self.index(agent) {
+            self.members[i].facts.active_refused = true;
         }
     }
 
-    /// Whether this life marked the agent with `refuse_active` and no move of the person on it
-    /// has come since.
+    /// Whether this life marked the agent with `refuse_active` and no acknowledged switch-on has
+    /// come since.
     pub fn active_refused(&self, agent: &AgentId) -> bool {
-        self.active_refused.contains(agent)
+        self.index(agent)
+            .is_some_and(|i| self.members[i].facts.active_refused)
     }
 
-    /// Takes the mark of `refuse_active` off at a move of the person on the agent.
+    /// Takes the mark of `refuse_active` off, at a switch-on whose state the owner acknowledged.
     pub fn free_active(&mut self, agent: &AgentId) {
-        self.active_refused.retain(|a| a != agent);
+        if let Some(i) = self.index(agent) {
+            self.members[i].facts.active_refused = false;
+        }
     }
 
     /// Holds the queue or frees it: while held, the end of a run starts nothing from the queue,

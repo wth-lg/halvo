@@ -1365,6 +1365,7 @@ impl Conf {
             today: DAY,
             doing,
             stand_in: false,
+            active_refused: false,
         }
     }
 

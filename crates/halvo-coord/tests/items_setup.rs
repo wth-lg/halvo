@@ -114,6 +114,7 @@ fn facts(category: Category, runtime: &str, state: WorkflowState) -> Facts<Confi
             kind: OwnItemKind::Setup,
         })),
         stand_in: false,
+        active_refused: false,
     }
 }
 

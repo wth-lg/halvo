@@ -63,6 +63,7 @@ fn facts() -> Facts<Config> {
             kind: OwnItemKind::Setup,
         })),
         stand_in: false,
+        active_refused: false,
     }
 }
 

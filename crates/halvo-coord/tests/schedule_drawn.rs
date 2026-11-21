@@ -199,6 +199,7 @@ fn member(sim: &Sim, n: usize) -> Member<Config> {
             today: sim.h.day,
             doing: Doing::Idle(None),
             stand_in: false,
+            active_refused: false,
         },
         session: true,
     }

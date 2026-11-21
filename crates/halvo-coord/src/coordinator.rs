@@ -2190,7 +2190,6 @@ where
         } = &mut *st;
         let board = board.as_mut().ok_or(Cause::State)?;
         let i = index(board, setups[k].agent()).ok_or(Cause::State)?;
-        board.free_active(setups[k].agent());
         let l = ledger(ledgers, board, i);
         let facts = &board.members[i].facts;
         let done = items::answer_setup(&self.ports, l, &self.limits, &mut setups[k], facts, input);

@@ -633,6 +633,7 @@ fn build(state: State) -> Vec<Built> {
             today: TODAY,
             doing,
             stand_in: false,
+            active_refused: false,
         };
         built.push(Built { spec, facts });
     }

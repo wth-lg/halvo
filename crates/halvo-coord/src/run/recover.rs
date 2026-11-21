@@ -399,6 +399,7 @@ where
                 today: day,
                 doing: Doing::Idle(None),
                 stand_in: f.stand_in,
+                active_refused: false,
             };
             facts.take_unknown(&f.agent.unknown);
             read_replies(ports, &mut facts);

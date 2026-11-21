@@ -77,6 +77,7 @@ fn facts(spec: &Spec, whats: Vec<(u32, What)>) -> Facts<Config> {
         today: TODAY,
         doing: Doing::Idle(None),
         stand_in: false,
+        active_refused: false,
     }
 }
 

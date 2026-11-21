@@ -146,6 +146,7 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
                 today: DAY,
                 doing: Doing::Idle(None),
                 stand_in: false,
+                active_refused: false,
             },
             session: true,
         });

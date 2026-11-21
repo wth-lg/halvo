@@ -72,10 +72,14 @@ pub fn held_by_events<C>(facts: &Facts<C>) -> bool {
 /// The derived hold `off` of ruling RD-67 1.2 (I5.4): the owner's list holds the agent's workflow
 /// in the full shape with the state `paused` while neither the hold `off` nor the hold `failures`
 /// stands by the stored events, because only this coordinator's `set_state` writes `paused`; the
-/// stand-in of a dismissed workflow (I5.8) is no entry of that list and gives none. Only the
-/// control `switch_on` ends it, through an acknowledged state, and nothing is stored for it.
+/// stand-in of a dismissed workflow (I5.8) is no entry of that list and gives none. It stands as
+/// well while this life's mark of an `active` refused with `overlap` stands
+/// (`Facts::active_refused`), whatever the list shows, so that no start passes while the
+/// `paused` that follows has no acknowledgement (ruling RD-160 (1)). Only the control
+/// `switch_on` ends it, through an acknowledged state, and nothing is stored for it.
 pub fn kept_off<C>(facts: &Facts<C>) -> bool {
-    !facts.stand_in && facts.workflow.state == WorkflowState::Paused && !held_by_events(facts)
+    let listed_paused = facts.workflow.state == WorkflowState::Paused;
+    !facts.stand_in && (listed_paused || facts.active_refused) && !held_by_events(facts)
 }
 
 fn check<C>(facts: &Facts<C>) -> bool {

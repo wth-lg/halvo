@@ -551,7 +551,7 @@ fn refused_overlap(error: &PortError) -> bool {
 fn owes_paused<C>(board: &Board<C>, i: usize) -> bool {
     let facts = &board.members[i].facts;
     wants_paused(facts)
-        || (board.active_refused(&facts.agent)
+        || (facts.active_refused
             && !facts.stand_in
             && facts.workflow.state != WorkflowState::Paused)
 }
@@ -1519,10 +1519,9 @@ where
     pay_owed(cx, board);
     for i in 0..board.members.len() {
         let facts = &board.members[i].facts;
-        let marked = board.active_refused(&facts.agent);
         if listed.contains(&facts.workflow.id) && owes_paused(board, i) {
             let _ = send_state(cx, &mut board.members[i].facts, AgentState::Paused);
-        } else if starts && !marked && wants_active(facts) {
+        } else if starts && wants_active(facts) {
             let sent = send_state(cx, &mut board.members[i].facts, AgentState::Active);
             if sent.as_ref().is_err_and(refused_overlap) {
                 refused_active(cx.ports, board, i);
@@ -1669,6 +1668,7 @@ where
                 today: board.day,
                 doing: Doing::Idle(None),
                 stand_in: false,
+                active_refused: false,
             },
             session: a.session,
         };
@@ -1828,9 +1828,6 @@ where
     if board.dismissed_unread(&agent) {
         return refused(Cause::State);
     }
-    if !matches!(mv, Move::Off { .. }) {
-        board.free_active(&agent);
-    }
     let list = listing(cx, board, Some(i));
     let read = fresh(cx, board, Some(i));
     let facts = &board.members[i].facts;
@@ -1936,6 +1933,7 @@ where
                     ..refused(port_cause(&e))
                 };
             }
+            board.free_active(&agent);
             if whats.is_empty() {
                 return Report::default();
             }
