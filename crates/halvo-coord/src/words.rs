@@ -498,6 +498,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "param_typed.too_long",
         "Something you added was too long to fit, so none of it was added. Read your answer before sending.",
     ),
+    (
+        "line.working.deleting",
+        "Halvo is stopping this agent and will then remove it.",
+    ),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {

@@ -67,6 +67,10 @@ impl<P: Owner> Owner for Wired<P> {
     ) -> Result<Vec<ReplyRow>, PortError> {
         self.ports.replies(workflow, agent, run)
     }
+
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        self.ports.delete(workflow)
+    }
 }
 
 impl<P: Runs> Runs for Wired<P> {

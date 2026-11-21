@@ -298,6 +298,16 @@ pub fn gone_row<C: ConfigView>(
     })
 }
 
+/// The row of an agent whose delete the person confirmed while its run was live, until that
+/// run's end is stored and the delete is sent (I5.7; ruling RD-19 (c) rule 7): `working.deleting`,
+/// no control and no next day, since the agent will not start again.
+pub fn deleting_row<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Row, Cause> {
+    Ok(Row {
+        next: None,
+        ..row_offering(facts, StatusLine::Deleting, name, Vec::new())?
+    })
+}
+
 /// A row with the time at which its open item was raised, which orders the group `needs_you`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Placed {

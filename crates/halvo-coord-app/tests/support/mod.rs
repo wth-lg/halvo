@@ -408,6 +408,11 @@ impl Owner for Shared {
         let _turn = self.enter();
         self.ports.replies(workflow, agent, run)
     }
+
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        let _turn = self.enter();
+        self.ports.delete(workflow)
+    }
 }
 
 impl Runs for Shared {

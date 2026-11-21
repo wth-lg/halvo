@@ -65,6 +65,17 @@ pub trait Owner {
         agent: &AgentId,
         run: &RunId,
     ) -> Result<Vec<ReplyRow>, PortError>;
+
+    /// Sends the decision `delete` of the workflow, the one delete of a workflow and its agent
+    /// (W-C3.10); success is the acknowledgement, after which the owner holds no row that names
+    /// the workflow. The owner refuses a delete while a run of the workflow's agent is live
+    /// with the name `state`, and a workflow that is not in its list with `no_workflow`
+    /// (rulings RD-19 (d) (1), RD-30 (1)). An owner that does not take the decision answers
+    /// `no_service`, which is the answer of this default.
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        let _ = workflow;
+        Err(PortError::NoService)
+    }
 }
 
 /// The runners of the agent-setup run, through its supervisor library.

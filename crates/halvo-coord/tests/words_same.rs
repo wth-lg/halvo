@@ -99,6 +99,7 @@ fn expected_keys() -> BTreeSet<String> {
         "working.stopping",
         "working.kill_stuck_mac",
         "working.kill_stuck_windows",
+        "working.deleting",
         "waiting_turn.queued",
         "waiting_turn.store",
         "problem.failed",
@@ -299,7 +300,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 254);
+    assert_eq!(seen.len(), 255);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -540,7 +541,7 @@ fn every_status_line_has_its_key_and_its_status() {
         assert_eq!(line.status().name(), status, "{key}");
         assert!(keys.insert(key));
     }
-    assert_eq!(keys.len(), 30);
+    assert_eq!(keys.len(), 31);
 }
 
 #[test]

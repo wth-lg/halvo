@@ -201,6 +201,10 @@ impl Owner for Both {
     ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
         self.ports.replies(workflow, agent, run)
     }
+
+    fn delete(&self, workflow: &WorkflowId) -> Result<(), PortError> {
+        self.ports.delete(workflow)
+    }
 }
 
 impl Runs for Both {
