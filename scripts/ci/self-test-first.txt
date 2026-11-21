@@ -3,7 +3,3 @@
 10-r7-account
 30-r6-table
 50-windows-functional
-30-r5-formal
-26-r7-pnpm-step
-30-r4-formal
-30-r3-formal
