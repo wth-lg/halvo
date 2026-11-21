@@ -388,8 +388,8 @@ run_canary() {
 
 env_rules() {
   env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' | sort -u >"$work/env-names.txt" || fail setup
-  while IFS= read -r var; do
-    upper=$(printf '%s\n' "$var" | tr '[:lower:]' '[:upper:]') || fail setup
+  LC_ALL=C tr '[:lower:]' '[:upper:]' <"$work/env-names.txt" >"$work/env-upper.txt" || fail setup
+  while IFS= read -r var && IFS= read -r upper <&3; do
     case " $v_wrappers " in
       *" $upper "*)
         printf 'rule env %s is set\n' "$var"
@@ -413,7 +413,7 @@ env_rules() {
       printf 'rule env %s holds an allow, a cap on lints or a cfg\n' "$var"
       holds=no
     fi
-  done <"$work/env-names.txt"
+  done <"$work/env-names.txt" 3<"$work/env-upper.txt"
 }
 
 text_rules() {
