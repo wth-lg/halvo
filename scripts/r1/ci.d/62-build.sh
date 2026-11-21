@@ -1,10 +1,10 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: The release build of halvo and halvo-capture, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which holds .cargo/config.toml at the root alone (none outside the checkout is read), prints the derived version, changes no file of the checkout, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no forbidden_import (the Carbon call that holds secure input) in either built macOS executable as read by dyld_info regardless of build flags or CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (a recognized row contains indentation, an optional hexadecimal ordinal, the symbol, an optional hexadecimal addend, an optional [weak-import] mark and (from library), with internal blanks allowed in the nonempty library name, and the check logs the row, ordinal, addend and weak-import counts per executable and slice, and a tool error, a missing slice header or import header, an empty table or an unrecognized nonblank line fails the check, which trusts dyld_info to enumerate every slice and its named imports, the import table shows what the shipped executable can call through a named import and omits an unreachable hold compiled into the capture library, which check 51 covers with proof builds, and Windows has no import check), and is what the artifacts directory holds, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the work-tree workspace manifest and Cargo configuration paths).
+# rule: The release build of halvo, halvo-capture, halvo-owner and halvo-analysis, made by calls that name no other package and no feature, configuration or test target, takes every tauri package that cargo resolves for the host from the crates.io registry, with debug assertions explicitly off in the workspace release profile and no release package override that enables them, with no untracked cargo configuration (.cargo/config or .cargo/config.toml at any depth of the checkout) and no tracked one at any depth that the list allowed_configurations of this script does not name, which holds .cargo/config.toml at the root alone (none outside the checkout is read), prints the derived version from halvo and halvo-capture (halvo-owner and halvo-analysis have no --version argument, and the check starts neither), changes no file of the checkout, makes halvo-owner and halvo-analysis as files in the directory of halvo-capture, where the daemon looks for a program that it starts, holds no stand-in or test-seam marker by a scan of every shipped file that stands as the backstop, imports no forbidden_import (the Carbon call that holds secure input) in any of the four built macOS executables as read by dyld_info regardless of build flags or CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS (a recognized row contains indentation, an optional hexadecimal ordinal, the symbol, an optional hexadecimal addend, an optional [weak-import] mark and (from library), with internal blanks allowed in the nonempty library name, and the check logs the row, ordinal, addend and weak-import counts per executable and slice, and a tool error, a missing slice header or import header, an empty table or an unrecognized nonblank line fails the check, which trusts dyld_info to enumerate every slice and its named imports, the import table shows what the shipped executable can call through a named import and omits an unreachable hold compiled into the capture library, which check 51 covers with proof builds, and Windows has no import check), and is what the artifacts directory holds, on macOS the app as Halvo.app.tar and on Windows the four executables, and no signing variable is set in its environment, because this run builds unsigned (--rules reads only the work-tree workspace manifest and Cargo configuration paths).
 set -u
 name=62-build
 forbidden_import=_EnableSecureEventInput
-shipped_packages='halvo halvo-capture'
+shipped_packages='halvo halvo-capture halvo-owner halvo-analysis'
 scope_flags='--workspace --all --all-targets --tests --test --benches --bench --examples --example --lib'
 feature_flags='--features -F -f --all-features --no-default-features'
 configuration_flags='--config -c'
@@ -12,9 +12,13 @@ allowed_configurations='.cargo/config.toml'
 markers='halvo-standin-module-present
 halvo-capture:test-seam:this-build-has-it!'
 macos_calls='npm run tauri build -- -- --locked
-cargo build --release --locked -p halvo-capture --bin halvo-capture'
+cargo build --release --locked -p halvo-capture --bin halvo-capture
+cargo build --release --locked -p halvo-owner --bin halvo-owner
+cargo build --release --locked -p halvo-analysis --bin halvo-analysis'
 windows_calls='npm run tauri build -- --no-bundle -- --locked
-cargo build --release --locked -p halvo-capture --bin halvo-capture'
+cargo build --release --locked -p halvo-capture --bin halvo-capture
+cargo build --release --locked -p halvo-owner --bin halvo-owner
+cargo build --release --locked -p halvo-analysis --bin halvo-analysis'
 
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
@@ -112,6 +116,16 @@ marker_defect() {
     done <<EOF
 $markers
 EOF
+  done
+}
+
+beside_defect() {
+  daemon=$1
+  shift
+  for child in "$@"; do
+    [ -f "$child" ] && continue
+    printf 'the build made no %s beside %s, where the daemon looks for it\n' "${child##*/}" "${daemon##*/}"
+    return 1
   done
 }
 
@@ -354,10 +368,16 @@ EOF
       app=$target/release/bundle/macos/Halvo.app
       [ -d "$app" ] || fail "the build made no Halvo.app"
       set -- "$app/Contents/MacOS/halvo" "$target/release/halvo-capture"
-      release_imports "$@"
+      owner=$target/release/halvo-owner
+      analysis=$target/release/halvo-analysis
+      found=$(beside_defect "$2" "$owner" "$analysis") || fail "$found"
+      release_imports "$@" "$owner" "$analysis"
       ;;
     windows)
       set -- "$target/release/halvo.exe" "$target/release/halvo-capture.exe"
+      owner=$target/release/halvo-owner.exe
+      analysis=$target/release/halvo-analysis.exe
+      found=$(beside_defect "$2" "$owner" "$analysis") || fail "$found"
       ;;
   esac
   checked=$(sh scripts/r1/ci.d/61-version.sh --check "$@")
@@ -371,11 +391,15 @@ EOF
     macos)
       shipped=$(find "$app" -type f) || fail "find could not list Halvo.app"
       shipped="$shipped
-$target/release/halvo-capture"
+$target/release/halvo-capture
+$owner
+$analysis"
       ;;
     windows)
       shipped="$1
-$2"
+$2
+$owner
+$analysis"
       ;;
   esac
   shipped_count=$(printf '%s\n' "$shipped" | grep -c .)
@@ -390,10 +414,14 @@ $2"
       printf 'Halvo.app.tar entries: %s\n' "$entries"
       ;;
     windows)
-      cp "$1" "$2" "$CI_D_ARTIFACTS/" || fail "cp could not copy the two executables"
-      [ -f "$CI_D_ARTIFACTS/halvo.exe" ] && [ -f "$CI_D_ARTIFACTS/halvo-capture.exe" ] || fail "the artifacts directory lacks halvo.exe or halvo-capture.exe"
-      bytes=$(wc -c <"$CI_D_ARTIFACTS/halvo-capture.exe" | tr -d ' ')
-      printf 'halvo-capture.exe bytes=%s\n' "$bytes"
+      cp "$1" "$2" "$owner" "$analysis" "$CI_D_ARTIFACTS/" || fail "cp could not copy the four executables"
+      for kept in halvo.exe halvo-capture.exe halvo-owner.exe halvo-analysis.exe; do
+        [ -f "$CI_D_ARTIFACTS/$kept" ] || fail "the artifacts directory lacks $kept"
+      done
+      for kept in halvo-capture.exe halvo-owner.exe halvo-analysis.exe; do
+        bytes=$(wc -c <"$CI_D_ARTIFACTS/$kept" | tr -d ' ')
+        printf '%s bytes=%s\n' "$kept" "$bytes"
+      done
       ;;
   esac
   printf 'PASS %s\n' "$name"
