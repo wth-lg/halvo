@@ -2273,6 +2273,64 @@ steps_part() {
   )
 }
 
+direct_verdict() {
+  got=PASS
+  case $nl$2 in
+    *"${nl}holds=no"*) got=FAIL ;;
+  esac
+  case $2 in
+    *"$4"*) ;;
+    *) got=$got-without-the-text ;;
+  esac
+  if [ -n "$5" ]; then
+    case $2 in
+      *"$5"*) got=$got-with-the-other-text ;;
+    esac
+  fi
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$3" "$got"
+  if [ "$got" != "$3" ]; then
+    printf '%s\n' "$2" | sed 's/^/  | /'
+    wrong="$wrong $1"
+  elif [ "$3" = FAIL ]; then
+    rejected=$((rejected + 1))
+  fi
+}
+
+env_case() {
+  case_wanted "$1" || return 0
+  env_out=$(
+    holds=yes
+    # shellcheck disable=SC2163
+    export "$5" || exit 1
+    env_rules
+    printf 'holds=%s\n' "$holds"
+  ) || env_out=exit-$?
+  direct_verdict "$1" "$env_out" "$2" "$3" "$4"
+}
+
+canary_case() {
+  case_wanted "$1" || return 0
+  mkdir -p "$work/canary-case" || self_failed "setup at line $LINENO"
+  printf '%s' "$5" >"$work/canary-case/expected.txt" || self_failed "setup at line $LINENO"
+  printf '%s' "$6" >"$work/canary-case/read.txt" || self_failed "setup at line $LINENO"
+  canary_out=$(
+    artifacts=$work/canary-case
+    canary=$work/canary-case
+    seconds_line=
+    holds=yes
+    forbid() {
+      : >"$1.json"
+      return 101
+    }
+    read_forbid() {
+      cat "$work/canary-case/read.txt"
+    }
+    run_canary dev
+    printf 'holds=%s\n' "$holds"
+  ) || canary_out=exit-$?
+  direct_verdict "$1" "$canary_out" "$2" "$3" "$4"
+}
+
 marker_absent() {
   case_wanted "$1" || return 0
   if [ -s "$2" ]; then
@@ -2796,6 +2854,14 @@ EOF
   case_run env-lowercase-wrapper FAIL check "rule env $v_lower_wrapper is set"
   case_env="$v_flags=--allow=unsafe_code"
   case_run env-long-allow-flag FAIL check "rule env $v_flags holds"
+  env_case env-rules-reads-a-lower-case-flags-name FAIL "rule env $v_lower_flags holds an allow, a cap on lints or a cfg" '' \
+    "$v_lower_flags=-Aunsafe_code"
+  env_case env-rules-reads-a-mixed-case-flags-name FAIL "rule env ${w_rust}Flags holds an allow, a cap on lints or a cfg" '' \
+    "${w_rust}Flags=-Aunsafe_code"
+  env_case env-rules-reads-a-lower-case-wrapper-name FAIL "rule env $v_lower_wrapper is set" '' "$v_lower_wrapper=/x"
+  env_case env-rules-reads-a-mixed-case-wrapper-name FAIL "rule env ${w_rustc}_Wrapper is set" '' "${w_rustc}_Wrapper=/x"
+  env_case env-rules-skips-a-flags-name-with-one-more-sign PASS 'holds=yes' "rule env ${v_flags}X" "${v_flags}X=-Aunsafe_code"
+  env_case env-rules-skips-a-wrapper-name-with-one-more-sign PASS 'holds=yes' "rule env ${w_rustc}_WRAPPERX" "${w_rustc}_WRAPPERX=/x"
   case_repo=$work/repo-cfg
   case_tree=$cfg_tree
   case_run rule-cfg-target-os FAIL check 'rule cfg crates/halvo-route-gate/src/net.rs:1 target_os'
@@ -2900,6 +2966,18 @@ EOF
   case_job=windows
   STUB_CANARY_DROP=m22
   case_run canary-requires-a-windows-entry-in-the-windows-job FAIL check 'egress canary profile=dev missing=clippy::disallowed_methods:51'
+  canary_case canary-match-splits-a-place-with-a-space PASS 'egress canary profile=dev entries=1 found=1 exit=101' 'missing=' \
+    "clippy::disallowed_types 1 2$nl" "finding clippy::disallowed_types src/lib.rs 1 2$nl"
+  canary_case canary-match-reads-the-whole-line FAIL 'egress canary profile=dev missing=clippy::disallowed_types:1' 'found=1' \
+    "clippy::disallowed_types 1$nl" "finding clippy::disallowed_types src/lib.rs 12$nl"
+  canary_case canary-match-reads-text-not-a-pattern FAIL 'egress canary profile=dev missing=clippy::disallowed.types[1]:3' 'found=1' \
+    "clippy::disallowed.types[1] 3$nl" "finding clippy::disallowedXtypes1 src/lib.rs 3$nl"
+  canary_case canary-match-refer-line FAIL "egress canary profile=dev entries=1 found=1 exit=101${nl}egress canary: the forbid run let the canary through" '' \
+    "unsafe_code 1$nl" "finding unsafe_code src/lib.rs 1${nl}refer$nl"
+  canary_case canary-match-no-entry FAIL "egress canary profile=dev entries=0 found=0 exit=101${nl}egress canary: the forbid run let the canary through" '' \
+    '' "finding unsafe_code src/lib.rs 1$nl"
+  canary_case canary-match-more-than-five-missing FAIL "missing=unsafe_code:5${nl}egress canary profile=dev entries=7 found=0 exit=101" 'missing=unsafe_code:6' \
+    "unsafe_code 1${nl}unsafe_code 2${nl}unsafe_code 3${nl}unsafe_code 4${nl}unsafe_code 5${nl}unsafe_code 6${nl}unsafe_code 7$nl" "other$nl"
   case_job=windows
   case_run windows-job-runs-every-command PASS - 'egress checks=8 denied=0 entries=0'
   case_job=windows
