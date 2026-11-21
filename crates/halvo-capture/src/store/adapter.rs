@@ -91,6 +91,24 @@ impl CaptureStore for Adapter {
     fn volume_free_bytes(&self) -> io::Result<u64> {
         free_bytes(self.store.dir())
     }
+
+    fn inventory(&mut self) -> Result<Vec<halvo_control::model::InventoryRow>, MaintFault> {
+        let rows = self.store.inventory().map_err(maint_fault)?;
+        Ok(rows
+            .into_iter()
+            .filter_map(|row| {
+                Some(halvo_control::model::InventoryRow {
+                    day: halvo_control::model::UtcDay::from_days_since_epoch(
+                        row.day.days_since_epoch(),
+                    )
+                    .ok()?,
+                    modality: row.kind.parse().ok()?,
+                    events: row.events,
+                    bytes: row.bytes,
+                })
+            })
+            .collect())
+    }
 }
 
 fn pass(pass: super::Pass) -> Pass {

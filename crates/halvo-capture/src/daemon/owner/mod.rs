@@ -72,15 +72,18 @@ pub enum Command {
     Settle,
     /// Settle, answer the snapshot and end the loop.
     Shutdown,
+    /// Answer the rows of the store's per-day rollup as they stand.
+    Inventory,
 }
 
 /// The answer to a command.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Answer {
     Paused(Barrier),
     Resumed(Barrier),
     Settled(Snapshot),
     ShutDown(Snapshot),
+    Inventory(Result<Vec<halvo_control::model::InventoryRow>, MaintFault>),
 }
 
 /// Why the drain fails, with the tokens of the status text.

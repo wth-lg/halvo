@@ -2453,18 +2453,75 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     store: &HeldStore,
 ) {
     use halvo_control::proto::{ErrorCode, ErrorReply, Reply, Request};
-    let _ = store;
     let reply = match asked.request {
         Request::Status { .. } => status_reply(supervisor, serving).map_or_else(
             |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
             Reply::Status,
         ),
+        Request::Inventory => inventory_reply(supervisor, store),
         _ => Reply::Error(ErrorReply::new(
             ErrorCode::UnsupportedOp,
             "this build of the capture service does not serve the op",
         )),
     };
     let _ = asked.answer(reply);
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+const INVENTORY_WAIT: Duration = Duration::from_millis(1_500);
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn inventory_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    store: &HeldStore,
+) -> halvo_control::proto::Reply {
+    use halvo_control::proto::{ErrorCode, ErrorReply, InventoryReply, Reply, Totals};
+    let parts = supervisor.status_parts(None);
+    let (slot::Slot::Open { id }, Some(owner)) = (&parts.slot, store.link()) else {
+        return Reply::Error(ErrorReply::new(
+            ErrorCode::StoreUnavailable,
+            parts.slot.state().as_str(),
+        ));
+    };
+    let answer = match owner.ask(owner::Command::Inventory) {
+        Ok(pending) => supervisor.answer_within(&pending, INVENTORY_WAIT),
+        Err(owner::OwnerGone) => None,
+    };
+    let rows = match answer {
+        Some(owner::Answer::Inventory(Ok(rows))) => rows,
+        Some(owner::Answer::Inventory(Err(_))) => {
+            return Reply::Error(ErrorReply::new(
+                ErrorCode::StoreUnavailable,
+                "the store's listing could not be read",
+            ))
+        }
+        _ => {
+            return Reply::Error(ErrorReply::new(
+                ErrorCode::Internal,
+                "the store owner did not answer the listing in time",
+            ))
+        }
+    };
+    let totals = Totals {
+        events: rows.iter().map(|row| row.events).sum(),
+        bytes: rows.iter().map(|row| row.bytes).sum(),
+        disk_bytes: parts
+            .board
+            .snapshot
+            .and_then(|snapshot| snapshot.disk_bytes)
+            .unwrap_or(0),
+    };
+    InventoryReply::new(
+        halvo_control::model::StoreId::from_bytes(*id.as_bytes()),
+        second_now(),
+        rows,
+        totals,
+        Vec::new(),
+    )
+    .map_or_else(
+        |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.to_string())),
+        Reply::Inventory,
+    )
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]

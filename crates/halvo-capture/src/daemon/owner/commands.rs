@@ -48,6 +48,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                 self.stopping = true;
                 Answer::ShutDown(snapshot)
             }
+            Command::Inventory => Answer::Inventory(self.store.inventory()),
         }
     }
 }
