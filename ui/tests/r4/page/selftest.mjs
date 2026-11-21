@@ -18,7 +18,7 @@ const COPIED = [
   join('tools', 'r4-page', 'package.json'),
   join('tools', 'r4-page', 'package-lock.json'),
   join('tools', 'r4-page', 'browser.txt'),
-  join('ui', 'index.html'),
+  join('ui', 'app', 'index.html'),
   join('ui', 'tests', 'r4', 'needs', 'structure'),
   join('ui', 'tests', 'r4', 'agents', 'structure'),
   join('ui', 'tests', 'r4', 'needs', 'items.json'),
@@ -218,7 +218,7 @@ const RECORD_CASES = [
   }],
   ['record-then-a-file-under-ui-outside-the-views-changed', 'stamp', (d) => {
     writeRecord(d);
-    append(d, join('ui', 'index.html'), '\n');
+    append(d, join('ui', 'app', 'index.html'), '\n');
   }],
   ['record-then-a-line-of-the-harness-lock-changed', 'stamp', (d) => {
     writeRecord(d);
@@ -541,7 +541,7 @@ export async function wholeCases({ repo, work, report }) {
   report('whole-a-hand-record-over-a-wrong-structure-file', 'page', runCheck(repo, ['whole', '--repo', byHand, '--out', join(work, 'fresh-a.txt')]).cause);
   const stale = join(work, 'whole-a-stale-record-fails-before-the-run');
   cpSync(fx, stale, { recursive: true });
-  append(stale, join('ui', 'index.html'), '\n');
+  append(stale, join('ui', 'app', 'index.html'), '\n');
   git(stale, 'add', '-A');
   const s = runCheck(repo, ['whole', '--repo', stale, '--out', join(work, 'fresh-s.txt')]);
   const before = s.lines.some((l) => l.startsWith('page record fault=stamp')) && !s.lines.some((l) => l.startsWith('page state='));
