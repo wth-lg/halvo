@@ -445,10 +445,7 @@ fn ports_on() -> Ports<Config> {
 fn a_switch_on_refused_with_overlap_holds_the_names_that_its_read_gave() {
     let c = Coordinator::new(both(ports_on()), Limits::PRODUCT);
     c.tick();
-    assert_eq!(
-        c.control(&asking(), Action::SwitchOn),
-        Err(Cause::Overlap)
-    );
+    assert_eq!(c.control(&asking(), Action::SwitchOn), Err(Cause::Overlap));
     assert_eq!(
         c.switch_on_overlap(&asking()),
         Some(named(&[(other(0), other_flow(0), ANN)], false))
@@ -463,10 +460,7 @@ fn a_switch_on_refused_with_overlap_whose_read_did_not_answer_holds_the_half_tha
     let c = Coordinator::new(both(ports_on()), Limits::PRODUCT);
     c.tick();
     c.ports().ports.refuse(Method::Overlaps, PortError::Busy);
-    assert_eq!(
-        c.control(&asking(), Action::SwitchOn),
-        Err(Cause::Overlap)
-    );
+    assert_eq!(c.control(&asking(), Action::SwitchOn), Err(Cause::Overlap));
     assert_eq!(
         c.switch_on_overlap(&asking()),
         Some(Shared::Unread { again: true })
@@ -941,7 +935,12 @@ fn u313_a_set_up_refused_with_overlap_says_why_in_the_form_that_its_read_gives()
     };
     let name_of = |c: &Coordinator<Both>, agent: &AgentId| -> String {
         let s = c.snapshot();
-        s.rows.iter().find(|r| &r.agent == agent).unwrap().name.clone()
+        s.rows
+            .iter()
+            .find(|r| &r.agent == agent)
+            .unwrap()
+            .name
+            .clone()
     };
     let say = |key: &str, pairs: &[(&str, &str)]| halvo_coord::words::text(key, pairs);
 
@@ -985,10 +984,6 @@ fn u313_a_set_up_refused_with_overlap_says_why_in_the_form_that_its_read_gives()
     answer(&c, &item, ANN).unwrap();
     let name = name_of(&c, &other(0));
     let unread = say("item.setup.overlap_unread", &[]);
-    assert_eq!(
-        line(&c, &item),
-        [unread.clone()],
-        "the read did not answer"
-    );
+    assert_eq!(line(&c, &item), [unread.clone()], "the read did not answer");
     assert!(!unread.unwrap().contains(&name), "it names nobody");
 }

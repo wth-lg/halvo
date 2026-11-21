@@ -512,7 +512,9 @@ fn refusal_setup_refused() {
         );
         assert!(s.not_taken());
         assert_eq!(lines_of(&s), vec![(line.clone(), true, "halvo")], "{n}");
-        let item = s.page_item("Filling a spreadsheet", |_| None, &LIMITS).unwrap();
+        let item = s
+            .page_item("Filling a spreadsheet", |_| None, &LIMITS)
+            .unwrap();
         assert_eq!(
             item.params().len(),
             4,

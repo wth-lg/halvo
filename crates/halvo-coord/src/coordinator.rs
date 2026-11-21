@@ -3735,11 +3735,10 @@ where
             ItemKind::Stuck => plain(Plain::Stuck),
             ItemKind::Ready => plain(Plain::Ready),
             ItemKind::Show => plain(Plain::Show),
-            ItemKind::Setup => st
-                .setups
-                .iter()
-                .find(|s| s.item() == item)
-                .and_then(|s| s.page_item(name, |a| Self::row_name(listed, a), &self.limits).ok()),
+            ItemKind::Setup => st.setups.iter().find(|s| s.item() == item).and_then(|s| {
+                s.page_item(name, |a| Self::row_name(listed, a), &self.limits)
+                    .ok()
+            }),
             ItemKind::Check => {
                 let kept = st
                     .checks
