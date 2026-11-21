@@ -908,7 +908,11 @@ linked_pass() {
   cargo metadata --format-version 1 --no-deps --locked >"$artifacts/linked-members.json" 2>"$artifacts/linked-members.txt"
   code=$?
   [ "$code" -eq 0 ] || cargo_failed linked "$artifacts/linked-members.txt"
-  CLIPPY_CONF_DIR=$conf cargo clippy -p halvo --bin halvo --locked --message-format=json -- --force-warn clippy::disallowed_methods \
+  conf_dir=$conf
+  if command -v cygpath >/dev/null 2>&1; then
+    conf_dir=$(cygpath -m "$conf") || fail setup
+  fi
+  CLIPPY_CONF_DIR=$conf_dir cargo clippy -p halvo --bin halvo --locked --message-format=json -- --force-warn clippy::disallowed_methods \
     >"$artifacts/linked.json" 2>"$artifacts/linked.txt"
   code=$?
   printf 'linked clippy with the lint forced to warn: exit=%s\n' "$code"
@@ -1201,7 +1205,11 @@ run_mac() {
 }
 
 run_real() {
-  STUB_REAL=$real_cargo CARGO_TARGET_DIR=$work/target-$1 CI_D_REPO=$work/$1 CI_D_ARTIFACTS=$work/artifacts-real-$1 CI_D_JOB=macos sh "$here/$name.sh"
+  target=$work/target-$1
+  if command -v cygpath >/dev/null 2>&1; then
+    target=$(cygpath -m "$target") || exit 2
+  fi
+  STUB_REAL=$real_cargo CARGO_TARGET_DIR=$target CI_D_REPO=$work/$1 CI_D_ARTIFACTS=$work/artifacts-real-$1 CI_D_JOB=macos sh "$here/$name.sh"
 }
 
 real_tree() {
