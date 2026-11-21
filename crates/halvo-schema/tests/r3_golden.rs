@@ -958,9 +958,11 @@ fn runner_replies() -> Vec<RunnerReply> {
             }),
         }),
         RunnerReply::Steps(StepsReply {
+            agent: configs()[0].agent.clone(),
             steps: steps()[..2].to_vec(),
         }),
         RunnerReply::Session(SessionReply {
+            agent: configs()[0].agent.clone(),
             origin: origin(UTILITY),
             rev: n(1),
             part: n(1),

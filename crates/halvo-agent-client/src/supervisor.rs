@@ -10,7 +10,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use halvo_schema::executable::body::{
-    CoordinatorCall, EndRun as EndRunBody, RunnerCall, RunnerReply,
+    CheckpointsReply, CoordinatorCall, EndRun as EndRunBody, RunnerCall, RunnerReply,
 };
 use halvo_schema::executable::frame::{
     Browser, BrowserReply, Cancel, FromRunner, HandbackResult, ReplyError, RunError, SecretReply,
@@ -23,8 +23,9 @@ use halvo_schema::request::{CoordinatorRole, ErrorName};
 
 use crate::acts::Acts;
 use crate::api::{
-    absolute_paths, CallError, Config, EndRun, ForcedPath, NotStarted, Parts, ReapAnswer, ReapHook,
-    ReapStep, Reaped, RelativePath, RunEnd, RunSpec, RunnerExit, StartError, SystemValue,
+    absolute_paths, CallError, Config, EndRun, ForcedPath, ListFailed, NotStarted, Parts,
+    ReapAnswer, ReapHook, ReapStep, Reaped, RelativePath, RunEnd, RunSpec, RunnerExit, StartError,
+    SystemValue,
 };
 use crate::marks::{self, proc_line, Created, MarkFile};
 use crate::owner;
@@ -458,6 +459,14 @@ impl Supervisor {
             return Err(CallError::Ended);
         }
         rx.recv().unwrap_or(Err(CallError::Ended))
+    }
+
+    /// Reads one page of the list of checkpoints from the owner (contracts.md A6.6, A7.2): it sends `list_checkpoints`
+    /// with `workflow` and `agent` null and the `after` given, and returns the page as the owner gave it, or
+    /// `ListFailed` and no page. The caller asks for the next page with the page's `next`; the library does not check
+    /// that `next` comes after `after`.
+    pub fn checkpoints(&self, after: Option<RunId>) -> Result<CheckpointsReply, ListFailed> {
+        owner::checkpoints(&self.inner, after)
     }
 }
 
