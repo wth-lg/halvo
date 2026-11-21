@@ -529,6 +529,10 @@ case "$tool:$*" in
       echo "$$" >> "$FIXTURE_PIDS"
       exec sleep 30
     fi
+    if [ -n "${FIXTURE_READY_LATE:-}" ]; then
+      while [ ! -f "$3/stop-$4" ]; do sleep 0.1; done
+      cp "$FIXTURE_READY_LATE" "$3/ready-$4"
+    fi
     if [ -n "${FIXTURE_READY:-}" ]; then cp "$FIXTURE_READY" "$3/ready-$4"; fi
     ;;
   python*:*measure.py\ judge*)
@@ -674,6 +678,9 @@ run_cases() {
   for phase in engine-alone no-layer; do
     n=$(grep -c -x -F -e "$name steps of $phase: s03-ip" -e "$name listeners $phase-steps: asked 203.0.113.9, 1 refused" -e "$name interface at a refused bind of $phase-steps: en0 8863<UP,BROADCAST> inet 10.0.0.5" "$work/address-read-after-each-build.out")
     is "$n" 3 left
+    at=$(grep -n -x -F "$name listeners $phase-steps: asked 203.0.113.9, 1 refused" "$work/address-read-after-each-build.out" | cut -d: -f1)
+    launched=$(grep -n "^$name launch $phase: " "$work/address-read-after-each-build.out" | cut -d: -f1)
+    [ "${at:-0}" -gt 0 ] && [ "${at:-0}" -lt "${launched:-0}" ] || got=left
   done
   routes=$(cat "$work/after-each-build/$name".*/routes.tsv)
   tab=$(printf '\t')
@@ -697,6 +704,18 @@ run_cases() {
   order=$(sed -n -e 's/^cargo .*/build/p' -e 's/^python[0-9]* .*measure\.py plan .*/plan/p' -e 's/^python[0-9]* .*measure\.py listen .* engine-alone-steps$/listen-engine-alone/p' -e 's/^python[0-9]* .*measure\.py listen .*/listen-other/p' "$work/second-copy-failed-plan-fails-the-check.calls" | paste -s -d ' ' -)
   is "$order" "build plan listen-engine-alone build plan" ran
   report second-copy-failed-plan-fails-the-check "$got"
+  mkdir -p "$work/fast" || exit 2
+  printf '#!/bin/sh\nexit 0\n' > "$work/fast/sleep"
+  chmod +x "$work/fast/sleep" || exit 2
+  run_fixture late-ready-file-printed-once true macos FIXTURE_LAUNCH=run FIXTURE_READY_LATE="$work/ready-made-up" FIXTURE_JUDGED="$work/judged-good.txt" PATH="$work/fast:$stubs:$PATH"
+  got=refused
+  code=$(cat "$work/late-ready-file-printed-once.code")
+  is "$code" 0 left
+  for phase in engine-alone-steps no-layer-steps; do
+    n=$(grep -c -x -F -e "$name listeners $phase: asked 203.0.113.9, 1 refused" -e "$name interface at a refused bind of $phase: en0 8863<UP,BROADCAST> inet 10.0.0.5" "$work/late-ready-file-printed-once.out")
+    is "$n" 2 left
+  done
+  report late-ready-file-printed-once "$got"
 }
 
 hosted_only() {
@@ -2126,7 +2145,11 @@ measure() {
     own_pids="$own_pids $listener"
     tick=0
     while [ ! -f "$work/ready-$copy-steps" ] && [ "$tick" -lt 100 ]; do sleep 0.2; tick=$((tick + 1)); done
-    told "$copy-steps"
+    late=yes
+    if [ -f "$work/ready-$copy-steps" ]; then
+      told "$copy-steps"
+      late=no
+    fi
     data=$(mktemp -d "$work/data-XXXXXX")
     routes=$(native "$work/routes.tsv")
     data_dir=$(native "$data")
@@ -2144,6 +2167,7 @@ measure() {
     : > "$work/stop-$copy-steps"
     wait "$listener"
     forget_own "$listener"
+    [ "$late" = no ] || told "$copy-steps"
   done
   "$py" "$work/measure.py" judge "$work" "$job" > "$work/judged.txt"
   [ -n "${CI_D_ARTIFACTS:-}" ] && cp "$work/judged.txt" "$CI_D_ARTIFACTS/$name-judged.txt"
