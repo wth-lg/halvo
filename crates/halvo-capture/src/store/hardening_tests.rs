@@ -12969,3 +12969,33 @@ fn a_full_database_at_the_commit_still_loses_the_key() {
         "the segment's file stays"
     );
 }
+
+#[test]
+fn a_segment_stamped_in_the_future_is_shredded_within_one_window() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let (ahead, ordinal) = batch_first_captured_at(
+        &mut store,
+        (NOW_SECONDS + 30 * DAY_SECONDS) * SECOND,
+        b"a segment stamped 30 days ahead",
+    );
+
+    let first_seen = store.expire_due(at_second(NOW_SECONDS), 64).unwrap();
+    let before_one_window = store
+        .expire_due(at_second(NOW_SECONDS + window_seconds() - 1), 64)
+        .unwrap();
+    let one_window_after = store
+        .expire_due(at_second(NOW_SECONDS + window_seconds()), 64)
+        .unwrap();
+
+    assert!(
+        first_seen.shredded.is_empty() && before_one_window.shredded.is_empty(),
+        "the segment went before one window had passed: {first_seen:?} {before_one_window:?}"
+    );
+    assert_eq!(
+        one_window_after.shredded,
+        vec![ordinal],
+        "a pass one window after the pass that first saw the segment answered {one_window_after:?}"
+    );
+    assert!(reads_sealed(&store, ahead), "the segment still reads");
+}

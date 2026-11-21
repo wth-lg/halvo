@@ -116,6 +116,19 @@ impl EncryptedStore {
         .collect()
     }
 
+    fn anchor_future_segments(&self, now: i64) -> StoreResult<()> {
+        let db = self.db()?;
+        let changes_before = db.connection().total_changes();
+        db.connection()
+            .execute(
+                "UPDATE segment_keys SET first_capture = ?1 \
+                 WHERE wrapped_key IS NOT NULL AND first_capture > ?1",
+                [now],
+            )
+            .map_err(db_error)?;
+        db.look_after_the_first_commit(changes_before)
+    }
+
     fn due_chunk(
         &self,
         now_secs: i64,
@@ -222,7 +235,10 @@ impl EncryptedStore {
     /// One expiry chunk at the caller's wall-clock `now`; the store reads no
     /// clock. It first finishes what an earlier call owes: the checkpoint
     /// after a shred's commit, which it must finish before anything else, and
-    /// the removal of each shredded segment's file. Then it shreds at most
+    /// the removal of each shredded segment's file. It anchors every live
+    /// segment whose first capture is later than `now` at `now` again, so
+    /// that a record stamped in the future lives at most one window after
+    /// the call that first saw it. Then it shreds at most
     /// `max_segments` live segments whose first capture, floored to whole
     /// seconds, plus this handle's window is at or before `now`, the oldest
     /// first capture first, in one transaction that clears each key in place
@@ -232,15 +248,15 @@ impl EncryptedStore {
     /// it attempts the checkpoint and the removal of exactly that chunk's
     /// files, and the checkpoint once more after the removal when the first
     /// one failed, and answers the first error after every step ran; the
-    /// handle keeps what
-    /// the call owes, and a later call finishes it. With nothing due and
-    /// nothing owed it writes nothing and reads no directory. It returns the
-    /// ordinals of the chunk in ascending order, whether more segments are
-    /// due and whether work is still owed.
+    /// handle keeps what the call owes, and a later call finishes it. With
+    /// nothing due and nothing owed it writes nothing and reads no
+    /// directory. It returns the ordinals of the chunk in ascending order,
+    /// whether more segments are due and whether work is still owed.
     pub fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> StoreResult<Pass> {
-        let now_secs = crate::event::unix_nanos(now).div_euclid(NANOS_PER_SECOND);
+        let now = crate::event::unix_nanos(now);
         let owed_failure = self.finish_owed()?;
-        let (chunk, more_due) = self.due_chunk(now_secs, max_segments)?;
+        self.anchor_future_segments(now)?;
+        let (chunk, more_due) = self.due_chunk(now.div_euclid(NANOS_PER_SECOND), max_segments)?;
         let shredded = match self.shred_chunk(&chunk) {
             Ok(shredded) => shredded,
             Err(e) => return Err(owed_failure.unwrap_or(e)),
