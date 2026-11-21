@@ -1,6 +1,6 @@
 //! The delete of a data directory, contracts.md C3.3 and C17.3: the offline
-//! form `--delete-all --data-dir DIR` and the walk over the rows of the
-//! registry.
+//! form `--delete-all --data-dir DIR`, the walk over the rows of the
+//! registry, and the finish of an intent that a start finds.
 
 #[cfg(test)]
 mod process_tests;
@@ -721,4 +721,110 @@ fn utc_text(at: SystemTime) -> String {
         of_day % 3_600 / 60,
         of_day % 60
     )
+}
+
+/// What a start found at the intent's name and did with it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtStart {
+    /// No intent stands.
+    NoIntent,
+    /// The intent named the store whose store.key stands, or no store.key
+    /// that names a store stood beside it: the delete was finished from step
+    /// 3, and `whole` says whether every row was handled and every flush
+    /// succeeded, so that the intent was removed.
+    Finished { whole: bool },
+    /// The intent named another root: it was removed and nothing else.
+    Stale,
+    /// The intent cannot be read, or is of a version that this build does not
+    /// read: it was left as it is.
+    Unreadable,
+}
+
+impl AtStart {
+    /// The line for standard error, none when no intent stood.
+    pub fn line(self) -> Option<&'static str> {
+        match self {
+            AtStart::NoIntent => None,
+            AtStart::Finished { whole: true } => {
+                Some("halvo-capture: a delete-all that was cut short was finished before the open")
+            }
+            AtStart::Finished { whole: false } => Some(
+                "halvo-capture: a delete-all that was cut short is not finished; delete-all.intent stays",
+            ),
+            AtStart::Stale => {
+                Some("halvo-capture: delete-all.intent named another store and was removed")
+            }
+            AtStart::Unreadable => Some(
+                "halvo-capture: delete-all.intent cannot be read by this build and was left as it is",
+            ),
+        }
+    }
+}
+
+/// The root id that an intent of version 1 names for the store, `Some(None)`
+/// for one that names none, and `None` for a text that is no intent of
+/// version 1.
+fn intent_root(bytes: &[u8]) -> Option<Option<String>> {
+    let intent: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+    if intent["v"].as_u64() != Some(1) {
+        return None;
+    }
+    let entries = intent["entries"].as_array()?;
+    Some(
+        entries
+            .iter()
+            .find(|entry| entry["name"].as_str() == Some("store"))
+            .and_then(|entry| entry["root_id"].as_str())
+            .map(str::to_owned),
+    )
+}
+
+/// The finish of an intent that a start of the service run finds in
+/// `data_dir` (contracts.md C17 item 3, "At start"), before the open's first
+/// call: an intent of store.key's root id, or one with no readable store.key
+/// beside it, is finished from step 3 through `host`'s tail and the walk over
+/// `rows` by `hands`, and `deleting` is called before that step; an intent
+/// of another root is removed and nothing else; an intent that cannot be read
+/// is left.
+pub fn at_start(
+    data_dir: &Path,
+    rows: &[Row],
+    hands: &dyn Hands,
+    host: &dyn StoreHost,
+    deleting: &dyn Fn(),
+) -> AtStart {
+    let bytes = match std::fs::read(data_dir.join(INTENT_FILE)) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return AtStart::NoIntent,
+        Err(_) => return AtStart::Unreadable,
+    };
+    let Some(named) = intent_root(&bytes) else {
+        return AtStart::Unreadable;
+    };
+    let ours = match host.probe() {
+        Probe::KeyFile { id, .. } => named == Some(id.to_string()),
+        Probe::NoKeyFile | Probe::Fault { .. } => true,
+    };
+    if !ours {
+        let _ = DataDirStore::at(data_dir).remove_durably(INTENT_FILE);
+        return AtStart::Stale;
+    }
+    deleting();
+    let finished = steps_3_to_5(data_dir, rows, hands, host.delete());
+    AtStart::Finished {
+        whole: finished.whole() && finished.not_synced.is_empty(),
+    }
+}
+
+/// The start's call of the service run on `data_dir`: [`at_start`] with the
+/// product's rows and hands, whose line goes to standard error.
+pub fn at_start_of(data_dir: &Path) -> super::owner::open::AtStartCall {
+    let data_dir = data_dir.to_path_buf();
+    Box::new(move |host, deleting| {
+        let found = at_start(&data_dir, &rows(), &SystemHands, host, deleting);
+        if let Some(line) = found.line() {
+            let _ = writeln!(io::stderr(), "{line}");
+        }
+        found
+    })
 }

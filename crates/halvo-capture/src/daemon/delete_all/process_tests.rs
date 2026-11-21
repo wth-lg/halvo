@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -12,16 +12,18 @@ use base64::Engine;
 use halvo_control::model::UtcDay;
 use halvo_control::paths::DataDir;
 
-use super::{rows, run, Hands, Offline, Owner, Row, SystemHands};
+use super::{at_start, rows, run, AtStart, Hands, Offline, Owner, Row, SystemHands};
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{KeyCustody, KeyLabel, RootId, WrappedKey};
 use crate::daemon::custody_policy::{self, Custody, OpenAs, Selection};
 use crate::daemon::instance::tests::kept_dir;
 use crate::daemon::instance::InstanceLock;
+use crate::daemon::owner::open::{CreateRule, Held, Opener};
 use crate::daemon::port::{
-    DataDirStore, EntryKind, KindEntry, Opened, SegmentId, SegmentWrite, StoreHost,
+    Access, DataDirStore, EntryKind, KindEntry, Opened, Probe, SegmentId, SegmentWrite, StoreHost,
 };
-use crate::daemon::{parse, Mode};
+use crate::daemon::slot::Slot;
+use crate::daemon::{parse, Mode, TailAnswer};
 use crate::event::Modality;
 
 const HOLD: &str = "HALVO_DELETE_ALL_HOLD";
@@ -402,4 +404,100 @@ fn a_held_store_answers_busy_and_removes_nothing() {
     assert!(holder.wait().unwrap().success(), "the holder failed");
     assert_eq!(status, 75, "out: {out} err: {err}");
     assert_eq!(snapshot(&dir), before, "a held directory was touched");
+}
+
+struct WatchedHost {
+    host: DataDirStore,
+    calls: Arc<Mutex<Vec<&'static str>>>,
+    gate: Mutex<Option<(mpsc::Sender<()>, mpsc::Receiver<()>)>>,
+}
+
+impl StoreHost for WatchedHost {
+    fn probe(&self) -> Probe {
+        self.calls.lock().unwrap().push("probe");
+        self.host.probe()
+    }
+
+    fn open(&self, access: Access) -> Opened {
+        self.calls.lock().unwrap().push("open");
+        self.host.open(access)
+    }
+
+    fn create(&self, custody: Custody) -> Opened {
+        self.calls.lock().unwrap().push("create");
+        self.host.create(custody)
+    }
+
+    fn delete(&self) -> TailAnswer {
+        self.calls.lock().unwrap().push("delete");
+        if let Some((began, go)) = self.gate.lock().unwrap().take() {
+            began.send(()).unwrap();
+            go.recv().unwrap();
+        }
+        self.host.delete()
+    }
+}
+
+#[test]
+fn an_intent_at_start_is_finished_before_the_open() {
+    let dir = kept_dir("delete-all-at-start-");
+    let old = a_store_with_a_segment(&dir);
+    let old_root = root_files(&dir);
+    assert_eq!(old_root.len(), 1);
+    std::fs::write(
+        dir.join("delete-all.intent"),
+        format!("{{\"v\":1,\"started_at\":\"2026-11-21T00:00:00Z\",\"entries\":[{{\"name\":\"store\",\"custody_kind\":\"root_file\",\"root_id\":\"{old}\"}}]}}"),
+    )
+    .unwrap();
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let (began, begun) = mpsc::channel();
+    let (asked, go) = mpsc::channel();
+    let host = WatchedHost {
+        host: DataDirStore::at(&dir),
+        calls: calls.clone(),
+        gate: Mutex::new(Some((began, go))),
+    };
+    let path = dir.clone();
+    let finish = Box::new(move |host: &dyn StoreHost, deleting: &dyn Fn()| {
+        at_start(&path, &rows(), &SystemHands, host, deleting)
+    });
+    let opener = Opener::start_with(
+        finish,
+        Box::new(host),
+        custody_policy::of_this_build,
+        CreateRule::FirstRun,
+    )
+    .unwrap();
+
+    begun.recv_timeout(Duration::from_secs(60)).unwrap();
+    assert_eq!(opener.slot(), Slot::Deleting);
+    assert_eq!(*calls.lock().unwrap(), ["probe", "delete"]);
+    asked.send(()).unwrap();
+    let started = Instant::now();
+    let held = loop {
+        if let Some(held) = opener.take() {
+            break held;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(60),
+            "the open never handed a store; slot {:?}",
+            opener.slot()
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    };
+
+    let Held::Capture { id, .. } = held else {
+        panic!("the fresh store did not open for capture");
+    };
+    assert_ne!(id.to_string(), old);
+    assert_eq!(opener.slot(), Slot::Open { id });
+    let calls = calls.lock().unwrap().clone();
+    assert_eq!(calls[..2], ["probe", "delete"]);
+    assert!(calls[2..].contains(&"create"), "{calls:?}");
+    assert!(!old_root[0].exists());
+    assert!(!dir.join("delete-all.intent").exists());
+    assert_eq!(
+        at_start(&dir, &rows(), &SystemHands, &DataDirStore::at(&dir), &|| {}),
+        AtStart::NoIntent
+    );
 }

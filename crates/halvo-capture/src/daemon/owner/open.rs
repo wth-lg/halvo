@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use super::{POLL, RETRY_FIRST, RETRY_MAX};
 use crate::daemon::custody_policy::{Custody, OpenAs, Selection};
+use crate::daemon::delete_all::AtStart;
 use crate::daemon::port::{
     Access, CaptureStore, MaintainStore, OpenFault, Opened, Probe, StoreHost, StoreId,
 };
@@ -114,9 +115,30 @@ pub struct Opener {
     thread: JoinHandle<()>,
 }
 
+/// What a start runs on the open's thread before the open's first call: the
+/// finish of a delete-all intent through the store's host, which calls its
+/// second argument before it deletes, so that the slot reads Deleting from
+/// then on.
+pub type AtStartCall = Box<dyn FnOnce(&dyn StoreHost, &dyn Fn()) -> AtStart + Send>;
+
 impl Opener {
     /// Starts the tries of the open on `host` under `select` and `rule`.
     pub fn start(
+        host: Box<dyn StoreHost>,
+        select: fn(Option<Custody>) -> Selection,
+        rule: CreateRule,
+    ) -> io::Result<Opener> {
+        Opener::start_with(Box::new(|_, _| AtStart::NoIntent), host, select, rule)
+    }
+
+    /// Starts the tries of the open on `host` under `select` and `rule`
+    /// after `at_start` ran on the open's thread: the slot reads Deleting from
+    /// the moment that `at_start` begins a delete. After a delete that a start
+    /// finished, a store is made where none stands, also under the rule
+    /// StoreMade, whose mark a clear that failed may have left, and a slot of
+    /// a make that failed reads Empty.
+    pub fn start_with(
+        at_start: AtStartCall,
         host: Box<dyn StoreHost>,
         select: fn(Option<Custody>) -> Selection,
         rule: CreateRule,
@@ -132,9 +154,18 @@ impl Opener {
                 let tries = tries.clone();
                 let stop = stop.clone();
                 move || {
+                    let deleting =
+                        || *slot.lock().unwrap_or_else(PoisonError::into_inner) = Slot::Deleting;
+                    let deleted =
+                        matches!(at_start(host.as_ref(), &deleting), AtStart::Finished { .. });
+                    let rule = match rule {
+                        CreateRule::StoreMade if deleted => CreateRule::FirstRun,
+                        rule => rule,
+                    };
                     let mut retry = RETRY_FIRST;
                     loop {
                         let (now, opened) = try_open(host.as_ref(), select, rule, retry);
+                        let now = if deleted { now.after_a_delete() } else { now };
                         let wait = now.retry_in();
                         *slot.lock().unwrap_or_else(PoisonError::into_inner) = now;
                         tries.fetch_add(1, Ordering::SeqCst);

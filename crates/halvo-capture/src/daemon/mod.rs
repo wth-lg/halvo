@@ -1907,7 +1907,8 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
     let opener = if stop.load(std::sync::atomic::Ordering::SeqCst) {
         None
     } else {
-        match owner::open::Opener::start(
+        match owner::open::Opener::start_with(
+            delete_all::at_start_of(dir.path()),
             Box::new(port::DataDirStore::at(dir.path())),
             custody_policy::of_this_build,
             rule,
