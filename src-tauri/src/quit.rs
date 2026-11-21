@@ -474,11 +474,17 @@ mod tests {
             "one Quit in the app menu, and it is the app's own"
         );
         assert_eq!(QUIT_KEYS, "CmdOrCtrl+Q");
-        let code = include_str!("quit.rs")
-            .split("#[cfg(test)]")
-            .next()
-            .unwrap_or_default();
+        let source = |name: &str| {
+            std::fs::read_to_string(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("src")
+                    .join(name),
+            )
+            .unwrap_or_else(|e| panic!("src/{name} reads: {e}"))
+        };
+        let quit = source("quit.rs");
+        let code = quit.split("#[cfg(test)]").next().unwrap_or_default();
         assert!(code.contains(".enable_macos_default_menu(false)"));
-        assert!(include_str!("main.rs").contains("let builder = quit::installed(builder);"));
+        assert!(source("main.rs").contains("let builder = quit::installed(builder);"));
     }
 }
