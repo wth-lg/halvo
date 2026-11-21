@@ -40,6 +40,19 @@ fn scratch_data_dir() -> PathBuf {
     Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("cli-{}-{since}", std::process::id()))
 }
 
+#[cfg(debug_assertions)]
+fn linked_data_dir() -> PathBuf {
+    use std::os::unix::fs::DirBuilderExt;
+    let resolved = scratch_data_dir();
+    std::fs::DirBuilder::new()
+        .mode(0o700)
+        .create(&resolved)
+        .unwrap();
+    let link = resolved.with_extension("link");
+    std::os::unix::fs::symlink(&resolved, &link).unwrap();
+    link
+}
+
 fn start(dir: &Path, rest: &[&str]) -> Daemon {
     let mut child = Command::new(BIN)
         .args(["--service-run", "--data-dir"])
@@ -206,7 +219,7 @@ fn ctl_starts_pauses_resumes_and_stops_the_service_run() {
 
 #[cfg(debug_assertions)]
 fn scripted_service_run() {
-    let dir = scratch_data_dir();
+    let dir = linked_data_dir();
     let mut daemon = start(&dir, &["--scripted-sources"]);
 
     let first = until(Duration::from_secs(10), || {
