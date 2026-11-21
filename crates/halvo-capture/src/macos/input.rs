@@ -8353,7 +8353,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn no_key_record_leaves_when_a_process_under_the_root_comes_in_front_during_the_hold() {
         let mut held = held(100);
@@ -8377,7 +8376,6 @@ mod tests {
             "a process under the root in front during the hold"
         );
     }
-
 
     struct GrantlessMaker(Arc<AtomicUsize>);
 
@@ -8403,8 +8401,7 @@ mod tests {
     }
 
     #[test]
-    fn a_start_with_key_class_off_goes_on_to_the_maker_while_the_grant_for_key_events_is_refused(
-    ) {
+    fn a_start_with_key_class_off_goes_on_to_the_maker_while_the_grant_for_key_events_is_refused() {
         let (handle, _writer) = sink::channel(4);
         let made = Arc::new(AtomicUsize::new(0));
         let mut source = source_switched(switches_with(false, true));
@@ -8414,7 +8411,11 @@ mod tests {
             Ok(Started::Running),
             "with key_class off the grant for key events is not asked"
         );
-        assert_eq!(made.load(Ordering::SeqCst), 1, "the maker was asked for the tap");
+        assert_eq!(
+            made.load(Ordering::SeqCst),
+            1,
+            "the maker was asked for the tap"
+        );
         assert_eq!(source.shutdown(), Ok(()));
     }
 
@@ -8425,7 +8426,10 @@ mod tests {
         let mut source = source_switched(switches_with(true, true));
         source.keys_missing.store(true, Ordering::SeqCst);
         let begun = source.begin_with(handle, DeniedMaker(made.clone()), || {});
-        assert_eq!(begun, Err(CaptureError::PermissionDenied(Modality::Keystroke)));
+        assert_eq!(
+            begun,
+            Err(CaptureError::PermissionDenied(Modality::Keystroke))
+        );
         assert_eq!(made.load(Ordering::SeqCst), 0, "no tap was asked for");
         let reason = match source.health().state {
             SourceState::Failed { reason, .. } => Some(reason),
@@ -8433,7 +8437,6 @@ mod tests {
         };
         assert_eq!(reason, Some(HealthReason::Permission));
     }
-
 
     fn fold_fifty(ctx: &TapContext) {
         pointer(ctx, CGEventType::MouseMoved, 40);
@@ -8562,7 +8565,6 @@ mod tests {
         drop(fg_writer);
     }
 
-
     #[test]
     fn no_fold_record_leaves_after_a_stop_is_asked() {
         let held = held(100);
@@ -8571,7 +8573,6 @@ mod tests {
         close_interval(&held.ctx);
         assert_eq!(pointer_records(&held.writer), []);
     }
-
 
     #[test]
     fn each_type_of_the_table_has_its_class() {
