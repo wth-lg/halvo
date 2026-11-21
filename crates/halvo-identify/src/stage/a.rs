@@ -7,20 +7,24 @@ use crate::episode::Stage;
 
 /// Stage A. It reads the masked title and the site of a step, and never its app, its input or its text.
 ///
-/// A step holds the rule of a category when the words of its title and of its site's domain hold one topic word
-/// and one done word of that rule. The category whose rule holds in the most steps of the episode names it, and
-/// of two categories with equal counts the earlier one of `Category::ALL`. An episode in which no rule holds is
-/// `Category::Other`.
+/// The rule of a category names an episode when the words of one step's title and site's domain hold a topic word
+/// of that rule, and the words of the same step or of another step of the episode hold a done word of it. Of the
+/// categories whose rules name the episode, the one whose rule has its words in the most steps names it (a step
+/// counts when it holds a topic word or a done word of that rule), and of two with equal counts the earlier one of
+/// `Category::ALL`. An episode that no rule names is `Category::Other`.
 pub struct StageA;
 
-/// The words that name one seed category. A word of the task's topic alone names nothing: the rule holds in a
-/// step that also holds a word of the task done.
+/// The words that name one seed category. A word of the task's topic alone names nothing: the rule names an
+/// episode in which a step also holds a word of the task done. That step may be another one than the step of the
+/// topic, because the page that shows a task done often does not repeat its topic.
 struct Rule {
-    /// The words of the task's topic. The rule needs one of them, or none where the list is empty.
+    /// The words of the task's topic. The rule needs one of them in a step of the episode, or none where the list
+    /// is empty.
     topic: &'static [&'static str],
     /// The words of the task done: its act as a title names it (`paid`, `payment`, `pay`), or a thing that only
-    /// the finished task leaves (`driver`, `outcome`). The rule needs one of them. A word that also names what a
-    /// person only looks at (`addendum`, `screening`, `sign` as in a sign-in) is none of them.
+    /// the finished task leaves (`driver`, `outcome`). The rule needs one of them in a step of the episode. A word
+    /// that also names what a person only looks at (`addendum`, `screening`, `sign` as in a sign-in) is none of
+    /// them.
     done: &'static [&'static str],
 }
 
@@ -103,18 +107,38 @@ fn words(text: &str) -> impl Iterator<Item = &str> {
         .filter(|word| !word.is_empty())
 }
 
+/// Whether the title of the step or the labels of its site's domain hold one word of the list, as a whole word and
+/// without regard to case.
+fn holds_one_of(step: &ObservedStep, list: &[&str]) -> bool {
+    let title = step.title.as_ref().map_or("", |t| t.value.as_str());
+    let site = step.site.as_ref().map_or("", |s| s.value.as_str());
+    words(title)
+        .chain(words(site))
+        .any(|word| list.iter().any(|w| w.eq_ignore_ascii_case(word)))
+}
+
 impl Rule {
-    /// Whether the title of the step or the labels of its site's domain hold, as whole words and without regard
-    /// to case, what the rule needs.
-    fn holds(&self, step: &ObservedStep) -> bool {
-        let title = step.title.as_ref().map_or("", |t| t.value.as_str());
-        let site = step.site.as_ref().map_or("", |s| s.value.as_str());
-        let one_of = |list: &[&str]| {
-            words(title)
-                .chain(words(site))
-                .any(|word| list.iter().any(|w| w.eq_ignore_ascii_case(word)))
-        };
-        (self.topic.is_empty() || one_of(self.topic)) && one_of(self.done)
+    /// The number of steps of the episode that hold a topic word or a done word of the rule, or 0 where the rule
+    /// does not name the episode: where no step holds a done word, or no step a topic word while the topic list is
+    /// not empty.
+    fn steps(&self, steps: &[ObservedStep]) -> usize {
+        let mut topic = self.topic.is_empty();
+        let mut done = false;
+        let mut count = 0;
+        for step in steps {
+            let has_topic = holds_one_of(step, self.topic);
+            let has_done = holds_one_of(step, self.done);
+            topic |= has_topic;
+            done |= has_done;
+            if has_topic || has_done {
+                count += 1;
+            }
+        }
+        if topic && done {
+            count
+        } else {
+            0
+        }
     }
 }
 
@@ -126,8 +150,7 @@ impl Stage for StageA {
             let Some(seed) = category.seed() else {
                 continue;
             };
-            let rule = rule(seed);
-            let count = steps.iter().filter(|step| rule.holds(step)).count();
+            let count = rule(seed).steps(steps);
             if count > most {
                 named = category;
                 most = count;
@@ -249,6 +272,26 @@ mod tests {
                 "{title} at {site}"
             );
         }
+    }
+
+    #[test]
+    fn a_topic_and_its_done_word_in_two_steps_name_the_episode() {
+        // The bill's page holds the topic words `gas` and `bill` and no done word; the page after the payment
+        // holds the done word `payment` and no topic word.
+        let episode = [
+            step(
+                "Your gas bill for March",
+                Some("quayside-power.example"),
+                None,
+            ),
+            step(
+                "Payment received - thank you",
+                Some("quayside-power.example"),
+                None,
+            ),
+        ];
+        assert_eq!(StageA.classify(&episode), Category::UtilityBillPayment);
+        assert_eq!(StageA.classify(&episode[..1]), Category::Other);
     }
 
     #[test]
