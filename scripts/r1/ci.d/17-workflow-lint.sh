@@ -144,6 +144,7 @@ EOF
   gate=$(
     GATE_ROOT=$CI_D_REPO
     export GATE_ROOT
+    # shellcheck source=/dev/null
     . scripts/r1-gate/lib.sh
     gate_bound ci_gate_job_timeout_min
   ) || gate=
