@@ -1915,10 +1915,10 @@ set, and the root's own volume name answers the root.
   stood on it are gone. What removes the copies of the deleted row's cell
   that a balance left in the gap of a page built again or edited in place is
   the build's zeroing of that gap; the cell itself is zeroed by secure
-  delete under either build. The
-  rows `rebuilt-page-gap-not-zeroed` and `edited-page-gap-not-zeroed` of
-  `crates/halvo-sqlcipher/mutants.rows` judge that zeroing on that crate's
-  own tables. That crate's structural check (`tests/page_gap/rules.rs`)
+  delete under either build. The tests of `page_gap` in that crate judge
+  that zeroing on that crate's own tables, and
+  `scripts/r1/ci.d/55-sqlcipher-unmended.sh` holds the two statements that
+  take it out, `rebuilt-page-gap-not-zeroed` and `edited-page-gap-not-zeroed`. That crate's structural check (`tests/page_gap/rules.rs`)
   reads an image as given and takes the page count from its length, so an
   image cut by its last pages can read clean: who hands it an image answers
   for its length, by comparing `Checked.pages` with the file's own page
@@ -2095,9 +2095,8 @@ set, and the root's own volume name answers the root.
   and
   `open_refuses_a_format_version_that_this_build_does_not_know_and_changes_no_file`.
   `db::tests::pragmas_are_set` reads the settings (the row
-  `journal-mode-not-wal`, and `os-entropy-hook-missing` in
-  `crates/halvo-sqlcipher/mutants.rows`, whose verdict is a test of that
-  crate).
+  `journal-mode-not-wal`, and the row `os-entropy-hook-missing` on
+  halvo-sqlcipher, whose verdict was a test of that crate).
 - Links. One move of check 1 puts a link into the store: a symbolic link
   below `segments`, on macOS, which the sweep and delete-all must not
   walk. No move puts a link at the store directory's own name, at
