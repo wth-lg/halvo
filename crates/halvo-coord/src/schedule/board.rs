@@ -1,6 +1,8 @@
 use super::Queue;
 use crate::ports::Reaped;
-use crate::types::{AgentId, Defers, Facts, ItemId, Lapsed, RunEnd, RunId, WorkflowId};
+use crate::types::{
+    AgentId, Defers, Facts, HoldSetCause, ItemId, Lapsed, RunEnd, RunId, What, WorkflowId,
+};
 
 /// What the coordinator owes the owner for an agent, sent again at each tick until the owner
 /// acknowledges it (I5.8, I5.9, rulings XB-14, XB-17 and XB-32).
@@ -154,7 +156,7 @@ pub struct Board<C> {
     unread: Vec<AgentId>,
     dismissed: Vec<WorkflowId>,
     queue_held: bool,
-    kept_on: Vec<AgentId>,
+    kept_on: Vec<(AgentId, u32)>,
     setup_owed: Vec<AgentId>,
 }
 
@@ -208,19 +210,41 @@ impl<C> Board<C> {
     /// Whether the person's Switch off of the agent stopped its live run while the owner refused
     /// the switch's `hold_set` with a name of class B, so that the agent is still on; it stands
     /// until a later run of the agent goes on the board or a later switch-off of it is known
-    /// stored (ruling RD-155 (1)).
+    /// stored (ruling RD-155 (1)). The mark `kept_on` ends wherever the head learns that the
+    /// switch-off stands, by a press or by a read (ruling RD-168): it reads as ended once the
+    /// board's facts of the agent hold a `hold_set` of the person above the newest `seq` that
+    /// they held at the press, whichever acknowledgement or read brought it there.
     pub fn kept_on(&self, agent: &AgentId) -> bool {
-        self.kept_on.contains(agent)
+        let Some((_, since)) = self.kept_on.iter().find(|(a, _)| a == agent) else {
+            return false;
+        };
+        !self.members.iter().any(|m| {
+            &m.facts.agent == agent
+                && m.facts.events.iter().any(|e| {
+                    e.seq.get() > *since
+                        && matches!(
+                            e.what,
+                            What::HoldSet {
+                                cause: HoldSetCause::Person
+                            }
+                        )
+                })
+        })
     }
 
     pub(crate) fn keep_on(&mut self, agent: &AgentId) {
-        if !self.kept_on.contains(agent) {
-            self.kept_on.push(agent.clone());
-        }
+        let since = self
+            .members
+            .iter()
+            .find(|m| &m.facts.agent == agent)
+            .and_then(|m| m.facts.events.last())
+            .map_or(0, |e| e.seq.get());
+        self.kept_on.retain(|(a, _)| a != agent);
+        self.kept_on.push((agent.clone(), since));
     }
 
     pub(crate) fn switched_off(&mut self, agent: &AgentId) {
-        self.kept_on.retain(|a| a != agent);
+        self.kept_on.retain(|(a, _)| a != agent);
     }
 
     /// Holds the queue or frees it: while held, the end of a run starts nothing from the queue,
@@ -271,7 +295,7 @@ impl<C> Board<C> {
     /// acknowledged (ruling RD-86 item 1).
     pub(crate) fn launched(&mut self, run: &RunId, launch: bool) {
         if let Some(live) = self.runs.iter().find(|r| &r.run == run) {
-            self.kept_on.retain(|a| a != &live.agent);
+            self.kept_on.retain(|(a, _)| a != &live.agent);
         }
         self.defers.retain(|(r, _)| r != run);
         self.defers.push((
