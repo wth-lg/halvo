@@ -262,6 +262,10 @@ fn the_delete_guard_lets_the_delete_go_where_both_bodies_answer_store() {
             "{held:?}"
         );
     }
+    assert_eq!(
+        guard(&[run_started(2, 1, 1, 1)], Ok(false)),
+        DeleteGuard::Go
+    );
     let unread = row(2, TODAY).replacen(r#""v":1"#, r#""v":2"#, 1);
     let theirs = run_ended(2, 1, 2, 1);
     for other in [unread, theirs] {
