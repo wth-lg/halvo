@@ -2374,9 +2374,9 @@ set, and the root's own volume name answers the root.
   text, and as a list of decimal numbers such as a debug print or a JSON
   array gives. A copy in any other form passes it.
 - The header of a segment file as associated data, and its last-chunk
-  flag. With either removed, the formal checks pass.
-  `store::hardening_tests::every_modified_segment_file_is_rejected_with_no_plaintext`
-  tests both (rows `header-not-authenticated` and `last-chunk-flag-dropped`).
+  flag. With either removed, the formal checks pass. The header: `store::segment::tests::the_golden_segment_of_format_version_2_decrypts_to_its_plaintext`
+  (row `header-not-authenticated`). The flag: `store::hardening_tests::every_modified_segment_file_is_rejected_with_no_plaintext`
+  (row `last-chunk-flag-dropped`).
 - One lock layer in the open race. On macOS the open race of check 2
   passes a store that takes no directory lock, and passes a store without
   the exclusive mode, because the other layer refuses every second opener
