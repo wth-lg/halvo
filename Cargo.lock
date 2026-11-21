@@ -1803,6 +1803,7 @@ dependencies = [
  "halvo-agent-store",
  "halvo-capture",
  "halvo-control",
+ "halvo-coord-store",
  "halvo-derived",
  "halvo-identify",
  "halvo-learn-store",

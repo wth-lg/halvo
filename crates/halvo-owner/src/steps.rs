@@ -125,10 +125,11 @@ fn proposer_only() -> StepList {
 
 /// The step list of the owner. It names halvo-identify's recurrence step `Proposer`; after it the learning run's
 /// lines (`learn::lines`): its step `LearnStep`, and `LearnHandlers` in front of the handlers of every `runner` request
-/// and of the `coordinator_write` bodies of `learn::OPS`; and then the two handlers of the agent-setup run's family
+/// and of the `coordinator_write` bodies of `learn::OPS`; then the two handlers of the agent-setup run's family
 /// `agent`: the handler of every `runner` request and the handler of the `coordinator_write` bodies of the nine `op`
-/// names of `CoordinatorCall`. A later run adds its lines here, in their order, a handler in front before the handler
-/// behind it:
+/// names of `CoordinatorCall`; and then the interface run's family `coord`: the handler of the bodies `coord_log` and
+/// `coord_history` on the host's clock, and the guard that holds a workflow's delete while a run of it is live. A later
+/// run adds its lines here, in their order, a handler in front before the handler behind it:
 ///
 /// ```text
 /// proposer_only()
@@ -145,6 +146,20 @@ pub fn list() -> StepList {
             Takes::Coordinator(agent::OPS),
             agent::coordinator,
         )
+        .clocked(
+            halvo_coord_store::FAMILY,
+            Takes::Coordinator(&halvo_coord_store::OPS),
+            coord,
+        )
+        .delete_guard(halvo_coord_store::FAMILY, halvo_coord_store::family_guard())
+}
+
+/// The interface run's handler of `coord_log` and `coord_history`, which reads the local day of each record from the
+/// host's clock.
+fn coord(clock: Rc<dyn Clock>) -> Box<dyn Handler> {
+    Box::new(halvo_coord_store::CoordHandler::new(Box::new(Shared(
+        clock,
+    ))))
 }
 
 #[cfg(test)]
@@ -410,6 +425,11 @@ mod tests {
             let host = list()
                 .delete_guard(family, reader(&held, kinds))
                 .host(Box::new(Noon));
+            Owner::with_host(scratch, host, held)
+        }
+
+        /// The owner's store as `open` makes it, on `host`.
+        fn with_host(scratch: &Scratch, host: halvo_derived::Host, held: Held) -> Owner {
             let entries: Vec<_> = kinds::registry().collect();
             let mut store = Store::open(
                 &scratch.0,
@@ -773,6 +793,51 @@ mod tests {
             owner.refinements().as_deref(),
             Ok(format!(r#"{{"refinements":[{{"day":{DAY},"what":"target_learned"}}]}}"#).as_str())
         );
+    }
+
+    /// U5.4a sentence 3 (ruling RD-64 1.6 (a); the deletion of the store): through the host of `list()` alone, a
+    /// workflow's delete waits while a run of it is live and goes after the run's end. With a `run_started` row stored
+    /// through `coord_log` and no `run_ended`, the decision answers `state` and removes nothing; once the `run_ended`
+    /// is stored, the same decision answers ok.
+    #[test]
+    fn a_workflows_delete_waits_while_its_run_is_live_and_goes_after_its_end() {
+        let scratch = Scratch::new("owner-coord-guard");
+        let mut owner = Owner::with_host(&scratch, list().host(Box::new(Noon)), Held::default());
+        assert_eq!(
+            owner.coordinator("create_agent", "").as_deref(),
+            Ok(r#"{"rev":1}"#)
+        );
+        let workflow = owner.workflow.as_str().to_owned();
+        let row = |seq: u32, event: &str, cause: &str, trigger: &str| {
+            format!(
+                r#"{{"v":1,"workflow":"{workflow}","agent":"{AGENT}","seq":{seq},"day":{DAY},"at":{},"event":"{event}","run":"{RUN}","slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":{cause},"trigger":{trigger},"origin":null,"defer_launch":null,"defer_ticks_failed":null}}"#,
+                Noon.now().0
+            )
+        };
+        let log = |owner: &mut Owner, record: String| {
+            let records = format!(r#","records":[{record}]"#);
+            assert_eq!(
+                owner.coordinator("coord_log", &records).as_deref(),
+                Ok(r#"{"stored":1}"#)
+            );
+        };
+        log(&mut owner, row(1, "run_started", "null", r#""person""#));
+        let role = InterfaceRole::claim();
+        let delete = InterfaceDecision::delete(
+            &role,
+            RequestId::from_random([8; 16]),
+            owner.workflow.clone(),
+        );
+        assert_eq!(
+            owner.store.decide(&delete),
+            Err(Error::Refused(ErrorName::State)),
+            "the delete of a workflow whose run is live"
+        );
+        Owner::stored(&owner.store);
+
+        log(&mut owner, row(2, "run_ended", r#""completed""#, "null"));
+        let after = owner.store.decide(&delete);
+        assert!(after.is_ok(), "the delete after the run's end: {after:?}");
     }
 
     const AGENT_2: &str = "40000000000000000000000000000002";
