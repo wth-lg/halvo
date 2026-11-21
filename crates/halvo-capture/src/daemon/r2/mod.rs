@@ -1,8 +1,14 @@
 //! The daemon's part of R2: the hooks of the store owner's pass and of the
-//! supervisor's start. The pass offers the held edge of the mark handler; the
-//! start does nothing yet.
+//! supervisor's start, and the site reader point of the title sources. The
+//! pass offers the held edge of the mark handler; the start does nothing and
+//! the point reads no site yet.
 
 pub(super) mod marks;
+
+/// The site reader point of the title sources, for the process `_pid`: it reads no site yet.
+pub(crate) fn site_reader<P>(_pid: P) -> Option<String> {
+    None
+}
 
 /// The R2 work of one pass of the store owner, after its due work: the mark
 /// handler offers the edge that it holds, with the wall clock's reading.
