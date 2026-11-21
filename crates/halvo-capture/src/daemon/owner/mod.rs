@@ -22,6 +22,7 @@ use crate::floor::record;
 use crate::sink::{Barrier, Received, SinkWriter};
 
 mod commands;
+pub mod open;
 
 /// The slots of the sink's queue that the owner drains.
 pub const QUEUE_SLOTS: usize = 1_024;
@@ -945,6 +946,12 @@ mod tests {
     use crate::event::Modality;
     use crate::floor::{Switch, Switches};
     use crate::sink;
+    use halvo_control::proto::{StoreErrorKind, StoreState};
+
+    use super::open::{try_open, CreateRule, Held, Opener};
+    use crate::daemon::custody_policy::{self, Custody, Selection};
+    use crate::daemon::port::{Access, OpenFault, Opened, Probe, StoreHost, StoreId};
+    use crate::daemon::slot::Slot;
 
     fn resumed(harness: &mut Harness) -> Barrier {
         match harness.ask(Command::ClosePause) {
@@ -3664,5 +3671,171 @@ mod tests {
         let (mut harness, _) = stopped_by(WriteFault::Db(19));
         kept_then_already_written(&mut harness);
         the_count_starts_again(&mut harness, "in the hold");
+    }
+
+    #[derive(Clone)]
+    struct ModelHost {
+        probe: Probe,
+        opens: Result<(), OpenFault>,
+        creates: Result<(), OpenFault>,
+        calls: Arc<Mutex<Vec<&'static str>>>,
+    }
+
+    const HOST_ID: StoreId = StoreId::from_bytes([7; 16]);
+
+    impl ModelHost {
+        fn new(probe: Probe, opens: Result<(), OpenFault>) -> ModelHost {
+            ModelHost {
+                probe,
+                opens,
+                creates: Ok(()),
+                calls: Arc::default(),
+            }
+        }
+
+        fn calls(&self) -> Vec<&'static str> {
+            self.calls.lock().unwrap().clone()
+        }
+
+        fn handle(&self, answer: Result<(), OpenFault>, access: Access) -> Opened {
+            match (answer, access) {
+                (Err(fault), _) => Opened::Fault {
+                    fault,
+                    id: Some(HOST_ID),
+                },
+                (Ok(()), Access::ReadWrite) => Opened::ReadWrite {
+                    store: Box::new(ModelStore::new()),
+                    id: HOST_ID,
+                },
+                (Ok(()), Access::MaintenanceOnly) => Opened::MaintenanceOnly {
+                    store: Box::new(ModelStore::new()),
+                    id: HOST_ID,
+                },
+            }
+        }
+    }
+
+    impl StoreHost for ModelHost {
+        fn probe(&self) -> Probe {
+            self.calls.lock().unwrap().push("probe");
+            self.probe
+        }
+
+        fn open(&self, access: Access) -> Opened {
+            self.calls.lock().unwrap().push("open");
+            self.handle(self.opens, access)
+        }
+
+        fn create(&self, _custody: Custody) -> Opened {
+            self.calls.lock().unwrap().push("create");
+            self.handle(self.creates, Access::ReadWrite)
+        }
+    }
+
+    const STANDS: Probe = Probe::KeyFile {
+        custody: Custody::RootFile,
+        id: HOST_ID,
+    };
+
+    fn root_file_build(recorded: Option<Custody>) -> Selection {
+        custody_policy::select(false, custody_policy::System::Macos, recorded)
+    }
+
+    fn row(fault: OpenFault) -> (StoreState, StoreErrorKind, bool) {
+        use OpenFault as F;
+        use StoreErrorKind as K;
+        use StoreState as S;
+        match fault {
+            F::Locked => (S::Unavailable, K::Locked, true),
+            F::Io => (S::Unavailable, K::Io, true),
+            F::NoSpace => (S::Unavailable, K::NoSpace, true),
+            F::Obstructed => (S::Unavailable, K::Obstructed, true),
+            F::CustodyLocked => (S::Unavailable, K::CustodyLocked, true),
+            F::RootDenied => (S::Unavailable, K::RootDenied, false),
+            F::IoNotRetried => (S::Unavailable, K::Io, false),
+            F::RootMissing => (S::Sealed, K::RootMissing, false),
+            F::RootCorrupt => (S::Sealed, K::RootCorrupt, false),
+            F::WrapAuth => (S::Sealed, K::WrapAuth, false),
+            F::KeyFile => (S::Sealed, K::KeyFile, false),
+            F::CustodyKind => (S::Sealed, K::CustodyKind, false),
+            F::Database => (S::Sealed, K::Database, false),
+            F::OlderStore => (S::UnsupportedVersion, K::Older, false),
+            F::NewerStore => (S::UnsupportedVersion, K::Newer, false),
+        }
+    }
+
+    const FAULTS: [OpenFault; 15] = [
+        OpenFault::Locked,
+        OpenFault::Io,
+        OpenFault::NoSpace,
+        OpenFault::Obstructed,
+        OpenFault::CustodyLocked,
+        OpenFault::RootDenied,
+        OpenFault::IoNotRetried,
+        OpenFault::RootMissing,
+        OpenFault::RootCorrupt,
+        OpenFault::WrapAuth,
+        OpenFault::KeyFile,
+        OpenFault::CustodyKind,
+        OpenFault::Database,
+        OpenFault::OlderStore,
+        OpenFault::NewerStore,
+    ];
+
+    #[test]
+    fn every_open_fault_has_a_slot_and_the_owner_stays_up() {
+        let retry = Duration::from_secs(1);
+        for fault in FAULTS {
+            let (state, cause, timer) = row(fault);
+            for probe in [true, false] {
+                let host = if probe {
+                    ModelHost::new(Probe::Fault { fault, id: Some(HOST_ID) }, Ok(()))
+                } else {
+                    ModelHost::new(STANDS, Err(fault))
+                };
+                let (slot, held) = try_open(&host, root_file_build, CreateRule::FirstRun, retry);
+                assert!(held.is_none(), "{fault:?}");
+                assert_eq!(slot.state(), state, "{fault:?}");
+                assert_eq!(slot.cause(), Some(cause), "{fault:?}");
+                assert!(slot.state().takes(slot.cause()), "{fault:?}");
+                assert_eq!(slot.retry_in(), timer.then_some(retry), "{fault:?}");
+                assert!(!slot.is_open(), "{fault:?}");
+                let calls = host.calls();
+                assert!(!calls.contains(&"create"), "{fault:?} created over a store: {calls:?}");
+                assert_eq!(calls, if probe { vec!["probe"] } else { vec!["probe", "open"] });
+            }
+        }
+        let (open, held) = try_open(
+            &ModelHost::new(STANDS, Ok(())),
+            root_file_build,
+            CreateRule::FirstRun,
+            retry,
+        );
+        assert_eq!(open, Slot::Open { id: HOST_ID });
+        assert!(open.is_open() && matches!(held, Some(Held::Capture { .. })));
+
+        let retried = ModelHost::new(STANDS, Err(OpenFault::Io));
+        let sealed = ModelHost::new(STANDS, Err(OpenFault::Database));
+        let openers = [retried.clone(), sealed.clone()].map(|host| {
+            Opener::start(Box::new(host), root_file_build, CreateRule::FirstRun).unwrap()
+        });
+        std::thread::sleep(RETRY_FIRST + Duration::from_millis(500));
+        for opener in &openers {
+            assert!(opener.is_running(), "the open ended on a fault");
+            assert!(opener.take().is_none());
+        }
+        assert_eq!(openers[0].slot().cause(), Some(StoreErrorKind::Io));
+        assert!(openers[0].tries() >= 2, "an io fault was not tried again");
+        assert_eq!(openers[1].slot().cause(), Some(StoreErrorKind::Database));
+        assert_eq!(openers[1].tries(), 1, "a sealed store was tried again");
+        assert_eq!(sealed.calls(), ["probe", "open"]);
+        for opener in &openers {
+            opener.stop();
+        }
+        let stopped = std::time::Instant::now();
+        while openers.iter().any(Opener::is_running) {
+            assert!(stopped.elapsed() < Duration::from_secs(2), "the open did not stop");
+            std::thread::sleep(POLL);
+        }
     }
 }

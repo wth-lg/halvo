@@ -36,6 +36,8 @@ mod report;
 #[cfg(test)]
 mod scripted;
 pub mod signal;
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub mod slot;
 pub mod sources;
 pub mod state;
 #[cfg(test)]

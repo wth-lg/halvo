@@ -3,11 +3,13 @@
 
 use std::fmt;
 use std::io;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use halvo_control::model::{StorageCap, UtcDay};
 use uuid::{Builder, Uuid, Variant};
 
+use super::custody_policy::Custody;
 use crate::event::Modality;
 
 /// The most bytes of one segment payload.
@@ -277,6 +279,174 @@ pub trait CaptureStore: MaintainStore {
 
     /// The free bytes of the volume that holds the store directory.
     fn volume_free_bytes(&self) -> io::Result<u64>;
+}
+
+impl<S: MaintainStore + ?Sized> MaintainStore for Box<S> {
+    fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> Result<Pass, MaintFault> {
+        (**self).expire_due(now, max_segments)
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault> {
+        (**self).evict_to(bound, max_segments)
+    }
+
+    fn usage(&mut self) -> Result<Usage, MaintFault> {
+        (**self).usage()
+    }
+}
+
+impl<S: CaptureStore + ?Sized> CaptureStore for Box<S> {
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        (**self).write_batch(write)
+    }
+
+    fn volume_free_bytes(&self) -> io::Result<u64> {
+        (**self).volume_free_bytes()
+    }
+}
+
+/// The id of a store: the root id that its key file records, printed as 32
+/// lower-case hex digits.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StoreId([u8; 16]);
+
+impl StoreId {
+    pub const fn from_bytes(bytes: [u8; 16]) -> StoreId {
+        StoreId(bytes)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 16] {
+        &self.0
+    }
+}
+
+impl fmt::Display for StoreId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.iter().try_for_each(|byte| write!(f, "{byte:02x}"))
+    }
+}
+
+impl fmt::Debug for StoreId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "StoreId({self})")
+    }
+}
+
+/// Why a host handed no handle: the rows of contracts.md C11.3 that are no
+/// handle, each read from the store's own variant and never from a text or a
+/// bare code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenFault {
+    /// Another process holds the writer lock or the database.
+    Locked,
+    /// An I/O fault that can clear, also a code of the database that the
+    /// store's table reads as io.
+    Io,
+    /// The volume is full.
+    NoSpace,
+    /// At one of the store's names stands something that is not the store's
+    /// own entry, or the store directory does not stand at its name.
+    Obstructed,
+    /// A custody state that can clear.
+    CustodyLocked,
+    /// The root cannot be read by this user or build.
+    RootDenied,
+    /// An I/O fault that no timer clears: a volume that refuses a hard link at
+    /// a create, or a Windows path of which a part ends in a dot or a space.
+    IoNotRetried,
+    /// No root exists, or the root file is empty or all zero.
+    RootMissing,
+    /// The root file has a wrong length or is no regular file.
+    RootCorrupt,
+    /// The wrapped store key does not open under the root.
+    WrapAuth,
+    /// store.key is empty, zeroed or does not parse, or holds a key of
+    /// another label.
+    KeyFile,
+    /// The key file records a custody kind that this build does not open.
+    CustodyKind,
+    /// store.db is missing or empty, does not open under the key, or is
+    /// damaged.
+    Database,
+    /// A store of a format before the one that this build reads.
+    OlderStore,
+    /// A store of a format after the one that this build reads.
+    NewerStore,
+}
+
+/// Which handle an open asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Access {
+    ReadWrite,
+    MaintenanceOnly,
+}
+
+/// What stands in a store directory, read without unlocking anything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Probe {
+    /// No key file stands at store.key, or no store directory at its name.
+    NoKeyFile,
+    /// A key file that records `custody`, of the store `id`.
+    KeyFile { custody: Custody, id: StoreId },
+    /// What stands at store.key cannot be read as a key file.
+    Fault {
+        fault: OpenFault,
+        id: Option<StoreId>,
+    },
+}
+
+/// What an open or a create hands the owner.
+pub enum Opened {
+    ReadWrite {
+        store: Box<dyn CaptureStore + Send>,
+        id: StoreId,
+    },
+    MaintenanceOnly {
+        store: Box<dyn MaintainStore + Send>,
+        id: StoreId,
+    },
+    Fault {
+        fault: OpenFault,
+        id: Option<StoreId>,
+    },
+}
+
+/// The host half of the port (contracts.md C11.2): a store directory that
+/// can be probed, opened and created.
+pub trait StoreHost: Send {
+    /// What is on disk, without unlocking.
+    fn probe(&self) -> Probe;
+
+    /// Opens the store that stands, for `access`; it never makes a database.
+    fn open(&self, access: Access) -> Opened;
+
+    /// Makes a store under `custody` where no key file stands. Where one
+    /// stands, it opens that store read-write in its place.
+    fn create(&self, custody: Custody) -> Opened;
+}
+
+/// The store of a data directory: its store directory `store` and its roots
+/// directory `roots`, side by side in it (contracts.md C3.5). The adapter of
+/// the store module makes it a [`StoreHost`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataDirStore {
+    data_dir: PathBuf,
+}
+
+impl DataDirStore {
+    pub fn at(data_dir: &Path) -> DataDirStore {
+        DataDirStore {
+            data_dir: data_dir.to_path_buf(),
+        }
+    }
+
+    pub fn store_dir(&self) -> PathBuf {
+        self.data_dir.join("store")
+    }
+
+    pub fn roots(&self) -> PathBuf {
+        self.data_dir.join("roots")
+    }
 }
 
 #[cfg(test)]
