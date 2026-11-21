@@ -799,3 +799,48 @@ fn a_stop_that_sends_no_state_takes_the_read_of_a_refused_start_away() {
     );
     assert_eq!(c.switch_on_overlap(&asking()), None);
 }
+
+fn bindings_sent(c: &Coordinator<Both>, from: usize) -> Vec<String> {
+    writes(c, from)
+        .into_iter()
+        .filter(|w| w.starts_with("set_bindings"))
+        .collect()
+}
+
+/// The verify step's row V6, I3.5 (d): "a read that answers with no entry takes the sentence
+/// away and sends the kept body once". The tick's read answers with no entry and takes the
+/// sentence away before the kept body goes, whatever the owner answers to that body: here
+/// `busy`, so the item owes its body and holds nothing to show; the next tick sends the owed body
+/// and the item closes.
+#[test]
+fn a_tick_read_with_no_entry_takes_the_sentence_away_also_when_the_body_gets_busy() {
+    let (c, item) = coordinator(ports(&[ANN]));
+    c.ports()
+        .ports
+        .refuse(Method::Overlaps, PortError::NoService);
+    answer(&c, &item, ANN).unwrap();
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.setup_overlap(&item), Some(Shared::Unread { again: true }));
+    set_listed(&c.ports().ports, &other_flow(0), WorkflowState::Paused);
+    let reads = c.ports().ports.overlap_reads.borrow().len();
+    c.ports().ports.refuse(Method::Send, PortError::Busy);
+    let m = mark(&c);
+    c.tick();
+    c.ports().ports.clear_refusals();
+    assert_eq!(
+        c.ports().ports.overlap_reads.borrow().len(),
+        reads + 1,
+        "one read at the tick"
+    );
+    assert_eq!(
+        bindings_sent(&c, m),
+        ["set_bindings ann@people.test refused"]
+    );
+    assert_eq!(setup_item(&c), Some(item.clone()), "the item owes its body");
+    assert_eq!(c.setup_overlap(&item), None);
+    let m2 = mark(&c);
+    c.tick();
+    assert_eq!(bindings_sent(&c, m2), ["set_bindings ann@people.test"]);
+    assert_eq!(setup_item(&c), None);
+    assert_eq!(c.setup_overlap(&item), None);
+}
