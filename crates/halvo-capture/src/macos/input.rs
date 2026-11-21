@@ -1703,7 +1703,7 @@ fn on_tap_event(ctx: &TapContext, keyed: impl Into<Keyed>) {
             }
             let key = HeldKey {
                 class,
-                front: ctx.foreground.get(),
+                front: ctx.foreground.read_now(),
                 held_phase: ctx.in_held_phase(),
             };
             let admitted = state.keys.admit(reading, at_reading, arrival, age, key);
@@ -8664,6 +8664,29 @@ mod tests {
                 [],
                 "under the root: {under_root}"
             );
+        }
+    }
+
+    #[test]
+    fn a_key_typed_in_a_listed_app_in_front_for_200_ms_with_no_poll_tick_leaves_no_record() {
+        for under_root in [false, true] {
+            let mut held = held(100);
+            let (stored, read) = if under_root {
+                held.ctx.floor = FloorHandle::new(
+                    Some(ProcessId::new(500)),
+                    Arc::new(UnderRoot),
+                    crate::floor::Switches::default(),
+                );
+                (TestApp("com.example.other", 4444).front(), APP.front())
+            } else {
+                (APP.front(), LISTED.front())
+            };
+            let (_front_writer, reader) =
+                crate::macos::foreground::tests_support::stored_and_read(stored, read);
+            held.ctx.foreground = reader;
+            key_down(&held.ctx);
+            ticks(&held.ctx, 200);
+            assert_eq!(keystrokes(&held.writer), 0, "under the root: {under_root}");
         }
     }
 
