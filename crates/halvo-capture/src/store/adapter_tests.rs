@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -30,6 +30,21 @@ fn a_store(dir: &Path) -> Opened {
 
 fn fields(file: &Path) -> serde_json::Value {
     serde_json::from_slice(&std::fs::read(file).unwrap()).unwrap()
+}
+
+fn names_under(dir: &Path) -> BTreeSet<PathBuf> {
+    let mut found = BTreeSet::new();
+    let mut open = vec![dir.to_path_buf()];
+    while let Some(at) = open.pop() {
+        for entry in std::fs::read_dir(&at).unwrap() {
+            let path = entry.unwrap().path();
+            found.insert(path.strip_prefix(dir).unwrap().to_path_buf());
+            if std::fs::symlink_metadata(&path).unwrap().is_dir() {
+                open.push(path);
+            }
+        }
+    }
+    found
 }
 
 fn with_field(file: &Path, name: &str, value: &str) -> Vec<u8> {
@@ -123,4 +138,54 @@ fn a_later_ask_answers_the_same_key_and_refuses_another_namespace() {
             );
         }
     }
+}
+
+fn nothing_made(dir: &Path) -> DerivedKeyFault {
+    let before = names_under(dir);
+    let fault = DataDirStore::at(dir).derived_store_key().err();
+    assert_eq!(names_under(dir), before);
+    fault.expect("an ask without the store's root answers no key")
+}
+
+#[test]
+fn no_key_and_nothing_is_made_without_the_stores_root() {
+    let no_store = tempfile::tempdir().unwrap();
+    let garbled = tempfile::tempdir().unwrap();
+    drop(a_store(garbled.path()));
+    std::fs::write(
+        garbled.path().join("store").join("store.key"),
+        b"not a key file",
+    )
+    .unwrap();
+    let rootless = tempfile::tempdir().unwrap();
+    drop(a_store(rootless.path()));
+    let taken = tempfile::tempdir().unwrap();
+    for entry in std::fs::read_dir(rootless.path().join("roots")).unwrap() {
+        let entry = entry.unwrap();
+        std::fs::rename(entry.path(), taken.path().join(entry.file_name())).unwrap();
+    }
+    let enclave = tempfile::tempdir().unwrap();
+    drop(a_store(enclave.path()));
+    with_field(
+        &enclave.path().join("store").join("store.key"),
+        "custody_kind",
+        "secure_enclave",
+    );
+
+    let faults = [
+        nothing_made(no_store.path()),
+        nothing_made(garbled.path()),
+        nothing_made(rootless.path()),
+        nothing_made(enclave.path()),
+    ];
+
+    assert_eq!(
+        faults,
+        [
+            DerivedKeyFault::NoStore,
+            DerivedKeyFault::StoreKeyFile,
+            DerivedKeyFault::RootMissing,
+            DerivedKeyFault::CustodyKind,
+        ]
+    );
 }

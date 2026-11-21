@@ -459,12 +459,19 @@ impl DataDirStore {
     /// where one stands, and where another ask won that link, it unwraps
     /// that file, so every ask answers the same key. It opens no database,
     /// takes no lock, never replaces or removes a key file, and makes
-    /// nothing before its wrap answers.
+    /// nothing before its wrap answers: without a capture store or its root
+    /// it answers a [`DerivedKeyFault`] and leaves the data directory as it
+    /// was.
     pub fn derived_store_key(&self) -> Result<StoreKey, DerivedKeyFault> {
         let roots_dir = self.roots();
         let store = KeyFile::at(&self.store_dir().join("store.key"))
             .and_then(|place| place.read(KeyLabel::STORE))
-            .map_err(|e| derived_fault(open_fault(&e)))?;
+            .map_err(|e| match e {
+                StoreError::Sealed | StoreError::Io(io::ErrorKind::NotFound) => {
+                    DerivedKeyFault::NoStore
+                }
+                other => derived_fault(open_fault(&other)),
+            })?;
         let custody = custody_for(&store.locator(&roots_dir)).map_err(|e| root_fault(&e))?;
         let roots = RootsHandle::open(&roots_dir).map_err(|e| root_fault(&e))?;
         let file = self.path().join("derived").join("master.key");
