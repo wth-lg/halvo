@@ -13,7 +13,7 @@ use std::time::SystemTime;
 use super::db::{EncryptedStore, KeyFile};
 use super::durable::{self, Dir, OsFs};
 use super::KindTotal;
-use super::{Layout, RootReading, SegmentStore, StoreError, DEFAULT_RETENTION};
+use super::{Layout, OpenFor, RootReading, SegmentStore, StoreError, DEFAULT_RETENTION};
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId};
 use crate::daemon::custody_policy::Custody;
@@ -104,6 +104,7 @@ fn write_fault(fault: super::WriteFault) -> WriteFault {
         super::WriteFault::Io(kind) => WriteFault::Io(kind),
         super::WriteFault::Db(code) => WriteFault::Db(code),
         super::WriteFault::Sealed => WriteFault::Sealed,
+        super::WriteFault::MaintenanceOnly => WriteFault::Sealed,
     }
 }
 
@@ -132,6 +133,7 @@ fn open_fault(e: &StoreError) -> OpenFault {
         | StoreError::DeleteIncomplete(_) => OpenFault::Io,
         StoreError::Locked => OpenFault::Locked,
         StoreError::Obstructed { .. } | StoreError::Sealed => OpenFault::Obstructed,
+        StoreError::MaintenanceOnly => OpenFault::Obstructed,
         StoreError::Corrupt(_)
         | StoreError::DatabaseMissing
         | StoreError::DatabaseUnreadable
@@ -247,7 +249,7 @@ fn opened(store: EncryptedStore, id: StoreId, access: Access) -> Opened {
 fn open_at(store_dir: &Path, roots: &Path, access: Access) -> Opened {
     let id = key_id(store_dir);
     match (
-        EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION),
+        EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION, OpenFor::Write),
         id,
     ) {
         (Ok(store), Some(id)) => opened(store, id, access),

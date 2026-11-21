@@ -595,6 +595,27 @@ pub(crate) fn remove_written_segment(store_dir: &Dir, segment_id: Uuid) -> Store
     }
 }
 
+pub(crate) fn remove_shredded_file(
+    store_dir: &Dir,
+    fs: &dyn DurableFs,
+    segment_id: Uuid,
+) -> StoreResult<()> {
+    let names = SegmentNames::of(segment_id);
+    let segments = match fs.open_dir(store_dir, OsStr::new(SEGMENTS)) {
+        Ok(segments) => segments,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(refused_or_io(e, LINKED_SEGMENTS)),
+    };
+    let shard = match fs.open_dir(&segments, &names.shard) {
+        Ok(shard) => shard,
+        Err(e) if e.kind() == io::ErrorKind::NotFound || durable::refusal(&e).is_some() => {
+            return Ok(())
+        }
+        Err(e) => return Err(io_error(e)),
+    };
+    remove_segment_file(fs, &shard, &names.file)
+}
+
 pub(crate) fn decrypt_segment_bytes(
     file_bytes: &[u8],
     key: &SegmentKey,
