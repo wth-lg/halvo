@@ -1478,10 +1478,18 @@ where
             ledgers,
             ..
         } = st;
+        let start = match &act {
+            Act::Start { agent } => Some(agent.clone()),
+            _ => None,
+        };
         let board = board.as_mut().ok_or(Cause::State)?;
         share_lasts(board, ledgers);
         let done: Done = run::drive(&self.ports, board, table, &self.limits, act);
         self.noted(done.report.read);
+        if let (Some(agent), Some(shared)) = (start, done.report.shared.clone()) {
+            st.refused_on.retain(|(a, _)| a != &agent);
+            st.refused_on.push((agent, shared));
+        }
         answered(&done.report)
     }
 
@@ -2399,10 +2407,12 @@ where
             .and_then(|s| s.shared().cloned())
     }
 
-    /// What the newest switch-on of `agent` holds to show where the owner refused its state with
-    /// `overlap`: the entries of the read that followed, or the half of the sentence that is known
-    /// where that read did not answer; none after a switch-on that was not refused so (I3.5 (f);
-    /// ruling RD-67 3.2 (f)).
+    /// What the newest switch-on or start by the person of `agent` holds to show where the owner
+    /// refused its state with `overlap`: the entries of the read that followed, or the half of the
+    /// sentence that is known where that read did not answer; none after a later control of the
+    /// person on that agent that the owner did not refuse so, such as a switch-on or a Start now
+    /// that goes, a switch-off or a stop (I3.5 (c), (f); rulings RD-67 3.2 (f), 4.3, RD-160 (3)).
+    /// It keeps its name for the page that reads it.
     pub fn switch_on_overlap(&self, agent: &AgentId) -> Option<crate::ports::Shared> {
         let st = self.lock();
         st.refused_on
@@ -2462,6 +2472,7 @@ where
         let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
         let off = matches!(action, Action::SwitchOff);
+        st.refused_on.retain(|(a, _)| a != agent);
         let out = self.control_in(&mut st, agent, action);
         if off && out.is_ok() {
             // Every owed `paused` before a freed body (ruling RD-160 (2)); a switch-off that waits

@@ -87,6 +87,9 @@ pub struct Served {
     pub answer: Result<Answer, Cause>,
     /// The run whose `run_started` event was stored, or none.
     pub run: Option<RunId>,
+    /// For a start that ends `failures` whose state the owner refused with `overlap`, what the
+    /// read that followed gave to show, as `Report::shared` holds it; none otherwise.
+    pub shared: Option<Shared>,
 }
 
 /// A run that a move ended, with its cause and the start that its end took from the queue.
@@ -127,9 +130,10 @@ pub struct Report {
     pub unstamped: bool,
     /// The read of the clock that stamped the move, where one answered.
     pub read: Option<u64>,
-    /// For a switch-on whose state the owner refused with `overlap`, what the read
-    /// `Owner::overlaps` that followed gave to show: its entries, or the half of the sentence that
-    /// is known where it did not answer (I3.5 (f); ruling RD-67 3.2 (f)); none otherwise.
+    /// For a switch-on, or a start of the person that ends `failures`, whose state the owner
+    /// refused with `overlap`, what the read `Owner::overlaps` that followed gave to show: its
+    /// entries, or the half of the sentence that is known where it did not answer (I3.5 (f);
+    /// rulings RD-67 3.2 (f), 4.3, RD-160 (3)); none otherwise.
     pub shared: Option<Shared>,
 }
 
@@ -756,6 +760,7 @@ where
         agent: agent.clone(),
         answer,
         run,
+        shared: None,
     };
     let defer = || {
         cx.ports
@@ -917,6 +922,7 @@ where
         agent: agent.clone(),
         answer,
         run: None,
+        shared: None,
     };
     if step.clear.is_some_and(|c| c.set_state.is_some()) {
         if let Err(e) = read_once(cx, board, i) {
@@ -927,7 +933,15 @@ where
     if let Some(clear) = step.clear {
         if let Some(state) = clear.set_state {
             if let Err(e) = send_state(cx, &mut board.members[i].facts, state) {
-                return served(Err(port_cause(&e)));
+                let facts = &board.members[i].facts;
+                let shared = refused_overlap(&e).then(|| {
+                    let read = cx.ports.overlaps(&facts.workflow.id, &facts.agent, None);
+                    Shared::of(read).unwrap_or(Shared::Unread { again: false })
+                });
+                return Served {
+                    shared,
+                    ..served(Err(port_cause(&e)))
+                };
             }
         }
         let cleared = What::HoldCleared {
@@ -994,6 +1008,7 @@ where
             agent: head.agent,
             answer: Err(Cause::State),
             run: None,
+            shared: None,
         });
     };
     let served = start(cx, board, i, head.trigger, listed, true, None);
@@ -1843,6 +1858,7 @@ where
             Report {
                 answer: s.answer,
                 run: s.run,
+                shared: s.shared,
                 ..Report::default()
             }
         }
