@@ -1366,6 +1366,129 @@ mod tests {
         );
     }
 
+    fn active_byte() -> u8 {
+        1
+    }
+
+    fn answers_within(thread: &TitleThread, limit: Duration) -> Vec<TitleAnswer> {
+        let started = Instant::now();
+        loop {
+            let answers = thread.answers();
+            if !answers.is_empty() || started.elapsed() >= limit {
+                return answers;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    #[test]
+    fn the_title_thread_calls_no_reader_when_the_reading_is_active_before_its_read() {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counted = calls.clone();
+        let reader: TitleReader = Box::new(move |_pid| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            read("NOT-TO-BE-READ")
+        });
+        let probe = SystemProbe::with_readers(at_console, active_byte);
+        let (thread, joined) =
+            TitleThread::spawn(reader, probe).expect("the title thread of the test");
+        thread.ask(TitleRequest { pid: 10, change: 1 });
+        let answers = answers_within(&thread, Duration::from_secs(60));
+        drop(thread);
+        joined.join().expect("the title thread ends by returning");
+        assert_eq!(
+            answers,
+            [TitleAnswer {
+                change: 1,
+                read: Ok(None)
+            }]
+        );
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "calls of the reader while the reading was active before the read"
+        );
+    }
+
+    fn reads_within(reader: impl Fn() -> bool, want: bool, limit: Duration) -> bool {
+        let started = Instant::now();
+        loop {
+            if reader() == want {
+                return true;
+            }
+            if started.elapsed() >= limit {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    #[ignore = "takes the system's secure-input hold: a hosted runner runs it with HALVO_HOSTED_TITLE_HOLD=1"]
+    fn a_title_read_while_the_system_hold_is_taken_between_two_poller_steps_is_not_stored() {
+        const NAME: &str =
+            "a_title_read_while_the_system_hold_is_taken_between_two_poller_steps_is_not_stored";
+        if std::env::var("HALVO_HOSTED_TITLE_HOLD").as_deref() != Ok("1") {
+            println!("{NAME}: HALVO_HOSTED_TITLE_HOLD is not 1, so no hold is taken");
+            return;
+        }
+        if !crate::secure_input_macos::test_support::hosted_or_refuse(NAME) {
+            return;
+        }
+        let one = crate::secure_input_macos::test_support::one_hold_at_a_time();
+        let probe = SystemProbe::new();
+        let active = move || probe.read() == SecureInputReading::Active;
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        poller.probe = probe;
+        let front = app("com.example.a", 10);
+        let (entered, came) = std::sync::mpsc::channel::<()>();
+        let (go, wait) = std::sync::mpsc::channel::<()>();
+        let reader: TitleReader = Box::new(move |_pid| {
+            entered.send(()).ok();
+            wait.recv().ok();
+            read("READ-UNDER-THE-SYSTEM-HOLD")
+        });
+        let (thread, joined) =
+            TitleThread::spawn(reader, probe).expect("the title thread of the test");
+        let request = poller
+            .step(front.clone(), thread.answers(), &handle)
+            .expect("step 1 reads secure input off and asks for the title");
+        thread.ask(request);
+        came.recv_timeout(Duration::from_secs(60))
+            .expect("the title thread calls its reader");
+        let Some(hold) = one.hold_or_skip(NAME) else {
+            go.send(()).ok();
+            drop(thread);
+            joined.join().expect("the title thread ends by returning");
+            return;
+        };
+        let on = reads_within(active, true, Duration::from_secs(2));
+        go.send(()).expect("the reader waits for the test");
+        let answers = answers_within(&thread, Duration::from_secs(60));
+        drop(hold);
+        let off = reads_within(active, false, Duration::from_secs(2));
+        let answered = answers.len();
+        poller.step(front.clone(), answers, &handle);
+        let stored = titles(&writer);
+        drop(thread);
+        joined.join().expect("the title thread ends by returning");
+        drop(poller);
+        assert!(
+            on,
+            "during the hold the system's probe reads active within 2 s"
+        );
+        assert!(
+            off,
+            "after the hold the system's probe reads off within 2 s"
+        );
+        assert_eq!(answered, 1, "the title thread answered before step 2");
+        assert_eq!(
+            stored,
+            [],
+            "a title read while the system's hold was taken, between two steps"
+        );
+    }
+
     #[test]
     fn readings_a_a_b_of_one_app_give_two_title_events_with_a_and_b() {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
