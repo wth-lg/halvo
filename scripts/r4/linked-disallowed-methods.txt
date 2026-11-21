@@ -1,0 +1,6 @@
+# The methods that the compiler pass of scripts/r4/ci.d/20-r4-core.sh disallows in the library target of every crate that the app links and in the app's binary (contracts I10.1 and I12.1; rulings RD-67 2.2 and RD-105).
+# A line is a method path, one tab and its reason; the check writes the lines as the clippy configuration that it hands to clippy through CLIPPY_CONF_DIR.
+std::process::Command::new	no code that the app links starts a child but through the supervisor library (contracts I10.1, ruling RD-67 2.2)
+std::process::Command::spawn	no code that the app links starts a child but through the supervisor library (contracts I10.1, ruling RD-67 2.2)
+std::process::Command::output	no code that the app links starts a child but through the supervisor library (contracts I10.1, ruling RD-67 2.2)
+std::process::Command::status	no code that the app links starts a child but through the supervisor library (contracts I10.1, ruling RD-67 2.2)
