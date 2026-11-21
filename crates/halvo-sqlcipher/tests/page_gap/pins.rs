@@ -16,7 +16,7 @@ fn a_new_database_of_this_build_reads_auto_vacuum_0_after_its_first_table() {
     );
 }
 
-const COMPILE_OPTIONS: [&str; 50] = [
+const COMPILE_OPTIONS: [&str; 45] = [
     "ATOMIC_INTRINSICS=1",
     "DEFAULT_AUTOVACUUM",
     "DEFAULT_CACHE_SIZE=-2000",
@@ -36,10 +36,6 @@ const COMPILE_OPTIONS: [&str; 50] = [
     "ENABLE_API_ARMOR",
     "ENABLE_COLUMN_METADATA",
     "ENABLE_DBSTAT_VTAB",
-    "ENABLE_FTS3",
-    "ENABLE_FTS3_PARENTHESIS",
-    "ENABLE_FTS5",
-    "ENABLE_RTREE",
     "EXTRA_INIT=halvo_sqlcipher_extra_init",
     "EXTRA_SHUTDOWN=sqlcipher_extra_shutdown",
     "HAS_CODEC",
@@ -62,7 +58,6 @@ const COMPILE_OPTIONS: [&str; 50] = [
     "MAX_VDBE_OP=250000000",
     "MAX_WORKER_THREADS=8",
     "MUTEX_PTHREADS",
-    "SOUNDEX",
     "SYSTEM_MALLOC",
     "TEMP_STORE=2",
     "THREADSAFE=1",
@@ -91,4 +86,19 @@ fn the_compile_options_of_this_build_are_its_closed_list() {
         })
         .collect();
     assert_eq!(options, expected);
+}
+
+#[test]
+fn a_table_of_the_full_text_modules_cannot_be_made_in_this_build() {
+    crate::initialize().unwrap();
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    for module in ["fts5", "fts4", "fts3", "rtree"] {
+        let made = conn.execute_batch(&format!("CREATE VIRTUAL TABLE t USING {module}(a);"));
+        let text = made.as_ref().map_err(ToString::to_string).err();
+        assert_eq!(
+            text.as_deref(),
+            Some(format!("no such module: {module}").as_str()),
+            "a {module} table: {made:?}"
+        );
+    }
 }
