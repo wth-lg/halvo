@@ -8355,6 +8355,31 @@ mod tests {
 
 
     #[test]
+    fn no_key_record_leaves_when_a_process_under_the_root_comes_in_front_during_the_hold() {
+        let mut held = held(100);
+        held.ctx.floor = FloorHandle::new(
+            Some(ProcessId::new(500)),
+            Arc::new(UnderRoot),
+            crate::floor::Switches::default(),
+        );
+        held.fg_writer
+            .set_for_test(Some(TestApp("com.example.other", 4444).front()));
+        key_down(&held.ctx);
+        tick(&held.ctx);
+        held.fg_writer.set_for_test(Some(APP.front()));
+        tick(&held.ctx);
+        held.fg_writer
+            .set_for_test(Some(TestApp("com.example.other", 4444).front()));
+        ticks(&held.ctx, 200);
+        assert_eq!(
+            keystrokes(&held.writer),
+            0,
+            "a process under the root in front during the hold"
+        );
+    }
+
+
+    #[test]
     fn each_type_of_the_table_has_its_class() {
         use TapClass::{
             ContinuousPointer as C, DiscretePointer as D, KeyPress as K, OtherKey as O,
