@@ -24,6 +24,7 @@ mod mask;
 pub(crate) mod model_store;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod owner;
+pub mod owner_pid;
 #[cfg(test)]
 mod owner_props;
 pub mod permissions;
@@ -31,7 +32,7 @@ pub mod port;
 #[cfg(test)]
 mod process_tests;
 #[rustfmt::skip]
-#[cfg(feature = "r2")] pub(crate) mod r2;
+#[cfg(feature = "r2")] pub mod r2;
 mod report;
 #[cfg(test)]
 mod scripted;

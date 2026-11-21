@@ -1780,6 +1780,7 @@ name = "halvo-owner"
 version = "0.0.0"
 dependencies = [
  "getrandom 0.3.4",
+ "halvo-capture",
  "halvo-control",
  "halvo-derived",
  "halvo-identify",

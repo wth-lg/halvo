@@ -32,3 +32,4 @@ pub(super) fn owner_pass<T: marks::MarkEntry>(owner: &mut T) {
     )
 )]
 pub(super) fn start_children<T>(_supervisor: &mut T) {}
+pub mod owner_slot;
