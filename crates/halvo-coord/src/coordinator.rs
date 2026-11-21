@@ -1848,6 +1848,14 @@ where
     /// `choose` names its parameter and its candidate. `step` is the step mark of the item that
     /// the page showed: an answer whose step is no longer the item's current one is refused with
     /// `state`, a decline among them, and nothing is stored or sent (I3.4, ruling RD-28 (k)).
+    /// While the board holds stuck the record of the agent whose row shows an item that a run
+    /// raised, the agent of that run, a press of any choice on that item, from a page that drew
+    /// it before, answers `no_service` and is not taken: nothing of it is armed, stored or sent
+    /// to the run, and the item stays as it was, with its own time, and shows again once the
+    /// record can be saved. That holds for a confirmation, the second step of a sign-in and every
+    /// handback alike; the items that no run raises are answered as before. Such a refused press
+    /// ends as every other refusal of this move ends: what the entry of the move took up is
+    /// published (rulings RD-147 (5)(ii), RD-159, RD-164).
     pub fn answer(
         &self,
         item: &ItemId,
@@ -1861,18 +1869,28 @@ where
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
-        let by = AnsweredBy {
-            step: Some(step),
-            from: Presenter::Page,
-            now,
+        let out = if self.withdrawn(&st, item) {
+            Err(Cause::NoService)
+        } else {
+            let by = AnsweredBy {
+                step: Some(step),
+                from: Presenter::Page,
+                now,
+            };
+            self.answer_in(&mut st, item, choice, pick, by)
         };
-        let out = self.answer_in(&mut st, item, choice, pick, by);
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
     }
 
     /// The answer of the native dialog of a confirmation (I4.5), whose item keeps its one step.
+    /// While the board holds stuck the record of the agent whose row shows the item, the agent of
+    /// the run that raised it, a press of either control answers `no_service` and is not taken:
+    /// nothing of it is armed, stored or sent to the run, and the item stays held with its own
+    /// time, which `present` offers again once the record can be saved. Such a refused press ends
+    /// as every other refusal of this move ends: what the entry of the move took up is published
+    /// (rulings RD-147 (5)(ii), RD-164).
     pub fn answer_native(&self, item: &ItemId, answer: ConfirmAnswer) -> Result<(), Cause> {
         let choice = match answer {
             ConfirmAnswer::Allow => Choice::Allow,
@@ -1884,12 +1902,21 @@ where
             return Err(Cause::NoService);
         }
         let before = Self::agents_held_off(&st);
-        let by = AnsweredBy {
-            step: None,
-            from: Presenter::Native,
-            now,
+        let out = if st
+            .held
+            .iter()
+            .find(|h| h.item() == item)
+            .is_some_and(|h| self.withdrawn(&st, h.item()))
+        {
+            Err(Cause::NoService)
+        } else {
+            let by = AnsweredBy {
+                step: None,
+                from: Presenter::Native,
+                now,
+            };
+            self.answer_in(&mut st, item, choice, None, by)
         };
-        let out = self.answer_in(&mut st, item, choice, None, by);
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
@@ -2157,7 +2184,9 @@ where
     }
 
     /// `agents_present` (I8.1): a confirmation whose presenter is native; `presenter` for the
-    /// page's.
+    /// page's; `no_service` for a native one while the board holds stuck the record of the agent
+    /// whose row shows it, the agent of the run that raised it, so that nobody is asked to allow
+    /// what Halvo cannot save (rulings RD-147 (5)(ii), RD-164).
     pub fn present(&self, item: &ItemId) -> Result<(), Cause> {
         let st = self.lock();
         let h = st
@@ -2166,6 +2195,7 @@ where
             .find(|h| h.item() == item)
             .ok_or(Cause::UnknownItem)?;
         match h.confirmation().presenter() {
+            Presenter::Native if self.withdrawn(&st, item) => Err(Cause::NoService),
             Presenter::Native => Ok(()),
             Presenter::Page => Err(Cause::Presenter),
         }
@@ -2174,8 +2204,10 @@ where
     /// The card of the native dialog of the confirmation `item` (I8.1 `agents_present`, ruling
     /// RD-77 12.1): `items::native_card` of the confirmation that the coordinator holds for that
     /// id, read under the lock; it calls no port and stores nothing. `unknown_item` for an id that
-    /// is no held confirmation, an item of another kind and no item among them, and the causes of
-    /// `items::native_card` otherwise.
+    /// is no held confirmation, an item of another kind and no item among them, the causes of
+    /// `items::native_card` otherwise, and then `no_service` while the board holds stuck the
+    /// record of the agent whose row shows the item, the agent of the run that raised it (rulings
+    /// RD-147 (5)(ii), RD-164).
     pub fn native_card(&self, item: &ItemId) -> Result<NativeCard, Cause> {
         let st = self.lock();
         let h = st
@@ -2183,7 +2215,20 @@ where
             .iter()
             .find(|h| h.item() == item)
             .ok_or(Cause::UnknownItem)?;
-        native_card(h)
+        let card = native_card(h)?;
+        if self.withdrawn(&st, item) {
+            return Err(Cause::NoService);
+        }
+        Ok(card)
+    }
+
+    fn withdrawn(&self, st: &State<Cfg<P>>, item: &ItemId) -> bool {
+        st.board.as_ref().is_some_and(|b| {
+            b.members.iter().any(|m| {
+                matches!(&m.facts.doing, Doing::Live(Live::Waiting(open)) if &open.item == item)
+                    && b.record_stuck(&m.facts.agent, &self.limits)
+            })
+        })
     }
 
     /// The page's report that it opened the page confirmation `item` at the step mark `step`
