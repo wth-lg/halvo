@@ -1627,7 +1627,12 @@ fn u24q_a_kept_value_of_no_byte_never_stands_on_a_partial_or_an_unknown_entry() 
 /// white space alone and a value with one empty piece among them.
 #[test]
 fn u24q_a_kept_value_that_holds_a_byte_stands_white_space_among_them() {
-    let values: [&[&str]; 3] = [&[" "], &["", "City Power"], &["City Power"]];
+    let values: [&[&str]; 4] = [
+        &[" "],
+        &["", "City Power"],
+        &["City Power", ""],
+        &["City Power"],
+    ];
     for pieces in values {
         let shown_value: Vec<String> = pieces.iter().map(|p| p.to_string()).collect();
         for (effect, want) in [
