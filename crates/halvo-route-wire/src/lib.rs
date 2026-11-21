@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! The gateway request of contract T11 of the routing run: the body that a device sends in
 //! `POST /v1/chat`, its limits, and the two answers that it reads back.
 //!

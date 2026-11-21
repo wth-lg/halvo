@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), forbid(unsafe_code))]
+#![cfg_attr(test, deny(unsafe_code))]
 //! The library of the gate tool `route-gate`: the outcome table (`table`), its generator
 //! (`generate`), the derivation of the policy (`derive`), the `--out` file (`out`), the routers
 //! under test (`routers`), the scorer (`score`) and the self-test (`selftest`). `Router` and
