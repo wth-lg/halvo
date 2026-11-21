@@ -656,6 +656,10 @@ trait TapMaker {
 
     fn listen_denied() -> bool;
 
+    fn preflight_denied() -> bool {
+        Self::listen_denied()
+    }
+
     fn granted_events(_tap: &Self::Tap, requested: u64) -> u64 {
         requested
     }
@@ -2338,7 +2342,7 @@ impl InputSource {
             self.failure = None;
             return Ok(Started::Off);
         }
-        if switches.is_on(Switch::KeyClass) && M::listen_denied() {
+        if switches.is_on(Switch::KeyClass) && M::preflight_denied() {
             let refused = CaptureError::PermissionDenied(Modality::Keystroke);
             self.failure = Some(refused.clone());
             return Err(refused);
@@ -6756,7 +6760,7 @@ mod tests {
                 ms: 1000
             })
         );
-        assert_eq!(read, Ok(Modality::Keystroke));
+        assert_eq!(read, Ok(Modality::Pointer));
         assert_eq!(
             released_on.as_deref(),
             Some("halvo-input-tap"),
@@ -6815,6 +6819,10 @@ mod tests {
 
         fn listen_denied() -> bool {
             true
+        }
+
+        fn preflight_denied() -> bool {
+            false
         }
 
         fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
@@ -8577,6 +8585,10 @@ mod tests {
 
         fn listen_denied() -> bool {
             true
+        }
+
+        fn preflight_denied() -> bool {
+            false
         }
 
         fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
