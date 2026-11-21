@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
 import { expect, test, vi } from "vitest";
 import { localValues } from "../../test-kit/provider-fake/main.mjs";
 import { ROOT, startRecorder } from "../billing/servers.ts";
+import { endGroup, startGroup } from "../ledger/process-group.ts";
 
 vi.setConfig({ testTimeout: 19_884 });
 
@@ -59,23 +59,25 @@ console.log(JSON.stringify({ redirected, asked, send, read }));
 `;
 
 function runNode(code: string, vars: Record<string, string>, limitMs = 30_000): Promise<{ code: number | null; stdout: string; stderr: string }> {
-  return new Promise((resolve) => {
-    const child = spawn(process.execPath, ["--input-type=module", "-e", code], { env: { ...process.env, ...vars }, stdio: ["ignore", "pipe", "pipe"] });
+  return new Promise((resolve, reject) => {
+    const group = startGroup(process.execPath, ["--input-type=module", "-e", code], { env: { ...process.env, ...vars }, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     const limit = setTimeout(() => {
       stderr += `ended by the test after ${limitMs} ms`;
-      child.kill("SIGKILL");
+      endGroup(group).catch((error: unknown) => {
+        stderr += `\n${String(error)}`;
+      });
     }, limitMs);
-    child.stdout.on("data", (chunk: unknown) => {
+    group.child.stdout.on("data", (chunk: unknown) => {
       stdout += String(chunk);
     });
-    child.stderr.on("data", (chunk: unknown) => {
+    group.child.stderr.on("data", (chunk: unknown) => {
       stderr += String(chunk);
     });
-    child.on("close", (exit: number | null) => {
+    group.child.on("close", (exit: number | null) => {
       clearTimeout(limit);
-      resolve({ code: exit, stdout, stderr });
+      endGroup(group).then(() => resolve({ code: exit, stdout, stderr }), reject);
     });
   });
 }

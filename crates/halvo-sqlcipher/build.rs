@@ -31,12 +31,6 @@ const SQLITE_SWITCHES: &[(&str, Option<&str>)] = &[
     ("SQLITE_ENABLE_API_ARMOR", None),
     ("SQLITE_ENABLE_COLUMN_METADATA", None),
     ("SQLITE_ENABLE_DBSTAT_VTAB", None),
-    ("SQLITE_ENABLE_FTS3", None),
-    ("SQLITE_ENABLE_FTS3_PARENTHESIS", None),
-    ("SQLITE_ENABLE_FTS5", None),
-    ("SQLITE_ENABLE_JSON1", None),
-    ("SQLITE_ENABLE_RTREE", None),
-    ("SQLITE_SOUNDEX", None),
     ("SQLITE_USE_URI", None),
     ("HAVE_STDINT_H", Some("1")),
     ("HAVE_USLEEP", Some("1")),
@@ -45,9 +39,9 @@ const SQLITE_SWITCHES: &[(&str, Option<&str>)] = &[
 
 const ENTROPY_SHIM: &str = "csrc/entropy.c";
 
-const PINNED: &str = "sqlcipher-src 419.0.6 (SQLCipher 4.19.0 on SQLite 3.53.4)";
+const PINNED: &str = "sqlcipher-src 420.0.0 (SQLCipher 4.20.0 on SQLite 3.54.1)";
 
-const PINNED_SHA256: &str = "838b2ed8a586b8b77f03e82c5a25b97e1a55e524ebac0de05354193865703072";
+const PINNED_SHA256: &str = "8cd2347d18886fee4651153fabeeeffb7cec008700987dab1c00261febc4220f";
 
 const FIX: &str = "read rebuildPage, editPage, pageInsertArray, pageFreeArray, balance_quick and \
     balance_nonroot from its divider loop again in the new source, with every row of the table of \

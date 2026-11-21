@@ -1,9 +1,11 @@
 #![allow(dead_code)]
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use halvo_coord_store::{Clock, CommitRefused, CoordReply, Host, MemoryStore};
+use halvo_coord_store::{
+    Clock, CommitRefused, CoordReply, HeldRefused, Host, MemoryStore, StoreFault,
+};
 use halvo_schema::coordinator::body::Stored;
 use halvo_schema::coordinator::record::CoordEvent;
 use halvo_schema::request::decode;
@@ -108,21 +110,17 @@ pub fn store() -> MemoryStore {
     store_at(noon(TODAY), 0).0
 }
 
-/// A host over a store that hands out the extra rows after the store's own, as rows that another build stored, and
-/// whose commit answers the refusal where one is given.
+/// A host over a store whose keyed read hands out, after the store's own rows, each extra row held under the
+/// workflow of its number, as rows that another build stored, whose commit answers the refusal where one is given,
+/// whose read of a workflow faults where `workflow_fault` is set, and whose fifth call answers `held` where it is
+/// given; it keeps the kind and the workflow of each fifth call.
 pub struct StandIn {
     pub store: MemoryStore,
-    pub extra: Vec<String>,
+    pub extra: Vec<(u32, String)>,
     pub refusal: Option<CommitRefused>,
-}
-
-impl RowRead for StandIn {
-    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
-        self.store.for_each(kind, visit);
-        for row in &self.extra {
-            visit(row);
-        }
-    }
+    pub workflow_fault: bool,
+    pub held: Option<Result<bool, HeldRefused>>,
+    pub asks: RefCell<Vec<(String, String)>>,
 }
 
 impl Host for StandIn {
@@ -133,11 +131,29 @@ impl Host for StandIn {
         }
     }
 
-    fn rows(&self) -> &dyn RowRead {
-        self
+    fn rows_under(&self, kind: &str, workflow: &WorkflowId, visit: &mut dyn FnMut(&str)) {
+        self.store.rows_under(kind, workflow, visit);
+        for (n, row) in &self.extra {
+            if kind == "coord_event" && wf(*n) == workflow.as_str() {
+                visit(row);
+            }
+        }
     }
 
-    fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
+    fn held_ahead(&self, kind: &str, workflow: &WorkflowId) -> Result<bool, HeldRefused> {
+        self.asks
+            .borrow_mut()
+            .push((kind.to_owned(), workflow.as_str().to_owned()));
+        match self.held {
+            Some(held) => held,
+            None => self.store.held_ahead(kind, workflow),
+        }
+    }
+
+    fn workflow(&self, id: &WorkflowId) -> Result<Option<WorkflowItem>, StoreFault> {
+        if self.workflow_fault {
+            return Err(StoreFault);
+        }
         Host::workflow(&self.store, id)
     }
 
@@ -146,12 +162,15 @@ impl Host for StandIn {
     }
 }
 
-/// The stand-in over `store()` with the extra rows and the refusal.
-pub fn stand_in(extra: Vec<String>, refusal: Option<CommitRefused>) -> StandIn {
+/// The stand-in over `store()` with the extra rows, each under the workflow of its number, and the refusal.
+pub fn stand_in(extra: Vec<(u32, String)>, refusal: Option<CommitRefused>) -> StandIn {
     StandIn {
         store: store(),
         extra,
         refusal,
+        workflow_fault: false,
+        held: None,
+        asks: RefCell::default(),
     }
 }
 
@@ -177,6 +196,43 @@ pub fn hold_set(w: u32, a: u32, seq: u32, day: u32, at: i64) -> String {
         wf(w),
         agent(a)
     )
+}
+
+/// A row `run_started` of workflow `w` and agent `a` at noon of `TODAY` for run `run_n`, started by the person.
+pub fn run_started(w: u32, a: u32, seq: u32, run_n: u32) -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"run_started","run":"{}","slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":null,"trigger":"person","origin":null,"defer_launch":null,"defer_ticks_failed":null}}"#,
+        wf(w),
+        agent(a),
+        noon(TODAY),
+        run(run_n)
+    )
+}
+
+/// A row `run_ended` of workflow `w` and agent `a` at noon of `TODAY` for run `run_n`, with the cause `completed`
+/// and no defer values.
+pub fn run_ended(w: u32, a: u32, seq: u32, run_n: u32) -> String {
+    format!(
+        r#"{{"v":1,"workflow":"{}","agent":"{}","seq":{seq},"day":{TODAY},"at":{},"event":"run_ended","run":"{}","slot":null,"item":null,"kind":null,"effect":null,"approval":null,"digest":null,"answer":null,"cause":"completed","trigger":null,"origin":null,"defer_launch":null,"defer_ticks_failed":null}}"#,
+        wf(w),
+        agent(a),
+        noon(TODAY),
+        run(run_n)
+    )
+}
+
+/// The id of workflow `n`.
+pub fn wid(n: u32) -> WorkflowId {
+    WorkflowId::parse(&wf(n)).expect("a workflow id")
+}
+
+/// The read of the family `coord` that the guard of a delete gets: the keyed read of the host under one workflow.
+pub struct Under<'a>(pub &'a dyn Host, pub WorkflowId);
+
+impl RowRead for Under<'_> {
+    fn for_each(&self, kind: &str, visit: &mut dyn FnMut(&str)) {
+        self.0.rows_under(kind, &self.1, visit);
+    }
 }
 
 /// A row of workflow 1 and agent 1 at noon of its day.

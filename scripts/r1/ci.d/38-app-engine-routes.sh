@@ -53,6 +53,19 @@ verdict() {
   printf 'PASS %s\n' "$name"
 }
 
+told() {
+  [ -f "$work/ready-$1" ] || return 0
+  tr -d '\r' < "$work/ready-$1" > "$work/ready-$1.lf"
+  asked=$(sed -n 's/^asked //p' "$work/ready-$1.lf")
+  refused=$(grep -c -v -e '^asked ' -e '^interface ' -e '^interfaces ' "$work/ready-$1.lf")
+  echo "$name listeners $1: asked ${asked:-no address}, $refused refused"
+  relay "$work/ready-$1.lf" "at a refused bind of $1"
+}
+
+relay() {
+  sed -n -e "s/^interface /$name interface $2: /p" -e "s/^interfaces /$name interfaces $2: /p" "$1"
+}
+
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   rejected=0
@@ -101,12 +114,431 @@ self_test() {
   case_of FAIL control-0-written-as-above-0 macos "$work/control0-accepted.txt"
   good | grep -v '^measure row: s05 ip engine-alone ' > "$work/s05-unread.txt"
   case_of FAIL s05-engine-alone-row-unread windows "$work/s05-unread.txt"
+  told_cases
+  helper_cases
   run_cases
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
   fi
   printf 'PASS self-test:%s (%s failing fixtures rejected)\n' "$name" "$rejected"
+}
+
+told_cases() {
+  printf "s03-ip port 47030: [Errno 49] Can't assign requested address\r\ns18-ip port 47180: [Errno 49] Can't assign requested address\r\nasked 203.0.113.9\r\ninterface lo0 8049<UP,LOOPBACK,RUNNING,MULTICAST> inet 127.0.0.1\r\ninterface en0 8863<UP,BROADCAST> inet 10.0.0.5 status: active\r\n" > "$work/ready-refused-steps"
+  printf '%s\n' "$name listeners refused-steps: asked 203.0.113.9, 2 refused" "$name interface at a refused bind of refused-steps: lo0 8049<UP,LOOPBACK,RUNNING,MULTICAST> inet 127.0.0.1" "$name interface at a refused bind of refused-steps: en0 8863<UP,BROADCAST> inet 10.0.0.5 status: active" > "$work/told-refused.want"
+  printf 'asked 10.0.0.5\n' > "$work/ready-taken-steps"
+  printf '%s\n' "$name listeners taken-steps: asked 10.0.0.5, 0 refused" > "$work/told-taken.want"
+  printf 'resolver port 5354: [Errno 48] Address already in use\n' > "$work/ready-unasked-steps"
+  printf '%s\n' "$name listeners unasked-steps: asked no address, 1 refused" > "$work/told-unasked.want"
+  printf "s03-ip port 47030: [Errno 49] Can't assign requested address\nasked 203.0.113.9\ninterfaces read 3, reader failed false, asked address among them false, error numbers 49\n" > "$work/ready-elsewhere-steps"
+  printf '%s\n' "$name listeners elsewhere-steps: asked 203.0.113.9, 1 refused" "$name interfaces at a refused bind of elsewhere-steps: read 3, reader failed false, asked address among them false, error numbers 49" > "$work/told-elsewhere.want"
+  : > "$work/told-unwritten.want"
+  for label in refused taken unasked elsewhere unwritten; do
+    told "$label-steps" > "$work/told-$label.got" 2>&1
+    got=mis-told
+    cmp -s "$work/told-$label.want" "$work/told-$label.got" && got=told
+    printf 'case %s/told-%s want=told got=%s\n' "$name" "$label" "$got"
+    if [ "$got" = told ]; then rejected=$((rejected + 1)); else wrong="$wrong told-$label"; fi
+  done
+}
+
+helper_cases() {
+  py=python3
+  command -v python3 > /dev/null 2>&1 || py=python
+  mkdir -p "$work/helper" || exit 2
+  write_helpers "$work/helper"
+  write_cases "$work/helper"
+  "$py" "$work/helper/cases.py" "$work/helper" > "$work/helper-cases.txt" 2>&1
+  code=$?
+  cat "$work/helper-cases.txt"
+  right=$(grep -c ' right$' "$work/helper-cases.txt")
+  rejected=$((rejected + right))
+  bad=$(sed -n 's/^case [^ /]*\/\([^ ]*\) .* wrong$/\1/p' "$work/helper-cases.txt" | paste -s -d ' ' -)
+  [ -z "$bad" ] || wrong="$wrong $bad"
+  if [ "$code" != 0 ] || [ "$right" != 11 ]; then wrong="$wrong helper-cases"; fi
+  shown=$(verdict "$work/helper/judged.txt" macos)
+  got=green
+  [ "$shown" = "FAIL $name (s03-ip:open-or-unread s18-ip:open-or-unread)" ] && got=red
+  printf 'case %s/unbound-listener-judged-red want=red got=%s %s\n' "$name" "$got" "$shown"
+  if [ "$got" = red ]; then rejected=$((rejected + 1)); else wrong="$wrong unbound-listener-judged-red"; fi
+}
+
+write_cases() {
+  cat > "$1/cases.py" <<'CASESEOF'
+import contextlib
+import io
+import json
+import os
+import socket
+import sys
+
+directory = sys.argv[1]
+sys.path.insert(0, directory)
+import measure
+
+NAME = "38-app-engine-routes"
+REFUSED = "[Errno 49] Can't assign requested address"
+MAC_TEXT = (
+    "lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384\n"
+    "\toptions=1203<RXCSUM,TXCSUM,TXSTATUS,SW_TIMESTAMP>\n"
+    "\tinet 127.0.0.1 netmask 0xff000000\n"
+    "\tinet6 ::1 prefixlen 128 \n"
+    "en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500\n"
+    "\tether 02:00:00:00:00:01\n"
+    "\tinet6 fe80::1%en0 prefixlen 64 secured scopeid 0x4 \n"
+    "\tinet 10.0.0.5 netmask 0xffffff00 broadcast 10.0.0.255\n"
+    "\tstatus: active\n"
+    "utun0: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1380\n"
+)
+MAC_LINES = [
+    "lo0 8049<UP,LOOPBACK,RUNNING,MULTICAST> inet 127.0.0.1 inet6 ::1",
+    "en0 8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> inet6 fe80::1%en0 inet 10.0.0.5 status: active",
+    "utun0 8051<UP,POINTOPOINT,RUNNING,MULTICAST>",
+]
+WIN_TEXT = (
+    "\r\nWindows IP Configuration\r\n\r\n\r\n"
+    "Ethernet adapter Ethernet:\r\n\r\n"
+    "   Connection-specific DNS Suffix  . : example.invalid\r\n"
+    "   Link-local IPv6 Address . . . . . : fe80::5%6\r\n"
+    "   IPv4 Address. . . . . . . . . . . : 10.1.0.4\r\n"
+    "   Subnet Mask . . . . . . . . . . . : 255.255.0.0\r\n"
+    "   Default Gateway . . . . . . . . . : 10.1.0.1\r\n\r\n"
+    "Ethernet adapter vEthernet (nat):\r\n\r\n"
+    "   Media State . . . . . . . . . . . : Media disconnected\r\n"
+)
+WIN_LINES = ["Ethernet adapter Ethernet fe80::5%6 10.1.0.4", "Ethernet adapter vEthernet (nat) Media disconnected"]
+held = {"127.0.0.1", "::1", "10.0.0.5"}
+route = ["10.0.0.5"]
+reads = []
+refused = {}
+denied = set()
+binds = []
+
+
+class MadeUpSocket:
+    def __init__(self, family=socket.AF_INET, kind=socket.SOCK_STREAM, *rest):
+        self.family = family
+        self.kind = kind
+
+    def setsockopt(self, *rest):
+        pass
+
+    def bind(self, address):
+        binds.append((self.kind, address[0], address[1]))
+        if (address[0], address[1]) in denied:
+            raise PermissionError(13, "Permission denied")
+        if address[1] in refused:
+            raise OSError(*refused[address[1]])
+        if address[0] not in held:
+            raise OSError(49, "Can't assign requested address")
+
+    def listen(self, backlog):
+        pass
+
+    def accept(self):
+        raise OSError("a made-up socket takes no connection")
+
+    def recvfrom(self, size):
+        raise OSError("a made-up socket takes no datagram")
+
+    def connect(self, address):
+        if route[0] is None:
+            raise OSError(51, "Network is unreachable")
+
+    def getsockname(self):
+        return (route[0], 9)
+
+    def close(self):
+        pass
+
+
+def text_of_the_minute():
+    reads.append(1)
+    return MAC_TEXT
+
+
+measure.socket.socket = MadeUpSocket
+measure.time.sleep = lambda seconds: None
+measure.interface_text = text_of_the_minute
+
+
+def lines_of(name):
+    with open(os.path.join(directory, name), encoding="utf-8") as f:
+        return f.read().splitlines()
+
+
+def quiet(call, *args):
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        return call(*args)
+
+
+def listen(label, where=directory):
+    open(os.path.join(where, f"stop-{label}"), "w").close()
+    measure.listen(where, label)
+    with open(os.path.join(where, f"ready-{label}"), encoding="utf-8") as f:
+        return f.read().splitlines()
+
+
+def machine(value):
+    if value is None:
+        os.environ.pop("GITHUB_ACTIONS", None)
+    else:
+        os.environ["GITHUB_ACTIONS"] = value
+
+
+def refused_binds_are_written_and_told():
+    os.environ["HALVO_MEASURE_TEST_IP"] = "203.0.113.9"
+    quiet(measure.plan, directory)
+    os.environ.pop("HALVO_MEASURE_TEST_IP")
+    with open(os.path.join(directory, "plan.json"), encoding="utf-8") as f:
+        targets = json.load(f)["targets"]
+    expected = [f"{t['step']}-{t['form']} port {t['port']}: {REFUSED}" for t in targets if not t.get("pf") and not t.get("loop")]
+    machine("true")
+    lines = listen("engine-alone-steps")
+    with open(os.path.join(directory, "counts-engine-alone-steps.json"), encoding="utf-8") as f:
+        failures = json.load(f)["listen_failures"]
+    told = [line[len("interface "):] for line in lines if line.startswith("interface ")]
+    if lines[:len(expected)] != expected or failures != expected:
+        return f"refusals-{len(failures)}-of-{len(expected)}"
+    if lines[len(expected):] != ["asked 203.0.113.9"] + [f"interface {line}" for line in MAC_LINES]:
+        return f"no-print-{len(told)}-interfaces"
+    return "told"
+
+
+def taken_binds_tell_the_address_alone():
+    held.add("203.0.113.9")
+    del reads[:]
+    lines = listen("no-layer-steps")
+    held.discard("203.0.113.9")
+    if reads:
+        return "interfaces-read"
+    return "asked-alone" if lines == ["asked 203.0.113.9"] else f"lines-{len(lines)}"
+
+
+def one_refused_bind_is_told_with_the_interfaces():
+    with open(os.path.join(directory, "plan.json"), encoding="utf-8") as f:
+        port = json.load(f)["dns_port"]
+    held.add("203.0.113.9")
+    refused[port] = (48, "Address already in use")
+    machine("true")
+    try:
+        lines = listen("one-refusal-steps")
+    finally:
+        held.discard("203.0.113.9")
+        del refused[port]
+    want = [f"resolver port {port}: [Errno 48] Address already in use", "asked 203.0.113.9"] + [f"interface {line}" for line in MAC_LINES]
+    return "told" if lines == want else f"lines-{len(lines)}"
+
+
+def each_refused_bind_is_asked_once():
+    denied.add(("203.0.113.9", 443))
+    del binds[:]
+    machine("true")
+    try:
+        listen("once-steps")
+    finally:
+        denied.discard(("203.0.113.9", 443))
+    asked = {}
+    for call in binds:
+        if call[2] != 0:
+            asked[call] = asked.get(call, 0) + 1
+    twice = [call for call, n in asked.items() if n > 1]
+    if twice:
+        return f"asked-twice-{len(twice)}"
+    if asked.get((socket.SOCK_STREAM, "203.0.113.9", 443)) != 1 or asked.get((socket.SOCK_STREAM, "0.0.0.0", 443)) != 1:
+        return "permission-branch-misread"
+    return "once"
+
+
+def a_failed_read_is_told_like_a_refused_bind():
+    unread = os.path.join(directory, "unread")
+    told = {}
+    route[0] = None
+    try:
+        for value in ("true", None):
+            machine(value)
+            out = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                    measure.plan(unread)
+                return "read"
+            except OSError:
+                told[value] = out.getvalue().splitlines()
+    finally:
+        route[0] = "10.0.0.5"
+        machine(None)
+    if not any(line.startswith("interface") for line in told["true"] + told[None]):
+        return "no-interface-line"
+    if told["true"] != [f"interface {line}" for line in MAC_LINES]:
+        return f"hosted-{len(told['true'])}-lines"
+    if told[None] != ["interfaces read 3, reader failed false, no address asked, error numbers 51"]:
+        return f"elsewhere-{len(told[None])}-lines"
+    return "told"
+
+
+def refused_binds_elsewhere_are_told_by_counts():
+    with open(os.path.join(directory, "plan.json"), encoding="utf-8") as f:
+        port = json.load(f)["dns_port"]
+    refusals = [line for line in lines_of("ready-engine-alone-steps") if line.endswith(REFUSED)]
+    count = "interfaces read 3, reader failed false, asked address among them false, error numbers 49"
+    machine(None)
+    lines = listen("elsewhere-unset-steps")
+    if lines != refusals + ["asked 203.0.113.9", count]:
+        return f"unset-{sum(line.startswith('interface ') for line in lines)}-interface-lines"
+    near = os.path.join(directory, "near")
+    os.environ["HALVO_MEASURE_TEST_IP"] = "10.0.0.5"
+    quiet(measure.plan, near)
+    os.environ.pop("HALVO_MEASURE_TEST_IP")
+    machine("false")
+    refused[port] = (48, "Address already in use")
+    try:
+        lines = listen("elsewhere-false-steps", near)
+    finally:
+        del refused[port]
+    if lines != [f"resolver port {port}: [Errno 48] Address already in use", "asked 10.0.0.5", "interfaces read 3, reader failed false, asked address among them true, error numbers 48"]:
+        return f"false-{sum(line.startswith('interface ') for line in lines)}-interface-lines"
+    machine(None)
+
+    def broken():
+        raise OSError("no reader")
+
+    measure.interface_text = broken
+    try:
+        lines = listen("elsewhere-unread-steps")
+    finally:
+        measure.interface_text = text_of_the_minute
+    if lines != refusals + ["asked 203.0.113.9", "interfaces read 0, reader failed true, asked address among them false, error numbers 49"]:
+        return "unread-misread"
+    return "counted"
+
+
+def windows_interfaces_are_read():
+    measure.interface_text = lambda: WIN_TEXT
+    try:
+        lines = measure.interfaces()
+    finally:
+        measure.interface_text = text_of_the_minute
+    return "read" if lines == WIN_LINES else "misread"
+
+
+def an_unread_list_is_told():
+    def broken():
+        raise OSError("no reader")
+
+    def late():
+        raise measure.subprocess.TimeoutExpired("ifconfig", 30)
+
+    told = []
+    for reader in (broken, late, lambda: "", lambda: "\tinet 10.9.9.9 netmask 0xff000000\n"):
+        measure.interface_text = reader
+        try:
+            told.append(measure.interfaces())
+        finally:
+            measure.interface_text = text_of_the_minute
+    late_line = "not read: Command 'ifconfig' timed out after 30 seconds"
+    return "told" if told == [["not read: no reader"], [late_line], ["none read"], ["none read"]] else "untold"
+
+
+def an_unbound_listener_reads_not_measured():
+    with open(os.path.join(directory, "counts-no-layer-steps.json"), "w", encoding="utf-8") as f:
+        json.dump({"counts": {"s03-ip": {"connections": 1, "requests": 1}, "s18-ip": {"packets": 21, "marked": 21}}, "seen": [], "listen_failures": []}, f)
+    for label in ("engine-alone-steps", "no-layer-steps"):
+        with open(os.path.join(directory, f"{label}.err"), "w", encoding="utf-8") as f:
+            f.write("".join(f"halvo-measure {key} at-app-origin=true\n" for key in ("s03-ip", "s05-ip", "s18-ip")) + "halvo-measure done\n")
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = measure.judge(directory, "macos")
+    with open(os.path.join(directory, "judged.txt"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(out.getvalue())
+    rows = [line for line in out.getvalue().splitlines() if line.startswith(("measure row: s03 ip engine-alone ", "measure row: s18 ip engine-alone "))]
+    want = [f"measure row: {step} ip engine-alone 0 0 0 0 0 true UNEXPECTED not measured (listener)" for step in ("s03", "s18")]
+    if code != 1:
+        return f"judge-exit-{code}"
+    return "not-measured" if rows == want else "measured"
+
+
+def two_plans_with_two_addresses_read_alike():
+    made_up = {
+        "engine-alone-steps": {"s03-ip": {"connections": 1}},
+        "no-layer-steps": {"s03-ip": {"connections": 1, "requests": 1}, "s18-ip": {"packets": 21, "marked": 21}},
+    }
+    rows = {}
+    held.add("10.0.0.6")
+    try:
+        for name, second in (("one", "10.0.0.5"), ("two", "10.0.0.6")):
+            where = os.path.join(directory, f"plans-{name}")
+            asked = []
+            for label, address in (("engine-alone-steps", "10.0.0.5"), ("no-layer-steps", second)):
+                os.environ["HALVO_MEASURE_TEST_IP"] = address
+                quiet(measure.plan, where)
+                os.environ.pop("HALVO_MEASURE_TEST_IP")
+                asked += [line for line in listen(label, where) if line.startswith("asked ")]
+                path = os.path.join(where, f"counts-{label}.json")
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+                data["counts"] = made_up[label]
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f)
+                with open(os.path.join(where, f"{label}.err"), "w", encoding="utf-8") as f:
+                    f.write("".join(f"halvo-measure {key} at-app-origin=true\n" for key in ("s03-ip", "s05-ip", "s18-ip")) + "halvo-measure done\n")
+            if asked != ["asked 10.0.0.5", f"asked {second}"]:
+                return f"{name}-asked-{len(asked)}"
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                measure.judge(where, "macos")
+            rows[name] = [line for line in out.getvalue().splitlines() if line.startswith(("measure row: s03 ip ", "measure row: s18 ip "))]
+    finally:
+        held.discard("10.0.0.6")
+    want = [
+        "measure row: s03 ip engine-alone 1 0 0 0 0 true UNEXPECTED above 0",
+        "measure row: s03 ip no-layer 1 1 0 0 0 true control above 0",
+        "measure row: s18 ip engine-alone 0 0 0 0 0 true ok 0 beside its control",
+        "measure row: s18 ip no-layer 0 0 0 21 21 true control above 0",
+    ]
+    if rows["one"] != want:
+        return "one-address-misread"
+    return "alike" if rows["two"] == want else "two-addresses-misread"
+
+
+def a_loopback_read_is_refused():
+    elsewhere = os.path.join(directory, "loopback")
+    route[0] = "127.0.0.1"
+    try:
+        quiet(measure.plan, elsewhere)
+        refused = False
+    except AssertionError:
+        refused = not os.path.exists(os.path.join(elsewhere, "plan.json"))
+    finally:
+        route[0] = "10.0.0.5"
+    quiet(measure.plan, elsewhere)
+    with open(os.path.join(elsewhere, "plan.json"), encoding="utf-8") as f:
+        ip = json.load(f)["ip"]
+    if ip != "10.0.0.5":
+        return f"read-{ip}"
+    return "refused" if refused else "let-through"
+
+
+def case(label, want, run):
+    try:
+        got = run()
+    except Exception as e:
+        got = f"error-{type(e).__name__}"
+    print(f"case {NAME}/{label} want={want} got={got} {'right' if got == want else 'wrong'}")
+
+
+case("refused-binds-written-and-told", "told", refused_binds_are_written_and_told)
+case("taken-binds-tell-the-address-alone", "asked-alone", taken_binds_tell_the_address_alone)
+case("one-refused-bind-told-with-the-interfaces", "told", one_refused_bind_is_told_with_the_interfaces)
+case("refused-binds-elsewhere-told-by-counts", "counted", refused_binds_elsewhere_are_told_by_counts)
+case("each-refused-bind-asked-once", "once", each_refused_bind_is_asked_once)
+case("failed-read-told-like-a-refused-bind", "told", a_failed_read_is_told_like_a_refused_bind)
+case("windows-interfaces-read", "read", windows_interfaces_are_read)
+case("unread-interfaces-told", "told", an_unread_list_is_told)
+case("unbound-listener-reads-not-measured", "not-measured", an_unbound_listener_reads_not_measured)
+case("loopback-read-refused", "refused", a_loopback_read_is_refused)
+case("two-plans-with-two-addresses-read-alike", "alike", two_plans_with_two_addresses_read_alike)
+CASESEOF
 }
 
 write_stubs() {
@@ -140,6 +572,12 @@ case "$tool:$*" in
       chmod +x "$CARGO_TARGET_DIR/debug/halvo"
       exit 0
     fi
+    if [ "${FIXTURE_LAUNCH:-}" = run ]; then
+      mkdir -p "$CARGO_TARGET_DIR/debug"
+      printf '#!/bin/sh\necho page=loaded\n' > "$CARGO_TARGET_DIR/debug/halvo"
+      chmod +x "$CARGO_TARGET_DIR/debug/halvo"
+      exit 0
+    fi
     exit 1
     ;;
   git:archive*)
@@ -152,12 +590,22 @@ case "$tool:$*" in
     sed '/on_navigation/d;/initialization_script_for_all_frames/d' src-tauri/src/app.rs > src-tauri/src/app.rs.new && mv src-tauri/src/app.rs.new src-tauri/src/app.rs
     if [ "$2" = no-layer ]; then echo HALVO_MEASURE_NEVER_SET >> src-tauri/src/engine.rs; fi
     ;;
+  python*:*measure.py\ plan*)
+    if [ "${FIXTURE_PLAN:-}" = fail ]; then printf 'interface en0 8863<UP,BROADCAST> inet6 fe80::1%%en0\r\n'; exit 1; fi
+    if [ "${FIXTURE_PLAN:-}" = fail-second ] && [ "$(grep -c 'measure\.py plan ' "$FIXTURE_CALLS")" = 2 ]; then exit 1; fi
+    if [ "${FIXTURE_LAUNCH:-}" = run ]; then printf 's03-ip\tplan %s\n' "$(grep -c 'measure\.py plan ' "$FIXTURE_CALLS")" > "$3/steps.tsv"; fi
+    ;;
   python*:*measure.py\ listen*)
     if [ "${FIXTURE_LAUNCH:-}" = stop ]; then
       : > "$3/ready-$4"
       echo "$$" >> "$FIXTURE_PIDS"
       exec sleep 30
     fi
+    if [ -n "${FIXTURE_READY_LATE:-}" ]; then
+      while [ ! -f "$3/stop-$4" ]; do sleep 0.1; done
+      cp "$FIXTURE_READY_LATE" "$3/ready-$4"
+    fi
+    if [ -n "${FIXTURE_READY:-}" ]; then cp "$FIXTURE_READY" "$3/ready-$4"; fi
     ;;
   python*:*measure.py\ judge*)
     if [ -n "${FIXTURE_JUDGED:-}" ]; then cat "$FIXTURE_JUDGED"; fi
@@ -291,6 +739,58 @@ run_cases() {
   n=$(calls_of macos-asks-no-s20 'netsh ')
   is "$n" 0 left
   report macos-asks-no-s20 "$got"
+  printf "s03-ip port 47030: [Errno 49] Can't assign requested address\r\nasked 203.0.113.9\r\ninterface en0 8863<UP,BROADCAST> inet 10.0.0.5\r\n" > "$work/ready-made-up"
+  mkdir -p "$work/after-each-build" || exit 2
+  run_fixture address-read-after-each-build true macos FIXTURE_LAUNCH=run FIXTURE_READY="$work/ready-made-up" FIXTURE_JUDGED="$work/judged-good.txt" RUNNER_TEMP="$work/after-each-build"
+  got=refused
+  code=$(cat "$work/address-read-after-each-build.code")
+  is "$code" 0 left
+  order=$(sed -n -e 's/^cargo .*/build/p' -e 's/^python[0-9]* .*measure\.py plan .*/plan/p' -e 's/^python[0-9]* .*measure\.py listen .*/listen/p' "$work/address-read-after-each-build.calls" | paste -s -d ' ' -)
+  is "$order" "build plan listen build plan listen" left
+  for phase in engine-alone no-layer; do
+    n=$(grep -c -x -F -e "$name steps of $phase: s03-ip" -e "$name listeners $phase-steps: asked 203.0.113.9, 1 refused" -e "$name interface at a refused bind of $phase-steps: en0 8863<UP,BROADCAST> inet 10.0.0.5" "$work/address-read-after-each-build.out")
+    is "$n" 3 left
+    at=$(grep -n -x -F "$name listeners $phase-steps: asked 203.0.113.9, 1 refused" "$work/address-read-after-each-build.out" | cut -d: -f1)
+    launched=$(grep -n "^$name launch $phase: " "$work/address-read-after-each-build.out" | cut -d: -f1)
+    [ "${at:-0}" -gt 0 ] && [ "${at:-0}" -lt "${launched:-0}" ] || got=left
+  done
+  routes=$(cat "$work/after-each-build/$name".*/routes.tsv)
+  tab=$(printf '\t')
+  is "$routes" "s03-ip${tab}plan 2" left
+  report address-read-after-each-build "$got"
+  run_fixture a-failed-plan-fails-the-check true macos FIXTURE_LAUNCH=run FIXTURE_PLAN=fail
+  got=refused
+  code=$(cat "$work/a-failed-plan-fails-the-check.code")
+  is "$code" 1 ran
+  last=$(tail -n 1 "$work/a-failed-plan-fails-the-check.out")
+  is "$last" "FAIL $name (the plan could not read an address of the runner for the copy engine-alone)" ran
+  n=$(grep -c 'measure\.py listen ' "$work/a-failed-plan-fails-the-check.calls")
+  is "$n" 0 ran
+  told_at=$(grep -n -x -F "$name interface at a failed read of the address for the copy engine-alone: en0 8863<UP,BROADCAST> inet6 fe80::1%en0" "$work/a-failed-plan-fails-the-check.out" | cut -d: -f1)
+  failed_at=$(grep -n -x -F "FAIL $name (the plan could not read an address of the runner for the copy engine-alone)" "$work/a-failed-plan-fails-the-check.out" | cut -d: -f1)
+  [ "${told_at:-0}" -gt 0 ] && [ "${told_at:-0}" -lt "${failed_at:-0}" ] || got=ran
+  report a-failed-plan-fails-the-check "$got"
+  run_fixture second-copy-failed-plan-fails-the-check true macos FIXTURE_LAUNCH=run FIXTURE_PLAN=fail-second FIXTURE_READY="$work/ready-made-up"
+  got=refused
+  code=$(cat "$work/second-copy-failed-plan-fails-the-check.code")
+  is "$code" 1 ran
+  last=$(tail -n 1 "$work/second-copy-failed-plan-fails-the-check.out")
+  is "$last" "FAIL $name (the plan could not read an address of the runner for the copy no-layer)" ran
+  order=$(sed -n -e 's/^cargo .*/build/p' -e 's/^python[0-9]* .*measure\.py plan .*/plan/p' -e 's/^python[0-9]* .*measure\.py listen .* engine-alone-steps$/listen-engine-alone/p' -e 's/^python[0-9]* .*measure\.py listen .*/listen-other/p' "$work/second-copy-failed-plan-fails-the-check.calls" | paste -s -d ' ' -)
+  is "$order" "build plan listen-engine-alone build plan" ran
+  report second-copy-failed-plan-fails-the-check "$got"
+  mkdir -p "$work/fast" || exit 2
+  printf '#!/bin/sh\nexit 0\n' > "$work/fast/sleep"
+  chmod +x "$work/fast/sleep" || exit 2
+  run_fixture late-ready-file-printed-once true macos FIXTURE_LAUNCH=run FIXTURE_READY_LATE="$work/ready-made-up" FIXTURE_JUDGED="$work/judged-good.txt" PATH="$work/fast:$stubs:$PATH"
+  got=refused
+  code=$(cat "$work/late-ready-file-printed-once.code")
+  is "$code" 0 left
+  for phase in engine-alone-steps no-layer-steps; do
+    n=$(grep -c -x -F -e "$name listeners $phase: asked 203.0.113.9, 1 refused" -e "$name interface at a refused bind of $phase: en0 8863<UP,BROADCAST> inet 10.0.0.5" "$work/late-ready-file-printed-once.out")
+    is "$n" 2 left
+  done
+  report late-ready-file-printed-once "$got"
 }
 
 hosted_only() {
@@ -406,6 +906,7 @@ import os
 import re
 import socket
 import struct
+import subprocess
 import sys
 import threading
 import time
@@ -532,7 +1033,11 @@ def host_of(step, form, ip):
 
 
 def plan(directory):
-    ip = os.environ.get("HALVO_MEASURE_TEST_IP") or runner_address()
+    try:
+        ip = os.environ.get("HALVO_MEASURE_TEST_IP") or runner_address()
+    except OSError as e:
+        print("\n".join(told_lines(None, [e.errno])))
+        raise
     assert not ip.startswith("127.") or os.environ.get("HALVO_MEASURE_TEST_IP"), ip
     no_filter = os.name == "nt"
     targets = []
@@ -859,6 +1364,56 @@ def bound_socket(kind, address):
     return s
 
 
+def interface_text():
+    command = ["ipconfig"] if os.name == "nt" else ["/sbin/ifconfig", "-a"]
+    return subprocess.run(command, capture_output=True, text=True, errors="replace", timeout=30, check=False).stdout
+
+
+def interface_rows(text):
+    rows = []
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        if not line[0].isspace():
+            head = line.split(": flags=", 1)
+            if len(head) == 2:
+                rows.append([head[0], head[1].split(" ", 1)[0]])
+            elif line.rstrip().endswith(":"):
+                rows.append([line.rstrip()[:-1]])
+            continue
+        if not rows:
+            continue
+        words = line.split()
+        key, _, value = line.partition(" : ")
+        if words[0] in ("inet", "inet6", "status:"):
+            rows[-1].append(" ".join(words[:2]))
+        elif "Address" in key or "Media State" in key:
+            rows[-1].append(value)
+    return rows
+
+
+def interfaces():
+    try:
+        text = interface_text()
+    except (OSError, subprocess.SubprocessError) as e:
+        return [f"not read: {e}"]
+    return [" ".join(row) for row in interface_rows(text)] or ["none read"]
+
+
+def told_lines(ip, errnos):
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return [f"interface {line}" for line in interfaces()]
+    try:
+        rows = interface_rows(interface_text())
+        failed = "false"
+    except (OSError, subprocess.SubprocessError):
+        rows, failed = [], "true"
+    words = " ".join(" ".join(row) for row in rows).split()
+    asked = "no address asked" if ip is None else f"asked address among them {str(ip in words).lower()}"
+    numbers = " ".join(sorted({str(n) for n in errnos}))
+    return [f"interfaces read {len(rows)}, reader failed {failed}, {asked}, error numbers {numbers}"]
+
+
 def failed_keys(failures, keys):
     marked = set()
     for line in failures:
@@ -877,6 +1432,7 @@ def listen(directory, label):
     counts = Counts()
     sockets = []
     failures = []
+    errnos = []
     for t in planned["targets"]:
         key = f"{t['step']}-{t['form']}"
         if t.get("pf"):
@@ -898,6 +1454,7 @@ def listen(directory, label):
                         threading.Thread(target=serve_udp, args=(u, key, counts), daemon=True).start()
                 except OSError as e:
                     failures.append(f"{key} port {t['port']} at {address}: {e}")
+                    errnos.append(e.errno)
             continue
         try:
             s = bound_socket(socket.SOCK_STREAM, (t.get("bind", ip), t["port"]))
@@ -910,14 +1467,19 @@ def listen(directory, label):
                 threading.Thread(target=serve_udp, args=(u, key, counts), daemon=True).start()
         except OSError as e:
             failures.append(f"{key} port {t['port']}: {e}")
+            errnos.append(e.errno)
     try:
         d = bound_socket(socket.SOCK_DGRAM, ("127.0.0.1", planned["dns_port"]))
         sockets.append(d)
         threading.Thread(target=serve_dns, args=(d, ip, planned["targets"], counts), daemon=True).start()
     except OSError as e:
         failures.append(f"resolver port {planned['dns_port']}: {e}")
+        errnos.append(e.errno)
+    told = failures + [f"asked {ip}"]
+    if failures:
+        told += told_lines(ip, errnos)
     with open(os.path.join(directory, f"ready-{label}"), "w", encoding="utf-8") as f:
-        f.write("\n".join(failures) + "\n")
+        f.write("\n".join(told) + "\n")
     stop = os.path.join(directory, f"stop-{label}")
     deadline = time.time() + 1800
     while not os.path.exists(stop) and time.time() < deadline:
@@ -1638,11 +2200,7 @@ measure() {
     firewall_take
   fi
   write_helpers "$work"
-  "$py" "$work/measure.py" plan "$work" > /dev/null
   keys_of "$job" | tr ' ' '-' > "$work/keys.txt"
-  grep -F -f "$work/keys.txt" "$work/steps.tsv" | awk -F'\t' 'NR==FNR {k[$1]=1; next} ($1 in k)' "$work/keys.txt" - > "$work/routes.tsv"
-  steps=$(cut -f1 "$work/routes.tsv" | paste -s -d ' ' -)
-  echo "$name steps: $steps"
   for copy in engine-alone no-layer; do
     tree="$work/tree-$copy"
     mkdir -p "$tree" || fail "the directory of the copy $copy cannot be made"
@@ -1655,6 +2213,14 @@ measure() {
       tail -n 5 "$work/build-$copy.txt"
       continue
     fi
+    if ! "$py" "$work/measure.py" plan "$work" > "$work/plan-$copy.txt"; then
+      tr -d '\r' < "$work/plan-$copy.txt" > "$work/plan-$copy.lf"
+      relay "$work/plan-$copy.lf" "at a failed read of the address for the copy $copy"
+      fail "the plan could not read an address of the runner for the copy $copy"
+    fi
+    grep -F -f "$work/keys.txt" "$work/steps.tsv" | awk -F'\t' 'NR==FNR {k[$1]=1; next} ($1 in k)' "$work/keys.txt" - > "$work/routes.tsv"
+    steps=$(cut -f1 "$work/routes.tsv" | paste -s -d ' ' -)
+    echo "$name steps of $copy: $steps"
     exe="$work/target/debug/halvo"
     [ -f "$exe.exe" ] && exe=$exe.exe
     "$py" "$work/measure.py" listen "$work" "$copy-steps" &
@@ -1662,6 +2228,11 @@ measure() {
     own_pids="$own_pids $listener"
     tick=0
     while [ ! -f "$work/ready-$copy-steps" ] && [ "$tick" -lt 100 ]; do sleep 0.2; tick=$((tick + 1)); done
+    late=yes
+    if [ -f "$work/ready-$copy-steps" ]; then
+      told "$copy-steps"
+      late=no
+    fi
     data=$(mktemp -d "$work/data-XXXXXX")
     routes=$(native "$work/routes.tsv")
     data_dir=$(native "$data")
@@ -1679,6 +2250,7 @@ measure() {
     : > "$work/stop-$copy-steps"
     wait "$listener"
     forget_own "$listener"
+    [ "$late" = no ] || told "$copy-steps"
   done
   "$py" "$work/measure.py" judge "$work" "$job" > "$work/judged.txt"
   [ -n "${CI_D_ARTIFACTS:-}" ] && cp "$work/judged.txt" "$CI_D_ARTIFACTS/$name-judged.txt"

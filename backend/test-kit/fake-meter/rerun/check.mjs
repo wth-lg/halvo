@@ -59,7 +59,7 @@ const TESTS = [
   [
     "unexplained-total",
     "test/metering/late-read.node.test.ts",
-    "case 14: an event at the meter that no interval of the module owns, of 5 minor units in the interval's minute, leaves the total unexplained, so the interval is read again and never sent",
+    "case 14: an event at the meter that no interval of the module owns, of 5 minor units in the interval's minute, leaves the total unexplained, so the interval is read again and never sent, and the first read one span after the first unexplained total closes it as not billable with the cause unexplained-total, after which the account delete finishes",
   ],
   [
     "retry-delay",
