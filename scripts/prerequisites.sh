@@ -2937,7 +2937,19 @@ set -- "$channel" --profile minimal --no-self-update
 for component in $(sed -n 's/^components *= *\[\(.*\)\].*/\1/p' rust-toolchain.toml | tr ',"' '  '); do
   set -- "$@" --component "$component"
 done
+install_toolchain() {
 rustup toolchain install "$@"
+}
+toolchain_tries=1
+until install_toolchain "$@"; do
+  if [ "$toolchain_tries" -ge 3 ]; then
+    echo "prerequisites: error: rustup toolchain install $channel failed $toolchain_tries times; a download that fails once is tried again, and three failures stop the script" >&2
+    exit 1
+  fi
+  echo "prerequisites: rustup toolchain install $channel failed, try $toolchain_tries of 3; trying again in 5 s"
+  toolchain_tries=$((toolchain_tries + 1))
+  sleep 5
+done
 echo "prerequisites: rust toolchain $channel present: $(rustup run "$channel" cargo --version)"
 
 echo "prerequisites: installing the Tauri CLI into node_modules/"
