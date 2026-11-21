@@ -87,10 +87,11 @@ pub struct Restarts {
 }
 
 /// The rule of a start again (contracts.md C14 item 4), by how the child ended and how long it
-/// lived: 0 no start; 4 a start at once; 5 the backoff, and no child after the third 5 in a
-/// row; 1, a status that this list does not name, an end by a signal and a failed start the
-/// backoff, which doubles from 1 s to 60 s and starts again from 1 s after a 4 and after a
-/// child that lived 60 s.
+/// lived: 0 no start; 4 after a life of 60 s or more a start at once; 5 the backoff, and no
+/// child after the third 5 in a row; 1, a 4 within 60 s of its start, a status that this list
+/// does not name, an end by a signal and a failed start the backoff, which doubles from 1 s to
+/// 60 s and starts again from 1 s after a 4 that starts at once and after a child that lived
+/// 60 s.
 pub fn next(ending: Ending, lived: Duration, before: Restarts) -> (Next, Restarts) {
     let fives = match ending {
         Ending::Status(exit::SOURCE_NOT_STOPPED) => before.fives + 1,
@@ -98,7 +99,9 @@ pub fn next(ending: Ending, lived: Duration, before: Restarts) -> (Next, Restart
     };
     match ending {
         Ending::Status(exit::CLEAN) => (Next::Attach, Restarts::default()),
-        Ending::Status(exit::RESTART) => (Next::StartNow, Restarts::default()),
+        Ending::Status(exit::RESTART) if lived >= BACKOFF_MAX => {
+            (Next::StartNow, Restarts::default())
+        }
         _ if fives >= FIVES_IN_A_ROW => (
             Next::NoMoreChild,
             Restarts {
@@ -809,7 +812,12 @@ mod tests {
                 8,
                 vec![s(1), s(2), s(4), s(8), s(16), s(32), s(60), s(60)],
             ),
-            ("4: a start at once", vec![(status(4), 0); 3], 3, vec![]),
+            (
+                "4 within 60 s of its start: the backoff of 1, not four starts a second",
+                vec![(status(4), 0); 3],
+                3,
+                vec![s(1), s(2), s(4)],
+            ),
             (
                 "5: the backoff, and no child after the third 5 in a row",
                 vec![(status(5), 0); 4],
@@ -837,11 +845,11 @@ mod tests {
                 vec![s(1), s(2)],
             ),
             (
-                "4 and a child that lived 60 s start the backoff again",
+                "4 after 60 s starts at once, and it and a child that lived 60 s start the backoff again",
                 vec![
                     (status(1), 0),
                     (status(1), 0),
-                    (status(4), 0),
+                    (status(4), 60),
                     (status(1), 0),
                     (status(1), 0),
                     (status(1), 60),
