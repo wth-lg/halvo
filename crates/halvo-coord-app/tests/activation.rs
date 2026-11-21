@@ -375,9 +375,12 @@ fn begun_a_closed_channel_runs_no_case_and_the_line_names_the_closed_channel_and
     }
 }
 
+/// What `begin` gives over a wait that gives a number.
+type Begin = Result<(Option<Duration>, u32), String>;
+
 /// Runs `begin` over the setting `value` and a wait that gives 7: the result and the steps in the
 /// order in which they came.
-fn begin_over(value: Option<&str>) -> (Result<(Option<Duration>, u32), String>, Vec<&'static str>) {
+fn begin_over(value: Option<&str>) -> (Begin, Vec<&'static str>) {
     let steps = RefCell::new(Vec::new());
     let result = begin(
         || {
