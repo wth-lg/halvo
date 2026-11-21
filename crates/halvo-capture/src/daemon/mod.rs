@@ -10,6 +10,7 @@ pub mod board;
 pub mod children;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod counters;
+pub mod custody_policy;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod discard_port;
 pub mod instance;
