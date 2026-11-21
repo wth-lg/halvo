@@ -273,6 +273,9 @@ pub enum What {
     SlotSkipped {
         slot: Option<u32>,
     },
+    RunNotStopped {
+        run: RunId,
+    },
 }
 
 impl What {
@@ -288,6 +291,7 @@ impl What {
             What::HoldSet { .. } => Event::HoldSet,
             What::HoldCleared { .. } => Event::HoldCleared,
             What::SlotSkipped { .. } => Event::SlotSkipped,
+            What::RunNotStopped { .. } => Event::RunNotStopped,
         }
     }
 }
@@ -611,6 +615,12 @@ fn what(obj: &Obj<'_>, event: Event, with_defers: bool) -> Result<What, Refusal>
                 slot: obj.read("slot", opt(json::count))?,
             }
         }
+        Event::RunNotStopped => {
+            obj.null_but(&OWN, &["run"])?;
+            What::RunNotStopped {
+                run: obj.read("run", run_id)?,
+            }
+        }
     })
 }
 
@@ -731,6 +741,7 @@ impl CoordEvent {
                 ],
             },
             What::SlotSkipped { slot } => vec![("slot", slot.map_or(Cell::Null, Cell::Count))],
+            What::RunNotStopped { run } => vec![("run", Cell::Text(run.as_str()))],
         }
     }
 }

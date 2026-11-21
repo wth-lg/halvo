@@ -378,6 +378,7 @@ fn what_name(w: &What) -> String {
             slot.map(|s| (s as i64 - DAY as i64).to_string())
                 .unwrap_or("-".into())
         ),
+        What::RunNotStopped { .. } => "run_not_stopped".into(),
     }
 }
 
@@ -4272,6 +4273,209 @@ fn u24s_a_schedule_log_whose_read_after_a_first_seq_is_refused_by_name_counts() 
             w.board.record_stuck(&agent(0), &w.limits),
             counts,
             "{name}: a read refused with a name of class C or D counts (I5.7), class B counts nothing"
+        );
+    }
+}
+
+/// The days for which the store keeps a row of `coord_event` (I7.1), which the memory owner keeps
+/// here; the crate's code knows no such number (ruling RD-73 2.2, 2.4).
+const KEPT_DAYS: u32 = 93;
+const DAY_MS: u64 = 86_400_000;
+
+/// Sets the memory clock `days` whole days after `T0`, in the zone of `T0`.
+fn days_on(w: &World, days: u64) {
+    w.ports.set_now(T0 + days * DAY_MS);
+}
+
+/// RD-73 2.1 and 2.2 (I5.1, I5.9): the memory clock moves 94 days in one life, and one move that
+/// is neither a start nor an end, the creation move, reads the day. Each agent's facts are then,
+/// field by field, those of the board that `recover` builds from the same ports: the rows that
+/// passed their day are left out and the rows within it stay.
+#[test]
+fn rd73_a_move_after_94_days_in_one_life_holds_the_board_that_recovery_builds() {
+    use halvo_coord::roster::{row, status_of};
+    let mut w = world(&[AUTO, person()]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    for days in [0, 50] {
+        days_on(&w, days);
+        let tick = w.tick();
+        assert_eq!(tick.raised, vec![agent(1)], "day {days}");
+        let run = ok_run(&tick.started[0].clone().into_report());
+        w.end(&run, Some(Outcome::Completed));
+        let skip = w.go(Move::Skip { agent: agent(1) });
+        assert_eq!(skip.answer, Ok(Answer::Ok), "day {days}");
+    }
+    days_on(&w, 94);
+    w.go(Move::Create);
+    let new = halvo_coord::run::recover(&w.ports, &w.limits)
+        .unwrap()
+        .board;
+    assert_eq!(w.board.day, new.day);
+    assert_eq!(w.board.members.len(), new.members.len());
+    let line = |board: &Board<Config>, f: &Facts<Config>| {
+        let stuck = board.record_stuck(&f.agent, &w.limits);
+        row(
+            f,
+            status_of(f, &w.limits, None, stuck),
+            "x",
+            None,
+            &w.limits,
+        )
+    };
+    for (i, (long, fresh)) in w.board.members.iter().zip(&new.members).enumerate() {
+        let (a, b) = (&long.facts, &fresh.facts);
+        assert_eq!(a.agent, b.agent);
+        assert_eq!(a.events, b.events, "the events of {i}");
+        assert_eq!(a.runs, b.runs, "the newest run record of {i}");
+        assert_eq!(a.store_ended, b.store_ended, "store_ended of {i}");
+        assert_eq!(
+            w.board.stored_last(i),
+            new.stored_last(i),
+            "the stored last of {i}"
+        );
+        assert_eq!(holds(a), holds(b), "the holds of {i}");
+        assert_eq!(line(&w.board, a), line(&new, b), "the row of {i}");
+        let tick = |f: &Facts<Config>| tick_step(f, true, &w.limits);
+        assert_eq!(tick(a), tick(b), "the tick's answer for {i}");
+        assert_eq!(long, fresh, "every other field of {i}");
+    }
+    assert_eq!(
+        count(&w.facts(0).events, "run_started"),
+        1,
+        "the rows of day 50"
+    );
+}
+
+/// RD-73 2.1 with the derived `off` of I5.4: the row of a switch-off passes its day in one life;
+/// after one move the row shows `off.kept`, no start passes, and Switch on ends the hold.
+#[test]
+fn rd73_a_switch_off_whose_row_passed_its_day_shows_off_kept_until_switch_on() {
+    use halvo_coord::roster::status_of;
+    use halvo_coord::types::StatusLine;
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    let off = w.go(Move::SwitchOff { agent: agent(0) });
+    assert_eq!(off.answer, Ok(Answer::Ok));
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Off
+    );
+    days_on(&w, 94);
+    w.tick();
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Kept
+    );
+    w.forget();
+    assert_eq!(w.start(0).answer, Err(Cause::Hold));
+    assert_eq!(w.starts(), 0);
+    let on = w.go(Move::SwitchOn { agent: agent(0) });
+    assert_eq!(on.answer, Ok(Answer::Ok));
+    assert!(!holds(w.facts(0)).contains(&Hold::Off));
+}
+
+/// RD-73 2.2: the clock set past the bound with one move and back with one move gives the long
+/// life what a new life gets: the rows of the first day, which the owner hands out again, stand
+/// on the board again with the record of the newest run.
+#[test]
+fn rd73_a_clock_set_forward_and_back_brings_the_first_days_events_back() {
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    let (events, runs) = (w.facts(0).events.clone(), w.facts(0).runs.clone());
+    assert_eq!((events.len(), runs.len()), (2, 1));
+    days_on(&w, 94);
+    w.go(Move::Create);
+    let past = (w.facts(0).events.len(), w.facts(0).runs.len());
+    assert_eq!(past, (0, 0), "past the bound");
+    days_on(&w, 0);
+    w.go(Move::Owed);
+    assert_eq!(w.facts(0).events, events);
+    assert_eq!(w.facts(0).runs, runs);
+}
+
+/// RD-73 2.3 (c): a hold `off` that stands by this life's events is not ended by the day's read
+/// while the owner's list does not show `paused`: the move sends `paused` first, and the hold
+/// stands until that is acknowledged; then the read is taken and the row shows `off.kept`.
+#[test]
+fn rd73_a_hold_of_this_life_stands_past_its_day_until_paused_is_acknowledged() {
+    use halvo_coord::roster::status_of;
+    use halvo_coord::schedule::held_by_events;
+    use halvo_coord::types::StatusLine;
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    w.ports.refuse(Method::Send, PortError::NoService);
+    w.go(Move::SwitchOff { agent: agent(0) });
+    assert_ne!(w.facts(0).workflow.state, WorkflowState::Paused);
+    let paused = |w: &World, from: usize| -> Vec<bool> {
+        w.ports.tried.borrow()[from..]
+            .iter()
+            .filter(|t| {
+                matches!(
+                    &t.call,
+                    Call::Send(Body::SetState {
+                        state: AgentState::Paused,
+                        ..
+                    })
+                )
+            })
+            .map(|t| t.refused.is_none())
+            .collect()
+    };
+    days_on(&w, 94);
+    let from = w.ports.tried.borrow().len();
+    w.go(Move::Create);
+    assert_eq!(paused(&w, from), vec![false], "paused goes before the read");
+    assert!(
+        held_by_events(w.facts(0)),
+        "the hold stands without an answer"
+    );
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Off
+    );
+    w.ports.clear_refusals();
+    let from = w.ports.tried.borrow().len();
+    w.go(Move::Owed);
+    assert_eq!(paused(&w, from), vec![true]);
+    assert!(
+        !held_by_events(w.facts(0)),
+        "the read is taken after the answer"
+    );
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Kept
+    );
+}
+
+/// RD-73 1.3: an agent that did its task before and whose rows have all left by their age reads
+/// `line.all_set.new`, whose sentence is true for it as for a new agent: in a long life after
+/// one move that reads the day, and in the new life that `recover` builds from the same ports.
+#[test]
+fn rd73_the_row_of_an_agent_whose_rows_have_left_says_not_yet_or_not_for_a_long_time() {
+    use halvo_coord::roster::{row, status_of};
+    use halvo_coord::types::StatusLine;
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    let before = status_of(w.facts(0), &w.limits, None, false);
+    assert_eq!(before, StatusLine::Done, "it did its task before");
+    days_on(&w, 94);
+    w.go(Move::Create);
+    let new = halvo_coord::run::recover(&w.ports, &w.limits)
+        .unwrap()
+        .board;
+    for (life, board) in [("long", &w.board), ("new", &new)] {
+        let f = &board.members[0].facts;
+        let shown = row(
+            f,
+            status_of(f, &w.limits, None, false),
+            "x",
+            None,
+            &w.limits,
+        );
+        assert_eq!(
+            shown.unwrap().line,
+            "It has not done its task yet, or not for a long time.",
+            "the {life} life"
         );
     }
 }

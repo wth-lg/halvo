@@ -286,6 +286,7 @@ fn expected_keys() -> BTreeSet<String> {
     for key in [
         "line.quitting",
         "line.problem.record",
+        "line.problem.quit",
         "card.records_dropped",
         "line.off.kept",
         "line.all_set.nothing_first",
@@ -438,7 +439,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 297);
+    assert_eq!(seen.len(), 298);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -1019,4 +1020,25 @@ fn u24s_the_two_lines_of_a_switch_off_that_could_not_be_saved_stand_in_the_coord
     ] {
         assert_eq!(words::text(key, &[]).unwrap(), text, "{key}");
     }
+}
+
+/// The two payment texts that ride in U2.4w: the choice that refuses several payments says that
+/// it refuses all of them, in at most 20 words with its placeholder, and the label of the card
+/// that pays stays `Pay with`.
+#[test]
+fn u24w_the_two_payment_texts_stand_word_for_word() {
+    let table = |key: &str| {
+        KEYS.iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, text)| *text)
+            .unwrap()
+    };
+    let reject = table("confirm.payment.reject_many");
+    assert_eq!(reject, "Don't pay any of these {count}");
+    assert!(reject.split_whitespace().count() <= 20, "{reject}");
+    assert_eq!(
+        words::text("confirm.payment.reject_many", &[("count", "3")]).unwrap(),
+        "Don't pay any of these 3"
+    );
+    assert_eq!(table("field.payment.instrument"), "Pay with");
 }

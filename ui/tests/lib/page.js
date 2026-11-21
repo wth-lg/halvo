@@ -102,6 +102,7 @@ async function openPage(options = {}) {
     clearTimeout: (id) => clock.clear(id),
     clearInterval: (id) => clock.clear(id),
     __TAURI_INTERNALS__: { invoke },
+    addEventListener: () => {},
   };
   const loads = { again: 0 };
   context.location = {

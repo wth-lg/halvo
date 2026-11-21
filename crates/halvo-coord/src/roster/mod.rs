@@ -258,7 +258,16 @@ fn row_offering<C: ConfigView>(
     name: &str,
     offered: Vec<Control>,
 ) -> Result<Row, Cause> {
-    let status = line.status();
+    row_with(facts, line.status(), &line.key(), name, offered)
+}
+
+fn row_with<C: ConfigView>(
+    facts: &Facts<C>,
+    status: crate::types::Status,
+    key: &str,
+    name: &str,
+    offered: Vec<Control>,
+) -> Result<Row, Cause> {
     let ask = if offered.contains(&Control::Delete) {
         Some(ask(facts, name)?)
     } else {
@@ -270,7 +279,7 @@ fn row_offering<C: ConfigView>(
         name: name.to_owned(),
         status,
         word: text(&format!("status.{}", status.name()), &[])?,
-        line: text(&line.key(), &[])?,
+        line: text(key, &[])?,
         say: text(&format!("say.{}", status.name()), &[("name", name)])?,
         level: text(
             &format!("line.level.{}", facts.config.reasoning().name()),
@@ -422,6 +431,106 @@ pub fn deleting_row<C: ConfigView>(facts: &Facts<C>, name: &str) -> Result<Row, 
     Ok(Row {
         next: None,
         ..row_offering(facts, StatusLine::Deleting, name, Vec::new())?
+    })
+}
+
+/// The newest run of `events` where a Quit named it as not stopped and wrote that list
+/// (`run_not_stopped`; ruling RD-150); none where the newest run is another.
+pub fn not_stopped_in(events: &[Event]) -> Option<&RunId> {
+    let newest = events.iter().rev().find_map(|e| match &e.what {
+        What::RunStarted { run, .. } => Some(run),
+        _ => None,
+    })?;
+    events
+        .iter()
+        .any(|e| matches!(&e.what, What::RunNotStopped { run } if run == newest))
+        .then_some(newest)
+}
+
+/// The agent's newest run where a Quit named it as not stopped (`not_stopped_in` of its events).
+pub fn not_stopped_at_quit<C>(facts: &Facts<C>) -> Option<&RunId> {
+    not_stopped_in(&facts.events)
+}
+
+/// The end that the store's record of `run` gives, among the records of `facts`, where a row may
+/// take it as how that run ended (the fifth named limit of U4.6b; ruling RD-150): any end where
+/// this life's `Runs::reap` answered the run `alive` (`answered_alive`), for which no `end_run`
+/// is sent; and any end but `failed` otherwise, since the store records the `end_run` of a run
+/// that recovery ends as `failed` too. None where no such record names the run.
+pub fn recorded_end<C>(facts: &Facts<C>, run: &RunId, answered_alive: bool) -> Option<RunEnd> {
+    facts
+        .runs
+        .iter()
+        .find(|r| &r.run == run)
+        .map(|r| RunEnd::from(r.outcome))
+        .filter(|end| answered_alive || *end != RunEnd::Failed)
+}
+
+/// A copy of `facts` in which `run` ends with `end`: each of its `run_ended` rows with
+/// `interrupted`, which recovery stored, holds `end`, and where no `run_ended` row of it stands,
+/// one of `end` follows its `run_started`; so the row reads the recorded end of that run.
+pub fn with_end<C: Clone>(facts: &Facts<C>, run: &RunId, end: RunEnd) -> Facts<C> {
+    let mut read = facts.clone();
+    let mut ended = false;
+    for e in &mut read.events {
+        if let What::RunEnded { run: r, cause, .. } = &mut e.what {
+            if r == run {
+                ended = true;
+                if *cause == RunEnd::Interrupted {
+                    *cause = end;
+                }
+            }
+        }
+    }
+    if !ended {
+        let at = read
+            .events
+            .iter()
+            .position(|e| matches!(&e.what, What::RunStarted { run: r, .. } if r == run));
+        if let Some(k) = at {
+            let row = Event {
+                what: What::RunEnded {
+                    run: run.clone(),
+                    cause: end,
+                    defers: None,
+                },
+                ..read.events[k].clone()
+            };
+            read.events.insert(k + 1, row);
+        }
+    }
+    read
+}
+
+/// The row of an agent whose newest run a Quit named as not stopped (`not_stopped_at_quit`;
+/// ruling RD-150): the status `problem` with `line.problem.quit`, that its task was still
+/// running when Halvo quit and may have gone on, and `offered`, the controls; the row of an
+/// agent of a gone workflow passes none and has no next day.
+pub fn quit_row<C: ConfigView>(
+    facts: &Facts<C>,
+    name: &str,
+    offered: Vec<Control>,
+) -> Result<Row, Cause> {
+    row_with(
+        facts,
+        crate::types::Status::Problem,
+        "line.problem.quit",
+        name,
+        offered,
+    )
+}
+
+/// The row of an agent of a gone workflow whose newest run a Quit named as not stopped, once the
+/// store's record names how that run ended (`recorded_end`): `line`, the line of that end, no
+/// control and no next day.
+pub fn gone_ended_row<C: ConfigView>(
+    facts: &Facts<C>,
+    line: StatusLine,
+    name: &str,
+) -> Result<Row, Cause> {
+    Ok(Row {
+        next: None,
+        ..row_offering(facts, line, name, Vec::new())?
     })
 }
 

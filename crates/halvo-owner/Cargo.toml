@@ -15,8 +15,10 @@ path = "src/main.rs"
 
 [dependencies]
 getrandom = "0.3"
+halvo-agent-store = { path = "../halvo-agent-store" }
 halvo-derived = { path = "../halvo-derived" }
 halvo-identify = { path = "../halvo-identify" }
+halvo-schema = { path = "../halvo-schema" }
 halvo-schema-core = { path = "../halvo-schema-core" }
 halvo-seam = { path = "../halvo-seam" }
 serde = "1"
@@ -29,5 +31,6 @@ libc = "0.2"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_ErrorReporting", "Win32_System_Threading", "Win32_System_Time"] }
 
 [dev-dependencies]
+halvo-agent-client = { path = "../halvo-agent-client" }
 halvo-control = { path = "../halvo-control", features = ["r2"] }
 halvo-test-dir = { path = "../halvo-test-dir" }

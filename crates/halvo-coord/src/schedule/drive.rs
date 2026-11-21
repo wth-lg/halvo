@@ -1,7 +1,7 @@
 use super::{
-    clean, current_slot, holds, kept_off, slot_open, start_step, switch_on_state, tick_plan,
-    tick_step, wants_active, wants_paused, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member,
-    Owed, Owing, StartStep, Stop, Verdict, Waiting,
+    clean, current_slot, held_by_events, holds, kept_off, slot_open, start_step, switch_on_state,
+    tick_plan, tick_step, wants_active, wants_paused, Around, Ask, Board, Dying, Go, Hold, LiveRun,
+    Member, Owed, Owing, StartStep, Stop, Verdict, Waiting,
 };
 use crate::items::drive::{alone, class_of, Alone, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Shared, Stamp};
@@ -138,6 +138,9 @@ pub struct Report {
     pub unstamped: bool,
     /// The read of the clock that stamped the move, where one answered.
     pub read: Option<u64>,
+    /// The move's one read of the clock, where one answered: the stamp of every row of the move,
+    /// and of a check that the act of the move raises after it (ruling RD-77 part 6).
+    pub stamp: Option<Stamp>,
     /// For a switch-on, or a start of the person that ends `failures`, whose state the owner
     /// refused with `overlap`, what the read `Owner::overlaps` that followed gave to show: its
     /// entries, or the half of the sentence that is known where it did not answer (I3.5 (f);
@@ -159,6 +162,7 @@ impl Default for Report {
             dropped: Vec::new(),
             unstamped: false,
             read: None,
+            stamp: None,
             shared: None,
         }
     }
@@ -1501,13 +1505,101 @@ fn raise_own_item<P: Owner + Rng, C: ConfigView>(
     Ok(true)
 }
 
-/// Takes the day of the move's read of the clock as the coordinator's day (I5.9).
-fn read_day<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>) {
+/// Takes the day of the move's read of the clock as the coordinator's day (I5.9). When that day
+/// differs from the board's day, the move first reads each agent's events again from the owner,
+/// from the start, as recovery does, before its own reads of the list and the agents, and the
+/// facts take what the read gives, so that an idle agent's facts are those that a new life would
+/// build on that day (ruling RD-73 2.1, 2.2). An agent whose read did not answer, or whose hold
+/// waits for `paused` (`waits_for_paused`, RD-73 2.3 (c)), keeps its facts and is read again at
+/// the next move that reads the day.
+fn read_day<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>)
+where
+    P: Owner<Config = C>,
+    C: ConfigView + Clone,
+{
     let day = cx.move_stamp.day();
+    if day != board.day {
+        board.read_all_again();
+    }
     board.day = day;
     for m in &mut board.members {
         m.facts.today = day;
     }
+    let again = board.not_read_again();
+    if again.is_empty() {
+        return;
+    }
+    let Ok(agents) = cx.ports.agents() else {
+        return;
+    };
+    for agent in &again {
+        read_again(cx, board, &agents, agent);
+    }
+}
+
+/// The day's read of one agent, as recovery reads it (I5.8; ruling RD-73 2.2): its events from
+/// the start with the reply's `last` as the stored last, and from its entry of `agents` the
+/// newest run record, which `runs` holds alone and none of where the entry's `last` is null,
+/// `store_ended` and the rest that `refresh` takes, and then the reply rows that `read_replies`
+/// reads. An agent that recovery set aside or kept unread is left to that rule. The open item
+/// of the coordinator's own kinds, a live run and a queued start stay as they are (RD-73 2.3 (a),
+/// (b)).
+fn read_again<P, C>(
+    cx: &MoveContext<'_, P>,
+    board: &mut Board<C>,
+    agents: &[Agent<C>],
+    agent: &AgentId,
+) where
+    P: Owner<Config = C>,
+    C: ConfigView + Clone,
+{
+    let i = match board.index(agent) {
+        Some(i) if !board.aside(agent) && !board.dismissed_unread(agent) => i,
+        _ => {
+            board.read_again_taken(agent);
+            return;
+        }
+    };
+    let mut events = Vec::new();
+    let Ok(last) = resync(cx.ports, agent, &mut events) else {
+        return;
+    };
+    if waits_for_paused(cx, board, i, &events) {
+        return;
+    }
+    let member = &mut board.members[i];
+    member.facts.events = events;
+    member.facts.runs.clear();
+    member.facts.unknown.clear();
+    let entry = agents.iter().find(|a| &a.agent == agent);
+    refresh(member, entry, cx.limits.history_runs as usize);
+    crate::run::read_replies(cx.ports, &mut member.facts);
+    board.set_last(i, last);
+    board.read_again_taken(agent);
+}
+
+/// Whether the day's read of the agent of member `i`, whose events are `events`, waits (ruling
+/// RD-73 2.3 (c)): a hold `off` or `failures` stands by this life's events, and the read would
+/// leave neither of them standing nor the derived `off`, because the owner's list does not show
+/// `paused`. The move then sends `paused` first, whose acknowledgement it writes into the facts
+/// (RD-67 1.3 (a), (b)), and the read waits while that is not acknowledged, so that the hold
+/// stands in this life.
+fn waits_for_paused<P: Owner, C: Clone>(
+    cx: &MoveContext<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    events: &[Event],
+) -> bool {
+    let facts = &board.members[i].facts;
+    if !held_by_events(facts) {
+        return false;
+    }
+    let mut read = facts.clone();
+    read.events = events.to_vec();
+    if read.stand_in || held_by_events(&read) || kept_off(&read) {
+        return false;
+    }
+    send_state(cx, &mut board.members[i].facts, AgentState::Paused).is_err()
 }
 
 fn tick<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>) -> Report
@@ -1515,7 +1607,6 @@ where
     P: Owner<Config = C> + Runs + Analysis + Clock + Rng,
     C: ConfigView + Clone,
 {
-    read_day(cx, board);
     let listed = listing(cx, board, None).ok();
     let starts = listed.is_some() && fresh(cx, board, None).is_ok();
     let seen = listed.clone().unwrap_or_else(|| known(board));
@@ -2166,8 +2257,11 @@ fn stop_live<P: Owner + Runs, C: ConfigView>(
 }
 
 /// Carries out a move on the ports and the board (I5.10).
-/// A tick, a start by the person and an end read the day first
-/// (ruling XB-10). A tick works in the order of I5.9: it reads the day; sends the
+/// Every move but the take-back reads the day first, the skip, the check, the switch-on, the
+/// switch-off, the creation and the move of what is owed as well as a tick, a start by the
+/// person and an end (rulings XB-10, RD-73 2.2), and at a change of day reads each agent's
+/// events again from the owner before its own reads (`read_day`). A tick works in the order of
+/// I5.9: it reads the day; sends the
 /// request to defer again when a run is live before it; stops, by `Runs::cancel` and with the
 /// cause `deleted`, each run of a workflow that the owner's list no longer holds and drops that
 /// agent's queued start and open item with nothing stored (I5.7); kills by `Runs::kill`, in the
@@ -2292,9 +2386,7 @@ where
         limits,
         move_stamp: stamp,
     };
-    if matches!(mv, Move::Start { .. } | Move::End { .. }) {
-        read_day(&cx, board);
-    }
+    read_day(&cx, board);
     let report = match mv {
         Move::Tick => tick(&cx, board),
         Move::Create => create(&cx, board),
@@ -2304,7 +2396,10 @@ where
         }
         Move::End { run, outcome } => {
             let Some(live) = board.runs.iter().find(|r| r.run == run) else {
-                return refused(Cause::State);
+                return Report {
+                    stamp: Some(stamp),
+                    ..refused(Cause::State)
+                };
             };
             let cause = match (live.stop, outcome) {
                 (Some(stop), _) => stop.cause,
@@ -2324,6 +2419,7 @@ where
     };
     Report {
         read: Some(stamp.now()),
+        stamp: Some(stamp),
         ..report
     }
 }

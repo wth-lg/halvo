@@ -17,7 +17,7 @@ use tauri::{
 #[expect(
     dead_code,
     reason = "this test crate compiles the app's app.rs by path and uses part of it: \
-              WINDOW_SHOWN and PageLoads::count stay unused here; the app's own build lints the whole module"
+              WINDOW_SHOWN, PageLoads::count and begin_quit stay unused here; the app's own build lints the whole module"
 )]
 #[path = "../src/app.rs"]
 mod app;
@@ -48,7 +48,7 @@ mod poller;
 #[expect(
     dead_code,
     reason = "this test crate compiles the app's tray.rs by path, because the capture commands refresh the tray: \
-              the four id constants, install, on_menu_event and show_main_window stay unused here; \
+              the four id constants, install, on_menu_event, quit and show_main_window stay unused here; \
               the app's own build lints the whole module"
 )]
 #[path = "../src/tray.rs"]

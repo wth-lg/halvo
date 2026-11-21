@@ -256,6 +256,7 @@ pub struct Board<C> {
     queue_held: bool,
     kept_on: Vec<(AgentId, u32)>,
     setup_owed: Vec<AgentId>,
+    again: Vec<AgentId>,
 }
 
 impl<C> Board<C> {
@@ -292,7 +293,26 @@ impl<C> Board<C> {
             queue_held: false,
             kept_on: Vec::new(),
             setup_owed: Vec::new(),
+            again: Vec::new(),
         }
+    }
+
+    /// Marks every agent of the board for the day's read: at a change of day, each agent's facts
+    /// take the owner's events again from the start (ruling RD-73 2.2).
+    pub(super) fn read_all_again(&mut self) {
+        self.again = self.members.iter().map(|m| m.facts.agent.clone()).collect();
+    }
+
+    /// The agents whose facts have not yet taken the day's read, because the read did not answer
+    /// or a hold waits for `paused` (ruling RD-73 2.3 (c)); each later move that reads the day
+    /// reads them again.
+    pub(super) fn not_read_again(&self) -> Vec<AgentId> {
+        self.again.clone()
+    }
+
+    /// The agent's facts took the day's read.
+    pub(super) fn read_again_taken(&mut self, agent: &AgentId) {
+        self.again.retain(|a| a != agent);
     }
 
     /// Marks for the rest of this life an agent whose `set_state` `active`, sent by the tick's

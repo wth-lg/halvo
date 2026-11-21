@@ -2,6 +2,7 @@
 //! any script that runs in the page of the window main can call every command
 //! that its capability allows.
 
+pub mod agents;
 pub mod capture;
 pub mod control;
 pub mod names;
@@ -40,6 +41,10 @@ pub fn table<R: Runtime>() -> Vec<Module<R>> {
         Module {
             registration: &capture::Capture,
             handler: capture::handler::<R>,
+        },
+        Module {
+            registration: &agents::Module,
+            handler: agents::handler::<R>,
         },
         Module {
             registration: &workflows::Workflows,
