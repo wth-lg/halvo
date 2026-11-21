@@ -4465,7 +4465,13 @@ fn rd73_the_row_of_an_agent_whose_rows_have_left_says_not_yet_or_not_for_a_long_
         .board;
     for (life, board) in [("long", &w.board), ("new", &new)] {
         let f = &board.members[0].facts;
-        let shown = row(f, status_of(f, &w.limits, None, false), "x", None, &w.limits);
+        let shown = row(
+            f,
+            status_of(f, &w.limits, None, false),
+            "x",
+            None,
+            &w.limits,
+        );
         assert_eq!(
             shown.unwrap().line,
             "It has not done its task yet, or not for a long time.",
