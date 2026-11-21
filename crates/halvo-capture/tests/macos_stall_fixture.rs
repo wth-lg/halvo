@@ -432,6 +432,7 @@ struct Fixture {
     by: &'static str,
     wait: Duration,
     late: Vec<String>,
+    notices_dropped: usize,
 }
 
 const ASK_WAIT: Duration = Duration::from_secs(10);
@@ -603,6 +604,7 @@ fn launched(opener: &Path, bundle: &Path, tag: &str, wait: Duration) -> Result<F
         by: "opened",
         wait: ASK_WAIT,
         late: Vec::new(),
+        notices_dropped: 0,
     })
 }
 
@@ -633,6 +635,7 @@ impl Fixture {
             by: "spawned",
             wait: ASK_WAIT,
             late: Vec::new(),
+            notices_dropped: 0,
         })
     }
 
@@ -692,6 +695,66 @@ impl Fixture {
                         reply: prefix.to_owned(),
                         wait: within,
                     });
+                }
+                Err(RecvTimeoutError::Disconnected) => {
+                    return Err(NoReply::Ended {
+                        reply: prefix.to_owned(),
+                    })
+                }
+            }
+        }
+    }
+
+    /// Waits for the fixture's notice that starts with `prefix` and that its
+    /// own `at_uptime_ns=` dates at or after `since`. A notice is no reply to a
+    /// command: one that does not come is owed by nobody, so it goes on no late
+    /// list, and the next round reads its own notice. A notice line dated
+    /// before `since`, or with no time, is the late notice of an earlier round:
+    /// it is dropped and counted in `notices_dropped`. A late reply to a
+    /// command is dropped here as `try_reply` drops it.
+    fn try_notice(
+        &mut self,
+        prefix: &str,
+        since: u64,
+        within: Duration,
+    ) -> Result<String, NoReply> {
+        let mut kept = Vec::new();
+        let mut found = None;
+        for note in std::mem::take(&mut self.notes) {
+            if !note.starts_with(prefix) {
+                kept.push(note);
+            } else if notice_time(&note).is_none_or(|at| at < since) {
+                self.notices_dropped += 1;
+            } else if found.is_none() {
+                found = Some(note);
+            } else {
+                kept.push(note);
+            }
+        }
+        self.notes = kept;
+        if let Some(note) = found {
+            return Ok(note);
+        }
+        let deadline = Instant::now() + within;
+        loop {
+            let left = deadline.saturating_duration_since(Instant::now());
+            match self.lines.recv_timeout(left) {
+                Ok(line) => {
+                    if let Some(at) = self.late.iter().position(|late| line.starts_with(late)) {
+                        self.late.remove(at);
+                    } else if !line.starts_with(prefix) {
+                        self.notes.push(line);
+                    } else if notice_time(&line).is_none_or(|at| at < since) {
+                        self.notices_dropped += 1;
+                    } else {
+                        return Ok(line);
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => {
+                    return Err(NoReply::Late {
+                        reply: prefix.to_owned(),
+                        wait: within,
+                    })
                 }
                 Err(RecvTimeoutError::Disconnected) => {
                     return Err(NoReply::Ended {
@@ -1072,6 +1135,20 @@ fn letter_step(wait_ms: u64) -> Duration {
     Duration::from_millis((wait_ms.saturating_sub(60) / 9).max(10))
 }
 
+/// How long the leaving step waits for the fixture's notice that its secure
+/// field was left.
+const LEAVE_WAIT: Duration = Duration::from_secs(3);
+
+/// Posts the key that leaves the secure field and waits for the fixture's
+/// notice of this round: the uptime read before the key is sent ties the
+/// notice to the round, so that one notice that never comes costs its own
+/// round alone.
+fn leave_the_secure_field(fixture: &mut Fixture, within: Duration) -> Result<String, NoReply> {
+    let since = uptime_ns();
+    fixture.try_keys(Duration::ZERO, &format!("{RETURN}d"))?;
+    fixture.try_notice(notice_of("left"), since, within)
+}
+
 fn round(
     fixture: &mut Fixture,
     recorder: &impl Records,
@@ -1320,8 +1397,7 @@ impl Drive {
             return Ok(());
         }
         if how == Move::LeavingKeyUp {
-            fixture.try_keys(Duration::ZERO, &format!("{RETURN}d"))?;
-            fixture.try_reply(notice_of("left"), Duration::from_secs(3))?;
+            leave_the_secure_field(fixture, LEAVE_WAIT)?;
             if !state_reads(false, Duration::from_secs(2)) {
                 round.why_not = "secure input did not read off after the leaving key";
                 std::thread::sleep(bound + MARGIN);
@@ -1561,9 +1637,10 @@ fn phase_on(
                 .count()
                 + usize::from(round.not_driven.is_some());
             println!(
-                "{} {}",
+                "{} {} earlier_notices_dropped={}",
                 round_line(name, number, &round, bound, plan.keep, how),
-                phase_counts(counted, not_driven)
+                phase_counts(counted, not_driven),
+                fixture.notices_dropped
             );
             println!(
                 "{name} drops round={number} {}",
@@ -5286,6 +5363,11 @@ fn first_on_after(at: u64, within: Duration) -> Option<u64> {
     None
 }
 
+fn notice_time(line: &str) -> Option<u64> {
+    line.rsplit_once("at_uptime_ns=")
+        .and_then(|(_, at)| at.parse().ok())
+}
+
 fn reply_time(line: &str) -> u64 {
     line.rsplit_once("at_uptime_ns=")
         .and_then(|(_, at)| at.parse().ok())
@@ -6397,6 +6479,309 @@ fn the_late_reply_of_one_round_is_not_taken_as_the_reply_of_the_next() {
         "the second round took the first round's late 'cleared' as its own reply to 'clear' and \
          named the reply after it: {second_line}"
     );
+}
+
+/// What a fed fixture prints for a command line, in order.
+type FedAnswer = Box<dyn FnMut(&str) -> Vec<String> + Send>;
+
+/// The input of a fixture of the test's own for the reply logic of the
+/// driver: no process of the fixture, no window and no key. Each command line
+/// written to it goes to `answer`, which gives the lines that the fixture
+/// prints for it, in their order.
+struct FedInput {
+    tx: std::sync::mpsc::Sender<String>,
+    answer: FedAnswer,
+    pending: Vec<u8>,
+}
+
+impl Write for FedInput {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.pending.extend_from_slice(buf);
+        while let Some(end) = self.pending.iter().position(|&byte| byte == b'\n') {
+            let line: Vec<u8> = self.pending.drain(..=end).collect();
+            let command = String::from_utf8_lossy(&line[..end]).into_owned();
+            for out in (self.answer)(&command) {
+                let _ = self.tx.send(out);
+            }
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// The fed fixture's wait for a reply or a notice.
+const FED_WAIT: Duration = Duration::from_millis(50);
+
+fn fed_fixture(answer: impl FnMut(&str) -> Vec<String> + Send + 'static) -> Fixture {
+    let (tx, lines) = channel();
+    let child = Command::new("/usr/bin/true")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("a child that ends at once stands for the fixture's process");
+    let pid = i32::try_from(child.id()).expect("a pid");
+    Fixture {
+        child: Some(child),
+        input: Box::new(FedInput {
+            tx,
+            answer: Box::new(answer),
+            pending: Vec::new(),
+        }),
+        lines,
+        pid,
+        notes: Vec::new(),
+        by: "fed",
+        wait: FED_WAIT,
+        late: Vec::new(),
+        notices_dropped: 0,
+    }
+}
+
+fn left_at(at: u64) -> String {
+    format!("{} at_uptime_ns={at}", notice_of("left"))
+}
+
+/// A fed fixture whose notice of the first leaving key never comes, and whose
+/// later leaving keys each give their notice at once.
+fn first_notice_lost() -> Fixture {
+    let mut keys = 0;
+    fed_fixture(move |command| {
+        if !command.starts_with("keys ") {
+            return Vec::new();
+        }
+        keys += 1;
+        let mut lines = vec![String::from("posted=1")];
+        if keys > 1 {
+            lines.push(left_at(uptime_ns()));
+        }
+        lines
+    })
+}
+
+/// The rounds of a mended phase of the leaving key as `phase_on` runs them in
+/// the long form, each round driven by the leaving step alone over a fed
+/// fixture: a round whose notice comes is held and counted, and a round whose
+/// notice does not come is not driven.
+fn fed_leaving_phase(fixture: &mut Fixture, waits: &[(u64, Duration)]) -> Vec<Round> {
+    let plan = mended(ROUNDS, ROUNDS + 1);
+    let mut rounds = Vec::new();
+    for &(wait_ms, _) in waits {
+        let (mut good, mut run) = (0, 0);
+        while run < plan.cap && good < plan.count {
+            let mut round = stand_in_round(true, 0);
+            round.wait_ms = wait_ms;
+            match leave_the_secure_field(fixture, FED_WAIT) {
+                Ok(_) => round.verdict = Some(Verdict::Held),
+                Err(no_reply) => {
+                    round.counted = false;
+                    round.markers = 0;
+                    round.why_not = NOT_DRIVEN;
+                    round.not_driven = Some(no_reply);
+                    round.verdict = Some(Verdict::NotDriven);
+                }
+            }
+            run += 1;
+            if round.verdict == Some(Verdict::Held) {
+                good += 1;
+            }
+            rounds.push(round);
+        }
+    }
+    rounds
+}
+
+#[test]
+fn a_notice_lost_in_the_first_round_costs_that_round_alone() {
+    let name = "fed-first-notice-lost";
+    let waits = stall_waits();
+    let mut fixture = first_notice_lost();
+    let rounds = fed_leaving_phase(&mut fixture, &waits);
+    let line = by_wait_line(name, &rounds, &waits);
+    println!("{line}");
+    let not_driven: Vec<usize> = rounds
+        .iter()
+        .enumerate()
+        .filter(|(_, round)| round.not_driven.is_some())
+        .map(|(number, _)| number)
+        .collect();
+    assert_eq!(
+        not_driven,
+        vec![0],
+        "one notice that never came cost more rounds than its own: {line}"
+    );
+    assert_eq!(
+        rounds.len(),
+        waits.len() * ROUNDS + 1,
+        "the phase ran another count of rounds than one lost round asks: {line}"
+    );
+}
+
+#[test]
+fn a_late_notice_of_an_earlier_round_is_dropped_and_each_round_reads_its_own() {
+    let first = Arc::new(AtomicU64::new(0));
+    let own = Arc::new(Mutex::new(Vec::new()));
+    let (first_in, own_in) = (Arc::clone(&first), Arc::clone(&own));
+    let mut keys = 0;
+    let mut fixture = fed_fixture(move |command| {
+        if !command.starts_with("keys ") {
+            return Vec::new();
+        }
+        keys += 1;
+        let now = uptime_ns();
+        let old = first_in.load(Ordering::SeqCst);
+        match keys {
+            1 => {
+                first_in.store(now, Ordering::SeqCst);
+                vec![String::from("posted=1")]
+            }
+            2 => {
+                own_in
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(now);
+                vec![left_at(old), String::from("posted=1"), left_at(now)]
+            }
+            _ => {
+                own_in
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(now);
+                vec![
+                    String::from("posted=1"),
+                    left_at(old),
+                    String::from(notice_of("left")),
+                    left_at(now),
+                ]
+            }
+        }
+    });
+    assert!(
+        leave_the_secure_field(&mut fixture, FED_WAIT).is_err(),
+        "the notice of the first round came in the first round"
+    );
+    let second =
+        leave_the_secure_field(&mut fixture, FED_WAIT).expect("the second round reads a notice");
+    let third =
+        leave_the_secure_field(&mut fixture, FED_WAIT).expect("the third round reads a notice");
+    let own = own.lock().unwrap_or_else(PoisonError::into_inner).clone();
+    assert_eq!(
+        (notice_time(&second), notice_time(&third)),
+        (own.first().copied(), own.get(1).copied()),
+        "a round read the late notice of an earlier round as its own: {second} / {third}"
+    );
+    assert_eq!(
+        fixture.notices_dropped, 3,
+        "the late notice before the second round's posted line, the late notice after the third \
+         round's and the notice with no time are each dropped and counted"
+    );
+}
+
+#[test]
+fn a_notice_wait_drops_a_late_command_reply_and_keeps_the_lines_of_other_waits() {
+    let mut clears = 0;
+    let mut fixture = fed_fixture(move |command| {
+        if command == "clear" {
+            clears += 1;
+            return if clears == 1 {
+                Vec::new()
+            } else {
+                vec![format!("cleared n={clears}")]
+            };
+        }
+        if command.starts_with("keys ") {
+            return vec![
+                String::from("focus=plain at_uptime_ns=1"),
+                String::from("posted=1"),
+                String::from("cleared n=1"),
+                left_at(uptime_ns()),
+            ];
+        }
+        Vec::new()
+    });
+    assert!(
+        fixture.try_ask("clear").is_err(),
+        "the first clear was answered in its wait"
+    );
+    leave_the_secure_field(&mut fixture, FED_WAIT).expect("the round reads its notice");
+    assert_eq!(
+        fixture.try_reply("focus=", FED_WAIT).as_deref(),
+        Ok("focus=plain at_uptime_ns=1"),
+        "a line of another wait that came before the notice was lost in the wait for the notice"
+    );
+    assert_eq!(
+        fixture.try_ask("clear").as_deref(),
+        Ok("cleared n=2"),
+        "the second clear read the late reply of the first, which came in the wait for a notice"
+    );
+}
+
+#[test]
+fn a_phase_whose_every_notice_is_lost_still_never_passes() {
+    let name = "fed-every-notice-lost";
+    let waits = stall_waits();
+    let mut fixture = fed_fixture(|command| {
+        if command.starts_with("keys ") {
+            vec![String::from("posted=1")]
+        } else {
+            Vec::new()
+        }
+    });
+    let rounds = fed_leaving_phase(&mut fixture, &waits);
+    println!("{}", by_wait_line(name, &rounds, &waits));
+    assert_eq!(
+        (
+            rounds.len(),
+            rounds.iter().filter(|round| round.not_driven.is_some()).count()
+        ),
+        (waits.len() * (ROUNDS + 1), waits.len() * (ROUNDS + 1)),
+        "every round of a phase whose every notice is lost is not driven, up to the cap at each wait"
+    );
+    let failed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        assert_some_round_driven(name, &rounds);
+    }));
+    assert!(
+        failed.is_err(),
+        "a phase whose every round was not driven passed (ruling MA-27 item 2)"
+    );
+}
+
+#[test]
+fn one_lost_notice_reads_one_round_not_driven_under_the_rules_of_a_lost_round() {
+    let name = "fed-one-notice-lost";
+    let waits = stall_waits();
+    let wait_list: Vec<u64> = waits.iter().map(|&(wait_ms, _)| wait_ms).collect();
+    let mut fixture = first_notice_lost();
+    let rounds = fed_leaving_phase(&mut fixture, &waits);
+    let late_rule = late_rule_line(name, &rounds, &wait_list);
+    println!("{late_rule}");
+    let none_lost: Vec<String> = wait_list
+        .iter()
+        .map(|wait_ms| format!("{wait_ms}:0"))
+        .collect();
+    assert_eq!(
+        late_rule,
+        format!(
+            "{name} rounds_lost_to_the_late_rule=0 by_wait={}",
+            none_lost.join(",")
+        ),
+        "a round not driven by a lost notice is no round lost to a late marker"
+    );
+    let first = wait_list[0];
+    assert_eq!(
+        (
+            at_wait(&rounds, first, Verdict::NotDriven),
+            at_wait(&rounds, first, Verdict::Held)
+        ),
+        (1, ROUNDS),
+        "{}",
+        by_wait_line(name, &rounds, &waits)
+    );
+    assert_quota(name, &rounds, &wait_list, ROUNDS);
+    assert_at_most_one_lost(name, &rounds, &wait_list);
 }
 
 const MARKERS_POSTED_AT: u64 = 4_000_000;

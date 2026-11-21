@@ -10,7 +10,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use halvo_sqlcipher::rusqlite::config::DbConfig;
-use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags};
+use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -25,13 +25,16 @@ use super::durable::{self, Dir, DurableFs, EntryKind, OsFs, Refused};
 use super::lock::DirLock;
 use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{
-    DeleteReport, Layout, Met, RootReading, SegmentStore, StoreError, StoreName, StoreResult,
+    DeleteReport, KindTotal, Layout, Met, Ordinal, Reconciled, Refusal, RootReading, SegmentStore,
+    SegmentWrite, StoreError, StoreName, StoreResult, UtcDay, WriteFault, Written, KINDS_MAX,
+    KIND_MAX_BYTES, PAYLOAD_MAX_BYTES,
 };
 
 const KEY_FILE_VERSION: u32 = 2;
 #[cfg(target_os = "macos")]
 const STATS_AFTER_THE_FIRST: u32 = 2;
-const DATABASE_VERSION: i64 = 1;
+const DATABASE_VERSION: i64 = 2;
+const PAGE_SIZE: i64 = 4096;
 /// The name of the store directory in a data directory (C3.5).
 const STORE_DIR_NAME: &str = "store";
 const KEY_FILE: &str = "store.key";
@@ -87,6 +90,8 @@ pub(in crate::store) const SEAM_AT_THE_LOG_CHECK: &str =
     "an open, at the first instant of the log's check";
 #[cfg(test)]
 pub(in crate::store) const SEAM_BEFORE_THE_PAGE_LOOK: &str = "a create, before its page look";
+#[cfg(test)]
+pub(in crate::store) const SEAM_BEFORE_THE_DRAIN: &str = "an open, before the drain of its log";
 
 fn obstructed(name: StoreName, met: Met) -> StoreError {
     StoreError::Obstructed { name, met }
@@ -906,6 +911,33 @@ pub(in crate::store) mod code_seams {
     pub(in crate::store) const PROBE_LOCKING_MODE: &str = "the live-holder probe's locking mode";
     pub(in crate::store) const HELD_LOOK_HAS_MOVED: &str =
         "the held look's question whether the file moved";
+    pub(in crate::store) const CHECKPOINT_QUERY: &str =
+        "the truncating checkpoint's query of checkpoint_truncate";
+    pub(in crate::store) const LOG_ENTRY_READ: &str = "the read of the log's entry in log_look";
+
+    thread_local! {
+        static FORCED_IO_AT: Cell<Option<(&'static str, std::io::ErrorKind)>> =
+            const { Cell::new(None) };
+    }
+
+    /// Makes the next read at `place` of this thread fail with `kind`, once;
+    /// `None` takes the forced failure back.
+    pub(in crate::store) fn force_io_at(place: &'static str, kind: Option<std::io::ErrorKind>) {
+        FORCED_IO_AT.with(|forced| forced.set(kind.map(|kind| (place, kind))));
+    }
+
+    pub(in crate::store) fn or_forced_io_at<T>(
+        place: &'static str,
+        result: std::io::Result<T>,
+    ) -> std::io::Result<T> {
+        FORCED_IO_AT.with(|forced| match forced.get() {
+            Some((at, kind)) if at == place => {
+                forced.set(None);
+                Err(std::io::Error::from(kind))
+            }
+            _ => result,
+        })
+    }
 
     thread_local! {
         static FORCED_AT: Cell<Option<(&'static str, i32)>> = const { Cell::new(None) };
@@ -1061,10 +1093,10 @@ pub(in crate::store) fn unix_secs_now() -> u64 {
         .unwrap_or(0)
 }
 
-fn unix_nanos(t: SystemTime) -> i64 {
-    t.duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos() as i64)
-        .unwrap_or(0)
+pub(in crate::store) fn random_segment_id() -> StoreResult<uuid::Uuid> {
+    let mut bytes = [0u8; 16];
+    getrandom::getrandom(&mut bytes).map_err(|_| StoreError::Seal)?;
+    Ok(uuid::Builder::from_random_bytes(bytes).into_uuid())
 }
 
 fn remove_in(store_dir: &Dir, name: &str) -> StoreResult<()> {
@@ -1212,6 +1244,60 @@ pub(in crate::store) struct Db {
     store_dir: Dir,
     log_name: std::ffi::OsString,
     named: Named,
+    log_written: std::cell::Cell<bool>,
+    look_failed: std::cell::Cell<Option<LookFailure>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LookFailure {
+    Obstructed(Met),
+    Unread(ErrorKind),
+    Checkpoint(CheckpointFailure),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CheckpointFailure {
+    Db(i32),
+    Io(ErrorKind),
+    Incomplete { busy: i64, wal_bytes: u64 },
+    Other,
+}
+
+impl LookFailure {
+    fn of(e: &StoreError) -> Self {
+        match e {
+            StoreError::Obstructed { met, .. } => LookFailure::Obstructed(*met),
+            StoreError::Io(kind) => LookFailure::Unread(*kind),
+            _ => LookFailure::Unread(ErrorKind::Other),
+        }
+    }
+
+    fn of_a_checkpoint(e: &StoreError) -> Self {
+        LookFailure::Checkpoint(match e {
+            StoreError::Db(code) => CheckpointFailure::Db(*code),
+            StoreError::Io(kind) => CheckpointFailure::Io(*kind),
+            StoreError::CheckpointIncomplete { busy, wal_bytes } => CheckpointFailure::Incomplete {
+                busy: *busy,
+                wal_bytes: *wal_bytes,
+            },
+            _ => CheckpointFailure::Other,
+        })
+    }
+
+    fn answer(self) -> StoreError {
+        match self {
+            LookFailure::Obstructed(met) => obstructed(StoreName::Log, met),
+            LookFailure::Unread(kind) => StoreError::Io(kind),
+            LookFailure::Checkpoint(CheckpointFailure::Db(code)) => StoreError::Db(code),
+            LookFailure::Checkpoint(CheckpointFailure::Io(kind)) => StoreError::Io(kind),
+            LookFailure::Checkpoint(CheckpointFailure::Incomplete { busy, wal_bytes }) => {
+                StoreError::CheckpointIncomplete { busy, wal_bytes }
+            }
+            LookFailure::Checkpoint(CheckpointFailure::Other) => {
+                StoreError::Corrupt("the checkpoint after a shred failed".to_string())
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1220,7 +1306,131 @@ enum Database {
     Existing,
 }
 
-const SCHEMA_TABLES: [&str; 3] = ["segment_keys", "events", "events_fts"];
+const SCHEMA_TABLES: [&str; 3] = ["segment_keys", "segment_totals", "daily_totals"];
+
+const SCHEMA: &str = "CREATE TABLE segment_keys (\n\
+       id INTEGER PRIMARY KEY AUTOINCREMENT,\n\
+       segment_id TEXT NOT NULL UNIQUE,\n\
+       wrapped_key BLOB,\n\
+       day INTEGER NOT NULL,\n\
+       first_capture INTEGER NOT NULL,\n\
+       last_capture INTEGER NOT NULL,\n\
+       logical_bytes INTEGER NOT NULL,\n\
+       disk_bytes INTEGER NOT NULL\n\
+     );\n\
+     CREATE INDEX segment_keys_live_by_first_capture ON segment_keys (first_capture)\n\
+       WHERE wrapped_key IS NOT NULL;\n\
+     CREATE TABLE segment_totals (\n\
+       segment INTEGER NOT NULL REFERENCES segment_keys (id),\n\
+       kind TEXT NOT NULL,\n\
+       events INTEGER NOT NULL,\n\
+       bytes INTEGER NOT NULL,\n\
+       PRIMARY KEY (segment, kind)\n\
+     ) WITHOUT ROWID;\n\
+     CREATE TABLE daily_totals (\n\
+       day INTEGER NOT NULL,\n\
+       kind TEXT NOT NULL,\n\
+       events INTEGER NOT NULL,\n\
+       bytes INTEGER NOT NULL,\n\
+       PRIMARY KEY (day, kind)\n\
+     ) WITHOUT ROWID;";
+
+/// The UTC day and the first and last capture instants of one segment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::store) struct Instants {
+    pub(in crate::store) day: UtcDay,
+    pub(in crate::store) first: i64,
+    pub(in crate::store) last: i64,
+}
+
+impl Instants {
+    fn at(nanos: i64) -> Instants {
+        Instants {
+            day: UtcDay::of_instant(nanos),
+            first: nanos,
+            last: nanos,
+        }
+    }
+}
+
+fn as_column(value: u64) -> StoreResult<i64> {
+    i64::try_from(value)
+        .map_err(|_| StoreError::Corrupt("a count above the column's range".to_string()))
+}
+
+/// Why `write` must be refused, before anything is written.
+pub(in crate::store) fn refusal_of(write: &SegmentWrite<'_>) -> Option<Refusal> {
+    let is_v4 = write.segment_id.get_version_num() == 4
+        && write.segment_id.get_variant() == uuid::Variant::RFC4122;
+    let kind_text = |kind: &str| {
+        (1..=KIND_MAX_BYTES).contains(&kind.len())
+            && kind.bytes().all(|b| b.is_ascii_lowercase() || b == b'_')
+    };
+    let mut kinds: Vec<&str> = write.kinds.iter().map(|total| total.kind).collect();
+    kinds.sort_unstable();
+    let events = write
+        .kinds
+        .iter()
+        .try_fold(0u64, |sum, total| sum.checked_add(total.events));
+    if !is_v4 {
+        Some(Refusal::NotRandomId)
+    } else if write.payload.len() > PAYLOAD_MAX_BYTES {
+        Some(Refusal::PayloadOverCap)
+    } else if write.kinds.len() > KINDS_MAX {
+        Some(Refusal::TooManyKinds)
+    } else if !write.kinds.iter().all(|total| kind_text(total.kind)) {
+        Some(Refusal::KindNotText)
+    } else if kinds.windows(2).any(|pair| pair[0] == pair[1]) {
+        Some(Refusal::RepeatedKind)
+    } else if events.is_none_or(|events| events == 0 || events > i64::MAX as u64)
+        || write
+            .kinds
+            .iter()
+            .any(|total| total.bytes > i64::MAX as u64)
+    {
+        Some(Refusal::NoEvent)
+    } else if write.first_capture > write.last_capture {
+        Some(Refusal::InstantsOutOfOrder)
+    } else if UtcDay::of_instant(write.first_capture) != UtcDay::of_instant(write.last_capture) {
+        Some(Refusal::InstantsOnTwoDays)
+    } else if UtcDay::of_instant(write.first_capture) != write.day {
+        Some(Refusal::DayNotTheInstants)
+    } else {
+        None
+    }
+}
+
+const DATABASE_KEY_LABEL: [u8; 24] = *b"halvo-store-database-key";
+const WRAPPING_KEY_LABEL: [u8; 24] = *b"halvo-store-segment-wrap";
+
+/// A key derived from the store key under `label`: the XChaCha20-Poly1305
+/// ciphertext of 32 zero bytes under the store key with the label as nonce,
+/// without its tag, which is the XChaCha20 stream from its second block (the
+/// first block keys Poly1305), so that keys of two labels are independent
+/// and the store key itself encrypts nothing.
+fn derived_key(store_key: &StoreKey, label: &[u8; 24]) -> StoreResult<Zeroizing<[u8; 32]>> {
+    use aead::{Aead, KeyInit};
+    let cipher = chacha20poly1305::XChaCha20Poly1305::new(store_key.expose().into());
+    let sealed = Zeroizing::new(
+        cipher
+            .encrypt(
+                &chacha20poly1305::XNonce::from(*label),
+                [0u8; 32].as_slice(),
+            )
+            .map_err(|_| StoreError::Seal)?,
+    );
+    let mut key = Zeroizing::new([0u8; 32]);
+    key.copy_from_slice(&sealed[..32]);
+    Ok(key)
+}
+
+pub(in crate::store) fn database_key(store_key: &StoreKey) -> StoreResult<Zeroizing<[u8; 32]>> {
+    derived_key(store_key, &DATABASE_KEY_LABEL)
+}
+
+pub(in crate::store) fn wrapping_key(store_key: &StoreKey) -> StoreResult<Zeroizing<[u8; 32]>> {
+    derived_key(store_key, &WRAPPING_KEY_LABEL)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::store) struct DatabaseRemoval {
@@ -1305,6 +1515,44 @@ impl Db {
         }
     }
 
+    /// `OlderStore` or `NewerStore` when no log with frames stands beside
+    /// store.db and the database key, or else the store key itself, opens
+    /// store.db: a read-write connection under exclusive locking, which does
+    /// not checkpoint at its close when a log stood. A version is believed
+    /// only from a store.db that is a whole number of its pages long; a
+    /// version above this build's answers `NewerStore`, and one below answers
+    /// `OlderStore` when store.db holds the table `segment_keys`. It reads
+    /// user_version, the page size and sqlite_master, and answers `None` for
+    /// every other reading.
+    fn another_version_of(store_dir: &Dir, store_key: &StoreKey) -> Option<StoreError> {
+        let log_was_there = match store_dir.entry(OsStr::new(DATABASE_LOG)) {
+            Ok(entry) if entry.len > 0 => return None,
+            Ok(_) => true,
+            Err(e) if e.kind() == ErrorKind::NotFound => false,
+            Err(_) => return None,
+        };
+        let length = store_dir.entry(OsStr::new(DATABASE_FILE)).ok()?.len;
+        let database = database_key(store_key).ok()?;
+        for key in [&*database, store_key.expose()] {
+            let (probe, _) = open_connection(store_dir, DATABASE_OPEN).ok()?;
+            probe
+                .set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_was_there)
+                .ok()?;
+            probe.execute_batch(&key_pragma(key)).ok()?;
+            probe
+                .execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
+                .ok()?;
+            if pragma_int(&probe, "user_version").is_err() {
+                continue;
+            }
+            return match another_version(&probe, length) {
+                Err(e @ (StoreError::OlderStore { .. } | StoreError::NewerStore { .. })) => Some(e),
+                _ => None,
+            };
+        }
+        None
+    }
+
     fn require_file(store_dir: &Dir) -> StoreResult<()> {
         match store_dir.entry(OsStr::new(DATABASE_FILE)) {
             Ok(entry) if entry.kind == EntryKind::Link => {
@@ -1325,10 +1573,17 @@ impl Db {
             Self::require_file(store_dir)?;
         }
         halvo_sqlcipher::initialize().map_err(|code| code_answer(Some(code)))?;
-        let log_was_there = match store_dir.entry(OsStr::new(DATABASE_LOG)) {
-            Ok(_) => true,
-            Err(e) if e.kind() == ErrorKind::NotFound => false,
+        let (log_was_there, log_holds_frames) = match store_dir.entry(OsStr::new(DATABASE_LOG)) {
+            Ok(entry) => (true, entry.len > 0),
+            Err(e) if e.kind() == ErrorKind::NotFound => (false, false),
             Err(e) => return Err(io_error(e)),
+        };
+        let whole_length = match database {
+            Database::Existing if !log_holds_frames => store_dir
+                .entry(OsStr::new(DATABASE_FILE))
+                .map(|entry| entry.len)
+                .ok(),
+            _ => None,
         };
         if database == Database::New {
             store_dir
@@ -1336,7 +1591,7 @@ impl Db {
                 .map_err(io_error)?;
         }
         let (conn, (name_form, volume_ids)) = open_database(store_dir, DATABASE_OPEN)?;
-        let set_up = Self::set_up(&conn, key, database, log_was_there);
+        let set_up = Self::set_up(&conn, key, database, log_was_there, whole_length);
         #[cfg(test)]
         failpoint::seam(SEAM_AFTER_THE_FIRST_READ);
         held_look(&conn, store_dir, name_form)?;
@@ -1346,6 +1601,8 @@ impl Db {
             store_dir: store_dir.try_clone().map_err(io_error)?,
             log_name: DATABASE_LOG.into(),
             named: (name_form, volume_ids),
+            log_written: std::cell::Cell::new(database == Database::New),
+            look_failed: std::cell::Cell::new(None),
         };
         db.finish(database)
             .map_err(|e| Self::answered(store_dir, e))?;
@@ -1364,6 +1621,7 @@ impl Db {
         key: &[u8; 32],
         database: Database,
         log_was_there: bool,
+        whole_length: Option<u64>,
     ) -> StoreResult<()> {
         conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_was_there)
             .map_err(db_error)?;
@@ -1375,7 +1633,10 @@ impl Db {
         failpoint::seam(SEAM_BEFORE_THE_FIRST_READ);
         verify_key(conn)?;
         if database == Database::Existing {
-            known_version(pragma_int(conn, "user_version")?, DATABASE_VERSION)?;
+            match whole_length {
+                Some(length) => another_version(conn, length)?,
+                None => known_version(pragma_int(conn, "user_version")?, DATABASE_VERSION)?,
+            }
         }
         conn.execute_batch(
             "PRAGMA secure_delete = ON;\n\
@@ -1395,24 +1656,36 @@ impl Db {
         require_synchronous_full(conn)?;
         require_fullfsync(conn)?;
         require_checkpoint_fullfsync(conn)?;
+        require_foreign_keys(conn)?;
         require_cipher_log_level_none(conn)?;
         require_pinned_cipher(conn)
     }
 
+    /// The last steps of an open or a create. For an existing database the
+    /// look at the tables, the two settings and a held look come first, read
+    /// through the log's frames with no write, so that a refusal leaves the
+    /// log and `store.db` as they were; then the drain; then, for a new
+    /// database, the tables, the version and their read-backs, the log's
+    /// look, a checkpoint and the page look; then the last held look, which a
+    /// `store.db` moved or exchanged at its name during the drain fails.
     fn finish(&self, database: Database) -> StoreResult<()> {
-        self.log_drained()?;
-        match database {
-            Database::New => {
-                self.init_schema()?;
-                self.conn
-                    .execute_batch(&format!("PRAGMA user_version = {DATABASE_VERSION};"))
-                    .map_err(db_error)?;
-            }
-            Database::Existing => self.require_schema()?,
+        #[cfg(test)]
+        failpoint::seam(SEAM_BEFORE_THE_DRAIN);
+        if database == Database::Existing {
+            self.require_schema()?;
+            require_setting(&self.conn, "auto_vacuum", 0)?;
+            require_setting(&self.conn, "page_size", PAGE_SIZE)?;
+            held_look(&self.conn, &self.store_dir, self.named.0)?;
         }
-        self.enable_fts_secure_delete()?;
-        self.log_look()?;
+        self.log_drained()?;
         if database == Database::New {
+            self.init_schema()?;
+            self.conn
+                .execute_batch(&format!("PRAGMA user_version = {DATABASE_VERSION};"))
+                .map_err(db_error)?;
+            require_setting(&self.conn, "auto_vacuum", 0)?;
+            require_setting(&self.conn, "page_size", PAGE_SIZE)?;
+            self.log_look()?;
             self.checkpoint_truncate()?;
             #[cfg(test)]
             failpoint::seam(SEAM_BEFORE_THE_PAGE_LOOK);
@@ -1451,7 +1724,10 @@ impl Db {
     }
 
     fn log_look(&self) -> StoreResult<()> {
-        match self.store_dir.entry(&self.log_name) {
+        let entry = self.store_dir.entry(&self.log_name);
+        #[cfg(test)]
+        let entry = code_seams::or_forced_io_at(code_seams::LOG_ENTRY_READ, entry);
+        match entry {
             Ok(entry) if entry.kind == EntryKind::File && entry.len > 0 => Ok(()),
             Ok(entry) if entry.kind == EntryKind::Link => {
                 Err(obstructed(StoreName::Log, Met::Link))
@@ -1465,6 +1741,87 @@ impl Db {
             }
             Err(e) => Err(io_error(e)),
         }
+    }
+
+    /// The second instant of the log's check, at the first commit of a
+    /// handle whose open wrote nothing and whose statements changed a row:
+    /// the log in the store directory holds the commit's frames, or the
+    /// answer is the obstructed variant, or `Io` when the look cannot read
+    /// the log's entry (the `Unread` arm), except against a program of the same
+    /// user that changes the entries of the store's directory or writes its
+    /// files (a rename of another file into the directory is such a change).
+    /// When such a program puts another file of more than 0 bytes at the
+    /// log's name while SQLite writes its log elsewhere, the look passes: a
+    /// batch answered `Ok` is then lost when the process ends without a clean
+    /// close (shown at a kill, reasoned for a crash or a loss of power), and an
+    /// ordinal can be issued twice. A log unlinked or moved from its name, with
+    /// nothing or an empty file left there, fails the look. `changes_before` is the connection's
+    /// count of changed rows before that commit's transaction began, so that
+    /// rows of a transaction that rolled back do not count. The look comes
+    /// after the commit, so an obstructed look leaves a commit whose frames
+    /// are in no file at the store's names, and a look that could not read the
+    /// log's entry leaves a commit whose frames may lie in the log at its
+    /// name, which the next open's drain brings into `store.db`. From then on
+    /// the handle answers the look's own answer to every call that reads or
+    /// writes the database ([`Db::look_failure`]), and its close does not
+    /// checkpoint, so nothing of that log reaches `store.db` through this
+    /// handle, which stays as it was before the commit.
+    pub(in crate::store) fn look_after_the_first_commit(
+        &self,
+        changes_before: u64,
+    ) -> StoreResult<()> {
+        if self.log_written.get() || self.conn.total_changes() == changes_before {
+            return Ok(());
+        }
+        if let Err(e) = self.log_look() {
+            self.look_failed.set(Some(LookFailure::of(&e)));
+            self.conn
+                .set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)
+                .map_err(db_error)?;
+            return Err(e);
+        }
+        self.log_written.set(true);
+        Ok(())
+    }
+
+    /// The answer of a failed look after this handle's first commit, or of a
+    /// checkpoint that failed after a shred's commit, which the handle gives
+    /// to every later call that reads or writes the database; `None` while
+    /// neither failed.
+    pub(in crate::store) fn look_failure(&self) -> Option<StoreError> {
+        self.look_failed.get().map(LookFailure::answer)
+    }
+
+    /// The answer of a shred's checkpoint that failed: when the shred's
+    /// commit changed a row (the connection's count of changed rows is not
+    /// `changes_before`), the shred is committed in the log and not in
+    /// `store.db`, so the handle keeps the failure as it keeps a failed look,
+    /// its close does not checkpoint, and nothing of it reports the shred;
+    /// the next open's drain brings the log into `store.db` before it
+    /// answers.
+    pub(in crate::store) fn kept_after_a_shred(
+        &self,
+        e: StoreError,
+        changes_before: u64,
+    ) -> StoreError {
+        if self.conn.total_changes() == changes_before || self.look_failed.get().is_some() {
+            return e;
+        }
+        self.look_failed.set(Some(LookFailure::of_a_checkpoint(&e)));
+        match self
+            .conn
+            .set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)
+        {
+            Ok(_) => e,
+            Err(config) => db_error(config),
+        }
+    }
+
+    /// Whether this handle's look after its first commit failed because it
+    /// could not read the log's entry, so that the log may stand at its
+    /// name with the commit's frames.
+    pub(in crate::store) fn look_unread(&self) -> bool {
+        matches!(self.look_failed.get(), Some(LookFailure::Unread(_)))
     }
 
     fn page_look(&self) -> StoreResult<()> {
@@ -1499,31 +1856,7 @@ impl Db {
     }
 
     fn init_schema(&self) -> StoreResult<()> {
-        self.conn
-            .execute_batch(
-                "CREATE TABLE IF NOT EXISTS segment_keys (\n\
-                   id INTEGER PRIMARY KEY,\n\
-                   segment_id TEXT NOT NULL UNIQUE,\n\
-                   wrapped_key BLOB,\n\
-                   created_at INTEGER NOT NULL,\n\
-                   expires_at INTEGER NOT NULL\n\
-                 );\n\
-                 CREATE TABLE IF NOT EXISTS events (\n\
-                   event_id TEXT PRIMARY KEY,\n\
-                   wall_clock_nanos INTEGER NOT NULL,\n\
-                   sequence INTEGER NOT NULL,\n\
-                   modality TEXT NOT NULL,\n\
-                   foreground_app TEXT NOT NULL,\n\
-                   segment_id TEXT NOT NULL,\n\
-                   byte_offset INTEGER NOT NULL,\n\
-                   byte_len INTEGER NOT NULL,\n\
-                   segment_key_id INTEGER NOT NULL,\n\
-                   is_derived INTEGER NOT NULL,\n\
-                   retention_class TEXT NOT NULL\n\
-                 );\n\
-                 CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(foreground_app);",
-            )
-            .map_err(db_error)
+        self.conn.execute_batch(SCHEMA).map_err(db_error)
     }
 
     fn require_schema(&self) -> StoreResult<()> {
@@ -1548,102 +1881,72 @@ impl Db {
         Ok(())
     }
 
-    fn enable_fts_secure_delete(&self) -> StoreResult<()> {
-        self.conn
-            .execute_batch("INSERT INTO events_fts(events_fts, rank) VALUES('secure-delete', 1);")
-            .map_err(db_error)
-    }
-
     pub(crate) fn connection(&self) -> &Connection {
         &self.conn
     }
 
-    fn reserve_segment_key(
+    /// The ordinal of the key row of `segment_id`, live or shredded.
+    pub(in crate::store) fn ordinal_of(
         &self,
         segment_id: uuid::Uuid,
-        created_at: u64,
-        expires_at: u64,
-    ) -> StoreResult<SegmentKeyId> {
+    ) -> StoreResult<Option<Ordinal>> {
         self.conn
-            .execute(
-                "INSERT INTO segment_keys (segment_id, wrapped_key, created_at, expires_at) \
-                 VALUES (?1, NULL, ?2, ?3)",
-                rusqlite::params![
-                    segment_id.simple().to_string(),
-                    created_at as i64,
-                    expires_at as i64
-                ],
+            .query_row(
+                "SELECT id FROM segment_keys WHERE segment_id = ?1",
+                [segment_id.simple().to_string()],
+                |r| r.get::<_, i64>(0),
             )
-            .map_err(db_error)?;
-        Ok(SegmentKeyId(self.conn.last_insert_rowid()))
+            .optional()
+            .map(|id| id.map(Ordinal::of_row))
+            .map_err(db_error)
     }
 
-    fn commit_segment_key(&self, id: SegmentKeyId, wrapped: &[u8]) -> StoreResult<()> {
-        let changed = self
-            .conn
-            .execute(
-                "UPDATE segment_keys SET wrapped_key = ?1 WHERE id = ?2 AND wrapped_key IS NULL",
-                rusqlite::params![wrapped, id.0],
+    /// One transaction: the complete key row, the totals of each kind and the
+    /// rollup of the day. Nothing of it stays when it fails.
+    fn insert_segment(
+        &self,
+        segment_id: uuid::Uuid,
+        wrapped: &[u8],
+        instants: &Instants,
+        sizes: (u64, u64),
+        kinds: &[KindTotal<'_>],
+    ) -> StoreResult<Ordinal> {
+        let changes_before = self.conn.total_changes();
+        let tx = self.conn.unchecked_transaction().map_err(db_error)?;
+        tx.execute(
+            "INSERT INTO segment_keys (segment_id, wrapped_key, day, first_capture, last_capture, \
+               logical_bytes, disk_bytes) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                segment_id.simple().to_string(),
+                wrapped,
+                instants.day.days_since_epoch(),
+                instants.first,
+                instants.last,
+                as_column(sizes.0)?,
+                as_column(sizes.1)?
+            ],
+        )
+        .map_err(db_error)?;
+        let ordinal = tx.last_insert_rowid();
+        for total in kinds {
+            let (events, bytes) = (as_column(total.events)?, as_column(total.bytes)?);
+            tx.execute(
+                "INSERT INTO segment_totals (segment, kind, events, bytes) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![ordinal, total.kind, events, bytes],
             )
             .map_err(db_error)?;
-        if changed == 1 {
-            Ok(())
-        } else {
-            Err(StoreError::Corrupt(
-                "a segment key row was not reserved for this write".to_string(),
-            ))
+            tx.execute(
+                "INSERT INTO daily_totals (day, kind, events, bytes) VALUES (?1, ?2, ?3, ?4) \
+                 ON CONFLICT (day, kind) DO UPDATE SET events = events + excluded.events, \
+                 bytes = bytes + excluded.bytes",
+                rusqlite::params![instants.day.days_since_epoch(), total.kind, events, bytes],
+            )
+            .map_err(db_error)?;
         }
-    }
-
-    pub(crate) fn insert_event(&self, event: &CaptureStreamEvent) -> StoreResult<()> {
-        self.conn
-            .execute_batch("SAVEPOINT insert_event;")
-            .map_err(db_error)?;
-        match self.insert_event_rows(event) {
-            Ok(()) => self
-                .conn
-                .execute_batch("RELEASE insert_event;")
-                .map_err(db_error),
-            Err(cause) => match self
-                .conn
-                .execute_batch("ROLLBACK TO insert_event; RELEASE insert_event;")
-            {
-                Ok(()) => Err(cause),
-                Err(e) => Err(db_error(e)),
-            },
-        }
-    }
-
-    fn insert_event_rows(&self, event: &CaptureStreamEvent) -> StoreResult<()> {
-        self.conn
-            .execute(
-                "INSERT INTO events (event_id, wall_clock_nanos, sequence, modality, \
-                   foreground_app, segment_id, byte_offset, byte_len, segment_key_id, \
-                   is_derived, retention_class) \
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
-                rusqlite::params![
-                    event.event_id.simple().to_string(),
-                    unix_nanos(event.captured_at.wall_clock),
-                    event.captured_at.sequence.get() as i64,
-                    format!("{:?}", event.modality),
-                    event.foreground_app,
-                    event.segment_ref.segment_id.simple().to_string(),
-                    event.segment_ref.byte_offset as i64,
-                    event.segment_ref.byte_len as i64,
-                    event.segment_key_id.0,
-                    event.is_derived as i64,
-                    format!("{:?}", event.retention_class),
-                ],
-            )
-            .map_err(db_error)?;
-        let rowid = self.conn.last_insert_rowid();
-        self.conn
-            .execute(
-                "INSERT INTO events_fts (rowid, foreground_app) VALUES (?1, ?2)",
-                rusqlite::params![rowid, event.foreground_app],
-            )
-            .map_err(db_error)?;
-        Ok(())
+        failpoint::hit("batch_in_the_transaction")?;
+        tx.commit().map_err(db_error)?;
+        self.look_after_the_first_commit(changes_before)?;
+        Ok(Ordinal::of_row(ordinal))
     }
 
     pub(crate) fn pragma_int(&self, name: &str) -> StoreResult<i64> {
@@ -1653,16 +1956,6 @@ impl Db {
     pub(crate) fn cipher_provider(&self) -> StoreResult<String> {
         self.conn
             .query_row("PRAGMA cipher_provider", [], |r| r.get::<_, String>(0))
-            .map_err(db_error)
-    }
-
-    pub(crate) fn fts_secure_delete(&self) -> StoreResult<i64> {
-        self.conn
-            .query_row(
-                "SELECT CAST(v AS INTEGER) FROM events_fts_config WHERE k='secure-delete'",
-                [],
-                |r| r.get::<_, i64>(0),
-            )
             .map_err(db_error)
     }
 
@@ -1698,10 +1991,14 @@ impl Db {
     /// answered, it is the step that makes the shred last through a loss of
     /// power, before any file of the shred is removed (ruling PR-30 PR9 (2)).
     pub(crate) fn checkpoint_truncate(&self) -> StoreResult<Checkpoint> {
-        let busy: i64 = self
+        let busy = self
             .conn
-            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| r.get(0))
-            .map_err(db_error)?;
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+                r.get::<_, i64>(0)
+            });
+        #[cfg(test)]
+        let busy = code_seams::or_forced_at(code_seams::CHECKPOINT_QUERY, busy);
+        let busy = busy.map_err(db_error)?;
         let checkpoint = Checkpoint {
             busy,
             wal_bytes: self.wal_bytes()?,
@@ -1737,6 +2034,65 @@ fn unreadable_or_db_error(e: rusqlite::Error) -> StoreError {
         }
         _ => db_error(e),
     }
+}
+
+fn require_mend(linked: bool) -> StoreResult<()> {
+    if linked {
+        Ok(())
+    } else {
+        Err(StoreError::SettingNotInEffect("page_gap_mend_linked"))
+    }
+}
+
+fn setting_in_effect(name: &'static str, read: i64, wanted: i64) -> StoreResult<()> {
+    if read == wanted {
+        Ok(())
+    } else {
+        Err(StoreError::SettingNotInEffect(name))
+    }
+}
+
+fn pragma_number(conn: &Connection, name: &str) -> rusqlite::Result<Option<i64>> {
+    conn.query_row(&format!("PRAGMA {name}"), [], |r| {
+        Ok(match r.get::<_, rusqlite::types::Value>(0)? {
+            rusqlite::types::Value::Integer(n) => Some(n),
+            rusqlite::types::Value::Text(text) => text.trim().parse().ok(),
+            _ => None,
+        })
+    })
+}
+
+fn require_setting(conn: &Connection, name: &'static str, wanted: i64) -> StoreResult<()> {
+    match pragma_number(conn, name).map_err(db_error)? {
+        Some(read) => setting_in_effect(name, read, wanted),
+        None => Err(StoreError::SettingNotInEffect(name)),
+    }
+}
+
+fn require_whole(conn: &Connection, length: u64) -> StoreResult<()> {
+    match pragma_number(conn, "page_size").map_err(unreadable_or_db_error)? {
+        Some(size) if size > 0 && length > 0 && length.is_multiple_of(size as u64) => Ok(()),
+        _ => Err(StoreError::DatabaseUnreadable),
+    }
+}
+
+fn holds_the_key_table(conn: &Connection) -> StoreResult<bool> {
+    conn.query_row(
+        "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'segment_keys'",
+        [],
+        |r| r.get::<_, i64>(0),
+    )
+    .map(|count| count == 1)
+    .map_err(unreadable_or_db_error)
+}
+
+fn another_version(conn: &Connection, length: u64) -> StoreResult<()> {
+    let found = pragma_int(conn, "user_version").map_err(|_| StoreError::DatabaseUnreadable)?;
+    require_whole(conn, length)?;
+    if found < DATABASE_VERSION && !holds_the_key_table(conn)? {
+        return Err(StoreError::DatabaseUnreadable);
+    }
+    known_version(found, DATABASE_VERSION)
 }
 
 fn require_secure_delete(conn: &Connection) -> StoreResult<()> {
@@ -1803,6 +2159,13 @@ fn require_cipher_log_level_none(conn: &Connection) -> StoreResult<()> {
         Ok(())
     } else {
         Err(StoreError::SettingNotInEffect("cipher_log_level"))
+    }
+}
+
+fn require_foreign_keys(conn: &Connection) -> StoreResult<()> {
+    match pragma_int(conn, "foreign_keys")? {
+        1 => Ok(()),
+        _ => Err(StoreError::SettingNotInEffect("foreign_keys")),
     }
 }
 
@@ -1936,7 +2299,7 @@ fn held_look(_conn: &Connection, store_dir: &Dir, _form: NameForm) -> StoreResul
 }
 
 enum Keyed {
-    Open { db: Db, store_key: StoreKey },
+    Open { db: Box<Db>, store_key: StoreKey },
     Deleting(Option<Box<DeleteReport>>),
     Deleted(Box<DeleteReport>),
 }
@@ -1991,6 +2354,7 @@ pub struct EncryptedStore {
     /// destroyed; a later call reports from it and opens no roots path.
     root_destroyed_with: Option<RootsLeft>,
     roots: RootKeeping,
+    reconciled: Reconciled,
     _writer_lock: DirLock,
 }
 
@@ -2009,7 +2373,14 @@ impl EncryptedStore {
     /// files, every step attempted, and answers the step's error, or a
     /// removal's error when one failed. On Windows a store path or a roots
     /// path of which a part ends in a dot or a space answers
-    /// `Io(InvalidInput)` before anything is made.
+    /// `Io(InvalidInput)` before anything is made. Before every other answer,
+    /// and before anything is made, it answers
+    /// [`StoreError::SettingNotInEffect`] with `page_gap_mend_linked` when the
+    /// linked database does not zero the gap of a page that it builds again or
+    /// edits in place under secure delete; on the database that it has just
+    /// made it reads auto_vacuum and the page size back and answers the same
+    /// variant with `auto_vacuum` or `page_size` unless they read 0 and 4,096,
+    /// as a step that fails.
     pub fn create(
         dir: &Path,
         custody: Box<dyn KeyCustody + Send>,
@@ -2024,6 +2395,7 @@ impl EncryptedStore {
         retention: Duration,
         after_the_handle: &mut dyn FnMut(),
     ) -> StoreResult<Self> {
+        require_mend(halvo_sqlcipher::page_gap_mend_linked())?;
         #[cfg(windows)]
         refuse_a_part_that_windows_trims(&[Some(dir), custody.roots()])?;
         durable::create_private_dir_all(dir).map_err(io_error)?;
@@ -2055,7 +2427,9 @@ impl EncryptedStore {
         let _ = segment::remove_segments_tree(dir);
         write_pending(dir, custody.as_ref(), PendingReading::Owed, None)?;
         let store_key = StoreKey::random()?;
-        let db = Db::open(dir, store_key.expose()).map_err(|e| Self::without_database(dir, e))?;
+        let db = database_key(&store_key)
+            .and_then(|key| Db::open(dir, &key))
+            .map_err(|e| Self::without_database(dir, e))?;
         let db = Self::under_a_new_root(dir, custody.as_ref(), db)?;
         let (wrapped, roots) = match Self::wrap_under_the_new_root(custody.as_ref(), &store_key) {
             Ok(wrapped) => wrapped,
@@ -2104,12 +2478,16 @@ impl EncryptedStore {
                 dir: store,
                 retention,
                 custody,
-                keyed: Keyed::Open { db, store_key },
+                keyed: Keyed::Open {
+                    db: Box::new(db),
+                    store_key,
+                },
                 fs: Arc::new(OsFs),
                 unwrap_time: Duration::ZERO,
                 pending_left: false,
                 root_destroyed_with: None,
                 roots,
+                reconciled: Reconciled::default(),
                 _writer_lock,
             }),
             Err(e) => {
@@ -2216,13 +2594,32 @@ impl EncryptedStore {
     /// `store.db` is missing or empty, before any custody call, and
     /// [`StoreError::DatabaseUnreadable`] when the unwrapped key does not open
     /// the database: a key of another store, a damaged page, a cut file, or a
-    /// database without the store's tables. Fails
+    /// database without the store's tables. A version is believed only from a
+    /// `store.db` that the store's key, or the database key derived from it,
+    /// opens and that is whole (no shorter than its header says, which SQLite
+    /// itself refuses at the first read, and a whole number of its pages long,
+    /// read while no log with frames stands): a version above this
+    /// build's answers [`StoreError::NewerStore`] whatever its schema holds, a
+    /// version below answers [`StoreError::OlderStore`] when the database
+    /// holds the table `segment_keys` and `DatabaseUnreadable` when it does
+    /// not, and a cut file answers `DatabaseUnreadable` whatever its version.
+    /// A refused open of another version leaves every entry of the store's
+    /// directory with its name, length and bytes. Fails
     /// [`StoreError::KeyFileUnparseable`] for a key file that does not parse or
     /// whose wrapped key has another length than a wrap,
     /// [`StoreError::KeyFileOfAnotherLabel`] for a key file of another label,
     /// [`StoreError::OlderStore`] for a key file of version 1, the obstructed
     /// variant when a link or an entry of another kind stands at a store name
-    /// or the directory leaves its name, and [`StoreError::Custody`] with the
+    /// or the directory leaves its name, the obstructed variant for the log
+    /// when the reconcile's shred, as the handle's first commit, finds its log
+    /// gone from its name (nothing then reports that shred, and `store.db`
+    /// and every entry of the directory keep their names, lengths and bytes,
+    /// so the next open shreds the row whole), the checkpoint's own error when
+    /// it is `Db`, `Io` or `CheckpointIncomplete`, and `Corrupt` for any other
+    /// error of the checkpoint, when the reconcile's shred
+    /// committed and its checkpoint then failed (nothing then reports that
+    /// shred, the close does not checkpoint, and the next open's drain brings
+    /// the shred into `store.db` before it answers), and [`StoreError::Custody`] with the
     /// custody's own variant when the custody kind is not in this build or the
     /// unwrap fails: [`CustodyError::RootMissing`], [`CustodyError::RootCorrupt`]
     /// and [`CustodyError::WrapAuthFailed`] mean that the key cannot come back,
@@ -2230,6 +2627,21 @@ impl EncryptedStore {
     /// No call waits on a
     /// FIFO. On Windows a store path or a roots path of which a part ends in a
     /// dot or a space answers `Io(InvalidInput)` before anything is opened.
+    /// Before every other answer, and before it touches a file, it answers
+    /// [`StoreError::SettingNotInEffect`] with `page_gap_mend_linked` when the
+    /// linked database does not zero the gap of a page that it builds again or
+    /// edits in place under secure delete; on a database that the key opened
+    /// and whose version is this build's, it answers the same variant with
+    /// `auto_vacuum` when `store.db` does not read auto_vacuum 0, and with
+    /// `page_size` when it does not read a page size of 4,096. The look at the
+    /// tables, the two settings and a look that `store.db` at its name is
+    /// still the file that the open holds come before the open drains its log
+    /// into `store.db`, so an open that one of them refuses leaves every entry
+    /// of the store's directory with its name, length and bytes, and the log
+    /// with the frames that it held. The one refusal that can follow the
+    /// drain is that of a `store.db` that another program moves or exchanges
+    /// at its name during the drain, which is the obstructed variant and
+    /// never `Ok`.
     pub fn open(dir: &Path, roots: &Path, retention: Duration) -> StoreResult<Self> {
         Self::open_with(dir, roots, retention, custody_for)
     }
@@ -2240,6 +2652,7 @@ impl EncryptedStore {
         retention: Duration,
         custody_for: impl FnOnce(&CustodyLocator) -> Result<Box<dyn KeyCustody + Send>, CustodyError>,
     ) -> StoreResult<Self> {
+        require_mend(halvo_sqlcipher::page_gap_mend_linked())?;
         #[cfg(windows)]
         refuse_a_part_that_windows_trims(&[Some(dir), Some(roots)])?;
         let store = Dir::open(dir).map_err(store_dir_error)?;
@@ -2271,7 +2684,13 @@ impl EncryptedStore {
             ),
         };
         let unwrap_time = started.elapsed();
-        let db = Db::open_existing(&store, store_key.expose())?;
+        let db = match Db::open_existing(&store, &*database_key(&store_key)?) {
+            Err(StoreError::DatabaseUnreadable) => {
+                return Err(Db::another_version_of(&store, &store_key)
+                    .unwrap_or(StoreError::DatabaseUnreadable))
+            }
+            opened => opened?,
+        };
         let cleanup_roots = match &kept {
             RootKeeping::Held {
                 roots: held,
@@ -2281,23 +2700,37 @@ impl EncryptedStore {
         };
         let pending_left =
             clear_pending(&store, cleanup_roots, KeyNames::Root(key_file.root_id)).is_err();
-        Ok(Self {
+        let mut opened = Self {
             dir: store,
             retention,
             custody,
-            keyed: Keyed::Open { db, store_key },
+            keyed: Keyed::Open {
+                db: Box::new(db),
+                store_key,
+            },
             fs: Arc::new(OsFs),
             unwrap_time,
             pending_left,
             root_destroyed_with: None,
             roots: kept,
+            reconciled: Reconciled::default(),
             _writer_lock,
-        })
+        };
+        opened.reconciled = opened.reconcile();
+        if let Keyed::Open { db, .. } = &opened.keyed {
+            if let Some(failure) = db.look_failure() {
+                return Err(failure);
+            }
+        }
+        Ok(opened)
     }
 
     fn keyed(&self) -> StoreResult<(&Db, &StoreKey)> {
         match &self.keyed {
-            Keyed::Open { db, store_key } => Ok((db, store_key)),
+            Keyed::Open { db, store_key } => match db.look_failure() {
+                Some(failure) => Err(failure),
+                None => Ok((db, store_key)),
+            },
             Keyed::Deleting(_) | Keyed::Deleted(_) => Err(StoreError::Sealed),
         }
     }
@@ -2368,41 +2801,161 @@ impl EncryptedStore {
                 other => self.answer(db_error(other)),
             })?;
         let wrapped = wrapped.ok_or(StoreError::Sealed)?;
-        let seg_key = segment::unwrap_segment_key(store_key.expose(), &wrapped)?;
+        let seg_key =
+            segment::unwrap_segment_key(&*wrapping_key(store_key)?, segment_id, &wrapped)?;
         segment::read_segment_file(&self.dir, &seg_key, segment_id, out).map_err(|e| self.answer(e))
     }
 
+    /// Store one batch, all or nothing. A batch that this method refuses, or
+    /// whose segment id the store holds already, writes nothing. Otherwise it
+    /// writes the segment file under a fresh segment key and makes it durable,
+    /// then one transaction inserts the complete key row, the totals of each
+    /// kind and the per-day rollup; when any step fails, the transaction rolls
+    /// back and the file is removed, so no row and no file remain from the
+    /// call (a file whose removal fails is left for the open-time sweep, as a
+    /// file with no key row). One step follows the commit: at a handle's
+    /// first commit, the look that the log in the store directory holds the
+    /// commit's frames. When it fails the call answers the obstructed variant
+    /// for the log (in the `Io` class), the handle answers that variant to
+    /// every later call, and its close does not checkpoint, so the row of
+    /// that commit reaches no file at the store's names and `store.db` stays
+    /// as it was; the file is removed, so no row and no file remain. When the
+    /// look could not read the log's entry, the log may stand at its name
+    /// with the row, so the file stays: the next open keeps it with its row,
+    /// or sweeps it as a file with no key row. The caller keeps the batch on
+    /// every answer.
+    ///
+    /// Two named limits of the refusal, which bounds each batch and not the
+    /// day: (a) the events or the bytes of one day and kind, summed over its
+    /// batches, past the 64-bit range: the rollup then stores that sum as a
+    /// real number and [`EncryptedStore::inventory`] answers
+    /// [`StoreError::Corrupt`]; no real input reaches it, since no capture
+    /// makes 9.2e18 events; (b) a kind with 0 events and some bytes beside a
+    /// kind with events: the batch is stored, its rollup row holds those
+    /// bytes, and the inventory does not list a kind with 0 events; such a
+    /// summary is the caller's fault, a malformed summary.
+    pub fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        if let Some(refusal) = refusal_of(&write) {
+            self.keyed()?;
+            return Err(WriteFault::Refused(refusal));
+        }
+        let (db, _) = self.keyed()?;
+        if let Some(ordinal) = db
+            .ordinal_of(*write.segment_id)
+            .map_err(|e| self.answer(e))?
+        {
+            return Err(WriteFault::AlreadyWritten { ordinal });
+        }
+        let instants = Instants {
+            day: write.day,
+            first: write.first_capture,
+            last: write.last_capture,
+        };
+        let mut payload = write.payload;
+        self.store_segment(*write.segment_id, &instants, &mut payload, write.kinds)
+            .map_err(WriteFault::from)
+    }
+
+    fn store_segment(
+        &mut self,
+        segment_id: uuid::Uuid,
+        instants: &Instants,
+        bytes: &mut dyn Read,
+        kinds: &[KindTotal<'_>],
+    ) -> StoreResult<Written> {
+        let (db, store_key) = self.keyed()?;
+        let seg_key = SegmentKey::random()?;
+        let wrapped = segment::wrap_segment_key(&*wrapping_key(store_key)?, segment_id, &seg_key)?;
+        let header = SegmentHeader { segment_id };
+        let logical_bytes =
+            segment::write_segment_file(&self.dir, self.fs.as_ref(), &seg_key, &header, bytes)?;
+        let committed = failpoint::hit("batch_before_the_transaction")
+            .and_then(|()| segment::disk_bytes(&self.dir, segment_id))
+            .and_then(|disk_bytes| {
+                db.insert_segment(
+                    segment_id,
+                    &wrapped,
+                    instants,
+                    (logical_bytes, disk_bytes),
+                    kinds,
+                )
+                .map(|ordinal| Written {
+                    ordinal,
+                    logical_bytes,
+                    disk_bytes,
+                })
+            });
+        match committed {
+            Ok(written) => Ok(written),
+            Err(e) => {
+                if !db.look_unread() {
+                    segment::remove_written_segment(&self.dir, segment_id)?;
+                }
+                Err(self.answer(e))
+            }
+        }
+    }
+
+    /// The legacy write of [`SegmentStore::write_segment`]: a random id, no
+    /// totals, both instants the write instant.
+    fn write_untallied(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)> {
+        let segment_id = random_segment_id()?;
+        let instants = Instants::at(crate::event::unix_nanos(SystemTime::now()));
+        let written = self.store_segment(segment_id, &instants, bytes, &[])?;
+        Ok((
+            SegmentRef {
+                segment_id,
+                byte_offset: 0,
+                byte_len: written.logical_bytes,
+            },
+            SegmentKeyId(written.ordinal.get() as i64),
+        ))
+    }
+
+    /// A segment with no totals that falls due at `expires_at`, in whole Unix
+    /// seconds, under this handle's window: its first capture is that second
+    /// less the window. `created_at` is not stored.
+    #[cfg(test)]
     pub(in crate::store) fn write_segment_with_expiry(
         &mut self,
         bytes: &mut dyn Read,
         created_at: u64,
         expires_at: u64,
     ) -> StoreResult<(SegmentRef, SegmentKeyId)> {
-        let (db, store_key) = self.keyed()?;
-        let segment_id = uuid::Uuid::now_v7();
-        let seg_key = SegmentKey::random()?;
-        let wrapped = segment::wrap_segment_key(store_key.expose(), &seg_key)?;
-        let segment_key_id = db
-            .reserve_segment_key(segment_id, created_at, expires_at)
-            .map_err(|e| self.answer(e))?;
-        let header = SegmentHeader {
-            segment_id,
-            segment_key_id,
-        };
-        let byte_len =
-            segment::write_segment_file(&self.dir, self.fs.as_ref(), &seg_key, &header, bytes)?;
-        if let Err(e) = db.commit_segment_key(segment_key_id, &wrapped) {
-            segment::remove_written_segment(&self.dir, segment_id)?;
-            return Err(self.answer(e));
-        }
+        let _ = created_at;
+        let first = (i128::from(expires_at) - i128::from(self.retention.as_secs()))
+            .saturating_mul(1_000_000_000)
+            .clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64;
+        let segment_id = random_segment_id()?;
+        let written = self.store_segment(segment_id, &Instants::at(first), bytes, &[])?;
         Ok((
             SegmentRef {
                 segment_id,
                 byte_offset: 0,
-                byte_len,
+                byte_len: written.logical_bytes,
             },
-            segment_key_id,
+            SegmentKeyId(written.ordinal.get() as i64),
         ))
+    }
+
+    /// The window of this handle.
+    pub(in crate::store) fn retention(&self) -> std::time::Duration {
+        self.retention
+    }
+
+    /// What the reconcile of the open that made this handle did; zero for a
+    /// handle from `create`.
+    pub fn reconciled(&self) -> Reconciled {
+        self.reconciled
+    }
+
+    pub(in crate::store) fn wrapping_key(&self) -> StoreResult<Zeroizing<[u8; 32]>> {
+        wrapping_key(self.store_key()?)
+    }
+
+    #[cfg(test)]
+    pub(in crate::store) fn database_key(&self) -> StoreResult<Zeroizing<[u8; 32]>> {
+        database_key(self.store_key()?)
     }
 
     /// The root step of the handle. Once a call on this handle read its root
@@ -2530,7 +3083,17 @@ impl EncryptedStore {
     /// directory was listed after the step and nothing stays in it at any name,
     /// or nothing stands at the roots path, and [`StoreError::Locked`] while
     /// another process holds the store directory (ruling ST-45 H1; store-3b;
-    /// ruling ST-47 T1 to T3).
+    /// ruling ST-47 T1 to T3). Two named limits of the root step stand. A
+    /// mode change that a program racing the step causes between the read of
+    /// a file's count of names and length by its name and the open of its
+    /// kept handle: the mode is set by the name, so a file of another party
+    /// put at the name in that window gets mode 0600, and the kept handle then
+    /// shows another identity and the name is removed with no write, its
+    /// bytes kept. And a file of another program that a process of the same
+    /// user hard-links at a root file's name is zeroed through every name
+    /// when it has a root file's length at a root name (any length above 0 on
+    /// Windows) or stands at a partial name (on the walk that a made mark
+    /// names, a partial name of the mark's own id; ruling ST-49).
     pub fn delete_data_dir(dir: &Path, layout: Layout) -> StoreResult<DeleteReport> {
         #[cfg(windows)]
         if durable::has_a_part_that_windows_trims(dir) {
@@ -2815,13 +3378,12 @@ fn remove_the_store_files(
 
 impl SegmentStore for EncryptedStore {
     fn append_event(&mut self, event: &CaptureStreamEvent) -> StoreResult<()> {
-        self.db()?.insert_event(event).map_err(|e| self.answer(e))
+        let _ = event;
+        Err(StoreError::NotImplemented("append_event"))
     }
 
     fn write_segment(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)> {
-        let created = unix_secs_now();
-        let expires = created + self.retention.as_secs();
-        self.write_segment_with_expiry(bytes, created, expires)
+        self.write_untallied(bytes)
     }
 
     fn size_bytes(&self) -> StoreResult<u64> {
@@ -2975,6 +3537,56 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_open_and_the_create_refuse_a_library_without_the_mend_and_other_page_settings_by_name() {
+        assert!(matches!(
+            require_mend(false),
+            Err(StoreError::SettingNotInEffect("page_gap_mend_linked"))
+        ));
+        assert!(require_mend(true).is_ok());
+        assert!(halvo_sqlcipher::page_gap_mend_linked());
+        assert!(matches!(
+            setting_in_effect("auto_vacuum", 1, 0),
+            Err(StoreError::SettingNotInEffect("auto_vacuum"))
+        ));
+        assert!(matches!(
+            setting_in_effect("page_size", 8192, PAGE_SIZE),
+            Err(StoreError::SettingNotInEffect("page_size"))
+        ));
+        assert!(setting_in_effect("auto_vacuum", 0, 0).is_ok());
+        assert!(setting_in_effect("page_size", 4096, PAGE_SIZE).is_ok());
+        let source = std::fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src")
+                .join("store")
+                .join("db.rs"),
+        )
+        .unwrap()
+        .replace("\r\n", "\n");
+        let code = &source[..source.find("\n#[cfg(test)]\nmod tests {").unwrap()];
+        let call = "        require_mend(halvo_sqlcipher::page_gap_mend_linked())?;\n";
+        let signature_end = ") -> StoreResult<Self> {\n";
+        for function in ["fn open_with(", "fn create_with("] {
+            let start = code.find(function).unwrap();
+            let body = start + code[start..].find(signature_end).unwrap() + signature_end.len();
+            assert!(
+                code[body..].starts_with(call),
+                "{function} does not begin with the gate of the mend"
+            );
+        }
+        assert_eq!(code.matches(call).count(), 2);
+        for line in [
+            "require_setting(&self.conn, \"auto_vacuum\", 0)?;",
+            "require_setting(&self.conn, \"page_size\", PAGE_SIZE)?;",
+        ] {
+            assert_eq!(
+                code.matches(line).count(),
+                2,
+                "{line} stands once for a create and once for an open"
+            );
+        }
+    }
+
+    #[test]
     fn the_code_table_reads_each_primary_code_and_no_code() {
         let rows: [(Option<i32>, &str); 10] = [
             (Some(5), "Locked"),
@@ -3045,18 +3657,18 @@ mod tests {
     }
 
     #[test]
-    fn an_event_whose_index_row_fails_leaves_no_event_row() {
+    fn append_event_is_refused_and_changes_no_byte_of_the_database() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = make_store(dir.path());
         let (seg_ref, key_id) = store
             .write_segment(&mut std::io::Cursor::new(b"segment"))
             .unwrap();
-        store
-            .db()
-            .unwrap()
-            .connection()
-            .execute_batch("DROP TABLE events_fts;")
-            .unwrap();
+        store.db().unwrap().checkpoint_truncate().unwrap();
+        let files = || {
+            ["store.db", "store.db-wal"]
+                .map(|name| std::fs::read(dir.path().join(name)).unwrap_or_default())
+        };
+        let before = files();
         let event = CaptureStreamEvent::new_raw(
             CapturedAt {
                 wall_clock: SystemTime::now(),
@@ -3068,17 +3680,11 @@ mod tests {
             key_id,
         );
         let appended = store.append_event(&event);
-        let rows: i64 = store
-            .db()
-            .unwrap()
-            .connection()
-            .query_row("SELECT count(*) FROM events", [], |r| r.get(0))
-            .unwrap();
         assert!(
-            appended.is_err(),
-            "the append with no index table succeeded"
+            matches!(appended, Err(StoreError::NotImplemented("append_event"))),
+            "{appended:?}"
         );
-        assert_eq!(rows, 0, "a failed append left its event row");
+        assert!(files() == before, "append_event changed a database file");
     }
 
     #[cfg(unix)]
@@ -3125,17 +3731,6 @@ mod tests {
     }
 
     #[test]
-    fn a_key_row_that_holds_a_key_is_not_committed_again() {
-        let dir = tempfile::tempdir().unwrap();
-        let mut store = make_store(dir.path());
-        let (_, key_id) = store
-            .write_segment(&mut std::io::Cursor::new(b"segment"))
-            .unwrap();
-        let again = store.db().unwrap().commit_segment_key(key_id, &[1u8; 72]);
-        assert!(matches!(again, Err(StoreError::Corrupt(_))), "{again:?}");
-    }
-
-    #[test]
     fn a_wrapped_segment_key_that_does_not_open_under_the_store_key_reads_as_corrupt_not_sealed() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = make_store(dir.path());
@@ -3162,7 +3757,8 @@ mod tests {
         let db = store.db().unwrap();
         assert_eq!(db.pragma_int("secure_delete").unwrap(), 1);
         assert_eq!(db.pragma_int("temp_store").unwrap(), 2);
-        assert_eq!(db.fts_secure_delete().unwrap(), 1);
+        assert_eq!(db.pragma_int("foreign_keys").unwrap(), 1);
+        assert_eq!(db.pragma_int("user_version").unwrap(), DATABASE_VERSION);
         assert_eq!(db.pragma_int("checkpoint_fullfsync").unwrap(), 1);
         assert_eq!(db.pragma_int("synchronous").unwrap(), 2);
         assert_eq!(db.pragma_int("fullfsync").unwrap(), 1);
@@ -3351,23 +3947,12 @@ mod tests {
     }
 
     #[test]
-    fn writes_and_reads_a_segment_and_event() {
+    fn writes_and_reads_a_segment() {
         let dir = tempfile::tempdir().unwrap();
         let mut store = make_store(dir.path());
         let (seg_ref, key_id) = store
             .write_segment(&mut std::io::Cursor::new(b"screen frame bytes"))
             .unwrap();
-        let event = CaptureStreamEvent::new_raw(
-            CapturedAt {
-                wall_clock: SystemTime::now(),
-                sequence: MonotonicSequence::new(1),
-            },
-            Modality::ScreenFrame,
-            "com.apple.Terminal".to_string(),
-            seg_ref.clone(),
-            key_id,
-        );
-        store.append_event(&event).unwrap();
         let wrapped: Vec<u8> = store
             .db()
             .unwrap()
@@ -3378,8 +3963,12 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        let seg_key =
-            segment::unwrap_segment_key(store.store_key().unwrap().expose(), &wrapped).unwrap();
+        let seg_key = segment::unwrap_segment_key(
+            &store.wrapping_key().unwrap(),
+            seg_ref.segment_id,
+            &wrapped,
+        )
+        .unwrap();
         let mut plain = Vec::new();
         segment::read_segment_file(store.handle(), &seg_key, seg_ref.segment_id, &mut plain)
             .unwrap();
