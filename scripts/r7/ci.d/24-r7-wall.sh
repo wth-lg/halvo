@@ -831,6 +831,7 @@ search_lines() {
     outcome=unread
     result=0
     reading_one=yes second_read "$@" || result=$?
+    unset reading_one
     printf 'wall second-read search=%s outcome=%s path=%s\n' "$search" "$outcome" "$missing" >>"$work/second-reads" || return 2
     [ "$result" -eq 0 ] || return "$result"
     if [ "$outcome" = unread ] && [ -z "$first_unread" ]; then first_unread=$missing; fi
