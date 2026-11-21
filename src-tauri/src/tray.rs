@@ -1,8 +1,9 @@
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Mutex, PoisonError};
 
 use halvo_control::model::CaptureState;
 use halvo_control::proto::Capture;
-use halvo_coord_app::Attention;
+use halvo_coord_app::{Agents, Attention};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
@@ -357,9 +358,28 @@ fn on_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
             show_main_window(app);
         }
         OPEN_ID => show_main_window(app),
-        QUIT_ID => app.exit(crate::launch::Exit::Quit.code()),
+        QUIT_ID => quit(app, |app| app.exit(crate::launch::Exit::Quit.code())),
         _ => {}
     }
+}
+
+/// The tray's Quit. On a thread of its own the first Quit calls `Core::quit` with no budget,
+/// since the tray sets the quit no time limit, and then `exit`; from its start no tick and no
+/// other hook calls the Core, and a later Quit does nothing. A quit hook that unwinds on a
+/// port's panic leaves its runs alive, and the next life's reap is their kill (ruling RD-34
+/// (e)), so the exit follows all the same.
+pub fn quit<R: Runtime>(app: &AppHandle<R>, exit: impl FnOnce(&AppHandle<R>) + Send + 'static) {
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        if !crate::app::begin_quit(&handle) {
+            return;
+        }
+        if let Some(agents) = handle.try_state::<Agents>() {
+            let core = agents.0.clone();
+            let _ = catch_unwind(AssertUnwindSafe(|| core.quit(None)));
+        }
+        exit(&handle);
+    });
 }
 
 pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {

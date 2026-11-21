@@ -1,8 +1,8 @@
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use halvo_coord_app::{Agents, Core};
@@ -101,6 +101,7 @@ pub fn build<R: Runtime>(builder: Builder<R>, parts: Parts<R>) -> Builder<R> {
                     tray::set_attention(&handle, count)
                 })));
             }
+            app.manage(Hooks::default());
             let ticker = app.handle().clone();
             std::thread::spawn(move || tick(&ticker));
             let (sender, answer) = mpsc::channel();
@@ -196,17 +197,46 @@ pub(crate) fn hide_on_close<R: Runtime>(window: &Window<R>) {
     }
 }
 
-/// The app's Core for a hook.
+/// The state of the hooks: whether the tray's Quit has begun, after which no hook calls the
+/// Core, and the turn that a tick holds while it runs, so that the quit hook starts after a
+/// tick that has begun and no tick starts after it.
+#[derive(Default)]
+pub struct Hooks {
+    quitting: AtomicBool,
+    turn: Mutex<()>,
+}
+
+/// The app's Core for a hook, or none once the tray's Quit has begun.
 pub(crate) fn core_of<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<dyn Core>> {
+    if app
+        .try_state::<Hooks>()
+        .is_some_and(|hooks| hooks.quitting.load(Ordering::SeqCst))
+    {
+        return None;
+    }
     app.try_state::<Agents>().map(|agents| agents.0.clone())
 }
 
 /// `Core::tick`, called off the main thread: once at the start and at each draw of the view,
 /// which the poller makes at each of its passes. A tick that panics ends no later tick.
 pub(crate) fn tick<R: Runtime>(app: &AppHandle<R>) {
+    let Some(hooks) = app.try_state::<Hooks>() else {
+        return;
+    };
+    let _turn = hooks.turn.lock().unwrap_or_else(PoisonError::into_inner);
     if let Some(agents) = core_of(app) {
         let _ = catch_unwind(AssertUnwindSafe(|| agents.tick()));
     }
+}
+
+/// Whether this is the first Quit of the tray. From it on no hook calls the Core, and when it
+/// returns, a tick that had begun has ended.
+pub(crate) fn begin_quit<R: Runtime>(app: &AppHandle<R>) -> bool {
+    let Some(hooks) = app.try_state::<Hooks>() else {
+        return true;
+    };
+    let _turn = hooks.turn.lock().unwrap_or_else(PoisonError::into_inner);
+    !hooks.quitting.swap(true, Ordering::SeqCst)
 }
 
 /// The navigation rule of the window main: whether it may navigate to

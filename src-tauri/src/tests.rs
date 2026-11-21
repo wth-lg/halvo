@@ -1862,3 +1862,56 @@ fn the_app_calls_the_hooks_of_its_core_from_its_poller_and_its_window() {
         without_window.names()
     );
 }
+
+/// The tray's Quit (I5.7, ruling RD-8): it calls `Core::quit` once, off the main thread and with
+/// no budget, before it asks for the exit, and no tick and no other call of the Core follows it.
+/// The mock runtime cannot exit, so the test hands the Quit an exit that records.
+#[test]
+fn the_trays_quit_calls_the_quit_hook_once_before_the_exit_and_nothing_after_it() {
+    let set_up = std::thread::current().id();
+    let core = Recorder::new(&[]);
+    let test = app_with_core("quit", core.clone(), guard_installed, None);
+    core.wait_for("tick", 1);
+    let (sender, exits) = std::sync::mpsc::channel();
+    let seen = core.clone();
+    let again = sender.clone();
+    tray::quit(test.app.handle(), move |_| {
+        let _ = sender.send(seen.calls());
+    });
+    let at_exit = exits
+        .recv_timeout(Duration::from_secs(20))
+        .expect("the Quit asks for the exit");
+    let names: Vec<&str> = at_exit.iter().map(|(name, _)| *name).collect();
+    assert_eq!(
+        names.iter().filter(|name| name.starts_with("quit")).count(),
+        1,
+        "{names:?}"
+    );
+    assert_eq!(
+        names.last(),
+        Some(&"quit"),
+        "the quit hook, with no budget, before the exit"
+    );
+    assert!(
+        at_exit
+            .iter()
+            .all(|(name, thread)| *name != "quit" || *thread != set_up),
+        "the quit hook runs off the main thread"
+    );
+    let state = test.app.state::<AppState>();
+    poller::round(state.control.as_ref(), &state.views, None);
+    tray::show_main_window(test.app.handle());
+    app::hide_on_close(&main_window(&test.app).as_ref().window());
+    tray::quit(test.app.handle(), move |_| {
+        let _ = again.send(Vec::new());
+    });
+    assert!(
+        exits.recv_timeout(Duration::from_millis(500)).is_err(),
+        "a second Quit asks for no exit"
+    );
+    assert_eq!(
+        core.names(),
+        names,
+        "no call of the Core follows the quit hook"
+    );
+}
