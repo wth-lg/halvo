@@ -7,7 +7,7 @@ mod process_tests;
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use halvo_control::exit;
 use halvo_control::paths::{one_line, DataDir, Entry, INTENT_FILE, STATE_FILE};
@@ -107,8 +107,10 @@ pub struct SystemHands;
 
 /// How long an owner has after SIGTERM before SIGKILL, and how long after
 /// SIGKILL before the walk leaves its row.
-const OWNER_TERM_WAIT: Duration = Duration::from_secs(5);
-const OWNER_KILL_WAIT: Duration = Duration::from_secs(1);
+#[cfg(unix)]
+const OWNER_TERM_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+#[cfg(unix)]
+const OWNER_KILL_WAIT: std::time::Duration = std::time::Duration::from_secs(1);
 
 impl Hands for SystemHands {
     fn end_owner(&self, owner: Owner) -> bool {
@@ -149,13 +151,14 @@ fn runs(owner: Owner) -> bool {
     start_time_of(owner.pid) == Some(owner.started)
 }
 
-fn gone_within(owner: Owner, wait: Duration) -> bool {
-    let started = Instant::now();
+#[cfg(unix)]
+fn gone_within(owner: Owner, wait: std::time::Duration) -> bool {
+    let started = std::time::Instant::now();
     while runs(owner) {
         if started.elapsed() >= wait {
             return false;
         }
-        std::thread::sleep(Duration::from_millis(20));
+        std::thread::sleep(std::time::Duration::from_millis(20));
     }
     true
 }
