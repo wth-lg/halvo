@@ -135,7 +135,8 @@ pub async fn set_capture_state(
     set
 }
 
-/// How long a press on Start waits for the child that it starts to answer a Status.
+/// How long a press on Start goes on asking the child that it starts for a Status; a Status
+/// asked just before the end keeps its own deadline of 2 s, so the wait can run to 12 s.
 pub const START_ANSWER_WAIT: Duration = Duration::from_secs(10);
 
 /// How long a press on Start waits between two Status requests to its child.
@@ -143,7 +144,8 @@ const START_STATUS_STEP: Duration = Duration::from_millis(250);
 
 /// What a person's press of Pause or Resume sends, from the page's command and from the tray's
 /// toggle: the request of `change` in the place `made`, and in place of a Resume a Start where
-/// the hold reads that no further child starts, which waits up to `within` for its child.
+/// the hold reads that no further child starts, which waits for its child as
+/// `start_and_resume` says.
 /// Answers its answer with the number of the call that it answers.
 pub fn press(
     control: &dyn Control,
@@ -165,9 +167,11 @@ pub fn press(
 }
 
 /// The press on Start after the third end with 5 in a row (contracts.md C14 item 4), once it
-/// has asked the supervisor for exactly one child: waits up to `within` for that child to answer
-/// a plain Status, and then sends the Resume; with no answer in time it answers the deadline,
-/// sends no Resume, and the hold stands.
+/// has asked the supervisor for exactly one child: asks for a plain Status until one is answered
+/// or `within` has passed, the last Status keeping its own deadline of 2 s, and then sends the
+/// Resume; with no answer it answers the deadline of `within`, sends no Resume, and the hold
+/// stands. Where that child ends before a Status is answered, the asking goes on, and the
+/// Resume goes to the next child of the backoff.
 fn start_and_resume(
     control: &dyn Control,
     hold: &Hold,
