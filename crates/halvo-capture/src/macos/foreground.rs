@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use objc2::rc::autoreleasepool;
 use objc2_app_kit::NSWorkspace;
@@ -536,39 +536,46 @@ impl TitleRule {
 }
 
 /// The kept value of a place that a browser's language is read from, and its
-/// epoch: the time of the source's start, or of the last reading that gave
-/// another value than the one before.
+/// epoch in the machine's ticks: taken after the readings at the source's
+/// start, or after the readings of the last change of the app in front at
+/// which this place gave another value than the one before.
 struct Place {
     value: Languages,
-    epoch: SystemTime,
+    epoch: u64,
 }
 
 impl Place {
-    fn read(&mut self, value: Languages, now: SystemTime) {
+    fn read(&mut self, value: Languages, now: u64) {
         if value != self.value {
             *self = Self { value, epoch: now };
         }
     }
 }
 
-/// The decision for one process of Chrome, Edge or Safari, taken at its first
-/// title request and kept while that process runs.
+/// The decision for one process of Chrome or Edge, found by the browser, the
+/// pid and the start of the process in ticks: taken at its first title
+/// request and kept until another process of that browser is decided.
 struct Decided {
     browser: &'static str,
     pid: libc::pid_t,
+    started: u64,
     english: bool,
 }
 
 /// The rules that tell, on the title thread, whether the title of the app in
 /// front is read and how it is told private, with the reads of the system
-/// that they make: the system's list of handlers of https links, at most once
-/// for each change of the app in front; the two places of each browser's
-/// language (its own value and the person's global list), at the source's
-/// start and at each change of the app in front; and of a process of Chrome,
-/// Edge or Safari, its start and its localization, once.
+/// that they make: the places of the apps that the system lists for https
+/// links, and the place of the app in front, at most once for each change of
+/// the app in front whose request reaches the rules; the two places of each
+/// browser's language (its own value and the person's global list), each
+/// after a synchronize call, at the source's start and at each such change;
+/// the start of a process of Chrome or Edge at each of its title requests;
+/// and its localization once, read only from a bundle under an Applications
+/// folder.
 pub(crate) struct TitleRules {
     handlers: HandlerRead,
     languages: Box<dyn LanguageReads>,
+    home: Option<String>,
     change: Option<u64>,
     list: Option<Option<Vec<String>>>,
     global: Option<Place>,
@@ -578,9 +585,13 @@ pub(crate) struct TitleRules {
 
 impl TitleRules {
     fn new(handlers: HandlerRead, languages: Box<dyn LanguageReads>) -> Self {
+        let home = std::env::var("HOME")
+            .ok()
+            .filter(|home| home.starts_with('/'));
         Self {
             handlers,
             languages,
+            home,
             change: None,
             list: None,
             global: None,
@@ -596,42 +607,52 @@ impl TitleRules {
         )
     }
 
-    /// Reads both places of each browser at the source's start, `now`, their
-    /// first epoch: a browser that already runs keeps no title until it starts
-    /// again.
-    fn begin(&mut self, now: SystemTime) {
+    /// Reads both places of each browser at the source's start; the ticks
+    /// after those readings are their first epoch, so a browser that already
+    /// runs keeps no title until it starts again.
+    fn begin(&mut self) {
+        let global = self.languages.global();
+        let own: Vec<(&'static str, Languages)> = window_title::ENGLISH_ENDINGS
+            .iter()
+            .map(|&(browser, _)| (browser, self.languages.own(browser)))
+            .collect();
+        let now = self.languages.now();
         self.global = Some(Place {
-            value: self.languages.global(),
+            value: global,
             epoch: now,
         });
-        let own = window_title::ENGLISH_ENDINGS
-            .iter()
-            .map(|&(browser, _)| {
-                let value = self.languages.own(browser);
-                (browser, Place { value, epoch: now })
-            })
+        self.own = own
+            .into_iter()
+            .map(|(browser, value)| (browser, Place { value, epoch: now }))
             .collect();
-        self.own = own;
     }
 
-    /// At a change of the app in front, `now`: reads both places of each
-    /// browser again, so that each kept value and its epoch follow every
-    /// change that a reading sees, and forgets the system's list.
-    fn at_change(&mut self, now: SystemTime) {
+    /// At a change of the app in front whose request reaches the rules: reads
+    /// both places of each browser again and, after those readings, sets the
+    /// value and the epoch of each place that gave another value, so that each
+    /// kept value and its epoch follow every change that a reading sees; and
+    /// forgets the system's list.
+    fn at_change(&mut self) {
         let global = self.languages.global();
+        let own: Vec<Languages> = self
+            .own
+            .iter()
+            .map(|(browser, _)| self.languages.own(browser))
+            .collect();
+        let now = self.languages.now();
         if let Some(place) = self.global.as_mut() {
             place.read(global, now);
         }
-        for (browser, place) in self.own.iter_mut() {
-            place.read(self.languages.own(browser), now);
+        for ((_, place), value) in self.own.iter_mut().zip(own) {
+            place.read(value, now);
         }
         self.list = None;
     }
 
-    fn rule_of(&mut self, request: &TitleRequest, now: SystemTime) -> TitleRule {
+    fn rule_of(&mut self, request: &TitleRequest) -> TitleRule {
         if self.change != Some(request.change) {
             self.change = Some(request.change);
-            self.at_change(now);
+            self.at_change();
         }
         let AppIdentity::BundleId(id) = &request.front.identity else {
             return TitleRule::Kept;
@@ -646,50 +667,67 @@ impl TitleRules {
                 }
             }
             Listed::Browser => TitleRule::NoTitle,
-            Listed::Domain => match self.named_by_system(id) {
+            Listed::Domain => match self.named_by_system(id, request.front.pid) {
                 Some(false) => TitleRule::Kept,
                 Some(true) | None => TitleRule::NoTitle,
             },
-            Listed::Other => match self.named_by_system(id) {
+            Listed::Other => match self.named_by_system(id, request.front.pid) {
                 Some(true) => TitleRule::NoTitle,
                 Some(false) | None => TitleRule::Kept,
             },
         }
     }
 
-    /// Whether the system's list names the app `id`; `None` when the list
-    /// could not be read.
-    fn named_by_system(&mut self, id: &str) -> Option<bool> {
-        let list = self.list.get_or_insert_with(|| (self.handlers)());
-        list.as_ref()
-            .map(|list| list.iter().any(|named| named.eq_ignore_ascii_case(id)))
+    /// Whether the system's list names the place of the app `id` with `pid`,
+    /// both as the system gives them, set against each other as text with one
+    /// closing slash taken off; `None` when the list or the place could not be
+    /// read.
+    fn named_by_system(&mut self, id: &str, pid: libc::pid_t) -> Option<bool> {
+        let list = self.list.get_or_insert_with(|| (self.handlers)()).clone()?;
+        let place = self.languages.place(pid, id)?;
+        let place = place.trim_end_matches('/');
+        Some(
+            list.iter()
+                .any(|named| named.trim_end_matches('/') == place),
+        )
     }
 
-    /// Whether the process `pid` of `browser` runs in English, decided at its
-    /// first title request and kept while it runs.
+    /// Whether the process `pid` of `browser` runs in English: its start is
+    /// read at each title request, and a decision is found by the browser, the
+    /// pid and that start; another start is decided anew.
     fn english(&mut self, browser: &'static str, id: &str, pid: libc::pid_t) -> bool {
-        if let Some(decided) = self
-            .decided
-            .iter()
-            .find(|decided| decided.browser == browser && decided.pid == pid)
-        {
+        let Some(started) = self.languages.started(pid) else {
+            return false;
+        };
+        if let Some(decided) = self.decided.iter().find(|decided| {
+            decided.browser == browser && decided.pid == pid && decided.started == started
+        }) {
             return decided.english;
         }
-        let english = self.first_title(browser, id, pid);
+        let english = self.first_title(browser, id, pid, started);
         self.decided.retain(|decided| decided.browser != browser);
         self.decided.push(Decided {
             browser,
             pid,
+            started,
             english,
         });
         english
     }
 
-    /// A process of `browser` runs in English when it started after the
-    /// epochs of both its places, which the reading at this change of the app
-    /// in front has just set to now if it gave another value, and its bundle
-    /// takes the localization [`window_title::ENGLISH`] under the kept list.
-    fn first_title(&mut self, browser: &'static str, id: &str, pid: libc::pid_t) -> bool {
+    /// A process of `browser` that started at the tick `started` runs in
+    /// English when it started after the epochs of both its places, which the
+    /// readings at this change of the app in front have just moved if they
+    /// gave another value, its bundle lies under an Applications folder, and
+    /// the bundle takes the localization [`window_title::ENGLISH`] under the
+    /// kept list: its own value, else the person's global list.
+    fn first_title(
+        &mut self,
+        browser: &'static str,
+        id: &str,
+        pid: libc::pid_t,
+        started: u64,
+    ) -> bool {
         let (Some(global), Some((_, own))) = (
             self.global.as_ref(),
             self.own.iter().find(|(name, _)| *name == browser),
@@ -703,18 +741,23 @@ impl TitleRules {
             }
             _ => return false,
         };
-        self.languages
-            .process(pid, id, &list)
-            .is_some_and(|(started, localization)| {
-                started > epoch && localization == window_title::ENGLISH
-            })
+        if started <= epoch {
+            return false;
+        }
+        let Some(place) = self.languages.place(pid, id) else {
+            return false;
+        };
+        if !window_title::in_applications(&place, self.home.as_deref()) {
+            return false;
+        }
+        self.languages.localization(&place, &list).as_deref() == Some(window_title::ENGLISH)
     }
 }
 
 #[cfg(test)]
 impl TitleRules {
     /// Rules whose reads of the system all fail, and read nothing of it: the
-    /// closed list alone stands, and Chrome, Edge and Safari keep no title.
+    /// closed list alone stands, and Chrome and Edge keep no title.
     pub(crate) fn unread() -> Self {
         struct Unread;
         impl LanguageReads for Unread {
@@ -724,12 +767,16 @@ impl TitleRules {
             fn global(&mut self) -> Languages {
                 Languages::Failed
             }
-            fn process(
-                &mut self,
-                _pid: libc::pid_t,
-                _bundle_id: &str,
-                _languages: &[String],
-            ) -> Option<(SystemTime, String)> {
+            fn now(&mut self) -> u64 {
+                0
+            }
+            fn started(&mut self, _pid: libc::pid_t) -> Option<u64> {
+                None
+            }
+            fn place(&mut self, _pid: libc::pid_t, _bundle_id: &str) -> Option<String> {
+                None
+            }
+            fn localization(&mut self, _place: &str, _languages: &[String]) -> Option<String> {
                 None
             }
         }
@@ -957,7 +1004,6 @@ fn answer_of(
     read_title: &mut TitleReader,
     floor: &FloorHandle,
     probe: &SystemProbe,
-    now: SystemTime,
 ) -> TitleAnswer {
     let refused = || {
         !matches!(
@@ -973,7 +1019,7 @@ fn answer_of(
     let read = if refused() {
         Ok(None)
     } else {
-        match catch_unwind(AssertUnwindSafe(|| rules.rule_of(request, now)))
+        match catch_unwind(AssertUnwindSafe(|| rules.rule_of(request)))
             .unwrap_or(TitleRule::NoTitle)
         {
             TitleRule::NoTitle => Ok(None),
@@ -1013,16 +1059,9 @@ impl TitleThread {
         let thread = std::thread::Builder::new()
             .name("halvo-window-title".into())
             .spawn(move || {
-                catch_unwind(AssertUnwindSafe(|| rules.begin(SystemTime::now()))).ok();
+                catch_unwind(AssertUnwindSafe(|| rules.begin())).ok();
                 while let Some(request) = next_request(&shared) {
-                    let answer = answer_of(
-                        &request,
-                        &mut rules,
-                        &mut read_title,
-                        &floor,
-                        &probe,
-                        SystemTime::now(),
-                    );
+                    let answer = answer_of(&request, &mut rules, &mut read_title, &floor, &probe);
                     if tx.send(answer).is_err() {
                         return;
                     }
@@ -2074,46 +2113,60 @@ mod tests {
         drop(poller);
     }
 
-    /// A time of the wall clock, `seconds` after the first of these tests.
-    fn at(seconds: u64) -> SystemTime {
-        std::time::UNIX_EPOCH + Duration::from_secs(1_800_000_000 + seconds)
+    /// A tick of the machine's count, `ticks` after the first of these tests.
+    fn at(ticks: u64) -> u64 {
+        1_000_000 + ticks
     }
 
     fn list_of(language: &str) -> Languages {
         Languages::List(vec![language.to_string()])
     }
 
-    /// A stand-in of the system's reads of a browser's language: the global
-    /// list as the test sets it, no value of a browser's own, the start of
-    /// each process as the test sets it, and as the localization of a bundle
-    /// the code of the first language of the list. It reads nothing of the
-    /// system.
+    /// A stand-in of the system's reads of a browser's language and of the
+    /// app in front: the global list and the tick count as the test sets
+    /// them, no value of a browser's own, the start of each process as the
+    /// test sets it, an app's place /Applications/<its id>.app unless the test
+    /// sets another, and as the localization of a bundle the code of the first
+    /// language of the list, with each place asked for it noted. It reads
+    /// nothing of the system.
     #[derive(Clone)]
     struct SaidLanguage(Arc<Mutex<Said>>);
 
     struct Said {
         global: Languages,
-        started: Vec<(libc::pid_t, SystemTime)>,
+        clock: u64,
+        started: Vec<(libc::pid_t, u64)>,
+        places: Vec<(libc::pid_t, String)>,
+        asked: Vec<String>,
     }
 
     impl SaidLanguage {
         fn new(global: Languages) -> Self {
             Self(Arc::new(Mutex::new(Said {
                 global,
+                clock: 0,
                 started: Vec::new(),
+                places: Vec::new(),
+                asked: Vec::new(),
             })))
         }
 
-        fn set(&self, global: Languages) {
-            self.0.lock().expect("the stand-in's lock").global = global;
+        fn said(&self) -> std::sync::MutexGuard<'_, Said> {
+            self.0.lock().expect("the stand-in's lock")
         }
 
-        fn started(&self, pid: libc::pid_t, at: SystemTime) {
-            self.0
-                .lock()
-                .expect("the stand-in's lock")
-                .started
-                .push((pid, at));
+        fn set(&self, global: Languages) {
+            self.said().global = global;
+        }
+
+        fn started(&self, pid: libc::pid_t, at: u64) {
+            let mut said = self.said();
+            said.started.retain(|(process, _)| *process != pid);
+            said.started.push((pid, at));
+        }
+
+        fn lies(&self, pid: libc::pid_t, place: &str) {
+            self.said().places.push((pid, place.to_string()));
         }
     }
 
@@ -2123,19 +2176,34 @@ mod tests {
         }
 
         fn global(&mut self) -> Languages {
-            self.0.lock().expect("the stand-in's lock").global.clone()
+            self.said().global.clone()
         }
 
-        fn process(
-            &mut self,
-            pid: libc::pid_t,
-            _bundle_id: &str,
-            languages: &[String],
-        ) -> Option<(SystemTime, String)> {
-            let said = self.0.lock().expect("the stand-in's lock");
-            let started = said.started.iter().find(|(process, _)| *process == pid)?.1;
-            let localization = languages.first()?.split('-').next()?.to_string();
-            Some((started, localization))
+        fn now(&mut self) -> u64 {
+            self.said().clock
+        }
+
+        fn started(&mut self, pid: libc::pid_t) -> Option<u64> {
+            let said = self.said();
+            Some(said.started.iter().find(|(process, _)| *process == pid)?.1)
+        }
+
+        fn place(&mut self, pid: libc::pid_t, bundle_id: &str) -> Option<String> {
+            let said = self.said();
+            Some(
+                said.places
+                    .iter()
+                    .find(|(process, _)| *process == pid)
+                    .map_or_else(
+                        || format!("/Applications/{bundle_id}.app"),
+                        |(_, place)| place.clone(),
+                    ),
+            )
+        }
+
+        fn localization(&mut self, place: &str, languages: &[String]) -> Option<String> {
+            self.said().asked.push(place.to_string());
+            Some(languages.first()?.split('-').next()?.to_string())
         }
     }
 
@@ -2146,33 +2214,37 @@ mod tests {
         handle: SinkHandle,
         writer: SinkWriter,
         rules: TitleRules,
+        said: SaidLanguage,
         reads: Arc<std::sync::atomic::AtomicUsize>,
     }
 
     impl Through {
-        /// `handlers` stands in for the system's list (`None`: a failed
-        /// read), `language` for the reads of a language; the source began at
-        /// `began`.
-        fn new(handlers: Option<&[&str]>, language: &SaidLanguage, began: SystemTime) -> Self {
+        /// `handlers` stands in for the places of the system's list (`None`:
+        /// a failed read), `language` for the reads of a language; the source
+        /// began at the tick `began`.
+        fn new(handlers: Option<&[&str]>, language: &SaidLanguage, began: u64) -> Self {
             let list: Option<Vec<String>> =
-                handlers.map(|ids| ids.iter().map(|id| id.to_string()).collect());
+                handlers.map(|places| places.iter().map(|place| place.to_string()).collect());
             let mut rules =
                 TitleRules::new(Box::new(move || list.clone()), Box::new(language.clone()));
-            rules.begin(began);
+            language.said().clock = began;
+            rules.begin();
             let (poller, handle, writer) = poller_with(FloorHandle::default());
             Self {
                 poller,
                 handle,
                 writer,
                 rules,
+                said: language.clone(),
                 reads: Arc::default(),
             }
         }
 
-        /// The app `front` in front at `now`, its window titled `title`: the
-        /// poll that asks for the title, the title thread's answer, the poll
-        /// that takes it.
-        fn shows(&mut self, front: &Option<Foreground>, title: &str, now: SystemTime) {
+        /// The app `front` in front at the tick `now`, its window titled
+        /// `title`: the poll that asks for the title, the title thread's
+        /// answer, the poll that takes it.
+        fn shows(&mut self, front: &Option<Foreground>, title: &str, now: u64) {
+            self.said.said().clock = now;
             let text = title.to_string();
             let reads = self.reads.clone();
             let mut reader: TitleReader = Box::new(move |_pid| {
@@ -2186,7 +2258,6 @@ mod tests {
                     &mut reader,
                     &self.poller.floor,
                     &self.poller.probe,
-                    now,
                 )],
                 None => Vec::new(),
             };
@@ -2227,9 +2298,8 @@ mod tests {
     ) {
         let visit = ["Quarterly plan - Reader", "New Tab - Reader (Incognito)"];
         let system = [
-            "com.example.webreader",
-            "org.mozilla.firefox",
-            "com.apple.Safari",
+            "/Applications/com.example.webreader.app/",
+            "/Applications/org.mozilla.firefox.app",
         ];
         for (bundle_id, kept) in [
             ("com.example.webreader", &[][..]),
@@ -2255,49 +2325,117 @@ mod tests {
     }
 
     #[test]
-    fn chrome_edge_and_safari_keep_a_normal_title_and_drop_a_private_one_under_english_alone() {
+    fn chrome_and_edge_keep_a_normal_title_and_drop_a_private_one_under_english_alone_and_safari_and_a_browser_outside_the_applications_folders_keep_none(
+    ) {
         let normal = "Quarterly plan - Google Docs";
-        for (bundle_id, private) in [
-            ("com.google.Chrome", "New Tab - Google Chrome (Incognito)"),
+        let outside = "/Volumes/Stick/Google Chrome.app";
+        for (bundle_id, private, place, language, kept, reads, dropped) in [
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                None,
+                list_of("de-DE"),
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                None,
+                list_of("en-US"),
+                &[normal][..],
+                2,
+                1,
+            ),
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                None,
+                Languages::Failed,
+                &[][..],
+                0,
+                0,
+            ),
             (
                 "com.microsoft.edgemac",
                 "New Tab - Microsoft Edge (InPrivate)",
+                None,
+                list_of("de-DE"),
+                &[][..],
+                0,
+                0,
             ),
-            ("com.apple.Safari", "Start Page, Private Browsing"),
+            (
+                "com.microsoft.edgemac",
+                "New Tab - Microsoft Edge (InPrivate)",
+                None,
+                list_of("en-US"),
+                &[normal][..],
+                2,
+                1,
+            ),
+            (
+                "com.microsoft.edgemac",
+                "New Tab - Microsoft Edge (InPrivate)",
+                None,
+                Languages::Failed,
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.apple.Safari",
+                "Start Page, Private Browsing",
+                None,
+                list_of("en-US"),
+                &[][..],
+                0,
+                0,
+            ),
+            (
+                "com.google.Chrome",
+                "New Tab - Google Chrome (Incognito)",
+                Some(outside),
+                list_of("en-US"),
+                &[][..],
+                0,
+                0,
+            ),
         ] {
-            for (language, kept, reads, dropped) in [
-                (list_of("de-DE"), &[][..], 0, 0),
-                (list_of("en-US"), &[normal][..], 2, 1),
-                (Languages::Failed, &[][..], 0, 0),
-            ] {
-                let said = SaidLanguage::new(language.clone());
-                said.started(40, at(5));
-                let mut through = Through::new(None, &said, at(0));
-                let front = app(bundle_id, 40);
-                for title in [normal, private] {
-                    through.shows(&front, title, at(10));
-                }
-                let (_, titles, read, private_dropped) = through.made();
-                assert_eq!(
-                    (titles, read, private_dropped),
-                    (
-                        kept.iter().map(|title| title.to_string()).collect(),
-                        reads,
-                        dropped
-                    ),
-                    "{bundle_id} under {language:?}"
-                );
+            let said = SaidLanguage::new(language.clone());
+            said.started(40, at(5));
+            if let Some(place) = place {
+                said.lies(40, place);
             }
+            let mut through = Through::new(None, &said, at(0));
+            let front = app(bundle_id, 40);
+            for title in [normal, private] {
+                through.shows(&front, title, at(10));
+            }
+            let (_, titles, read, private_dropped) = through.made();
+            let asked_outside = said.said().asked.iter().any(|asked| asked == outside);
+            assert_eq!(
+                (titles, read, private_dropped, asked_outside),
+                (
+                    kept.iter().map(|title| title.to_string()).collect(),
+                    reads,
+                    dropped,
+                    false
+                ),
+                "{bundle_id} at {place:?} under {language:?}"
+            );
         }
     }
 
     #[test]
     fn under_english_firefox_and_another_browser_of_the_closed_list_keep_no_title_and_their_app_is_recorded(
     ) {
-        let system = ["org.mozilla.firefox", "com.apple.Safari"];
+        let system = ["/Applications/com.example.webreader.app"];
         for (bundle_id, private) in [
             ("org.mozilla.firefox", "New Tab \u{2014} Private Browsing"),
             ("com.brave.Browser", "New Private Tab - Brave"),
+            ("org.torproject.torbrowser", "Tor Browser"),
         ] {
             let said = SaidLanguage::new(list_of("en-US"));
             said.started(40, at(5));
@@ -2356,6 +2494,29 @@ mod tests {
         }
         let (_, titles, _, _) = through.made();
         assert_eq!(titles, ["Settings", "Inbox", "Settings", "Inbox"]);
+
+        // A later process with the pid of a process decided English.
+        let said = SaidLanguage::new(list_of("en-US"));
+        let mut through = Through::new(None, &said, at(0));
+        said.started(44, at(10));
+        through.shows(&chrome(44), normal, at(20));
+        said.set(list_of("de-DE"));
+        through.shows(&app("com.example.editor", 10), "Settings", at(30));
+        said.started(44, at(40));
+        for title in [normal, private] {
+            through.shows(&chrome(44), title, at(50));
+        }
+        let (_, titles, _, _) = through.made();
+        assert_eq!(titles, [normal, "Settings"]);
+
+        // A start that the ticks put before the source's start.
+        let said = SaidLanguage::new(list_of("en-US"));
+        said.started(45, at(50));
+        let mut through = Through::new(None, &said, at(100));
+        for title in [normal, private] {
+            through.shows(&chrome(45), title, at(110));
+        }
+        assert_eq!(through.made().1, Vec::<String>::new());
     }
 
     #[test]

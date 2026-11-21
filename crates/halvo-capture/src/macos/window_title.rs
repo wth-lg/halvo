@@ -150,22 +150,46 @@ fn bounded_title(text: &CFString) -> TitleText {
     }
 }
 
-/// The localization whose words for a private window [`ENGLISH_ENDINGS`]
-/// holds: the US-English one.
+/// The name of the localization of a browser's bundle under which the rules
+/// keep its titles: the bundle's `en`, for which [`ENGLISH_ENDINGS`] holds
+/// the US-English words of a private window. Whether a bundle's `en` holds
+/// those words is each bundle's own.
 pub(crate) const ENGLISH: &str = "en";
 
-/// Chrome, Edge and Safari, each matched whole, with the words that end the
-/// title of its private window in the localization [`ENGLISH`].
-pub(crate) const ENGLISH_ENDINGS: [(&str, &str); 3] = [
+/// Chrome and Edge, each matched whole, with the words that end the title of
+/// its private window in the localization [`ENGLISH`]. Safari is not here: its
+/// titles are not read.
+pub(crate) const ENGLISH_ENDINGS: [(&str, &str); 2] = [
     ("com.google.Chrome", "(Incognito)"),
     ("com.microsoft.edgemac", "(InPrivate)"),
-    ("com.apple.Safari", ", Private Browsing"),
 ];
 
-const BROWSER_BUNDLE_IDS: [&str; 30] = [
+/// Whether `place`, a bundle's place as the system gives it, lies under
+/// /Applications, /System/Applications or the Applications folder of `home`,
+/// set against those places as text alone: no file is read and no link is
+/// followed, and a place with a `..` component lies under none.
+pub(crate) fn in_applications(place: &str, home: Option<&str>) -> bool {
+    if place.split('/').any(|part| part == "..") {
+        return false;
+    }
+    let mut folders = vec![
+        "/Applications/".to_string(),
+        "/System/Applications/".to_string(),
+    ];
+    folders.extend(home.map(|home| format!("{}/Applications/", home.trim_end_matches('/'))));
+    folders
+        .iter()
+        .any(|folder| place.starts_with(folder.as_str()))
+}
+
+const BROWSER_BUNDLE_IDS: [&str; 34] = [
     "com.google.Chrome",
     "com.google.chrome.for.testing",
     "com.microsoft.edgemac",
+    "org.mozilla.firefox",
+    "org.mozilla.nightly",
+    "org.torproject.torbrowser",
+    "org.chromium.Chromium",
     "org.mozilla.",
     "com.apple.Safari",
     "com.brave.Browser",
@@ -200,7 +224,9 @@ const BROWSER_BUNDLE_IDS: [&str; 30] = [
 pub(crate) enum Listed {
     /// One of [`ENGLISH_ENDINGS`], matched whole: the browser and its words.
     Ending(&'static str, &'static str),
-    /// Named by a full id of the list: a browser whatever the system lists.
+    /// Named by a full id of the list, matched as the head of the app's id
+    /// (so com.google.Chrome.canary counts): a browser whatever the system
+    /// lists.
     Browser,
     /// Under a whole domain of the list alone: a browser unless the system's
     /// list was read and does not name it.
