@@ -2755,7 +2755,10 @@ where
                 held.map(|h| h.confirmation().state()),
                 board.record_stuck(&facts.agent, &self.limits),
             );
-            if board.setup_owed(&facts.agent) && line.status() == Status::AllSet {
+            if board.setup_owed(&facts.agent)
+                && !board.workflow_dismissed(&facts.workflow.id)
+                && line.status() == Status::AllSet
+            {
                 line = crate::types::StatusLine::NeedsYou(ItemKind::Setup);
             }
             let waiting = board
