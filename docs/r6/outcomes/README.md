@@ -16,7 +16,7 @@ It printed `import rows=198 models=12 sources=2`. The input was the driver file 
 
 ## The result: no model fills the on-device tier
 
-No model drives and no model writes. So the derivation reads no row for the `compile`, `recover` and `write` cells, and each such cell reads `untested`. The rows stay in the table as evidence. They decide nothing and are counted in no line. `route-gate derive` on this table, with `--freeze docs/r6/outcomes/freeze.txt`, writes the 44 rows of the first table byte for byte. The router therefore hands every model cell back to the person. The gate's verdict on this table is `gate table=recorded router=product cells=44 routed=0 handed_back=30 derivation=same held=ok result=pass`. A pass with `routed=0` says nothing about a router, only that no cell went to a tier.
+No model drives and no model writes. So the derivation reads no row for the `compile`, `recover` and `write` cells, and each such cell of a category with a runtime reads `untested`; the cells of the five categories with no runtime read `no_runtime` and the three of `other` read `not_seed`, as in the first table. The rows stay in the table as evidence. They decide nothing and are counted in no line. `route-gate derive` on this table, with `--freeze docs/r6/outcomes/freeze.txt`, writes the 44 rows of the first table byte for byte. The router therefore hands every model cell back to the person. The gate's verdict on this table is `gate table=recorded router=product cells=44 routed=0 handed_back=30 derivation=same held=ok result=pass`. A pass with `routed=0` says nothing about a router, only that no cell went to a tier.
 
 ## What the agent-setup run ruled, and what it left open
 
