@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use super::{POLL, RETRY_FIRST, RETRY_MAX};
 use crate::daemon::custody_policy::{Custody, OpenAs, Selection};
+use crate::daemon::delete_all::AtStart;
 use crate::daemon::port::{
     Access, CaptureStore, MaintainStore, OpenFault, Opened, Probe, StoreHost, StoreId,
 };
@@ -174,12 +175,56 @@ pub struct Opener {
     thread: JoinHandle<()>,
 }
 
+/// The custody selection that the open reads.
+type Select = fn(Option<Custody>) -> Selection;
+
+/// What a start runs on the open's thread before the open's first call: the
+/// finish of a delete-all intent through the store's host, which calls its
+/// second argument before it deletes, so that the slot reads Deleting from
+/// then on.
+pub type AtStartCall = Box<dyn FnOnce(&dyn StoreHost, &dyn Fn()) -> AtStart + Send>;
+
 impl Opener {
     /// Starts the tries of the open on `host` under `select` and `rule`.
     pub fn start(
         host: Box<dyn StoreHost>,
         select: fn(Option<Custody>) -> Selection,
         rule: CreateRule,
+    ) -> io::Result<Opener> {
+        Opener::start_with(Box::new(|_, _| AtStart::NoIntent), host, select, rule)
+    }
+
+    /// Starts the tries of the open on `host` under `select` and `rule`
+    /// after `at_start` ran on the open's thread: the slot reads Deleting from
+    /// the moment that `at_start` begins a delete. After a delete that a start
+    /// finished whole, a store is made where none stands, also under the rule
+    /// StoreMade, whose mark a clear that failed may have left, and a slot of
+    /// a make that failed reads Empty. After a delete that a start could not
+    /// finish whole, no try of the open is made: the slot reads Deleting until
+    /// the tries are stopped, and the next start tries the delete again.
+    pub fn start_with(
+        at_start: AtStartCall,
+        host: Box<dyn StoreHost>,
+        select: fn(Option<Custody>) -> Selection,
+        rule: CreateRule,
+    ) -> io::Result<Opener> {
+        Opener::spawn(at_start, host, Some((select, rule)))
+    }
+
+    /// Runs `at_start` on a thread of its own and makes no try of the open:
+    /// the finish of a delete-all intent where the data directory failed its
+    /// check, which never gates a delete (contracts.md C3.2 step 3). The slot
+    /// reads Deleting from the moment that `at_start` begins a delete; after
+    /// a finish that is not whole the thread waits for its stop, and after a
+    /// whole one it ends.
+    pub fn finish_alone(at_start: AtStartCall, host: Box<dyn StoreHost>) -> io::Result<Opener> {
+        Opener::spawn(at_start, host, None)
+    }
+
+    fn spawn(
+        at_start: AtStartCall,
+        host: Box<dyn StoreHost>,
+        opens: Option<(Select, CreateRule)>,
     ) -> io::Result<Opener> {
         let slot = Arc::new(Mutex::new(Slot::Opening));
         let tries = Arc::new(AtomicU64::new(0));
@@ -193,11 +238,28 @@ impl Opener {
                 let tries = tries.clone();
                 let stop = stop.clone();
                 move || {
+                    let deleting =
+                        || *slot.lock().unwrap_or_else(PoisonError::into_inner) = Slot::Deleting;
+                    let found = at_start(host.as_ref(), &deleting);
+                    if found == (AtStart::Finished { whole: false }) {
+                        deleting();
+                        wait_unless_stopped(&stop, None);
+                        return;
+                    }
+                    let Some((select, rule)) = opens else {
+                        return;
+                    };
+                    let deleted = found == (AtStart::Finished { whole: true });
+                    let rule = match rule {
+                        CreateRule::StoreMade if deleted => CreateRule::FirstRun,
+                        rule => rule,
+                    };
                     let mut retry = RETRY_FIRST;
                     let mut told = Vec::new();
                     loop {
                         let (now, opened, note) =
                             try_open_and_say(host.as_ref(), select, rule, retry);
+                        let now = if deleted { now.after_a_delete() } else { now };
                         if let Some(why) = note.filter(|why| !told.contains(why)) {
                             told.push(why);
                             let _ = says.send(why);

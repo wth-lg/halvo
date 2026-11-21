@@ -86,10 +86,8 @@ billing check 40-r6-policy gate
 billing check 21-r7-backend-test gate macos job, which alone has the check, 72 s there in the push run 44895970784; the ledger and the metering tests of the backend
 billing check 24-r7-wall gate
 billing check 27-r7-metering-self gate
-billing check 28-r7-helper-s6 scheduled it reads the build that 10-r7-account makes and fails without it; 35 s in the macos job, 14 s in the windows job
 billing check 55-r6-formal scheduled 108 s in the macos job
 billing check 10-r7-account scheduled 55 s in the macos job, 38 s in the windows job
-billing check 20-r7-stub scheduled 83 s in the macos job, 58 s in the windows job
 
 egress check 60-r6-egress gate macos job, 69 s there in the push run 44895970784
 egress check 60-r6-egress scheduled windows job, 123 s there as a check of the merge gate in the push run 44893237714

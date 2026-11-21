@@ -34,6 +34,15 @@ pub enum Slot {
     OlderFormat,
     /// A store of a format after the one that this build reads.
     NewerFormat,
+    /// A delete-all runs, or the intent of one is finished before the open
+    /// (contracts.md C17 item 3): no store is held.
+    Deleting,
+    /// A delete-all removed the store and the fresh store was not made, for
+    /// `cause`; with `retry_in`, the make is tried again after that wait.
+    Empty {
+        cause: StoreErrorKind,
+        retry_in: Option<Duration>,
+    },
 }
 
 impl Slot {
@@ -42,6 +51,24 @@ impl Slot {
     /// starts no source on it.
     pub fn is_open(&self) -> bool {
         matches!(self, Slot::Open { .. })
+    }
+
+    /// The slot after a delete-all: a slot that holds no store and no id,
+    /// the slot of a make that failed, reads [`Slot::Empty`]; every other
+    /// slot stays as it is.
+    pub fn after_a_delete(self) -> Slot {
+        match self {
+            Slot::Unavailable {
+                cause,
+                id: None,
+                retry_in,
+            } => Slot::Empty { cause, retry_in },
+            Slot::Sealed { cause, id: None } => Slot::Empty {
+                cause,
+                retry_in: None,
+            },
+            other => other,
+        }
     }
 
     /// The slot of an open that answered `fault` for the store `id`, tried
@@ -86,14 +113,18 @@ impl Slot {
             Slot::Sealed { .. } => StoreState::Sealed,
             Slot::Unavailable { .. } => StoreState::Unavailable,
             Slot::OlderFormat | Slot::NewerFormat => StoreState::UnsupportedVersion,
+            Slot::Deleting => StoreState::Deleting,
+            Slot::Empty { .. } => StoreState::Unavailable,
         }
     }
 
     /// The `store_error=` cause of the status, none for a slot that has none.
     pub fn cause(&self) -> Option<StoreErrorKind> {
         match self {
-            Slot::Opening | Slot::Open { .. } | Slot::Maintenance { .. } => None,
-            Slot::Sealed { cause, .. } | Slot::Unavailable { cause, .. } => Some(*cause),
+            Slot::Opening | Slot::Open { .. } | Slot::Maintenance { .. } | Slot::Deleting => None,
+            Slot::Sealed { cause, .. }
+            | Slot::Unavailable { cause, .. }
+            | Slot::Empty { cause, .. } => Some(*cause),
             Slot::OlderFormat => Some(StoreErrorKind::Older),
             Slot::NewerFormat => Some(StoreErrorKind::Newer),
         }
@@ -103,13 +134,14 @@ impl Slot {
     /// timer tries again.
     pub fn retry_in(&self) -> Option<Duration> {
         match self {
-            Slot::Unavailable { retry_in, .. } => *retry_in,
+            Slot::Unavailable { retry_in, .. } | Slot::Empty { retry_in, .. } => *retry_in,
             Slot::Opening
             | Slot::Open { .. }
             | Slot::Maintenance { .. }
             | Slot::Sealed { .. }
             | Slot::OlderFormat
-            | Slot::NewerFormat => None,
+            | Slot::NewerFormat
+            | Slot::Deleting => None,
         }
     }
 }
