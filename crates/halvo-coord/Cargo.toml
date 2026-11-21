@@ -11,6 +11,7 @@ serde_json = "1.0.154"
 
 [dev-dependencies]
 halvo-schema = { path = "../halvo-schema" }
+halvo-test-dir = { path = "../halvo-test-dir" }
 
 [[bin]]
 name = "coord-words"

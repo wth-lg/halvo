@@ -1671,6 +1671,7 @@ name = "halvo-coord"
 version = "0.0.0"
 dependencies = [
  "halvo-schema",
+ "halvo-test-dir",
  "serde",
  "serde_json",
 ]
