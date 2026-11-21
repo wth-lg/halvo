@@ -1490,6 +1490,34 @@ mod tests {
     }
 
     #[test]
+    fn an_ascii_title_longer_than_the_unit_cap_is_stored_with_cut_true() {
+        use crate::daemon::model_store::Harness;
+        use crate::daemon::owner::Command;
+        use crate::floor::record::DecodedPayload;
+        let mut harness = Harness::new();
+        harness.ask(Command::ClosePause);
+        let (writer, _reader) = foreground_state_for_test();
+        let mut poller = Poller::new(writer, Arc::default());
+        poller.probe = SystemProbe::with_readers(at_console, probe_byte);
+        let front = app("com.example.a", 10);
+        poller.step(front.clone(), Vec::new(), &harness.sink);
+        poller.step(front, answer(1, read(&"a".repeat(2_000))), &harness.sink);
+        harness.ask(Command::Settle);
+        let stored: Vec<(usize, bool)> = harness
+            .store
+            .records()
+            .iter()
+            .filter_map(|record| match record.payload() {
+                DecodedPayload::WindowTitle { text, cut, .. } => Some((text.as_str().len(), *cut)),
+                _ => None,
+            })
+            .collect();
+        drop(poller);
+        assert_eq!(stored.len(), 1, "one title record");
+        assert_eq!(stored[0], (1024, true));
+    }
+
+    #[test]
     fn readings_a_a_b_of_one_app_give_two_title_events_with_a_and_b() {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
         let front = app("com.example.a", 10);

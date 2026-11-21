@@ -310,6 +310,20 @@ mod tests {
     }
 
     #[test]
+    fn a_title_of_2000_ascii_units_from_the_bounded_read_enters_the_floor_as_cut() {
+        let title = bounded_title(&utf16_string(&vec![u16::from(b'a'); 2_000]));
+        let entered = crate::floor::payload::Title::new(
+            title.into_text(),
+            crate::floor::payload::TitleWhy::AppChange,
+            None,
+        );
+        assert_eq!(
+            (entered.text.heap_bytes(), entered.text.was_cut()),
+            (1024, true)
+        );
+    }
+
+    #[test]
     fn a_string_passed_as_the_window_gives_an_error_and_no_accessibility_call() {
         let calls = Cell::new(0);
         let not_an_element = CFString::new("AXWindow").as_CFType();
