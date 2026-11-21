@@ -2752,6 +2752,41 @@ async function guard(origin, dir) {
   return faults;
 }
 
+/** RD-80 5.5: a state that differs from the one before in the key armed of a page confirmation
+ * alone leaves the open dialog as it is, with the focus where it was, and reports nothing again. */
+async function armedAlone(origin, dir) {
+  const faults = [];
+  const base = withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'a'.repeat(32));
+  const before = { ...base, armed: 'no' };
+  const after = { ...base, armed: 'yes' };
+  const h = await standIn(origin, snap(1, [before]));
+  try {
+    await settled(h);
+    await h.page.focus(sel(base.choices[1].choice, base.item));
+    await h.page.evaluate(() => {
+      window.r4dialog = document.querySelector('dialog[open]');
+      window.r4focus = document.activeElement;
+    });
+    await h.page.evaluate((next) => window.r4next(next), snap(2, [after]));
+    await settled(h);
+    const facts = await h.page.evaluate(() => ({
+      taken: window.r4afters.includes(2),
+      same: Boolean(window.r4dialog) && document.querySelector('dialog[open]') === window.r4dialog && window.r4dialog.isConnected,
+      focus: Boolean(window.r4focus) && window.r4focus.tagName === 'BUTTON' && document.activeElement === window.r4focus,
+      reports: window.r4calls.filter((c) => c.call === 'agents_shown').length,
+    }));
+    if (!facts.taken) faults.push('state_not_taken');
+    if (!facts.same) faults.push('dialog_not_the_same');
+    if (!facts.focus) faults.push('focus_moved');
+    if (facts.reports > 1) faults.push('reported_again=' + facts.reports);
+  } catch (err) {
+    faults.push('throws_' + String((err && err.message) || err).split('\n')[0].replace(/\s+/g, '_'));
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
 const FEATURES = join(ROOT, 'docs', 'r4', 'page-features.txt');
 
 async function features(origin) {
@@ -2789,7 +2824,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again', 'shown', 'guard'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again', 'shown', 'guard', 'armed'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -2818,6 +2853,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('again')) report('again', await again(origin, dir));
     if (want('shown')) report('shown', await shownReports(origin, dir));
     if (want('guard')) report('guard', await guard(origin, dir));
+    if (want('armed')) report('armed', await armedAlone(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;

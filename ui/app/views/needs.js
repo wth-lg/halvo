@@ -318,8 +318,14 @@
     return began === b.getAttribute('data-act') + ':' + b.getAttribute('data-param');
   }
 
+  function asHeld(item) {
+    return JSON.stringify(item, function (key, value) {
+      return this === item && key === 'armed' ? undefined : value;
+    });
+  }
+
   function build(item, key) {
-    const card = { id: item.item, step: item.step, key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
+    const card = { id: item.item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
@@ -410,7 +416,7 @@
     });
     const now = new Map();
     items.forEach(function (item, i) {
-      now.set(keys[i], JSON.stringify(item));
+      now.set(keys[i], asHeld(item));
     });
     Array.from(cards.keys()).forEach(function (key) {
       if (now.get(key) !== cards.get(key).json) drop(key);
