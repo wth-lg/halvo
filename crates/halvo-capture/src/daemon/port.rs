@@ -374,8 +374,8 @@ pub enum Probe {
     /// made.
     KeylessStore,
     /// No key file stands at store.key and no segments stand, while the
-    /// store's own marker create.pending does: a first create that was cut
-    /// before it published its key file, which a create finishes.
+    /// store's own marker create.pending does: an unfinished create, which a
+    /// create finishes.
     UnfinishedCreate,
     /// A key file that records `custody`, of the store `id`.
     KeyFile { custody: Custody, id: StoreId },

@@ -383,7 +383,7 @@ fn tree_bytes(root: &Path) -> StoreBytes {
     found
 }
 
-const MADE_AGAIN_LINE: &str = "halvo-capture: a first create of the store that never published its key file stood unfinished; the store was made again";
+const MADE_AGAIN_LINE: &str = "halvo-capture: an unfinished create of the store stood, with no key file and no segment; the store was made again";
 
 fn run_until(dir: &Path, done: impl Fn(&[String]) -> bool) -> Vec<String> {
     use std::io::BufRead;

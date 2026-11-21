@@ -64,8 +64,8 @@ pub enum Note {
     /// No key file stands while the store's database or its segments do, so
     /// no store is made over them.
     KeylessStoreStands,
-    /// A first create that the end of a process cut before it published its
-    /// key file was made again.
+    /// An unfinished create, with no key file and no segment beside the
+    /// store's marker create.pending, was made again.
     UnfinishedCreateMadeAgain,
 }
 
@@ -77,7 +77,7 @@ impl Note {
                 "halvo-capture: store=unavailable store_error=obstructed: store.key is missing while the store's database or segments stand; no store was made over them"
             }
             Note::UnfinishedCreateMadeAgain => {
-                "halvo-capture: a first create of the store that never published its key file stood unfinished; the store was made again"
+                "halvo-capture: an unfinished create of the store stood, with no key file and no segment; the store was made again"
             }
         }
     }
