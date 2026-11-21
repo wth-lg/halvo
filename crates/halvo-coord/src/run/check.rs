@@ -61,9 +61,10 @@ where
 }
 
 /// Raises the item `check` for each agent of the board, or for `only`, for which `check_due`
-/// holds: numbered after the agent's stored last (`Board::stored_last`, the one stored last that
-/// every sender of the agent takes, ruling RD-64 3.2), it stores, in one body, `item_lapsed` with
-/// the cause `check`
+/// holds and whose place the board does not hold (`Board::place_held`: set aside, or a record of
+/// its items' list keeps its place; I5.7, I5.8): numbered after the agent's stored last
+/// (`Board::stored_last`, the one stored last that every sender of the agent takes, ruling RD-64
+/// 3.2), it stores, in one body, `item_lapsed` with the cause `check`
 /// of the agent's open `ready` item where it holds one and of each `ready` item whose lapse the
 /// board owes and the events do not close (`owed_ready`), then the owed `item_lapsed` of each
 /// `check` item of an earlier life that the events do not close (`owed_of_kind`, ruling RD-96
@@ -103,7 +104,7 @@ where
         let agent = board.members[i].facts.agent.clone();
         let gone = board.gone.contains(&board.members[i].facts.workflow.id);
         if only.is_some_and(|a| a != &agent)
-            || board.aside(&agent)
+            || board.place_held(&agent)
             || board.dismissed_unread(&agent)
             || !check_due(&board.members[i].facts, gone)
         {
