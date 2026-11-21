@@ -677,6 +677,31 @@ fn press_keys(presses: u32) -> u32 {
     accepted
 }
 
+/// Puts the pointer over the middle of the window in front, since a pointer
+/// sample is decided on the window under the pointer; answers whether that
+/// window is the one under the pointer then.
+fn point_at_front() -> bool {
+    use windows::Win32::Foundation::{POINT, RECT};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetAncestor, GetWindowRect, SetCursorPos, WindowFromPoint, GA_ROOT,
+    };
+    let front = foreground_window();
+    let mut rect = RECT::default();
+    // SAFETY: `rect` is a live RECT that the call writes into.
+    if front.0.is_null() || unsafe { GetWindowRect(front, &mut rect) }.is_err() {
+        return false;
+    }
+    let middle = POINT {
+        x: (rect.left + rect.right) / 2,
+        y: (rect.top + rect.bottom) / 2,
+    };
+    // SAFETY: SetCursorPos, WindowFromPoint and GetAncestor take plain values.
+    unsafe {
+        let _ = SetCursorPos(middle.x, middle.y);
+        GetAncestor(WindowFromPoint(middle), GA_ROOT) == front
+    }
+}
+
 fn move_pointer(moves: u32) -> u32 {
     let mut accepted = 0;
     for i in 0..moves {
@@ -1687,6 +1712,7 @@ fn c1_raw_input_delivers_keystrokes_and_pointer_events() {
         let after_keys = events.drain_for(Duration::from_millis(1500));
         summarize("c1", "after-key-presses", &after_keys);
 
+        let _ = point_at_front();
         let move_events_accepted = move_pointer(MOVES);
         let after_moves = events.drain_for(Duration::from_millis(1500));
         summarize("c1", "after-pointer-moves", &after_moves);
@@ -6022,6 +6048,7 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
         }
         let _ = events.drain_for(Duration::from_millis(500));
         let in_tree_keys = press_keys(5);
+        let _ = point_at_front();
         let in_tree_moves = move_pointer(10);
         let in_tree = events.drain_for(Duration::from_millis(1_500));
         let still_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
@@ -6032,6 +6059,7 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
         let _ = events.drain_for(Duration::from_millis(500));
         let outside_pid = foreground_pid();
         let outside_keys = press_keys(5);
+        let _ = point_at_front();
         let outside_moves = move_pointer(10);
         let outside = events.drain_for(Duration::from_millis(2_000));
         let lineage = ProcessLineage::new();
@@ -6196,7 +6224,8 @@ fn titles_with(events: &[Seen], prefix: &str) -> usize {
 fn a_wheel_turn_over_a_background_window_of_a_listed_app_gives_no_scroll_record() {
     use windows::Win32::Foundation::{POINT, RECT};
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetAncestor, GetWindowRect, SetCursorPos, WindowFromPoint, GA_ROOT,
+        GetAncestor, GetWindowRect, SetCursorPos, SetWindowPos, WindowFromPoint, GA_ROOT,
+        HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
     };
     with_deadline("wheel-under", Duration::from_secs(90), || {
         env_report("wheel-under");
@@ -6219,6 +6248,20 @@ fn a_wheel_turn_over_a_background_window_of_a_listed_app_gives_no_scroll_record(
             background =
                 unsafe { FindWindowW(PCWSTR(class.as_ptr()), PCWSTR::null()) }.unwrap_or_default();
         }
+        // SAFETY: SetWindowPos takes the child's window handle by value and
+        // plain flags; it moves the window above the others without
+        // activating it.
+        let _ = unsafe {
+            SetWindowPos(
+                background,
+                Some(HWND_TOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE,
+            )
+        };
         pump_thread(Duration::from_millis(500));
         let (front_activated, method) = front.activate();
         let mut rect = RECT::default();
