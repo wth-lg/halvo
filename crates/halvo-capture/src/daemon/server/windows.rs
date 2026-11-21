@@ -12,7 +12,7 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use halvo_control::client::Transport;
-use halvo_control::client_windows::{current_user, PipeStream};
+use halvo_control::client_windows::{current_user, user_of_process, PipeStream};
 use halvo_control::paths::{pipe_name, DataDir};
 use halvo_control::wire::{REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
 use windows::core::PCWSTR;
@@ -28,8 +28,8 @@ use windows::Win32::Storage::FileSystem::{
     FILE_FLAG_FIRST_PIPE_INSTANCE, FILE_FLAG_OVERLAPPED, PIPE_ACCESS_DUPLEX,
 };
 use windows::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_BYTE,
-    PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
+    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeClientProcessId,
+    PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
 };
 use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
 use windows::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
@@ -46,6 +46,15 @@ const OUT_QUOTA: u32 = REPLY_MAX_BYTES as u32 + 4;
 
 const IN_QUOTA: u32 = REQUEST_MAX_BYTES as u32 + 4;
 
+type UserOf = fn(u32) -> io::Result<String>;
+
+/// Whether the server serves a client whose token user has the SID string
+/// `client`, in a daemon whose own user has the SID string `own`: only when
+/// the two are one (contracts.md C15.2).
+pub fn serves_client(client: &str, own: &str) -> bool {
+    client == own
+}
+
 /// A listening control pipe: the thread that accepts on it and the requests
 /// that its connections hand to the service run's loop. Its drop stops the
 /// accepting thread, which closes the instance that it holds.
@@ -61,8 +70,15 @@ impl Listening {
     /// Creates the first instance of the pipe of `dir` for this process's
     /// user and starts accepting on it. When a pipe of that name stands, as
     /// one of another listener on the same data directory does, it fails with
-    /// an error of the kind `AddrInUse` that names the pipe.
+    /// an error of the kind `AddrInUse` that names the pipe. Each connection
+    /// is served only when the token user of the client's process is the
+    /// daemon's own user; any other client is dropped with no read of its
+    /// request and no reply.
     pub fn bind(dir: &DataDir) -> io::Result<Listening> {
+        Self::bind_reading(dir, user_of_process)
+    }
+
+    fn bind_reading(dir: &DataDir, user_of: UserOf) -> io::Result<Listening> {
         let own = current_user()?;
         let name = pipe_name(&own, dir);
         let first =
@@ -86,7 +102,7 @@ impl Listening {
                 let name = name.clone();
                 let admitting = admitting.clone();
                 let closed = closed.clone();
-                move || accept(first, &name, &own, &admitting, &closed, &hand)
+                move || accept(first, &name, &own, user_of, &admitting, &closed, &hand)
             })?;
         Ok(Listening {
             path: PathBuf::from(name),
@@ -240,6 +256,7 @@ fn accept(
     first: OwnedHandle,
     name: &str,
     own: &str,
+    user_of: UserOf,
     admitting: &Arc<Admitting>,
     closed: &AtomicBool,
     hand: &Sender<Asked>,
@@ -268,17 +285,34 @@ fn accept(
                     }
                 };
                 let connected = std::mem::replace(&mut listening, next);
+                let own = own.to_owned();
                 let admitting = admitting.clone();
                 let hand = hand.clone();
                 let _ = std::thread::Builder::new()
                     .name("halvo-control-connection".to_owned())
-                    .spawn(move || serve_one(connected, &admitting, &hand));
+                    .spawn(move || serve_one(connected, &own, user_of, &admitting, &hand));
             }
         }
     }
 }
 
-fn serve_one(instance: OwnedHandle, admitting: &Arc<Admitting>, hand: &Sender<Asked>) {
+fn client_user(instance: &OwnedHandle, user_of: UserOf) -> Option<String> {
+    let mut pid = 0u32;
+    // SAFETY: the instance is open and connected, and `pid` is a live local.
+    unsafe { GetNamedPipeClientProcessId(HANDLE(instance.as_raw_handle()), &mut pid) }.ok()?;
+    user_of(pid).ok()
+}
+
+fn serve_one(
+    instance: OwnedHandle,
+    own: &str,
+    user_of: UserOf,
+    admitting: &Arc<Admitting>,
+    hand: &Sender<Asked>,
+) {
+    if !client_user(&instance, user_of).is_some_and(|client| serves_client(&client, own)) {
+        return;
+    }
     let Ok(mut stream) = PipeStream::from_overlapped(instance) else {
         return;
     };
@@ -292,5 +326,65 @@ fn serve_one(instance: OwnedHandle, admitting: &Arc<Admitting>, hand: &Sender<As
     drop(stream);
     if let Some(written) = written {
         let _ = written.send(());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use halvo_control::proto::{self, Request};
+    use halvo_control::wire;
+    use std::io::{Read, Write};
+    use std::time::Instant;
+
+    const ANOTHER_USER: &str = "S-1-5-21-1000000001-1000000002-1000000003-1001";
+
+    fn data_dir(root: &tempfile::TempDir) -> DataDir {
+        DataDir::from_flag(root.path()).unwrap()
+    }
+
+    fn request_frame(request: &Request) -> Vec<u8> {
+        let mut frame = Vec::new();
+        wire::write_frame(
+            &mut frame,
+            &proto::encode_request(request),
+            REQUEST_MAX_BYTES,
+        )
+        .unwrap();
+        frame
+    }
+
+    #[test]
+    fn the_pipe_server_drops_a_client_of_another_user() {
+        let own = current_user().unwrap();
+        assert!(
+            serves_client(&own, &own),
+            "the daemon's own user is not served"
+        );
+        assert!(!serves_client(ANOTHER_USER, &own), "another user is served");
+        let root = tempfile::tempdir().unwrap();
+        let listening =
+            Listening::bind_reading(&data_dir(&root), |_| Ok(ANOTHER_USER.to_owned())).unwrap();
+        let mut client = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(listening.path())
+            .unwrap();
+        let wrote = client.write_all(&request_frame(&Request::Status { indicator: false }));
+        let mut reply = Vec::new();
+        let read = client.read_to_end(&mut reply);
+        assert!(
+            reply.is_empty(),
+            "a client of another user got {} bytes (write {wrote:?}, read {read:?})",
+            reply.len()
+        );
+        let until = Instant::now() + Duration::from_millis(500);
+        while Instant::now() < until {
+            assert!(
+                listening.next().is_none(),
+                "the request of a client of another user reached the loop"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
 }
