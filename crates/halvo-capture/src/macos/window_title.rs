@@ -34,9 +34,16 @@ pub const TITLE_ENDING_UNITS: usize = 64;
 
 pub const TITLE_READ_DEADLINE: Duration = crate::macos::foreground::FOREGROUND_POLL;
 
-/// The bounded read of a window title: at most [`TITLE_READ_CAP_UNITS`] UTF-16
-/// units from its start and at most [`TITLE_ENDING_UNITS`] from its end, each
-/// with an unpaired surrogate read as U+FFFD. It prints a placeholder.
+const HEAD_READ_UNITS: usize = TITLE_READ_CAP_UNITS + 1;
+
+const _: () = assert!(crate::floor::text::TEXT_MAX_BYTES <= TITLE_READ_CAP_UNITS);
+
+/// The bounded read of a window title: at most one UTF-16 unit more than
+/// [`TITLE_READ_CAP_UNITS`] from its start and at most [`TITLE_ENDING_UNITS`]
+/// from its end, each with an unpaired surrogate read as U+FFFD. A unit takes
+/// at least one byte, so the floor's text entry, which keeps at most
+/// [`TITLE_READ_CAP_UNITS`] bytes, cuts every title longer than the cap and
+/// records the cut. It prints a placeholder.
 #[derive(Clone, PartialEq, Eq)]
 pub struct TitleText {
     text: String,
@@ -61,7 +68,7 @@ impl TitleText {
         let units: Vec<u16> = text.encode_utf16().collect();
         let start = units.len().saturating_sub(TITLE_ENDING_UNITS);
         Self {
-            text: lossy(&units[..units.len().min(TITLE_READ_CAP_UNITS)]),
+            text: lossy(&units[..units.len().min(HEAD_READ_UNITS)]),
             ending: lossy(&units[start..]),
         }
     }
@@ -116,7 +123,7 @@ fn bounded_title(text: &CFString) -> TitleText {
     let string = text.as_concrete_TypeRef();
     // SAFETY: `string` is a live CFString that `text` holds.
     let total = usize::try_from(unsafe { CFStringGetLength(string) }).unwrap_or(0);
-    let head = units_of(string, 0, total.min(TITLE_READ_CAP_UNITS));
+    let head = units_of(string, 0, total.min(HEAD_READ_UNITS));
     let start = total.saturating_sub(TITLE_ENDING_UNITS);
     TitleText {
         text: lossy(&head),
@@ -300,11 +307,12 @@ mod tests {
     }
 
     #[test]
-    fn a_title_over_the_cap_reads_the_cap_from_its_start_and_its_ending_from_its_end() {
+    fn a_title_over_the_cap_reads_one_unit_past_the_cap_from_its_start_and_its_ending_from_its_end()
+    {
         let mut units = vec![u16::from(b'a'); TITLE_READ_CAP_UNITS + 976];
         units.extend("Page - Google Chrome (Incognito)".encode_utf16());
         let title = bounded_title(&utf16_string(&units));
-        assert_eq!(title.text(), "a".repeat(TITLE_READ_CAP_UNITS));
+        assert_eq!(title.text(), "a".repeat(TITLE_READ_CAP_UNITS + 1));
         assert_eq!(title.ending().encode_utf16().count(), TITLE_ENDING_UNITS);
         assert!(title.ending().ends_with("Page - Google Chrome (Incognito)"));
     }
