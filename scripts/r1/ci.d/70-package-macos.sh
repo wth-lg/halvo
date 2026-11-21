@@ -122,6 +122,29 @@ EOF
   stand_in_bundle without-the-daemon halvo
   bundle_case bundle-without-the-daemon 'Halvo.app holds no executable file Contents/MacOS/halvo-capture'
 
+  case $0 in /*) check_script=$0 ;; *) check_script=$PWD/$0 ;; esac
+  measure_repo=$work/measure
+  mkdir -p "$measure_repo" "$work/artifacts" "$work/tools" || exit 2
+  git init -q "$measure_repo" || exit 2
+  measure_trace=$work/build-started
+  export measure_trace
+  for program in npm node cargo rustc; do
+    cat >"$work/tools/$program" <<'SH' || exit 2
+#!/bin/sh
+printf '%s\n' "${0##*/}" >>"$measure_trace"
+exit 1
+SH
+    chmod +x "$work/tools/$program" || exit 2
+  done
+  output=$(APPLE_SIGNING_IDENTITY=stand-in-identity CI_D_REPO="$measure_repo" CI_D_ARTIFACTS="$work/artifacts" CI_D_JOB=macos PATH="$work/tools:$PATH" sh "$check_script" 2>"$work/measure.err")
+  code=$?
+  got=unexpected-exit-$code
+  case $code:$output in
+    "1:FAIL $name (the signing variable "*" is set, and this check builds unsigned)") got=FAIL ;;
+  esac
+  [ -e "$measure_trace" ] && got=the-build-started
+  verdict signing-variable-stops-before-the-build FAIL "$got"
+
   if [ -n "$wrong" ]; then
     printf 'FAIL self-test:%s (wrong verdict in:%s)\n' "$name" "$wrong"
     exit 1
