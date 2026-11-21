@@ -280,6 +280,13 @@ impl EncryptedStore {
     /// true. The rows of shredded segments stay in the database, so a bound
     /// under the database's own bytes ends with no live segment and a disk
     /// total that `usage` still reads above it.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests until the adapter's evict_to calls the store"
+        )
+    )]
     pub fn evict_to(&mut self, bound: u64, max_segments: usize) -> StoreResult<Pass> {
         let owed_failure = self.finish_owed()?;
         let mut shredded = Vec::new();

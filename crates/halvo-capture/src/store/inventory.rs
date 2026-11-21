@@ -7,6 +7,13 @@ impl EncryptedStore {
     /// The store's byte totals on disk and in its payloads, as [`Usage`]
     /// defines them. Rows of shredded segments stay in the database, so its
     /// pages count after every live segment is gone.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests until the adapter's usage calls the store"
+        )
+    )]
     pub fn usage(&self) -> StoreResult<Usage> {
         let db = self.db()?;
         let (segment_disk, logical): (i64, i64) = db
