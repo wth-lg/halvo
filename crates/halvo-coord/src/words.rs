@@ -99,7 +99,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.working.stopping", "It is stopping."),
     (
         "line.working.switch_not_saved",
-        "Halvo is stopping its task, but your Switch off was not saved: this agent is on and may start again.",
+        "Halvo is stopping the task but could not switch this agent off. It may start again: press Switch off again.",
     ),
     (
         "line.working.kill_stuck_mac",
@@ -150,7 +150,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "line.all_set.switch_not_saved",
-        "Halvo stopped its task, but your Switch off was not saved: this agent is on and may start again.",
+        "Halvo stopped the task but could not switch this agent off. It may start again: press Switch off again.",
     ),
     ("line.run.completed", "It finished the task."),
     ("line.run.nothing_to_do", "It found nothing to do."),
