@@ -196,7 +196,7 @@ pub struct InventoryRow {
 pub struct Reconciled {
     pub files_removed: u64,
     pub rows_shredded: u64,
-    /// A step failed; the next open or expiry pass does what it left.
+    /// A step failed; the next open does what it left.
     pub owed: bool,
 }
 
@@ -220,10 +220,14 @@ pub trait SegmentStore {
 /// its retention bound, so its ciphertext becomes unrecoverable.
 pub trait SegmentExpiry {
     /// Crypto-shred every segment past its retention bound. When a shred's
-    /// commit changed a row and the look after the commit or the checkpoint
-    /// after it then fails, the pass answers that failure and reports no
-    /// shred, the handle answers the same to every later call that reads or
-    /// writes the database, and a later open or pass finishes the shred.
+    /// commit changed a row and the look after the commit then fails, the
+    /// pass answers that failure and reports no shred, the handle answers
+    /// the same to every later call that reads or writes the database, and a
+    /// later open finishes the shred. When the checkpoint after the commit
+    /// fails, and fails again after the removal of the chunk's files, the
+    /// pass answers that failure, the handle answers it to every later call
+    /// that reads or writes the database but an expiry or eviction call, and
+    /// such a later call, or a later open, finishes the checkpoint.
     fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport>;
 
     /// Crypto-shred everything and destroy the store key (delete-all), in the

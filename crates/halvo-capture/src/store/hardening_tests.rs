@@ -1219,7 +1219,7 @@ fn the_keyless_sweep_removes_nothing_through_a_segments_directory_that_is_a_link
     let dir = tempfile::tempdir().unwrap();
     let target = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
-    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     store
         .db()
         .unwrap()
@@ -12893,5 +12893,49 @@ fn a_shred_reads_no_directory_but_its_own_files() {
     assert!(
         store.read_segment(kept, &mut Vec::new()).is_ok(),
         "the segment in the unreadable shard no longer reads"
+    );
+}
+
+#[test]
+fn a_later_call_with_nothing_due_finishes_what_an_earlier_call_owed() {
+    use super::db::code_seams::{force_at, CHECKPOINT_QUERY};
+    const IO_ERROR: i32 = halvo_sqlcipher::rusqlite::ffi::SQLITE_IOERR;
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let due = (NOW_SECONDS - window_seconds() - DAY_SECONDS) * SECOND;
+    let segments: Vec<Uuid> = (0..2)
+        .map(|_| batch_first_captured_at(&mut store, due, b"a segment whose removal is owed").0)
+        .collect();
+    let files_left = |segments: &[Uuid]| {
+        segments
+            .iter()
+            .filter(|id| segment_path(dir.path(), **id).exists())
+            .count()
+    };
+
+    force_at(CHECKPOINT_QUERY, Some(IO_ERROR));
+    let retried = super::failpoint::at(super::expiry::SEAM_BEFORE_THE_RETRIED_CHECKPOINT, || {
+        force_at(CHECKPOINT_QUERY, Some(IO_ERROR))
+    });
+    super::failpoint::arm("segment_file_remove");
+    let first = store.expire_due(at_second(NOW_SECONDS), 64);
+    drop(retried);
+    force_at(CHECKPOINT_QUERY, None);
+    let after_the_first = (store.inventory().is_err(), files_left(&segments));
+
+    let second = store.expire_due(at_second(NOW_SECONDS), 64);
+
+    assert!(first.is_err(), "the first call answered {first:?}");
+    assert!(
+        matches!(&second, Ok(pass) if *pass == super::Pass::default()),
+        "a later call with nothing newly expired answered {second:?} after a first call that left (reads refused, files) {after_the_first:?}"
+    );
+    assert_eq!(store.db().unwrap().wal_bytes().unwrap(), 0);
+    assert_eq!(files_left(&segments), 0, "a shredded segment's file stays");
+    assert!(store.inventory().is_ok(), "the handle still refuses reads");
+    assert_eq!(
+        after_the_first,
+        (true, 1),
+        "the first call did not leave its checkpoint and one removal owed: (reads refused, files)"
     );
 }

@@ -2099,9 +2099,11 @@ set, and the root's own volume name answers the root.
   of a shred that stopped between its commit and its checkpoint (the entry
   above on a process crash), the log of a shred whose checkpoint failed
   after its commit changed a row (the open or the pass then answers the
-  checkpoint's error, the handle answers it to every later call, its close
-  does not checkpoint, and the next open's drain brings the shred into
-  `store.db`; `store::hardening_tests::checkpoint_after_the_shred`), or a
+  checkpoint's error, the handle answers it to every later call that reads
+  or writes but an expiry or eviction call, its close does not checkpoint,
+  and a later expiry or eviction call on the handle finishes the
+  checkpoint, or the next open's drain brings the shred into `store.db`;
+  `store::hardening_tests::checkpoint_after_the_shred`), or a
   file that was put there, and property 1
   says nothing of that directory, before the refused `open` or after it.
   Tests of `store::hardening_tests`

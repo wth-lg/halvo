@@ -1,11 +1,12 @@
 //! SQLCipher metadata store and the [`EncryptedStore`].
 
+use std::collections::BTreeSet;
 use std::ffi::{OsStr, OsString};
 use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -1134,9 +1135,10 @@ pub(in crate::store) fn db_error(e: rusqlite::Error) -> StoreError {
     }
 }
 
+#[cfg(test)]
 pub(in crate::store) fn unix_secs_now() -> u64 {
     SystemTime::now()
-        .duration_since(UNIX_EPOCH)
+        .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
 }
@@ -1846,8 +1848,9 @@ impl Db {
     /// `changes_before`), the shred is committed in the log and not in
     /// `store.db`, so the handle keeps the failure as it keeps a failed look,
     /// its close does not checkpoint, and nothing of it reports the shred;
-    /// the next open's drain brings the log into `store.db` before it
-    /// answers.
+    /// a later expiry or eviction call on the handle finishes the checkpoint
+    /// and lifts the failure, or the next open's drain brings the log into
+    /// `store.db` before it answers.
     pub(in crate::store) fn kept_after_a_shred(
         &self,
         e: StoreError,
@@ -1864,6 +1867,19 @@ impl Db {
             Ok(_) => e,
             Err(config) => db_error(config),
         }
+    }
+
+    pub(in crate::store) fn owes_a_checkpoint(&self) -> bool {
+        matches!(self.look_failed.get(), Some(LookFailure::Checkpoint(_)))
+    }
+
+    pub(in crate::store) fn finish_owed_checkpoint(&self) -> StoreResult<()> {
+        if !self.owes_a_checkpoint() {
+            return Ok(());
+        }
+        self.checkpoint_truncate()?;
+        self.look_failed.set(None);
+        Ok(())
     }
 
     /// Whether this handle's look after its first commit failed because it
@@ -2415,6 +2431,7 @@ pub struct EncryptedStore {
     root_destroyed_with: Option<RootsLeft>,
     roots: RootKeeping,
     reconciled: Reconciled,
+    pub(in crate::store) owed_files: BTreeSet<uuid::Uuid>,
     _writer_lock: DirLock,
 }
 
@@ -2548,6 +2565,7 @@ impl EncryptedStore {
                 root_destroyed_with: None,
                 roots,
                 reconciled: Reconciled::default(),
+                owed_files: BTreeSet::new(),
                 _writer_lock,
             }),
             Err(e) => {
@@ -2774,6 +2792,7 @@ impl EncryptedStore {
             root_destroyed_with: None,
             roots: kept,
             reconciled: Reconciled::default(),
+            owed_files: BTreeSet::new(),
             _writer_lock,
         };
         opened.reconciled = opened.reconcile();
@@ -2797,6 +2816,13 @@ impl EncryptedStore {
 
     pub(in crate::store) fn db(&self) -> StoreResult<&Db> {
         self.keyed().map(|(db, _)| db)
+    }
+
+    pub(in crate::store) fn maintained_db(&self) -> StoreResult<&Db> {
+        match &self.keyed {
+            Keyed::Open { db, .. } if db.owes_a_checkpoint() => Ok(db),
+            _ => self.db(),
+        }
     }
 
     pub(in crate::store) fn dir(&self) -> &Path {

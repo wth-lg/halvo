@@ -1,12 +1,12 @@
 //! Window-expiry crypto-shred.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::time::{Duration, SystemTime};
 
 use halvo_sqlcipher::rusqlite::{self, Connection, OptionalExtension};
 use uuid::Uuid;
 
-use super::db::{db_error, EncryptedStore};
+use super::db::{db_error, Db, EncryptedStore};
 use super::segment;
 use super::{
     DeleteReport, Ordinal, Pass, Reconciled, SegmentExpiry, ShredReport, StoreError, StoreResult,
@@ -15,6 +15,10 @@ use super::{
 const STORE_KEY_COUNT: u64 = 1;
 
 const LEGACY_CHUNK: usize = 64;
+
+#[cfg(test)]
+pub(in crate::store) const SEAM_BEFORE_THE_RETRIED_CHECKPOINT: &str =
+    "an expiry chunk, before its retried checkpoint";
 
 const NANOS_PER_SECOND: i64 = 1_000_000_000;
 
@@ -83,6 +87,14 @@ fn shred_in_place(conn: &Connection, segment_id: &str) -> StoreResult<bool> {
     Ok(true)
 }
 
+fn clear_keys(db: &Db, ids: &[Uuid]) -> StoreResult<()> {
+    let tx = db.connection().unchecked_transaction().map_err(db_error)?;
+    for segment_id in ids {
+        shred_in_place(&tx, &segment_id.simple().to_string())?;
+    }
+    tx.commit().map_err(db_error)
+}
+
 impl EncryptedStore {
     fn live_segments(&self) -> StoreResult<Vec<(Uuid, i64)>> {
         let conn = self.db()?.connection();
@@ -141,41 +153,94 @@ impl EncryptedStore {
         Ok((chunk, more_due))
     }
 
-    fn remove_shredded_files(&self, ids: &[Uuid]) -> StoreResult<()> {
+    fn remove_shredded_files(&self, ids: &[Uuid]) -> (BTreeSet<Uuid>, Option<StoreError>) {
+        let mut left = BTreeSet::new();
         let mut first_failure = None;
         for id in ids {
             if let Err(e) = segment::remove_shredded_file(self.handle(), self.fs(), *id) {
+                left.insert(*id);
                 first_failure.get_or_insert(e);
             }
         }
-        first_failure.map_or(Ok(()), Err)
+        (left, first_failure)
+    }
+
+    fn finish_owed(&mut self) -> StoreResult<Option<StoreError>> {
+        self.maintained_db()?.finish_owed_checkpoint()?;
+        let owed: Vec<Uuid> = self.owed_files.iter().copied().collect();
+        let (left, first_failure) = self.remove_shredded_files(&owed);
+        self.owed_files = left;
+        Ok(first_failure)
     }
 
     fn shred_chunk(&mut self, chunk: &[(Uuid, Ordinal)]) -> StoreResult<Vec<Ordinal>> {
+        if chunk.is_empty() {
+            return Ok(Vec::new());
+        }
         let ids: Vec<Uuid> = chunk.iter().map(|(id, _)| *id).collect();
-        self.destroy_segment_keys(&ids)?;
-        self.remove_shredded_files(&ids)?;
+        let (left, first_failure) = {
+            let db = self.maintained_db()?;
+            let changes_before = db.connection().total_changes();
+            clear_keys(db, &ids)?;
+            db.look_after_the_first_commit(changes_before)?;
+            let checkpointed = db
+                .checkpoint_truncate()
+                .map_err(|e| db.kept_after_a_shred(e, changes_before));
+            let (left, removal_failure) = self.remove_shredded_files(&ids);
+            if checkpointed.is_err() {
+                #[cfg(test)]
+                super::failpoint::seam(SEAM_BEFORE_THE_RETRIED_CHECKPOINT);
+                let _ = db.finish_owed_checkpoint();
+            }
+            (left, checkpointed.err().or(removal_failure))
+        };
+        self.owed_files.extend(left);
+        if let Some(first) = first_failure {
+            return Err(first);
+        }
         let mut shredded: Vec<Ordinal> = chunk.iter().map(|(_, ordinal)| *ordinal).collect();
         shredded.sort_unstable();
         Ok(shredded)
     }
 
+    /// Whether a later expiry or eviction call on this handle finishes work
+    /// that an earlier call left undone: the checkpoint after a shred's
+    /// commit, or the removal of a shredded segment's file.
+    pub fn owes_work(&self) -> bool {
+        !self.owed_files.is_empty() || self.maintained_db().is_ok_and(|db| db.owes_a_checkpoint())
+    }
+
     /// One expiry chunk at the caller's wall-clock `now`; the store reads no
-    /// clock. It shreds at most `max_segments` live segments whose first
-    /// capture, floored to whole seconds, plus this handle's window is at or
-    /// before `now`, the oldest first capture first, in one transaction that
-    /// clears each key in place and takes its totals out of the rollup. It
-    /// returns their ordinals in ascending order and whether more segments
-    /// are due.
+    /// clock. It first finishes what an earlier call owes: the checkpoint
+    /// after a shred's commit, which it must finish before anything else, and
+    /// the removal of each shredded segment's file. Then it shreds at most
+    /// `max_segments` live segments whose first capture, floored to whole
+    /// seconds, plus this handle's window is at or before `now`, the oldest
+    /// first capture first, in one transaction that clears each key in place
+    /// and takes its totals out of the rollup. After the commit it attempts
+    /// the checkpoint and the removal of exactly that chunk's files, and the
+    /// checkpoint once more after the removal when the first one failed, and
+    /// answers the first error after every step ran; the handle keeps what
+    /// the call owes, and a later call finishes it. With nothing due and
+    /// nothing owed it writes nothing and reads no directory. It returns the
+    /// ordinals of the chunk in ascending order, whether more segments are
+    /// due and whether work is still owed.
     pub fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> StoreResult<Pass> {
         let now_secs = crate::event::unix_nanos(now).div_euclid(NANOS_PER_SECOND);
+        let owed_failure = self.finish_owed()?;
         let (chunk, more_due) = self.due_chunk(now_secs, max_segments)?;
-        let shredded = self.shred_chunk(&chunk)?;
-        Ok(Pass {
-            shredded,
-            more_due,
-            owed: false,
-        })
+        let shredded = match self.shred_chunk(&chunk) {
+            Ok(shredded) => shredded,
+            Err(e) => return Err(owed_failure.unwrap_or(e)),
+        };
+        match owed_failure {
+            Some(first) => Err(first),
+            None => Ok(Pass {
+                shredded,
+                more_due,
+                owed: self.owes_work(),
+            }),
+        }
     }
 
     pub(in crate::store) fn destroy_segment_keys(&self, ids: &[Uuid]) -> StoreResult<u64> {
@@ -220,7 +285,7 @@ impl EncryptedStore {
     /// the sweep undone and the open, which then answers that look's answer
     /// or that checkpoint's error, has removed no file. It deletes no row, and it writes
     /// nothing when it finds no work. A step that fails leaves its work for
-    /// the next open or expiry pass.
+    /// the next open.
     pub(in crate::store) fn reconcile(&self) -> Reconciled {
         let mut reconciled = Reconciled::default();
         let missing: StoreResult<Vec<Uuid>> = self.live_segments().and_then(|live| {
