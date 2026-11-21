@@ -16,7 +16,7 @@ fn a_new_database_of_this_build_reads_auto_vacuum_0_after_its_first_table() {
     );
 }
 
-const COMPILE_OPTIONS: [&str; 45] = [
+const COMPILE_OPTIONS: [&str; 46] = [
     "ATOMIC_INTRINSICS=1",
     "DEFAULT_AUTOVACUUM",
     "DEFAULT_CACHE_SIZE=-2000",
@@ -52,6 +52,7 @@ const COMPILE_OPTIONS: [&str; 45] = [
     "MAX_MMAP_SIZE=0x7fff0000",
     "MAX_PAGE_COUNT=0xfffffffe",
     "MAX_PAGE_SIZE=65536",
+    "MAX_SCHEMA=10000000",
     "MAX_SQL_LENGTH=1000000000",
     "MAX_TRIGGER_DEPTH=1000",
     "MAX_VARIABLE_NUMBER=32766",
