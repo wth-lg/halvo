@@ -341,6 +341,42 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_pause_whose_write_fails_while_the_file_goes_is_answered_not_written_with_no_file_at_the_name(
+    ) {
+        let dir = crate::daemon::state::tests::test_dir();
+        let path = dir.path().join("daemon-state.json");
+        recorded(dir.path(), &Arc::new(RecordingFs::new()))
+            .update(|state| state.desired = Desired::Running)
+            .unwrap();
+        let gone = path.clone();
+        let fs = Arc::new(RecordingFs::observed_by(move |call| {
+            if matches!(call, Call::CreateNew(_)) {
+                let _ = std::fs::remove_file(&gone);
+            }
+        }));
+        let mut file = recorded(dir.path(), &fs);
+        assert_eq!(file.state().desired, Desired::Running);
+        fs.fail(Kind::CreateNew);
+        let answer = file.update(|state| state.desired = Desired::Paused);
+        assert!(
+            matches!(
+                answer,
+                Err(StateError::NotWritten {
+                    kind: io::ErrorKind::StorageFull,
+                    ..
+                })
+            ),
+            "{answer:?}"
+        );
+        assert_eq!(file.state().desired, Desired::Paused);
+        assert_eq!(
+            file.health(),
+            StateHealth::WriteFailed(io::ErrorKind::StorageFull)
+        );
+        assert!(!path.exists());
+    }
+
     struct StepFs(Arc<std::sync::Mutex<Option<Kind>>>);
 
     impl StepFs {
