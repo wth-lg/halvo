@@ -327,7 +327,7 @@ fn main() {
         .unwrap_or_else(|error| panic!("halvo-sqlcipher: write {}: {error}", copy.display()));
 
     let mut sqlcipher = libtomcrypt_build(source_dir);
-    sqlcipher.file(&copy).file(ENTROPY_SHIM);
+    sqlcipher.include(source_dir).file(&copy).file(ENTROPY_SHIM);
     for (name, value) in SQLITE_SWITCHES {
         sqlcipher.define(name, *value);
     }
