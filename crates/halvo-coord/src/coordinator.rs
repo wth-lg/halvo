@@ -1113,7 +1113,6 @@ where
                     self.act(st, Act::Resume { run: run.clone() })?;
                 }
                 self.lapse_held(st, i, run, LapseCause::RunEnded);
-                self.lapse_binds(st, i, run, OtherLapse::RunEnded);
                 st.handbacks.retain(|(_, a)| &a.run != run);
                 st.waits.retain(|w| &w.run != run);
                 self.end_of_run(st, run, *outcome)
@@ -2173,9 +2172,12 @@ where
 
     /// The card of the native dialog of the confirmation `item` (I8.1 `agents_present`, ruling
     /// RD-77 12.1): `items::native_card` of the confirmation that the coordinator holds for that
-    /// id, read under the lock; it calls no port and stores nothing. `unknown_item` for an id that
-    /// is no held confirmation, an item of another kind and no item among them, and the causes of
-    /// `items::native_card` otherwise.
+    /// id, read under the lock. As the first call after a move or a tick that did not return it
+    /// publishes before it reads, as every call does then (rulings RD-80 3.4, 4.2): the snapshot's
+    /// `seq` rises, the page's bell rings (`Page::changed`) and the tray's count is set
+    /// (`Tray::attention`); any other call of it calls no port. It logs no row and sends no body.
+    /// `unknown_item` for an id that is no held confirmation, an item of another kind and no item
+    /// among them, and the causes of `items::native_card` otherwise.
     pub fn native_card(&self, item: &ItemId) -> Result<NativeCard, Cause> {
         let st = self.lock();
         let h = st
@@ -2302,7 +2304,11 @@ where
     /// `stop` lapses the open item of a
     /// waiting run with `cancelled` and stops the run in one command, for every kind of item,
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
-    /// switch-off control lapses that item in the same way before its own move.
+    /// switch-off control lapses that item in the same way before its own move. A switch-off
+    /// whose `hold_set` the owner refuses with a name of class B stops the agent's live run as
+    /// the stop does, stores no hold and answers the store's cause; the agent stays on, and its
+    /// row says both, that the task was stopped and that the switch-off could not be saved, until
+    /// a later run of it starts or a later switch-off of it is stored (ruling RD-155 (1)).
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
@@ -2652,15 +2658,33 @@ where
             let held = open
                 .as_ref()
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
-            let line = roster::status_of(
+            let mut line = roster::status_of(
                 *facts,
                 &self.limits,
                 held.map(|h| h.confirmation().state()),
                 board.record_stuck(&facts.agent, &self.limits),
             );
-            let Ok(row) = roster::row(*facts, line, name) else {
+            if board.setup_owed(&facts.agent) && line.status() == Status::AllSet {
+                line = crate::types::StatusLine::NeedsYou(ItemKind::Setup);
+            }
+            let Ok(mut row) = roster::row(*facts, line, name) else {
                 continue;
             };
+            if board.kept_on(&facts.agent)
+                && matches!(
+                    row.status,
+                    Status::Working | Status::WaitingTurn | Status::AllSet
+                )
+            {
+                let key = if board.runs.iter().any(|r| r.agent == facts.agent) {
+                    "line.working.switch_not_saved"
+                } else {
+                    "line.all_set.switch_not_saved"
+                };
+                if let Ok(text) = words::text(key, &[]) {
+                    row.line = text;
+                }
+            }
             let item = match (&open, line.status()) {
                 (Some(o), Status::NeedsYou) => self.item_of(st, facts, held, o.kind, &o.item, name),
                 _ => None,

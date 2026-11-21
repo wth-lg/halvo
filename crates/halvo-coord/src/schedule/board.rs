@@ -154,6 +154,8 @@ pub struct Board<C> {
     unread: Vec<AgentId>,
     dismissed: Vec<WorkflowId>,
     queue_held: bool,
+    kept_on: Vec<AgentId>,
+    setup_owed: Vec<AgentId>,
 }
 
 impl<C> Board<C> {
@@ -184,7 +186,41 @@ impl<C> Board<C> {
             unread: Vec::new(),
             dismissed: Vec::new(),
             queue_held: false,
+            kept_on: Vec::new(),
+            setup_owed: Vec::new(),
         }
+    }
+
+    /// Whether a raise of the agent's `setup` that the life's first creation move or the tick of
+    /// its recovery made was not stored, so that each later tick makes it again until the owner
+    /// stores it or the agent's record is stuck (I5.8; ruling RD-155 (2)).
+    pub fn setup_owed(&self, agent: &AgentId) -> bool {
+        self.setup_owed.contains(agent)
+    }
+
+    pub(crate) fn owe_setup(&mut self, agent: &AgentId, owed: bool) {
+        self.setup_owed.retain(|a| a != agent);
+        if owed {
+            self.setup_owed.push(agent.clone());
+        }
+    }
+
+    /// Whether the person's Switch off of the agent stopped its live run while the owner refused
+    /// the switch's `hold_set` with a name of class B, so that the agent is still on; it stands
+    /// until a later run of the agent goes on the board or a later switch-off of it is known
+    /// stored (ruling RD-155 (1)).
+    pub fn kept_on(&self, agent: &AgentId) -> bool {
+        self.kept_on.contains(agent)
+    }
+
+    pub(crate) fn keep_on(&mut self, agent: &AgentId) {
+        if !self.kept_on.contains(agent) {
+            self.kept_on.push(agent.clone());
+        }
+    }
+
+    pub(crate) fn switched_off(&mut self, agent: &AgentId) {
+        self.kept_on.retain(|a| a != agent);
     }
 
     /// Holds the queue or frees it: while held, the end of a run starts nothing from the queue,
@@ -234,6 +270,9 @@ impl<C> Board<C> {
     /// Takes a run that this life put on the board with whether the defer of its launch was
     /// acknowledged (ruling RD-86 item 1).
     pub(crate) fn launched(&mut self, run: &RunId, launch: bool) {
+        if let Some(live) = self.runs.iter().find(|r| &r.run == run) {
+            self.kept_on.retain(|a| a != &live.agent);
+        }
         self.defers.retain(|(r, _)| r != run);
         self.defers.push((
             run.clone(),
@@ -385,6 +424,34 @@ impl<C> Board<C> {
     /// B, ruling RD-125 (1)).
     pub fn start_gone(&mut self, agent: &AgentId) {
         self.stuck_of(agent).gone = true;
+    }
+
+    /// Takes a refusal of a write of the agent, or of the read that follows a write's first
+    /// `seq`, by its class, the same for every sender (I5.7, I7.2, rulings RD-64 2.5, RD-123,
+    /// RD-125 (1), RD-126 item 9, RD-155 (4)): class B counts nothing toward the
+    /// stuck line and marks nothing for the life, but for a body that holds the start's
+    /// `run_started` (`start`), which stops the tick's start for the life (`start_gone`); a
+    /// refusal that cannot pass in this life (`lasts_the_life`) counts and marks the agent for the
+    /// life (`refused_for_life`); class C and every other name of class D count (`refused`);
+    /// `seq` and a failure that is no refusal by name count nothing here. `dismissed` says
+    /// whether the owner's list, as the sender last read it, shows the agent's workflow
+    /// dismissed.
+    pub(crate) fn note_refusal(
+        &mut self,
+        agent: &AgentId,
+        error: &crate::ports::PortError,
+        dismissed: bool,
+        start: bool,
+    ) {
+        use crate::items::drive::{class_of, lasts_the_life, Class};
+        match class_of(error, dismissed) {
+            Some(Class::Gone) if start => self.start_gone(agent),
+            Some(Class::Gone | Class::Seq) | None => {}
+            Some(Class::One | Class::Whole) if lasts_the_life(error, dismissed) => {
+                self.refused_for_life(agent);
+            }
+            Some(Class::One | Class::Whole) => self.refused(agent),
+        }
     }
 
     /// Whether a record or a body of the agent's items' list keeps its place under class D or as
