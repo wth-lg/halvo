@@ -1663,6 +1663,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             _ => None,
         };
         let stops = self.stop_every_source();
+        #[cfg(feature = "r2")]
+        super::r2::service::stop();
         let unstopped = asked_before || stops.iter().any(|(_, answer)| !is_a_stop(answer));
         if unstopped {
             if let Some(Ok(pending)) = owner.map(|owner| owner.ask(Command::Settle)) {
