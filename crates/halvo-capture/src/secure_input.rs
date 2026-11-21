@@ -76,15 +76,19 @@ pub trait SecureInputProbe: seal::Sealed {
     fn read(&self) -> SecureInputReading;
 }
 
-/// The age above which a key event is late: it is counted, not recorded, and is
-/// not a secure-input violation.
+/// The age above which a key event that reached the source's callback is late:
+/// it is counted in `late_events`, not recorded, and is not a secure-input
+/// violation.
 pub const LATE_KEY_MAX: Duration = Duration::from_millis(250);
 
 /// The witness that a keystroke may be recorded: the probe read inactive for
 /// it and it was not late. It holds the age that [`check`] judged, which the
 /// keystroke constructor stamps with, so a key is built with no other age. It
 /// is not `Clone`. Its maker is private to this module, which Rust opens to
-/// this module and its child modules, the two probe files among them.
+/// this module and its child modules, the two probe files among them. On macOS
+/// the one maker of the clearance that a keystroke is built with is the
+/// release of the hold, `macos::KeyQueue`, which keeps the clearance that
+/// [`check`] gave at the key's arrival and adds the time held to its age.
 #[derive(Debug)]
 pub struct KeystrokeClearance {
     age: Option<Duration>,
@@ -113,9 +117,10 @@ pub enum Withheld {
     Late,
 }
 
-/// The clearance for one key event whose OS timestamp is `key_age` old, or why
-/// there is none. A late key gets none whatever the reading; with no age the
-/// key counts as on time.
+/// The clearance for one key event whose OS timestamp is `key_age` old when it
+/// reached the source's callback, or why there is none. A late key gets none
+/// whatever the reading; with no age the key counts as on time. On macOS it is
+/// asked once, at the key's arrival, by the queue of held keys.
 pub fn check(
     probe: &dyn SecureInputProbe,
     key_age: Option<Duration>,

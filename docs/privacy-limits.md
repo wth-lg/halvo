@@ -76,12 +76,17 @@ the policy (ADR 0010).
 
 Each sentence names the unit that makes it true.
 
-- The title of a private window of Chrome, Edge, Firefox or Safari is not stored when
-  the browser runs with an English interface, and the title of any other private
-  window is stored (macos-4 and win-4). A source tells a private window by the ending
-  that the browser gives its title, and only for the browser that the ending belongs
-  to: on macOS `(Incognito)` for Chrome, `(InPrivate)` for Edge, an em dash and
-  `Private Browsing` for Firefox and `, Private Browsing` for Safari; on Windows
+- On a Mac, Halvo records no title of a browser's window, private or not: the app and
+  the time are recorded as for every app, and the title is never read. This holds for
+  every browser that Halvo knows by name: Chrome, Edge, Firefox, Safari and the other
+  browsers in wide use, with their beta, developer, nightly and test builds. Halvo
+  records no title of Thunderbird's windows either, because Thunderbird's id shares the
+  beginning of Firefox's. A browser that Halvo does not know as one has its titles
+  recorded like any app's, its private windows too.
+- On Windows, the title of a private window of Chrome, Edge, Firefox or Safari is not
+  stored when the browser runs with an English interface, and the title of any other
+  private window is stored (win-4). A source tells a private window by the ending that
+  the browser gives its title, and only for the browser that the ending belongs to:
   `[InPrivate]` for Edge and `Mozilla Firefox Private Browsing` for Firefox. A page
   whose own title holds the word private is kept, because a source matches the
   ending and never the word alone.
@@ -89,12 +94,11 @@ Each sentence names the unit that makes it true.
   `PAGE - Google Chrome` in 3 of 3 runs). win-4 asks the window instead, through UI
   Automation, and drops the title of every Chrome window that the query does not
   tell as not private.
-- Limits of that rule. The endings are those of an English interface, measured on
-  the browser versions of the two hosted images: Chrome 157 and 156, Edge 156,
-  Firefox 159 and Safari 27.2. With another interface language, another browser or a
-  title that ends otherwise, the window is not told and its title is stored. On
-  macOS the trial read the title through the accessibility interface, which is how
-  macos-4 reads it; a read from the window list was not tried.
+- Limits of that rule, which holds on Windows alone. The endings are those of an
+  English interface, measured on the browser versions of the two hosted images:
+  Chrome 157 and 156, Edge 156, Firefox 159 and Safari 27.2. With another interface
+  language, another browser or a title that ends otherwise, the window is not told
+  and its title is stored.
 - A terminal that does not assert secure input gets no protection, so key classes
   and the window title are recorded while a password is typed there (macos-4).
 - A box that a web page only draws as dots, without telling the system that it is
