@@ -56,6 +56,7 @@ store units halvo-sqlcipher scheduled mon the group A; 27 s in the macos job, 32
 store target halvo-derived/crash_model gate
 store target halvo-learn-gate/delete_cli gate
 store units halvo-learn-gate::tests::privacy gate the deletion of learned rows; the line kept of scripts/ci/slow-tests.txt names the part, which the tests of the privacy command in privacy::tests hold too, and the package's other unit tests run in the group B
+store units halvo-agent-gate::tests::privacy gate the deletion of the agent's rows with their workflow; no units line of scripts/ci/slow-tests.txt names the package, so 12-test runs its unit tests as they are
 store target halvo/page_guard gate
 store target halvo-seam/conformance scheduled mon the group A; 30 s in the macos job, 20 s in the windows job
 store target halvo-seam/suite_controls scheduled mon the group A; 11 s in the macos job, 7 s in the windows job
