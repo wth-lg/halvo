@@ -15,6 +15,7 @@ mod owner_stream;
 mod owner_stream_macos;
 #[cfg(windows)]
 mod owner_stream_windows;
+mod run_mark;
 
 #[cfg(any(target_os = "macos", windows))]
 pub use owner_stream::{
@@ -23,6 +24,7 @@ pub use owner_stream::{
 };
 #[cfg(target_os = "macos")]
 pub use owner_stream_macos::send_with_end;
+pub use run_mark::{mark_request, RunEdge, RunMarked};
 
 /// The protocol version of the bodies of this module.
 pub const VERSION: u64 = 2;

@@ -438,6 +438,13 @@ impl SinkWriter {
     /// The next number of this writer's counter, for a record that did not
     /// arrive on the channel: the run mark that the owner's entry appends.
     #[cfg(feature = "r2")]
+    #[cfg_attr(
+        not(any(test, all(target_os = "macos", debug_assertions))),
+        expect(
+            dead_code,
+            reason = "Owner::append_run_mark, its one caller, is built in tests and in macOS debug builds alone"
+        )
+    )]
     pub(crate) fn number_next(&self) -> ArrivalNumber {
         let number = self.next.get();
         self.next.set(number + 1);
