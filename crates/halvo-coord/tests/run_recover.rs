@@ -1,6 +1,10 @@
 #[path = "run_support.rs"]
 mod support;
 
+#[allow(clippy::duplicate_mod)]
+#[path = "coordinator_support.rs"]
+mod coord;
+
 use halvo_coord::guard::Table;
 use halvo_coord::mem::Method;
 use halvo_coord::ports::{Analysis, Clock, Owner, PortError, Reaped, Rng, Runs};
@@ -2249,5 +2253,41 @@ fn rd122_t1_recovery_owes_no_end_run_that_the_owner_refuses_with_no_workflow() {
             .any(|o| matches!(o.what, halvo_coord::schedule::Owing::EndRun { .. })),
         "class B ends the end_run: {:?}",
         w.board.owed
+    );
+}
+
+/// A life of one manual agent whose Quit left its run named as not stopped, its kill refused,
+/// and wrote that list; and the owner of the next life on the same store, whose reap gives
+/// `answer` for that run.
+fn after_a_quit_that_left_a_run(answer: Reaped) -> (coord::Both, RunId) {
+    let c = coord::coordinator(&[coord::MANUAL], Limits::PRODUCT);
+    let run_now = halvo_coord::types::Action::RunNow;
+    assert_eq!(c.control(&agent(0), run_now), Ok(()));
+    let run = coord::started(&c).pop().unwrap();
+    let hello = halvo_coord::types::RunEvent::Hello;
+    assert_eq!(c.on_run(&run, hello), Ok(()));
+    c.quit_stop();
+    c.ports().ports.refuse(Method::Kill, PortError::NoService);
+    c.quit_kill();
+    c.quit_write();
+    let next = coord::owner(&[], Limits::PRODUCT);
+    *next.ports.workflows.borrow_mut() = c.ports().ports.workflows.borrow().clone();
+    *next.ports.agents.borrow_mut() = c.ports().ports.agents.borrow().clone();
+    *next.ports.events.borrow_mut() = c.ports().ports.events.borrow().clone();
+    next.ports.leave_marks(&[(run.clone(), answer)]);
+    (next, run)
+}
+
+#[test]
+fn u46d_the_first_row_of_the_next_life_says_that_its_task_was_still_running_when_halvo_quit() {
+    let (next, _) = after_a_quit_that_left_a_run(Reaped::Gone);
+    let life = halvo_coord::Coordinator::new(next, Limits::PRODUCT);
+    life.tick();
+    let row = life.snapshot().rows[0].clone();
+    assert_eq!(
+        row.line,
+        halvo_coord::words::text("line.problem.quit", &[]).unwrap(),
+        "reap answered gone, and the first row says that the task was still running when \
+         Halvo quit: {row:?}"
     );
 }

@@ -211,6 +211,53 @@ fn started_at(events: &[Event], run: &RunId) -> i64 {
         .unwrap_or(i64::MAX)
 }
 
+/// The facts that a new life keeps for the row of an agent whose workflow the owner's list no
+/// longer holds, where the agent's newest run is one that a Quit of an earlier life named as not
+/// stopped (`roster::not_stopped_in`; ruling RD-150), whatever `reap` answered: its events, the
+/// store's last record of it, and a workflow that stands for the gone one, `paused` and `manual`
+/// with no period and no site, of the agent's category, as `Board::gone_facts` keeps them; none
+/// where its newest run is another. The read's failure is the caller's to answer.
+fn quit_facts<P: Owner>(
+    ports: &P,
+    agent: Agent<P::Config>,
+    day: u32,
+) -> Result<Option<Facts<P::Config>>, PortError>
+where
+    P::Config: ConfigView,
+{
+    let mut events = Vec::new();
+    resync(ports, &agent.agent, &mut events)?;
+    let Some(newest) = crate::roster::not_stopped_in(&events).cloned() else {
+        return Ok(None);
+    };
+    let workflow = FullWorkflow {
+        id: agent.workflow.clone(),
+        state: WorkflowState::Paused,
+        category: agent.config.category(),
+        site: None,
+        trigger: WorkflowTrigger::Manual,
+        period: None,
+        last: day,
+        agent: Some(agent.agent.clone()),
+    };
+    let store_ended = agent.last.as_ref().is_some_and(|l| l.run == newest);
+    let mut facts = Facts {
+        agent: agent.agent.clone(),
+        workflow,
+        config: agent.config,
+        slots: agent.slots,
+        runs: agent.last.into_iter().collect(),
+        unknown: Vec::new(),
+        events,
+        store_ended,
+        replies: crate::types::Replies::NotAsked,
+        today: day,
+        doing: Doing::Idle(None),
+    };
+    facts.take_unknown(&agent.unknown);
+    Ok(Some(facts))
+}
+
 /// The runs of an earlier life that the board keeps, each with its agent (rulings RD-151 (c),
 /// RD-150): for each member the run that `Board::alive_at_reap` names, and for each agent of a
 /// gone workflow that recovery kept for its row (`Board::kept_gone`) its newest run for which
@@ -381,7 +428,12 @@ where
     for agent in agents {
         let Some(listed) = workflows.iter().find(|w| w.id() == &agent.workflow) else {
             match Board::gone_facts(ports, agent.clone(), &reaped, day) {
-                Ok(read) => kept.extend(read),
+                Ok(Some(read)) => kept.push(read),
+                Ok(None) => match quit_facts(ports, agent, day) {
+                    Ok(read) => kept.extend(read),
+                    Err(PortError::Refused(_)) => {}
+                    Err(e) => return Err(cause(&e)),
+                },
                 Err(PortError::Refused(name)) if name.as_str() == "no_workflow" => {}
                 Err(PortError::Refused(_)) => gone_aside.push(agent),
                 Err(e) => return Err(cause(&e)),
