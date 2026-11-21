@@ -636,6 +636,16 @@ impl Owner for Shared {
         let _turn = self.enter();
         self.ports.replies(workflow, agent, run)
     }
+
+    fn overlaps(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        slots: Option<&[halvo_coord::types::Slot]>,
+    ) -> Result<halvo_coord::ports::Overlaps, PortError> {
+        let _turn = self.enter();
+        self.ports.overlaps(workflow, agent, slots)
+    }
 }
 
 impl Runs for Shared {
@@ -751,4 +761,160 @@ impl PolicyPort for Shared {
         let _turn = self.enter();
         self.policy.gives_run(config, class)
     }
+}
+
+/// The memory ports `ports` as the value that threads share, with the memory policy and every
+/// other field as `world_ending` starts it.
+pub fn shared_of(ports: Ports<Config>) -> Shared {
+    Shared {
+        ports,
+        ..world_ending(&[], Limits::PRODUCT)
+    }
+}
+
+/// The mailbox of the email agents of `sharing_set_up` and `sharing_held`.
+pub const ACCOUNT: &str = "me@home.test";
+/// The sender that the two agents of those worlds share.
+pub const ANN: &str = "ann@people.test";
+
+/// The asking email agent: in `sharing_set_up` the agent that the first tick makes for the
+/// approved workflow, the first id that the memory random bytes give.
+pub fn asking() -> AgentId {
+    AgentId::parse(&format!("{:032x}", 1)).unwrap()
+}
+
+pub fn asking_flow() -> WorkflowId {
+    WorkflowId::parse(&format!("{:032x}", 0xfa)).unwrap()
+}
+
+/// The live email agent on the same mailbox that listens to `ANN`.
+pub fn other() -> AgentId {
+    AgentId::parse(&format!("{:032x}", 0xb0)).unwrap()
+}
+
+pub fn other_flow() -> WorkflowId {
+    WorkflowId::parse(&format!("{:032x}", 0xe0)).unwrap()
+}
+
+fn mail_config(flow: &WorkflowId, agent: &AgentId) -> Config {
+    Config::parse(&format!(
+        "{{\"v\":1,\"workflow\":\"{flow}\",\"agent\":\"{agent}\",\"rev\":1,\"category\":\"email\",\"tier\":\"on_device\",\"reasoning\":\"medium\",\"autonomy\":\"draft_and_confirm\",\"allow\":[],\"caps\":{{\"untrusted\":\"yes\",\"private\":\"yes\",\"external\":\"no\"}},\"limits\":{{\"steps\":20,\"wall_s\":120,\"model_tokens\":0}},\"budget\":null,\"permissions\":[],\"runtime\":\"graph_mail\",\"playbook\":1}}"
+    ))
+    .unwrap()
+}
+
+fn mail_workflow(id: WorkflowId, state: WorkflowState, agent: Option<AgentId>) -> Workflow {
+    Workflow::Full(FullWorkflow {
+        id,
+        state,
+        category: Category::Email,
+        site: None,
+        trigger: WorkflowTrigger::Manual,
+        period: None,
+        last: DAY - 2,
+        agent,
+    })
+}
+
+fn mail_entry(flow: WorkflowId, agent: AgentId, slots: &[&str]) -> Agent<Config> {
+    Agent {
+        config: mail_config(&flow, &agent),
+        workflow: flow,
+        agent,
+        state: AgentState::Active,
+        slots: slots.iter().map(|s| Name::parse(s).unwrap()).collect(),
+        session: true,
+        last: None,
+        unknown: vec![],
+    }
+}
+
+fn mail_slot(name: &str, value: &str) -> halvo_coord::types::Slot {
+    halvo_coord::types::Slot {
+        name: Name::parse(name).unwrap(),
+        value: vec![value.to_owned()],
+    }
+}
+
+fn mail_bind(p: &Ports<Config>, flow: WorkflowId, agent: AgentId, senders: Option<&str>) {
+    let mut slots = vec![mail_slot("account_address", ACCOUNT)];
+    slots.extend(senders.map(|s| mail_slot("reply_senders", s)));
+    p.send(&Body::SetBindings {
+        workflow: flow,
+        agent,
+        slots,
+    })
+    .unwrap();
+}
+
+fn mail_listed(p: &Ports<Config>, flow: &WorkflowId, state: WorkflowState) {
+    for w in p.workflows.borrow_mut().iter_mut() {
+        if let Workflow::Full(f) = w {
+            if &f.id == flow {
+                f.state = state;
+            }
+        }
+    }
+}
+
+/// A world for the sentence of the refusal `overlap` at a set-up item (I3.5): an approved email
+/// workflow with no agent, whose agent the first tick makes with a stored `account_address` and
+/// no `reply_senders`, so that its hold `setup` raises the item, beside the email agent `other`,
+/// live on the same mailbox and listening to `ANN`.
+pub fn sharing_set_up() -> Shared {
+    let p: Ports<Config> = Ports::new(T0, DAY);
+    p.workflows
+        .borrow_mut()
+        .push(mail_workflow(asking_flow(), WorkflowState::Approved, None));
+    p.agents
+        .borrow_mut()
+        .push(mail_entry(asking_flow(), asking(), &["account_address"]));
+    mail_bind(&p, asking_flow(), asking(), None);
+    p.workflows.borrow_mut().push(mail_workflow(
+        other_flow(),
+        WorkflowState::Paused,
+        Some(other()),
+    ));
+    p.agents.borrow_mut().push(mail_entry(
+        other_flow(),
+        other(),
+        &["account_address", "reply_senders"],
+    ));
+    mail_bind(&p, other_flow(), other(), Some(ANN));
+    mail_listed(&p, &other_flow(), WorkflowState::Active);
+    shared_of(p)
+}
+
+/// A world for the sentence of a refused Switch on and Start now (I3.5 (f), RD-160 (3)): the
+/// asking email agent holds `ANN` in its stored bindings and is listed `paused` with the hold
+/// `failures`, beside `other`, listed `active` with `ANN` on the same mailbox, so that each move
+/// sends `active`, which the owner refuses with `overlap`.
+pub fn sharing_held() -> Shared {
+    let p: Ports<Config> = Ports::new(T0, DAY);
+    for (flow, agent) in [(asking_flow(), asking()), (other_flow(), other())] {
+        p.workflows.borrow_mut().push(mail_workflow(
+            flow.clone(),
+            WorkflowState::Paused,
+            Some(agent.clone()),
+        ));
+        p.agents.borrow_mut().push(mail_entry(
+            flow.clone(),
+            agent.clone(),
+            &["account_address", "reply_senders"],
+        ));
+        mail_bind(&p, flow, agent, Some(ANN));
+    }
+    mail_listed(&p, &other_flow(), WorkflowState::Active);
+    p.log(&[Event {
+        workflow: asking_flow(),
+        agent: asking(),
+        seq: NonZeroU32::new(1).unwrap(),
+        day: DAY - 1,
+        at: 0,
+        what: What::HoldSet {
+            cause: halvo_coord::types::HoldSetCause::Failures,
+        },
+    }])
+    .unwrap();
+    shared_of(p)
 }
