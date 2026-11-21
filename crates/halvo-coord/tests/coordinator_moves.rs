@@ -12347,3 +12347,119 @@ fn u24s_i58_a_setup_raise_refused_at_every_tick_ends_in_the_record_line_and_neve
         assert!(!life.record_stuck(&made), "no_service counts nothing");
     }
 }
+
+fn u24s_r7_unknown_outcome(o: &Both, made: &AgentId, flow: &WorkflowId) {
+    let run = RunId::parse(&format!("{:032x}", 0x0700)).unwrap();
+    let last = o
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| &e.agent == made)
+        .map(|e| e.seq.get())
+        .max()
+        .unwrap_or(0);
+    let event = |k: u32, what: What| halvo_coord::types::Event {
+        workflow: flow.clone(),
+        agent: made.clone(),
+        seq: std::num::NonZeroU32::new(last + k).unwrap(),
+        day: DAY,
+        at: 0,
+        what,
+    };
+    o.ports.events.borrow_mut().extend([
+        event(
+            1,
+            What::RunStarted {
+                run: run.clone(),
+                trigger: halvo_coord::types::Trigger::Person,
+                slot: None,
+            },
+        ),
+        event(
+            2,
+            What::RunEnded {
+                run: run.clone(),
+                cause: RunEnd::Completed,
+                defers: None,
+            },
+        ),
+    ]);
+    for a in o.ports.agents.borrow_mut().iter_mut() {
+        if &a.agent == made {
+            a.last = Some(PastRun {
+                run: run.clone(),
+                day: DAY,
+                outcome: Outcome::Completed,
+                unknown: 1,
+            });
+        }
+    }
+}
+
+fn u24s_r7_kinds(c: &Coordinator<Both>) -> Vec<ItemKind> {
+    c.snapshot().items.iter().map(|i| i.kind()).collect()
+}
+
+#[test]
+fn u24s_r7_a_set_aside_agent_with_an_unknown_outcome_gets_the_setup_card_then_the_check_card_and_no_run_between(
+) {
+    let (c, made, _) = setup_agent();
+    let _ = c.quit_stop();
+    c.quit_kill();
+    let flow = workflow_of(&c, &made);
+    let (m2, f2) = (made.clone(), flow.clone());
+    let life = next_life(&c, move |o| {
+        u24s_r7_unknown_outcome(o, &m2, &f2);
+        o.ports
+            .refuse_agent(Method::History, &m2, refused_name("store"))
+    });
+    life.ports().ports.clear_refusals();
+    let runs = started(&life).len();
+    life.tick();
+    assert_eq!(
+        u24s_r7_kinds(&life),
+        vec![ItemKind::Setup],
+        "the recovery tick: the setup alone"
+    );
+    assert_eq!(life.control(&made, Action::RunNow), Err(Cause::Hold));
+    let item = life
+        .snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Setup)
+        .map(|i| i.item().clone())
+        .unwrap();
+    for param in [Param::Start, Param::Payee] {
+        assert_eq!(
+            life.answer(
+                &item,
+                Choice::Choose,
+                Some((param, 1)),
+                shown_step_mark_or_zero(&life, &item)
+            ),
+            Ok(())
+        );
+    }
+    assert_eq!(
+        life.setup_typed(
+            &item,
+            Param::Instrument,
+            "Card 4242",
+            shown_step_mark_or_zero(&life, &item)
+        ),
+        Ok(())
+    );
+    assert_eq!(life.control(&made, Action::RunNow), Err(Cause::Hold));
+    life.tick();
+    assert_eq!(
+        u24s_r7_kinds(&life),
+        vec![ItemKind::Check],
+        "after the setup's answers the next tick raises the check"
+    );
+    assert_eq!(
+        started(&life).len(),
+        runs,
+        "no run started between the two cards"
+    );
+}
