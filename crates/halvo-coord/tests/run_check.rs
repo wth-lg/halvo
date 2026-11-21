@@ -3704,3 +3704,93 @@ fn u24s_a_check_whose_read_after_a_first_seq_does_not_answer_or_is_refused_under
         );
     }
 }
+
+fn is_stuck_raise(e: &Event) -> bool {
+    matches!(
+        e.what,
+        What::ItemRaised {
+            raised: Raised::Stuck(_),
+            ..
+        }
+    )
+}
+
+/// No tick raises the item `check` for an agent while a record of its items' list keeps its
+/// place under class D (I5.7, ruling RD-64 2.5): the raise tests `Board::place_held` as the start
+/// does (U2.4w).
+#[test]
+fn a_tick_raises_no_check_while_a_record_of_the_agent_keeps_its_place() {
+    let c = coord::coordinator(&[coord::MANUAL], halvo_coord::types::Limits::PRODUCT);
+    assert_eq!(
+        c.control(&agent(0), halvo_coord::types::Action::RunNow),
+        Ok(())
+    );
+    let run = coord::started(&c).last().cloned().unwrap();
+    assert_eq!(c.on_run(&run, halvo_coord::types::RunEvent::Hello), Ok(()));
+    c.ports().ports.refuse_record(
+        is_stuck_raise,
+        PortError::Refused(Name::parse("store").unwrap()),
+    );
+    let _ = c.on_run(
+        &run,
+        halvo_coord::types::RunEvent::Handback(halvo_coord::types::HandbackAsk {
+            run: run.clone(),
+            agent: agent(0),
+            reason: halvo_coord::types::HandbackReason::StepFailed,
+            origin: None,
+        }),
+    );
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, halvo_coord::types::RunEvent::Ended(None));
+    c.ports().ports.store_end(
+        &agent(0),
+        halvo_coord::types::PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    c.ports().ports.agents.borrow_mut()[0]
+        .unknown
+        .push(Unknown {
+            run: run.clone(),
+            effect: EffectId::parse(&format!("{:032x}", 0xe402)).unwrap(),
+            day: DAY,
+            class: Class::Send,
+            kept: vec![halvo_coord::types::Kept {
+                name: Name::parse("to").unwrap(),
+                value: vec!["Ann Lee".into()],
+            }],
+        });
+    let from = c.ports().ports.tried.borrow().len();
+    c.ports().ports.set_clock(T0 + 5000, DAY);
+    c.tick();
+    let tried_stuck = c.ports().ports.tried.borrow()[from..]
+        .iter()
+        .any(|t| matches!(&t.call, Call::Log(rows) if rows.iter().any(is_stuck_raise)));
+    assert!(
+        tried_stuck,
+        "flush_ledgers sent the held record at the tick"
+    );
+    let checks = c
+        .ports()
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| {
+            matches!(
+                e.what,
+                What::ItemRaised {
+                    raised: Raised::Check(_),
+                    ..
+                }
+            )
+        })
+        .count();
+    assert_eq!(
+        checks, 0,
+        "no item_raised check while the record keeps its place"
+    );
+}
