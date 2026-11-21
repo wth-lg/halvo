@@ -1,9 +1,10 @@
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use halvo_control::client::{
-    Client, ClientError, Connector, Deadlines, DeleteOutcome, NoTransport,
+    Client, ClientError, Connector, Deadlines, DeleteOutcome, NoTransport, SystemConnector,
 };
 use halvo_control::model::{StorageCap, StoreId};
 use halvo_control::onboarding::{Permission, RequestOutcome};
@@ -269,14 +270,70 @@ impl Connector for Unresolved {
     }
 }
 
+/// The pid of the app's own daemon child of the moment, 0 while it has none: the connector of
+/// `control_of_child` expects that process as the server at each connect.
+#[derive(Debug, Default)]
+pub struct ChildPid(pub AtomicU32);
+
+impl ChildPid {
+    pub fn get(&self) -> Option<u32> {
+        match self.0.load(Ordering::SeqCst) {
+            0 => None,
+            pid => Some(pid),
+        }
+    }
+}
+
+/// The system's connector, which expects the server to be the child of `pid` while it holds one.
+#[derive(Clone)]
+pub struct ToChild {
+    connector: SystemConnector,
+    pid: Arc<ChildPid>,
+}
+
+impl Connector for ToChild {
+    type Transport = <SystemConnector as Connector>::Transport;
+
+    fn endpoint(&self) -> String {
+        self.connector.endpoint()
+    }
+
+    fn connect(&self, timeout: Duration) -> Result<Self::Transport, ClientError> {
+        match self.pid.get() {
+            Some(pid) => expecting(self.connector.clone(), pid).connect(timeout),
+            None => self.connector.connect(timeout),
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn expecting(connector: SystemConnector, pid: u32) -> SystemConnector {
+    connector.expecting_pid(pid)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn expecting(connector: SystemConnector, pid: u32) -> SystemConnector {
+    let _ = pid;
+    connector
+}
+
 pub fn control_of<E>(
     resolve: impl FnOnce() -> Result<halvo_control::paths::DataDir, E>,
+) -> (Arc<dyn Control>, Option<halvo_control::paths::DataDir>) {
+    control_of_child(resolve, Arc::default())
+}
+
+/// The app's control of the daemon of the data directory that `resolve` gives, which expects
+/// the server to be the child that `pid` names while it names one.
+pub fn control_of_child<E>(
+    resolve: impl FnOnce() -> Result<halvo_control::paths::DataDir, E>,
+    pid: Arc<ChildPid>,
 ) -> (Arc<dyn Control>, Option<halvo_control::paths::DataDir>) {
     let Ok(dir) = resolve() else {
         return (Arc::new(Gated::new(Unresolved)), None);
     };
     match halvo_control::client::system_connector(&dir) {
-        Ok(connector) => (Arc::new(Gated::new(connector)), Some(dir)),
+        Ok(connector) => (Arc::new(Gated::new(ToChild { connector, pid })), Some(dir)),
         Err(_) => (Arc::new(Gated::new(Unresolved)), Some(dir)),
     }
 }
