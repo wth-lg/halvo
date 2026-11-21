@@ -178,14 +178,56 @@ impl<T: ProcessTable> Lineage for ProcessLineage<T> {
     }
 }
 
-/// The browsers whose private windows a title source tells apart.
+/// The browsers whose private windows a title source tells apart, or whose
+/// titles it keeps none of.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Browser {
     Edge,
     Firefox,
     Chrome,
+    /// A browser of [`OTHER_BROWSERS`]: none of its titles is kept.
+    Untold,
     Other,
 }
+
+/// The executable file names of the other browsers that the capture can name
+/// today, matched as the three of [`Browser::of`] are. No title of their
+/// windows is kept, whatever it reads. Tor Browser runs as firefox.exe, and
+/// the beta, dev and canary builds of Chrome and Edge and the developer and
+/// nightly builds of Firefox carry the file names of their browsers, so the
+/// rows of those three hold them. A browser in no list keeps its titles.
+const OTHER_BROWSERS: [&str; 30] = [
+    "360chrome.exe",
+    "360se.exe",
+    "arc.exe",
+    "avastbrowser.exe",
+    "avgbrowser.exe",
+    "basilisk.exe",
+    "brave.exe",
+    "browser.exe",
+    "ccleanerbrowser.exe",
+    "dragon.exe",
+    "duckduckgo.exe",
+    "floorp.exe",
+    "iexplore.exe",
+    "iridium.exe",
+    "k-meleon.exe",
+    "librewolf.exe",
+    "maxthon.exe",
+    "microsoftedge.exe",
+    "mullvadbrowser.exe",
+    "opera.exe",
+    "palemoon.exe",
+    "qqbrowser.exe",
+    "seamonkey.exe",
+    "slimjet.exe",
+    "sogouexplorer.exe",
+    "thorium.exe",
+    "vivaldi.exe",
+    "waterfox.exe",
+    "whale.exe",
+    "zen.exe",
+];
 
 impl Browser {
     /// The browser of an executable path, by its file name, ignoring ASCII case.
@@ -194,6 +236,12 @@ impl Browser {
             return Browser::Other;
         };
         let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
+        if OTHER_BROWSERS
+            .iter()
+            .any(|file| name.eq_ignore_ascii_case(file))
+        {
+            return Browser::Untold;
+        }
         [
             ("msedge.exe", Browser::Edge),
             ("firefox.exe", Browser::Firefox),
@@ -245,7 +293,8 @@ fn edge_text_is_normal(text: &str) -> bool {
 /// never by a word alone. Every title of Firefox is told Private, so no
 /// Firefox title is kept: under some interface languages the title of a
 /// private window ends with the brand name as a normal one does, and no rule
-/// on the text tells the two apart. A Chrome window is private unless `query`
+/// on the text tells the two apart. Every title of another listed browser is
+/// told Private in the same way. A Chrome window is private unless `query`
 /// tells it as not private, so a query with no answer drops its title; every
 /// other window is Unknown, which drops nothing.
 pub(crate) fn private_window(
@@ -255,7 +304,7 @@ pub(crate) fn private_window(
 ) -> PrivateWindow {
     let private = match browser {
         Browser::Edge => !edge_text_is_normal(title),
-        Browser::Firefox => true,
+        Browser::Firefox | Browser::Untold => true,
         Browser::Chrome => query() != Some(false),
         Browser::Other => false,
     };
