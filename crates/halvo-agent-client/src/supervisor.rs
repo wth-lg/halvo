@@ -715,13 +715,13 @@ impl Running<'_> {
         } else if self.ending.finish.is_some() {
             refuse(ReplyError::Workflow(ErrorName::State))
         } else {
-            self.inner
-                .parts
-                .link
-                .request(request.envelope().as_bytes())
-                .ok()
-                .and_then(|bytes| relayed(&bytes, request))
-                .unwrap_or_else(|| refuse(ReplyError::Workflow(ErrorName::Internal)))
+            // A link error is a stream that ended before a whole reply, never a completed write (A6.6): `store`, on
+            // which the runner repeats the request.
+            match self.inner.parts.link.request(request.envelope().as_bytes()) {
+                Err(_) => refuse(ReplyError::Workflow(ErrorName::Store)),
+                Ok(bytes) => relayed(&bytes, request)
+                    .unwrap_or_else(|| refuse(ReplyError::Workflow(ErrorName::Internal))),
+            }
         };
         match (body, &reply.outcome) {
             (RunnerCall::Finish(f), Ok(_)) => {

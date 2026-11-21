@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 halvo-schema = { path = "../halvo-schema" }
+halvo-seam = { path = "../halvo-seam" }
 
 [[bin]]
 name = "agent-client-peer"

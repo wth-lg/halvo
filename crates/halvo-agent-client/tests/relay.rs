@@ -134,7 +134,7 @@ fn the_owner_gets_a_store_request_only_while_the_mark_is_complete() {
 }
 
 #[test]
-fn a_link_failure_is_answered_internal_and_the_request_is_not_sent_again() {
+fn a_link_failure_is_answered_store_and_the_request_is_not_sent_again() {
     let rig = Rig::new("relay-link");
     rig.store.fail_all.store(1, Ordering::SeqCst);
     let script = rig.script(&[
@@ -151,7 +151,7 @@ fn a_link_failure_is_answered_internal_and_the_request_is_not_sent_again() {
     assert_eq!(
         script.replies(),
         vec![format!(
-            r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","error":"internal"}}}}"#,
+            r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","error":"store"}}}}"#,
             id(7)
         )]
     );
@@ -293,7 +293,7 @@ fn a_finish_that_the_owner_did_not_store_still_owes_end_run_and_keeps_the_relay_
     assert_eq!(
         replies[0],
         format!(
-            r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","error":"internal"}}}}"#,
+            r#"{{"t":"store_reply","reply":{{"v":1,"id":"{}","error":"store"}}}}"#,
             id(0x33)
         )
     );
