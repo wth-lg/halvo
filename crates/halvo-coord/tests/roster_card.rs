@@ -1437,3 +1437,67 @@ fn u24q_every_unknown_effect_of_a_run_gets_its_own_entry_in_its_place() {
     assert_eq!(shown(&e[3]), [pair("To", "Bo Chan")]);
     assert!(e[4].fields().is_empty());
 }
+
+/// The verify step's M1: a name that the row keeps twice never stands, whether its two values
+/// are equal or differ, whether one of them is over the bound, and whether its two rows stand
+/// side by side or apart, on the entry of a refused committed effect and on the unknown entry.
+#[test]
+fn u24q_a_name_kept_twice_never_stands_whatever_its_values_or_its_place() {
+    let over = format!("zqr-over{}", "Q".repeat(1025));
+    let r = paid_rest();
+    let payee = |v: &str| one_kept("payee", v);
+    let cases: Vec<(&str, Vec<Kept>)> = vec![
+        (
+            "equal, side by side",
+            [vec![payee("zqr1 Power"), payee("zqr1 Power")], r.clone()].concat(),
+        ),
+        (
+            "equal, apart",
+            vec![
+                payee("zqr2 Power"),
+                r[0].clone(),
+                payee("zqr2 Power"),
+                r[1].clone(),
+                r[2].clone(),
+            ],
+        ),
+        (
+            "the first reads, the second is over the bound",
+            [vec![payee("zqr3 Power"), payee(&over)], r.clone()].concat(),
+        ),
+        (
+            "the first is over the bound, the second reads",
+            [vec![payee(&over), payee("zqr4 Power")], r.clone()].concat(),
+        ),
+        (
+            "they differ, apart",
+            vec![
+                payee("zqr5a Power"),
+                r[0].clone(),
+                r[1].clone(),
+                payee("zqr5b Power"),
+                r[2].clone(),
+            ],
+        ),
+    ];
+    for (case, kept) in cases {
+        for (effect, want) in [
+            (
+                committed(Class::Payment, kept.clone()),
+                "run.effect.payment.partial",
+            ),
+            (
+                unknown(Class::Payment, kept.clone()),
+                "run.effect.payment.unknown",
+            ),
+        ] {
+            let c = beside_a_good_run(effect);
+            let e = &c.runs[0].effects[1];
+            assert_eq!(e.key(), want, "{case}");
+            let labels: Vec<&str> = e.fields().iter().map(|f| f.label.as_str()).collect();
+            assert_eq!(labels, ["Amount", "Pay with", "Site"], "{case}: {want}");
+            let all = serde_json::to_string(&c).unwrap();
+            assert!(!all.contains("zqr"), "{case}: {want}: {all}");
+        }
+    }
+}
