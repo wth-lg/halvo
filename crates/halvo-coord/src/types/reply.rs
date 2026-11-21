@@ -107,7 +107,7 @@ impl AskEffect {
             if class == Class::Delete && k.name.as_str() == "items" {
                 continue;
             }
-            fields.push(kept_field(class, k)?);
+            fields.extend(kept_field(class, k)?);
         }
         Ok(AskEffect {
             text: words::text(&key, &[])?,
@@ -125,7 +125,7 @@ impl AskEffect {
                 if *class == Class::Delete && k.name.as_str() == "items" {
                     continue;
                 }
-                fields.push(kept_field(*class, k)?);
+                fields.extend(kept_field(*class, k)?);
             }
         }
         Ok(AskEffect {
