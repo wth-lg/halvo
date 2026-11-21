@@ -13428,3 +13428,48 @@ fn u24s_r7_a_set_aside_agent_with_an_unknown_outcome_gets_the_setup_card_then_th
         "no run started between the two cards"
     );
 }
+
+/// Ruling RD-168 (the review's B2): a later Switch off that the owner stores while its reply is
+/// lost and the read of the same move does not answer, learnt by the read of a later move, ends
+/// the line of the switch-off that could not be saved; after a Switch on the row does not say it
+/// again.
+#[test]
+fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_ends_the_line_of_the_one_that_was_not() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Completed,
+            unknown: 0,
+        },
+    );
+    c.tick();
+    assert_eq!(u24s_r1_row(&c).line, text("line.all_set.switch_not_saved"));
+    c.ports().ports.clear_refusals();
+    c.ports().loss.set(Some(support::Loss::Reply));
+    c.ports().next_history_fails.set(true);
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    let _ = c.control(&agent(0), Action::RunNow);
+    let off = u24s_r1_row(&c);
+    assert_eq!(
+        (off.status, off.line),
+        (Status::Off, text("line.off.person")),
+        "the read of the Start now brings the saved hold"
+    );
+    assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
+    let line = u24s_r1_row(&c).line;
+    assert_ne!(
+        line,
+        text("line.all_set.switch_not_saved"),
+        "the switch-off was saved and the person switched the agent on again"
+    );
+    assert_ne!(line, text("line.working.switch_not_saved"));
+}
