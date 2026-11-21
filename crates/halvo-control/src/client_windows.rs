@@ -37,7 +37,7 @@ fn code(error: &windows::core::Error) -> u32 {
     }
 }
 
-fn os_error(error: windows::core::Error) -> io::Error {
+pub(crate) fn os_error(error: windows::core::Error) -> io::Error {
     io::Error::from_raw_os_error(code(&error) as i32)
 }
 

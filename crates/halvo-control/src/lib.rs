@@ -1,5 +1,7 @@
 #![deny(clippy::undocumented_unsafe_blocks)]
 
+#[cfg(windows)]
+pub mod child_windows;
 pub mod client;
 #[cfg(target_os = "macos")]
 pub mod client_unix;
