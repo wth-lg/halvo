@@ -1,11 +1,11 @@
 page record: sh scripts/r4/ci.d/40-r4-page.sh --record
-stamp=57e10d588ef201bc7d54ed922d47383085e9df22acc89fac680a412c60f7973c files=157
+stamp=ee710238fd77ebd08d063c7991ad17aeab6cdcdccd35ba5e49834b1dbd1e50a9 files=260
 browser name=webkit version=27.2
 page state=card views=agents violations=0 review=15 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=empty views=agents violations=0 review=2 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=needs_check views=agents violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=needs_confirm_changed views=both violations=0 review=5 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
-page state=needs_confirm_mixed views=both violations=0 review=8 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
+page state=needs_confirm_mixed views=both violations=0 review=7 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=needs_confirm_native views=agents violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=needs_confirm_page views=both violations=0 review=5 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=needs_link_account views=agents violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
@@ -17,18 +17,19 @@ page state=needs_sign_in_bind views=agents violations=0 review=3 keyboard=ok str
 page state=needs_stuck views=agents violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=no_service views=agents violations=0 review=2 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=off views=agents violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
+page state=out_of_date views=agents violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=problem views=agents violations=0 review=4 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=queue views=agents violations=0 review=5 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=setup_three views=agents violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=ten views=agents violations=0 review=12 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
 page state=working views=agents violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok region=ok
-page regions read=21 rebuilt=0 say=ok
+page regions read=22 rebuilt=0 say=ok
 needs browser name=webkit version=27.2
 needs page state=card violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=empty violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=needs_check violations=0 review=4 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=needs_confirm_changed violations=0 review=4 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
-needs page state=needs_confirm_mixed violations=0 review=7 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
+needs page state=needs_confirm_mixed violations=0 review=6 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=needs_confirm_native violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=needs_confirm_page violations=0 review=4 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=needs_link_account violations=0 review=4 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
@@ -40,6 +41,7 @@ needs page state=needs_sign_in_bind violations=0 review=4 keyboard=ok structure=
 needs page state=needs_stuck violations=0 review=4 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=no_service violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=off violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
+needs page state=out_of_date violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=problem violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=queue violations=0 review=3 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=setup_three violations=0 review=6 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
@@ -53,7 +55,7 @@ needs page state=test_changed violations=0 review=3 keyboard=ok structure=same s
 needs page state=test_two_confirms violations=0 review=4 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page state=test_many violations=0 review=11 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 needs page test_items=7 failed=0
-needs page states=21 violations=0 review=81 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok engine=offline
-page needs_alone states=21 test_items=7 failed=0 exit=0
-page states=21 violations=0 review=175 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
+needs page states=22 violations=0 review=83 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok engine=offline
+page needs_alone states=22 test_items=7 failed=0 exit=0
+page states=22 violations=0 review=179 keyboard=ok structure=same size=ok modes=ok modes_off=- markup=ok
 result=ok
