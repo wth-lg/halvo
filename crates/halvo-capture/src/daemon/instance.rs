@@ -448,6 +448,36 @@ pub(crate) mod tests {
                 "the folder was not read on the descriptor"
             );
         }
+
+        struct SearchBack(PathBuf);
+
+        impl Drop for SearchBack {
+            fn drop(&mut self) {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o700));
+            }
+        }
+
+        #[test]
+        fn state_dir_opens_the_held_folder_when_the_folder_above_it_cannot_be_searched_after_the_take(
+        ) {
+            use std::os::unix::fs::PermissionsExt;
+            let root = kept_dir("instance-tests-");
+            let above = root.join("above");
+            let data = above.join("data");
+            std::fs::create_dir_all(&data).unwrap();
+            let lock = InstanceLock::take(&data_dir(&data)).unwrap().unwrap();
+            let back = SearchBack(above.clone());
+            std::fs::set_permissions(&above, std::fs::Permissions::from_mode(0o000)).unwrap();
+            assert!(
+                std::fs::metadata(&data).is_err(),
+                "the folder above the data directory still lets its name be walked, so the case is not made here"
+            );
+            let opened = lock.state_dir().map(drop);
+            drop(back);
+            assert!(opened.is_ok(), "{opened:?}");
+            drop(lock);
+        }
     }
 
     #[cfg(windows)]
