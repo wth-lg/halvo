@@ -2459,12 +2459,58 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
             Reply::Status,
         ),
         Request::Inventory => inventory_reply(supervisor, store),
+        Request::Pause | Request::Resume => {
+            capture_change(asked, supervisor, serving, store);
+            return;
+        }
         _ => Reply::Error(ErrorReply::new(
             ErrorCode::UnsupportedOp,
             "this build of the capture service does not serve the op",
         )),
     };
     let _ = asked.answer(reply);
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+const WRITTEN_WAIT: Duration = Duration::from_millis(2_500);
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn capture_change<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    asked: server::Asked,
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    serving: &Serving<'_>,
+    store: &HeldStore,
+) {
+    use halvo_control::proto::{ErrorCode, ErrorReply, Reply, Request};
+    let desired = match asked.request {
+        Request::Resume => state::Desired::Running,
+        _ => state::Desired::Paused,
+    };
+    let facts = server::RunFacts {
+        rss_peak_bytes: server::unix::rss_peak_bytes(),
+        ..*serving.facts
+    };
+    let changed = |parts: &server::StatusParts| {
+        server::status_of(parts, &facts).map_or_else(
+            |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
+            Reply::CaptureChanged,
+        )
+    };
+    let before = supervisor.status_parts(serving.obstructed);
+    let mut pending = Some(asked);
+    let _ = supervisor.set_desired(desired, store.link(), &mut |board| {
+        if let Some(asked) = pending.take() {
+            serving.listening.admitting().end_the_life();
+            let parts = server::StatusParts {
+                board: board.clone(),
+                ..before.clone()
+            };
+            let _ = asked.answer(changed(&parts)).wait(WRITTEN_WAIT);
+        }
+    });
+    if let Some(asked) = pending {
+        let _ = asked.answer(changed(&supervisor.status_parts(serving.obstructed)));
+    }
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]
