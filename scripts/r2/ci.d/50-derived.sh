@@ -95,6 +95,9 @@ esac
 #= tests/typed.rs held_ahead_is_yes_before_the_expiry_and_no_after_it_at_one_clock
 #= tests/typed.rs held_ahead_is_no_for_a_row_past_its_day_of_going_at_a_clock_set_forward
 #= tests/typed.rs held_ahead_is_no_after_the_delete_of_the_workflow
+#= tests/typed.rs a_guard_that_holds_keeps_every_row_and_reads_its_workflow_alone
+#= tests/typed.rs a_guard_gets_yes_three_days_ahead_and_no_after_the_expiry
+#= tests/typed.rs a_fault_of_the_guard_s_read_answers_the_delete
 #= tests/typed.rs held_ahead_is_no_for_another_workflow_and_for_another_kind_of_the_family
 #= tests/typed.rs held_ahead_answers_role_under_a_runner_request_and_under_a_request_of_a_further_role
 #= tests/typed.rs held_ahead_refuses_the_kinds_that_it_cannot_answer_for_and_a_kind_of_the_handler_behind
