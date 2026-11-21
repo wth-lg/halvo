@@ -1892,6 +1892,7 @@ fallback_cases() {
   t the-start-of-the-wrapper-gives-up-when-the-wrapper-ends-before-it-has-a-child PASS pkill_fallback_wrapper_gone
   t the-late-fork-case-refuses-a-stop-before-the-fork-beside-a-right-stop PASS pkill_fallback_early_stop
   t the-late-fork-case-refuses-a-start-that-hands-on-no-id-of-the-child-that-pgrep-read PASS pkill_fallback_id_lost
+  t the-late-fork-case-refuses-a-fork-that-no-named-pipe-holds PASS pkill_fallback_no_hold
   fallback_want=NO-INPUT
   [ "${GITHUB_ACTIONS:-}" != true ] || fallback_want=PASS
   t stop-children-ends-a-wrapper-s-child-by-the-real-pkill-on-the-hosted-job "$fallback_want" pkill_fallback_real
@@ -1964,6 +1965,7 @@ STUB
 
 late_fork_meet() {
   PATH=$fallback_dir/bin:$PATH
+  [ -p "$fallback_dir/bin/fork" ] || { printf 'the fork is held by no named pipe\n'; return 1; }
   "$1" 2 || return 1
   stop_children
   fallback_events=$(tr '\n' ';' < "$fallback_dir/bin/events")
@@ -2023,6 +2025,16 @@ STUB
   case $late_fork_status:$late_fork_said in
     "1:the start handed on the id '' where pgrep read '"[0-9]*"'") return 0 ;;
   esac
+  printf 'the late-fork case answered %s: %s\n' "$late_fork_status" "$late_fork_said"
+  return 1
+}
+
+pkill_fallback_no_hold() {
+  late_fork_fixture no-hold
+  mv "$fallback_dir/bin/fork" "$fallback_dir/bin/fork.pipe"
+  : > "$fallback_dir/bin/fork"
+  late_fork_answer start_wrapper_with_its_child
+  [ "$late_fork_status:$late_fork_said" = '1:the fork is held by no named pipe' ] && return 0
   printf 'the late-fork case answered %s: %s\n' "$late_fork_status" "$late_fork_said"
   return 1
 }
