@@ -1032,6 +1032,12 @@ SH
     verdict guard-dangling-node-modules FAIL missing-dangling-symlink
   fi
 
+  files_output=$(sh "$check_script" --files "$work/clean.bin" "$work/seam.bin" 2>"$work/files.err")
+  code=$?
+  got=unexpected-exit-$code
+  [ "$code:$files_output" = "1:FAIL $name (seam.bin holds the marker halvo-capture:test-seam:this-build-has-it!)" ] && got=FAIL
+  verdict files-form-reads-the-markers FAIL "$got"
+
   for ref in tag:fresh branch:cached :cached; do
     got=$(build_root_for "${ref%:*}")
     if [ "$got" = "${ref#*:}" ]; then got=PASS; else got=FAIL; fi
