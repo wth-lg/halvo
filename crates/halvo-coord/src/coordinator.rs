@@ -14,7 +14,7 @@ use crate::types::{
     Action, AgentId, CandidateFrom, Card, Cause, CheckAnswer, Choice, ConfigView, Doing, Facts,
     FullWorkflow, HandbackAsk, Item, ItemId, ItemKind, LapseCause, Limits, Live, OtherLapse,
     OwnItemKind, Param, Presenter, Row, RunEnd, RunEvent, RunId, RunItem, RunItemKind, Snapshot,
-    Status, System,
+    Status, System, Unknown,
 };
 use crate::words;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -121,6 +121,7 @@ struct State<C> {
     ended: Vec<(RunId, Option<crate::types::Outcome>)>,
     marked: Vec<RunId>,
     held_off: Vec<AgentId>,
+    checks: Vec<(ItemId, Vec<Unknown>)>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -373,6 +374,7 @@ where
                 ended: Vec::new(),
                 marked: Vec::new(),
                 held_off: Vec::new(),
+                checks: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
@@ -2603,6 +2605,7 @@ where
                 }
             }
         }
+        Self::keep_check_fields(st);
         let (rows, items, note) = self.compose(st);
         let needs = rows.iter().filter(|r| r.status == Status::NeedsYou).count();
         let changed = if st.mark.unpublished {
@@ -2617,6 +2620,34 @@ where
             let _ = self
                 .ports
                 .attention(u32::try_from(needs).unwrap_or(u32::MAX));
+        }
+    }
+
+    /// Keeps, for each open check card, the entries of the roster's key `unknown` that the
+    /// newest read naming them gave, and forgets those of a card that is no longer open: so the
+    /// card shows the kept fields of the entry that made its hold stand also in a move whose
+    /// roster read did not answer, or whose read no longer names that entry (rulings RD-81 8.3,
+    /// RD-135 item 4). The fields live in this life's state alone.
+    fn keep_check_fields(st: &mut State<Cfg<P>>) {
+        let State { board, checks, .. } = st;
+        let open: Vec<(ItemId, &Vec<Unknown>)> = board.as_ref().map_or_else(Vec::new, |b| {
+            b.members
+                .iter()
+                .filter_map(|m| {
+                    let item = m.facts.doing.item()?;
+                    (item.kind == ItemKind::Check).then_some((item.item, &m.facts.unknown))
+                })
+                .collect()
+        });
+        checks.retain(|(item, _)| open.iter().any(|(i, _)| i == item));
+        for (item, unknown) in open {
+            if unknown.is_empty() {
+                continue;
+            }
+            match checks.iter_mut().find(|(i, _)| *i == item) {
+                Some((_, kept)) => kept.clone_from(unknown),
+                None => checks.push((item, unknown.clone())),
+            }
         }
     }
 
@@ -2755,7 +2786,13 @@ where
                 .find(|s| s.item() == item)
                 .and_then(|s| s.page_item(name, &self.limits).ok()),
             ItemKind::Check => {
+                let kept = st
+                    .checks
+                    .iter()
+                    .find(|(i, _)| i == item)
+                    .map_or(&[][..], |(_, kept)| kept);
                 let unknown: &[_] = match &facts.doing {
+                    Doing::Idle(_) | Doing::Queued(_) if facts.unknown.is_empty() => kept,
                     Doing::Idle(_) | Doing::Queued(_) => &facts.unknown,
                     Doing::Live(_) => &[],
                 };

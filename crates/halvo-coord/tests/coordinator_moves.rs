@@ -12240,3 +12240,179 @@ fn u24t_t5_a_kept_end_whose_take_up_panics_before_the_run_leaves_is_kept_again_a
         "(the other agent's Stop, its cancels, kills of the kept run, the kept run's ends): the kept end is kept again and made with the runner's outcome, with no kill"
     );
 }
+
+fn u24t_check_card_with_a_kept_field() -> (Coordinator<Both>, RunId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports().ports.end_runner(&run);
+    let _ = c.on_run(&run, RunEvent::Ended(None));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 0,
+        },
+    );
+    c.ports().ports.agents.borrow_mut()[0]
+        .unknown
+        .push(halvo_coord::types::Unknown {
+            run: run.clone(),
+            effect: halvo_coord::types::EffectId::parse(&format!("{:032x}", 0xe401)).unwrap(),
+            day: DAY,
+            class: Class::Send,
+            kept: vec![halvo_coord::types::Kept {
+                name: Name::parse("to").unwrap(),
+                value: vec!["Ann Lee".into()],
+            }],
+        });
+    c.ports().ports.set_clock(T0 + 5_000, DAY);
+    c.tick();
+    (c, run)
+}
+
+fn u24t_check_fields(c: &Coordinator<Both>) -> Option<Vec<Vec<String>>> {
+    c.snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Check)
+        .map(|card| card.fields().iter().map(|f| f.value.clone()).collect())
+}
+
+#[test]
+fn u24t_rd135_a_move_whose_roster_read_failed_shows_the_check_cards_kept_fields() {
+    let (c, _) = u24t_check_card_with_a_kept_field();
+    let ann = Some(vec![vec!["Ann Lee".to_string()]]);
+    assert_eq!(
+        u24t_check_fields(&c),
+        ann,
+        "the card raised with the entry's field"
+    );
+    c.ports().ports.refuse(Method::Agents, PortError::NoService);
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    let at_a_tick = u24t_check_fields(&c);
+    let pressed = c.control(&agent(0), Action::RunNow);
+    let at_a_press = u24t_check_fields(&c);
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 7_000, DAY);
+    c.tick();
+    assert_eq!(
+        (at_a_tick, pressed.is_err(), at_a_press, u24t_check_fields(&c)),
+        (ann.clone(), true, ann.clone(), ann),
+        "(the fields after a tick whose roster read failed, the press refused, after that press, after a tick whose read answers)"
+    );
+}
+
+#[test]
+fn u24t_rd135_a_read_that_no_longer_names_the_entry_keeps_the_fields_of_the_entry_that_made_the_hold(
+) {
+    let (c, _) = u24t_check_card_with_a_kept_field();
+    c.ports().ports.agents.borrow_mut()[0].unknown.clear();
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    assert_eq!(
+        u24t_check_fields(&c),
+        Some(vec![vec!["Ann Lee".to_string()]]),
+        "the open card keeps the field of the entry that made its hold stand"
+    );
+}
+
+#[test]
+fn u24t_rd135_the_kept_fields_go_with_the_card_and_a_new_card_takes_its_own() {
+    let (c, run) = u24t_check_card_with_a_kept_field();
+    let item = item_of_agent(&c, 0);
+    assert_eq!(
+        c.answer(&item, Choice::WentThrough, None, 0),
+        Ok(()),
+        "the person answers the check"
+    );
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    assert_eq!(
+        u24t_check_fields(&c),
+        None,
+        "no check card after the answer"
+    );
+    let next = start(&c, 0);
+    assert_ne!(next, run);
+    c.ports().ports.end_runner(&next);
+    let _ = c.on_run(&next, RunEvent::Ended(None));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: next.clone(),
+            day: DAY,
+            outcome: Outcome::Failed,
+            unknown: 1,
+        },
+    );
+    c.ports().ports.agents.borrow_mut()[0].unknown.clear();
+    c.ports().ports.refuse(Method::Agents, PortError::NoService);
+    c.ports().ports.set_clock(T0 + 7_000, DAY);
+    c.tick();
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + 8_000, DAY);
+    c.tick();
+    assert_eq!(
+        u24t_check_fields(&c),
+        Some(vec![]),
+        "the second card, raised by a record with no entry, shows no field of the first"
+    );
+}
+
+fn u24t_is_hold_set(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::HoldSet { .. })
+}
+
+fn u24t_is_hold_cleared(e: &halvo_coord::types::Event) -> bool {
+    matches!(e.what, What::HoldCleared { .. })
+}
+
+#[test]
+fn u24t_pr42_probe_1_a_stamped_switch_off_or_on_that_the_store_refuses_never_enters_the_count() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    c.ports()
+        .ports
+        .refuse_record(u24t_is_hold_set, refused_name("too_large"));
+    let off = c.control(&agent(0), Action::SwitchOff);
+    c.ports().ports.clear_refusals();
+    assert_eq!(c.control(&agent(0), Action::SwitchOff), Ok(()));
+    c.ports()
+        .ports
+        .refuse_record(u24t_is_hold_cleared, refused_name("too_large"));
+    let on = c.control(&agent(0), Action::SwitchOn);
+    c.ports().ports.set_clock(T0 + 95 * 86_400_000, DAY + 95);
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (off.is_err(), on.is_err(), c.records_dropped(&agent(0))),
+        (true, true, None),
+        "(the Switch off refused, the Switch on refused, the count after 95 days)"
+    );
+}
+
+#[test]
+fn u24t_pr42_probe_2_a_clockless_switch_off_whose_record_the_store_refuses_enters_the_count() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    c.ports().ports.set_clock(T0 + 1_000, DAY);
+    c.tick();
+    c.ports()
+        .ports
+        .refuse_record(u24t_is_hold_set, refused_name("too_large"));
+    clock_fails(&c);
+    let off = c.control(&agent(0), Action::SwitchOff);
+    clock_answers(&c);
+    c.ports().ports.set_clock(T0 + 95 * 86_400_000, DAY + 95);
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (off, c.records_dropped(&agent(0))),
+        (
+            Ok(()),
+            Some((1, "hold_set".to_string(), "too_large".to_string()))
+        ),
+        "(the clockless Switch off, the count with the event and the refusal)"
+    );
+}
