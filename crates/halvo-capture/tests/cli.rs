@@ -1,4 +1,4 @@
-#![cfg(all(target_os = "macos", debug_assertions))]
+#![cfg(target_os = "macos")]
 
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -8,9 +8,13 @@ use std::time::{Duration, Instant};
 
 const BIN: &str = env!("CARGO_BIN_EXE_halvo-capture");
 const FIRST_LINE: &str = "halvo-capture: sources=scripted: this build has the feature test-seam";
+#[cfg(debug_assertions)]
 const EVENTS_A_START: u64 = 3;
+#[cfg(debug_assertions)]
 const TICK_MS: u64 = 100;
+#[cfg(debug_assertions)]
 const LAPSE_MARGIN_MS: u64 = 1_000;
+#[cfg(debug_assertions)]
 const MARK_APP: &str = "dev.halvo.test-seam.scripted-front";
 
 struct Daemon {
@@ -36,11 +40,11 @@ fn scratch_data_dir() -> PathBuf {
     Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("cli-{}-{since}", std::process::id()))
 }
 
-fn start(dir: &Path) -> Daemon {
+fn start(dir: &Path, rest: &[&str]) -> Daemon {
     let mut child = Command::new(BIN)
         .args(["--service-run", "--data-dir"])
         .arg(dir)
-        .arg("--scripted-sources")
+        .args(rest)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -71,6 +75,14 @@ fn ctl(dir: &Path, verb: &[&str]) -> Output {
         .expect("ctl runs")
 }
 
+fn offline_delete(dir: &Path) -> Output {
+    Command::new(BIN)
+        .args(["--delete-all", "--data-dir"])
+        .arg(dir)
+        .output()
+        .expect("the offline delete runs")
+}
+
 fn text(output: &Output) -> String {
     format!(
         "exit={:?}\nstdout:\n{}stderr:\n{}",
@@ -93,6 +105,7 @@ fn until<T>(within: Duration, mut read: impl FnMut() -> Option<T>) -> Option<T> 
     }
 }
 
+#[cfg(debug_assertions)]
 fn total_events(dir: &Path) -> u64 {
     let output = ctl(dir, &["inventory"]);
     assert_eq!(output.status.code(), Some(0), "{}", text(&output));
@@ -105,6 +118,7 @@ fn total_events(dir: &Path) -> u64 {
         .unwrap_or_else(|| panic!("no total line: {stdout}"))
 }
 
+#[cfg(debug_assertions)]
 fn grows_to(dir: &Path, want: u64) {
     let reached = until(Duration::from_secs(20), || {
         let total = total_events(dir);
@@ -117,6 +131,7 @@ fn grows_to(dir: &Path, want: u64) {
     );
 }
 
+#[cfg(debug_assertions)]
 fn status_line(dir: &Path, key: &str) -> Option<String> {
     let output = ctl(dir, &["status"]);
     let prefix = format!("{key}=");
@@ -125,6 +140,7 @@ fn status_line(dir: &Path, key: &str) -> Option<String> {
         .find_map(|line| line.strip_prefix(prefix.as_str()).map(str::to_owned))
 }
 
+#[cfg(debug_assertions)]
 fn files_under(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
     let mut found = Vec::new();
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -145,6 +161,7 @@ fn files_under(dir: &Path) -> Vec<(PathBuf, Vec<u8>)> {
     found
 }
 
+#[cfg(debug_assertions)]
 fn names_under(dir: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -160,6 +177,7 @@ fn names_under(dir: &Path) -> Vec<PathBuf> {
     found
 }
 
+#[cfg(debug_assertions)]
 fn holds(haystack: &[u8], needle: &[u8]) -> bool {
     !needle.is_empty()
         && haystack
@@ -167,6 +185,7 @@ fn holds(haystack: &[u8], needle: &[u8]) -> bool {
             .any(|window| window == needle)
 }
 
+#[cfg(debug_assertions)]
 fn equal_twice(dir: &Path) {
     let first = total_events(dir);
     std::thread::sleep(Duration::from_millis(1_500));
@@ -179,8 +198,16 @@ fn equal_twice(dir: &Path) {
 
 #[test]
 fn ctl_starts_pauses_resumes_and_stops_the_service_run() {
+    #[cfg(debug_assertions)]
+    scripted_service_run();
+    #[cfg(not(debug_assertions))]
+    release_service_run();
+}
+
+#[cfg(debug_assertions)]
+fn scripted_service_run() {
     let dir = scratch_data_dir();
-    let mut daemon = start(&dir);
+    let mut daemon = start(&dir, &["--scripted-sources"]);
 
     let first = until(Duration::from_secs(10), || {
         daemon.stderr.lock().unwrap().first().cloned()
@@ -335,4 +362,92 @@ fn ctl_starts_pauses_resumes_and_stops_the_service_run() {
             "case L: a line of standard error holds a text that a source read: {line}"
         );
     }
+
+    let deleted = offline_delete(&dir);
+    assert_eq!(deleted.status.code(), Some(0), "case R: {}", text(&deleted));
+}
+
+#[cfg(not(debug_assertions))]
+fn release_service_run() {
+    let dir = scratch_data_dir();
+    let store_dir = dir.join("store-dir");
+    let (d, s) = (dir.to_str().unwrap(), store_dir.to_str().unwrap());
+    for line in [
+        &["--timed-run", "5", "--store-dir", s][..],
+        &[
+            "--verify-store",
+            "--store-dir",
+            s,
+            "--marker",
+            "M4rker.release",
+        ][..],
+        &["--verify-deletion", "--store-dir", s][..],
+        &["--delete-all", "--store-dir", s][..],
+        &["--self-check", "run-loop"][..],
+        &["--service-run", "--data-dir", d, "--scripted-sources"][..],
+    ] {
+        let output = Command::new(BIN)
+            .args(line)
+            .output()
+            .expect("the binary runs");
+        assert_eq!(
+            output.status.code(),
+            Some(64),
+            "case R: {line:?}: {}",
+            text(&output)
+        );
+    }
+    let unreached = ctl(&dir, &["status"]);
+    assert_eq!(
+        unreached.status.code(),
+        Some(69),
+        "case R: {}",
+        text(&unreached)
+    );
+
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("daemon-state.json"), "{\"v\":").unwrap();
+    let mut daemon = start(&dir, &[]);
+    let status = until(Duration::from_secs(20), || {
+        let output = ctl(&dir, &["status"]);
+        (output.status.code() == Some(0)).then_some(output)
+    })
+    .expect("case R: ctl status answers the release form");
+    let status = String::from_utf8_lossy(&status.stdout).into_owned();
+    assert!(
+        status.contains("\nstate_file=corrupt\n"),
+        "case R: {status}"
+    );
+    assert!(status.contains("\ncapture=paused\n"), "case R: {status}");
+    let stopped = ctl(&dir, &["stop"]);
+    assert_eq!(stopped.status.code(), Some(0), "case R: {}", text(&stopped));
+    let ended = until(Duration::from_secs(20), || {
+        daemon.child.try_wait().ok().flatten()
+    });
+    assert_eq!(
+        ended.and_then(|status| status.code()),
+        Some(0),
+        "case R: {:?}",
+        daemon.stderr.lock().unwrap()
+    );
+    if let Some(reader) = daemon.reader.take() {
+        reader
+            .join()
+            .expect("case R: the reader of standard error ends");
+    }
+    assert!(
+        !daemon
+            .stderr
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|line| line == FIRST_LINE),
+        "case R: the release form has the test seam"
+    );
+    assert!(
+        std::fs::symlink_metadata(dir.join("store")).is_err(),
+        "case R: the release form made a store, so a source could have started"
+    );
+    let deleted = offline_delete(&dir);
+    assert_eq!(deleted.status.code(), Some(0), "case R: {}", text(&deleted));
 }

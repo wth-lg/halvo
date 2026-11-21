@@ -393,7 +393,6 @@ impl Drop for ForegroundWriter {
     }
 }
 
-#[cfg(debug_assertions)]
 impl ForegroundWriter {
     /// A writer on the same state and read, for the next foreground source of
     /// a service run once the source that held the last one has stopped; its

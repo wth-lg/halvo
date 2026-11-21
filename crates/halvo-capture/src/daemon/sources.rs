@@ -146,7 +146,7 @@ pub trait SourceFactory {
 /// bound. The factory keeps the writer and gives each foreground source it
 /// makes a share of it, so that a source started after a lapse and a renewal
 /// writes the app in front again.
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 pub struct ServiceSources {
     foreground_writer: crate::macos::foreground::ForegroundWriter,
     foreground_reader: crate::macos::foreground::ForegroundReader,
@@ -156,7 +156,7 @@ pub struct ServiceSources {
     stand_in_titles: bool,
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 impl ServiceSources {
     pub fn new(
         writer: crate::macos::foreground::ForegroundWriter,
@@ -188,7 +188,7 @@ impl ServiceSources {
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 impl SourceFactory for ServiceSources {
     fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
         use crate::macos::{foreground, input, screen};
@@ -224,7 +224,7 @@ impl SourceFactory for ServiceSources {
     }
 }
 
-#[cfg(all(target_os = "macos", debug_assertions))]
+#[cfg(target_os = "macos")]
 impl super::supervisor::SystemSources for ServiceSources {
     fn figures(&self) -> SourceCounters {
         self.input_counters.figures()
