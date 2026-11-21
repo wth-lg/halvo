@@ -26,9 +26,9 @@ use super::durable::{self, Dir, DurableFs, EntryKind, OsFs, Refused};
 use super::lock::DirLock;
 use super::segment::{self, SegmentHeader, SegmentKey};
 use super::{
-    DeleteReport, KindTotal, Layout, Met, Ordinal, Reconciled, Refusal, RootReading, SegmentStore,
-    SegmentWrite, StoreError, StoreName, StoreResult, UtcDay, WriteFault, Written, KINDS_MAX,
-    KIND_MAX_BYTES, PAYLOAD_MAX_BYTES,
+    DeleteReport, KindTotal, Layout, Met, OpenFor, Ordinal, Reconciled, Refusal, RootReading,
+    SegmentStore, SegmentWrite, StoreError, StoreName, StoreResult, UtcDay, WriteFault, Written,
+    KINDS_MAX, KIND_MAX_BYTES, PAYLOAD_MAX_BYTES,
 };
 
 const KEY_FILE_VERSION: u32 = 2;
@@ -2445,6 +2445,7 @@ pub struct EncryptedStore {
     roots: RootKeeping,
     reconciled: Reconciled,
     pub(in crate::store) owed_files: BTreeSet<uuid::Uuid>,
+    access: OpenFor,
     _writer_lock: DirLock,
 }
 
@@ -2579,6 +2580,7 @@ impl EncryptedStore {
                 roots,
                 reconciled: Reconciled::default(),
                 owed_files: BTreeSet::new(),
+                access: OpenFor::Write,
                 _writer_lock,
             }),
             Err(e) => {
@@ -2732,9 +2734,19 @@ impl EncryptedStore {
     /// with the frames that it held. The one refusal that can follow the
     /// drain is that of a `store.db` that another program moves or exchanges
     /// at its name during the drain, which is the obstructed variant and
-    /// never `Ok`.
-    pub fn open(dir: &Path, roots: &Path, retention: Duration) -> StoreResult<Self> {
-        Self::open_with(dir, roots, retention, custody_for)
+    /// never `Ok`. `access` is the caller's decision, and the open runs the
+    /// same steps for both: a handle opened with [`OpenFor::Maintenance`]
+    /// expires, evicts, lists and deletes, and its batch write answers
+    /// [`WriteFault::MaintenanceOnly`].
+    pub fn open(
+        dir: &Path,
+        roots: &Path,
+        retention: Duration,
+        access: OpenFor,
+    ) -> StoreResult<Self> {
+        let mut opened = Self::open_with(dir, roots, retention, custody_for)?;
+        opened.access = access;
+        Ok(opened)
     }
 
     pub(in crate::store) fn open_with(
@@ -2806,6 +2818,7 @@ impl EncryptedStore {
             roots: kept,
             reconciled: Reconciled::default(),
             owed_files: BTreeSet::new(),
+            access: OpenFor::Write,
             _writer_lock,
         };
         opened.reconciled = opened.reconcile();
@@ -2829,6 +2842,14 @@ impl EncryptedStore {
 
     pub(in crate::store) fn db(&self) -> StoreResult<&Db> {
         self.keyed().map(|(db, _)| db)
+    }
+
+    fn writable(&self) -> StoreResult<(&Db, &StoreKey)> {
+        let keyed = self.keyed()?;
+        if self.access == OpenFor::Maintenance {
+            return Err(StoreError::MaintenanceOnly);
+        }
+        Ok(keyed)
     }
 
     pub(in crate::store) fn maintained_db(&self) -> StoreResult<&Db> {
@@ -2922,7 +2943,8 @@ impl EncryptedStore {
     /// look could not read the log's entry, the log may stand at its name
     /// with the row, so the file stays: the next open keeps it with its row,
     /// or sweeps it as a file with no key row. The caller keeps the batch on
-    /// every answer.
+    /// every answer. A handle opened with [`OpenFor::Maintenance`] answers
+    /// [`WriteFault::MaintenanceOnly`] and writes nothing.
     ///
     /// Two named limits of the refusal, which bounds each batch and not the
     /// day: (a) the events or the bytes of one day and kind, summed over its
@@ -2935,10 +2957,10 @@ impl EncryptedStore {
     /// summary is the caller's fault, a malformed summary.
     pub fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
         if let Some(refusal) = refusal_of(&write) {
-            self.keyed()?;
+            self.writable()?;
             return Err(WriteFault::Refused(refusal));
         }
-        let (db, _) = self.keyed()?;
+        let (db, _) = self.writable()?;
         if let Some(ordinal) = db
             .ordinal_of(*write.segment_id)
             .map_err(|e| self.answer(e))?
@@ -2962,7 +2984,7 @@ impl EncryptedStore {
         bytes: &mut dyn Read,
         kinds: &[KindTotal<'_>],
     ) -> StoreResult<Written> {
-        let (db, store_key) = self.keyed()?;
+        let (db, store_key) = self.writable()?;
         let seg_key = SegmentKey::random()?;
         let wrapped = segment::wrap_segment_key(&*wrapping_key(store_key)?, segment_id, &seg_key)?;
         let header = SegmentHeader { segment_id };

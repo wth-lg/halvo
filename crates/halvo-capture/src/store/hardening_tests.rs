@@ -8040,7 +8040,12 @@ fn open_a_store_for_parent() {
     };
     let roots = std::env::var("HALVO_TEST_OPEN_ROOTS").unwrap();
     let segment = Uuid::parse_str(&std::env::var("HALVO_TEST_OPEN_SEGMENT").unwrap()).unwrap();
-    let opened = EncryptedStore::open(Path::new(&dir), Path::new(&roots), DEFAULT_RETENTION);
+    let opened = EncryptedStore::open(
+        Path::new(&dir),
+        Path::new(&roots),
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    );
     let read = match &opened {
         Ok(store) => store.read_segment(segment, &mut Vec::new()).map(drop),
         Err(_) => Err(StoreError::Sealed),
@@ -8616,7 +8621,12 @@ fn a_store_on_a_full_volume_ends_delete_all_with_no_root_and_no_key_file() {
             drop(store);
             let filled = fill_the_volume(&volume);
             println!("scenario=C filled_bytes={filled}");
-            match EncryptedStore::open(&store_dir, &roots_dir, DEFAULT_RETENTION) {
+            match EncryptedStore::open(
+                &store_dir,
+                &roots_dir,
+                DEFAULT_RETENTION,
+                crate::store::OpenFor::Write,
+            ) {
                 Ok(mut reopened) => answer_text(&reopened.delete_all()),
                 Err(e) => {
                     println!("scenario=C open={e:?}");
@@ -11246,6 +11256,7 @@ mod batch_write {
             &dir.path().join("store"),
             &dir.path().join("roots"),
             DEFAULT_RETENTION,
+            crate::store::OpenFor::Write,
         )
         .unwrap();
         assert_eq!(count(&store, "SELECT count(*) FROM segment_keys"), 0);
@@ -12168,9 +12179,13 @@ mod measure {
                 println!("MEASURE fill events=2000000 segments=4000");
             }
             Ok("list") => {
-                let store =
-                    EncryptedStore::open(&dir.join("store"), &dir.join("roots"), DEFAULT_RETENTION)
-                        .unwrap();
+                let store = EncryptedStore::open(
+                    &dir.join("store"),
+                    &dir.join("roots"),
+                    DEFAULT_RETENTION,
+                    crate::store::OpenFor::Write,
+                )
+                .unwrap();
                 let rows = store.inventory().unwrap();
                 let events: u64 = rows.iter().map(|row| row.events).sum();
                 println!("MEASURE list rows={} events={events}", rows.len());
@@ -13098,5 +13113,72 @@ fn eviction_shreds_the_oldest_until_the_disk_bytes_are_under_the_bound() {
     assert!(
         store.usage().unwrap().disk_bytes > 0,
         "the database alone stays above a bound of 0"
+    );
+}
+
+#[test]
+fn a_maintenance_handle_expires_and_deletes_and_refuses_a_batch() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = RootGuard::fresh();
+    let mut made = EncryptedStore::create(
+        dir.path(),
+        Box::new(crate::store::roots::custody(root.id())),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (expired, ordinal) = batch_first_captured_at(
+        &mut made,
+        (NOW_SECONDS - window_seconds() - DAY_SECONDS) * SECOND,
+        b"a segment past the window",
+    );
+    drop(made);
+    let mut store = EncryptedStore::open(
+        dir.path(),
+        &crate::store::roots::roots_for_store(dir.path()),
+        DEFAULT_RETENTION,
+        super::OpenFor::Maintenance,
+    )
+    .unwrap();
+
+    let pass = store.expire_due(at_second(NOW_SECONDS), 64);
+    let sealed = reads_sealed(&store, expired);
+    let id = super::db::random_segment_id().unwrap();
+    let batch = store.write_batch(super::SegmentWrite {
+        segment_id: &id,
+        day: super::UtcDay::of_instant(NOW_SECONDS * SECOND),
+        first_capture: NOW_SECONDS * SECOND,
+        last_capture: NOW_SECONDS * SECOND,
+        kinds: &[super::KindTotal {
+            kind: "keystroke",
+            events: 1,
+            bytes: 1,
+        }],
+        payload: b"a batch on a maintenance handle",
+    });
+    let listed = store.inventory();
+    let deleted = store.delete_all();
+
+    assert!(
+        matches!(&pass, Ok(pass) if pass.shredded == vec![ordinal]),
+        "an expiry chunk on a maintenance handle answered {pass:?}"
+    );
+    assert!(sealed, "the expired segment still reads");
+    assert_eq!(batch, Err(super::WriteFault::MaintenanceOnly));
+    assert!(listed.is_ok(), "the listing answered {listed:?}");
+    assert!(
+        matches!(&deleted, Ok(report) if report.root_destroyed()),
+        "delete-all on a maintenance handle answered {deleted:?}"
+    );
+    assert!(!KeyFile::path(dir.path()).exists(), "store.key stays");
+    assert_eq!(
+        std::fs::read_dir(root.roots()).unwrap().count(),
+        0,
+        "a root file stays"
+    );
+    assert!(
+        !files_under(dir.path())
+            .iter()
+            .any(|path| path.extension() == Some(std::ffi::OsStr::new("seg"))),
+        "a segment file stays"
     );
 }

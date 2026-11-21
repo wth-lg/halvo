@@ -160,12 +160,16 @@ pub enum WriteFault {
     Db(i32),
     /// The handle refuses writes because a delete-all began on it.
     Sealed,
+    /// The handle was opened for maintenance alone ([`OpenFor::Maintenance`])
+    /// and refuses every batch; a retry on it answers the same.
+    MaintenanceOnly,
 }
 
 impl From<StoreError> for WriteFault {
     fn from(e: StoreError) -> WriteFault {
         match e {
             StoreError::Sealed => WriteFault::Sealed,
+            StoreError::MaintenanceOnly => WriteFault::MaintenanceOnly,
             StoreError::Io(kind) => WriteFault::Io(kind),
             StoreError::Db(code) => WriteFault::Db(code),
             StoreError::Seal => WriteFault::Db(0),
@@ -238,6 +242,17 @@ pub trait SegmentExpiry {
     /// work); otherwise [`StoreError::DeleteIncomplete`] with the report, after
     /// every step ran. A second call on the same handle resumes.
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport>;
+}
+
+/// The caller's access decision for [`db::EncryptedStore::open`]. `Write`
+/// gives a handle that stores batches. `Maintenance` gives a handle that
+/// expires, evicts, lists and deletes as a `Write` handle does and refuses
+/// every batch with [`WriteFault::MaintenanceOnly`]. The store decides
+/// nothing by the build profile or by a feature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenFor {
+    Write,
+    Maintenance,
 }
 
 /// What one expiry or eviction call did: the ordinals of the segments that it
@@ -494,6 +509,9 @@ pub enum StoreError {
     Custody(#[from] CustodyError),
     #[error("{0} is not implemented in this phase")]
     NotImplemented(&'static str),
+    /// The handle was opened for maintenance alone and refuses every write.
+    #[error("the store was opened for maintenance alone and takes no write")]
+    MaintenanceOnly,
 }
 
 pub type StoreResult<T> = Result<T, StoreError>;

@@ -280,8 +280,20 @@ fn an_opens_cleanup_leaves_the_root_that_store_key_names_under_the_name_of_the_m
             (mark != "no identity").then_some(live.as_path()),
         );
 
-        let opened = EncryptedStore::open(&store_dir, &roots_dir, DEFAULT_RETENTION).map(drop);
-        let reads = EncryptedStore::open(&store_dir, &roots_dir, DEFAULT_RETENTION).map(|store| {
+        let opened = EncryptedStore::open(
+            &store_dir,
+            &roots_dir,
+            DEFAULT_RETENTION,
+            crate::store::OpenFor::Write,
+        )
+        .map(drop);
+        let reads = EncryptedStore::open(
+            &store_dir,
+            &roots_dir,
+            DEFAULT_RETENTION,
+            crate::store::OpenFor::Write,
+        )
+        .map(|store| {
             store
                 .read_segment(segment.segment_id, &mut Vec::new())
                 .is_ok()
@@ -438,8 +450,13 @@ fn a_link_put_at_the_store_name_after_the_tails_look_leads_its_sweep_nowhere_els
 
     let answer = tail(&store_dir, &store_dir.join("roots"));
 
-    let other_reads = EncryptedStore::open(&other_dir, &other_dir.join("roots"), DEFAULT_RETENTION)
-        .map(|store| store.read_segment(other_segment, &mut Vec::new()).is_ok());
+    let other_reads = EncryptedStore::open(
+        &other_dir,
+        &other_dir.join("roots"),
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    )
+    .map(|store| store.read_segment(other_segment, &mut Vec::new()).is_ok());
     let own_root_left = moved.join("roots").join(format!("{root_id}.root")).exists();
     println!(
         "K10 LINK-AT-THE-STORE-NAME {} other_store_reads={other_reads:?} own_root_left={own_root_left}",
