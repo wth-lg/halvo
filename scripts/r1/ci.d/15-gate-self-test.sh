@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: On every run the last record of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate, its list of names mutants.expected aside, or the bounds file; the self-tests of the R1 gate, sh scripts/r1-gate/run.sh --self-test and each check script under dash, run only in the weekly run, when the range of the push or the pull request changes a path of this script's list, and when that range cannot be read, and then they pass, print each group's PASS line once and reject at least one failing fixture each; an ordinary push or pull request runs neither pass.
+# rule: On every run scripts/r1-gate/mutants.expected holds no name twice and the last record of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate, its list of names mutants.expected aside, or the bounds file; the self-tests of the R1 gate, sh scripts/r1-gate/run.sh --self-test and each check script under dash, run only in the weekly run, when the range of the push or the pull request changes a path of this script's list, and when that range cannot be read, and then they pass, print each group's PASS line once and reject at least one failing fixture each; an ordinary push or pull request runs neither pass.
 # lane: alone
 # limit: 1800
 set -u
@@ -68,6 +68,11 @@ record_defect() (
   printf 'the last record of docs/baseline/r1-gate-main.txt names tree %s, and %s, the last commit that changed scripts/r1-gate or the bounds file, has tree %s: make the record again\n' "$record_tree" "$record_short" "$record_want"
   return 1
 )
+
+names_twice() {
+  [ -f "$1/scripts/r1-gate/mutants.expected" ] || return 0
+  awk '$0 != "" && seen[$0]++ == 1 { printf "%s%s", sep, $0; sep = " " }' "$1/scripts/r1-gate/mutants.expected"
+}
 
 fixture_commit() {
   [ "${3:-}" = index ] || git -C "$1" add -A >/dev/null 2>&1 || exit 2
@@ -203,6 +208,9 @@ pass_counts() {
 }
 
 measure() {
+  twice=$(names_twice "$CI_D_REPO") || fail 'awk could not read scripts/r1-gate/mutants.expected'
+  [ -z "$twice" ] || fail "scripts/r1-gate/mutants.expected holds a name more than once: $twice; keep one line of each"
+  printf 'names: no name of scripts/r1-gate/mutants.expected stands twice\n'
   found=$(record_defect "$CI_D_REPO") || fail "$found"
   printf 'record: the last gate line of docs/baseline/r1-gate-main.txt names the tree of the last commit that changed scripts/r1-gate or the bounds file\n'
   gate=$CI_D_REPO/scripts/r1-gate
@@ -478,6 +486,19 @@ self_test() {
   record_case list-edited-after-the-record PASS
   record_case list-and-lib-changed FAIL
   record_case list-in-another-case PASS
+  gate list-holds-a-name-twice "$run_pass" store "$pass"
+  printf 'name-one\n\nname-two\nname-one\n\nname-three\nname-two\nname-one\n' >"$work/list-holds-a-name-twice/scripts/r1-gate/mutants.expected"
+  fixture_commit "$work/list-holds-a-name-twice"
+  check list-holds-a-name-twice FAIL 'FAIL 15-gate-self-test (scripts/r1-gate/mutants.expected holds a name more than once: name-one name-two; keep one line of each)'
+  gate list-holds-each-name-once "$run_pass" store "$pass"
+  printf 'name-one\n\nname-two\n\nname-three\n' >"$work/list-holds-each-name-once/scripts/r1-gate/mutants.expected"
+  fixture_commit "$work/list-holds-each-name-once"
+  check list-holds-each-name-once PASS "names: no name of scripts/r1-gate/mutants.expected stands twice${nl}record: the last gate line of docs/baseline/r1-gate-main.txt"
+  gate list-cannot-be-read "$run_pass" store "$pass"
+  printf 'name-one\n' >"$work/list-cannot-be-read/scripts/r1-gate/mutants.expected"
+  fixture_commit "$work/list-cannot-be-read"
+  chmod 000 "$work/list-cannot-be-read/scripts/r1-gate/mutants.expected" || exit 2
+  check list-cannot-be-read FAIL 'FAIL 15-gate-self-test (awk could not read scripts/r1-gate/mutants.expected)'
   run_changed="gate file changed: scripts/r1-gate/check-store.sh${nl}gate self-tests: run (gate file changed: scripts/r1-gate/check-store.sh)"
   new_branch="{\"before\": \"$zero\", \"repository\": {\"default_branch\": \"trunk\"}}"
   ranged push-no-gate-file-changed other push '{"before": "@from@", "after": "@to@"}' "$planned"
