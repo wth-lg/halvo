@@ -1910,7 +1910,7 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         store = match held {
             owner::open::Held::Capture { store, .. } => {
                 match capture_owner(store, held_cap, switches) {
-                    Ok(owner) => HeldStore::Capture(owner),
+                    Ok(owner) => HeldStore::Capture(Box::new(owner)),
                     Err(error) => {
                         let _ = writeln!(
                             err,
@@ -1933,7 +1933,7 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         .shutdown_entry(store.link(), status)
         .map_or(status, |outcome| outcome.status);
     let status = match store {
-        HeldStore::Capture(owner) => close_the_store(owner, status),
+        HeldStore::Capture(owner) => close_the_store(*owner, status),
         HeldStore::None | HeldStore::Maintenance { .. } => status,
     };
     drop(lock);
@@ -1963,7 +1963,7 @@ fn close_the_store(owner: CaptureOwner, status: i32) -> i32 {
 #[cfg(all(target_os = "macos", debug_assertions))]
 enum HeldStore {
     None,
-    Capture(CaptureOwner),
+    Capture(Box<CaptureOwner>),
     Maintenance {
         _store: Box<dyn port::MaintainStore + Send>,
     },
