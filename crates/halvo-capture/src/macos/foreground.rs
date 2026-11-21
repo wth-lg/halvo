@@ -1230,6 +1230,23 @@ mod tests {
     }
 
     #[test]
+    fn a_private_window_whose_title_is_longer_than_the_cap_makes_no_title() {
+        let (mut poller, handle, writer) = poller_with(FloorHandle::default());
+        let chrome = app("com.google.Chrome", 40);
+        poller.step(chrome.clone(), Vec::new(), &handle);
+        let long = format!("{} - Google Chrome (Incognito)", "a".repeat(1_100));
+        poller.step(chrome, answer(1, read(&long)), &handle);
+        assert_eq!(
+            titles(&writer),
+            [],
+            "the private ending lies past unit 1,024"
+        );
+        assert_eq!(poller.health.private_dropped.load(Ordering::Relaxed), 1);
+        drop(poller);
+    }
+
+
+    #[test]
     fn readings_a_a_b_of_one_app_give_two_title_events_with_a_and_b() {
         let (mut poller, handle, writer) = poller_with(FloorHandle::default());
         let front = app("com.example.a", 10);
