@@ -633,6 +633,16 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.read_the_condition(owner);
     }
 
+    /// Renews the indicator lease at the supervisor's clock, as a client's
+    /// Status with `indicator: true` asks (contracts.md C14 item 3), and reads
+    /// the run condition at once, so that a claim with desired running and
+    /// the store open starts the sources.
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    pub(crate) fn renew_lease(&mut self, owner: Option<&dyn OwnerLink>) {
+        self.lease = Lease::renewed_at(self.main_loop.now());
+        self.read_the_condition(owner);
+    }
+
     #[cfg(test)]
     pub(crate) fn set_lease(&mut self, lease: Lease, owner: Option<&dyn OwnerLink>) {
         self.lease = lease;

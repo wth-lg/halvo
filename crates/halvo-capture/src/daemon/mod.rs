@@ -2453,6 +2453,9 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     store: &HeldStore,
 ) {
     use halvo_control::proto::{ErrorCode, ErrorReply, Reply, Request};
+    if asked.request.claims_the_indicator() {
+        supervisor.renew_lease(store.link());
+    }
     let reply = match asked.request {
         Request::Status { .. } => status_reply(supervisor, serving).map_or_else(
             |broken| Reply::Error(ErrorReply::new(ErrorCode::Internal, broken.rule())),
