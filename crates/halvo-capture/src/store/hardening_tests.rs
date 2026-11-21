@@ -12532,3 +12532,59 @@ fn a_wrong_key_open_for_parent() {
     )
     .unwrap();
 }
+
+/// The open reads back the library's log level: an open over a file root whose
+/// level reads back WARN is refused by the name cipher_log_level. The level is
+/// one setting of the process, so the open runs in a child of its own, where no
+/// other test sets the level between the seam and the read-back.
+#[test]
+fn an_open_whose_cipher_log_level_reads_back_otherwise_is_refused_by_its_name() {
+    let out = tempfile::tempdir().unwrap();
+    let answer = out.path().join("answer");
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::an_open_with_the_log_level_warn_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_LOG_LEVEL_OUT", &answer)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    let text = std::fs::read_to_string(&answer)
+        .unwrap_or_else(|_| format!("the child wrote nothing and exited {child}"));
+    println!("LOG-LEVEL-READ-BACK {text}");
+    assert_eq!(
+        text, "set_before_the_read_backs=WARN answer=SettingNotInEffect(\"cipher_log_level\")",
+        "an open whose log level read back WARN"
+    );
+}
+
+#[test]
+fn an_open_with_the_log_level_warn_for_parent() {
+    let Some(out) = std::env::var_os("HALVO_TEST_LOG_LEVEL_OUT") else {
+        println!("an_open_with_the_log_level_warn_for_parent: HALVO_TEST_LOG_LEVEL_OUT is not set, so no parent asked for an open");
+        return;
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let answer = {
+        let _seam = super::db::read_back_seam::before_the_read_backs(|conn| {
+            conn.execute_batch("PRAGMA cipher_log_level = WARN;")
+                .unwrap();
+        });
+        open_over_file_root(&store_dir, &roots_dir, root_id).map(drop)
+    };
+    std::fs::write(
+        out,
+        format!(
+            "set_before_the_read_backs=WARN answer={}",
+            answer
+                .err()
+                .map_or_else(|| "Ok".to_string(), |e| format!("{e:?}"))
+        ),
+    )
+    .unwrap();
+}
