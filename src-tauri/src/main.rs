@@ -12,6 +12,8 @@ mod daemon_child;
 mod engine;
 mod launch;
 mod poller;
+#[cfg(any(target_os = "macos", test))]
+mod quit;
 mod tray;
 mod view_state;
 
@@ -70,7 +72,10 @@ fn run(background: bool, given: Option<PathBuf>) {
         #[cfg(windows)]
         webview_data_dir: None,
     };
-    let app = match app::build(tauri::Builder::default(), parts).build(app::context()) {
+    let builder = tauri::Builder::default().manage(tray::QuitNotice::default());
+    #[cfg(any(target_os = "macos", test))]
+    let builder = quit::installed(builder);
+    let app = match app::build(builder, parts).build(app::context()) {
         Ok(app) => app,
         Err(e) => {
             eprintln!("halvo: the app did not start: {e}");
@@ -78,7 +83,10 @@ fn run(background: bool, given: Option<PathBuf>) {
         }
     };
     #[cfg(any(target_os = "macos", test))]
-    let _child = start_the_daemon(child_dir, given.is_some(), pid);
+    tauri::Manager::manage(
+        &app,
+        quit::AppChildren(start_the_daemon(child_dir, given.is_some(), pid)),
+    );
     app.run(|_, _| {});
 }
 
@@ -96,7 +104,7 @@ fn start_the_daemon(
     data_dir: Option<DataDir>,
     given: bool,
     pid: Arc<ChildPid>,
-) -> Option<daemon_child::Supervisor<daemon_child::Running>> {
+) -> Option<Arc<dyn quit::Children>> {
     let plan = daemon_child::Plan {
         program: daemon_child::Program {
             path: daemon_program()?,
@@ -105,9 +113,9 @@ fn start_the_daemon(
         data_dir: data_dir?,
         given,
     };
-    Some(daemon_child::Supervisor::start(
+    Some(Arc::new(daemon_child::Supervisor::start(
         plan,
         pid,
         Arc::new(daemon_child::SystemClock),
-    ))
+    )))
 }

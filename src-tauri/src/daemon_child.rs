@@ -30,6 +30,13 @@ pub const BACKOFF_MAX: Duration = Duration::from_secs(60);
 /// After this many ends with status 5 in a row no further child starts.
 pub const FIVES_IN_A_ROW: u32 = 3;
 
+/// How long a quit waits for the child after it closed the descriptor, before it kills the
+/// child (contracts.md C14 item 5).
+pub const STOP_WAIT: Duration = Duration::from_millis(halvo_control::STOP_WAIT_MS);
+
+/// How often a quit reads whether the child has ended.
+pub const STOP_POLL: Duration = Duration::from_millis(50);
+
 /// The program that the app starts and the arguments that stand before the daemon's own: the
 /// daemon beside the app's executable with none in the app, the test binary with its child
 /// entry in the tests.
@@ -120,6 +127,7 @@ pub trait Watched: Send + 'static {
     fn pid(&self) -> u32;
     fn ended(&mut self) -> io::Result<Option<Ending>>;
     fn close_lifeline(&mut self);
+    fn kill(&mut self) -> io::Result<()>;
 }
 
 /// What starts the app's child: `Ok(None)` when no child may start, because the data
@@ -132,6 +140,7 @@ pub trait Spawner: Send + 'static {
 /// The time of the supervisor: the system's in the app, a stand-in in the tests.
 pub trait Clock: Send + Sync + 'static {
     fn now(&self) -> Instant;
+    fn sleep(&self, period: Duration);
     fn wait<'a, T>(
         &self,
         changed: &Condvar,
@@ -147,6 +156,10 @@ pub struct SystemClock;
 impl Clock for SystemClock {
     fn now(&self) -> Instant {
         Instant::now()
+    }
+
+    fn sleep(&self, period: Duration) {
+        std::thread::sleep(period);
     }
 
     fn wait<'a, T>(
@@ -184,6 +197,11 @@ impl Watched for Running {
 
     fn close_lifeline(&mut self) {
         self.lifeline = None;
+    }
+
+    fn kill(&mut self) -> io::Result<()> {
+        self.child.kill()?;
+        self.child.wait().map(|_| ())
     }
 }
 
@@ -307,18 +325,15 @@ impl<C> Shared<C> {
 }
 
 /// The app's hold on its daemon child: a thread of its own starts the child and watches it.
-pub struct Supervisor<C> {
+pub struct Supervisor<C, K> {
     shared: Arc<Shared<C>>,
+    clock: Arc<K>,
 }
 
-impl<C: Watched> Supervisor<C> {
+impl<C: Watched, K: Clock> Supervisor<C, K> {
     /// Starts the supervisor's thread, which starts the child off the main thread and gives
     /// `pid` the pid of the child of the moment.
-    pub fn start<S: Spawner<Child = C>, K: Clock>(
-        spawner: S,
-        pid: Arc<ChildPid>,
-        clock: Arc<K>,
-    ) -> Self {
+    pub fn start<S: Spawner<Child = C>>(spawner: S, pid: Arc<ChildPid>, clock: Arc<K>) -> Self {
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
                 quitting: false,
@@ -326,14 +341,14 @@ impl<C: Watched> Supervisor<C> {
             }),
             changed: Condvar::new(),
         });
-        let watched = Arc::clone(&shared);
+        let (watched, time) = (Arc::clone(&shared), Arc::clone(&clock));
         let started = std::thread::Builder::new()
             .name("halvo-daemon-child".to_owned())
-            .spawn(move || supervise(spawner, &watched, &pid, clock.as_ref()));
+            .spawn(move || supervise(spawner, &watched, &pid, time.as_ref()));
         if let Err(e) = started {
             eprintln!("halvo: the capture service is not started: {e}");
         }
-        Supervisor { shared }
+        Supervisor { shared, clock }
     }
 
     /// Ends the supervision: no child starts after it, and the child of the moment, if any, is
@@ -348,6 +363,30 @@ impl<C: Watched> Supervisor<C> {
             child.close_lifeline();
             child
         })
+    }
+}
+
+impl<C: Watched, K: Clock> crate::quit::Children for Supervisor<C, K> {
+    fn end(&self) {
+        if let Some(mut child) = self.close() {
+            end_child(&mut child, self.clock.as_ref(), STOP_WAIT);
+        }
+    }
+}
+
+fn end_child<C: Watched, K: Clock>(child: &mut C, clock: &K, wait: Duration) {
+    let until = clock.now() + wait;
+    loop {
+        if let Ok(Some(_)) = child.ended() {
+            return;
+        }
+        if clock.now() >= until {
+            if let Err(e) = child.kill() {
+                eprintln!("halvo: the capture service could not be ended: {e}");
+            }
+            return;
+        }
+        clock.sleep(STOP_POLL);
     }
 }
 
@@ -482,6 +521,10 @@ pub mod stand_in {
             self.base + *self.at.lock().unwrap_or_else(PoisonError::into_inner)
         }
 
+        fn sleep(&self, period: Duration) {
+            self.advance(period);
+        }
+
         fn wait<'a, T>(
             &self,
             changed: &Condvar,
@@ -500,14 +543,34 @@ pub mod stand_in {
         }
     }
 
-    /// A child that ends as its row says, after the clock has moved by the time it lived.
+    /// A child that ends as its row says, after the clock has moved by the time it lived, or,
+    /// with no ending, once its descriptor is closed when it ends at the close, and when it is
+    /// killed.
     #[derive(Debug)]
     pub struct StandInChild {
         pub pid: u32,
         pub ending: Option<Ending>,
         pub lived: Duration,
+        pub ends_at_close: bool,
         pub clock: Arc<StandInClock>,
         pub record: Record,
+        pub closed_at: Option<Instant>,
+        pub killed: bool,
+    }
+
+    impl StandInChild {
+        pub fn new(pid: u32, clock: &Arc<StandInClock>, record: &Record) -> Self {
+            StandInChild {
+                pid,
+                ending: None,
+                lived: Duration::ZERO,
+                ends_at_close: false,
+                clock: Arc::clone(clock),
+                record: Arc::clone(record),
+                closed_at: None,
+                killed: false,
+            }
+        }
     }
 
     impl Watched for StandInChild {
@@ -516,6 +579,12 @@ pub mod stand_in {
         }
 
         fn ended(&mut self) -> io::Result<Option<Ending>> {
+            if self.killed {
+                return Ok(Some(Ending::Signal));
+            }
+            if self.ends_at_close && self.closed_at.is_some() {
+                return Ok(Some(Ending::Status(0)));
+            }
             if self.ending.is_some() {
                 self.clock.advance(self.lived);
             }
@@ -523,7 +592,19 @@ pub mod stand_in {
         }
 
         fn close_lifeline(&mut self) {
-            note(&self.record, "closed descriptor");
+            if self.closed_at.is_none() {
+                self.closed_at = Some(self.clock.now());
+                note(&self.record, "closed descriptor");
+            }
+        }
+
+        fn kill(&mut self) -> io::Result<()> {
+            let after = self.closed_at.map_or(Duration::ZERO, |at| {
+                self.clock.now().saturating_duration_since(at)
+            });
+            note(&self.record, format!("kill after {} s", after.as_secs()));
+            self.killed = true;
+            Ok(())
         }
     }
 
@@ -769,11 +850,9 @@ mod tests {
                 .into_iter()
                 .enumerate()
                 .map(|(n, (ending, lived))| StandInChild {
-                    pid: 1000 + n as u32,
                     ending: Some(ending),
                     lived: s(lived),
-                    clock: Arc::clone(&clock),
-                    record: Arc::clone(&record),
+                    ..StandInChild::new(1000 + n as u32, &clock, &record)
                 })
                 .collect();
             let spawner = StandInSpawner {
