@@ -12,8 +12,8 @@ use crate::daemon::board::Capture;
 use crate::daemon::counters::Snapshot;
 use crate::daemon::main_loop::{EndCall, MainLoop, TICK};
 use crate::daemon::model_store::{foreground_now, open_floor, Harness};
-use crate::daemon::owner::{Answer, Command, OwnerGone, Pending};
-use crate::daemon::port::StoreId;
+use crate::daemon::owner::{Answer, Command, OwnerGone, Pending, RETRY_FIRST};
+use crate::daemon::port::{StoreId, WriteFault};
 use crate::daemon::slot::Slot;
 use crate::daemon::sources::tests::Factory;
 use crate::daemon::sources::{starting, RunKind};
@@ -333,4 +333,51 @@ fn a_lapse_whose_stop_does_not_stop_ends_with_5_and_reads_pausing() {
         f.state_bytes() == before,
         "the lapse changed the state file"
     );
+}
+
+#[test]
+fn a_renewal_while_the_drain_fails_begins_no_source_until_the_heal() {
+    let mut f = Fixture::new(Desired::Running, Factory::new());
+    f.set_slot(open());
+    f.claim();
+    for name in f.wanted.clone() {
+        assert_eq!(f.begins(name), 1, "first begin of {name:?}");
+    }
+    let store = f.link.harness.borrow().store.clone();
+    store.fail_every_write(Some(WriteFault::Io(std::io::ErrorKind::Other)));
+    let mut turns = 0;
+    while !f.supervisor.board().drain.stops_the_sources() {
+        assert!(turns < 3_000, "the drain never failed");
+        f.emit(1);
+        f.supervisor.main_loop().turn(TICK);
+        f.tick();
+        turns += 1;
+    }
+    f.supervisor.set_lease(Lease::NONE, Some(&f.link));
+    f.claim();
+    for _ in 0..5 {
+        f.supervisor.main_loop().turn(TICK);
+        f.tick();
+        for name in f.wanted.clone() {
+            assert_eq!(f.begins(name), 1, "{name:?} began while the drain fails");
+            assert_eq!(f.stops(name), 1, "{name:?} runs while the drain fails");
+        }
+        assert_eq!(f.supervisor.board().capture, Capture::Stopped);
+    }
+    store.fail_every_write(None);
+    f.supervisor.main_loop().turn(RETRY_FIRST);
+    let mut turns = 0;
+    while f.supervisor.board().drain.stops_the_sources() {
+        assert!(turns < 600, "the drain never healed");
+        f.supervisor.main_loop().turn(TICK);
+        f.tick();
+        turns += 1;
+    }
+    for _ in 0..5 {
+        f.supervisor.main_loop().turn(TICK);
+        f.tick();
+    }
+    for name in f.wanted.clone() {
+        assert_eq!(f.begins(name), 2, "begins of {name:?} after the heal");
+    }
 }

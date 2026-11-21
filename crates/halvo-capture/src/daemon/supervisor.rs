@@ -586,7 +586,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Reads the run condition of a service run (contracts.md C14 item 3):
     /// desired running in the state file, the slot Open and the lease fresh.
     /// When it holds and the sources do not run, the owner closes its pause,
-    /// a barrier waited for at most [`BARRIER_WAIT`], and the sources start.
+    /// a barrier waited for at most [`BARRIER_WAIT`], and the sources start;
+    /// while the drain fails they are only marked wanted, and the drain's
+    /// heal begins them.
     /// When it fails while they run, the stop for capture off runs, of the
     /// kind Lapse when the lease is not fresh; it writes no state, and
     /// `reply` gets the Board of an end routine. After a stop the sources
@@ -654,6 +656,13 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             return;
         };
         self.capturing = true;
+        if self.stopped_for_drain {
+            self.ctx = Some(ctx);
+            self.board.enabled = wanted.clone();
+            self.wanted = wanted;
+            self.publish();
+            return;
+        }
         self.start_sources(&ctx, &wanted);
     }
 
