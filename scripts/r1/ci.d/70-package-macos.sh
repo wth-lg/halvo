@@ -10,6 +10,14 @@ fail() {
   exit 1
 }
 
+signing_defect() {
+  environment=$(env) || { printf 'env could not list the environment\n'; return 1; }
+  set_name=$(printf '%s\n' "$environment" | LC_ALL=C awk -F = '/^(APPLE_|TAURI_SIGNING_)[A-Za-z0-9_]*=./ || /^HALVO_WINDOWS_SIGN_COMMAND=./ { print $1; exit }')
+  [ -z "$set_name" ] && return 0
+  printf 'the signing variable %s is set, and this check builds unsigned\n' "$set_name"
+  return 1
+}
+
 config_defect() {
   for key in $config_keys; do
     found=$(git -C "$1" grep -l -F -e "$key" -- src-tauri)
@@ -58,6 +66,7 @@ bundle_defect() {
 
 measure() {
   cd "$CI_D_REPO" || exit 2
+  found=$(signing_defect) || fail "$found"
   found=$(config_defect .) || fail "$found"
   : >"$CI_D_ARTIFACTS/build.txt"
   if ! npm run tauri build -- -- --locked >>"$CI_D_ARTIFACTS/build.txt" 2>&1; then
