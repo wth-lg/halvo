@@ -16,7 +16,7 @@ fn names<T: Copy>(all: &[T], name: fn(T) -> &'static str) -> Vec<&'static str> {
 }
 
 #[test]
-fn cause_names_are_the_twelve_of_i8_1() {
+fn cause_names_are_the_thirteen_of_i8_1() {
     assert_eq!(
         names(Cause::ALL, Cause::name),
         [
@@ -32,6 +32,7 @@ fn cause_names_are_the_twelve_of_i8_1() {
             "unknown_item",
             "unknown_agent",
             "malformed",
+            "overlap",
         ]
     );
 }

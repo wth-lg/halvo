@@ -1,9 +1,10 @@
 use super::chars::composed;
-use super::{bound_field, compose_setup, value_bound, Marking, SetupParam};
+use super::compose::setup_with_line;
+use super::{bound_field, value_bound, Marking, SetupParam};
 use crate::ports::{Refused, Shared};
 use crate::types::{
-    AgentId, Body, BoundFrom, Category, Cause, Class, Item, ItemId, Limits, Name, Param, Slot,
-    WorkflowId,
+    AgentId, Body, BoundFrom, Category, Cause, Class, Item, ItemId, Limits, Name, Overlapping,
+    Param, Slot, WorkflowId,
 };
 
 const TYPED_MAX: usize = 1024;
@@ -253,16 +254,21 @@ impl Setup {
     /// The item as the page gets it (I3.4, I3.5), for the agent of the name `name` (I2.3):
     /// `compose_setup` of its parameters, with the line `item.setup.not_taken` while it asks
     /// again and the key `refused` of each parameter whose newest answer the reader of senders
-    /// refused (ruling RD-81 9.3).
-    pub fn page_item(&self, name: &str, limits: &Limits) -> Result<Item, Cause> {
-        let item = compose_setup(
-            &self.item,
-            &self.agent,
-            name,
-            &self.params,
-            self.not_taken,
-            limits,
-        )?;
+    /// refused (ruling RD-81 9.3). Where the item holds what the read after the newest refusal
+    /// `overlap` gave, the overlap sentence stands in the place of `item.setup.not_taken`, with
+    /// the name of the other agent's row from `name_of` (I3.5 (c)).
+    pub fn page_item(
+        &self,
+        name: &str,
+        name_of: impl Fn(&AgentId) -> Option<String>,
+        limits: &Limits,
+    ) -> Result<Item, Cause> {
+        let line = match &self.shared {
+            Some(shared) => Some(Overlapping::of(shared, name_of).setup_line()?),
+            None if self.not_taken => Some(crate::words::text("item.setup.not_taken", &[])?),
+            None => None,
+        };
+        let item = setup_with_line(&self.item, &self.agent, name, &self.params, line, limits)?;
         let refused = self.params.iter().zip(&self.refused);
         Ok(refused
             .filter_map(|(p, r)| r.map(|r| (p.param, r)))
