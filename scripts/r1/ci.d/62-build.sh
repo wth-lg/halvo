@@ -399,6 +399,27 @@ $2"
   printf 'PASS %s\n' "$name"
 }
 
+files_form() {
+  [ $# -gt 0 ] || { printf 'usage: sh scripts/r1/ci.d/%s.sh --files <file>...\n' "$name" >&2; exit 64; }
+  for file in "$@"; do
+    [ -f "$file" ] || fail "${file##*/} is no file"
+  done
+  found=$(marker_defect "$@") || fail "$found"
+  system=$(uname -s) || fail "uname -s failed"
+  if [ "$system" = Darwin ]; then
+    release_imports "$@"
+  fi
+  checked=$(sh scripts/r1/ci.d/61-version.sh --check "$@")
+  status=$?
+  printf '%s\n' "$checked" | grep -v -E '^(PASS|FAIL) 61-version'
+  if [ "$status" -ne 0 ]; then
+    cause=$(printf '%s\n' "$checked" | sed -n 's/^FAIL 61-version (\(.*\))$/\1/p')
+    fail "${cause:-61-version --check exited $status}"
+  fi
+  printf 'files read: %s\n' "$#"
+  printf 'PASS %s\n' "$name"
+}
+
 self_test() {
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || exit 2
   rejected=0
@@ -1054,6 +1075,7 @@ SH
 case ${1:-} in
   --self-test) self_test ;;
   --rules) rules ;;
+  --files) shift; files_form "$@" ;;
   '') measure ;;
   *) exit 64 ;;
 esac
