@@ -10,15 +10,15 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use super::db::{EncryptedStore, KeyFile};
+use super::KindTotal;
 use super::{Layout, RootReading, SegmentStore, StoreError, DEFAULT_RETENTION};
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId};
 use crate::daemon::custody_policy::Custody;
-use super::KindTotal;
 use crate::daemon::port::{
-    Access, ByteBound, CaptureStore, DataDirStore, EntryKind, MaintFault, MaintainStore,
-    OpenFault, Opened, Ordinal, Pass, Probe, RootGuard, ScratchDir, ScratchStore, SegmentWrite,
-    StoreHost, StoreId, Usage, WriteFault, Written,
+    Access, ByteBound, CaptureStore, DataDirStore, EntryKind, MaintFault, MaintainStore, OpenFault,
+    Opened, Ordinal, Pass, Probe, RootGuard, ScratchDir, ScratchStore, SegmentWrite, StoreHost,
+    StoreId, Usage, WriteFault, Written,
 };
 use crate::daemon::{EntriesLeft, TailAnswer, TailReport, TailRoot};
 
@@ -165,7 +165,8 @@ fn store_id(root: RootId) -> StoreId {
 }
 
 fn probe_at(store_dir: &Path) -> Probe {
-    let read = KeyFile::at(&store_dir.join("store.key")).and_then(|place| place.read(KeyLabel::STORE));
+    let read =
+        KeyFile::at(&store_dir.join("store.key")).and_then(|place| place.read(KeyLabel::STORE));
     match read {
         Ok(key_file) => Probe::KeyFile {
             custody: custody_of(key_file.custody_kind),
@@ -227,7 +228,10 @@ fn opened(store: EncryptedStore, id: StoreId, access: Access) -> Opened {
 
 fn open_at(store_dir: &Path, roots: &Path, access: Access) -> Opened {
     let id = key_id(store_dir);
-    match (EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION), id) {
+    match (
+        EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION),
+        id,
+    ) {
         (Ok(store), Some(id)) => opened(store, id, access),
         (Ok(_), None) => Opened::Fault {
             fault: OpenFault::KeyFile,

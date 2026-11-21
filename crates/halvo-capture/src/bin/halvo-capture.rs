@@ -56,9 +56,10 @@ fn main() -> ExitCode {
             &mut std::io::stderr(),
         )),
         #[cfg(debug_assertions)]
-        Ok(Mode::ServiceRun { data_dir }) => {
-            status(daemon::service_run(&data_dir, daemon::DurableState::writer()))
-        }
+        Ok(Mode::ServiceRun { data_dir }) => status(daemon::service_run(
+            &data_dir,
+            daemon::DurableState::writer(),
+        )),
         #[cfg(debug_assertions)]
         Ok(Mode::Lease) => status(exit::USAGE),
         #[cfg(debug_assertions)]

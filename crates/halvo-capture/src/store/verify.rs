@@ -38,19 +38,28 @@ fn yes_no(value: bool) -> &'static str {
     }
 }
 
-#[expect(dead_code, reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)")]
+#[expect(
+    dead_code,
+    reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)"
+)]
 pub(crate) struct StoreDir {
     path: PathBuf,
     owned: bool,
 }
 
 impl StoreDir {
-    #[expect(dead_code, reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)")]
+    #[expect(
+        dead_code,
+        reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)"
+    )]
     pub(crate) fn path(&self) -> &Path {
         &self.path
     }
 
-    #[expect(dead_code, reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)")]
+    #[expect(
+        dead_code,
+        reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)"
+    )]
     pub(crate) fn from_env() -> Self {
         match std::env::var("HALVO_STORE_DIR") {
             Ok(d) => Self {
@@ -182,7 +191,10 @@ impl fmt::Display for StoreCheck {
     }
 }
 
-#[expect(dead_code, reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)")]
+#[expect(
+    dead_code,
+    reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)"
+)]
 pub(crate) fn marker_from_env() -> String {
     std::env::var("HALVO_GATE_MARKER").unwrap_or_else(|_| "HALVO_DEFAULT_MARKER".to_string())
 }

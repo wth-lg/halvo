@@ -84,7 +84,10 @@ pub fn try_open(
             Selection::Open(OpenAs::ReadWrite) => host.open(Access::ReadWrite),
             Selection::Open(OpenAs::MaintenanceOnly) => host.open(Access::MaintenanceOnly),
             Selection::Open(OpenAs::Refused) | Selection::Create(_) => {
-                return (Slot::of_fault(OpenFault::CustodyKind, Some(id), retry), None)
+                return (
+                    Slot::of_fault(OpenFault::CustodyKind, Some(id), retry),
+                    None,
+                )
             }
         },
     };

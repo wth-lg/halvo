@@ -329,17 +329,32 @@ fn a_signalled_timed_run_prints_its_report_and_leaves_no_root_of_its_scratch_sto
         if let Some(status) = child.0.try_wait().unwrap() {
             panic!("the timed run ended before its store was made: {status}");
         }
-        assert!(started.elapsed() < READY_WITHIN, "the timed run made no scratch store");
+        assert!(
+            started.elapsed() < READY_WITHIN,
+            "the timed run made no scratch store"
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
     std::thread::sleep(Duration::from_millis(500));
     let mut out = child.0.stdout.take().unwrap();
-    assert_eq!(terminate(child), Some(halvo_control::exit::TIMED_RUN_INTERRUPTED));
+    assert_eq!(
+        terminate(child),
+        Some(halvo_control::exit::TIMED_RUN_INTERRUPTED)
+    );
     let mut report = String::new();
     out.read_to_string(&mut report).unwrap();
-    assert!(report.lines().any(|line| line == "segments_written=1"), "{report}");
-    assert!(report.lines().any(|line| line == "events_persisted=2"), "{report}");
-    assert!(dir.join("store.key").exists(), "the run removed its store's files");
+    assert!(
+        report.lines().any(|line| line == "segments_written=1"),
+        "{report}"
+    );
+    assert!(
+        report.lines().any(|line| line == "events_persisted=2"),
+        "{report}"
+    );
+    assert!(
+        dir.join("store.key").exists(),
+        "the run removed its store's files"
+    );
     assert_eq!(
         names(&dir.join("roots")),
         Vec::<String>::new(),
@@ -395,7 +410,11 @@ fn a_sigterm_to_a_service_run_with_an_open_store_exits_0_in_the_budget_and_the_s
         std::fs::read(dir.join("store").join("store.key")).unwrap() == key,
         "the next start made a second key file"
     );
-    assert_eq!(names(&dir.join("roots")), roots, "the next start made a second root");
+    assert_eq!(
+        names(&dir.join("roots")),
+        roots,
+        "the next start made a second root"
+    );
     assert_eq!(terminate(again), Some(0));
 }
 

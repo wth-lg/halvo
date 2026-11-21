@@ -1921,7 +1921,9 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
                     }
                 }
             }
-            owner::open::Held::Maintenance { store, .. } => HeldStore::Maintenance { _store: store },
+            owner::open::Held::Maintenance { store, .. } => {
+                HeldStore::Maintenance { _store: store }
+            }
         };
     }
     if let Some(opener) = &opener {
@@ -1949,7 +1951,8 @@ fn close_the_store(owner: CaptureOwner, status: i32) -> i32 {
         .ask(owner::Command::Shutdown)
         .ok()
         .and_then(|pending| pending.wait_for(CLOSE_WAIT));
-    let closed = matches!(answered, Some(owner::Answer::ShutDown(_))) && owner.watched.join().is_ok();
+    let closed =
+        matches!(answered, Some(owner::Answer::ShutDown(_))) && owner.watched.join().is_ok();
     match (closed, status) {
         (true, _) => status,
         (false, halvo_control::exit::CLEAN) => halvo_control::exit::ERROR,
@@ -4171,10 +4174,8 @@ mod tests {
     fn a_timed_run_whose_drain_wait_ran_out_exits_1_with_its_loss_line() {
         let late = 88;
         let keys = (0..batch::BATCH_MAX_EVENTS + late).map(|_| key()).collect();
-        let mut scripted = ScriptedRun::new(vec![(
-            SourceName::Input,
-            ScriptedSource::emitting(keys),
-        )]);
+        let mut scripted =
+            ScriptedRun::new(vec![(SourceName::Input, ScriptedSource::emitting(keys))]);
         let stop = AtomicBool::new(false);
         let outcome = run_timed(
             &run_of(5, SecureInput::DoNotHold, &[]),

@@ -3796,7 +3796,13 @@ mod tests {
             let (state, cause, timer) = row(fault);
             for probe in [true, false] {
                 let host = if probe {
-                    ModelHost::new(Probe::Fault { fault, id: Some(HOST_ID) }, Ok(()))
+                    ModelHost::new(
+                        Probe::Fault {
+                            fault,
+                            id: Some(HOST_ID),
+                        },
+                        Ok(()),
+                    )
                 } else {
                     ModelHost::new(STANDS, Err(fault))
                 };
@@ -3808,8 +3814,18 @@ mod tests {
                 assert_eq!(slot.retry_in(), timer.then_some(retry), "{fault:?}");
                 assert!(!slot.is_open(), "{fault:?}");
                 let calls = host.calls();
-                assert!(!calls.contains(&"create"), "{fault:?} created over a store: {calls:?}");
-                assert_eq!(calls, if probe { vec!["probe"] } else { vec!["probe", "open"] });
+                assert!(
+                    !calls.contains(&"create"),
+                    "{fault:?} created over a store: {calls:?}"
+                );
+                assert_eq!(
+                    calls,
+                    if probe {
+                        vec!["probe"]
+                    } else {
+                        vec!["probe", "open"]
+                    }
+                );
             }
         }
         let (open, held) = try_open(
@@ -3841,7 +3857,10 @@ mod tests {
         }
         let stopped = std::time::Instant::now();
         while openers.iter().any(Opener::is_running) {
-            assert!(stopped.elapsed() < Duration::from_secs(2), "the open did not stop");
+            assert!(
+                stopped.elapsed() < Duration::from_secs(2),
+                "the open did not stop"
+            );
             std::thread::sleep(POLL);
         }
     }
@@ -3855,7 +3874,10 @@ mod tests {
             CreateRule::of(StateHealth::WriteFailed(std::io::ErrorKind::Other), false),
             CreateRule::FirstRun
         );
-        assert_eq!(CreateRule::of(StateHealth::Corrupt, false), CreateRule::StateNotLoaded);
+        assert_eq!(
+            CreateRule::of(StateHealth::Corrupt, false),
+            CreateRule::StateNotLoaded
+        );
         assert_eq!(
             CreateRule::of(StateHealth::NewerVersion(2), false),
             CreateRule::StateNotLoaded
@@ -3879,7 +3901,10 @@ mod tests {
         let mut failing = ModelHost::new(Probe::NoKeyFile, Ok(()));
         failing.creates = Err(OpenFault::Io);
         let (slot, held) = try_open(&failing, root_file_build, CreateRule::FirstRun, retry);
-        assert!(held.is_none(), "a failed create handed a store, so the mark would be set");
+        assert!(
+            held.is_none(),
+            "a failed create handed a store, so the mark would be set"
+        );
         assert_eq!(slot.cause(), Some(StoreErrorKind::Io));
         let first = ModelHost::new(Probe::NoKeyFile, Ok(()));
         let (slot, held) = try_open(&first, root_file_build, CreateRule::FirstRun, retry);

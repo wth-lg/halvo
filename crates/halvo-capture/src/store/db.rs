@@ -1344,7 +1344,13 @@ pub(in crate::store) struct Instants {
 }
 
 impl Instants {
-    #[cfg_attr(not(test), expect(dead_code, reason = "only the old write calls it, which has no caller outside the store's tests until core-3 deletes it"))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "only the old write calls it, which has no caller outside the store's tests until core-3 deletes it"
+        )
+    )]
     fn at(nanos: i64) -> Instants {
         Instants {
             day: UtcDay::of_instant(nanos),
@@ -2899,7 +2905,13 @@ impl EncryptedStore {
 
     /// The legacy write of [`SegmentStore::write_segment`]: a random id, no
     /// totals, both instants the write instant.
-    #[cfg_attr(not(test), expect(dead_code, reason = "no caller outside the store's tests: the adapter writes through write_batch, and core-3 deletes this call"))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests: the adapter writes through write_batch, and core-3 deletes this call"
+        )
+    )]
     fn write_untallied(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)> {
         let segment_id = random_segment_id()?;
         let instants = Instants::at(crate::event::unix_nanos(SystemTime::now()));
@@ -2947,7 +2959,13 @@ impl EncryptedStore {
 
     /// What the reconcile of the open that made this handle did; zero for a
     /// handle from `create`.
-    #[cfg_attr(not(test), expect(dead_code, reason = "no caller outside the store's tests until daemon-3e shows the open's reconcile counts"))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests until daemon-3e shows the open's reconcile counts"
+        )
+    )]
     pub fn reconciled(&self) -> Reconciled {
         self.reconciled
     }

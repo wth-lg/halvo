@@ -206,12 +206,24 @@ pub struct Reconciled {
 pub(in crate::store) trait SegmentStore {
     /// Refused with [`StoreError::NotImplemented`]: the store keeps no
     /// per-event row. It touches nothing.
-    #[cfg_attr(not(test), expect(dead_code, reason = "no caller outside the store's tests: the store keeps no per-event row, and core-3 deletes this call"))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests: the store keeps no per-event row, and core-3 deletes this call"
+        )
+    )]
     fn append_event(&mut self, event: &CaptureStreamEvent) -> StoreResult<()>;
 
     /// Write raw capture bytes as a new encrypted segment with no totals, its
     /// instants the write instant, and return its ref and its ordinal.
-    #[cfg_attr(not(test), expect(dead_code, reason = "no caller outside the store's tests: the adapter writes through write_batch, and core-3 deletes this call"))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests: the adapter writes through write_batch, and core-3 deletes this call"
+        )
+    )]
     fn write_segment(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)>;
 
     /// The summed lengths of the files under the store directory, for the cost
@@ -472,7 +484,13 @@ pub(in crate::store) enum StoreError {
     #[error(transparent)]
     Custody(#[from] CustodyError),
     #[error("{0} is not implemented in this phase")]
-    #[cfg_attr(not(test), expect(dead_code, reason = "only append_event answers it, which has no caller outside the store's tests until core-3 deletes both"))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "only append_event answers it, which has no caller outside the store's tests until core-3 deletes both"
+        )
+    )]
     NotImplemented(&'static str),
 }
 
@@ -481,7 +499,10 @@ pub(in crate::store) type StoreResult<T> = Result<T, StoreError>;
 /// Run the `--verify-store` measurements on a fresh store in the directory
 /// that HALVO_STORE_DIR names, or in a temporary one, with the marker of
 /// HALVO_GATE_MARKER, and return the line that the gate judges.
-#[expect(dead_code, reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)")]
+#[expect(
+    dead_code,
+    reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)"
+)]
 pub(in crate::store) fn verify_store() -> StoreResult<String> {
     let dir = verify::StoreDir::from_env();
     measure_store(dir.path(), &verify::marker_from_env())
@@ -490,7 +511,10 @@ pub(in crate::store) fn verify_store() -> StoreResult<String> {
 /// Run the `--verify-deletion` measurements in the directory that
 /// HALVO_STORE_DIR names, or in a temporary one, and return the line that the
 /// gate judges.
-#[expect(dead_code, reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)")]
+#[expect(
+    dead_code,
+    reason = "no caller since daemon-1: core-3 deletes the forms that read the gate's variables (contracts.md C4 item 4)"
+)]
 pub(in crate::store) fn verify_deletion() -> StoreResult<String> {
     let dir = verify::StoreDir::from_env();
     measure_deletion(dir.path())
