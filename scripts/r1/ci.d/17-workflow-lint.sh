@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos
-# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the one line timeout-minutes with the bound ci_gate_job_timeout_min, on every event, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag; pull_request and the pinned schedule are the other events, and the event workflow_dispatch is taken when it is its line and the lines of pin_dispatch under it, the inputs slice and checks, and is not required. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the six pinned cron lines below it, Monday to Saturday in this order, one for each slice of scripts/ci/slices.txt, and no other line under them and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes and steps at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at six blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, and the letters rust-cache stand on no other line. A step condition must be always(), or one of three that each belong to their steps alone: the step ci.d merge gate carries github.event_name == 'push' || github.event_name == 'pull_request', so a push and a pull request run the merge gate and no slice; the steps Slice and ci.d slice carry github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'; the steps Self-tests that commit in throwaway repositories and Scripts and hook in a core.autocrlf=true clone carry steps.slice.outputs.name == 'fri'; a step must have no continue-on-error key. The lint reads a condition by the value that YAML decodes from a plain scalar, so lines folded into one, a comment behind it and blanks around it change nothing, refuses a condition in quotes or in a block, and reads a step's name by its value in any style. Review each changed step command in the diff; this pin does not read what a step runs, and so not which slice the step Slice gives a cron line. The push filters are pin_branches and pin_tags. The schedule and cache lines are pin_crons, pin_uses, pin_with, pin_prefix and pin_save below; they make every event restore the Rust build cache of main and a push to main alone save one.
+# rule: ci.yml is the only workflow file, actionlint at its pinned version accepts it, every action is pinned to a 40-hex commit, also behind a uses key written with escape sequences, the permissions at the top level grant contents: read and nothing else, no job grants more, the jobs are macos and windows, the timeout of each job is the one line timeout-minutes with the bound ci_gate_job_timeout_min, on every event, and ci.yml holds no byte other than the line feed and printable ASCII, no explicit key (? and a blank), no document marker or directive, no node that begins with &, * or ! (an anchor, an alias or a tag; a plain line that begins with one of the three reads so too), and no line that the lint reads as ending inside a quoted scalar or a flow collection (a block header alone on the next line, and a plain line that begins with a quote or a bracket, read so too). Push ignores landing branches at any depth and accepts every tag; pull_request and the pinned schedule are the other events, and the event workflow_dispatch is taken when it is its line and the lines of pin_dispatch under it, the inputs slice and checks, and is not required. The pin of cache-1 reads one form and refuses every other at its first line, quoting it and naming the line to write: one line on: alone in column 1, under it the line '  schedule:' alone with the six pinned cron lines below it, Monday to Saturday in this order, one for each slice of scripts/ci/slices.txt, and no other line under them and no other line of the block that names the schedule or a cron line; under jobs: each job's key is '  macos:' or '  windows:' alone, a job's own keys are runs-on, timeout-minutes and steps at four blanks, none begins a block scalar, '    steps:' alone is the last of them, and each step begins at six blanks, a dash and a blank; each job holds one Rust cache step that is exactly the four pinned lines, and the letters rust-cache stand on no other line. A step condition must be always(), or one of three that each belong to their steps alone: the step ci.d merge gate carries github.event_name == 'push' || github.event_name == 'pull_request', so a push and a pull request run the merge gate and no slice; the steps Slice and ci.d slice carry github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'; the steps Self-tests that commit in throwaway repositories and Scripts and hook in a core.autocrlf=true clone carry steps.slice.outputs.name == 'fri'; a step must have no continue-on-error key. The lint reads a condition by the value that YAML decodes from a plain scalar, so lines folded into one, a comment behind it and blanks around it change nothing, refuses a condition in quotes or in a block, and reads a step's name by its value in any style. Review each changed step command in the diff; this pin does not read what a step runs, and so not which slice the step Slice gives a cron line. The block concurrency: stands once, as the line 'concurrency:' in column 1 with the two pinned lines pin_group and pin_cancel under it and nothing else, and no other line names concurrency or cancel-in-progress: the push runs of the branch main share one group, in which the run at work ends and one pending run waits, a pull request has a group by its ref, in which alone a newer run cancels the run at work, and every other run has a group by its commit or by its run. The push filters are pin_branches and pin_tags. The schedule and cache lines are pin_crons, pin_uses, pin_with, pin_prefix and pin_save below; they make every event restore the Rust build cache of main and a push to main alone save one.
 set -u
 name=17-workflow-lint
 pinned_version=1.7.12
@@ -9,6 +9,8 @@ nl='
 pin_branches="    branches-ignore: ['land-*', 'land-*/**']"
 pin_tags="    tags: ['**']"
 pin_crons="    - cron: '17 3 * * 1'${nl}    - cron: '17 3 * * 2'${nl}    - cron: '17 3 * * 3'${nl}    - cron: '17 3 * * 4'${nl}    - cron: '17 3 * * 5'${nl}    - cron: '17 3 * * 6'"
+pin_group="  group: ci-\${{ github.event_name }}-\${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' || github.event_name == 'workflow_dispatch' && github.run_id || github.sha }}"
+pin_cancel="  cancel-in-progress: \${{ github.event_name == 'pull_request' }}"
 pin_uses="      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3"
 pin_with="        with:"
 pin_prefix="          prefix-key: v0-rust"
@@ -540,6 +542,17 @@ $policy
 EOF
   fi
 
+  concurrency=$(PIN_GROUP=$pin_group PIN_CANCEL=$pin_cancel awk '
+    $0 == "concurrency:" { blocks++; at = NR; next }
+    at && NR == at + 1 && $0 == ENVIRON["PIN_GROUP"] { group++ }
+    at && NR == at + 2 && $0 == ENVIRON["PIN_CANCEL"] { cancel++ }
+    at && NR == at + 3 && /^ / { more = 1 }
+    !/^ *#/ && /concurrency|cancel-in-progress/ { named++ }
+    END { print (blocks == 1 && group == 1 && cancel == 1 && !more && named == 1) ? "ok" : "other" }' "$file") ||
+    fail "awk could not read ci.yml for the pin of the concurrency block"
+  [ "$concurrency" = ok ] ||
+    finding "ci.yml must hold the block concurrency: once, as the line 'concurrency:' in column 1 with these two lines under it and nothing else: '$pin_group' and '$pin_cancel'; no other line may name concurrency or cancel-in-progress; the pin holds the two lines in the variables pin_group and pin_cancel at the top of scripts/r1/ci.d/17-workflow-lint.sh, and a change of one is a ruled change"
+
   printf 'jobs: %s, uses keys: %s, findings: %s\n' "$jobs" "$uses" "$findings"
   [ "$findings" -le 1 ] || first="$first; and $((findings - 1)) more above"
   [ "$findings" -eq 0 ] || fail "$first"
@@ -624,7 +637,7 @@ EOF
   checkout='      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1'
   timeout_30="    timeout-minutes: 30"
   timeout_30_sed=$(printf '%s\n' "$timeout_30" | sed 's/&/\\&/g')
-  printf '%s\n' '' '' '' '' '' '' '' 'jobs:' \
+  printf '%s\n' '' '' '' '' 'concurrency:' "$pin_group" "$pin_cancel" 'jobs:' \
     '  macos:' '    runs-on: macos-15' "$timeout_30" '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
     '  windows:' '    runs-on: windows-2025' "$timeout_30" '    steps:' "$checkout" "$pin_uses" "$pin_with" "$pin_prefix" "$pin_save" \
     'permissions:' '  contents: read' 'name: ci' \
@@ -715,6 +728,10 @@ EOF
   lines n04-friday-condition-on-another-step 17 "$pin_save${nl}      - name: Slice${nl}        id: slice${nl}$slice_if${nl}$run_e${nl}      - name: Processor${nl}$fri_if${nl}$run_e"
   check n04-friday-condition-on-another-step FAIL "job macos step 4: the condition steps.slice.outputs.name == 'fri' belongs to the steps Self-tests that commit in throwaway repositories, Scripts and hook in a core.autocrlf=true clone alone"
 
+  lines c01-a-push-run-of-main-cancels-the-run-at-work 7 "  cancel-in-progress: \${{ github.event_name == 'pull_request' || github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
+  check c01-a-push-run-of-main-cancels-the-run-at-work FAIL 'ci.yml must hold the block concurrency: once'
+  lines c02-no-concurrency-block 7 - 6 - 5 -
+  check c02-no-concurrency-block FAIL 'ci.yml must hold the block concurrency: once'
   tree pinned-and-timed ''
   check pinned-and-timed PASS 'jobs: 2, uses keys: 4, findings: 0'
   tree action-on-a-tag '13s/@[0-9a-f]* # v7.0.1/@v7/'
