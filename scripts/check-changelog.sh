@@ -8,15 +8,19 @@ synopsis() {
       changelog.d/, in the work tree of the clone that holds the current directory.
   sh scripts/check-changelog.sh --base <ref>
       Also check the work tree against the commit <ref>: it adds an entry file
-      that <ref> lacks, and CHANGELOG.md from its ## [Unreleased] heading down is
-      as at <ref>. A CHANGELOG.md with a release that <ref> lacks is the commit of
-      a release, which needs neither.
+      that <ref> lacks, and CHANGELOG.md is as at <ref>. A CHANGELOG.md with a
+      release that <ref> lacks is the commit of a release, which needs neither.
+      When <ref> holds no changelog.d/README.md, it is older than this rule, and
+      CHANGELOG.md has to be as at <ref> only from its ## [Unreleased] heading
+      down: the commit that brings the rule rewords the head of the file.
   sh scripts/check-changelog.sh --self-test
       Run five cases of the rules (an entry file passes, none fails, a changed
       Unreleased list fails, an entry line of another form fails, the commit of a
-      release passes) and one case of each of scripts/changelog-entry.sh and
-      scripts/changelog-join.sh, in throwaway repositories under TMPDIR, which are
-      left in place. The structure of CHANGELOG.md has no case.
+      release passes), two cases of scripts/changelog-entry.sh (it moves the lines
+      of a branch that merged origin/main; it refuses an origin/main that is older
+      than the rule) and one of scripts/changelog-join.sh, in throwaway
+      repositories under TMPDIR, which are left in place. The structure of
+      CHANGELOG.md has no case.
 EOF
 }
 
@@ -26,10 +30,11 @@ Checks the changelog, so that no two pull requests change the same lines.
 
 A pull request records its changes in one new entry file, changelog.d/<name>.md,
 named after its branch, with one line for each type of change that it makes. It
-does not change CHANGELOG.md from the ## [Unreleased] heading down. At a release,
-sh scripts/changelog-join.sh puts the lines of every entry file at the end of the
-list under that heading and removes the files. sh scripts/changelog-entry.sh moves
-the lines that a branch added under that heading into the entry file of the branch.
+does not change CHANGELOG.md. At a release, sh scripts/changelog-join.sh puts the
+lines of every entry file at the end of the list under the ## [Unreleased]
+heading and removes the files. sh scripts/changelog-entry.sh, run after
+git fetch origin and git merge origin/main, moves the lines under that heading
+that origin/main lacks into the entry file of the branch.
 
   - Every file under changelog.d/ other than changelog.d/README.md is an entry
     file, named changelog.d/<name>.md with a name of letters, digits, ".", "_"
@@ -172,13 +177,16 @@ entry_file_errors() {
 }
 
 range_verdict() {
-  base_changelog=$1 changelog=$2
+  base_changelog=$1 changelog=$2 whole=$3
   base_line_count=$(($(printf '%s\n' "$base_changelog" | wc -l)))
   {
     printf '%s\n' "$base_changelog"
     printf '%s\n' "$changelog"
-  } | LC_ALL=C awk -v base_line_count="$base_line_count" '
-    BEGIN { release_heading = "^## \\[[0-9]+\\.[0-9]+\\.[0-9]+\\] - " }
+  } | LC_ALL=C awk -v base_line_count="$base_line_count" -v whole="$whole" '
+    BEGIN {
+      release_heading = "^## \\[[0-9]+\\.[0-9]+\\.[0-9]+\\] - "
+      base_on = head_on = (whole == 1)
+    }
     { sub(/[ \t\r]+$/, "") }
     function version_of(heading) {
       sub(/\] - .*$/, "]", heading)
@@ -263,13 +271,17 @@ EOF
 
   summary="entries under ## [Unreleased]: $entries, entry files: $entry_files"
   if [ -n "$base_ref" ]; then
-    verdict=$(range_verdict "$base_changelog" "$changelog") || die 'awk could not compare CHANGELOG.md with the base'
+    whole=1 part='CHANGELOG.md'
+    if ! git cat-file -e "$base_commit:changelog.d/README.md" 2>/dev/null; then
+      whole=0 part="CHANGELOG.md from the ## [Unreleased] heading down, as $base_ref holds no changelog.d/README.md and is older than this rule"
+    fi
+    verdict=$(range_verdict "$base_changelog" "$changelog" "$whole") || die 'awk could not compare CHANGELOG.md with the base'
     case $verdict in
       release) summary="$summary, the commit of a release compared with $base_ref" ;;
       same|changed\ *)
         summary="$summary, new compared with $base_ref: $new_entry_files"
         [ "$verdict" = same ] ||
-          errors="$errors${nl}CHANGELOG.md:${verdict#changed }: the file differs here from $base_ref, and a pull request does not change CHANGELOG.md from the ## [Unreleased] heading down. Fix: run sh scripts/changelog-entry.sh in your branch: it moves the lines that the branch added under that heading into changelog.d/<branch>.md and sets CHANGELOG.md to the file of origin/main. Record a correction of a released entry in an entry file too."
+          errors="$errors${nl}CHANGELOG.md:${verdict#changed }: the file differs here from $base_ref, and a pull request does not change $part. Fix: in your branch run git fetch origin, then git merge origin/main, then sh scripts/changelog-entry.sh: it moves the lines under ## [Unreleased] that origin/main lacks into changelog.d/<branch>.md and sets CHANGELOG.md to the file of origin/main. Put back any other change of the file, and record a correction of a released entry in an entry file."
         [ "$new_entry_files" -gt 0 ] ||
           errors="$errors${nl}changelog.d/: the work tree adds no entry file that $base_ref lacks. Fix: add changelog.d/<branch>.md, named after your branch, with one line for each type of change that it makes, as $entry_form."
         ;;
@@ -298,7 +310,7 @@ self_test() {
   fixture=$(mktemp -d "${TMPDIR:-/tmp}/check-changelog-self-test.XXXXXX") || die 'mktemp could not make a directory'
   printf 'check-changelog: the fixture repositories are under %s, which is left in place\n' "$fixture"
   export GIT_AUTHOR_NAME='Halvo CI' GIT_AUTHOR_EMAIL=ci@halvo.invalid GIT_COMMITTER_NAME='Halvo CI' GIT_COMMITTER_EMAIL=ci@halvo.invalid
-  mkdir "$fixture/no-hooks" "$fixture/origin" "$fixture/origin/changelog.d" || die "mkdir failed in $fixture"
+  mkdir "$fixture/no-hooks" "$fixture/origin" || die "mkdir failed in $fixture"
   introduction='# Changelog
 
 Each pull request adds an entry file under changelog.d/.
@@ -315,13 +327,16 @@ Each pull request adds an entry file under changelog.d/.
     git -C "$1" -c commit.gpgsign=false -c core.hooksPath="$fixture/no-hooks" commit -q -m "$2" || die "git could not commit in $1"
   }
   printf '%s\n\n%s\n' "$introduction" "$release" >"$fixture/origin/CHANGELOG.md"
-  printf 'One entry file for each pull request.\n' >"$fixture/origin/changelog.d/README.md"
+  printf 'CHANGELOG.md merge=union\n' >"$fixture/origin/.gitattributes"
   git init -q "$fixture/origin" || die "git init failed in $fixture"
   git -C "$fixture/origin" symbolic-ref HEAD refs/heads/main || die "git symbolic-ref failed in $fixture/origin"
   git -C "$fixture/origin" config core.autocrlf false || die "git config failed in $fixture/origin"
   commit_all "$fixture/origin" 'Start'
   printf '%s\n%s\n\n%s\n' "$introduction" "$main_line" "$release" >"$fixture/origin/CHANGELOG.md"
   commit_all "$fixture/origin" 'Add a line on main'
+  mkdir "$fixture/origin/changelog.d" || die "mkdir failed in $fixture/origin"
+  printf 'One entry file for each pull request.\n' >"$fixture/origin/changelog.d/README.md"
+  commit_all "$fixture/origin" 'Bring the rule of entry files'
 
   make_clone() {
     clone=$fixture/$1
@@ -385,10 +400,27 @@ Each pull request adds an entry file under changelog.d/.
     [ "$after_first" = "$after_second" ] || { echo 'the second run changed the clone'; return 1; }
     echo 'the entry file holds the two lines, CHANGELOG.md is as at origin/main, and a second run changes nothing'
   }
-  make_clone entry unit/two-lines origin/main~1
+  make_clone entry unit/two-lines origin/main~2
   printf '%s\n%s\n%s\n\n%s\n' "$introduction" '- Fixed: Close the race' '- Security: Rotate the key' "$release" >"$clone/CHANGELOG.md"
   commit_all "$clone" 'Add two lines under Unreleased'
-  expect 'changelog-entry.sh moves the two lines of a branch into its entry file, and a second run changes nothing' 0 'a second run changes nothing' entry_case
+  git -C "$clone" -c commit.gpgsign=false -c core.hooksPath="$fixture/no-hooks" merge -q --no-edit origin/main >/dev/null ||
+    die "git could not merge origin/main in $clone"
+  expect 'changelog-entry.sh moves the two lines of a branch that merged origin/main into its entry file, and a second run changes nothing' 0 'a second run changes nothing' entry_case
+
+  old_main_case() {
+    before=$(git -C "$clone" status --porcelain && cat "$clone/CHANGELOG.md") || return 2
+    status=0
+    (cd "$clone" && sh "$script_directory/changelog-entry.sh") || status=$?
+    after=$(git -C "$clone" status --porcelain && cat "$clone/CHANGELOG.md") || return 2
+    [ ! -e "$clone/changelog.d" ] || { echo 'the command made changelog.d'; return 2; }
+    [ "$before" = "$after" ] || { echo 'the command changed the clone'; return 2; }
+    return "$status"
+  }
+  make_clone old-main unit/old-main origin/main~1
+  git -C "$clone" update-ref refs/remotes/origin/main "$(git -C "$clone" rev-parse origin/main~1)" || die "git update-ref failed in $clone"
+  printf '%s\n%s\n%s\n\n%s\n' "$introduction" "$main_line" '- Fixed: Close the race' "$release" >"$clone/CHANGELOG.md"
+  commit_all "$clone" 'Add a line under Unreleased'
+  expect 'changelog-entry.sh refuses an origin/main that is older than the rule and changes nothing' 1 'Fix: run git fetch origin, then git merge origin/main, then sh scripts/changelog-entry.sh.' old_main_case
 
   join_case() {
     (cd "$clone" && sh "$script_directory/changelog-join.sh") || return 1
