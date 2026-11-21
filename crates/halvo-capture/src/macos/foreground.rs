@@ -406,6 +406,24 @@ impl ForegroundWriter {
     }
 }
 
+#[cfg(test)]
+impl ForegroundSource {
+    /// The product's source of [`ForegroundSource::new`] whose title reader
+    /// is a stand-in that reads no title, for a test that must read no title
+    /// of the machine that runs it.
+    pub(crate) fn with_stand_in_title(
+        interval: Duration,
+        foreground: ForegroundWriter,
+        turns: RunLoopTurns,
+    ) -> Self {
+        let mut source = Self::new(interval, foreground, turns);
+        if let Some(readers) = source.readers.as_mut() {
+            readers.1 = Box::new(|_| Ok(None));
+        }
+        source
+    }
+}
+
 #[cfg(debug_assertions)]
 impl ForegroundReader {
     /// A reader with no writer, which reads nothing in front: for tests in a

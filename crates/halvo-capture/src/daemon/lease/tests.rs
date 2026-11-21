@@ -418,7 +418,8 @@ fn after_a_lapse_and_a_renewal_every_source_of_the_run_condition_runs_again_the_
         writer,
         reader,
         crate::macos::run_loop::RunLoopTurns::for_test(std::time::Instant::now()),
-    );
+    )
+    .with_stand_in_titles();
     let mut f = Fixture::new(Desired::Running, factory);
     let ctx = {
         let harness = f.link.harness.borrow();

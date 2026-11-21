@@ -152,6 +152,8 @@ pub struct ServiceSources {
     foreground_reader: crate::macos::foreground::ForegroundReader,
     turns: crate::macos::run_loop::RunLoopTurns,
     input_counters: crate::macos::input::InputCounters,
+    #[cfg(test)]
+    stand_in_titles: bool,
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]
@@ -166,7 +168,18 @@ impl ServiceSources {
             foreground_reader: reader,
             turns,
             input_counters: crate::macos::input::InputCounters::new(),
+            #[cfg(test)]
+            stand_in_titles: false,
         }
+    }
+
+    /// The factory whose foreground sources read their titles through a
+    /// stand-in that reads none, for a test that must read no title of the
+    /// machine that runs it.
+    #[cfg(test)]
+    pub(crate) fn with_stand_in_titles(mut self) -> ServiceSources {
+        self.stand_in_titles = true;
+        self
     }
 
     /// The hold plan of the input source that this factory makes: never.
@@ -180,6 +193,14 @@ impl SourceFactory for ServiceSources {
     fn make(&mut self, name: SourceName) -> Option<Box<dyn CaptureSource>> {
         use crate::macos::{foreground, input, screen};
         match name {
+            #[cfg(test)]
+            SourceName::Foreground if self.stand_in_titles => {
+                Some(Box::new(foreground::ForegroundSource::with_stand_in_title(
+                    foreground::FOREGROUND_POLL,
+                    self.foreground_writer.share(),
+                    self.turns.clone(),
+                )))
+            }
             SourceName::Foreground => Some(Box::new(foreground::ForegroundSource::new(
                 foreground::FOREGROUND_POLL,
                 self.foreground_writer.share(),
