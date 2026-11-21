@@ -160,8 +160,10 @@ pub struct Rows {
 }
 
 /// The owner behind the link, in memory: it records each request, answers each runner body as stored, `add_origin`
-/// with the next revision and `end_run` with `{"ok":"yes"}`, and makes the moves of the run's end of A7.5 for the
-/// effects of a run whose `end_run` it gets: `end` for `held`, `cleared` and `approved`, `lose` for `releasing`.
+/// with the next revision, `end_run` with `{"ok":"yes"}`, `list_checkpoints` with a page of `pages` and
+/// `mark_checkpoint` with `{"stored":1}`, and makes
+/// the moves of the run's end of A7.5 for the effects of a run whose `end_run` it gets: `end` for `held`, `cleared`
+/// and `approved`, `lose` for `releasing`.
 #[derive(Default)]
 pub struct Store {
     pub requests: Mutex<Vec<String>>,
@@ -179,6 +181,12 @@ pub struct Store {
     pub wrong_form_runner: AtomicUsize,
     pub wrong_id_coord: AtomicUsize,
     pub wrong_form_coord: AtomicUsize,
+    /// The pages that a `list_checkpoints` is answered with, by its `after`: each the text that follows `"ok":` as
+    /// the test wrote it, white space included. A body whose `after` names no page is answered `unsupported`.
+    pub pages: Mutex<Vec<(Option<RunId>, String)>>,
+    pub other_agent_runner: AtomicUsize,
+    /// The count of the next `mark_checkpoint` bodies that get a link error and no reply, as when the link is cut.
+    pub fail_mark: AtomicUsize,
 }
 
 impl Store {
@@ -205,6 +213,16 @@ impl Store {
 
     fn error(id: &str, name: &str) -> Vec<u8> {
         format!(r#"{{"v":1,"id":"{id}","error":"{name}"}}"#).into_bytes()
+    }
+
+    /// The agent that a reply of `load_steps` or `load_session` names: another agent's id while
+    /// `other_agent_runner` counts down, else the asking agent's.
+    fn reply_agent(&self, asking: &str) -> String {
+        if take_one(&self.other_agent_runner) {
+            "e".repeat(32)
+        } else {
+            asking.to_owned()
+        }
     }
 }
 
@@ -305,6 +323,21 @@ impl Store {
                     }
                     Store::reply(&id, r#"{"stored":1}"#)
                 }
+                RunnerCall::LoadSteps(b) => {
+                    let agent = self.reply_agent(b.agent.as_str());
+                    Store::reply(&id, &format!(r#"{{"agent":"{agent}","steps":[]}}"#))
+                }
+                RunnerCall::LoadSession(b) => {
+                    let agent = self.reply_agent(b.agent.as_str());
+                    let part = format!(
+                        r#""origin":"{}","rev":{},"part":{},"of":{},"data":["QUJD"]"#,
+                        b.origin.as_str(),
+                        b.rev,
+                        b.part,
+                        b.part
+                    );
+                    Store::reply(&id, &format!(r#"{{"agent":"{agent}",{part}}}"#))
+                }
                 _ => Store::reply(&id, r#"{"stored":1}"#),
             });
         }
@@ -344,6 +377,15 @@ impl Store {
                 r.ended = true;
                 Ok(Store::reply(&id, r#"{"ok":"yes"}"#))
             }
+            CoordinatorCall::ListCheckpoints(list) => {
+                let pages = self.pages.lock().unwrap();
+                Ok(match pages.iter().find(|(after, _)| *after == list.after) {
+                    Some((_, page)) => Store::reply(&id, page),
+                    None => Store::error(&id, "unsupported"),
+                })
+            }
+            CoordinatorCall::MarkCheckpoint(_) if take_one(&self.fail_mark) => Err(LinkError),
+            CoordinatorCall::MarkCheckpoint(_) => Ok(Store::reply(&id, r#"{"stored":1}"#)),
             _ => Ok(Store::error(&id, "unsupported")),
         }
     }
@@ -365,7 +407,7 @@ const CONFIG: &str = r#"{"v":1,"workflow":"30303030303030303030303030303030","ag
 fn load_reply(bindings: &str, agent: &str) -> String {
     let config = CONFIG.replacen("40404040404040404040404040404040", agent, 1);
     format!(
-        r#"{{"config":{config},"playbook":null,"bindings":{bindings},"sessions":[],"start":null}}"#
+        r#"{{"config":{config},"playbook":null,"next_playbook":1,"bindings":{bindings},"sessions":[],"start":null}}"#
     )
 }
 
@@ -540,17 +582,23 @@ impl Rig {
     }
 
     pub fn configured(name: &str, set: impl FnOnce(&mut Config)) -> Rig {
-        Rig::built(name, set, None)
+        Rig::built(name, set, None, None)
     }
 
     pub fn reading(name: &str, read: fn(SystemValue) -> Option<std::ffi::OsString>) -> Rig {
-        Rig::built(name, |_| {}, Some(read))
+        Rig::built(name, |_| {}, Some(read), None)
+    }
+
+    /// A rig whose supervisor sends its owner requests over `link`; its memory store gets none of them.
+    pub fn linked(name: &str, link: Arc<dyn OwnerLink>) -> Rig {
+        Rig::built(name, |_| {}, None, Some(link))
     }
 
     fn built(
         name: &str,
         set: impl FnOnce(&mut Config),
         read: Option<fn(SystemValue) -> Option<std::ffi::OsString>>,
+        link: Option<Arc<dyn OwnerLink>>,
     ) -> Rig {
         let dir = scratch(name);
         let store = Arc::new(Store::default());
@@ -562,7 +610,7 @@ impl Rig {
         });
         let rec = Arc::new(Recorder::default());
         let parts = Parts {
-            link: store.clone(),
+            link: link.unwrap_or_else(|| store.clone()),
             confirmer: people.clone(),
             human: people.clone(),
             secrets: vault.clone(),

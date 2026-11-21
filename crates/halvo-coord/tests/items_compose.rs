@@ -102,9 +102,9 @@ fn refusal_model_text() {
         }],
     }];
     assert_eq!(
-        compose_check(&item_id(1), &agent_id(1), NAME, &kept),
-        Err(Cause::Malformed),
-        "a kept field that no key labels"
+        compose_check(&item_id(1), &agent_id(1), NAME, &kept).map(|i| i.fields().len()),
+        Ok(0),
+        "a kept field that no key labels stands on no entry of the card, so not on the item (U2.4w)"
     );
 }
 
@@ -622,7 +622,11 @@ fn the_composed_items_equal_the_items_of_the_fixtures() {
                     .zip(PAYMENT)
                     .map(|(n, v)| Kept {
                         name: support::name(n),
-                        value: vec![v.to_owned()],
+                        value: vec![if *n == "origin" {
+                            format!("https://{v}:443")
+                        } else {
+                            v.to_owned()
+                        }],
                     })
                     .collect();
                 let unknown = [Unknown {
@@ -1383,4 +1387,69 @@ fn the_action_lines_and_the_changed_line_are_set_by_halvo() {
         assert_eq!(f.from_text, t("from.halvo"), "{}", f.label);
         assert!(f.value.is_empty(), "{}", f.label);
     }
+}
+
+/// The item `check` shows a kept field of an effect of an unknown outcome only where the card's
+/// entry for that effect would show it, and as that entry shows it: a name of its class's table
+/// kept once, read whole, an origin as the site's name; no byte of any other kept value
+/// (U2.4w, ruling RD-158 (5)).
+#[test]
+fn u24w_the_check_item_shows_only_the_kept_fields_that_the_cards_entry_shows() {
+    let payment = |pairs: &[(&str, &str)]| Unknown {
+        run: run_id(1),
+        effect: effect_id(1),
+        day: 20_760,
+        class: Class::Payment,
+        kept: pairs
+            .iter()
+            .map(|(n, v)| Kept {
+                name: name(n),
+                value: vec![(*v).to_owned()],
+            })
+            .collect(),
+    };
+    let shown = |unknown: Unknown| {
+        let item = compose_check(&item_id(1), &agent_id(1), NAME, &[unknown]).unwrap();
+        let fields: Vec<(String, Vec<String>)> = item
+            .fields()
+            .iter()
+            .map(|f| (f.label.clone(), f.value.clone()))
+            .collect();
+        (fields, serde_json::to_string(&item).unwrap())
+    };
+    let pair = |label: &str, value: &str| (label.to_owned(), vec![value.to_owned()]);
+    let (fields, json) = shown(payment(&[
+        ("payee", "City Power"),
+        ("payee", "Zq7 Power"),
+        ("amount", "42.10 USD"),
+        ("instrument", "Card ending 4242"),
+        ("origin", "http://2130706433:80"),
+    ]));
+    assert_eq!(
+        fields,
+        [
+            pair("Amount", "42.10 USD"),
+            pair("Pay with", "Card ending 4242")
+        ],
+        "a payee kept twice and an origin in number form stand on no entry"
+    );
+    for refused in ["City Power", "Zq7", "2130706433"] {
+        assert!(!json.contains(refused), "{refused} in {json}");
+    }
+    let (fields, _) = shown(payment(&[
+        ("payee", "City Power"),
+        ("amount", "42.10 USD"),
+        ("instrument", "Card ending 4242"),
+        ("origin", "https://site1.example:443"),
+    ]));
+    assert_eq!(
+        fields,
+        [
+            pair("Pay to", "City Power"),
+            pair("Amount", "42.10 USD"),
+            pair("Pay with", "Card ending 4242"),
+            pair("Site", "site1.example")
+        ],
+        "a whole payment shows its four fields, the origin as the site's name"
+    );
 }

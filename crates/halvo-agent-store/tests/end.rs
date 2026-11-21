@@ -483,3 +483,48 @@ fn finish_stores_each_key_of_the_run_s_list_as_given() {
         assert_eq!(row[key], record[key], "{key}");
     }
 }
+
+#[test]
+fn a_finished_compile_switches_its_agent_on_and_the_next_compile_stores_above_the_rows_a_killed_one_left(
+) {
+    let mut store = store_with("utility_bill_payment");
+    let two = vec![step(1, "navigate", "read"), step(2, "navigate", "read")];
+    assert_eq!(put_steps(&mut store, 1, two.clone()), Ok(stored(2)));
+    let mut record = run_record(1, Some("compile"), "completed");
+    record["playbook"] = json!(1);
+    assert_eq!(finish(&mut store, record), Ok(stored(1)));
+    let active =
+        json!({"op": "set_state", "workflow": wf(1), "agent": agent(1), "state": "active"});
+    assert_eq!(
+        coordinator(&mut store, active),
+        Ok(
+            halvo_schema::executable::CoordinatorReply::parse(br#"{"state":"active"}"#)
+                .expect("a state reply")
+        )
+    );
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of the compile that is killed");
+    let killed = json!({"op": "put_playbook", "agent": agent(1), "run": run(2), "number": 2, "steps": [step(1, "navigate", "read")]});
+    assert_eq!(runner(&mut store, killed), Ok(stored(1)));
+    start_at(&mut store, NOW, 1, 1, 3).expect("start_run of the next compile");
+    let loaded = runner(
+        &mut store,
+        json!({"op": "load", "agent": agent(1), "run": run(3)}),
+    )
+    .expect("load")
+    .to_json()
+    .expect("the reply's text");
+    let loaded: serde_json::Value = serde_json::from_str(&loaded).expect("a JSON reply");
+    assert_eq!(loaded["playbook"], json!({"number": 1, "steps": 2}));
+    assert_eq!(loaded["next_playbook"], json!(3));
+    let next =
+        json!({"op": "put_playbook", "agent": agent(1), "run": run(3), "number": 3, "steps": two});
+    assert_eq!(runner(&mut store, next), Ok(stored(2)));
+    let mut record = run_record(3, Some("compile"), "completed");
+    record["playbook"] = json!(3);
+    assert_eq!(finish(&mut store, record), Ok(stored(1)));
+    let agent_1 = halvo_schema::AgentId::parse(&agent(1)).expect("an agent id");
+    let finished = halvo_agent_store::newest_playbook(&store, &agent_1)
+        .expect("the rows are read")
+        .map(|p| (p.number.get(), p.steps.get()));
+    assert_eq!(finished, Some((3, 2)));
+}

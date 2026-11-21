@@ -145,6 +145,8 @@ pub fn world_with(spec: &[A], limits: Limits) -> World {
                 unknown: Vec::new(),
                 today: DAY,
                 doing: Doing::Idle(None),
+                stand_in: false,
+                active_refused: false,
             },
             session: true,
         });
@@ -205,6 +207,7 @@ pub fn what_name(what: &What) -> String {
         What::HoldSet { cause } => format!("hold_set {}", cause.name()),
         What::HoldCleared { .. } => "hold_cleared".into(),
         What::SlotSkipped { .. } => "slot_skipped".into(),
+        What::RunNotStopped { .. } => "run_not_stopped".into(),
     }
 }
 

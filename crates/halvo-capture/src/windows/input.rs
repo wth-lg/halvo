@@ -4,14 +4,19 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use crate::floor::payload::KeyClass;
+use crate::event::{EventClock, FloorEvent, FoldEvent};
+use crate::floor::exclude::{Keep, PrivateWindow};
+use crate::floor::kind;
+use crate::floor::payload::{Button, FoldClass, FoldCount, KeyClass, PointerFold};
+use crate::floor::{Switch, POINTER_FOLD_INTERVAL};
 use crate::source::{
     CaptureError, CaptureSource, SourceContext, SourceCounters, SourceHealth, Started,
 };
 
-use super::{Lifecycle, Observed, Packet, Producer, PumpReady};
-use crate::secure_input::windows::{HeldKey, PasswordGate};
-use crate::secure_input::KeystrokeClearance;
+use super::{
+    DropCounts, Drops, Floor, FrontApp, FrontCache, Lifecycle, OsTick, Producer, PumpReady,
+};
+use crate::secure_input::windows::{HeldKey, PasswordFieldProbe, PasswordGate};
 
 /// Which device a source listens to; also its modality.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,37 +44,79 @@ pub struct KeyStroke {
     pub released: bool,
 }
 
-impl KeyStroke {
-    /// The measured size of this key's decoded payload: the virtual-key code.
-    pub const fn payload_len(self) -> u64 {
-        core::mem::size_of::<u16>() as u64
-    }
-}
-
-/// A decoded mouse packet: relative movement, the button-transition flags and the
-/// wheel delta, straight from the raw record.
+/// A decoded mouse packet: whether it moved the pointer and its button and
+/// wheel flags. It keeps no coordinate, delta or wheel amount.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PointerSample {
-    pub last_x: i32,
-    pub last_y: i32,
+    /// A relative sample with a movement, or any absolute sample.
+    pub moved: bool,
     pub button_flags: u16,
-    pub wheel_delta: i16,
 }
 
-impl PointerSample {
-    /// The measured size of this sample's decoded payload: the two movement
-    /// deltas, the button flags and the wheel delta.
-    pub const fn payload_len(self) -> u64 {
-        (core::mem::size_of::<i32>() * 2
-            + core::mem::size_of::<u16>()
-            + core::mem::size_of::<i16>()) as u64
+/// What one raw mouse sample carries, read by content: a sample may carry
+/// movement, button presses and a wheel turn at once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct PointerParts {
+    /// The fold class of the sample's movement: drag while a button was held
+    /// before the sample, else move.
+    pub(crate) motion: Option<FoldClass>,
+    /// The buttons that went down, in the order of the raw flags.
+    pub(crate) presses: [Option<Button>; 5],
+    pub(crate) scroll: bool,
+}
+
+const BUTTON_FLAGS: [(u16, u16, Button); 5] = [
+    (
+        RI_MOUSE_LEFT_BUTTON_DOWN as u16,
+        RI_MOUSE_LEFT_BUTTON_UP as u16,
+        Button::Primary,
+    ),
+    (
+        RI_MOUSE_RIGHT_BUTTON_DOWN as u16,
+        RI_MOUSE_RIGHT_BUTTON_UP as u16,
+        Button::Secondary,
+    ),
+    (
+        RI_MOUSE_MIDDLE_BUTTON_DOWN as u16,
+        RI_MOUSE_MIDDLE_BUTTON_UP as u16,
+        Button::Other,
+    ),
+    (
+        RI_MOUSE_BUTTON_4_DOWN as u16,
+        RI_MOUSE_BUTTON_4_UP as u16,
+        Button::Other,
+    ),
+    (
+        RI_MOUSE_BUTTON_5_DOWN as u16,
+        RI_MOUSE_BUTTON_5_UP as u16,
+        Button::Other,
+    ),
+];
+
+const WHEEL_FLAGS: u16 = (RI_MOUSE_WHEEL | RI_MOUSE_HWHEEL) as u16;
+
+/// The parts of `sample`; `held` holds one bit for each button that is down,
+/// before the sample, and leaves with the buttons that are down after it.
+pub(crate) fn pointer_parts(held: &mut u8, moved: bool, button_flags: u16) -> PointerParts {
+    let motion = moved.then_some(if *held != 0 {
+        FoldClass::Drag
+    } else {
+        FoldClass::Move
+    });
+    let mut presses = [None; 5];
+    for (index, (down, up, button)) in BUTTON_FLAGS.into_iter().enumerate() {
+        if button_flags & down != 0 {
+            presses[index] = Some(button);
+            *held |= 1 << index;
+        }
+        if button_flags & up != 0 {
+            *held &= !(1 << index);
+        }
     }
-}
-
-impl PointerSample {
-    /// A sample that only moves the pointer: no button, wheel or other flag.
-    pub const fn is_motion_only(self) -> bool {
-        self.button_flags == 0
+    PointerParts {
+        motion,
+        presses,
+        scroll: button_flags & WHEEL_FLAGS != 0,
     }
 }
 
@@ -308,26 +355,299 @@ pub(crate) fn key_step(state: &mut KeyState, key: KeyStroke) -> KeyStep {
     }
 }
 
-pub(crate) fn keystroke_packet(
-    clearance: KeystrokeClearance,
-    key: KeyStroke,
-    foreground_app: Option<String>,
-    tick: u32,
-) -> Packet {
-    Packet::keystroke(clearance, foreground_app, key.payload_len(), tick)
+/// The milliseconds of one fold interval of a pointer class.
+const FOLD_INTERVAL_MS: u32 = POINTER_FOLD_INTERVAL.as_millis() as u32;
+
+fn ms_since(since: u32, now: u32) -> u32 {
+    let elapsed = now.wrapping_sub(since);
+    if elapsed > i32::MAX as u32 {
+        0
+    } else {
+        elapsed
+    }
 }
 
-pub(crate) fn pointer_packet(
-    sample: PointerSample,
-    foreground_app: Option<String>,
+/// A fold of one pointer class whose interval has ended: the count of OS
+/// events folded and the process of the last of them.
+pub(crate) struct DueFold {
+    pub(crate) class: FoldClass,
+    pub(crate) count: FoldCount,
+    pub(crate) front: FrontApp,
+    /// The OS time of the first event of the interval, which stamps the record.
+    pub(crate) since: u32,
+    /// The decision that the last event got when it was added; a fold that a
+    /// full sink handed back holds none.
+    kept: Option<Keep<kind::Pointer>>,
+}
+
+impl std::fmt::Debug for DueFold {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DueFold")
+            .field("class", &self.class)
+            .field("count", &self.count)
+            .field("front", &self.front)
+            .field("since", &self.since)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for DueFold {
+    fn eq(&self, other: &DueFold) -> bool {
+        (self.class, self.count, &self.front, self.since)
+            == (other.class, other.count, &other.front, other.since)
+    }
+}
+
+impl Eq for DueFold {}
+
+struct OpenFold {
+    since: u32,
+    count: FoldCount,
+    front: FrontApp,
+    kept: Option<Keep<kind::Pointer>>,
+}
+
+impl std::fmt::Debug for OpenFold {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpenFold")
+            .field("since", &self.since)
+            .field("count", &self.count)
+            .field("front", &self.front)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The open interval of each pointer class: move, drag and scroll are folded
+/// into one record for each class in each interval that had activity. A fold
+/// that a full sink handed back while the open interval of its class was
+/// another app's waits in `back` under its own app.
+#[derive(Debug, Default)]
+pub(crate) struct Folds {
+    open: [Option<OpenFold>; 3],
+    back: Vec<(FoldClass, OpenFold)>,
+}
+
+impl Folds {
+    const fn slot(class: FoldClass) -> usize {
+        match class {
+            FoldClass::Scroll => 0,
+            FoldClass::Drag => 1,
+            FoldClass::Move => 2,
+        }
+    }
+
+    fn take(&mut self, class: FoldClass) -> Option<DueFold> {
+        self.open[Self::slot(class)].take().map(|open| DueFold {
+            class,
+            count: open.count,
+            front: open.front,
+            since: open.since,
+            kept: open.kept,
+        })
+    }
+
+    /// Adds one OS event of `class` at `tick`; the fold of that class whose
+    /// interval had ended by `tick` comes back first, and the event opens the
+    /// next interval.
+    #[cfg(test)]
+    pub(crate) fn add(&mut self, class: FoldClass, front: &FrontApp, tick: u32) -> Option<DueFold> {
+        self.add_kept(class, front, tick, None)
+    }
+
+    /// Adds one OS event as `add` does, with `kept`, the decision that the
+    /// event got, which stands for the fold of the last event.
+    pub(crate) fn add_kept(
+        &mut self,
+        class: FoldClass,
+        front: &FrontApp,
+        tick: u32,
+        kept: Option<Keep<kind::Pointer>>,
+    ) -> Option<DueFold> {
+        let slot = Self::slot(class);
+        let due = match &self.open[slot] {
+            Some(open) if ms_since(open.since, tick) >= FOLD_INTERVAL_MS => self.take(class),
+            _ => None,
+        };
+        match &mut self.open[slot] {
+            Some(open) => {
+                open.count.add_one();
+                if open.front != *front {
+                    open.front = front.clone();
+                }
+                if kept.is_some() {
+                    open.kept = kept;
+                }
+            }
+            None => {
+                self.open[slot] = Some(OpenFold {
+                    since: tick,
+                    count: FoldCount::one(),
+                    front: front.clone(),
+                    kept,
+                });
+            }
+        }
+        due
+    }
+
+    /// The folds whose interval has ended at `now`, or every open fold when
+    /// `all` is set.
+    pub(crate) fn due(&mut self, now: u32, all: bool) -> [Option<DueFold>; 3] {
+        FoldClass::ALL.map(|class| {
+            let ended = self.open[Self::slot(class)]
+                .as_ref()
+                .is_some_and(|open| all || ms_since(open.since, now) >= FOLD_INTERVAL_MS);
+            if ended {
+                self.take(class)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Takes every open fold and every fold that waits under its own app, and
+    /// answers how many OS events they held.
+    pub(crate) fn drop_open(&mut self) -> u64 {
+        let open: u64 = self
+            .open
+            .iter_mut()
+            .filter_map(Option::take)
+            .map(|open| open.count.get())
+            .sum();
+        open + self
+            .back
+            .drain(..)
+            .map(|(_, waiting)| waiting.count.get())
+            .sum::<u64>()
+    }
+
+    /// The folds that wait under their own app, which go out before the open
+    /// intervals.
+    pub(crate) fn take_back(&mut self) -> Vec<DueFold> {
+        self.back
+            .drain(..)
+            .map(|(class, waiting)| DueFold {
+                class,
+                count: waiting.count,
+                front: waiting.front,
+                since: waiting.since,
+                kept: waiting.kept,
+            })
+            .collect()
+    }
+
+    /// Adds the count of a fold that a full sink handed back to the open
+    /// interval of its class, which keeps the earlier first event of the two,
+    /// or opens one with it at `since`, the time of its first event.
+    ///
+    /// When the open interval of its class is another app's, the fold waits
+    /// under its own app instead, joined to a fold of the same class and app
+    /// that waits already, and goes out before the open intervals.
+    pub(crate) fn hand_back(&mut self, fold: PointerFold, front: FrontApp, since: u32) {
+        let class = fold.class();
+        match &mut self.open[Self::slot(class)] {
+            Some(open) if open.front == front => {
+                open.count.add(fold.count());
+                if ms_since(since, open.since) > 0 {
+                    open.since = since;
+                }
+            }
+            Some(_) => {
+                let waiting = self
+                    .back
+                    .iter_mut()
+                    .find(|(of, waiting)| *of == class && waiting.front == front);
+                match waiting {
+                    Some((_, waiting)) => {
+                        waiting.count.add(fold.count());
+                        if ms_since(since, waiting.since) > 0 {
+                            waiting.since = since;
+                        }
+                    }
+                    None => self.back.push((
+                        class,
+                        OpenFold {
+                            since,
+                            count: fold.count(),
+                            front,
+                            kept: None,
+                        },
+                    )),
+                }
+            }
+            slot @ None => {
+                *slot = Some(OpenFold {
+                    since,
+                    count: fold.count(),
+                    front,
+                    kept: None,
+                });
+            }
+        }
+    }
+}
+
+/// Emits one fold whose interval has ended, after a fresh decision on its
+/// process; where that decision reads an unknown lineage, the decision that the
+/// fold's last event got when it was added stands, since its process may have
+/// ended since. A fold that a full sink hands back is handed back to `folds`.
+pub(crate) fn emit_due(floor: &Floor, producer: &Producer, folds: &mut Folds, due: DueFold) {
+    let DueFold {
+        class,
+        count,
+        front,
+        since,
+        kept,
+    } = due;
+    let Some(keep) = floor.keep_built_later::<kind::Pointer>(&front, kept) else {
+        return;
+    };
+    let fold = PointerFold::new(class, count);
+    let age = OsTick::new(since).age();
+    let record = FoldEvent::new(keep, fold, age, EventClock::system());
+    if let Some(back) = producer.emit_fold(record) {
+        folds.hand_back(back, front, since);
+    }
+}
+
+/// The records of one raw mouse sample: a click for each press, built at once,
+/// and its movement and wheel turn folded into the open intervals.
+pub(crate) fn pointer_records(
+    (floor, producer, folds): (&Floor, &Producer, &mut Folds),
+    front: &FrontApp,
+    parts: PointerParts,
     tick: u32,
-) -> Packet {
-    Packet::observed(
-        Observed::Pointer,
-        foreground_app,
-        sample.payload_len(),
-        tick,
-    )
+) {
+    for button in parts.presses.into_iter().flatten() {
+        if let Some(keep) = floor.keep::<kind::Pointer>(
+            front,
+            PrivateWindow::Unknown,
+            &PasswordFieldProbe::default(),
+        ) {
+            producer.push(FloorEvent::click(
+                keep,
+                button,
+                OsTick::new(tick).age(),
+                EventClock::system(),
+            ));
+        }
+    }
+    let classes = parts
+        .motion
+        .into_iter()
+        .chain(parts.scroll.then_some(FoldClass::Scroll));
+    for class in classes {
+        let kept = floor.keep::<kind::Pointer>(
+            front,
+            PrivateWindow::Unknown,
+            &PasswordFieldProbe::default(),
+        );
+        if kept.is_some() {
+            if let Some(due) = folds.add_kept(class, front, tick, kept) {
+                emit_due(floor, producer, folds, due);
+            }
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -346,16 +666,18 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::{
-    GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
-    RAWKEYBOARD, RAWMOUSE, RIDEV_INPUTSINK, RIDEV_REMOVE, RID_INPUT, RIM_TYPEKEYBOARD,
-    RIM_TYPEMOUSE,
+    GetRawInputData, RegisterRawInputDevices, HRAWINPUT, MOUSE_MOVE_ABSOLUTE, RAWINPUT,
+    RAWINPUTDEVICE, RAWINPUTHEADER, RAWKEYBOARD, RAWMOUSE, RIDEV_INPUTSINK, RIDEV_REMOVE,
+    RID_INPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
 };
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, GetMessageTime, PostMessageW, PostQuitMessage,
-    RegisterClassW, HWND_MESSAGE, RI_KEY_BREAK, RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_5_DOWN,
-    RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_MIDDLE_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_DOWN,
-    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WM_DESTROY, WM_INPUT, WNDCLASSW,
+    RegisterClassW, HWND_MESSAGE, RI_KEY_BREAK, RI_MOUSE_BUTTON_4_DOWN, RI_MOUSE_BUTTON_4_UP,
+    RI_MOUSE_BUTTON_5_DOWN, RI_MOUSE_BUTTON_5_UP, RI_MOUSE_HWHEEL, RI_MOUSE_LEFT_BUTTON_DOWN,
+    RI_MOUSE_LEFT_BUTTON_UP, RI_MOUSE_MIDDLE_BUTTON_DOWN, RI_MOUSE_MIDDLE_BUTTON_UP,
+    RI_MOUSE_RIGHT_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_UP, RI_MOUSE_WHEEL, WINDOW_EX_STYLE,
+    WINDOW_STYLE, WM_APP, WM_DESTROY, WM_INPUT, WNDCLASSW,
 };
 
 #[cfg(target_os = "windows")]
@@ -365,14 +687,17 @@ const HID_USAGE_PAGE_GENERIC: u16 =
 struct InputState {
     device: RawDevice,
     producer: Producer,
-    last_app: Arc<Mutex<Option<String>>>,
+    floor: Floor,
+    front: FrontCache,
     keys: KeyState,
+    buttons: u8,
+    folds: Folds,
     gate: Option<GateState>,
 }
 
 struct GateState {
     gate: Arc<PasswordGate>,
-    held: VecDeque<(HeldKey, KeyStroke, Option<String>)>,
+    held: VecDeque<(HeldKey, KeyStroke, KeyClass, FrontApp)>,
     counts: Arc<GateCounts>,
 }
 
@@ -399,39 +724,66 @@ fn ms_of(duration: std::time::Duration) -> u32 {
 
 const GATE_POLL_MS: u32 = 15;
 
-fn release_held(gate: &mut GateState, producer: &Producer, at_stop: bool) {
+fn release_held(gate: &mut GateState, (producer, floor): (&Producer, &Floor), at_stop: bool) {
     release_held_at(
         gate,
-        producer,
+        (producer, floor),
         at_stop,
         (super::now_tick(), foreground_thread()),
         crate::secure_input::windows::focus_window_is_password_edit,
     );
 }
 
+/// Lets the held keys that the gate has decided go, in input order: a key
+/// cleared by the gate is recorded, a withheld one sets the withheld flag, and
+/// the first undecided key stops the release. At a stop (`at_stop`) every held
+/// key, cleared or not, is dropped with no record, no flag and no count, since
+/// nothing is written after a person has stopped the capture: a stop can drop
+/// the keys of the last poll interval, about 15 ms, and nothing tells of them.
 fn release_held_at(
     gate: &mut GateState,
-    producer: &Producer,
+    (producer, floor): (&Producer, &Floor),
     at_stop: bool,
     (now, front): (u32, u32),
     password_edit_now: fn() -> bool,
 ) {
-    while let Some((key, _, _)) = gate.held.front() {
+    if at_stop {
+        while let Some((_key, _stroke, ..)) = gate.held.pop_front() {
+            #[cfg(feature = "test-seam")]
+            seam::note(_stroke.vkey, &None, _key.tick(), now);
+        }
+        return;
+    }
+    while let Some((key, ..)) = gate.held.front() {
         let held_out =
             now.wrapping_sub(key.tick()) >= ms_of(crate::secure_input::windows::KEY_HOLD);
         let edit_now = held_out && password_edit_now();
         let answer = gate.gate.decide(key, now, front, edit_now);
-        if answer.is_none() && !at_stop {
+        if answer.is_none() {
             break;
         }
-        let Some((key, stroke, app)) = gate.held.pop_front() else {
+        let Some((_key, _stroke, class, front)) = gate.held.pop_front() else {
             break;
         };
         #[cfg(feature = "test-seam")]
-        seam::note(stroke.vkey, &answer, key.tick(), now);
+        seam::note(_stroke.vkey, &answer, _key.tick(), now);
         match answer {
             Some((Ok(clearance), _)) => {
-                producer.push(keystroke_packet(clearance, stroke, app, key.tick()));
+                let keep = floor.keep::<kind::Keystroke>(
+                    &front,
+                    PrivateWindow::Unknown,
+                    &PasswordFieldProbe::default(),
+                );
+                if let Some(keep) = keep {
+                    #[cfg(feature = "test-seam")]
+                    seam::note_recorded(_key.tick());
+                    producer.push(FloorEvent::keystroke(
+                        keep,
+                        clearance,
+                        class,
+                        EventClock::system(),
+                    ));
+                }
             }
             None | Some((Err(_), _)) => {
                 gate.counts.withheld.store(true, Ordering::Relaxed);
@@ -679,6 +1031,104 @@ pub mod seam {
         )
     }
 
+    /// The app of a floor value as a test reads it: which of the test's own
+    /// names its executable's file name equals, never the string.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub enum AppSeen {
+        /// The value names no app.
+        #[default]
+        Unknown,
+        /// The index of the first name that it equals.
+        Named(usize),
+        /// It equals none of the names.
+        Other,
+    }
+
+    /// A title as a test reads it: its reason, whether the entry cut it, and
+    /// which of the test's own titles it equals, never the text.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct TitleSeen {
+        pub app_change: bool,
+        pub cut: bool,
+        pub among: Option<usize>,
+    }
+
+    /// What a test reads of a floor value: the plain values of its payload and
+    /// the indices of the names that its strings equal.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub struct FloorView {
+        pub app: AppSeen,
+        pub key_class: Option<KeyClass>,
+        pub click: Option<crate::floor::payload::Button>,
+        pub fold: Option<(crate::floor::payload::FoldClass, u64)>,
+        pub title: Option<TitleSeen>,
+    }
+
+    /// The view of `event` against the test's app file names and titles.
+    pub fn view(event: &crate::event::FloorEvent, apps: &[&str], titles: &[&str]) -> FloorView {
+        use crate::floor::payload::{Observation, TitleWhy};
+        let app = event.app();
+        let mut view = FloorView {
+            app: if app.is_unknown() {
+                AppSeen::Unknown
+            } else {
+                apps.iter()
+                    .position(|name| app.is_listed(&[], &[name]))
+                    .map_or(AppSeen::Other, AppSeen::Named)
+            },
+            ..FloorView::default()
+        };
+        match event.observation() {
+            Observation::Keystroke(class) => view.key_class = Some(*class),
+            Observation::Click(button) => view.click = Some(*button),
+            Observation::Fold(fold) => view.fold = Some((fold.class(), fold.count().get())),
+            Observation::WindowTitle(title) => {
+                view.title = Some(TitleSeen {
+                    app_change: title.why == TitleWhy::AppChange,
+                    cut: title.text.was_cut(),
+                    among: titles
+                        .iter()
+                        .position(|wanted| title.text.names_one_of(&[wanted], false)),
+                });
+            }
+            Observation::ForegroundApp | Observation::ScreenFrame => {}
+        }
+        view
+    }
+
+    static RECORDED: Mutex<std::collections::VecDeque<u32>> =
+        Mutex::new(std::collections::VecDeque::new());
+
+    pub(super) fn note_recorded(os_tick: u32) {
+        let mut recorded = RECORDED.lock().unwrap_or_else(PoisonError::into_inner);
+        if recorded.len() == KEPT {
+            recorded.pop_front();
+        }
+        recorded.push_back(os_tick);
+    }
+
+    /// The OS tick of the oldest keystroke that a keyboard source handed to
+    /// its sink and that no call has taken yet: the fine time that a keystroke
+    /// record, stored at the resolution of a second, does not hold.
+    pub fn next_recorded_tick() -> Option<u32> {
+        RECORDED
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pop_front()
+    }
+
+    static PUMPS: Mutex<()> = Mutex::new(());
+
+    /// Holds the pump of every raw-input source of the process before it
+    /// handles its next input, until the guard drops.
+    pub fn hold_the_pumps() -> std::sync::MutexGuard<'static, ()> {
+        PUMPS.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub(super) fn wait_while_the_pumps_are_held() {
+        drop(hold_the_pumps());
+    }
+
     /// The file name of a process's image, for a test's prints.
     pub fn process_file_of(pid: u32) -> Option<String> {
         crate::windows::foreground::process_path(pid)
@@ -868,8 +1318,8 @@ fn register_class(
 /// Raw Input capture source for one device.
 pub struct RawInputSource {
     device: RawDevice,
-    last_app: Arc<Mutex<Option<String>>>,
     life: Lifecycle,
+    drops: Arc<DropCounts>,
     calls: StartCalls,
     removed: Removed,
     gate: Option<Arc<PasswordGate>>,
@@ -878,24 +1328,28 @@ pub struct RawInputSource {
 }
 
 impl RawInputSource {
-    /// A keyboard source, attributing keystrokes to `last_app` (shared with the
-    /// foreground source).
-    pub fn keyboard(last_app: Arc<Mutex<Option<String>>>, gate: PasswordGate) -> Self {
+    /// A keyboard source behind `gate`. Each event belongs to the process of
+    /// the window in front when the source reads it; the cell of the
+    /// foreground source is not read.
+    pub fn keyboard(_last_app: Arc<Mutex<Option<String>>>, gate: PasswordGate) -> Self {
         Self {
             gate: Some(Arc::new(gate)),
-            ..Self::new(RawDevice::Keyboard, last_app)
+            ..Self::new(RawDevice::Keyboard)
         }
     }
 
-    pub fn pointer(last_app: Arc<Mutex<Option<String>>>) -> Self {
-        Self::new(RawDevice::Pointer, last_app)
+    /// A pointer source. Each event belongs to the process of the top-level
+    /// window under the pointer when the source reads it; the cell of the
+    /// foreground source is not read.
+    pub fn pointer(_last_app: Arc<Mutex<Option<String>>>) -> Self {
+        Self::new(RawDevice::Pointer)
     }
 
-    fn new(device: RawDevice, last_app: Arc<Mutex<Option<String>>>) -> Self {
+    fn new(device: RawDevice) -> Self {
         Self {
             device,
-            last_app,
             life: Lifecycle::default(),
+            drops: Arc::default(),
             calls: SYSTEM_CALLS,
             removed: Removed::default(),
             gate: None,
@@ -910,13 +1364,24 @@ impl RawInputSource {
         Self {
             calls,
             gate,
-            ..Self::new(device, Arc::new(Mutex::new(None)))
+            ..Self::new(device)
         }
     }
 
     /// The counts of this source's hand-off queues since it was made.
     pub fn handoff_counts(&self) -> super::HandOffCounts {
         self.life.handoff_counts()
+    }
+
+    /// The events that this source dropped at the floor's decision.
+    pub fn drops(&self) -> Drops {
+        self.drops.read()
+    }
+
+    /// The gate of a keyboard source, which the title and the screen source
+    /// read so that nothing of theirs leaves while it reads Password.
+    pub fn password_gate(&self) -> Option<Arc<PasswordGate>> {
+        self.gate.clone()
     }
 
     /// The state that the password gate of a keyboard source read last.
@@ -978,11 +1443,11 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
                 m.Anonymous.Anonymous.usButtonData,
             )
         };
+        let _ = button_data;
+        let absolute = m.usFlags.0 & MOUSE_MOVE_ABSOLUTE.0 != 0;
         Some(RawInputPacket::Pointer(PointerSample {
-            last_x: m.lLastX,
-            last_y: m.lLastY,
+            moved: absolute || m.lLastX != 0 || m.lLastY != 0,
             button_flags,
-            wheel_delta: button_data as i16,
         }))
     } else {
         None
@@ -991,25 +1456,32 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
 
 #[cfg(target_os = "windows")]
 fn emit_from_raw(packet: RawInputPacket, tick: u32) {
+    if super::reading_at_stop() {
+        #[cfg(feature = "test-seam")]
+        note_key_read_at_stop(packet, tick);
+        return;
+    }
+    #[cfg(feature = "test-seam")]
+    seam::wait_while_the_pumps_are_held();
     INPUT_CTX.with(|cell| {
         let mut borrow = cell.borrow_mut();
         let Some(state) = borrow.as_mut() else {
             return;
         };
-        let app = super::app_of(&state.last_app);
         match (state.device, packet) {
             (RawDevice::Keyboard, RawInputPacket::Keyboard(key)) => {
                 let Some(gate) = state.gate.as_mut() else {
                     return;
                 };
                 let step = key_step(&mut state.keys, key);
-                if step.record.is_none() {
+                let Some(class) = step.record else {
                     if step.latch {
                         gate.gate.latch(tick);
-                        release_held(gate, &state.producer, false);
+                        release_held(gate, (&state.producer, &state.floor), false);
                     }
                     return;
-                }
+                };
+                let front = state.front.now();
                 gate.counts.note_lag(super::now_tick().wrapping_sub(tick));
                 let held = gate.gate.hold(
                     tick,
@@ -1019,22 +1491,46 @@ fn emit_from_raw(packet: RawInputPacket, tick: u32) {
                 if step.latch {
                     gate.gate.latch(tick);
                 }
-                gate.held.push_back((held, key, app));
-                release_held(gate, &state.producer, false);
+                gate.held.push_back((held, key, class, front));
+                release_held(gate, (&state.producer, &state.floor), false);
             }
             (RawDevice::Pointer, RawInputPacket::Pointer(sample)) => {
                 #[cfg(feature = "test-seam")]
                 seam::pointer_message_handled(tick, super::now_tick());
                 click_from_the_pointer_pump(sample.button_flags, tick);
                 pointer_forwarded(tick);
-                let packet = pointer_packet(sample, app, tick);
-                if sample.is_motion_only() {
-                    state.producer.push_motion(packet);
-                } else {
-                    state.producer.push(packet);
-                }
+                let front = state.front.under_pointer();
+                let parts = pointer_parts(&mut state.buttons, sample.moved, sample.button_flags);
+                pointer_records(
+                    (&state.floor, &state.producer, &mut state.folds),
+                    &front,
+                    parts,
+                    tick,
+                );
             }
             _ => {}
+        }
+    });
+}
+
+/// A key press that the drain at a stop reads, and that the gate would have
+/// held, gets the verdict of a key held at the stop: no record, no flag and
+/// no count of the product. The seam alone sees it, as LostAtStop.
+#[cfg(all(target_os = "windows", feature = "test-seam"))]
+fn note_key_read_at_stop(packet: RawInputPacket, tick: u32) {
+    let RawInputPacket::Keyboard(key) = packet else {
+        return;
+    };
+    INPUT_CTX.with(|cell| {
+        let mut borrow = cell.borrow_mut();
+        let Some(state) = borrow.as_mut() else {
+            return;
+        };
+        if state.device != RawDevice::Keyboard || state.gate.is_none() {
+            return;
+        }
+        if key_step(&mut state.keys, key).record.is_some() {
+            seam::note(key.vkey, &None, tick, super::now_tick());
         }
     });
 }
@@ -1152,9 +1648,16 @@ impl CaptureSource for RawInputSource {
         if self.life.is_running() {
             return Err(CaptureError::AlreadyStarted);
         }
+        let switch = match self.device {
+            RawDevice::Keyboard => Switch::KeyClass,
+            RawDevice::Pointer => Switch::PointerClass,
+        };
+        let floor = Floor::new(ctx.floor().clone(), Arc::clone(&self.drops));
+        if !floor.is_on(switch) {
+            return self.life.off();
+        }
         let claim = DeviceClaim::take(self.device)?;
         let device = self.device;
-        let last_app = Arc::clone(&self.last_app);
         let calls = self.calls;
         let removed = Removed::default();
         self.removed = Arc::clone(&removed);
@@ -1177,8 +1680,11 @@ impl CaptureSource for RawInputSource {
                 let state = InputState {
                     device,
                     producer,
-                    last_app,
+                    floor,
+                    front: FrontCache::default(),
                     keys: KeyState::default(),
+                    buttons: 0,
+                    folds: Folds::default(),
                     gate,
                 };
                 let name = format!("halvo-rawinput-{device:?}");
@@ -1402,8 +1908,9 @@ fn run_raw_input(
     INPUT_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
             if let Some(gate) = state.gate.as_mut() {
-                release_held(gate, &state.producer, true);
+                release_held(gate, (&state.producer, &state.floor), true);
             }
+            folds_at_stop(&state.producer, &mut state.folds);
         }
     });
     if let Some(poll) = poll {
@@ -1417,6 +1924,9 @@ fn run_raw_input(
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u32) {
+    if super::reading_at_stop() {
+        return;
+    }
     let pointer = INPUT_CTX.with(|cell| {
         cell.borrow()
             .as_ref()
@@ -1442,16 +1952,50 @@ unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u
         if (queued >> 16) & windows::Win32::UI::WindowsAndMessaging::QS_RAWINPUT.0 == 0 {
             pointer_forwarded(before.wrapping_sub(ms_of(crate::secure_input::windows::TICK_STEP)));
         }
+        INPUT_CTX.with(|cell| {
+            if let Some(state) = cell.borrow_mut().as_mut() {
+                flush_folds(state, false);
+            }
+        });
         return;
     }
     keyboard_takes_mouse_again();
     INPUT_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
             if let Some(gate) = state.gate.as_mut() {
-                release_held(gate, &state.producer, false);
+                release_held(gate, (&state.producer, &state.floor), false);
             }
         }
     });
+}
+
+/// What a stop does with the open folds of a pointer source: nothing is
+/// written after a person has stopped the capture, so the stop makes no
+/// record of them and counts the OS events that they held, a fold handed back
+/// by a full sink with them, in `pointer_dropped_at_stop`.
+fn folds_at_stop(producer: &Producer, folds: &mut Folds) {
+    producer.drop_at_stop(folds.drop_open());
+}
+
+fn flush_folds(state: &mut InputState, all: bool) {
+    let InputState {
+        floor,
+        producer,
+        folds,
+        ..
+    } = state;
+    emit_folds((floor, producer, folds), super::now_tick(), all);
+}
+
+/// Emits the folds that wait under their own app, then the folds that are due
+/// at `now`, or every open fold when `all` is set.
+fn emit_folds((floor, producer, folds): (&Floor, &Producer, &mut Folds), now: u32, all: bool) {
+    for due in folds.take_back() {
+        emit_due(floor, producer, folds, due);
+    }
+    for due in folds.due(now, all).into_iter().flatten() {
+        emit_due(floor, producer, folds, due);
+    }
 }
 
 #[cfg(test)]
@@ -1459,21 +2003,287 @@ mod tests {
     use super::*;
     use crate::secure_input::windows::{Moved, Rule};
 
+    fn test_floor() -> Floor {
+        Floor::new(
+            crate::floor::exclude::FloorHandle::default(),
+            Arc::default(),
+        )
+    }
+
+    fn test_front(app: &str) -> FrontApp {
+        FrontApp {
+            pid: 7,
+            path: Some(app.to_string()),
+        }
+    }
+
+    fn count_of(events: u64) -> FoldCount {
+        let mut count = FoldCount::one();
+        for _ in 1..events {
+            count.add_one();
+        }
+        count
+    }
+
+    /// The fold records that reached `writer`: the app and the count of each.
+    fn fold_records(writer: &crate::sink::SinkWriter) -> Vec<(String, u64)> {
+        use crate::floor::record::DecodedPayload;
+        let mut records = Vec::new();
+        while let Ok(received) = writer.try_recv() {
+            let floor = received.into_floor().expect("a floor value");
+            let line = crate::floor::record::encode(&floor, &crate::floor::cases::IdentityPoint)
+                .expect("a record");
+            let record = crate::floor::record::decode(line.as_str()).expect("a decoded record");
+            if let DecodedPayload::Fold { count, .. } = record.payload() {
+                records.push((record.app().unwrap_or_default().to_string(), *count));
+            }
+        }
+        records
+    }
+
+    /// A lineage over a table that a test changes: a process that it does not
+    /// hold has an unknown parent.
+    #[derive(Default)]
+    struct TableLineage(
+        std::sync::Mutex<std::collections::HashMap<u32, crate::floor::exclude::Parent>>,
+    );
+
+    impl crate::floor::exclude::Lineage for TableLineage {
+        fn parent_of(
+            &self,
+            pid: crate::floor::exclude::ProcessId,
+        ) -> crate::floor::exclude::Parent {
+            self.0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .get(&pid.get())
+                .copied()
+                .unwrap_or(crate::floor::exclude::Parent::Unknown)
+        }
+    }
+
     #[test]
-    fn a_cleared_key_maps_to_a_keystroke_packet() {
-        let packet = keystroke_packet(
-            crate::windows::tests::cleared(),
-            KeyStroke {
-                vkey: 0x41,
-                released: false,
-            },
-            Some("C:\\editor.exe".to_string()),
-            7,
+    fn a_fold_whose_last_process_ended_is_kept() {
+        use crate::floor::exclude::{FloorHandle, Parent, ProcessId};
+        let lineage = Arc::new(TableLineage::default());
+        for pid in [10, 20] {
+            lineage.0.lock().expect("table").insert(pid, Parent::None);
+        }
+        let drops = Arc::new(DropCounts::default());
+        let floor = Floor::new(
+            FloorHandle::new(
+                Some(ProcessId::new(1)),
+                Arc::clone(&lineage) as Arc<dyn crate::floor::exclude::Lineage>,
+                crate::floor::Switches::default(),
+            ),
+            Arc::clone(&drops),
         );
-        assert_eq!(packet.kind(), crate::event::Modality::Keystroke);
-        assert_eq!(packet.app.as_deref(), Some("C:\\editor.exe"));
-        assert_eq!(packet.byte_len, 2);
-        assert_eq!(packet.tick, 7);
+        let (sink, writer) = crate::sink::channel(16);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-ended-fold", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let mut folds = Folds::default();
+        let editor = FrontApp {
+            pid: 10,
+            path: Some("C:\\Apps\\editor.exe".to_string()),
+        };
+        let viewer = FrontApp {
+            pid: 20,
+            path: Some("C:\\Apps\\viewer.exe".to_string()),
+        };
+        let mut held = 0;
+        for (step, front) in [&editor, &editor, &editor, &editor, &editor, &viewer]
+            .into_iter()
+            .enumerate()
+        {
+            let parts = pointer_parts(&mut held, true, 0);
+            pointer_records(
+                (&floor, &producer, &mut folds),
+                front,
+                parts,
+                10_000 + step as u32 * 10,
+            );
+        }
+        lineage.0.lock().expect("table").remove(&20);
+        emit_folds((&floor, &producer, &mut folds), 10_100, true);
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let records = fold_records(&writer);
+        let unknown_lineage = drops.read().unknown_lineage;
+        assert!(
+            records.iter().map(|(_, count)| count).sum::<u64>() == 6 && unknown_lineage == 0,
+            "fold_records={records:?} unknown_lineage={unknown_lineage}"
+        );
+    }
+
+    #[test]
+    fn a_fold_handed_back_at_a_full_sink_stays_under_its_own_app() {
+        let (sink, writer) = crate::sink::channel(1);
+        let floor = test_floor();
+        let filler_front = test_front("C:\\Apps\\filler.exe");
+        let keep = floor
+            .keep::<kind::Pointer>(
+                &filler_front,
+                PrivateWindow::Unknown,
+                &PasswordFieldProbe::default(),
+            )
+            .expect("kept");
+        let filler = FloorEvent::click(keep, Button::Primary, None, EventClock::system());
+        assert_eq!(sink.emit_event(filler), crate::sink::Emitted::Queued);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-hand-back", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let mut folds = Folds::default();
+        let editor = FrontApp {
+            pid: 10,
+            path: Some("C:\\Apps\\editor.exe".to_string()),
+        };
+        let viewer = FrontApp {
+            pid: 20,
+            path: Some("C:\\Apps\\viewer.exe".to_string()),
+        };
+        let mut held = 0;
+        for step in 0..30 {
+            let parts = pointer_parts(&mut held, true, 0);
+            pointer_records(
+                (&floor, &producer, &mut folds),
+                &editor,
+                parts,
+                10_000 + step * 10,
+            );
+        }
+        emit_folds((&floor, &producer, &mut folds), 11_000, false);
+        let parts = pointer_parts(&mut held, true, 0);
+        pointer_records((&floor, &producer, &mut folds), &viewer, parts, 11_010);
+        let _filler = writer.try_recv().expect("the filler");
+        let mut records = Vec::new();
+        for _ in 0..4 {
+            emit_folds((&floor, &producer, &mut folds), 11_025, true);
+            records.extend(fold_records(&writer));
+        }
+        assert_eq!(
+            records,
+            [
+                ("C:\\Apps\\editor.exe".to_string(), 30),
+                ("C:\\Apps\\viewer.exe".to_string(), 1)
+            ],
+            "a handed-back fold was stored under another app"
+        );
+    }
+
+    #[test]
+    fn the_folds_close_an_interval_after_1000_ms_and_take_a_handed_back_count() {
+        let front = test_front("C:\\apps\\editor.exe");
+        let mut folds = Folds::default();
+        for tick in [10_000, 10_400, 10_999] {
+            assert_eq!(folds.add(FoldClass::Move, &front, tick), None, "{tick}");
+        }
+        assert_eq!(folds.add(FoldClass::Scroll, &front, 10_500), None);
+        assert_eq!(folds.due(10_999, false), [None, None, None]);
+        let due = folds
+            .add(FoldClass::Move, &front, 11_000)
+            .expect("the first interval ended");
+        assert_eq!((due.class, due.count), (FoldClass::Move, count_of(3)));
+        let [scroll, drag, moved] = folds.due(11_500, false);
+        assert_eq!(scroll.map(|due| due.count), Some(FoldCount::one()));
+        assert_eq!((drag, moved), (None, None));
+        folds.hand_back(
+            PointerFold::new(FoldClass::Move, count_of(4)),
+            front.clone(),
+            11_600,
+        );
+        let [_, _, moved] = folds.due(0, true);
+        assert_eq!(moved.map(|due| due.count), Some(count_of(5)));
+        assert_eq!(folds.due(0, true), [None, None, None]);
+        folds.hand_back(
+            PointerFold::new(FoldClass::Drag, FoldCount::one()),
+            front.clone(),
+            20_000,
+        );
+        assert_eq!(folds.due(20_999, false), [None, None, None]);
+        let [_, drag, _] = folds.due(21_000, false);
+        assert_eq!(drag.map(|due| due.count), Some(FoldCount::one()));
+        assert_eq!(folds.add(FoldClass::Move, &front, 30_000), None);
+        folds.hand_back(
+            PointerFold::new(FoldClass::Move, count_of(2)),
+            front.clone(),
+            29_500,
+        );
+        let [_, _, moved] = folds.due(30_500, false);
+        let moved = moved.expect("the interval keeps the earlier first event");
+        assert_eq!((moved.count, moved.since), (count_of(3), 29_500));
+    }
+
+    #[test]
+    fn a_raw_input_source_whose_switch_is_off_answers_off_and_installs_nothing() {
+        use crate::floor::exclude::{FloorHandle, NoLineage};
+        use crate::floor::{Switch, Switches};
+        for (device, switch) in [
+            (RawDevice::Keyboard, Switch::KeyClass),
+            (RawDevice::Pointer, Switch::PointerClass),
+        ] {
+            let mut switches = Switches::default();
+            switches.set(switch, false);
+            let (sink, _writer) = crate::sink::channel(4);
+            let ctx = SourceContext::with_floor(
+                sink,
+                FloorHandle::new(None, Arc::new(NoLineage), switches),
+            );
+            let mut source = match device {
+                RawDevice::Keyboard => {
+                    RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new())
+                }
+                RawDevice::Pointer => RawInputSource::pointer(Arc::new(Mutex::new(None))),
+            };
+            assert_eq!(source.begin(ctx), Ok(Started::Off), "{device:?}");
+            assert_eq!(
+                source.health().state,
+                crate::source::SourceState::Off,
+                "{device:?}"
+            );
+            assert_eq!(source.shutdown(), Ok(()), "{device:?}");
+        }
+    }
+
+    #[test]
+    fn one_key_of_each_class_maps_to_each_class_once() {
+        let mut state = KeyState::default();
+        let mut classes = Vec::new();
+        let presses: [&[u16]; 6] = [&[0x41], &[0x08], &[0x25], &[0x0D], &[0x09], &[0x11, 0x41]];
+        for keys in presses {
+            for &vkey in keys {
+                let down = KeyStroke {
+                    vkey,
+                    released: false,
+                };
+                classes.extend(map_keystroke(&mut state, down));
+            }
+            for &vkey in keys.iter().rev() {
+                let up = KeyStroke {
+                    vkey,
+                    released: true,
+                };
+                classes.extend(map_keystroke(&mut state, up));
+            }
+        }
+        assert_eq!(
+            classes,
+            [
+                KeyClass::Printable,
+                KeyClass::Editing,
+                KeyClass::Navigation,
+                KeyClass::Enter,
+                KeyClass::Tab,
+                KeyClass::Other,
+                KeyClass::Shortcut,
+            ]
+        );
+        for class in KeyClass::ALL {
+            assert_eq!(
+                classes.iter().filter(|seen| **seen == class).count(),
+                1,
+                "{class:?}"
+            );
+        }
     }
 
     #[test]
@@ -2169,7 +2979,161 @@ mod tests {
     }
 
     #[test]
-    fn decided_keys_go_out_in_input_order_and_a_key_undecided_at_the_stop_is_withheld_uncounted() {
+    fn a_stop_inside_an_open_interval_makes_no_record_and_counts_its_events() {
+        let (sink, writer) = crate::sink::channel(16);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-stop-folds", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let floor = test_floor();
+        let mut folds = Folds::default();
+        let front = test_front("C:\\Apps\\editor.exe");
+        let tick = super::super::now_tick();
+        let mut held = 0;
+        for step in 0..5 {
+            let parts = pointer_parts(&mut held, true, 0);
+            pointer_records(
+                (&floor, &producer, &mut folds),
+                &front,
+                parts,
+                tick.wrapping_add(step),
+            );
+        }
+        folds_at_stop(&producer, &mut folds);
+        let records_after_stop = std::iter::from_fn(|| {
+            writer
+                .recv_timeout(std::time::Duration::from_millis(300))
+                .ok()
+        })
+        .count();
+        let dropped_at_stop = handoff.counts().pointer_dropped_at_stop;
+        assert!(
+            records_after_stop == 0 && dropped_at_stop == 5,
+            "records_after_stop={records_after_stop} pointer_dropped_at_stop={dropped_at_stop}"
+        );
+    }
+
+    #[test]
+    fn a_timer_due_at_the_stop_makes_no_record_in_the_drain() {
+        use windows::Win32::UI::WindowsAndMessaging::{KillTimer, SetTimer};
+        let _serial = crate::windows::tests::serial();
+        let (sink, writer) = crate::sink::channel(8);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-drain", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let mut gate = GateState {
+            gate: Arc::new(clear_gate()),
+            held: VecDeque::new(),
+            counts: Arc::default(),
+        };
+        let now = super::super::now_tick();
+        let stroke = KeyStroke {
+            vkey: 0x41,
+            released: false,
+        };
+        let front = foreground_thread();
+        gate.gate.read_at(
+            now.wrapping_sub(200),
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::NotCompared,
+        );
+        let held = gate.gate.hold(now.wrapping_sub(160), false, front);
+        gate.held
+            .push_back((held, stroke, KeyClass::Printable, test_front("queued")));
+        gate.gate.read_at(
+            now.wrapping_sub(25),
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::Same,
+        );
+        std::thread::spawn(move || {
+            super::super::ensure_message_queue();
+            INPUT_CTX.with(|cell| {
+                *cell.borrow_mut() = Some(InputState {
+                    device: RawDevice::Keyboard,
+                    producer,
+                    floor: test_floor(),
+                    front: FrontCache::default(),
+                    keys: KeyState::default(),
+                    buttons: 0,
+                    folds: Folds::default(),
+                    gate: Some(gate),
+                });
+            });
+            // SAFETY: SetTimer takes plain values and this module's timer
+            // procedure; the timer is this thread's and is killed below.
+            let timer = unsafe { SetTimer(None, 0, 1, Some(gate_poll)) };
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            super::super::post_quit_to(super::super::PumpThreadId::current());
+            let signal = super::super::StopSignal::new().expect("the stop event");
+            super::super::pump_messages(&signal);
+            // SAFETY: KillTimer takes the id of this thread's timer above.
+            unsafe {
+                let _ = KillTimer(None, timer);
+            }
+            INPUT_CTX.with(|cell| *cell.borrow_mut() = None);
+        })
+        .join()
+        .expect("the pump thread");
+        let records = std::iter::from_fn(|| {
+            writer
+                .recv_timeout(std::time::Duration::from_millis(300))
+                .ok()
+        })
+        .count();
+        assert_eq!(
+            records, 0,
+            "records made by the drain after the stop was asked"
+        );
+    }
+
+    #[test]
+    fn a_cleared_key_held_at_the_stop_leaves_no_record_flag_or_count() {
+        let (sink, writer) = crate::sink::channel(8);
+        let handoff = super::super::HandOff::start(sink, "halvo-test-stop-keys", Arc::default())
+            .expect("hand-off");
+        let producer = handoff.producer();
+        let mut state = GateState {
+            gate: Arc::new(clear_gate()),
+            held: VecDeque::new(),
+            counts: Arc::default(),
+        };
+        let now = super::super::now_tick();
+        let stroke = KeyStroke {
+            vkey: 0x41,
+            released: false,
+        };
+        let front = foreground_thread();
+        state.gate.read_at(
+            now.wrapping_sub(200),
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::NotCompared,
+        );
+        let held = state.gate.hold(now.wrapping_sub(160), false, front);
+        state
+            .held
+            .push_back((held, stroke, KeyClass::Printable, test_front("cleared")));
+        state.gate.read_at(
+            now.wrapping_sub(25),
+            crate::secure_input::windows::FieldState::Clear,
+            Moved::Same,
+        );
+        release_held(&mut state, (&producer, &test_floor()), true);
+        let records = std::iter::from_fn(|| {
+            writer
+                .recv_timeout(std::time::Duration::from_millis(300))
+                .ok()
+        })
+        .count();
+        let flag = state.counts.withheld.load(Ordering::Relaxed);
+        let lost = handoff.counts().lost;
+        assert!(
+            records == 0 && !flag && lost == 0 && state.held.is_empty(),
+            "records={records} withheld_flag={flag} lost={lost} still_held={}",
+            state.held.len()
+        );
+    }
+
+    #[test]
+    fn decided_keys_go_out_in_input_order_and_a_key_undecided_at_the_stop_is_dropped_unflagged() {
         let (sink, writer) = crate::sink::channel(8);
         let handoff = super::super::HandOff::start(sink, "halvo-test-forward", Arc::default())
             .expect("hand-off");
@@ -2194,7 +3158,9 @@ mod tests {
         let later = now.wrapping_sub(150);
         for (tick, app) in [(early, "first"), (later, "second")] {
             let held = state.gate.hold(tick, false, front);
-            state.held.push_back((held, stroke, Some(app.to_string())));
+            state
+                .held
+                .push_back((held, stroke, KeyClass::Printable, test_front(app)));
         }
         state.gate.read_at(
             now.wrapping_sub(25),
@@ -2205,13 +3171,13 @@ mod tests {
         let waiting = state.gate.hold(now, false, front);
         state
             .held
-            .push_back((waiting, stroke, Some("third".to_string())));
-        release_held(&mut state, &producer, false);
+            .push_back((waiting, stroke, KeyClass::Printable, test_front("third")));
+        release_held(&mut state, (&producer, &test_floor()), false);
         let still_held = state.held.len();
-        release_held(&mut state, &producer, true);
+        release_held(&mut state, (&producer, &test_floor()), true);
         let mut apps = Vec::new();
         while let Ok(received) = writer.recv_timeout(std::time::Duration::from_secs(1)) {
-            apps.push(received.event().foreground_app.clone());
+            apps.push(crate::windows::tests::tag(received));
             if apps.len() == 2 {
                 break;
             }
@@ -2220,7 +3186,7 @@ mod tests {
         assert_eq!(apps, vec!["first".to_string(), "second".to_string()]);
         assert!(state.held.is_empty());
         assert_eq!(handoff.counts().lost, 0);
-        assert!(state.counts.withheld.load(Ordering::Relaxed));
+        assert!(!state.counts.withheld.load(Ordering::Relaxed));
     }
 
     fn lag_rig() -> (GateState, super::super::HandOff, crate::sink::SinkWriter) {
@@ -2245,9 +3211,10 @@ mod tests {
                 vkey: 0x41,
                 released: false,
             },
-            None,
+            KeyClass::Printable,
+            FrontApp::default(),
         ));
-        release_held(state, producer, false);
+        release_held(state, (producer, &test_floor()), false);
     }
 
     fn numbers(state: &GateState, handoff: &super::super::HandOff) -> (bool, u64, bool, String) {
@@ -2293,11 +3260,12 @@ mod tests {
                     vkey: 0x41,
                     released: false,
                 },
-                None,
+                KeyClass::Printable,
+                FrontApp::default(),
             ));
             release_held_at(
                 &mut state,
-                &producer,
+                (&producer, &test_floor()),
                 false,
                 (tick.wrapping_add(after_ms), front),
                 || true,
@@ -3033,7 +4001,8 @@ mod tests {
                     vkey: 0x41,
                     released: false,
                 },
-                Some(name),
+                KeyClass::Printable,
+                test_front(&name),
             ));
         };
         for key in 0..400u32 {
@@ -3050,7 +4019,13 @@ mod tests {
                     }
                     _ => state.gate.read_at(tick, FieldState::Clear, Moved::Same),
                 }
-                release_held_at(&mut state, &producer, false, (tick, front), || false);
+                release_held_at(
+                    &mut state,
+                    (&producer, &test_floor()),
+                    false,
+                    (tick, front),
+                    || false,
+                );
                 if read_the_seam {
                     let _ = seam::take();
                 }
@@ -3072,13 +4047,25 @@ mod tests {
                 10 => state.gate.latch_after(tick.wrapping_sub(r % 20)),
                 _ => hold(&mut state, tick, key.to_string()),
             }
-            release_held_at(&mut state, &producer, false, (tick, front), || false);
+            release_held_at(
+                &mut state,
+                (&producer, &test_floor()),
+                false,
+                (tick, front),
+                || false,
+            );
             if read_the_seam {
                 let _ = seam::take();
             }
         }
         let step = |state: &mut GateState, tick: u32| {
-            release_held_at(state, &producer, false, (tick, front), || false);
+            release_held_at(
+                state,
+                (&producer, &test_floor()),
+                false,
+                (tick, front),
+                || false,
+            );
             if read_the_seam {
                 let _ = seam::take();
             }
@@ -3103,10 +4090,16 @@ mod tests {
             state.gate.read_at(tick, FieldState::Clear, Moved::Same);
             step(&mut state, tick);
         }
-        release_held_at(&mut state, &producer, true, (tick, front), || false);
+        release_held_at(
+            &mut state,
+            (&producer, &test_floor()),
+            true,
+            (tick, front),
+            || false,
+        );
         let mut apps = Vec::new();
         while let Ok(received) = writer.recv_timeout(std::time::Duration::from_millis(300)) {
-            apps.push(received.event().foreground_app.clone());
+            apps.push(crate::windows::tests::tag(received));
         }
         (apps, state.counts.withheld.load(Ordering::Relaxed), keys)
     }
@@ -3248,36 +4241,65 @@ mod tests {
         assert_eq!(map_keystroke(&mut state, letter), None);
     }
 
+    const LEFT_DOWN: u16 = RI_MOUSE_LEFT_BUTTON_DOWN as u16;
+    const LEFT_UP: u16 = RI_MOUSE_LEFT_BUTTON_UP as u16;
+    const WHEEL: u16 = RI_MOUSE_WHEEL as u16;
+
     #[test]
-    fn a_pointer_sample_maps_to_a_pointer_packet_and_only_a_flagless_one_is_motion() {
-        let packet = pointer_packet(
-            PointerSample::default(),
-            Some("C:\\game.exe".to_string()),
-            9,
+    fn one_raw_sample_with_movement_a_button_and_a_wheel_turn_gives_all_three() {
+        let mut held = 0;
+        let parts = pointer_parts(&mut held, true, LEFT_DOWN | WHEEL);
+        assert_eq!(parts.motion, Some(FoldClass::Move));
+        assert_eq!(parts.presses[0], Some(Button::Primary));
+        assert_eq!(parts.presses.iter().flatten().count(), 1);
+        assert!(parts.scroll);
+        assert_eq!(held, 1);
+        let right_and_middle = (RI_MOUSE_RIGHT_BUTTON_DOWN | RI_MOUSE_MIDDLE_BUTTON_DOWN) as u16;
+        let parts = pointer_parts(&mut 0, false, right_and_middle);
+        assert_eq!(
+            parts.presses,
+            [
+                None,
+                Some(Button::Secondary),
+                Some(Button::Other),
+                None,
+                None
+            ]
         );
-        assert_eq!(packet.kind(), crate::event::Modality::Pointer);
-        assert_eq!(packet.app.as_deref(), Some("C:\\game.exe"));
-        assert_eq!(packet.byte_len, 12);
-        assert_eq!(packet.tick, 9);
-        assert!(PointerSample::default().is_motion_only());
-        let wheel = PointerSample {
-            button_flags: 0x0400,
-            ..PointerSample::default()
-        };
-        assert!(!wheel.is_motion_only());
+        assert_eq!(parts.motion, None);
+        assert!(!parts.scroll);
+        let horizontal = pointer_parts(&mut 0, false, RI_MOUSE_HWHEEL as u16);
+        assert!(horizontal.scroll);
+        assert_eq!(horizontal.presses, [None; 5]);
     }
 
     #[test]
-    fn decoded_payload_sizes_are_the_measured_field_sizes() {
+    fn movement_while_a_button_is_held_is_a_drag_until_the_button_goes_up() {
+        let mut held = 0;
+        let steps = [
+            (true, 0, Some(FoldClass::Move)),
+            (false, LEFT_DOWN, None),
+            (true, 0, Some(FoldClass::Drag)),
+            (true, LEFT_UP, Some(FoldClass::Drag)),
+            (true, 0, Some(FoldClass::Move)),
+        ];
+        for (step, (moved, flags, motion)) in steps.into_iter().enumerate() {
+            assert_eq!(
+                pointer_parts(&mut held, moved, flags).motion,
+                motion,
+                "step {step}"
+            );
+        }
+        assert_eq!(held, 0);
+        let x2 = (RI_MOUSE_BUTTON_5_DOWN) as u16;
         assert_eq!(
-            KeyStroke {
-                vkey: 0,
-                released: false
-            }
-            .payload_len(),
-            2
+            pointer_parts(&mut held, false, x2).presses[4],
+            Some(Button::Other)
         );
-        assert_eq!(PointerSample::default().payload_len(), 12);
+        assert_eq!(
+            pointer_parts(&mut held, true, 0).motion,
+            Some(FoldClass::Drag)
+        );
     }
 
     #[cfg(target_os = "windows")]
@@ -3342,10 +4364,8 @@ mod tests {
         assert_eq!(
             packet,
             RawInputPacket::Pointer(PointerSample {
-                last_x: 5,
-                last_y: -3,
+                moved: true,
                 button_flags: 0,
-                wheel_delta: 120,
             })
         );
     }

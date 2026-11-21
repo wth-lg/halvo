@@ -912,7 +912,7 @@ fn the_keyless_sweep_does_not_follow_a_shard_that_links_out_of_the_store() {
         &segment::segments_root(store.dir()).join(shard),
     );
 
-    let pass = store.crypto_shred_expired();
+    let pass = store.remove_keyless_files();
 
     assert_eq!(
         files_in(outside.path()),
@@ -1162,7 +1162,7 @@ fn the_keyless_sweep_does_not_follow_a_directory_link_inside_a_shard() {
         .to_path_buf();
     link_dir(outside.path(), &shard.join(keyless_name()));
 
-    let pass = store.crypto_shred_expired();
+    let pass = store.remove_keyless_files();
 
     assert_eq!(
         files_in(outside.path()),
@@ -1189,7 +1189,7 @@ fn the_keyless_sweep_leaves_the_store_files_when_a_shard_links_to_the_store_dire
         &segment::segments_root(dir.path()).join(another_shard_than(live.segment_id)),
     );
 
-    let pass = store.crypto_shred_expired();
+    let pass = store.remove_keyless_files();
     drop(store);
 
     let left: Vec<bool> = ["store.key", "store.db"]
@@ -1219,7 +1219,7 @@ fn the_keyless_sweep_removes_nothing_through_a_segments_directory_that_is_a_link
     let dir = tempfile::tempdir().unwrap();
     let target = tempfile::tempdir().unwrap();
     let (store_dir, roots_dir, root_id, segment_id) = file_root_store(dir.path());
-    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
+    let store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     store
         .db()
         .unwrap()
@@ -1246,7 +1246,7 @@ fn the_keyless_sweep_removes_nothing_through_a_segments_directory_that_is_a_link
     link_dir(target.path(), &segments);
     let before = files_under(target.path()).len();
 
-    let pass = store.crypto_shred_expired();
+    let pass = store.remove_keyless_files();
     drop(store);
     let reopened = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
 
@@ -1992,14 +1992,15 @@ fn a_segment_read_hands_its_sink_at_most_one_chunk_at_a_time() {
 }
 
 #[test]
-fn keyless_segment_files_and_stray_temp_files_are_removed_by_the_next_pass() {
+fn keyless_segment_files_and_stray_temp_files_are_removed_by_the_next_open() {
     let dir = tempfile::tempdir().unwrap();
-    let mut store = super::db::test_support::make_store(dir.path());
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     let (seg_ref, _) = store
         .write_segment(&mut Cursor::new(b"soon orphaned"))
         .unwrap();
     let (live, _) = store.write_segment(&mut Cursor::new(b"live")).unwrap();
-    let orphan = segment_path(dir.path(), seg_ref.segment_id);
+    let orphan = segment_path(&store_dir, seg_ref.segment_id);
     store
         .db()
         .unwrap()
@@ -2011,22 +2012,23 @@ fn keyless_segment_files_and_stray_temp_files_are_removed_by_the_next_pass() {
         .unwrap();
     let stray = orphan.with_extension("seg.tmp");
     std::fs::write(&stray, b"half-written").unwrap();
-    let unknown = segment_path(dir.path(), Uuid::now_v7());
+    let unknown = segment_path(&store_dir, Uuid::now_v7());
     std::fs::create_dir_all(unknown.parent().unwrap()).unwrap();
     std::fs::write(&unknown, b"no key row at all").unwrap();
 
-    store.crypto_shred_expired().unwrap();
+    drop(store);
+    let _reopened = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
 
     assert!(
         !orphan.exists(),
-        "the shred pass left a keyless segment file"
+        "the next open left a keyless segment file"
     );
-    assert!(!stray.exists(), "the shred pass left a temp file");
+    assert!(!stray.exists(), "the next open left a temp file");
     assert!(
         !unknown.exists(),
-        "the shred pass left a file with no key row"
+        "the next open left a file with no key row"
     );
-    assert!(segment_path(dir.path(), live.segment_id).exists());
+    assert!(segment_path(&store_dir, live.segment_id).exists());
 }
 
 #[test]
@@ -8038,7 +8040,12 @@ fn open_a_store_for_parent() {
     };
     let roots = std::env::var("HALVO_TEST_OPEN_ROOTS").unwrap();
     let segment = Uuid::parse_str(&std::env::var("HALVO_TEST_OPEN_SEGMENT").unwrap()).unwrap();
-    let opened = EncryptedStore::open(Path::new(&dir), Path::new(&roots), DEFAULT_RETENTION);
+    let opened = EncryptedStore::open(
+        Path::new(&dir),
+        Path::new(&roots),
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    );
     let read = match &opened {
         Ok(store) => store.read_segment(segment, &mut Vec::new()).map(drop),
         Err(_) => Err(StoreError::Sealed),
@@ -8614,7 +8621,12 @@ fn a_store_on_a_full_volume_ends_delete_all_with_no_root_and_no_key_file() {
             drop(store);
             let filled = fill_the_volume(&volume);
             println!("scenario=C filled_bytes={filled}");
-            match EncryptedStore::open(&store_dir, &roots_dir, DEFAULT_RETENTION) {
+            match EncryptedStore::open(
+                &store_dir,
+                &roots_dir,
+                DEFAULT_RETENTION,
+                crate::store::OpenFor::Write,
+            ) {
                 Ok(mut reopened) => answer_text(&reopened.delete_all()),
                 Err(e) => {
                     println!("scenario=C open={e:?}");
@@ -11244,6 +11256,7 @@ mod batch_write {
             &dir.path().join("store"),
             &dir.path().join("roots"),
             DEFAULT_RETENTION,
+            crate::store::OpenFor::Write,
         )
         .unwrap();
         assert_eq!(count(&store, "SELECT count(*) FROM segment_keys"), 0);
@@ -12166,9 +12179,13 @@ mod measure {
                 println!("MEASURE fill events=2000000 segments=4000");
             }
             Ok("list") => {
-                let store =
-                    EncryptedStore::open(&dir.join("store"), &dir.join("roots"), DEFAULT_RETENTION)
-                        .unwrap();
+                let store = EncryptedStore::open(
+                    &dir.join("store"),
+                    &dir.join("roots"),
+                    DEFAULT_RETENTION,
+                    crate::store::OpenFor::Write,
+                )
+                .unwrap();
                 let rows = store.inventory().unwrap();
                 let events: u64 = rows.iter().map(|row| row.events).sum();
                 println!("MEASURE list rows={} events={events}", rows.len());
@@ -12702,4 +12719,505 @@ fn an_open_with_the_log_level_warn_for_parent() {
         ),
     )
     .unwrap();
+}
+
+const SECOND: i64 = 1_000_000_000;
+const DAY_SECONDS: i64 = 86_400;
+const NOW_SECONDS: i64 = 1_800_000_000;
+
+fn at_second(seconds: i64) -> std::time::SystemTime {
+    std::time::UNIX_EPOCH + Duration::from_secs(seconds as u64)
+}
+
+fn window_seconds() -> i64 {
+    DEFAULT_RETENTION.as_secs() as i64
+}
+
+fn batch_first_captured_at(
+    store: &mut EncryptedStore,
+    first_capture: i64,
+    payload: &[u8],
+) -> (Uuid, super::Ordinal) {
+    let id = super::db::random_segment_id().unwrap();
+    let written = store
+        .write_batch(super::SegmentWrite {
+            segment_id: &id,
+            day: super::UtcDay::of_instant(first_capture),
+            first_capture,
+            last_capture: first_capture,
+            kinds: &[super::KindTotal {
+                kind: "keystroke",
+                events: 1,
+                bytes: payload.len() as u64,
+            }],
+            payload,
+        })
+        .unwrap();
+    (id, written.ordinal)
+}
+
+fn reads_sealed(store: &EncryptedStore, id: Uuid) -> bool {
+    matches!(
+        store.read_segment(id, &mut Vec::new()),
+        Err(StoreError::Sealed)
+    )
+}
+
+#[test]
+fn one_expiry_call_shreds_at_most_its_limit_and_names_the_ordinals() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let edge = NOW_SECONDS - window_seconds();
+    let segments: Vec<(Uuid, super::Ordinal)> = [
+        (edge - DAY_SECONDS) * SECOND,
+        (edge - 2 * DAY_SECONDS) * SECOND,
+        edge * SECOND + SECOND - 1,
+        (edge + 1) * SECOND,
+    ]
+    .into_iter()
+    .map(|first| batch_first_captured_at(&mut store, first, b"a segment of the chunk test"))
+    .collect();
+
+    let pass = store.expire_due(at_second(NOW_SECONDS), 2).unwrap();
+
+    assert_eq!(
+        pass.shredded,
+        vec![segments[0].1, segments[1].1],
+        "one call of a limit of 2 over three due segments returned {pass:?}"
+    );
+    assert!(
+        pass.more_due,
+        "the segment at the edge after flooring is due, so more are due: {pass:?}"
+    );
+    for (id, _) in &segments[..2] {
+        assert!(reads_sealed(&store, *id), "a shredded segment still reads");
+    }
+    for (id, _) in &segments[2..] {
+        assert!(
+            store.read_segment(*id, &mut Vec::new()).is_ok(),
+            "a segment that the call did not shred no longer reads"
+        );
+    }
+}
+
+struct ShardUnreadable {
+    shard: PathBuf,
+}
+
+impl ShardUnreadable {
+    fn refuse(&self, path: &Path) -> io::Result<()> {
+        if path == self.shard {
+            return Err(io::Error::from(io::ErrorKind::PermissionDenied));
+        }
+        Ok(())
+    }
+}
+
+impl super::durable::DurableFs for ShardUnreadable {
+    fn create_new(
+        &self,
+        dir: &super::durable::Dir,
+        name: &std::ffi::OsStr,
+    ) -> io::Result<std::fs::File> {
+        super::durable::OsFs.create_new(dir, name)
+    }
+
+    fn sync_file(
+        &self,
+        file: &std::fs::File,
+        dir: &super::durable::Dir,
+        name: &std::ffi::OsStr,
+    ) -> io::Result<()> {
+        super::durable::OsFs.sync_file(file, dir, name)
+    }
+
+    fn rename(
+        &self,
+        dir: &super::durable::Dir,
+        from: &std::ffi::OsStr,
+        to: &std::ffi::OsStr,
+    ) -> io::Result<()> {
+        super::durable::OsFs.rename(dir, from, to)
+    }
+
+    fn remove_file(&self, dir: &super::durable::Dir, name: &std::ffi::OsStr) -> io::Result<()> {
+        super::durable::OsFs.remove_file(dir, name)
+    }
+
+    fn sync_dir(&self, dir: &super::durable::Dir) -> io::Result<()> {
+        super::durable::OsFs.sync_dir(dir)
+    }
+
+    fn entries(&self, dir: &super::durable::Dir) -> io::Result<Vec<super::durable::Entry>> {
+        self.refuse(dir.path())?;
+        super::durable::OsFs.entries(dir)
+    }
+
+    fn open_dir(
+        &self,
+        dir: &super::durable::Dir,
+        name: &std::ffi::OsStr,
+    ) -> io::Result<super::durable::Dir> {
+        self.refuse(&dir.path().join(name))?;
+        super::durable::OsFs.open_dir(dir, name)
+    }
+}
+
+#[test]
+fn a_shred_reads_no_directory_but_its_own_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let due = (NOW_SECONDS - window_seconds() - DAY_SECONDS) * SECOND;
+    let (expired, ordinal) =
+        batch_first_captured_at(&mut store, due, b"the one segment that expires");
+    let own_shard = segment_path(dir.path(), expired)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let kept = loop {
+        let (id, _) = batch_first_captured_at(
+            &mut store,
+            NOW_SECONDS * SECOND,
+            b"a live segment in another shard",
+        );
+        if segment_path(dir.path(), id).parent() != Some(own_shard.as_path()) {
+            break id;
+        }
+    };
+    let foreign = segment_path(dir.path(), kept)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    store.use_fs(Arc::new(ShardUnreadable { shard: foreign }));
+
+    let pass = store.expire_due(at_second(NOW_SECONDS), 64);
+
+    assert_eq!(
+        pass.as_ref().map(|pass| pass.shredded.clone()).ok(),
+        Some(vec![ordinal]),
+        "a shred of one segment beside an unreadable shard answered {pass:?}"
+    );
+    assert!(
+        reads_sealed(&store, expired),
+        "the shredded segment still reads"
+    );
+    assert!(
+        !segment_path(dir.path(), expired).exists(),
+        "the shred left its own file"
+    );
+    assert!(
+        store.read_segment(kept, &mut Vec::new()).is_ok(),
+        "the segment in the unreadable shard no longer reads"
+    );
+}
+
+#[test]
+fn a_later_call_with_nothing_due_finishes_what_an_earlier_call_owed() {
+    use super::db::code_seams::{force_at, CHECKPOINT_QUERY};
+    const IO_ERROR: i32 = halvo_sqlcipher::rusqlite::ffi::SQLITE_IOERR;
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let due = (NOW_SECONDS - window_seconds() - DAY_SECONDS) * SECOND;
+    let segments: Vec<Uuid> = (0..2)
+        .map(|_| batch_first_captured_at(&mut store, due, b"a segment whose removal is owed").0)
+        .collect();
+    let files_left = |segments: &[Uuid]| {
+        segments
+            .iter()
+            .filter(|id| segment_path(dir.path(), **id).exists())
+            .count()
+    };
+
+    force_at(CHECKPOINT_QUERY, Some(IO_ERROR));
+    let retried = super::failpoint::at(super::expiry::SEAM_BEFORE_THE_RETRIED_CHECKPOINT, || {
+        force_at(CHECKPOINT_QUERY, Some(IO_ERROR))
+    });
+    super::failpoint::arm("segment_file_remove");
+    let first = store.expire_due(at_second(NOW_SECONDS), 64);
+    drop(retried);
+    force_at(CHECKPOINT_QUERY, None);
+    let after_the_first = (store.inventory().is_err(), files_left(&segments));
+
+    let second = store.expire_due(at_second(NOW_SECONDS), 64);
+
+    assert!(first.is_err(), "the first call answered {first:?}");
+    assert!(
+        matches!(&second, Ok(pass) if *pass == super::Pass::default()),
+        "a later call with nothing newly expired answered {second:?} after a first call that left (reads refused, files) {after_the_first:?}"
+    );
+    assert_eq!(store.db().unwrap().wal_bytes().unwrap(), 0);
+    assert_eq!(files_left(&segments), 0, "a shredded segment's file stays");
+    assert!(store.inventory().is_ok(), "the handle still refuses reads");
+    assert_eq!(
+        after_the_first,
+        (true, 1),
+        "the first call did not leave its checkpoint and one removal owed: (reads refused, files)"
+    );
+}
+
+#[test]
+fn a_full_database_at_the_commit_still_loses_the_key() {
+    use super::db::code_seams::{force_at, SHRED_COMMIT};
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let due = (NOW_SECONDS - window_seconds() - DAY_SECONDS) * SECOND;
+    let (expired, ordinal) = batch_first_captured_at(
+        &mut store,
+        due,
+        b"a segment whose shred meets a full database",
+    );
+
+    force_at(
+        SHRED_COMMIT,
+        Some(halvo_sqlcipher::rusqlite::ffi::SQLITE_FULL),
+    );
+    let pass = store.expire_due(at_second(NOW_SECONDS), 64);
+    force_at(SHRED_COMMIT, None);
+
+    assert!(
+        matches!(&pass, Ok(pass) if pass.shredded == vec![ordinal]),
+        "a chunk whose commit met a full database answered {pass:?}"
+    );
+    assert!(reads_sealed(&store, expired), "the segment still reads");
+    assert!(
+        !segment_path(dir.path(), expired).exists(),
+        "the segment's file stays"
+    );
+}
+
+fn allocated_bytes_under(dir: &Path) -> u64 {
+    files_under(dir)
+        .iter()
+        .map(|path| {
+            let metadata = std::fs::metadata(path).unwrap();
+            #[cfg(unix)]
+            let allocated = {
+                use std::os::unix::fs::MetadataExt;
+                metadata.blocks() * 512
+            };
+            #[cfg(windows)]
+            let allocated = metadata.len().div_ceil(4096) * 4096;
+            allocated
+        })
+        .sum()
+}
+
+#[test]
+fn usage_reports_the_bytes_that_the_files_take_on_disk() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let payload = vec![0x5a; 1_000];
+    for k in 0..50 {
+        batch_first_captured_at(&mut store, (NOW_SECONDS + k) * SECOND, &payload);
+    }
+    store.db().unwrap().checkpoint_truncate().unwrap();
+
+    let usage = store.usage().unwrap();
+    let on_disk = allocated_bytes_under(dir.path());
+
+    assert!(
+        usage.disk_bytes.abs_diff(on_disk) * 10 <= on_disk,
+        "the store reports {usage:?} against {on_disk} bytes allocated under its directory"
+    );
+    assert_eq!(usage.logical_bytes, 50 * 1_000, "{usage:?}");
+}
+
+#[test]
+fn eviction_shreds_the_oldest_until_the_disk_bytes_are_under_the_bound() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let payload = vec![0xa5; 20_000];
+    let segments: Vec<(i64, Uuid, super::Ordinal)> = [3, 7, 1, 9, 0, 5, 2, 8, 4, 6]
+        .into_iter()
+        .map(|k| {
+            let first = (NOW_SECONDS - 100 + k) * SECOND;
+            let (id, ordinal) = batch_first_captured_at(&mut store, first, &payload);
+            (first, id, ordinal)
+        })
+        .collect();
+    store.db().unwrap().checkpoint_truncate().unwrap();
+    let bound = store.usage().unwrap().disk_bytes - 70_000;
+
+    let pass = store.evict_to(bound, 64).unwrap();
+    let after = store.usage().unwrap();
+    let again = store.evict_to(bound, 64).unwrap();
+
+    let (shredded, kept): (Vec<_>, Vec<_>) = segments
+        .iter()
+        .partition(|(_, id, _)| reads_sealed(&store, *id));
+    let mut sealed: Vec<super::Ordinal> = shredded.iter().map(|(_, _, o)| *o).collect();
+    sealed.sort_unstable();
+    assert!(
+        after.disk_bytes <= bound,
+        "the store ends at {after:?} above the bound {bound}"
+    );
+    assert!(
+        !shredded.is_empty() && !kept.is_empty(),
+        "the eviction shredded {} of 10 segments",
+        shredded.len()
+    );
+    assert_eq!(
+        pass.shredded, sealed,
+        "the returned ordinals are not the segments that read sealed"
+    );
+    assert!(!pass.more_due, "{pass:?}");
+    assert!(
+        shredded.iter().map(|s| s.0).max() <= kept.iter().map(|s| s.0).min(),
+        "a shredded segment is newer than a kept one"
+    );
+    assert!(
+        again.shredded.is_empty(),
+        "a call at or under the bound shredded {again:?}"
+    );
+
+    let to_zero = store.evict_to(0, 64).unwrap();
+
+    assert!(
+        !to_zero.more_due,
+        "an eviction to 0 that left no live segment answered {to_zero:?}"
+    );
+    assert!(
+        segments.iter().all(|(_, id, _)| reads_sealed(&store, *id)),
+        "an eviction to 0 left a live segment"
+    );
+    assert!(
+        store.usage().unwrap().disk_bytes > 0,
+        "the database alone stays above a bound of 0"
+    );
+}
+
+#[test]
+fn a_maintenance_handle_expires_and_deletes_and_refuses_a_batch() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = RootGuard::fresh();
+    let mut made = EncryptedStore::create(
+        dir.path(),
+        Box::new(crate::store::roots::custody(root.id())),
+        DEFAULT_RETENTION,
+    )
+    .unwrap();
+    let (expired, ordinal) = batch_first_captured_at(
+        &mut made,
+        (NOW_SECONDS - window_seconds() - DAY_SECONDS) * SECOND,
+        b"a segment past the window",
+    );
+    drop(made);
+    let mut store = EncryptedStore::open(
+        dir.path(),
+        &crate::store::roots::roots_for_store(dir.path()),
+        DEFAULT_RETENTION,
+        super::OpenFor::Maintenance,
+    )
+    .unwrap();
+
+    let pass = store.expire_due(at_second(NOW_SECONDS), 64);
+    let sealed = reads_sealed(&store, expired);
+    let id = super::db::random_segment_id().unwrap();
+    let batch = store.write_batch(super::SegmentWrite {
+        segment_id: &id,
+        day: super::UtcDay::of_instant(NOW_SECONDS * SECOND),
+        first_capture: NOW_SECONDS * SECOND,
+        last_capture: NOW_SECONDS * SECOND,
+        kinds: &[super::KindTotal {
+            kind: "keystroke",
+            events: 1,
+            bytes: 1,
+        }],
+        payload: b"a batch on a maintenance handle",
+    });
+    let listed = store.inventory();
+    let deleted = store.delete_all();
+
+    assert!(
+        matches!(&pass, Ok(pass) if pass.shredded == vec![ordinal]),
+        "an expiry chunk on a maintenance handle answered {pass:?}"
+    );
+    assert!(sealed, "the expired segment still reads");
+    assert_eq!(batch, Err(super::WriteFault::MaintenanceOnly));
+    assert!(listed.is_ok(), "the listing answered {listed:?}");
+    assert!(
+        matches!(&deleted, Ok(report) if report.root_destroyed()),
+        "delete-all on a maintenance handle answered {deleted:?}"
+    );
+    assert!(!KeyFile::path(dir.path()).exists(), "store.key stays");
+    assert_eq!(
+        std::fs::read_dir(root.roots()).unwrap().count(),
+        0,
+        "a root file stays"
+    );
+    assert!(
+        !files_under(dir.path())
+            .iter()
+            .any(|path| path.extension() == Some(std::ffi::OsStr::new("seg"))),
+        "a segment file stays"
+    );
+}
+
+type SegmentKeyRow = (i64, String, Option<Vec<u8>>, i64, i64, i64);
+
+fn segment_key_rows(store: &EncryptedStore) -> Vec<SegmentKeyRow> {
+    store
+        .db()
+        .unwrap()
+        .connection()
+        .prepare(
+            "SELECT id, segment_id, wrapped_key, day, first_capture, last_capture \
+             FROM segment_keys ORDER BY id",
+        )
+        .unwrap()
+        .query_map([], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+            ))
+        })
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap()
+}
+
+#[test]
+fn a_call_whose_now_is_behind_the_clock_moves_no_first_capture_and_makes_nothing_due() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let segments: Vec<Uuid> = (0..3)
+        .map(|k| {
+            batch_first_captured_at(
+                &mut store,
+                (NOW_SECONDS + k) * SECOND,
+                b"a record written at the true time",
+            )
+            .0
+        })
+        .collect();
+    let before = segment_key_rows(&store);
+
+    let early = store
+        .expire_due(at_second(NOW_SECONDS - 30 * DAY_SECONDS), 64)
+        .unwrap();
+    let after_the_early_call = segment_key_rows(&store);
+    let on_time = store.expire_due(at_second(NOW_SECONDS + 3), 64).unwrap();
+
+    assert_eq!(
+        after_the_early_call, before,
+        "a call whose now was 30 days behind changed a row of segment_keys"
+    );
+    assert!(
+        early.shredded.is_empty(),
+        "the early call shredded {early:?}"
+    );
+    assert!(
+        on_time.shredded.is_empty() && !on_time.more_due,
+        "the next call with the right now found a record due: {on_time:?}"
+    );
+    assert!(
+        segments
+            .iter()
+            .all(|id| store.read_segment(*id, &mut Vec::new()).is_ok()),
+        "a record no longer reads"
+    );
 }

@@ -55,6 +55,7 @@ pub const NAMES: &[&str] = &[
     "hold_set",
     "hold_cleared",
     "slot_skipped",
+    "run_not_stopped",
     "confirm",
     "sign_in",
     "link_account",

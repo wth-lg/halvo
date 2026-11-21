@@ -129,6 +129,8 @@ fn member(world: &World, n: usize) -> Member<Config> {
             events,
             today: world.board.day,
             doing: Doing::Idle(None),
+            stand_in: false,
+            active_refused: false,
         },
         session: true,
     }
@@ -376,6 +378,7 @@ fn what_name(w: &What) -> String {
             slot.map(|s| (s as i64 - DAY as i64).to_string())
                 .unwrap_or("-".into())
         ),
+        What::RunNotStopped { .. } => "run_not_stopped".into(),
     }
 }
 
@@ -595,8 +598,8 @@ fn refusal_hold_start() {
     assert_eq!(
         w.calls(),
         vec![
-            "log hold_cleared failures".to_string(),
-            "set_state active".into(),
+            "set_state active".to_string(),
+            "log hold_cleared failures".into(),
             "defer".into(),
             "log run_started".into(),
             "start_run".into(),
@@ -1411,7 +1414,7 @@ impl IntoReport for Served {
 }
 
 #[test]
-fn switch_on_ends_off_and_failures_with_one_event_each_and_then_sends_the_state() {
+fn switch_on_sends_the_state_first_and_then_ends_off_and_failures_with_one_event_each() {
     let mut w = world(&[manual()]);
     w.ports.refuse(Method::Start, PortError::NoService);
     for _ in 0..3 {
@@ -1431,8 +1434,8 @@ fn switch_on_ends_off_and_failures_with_one_event_each_and_then_sends_the_state(
     assert_eq!(
         w.calls(),
         vec![
-            "log hold_cleared person, hold_cleared failures".to_string(),
-            "set_state active".into()
+            "set_state active".to_string(),
+            "log hold_cleared person, hold_cleared failures".into()
         ]
     );
     assert_eq!(halvo_coord::schedule::holds(w.facts(0)), Vec::<Hold>::new());
@@ -1453,8 +1456,8 @@ fn switch_on_ends_off_and_failures_with_one_event_each_and_then_sends_the_state(
     assert_eq!(
         web.calls(),
         vec![
-            "log hold_cleared person".to_string(),
-            "set_state approved".into()
+            "set_state approved".to_string(),
+            "log hold_cleared person".into()
         ]
     );
 }
@@ -2583,6 +2586,7 @@ fn a_lost_acknowledgement_of_active_is_followed_by_a_second_send_at_the_next_tic
     w.forget();
     w.tick();
     assert_eq!(set_states(&w), ["set_state active"]);
+    approved_listed(&w, 0);
     w.forget();
     w.tick();
     assert_eq!(
@@ -2858,6 +2862,7 @@ fn refusal_active_tick() {
         "none at the end of a run"
     );
     for _ in 0..2 {
+        approved_listed(&w, 3);
         w.forget();
         w.tick();
         let sent: Vec<_> = w
@@ -3665,5 +3670,812 @@ fn u24e_the_controls_offer_take_back_while_the_persons_waiting_start_would_not_c
         let f = facts(n, doing, hold);
         assert_eq!(holds(&f), standing, "{case}");
         assert_eq!(controls(&f, trigger, &w.limits), want, "{case}");
+    }
+}
+
+fn u24s_refused(name: &str) -> PortError {
+    PortError::Refused(Name::parse(name).unwrap())
+}
+
+fn u24s_one_tick() -> Limits {
+    Limits {
+        record_stuck_ticks: 1,
+        ..Limits::PRODUCT
+    }
+}
+
+fn u24s_refused_since(w: &World, from: usize) -> Vec<String> {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| t.refused.is_some())
+        .filter_map(|t| act(&t.call))
+        .collect()
+}
+
+fn u24s_run(n: u32) -> RunId {
+    RunId::parse(&format!("{:032x}", 0x5500 + n)).unwrap()
+}
+
+fn u24s_item(n: u32) -> halvo_coord::types::ItemId {
+    halvo_coord::types::ItemId::parse(&format!("{:032x}", 0x5600 + n)).unwrap()
+}
+
+fn u24s_owe(w: &mut World, n: usize, what: halvo_coord::schedule::Owing) {
+    w.board.owed.push(halvo_coord::schedule::Owed {
+        agent: agent(n),
+        workflow: flow(n),
+        what,
+    });
+}
+
+fn u24s_owe_lapse(w: &mut World, n: usize, k: u32) {
+    u24s_owe(
+        w,
+        n,
+        halvo_coord::schedule::Owing::ItemLapsed {
+            item: u24s_item(k),
+            lapsed: halvo_coord::types::Lapsed::Ready(halvo_coord::types::OtherLapse::AppEnded),
+            day: DAY,
+            at: 0,
+        },
+    );
+}
+
+fn u24s_is_hold_cleared(e: &Event) -> bool {
+    matches!(e.what, What::HoldCleared { .. })
+}
+
+fn u24s_is_hold_set(e: &Event) -> bool {
+    matches!(e.what, What::HoldSet { .. })
+}
+
+fn u24s_is_answer(e: &Event) -> bool {
+    matches!(e.what, What::ItemAnswered { .. })
+}
+
+fn u24s_is_raise(e: &Event) -> bool {
+    matches!(e.what, What::ItemRaised { .. })
+}
+
+fn u24s_is_end(e: &Event) -> bool {
+    matches!(e.what, What::RunEnded { .. })
+}
+
+fn u24s_is_lapse(e: &Event) -> bool {
+    matches!(e.what, What::ItemLapsed { .. })
+}
+
+struct U24sSender {
+    make: fn() -> World,
+    n: usize,
+    refuse: fn(&World, PortError),
+    send: fn(&mut World),
+    sent: &'static str,
+}
+
+fn u24s_class_b_at(s: &U24sSender) {
+    let agent = agent(s.n);
+    let mut w = (s.make)();
+    (s.refuse)(&w, u24s_refused("no_workflow"));
+    let from = w.ports.tried.borrow().len();
+    (s.send)(&mut w);
+    let refused = u24s_refused_since(&w, from);
+    assert!(
+        refused.iter().any(|c| c.starts_with(s.sent)),
+        "{}: the send is refused with no_workflow: {refused:?}",
+        s.sent
+    );
+    assert!(
+        !w.board.record_stuck(&agent, &w.limits),
+        "{}: class B counts nothing toward the stuck line",
+        s.sent
+    );
+    assert!(
+        !w.board.stuck_for_life(&agent, &w.limits),
+        "{}: class B stops no start for the life",
+        s.sent
+    );
+    w.ports.clear_refusals();
+    u24s_owe_lapse(&mut w, s.n, 99);
+    w.ports.refuse_record(u24s_is_lapse, u24s_refused("store"));
+    w.tick();
+    assert!(
+        w.board.record_stuck(&agent, &w.limits),
+        "{}: a later refusal of class D counts",
+        s.sent
+    );
+    assert!(
+        !w.board.stuck_for_life(&agent, &w.limits),
+        "{}: class B marked nothing for the life",
+        s.sent
+    );
+    let mut w = (s.make)();
+    (s.refuse)(&w, u24s_refused("store"));
+    (s.send)(&mut w);
+    assert!(
+        w.board.record_stuck(&agent, &w.limits),
+        "{}: the same send refused with a name that can pass counts",
+        s.sent
+    );
+}
+
+fn u24s_failures_held() -> World {
+    let mut w = world_with(&[manual()], u24s_one_tick());
+    let seq = w.facts(0).events.len() as u32 + 1;
+    w.ports
+        .log(&[Event {
+            workflow: flow(0),
+            agent: agent(0),
+            seq: NonZeroU32::new(seq).unwrap(),
+            day: DAY,
+            at: 0,
+            what: What::HoldSet {
+                cause: HoldSetCause::Failures,
+            },
+        }])
+        .unwrap();
+    w.relife();
+    w
+}
+
+#[test]
+fn u24s_class_b_the_starts_own_store_of_hold_cleared_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: u24s_failures_held,
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_hold_cleared, e),
+        send: |w| {
+            assert_ne!(w.start(0).answer, Ok(Answer::Ok));
+            w.tick();
+        },
+        sent: "log hold_cleared failures",
+    });
+}
+
+fn u24s_queued_with_ready() -> World {
+    let mut w = world_with(&[manual(), person()], u24s_one_tick());
+    ok_run(&w.start(0));
+    w.tick();
+    assert!(matches!(
+        w.facts(1).doing,
+        Doing::Idle(Some(ref own)) if own.kind == OwnItemKind::Ready
+    ));
+    w
+}
+
+#[test]
+fn u24s_class_b_the_start_answer_of_a_queued_start_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: u24s_queued_with_ready,
+        n: 1,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_answer, e),
+        send: |w| {
+            assert_eq!(w.start(1).answer, Ok(Answer::Queued));
+            w.tick();
+        },
+        sent: "log item_answered",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_ticks_raise_of_its_own_item_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || world_with(&[person()], u24s_one_tick()),
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_raise, e),
+        send: |w| {
+            w.tick();
+        },
+        sent: "log item_raised ready",
+    });
+}
+
+fn u24s_live() -> World {
+    let mut w = world_with(&[manual()], u24s_one_tick());
+    ok_run(&w.start(0));
+    w
+}
+
+#[test]
+fn u24s_class_b_the_run_ended_at_the_end_of_a_run_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: u24s_live,
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_end, e),
+        send: |w| {
+            let run = w.board.runs[0].run.clone();
+            w.end(&run, Some(Outcome::Completed));
+            w.tick();
+        },
+        sent: "log run_ended",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_run_ended_debt_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || {
+            let mut w = world_with(&[manual()], u24s_one_tick());
+            u24s_owe(
+                &mut w,
+                0,
+                halvo_coord::schedule::Owing::RunEnded {
+                    run: u24s_run(1),
+                    cause: RunEnd::Interrupted,
+                    day: DAY,
+                    at: 0,
+                },
+            );
+            w
+        },
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_end, e),
+        send: |w| {
+            w.tick();
+        },
+        sent: "log run_ended",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_item_lapsed_debt_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || {
+            let mut w = world_with(&[manual()], u24s_one_tick());
+            u24s_owe_lapse(&mut w, 0, 1);
+            w
+        },
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_lapse, e),
+        send: |w| {
+            w.tick();
+        },
+        sent: "log item_lapsed",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_answer_to_the_check_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || {
+            let mut w = world_with(&[manual()], u24s_one_tick());
+            with_check(&mut w, 0);
+            w
+        },
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_hold_cleared, e),
+        send: |w| {
+            let r = w.go(Move::Check {
+                agent: agent(0),
+                answer: CheckAnswer::TryAgain,
+            });
+            assert_ne!(r.answer, Ok(Answer::Ok));
+            w.tick();
+        },
+        sent: "log hold_cleared check",
+    });
+}
+
+fn u24s_ready_open() -> World {
+    let mut w = world_with(&[person()], u24s_one_tick());
+    w.tick();
+    w
+}
+
+#[test]
+fn u24s_class_b_the_skip_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: u24s_ready_open,
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_answer, e),
+        send: |w| {
+            assert_ne!(w.go(Move::Skip { agent: agent(0) }).answer, Ok(Answer::Ok));
+            w.tick();
+        },
+        sent: "log item_answered",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_persons_switch_off_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || world_with(&[manual()], u24s_one_tick()),
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_hold_set, e),
+        send: |w| {
+            assert_ne!(
+                w.go(Move::SwitchOff { agent: agent(0) }).answer,
+                Ok(Answer::Ok)
+            );
+            w.tick();
+        },
+        sent: "log hold_set person",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_persons_switch_on_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || {
+            let mut w = world_with(&[manual()], u24s_one_tick());
+            assert_eq!(
+                w.go(Move::SwitchOff { agent: agent(0) }).answer,
+                Ok(Answer::Ok)
+            );
+            w
+        },
+        n: 0,
+        refuse: |w, e| w.ports.refuse_record(u24s_is_hold_cleared, e),
+        send: |w| {
+            assert_ne!(
+                w.go(Move::SwitchOn { agent: agent(0) }).answer,
+                Ok(Answer::Ok)
+            );
+            w.tick();
+        },
+        sent: "log hold_cleared person",
+    });
+}
+
+#[test]
+fn u24s_class_b_the_end_run_debt_counts_nothing() {
+    u24s_class_b_at(&U24sSender {
+        make: || {
+            let mut w = world_with(&[manual()], u24s_one_tick());
+            u24s_owe(
+                &mut w,
+                0,
+                halvo_coord::schedule::Owing::EndRun { run: u24s_run(2) },
+            );
+            w
+        },
+        n: 0,
+        refuse: |w, e| w.ports.refuse(Method::EndRun, e),
+        send: |w| {
+            w.tick();
+        },
+        sent: "end_run",
+    });
+}
+
+fn u24s_starts_tried(w: &World, from: usize) -> usize {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| matches!(&t.call, Call::Log(events) if events.iter().any(|e| matches!(e.what, What::RunStarted { .. }))))
+        .count()
+}
+
+#[test]
+fn u24s_g3_an_acknowledged_store_of_the_agent_ends_the_stop_for_the_life_of_a_start_refused_with_no_workflow(
+) {
+    let mut w = world(&[AUTO]);
+    w.ports
+        .refuse(Method::LogRunStarted, u24s_refused("no_workflow"));
+    let from = w.ports.tried.borrow().len();
+    w.tick();
+    w.clock(T0 + 1_000, DAY);
+    w.tick();
+    assert_eq!(
+        u24s_starts_tried(&w, from),
+        1,
+        "RD-125 (1): the start refused with no_workflow is not tried again"
+    );
+    assert!(w.board.stuck_for_life(&agent(0), &w.limits));
+    assert!(!w.board.record_stuck(&agent(0), &w.limits));
+    w.ports.clear_refusals();
+    u24s_owe_lapse(&mut w, 0, 3);
+    w.clock(T0 + 2_000, DAY);
+    let from = w.ports.tried.borrow().len();
+    let tick = w.tick();
+    assert!(
+        w.stored().iter().any(|e| e.what
+            == What::ItemLapsed {
+                item: u24s_item(3),
+                lapsed: halvo_coord::types::Lapsed::Ready(halvo_coord::types::OtherLapse::AppEnded),
+            }),
+        "the debt is stored, an acknowledged store of the agent"
+    );
+    assert_eq!(
+        u24s_starts_tried(&w, from),
+        1,
+        "G3, kept as built (RD-126 item 12): the acknowledged store ends the stop for the life, and the same tick tries the start"
+    );
+    assert_eq!(tick.started.len(), 1);
+    assert_eq!(tick.started[0].answer, Ok(Answer::Ok));
+    assert!(!w.board.stuck_for_life(&agent(0), &w.limits));
+}
+
+fn u24s_row_of_another_writer(w: &World) {
+    let seq = w
+        .ports
+        .events
+        .borrow()
+        .iter()
+        .filter(|e| e.agent == agent(0))
+        .count() as u32
+        + 1;
+    w.ports.events.borrow_mut().push(Event {
+        workflow: flow(0),
+        agent: agent(0),
+        seq: NonZeroU32::new(seq).unwrap(),
+        day: DAY,
+        at: 0,
+        what: What::SlotSkipped { slot: None },
+    });
+}
+
+#[test]
+fn u24s_a_first_seq_refusal_counts_nothing_also_where_the_read_after_it_fails() {
+    let mut w = world_with(&[manual()], u24s_one_tick());
+    u24s_row_of_another_writer(&w);
+    w.ports.refuse(Method::History, PortError::Busy);
+    let from = w.ports.tried.borrow().len();
+    assert_ne!(
+        w.go(Move::SwitchOff { agent: agent(0) }).answer,
+        Ok(Answer::Ok)
+    );
+    assert_eq!(
+        u24s_refused_since(&w, from),
+        vec!["log hold_set person".to_string()],
+        "the log meets seq once, and the read after it does not answer"
+    );
+    w.ports.clear_refusals();
+    w.tick();
+    assert!(
+        !w.board.record_stuck(&agent(0), &w.limits),
+        "RD-64 2.5: only a second seq for one log after its read counts, and a read that does not answer is no refusal by name"
+    );
+    u24s_row_of_another_writer(&w);
+    let from = w.ports.tried.borrow().len();
+    assert_eq!(
+        w.go(Move::SwitchOff { agent: agent(0) }).answer,
+        Ok(Answer::Ok)
+    );
+    assert_eq!(
+        u24s_refused_since(&w, from),
+        vec!["log hold_set person".to_string()],
+        "the log meets seq once, the read brings the other writer's row and the log is stored"
+    );
+    w.tick();
+    assert!(!w.board.record_stuck(&agent(0), &w.limits));
+}
+
+fn u24s_r1_live(dismissed: bool) -> (World, RunId) {
+    let mut w = world_with(&[manual()], Limits::PRODUCT);
+    let run = ok_run(&w.start(0));
+    if dismissed {
+        for wf in w.ports.workflows.borrow_mut().iter_mut() {
+            if wf.id() == &flow(0) {
+                *wf = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                    id: flow(0),
+                    category: Category::CalendarCleanup,
+                    site: None,
+                });
+            }
+        }
+        w.ports.agents.borrow_mut().retain(|a| a.agent != agent(0));
+    }
+    (w, run)
+}
+
+fn u24s_r1_cancels(w: &World, from: usize, run: &RunId) -> usize {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| matches!(&t.call, Call::Cancel(r) if r == run))
+        .count()
+}
+
+fn u24s_r1_hold_sets_refused(w: &World, from: usize) -> usize {
+    w.ports.tried.borrow()[from..]
+        .iter()
+        .filter(|t| {
+            t.refused.is_some()
+                && matches!(&t.call, Call::Log(rows) if rows.iter().any(u24s_is_hold_set))
+        })
+        .count()
+}
+
+#[test]
+fn u24s_a_switch_off_refused_with_class_b_stops_the_live_run_or_names_stop() {
+    for (case, dismissed) in [
+        ("binding of a workflow that the list shows dismissed", true),
+        ("no_workflow of a listed workflow", false),
+    ] {
+        let (mut w, run) = u24s_r1_live(dismissed);
+        if !dismissed {
+            w.ports
+                .refuse_record(u24s_is_hold_set, u24s_refused("no_workflow"));
+        }
+        let from = w.ports.tried.borrow().len();
+        let _ = w.go(Move::SwitchOff { agent: agent(0) });
+        assert_eq!(
+            u24s_r1_hold_sets_refused(&w, from),
+            1,
+            "{case}: the store of hold_set is refused"
+        );
+        assert_eq!(
+            u24s_r1_cancels(&w, from, &run),
+            1,
+            "{case}: one press sends Runs::cancel once for the run, as a Stop does (RD-155 (1))"
+        );
+        let live = w.board.runs.iter().find(|l| l.run == run).unwrap();
+        assert_eq!(
+            live.stop.map(|s| s.cause),
+            Some(RunEnd::Cancelled),
+            "{case}: the run is stopping"
+        );
+        assert!(
+            !w.stored().iter().any(u24s_is_hold_set),
+            "{case}: no hold is stored"
+        );
+        assert!(
+            !holds(w.facts(0)).contains(&Hold::Off),
+            "{case}: the agent stays on"
+        );
+        assert!(
+            !w.calls().iter().any(|c| c.starts_with("set_state")),
+            "{case}: no set_state, the agent stays on: {:?}",
+            w.calls()
+        );
+    }
+}
+
+#[test]
+fn u24s_a_switch_off_refused_with_a_class_that_can_pass_stops_nothing() {
+    let (mut w, run) = u24s_r1_live(false);
+    w.ports
+        .refuse_record(u24s_is_hold_set, u24s_refused("store"));
+    let from = w.ports.tried.borrow().len();
+    let r = w.go(Move::SwitchOff { agent: agent(0) });
+    assert_eq!(r.answer, Err(Cause::NoService));
+    assert_eq!(u24s_r1_hold_sets_refused(&w, from), 1);
+    assert_eq!(u24s_r1_cancels(&w, from, &run), 0, "class D stops nothing");
+    assert!(w
+        .board
+        .runs
+        .iter()
+        .any(|l| l.run == run && l.stop.is_none()));
+}
+
+#[test]
+fn u24s_a_switch_off_refused_with_class_b_for_an_agent_with_no_live_run_stops_nothing() {
+    let mut w = world_with(&[manual()], Limits::PRODUCT);
+    w.ports
+        .refuse_record(u24s_is_hold_set, u24s_refused("no_workflow"));
+    let from = w.ports.tried.borrow().len();
+    let r = w.go(Move::SwitchOff { agent: agent(0) });
+    assert_eq!(r.answer, Err(Cause::NoService));
+    assert_eq!(u24s_r1_hold_sets_refused(&w, from), 1);
+    assert!(
+        !w.ports.tried.borrow()[from..]
+            .iter()
+            .any(|t| matches!(t.call, Call::Cancel(_))),
+        "no run to stop"
+    );
+    assert!(!w.calls().iter().any(|c| c.starts_with("set_state")));
+}
+
+#[test]
+fn u24s_a_schedule_log_whose_read_after_a_first_seq_is_refused_by_name_counts() {
+    for (name, counts) in [("store", true), ("no_workflow", false)] {
+        let mut w = world_with(&[manual()], u24s_one_tick());
+        w.ports
+            .refuse_agent(Method::Log, &agent(0), u24s_refused("seq"));
+        w.ports
+            .refuse_agent(Method::History, &agent(0), u24s_refused(name));
+        assert_ne!(
+            w.go(Move::SwitchOff { agent: agent(0) }).answer,
+            Ok(Answer::Ok)
+        );
+        w.ports.clear_refusals();
+        w.tick();
+        assert_eq!(
+            w.board.record_stuck(&agent(0), &w.limits),
+            counts,
+            "{name}: a read refused with a name of class C or D counts (I5.7), class B counts nothing"
+        );
+    }
+}
+
+/// The days for which the store keeps a row of `coord_event` (I7.1), which the memory owner keeps
+/// here; the crate's code knows no such number (ruling RD-73 2.2, 2.4).
+const KEPT_DAYS: u32 = 93;
+const DAY_MS: u64 = 86_400_000;
+
+/// Sets the memory clock `days` whole days after `T0`, in the zone of `T0`.
+fn days_on(w: &World, days: u64) {
+    w.ports.set_now(T0 + days * DAY_MS);
+}
+
+/// RD-73 2.1 and 2.2 (I5.1, I5.9): the memory clock moves 94 days in one life, and one move that
+/// is neither a start nor an end, the creation move, reads the day. Each agent's facts are then,
+/// field by field, those of the board that `recover` builds from the same ports: the rows that
+/// passed their day are left out and the rows within it stay.
+#[test]
+fn rd73_a_move_after_94_days_in_one_life_holds_the_board_that_recovery_builds() {
+    use halvo_coord::roster::{row, status_of};
+    let mut w = world(&[AUTO, person()]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    for days in [0, 50] {
+        days_on(&w, days);
+        let tick = w.tick();
+        assert_eq!(tick.raised, vec![agent(1)], "day {days}");
+        let run = ok_run(&tick.started[0].clone().into_report());
+        w.end(&run, Some(Outcome::Completed));
+        let skip = w.go(Move::Skip { agent: agent(1) });
+        assert_eq!(skip.answer, Ok(Answer::Ok), "day {days}");
+    }
+    days_on(&w, 94);
+    w.go(Move::Create);
+    let new = halvo_coord::run::recover(&w.ports, &w.limits)
+        .unwrap()
+        .board;
+    assert_eq!(w.board.day, new.day);
+    assert_eq!(w.board.members.len(), new.members.len());
+    let line = |board: &Board<Config>, f: &Facts<Config>| {
+        let stuck = board.record_stuck(&f.agent, &w.limits);
+        row(
+            f,
+            status_of(f, &w.limits, None, stuck),
+            "x",
+            None,
+            &w.limits,
+        )
+    };
+    for (i, (long, fresh)) in w.board.members.iter().zip(&new.members).enumerate() {
+        let (a, b) = (&long.facts, &fresh.facts);
+        assert_eq!(a.agent, b.agent);
+        assert_eq!(a.events, b.events, "the events of {i}");
+        assert_eq!(a.runs, b.runs, "the newest run record of {i}");
+        assert_eq!(a.store_ended, b.store_ended, "store_ended of {i}");
+        assert_eq!(
+            w.board.stored_last(i),
+            new.stored_last(i),
+            "the stored last of {i}"
+        );
+        assert_eq!(holds(a), holds(b), "the holds of {i}");
+        assert_eq!(line(&w.board, a), line(&new, b), "the row of {i}");
+        let tick = |f: &Facts<Config>| tick_step(f, true, &w.limits);
+        assert_eq!(tick(a), tick(b), "the tick's answer for {i}");
+        assert_eq!(long, fresh, "every other field of {i}");
+    }
+    assert_eq!(
+        count(&w.facts(0).events, "run_started"),
+        1,
+        "the rows of day 50"
+    );
+}
+
+/// RD-73 2.1 with the derived `off` of I5.4: the row of a switch-off passes its day in one life;
+/// after one move the row shows `off.kept`, no start passes, and Switch on ends the hold.
+#[test]
+fn rd73_a_switch_off_whose_row_passed_its_day_shows_off_kept_until_switch_on() {
+    use halvo_coord::roster::status_of;
+    use halvo_coord::types::StatusLine;
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    let off = w.go(Move::SwitchOff { agent: agent(0) });
+    assert_eq!(off.answer, Ok(Answer::Ok));
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Off
+    );
+    days_on(&w, 94);
+    w.tick();
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Kept
+    );
+    w.forget();
+    assert_eq!(w.start(0).answer, Err(Cause::Hold));
+    assert_eq!(w.starts(), 0);
+    let on = w.go(Move::SwitchOn { agent: agent(0) });
+    assert_eq!(on.answer, Ok(Answer::Ok));
+    assert!(!holds(w.facts(0)).contains(&Hold::Off));
+}
+
+/// RD-73 2.2: the clock set past the bound with one move and back with one move gives the long
+/// life what a new life gets: the rows of the first day, which the owner hands out again, stand
+/// on the board again with the record of the newest run.
+#[test]
+fn rd73_a_clock_set_forward_and_back_brings_the_first_days_events_back() {
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    let (events, runs) = (w.facts(0).events.clone(), w.facts(0).runs.clone());
+    assert_eq!((events.len(), runs.len()), (2, 1));
+    days_on(&w, 94);
+    w.go(Move::Create);
+    let past = (w.facts(0).events.len(), w.facts(0).runs.len());
+    assert_eq!(past, (0, 0), "past the bound");
+    days_on(&w, 0);
+    w.go(Move::Owed);
+    assert_eq!(w.facts(0).events, events);
+    assert_eq!(w.facts(0).runs, runs);
+}
+
+/// RD-73 2.3 (c): a hold `off` that stands by this life's events is not ended by the day's read
+/// while the owner's list does not show `paused`: the move sends `paused` first, and the hold
+/// stands until that is acknowledged; then the read is taken and the row shows `off.kept`.
+#[test]
+fn rd73_a_hold_of_this_life_stands_past_its_day_until_paused_is_acknowledged() {
+    use halvo_coord::roster::status_of;
+    use halvo_coord::schedule::held_by_events;
+    use halvo_coord::types::StatusLine;
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    w.ports.refuse(Method::Send, PortError::NoService);
+    w.go(Move::SwitchOff { agent: agent(0) });
+    assert_ne!(w.facts(0).workflow.state, WorkflowState::Paused);
+    let paused = |w: &World, from: usize| -> Vec<bool> {
+        w.ports.tried.borrow()[from..]
+            .iter()
+            .filter(|t| {
+                matches!(
+                    &t.call,
+                    Call::Send(Body::SetState {
+                        state: AgentState::Paused,
+                        ..
+                    })
+                )
+            })
+            .map(|t| t.refused.is_none())
+            .collect()
+    };
+    days_on(&w, 94);
+    let from = w.ports.tried.borrow().len();
+    w.go(Move::Create);
+    assert_eq!(paused(&w, from), vec![false], "paused goes before the read");
+    assert!(
+        held_by_events(w.facts(0)),
+        "the hold stands without an answer"
+    );
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Off
+    );
+    w.ports.clear_refusals();
+    let from = w.ports.tried.borrow().len();
+    w.go(Move::Owed);
+    assert_eq!(paused(&w, from), vec![true]);
+    assert!(
+        !held_by_events(w.facts(0)),
+        "the read is taken after the answer"
+    );
+    assert_eq!(
+        status_of(w.facts(0), &w.limits, None, false),
+        StatusLine::Kept
+    );
+}
+
+/// RD-73 1.3: an agent that did its task before and whose rows have all left by their age reads
+/// `line.all_set.new`, whose sentence is true for it as for a new agent: in a long life after
+/// one move that reads the day, and in the new life that `recover` builds from the same ports.
+#[test]
+fn rd73_the_row_of_an_agent_whose_rows_have_left_says_not_yet_or_not_for_a_long_time() {
+    use halvo_coord::roster::{row, status_of};
+    use halvo_coord::types::StatusLine;
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    let before = status_of(w.facts(0), &w.limits, None, false);
+    assert_eq!(before, StatusLine::Done, "it did its task before");
+    days_on(&w, 94);
+    w.go(Move::Create);
+    let new = halvo_coord::run::recover(&w.ports, &w.limits)
+        .unwrap()
+        .board;
+    for (life, board) in [("long", &w.board), ("new", &new)] {
+        let f = &board.members[0].facts;
+        let shown = row(
+            f,
+            status_of(f, &w.limits, None, false),
+            "x",
+            None,
+            &w.limits,
+        );
+        assert_eq!(
+            shown.unwrap().line,
+            "It has not done its task yet, or not for a long time.",
+            "the {life} life"
+        );
     }
 }

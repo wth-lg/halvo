@@ -1546,6 +1546,8 @@ version = "0.0.0"
 dependencies = [
  "block2",
  "halvo-control",
+ "halvo-coord",
+ "halvo-coord-app",
  "halvo-test-dir",
  "objc2",
  "objc2-foundation",
@@ -1562,7 +1564,10 @@ dependencies = [
 name = "halvo-agent-client"
 version = "0.0.0"
 dependencies = [
+ "halvo-checkpoint",
+ "halvo-control",
  "halvo-schema",
+ "halvo-seam",
  "halvo-test-dir",
 ]
 
@@ -1583,6 +1588,21 @@ dependencies = [
  "halvo-policy",
  "halvo-schema",
  "serde_json",
+]
+
+[[package]]
+name = "halvo-analysis"
+version = "0.0.0"
+dependencies = [
+ "getrandom 0.3.4",
+ "halvo-identify",
+ "halvo-owner",
+ "halvo-sample",
+ "halvo-schema-core",
+ "halvo-seam",
+ "halvo-test-dir",
+ "libc",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1609,6 +1629,9 @@ dependencies = [
  "getrandom 0.2.17",
  "halvo-capture",
  "halvo-control",
+ "halvo-redact",
+ "halvo-schema",
+ "halvo-seam",
  "halvo-sqlcipher",
  "libc",
  "objc2",
@@ -1716,6 +1739,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-identify"
+version = "0.0.0"
+dependencies = [
+ "halvo-redact",
+ "halvo-sample",
+ "halvo-schema",
+ "halvo-seam",
+]
+
+[[package]]
 name = "halvo-learn"
 version = "0.0.0"
 dependencies = [
@@ -1746,6 +1779,26 @@ dependencies = [
  "halvo-schema",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "halvo-owner"
+version = "0.0.0"
+dependencies = [
+ "getrandom 0.3.4",
+ "halvo-agent-client",
+ "halvo-agent-store",
+ "halvo-control",
+ "halvo-derived",
+ "halvo-identify",
+ "halvo-schema",
+ "halvo-schema-core",
+ "halvo-seam",
+ "halvo-test-dir",
+ "libc",
+ "serde",
+ "serde_json",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

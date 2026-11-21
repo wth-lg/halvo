@@ -1,0 +1,36 @@
+[package]
+name = "halvo-owner"
+version = "0.0.0"
+description = "The owner of the derived store: the one process that opens it, with its key on standard input, and the host's step list"
+edition = "2021"
+publish = false
+
+[lib]
+name = "halvo_owner"
+path = "src/lib.rs"
+
+[[bin]]
+name = "halvo-owner"
+path = "src/main.rs"
+
+[dependencies]
+getrandom = "0.3"
+halvo-agent-store = { path = "../halvo-agent-store" }
+halvo-derived = { path = "../halvo-derived" }
+halvo-identify = { path = "../halvo-identify" }
+halvo-schema = { path = "../halvo-schema" }
+halvo-schema-core = { path = "../halvo-schema-core" }
+halvo-seam = { path = "../halvo-seam" }
+serde = "1"
+serde_json = { version = "1", features = ["raw_value"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_Debug", "Win32_System_ErrorReporting", "Win32_System_Threading", "Win32_System_Time"] }
+
+[dev-dependencies]
+halvo-agent-client = { path = "../halvo-agent-client" }
+halvo-control = { path = "../halvo-control", features = ["r2"] }
+halvo-test-dir = { path = "../halvo-test-dir" }

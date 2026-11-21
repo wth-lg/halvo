@@ -553,6 +553,7 @@ impl Supervisor {
                         steps,
                     },
                 ),
+                next_playbook: NonZeroU32::MIN.saturating_add(1),
                 bindings: Some(LoadedBindings {
                     rev: NonZeroU32::MIN,
                     origins: self.origins.clone(),
@@ -564,6 +565,7 @@ impl Supervisor {
             RunnerCall::LoadSteps(b) => {
                 let from = b.from.get() as usize;
                 RunnerReply::Steps(StepsReply {
+                    agent: self.config.agent.clone(),
                     steps: self.steps.iter().skip(from - 1).take(16).cloned().collect(),
                 })
             }

@@ -10,7 +10,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use halvo_schema::executable::body::{
-    CoordinatorCall, EndRun as EndRunBody, RunnerCall, RunnerReply,
+    CheckpointsReply, CoordinatorCall, EndRun as EndRunBody, RunnerCall, RunnerReply,
 };
 use halvo_schema::executable::frame::{
     Browser, BrowserReply, Cancel, FromRunner, HandbackResult, ReplyError, RunError, SecretReply,
@@ -23,9 +23,11 @@ use halvo_schema::request::{CoordinatorRole, ErrorName};
 
 use crate::acts::Acts;
 use crate::api::{
-    absolute_paths, CallError, Config, EndRun, ForcedPath, NotStarted, Parts, ReapAnswer, ReapHook,
-    ReapStep, Reaped, RelativePath, RunEnd, RunSpec, RunnerExit, StartError, SystemValue,
+    absolute_paths, CallError, Config, EndRun, ForcedPath, ListFailed, NotStarted, Parts,
+    ReapAnswer, ReapHook, ReapStep, Reaped, RelativePath, RunEnd, RunSpec, RunnerExit, StartError,
+    SystemValue,
 };
+use crate::checkpoints;
 use crate::marks::{self, proc_line, Created, MarkFile};
 use crate::owner;
 use crate::proc::{self, ReadValue, RunProc, SpawnFailed};
@@ -459,6 +461,33 @@ impl Supervisor {
         }
         rx.recv().unwrap_or(Err(CallError::Ended))
     }
+
+    /// Reads one page of the list of checkpoints from the owner (contracts.md A6.6, A7.2): it sends `list_checkpoints`
+    /// with `workflow` and `agent` null and the `after` given, and returns the page as the owner gave it, or
+    /// `ListFailed` and no page. The caller asks for the next page with the page's `next`; the library does not check
+    /// that `next` comes after `after`.
+    pub fn checkpoints(&self, after: Option<RunId>) -> Result<CheckpointsReply, ListFailed> {
+        owner::checkpoints(&self.inner, after)
+    }
+
+    /// Removes the checkpoints that may go, the library being the one party that removes one (contracts.md A6.6,
+    /// A11.3; the coordinator's rulings CP-96 (c), (d) and CP-98 (3), (4)). It reads every page of the list as
+    /// `checkpoints` does, from the first, and asks the removal of halvo-checkpoint, which builds the copy's name and
+    /// works inside the row's folder alone, for each checkpoint whose run's end is stored (`ended` yes) and whose effect
+    /// is not `unknown`, when it is `superseded`, or 30 days old by its row's `at` and the system clock, or its run's
+    /// effect on that workbook is null or none of `committed`, `releasing` and `unknown`: a `made` row with the row's
+    /// SHA-256 and length, a `planned` row against the workbook as it stands, byte for byte. It never asks for a copy
+    /// whose effect is `unknown`. It writes each answer with `mark_checkpoint`: `gone` for a copy removed or found
+    /// absent, `left` with the reason for a check that missed, under either name that holds the bytes. An undecided
+    /// answer (an absent folder, the lock, a refused step) writes no row and the copy stays, and the next pass asks
+    /// again, as it does for a removed copy whose mark got no acknowledgement, which it then finds absent. A
+    /// `ListFailed` ends the pass after the rows of the pages before it, and so does a page whose `next` does not come
+    /// after the `after` that it was asked with. `finish_run` calls it after `MarkSink::end` of a run whose `finish` or
+    /// `end_run` the owner acknowledged; the caller calls it at a start, as `reap`. Nothing is removed while the app
+    /// does not run.
+    pub fn remove_checkpoints(&self) -> Result<(), ListFailed> {
+        checkpoints::pass(&self.inner)
+    }
 }
 
 /// What the end of a run reports.
@@ -706,13 +735,13 @@ impl Running<'_> {
         } else if self.ending.finish.is_some() {
             refuse(ReplyError::Workflow(ErrorName::State))
         } else {
-            self.inner
-                .parts
-                .link
-                .request(request.envelope().as_bytes())
-                .ok()
-                .and_then(|bytes| relayed(&bytes, request))
-                .unwrap_or_else(|| refuse(ReplyError::Workflow(ErrorName::Internal)))
+            // A link error is a stream that ended before a whole reply, never a completed write (A6.6): `store`, on
+            // which the runner repeats the request.
+            match self.inner.parts.link.request(request.envelope().as_bytes()) {
+                Err(_) => refuse(ReplyError::Workflow(ErrorName::Store)),
+                Ok(bytes) => relayed(&bytes, request)
+                    .unwrap_or_else(|| refuse(ReplyError::Workflow(ErrorName::Internal))),
+            }
         };
         match (body, &reply.outcome) {
             (RunnerCall::Finish(f), Ok(_)) => {
@@ -797,6 +826,9 @@ fn finish_run(inner: &Inner, slot: &Slot, ending: Ending) {
     };
     slot.ended.store(true, Ordering::SeqCst);
     inner.parts.marks.end(&slot.spec.run, &end);
+    if matches!(end.end_run, EndRun::NotOwed | EndRun::Acknowledged) {
+        let _ = checkpoints::pass(inner);
+    }
 }
 
 /// Removes each directory under `<data_dir>/agents/profiles/` whose name is a run id that `keep` does not keep,

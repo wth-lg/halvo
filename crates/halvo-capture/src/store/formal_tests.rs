@@ -2564,7 +2564,12 @@ fn one_creators_race(case: &Creators, seen: &CreatorsSeen) -> Result<(), TestCas
             winner,
             without_a_name
         );
-        let reopened = EncryptedStore::open(&store_dir, &roots, DEFAULT_RETENTION);
+        let reopened = EncryptedStore::open(
+            &store_dir,
+            &roots,
+            DEFAULT_RETENTION,
+            crate::store::OpenFor::Write,
+        );
         prop_assert!(
             reopened.is_ok(),
             "after the creators the store of creator {} did not reopen: {:?}",
@@ -2816,12 +2821,17 @@ fn a_process_that_goes_around_the_directory_lock_is_refused_at_the_database() {
     .map(drop);
     put_the_mark(&dir.path().join("stop"));
     let holder = holder.wait().expect("the holder ends");
-    let after =
-        EncryptedStore::open(&store_dir, &roots, DEFAULT_RETENTION).and_then(|mut store| {
-            store
-                .write_segment(&mut Cursor::new(b"written after the holder left"))
-                .map(drop)
-        });
+    let after = EncryptedStore::open(
+        &store_dir,
+        &roots,
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    )
+    .and_then(|mut store| {
+        store
+            .write_segment(&mut Cursor::new(b"written after the holder left"))
+            .map(drop)
+    });
     crate::custody::dev_fallback::DevFallbackCustody::new(root, roots)
         .destroy_root()
         .expect("the root of the store is destroyed");

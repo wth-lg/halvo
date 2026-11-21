@@ -5,6 +5,8 @@
 
 mod acts;
 mod api;
+mod checkpoints;
+pub mod link;
 pub mod marks;
 mod owner;
 mod proc;
@@ -15,8 +17,9 @@ pub mod wire;
 
 pub use api::{
     CallError, Config, Confirmer, EndRun, Forced, ForcedPath, Human, IssueRefused, LinkError,
-    MarkSink, NotStarted, OriginAnswer, OwnerLink, Parts, ReapAnswer, Reaped, RelativePath, RunEnd,
-    RunSpec, RunnerExit, Secrets, StartError, SystemValue, LINK_END, START_WAIT,
+    ListFailed, MarkSink, NotStarted, OriginAnswer, OwnerLink, Parts, ReapAnswer, Reaped,
+    RelativePath, RunEnd, RunSpec, RunnerExit, Secrets, StartError, SystemValue, LINK_END,
+    START_WAIT,
 };
 #[doc(hidden)]
 pub use api::{ReapHook, ReapStep};

@@ -1,5 +1,5 @@
 use super::{AgentId, CandidateFrom, Cause, Choice, Class, Control, FieldFrom, ItemId, ItemKind};
-use super::{Kept, LineKey, Origin, Param, Presenter, Status, WorkflowId, YesNo};
+use super::{HistoryRead, Kept, LineKey, Origin, Param, Presenter, Status, WorkflowId, YesNo};
 use crate::items::{field_from, kept_source};
 use crate::words;
 use serde::Serialize;
@@ -40,6 +40,120 @@ pub struct Row {
     pub next: Option<String>,
     /// `controls`.
     pub controls: Vec<ControlText>,
+    /// `ask`: the question that a press on the row's Delete opens in the page, which sends
+    /// nothing, or null on a row with no Delete (ruling RD-19 (c) rules (2) to (4)).
+    pub ask: Option<Ask>,
+}
+
+/// What the question of a row's Delete is (ruling RD-19 (c) rules (3) and (4)).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AskKind {
+    /// `delete`: no run of the agent is live, and the question asks for the delete.
+    Delete,
+    /// `working`: a run of the agent is live; the notice says that it must be stopped first.
+    Working,
+    /// `stopping`: the agent's run is stopping; the notice says that the delete comes after.
+    Stopping,
+}
+
+/// The `data-act` of a control of the question: `reject`, the safe control that leaves the
+/// agent as it is; `allow`, the one control that sends `agents_delete`; `stop`, the control of
+/// the notice `working` that sends the row's stop; `done`, the one control of the notice
+/// `stopping`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AskAct {
+    /// `reject`.
+    Reject,
+    /// `allow`.
+    Allow,
+    /// `stop`.
+    Stop,
+    /// `done`.
+    Done,
+}
+
+/// A control of the question with its text.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct AskControl {
+    /// `act`.
+    pub act: AskAct,
+    /// `text`.
+    pub text: String,
+}
+
+/// An effect of the agent's last run whose outcome is not known, as the question shows it with
+/// its kept fields above the controls (ruling RD-19 (c) rule (4), (d) (3)).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct AskEffect {
+    /// `text`.
+    pub text: String,
+    /// `fields`: its kept fields, as the card shows them.
+    pub fields: Vec<Field>,
+}
+
+impl AskEffect {
+    /// The effect of `class` whose kept fields are `kept`: the sentence `ask.effect.<class>`, or
+    /// `ask.effect.other` for a class with no effect row, and each kept field as the card shows
+    /// it, but the `items` of a `delete`, which a person cannot read.
+    pub fn unknown(class: Class, kept: &[Kept]) -> Result<AskEffect, Cause> {
+        let key = match kept_names(class) {
+            Some(_) => format!("ask.effect.{}", class.name()),
+            None => "ask.effect.other".to_owned(),
+        };
+        let mut fields = Vec::new();
+        for k in kept {
+            if class == Class::Delete && k.name.as_str() == "items" {
+                continue;
+            }
+            fields.extend(kept_field(class, k)?);
+        }
+        Ok(AskEffect {
+            text: words::text(&key, &[])?,
+            fields,
+        })
+    }
+
+    /// The effects of `unknown` under the open item `check` of the agent: one entry in that
+    /// item's words, its title, with every kept field, and no sentence of the question's own
+    /// (ruling RD-19 (d) (3)).
+    pub fn checked(title: String, unknown: &[(Class, &[Kept])]) -> Result<AskEffect, Cause> {
+        let mut fields = Vec::new();
+        for (class, kept) in unknown {
+            for k in kept.iter() {
+                if *class == Class::Delete && k.name.as_str() == "items" {
+                    continue;
+                }
+                fields.extend(kept_field(*class, k)?);
+            }
+        }
+        Ok(AskEffect {
+            text: title,
+            fields,
+        })
+    }
+}
+
+/// The question of a row's Delete (I2.5; ruling RD-19 (c)): its kind, its title, its sentences
+/// in order, the effects of unknown outcome with the sentence on their record, and its controls,
+/// the safe one first.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct Ask {
+    /// `kind`.
+    pub kind: AskKind,
+    /// `title`.
+    pub title: String,
+    /// `text`: its sentences, each a whole entry of the words table.
+    pub text: Vec<String>,
+    /// `effects`: empty but for `delete`.
+    pub effects: Vec<AskEffect>,
+    /// `record`: the sentence that Halvo keeps no record of those effects after the delete, or
+    /// null where `effects` is empty.
+    pub record: Option<String>,
+    /// `controls`: `reject` and `allow` for `delete`, `reject` and `stop` for `working`, and
+    /// `done` alone for `stopping`.
+    pub controls: Vec<AskControl>,
 }
 
 /// A control of a row with its text.
@@ -62,6 +176,12 @@ pub struct Card {
     pub lines: Vec<CardLine>,
     /// `runs`: at most `history_runs`, newest first.
     pub runs: Vec<CardRun>,
+    /// `history`: `busy` where the card's read of `Owner::agent_history` answered busy, and the
+    /// card then holds the line of the count of records taken off alone, where that count is
+    /// at least 1, and no run; the key is left out where the read answered (the coordinator's
+    /// word on R6 of U2.4t).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub history: Option<HistoryRead>,
 }
 
 /// A settings line of a card (I2.2).
@@ -285,50 +405,74 @@ fn file_name(kept: &[String]) -> Result<String, Cause> {
     }
 }
 
+/// Whether a value shows nothing that a person can see (ruling RD-161 R6, widened by the
+/// coordinator): no piece, or pieces of white space, control characters (general category Cc)
+/// and the zero-width signs U+200B, U+200C, U+200D, U+2060 and U+FEFF alone.
+fn shows_nothing(value: &[String]) -> bool {
+    value.iter().flat_map(|piece| piece.chars()).all(|c| {
+        c.is_whitespace()
+            || c.is_control()
+            || matches!(
+                c,
+                '\u{200b}' | '\u{200c}' | '\u{200d}' | '\u{2060}' | '\u{feff}'
+            )
+    })
+}
+
 /// The kept field `k` of an effect of `class` as a field of I3.4: the label
 /// `field.<class>.<name>`, the value as the row keeps it, an `origin` as the site's name and the
 /// `file` of a `local_edit` as the name of the file alone, and the `from` that A-A9.3 admits;
-/// `malformed` where a piece of the shown value would hold more than 1,024 bytes (I3.4).
-fn kept_field(class: Class, k: &Kept) -> Result<Field, Cause> {
+/// none where the kept value or its shown part shows nothing (`shows_nothing`), which is no
+/// value; `malformed` where a piece of the shown value would hold more than 1,024 bytes (I3.4).
+fn kept_field(class: Class, k: &Kept) -> Result<Option<Field>, Cause> {
     let name = k.name.as_str();
     let from = field_from(kept_source(class, name).ok_or(Cause::Malformed)?);
+    if shows_nothing(&k.value) {
+        return Ok(None);
+    }
     let value = match (class, name) {
         (_, "origin") => vec![site_name(&k.value)?],
         (Class::LocalEdit, "file") => vec![file_name(&k.value)?],
         _ => k.value.clone(),
     };
+    if shows_nothing(&value) {
+        return Ok(None);
+    }
     if value.iter().any(|piece| piece.len() > 1024) {
         return Err(Cause::Malformed);
     }
-    Ok(Field {
+    Ok(Some(Field {
         label: words::text(&format!("field.{}.{name}", class.name()), &[])?,
         value,
         from,
         from_text: words::text(&format!("from.{}", from.name()), &[])?,
-    })
+    }))
+}
+
+/// The one kept field of the name `name` where the row keeps that name exactly once; none where
+/// it keeps it twice or more, as no entry shows such a name (ruling RD-161 R5).
+fn once<'a>(kept: &'a [Kept], name: &str) -> Option<&'a Kept> {
+    let mut named = kept.iter().filter(|k| k.name.as_str() == name);
+    match (named.next(), named.next()) {
+        (Some(k), None) => Some(k),
+        _ => None,
+    }
 }
 
 /// The one rule for which kept fields stand on an entry that the reader cannot fully show (I2.6,
-/// ruling RD-52 (h) 4): a field of the table of A-A9.3 for `class` stands where the row keeps its
-/// name exactly once and `kept_field` takes its value whole, shown as `committed` shows it and in
-/// the table's order; never the `items` of a `delete`, a name that the table does not hold for
-/// the class, a name kept twice, a value that holds no byte (no piece, or pieces that are all
-/// empty; ruling RD-158 (3)), or any field of a class with no effect row.
+/// ruling RD-52 (h) 4), and on the item `check` (ruling RD-158 (5)): a field of the table of
+/// A-A9.3 for `class` stands where the row keeps its name exactly once (`once`) and `kept_field`
+/// takes its value whole, shown as `committed` shows it and in the table's order; never the
+/// `items` of a `delete`, a name that the table does not hold for the class, a name kept twice, a
+/// value that shows nothing (`shows_nothing`; rulings RD-158 (3), RD-161 R6), or any field of a
+/// class with no effect row.
 fn standing(class: Class, kept: &[Kept]) -> Vec<Field> {
-    let once = |name: &str| {
-        let mut named = kept.iter().filter(|k| k.name.as_str() == name);
-        match (named.next(), named.next()) {
-            (Some(k), None) => Some(k),
-            _ => None,
-        }
-    };
     kept_names(class)
         .unwrap_or_default()
         .iter()
         .filter(|name| !(class == Class::Delete && **name == "items"))
-        .filter_map(|name| once(name))
-        .filter(|k| k.value.iter().any(|piece| !piece.is_empty()))
-        .filter_map(|k| kept_field(class, k).ok())
+        .filter_map(|name| once(kept, name))
+        .filter_map(|k| kept_field(class, k).ok().flatten())
         .collect()
 }
 
@@ -336,8 +480,9 @@ impl CardEffect {
     /// The entry of a committed effect of `class` whose effect row keeps `kept`: exactly the
     /// kept fields of the class in the order of A-A9.3, each shown with the label
     /// `field.<class>.<name>`, its value as the row keeps it and the `from` that A-A9.3 admits,
-    /// except the `items` of a `delete`, which a person cannot read; an `origin` shows the
-    /// site's name and the `file` of a `local_edit` the name of the file alone (I2.6).
+    /// except the `items` of a `delete`, which a person cannot read, and a value that shows
+    /// nothing, which is no value (ruling RD-161 R6); an `origin` shows the site's name and the
+    /// `file` of a `local_edit` the name of the file alone (I2.6).
     /// `malformed` for a class with no effect row, for kept fields other than those, for an
     /// `origin` that is no origin and for a `file` with no name.
     pub fn committed(class: Class, kept: &[Kept]) -> Result<CardEffect, Cause> {
@@ -351,7 +496,7 @@ impl CardEffect {
             if class == Class::Delete && k.name.as_str() == "items" {
                 continue;
             }
-            fields.push(kept_field(class, k)?);
+            fields.extend(kept_field(class, k)?);
         }
         let key = format!("run.effect.{}", class.name());
         Ok(CardEffect {
@@ -404,7 +549,7 @@ impl CardEffect {
     /// the person pressed, and `run.effect.<class>.not_done` otherwise, or `run.effect.refused`
     /// and `run.effect.not_done` for a class with no effect row; with the first kept field of
     /// its class as `committed` shows it, and with no field for a `delete` or where that field
-    /// is not kept or does not read.
+    /// is not kept, is kept twice or more (ruling RD-161 R5), shows nothing or does not read.
     pub fn not_done(class: Class, kept: &[Kept], refused: bool) -> Result<CardEffect, Cause> {
         let end = if refused { "refused" } else { "not_done" };
         let names = kept_names(class);
@@ -415,8 +560,8 @@ impl CardEffect {
         let first = names
             .and_then(|n| n.first())
             .filter(|_| class != Class::Delete)
-            .and_then(|first| kept.iter().find(|k| k.name.as_str() == *first))
-            .and_then(|k| kept_field(class, k).ok());
+            .and_then(|first| once(kept, first))
+            .and_then(|k| kept_field(class, k).ok().flatten());
         Ok(CardEffect {
             class,
             text: words::text(&key, &[])?,

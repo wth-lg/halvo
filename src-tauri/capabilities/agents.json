@@ -1,0 +1,18 @@
+{
+  "identifier": "agents",
+  "description": "The agents commands, for the window main of the app's own origin.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-agents-snapshot",
+    "allow-agents-next",
+    "allow-agents-card",
+    "allow-agents-answer",
+    "allow-agents-setup-typed",
+    "allow-agents-present",
+    "allow-agents-control",
+    "allow-agents-shown",
+    "allow-agents-delete"
+  ]
+}

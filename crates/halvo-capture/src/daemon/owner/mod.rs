@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
 
-use halvo_control::model::{StorageCap, UtcSecond};
+use halvo_control::model::UtcSecond;
 use zeroize::Zeroize;
 
 use super::barrier::Gate;
@@ -228,7 +228,9 @@ pub struct OwnerParts<S, C> {
     pub clocks: C,
     /// The exclusion decision that the owner applies to every received event.
     pub floor: FloorHandle,
-    pub cap: StorageCap,
+    /// The bound of the storage cap, which eviction keeps the disk total at
+    /// or under, or none, when no cap eviction runs.
+    pub cap: Option<ByteBound>,
     /// The most segments of one shred call.
     pub shred_chunk: usize,
 }
@@ -300,7 +302,8 @@ pub struct Owner<S, C> {
 }
 
 impl<S: CaptureStore, C: Clocks> Owner<S, C> {
-    /// Opens the owner: reads the store's usage, runs expiry once and reports
+    /// Opens the owner: reads the store's usage, makes an eviction due when
+    /// the disk total is above the cap's bound, runs expiry once and reports
     /// [`Report::StoreReady`]. It starts discarding.
     pub fn open(parts: OwnerParts<S, C>) -> (Owner<S, C>, OwnerHandle, Receiver<Report>) {
         let (commands_tx, commands) = mpsc::channel();
@@ -320,7 +323,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         commands: Receiver<Asked>,
         reports: Sender<Report>,
     ) -> Owner<S, C> {
-        let schedule = Schedule::new(parts.shred_chunk, ByteBound::of_cap(parts.cap));
+        let schedule = Schedule::new(parts.shred_chunk, parts.cap);
         let mut owner = Owner {
             writer: parts.writer,
             commands,
@@ -343,7 +346,9 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             stopping: false,
             published: Arc::new(Mutex::new(Counters::default().snapshot(0, false))),
         };
-        owner.read_usage();
+        if let Some(disk_bytes) = owner.read_usage() {
+            owner.schedule.measured(disk_bytes);
+        }
         let now = owner.clocks.now();
         owner.run_maintenance(now);
         owner.report(Report::StoreReady);
@@ -384,6 +389,16 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         true
     }
 
+    /// The read of the R2 cursor: the store's answer for the first live
+    /// segment at or after `from`, and the wall clock's reading at that read.
+    #[cfg(feature = "r2")]
+    pub(crate) fn read_segment(
+        &mut self,
+        from: super::port::Ordinal,
+    ) -> (Result<super::port::SegmentRead, MaintFault>, SystemTime) {
+        (self.store.read_segment(from), self.clocks.wall())
+    }
+
     /// One loop pass: the waiting commands, then at most one event received
     /// within `wait`, then the due work. Returns false once the owner has
     /// answered [`Command::Shutdown`].
@@ -400,6 +415,8 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
     }
 
     fn finish_pass(&mut self) -> bool {
+        #[cfg(feature = "r2")]
+        let took_event = self.inbox.is_some();
         if !self.stopping {
             self.handle_commands();
             if let Some(received) = self.inbox.take() {
@@ -410,7 +427,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
             let now = self.clocks.now();
             self.due_work(now);
             #[cfg(feature = "r2")]
-            super::r2::owner_pass(self);
+            super::r2::owner_pass(self, took_event);
         }
         self.publish();
         !self.stopping
@@ -458,7 +475,7 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
                             self.read_usage();
                         }
                     }
-                    Job::Evict => {
+                    Job::Evict { .. } => {
                         self.counters.evicted(now.wall);
                         self.read_usage();
                     }
@@ -788,10 +805,10 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         };
     }
 
-    fn read_usage(&mut self) {
-        if let Ok(usage) = self.store.usage() {
-            self.counters.disk_bytes(usage.disk_bytes);
-        }
+    fn read_usage(&mut self) -> Option<u64> {
+        let disk_bytes = self.store.usage().ok()?.disk_bytes;
+        self.counters.disk_bytes(disk_bytes);
+        Some(disk_bytes)
     }
 
     fn report(&self, report: Report) {
@@ -946,6 +963,7 @@ mod tests {
     use crate::event::Modality;
     use crate::floor::{Switch, Switches};
     use crate::sink;
+    use halvo_control::model::StorageCap;
     use halvo_control::proto::{StoreErrorKind, StoreState};
 
     use super::open::{try_open, CreateRule, Held, Opener};
@@ -1171,7 +1189,7 @@ mod tests {
             store: store.clone(),
             clocks: clocks.clone(),
             floor: open_floor(),
-            cap: StorageCap::DEFAULT,
+            cap: Some(ByteBound::of_cap(StorageCap::DEFAULT)),
             shred_chunk: SHRED_CHUNK,
         })
         .unwrap();
@@ -1481,8 +1499,9 @@ mod tests {
             .store
             .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
         resumed(&mut harness);
+        // A title above 1,020 bytes is stored empty.
         for _ in 0..1500 {
-            harness.emit(title_of(1024, 1024));
+            harness.emit(title_of(1024, 1020));
             harness.pass();
         }
         let snapshot = harness.owner.snapshot();
@@ -2161,7 +2180,7 @@ mod tests {
                 },
                 clocks: clocks.clone(),
                 floor: open_floor(),
-                cap: StorageCap::DEFAULT,
+                cap: Some(ByteBound::of_cap(StorageCap::DEFAULT)),
                 shred_chunk: SHRED_CHUNK,
             });
             let ask = |owner: &mut Owner<Shrinking, ManualClocks>, command| {
@@ -2541,7 +2560,7 @@ mod tests {
                 store: KeepsNothing(0),
                 clocks: crate::daemon::maintenance::SystemClocks::new(),
                 floor: open_floor(),
-                cap: StorageCap::DEFAULT,
+                cap: Some(ByteBound::of_cap(StorageCap::DEFAULT)),
                 shred_chunk: SHRED_CHUNK,
             })
             .unwrap();
@@ -2557,7 +2576,7 @@ mod tests {
                 assert_eq!(
                     sink.emit_event(title_of(
                         crate::floor::text::TEXT_MAX_BYTES,
-                        crate::floor::text::TEXT_MAX_BYTES
+                        crate::floor::text::TEXT_MAX_BYTES - 4
                     )),
                     sink::Emitted::Queued
                 );

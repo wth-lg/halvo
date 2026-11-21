@@ -117,6 +117,10 @@ fn load_reads_the_newest_revision_of_each() {
     let mut store = store_with("utility_bill_payment");
     assert_eq!(put_steps(&mut store, 1, navs(1, 3)), Ok(stored(3)));
     assert_eq!(put_steps(&mut store, 2, navs(1, 2)), Ok(stored(2)));
+    let fact = finished_row(1, 2, 2, 9);
+    store
+        .typed_commit(vec![fact])
+        .expect("the fact of the compile");
     coordinator(
         &mut store,
         json!({"op": "set_bindings", "workflow": wf(1), "agent": agent(1), "slots": [{"name": "payee", "value": ["Northwind"]}]}),
@@ -265,7 +269,7 @@ fn load_session_reads_one_stored_part() {
     assert_eq!(
         reply,
         RunnerReply::parse(
-            br#"{"origin":"https://pay.test:443","rev":1,"part":2,"of":2,"data":["QUJD"]}"#
+            br#"{"agent":"40000000000000000000000000000001","origin":"https://pay.test:443","rev":1,"part":2,"of":2,"data":["QUJD"]}"#
         )
         .expect("a session reply")
     );
@@ -365,6 +369,10 @@ fn load_steps_reads_at_most_sixteen_steps_from_from() {
     let mut store = store_with("utility_bill_payment");
     put_steps(&mut store, 1, navs(1, 16)).expect("steps 1 to 16");
     put_steps(&mut store, 1, navs(17, 20)).expect("steps 17 to 20");
+    let fact = finished_row(1, 1, 20, 9);
+    store
+        .typed_commit(vec![fact])
+        .expect("the fact of the compile");
     assert_eq!(load_steps(&mut store, 1, 1), Ok((1..=16).collect()));
     assert_eq!(load_steps(&mut store, 1, 5), Ok((5..=20).collect()));
     assert_eq!(load_steps(&mut store, 1, 17), Ok((17..=20).collect()));
@@ -687,42 +695,69 @@ fn newest_playbook_and_the_key_playbook_of_load_agree_over_drawn_rows() {
         seed = seed
             .wrapping_mul(6_364_136_223_846_793_005)
             .wrapping_add(1_442_695_040_888_963_407);
-        (seed >> 33) % below
+        u32::try_from((seed >> 33) % below).expect("a small number")
     };
-    let mut some = 0;
+    let (mut some, mut half, mut past) = (0, 0, 0);
     for case in 0..200 {
         let mut store = store_with("utility_bill_payment");
-        let mut held = std::collections::BTreeSet::new();
-        for _ in 0..draw(12) {
-            let a = 1 + u32::try_from(draw(3)).expect("a small number");
-            let number = 1 + u32::try_from(draw(4)).expect("a small number");
-            let n = 1 + u32::try_from(draw(5)).expect("a small number");
-            if held.insert((a, number, n)) {
+        let mut held = std::collections::BTreeMap::new();
+        let mut finished = std::collections::BTreeMap::new();
+        for _ in 0..draw(8) {
+            let (a, number) = (1 + draw(3), 1 + draw(4));
+            if held.contains_key(&(a, number)) {
+                continue;
+            }
+            let count = 1 + draw(5);
+            let rows = (1..=count).map(|n| playbook_row(a, number, n)).collect();
+            store.typed_commit(rows).expect("playbook rows");
+            held.insert((a, number), count);
+            if draw(2) == 0 {
                 store
-                    .typed_commit(vec![playbook_row(a, number, n)])
-                    .expect("a playbook row");
+                    .typed_commit(vec![finished_row(a, number, count, 90 + number)])
+                    .expect("a finished row");
+                finished.insert((a, number), count);
+                let more = draw(3);
+                let rows = (count + 1..=count + more)
+                    .map(|n| playbook_row(a, number, n))
+                    .collect();
+                store
+                    .typed_commit(rows)
+                    .expect("rows stored after the finish");
+                past += usize::from(a == 1 && more > 0);
             }
         }
         let read =
             halvo_agent_store::newest_playbook(&store, &agent_1()).expect("the rows are read");
         let loaded = load(&mut store, 1).expect("load").playbook;
         assert_eq!(read, loaded, "case {case}");
-        let want = held
+        let want = finished
             .iter()
-            .filter(|(a, _, _)| *a == 1)
-            .map(|(_, number, _)| *number)
+            .filter(|((a, _), _)| *a == 1)
+            .map(|((_, number), steps)| (*number, *steps))
             .max();
-        assert_eq!(read.as_ref().map(|p| p.number.get()), want, "case {case}");
-        if let Some(p) = &read {
-            let steps = held
-                .iter()
-                .filter(|(a, number, _)| *a == 1 && *number == p.number.get())
-                .count();
-            assert_eq!(p.steps.get() as usize, steps, "case {case}");
-            some += 1;
+        let got = read.as_ref().map(|p| (p.number.get(), p.steps.get()));
+        assert_eq!(got, want, "case {case}");
+        some += usize::from(read.is_some());
+        for &(a, number) in held.keys() {
+            if a != 1 {
+                continue;
+            }
+            let handed = load_steps(&mut store, number, 1);
+            match finished.get(&(a, number)) {
+                Some(&steps) => assert_eq!(handed, Ok((1..=steps).collect()), "case {case}"),
+                None => {
+                    assert_eq!(handed, Err(declared("playbook")), "case {case}");
+                    half += 1;
+                }
+            }
         }
     }
-    assert!(some > 50, "{some} of 200 cases had a playbook of the agent");
+    assert!(some > 50, "{some} of 200 cases had a finished playbook");
+    assert!(half > 50, "{half} numbers of half playbooks were asked");
+    assert!(
+        past > 20,
+        "{past} finished numbers had steps stored after their finish"
+    );
 }
 
 #[test]
@@ -979,4 +1014,34 @@ fn a_repeat_of_a_stored_stopped_row_stores_nothing_and_is_answered_with_its_coun
         Ok(stored(2))
     );
     assert_eq!(rows(&store, "agent_log").len(), 3);
+}
+
+#[test]
+fn the_two_replies_name_the_agent_of_their_rows() {
+    let mut store = store_with("utility_bill_payment");
+    let origin = "https://pay.test:443";
+    assert_eq!(put_steps(&mut store, 1, navs(1, 3)), Ok(stored(3)));
+    let fact = finished_row(1, 1, 3, 9);
+    store
+        .typed_commit(vec![fact])
+        .expect("the fact of the compile");
+    put_session(&mut store, origin, 1, 1, 1, vec!["QUJD".into()]).expect("a part");
+    let text = |reply: Result<RunnerReply, ErrorName>| {
+        reply.expect("a reply").to_json().expect("its text")
+    };
+    for from in [1, 4] {
+        let steps = text(runner(
+            &mut store,
+            json!({"op": "load_steps", "agent": agent(1), "run": run(1), "number": 1, "from": from}),
+        ));
+        let named = format!(r#"{{"agent":"{}","steps":["#, agent(1));
+        assert!(steps.starts_with(&named), "from {from}: {steps}");
+    }
+    assert_eq!(
+        text(load_session(&mut store, origin, 1, 1)),
+        format!(
+            r#"{{"agent":"{}","origin":"{origin}","rev":1,"part":1,"of":1,"data":["QUJD"]}}"#,
+            agent(1)
+        )
+    );
 }

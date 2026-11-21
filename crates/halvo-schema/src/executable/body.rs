@@ -7,18 +7,22 @@ use crate::ids::{AgentId, WorkflowId};
 use crate::record::Instant;
 use crate::request::{CoordinatorBody, RunnerBody, REPLY_MAX};
 
+use super::bound::{check_kept, KeptField};
 use super::config::AgentConfig;
 use super::frame::FRAME_JSON_MAX;
 use super::json::{self, each_once, from_json, list, object_type, opt};
 use super::names::{
-    AgentState, CheckpointState, EffectState, LeftReason, ListedState, MarkState, Mode, Way, YesNo,
+    ActionClass, AgentState, CheckpointState, EffectState, LeftReason, ListedState, MarkState,
+    Mode, Way, YesNo,
 };
 use super::record::{
     checkpoint_copy, origins_and_slots, part_of, slot_names_once, AgentCheckpoint, AgentEffect,
     AgentLog, AgentReply, AgentRun, AgentStart, Slot, SESSION_PARTS_MAX,
 };
 use super::step::{ExecutableStep, PLAYBOOK_STEPS_MAX};
-use super::text::{Digest, Null, OwnText, OwnValue, ProviderId, RunId, SessionData, WebOrigin};
+use super::text::{
+    Digest, EffectId, Name, Null, OwnText, OwnValue, ProviderId, RunId, SessionData, WebOrigin,
+};
 use super::{is_sender, same_address, Refusal};
 
 /// The most steps of one `put_playbook` body and of one `load_steps` reply.
@@ -470,16 +474,22 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `load`: one session entry per origin, and the agent's one start row or null when none stands.
+    /// The reply of `load`: the agent's newest finished playbook or null; the number that a new playbook is stored
+    /// under, the newest stored number plus 1, above the finished number (CP-182); one session entry per origin, and
+    /// the agent's one start row or null when none stands.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct LoadReply {
         pub config: AgentConfig = "config" => AgentConfig::from_raw,
         pub playbook: Option<LoadedPlaybook> = "playbook" => opt(LoadedPlaybook::from_raw),
+        pub next_playbook: NonZeroU32 = "next_playbook" => from_json,
         pub bindings: Option<LoadedBindings> = "bindings" => opt(LoadedBindings::from_raw),
         pub sessions: Vec<LoadedSession> = "sessions" => list(LoadedSession::from_raw),
         pub start: Option<AgentStart> = "start" => opt(AgentStart::from_raw),
     }
     rules(r) {
+        if r.playbook.as_ref().is_some_and(|p| p.number >= r.next_playbook) {
+            return Err(Refusal::malformed("LoadReply", "next_above_playbook").at("next_playbook"));
+        }
         let origins: Vec<&WebOrigin> = r.sessions.iter().map(|s| &s.origin).collect();
         each_once("LoadReply", &origins).map_err(|e| e.at("sessions"))?;
         if r
@@ -495,9 +505,11 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `load_steps`: at most 16 steps, numbered in order.
+    /// The reply of `load_steps`: the agent of the step rows that the store read, and at most 16 steps, numbered in
+    /// order.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct StepsReply {
+        pub agent: AgentId = "agent" => json::agent_id,
         pub steps: Vec<ExecutableStep> = "steps" => list(ExecutableStep::from_raw),
     }
     rules(r) { steps_in_order("StepsReply", &r.steps) }
@@ -505,9 +517,10 @@ object_type! {
 }
 
 object_type! {
-    /// The reply of `load_session`: part `part` of `of`.
+    /// The reply of `load_session`: the agent of the session part that the store read, and part `part` of `of`.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct SessionReply {
+        pub agent: AgentId = "agent" => json::agent_id,
         pub origin: WebOrigin = "origin" => from_json,
         pub rev: NonZeroU32 = "rev" => from_json,
         pub part: NonZeroU32 = "part" => from_json,
@@ -622,28 +635,29 @@ reply_enum! {
 
 impl RunnerReply {
     /// Whether the reply has the form that the body's call answers with; a reply of `load_replies` answers its call
-    /// only as `LoadRepliesReply::answers` says, and a reply of `load` only when its config, and its start row if it
-    /// holds one, are of the body's agent.
+    /// only as `LoadRepliesReply::answers` says, a reply of `load` only when its config, and its start row if it
+    /// holds one, are of the body's agent, and a reply of `load_steps` or `load_session` only when it names the
+    /// body's agent.
     pub fn answers(&self, call: &RunnerCall) -> bool {
         match (self, call) {
             (RunnerReply::Replies(r), RunnerCall::LoadReplies(b)) => r.answers(b).is_ok(),
             (RunnerReply::Load(r), RunnerCall::Load(b)) => {
                 r.config.agent == b.agent && r.start.as_ref().is_none_or(|s| s.agent == b.agent)
             }
+            (RunnerReply::Steps(r), RunnerCall::LoadSteps(b)) => r.agent == b.agent,
+            (RunnerReply::Session(r), RunnerCall::LoadSession(b)) => r.agent == b.agent,
             _ => matches!(
                 (self, call),
-                (RunnerReply::Steps(_), RunnerCall::LoadSteps(_))
-                    | (RunnerReply::Session(_), RunnerCall::LoadSession(_))
-                    | (
-                        RunnerReply::Stored(_),
-                        RunnerCall::PutPlaybook(_)
-                            | RunnerCall::PutSession(_)
-                            | RunnerCall::Effect(_)
-                            | RunnerCall::Log(_)
-                            | RunnerCall::Finish(_)
-                            | RunnerCall::Checkpoint(_)
-                            | RunnerCall::ReplyRow(_)
-                    )
+                (
+                    RunnerReply::Stored(_),
+                    RunnerCall::PutPlaybook(_)
+                        | RunnerCall::PutSession(_)
+                        | RunnerCall::Effect(_)
+                        | RunnerCall::Log(_)
+                        | RunnerCall::Finish(_)
+                        | RunnerCall::Checkpoint(_)
+                        | RunnerCall::ReplyRow(_)
+                )
             ),
         }
     }
@@ -721,7 +735,7 @@ object_type! {
 
 op_enum! {
     /// The coordinator bodies of this run (`CoordinatorCall`): each holds `op` first, then `workflow` and `agent`,
-    /// then its keys. The `op` name `list_agents` is reserved and is no body yet.
+    /// then its keys.
     pub enum CoordinatorCall {
         CreateAgent(CreateAgent) = "create_agent",
         SetBindings(SetBindings) = "set_bindings",
@@ -732,6 +746,7 @@ op_enum! {
         ListCheckpoints(ListCheckpoints) = "list_checkpoints",
         MarkCheckpoint(MarkCheckpoint) = "mark_checkpoint",
         ListOverlaps(ListOverlaps) = "list_overlaps",
+        ListAgents(ListAgents) = "list_agents",
     }
 }
 
@@ -790,6 +805,18 @@ object_type! {
             .as_deref()
             .map_or(Ok(()), |slots| slot_names_once("ListOverlaps", slots))
     }
+}
+
+object_type! {
+    /// `list_agents`: one body over all agents, with `workflow` and `agent` null, as `list_checkpoints` has them, for
+    /// the agents after the agent `after`, or from the first (the interface run's I6.1).
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ListAgents [op = "list_agents"] {
+        pub workflow: Null = "workflow" => from_json,
+        pub agent: Null = "agent" => from_json,
+        pub after: Option<AgentId> = "after" => opt(json::agent_id),
+    }
+    rules(_b) { Ok(()) }
 }
 
 object_type! {
@@ -856,7 +883,9 @@ object_type! {
 object_type! {
     /// One other live agent of the reply of `list_overlaps`: its workflow, its agent and the senders that it shares
     /// with the asking agent, at least one, in the spelling of the asking agent's list. Each sender is a piece that
-    /// the reader of the slot `reply_senders` takes, and no two are one address by `same_address`.
+    /// the reader of the slot `reply_senders` takes, and no two are one address by `same_address`. Which senders an
+    /// entry names, their spelling and their order are those of the asking agent's list, and the store's handler of
+    /// `list_overlaps` holds them for every body; this type checks the form of each sender alone (CP-232 (1)).
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct Overlap {
         pub workflow: WorkflowId = "workflow" => json::workflow_id,
@@ -929,6 +958,65 @@ impl OverlapsReply {
 }
 
 object_type! {
+    /// One effect of the key `unknown` of an entry of `list_agents`: an effect of the agent whose newest row is
+    /// `unknown`, with the run, the effect id, the day, the class and the kept fields of that row.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct UnknownEffect {
+        pub run: RunId = "run" => from_json,
+        pub effect: EffectId = "effect" => from_json,
+        pub day: u32 = "day" => from_json,
+        pub class: ActionClass = "class" => from_json,
+        pub kept: Vec<KeptField> = "kept" => list(KeptField::from_raw),
+    }
+    rules(u) { check_kept(u.class, &u.kept).map_err(|r| r.at("kept")) }
+}
+
+object_type! {
+    /// One agent of the reply of `list_agents`: its configuration, the state of its workflow, the slot names of its
+    /// newest bindings, `session` (`yes` when a session of the agent is stored whole), its newest run record or
+    /// null, and its effects whose newest row is `unknown`. A run record of another agent is refused.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ListedAgent {
+        pub config: AgentConfig = "config" => AgentConfig::from_raw,
+        pub state: AgentState = "state" => from_json,
+        pub slots: Vec<Name> = "slots" => list(from_json),
+        pub session: YesNo = "session" => from_json,
+        pub last: Option<AgentRun> = "last" => opt(AgentRun::from_raw),
+        pub unknown: Vec<UnknownEffect> = "unknown" => list(UnknownEffect::from_raw),
+    }
+    rules(a) {
+        if a
+            .last
+            .as_ref()
+            .is_some_and(|r| (&r.workflow, &r.agent) != (&a.config.workflow, &a.config.agent))
+        {
+            return Err(Refusal::malformed("ListedAgent", "record_of_another_agent").at("last"));
+        }
+        Ok(())
+    }
+}
+
+object_type! {
+    /// The reply of `list_agents`: the agents in ascending order of agent id, each once, and the agent id to ask
+    /// after for the next page, or null. Its bound, `CHECKPOINTS_REPLY_MAX`, counts the bytes given to `parse` and to
+    /// `CoordinatorReply::parse`, and the compact text that the writer writes, so that no reply passes `REPLY_MAX`
+    /// with its envelope.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct AgentsReply {
+        pub agents: Vec<ListedAgent> = "agents" => list(ListedAgent::from_raw),
+        pub next: Option<AgentId> = "next" => opt(json::agent_id),
+    }
+    rules(r) {
+        if r.agents.windows(2).any(|w| w[1].config.agent <= w[0].config.agent) {
+            return Err(Refusal::malformed("AgentsReply", "agent_order").at("agents"));
+        }
+        Ok(())
+    }
+    max_len(CHECKPOINTS_REPLY_MAX)
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
+}
+
+object_type! {
     /// The reply of `create_agent`, `set_bindings` and `add_origin`: the revision stored, or for an `add_origin`
     /// that stored nothing the newest.
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -967,13 +1055,15 @@ reply_enum! {
         Checkpoints(CheckpointsReply) = "checkpoints",
         Stored(Stored) = "stored",
         Overlaps(OverlapsReply) = "overlaps",
+        Agents(AgentsReply) = "agents",
     }
 }
 
 impl CoordinatorReply {
     /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
-    /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints` by the list,
-    /// `mark_checkpoint` by `stored` 0 or 1, and `list_overlaps` by its list only as `OverlapsReply::answers` says.
+    /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints` and `list_agents` by
+    /// their lists, `mark_checkpoint` by `stored` 0 or 1, and `list_overlaps` by its list only as
+    /// `OverlapsReply::answers` says.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
         match (self, call) {
             (CoordinatorReply::Overlaps(r), CoordinatorCall::ListOverlaps(b)) => {
@@ -987,6 +1077,7 @@ impl CoordinatorReply {
             )
             | (CoordinatorReply::State(_), CoordinatorCall::SetState(_))
             | (CoordinatorReply::Checkpoints(_), CoordinatorCall::ListCheckpoints(_))
+            | (CoordinatorReply::Agents(_), CoordinatorCall::ListAgents(_))
             | (
                 CoordinatorReply::Accepted(_),
                 CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_),

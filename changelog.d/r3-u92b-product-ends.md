@@ -1,0 +1,2 @@
+- Added: `ClientEnds`, the product's `Ends` of the owner link over the request `owner_stream` (halvo-agent-client, module link::product): each end comes from a call on the app's client, and a refusal busy, store_unavailable or any other error is `Busy`, `StoreUnavailable` or `Internal` (r3 U9.2, second)
+- Changed: the egress check 21-tree-bans names halvo-agent-client among the packages that link no network client on the shipped targets (r3 U9.2, second)

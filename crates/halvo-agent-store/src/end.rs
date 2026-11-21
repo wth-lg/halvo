@@ -1,11 +1,13 @@
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 
 use halvo_policy::{effect_step, Effect, EffectMove};
 use halvo_schema::executable::body::{Accepted, EndRun, Finish, Stored};
-use halvo_schema::executable::names::{Cause, EffectState, Outcome};
+use halvo_schema::executable::names::{Cause, EffectState, Mode, Outcome};
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::{
-    AgentEffect, AgentRun, CoordinatorReply, EffectId, RunId, RunnerReply,
+    AgentEffect, AgentFinished, AgentPlaybook, AgentRun, CoordinatorReply, EffectId, RunId,
+    RunnerReply,
 };
 use halvo_schema::{ErrorName, TypedRecord};
 
@@ -13,7 +15,7 @@ use crate::effect::rebinds;
 use crate::errors::Own;
 use crate::host::{Host, Now};
 use crate::rows::{self, record};
-use crate::{bind, day, reply};
+use crate::{bind, day, reply, runner};
 
 pub(crate) fn finish(host: &mut dyn Host, now: Now, b: &Finish) -> Result<RunnerReply, ErrorName> {
     let (_, workflow) = bind::runner_agent(&*host, &b.agent)?;
@@ -29,13 +31,51 @@ pub(crate) fn finish(host: &mut dyn Host, now: Now, b: &Finish) -> Result<Runner
         Some(_) => return Err(Own::Effect.into()),
         None => {
             agrees(&*host, &b.record)?;
+            let fact = finished(&*host, b)?;
             let mut records = vec![record(rows::AGENT_RUN, b.record.to_json())?];
+            records.extend(fact);
             records.extend(moves(&*host, &b.run, now)?);
             records.extend(reply::ended(&*host, &b.run, now)?);
             day::commit(host, now, records)?;
         }
     }
     Ok(RunnerReply::Stored(Stored { stored: 1 }))
+}
+
+/// The row `agent_finished` that the record of a compile with the outcome `completed` brings into its commit
+/// (CP-182 (2)): the record's playbook number with its count of stored steps and the run's id. `playbook` where that
+/// number is not the agent's newest stored playbook number; none for any other record, and none where a row of the
+/// number stands, so that each finished number has one row.
+fn finished(host: &dyn Host, b: &Finish) -> Result<Option<TypedRecord>, ErrorName> {
+    let r = &b.record;
+    if r.mode != Some(Mode::Compile) || r.outcome != Outcome::Completed {
+        return Ok(None);
+    }
+    let own: Vec<AgentPlaybook> = rows::playbooks(host.rows())?
+        .into_iter()
+        .filter(|p| p.agent == b.agent)
+        .collect();
+    let newest = own.iter().map(|p| p.number).max();
+    let number = r
+        .playbook
+        .filter(|n| Some(*n) == newest)
+        .ok_or(Own::Playbook)?;
+    if runner::finished(host.rows(), &b.agent)?.contains_key(&number) {
+        return Ok(None);
+    }
+    let count = own.iter().filter(|p| p.number == number).count();
+    let row = AgentFinished {
+        v: V1,
+        workflow: r.workflow.clone(),
+        agent: b.agent.clone(),
+        number,
+        steps: u32::try_from(count)
+            .ok()
+            .and_then(NonZeroU32::new)
+            .ok_or(Own::Playbook)?,
+        run: b.run.clone(),
+    };
+    Ok(Some(record(rows::AGENT_FINISHED, row.to_json())?))
 }
 
 fn agrees(host: &dyn Host, record: &AgentRun) -> Result<(), ErrorName> {
@@ -48,6 +88,7 @@ fn agrees(host: &dyn Host, record: &AgentRun) -> Result<(), ErrorName> {
                 | EffectState::Cleared
                 | EffectState::Approved
                 | EffectState::Releasing
+                | EffectState::NotMade
         )
     });
     if record.outcome == Outcome::Completed && open {

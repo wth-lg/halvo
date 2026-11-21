@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { HERE, ROOT, VIEW, check, fixtures, open, serve } from './lib.mjs';
+import { CONFIRM, HERE, ROOT, VIEW, check, fixtures, open, serve } from './lib.mjs';
 
 const argv = process.argv.slice(2);
 const write = argv.includes('--write');
@@ -23,7 +23,7 @@ let testFailed = 0;
 
 for (const state of states) {
   const snapshot = join(HERE, 'structure', state + '.txt');
-  const h = await open({ origin, state, views: [VIEW] });
+  const h = await open({ origin, state, views: [CONFIRM, VIEW] });
   const line = { violations: 0, review: 0, keyboard: 'ok', structure: noStructure ? '-' : 'same', size: 'ok', modes: 'ok', modes_off: '-', markup: 'ok' };
   const names = [];
   let ok = true;

@@ -3,12 +3,13 @@ mod common;
 use common::*;
 use halvo_agent_store::{Host, MemoryStore, AGENT_KINDS};
 use halvo_policy::{preset, validate};
+use halvo_schema::executable::body::{AgentsReply, CHECKPOINTS_REPLY_MAX};
 use halvo_schema::executable::names::LogEvent;
-use halvo_schema::executable::{AgentLog, CoordinatorReply};
+use halvo_schema::executable::{AgentLog, CoordinatorReply, RunnerReply};
 use halvo_schema::{
     AgentId, Category, ErrorName, SeedCategory, TypedRecord, Workflow, WorkflowId, WorkflowState,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 
 fn state_of(store: &MemoryStore, w: u32) -> (WorkflowState, Option<String>) {
     match stored_workflow(store, w) {
@@ -125,7 +126,7 @@ fn a_body_that_is_not_the_form_is_malformed() {
     let mut store = store_with("email");
     for body in [
         json!({"op": "create_agent", "workflow": wf(1)}),
-        json!({"op": "list_agents", "workflow": wf(1), "agent": agent(1)}),
+        json!({"op": "list_agents", "workflow": null, "agent": null}),
         json!({"op": "create_agent", "workflow": wf(1), "agent": agent(1), "extra": 1}),
         json!(["create_agent"]),
     ] {
@@ -209,6 +210,11 @@ fn set_state_active_needs_a_playbook_for_a_web_agent() {
     );
     assert_eq!(
         set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(store.commit(vec![finished_row(1, 1, 1, 9)]), Ok(()));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
         Ok(state_reply("active"))
     );
 
@@ -236,6 +242,37 @@ fn set_state_active_needs_a_playbook_for_a_web_agent() {
         set_state(&mut other, 1, "active"),
         Err(declared("playbook"))
     );
+}
+
+#[test]
+fn a_web_agent_with_a_half_recorded_playbook_is_not_switched_on() {
+    let mut store = store_with("utility_bill_payment");
+    let approved = (WorkflowState::Approved, Some(agent(1)));
+    let one = vec![step(1, "navigate", "read")];
+    assert_eq!(put_steps(&mut store, 1, one.clone()), Ok(stored(1)));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(state_of(&store, 1), approved);
+    let mut failed = run_record(1, Some("compile"), "failed");
+    failed["playbook"] = json!(1);
+    assert_eq!(finish(&mut store, failed), Ok(stored(1)));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(state_of(&store, 1), approved);
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of the second compile");
+    let body =
+        json!({"op": "put_playbook", "agent": agent(1), "run": run(2), "number": 2, "steps": one});
+    assert_eq!(runner(&mut store, body), Ok(stored(1)));
+    assert_eq!(end_run(&mut store, 2), Ok(accepted()));
+    assert_eq!(
+        set_state(&mut store, 1, "active"),
+        Err(declared("playbook"))
+    );
+    assert_eq!(state_of(&store, 1), approved);
 }
 
 #[test]
@@ -508,50 +545,1053 @@ fn a_start_run_whose_start_row_lies_past_the_log_s_bound_does_not_open_the_run_a
     }
 }
 
+const ME: &str = "me@mail.test";
+
+fn slot(name: &str, value: &str) -> Value {
+    json!({"name": name, "value": [value]})
+}
+
+fn reply_slots(account: Option<&str>, senders: Option<&str>) -> Value {
+    let mut slots = Vec::new();
+    if let Some(account) = account {
+        slots.push(slot("account_address", account));
+    }
+    if let Some(senders) = senders {
+        slots.push(slot("reply_senders", senders));
+    }
+    Value::Array(slots)
+}
+
+fn put_bindings(store: &mut MemoryStore, w: u32, a: u32, rev: u32, slots: Value) {
+    let row = json!({
+        "v": 1, "workflow": wf(w), "agent": agent(a), "rev": rev, "origins": [], "slots": slots,
+    });
+    store
+        .commit(vec![TypedRecord {
+            kind: "agent_bindings",
+            json: row.to_string(),
+        }])
+        .expect("the bindings row is stored");
+}
+
+fn other_agent(store: &mut MemoryStore, n: u32, state: &str, slots: Value) {
+    store.put_workflow(workflow(&wf(n), "email", state, Some(&agent(n))));
+    put_bindings(store, n, n, 1, slots);
+}
+
+fn gone(store: &mut MemoryStore, n: u32) {
+    store.remove_workflow(&WorkflowId::parse(&wf(n)).expect("an id"));
+}
+
+fn move_to(store: &mut MemoryStore, n: u32, state: &str) -> Result<CoordinatorReply, ErrorName> {
+    coordinator(
+        store,
+        json!({"op": "set_state", "workflow": wf(n), "agent": agent(n), "state": state}),
+    )
+}
+
+fn set_bindings(
+    store: &mut MemoryStore,
+    n: u32,
+    slots: Value,
+) -> Result<CoordinatorReply, ErrorName> {
+    coordinator(
+        store,
+        json!({"op": "set_bindings", "workflow": wf(n), "agent": agent(n), "slots": slots}),
+    )
+}
+
+fn list_overlaps(
+    store: &mut MemoryStore,
+    n: u32,
+    slots: Value,
+) -> Result<CoordinatorReply, ErrorName> {
+    coordinator(
+        store,
+        json!({"op": "list_overlaps", "workflow": wf(n), "agent": agent(n), "slots": slots}),
+    )
+}
+
+fn overlaps(entries: &[(u32, u32, &[&str])], more: &str) -> CoordinatorReply {
+    let entries: Vec<Value> = entries
+        .iter()
+        .map(|(w, a, senders)| json!({"workflow": wf(*w), "agent": agent(*a), "senders": senders}))
+        .collect();
+    let reply = json!({"overlaps": entries, "more": more});
+    CoordinatorReply::parse(reply.to_string().as_bytes()).expect("an overlaps reply")
+}
+
+fn every_row(store: &MemoryStore) -> Vec<Vec<String>> {
+    AGENT_KINDS
+        .iter()
+        .map(|(kind, _)| rows(store, kind))
+        .collect()
+}
+
 #[test]
-fn list_overlaps_is_answered_malformed_and_stores_nothing_and_changes_no_state() {
+fn list_overlaps_stores_nothing_and_changes_no_state() {
     let mut store = MemoryStore::new();
     for n in [1, 2] {
         store.put_workflow(workflow(&wf(n), "email", "approved", None));
         assert_eq!(create(&mut store, n, n), Ok(rev(1)), "{n}");
-        let slots = json!([
-            {"name": "account_address", "value": ["me@mail.test"]},
-            {"name": "reply_senders", "value": ["ann@people.test"]}
-        ]);
+    }
+    let slots = reply_slots(Some(ME), Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, slots.clone()), Ok(rev(1)));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    assert_eq!(set_bindings(&mut store, 2, slots), Ok(rev(1)));
+    let held = |store: &MemoryStore| (every_row(store), state_of(store, 1), state_of(store, 2));
+    let before = held(&store);
+    for (slots, sender) in [
+        (json!(null), "ann@people.test"),
+        (json!([]), "ann@people.test"),
+        (
+            json!([{"name": "reply_senders", "value": ["ANN@people.test"]}]),
+            "ANN@people.test",
+        ),
+    ] {
         assert_eq!(
-            coordinator(
-                &mut store,
-                json!({"op": "set_bindings", "workflow": wf(n), "agent": agent(n), "slots": slots}),
-            ),
-            Ok(rev(1)),
+            list_overlaps(&mut store, 1, slots),
+            Ok(overlaps(&[(2, 2, &[sender])], "no"))
+        );
+    }
+    for slots in [json!(null), reply_slots(Some(ME), Some("ann@people.test"))] {
+        for (w, a, refusal) in [(9, 1, ErrorName::NoWorkflow), (1, 2, declared("binding"))] {
+            let body = json!({"op": "list_overlaps", "workflow": wf(w), "agent": agent(a), "slots": slots});
+            assert_eq!(
+                coordinator(&mut store, body),
+                Err(refusal),
+                "workflow {w}, agent {a}, slots {slots}"
+            );
+        }
+    }
+    assert_eq!(held(&store), before);
+}
+
+#[test]
+fn list_overlaps_names_each_other_live_agent_with_the_senders_that_it_shares_in_the_spelling_of_the_asking_list(
+) {
+    let mut store = MemoryStore::new();
+    let asking = "Ann@People.test, bob@people.test, dora@people.test";
+    other_agent(&mut store, 1, "paused", reply_slots(Some(ME), Some(asking)));
+    let zed = Some("zed@other.test, ann@people.test");
+    other_agent(
+        &mut store,
+        2,
+        "active",
+        reply_slots(Some("ME@mail.test"), zed),
+    );
+    let both = Some("BOB@PEOPLE.TEST, ANN@people.test");
+    other_agent(&mut store, 3, "approved", reply_slots(Some(ME), both));
+    other_agent(
+        &mut store,
+        4,
+        "paused",
+        reply_slots(Some(ME), Some("dora@people.test")),
+    );
+    other_agent(
+        &mut store,
+        5,
+        "active",
+        reply_slots(Some(ME), Some("dora@people.test")),
+    );
+    gone(&mut store, 5);
+    store.put_workflow(workflow(&wf(6), "email", "active", Some(&agent(6))));
+    put_bindings(
+        &mut store,
+        6,
+        6,
+        1,
+        reply_slots(Some(ME), Some("dora@people.test")),
+    );
+    store.put_workflow(workflow(&wf(6), "email", "active", Some(&agent(7))));
+    put_bindings(
+        &mut store,
+        6,
+        7,
+        1,
+        reply_slots(Some(ME), Some("Dora@people.test")),
+    );
+    let other = Some("other@mail.test");
+    other_agent(
+        &mut store,
+        8,
+        "active",
+        reply_slots(other, Some("ann@people.test")),
+    );
+    let refused = Some("Ann Berg, ann@people.test");
+    other_agent(&mut store, 9, "active", reply_slots(Some(ME), refused));
+    other_agent(
+        &mut store,
+        10,
+        "active",
+        reply_slots(None, Some("ann@people.test")),
+    );
+    let older = reply_slots(Some(ME), Some("dora@people.test"));
+    other_agent(&mut store, 11, "active", older);
+    let newer = reply_slots(Some(ME), Some("erik@people.test"));
+    put_bindings(&mut store, 11, 11, 2, newer);
+    store.put_workflow(workflow(&wf(12), "email", "active", Some(&agent(12))));
+    let newer = reply_slots(Some(ME), Some("bob@people.test"));
+    put_bindings(&mut store, 12, 12, 10, newer);
+    let older = reply_slots(Some(ME), Some("erik@people.test"));
+    put_bindings(&mut store, 12, 12, 9, older);
+    other_agent(
+        &mut store,
+        13,
+        "active",
+        reply_slots(None, Some("ANN@people.test")),
+    );
+    let held = |store: &MemoryStore| (every_row(store), state_of(store, 1), state_of(store, 6));
+    let before = held(&store);
+
+    let named = overlaps(
+        &[
+            (2, 2, &["Ann@People.test"]),
+            (3, 3, &["Ann@People.test", "bob@people.test"]),
+            (6, 7, &["dora@people.test"]),
+            (12, 12, &["bob@people.test"]),
+        ],
+        "no",
+    );
+    assert_eq!(list_overlaps(&mut store, 1, json!(null)), Ok(named.clone()));
+    assert_eq!(list_overlaps(&mut store, 1, json!([])), Ok(named));
+    let shouted = json!([slot("reply_senders", "ANN@PEOPLE.TEST, carl@people.test")]);
+    assert_eq!(
+        list_overlaps(&mut store, 1, shouted),
+        Ok(overlaps(
+            &[(2, 2, &["ANN@PEOPLE.TEST"]), (3, 3, &["ANN@PEOPLE.TEST"])],
+            "no"
+        ))
+    );
+    let unread = json!([slot("reply_senders", "Ann Berg, ann@people.test")]);
+    assert_eq!(
+        list_overlaps(&mut store, 1, unread),
+        Ok(overlaps(&[], "no"))
+    );
+    let account = json!([slot("account_address", "Other@Mail.test")]);
+    assert_eq!(
+        list_overlaps(&mut store, 1, account),
+        Ok(overlaps(&[(8, 8, &["Ann@People.test"])], "no"))
+    );
+    for n in [9, 10] {
+        assert_eq!(
+            list_overlaps(&mut store, n, json!(null)),
+            Ok(overlaps(&[], "no")),
             "{n}"
         );
     }
-    let held = |store: &MemoryStore| {
-        let rows: Vec<Vec<String>> = AGENT_KINDS
-            .iter()
-            .map(|(kind, _)| rows(store, kind))
-            .collect();
-        (rows, state_of(store, 1), state_of(store, 2))
-    };
-    let before = held(&store);
-    for slots in [
-        json!(null),
-        json!([]),
-        json!([{"name": "reply_senders", "value": ["ANN@people.test"]}]),
-    ] {
-        let body =
-            json!({"op": "list_overlaps", "workflow": wf(1), "agent": agent(1), "slots": slots});
-        assert_eq!(coordinator(&mut store, body), Err(ErrorName::Malformed));
-    }
-    for (w, a) in [(9, 1), (1, 2)] {
-        let body =
-            json!({"op": "list_overlaps", "workflow": wf(w), "agent": agent(a), "slots": null});
-        assert_eq!(
-            coordinator(&mut store, body),
-            Err(ErrorName::Malformed),
-            "workflow {w}, agent {a}"
+    assert_eq!(
+        list_overlaps(&mut store, 8, json!(null)),
+        Ok(overlaps(&[], "no"))
+    );
+    assert_eq!(
+        list_overlaps(&mut store, 3, json!(null)),
+        Ok(overlaps(
+            &[(2, 2, &["ANN@people.test"]), (12, 12, &["BOB@PEOPLE.TEST"])],
+            "no"
+        ))
+    );
+    assert_eq!(held(&store), before);
+
+    let mut store = ten_revisions();
+    let ann = overlaps(&[(2, 2, &["ann@people.test"])], "no");
+    assert_eq!(list_overlaps(&mut store, 1, json!(null)), Ok(ann.clone()));
+    let unstored = reply_slots(Some(ME), Some("ann@people.test"));
+    assert_eq!(list_overlaps(&mut store, 3, unstored), Ok(ann));
+
+    let mut store = older_rows_beside_live_agents();
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(
+            &[(2, 2, &["ann@people.test"]), (3, 7, &["dora@people.test"])],
+            "no"
+        ))
+    );
+
+    let mut store = MemoryStore::new();
+    let zed = reply_slots(Some(ME), Some("zed@other.test"));
+    other_agent(&mut store, 1, "paused", zed);
+    let three = Some("ann@people.test, bob@people.test, carl@people.test");
+    other_agent(&mut store, 2, "active", reply_slots(Some(ME), three));
+    let asking = "carl@people.test, Bob@People.test, ann@people.test";
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!([slot("reply_senders", asking)])),
+        Ok(overlaps(
+            &[(
+                2,
+                2,
+                &["carl@people.test", "Bob@People.test", "ann@people.test"]
+            )],
+            "no"
+        ))
+    );
+}
+
+#[test]
+fn list_overlaps_names_the_first_16_by_workflow_id_and_more_yes_where_17_overlap() {
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), "email", "approved", None));
+    assert_eq!(create(&mut store, 1, 1), Ok(rev(1)));
+    put_bindings(
+        &mut store,
+        1,
+        1,
+        1,
+        reply_slots(Some(ME), Some("ann@people.test")),
+    );
+    for n in (2..=18).rev() {
+        other_agent(
+            &mut store,
+            n,
+            "active",
+            reply_slots(Some(ME), Some("ANN@people.test")),
         );
     }
-    assert_eq!(held(&store), before);
+    const ANN: &[&str] = &["ann@people.test"];
+    let first = |from: u32, to: u32| (from..=to).map(|n| (n, n, ANN)).collect::<Vec<_>>();
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&first(2, 17), "yes"))
+    );
+    assert_eq!(move_to(&mut store, 2, "paused"), Ok(state_reply("paused")));
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&first(3, 18), "no"))
+    );
+
+    let crossed = |pairs: &[(u32, u32)]| {
+        let mut store = MemoryStore::new();
+        store.put_workflow(workflow(&wf(1), "email", "approved", None));
+        assert_eq!(create(&mut store, 1, 1), Ok(rev(1)));
+        put_bindings(
+            &mut store,
+            1,
+            1,
+            1,
+            reply_slots(Some(ME), Some("ann@people.test")),
+        );
+        for &(w, a) in pairs {
+            store.put_workflow(workflow(&wf(w), "email", "approved", None));
+            assert_eq!(create(&mut store, w, a), Ok(rev(1)), "{w} {a}");
+            let ann = reply_slots(Some(ME), Some("ANN@people.test"));
+            put_bindings(&mut store, w, a, 1, ann);
+        }
+        store
+    };
+    let mut store = crossed(&[(2, 9), (3, 4)]);
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&[(2, 9, ANN), (3, 4, ANN)], "no"))
+    );
+    let pairs: Vec<(u32, u32)> = (2..=18).map(|w| (w, 100 - w)).collect();
+    let mut store = crossed(&pairs);
+    let kept: Vec<(u32, u32, &[&str])> = (2..=17).map(|w| (w, 100 - w, ANN)).collect();
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&kept, "yes"))
+    );
+}
+
+fn created(agents: &[u32]) -> MemoryStore {
+    let mut store = MemoryStore::new();
+    for &n in agents {
+        store.put_workflow(workflow(&wf(n), "email", "approved", None));
+        assert_eq!(create(&mut store, n, n), Ok(rev(1)), "{n}");
+    }
+    store
+}
+
+fn ten_revisions() -> MemoryStore {
+    let mut store = created(&[1, 2, 3]);
+    let ann = reply_slots(Some(ME), Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 2, ann), Ok(rev(1)));
+    assert_eq!(move_to(&mut store, 2, "paused"), Ok(state_reply("paused")));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    for n in 1..=10 {
+        let slots = match n {
+            1 => reply_slots(Some(ME), None),
+            10 => reply_slots(None, Some("ann@people.test")),
+            _ => reply_slots(None, Some("carl@people.test")),
+        };
+        assert_eq!(set_bindings(&mut store, 1, slots), Ok(rev(n)), "{n}");
+    }
+    assert_eq!(move_to(&mut store, 2, "active"), Ok(state_reply("active")));
+    store.put_workflow(workflow(&wf(8), "email", "approved", None));
+    let elsewhere = reply_slots(Some(ME), Some("zed@other.test"));
+    put_bindings(&mut store, 8, 1, 20, elsewhere);
+    store
+}
+
+fn older_rows_beside_live_agents() -> MemoryStore {
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), "email", "approved", Some(&agent(1))));
+    let both = reply_slots(Some(ME), Some("ann@people.test, dora@people.test"));
+    put_bindings(&mut store, 1, 1, 1, both);
+    store.put_workflow(workflow(&wf(3), "email", "active", Some(&agent(7))));
+    put_bindings(
+        &mut store,
+        3,
+        3,
+        3,
+        reply_slots(Some(ME), Some("dora@people.test")),
+    );
+    put_bindings(
+        &mut store,
+        3,
+        7,
+        1,
+        reply_slots(Some(ME), Some("Dora@people.test")),
+    );
+    store.put_workflow(workflow(&wf(9), "email", "active", Some(&agent(2))));
+    for rev in 1..=5 {
+        put_bindings(
+            &mut store,
+            9,
+            2,
+            rev,
+            reply_slots(Some(ME), Some("erik@people.test")),
+        );
+    }
+    gone(&mut store, 9);
+    other_agent(
+        &mut store,
+        2,
+        "active",
+        reply_slots(Some(ME), Some("ANN@people.test")),
+    );
+    store
+}
+
+#[test]
+fn set_bindings_that_would_overlap_a_live_agent_is_refused_with_overlap_and_stores_nothing() {
+    let mut store = created(&[1, 2, 3]);
+    let first = reply_slots(Some(ME), Some("ann@people.test, bob@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, first), Ok(rev(1)));
+    let refused = |store: &mut MemoryStore, n: u32, slots: Value| {
+        let before = every_row(store);
+        assert_eq!(
+            set_bindings(store, n, slots.clone()),
+            Err(declared("overlap")),
+            "{n}: {slots}"
+        );
+        assert_eq!(every_row(store), before, "{n}: {slots}");
+    };
+    refused(
+        &mut store,
+        2,
+        reply_slots(Some(ME), Some("ann@people.test")),
+    );
+    let other_case = Some("carl@people.test, bob@people.test");
+    refused(&mut store, 2, reply_slots(Some("ME@Mail.TEST"), other_case));
+    refused(
+        &mut store,
+        2,
+        reply_slots(Some(ME), Some("ANN@People.Test")),
+    );
+
+    let list_alone = reply_slots(None, Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 2, list_alone), Ok(rev(1)));
+    refused(&mut store, 2, reply_slots(Some(ME), None));
+    let address_alone = reply_slots(Some(ME), None);
+    assert_eq!(set_bindings(&mut store, 3, address_alone), Ok(rev(1)));
+    let completes = Some("carl@people.test, Bob@People.test");
+    refused(&mut store, 3, reply_slots(None, completes));
+
+    assert_eq!(move_to(&mut store, 3, "paused"), Ok(state_reply("paused")));
+    refused(&mut store, 3, reply_slots(None, Some("bob@people.test")));
+    assert_eq!(move_to(&mut store, 1, "active"), Ok(state_reply("active")));
+    refused(&mut store, 2, reply_slots(Some(ME), None));
+    assert_eq!(bindings(&store).len(), 3);
+    let with_book = json!([
+        slot("account_address", ME),
+        slot("reply_senders", "ann@people.test"),
+        slot("workbook", "Book.xlsx"),
+    ]);
+    let before = every_row(&store);
+    assert_eq!(
+        set_bindings(&mut store, 2, with_book),
+        Err(declared("binding"))
+    );
+    assert_eq!(every_row(&store), before);
+
+    let mut store = ten_revisions();
+    refused(&mut store, 1, json!([slot("signature", "Ann")]));
+    let carl = reply_slots(None, Some("carl@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, carl), Ok(rev(11)));
+
+    let mut store = older_rows_beside_live_agents();
+    for sender in ["ann@people.test", "dora@people.test"] {
+        refused(&mut store, 1, reply_slots(None, Some(sender)));
+    }
+}
+
+#[test]
+fn set_bindings_passes_where_no_live_agent_overlaps() {
+    let first = reply_slots(Some(ME), Some("ann@people.test, bob@people.test"));
+    let passes = |store: &mut MemoryStore, slots: Value| {
+        let stored = bindings(store).len();
+        assert_eq!(set_bindings(store, 2, slots.clone()), Ok(rev(1)), "{slots}");
+        assert_eq!(bindings(store).len(), stored + 1, "{slots}");
+    };
+    for slots in [
+        reply_slots(Some(ME), Some("carl@people.test")),
+        reply_slots(Some("you@mail.test"), Some("ann@people.test")),
+        reply_slots(None, Some("ann@people.test")),
+        reply_slots(Some(ME), None),
+        reply_slots(Some(ME), Some("ann@people.test, Ann Berg")),
+        reply_slots(Some(ME), Some("ann@people.test,")),
+        reply_slots(Some(ME), Some("ann@people.test, ANN@people.test")),
+    ] {
+        let mut store = created(&[1, 2]);
+        assert_eq!(set_bindings(&mut store, 1, first.clone()), Ok(rev(1)));
+        passes(&mut store, slots);
+    }
+    let shared = reply_slots(Some(ME), Some("ann@people.test"));
+    for unread in [
+        "Ann Berg, ann@people.test",
+        "ann@people.test, ANN@people.test",
+    ] {
+        let mut store = created(&[1, 2]);
+        let slots = reply_slots(Some(ME), Some(unread));
+        assert_eq!(set_bindings(&mut store, 1, slots), Ok(rev(1)));
+        passes(&mut store, shared.clone());
+    }
+    let mut store = created(&[1, 2]);
+    let no_account = reply_slots(None, Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, no_account), Ok(rev(1)));
+    passes(&mut store, reply_slots(None, Some("ANN@people.test")));
+    for why in [
+        "paused",
+        "not stored",
+        "of another agent",
+        "proposed",
+        "dismissed",
+    ] {
+        let mut store = created(&[1, 2]);
+        assert_eq!(
+            set_bindings(&mut store, 1, first.clone()),
+            Ok(rev(1)),
+            "{why}"
+        );
+        match why {
+            "paused" => {
+                assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+            }
+            "not stored" => gone(&mut store, 1),
+            "of another agent" => {
+                store.put_workflow(workflow(&wf(1), "email", "active", Some(&agent(9))));
+            }
+            "proposed" => {
+                store.put_workflow(workflow(&wf(1), "email", "proposed", Some(&agent(1))));
+            }
+            _ => store.put_workflow(dismissed(&wf(1))),
+        }
+        assert_eq!(rows(&store, "agent_bindings").len(), 1, "{why}");
+        passes(&mut store, shared.clone());
+    }
+
+    let mut store = created(&[1]);
+    other_agent(&mut store, 5, "active", shared.clone());
+    gone(&mut store, 5);
+    store.put_workflow(workflow(&wf(5), "email", "approved", None));
+    assert_eq!(rows(&store, "agent_bindings").len(), 1);
+    assert_eq!(set_bindings(&mut store, 1, shared.clone()), Ok(rev(1)));
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&[], "no"))
+    );
+    assert_eq!(move_to(&mut store, 1, "active"), Ok(state_reply("active")));
+
+    let mut store = created(&[1, 2]);
+    assert_eq!(set_bindings(&mut store, 1, shared.clone()), Ok(rev(1)));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    assert_eq!(set_bindings(&mut store, 2, shared.clone()), Ok(rev(1)));
+    let cleared = json!([{"name": "reply_senders", "value": []}]);
+    assert_eq!(set_bindings(&mut store, 1, cleared), Ok(rev(2)));
+    assert_eq!(
+        list_overlaps(&mut store, 1, json!(null)),
+        Ok(overlaps(&[], "no"))
+    );
+    assert_eq!(move_to(&mut store, 1, "active"), Ok(state_reply("active")));
+}
+
+#[test]
+fn set_state_to_approved_or_active_of_an_agent_that_overlaps_a_live_agent_is_refused_and_changes_no_state(
+) {
+    let mut store = created(&[1, 2]);
+    let shared = reply_slots(Some(ME), Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, shared), Ok(rev(1)));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    let other = reply_slots(Some(ME), Some("carl@people.test, ANN@people.test"));
+    assert_eq!(set_bindings(&mut store, 2, other), Ok(rev(1)));
+    for target in ["active", "approved"] {
+        assert_eq!(
+            move_to(&mut store, 1, target),
+            Err(declared("overlap")),
+            "{target}"
+        );
+        assert_eq!(
+            state_of(&store, 1),
+            (WorkflowState::Paused, Some(agent(1))),
+            "{target}"
+        );
+    }
+    store.put_workflow(workflow(&wf(1), "email", "active", Some(&agent(1))));
+    for target in ["active", "approved"] {
+        assert_eq!(
+            move_to(&mut store, 2, target),
+            Err(declared("overlap")),
+            "{target}"
+        );
+        assert_eq!(
+            state_of(&store, 2),
+            (WorkflowState::Approved, Some(agent(2))),
+            "{target}"
+        );
+    }
+    assert_eq!(move_to(&mut store, 2, "paused"), Ok(state_reply("paused")));
+    assert_eq!(state_of(&store, 2), (WorkflowState::Paused, Some(agent(2))));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    for target in ["approved", "active"] {
+        assert_eq!(
+            move_to(&mut store, 1, target),
+            Ok(state_reply(target)),
+            "{target}"
+        );
+    }
+    assert_eq!(move_to(&mut store, 2, "active"), Err(declared("overlap")));
+    assert_eq!(state_of(&store, 2), (WorkflowState::Paused, Some(agent(2))));
+
+    let mut store = ten_revisions();
+    for target in ["active", "approved"] {
+        assert_eq!(
+            move_to(&mut store, 1, target),
+            Err(declared("overlap")),
+            "{target}"
+        );
+        assert_eq!(
+            state_of(&store, 1),
+            (WorkflowState::Paused, Some(agent(1))),
+            "{target}"
+        );
+    }
+
+    let mut store = MemoryStore::new();
+    store.put_workflow(workflow(&wf(1), "utility_bill_payment", "approved", None));
+    assert_eq!(create(&mut store, 1, 1), Ok(rev(1)));
+    store.put_workflow(workflow(&wf(2), "email", "approved", None));
+    assert_eq!(create(&mut store, 2, 2), Ok(rev(1)));
+    let shared = reply_slots(Some(ME), Some("ann@people.test"));
+    assert_eq!(set_bindings(&mut store, 1, shared.clone()), Ok(rev(1)));
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    assert_eq!(set_bindings(&mut store, 2, shared), Ok(rev(1)));
+    for (target, refusal) in [("active", "playbook"), ("approved", "overlap")] {
+        assert_eq!(
+            move_to(&mut store, 1, target),
+            Err(declared(refusal)),
+            "{target}"
+        );
+        assert_eq!(
+            state_of(&store, 1),
+            (WorkflowState::Paused, Some(agent(1))),
+            "{target}"
+        );
+    }
+}
+
+#[test]
+fn the_state_call_of_create_agent_goes_through_the_function_of_the_overlap() {
+    let mut store = MemoryStore::new();
+    other_agent(
+        &mut store,
+        1,
+        "active",
+        reply_slots(Some(ME), Some("ann@people.test")),
+    );
+    store.put_workflow(workflow(&wf(2), "email", "approved", None));
+    put_bindings(
+        &mut store,
+        2,
+        2,
+        1,
+        reply_slots(Some(ME), Some("Ann@People.test")),
+    );
+    assert_eq!(create(&mut store, 2, 2), Err(declared("overlap")));
+    assert_eq!(state_of(&store, 2), (WorkflowState::Approved, None));
+    assert_eq!(configs(&store).len(), 1);
+    assert_eq!(move_to(&mut store, 1, "paused"), Ok(state_reply("paused")));
+    assert_eq!(create(&mut store, 2, 2), Ok(rev(1)));
+    assert_eq!(
+        state_of(&store, 2),
+        (WorkflowState::Approved, Some(agent(2)))
+    );
+    assert_eq!(configs(&store).len(), 1);
+}
+
+fn named(store: &mut MemoryStore, slots: Value, why: &str) -> usize {
+    match list_overlaps(store, 1, slots) {
+        Ok(CoordinatorReply::Overlaps(reply)) => reply.overlaps.len(),
+        other => panic!("{why}: {other:?}"),
+    }
+}
+
+#[test]
+fn the_read_and_the_keeper_agree_on_drawn_pairs_of_slot_sets() {
+    let accounts = [
+        Some(ME),
+        Some(ME),
+        Some("ME@Mail.Test"),
+        Some("you@mail.test"),
+        None,
+    ];
+    let lists = [
+        Some("ann@people.test"),
+        Some("ann@people.test"),
+        Some("ANN@people.test, bob@people.test"),
+        Some("dora@people.test, Bob@People.Test"),
+        Some("carl@people.test"),
+        Some("Ann Berg, ann@people.test"),
+        Some("bob@people.test, BOB@people.test"),
+        None,
+    ];
+    let states = [
+        "approved",
+        "active",
+        "approved",
+        "active",
+        "paused",
+        "not stored",
+    ];
+    let mut seed: u64 = 0x0035_b220_2611_2001;
+    let mut draw = move |n: usize| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed % n as u64) as usize
+    };
+    let (mut kept_out, mut let_in, mut held_off, mut switched_on) = (0, 0, 0, 0);
+    for case in 0..1000 {
+        let mut slots = || reply_slots(accounts[draw(5)], lists[draw(8)]);
+        let (other, stored, body) = (slots(), slots(), slots());
+        let state = states[draw(6)];
+        let why = format!("case {case}: stored {stored}, body {body}, other {other} {state}");
+        let mut store = created(&[1]);
+        put_bindings(&mut store, 1, 1, 1, stored);
+        let live = if state == "not stored" {
+            "active"
+        } else {
+            state
+        };
+        other_agent(&mut store, 2, live, other);
+        if state == "not stored" {
+            gone(&mut store, 2);
+        }
+
+        let read = named(&mut store, json!(null), &why);
+        let switched = move_to(&mut store, 1, "active");
+        if read == 0 {
+            assert_eq!(switched, Ok(state_reply("active")), "{why}");
+            switched_on += 1;
+        } else {
+            assert_eq!(switched, Err(declared("overlap")), "{why}");
+            assert_eq!(state_of(&store, 1).0, WorkflowState::Approved, "{why}");
+            held_off += 1;
+        }
+
+        let read = named(&mut store, body.clone(), &why);
+        let before = every_row(&store);
+        let kept = set_bindings(&mut store, 1, body);
+        if read == 0 {
+            assert_eq!(kept, Ok(rev(2)), "{why}");
+            let_in += 1;
+        } else {
+            assert_eq!(kept, Err(declared("overlap")), "{why}");
+            assert_eq!(every_row(&store), before, "{why}");
+            kept_out += 1;
+        }
+    }
+    assert!(
+        [kept_out, let_in, held_off, switched_on]
+            .iter()
+            .all(|&n| n >= 30),
+        "{kept_out} kept out, {let_in} let in, {held_off} held off, {switched_on} switched on"
+    );
+}
+
+/// The reply of `list_agents` after the agent `after`, or from the first, as its JSON.
+fn roster_after(store: &mut MemoryStore, after: Option<u32>) -> Value {
+    let body =
+        json!({"op": "list_agents", "workflow": null, "agent": null, "after": after.map(agent)});
+    let reply = coordinator(store, body).expect("the reply of list_agents");
+    serde_json::from_str(&reply.to_json().expect("the reply's JSON")).expect("the reply's text")
+}
+
+fn roster(store: &mut MemoryStore) -> Value {
+    roster_after(store, None)
+}
+
+/// `put_playbook` of one step of playbook `number` in the run `r` of the first agent.
+fn put_step_of(store: &mut MemoryStore, r: u32, number: u32) -> Result<RunnerReply, ErrorName> {
+    let steps = vec![step(1, "navigate", "read")];
+    runner(
+        store,
+        json!({"op": "put_playbook", "agent": agent(1), "run": run(r), "number": number, "steps": steps}),
+    )
+}
+
+#[test]
+fn the_roster_shows_a_playbook_only_after_its_compile_finished() {
+    let mut store = store_with("utility_bill_payment");
+    let playbook =
+        |store: &mut MemoryStore| roster(store)["agents"][0]["config"]["playbook"].clone();
+    let stored_configs = configs(&store);
+    assert_eq!(playbook(&mut store), Value::Null);
+    assert_eq!(put_step_of(&mut store, 1, 1), Ok(stored(1)));
+    assert_eq!(
+        playbook(&mut store),
+        Value::Null,
+        "a stored step is no finished playbook"
+    );
+    assert_eq!(finish(&mut store, compiled(1, 1)), Ok(stored(1)));
+    assert_eq!(
+        playbook(&mut store),
+        json!(1),
+        "the compile finished with completed"
+    );
+
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of the second compile");
+    assert_eq!(put_step_of(&mut store, 2, 2), Ok(stored(1)));
+    assert_eq!(playbook(&mut store), json!(1));
+    let mut failed = run_record(2, Some("compile"), "failed");
+    failed["playbook"] = json!(2);
+    assert_eq!(finish(&mut store, failed), Ok(stored(1)));
+    assert_eq!(
+        playbook(&mut store),
+        json!(1),
+        "another outcome leaves the number before"
+    );
+
+    start_at(&mut store, NOW, 1, 1, 3).expect("start_run of the third compile");
+    assert_eq!(put_step_of(&mut store, 3, 3), Ok(stored(1)));
+    assert_eq!(end_run(&mut store, 3), Ok(accepted()));
+    assert_eq!(
+        playbook(&mut store),
+        json!(1),
+        "an end_run leaves the number before"
+    );
+    assert_eq!(
+        configs(&store),
+        stored_configs,
+        "the read stores no configuration"
+    );
+}
+
+/// The typed reply of `list_agents` after the agent id `after`, or from the first.
+fn roster_page(store: &mut MemoryStore, after: Option<&str>) -> AgentsReply {
+    let body = json!({"op": "list_agents", "workflow": null, "agent": null, "after": after});
+    match coordinator(store, body) {
+        Ok(CoordinatorReply::Agents(reply)) => reply,
+        other => panic!("the reply of list_agents: {other:?}"),
+    }
+}
+
+/// The configuration of the agent `a` for the workflow `w`, as `create_agent` stores it for an email workflow.
+fn config_row(w: u32, a: u32) -> TypedRecord {
+    let config = preset(
+        Category::Email,
+        WorkflowId::parse(&wf(w)).expect("an id"),
+        AgentId::parse(&agent(a)).expect("an id"),
+    )
+    .expect("a preset");
+    TypedRecord {
+        kind: "agent_config",
+        json: config.to_json().expect("the config's JSON"),
+    }
+}
+
+#[test]
+fn the_roster_holds_only_named_agents_in_order_and_pages_by_after() {
+    let mut store = MemoryStore::new();
+    let mut named = Vec::new();
+    let mut records = Vec::new();
+    for n in (1..=1200).rev() {
+        records.push(config_row(n, n));
+        match n % 100 {
+            7 => store.put_workflow(workflow(&wf(n), "email", "active", Some(&agent(n + 5000)))),
+            8 => store.put_workflow(dismissed(&wf(n))),
+            _ => {
+                let state = ["approved", "active", "paused"][(n % 3) as usize];
+                store.put_workflow(workflow(&wf(n), "email", state, Some(&agent(n))));
+                if n % 100 != 9 {
+                    named.push(agent(n));
+                }
+            }
+        }
+    }
+    store
+        .commit(records)
+        .expect("the configurations are stored");
+    for n in (9..=1200).step_by(100) {
+        gone(&mut store, n);
+    }
+    named.sort();
+
+    let mut listed: Vec<String> = Vec::new();
+    let mut pages: Vec<AgentsReply> = Vec::new();
+    let mut after: Option<String> = None;
+    loop {
+        let page = roster_page(&mut store, after.as_deref());
+        let text = page.to_json().expect("the page's text");
+        assert!(text.len() <= CHECKPOINTS_REPLY_MAX, "{} bytes", text.len());
+        assert!(!page.agents.is_empty(), "page {}", pages.len());
+        listed.extend(
+            page.agents
+                .iter()
+                .map(|a| a.config.agent.as_str().to_owned()),
+        );
+        after = page.next.as_ref().map(|next| next.as_str().to_owned());
+        if let Some(next) = &after {
+            assert_eq!(
+                Some(next),
+                listed.last(),
+                "next names the page's last agent"
+            );
+        }
+        pages.push(page);
+        if after.is_none() {
+            break;
+        }
+    }
+    assert!(pages.len() >= 2, "{} pages", pages.len());
+    for pair in pages.windows(2) {
+        let text = pair[0].to_json().expect("the page's text");
+        let entry = pair[1].agents[0].to_json().expect("the entry's text");
+        assert!(
+            text.len() + 1 + entry.len() > CHECKPOINTS_REPLY_MAX,
+            "a page holds every whole entry that fits"
+        );
+    }
+    assert_eq!(
+        listed, named,
+        "every named agent once, in ascending order, and no other"
+    );
+
+    let last = roster_page(&mut store, named.last().map(String::as_str));
+    assert!(last.agents.is_empty() && last.next.is_none());
+    let unlisted = agent(1109);
+    let from_unlisted = roster_page(&mut store, Some(&unlisted));
+    let above: Vec<&String> = named.iter().filter(|a| **a > unlisted).collect();
+    let got: Vec<String> = from_unlisted
+        .agents
+        .iter()
+        .map(|a| a.config.agent.as_str().to_owned())
+        .collect();
+    assert_eq!(got.iter().collect::<Vec<_>>(), above);
+}
+
+#[test]
+fn an_entry_names_state_slots_session_and_the_last_run() {
+    let mut store = store_with("utility_bill_payment");
+    let entry = |store: &mut MemoryStore| roster(store)["agents"][0].clone();
+    let first = entry(&mut store);
+    assert_eq!(
+        [
+            &first["state"],
+            &first["slots"],
+            &first["session"],
+            &first["last"]
+        ],
+        [&json!("approved"), &json!([]), &json!("no"), &Value::Null]
+    );
+
+    let paying = json!([
+        slot("payee", "Northwind Power"),
+        slot("instrument", "card 4242")
+    ]);
+    assert_eq!(set_bindings(&mut store, 1, paying), Ok(rev(1)));
+    let due = json!([slot("payee", "Contoso Power"), slot("due_day", "12")]);
+    assert_eq!(set_bindings(&mut store, 1, due), Ok(rev(2)));
+    assert_eq!(
+        entry(&mut store)["slots"],
+        json!(["payee", "instrument", "due_day"]),
+        "the slot names of the newest bindings"
+    );
+
+    let part = |part: u32, data: Vec<String>| json!({"op": "put_session", "agent": agent(1), "run": run(1), "origin": "http://utility.test:18090", "rev": 1, "part": part, "of": 2, "data": data});
+    assert_eq!(
+        runner(&mut store, part(1, vec!["A".repeat(1024); 48])),
+        Ok(stored(1))
+    );
+    assert_eq!(entry(&mut store)["session"], json!("no"), "one part of two");
+    assert_eq!(
+        runner(&mut store, part(2, vec!["QUJD".to_owned()])),
+        Ok(stored(1))
+    );
+    assert_eq!(entry(&mut store)["session"], json!("yes"), "stored whole");
+
+    assert_eq!(
+        set_state(&mut store, 1, "paused"),
+        Ok(state_reply("paused"))
+    );
+    assert_eq!(entry(&mut store)["state"], json!("paused"));
+    assert_eq!(
+        set_state(&mut store, 1, "approved"),
+        Ok(state_reply("approved"))
+    );
+    assert_eq!(entry(&mut store)["state"], json!("approved"));
+
+    let record = run_record(1, Some("compile"), "failed");
+    assert_eq!(finish(&mut store, record.clone()), Ok(stored(1)));
+    assert_eq!(entry(&mut store)["last"], record);
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of the second run");
+    assert_eq!(end_run(&mut store, 2), Ok(accepted()));
+    let ended: Value = rows(&store, "agent_run")
+        .iter()
+        .map(|r| serde_json::from_str::<Value>(r).expect("a run row"))
+        .find(|r| r["run"] == json!(run(2)))
+        .expect("the record of end_run");
+    assert_eq!(ended["day"], json!(TODAY));
+    assert_eq!(entry(&mut store)["last"], ended, "the newest record");
+}
+
+#[test]
+fn the_roster_names_each_effect_whose_newest_row_is_unknown() {
+    let mut store = store_with("utility_bill_payment");
+    let unknown = |store: &mut MemoryStore| roster(store)["agents"][0]["unknown"].clone();
+    let begun = |store: &mut MemoryStore, r: u32, e: u32| {
+        for m in [
+            row(r, e, 1, "held", "payment", 1, None, None),
+            row(r, e, 2, "approved", "payment", 1, Some(e), None),
+            row(r, e, 3, "releasing", "payment", 1, Some(e), None),
+        ] {
+            assert_eq!(put(store, m), Ok(stored(1)));
+        }
+    };
+    begun(&mut store, 1, 1);
+    begun(&mut store, 1, 2);
+    let committed = row(1, 2, 4, "committed", "payment", 1, Some(2), None);
+    assert_eq!(put(&mut store, committed), Ok(stored(1)));
+    assert_eq!(unknown(&mut store), json!([]), "releasing is not unknown");
+
+    assert_eq!(end_run(&mut store, 1), Ok(accepted()));
+    let records = rows(&store, "agent_run");
+    assert_eq!(records.len(), 1);
+    assert!(records[0].contains(r#""unknown":0"#), "{}", records[0]);
+    let entry = |r: u32, e: u32| json!({"run": run(r), "effect": effect(e), "day": TODAY, "class": "payment", "kept": kept("payment")});
+    assert_eq!(
+        unknown(&mut store),
+        json!([entry(1, 1)]),
+        "after an end_run whose record counts 0"
+    );
+
+    start_at(&mut store, NOW, 1, 1, 2).expect("start_run of the second run");
+    begun(&mut store, 2, 3);
+    let mut record = run_record(2, Some("replay"), "effect_unknown");
+    record["unknown"] = json!(1);
+    assert_eq!(finish(&mut store, record), Ok(stored(1)));
+    assert_eq!(
+        unknown(&mut store),
+        json!([entry(1, 1), entry(2, 3)]),
+        "every effect of the agent, whatever the newest record counts"
+    );
 }

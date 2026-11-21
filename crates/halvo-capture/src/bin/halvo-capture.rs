@@ -62,8 +62,14 @@ fn main() -> ExitCode {
         )),
         #[cfg(debug_assertions)]
         Ok(Mode::Lease) => status(exit::USAGE),
-        #[cfg(debug_assertions)]
-        Ok(Mode::DeleteAllOfADataDir) => status(exit::USAGE),
+        #[cfg(all(target_os = "macos", debug_assertions))]
+        Ok(Mode::DeleteAllOfADataDir { data_dir }) => status(daemon::delete_all::offline(
+            &data_dir,
+            &mut std::io::stdout().lock(),
+            &mut std::io::stderr(),
+        )),
+        #[cfg(all(not(target_os = "macos"), debug_assertions))]
+        Ok(Mode::DeleteAllOfADataDir { .. }) => status(exit::USAGE),
         Err(usage) => status(daemon::usage_answer(&usage, &mut std::io::stderr())),
     }
 }

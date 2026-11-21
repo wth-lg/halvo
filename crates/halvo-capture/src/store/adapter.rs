@@ -5,13 +5,15 @@
 //! the port's [`OpenFault`] by the store's own variants, and gives a scratch
 //! directory the gate's calls.
 
+use std::ffi::OsStr;
 use std::io;
 use std::path::Path;
 use std::time::SystemTime;
 
 use super::db::{EncryptedStore, KeyFile};
+use super::durable::{self, Dir, OsFs};
 use super::KindTotal;
-use super::{Layout, RootReading, SegmentStore, StoreError, DEFAULT_RETENTION};
+use super::{Layout, OpenFor, RootReading, StoreError, DEFAULT_RETENTION};
 use crate::custody::dev_fallback::DevFallbackCustody;
 use crate::custody::{CustodyError, CustodyKind, KeyCustody, KeyLabel, RootId};
 use crate::daemon::custody_policy::Custody;
@@ -27,22 +29,32 @@ struct Adapter {
 }
 
 impl MaintainStore for Adapter {
-    fn expire_due(&mut self, _now: SystemTime, _max_segments: usize) -> Result<Pass, MaintFault> {
-        Ok(Pass::default())
+    fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.store
+            .expire_due(now, max_segments)
+            .map(pass)
+            .map_err(maint_fault)
     }
 
-    fn evict_to(&mut self, _bound: ByteBound, _max_segments: usize) -> Result<Pass, MaintFault> {
-        Ok(Pass::default())
+    fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.store
+            .evict_to(bound.bytes(), max_segments)
+            .map(pass)
+            .map_err(maint_fault)
     }
 
     fn usage(&mut self) -> Result<Usage, MaintFault> {
         self.store
-            .size_bytes()
-            .map(|disk_bytes| Usage {
-                disk_bytes,
-                logical_bytes: 0,
+            .usage()
+            .map(|usage| Usage {
+                disk_bytes: usage.disk_bytes,
+                logical_bytes: usage.logical_bytes,
             })
             .map_err(maint_fault)
+    }
+
+    fn delete_all(&mut self) -> TailAnswer {
+        tail_answer(self.store.delete_all())
     }
 }
 
@@ -81,6 +93,18 @@ impl CaptureStore for Adapter {
     }
 }
 
+fn pass(pass: super::Pass) -> Pass {
+    Pass {
+        shredded: pass
+            .shredded
+            .into_iter()
+            .map(|ordinal| Ordinal::new(ordinal.get()))
+            .collect(),
+        more_due: pass.more_due,
+        owed: pass.owed,
+    }
+}
+
 fn kind_text(kind: EntryKind) -> &'static str {
     #[cfg(feature = "r2")]
     if kind == EntryKind::RUN_MARK {
@@ -98,6 +122,7 @@ fn write_fault(fault: super::WriteFault) -> WriteFault {
         super::WriteFault::Io(kind) => WriteFault::Io(kind),
         super::WriteFault::Db(code) => WriteFault::Db(code),
         super::WriteFault::Sealed => WriteFault::Sealed,
+        super::WriteFault::MaintenanceOnly => WriteFault::Sealed,
     }
 }
 
@@ -126,6 +151,7 @@ fn open_fault(e: &StoreError) -> OpenFault {
         | StoreError::DeleteIncomplete(_) => OpenFault::Io,
         StoreError::Locked => OpenFault::Locked,
         StoreError::Obstructed { .. } | StoreError::Sealed => OpenFault::Obstructed,
+        StoreError::MaintenanceOnly => OpenFault::Obstructed,
         StoreError::Corrupt(_)
         | StoreError::DatabaseMissing
         | StoreError::DatabaseUnreadable
@@ -238,10 +264,17 @@ fn opened(store: EncryptedStore, id: StoreId, access: Access) -> Opened {
     }
 }
 
+fn open_for(access: Access) -> OpenFor {
+    match access {
+        Access::ReadWrite => OpenFor::Write,
+        Access::MaintenanceOnly => OpenFor::Maintenance,
+    }
+}
+
 fn open_at(store_dir: &Path, roots: &Path, access: Access) -> Opened {
     let id = key_id(store_dir);
     match (
-        EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION),
+        EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION, open_for(access)),
         id,
     ) {
         (Ok(store), Some(id)) => opened(store, id, access),
@@ -283,6 +316,80 @@ impl StoreHost for DataDirStore {
     fn create(&self, custody: Custody) -> Opened {
         create_at(&self.store_dir(), &self.roots(), custody)
     }
+
+    fn delete(&self) -> TailAnswer {
+        let dir = resolved_data_dir(self.path()).unwrap_or_else(|_| self.path().to_path_buf());
+        tail_answer(EncryptedStore::delete_data_dir(&dir, Layout::DataDirectory))
+    }
+}
+
+impl DataDirStore {
+    /// Flushes the folder `folder` of the data directory to the drive
+    /// through the store's durable-write helper, whose directory flush makes
+    /// no call on Windows. A link at the data directory's own name is
+    /// followed, and none at the folder's.
+    pub fn sync_folder(&self, folder: &Path) -> io::Result<()> {
+        Dir::open(&resolved_data_dir(self.path())?.join(folder))?.sync()
+    }
+
+    /// Removes the file `name` of the data directory, when it stands, and
+    /// flushes the data directory to the drive. A link at the data
+    /// directory's own name is followed.
+    pub fn remove_durably(&self, name: &str) -> io::Result<()> {
+        let dir = Dir::open(&resolved_data_dir(self.path())?)?;
+        durable::remove_durably(&OsFs, &dir, OsStr::new(name))
+    }
+
+    /// Destroys the key file at `file`, a path inside the data directory,
+    /// through the store's key-file helper: its zero-fill, then its removal.
+    /// True when no entry stands at its name after the call.
+    pub fn destroy_key_file(&self, file: &Path) -> bool {
+        let path = self.path().join(file);
+        if let Ok(place) = KeyFile::at(&path) {
+            let _ = place.destroy();
+        }
+        std::fs::symlink_metadata(&path).is_err_and(|e| e.kind() == io::ErrorKind::NotFound)
+    }
+}
+
+#[cfg(all(test, target_os = "macos", debug_assertions))]
+impl DataDirStore {
+    /// The plaintext of every segment that the store of this data directory
+    /// recorded, the oldest first capture first, or `None` for a segment that
+    /// no longer decrypts because its key is gone. It opens the store for
+    /// maintenance alone, so no other handle may hold it.
+    pub(crate) fn read_back(&self) -> Vec<Option<Vec<u8>>> {
+        let store = EncryptedStore::open(
+            &self.store_dir(),
+            &self.roots(),
+            DEFAULT_RETENTION,
+            OpenFor::Maintenance,
+        )
+        .unwrap();
+        let ids: Vec<String> = {
+            let db = store.db().unwrap();
+            let mut rows = db
+                .connection()
+                .prepare("SELECT segment_id FROM segment_keys ORDER BY first_capture, id")
+                .unwrap();
+            let ids = rows
+                .query_map([], |row| row.get(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap();
+            ids
+        };
+        ids.iter()
+            .map(|id| {
+                let mut plaintext = Vec::new();
+                match store.read_segment(uuid::Uuid::parse_str(id).unwrap(), &mut plaintext) {
+                    Ok(_) => Some(plaintext),
+                    Err(StoreError::Sealed) => None,
+                    Err(e) => panic!("segment {id} did not read: {e}"),
+                }
+            })
+            .collect()
+    }
 }
 
 impl crate::daemon::DurableState {
@@ -309,14 +416,10 @@ impl ScratchDir {
     /// The delete tail of `--delete-all --store-dir` (contracts.md C4 item
     /// 9) on this directory, with the path as the command line gave it.
     pub fn delete_tail(&self) -> TailAnswer {
-        match EncryptedStore::delete_data_dir(self.path(), Layout::ScratchStore) {
-            Ok(report) => TailAnswer::Finished(tail_report(&report)),
-            Err(StoreError::DeleteIncomplete(report)) => {
-                TailAnswer::NotFinished(tail_report(&report))
-            }
-            Err(StoreError::Locked) => TailAnswer::Held,
-            Err(error) => TailAnswer::Failed(error.to_string()),
-        }
+        tail_answer(EncryptedStore::delete_data_dir(
+            self.path(),
+            Layout::ScratchStore,
+        ))
     }
 
     /// Makes a store in this directory under this system's own custody, with
@@ -351,6 +454,15 @@ fn destroy_root(custody: Custody, root_id: RootId, roots: &Path) -> io::Result<(
         Custody::SecureEnclave => Ok(()),
     };
     destroyed.map_err(|e| io::Error::other(e.to_string()))
+}
+
+fn tail_answer(deleted: super::StoreResult<super::DeleteReport>) -> TailAnswer {
+    match deleted {
+        Ok(report) => TailAnswer::Finished(tail_report(&report)),
+        Err(StoreError::DeleteIncomplete(report)) => TailAnswer::NotFinished(tail_report(&report)),
+        Err(StoreError::Locked) => TailAnswer::Held,
+        Err(error) => TailAnswer::Failed(error.to_string()),
+    }
 }
 
 fn tail_report(report: &super::DeleteReport) -> TailReport {
@@ -396,4 +508,130 @@ fn free_bytes(dir: &Path) -> io::Result<u64> {
 #[cfg(not(target_os = "macos"))]
 fn free_bytes(_dir: &Path) -> io::Result<u64> {
     Err(io::Error::from(io::ErrorKind::Unsupported))
+}
+
+use crate::custody::{custody_for, RootsHandle, StoreKey};
+use crate::daemon::port::DerivedKeyFault;
+
+const DERIVED_LABEL: KeyLabel = KeyLabel::new("derived").expect("a label of the listed letters");
+
+impl DataDirStore {
+    /// The key of the derived store. Its wrap lies in derived/master.key,
+    /// made under the root that store/store.key names with the label
+    /// `derived`, so the delete that destroys the capture store's root ends
+    /// this key too. Where no key file stands, the call makes 32 random
+    /// bytes, wraps them, makes the folder derived/ and publishes the key
+    /// file create-only by a hard link from a temporary name of its own;
+    /// where one stands, and where another ask won that link, it unwraps
+    /// that file, so every ask answers the same key. It opens no database,
+    /// takes no lock, never replaces or removes a key file, and makes
+    /// nothing before its wrap answers: without a capture store or its root
+    /// it answers a [`DerivedKeyFault`] and leaves the data directory as it
+    /// was.
+    pub fn derived_store_key(&self) -> Result<StoreKey, DerivedKeyFault> {
+        let roots_dir = self.roots();
+        let store = KeyFile::at(&self.store_dir().join("store.key"))
+            .and_then(|place| place.read(KeyLabel::STORE))
+            .map_err(|e| match e {
+                StoreError::Sealed | StoreError::Io(io::ErrorKind::NotFound) => {
+                    DerivedKeyFault::NoStore
+                }
+                other => derived_fault(open_fault(&other)),
+            })?;
+        let custody = custody_for(&store.locator(&roots_dir)).map_err(|e| root_fault(&e))?;
+        let roots = RootsHandle::open(&roots_dir).map_err(|e| root_fault(&e))?;
+        let file = self.path().join("derived").join("master.key");
+        if let Some(key) = standing_derived_key(&file, &store, custody.as_ref(), &roots)? {
+            return Ok(key);
+        }
+        let key = StoreKey::random().map_err(|e| root_fault(&e))?;
+        let (wrapped, _) = custody
+            .wrap_store_key_in(&roots, &key, DERIVED_LABEL)
+            .map_err(|e| root_fault(&e))?;
+        let key_file = KeyFile::new(custody.as_ref(), DERIVED_LABEL, &wrapped);
+        match publish_derived(self.path(), &file, &key_file) {
+            Ok(()) => Ok(key),
+            Err(StoreError::AlreadyExists) => {
+                standing_derived_key(&file, &store, custody.as_ref(), &roots)?
+                    .ok_or(DerivedKeyFault::Io)
+            }
+            Err(e) => Err(derived_fault(open_fault(&e))),
+        }
+    }
+
+    /// The data directory itself: where its own name is a link, the
+    /// directory that the link leads to, else the name as it is.
+    pub fn resolved_path(&self) -> io::Result<std::path::PathBuf> {
+        resolved_data_dir(self.path())
+    }
+}
+
+fn standing_derived_key(
+    file: &Path,
+    store: &KeyFile,
+    custody: &dyn KeyCustody,
+    roots: &RootsHandle,
+) -> Result<Option<StoreKey>, DerivedKeyFault> {
+    let derived = match KeyFile::at(file).and_then(|place| place.read(DERIVED_LABEL)) {
+        Ok(derived) => derived,
+        Err(StoreError::Sealed | StoreError::Io(io::ErrorKind::NotFound)) => return Ok(None),
+        Err(
+            StoreError::KeyFileUnparseable
+            | StoreError::KeyFileOfAnotherLabel
+            | StoreError::NewerStore { .. }
+            | StoreError::OlderStore { .. },
+        ) => return Err(DerivedKeyFault::DerivedKeyFile),
+        Err(e) => return Err(derived_fault(open_fault(&e))),
+    };
+    if derived.custody_kind != store.custody_kind || derived.root_id != store.root_id {
+        return Err(DerivedKeyFault::AnotherRoot);
+    }
+    let wrapped = derived
+        .wrapped_store_key()
+        .map_err(|_| DerivedKeyFault::DerivedKeyFile)?;
+    custody
+        .unwrap_store_key_in(roots, &wrapped, DERIVED_LABEL)
+        .map(|(key, _)| Some(key))
+        .map_err(|e| root_fault(&e))
+}
+
+fn publish_derived(data_dir: &Path, file: &Path, key_file: &KeyFile) -> super::StoreResult<()> {
+    let io_fault = |e: io::Error| StoreError::Io(e.kind());
+    let dir = Dir::open(&resolved_data_dir(data_dir).map_err(io_fault)?).map_err(io_fault)?;
+    dir.create_dir(OsStr::new("derived")).map_err(io_fault)?;
+    dir.sync().map_err(io_fault)?;
+    let mut tag = [0u8; 16];
+    crate::custody::dev_fallback::fill_random(&mut tag)
+        .map_err(|_| StoreError::Io(io::ErrorKind::Other))?;
+    let tag: String = tag.iter().map(|byte| format!("{byte:02x}")).collect();
+    KeyFile::at(file)?.publish_from(OsStr::new(&format!("master.key.{tag}.tmp")), key_file)
+}
+
+fn root_fault(e: &CustodyError) -> DerivedKeyFault {
+    derived_fault(custody_fault(e))
+}
+
+fn derived_fault(fault: OpenFault) -> DerivedKeyFault {
+    match fault {
+        OpenFault::Locked | OpenFault::Io | OpenFault::Database => DerivedKeyFault::Io,
+        OpenFault::NoSpace => DerivedKeyFault::NoSpace,
+        OpenFault::Obstructed => DerivedKeyFault::Obstructed,
+        OpenFault::CustodyLocked => DerivedKeyFault::CustodyLocked,
+        OpenFault::RootDenied => DerivedKeyFault::RootDenied,
+        OpenFault::IoNotRetried => DerivedKeyFault::IoNotRetried,
+        OpenFault::RootMissing => DerivedKeyFault::RootMissing,
+        OpenFault::RootCorrupt => DerivedKeyFault::RootCorrupt,
+        OpenFault::WrapAuth => DerivedKeyFault::WrapAuth,
+        OpenFault::KeyFile => DerivedKeyFault::StoreKeyFile,
+        OpenFault::CustodyKind => DerivedKeyFault::CustodyKind,
+        OpenFault::OlderStore => DerivedKeyFault::OlderStore,
+        OpenFault::NewerStore => DerivedKeyFault::NewerStore,
+    }
+}
+
+fn resolved_data_dir(data_dir: &Path) -> io::Result<std::path::PathBuf> {
+    match std::fs::symlink_metadata(data_dir) {
+        Ok(entry) if entry.file_type().is_symlink() => std::fs::canonicalize(data_dir),
+        _ => Ok(data_dir.to_path_buf()),
+    }
 }

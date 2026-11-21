@@ -397,6 +397,17 @@ fn line_key_names_are_the_six_of_i2_2_and_the_dropped_count() {
 }
 
 #[test]
+fn history_read_names_are_the_one_of_the_card_key() {
+    assert_eq!(
+        names(
+            halvo_coord::types::HistoryRead::ALL,
+            halvo_coord::types::HistoryRead::name
+        ),
+        ["busy"]
+    );
+}
+
+#[test]
 fn arg_type_names_are_those_of_i8_3() {
     assert_eq!(
         names(ArgType::ALL, ArgType::name),

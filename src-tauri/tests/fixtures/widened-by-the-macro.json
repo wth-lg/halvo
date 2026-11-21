@@ -14,6 +14,19 @@
     "allow-request-permission",
     "allow-open-permission-pane",
     "allow-last-delete",
+    "allow-agents-snapshot",
+    "allow-agents-next",
+    "allow-agents-card",
+    "allow-agents-answer",
+    "allow-agents-setup-typed",
+    "allow-agents-present",
+    "allow-agents-control",
+    "allow-agents-shown",
+    "allow-agents-delete",
+    "allow-workflows",
+    "allow-approve-workflow",
+    "allow-dismiss-workflow",
+    "allow-delete-workflow",
     "core:app:allow-version"
   ]
 }

@@ -67,6 +67,10 @@ pub const KEYS: &[(&str, &str)] = &[
         "Halvo can't read or save this agent's record. The agent starts nothing new. Stop works if shown.",
     ),
     (
+        "line.problem.quit",
+        "Its task was still running when Halvo quit and may have gone on. Check outside Halvo before repeating it.",
+    ),
+    (
         "card.records_dropped",
         "After Halvo started, {count} of this agent's records went unsaved. Its steps may have happened; check outside Halvo before repeating.",
     ),
@@ -97,6 +101,10 @@ pub const KEYS: &[(&str, &str)] = &[
     ("line.working.starting", "It is starting."),
     ("line.working.working", "It is doing its task now."),
     ("line.working.stopping", "It is stopping."),
+    (
+        "line.working.switch_not_saved",
+        "Halvo is stopping the task but could not switch this agent off. It may start again: press Switch off again.",
+    ),
     (
         "line.working.kill_stuck_mac",
         "Its task may still run. Right-click Halvo in the Dock, choose Quit. Halvo stops all tasks; that can take seconds.",
@@ -137,12 +145,16 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.all_set.tried_today",
         "It has started as often as it may today, so it waits until tomorrow.",
     ),
-    ("line.all_set.new", "It has not done its task yet."),
+    ("line.all_set.new", "It has not done its task yet, or not for a long time."),
     ("line.all_set.done", "Last time, it finished its task."),
     ("line.all_set.nothing", "Last time, it found nothing to do."),
     (
         "line.all_set.stopped_early",
         "Last time, it stopped before the task was done, and it needs nothing from you now.",
+    ),
+    (
+        "line.all_set.switch_not_saved",
+        "Halvo stopped the task but could not switch this agent off. It may start again: press Switch off again.",
     ),
     ("line.run.completed", "It finished the task."),
     ("line.run.nothing_to_do", "It found nothing to do."),
@@ -303,7 +315,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("confirm.payment.allow", "Pay"),
     ("confirm.payment.reject", "Don't pay"),
     ("confirm.payment.allow_many", "Pay all {count}"),
-    ("confirm.payment.reject_many", "Don't pay these {count}"),
+    ("confirm.payment.reject_many", "Don't pay any of these {count}"),
     ("confirm.payment.action", "It will make this payment"),
     ("confirm.purchase.title", "Place this order?"),
     ("confirm.purchase.allow", "Order"),
@@ -553,6 +565,90 @@ pub const KEYS: &[(&str, &str)] = &[
     (
         "param_typed.too_long",
         "Something you added was too long to fit, so none of it was added. Read your answer before sending.",
+    ),
+    (
+        "line.working.deleting",
+        "Halvo is stopping this agent and will then remove it.",
+    ),
+    ("ask.delete.title", "Remove “{name}” from Halvo?"),
+    ("ask.delete.next", "Its next task is set for {day}."),
+    (
+        "ask.delete.setup",
+        "Halvo removes what you set up and answered for it, and what it learned.",
+    ),
+    (
+        "ask.delete.sign_in",
+        "It also removes its schedule and what it kept on this computer to sign in.",
+    ),
+    (
+        "ask.delete.records",
+        "It removes the record of each task and of what it did.",
+    ),
+    ("ask.delete.final", "You cannot bring it back."),
+    (
+        "ask.delete.done",
+        "Nothing it already paid, ordered or sent is taken back, and nothing at a website is cancelled.",
+    ),
+    (
+        "ask.delete.copies",
+        "The copies that Halvo made beside your workbooks stay.",
+    ),
+    (
+        "ask.delete.starts",
+        "If it starts a task before you answer, Halvo stops it first and removes it once it has stopped.",
+    ),
+    (
+        "ask.delete.record",
+        "Halvo keeps no record of this once the agent is removed.",
+    ),
+    ("ask.delete.keep", "Keep it"),
+    (
+        "ask.effect.payment",
+        "Halvo does not know whether it made this payment.",
+    ),
+    (
+        "ask.effect.purchase",
+        "Halvo does not know whether it placed this order.",
+    ),
+    (
+        "ask.effect.send",
+        "Halvo does not know whether it sent this message.",
+    ),
+    (
+        "ask.effect.delete",
+        "Halvo does not know whether it removed this.",
+    ),
+    (
+        "ask.effect.submit",
+        "Halvo does not know whether it sent this form.",
+    ),
+    (
+        "ask.effect.sign",
+        "Halvo does not know whether it signed this document.",
+    ),
+    (
+        "ask.effect.local_edit",
+        "Halvo does not know whether it changed this file.",
+    ),
+    (
+        "ask.effect.other",
+        "Halvo does not know whether one step of its last task happened.",
+    ),
+    ("ask.working.title", "“{name}” is working now"),
+    (
+        "ask.working.text",
+        "Stop it first, and you can remove it once it has stopped.",
+    ),
+    ("ask.working.keep", "Let it work"),
+    ("ask.stopping.title", "“{name}” is stopping"),
+    (
+        "ask.stopping.text",
+        "You can remove it once it has stopped.",
+    ),
+    ("ask.stopping.done", "OK"),
+    (
+        "line.needs_you.asks_again",
+        "You cancelled its start, so it asks you again before it starts.",
     ),
 ];
 
