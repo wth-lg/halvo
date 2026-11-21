@@ -12,9 +12,12 @@ use std::time::{Duration, Instant};
 
 use halvo_capture::custody::StoreKey;
 use halvo_capture::daemon::r2::owner_slot::{Caller, Place};
-use halvo_capture::daemon::r2::worker_slot::{Answer, Committed, Origin, WorkerSlot};
+use halvo_capture::daemon::r2::worker_slot::{
+    Answer, Committed, MayRun, Origin, Server, WorkerSlot,
+};
 use halvo_schema_core::ids::{Position, RequestId, StoreId};
 use halvo_schema_core::request::{InterfaceRead, InterfaceRole};
+use halvo_seam::fixture::FixtureTransport;
 
 const KEY: [u8; 32] = [7; 32];
 
@@ -137,7 +140,13 @@ struct Rig {
 }
 
 impl Rig {
+    /// A slot whose read channel the cursor serves.
     fn new(name: &str) -> Rig {
+        Rig::with_server(name, None)
+    }
+
+    /// A slot whose read channel `server` serves, or with none the cursor.
+    fn with_server(name: &str, server: Option<Server>) -> Rig {
         let one = ONE_AT_A_TIME.lock().unwrap_or_else(PoisonError::into_inner);
         let scratch = Scratch::new(name);
         let daemon = Arc::new(Daemon {
@@ -149,11 +158,12 @@ impl Rig {
             data_dir: scratch.0.clone(),
             idle_ms: None,
         };
-        let slot = WorkerSlot::new(
-            place,
-            Arc::clone(&daemon) as Arc<dyn Caller>,
-            Box::new(lines.clone()),
-        );
+        let caller = Arc::clone(&daemon) as Arc<dyn Caller>;
+        let log = Box::new(lines.clone());
+        let slot = match server {
+            Some(server) => WorkerSlot::with_server(place, caller, log, server),
+            None => WorkerSlot::new(place, caller, log),
+        };
         Rig {
             slot,
             lines,
@@ -250,12 +260,15 @@ fn kill(pid: u32) {
     );
 }
 
-/// Passes the slot with yes at the reading `now` until it has seen the end of its worker, and returns the answer
-/// of that pass.
+/// A yes of the caller that knows no watermark of the capture store.
+const YES: MayRun = MayRun::Yes { watermark: None };
+
+/// Passes the slot with a yes that knows no watermark, at the reading `now`, until the slot has seen the end of its
+/// worker, and returns the answer of that pass.
 fn pass_until_seen(rig: &mut Rig, now: Instant, origin: &Origin) -> Answer {
     let until = Instant::now() + WAIT;
     loop {
-        let answer = rig.slot.pass(now, true, origin);
+        let answer = rig.slot.pass(now, YES, origin);
         if answer != Answer::Lives {
             return answer;
         }
@@ -270,11 +283,14 @@ fn pass_until_seen(rig: &mut Rig, now: Instant, origin: &Origin) -> Answer {
 fn the_worker_starts() {
     let mut rig = Rig::new("slot-starts");
     let origin = from_committed(capture());
-    assert_eq!(rig.slot.start(Instant::now(), &origin), Answer::Started);
+    assert_eq!(
+        rig.slot.start(Instant::now(), &origin, None),
+        Answer::Started
+    );
     let pid = rig.slot.pid().expect("the slot names no worker");
     std::thread::sleep(Duration::from_secs(1));
     assert_eq!(
-        rig.slot.start(Instant::now(), &origin),
+        rig.slot.start(Instant::now(), &origin, None),
         Answer::Lives,
         "{}",
         rig.lines.text()
@@ -293,7 +309,7 @@ fn a_second_start_starts_nothing() {
     let relayed = rig.slot.owner().pid().expect("the relay started no owner");
     let began = Instant::now();
     assert_eq!(
-        rig.slot.start(Instant::now(), &from_zero()),
+        rig.slot.start(Instant::now(), &from_zero(), None),
         Answer::Started
     );
     eprintln!(
@@ -304,7 +320,10 @@ fn a_second_start_starts_nothing() {
     let paired = rig.slot.owner().pid().expect("no owner runs");
     assert_ne!(relayed, paired, "the owner of the relay was not stopped");
     assert_gone(relayed);
-    assert_eq!(rig.slot.start(Instant::now(), &from_zero()), Answer::Lives);
+    assert_eq!(
+        rig.slot.start(Instant::now(), &from_zero(), None),
+        Answer::Lives
+    );
     assert_eq!(rig.slot.pid(), Some(worker));
     assert_eq!(rig.slot.owner().pid(), Some(paired));
     rig.slot.owner().relay(&read_workflows()).unwrap();
@@ -317,7 +336,7 @@ fn a_second_start_starts_nothing() {
 fn end_leaves_no_worker() {
     let mut rig = Rig::new("slot-end");
     assert_eq!(
-        rig.slot.start(Instant::now(), &from_zero()),
+        rig.slot.start(Instant::now(), &from_zero(), None),
         Answer::Started
     );
     let pid = rig.slot.pid().expect("the slot names no worker");
@@ -325,7 +344,7 @@ fn end_leaves_no_worker() {
     assert_eq!(rig.slot.pid(), None);
     assert_gone(pid);
     assert_eq!(
-        rig.slot.start(Instant::now(), &from_zero()),
+        rig.slot.start(Instant::now(), &from_zero(), None),
         Answer::Started,
         "{}",
         rig.lines.text()
@@ -339,14 +358,14 @@ fn end_leaves_no_worker() {
 fn a_no_ends_the_worker() {
     let mut rig = Rig::new("slot-no");
     let (now, origin) = (Instant::now(), from_zero());
-    assert_eq!(rig.slot.pass(now, true, &origin), Answer::Started);
+    assert_eq!(rig.slot.pass(now, YES, &origin), Answer::Started);
     let first = rig.slot.pid().expect("the slot names no worker");
     assert_runs(first);
-    assert_eq!(rig.slot.pass(now, false, &origin), Answer::Idle);
+    assert_eq!(rig.slot.pass(now, MayRun::No, &origin), Answer::Idle);
     assert_eq!(rig.slot.pid(), None);
     assert_gone(first);
     assert_eq!(
-        rig.slot.pass(now, true, &origin),
+        rig.slot.pass(now, YES, &origin),
         Answer::Started,
         "{}",
         rig.lines.text()
@@ -360,7 +379,7 @@ fn a_no_ends_the_worker() {
 fn a_delete_leaves_no_child() {
     let mut rig = Rig::new("slot-delete");
     let (now, origin) = (Instant::now(), from_zero());
-    assert_eq!(rig.slot.start(now, &origin), Answer::Started);
+    assert_eq!(rig.slot.start(now, &origin, None), Answer::Started);
     let worker = rig.slot.pid().expect("the slot names no worker");
     let owner = rig.slot.owner().pid().expect("no owner runs");
     assert!(rig.scratch.pid_file().exists());
@@ -369,7 +388,7 @@ fn a_delete_leaves_no_child() {
     assert_gone(worker);
     assert_gone(owner);
     assert!(!rig.scratch.pid_file().exists(), "derived/owner.pid stands");
-    assert_eq!(rig.slot.pass(now, true, &origin), Answer::Deleting);
+    assert_eq!(rig.slot.pass(now, YES, &origin), Answer::Deleting);
     assert_eq!(rig.slot.pid(), None);
     assert_eq!(rig.slot.owner().pid(), None);
 }
@@ -380,13 +399,13 @@ fn a_delete_leaves_no_child() {
 fn a_failed_worker_waits() {
     let mut rig = Rig::new("slot-waits");
     let (now, origin) = (Instant::now(), from_zero());
-    assert_eq!(rig.slot.pass(now, true, &origin), Answer::Started);
+    assert_eq!(rig.slot.pass(now, YES, &origin), Answer::Started);
     kill(rig.slot.pid().expect("the slot names no worker"));
     assert_eq!(pass_until_seen(&mut rig, now, &origin), Answer::Waits);
     assert_eq!(rig.slot.pid(), None);
-    assert_eq!(rig.slot.pass(now, true, &origin), Answer::Waits);
+    assert_eq!(rig.slot.pass(now, YES, &origin), Answer::Waits);
     assert_eq!(
-        rig.slot.pass(now + Duration::from_secs(60), true, &origin),
+        rig.slot.pass(now + Duration::from_secs(60), YES, &origin),
         Answer::Started,
         "{}",
         rig.lines.text()
@@ -399,7 +418,7 @@ fn a_failed_worker_waits() {
 fn the_line_of_an_end() {
     let mut rig = Rig::new("slot-line");
     let (now, origin) = (Instant::now(), from_zero());
-    assert_eq!(rig.slot.pass(now, true, &origin), Answer::Started);
+    assert_eq!(rig.slot.pass(now, YES, &origin), Answer::Started);
     kill(rig.slot.pid().expect("the slot names no worker"));
     assert_eq!(pass_until_seen(&mut rig, now, &origin), Answer::Waits);
     let text = rig.lines.text();
@@ -428,7 +447,10 @@ fn a_position_of_another_store_starts_nothing() {
     let other = StoreId::parse("fedcba9876543210fedcba9876543210").unwrap();
     let origin = from_committed(other);
     for _ in 0..2 {
-        assert_eq!(rig.slot.start(Instant::now(), &origin), Answer::OtherStore);
+        assert_eq!(
+            rig.slot.start(Instant::now(), &origin, None),
+            Answer::OtherStore
+        );
     }
     assert_eq!(rig.slot.pid(), None);
     assert_eq!(rig.slot.owner().pid(), None);
@@ -452,7 +474,7 @@ fn a_position_of_another_store_starts_nothing() {
         };
         assert_ne!(set, 0, "{}", std::io::Error::last_os_error());
         assert_eq!(
-            rig.slot.start(Instant::now(), &from_zero()),
+            rig.slot.start(Instant::now(), &from_zero(), None),
             Answer::Started,
             "{}",
             rig.lines.text()
@@ -468,6 +490,74 @@ fn a_position_of_another_store_starts_nothing() {
             .recv_timeout(WAIT)
             .expect("the pipe did not end: a child holds the inheritable end");
         assert_eq!(ended, Some(0));
-        assert_eq!(rig.slot.start(Instant::now(), &from_zero()), Answer::Lives);
+        assert_eq!(
+            rig.slot.start(Instant::now(), &from_zero(), None),
+            Answer::Lives
+        );
+    }
+}
+
+/// The ruling on a worker that finds nothing to read. The read channel is served by the fixture transport of
+/// halvo-seam over a store with no record, and the worker is started from that store's watermark, so it takes
+/// nothing, sends nothing and exits 0 at its position. A pass with a yes that knows no watermark, or one whose
+/// watermark is the position, then starts none; a pass whose watermark has passed the position starts one, at the
+/// same reading of the clock and after one such worker as after two. Each of the three ends is written as
+/// committed.
+#[test]
+fn an_empty_worker_counts_for_nothing() {
+    let no_file: [PathBuf; 0] = [];
+    let empty = FixtureTransport::open(&no_file, 1, None).unwrap();
+    let (store, mark) = (empty.store().clone(), empty.watermark());
+    let server: Server = Arc::new(|input, output| {
+        let no_file: [PathBuf; 0] = [];
+        let mut transport = FixtureTransport::open(&no_file, 1, None).unwrap();
+        let _ = transport.serve(input, output);
+    });
+    let mut rig = Rig::with_server("slot-empty", Some(server));
+    let origin = Origin {
+        capture: store.clone(),
+        committed: Some(Committed {
+            store,
+            position: mark,
+        }),
+    };
+    let now = Instant::now();
+    let at_the_position = MayRun::Yes {
+        watermark: Some(mark),
+    };
+    let passed = MayRun::Yes {
+        watermark: Some(Position {
+            seg: mark.seg + 1,
+            idx: 0,
+        }),
+    };
+    assert_eq!(rig.slot.pass(now, YES, &origin), Answer::Started);
+    for _ in 0..2 {
+        assert_eq!(
+            pass_until_seen(&mut rig, now, &origin),
+            Answer::NothingNew,
+            "{}",
+            rig.lines.text()
+        );
+        assert_eq!(
+            rig.slot.pass(now, at_the_position, &origin),
+            Answer::NothingNew
+        );
+        assert_eq!(
+            rig.slot.pass(now, passed, &origin),
+            Answer::Started,
+            "{}",
+            rig.lines.text()
+        );
+    }
+    assert_eq!(pass_until_seen(&mut rig, now, &origin), Answer::NothingNew);
+    let text = rig.lines.text();
+    let ends: Vec<&str> = text.lines().collect();
+    assert_eq!(ends.len(), 3, "{text}");
+    for end in ends {
+        assert!(
+            end.starts_with("halvo-capture: analysis end=committed code=0 peak_bytes="),
+            "{text}"
+        );
     }
 }

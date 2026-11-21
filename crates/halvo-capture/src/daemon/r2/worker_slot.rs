@@ -8,9 +8,10 @@
 //!   descriptor of the daemon; on Windows it runs in the Job of the cap and is created with the list of exactly the
 //!   handles that it inherits, so it holds no end of the owner's channel.
 //! - The read channel is one stream, a socket pair on macOS and two pipes on Windows. The cursor serves its other
-//!   end on a thread of the slot (`cursor().serve`). The owner's channel is a pipe pair whose other ends the owner
-//!   gets from a start of its own ([`OwnerSlot::start_with_worker`]): each start of a worker stops the owner that
-//!   runs and starts one with the pair.
+//!   end on a thread of the slot (`cursor().serve`); a test gives a stand-in for that call
+//!   ([`WorkerSlot::with_server`]), because no thread outside this crate passes the cursor. The owner's channel is
+//!   a pipe pair whose other ends the owner gets from a start of its own ([`OwnerSlot::start_with_worker`]): each
+//!   start of a worker stops the owner that runs and starts one with the pair.
 //! - One worker lives at a time: while one lives, a start starts nothing.
 //! - The committed position is the one that the owner's report frame holds in its key `position`. Its null is the
 //!   zero position. A position of another store than the capture store starts no worker, and the slot writes one
@@ -18,18 +19,20 @@
 //! - [`WorkerSlot::end`] kills the worker, on Windows through the Job, because the worker takes no request to end.
 //!   It waits at most 2 s for the reaping, closes the cursor (`Cursor::drop_open`), closes the slot's side of the
 //!   stream and joins the serving thread.
-//! - [`WorkerSlot::pass`] gets the clock's reading and the caller's answer: on no it ends the worker, on yes it
-//!   starts one when none lives and the rule of the ends allows it.
+//! - [`WorkerSlot::pass`] gets the clock's reading and the caller's answer ([`MayRun`]): on no it ends the worker,
+//!   on yes it starts one when none lives and the rule of the ends allows it. A yes carries the watermark of the
+//!   capture store that the cursor last read.
 //! - [`WorkerSlot::delete`], and the drop of the slot, end the worker, then close the cursor, then stop the owner.
 //!   While the delete of everything runs (`Caller::deleting`), nothing starts.
-//! - The rule of the ends: an end that the slot made counts for nothing. Every other end counts at the position
+//! - The rule of the ends. An end that the slot made counts for nothing, and so does an exit 0. After an exit 0
+//!   the caller names a new committed position, and the next start follows at once. Where the caller names the
+//!   position that the worker was started from, the worker found nothing to read: no worker starts at that position
+//!   until a yes of the caller carries a watermark that has passed it, and then one starts, however many such
+//!   workers went before. Every other end, by the cap, by another exit code or by a signal, counts at the position
 //!   that its worker was started from, a position of one capture store: after the first the next start at that
 //!   position waits 1 min, after the second 10 min, and after the third none starts at that position in this life
-//!   of the daemon. After an exit 0 the caller names a new committed position, where nothing is counted, so the
-//!   next start follows at once; an exit 0 that leaves the position where it was waits as every other end does. So
-//!   the caller says yes only while the capture store holds a record after the committed position: three workers
-//!   that find nothing to read end the starts at that position. A start that fails, of the owner or of the worker,
-//!   counts as an end, and the slot writes one line for it:
+//!   of the daemon. A start that fails, of the owner or of the worker, counts as such an end, and the slot writes
+//!   one line for it:
 //!
 //!   ```text
 //!   halvo-capture: analysis start=failed what=<stream|owner|cap|worker|thread> code=<n or ->
@@ -47,7 +50,7 @@
 //!   `code` any other exit code and `signal` a signal. `code` holds the exit code where the worker exited with one
 //!   and the slot did not end it. `peak_bytes` is the cap's reading. No line holds a value of a record.
 
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -108,6 +111,22 @@ pub struct Origin {
     pub committed: Option<Committed>,
 }
 
+/// The answer of the slot's caller in one pass.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MayRun {
+    /// No worker may run: the slot ends the one that lives.
+    No,
+    /// A worker may run.
+    Yes {
+        /// The watermark of the capture store that the cursor last read; none where no read gave one yet.
+        watermark: Option<Position>,
+    },
+}
+
+/// The call that serves one connection of the read channel on a thread of the slot, with the end that it reads and
+/// the end that it writes. The daemon's is the cursor's serving call; a test gives a stand-in.
+pub type Server = Arc<dyn Fn(Box<dyn Read + Send>, Box<dyn Write + Send>) + Send + Sync>;
+
 /// What a call of the slot did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Answer {
@@ -121,6 +140,9 @@ pub enum Answer {
     Deleting,
     /// The committed position names another store than the capture store, and nothing starts.
     OtherStore,
+    /// A worker that was started from this position exited 0 and left the position where it was, and no watermark
+    /// of the caller has passed the position: nothing starts.
+    NothingNew,
     /// The wait after an end at this position has not passed.
     Waits,
     /// Three ends counted at this position: none starts there in this life of the daemon.
@@ -267,8 +289,11 @@ pub struct WorkerSlot {
     owner: OwnerSlot,
     caller: Arc<dyn Caller>,
     log: Log,
+    server: Server,
     living: Option<Living>,
     counted: Option<Counted>,
+    /// The position that the last worker was started from, where that worker exited 0.
+    empty: Option<Origin>,
     /// The line of a position of another store is written, and no start has named a position of the capture store
     /// since.
     told_other_store: bool,
@@ -276,15 +301,31 @@ pub struct WorkerSlot {
 
 impl WorkerSlot {
     /// Makes the slot over `place`, with the owner slot that it holds, and with `log` as the writer of its lines.
-    /// Nothing starts here.
+    /// The cursor serves the read channel. Nothing starts here.
     pub fn new(place: Place, caller: Arc<dyn Caller>, log: Box<dyn Write + Send>) -> WorkerSlot {
+        let server: Server = Arc::new(|input, output| {
+            let _ = cursor().serve(input, output);
+        });
+        WorkerSlot::with_server(place, caller, log, server)
+    }
+
+    /// Makes the slot as [`WorkerSlot::new`] does, with `server` as the call that serves the read channel in place
+    /// of the cursor's.
+    pub fn with_server(
+        place: Place,
+        caller: Arc<dyn Caller>,
+        log: Box<dyn Write + Send>,
+        server: Server,
+    ) -> WorkerSlot {
         WorkerSlot {
             program: beside(&place.program_dir, PROGRAM),
             owner: OwnerSlot::new(place, Arc::clone(&caller)),
             caller,
             log: Log(Arc::new(Mutex::new(log))),
+            server,
             living: None,
             counted: None,
+            empty: None,
             told_other_store: false,
         }
     }
@@ -299,20 +340,23 @@ impl WorkerSlot {
         self.living.as_ref().map(|living| living.pid)
     }
 
-    /// One pass of the slot's caller, with the clock's reading `now`: on `may_run` it starts a worker as
-    /// [`WorkerSlot::start`] does, and otherwise it ends the worker that lives.
-    pub fn pass(&mut self, now: Instant, may_run: bool, origin: &Origin) -> Answer {
-        if may_run {
-            return self.start(now, origin);
+    /// One pass of the slot's caller, with the clock's reading `now`: on a yes it starts a worker as
+    /// [`WorkerSlot::start`] does, and on a no it ends the worker that lives.
+    pub fn pass(&mut self, now: Instant, may_run: MayRun, origin: &Origin) -> Answer {
+        match may_run {
+            MayRun::Yes { watermark } => self.start(now, origin, watermark),
+            MayRun::No => {
+                self.settle(now);
+                self.end();
+                Answer::Idle
+            }
         }
-        self.settle(now);
-        self.end();
-        Answer::Idle
     }
 
     /// Starts a worker that reads from `origin`, unless one lives, the delete of everything runs, the committed
-    /// position names another store, or the rule of the ends holds the start back at the clock's reading `now`.
-    pub fn start(&mut self, now: Instant, origin: &Origin) -> Answer {
+    /// position names another store, or the rule of the ends holds the start back at the clock's reading `now` and
+    /// with the watermark `watermark` of the capture store, none where the caller knows none.
+    pub fn start(&mut self, now: Instant, origin: &Origin, watermark: Option<Position>) -> Answer {
         self.settle(now);
         if self.living.is_some() {
             return Answer::Lives;
@@ -332,6 +376,15 @@ impl WorkerSlot {
             return Answer::OtherStore;
         }
         self.told_other_store = false;
+        if self.empty.as_ref() == Some(origin) {
+            let at = origin
+                .committed
+                .as_ref()
+                .map_or(Position { seg: 0, idx: 0 }, |committed| committed.position);
+            if !watermark.is_some_and(|watermark| watermark > at) {
+                return Answer::NothingNew;
+            }
+        }
         if let Some(counted) = self
             .counted
             .as_ref()
@@ -346,6 +399,7 @@ impl WorkerSlot {
         match self.launch(origin) {
             Ok(living) => {
                 self.living = Some(living);
+                self.empty = None;
                 Answer::Started
             }
             Err(fault) => {
@@ -374,8 +428,8 @@ impl WorkerSlot {
         self.owner.stop();
     }
 
-    /// Takes the end of a worker that ended on its own: the slot's side is cleared, and the end counts at the
-    /// position that the worker was started from.
+    /// Takes the end of a worker that ended on its own: the slot's side is cleared. An exit 0 marks the position
+    /// that the worker was started from, and an end by the cap, by another code or by a signal counts there.
     fn settle(&mut self, now: Instant) {
         let ended = match self.living.as_ref().map(|living| living.ends.try_recv()) {
             None | Some(Err(mpsc::TryRecvError::Empty)) => return,
@@ -387,8 +441,10 @@ impl WorkerSlot {
         };
         let from = living.from.clone();
         living.clear(true);
-        if ended != Some(EndKind::Ended) {
-            self.count(now, from);
+        match ended {
+            Some(EndKind::Ended) => {}
+            Some(EndKind::Committed) => self.empty = Some(from),
+            Some(EndKind::Cap | EndKind::Code | EndKind::Signal) | None => self.count(now, from),
         }
     }
 
@@ -446,11 +502,10 @@ impl WorkerSlot {
         };
         let ender = started.ender();
         let (input, output, closer) = (stream.input, stream.output, stream.closer);
+        let server = Arc::clone(&self.server);
         let serving = std::thread::Builder::new()
             .name("halvo-analysis-read".to_owned())
-            .spawn(move || {
-                let _ = cursor().serve(input, output);
-            });
+            .spawn(move || server(Box::new(input), Box::new(output)));
         let serving = match serving {
             Ok(serving) => serving,
             Err(error) => {
