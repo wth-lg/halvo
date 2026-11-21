@@ -1208,6 +1208,28 @@ mod tests {
     }
 
     #[test]
+    fn a_second_press_on_start_leaves_no_ask_for_the_next_third_5() {
+        let five = Some(halvo_control::exit::SOURCE_NOT_STOPPED);
+        let hold = Hold::default();
+        hold.child_ended(five);
+        hold.no_more_child();
+        assert!(hold.ask_start(), "the first press asks for a child");
+        assert!(hold.take_start(), "the supervisor takes that ask");
+        assert!(
+            !hold.ask_start(),
+            "a second press that comes after the take asks for nothing"
+        );
+        hold.child_started();
+        hold.child_ended(five);
+        hold.no_more_child();
+        assert!(
+            !hold.take_start(),
+            "at the next third 5 no child starts with nobody pressing"
+        );
+        assert_eq!(hold.view().map(|view| view.press), Some(Press::Start));
+    }
+
+    #[test]
     fn the_child_is_started_again_by_its_exit_status() {
         let s = Duration::from_secs;
         let status = Ending::Status;

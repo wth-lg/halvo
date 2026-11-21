@@ -220,10 +220,19 @@ impl Hold {
         self.changed.notify_all();
     }
 
-    /// A person's press on Start asks the supervisor for one child.
-    pub fn ask_start(&self) {
-        self.state().start_asked = true;
-        self.changed.notify_all();
+    /// A person's press asks the supervisor for one child where the hold reads Start, that is
+    /// where it stands and no further child starts; the read and the ask stand under one lock,
+    /// so that no ask is left standing once the supervisor has taken one. Answers whether it
+    /// asked.
+    pub fn ask_start(&self) -> bool {
+        let mut state = self.state();
+        let start = state.held && state.no_more_child;
+        if start {
+            state.start_asked = true;
+            drop(state);
+            self.changed.notify_all();
+        }
+        start
     }
 
     /// Waits until `until` for the child that a Start asked for: true once the supervisor took

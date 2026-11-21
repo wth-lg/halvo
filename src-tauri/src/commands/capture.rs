@@ -16,8 +16,7 @@ use super::Registration;
 use crate::poller::{self, Views};
 use crate::view_state::{
     command_view, delete_view, inventory_view, read_error, removes_nothing, ActionError,
-    CapSetView, CaptureSet, DeleteView, Hold, InventoryView, LastDelete, OutcomeError, Press,
-    StatusView,
+    CapSetView, CaptureSet, DeleteView, Hold, InventoryView, LastDelete, OutcomeError, StatusView,
 };
 
 pub struct AppState {
@@ -153,11 +152,7 @@ pub fn press(
     change: CaptureChange,
     within: Duration,
 ) -> (Result<DaemonStatus, ClientError>, u64) {
-    let start = views
-        .hold()
-        .view()
-        .is_some_and(|hold| hold.press == Press::Start);
-    if change == CaptureChange::Resume && start {
+    if change == CaptureChange::Resume && views.hold().ask_start() {
         drop(made);
         return start_and_resume(control, views.hold(), within);
     }
@@ -169,17 +164,16 @@ pub fn press(
     (answer, call)
 }
 
-/// The press on Start after the third end with 5 in a row (contracts.md C14 item 4): asks the
-/// supervisor for exactly one child, waits up to `within` for that child to answer a plain
-/// Status, and then sends the Resume; with no answer in time it answers the deadline, sends no
-/// Resume, and the hold stands.
+/// The press on Start after the third end with 5 in a row (contracts.md C14 item 4), once it
+/// has asked the supervisor for exactly one child: waits up to `within` for that child to answer
+/// a plain Status, and then sends the Resume; with no answer in time it answers the deadline,
+/// sends no Resume, and the hold stands.
 fn start_and_resume(
     control: &dyn Control,
     hold: &Hold,
     within: Duration,
 ) -> (Result<DaemonStatus, ClientError>, u64) {
     let until = Instant::now() + within;
-    hold.ask_start();
     let answered = hold.wait_for_the_asked_child(until)
         && loop {
             if control.status(control.places().make(), false).is_ok() {
