@@ -1895,9 +1895,31 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
     let status = supervisor
         .shutdown_entry(store.link(), status)
         .map_or(status, |outcome| outcome.status);
-    drop(store);
+    let status = match store {
+        HeldStore::Capture(owner) => close_the_store(owner, status),
+        HeldStore::None | HeldStore::Maintenance { .. } => status,
+    };
     drop(lock);
     status
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+const CLOSE_WAIT: Duration = Duration::from_secs(1);
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn close_the_store(owner: CaptureOwner, status: i32) -> i32 {
+    let answered = owner
+        .watched
+        .handle
+        .ask(owner::Command::Shutdown)
+        .ok()
+        .and_then(|pending| pending.wait_for(CLOSE_WAIT));
+    let closed = matches!(answered, Some(owner::Answer::ShutDown(_))) && owner.watched.join().is_ok();
+    match (closed, status) {
+        (true, _) => status,
+        (false, halvo_control::exit::CLEAN) => halvo_control::exit::ERROR,
+        (false, status) => status,
+    }
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]

@@ -263,6 +263,37 @@ fn a_second_service_run_changes_no_byte_of_the_store_that_the_first_holds() {
 }
 
 #[test]
+fn a_sigterm_to_a_service_run_with_an_open_store_exits_0_in_the_budget_and_the_store_opens_again() {
+    let dir = kept_dir("service-tests-");
+    let mut first = service(&dir);
+    store_open(&dir, &mut first);
+    let key = std::fs::read(dir.join("store").join("store.key")).unwrap();
+    let roots = names(&dir.join("roots"));
+    assert_eq!(roots.len(), 1, "{roots:?}");
+    let signalled = Instant::now();
+    let status = terminate(first);
+    let took = signalled.elapsed();
+    assert_eq!(status, Some(0));
+    assert!(
+        took < Duration::from_millis(super::supervisor::SHUTDOWN_BUDGET_MS),
+        "the run ended {took:?} after SIGTERM"
+    );
+    assert_eq!(
+        instance_lock::read(&data_dir(&dir.join("store"))).unwrap(),
+        LockRead::Free,
+        "the store stays held after the run ended"
+    );
+    let mut again = service(&dir);
+    store_open(&dir, &mut again);
+    assert!(
+        std::fs::read(dir.join("store").join("store.key")).unwrap() == key,
+        "the next start made a second key file"
+    );
+    assert_eq!(names(&dir.join("roots")), roots, "the next start made a second root");
+    assert_eq!(terminate(again), Some(0));
+}
+
+#[test]
 fn a_service_run_without_a_state_file_writes_the_defaults_after_the_lock() {
     let dir = kept_dir("service-tests-");
     let held = InstanceLock::take(&data_dir(&dir)).unwrap().unwrap();
