@@ -99,6 +99,10 @@ fn root_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 fn files_that_unwrap(dir: &Path, key_file: &[u8]) -> Vec<PathBuf> {
+    files_that_unwrap_under(dir, key_file, KeyLabel::STORE)
+}
+
+fn files_that_unwrap_under(dir: &Path, key_file: &[u8], label: KeyLabel) -> Vec<PathBuf> {
     let parsed: serde_json::Value = serde_json::from_slice(key_file).unwrap();
     let root_id = RootId::parse(parsed["root_id"].as_str().unwrap()).unwrap();
     let wrapped = WrappedKey(
@@ -115,7 +119,7 @@ fn files_that_unwrap(dir: &Path, key_file: &[u8]) -> Vec<PathBuf> {
             std::fs::write(&at, std::fs::read(file).unwrap()).unwrap();
             std::fs::set_permissions(&at, std::fs::Permissions::from_mode(0o600)).unwrap();
             DevFallbackCustody::new(root_id, probe.clone())
-                .unwrap_store_key(&wrapped, KeyLabel::STORE)
+                .unwrap_store_key(&wrapped, label)
                 .is_ok()
         })
         .collect()
@@ -268,6 +272,36 @@ fn the_offline_delete_leaves_no_store() {
     let (again, out, err) = offline_run(&dir, &how);
     assert_eq!(again, 0, "err: {err}");
     assert_eq!(out, format!("data_dir={shown}\nno_store\n"));
+}
+
+#[test]
+fn a_delete_ends_the_derived_key_and_a_new_store_makes_a_new_one() {
+    let dir = kept_dir("delete-all-derived-");
+    a_store_with_a_segment(&dir);
+    let derived = KeyLabel::new("derived").unwrap();
+    let first = DataDirStore::at(&dir).derived_store_key().unwrap();
+    let key_file = std::fs::read(dir.join("derived/master.key")).unwrap();
+    assert_eq!(files_that_unwrap_under(&dir, &key_file, derived).len(), 1);
+    let mut table = rows();
+    table.push(DERIVED);
+    let how = Offline {
+        rows: &table,
+        select: custody_policy::of_this_build,
+        hands: &SystemHands,
+    };
+
+    let (status, out, err) = offline_run(&dir, &how);
+
+    assert_eq!(status, 0, "out: {out} err: {err}");
+    assert!(!dir.join("derived/master.key").exists());
+    assert!(!dir.join("derived").exists());
+    assert!(files_that_unwrap_under(&dir, &key_file, derived).is_empty());
+    assert!(matches!(
+        DataDirStore::at(&dir).create(Custody::RootFile),
+        Opened::ReadWrite { .. }
+    ));
+    let second = DataDirStore::at(&dir).derived_store_key().unwrap();
+    assert_ne!(second.expose(), first.expose());
 }
 
 #[test]
