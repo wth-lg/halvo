@@ -9,7 +9,7 @@ use halvo_schema::executable::frame::{
 };
 use halvo_schema::executable::names::{Answer, Mode, Outcome};
 use halvo_schema::executable::record::AgentRun;
-use halvo_schema::executable::text::{Name, RunId, WebOrigin};
+use halvo_schema::executable::text::{EffectId, Name, RunId, WebOrigin};
 use halvo_schema::{AgentId, WorkflowId};
 
 /// How long a start waits for the runner's `hello` before it ends what it made and answers `not_started`.
@@ -117,7 +117,8 @@ impl SystemValue {
 }
 
 /// What a start gives the runner: its arguments `--run`, `--agent`, `--workflow`, `--mode`, `--browser` as the
-/// caller gave it, `--utc-offset`, `--model` and `--headed`.
+/// caller gave it, `--utc-offset`, `--model` and `--headed`. The start also gives `--data-dir` with
+/// `Config::data_dir`, the data directory under whose `agents/locks/` the runner locks a workbook's folder.
 #[derive(Clone, Debug)]
 pub struct RunSpec {
     pub run: RunId,
@@ -150,8 +151,11 @@ pub struct IssueRefused;
 
 /// The confirmation of a run's effects.
 pub trait Confirmer: Send + Sync {
-    /// One answer per effect of the request, in its order.
-    fn answers(&self, run: &RunId, request: &ConfirmRequest) -> Vec<Answer>;
+    /// One answer per effect of the request, each with the id of the effect that it names, in any order. The library
+    /// applies each answer to the effect of its id alone. An effect of the request with no answer, an id named twice,
+    /// or an id of an effect that the request does not ask for makes it reject every effect of the request
+    /// (contracts.md A6.6, the coordinator's ruling CP-226 item 1, reading (b)).
+    fn answers(&self, run: &RunId, request: &ConfirmRequest) -> Vec<(EffectId, Answer)>;
     /// Records the decision before the runner gets it; an error makes the library reject every effect.
     fn issued(&self, run: &RunId, decision: &ConfirmDecision) -> Result<(), IssueRefused>;
 }

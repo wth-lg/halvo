@@ -32,7 +32,7 @@ fn a_start_that_answers_ok_has_a_complete_mark_and_a_runner_of_its_own_group_or_
         assert_eq!(runner.group, Group::Leader(runner.pid));
         assert_eq!(process::process_group(runner.pid.get()), Some(runner.pid));
     }
-    assert!(script.wait_log("args 12", SHORT), "{}", script.log());
+    assert!(script.wait_log("args 14", SHORT), "{}", script.log());
     assert_eq!(
         rig.rec.starts.lock().unwrap().as_slice(),
         std::slice::from_ref(&run)
@@ -187,6 +187,39 @@ fn a_start_gives_the_runner_the_callers_offset_as_utc_offset() {
         );
         rig.sup.kill(&run).unwrap();
     }
+}
+
+/// The lines `data-dir <value>` of the stand-in's log.
+fn data_dirs_logged(script: &common::Script) -> Vec<String> {
+    script
+        .log()
+        .lines()
+        .filter_map(|l| l.strip_prefix("data-dir ").map(str::to_owned))
+        .collect()
+}
+
+/// U4.7, A6.1: the command of a start holds `--data-dir` with the caller's data directory, `Config::data_dir`, once,
+/// so that the runner locks a workbook's folder under the directory of its caller and of no other.
+#[test]
+fn a_start_gives_the_runner_the_callers_data_directory_as_data_dir() {
+    let rig = Rig::new("start-data-dir");
+    let script = rig.script(&["hello", "idle"]);
+    let spec = rig.spec(&script);
+    let run = spec.run.clone();
+    assert_eq!(rig.sup.start(spec), Ok(()), "{}", script.log());
+    assert!(script.wait_log("data-dir", SHORT), "{}", script.log());
+    assert_eq!(
+        data_dirs_logged(&script),
+        [rig.data().to_string_lossy().into_owned()],
+        "{}",
+        script.log()
+    );
+    assert!(
+        script.log().lines().any(|l| l == "args 14"),
+        "--data-dir and its value once: {}",
+        script.log()
+    );
+    rig.sup.kill(&run).unwrap();
 }
 
 /// CP-204 D4 and D7: a start whose offset the runner refuses answers `not_started` with the runner's exit, the
