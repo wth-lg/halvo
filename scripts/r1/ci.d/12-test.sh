@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Every test of the workspace passes with the committed lockfile, and the test run leaves no entry in its temp directory.
+# rule: Every test of the workspace passes with the committed lockfile, and the test run leaves no entry in its temp directory. On the macos job a hold test whose secure-input hold the system refuses fails, and the job prints how often the shutdown of each real macOS source answered other than Ok.
 # lane: alone
 # limit: 1800
 set -u
@@ -10,6 +10,16 @@ exempt=halvo-consent-test-
 fail() {
   printf 'FAIL %s (%s)\n' "$name" "$1"
   exit 1
+}
+
+macos_sources='input foreground screen'
+
+shutdown_lines() {
+  [ "$CI_D_JOB" = macos ] || return 0
+  for source in $macos_sources; do
+    count=$(grep -c "^shutdown source=$source ok=false\$" "$answers")
+    printf 'shutdown_not_ok source=%s count=%s\n' "$source" "$count"
+  done
 }
 
 keychain_items() {
@@ -29,6 +39,13 @@ measure() {
   cargo test --workspace --locked --no-run || fail "the test build failed: cargo test --no-run exited $?"
   scratch=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/$name.XXXXXX") || fail "mktemp failed"
   output=$(mktemp -d "${TMPDIR:-/tmp}/$name-output.XXXXXX") || fail "mktemp failed"
+  answers=$output/shutdown-answers.txt
+  : >"$answers" || fail "the file of the shutdown answers cannot be made"
+  if [ "$CI_D_JOB" = macos ]; then
+    HALVO_SECURE_INPUT_HOLD_REQUIRED=1
+    HALVO_SHUTDOWN_ANSWERS=$answers
+    export HALVO_SECURE_INPUT_HOLD_REQUIRED HALVO_SHUTDOWN_ANSWERS
+  fi
   keychain_items before
   {
     TMPDIR=$scratch TMP=$scratch TEMP=$scratch cargo test --workspace --locked 2>&1
@@ -37,6 +54,7 @@ measure() {
   code=
   [ ! -s "$output/code" ] || read -r code <"$output/code"
   keychain_items after
+  shutdown_lines
   tr -d '\r' <"$output/cargo-test.txt" | grep -E '^ *(Running|Doc-tests) |^test .* \.\.\. (ok|FAILED|ignored)' >"$CI_D_ARTIFACTS/tests.txt" ||
     fail "the list of the tests that cargo test ran cannot be written to its artifacts directory"
   [ "$code" = 0 ] || fail "cargo test exited ${code:-without a status}"
@@ -122,6 +140,9 @@ case $* in
     ;;
 esac
 grep -q -e '--no-run' "$STUB_CALLS" || exit 94
+[ "${HALVO_SECURE_INPUT_HOLD_REQUIRED:-}" = 1 ] || exit 92
+[ -f "${HALVO_SHUTDOWN_ANSWERS:-}" ] || exit 91
+printf 'shutdown source=input ok=false\nshutdown source=input ok=true\nshutdown source=screen ok=false\nshutdown source=screen ok=false\nshutdown source=inputs ok=false\n' >>"$HALVO_SHUTDOWN_ANSWERS"
 case ${TMPDIR:-} in
   "$RUNNER_TEMP"/?*) ;;
   *) exit 93 ;;
@@ -178,6 +199,7 @@ EOF
 
   repo=$work/literal-tracked
   check tests-pass PASS "login-keychain items of com.halvo.capture.dev-fallback before the tests: 2${nl}     Running unittests src/lib.rs (target/debug/deps/stub-0123456789abcdef)" "$passed"
+  check shutdown-answers-counted PASS "after the tests: 2${nl}shutdown_not_ok source=input count=1${nl}shutdown_not_ok source=foreground count=0${nl}shutdown_not_ok source=screen count=2${nl}"
   STUB_KILLS_PARENT=yes
   check test-status-lost FAIL 'cargo test exited without a status)'
   STUB_BUILD_EXIT=101
