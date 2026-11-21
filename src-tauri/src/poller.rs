@@ -250,7 +250,7 @@ pub fn take_command_answer(
 pub fn pass(control: &dyn Control, views: &Views, tray: Option<&TrayInstalled>) -> StatusView {
     let made = control.places().make();
     let number = made.number();
-    let answer = control.status(made, tray.is_some() && !views.hold.stands());
+    let answer = control.status_of_a_pass(made, tray.is_some(), &views.hold);
     views.take_poll(number, &answer);
     views.view()
 }

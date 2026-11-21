@@ -10,6 +10,8 @@ use halvo_control::model::{StorageCap, StoreId};
 use halvo_control::onboarding::{Permission, RequestOutcome};
 use halvo_control::proto::{CapSet, DaemonStatus, InventoryReply, Request};
 
+use crate::view_state::Hold;
+
 pub const MAX_CALLS_IN_FLIGHT: usize = 4;
 
 #[cfg(test)]
@@ -135,6 +137,18 @@ impl Drop for Place {
 pub trait Control: Send + Sync {
     fn places(&self) -> &Arc<Places>;
     fn status(&self, made: Made, claim: bool) -> Result<DaemonStatus, ClientError>;
+    /// The Status of a pass of the poller: it claims the indicator where `claim` holds and the
+    /// app's hold does not stand, read once the call has its place, so that no claim leaves
+    /// after a set of the hold that came while the call waited for it (contracts.md C14
+    /// item 4). A control with no gate reads the hold at the call.
+    fn status_of_a_pass(
+        &self,
+        made: Made,
+        claim: bool,
+        hold: &Hold,
+    ) -> Result<DaemonStatus, ClientError> {
+        self.status(made, claim && !hold.stands())
+    }
     fn inventory(&self, made: Made) -> Result<InventoryReply, ClientError>;
     fn pause(&self, made: Made) -> Result<DaemonStatus, ClientError>;
     fn resume(&self, made: Made) -> Result<DaemonStatus, ClientError>;
@@ -218,6 +232,22 @@ impl<C: Connector + Clone + Send + Sync> Control for Gated<C> {
         let request = Request::Status { indicator: claim };
         self.run(made, &request, |client| {
             if claim {
+                client.status_claiming_the_indicator()
+            } else {
+                client.status()
+            }
+        })
+    }
+
+    fn status_of_a_pass(
+        &self,
+        made: Made,
+        claim: bool,
+        hold: &Hold,
+    ) -> Result<DaemonStatus, ClientError> {
+        let request = Request::Status { indicator: claim };
+        self.run(made, &request, |client| {
+            if claim && !hold.stands() {
                 client.status_claiming_the_indicator()
             } else {
                 client.status()
