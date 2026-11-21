@@ -455,9 +455,14 @@ where
         } else {
             None
         };
-        self.take_up(&mut st);
+        let taken = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.take_up(&mut st);
+        }));
         if let (Some(order), Some(board)) = (aside, st.board.as_mut()) {
             put_back(board, agent, &order);
+        }
+        if let Err(unwind) = taken {
+            std::panic::resume_unwind(unwind);
         }
         let held = st.mark.tick;
         if let Some(board) = st.board.as_mut() {
