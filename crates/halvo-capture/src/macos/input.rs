@@ -8575,6 +8575,51 @@ mod tests {
     }
 
     #[test]
+    fn the_folds_of_the_interval_open_at_a_stop_leave_a_record_or_a_count() {
+        let fired = held(100);
+        fold_fifty(&fired.ctx);
+        fired.ctx.stop.store(true, Ordering::SeqCst);
+        close_interval(&fired.ctx);
+        assert_eq!(
+            (
+                pointer_records(&fired.writer),
+                fired.counters.pointer_dropped_at_stop()
+            ),
+            (vec![], 50),
+            "the timer fires after the stop"
+        );
+
+        let dropped = held(100);
+        fold_fifty(&dropped.ctx);
+        dropped.ctx.stop.store(true, Ordering::SeqCst);
+        drop(dropped.ctx);
+        assert_eq!(
+            (
+                pointer_records(&dropped.writer),
+                dropped.counters.pointer_dropped_at_stop()
+            ),
+            (vec![], 50),
+            "the context drops at the stop"
+        );
+
+        let handed = held_with(100, 64, 1);
+        pointer(&handed.ctx, CGEventType::LeftMouseDown, 1);
+        pointer(&handed.ctx, CGEventType::MouseMoved, 3);
+        close_interval(&handed.ctx);
+        handed.ctx.stop.store(true, Ordering::SeqCst);
+        drop(handed.ctx);
+        assert_eq!(
+            (
+                pointer_records(&handed.writer),
+                handed.counters.figures().pointer_coalesced,
+                handed.counters.pointer_dropped_at_stop()
+            ),
+            (vec![("primary", 1)], 1, 3),
+            "a full queue handed counts back, then the stop"
+        );
+    }
+
+    #[test]
     fn each_type_of_the_table_has_its_class() {
         use TapClass::{
             ContinuousPointer as C, DiscretePointer as D, KeyPress as K, OtherKey as O,
