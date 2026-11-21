@@ -5,9 +5,15 @@ use std::time::Duration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Launch {
-    Run,
+    Run {
+        background: bool,
+        data_dir: Option<PathBuf>,
+    },
     Version,
-    CheckPage { data_dir: PathBuf, within: Duration },
+    CheckPage {
+        data_dir: PathBuf,
+        within: Duration,
+    },
 }
 
 pub const MAX_WITHIN_S: u64 = 3600;
@@ -62,7 +68,8 @@ impl fmt::Display for Usage {
     }
 }
 
-pub const USAGE: &str = "usage: halvo [--version | --check-page --data-dir DIR --within-s N]";
+pub const USAGE: &str =
+    "usage: halvo [--background] [--data-dir DIR] | --version | --check-page --data-dir DIR --within-s N";
 
 pub fn parse<I: IntoIterator<Item = OsString>>(
     args_after_program_name: I,
@@ -72,12 +79,37 @@ pub fn parse<I: IntoIterator<Item = OsString>>(
         .map(|arg| arg.into_string().map_err(|_| Usage::NotUnicode))
         .collect::<Result<Vec<String>, Usage>>()?;
     match args.as_slice() {
-        [] => Ok(Launch::Run),
         [only] if only == "--version" => Ok(Launch::Version),
         [first, ..] if first == "--version" => Err(Usage::Extra(first.clone())),
         [first, rest @ ..] if first == "--check-page" => check_page(rest),
-        [first, ..] => Err(Usage::Unknown(first.clone())),
+        options => run(options),
     }
+}
+
+fn run(options: &[String]) -> Result<Launch, Usage> {
+    let mut background = false;
+    let mut data_dir = None;
+    let mut rest = options.iter();
+    while let Some(option) = rest.next() {
+        match option.as_str() {
+            "--background" if background => return Err(Usage::Repeated("--background")),
+            "--background" => background = true,
+            "--data-dir" => {
+                let value = rest.next().ok_or(Usage::NoValue("--data-dir"))?;
+                if data_dir.replace(PathBuf::from(value)).is_some() {
+                    return Err(Usage::Repeated("--data-dir"));
+                }
+            }
+            other => return Err(Usage::Unknown(other.to_string())),
+        }
+    }
+    if data_dir.as_ref().is_some_and(|dir| !dir.is_absolute()) {
+        return Err(Usage::RelativeDir);
+    }
+    Ok(Launch::Run {
+        background,
+        data_dir,
+    })
 }
 
 fn check_page(options: &[String]) -> Result<Launch, Usage> {
@@ -142,7 +174,13 @@ mod tests {
 
     #[test]
     fn no_argument_runs_the_app_and_version_alone_prints_the_version() {
-        assert_eq!(parse(args(&[])), Ok(Launch::Run));
+        assert_eq!(
+            parse(args(&[])),
+            Ok(Launch::Run {
+                background: false,
+                data_dir: None
+            })
+        );
         assert_eq!(parse(args(&["--version"])), Ok(Launch::Version));
     }
 
@@ -252,7 +290,7 @@ mod tests {
         }
         assert_eq!(
             parse(args(&["--data-dir", &dir, "--check-page"])),
-            Err(Usage::Unknown("--data-dir".into()))
+            Err(Usage::Unknown("--check-page".into()))
         );
     }
 
