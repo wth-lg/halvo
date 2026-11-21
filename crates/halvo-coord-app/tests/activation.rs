@@ -6,6 +6,7 @@ mod reading;
 use activation::{begun, late, run_loop, wait, Begun, Waited, LATE, LATE_MOST, RUN_LOOP_BOUND};
 use std::cell::{Cell, RefCell};
 use std::ffi::OsStr;
+use std::sync::mpsc::RecvTimeoutError;
 use std::time::Duration;
 
 const EVERY: Duration = Duration::from_secs(1);
@@ -150,7 +151,7 @@ fn run_loop_the_sign_is_waited_for_with_the_bound_and_the_time_waited_is_kept() 
         let result = run_loop(
             |limit| {
                 given.borrow_mut().push(limit);
-                true
+                Ok(())
             },
             || Duration::from_millis(2_003),
             bound,
@@ -173,13 +174,36 @@ fn run_loop_with_no_sign_within_the_bound_has_not_begun() {
         let result = run_loop(
             |limit| {
                 given.borrow_mut().push(limit);
-                false
+                Err(RecvTimeoutError::Timeout)
             },
             || bound,
             bound,
         );
         assert_eq!(given.into_inner(), vec![bound], "{bound:?}");
         assert_eq!(result, Begun::Not { bound }, "{bound:?}");
+    }
+}
+
+#[test]
+fn run_loop_a_channel_that_closed_with_no_sign_is_closed_after_the_time_waited_and_not_the_bound() {
+    for bound in BOUNDS {
+        let given = RefCell::new(Vec::new());
+        let result = run_loop(
+            |limit| {
+                given.borrow_mut().push(limit);
+                Err(RecvTimeoutError::Disconnected)
+            },
+            || Duration::from_millis(37),
+            bound,
+        );
+        assert_eq!(given.into_inner(), vec![bound], "{bound:?}");
+        assert_eq!(
+            result,
+            Begun::Closed {
+                waited: Duration::from_millis(37)
+            },
+            "{bound:?}"
+        );
     }
 }
 
@@ -222,7 +246,7 @@ fn over_a_channel(sign: Sign, bound: Duration) -> (Begun, Vec<Duration>, Vec<&'s
         |limit| {
             limits.borrow_mut().push(limit);
             steps.borrow_mut().push("wait");
-            runs.recv_timeout(limit).is_ok()
+            runs.recv_timeout(limit)
         },
         || {
             steps.borrow_mut().push("clock");
@@ -249,14 +273,16 @@ fn run_loop_over_a_channel_goes_on_at_the_sign_and_ends_at_the_bound_without_it(
         over_a_channel(Sign::Never, short),
         (Begun::Not { bound: short }, vec![short], vec!["wait"])
     );
+}
+
+#[test]
+fn run_loop_over_a_channel_whose_sender_was_dropped_is_closed_and_not_the_bound() {
     assert_eq!(
         over_a_channel(Sign::Dropped, RUN_LOOP_BOUND),
         (
-            Begun::Not {
-                bound: RUN_LOOP_BOUND
-            },
+            Begun::Closed { waited: CLOCK },
             vec![RUN_LOOP_BOUND],
-            vec!["wait"]
+            vec!["wait", "clock"]
         )
     );
 }
@@ -316,6 +342,33 @@ fn begun_with_no_sign_no_case_runs_and_the_line_names_the_sign_and_the_bound() {
             begun(target, Begun::Not { bound }),
             (line.to_string(), false),
             "{target} {bound:?}"
+        );
+    }
+}
+
+#[test]
+fn begun_a_closed_channel_runs_no_case_and_the_line_names_the_closed_channel_and_the_time() {
+    for (target, waited, line) in [
+        (
+            "guard_hosted",
+            0,
+            "guard_hosted start FAIL: the channel of the run loop's sign closed after 0 ms with no sign: the main thread dropped its end without the sign that the test runtime's run loop runs; no case ran",
+        ),
+        (
+            "dialog_hosted",
+            37,
+            "dialog_hosted start FAIL: the channel of the run loop's sign closed after 37 ms with no sign: the main thread dropped its end without the sign that the test runtime's run loop runs; no case ran",
+        ),
+    ] {
+        assert_eq!(
+            begun(
+                target,
+                Begun::Closed {
+                    waited: Duration::from_millis(waited)
+                }
+            ),
+            (line.to_string(), false),
+            "{target} {waited}"
         );
     }
 }

@@ -13,7 +13,8 @@
 //! first two must be 0. The target makes its app finish launching and become the active app at
 //! its start, as the app is when a person asks for the dialog, and on macOS its first show waits
 //! for the sign that the test runtime's run loop runs, so that it runs on the main thread as the
-//! later shows do (ruling RD-146 (3)); with no sign in 10 s the target prints its line, runs no
+//! later shows do (ruling RD-146 (3)); with no sign in 10 s, or with the sign's channel closed and
+//! no sign, the target prints its line, runs no
 //! case and fails. On macOS the target's own
 //! observers print the pair (the app active, the alert's window key) at each of the four notices,
 //! each press prints the pair and the modal fact, and each show prints which reading made its
@@ -1203,8 +1204,9 @@ mod cases {
     /// thread (ruling RD-146 (3)). The thread waits for the sign that the run loop runs, which the
     /// loop gives at its start, before its first show, because the test runtime runs a task of
     /// `run_on_main_thread` at once on the calling thread until its run loop has begun; with no
-    /// sign within `RUN_LOOP_BOUND` it prints its line, runs no case and ends as failed. The setting
-    /// `LATE` holds the run call back after the thread has started: the forced form of the race.
+    /// sign within `RUN_LOOP_BOUND`, or with the sign's channel closed and no sign, it prints its
+    /// line, runs no case and ends as failed. The setting `LATE` holds the run call back after the
+    /// thread has started: the forced form of the race.
     pub fn run(card: Card) {
         activate();
         if let Some(mtm) = MainThreadMarker::new() {
@@ -1224,7 +1226,7 @@ mod cases {
         std::thread::spawn(move || {
             let start = Instant::now();
             let begun = super::activation::run_loop(
-                |bound| runs.recv_timeout(bound).is_ok(),
+                |bound| runs.recv_timeout(bound),
                 || start.elapsed(),
                 super::activation::RUN_LOOP_BOUND,
             );

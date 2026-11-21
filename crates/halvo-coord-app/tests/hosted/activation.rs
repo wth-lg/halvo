@@ -1,4 +1,5 @@
 use std::ffi::OsStr;
+use std::sync::mpsc::RecvTimeoutError;
 use std::time::Duration;
 
 /// The setting of the hosted targets that holds the main thread's run call of the test runtime
@@ -38,21 +39,24 @@ pub enum Begun {
     After { waited: Duration },
     /// No sign came within `bound`.
     Not { bound: Duration },
+    /// The channel of the sign closed after `waited` with no sign: the main thread dropped its
+    /// end without the sign.
+    Closed { waited: Duration },
 }
 
 /// Waits for the sign that the test runtime's run loop runs, so that a show that the cases'
 /// thread asks for after it runs on the main thread: `sign` waits for the sign at most the time
-/// that it is given and says whether it came, `elapsed` reads the time since the wait began, and
-/// the wait ends at `bound`.
+/// that it is given and gives what the sign's channel gave, `elapsed` reads the time since the
+/// wait began, and the wait ends at `bound`.
 pub fn run_loop(
-    sign: impl FnOnce(Duration) -> bool,
+    sign: impl FnOnce(Duration) -> Result<(), RecvTimeoutError>,
     elapsed: impl FnOnce() -> Duration,
     bound: Duration,
 ) -> Begun {
-    if sign(bound) {
-        Begun::After { waited: elapsed() }
-    } else {
-        Begun::Not { bound }
+    match sign(bound) {
+        Ok(()) => Begun::After { waited: elapsed() },
+        Err(RecvTimeoutError::Timeout) => Begun::Not { bound },
+        Err(RecvTimeoutError::Disconnected) => Begun::Closed { waited: elapsed() },
     }
 }
 
@@ -70,6 +74,13 @@ pub fn begun(target: &str, begun: Begun) -> (String, bool) {
             format!(
                 "{target} start FAIL: the test runtime's run loop gave no sign that it runs within {} s, so a show would run off the main thread; no case ran",
                 bound.as_secs()
+            ),
+            false,
+        ),
+        Begun::Closed { waited } => (
+            format!(
+                "{target} start FAIL: the channel of the run loop's sign closed after {} ms with no sign: the main thread dropped its end without the sign that the test runtime's run loop runs; no case ran",
+                waited.as_millis()
             ),
             false,
         ),

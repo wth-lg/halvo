@@ -13,9 +13,9 @@
 //! asks for the dialog, waits at its start until the app reads active, as guard_hosted does
 //! (ruling RD-107, ruling RD-113 item 2), and otherwise runs no case and ends with its
 //! inconclusive line, asks for its first show only after the sign that the test runtime's run
-//! loop runs, and otherwise, after 10 s, runs no case and fails by its own line (ruling RD-146
-//! (4)), and brings an alert that has not reported itself to the front once a
-//! second, with a line that says what was active before it; and on
+//! loop runs, and otherwise, after 10 s or when the sign's channel closed with no sign, runs no
+//! case and fails by its own line (ruling RD-146 (4)), and brings an alert that has not reported
+//! itself to the front once a second, with a line that says what was active before it; and on
 //! Windows a dialog that has not reported itself in 3 s is brought to the foreground once, with
 //! a line that says so.
 //!
@@ -1221,9 +1221,9 @@ mod cases {
 
     /// Runs the cases on a thread of their own while the test runtime's run loop runs on the main
     /// thread, the thread's first show after the sign that the run loop runs, as guard_hosted
-    /// does (ruling RD-146 (4)); with no sign within `RUN_LOOP_BOUND` it prints its line, runs no
-    /// case and ends as failed. The setting `LATE` holds the run call back after the thread has
-    /// started: the forced form of the race.
+    /// does (ruling RD-146 (4)); with no sign within `RUN_LOOP_BOUND`, or with the sign's channel
+    /// closed and no sign, it prints its line, runs no case and ends as failed. The setting
+    /// `LATE` holds the run call back after the thread has started: the forced form of the race.
     pub fn run(card: Card) {
         activate();
         let late =
@@ -1240,7 +1240,7 @@ mod cases {
         std::thread::spawn(move || {
             let start = Instant::now();
             let begun = super::activation::run_loop(
-                |bound| runs.recv_timeout(bound).is_ok(),
+                |bound| runs.recv_timeout(bound),
                 || start.elapsed(),
                 super::activation::RUN_LOOP_BOUND,
             );
