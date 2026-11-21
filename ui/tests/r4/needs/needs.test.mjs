@@ -196,7 +196,7 @@ async function calls(origin, dir, states) {
         const r = await after(origin, state, p.acts);
         seen.plans += 1;
         seen.calls += p.calls.length;
-        const got = r.calls.map((c) => ({ call: c.call, args: c.args }));
+        const got = r.calls.filter((c) => c.call !== 'agents_shown').map((c) => ({ call: c.call, args: c.args }));
         if (firstDiff(got, p.calls) >= 0) faults.push(tag + ':calls=' + got.length + ':want=' + p.calls.length);
         for (const c of r.calls) for (const f of callFaults(list, c)) faults.push(tag + ':' + f);
         if (item.kind === 'confirm' && item.presenter === 'page' && r.page.dialogs.some((d) => d.rendered && d.item === item.item)) faults.push(tag + ':not_closed');
@@ -208,6 +208,11 @@ async function calls(origin, dir, states) {
     }
   }
   return faults;
+}
+
+/** The transcript line of the view's report that it shows the page confirmation `item` (RD-80 5.1). */
+function shownLine(item) {
+  return { call: 'agents_shown', args: { item: item.item, step: item.step }, reply: { ok: 'yes' } };
 }
 
 function withId(item, id) {
@@ -362,7 +367,7 @@ async function escape(origin, dir, states) {
       const r = await read(h);
       seen.escapes += 1;
       if (!(r.dialogs[0] && r.dialogs[0].modal && r.dialogs[0].rendered)) faults.push(state + ':closed_by_escape');
-      if (callsOf(out).length !== 0) faults.push(state + ':call_on_escape');
+      if (callsOf(out).filter((c) => c.call !== 'agents_shown').length !== 0) faults.push(state + ':call_on_escape');
     } finally {
       await h.close();
     }
@@ -537,7 +542,7 @@ async function replies(origin, dir) {
   const reject = { call: 'agents_answer', args: { item: confirm.item, step: confirm.step, choice: 'reject' } };
   const back = async (line, tag) => {
     const out = outDir();
-    const k = await open({ origin, replies: [{ state: snap(1, [confirm]) }, line], views: [CONFIRM, VIEW], out });
+    const k = await open({ origin, replies: [{ state: snap(1, [confirm]) }, shownLine(confirm), line, shownLine(confirm)], views: [CONFIRM, VIEW], out });
     try {
       await act(k, { act: 'reject', param: confirm.item });
       const r = await shows(k, [confirm], tag, faults);
@@ -551,14 +556,14 @@ async function replies(origin, dir) {
   for (const cause of ['state', 'early', 'busy', 'no_service', 'stale', 'presenter']) await back({ ...reject, reply: { error: cause } }, 'refused_' + cause + '_comes_back');
   await back({ ...reject, reject: true }, 'rejected_comes_back');
   const out = outDir();
-  h = await open({ origin, replies: [{ state: snap(1, [confirm]) }, { ...reject, reply: { ok: 'yes' } }, { state: snap(2, [confirm]) }], views: [CONFIRM, VIEW], out });
+  h = await open({ origin, replies: [{ state: snap(1, [confirm]) }, shownLine(confirm), { ...reject, reply: { ok: 'yes' } }, { state: snap(2, [confirm]) }], views: [CONFIRM, VIEW], out });
   try {
     await act(h, { act: 'reject', param: confirm.item });
     const r = await read(h);
     if (r.dialogs.some((d) => d.rendered)) faults.push('answered_reopened');
     await h.page.keyboard.press('Enter');
     await frames(h);
-    if (callsOf(out).length !== 1) faults.push('answered_called_again=' + callsOf(out).length);
+    if (answersOf(out).length !== 1) faults.push('answered_called_again=' + answersOf(out).length);
   } catch {
     faults.push('answered_throws');
   } finally {
@@ -575,7 +580,7 @@ async function setups(origin, dir) {
   const odd = withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'odd id x');
   const dup = withId(stateFile(dir, 'needs_stuck').snapshot.items[0], '9'.repeat(32));
   const out = outDir();
-  const h = await open({ origin, replies: [{ state: snap(1, [one, two, dup, dup, odd]) }, { state: snap(2, [one, two, dup, dup, odd]) }], views: [CONFIRM, VIEW], out });
+  const h = await open({ origin, replies: [{ state: snap(1, [one, two, dup, dup, odd]) }, shownLine(odd), { state: snap(2, [one, two, dup, dup, odd]) }], views: [CONFIRM, VIEW], out });
   try {
     await shows(h, [one, two, dup, dup, odd], 'two_setups', faults);
     const facts = await h.page.evaluate((words) => {
@@ -629,8 +634,13 @@ function writeState(dir, name, items) {
   writeFileSync(join(dir, 'state-' + name + '.json'), JSON.stringify({ snapshot: snap(1, items), card: null }) + '\n');
 }
 
+/** The calls of a run but the view's reports of a page confirmation, which the test shown holds. */
+function answersOf(out) {
+  return callsOf(out).filter((c) => c.call !== 'agents_shown');
+}
+
 function said(out) {
-  return callsOf(out).map((c) => c.call + ':' + (c.args.choice || '-') + ':' + c.args.item.slice(0, 1));
+  return answersOf(out).map((c) => c.call + ':' + (c.args.choice || '-') + ':' + c.args.item.slice(0, 1));
 }
 
 async function openDialog(h) {
@@ -720,6 +730,7 @@ async function confirms(origin, dir) {
       { state: snap(1, [sign]) },
       { call: 'agents_answer', args: { item: sign.item, step: sign.step, choice: 'done' }, reply: { ok: 'yes' } },
       { state: snap(2, [sign, a]) },
+      shownLine(a),
       { call: 'agents_answer', args: { item: a.item, step: a.step, choice: 'reject' }, reply: { ok: 'yes' } },
     ],
     views: [CONFIRM, VIEW],
@@ -752,6 +763,7 @@ async function confirms(origin, dir) {
       { state: snap(1, [typed, stuck]) },
       { call: 'agents_answer', args: { item: stuck.item, step: stuck.step, choice: 'done' }, reply: { ok: 'yes' } },
       { state: snap(2, [typed, stuck, a]) },
+      shownLine(a),
       { call: 'agents_answer', args: { item: a.item, step: a.step, choice: 'reject' }, reply: { ok: 'yes' } },
     ],
     views: [CONFIRM, VIEW],
@@ -783,7 +795,7 @@ async function confirms(origin, dir) {
     await h.page.evaluate((id) => document.querySelector('[data-act="reject"][data-param="' + id + '"]').click(), base.item);
     await frames(h);
     const r = await read(h);
-    if (callsOf(out).length !== 1 || r.dialogs.some((x) => x.rendered)) faults.push('click_with_no_press:calls=' + callsOf(out).length);
+    if (answersOf(out).length !== 1 || r.dialogs.some((x) => x.rendered)) faults.push('click_with_no_press:calls=' + answersOf(out).length);
   } finally {
     await keep(h);
     await h.close();
@@ -794,12 +806,12 @@ async function confirms(origin, dir) {
     await h.page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await h.page.locator(sel('reject', base.item)).click();
     await frames(h);
-    if (callsOf(out).length !== 0) faults.push('raising_press_answered');
+    if (answersOf(out).length !== 0) faults.push('raising_press_answered');
     if ((await h.page.locator(sel('reject', base.item)).count()) === 1) {
       await h.page.locator(sel('reject', base.item)).click();
       await frames(h);
     }
-    if (callsOf(out).length !== 1) faults.push('press_after_raise:calls=' + callsOf(out).length);
+    if (answersOf(out).length !== 1) faults.push('press_after_raise:calls=' + answersOf(out).length);
   } finally {
     await keep(h);
     await h.close();
@@ -816,7 +828,7 @@ async function confirms(origin, dir) {
     if (!again) faults.push('pressed_then_reopened:not_reopened');
     await h.page.mouse.up();
     await frames(h);
-    if (callsOf(out).length !== 0) faults.push('pressed_then_reopened:calls=' + said(out).join(','));
+    if (answersOf(out).length !== 0) faults.push('pressed_then_reopened:calls=' + said(out).join(','));
   } finally {
     await keep(h);
     await h.close();
@@ -824,7 +836,7 @@ async function confirms(origin, dir) {
   const allowA = { call: 'agents_answer', args: { item: a.item, step: a.step, choice: 'allow' }, reply: { ok: 'yes' } };
   const doneSign = { call: 'agents_answer', args: { item: sign.item, step: sign.step, choice: 'done' }, reply: { ok: 'yes' } };
   let point = null;
-  h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }], views: [CONFIRM, VIEW] });
+  h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, shownLine(a)], views: [CONFIRM, VIEW] });
   try {
     const box = await h.page.locator(sel('allow', a.item)).boundingBox();
     point = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
@@ -833,7 +845,7 @@ async function confirms(origin, dir) {
   }
   const opens = (k) => k.page.waitForFunction(() => Boolean(document.querySelector('[role="alertdialog"]:modal')), null, { timeout: 10000 }).then(() => true, () => false);
   out = outDir();
-  h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [CONFIRM, VIEW], out });
+  h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
   try {
     await h.page.mouse.move(point.x, point.y);
     await h.page.mouse.down();
@@ -856,7 +868,7 @@ async function confirms(origin, dir) {
       return (kind) => cdp.send('Input.dispatchTouchEvent', kind === 'start' ? { type: 'touchStart', touchPoints: [point] } : { type: 'touchEnd', touchPoints: [] });
     };
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [CONFIRM, VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
     try {
       const send = await touch(h);
       await send('start');
@@ -872,7 +884,7 @@ async function confirms(origin, dir) {
       await h.close();
     }
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, allowA], views: [CONFIRM, VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign]) }, doneSign, { state: snap(2, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
     try {
       const cdp = await h.page.context().newCDPSession(h.page);
       const pen = (type) => cdp.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', clickCount: 1, pointerType: 'pen' });
@@ -889,7 +901,7 @@ async function confirms(origin, dir) {
       await h.close();
     }
     out = outDir();
-    h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, allowA], views: [CONFIRM, VIEW], out });
+    h = await open({ origin, replies: [{ state: snap(1, [sign, a]) }, shownLine(a), allowA], views: [CONFIRM, VIEW], out });
     try {
       const send = await touch(h);
       await send('start');
@@ -1026,7 +1038,7 @@ async function region(origin, dir) {
       if (r) r.r4needsMark = true;
     });
   const step = async (tag, first, focusOn, second, wanted, wantFocus) => {
-    const h = await open({ origin, replies: [{ state: snap(1, first) }, gate, { state: snap(2, second) }], views: [CONFIRM, VIEW] });
+    const h = await open({ origin, replies: [{ state: snap(1, first) }, gate, { state: snap(2, second) }, ...second.filter((i) => i === confirm).map(shownLine)], views: [CONFIRM, VIEW] });
     try {
       const at = await facts(h);
       if (at.count !== 1 || at.live !== 'polite' || at.says.length !== 0) faults.push(tag + ':before=' + JSON.stringify(at));
@@ -1132,7 +1144,7 @@ async function region(origin, dir) {
     if (JSON.stringify(got) !== JSON.stringify(want)) faults.push(tag + ':says=' + (got.join('|') || '-'));
   };
   const open1 = 'arrives_while_a_confirmation_holds_the_focus';
-  await flow(open1, [{ state: snap(1, [confirm]) }, gate, { state: snap(2, [confirm, ready]) }, answerLine(confirm)], async (h) => {
+  await flow(open1, [{ state: snap(1, [confirm]) }, shownLine(confirm), gate, { state: snap(2, [confirm, ready]) }, answerLine(confirm)], async (h) => {
     await pass(h, [confirm, ready]);
     expect(open1 + '_while_open', await says(h), []);
     await answerOpen(h);
@@ -1140,7 +1152,7 @@ async function region(origin, dir) {
     expect(open1 + '_after_the_answer', await says(h), ['Ready came.']);
   });
   const both = 'a_reply_with_a_confirmation_and_another_item';
-  await flow(both, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, other]) }, gate, { state: snap(3, [stuck, other, confirm, ready]) }, answerLine(confirm)], async (h) => {
+  await flow(both, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, other]) }, gate, { state: snap(3, [stuck, other, confirm, ready]) }, shownLine(confirm), answerLine(confirm)], async (h) => {
     await pass(h, [stuck, other]);
     expect(both + '_before', await says(h), ['Other came.']);
     await pass(h, [stuck, other, confirm, ready]);
@@ -1150,7 +1162,7 @@ async function region(origin, dir) {
     expect(both + '_after_the_close', await says(h), ['Ready came.']);
   });
   const waits = 'a_waiting_confirmation_is_never_said';
-  await flow(waits, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, second]) }, answerLine(confirm), answerLine(second)], async (h) => {
+  await flow(waits, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, second]) }, shownLine(confirm), shownLine(second), answerLine(confirm), answerLine(second)], async (h) => {
     const seen = [];
     await pass(h, [stuck, confirm, second]);
     seen.push(...(await says(h)));
@@ -1165,7 +1177,7 @@ async function region(origin, dir) {
     expect(waits + '_after', end, []);
   });
   const between = 'an_item_that_came_and_went_while_a_confirmation_was_open';
-  await flow(between, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, gate, { state: snap(3, [stuck, confirm, ready]) }, gate, { state: snap(4, [stuck, confirm]) }, answerLine(confirm)], async (h) => {
+  await flow(between, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, shownLine(confirm), gate, { state: snap(3, [stuck, confirm, ready]) }, gate, { state: snap(4, [stuck, confirm]) }, answerLine(confirm)], async (h) => {
     await pass(h, [stuck, confirm]);
     await pass(h, [stuck, confirm, ready]);
     await pass(h, [stuck, confirm]);
@@ -1174,14 +1186,14 @@ async function region(origin, dir) {
     expect(between, await says(h), []);
   });
   const dropped = 'a_confirmation_dropped_without_an_answer_is_said_gone_after';
-  await flow(dropped, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, gate, { state: snap(3, [stuck]) }], async (h) => {
+  await flow(dropped, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, shownLine(confirm), gate, { state: snap(3, [stuck]) }], async (h) => {
     await pass(h, [stuck, confirm]);
     await pass(h, [stuck]);
     await afterClose(h);
     expect(dropped, await says(h), ['Confirm went.']);
   });
   const answeredOne = 'an_answered_confirmation_is_not_said_gone';
-  await flow(answeredOne, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, answerLine(confirm), { state: snap(3, [stuck]) }], async (h) => {
+  await flow(answeredOne, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, shownLine(confirm), answerLine(confirm), { state: snap(3, [stuck]) }], async (h) => {
     await pass(h, [stuck, confirm]);
     await answerOpen(h);
     await afterClose(h);
@@ -1207,7 +1219,7 @@ async function region(origin, dir) {
     expect(many + '_after_a_hide', await says(h), []);
   });
   const ax = 'the_tree_holds_the_element_after_the_close';
-  await flow(ax, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, answerLine(confirm)], async (h) => {
+  await flow(ax, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, shownLine(confirm), answerLine(confirm)], async (h) => {
     if (engineOf(h) !== 'chromium') {
       console.log('region tree: not read on ' + engineOf(h) + ', whose tree this harness does not read');
       return;
@@ -1236,7 +1248,7 @@ async function region(origin, dir) {
     if (!texts.join(' ').includes('Ready came.')) faults.push(ax + ':tree_text=' + (texts.join('|') || '-'));
   });
   const task = 'the_release_is_not_made_in_the_task_that_closes';
-  await flow(task, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, answerLine(confirm)], async (h) => {
+  await flow(task, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, shownLine(confirm), answerLine(confirm)], async (h) => {
     await pass(h, [stuck, confirm, ready]);
     const inTask = await h.page.evaluate(() => {
       const d = [...document.querySelectorAll('[role="alertdialog"]')].find((x) => x.matches(':modal'));
@@ -2228,7 +2240,7 @@ async function holds(origin, dir) {
   };
 
   const h1 = 'h1_a_refusal_while_a_confirmation_is_open';
-  await flow(h1, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm), { state: snap(3, [setup]) }, gate, { state: snap(4, [setup, second]) }, answerLine(second)], async (h, k) => {
+  await flow(h1, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, shownLine(confirm), answerLine(confirm), { state: snap(3, [setup]) }, gate, { state: snap(4, [setup, second]) }, shownLine(second), answerLine(second)], async (h, k) => {
     await h.page.locator(line).fill(xs(1018));
     await pass(h, [setup, confirm]);
     await refuse(k);
@@ -2249,7 +2261,7 @@ async function holds(origin, dir) {
     if ((await k.says()).includes(B)) faults.push(h1 + ':a_second_confirmation_adds_the_line_again');
   });
   const h2 = 'h2_a_refusal_and_items_that_came_and_went';
-  await flow(h2, [{ state: snap(1, [setup, stuck]) }, gate, { state: snap(2, [setup, stuck, confirm]) }, gate, { state: snap(3, [setup, confirm, ready]) }, answerLine(confirm)], async (h, k) => {
+  await flow(h2, [{ state: snap(1, [setup, stuck]) }, gate, { state: snap(2, [setup, stuck, confirm]) }, shownLine(confirm), gate, { state: snap(3, [setup, confirm, ready]) }, answerLine(confirm)], async (h, k) => {
     await h.page.locator(line).fill(xs(1018));
     await pass(h, [setup, stuck, confirm]);
     await refuse(k);
@@ -2259,7 +2271,7 @@ async function holds(origin, dir) {
     expect(h2, await k.says(), [B, 'Stuck went.', 'Ready came.']);
   });
   const h3 = 'h3_a_confirmation_dropped_with_no_answer';
-  await flow(h3, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, gate, { state: snap(3, [setup]) }], async (h, k) => {
+  await flow(h3, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, shownLine(confirm), gate, { state: snap(3, [setup]) }], async (h, k) => {
     await h.page.locator(line).fill(xs(1018));
     await pass(h, [setup, confirm]);
     await refuse(k);
@@ -2269,7 +2281,7 @@ async function holds(origin, dir) {
   });
   const h4 = 'h4_a_card_built_again_during_the_hold(pin)';
   const setupChanged = { ...setup, text: setup.text + ' Again.' };
-  await flow(h4, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, gate, { state: snap(3, [setupChanged, confirm]) }, answerLine(confirm)], async (h, k) => {
+  await flow(h4, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, shownLine(confirm), gate, { state: snap(3, [setupChanged, confirm]) }, answerLine(confirm)], async (h, k) => {
     await h.page.locator(line).fill(xs(1018));
     await pass(h, [setup, confirm]);
     await refuse(k);
@@ -2279,7 +2291,7 @@ async function holds(origin, dir) {
     if ((await k.says()).includes(B)) faults.push(h4 + ':the_old_line_is_added');
   });
   const h5 = 'h5_a_removal_during_the_hold(pin)';
-  await flow(h5, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm)], async (h, k) => {
+  await flow(h5, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, shownLine(confirm), answerLine(confirm)], async (h, k) => {
     await h.page.locator(line).fill(xs(1018));
     await pass(h, [setup, confirm]);
     await refuse(k);
@@ -2289,7 +2301,7 @@ async function holds(origin, dir) {
     if ((await k.says()).includes(B)) faults.push(h5 + ':the_removed_sentence_is_added');
   });
   const h6 = 'h6_the_confirmation_shown_again';
-  await flow(h6, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm, { hold: true }), answerLine(confirm)], async (h, k) => {
+  await flow(h6, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, shownLine(confirm), answerLine(confirm, { hold: true }), shownLine(confirm), answerLine(confirm)], async (h, k) => {
     await h.page.locator(line).fill(xs(1018));
     await pass(h, [setup, confirm]);
     await answerOpen(h);
@@ -2304,7 +2316,7 @@ async function holds(origin, dir) {
     expect(h6 + '_after_the_second_close(the_first_close_is_delivered_before_the_error,by_a_held_call)', await k.says(), [B]);
   });
   const h7 = 'h7_a_refusal_in_the_task_that_closes';
-  await flow(h7, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm, ready]) }, answerLine(confirm)], async (h, k) => {
+  await flow(h7, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm, ready]) }, shownLine(confirm), answerLine(confirm)], async (h, k) => {
     await h.page.locator(line).fill(xs(1018));
     await pass(h, [setup, confirm, ready]);
     await h.page.evaluate(([s, big]) => {
@@ -2323,7 +2335,7 @@ async function holds(origin, dir) {
     ['h8_the_same_words_once', 'abc', 'abc' + 'y'.repeat(2000), [B]],
     ['h8_full_then_too_long_in_the_order_of_the_list', xs(1024), xs(1024) + 'a', [p.full, B]],
   ]) {
-    await flow(mark, [{ state: snap(1, [two]) }, gate, { state: snap(2, [two, confirm]) }, answerLine(confirm)], async (h, k) => {
+    await flow(mark, [{ state: snap(1, [two]) }, gate, { state: snap(2, [two, confirm]) }, shownLine(confirm), answerLine(confirm)], async (h, k) => {
       await h.page.locator(typed[0]).fill(firstFill);
       await h.page.locator(typed[1]).fill('abc');
       await pass(h, [two, confirm]);
@@ -2335,7 +2347,7 @@ async function holds(origin, dir) {
     });
   }
   const h9 = 'h9_an_item_that_came_with_a_confirmation';
-  await flow(h9, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, answerLine(confirm), gate, { state: snap(3, [stuck, ready]) }], async (h, k) => {
+  await flow(h9, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, ready]) }, shownLine(confirm), answerLine(confirm), gate, { state: snap(3, [stuck, ready]) }], async (h, k) => {
     await pass(h, [stuck, confirm, ready]);
     await answerOpen(h);
     await afterClose(h);
@@ -2344,7 +2356,7 @@ async function holds(origin, dir) {
     expect(h9 + '_after_the_reply_without_the_answered_confirmation', await k.says(), ['Ready came.']);
   });
   const h9b = 'h9_a_reply_without_the_answered_confirmation_and_with_another_item';
-  await flow(h9b, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, answerLine(confirm), gate, { state: snap(3, [stuck, other]) }], async (h, k) => {
+  await flow(h9b, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm]) }, shownLine(confirm), answerLine(confirm), gate, { state: snap(3, [stuck, other]) }], async (h, k) => {
     await pass(h, [stuck, confirm]);
     await answerOpen(h);
     await afterClose(h);
@@ -2352,7 +2364,7 @@ async function holds(origin, dir) {
     expect(h9b, await k.says(), ['Other came.']);
   });
   const h10 = 'h10_a_composition_through_the_protocol_when_a_confirmation_opens';
-  await flow(h10, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm)], async (h, k) => {
+  await flow(h10, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, shownLine(confirm), answerLine(confirm)], async (h, k) => {
     if (engineOf(h) !== 'chromium') {
       console.log('hold h10: not run on ' + engineOf(h) + ', which takes no composition through the browser\'s protocol in this harness');
       return;
@@ -2369,7 +2381,7 @@ async function holds(origin, dir) {
     if (Buffer.byteLength(f.value) !== 1018) faults.push(h10 + ':line_holds=' + Buffer.byteLength(f.value));
   });
   const h11 = 'h11_a_sentence_from_before_the_hold(pin)';
-  await flow(h11, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm)], async (h, k) => {
+  await flow(h11, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, shownLine(confirm), answerLine(confirm)], async (h, k) => {
     await h.page.locator(line).fill(xs(1018));
     await refuse(k);
     expect(h11 + '_before', await k.says(), [B]);
@@ -2379,7 +2391,7 @@ async function holds(origin, dir) {
     if ((await k.says()).includes(B)) faults.push(h11 + ':added_at_the_release');
   });
   const h12 = 'h12_a_reply_that_drops_an_answered_confirmation_and_another_item';
-  await flow(h12, [{ state: snap(1, [stuck, ready]) }, gate, { state: snap(2, [stuck, ready, confirm]) }, answerLine(confirm), gate, { state: snap(3, [stuck]) }], async (h, k) => {
+  await flow(h12, [{ state: snap(1, [stuck, ready]) }, gate, { state: snap(2, [stuck, ready, confirm]) }, shownLine(confirm), answerLine(confirm), gate, { state: snap(3, [stuck]) }], async (h, k) => {
     await pass(h, [stuck, ready, confirm]);
     await answerOpen(h);
     await afterClose(h);
@@ -2388,7 +2400,7 @@ async function holds(origin, dir) {
     expect(h12, await k.says(), ['Ready went.']);
   });
   const h13 = 'h13_a_refusal_in_the_task_that_closes_a_confirmation_shown_again';
-  await flow(h13, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, answerLine(confirm, { hold: true }), answerLine(confirm)], async (h, k) => {
+  await flow(h13, [{ state: snap(1, [setup]) }, gate, { state: snap(2, [setup, confirm]) }, shownLine(confirm), answerLine(confirm, { hold: true }), shownLine(confirm), answerLine(confirm)], async (h, k) => {
     await h.page.locator(line).fill(xs(1018));
     await pass(h, [setup, confirm]);
     await answerOpen(h);
@@ -2409,7 +2421,7 @@ async function holds(origin, dir) {
     expect(h13 + '_after_the_close', await k.says(), [B]);
   });
   const h14 = 'h14_a_reply_that_drops_the_waiting_confirmation_before_the_first_close';
-  await flow(h14, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, second]) }, answerLine(confirm), gate, { state: snap(3, [stuck]) }], async (h, k) => {
+  await flow(h14, [{ state: snap(1, [stuck]) }, gate, { state: snap(2, [stuck, confirm, second]) }, shownLine(confirm), shownLine(second), answerLine(confirm), gate, { state: snap(3, [stuck]) }], async (h, k) => {
     await pass(h, [stuck, confirm, second]);
     await h.page.evaluate(() => {
       window.__r4closes = [];
@@ -2580,6 +2592,112 @@ async function again(origin, dir) {
   return faults;
 }
 
+/** A page whose needs view talks to a core that the test plays in the page: the view gets `first`
+ * from agents_snapshot, the test hands it each later state (`window.r4next`), and each call that
+ * the view makes is kept in `window.r4calls`. agents_answer is answered from `window.r4answers`
+ * in order, `'hold'` keeps the reply back until `window.r4held` gives it, and every other call is
+ * answered ok. */
+async function standIn(origin, first) {
+  const src = readFileSync(VIEW_FILE, 'utf8');
+  const h = await open({ origin, state: 'empty', views: [CONFIRM] });
+  await h.page.evaluate(
+    ([code, state]) => {
+      window.r4calls = [];
+      window.r4afters = [];
+      window.r4answers = [];
+      const waits = [];
+      window.r4next = (next) => waits.splice(0).forEach((wake) => wake(next));
+      let view = null;
+      const fake = {
+        views: { add: (v) => (view = v) },
+        confirm: window.Halvo.confirm,
+        ipc: {
+          call: (name, args) => {
+            if (name === 'agents_snapshot') return Promise.resolve(state);
+            if (name === 'agents_next') {
+              window.r4afters.push(args.after);
+              return new Promise((wake) => waits.push(wake));
+            }
+            window.r4calls.push({ call: name, args });
+            if (name === 'agents_answer' && window.r4answers.length > 0) {
+              const reply = window.r4answers.shift();
+              if (reply === 'hold') return new Promise((wake) => (window.r4held = wake));
+              return Promise.resolve(reply);
+            }
+            return Promise.resolve({ ok: 'yes' });
+          },
+        },
+      };
+      new Function('Halvo', code)(fake);
+      const section = document.createElement('section');
+      section.id = 'view-needs';
+      const body = document.createElement('div');
+      section.appendChild(body);
+      document.getElementById('views').appendChild(section);
+      view.mount(body);
+      window.r4view = view;
+      view.show();
+    },
+    [src, first],
+  );
+  return h;
+}
+
+function reportsOf(h) {
+  return h.page.evaluate(() =>
+    window.r4calls
+      .filter((c) => c.call === 'agents_shown')
+      .map((c) => c.args.item.slice(0, 1) + ':' + c.args.step)
+      .join(','),
+  );
+}
+
+/** RD-80 5.1: the view reports a page confirmation by agents_shown when it opens it, at each later
+ * show, and when the view is shown again while it is open; never at the card's build, while it
+ * waits behind another, or while the view is hidden. */
+async function shownReports(origin, dir) {
+  const faults = [];
+  const base = stateFile(dir, 'needs_confirm_page').snapshot.items[0];
+  const a = withId(base, 'a'.repeat(32));
+  const b = withId(base, 'b'.repeat(32));
+  const h = await standIn(origin, snap(1, [a, b]));
+  const press = async (item) => {
+    await h.page.focus(sel(item.choices[0].choice, item.item));
+    await h.page.keyboard.press('Enter');
+    await settled(h);
+  };
+  const expect = async (want, tag) => {
+    const got = await reportsOf(h);
+    if (got !== want) faults.push(tag + '=' + (got || '-'));
+  };
+  try {
+    await settled(h);
+    await expect('a:0', 'at_the_open');
+    await press(a);
+    await expect('a:0,b:0', 'when_the_second_opens');
+    await h.page.evaluate(() => window.r4answers.push({ error: 'early' }));
+    await press(b);
+    await expect('a:0,b:0,b:0', 'at_a_later_show');
+    await h.page.evaluate(() => window.r4answers.push('hold'));
+    await press(b);
+    await h.page.evaluate(() => {
+      window.r4view.hide();
+      window.r4held({ error: 'early' });
+    });
+    await settled(h);
+    if (!(await h.page.evaluate(() => Boolean(document.querySelector('dialog[open]'))))) faults.push('not_shown_while_hidden');
+    await expect('a:0,b:0,b:0', 'while_hidden');
+    await h.page.evaluate(() => window.r4view.show());
+    await settled(h);
+    await expect('a:0,b:0,b:0,b:0', 'when_shown_again');
+  } catch (err) {
+    faults.push('throws_' + String((err && err.message) || err).split('\n')[0].replace(/\s+/g, '_'));
+  } finally {
+    await h.close();
+  }
+  return faults;
+}
+
 const FEATURES = join(ROOT, 'docs', 'r4', 'page-features.txt');
 
 async function features(origin) {
@@ -2617,7 +2735,7 @@ const all = [...tracked, ...tests];
 const states = onlyStates ? all.filter((s) => onlyStates.includes(s)) : all;
 if (want('lint')) report('lint', lint());
 if (want('words')) report('words', itemsTrueToWords(tests, dir));
-const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again'];
+const PAGE_TESTS = ['render', 'calls', 'next', 'seq', 'hidden', 'escape', 'once', 'hold', 'replies', 'setups', 'reorder', 'confirms', 'crossed', 'bound', 'features', 'region', 'compose', 'press', 'holds', 'step', 'again', 'shown'];
 if (PAGE_TESTS.some(want)) {
   if (!existsSync(VIEW_FILE)) {
     for (const name of PAGE_TESTS) if (want(name)) report(name, ['no_view']);
@@ -2644,6 +2762,7 @@ if (PAGE_TESTS.some(want)) {
     if (want('holds')) report('holds', await holds(origin, dir));
     if (want('step')) report('step', await steps(origin, dir));
     if (want('again')) report('again', await again(origin, dir));
+    if (want('shown')) report('shown', await shownReports(origin, dir));
   }
 }
 const passed = results.filter((r) => r.ok).length;

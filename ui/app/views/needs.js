@@ -319,7 +319,7 @@
   }
 
   function build(item, key) {
-    const card = { id: item.item, key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
+    const card = { id: item.item, step: item.step, key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
@@ -362,7 +362,11 @@
   function modal(card) {
     opened.add(card.id);
     empty();
-    Halvo.confirm.show(card.handle);
+    if (Halvo.confirm.show(card.handle)) report(card);
+  }
+
+  function report(card) {
+    if (shown) call('agents_shown', { item: card.id, step: card.step });
   }
 
   function drop(key) {
@@ -578,6 +582,9 @@
     show: function () {
       if (shown) return;
       shown = true;
+      cards.forEach(function (card) {
+        if (card.dialog && card.dialog.open) report(card);
+      });
       if (!region) {
         say = Halvo.confirm.region('hn-say');
         region = say.element;
