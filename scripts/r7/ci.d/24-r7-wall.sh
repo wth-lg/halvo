@@ -1616,6 +1616,28 @@ collect() {
   done <"$scratch/pending"
 }
 
+receipt_case() {
+  work=$scratch/receipts/$2
+  mkdir -p "$work" || exit 2
+  printf '0\n' >"$work/code" || exit 2
+  : >"$work/lines" || exit 2
+  : >"$work/second-reads" || exit 2
+  if [ -n "$3" ]; then printf '%s\n' "$3" >"$work/want-second-read" || exit 2; fi
+  if [ -n "$4" ]; then printf '%s\n' "$4" >"$work/second-reads" || exit 2; fi
+  (
+    unset CI_D_ARTIFACTS
+    verdict_of PASS "$2" '' >"$work/verdict" || exit 2
+    printf '%s\n' "$got" >"$work/got" || exit 2
+  ) || exit 2
+  read -r got <"$work/got" || exit 2
+  printf 'case %s/%s want=%s got=%s\n' "$name" "$2" "$1" "$got"
+  if [ "$got" != "$1" ]; then
+    wrong="$wrong $2"
+  elif [ "$1" != PASS ]; then
+    rejected=$((rejected + 1))
+  fi
+}
+
 case_with() {
   fixture "$1"
   put "$2" "$3"
@@ -2389,6 +2411,14 @@ esac' 'read:scripts/b9.sh'
   expect FAIL no-tracked-file 'holds no tracked file'
 
   collect
+  receipt_read='wall second-read search=backend outcome=read path=backend/scripts/probe.sh'
+  receipt_unread='wall second-read search=backend outcome=unread path=backend/scripts/probe.sh'
+  receipt_case PASS-without-expected-second-read a-required-second-read-line-that-is-missing-is-a-wrong-verdict "$receipt_read" ''
+  receipt_case PASS-without-expected-second-read a-required-second-read-line-printed-twice-is-a-wrong-verdict "$receipt_read" "$receipt_read
+$receipt_read"
+  receipt_case PASS-with-unexpected-unread-file an-unread-second-read-that-no-case-asked-for-is-a-wrong-verdict '' "$receipt_unread"
+  receipt_case PASS a-healed-second-read-that-no-case-asked-for-passes '' "$receipt_read"
+  receipt_case PASS a-healed-second-read-that-the-case-asked-for-passes "$receipt_read" "$receipt_read"
   texts_case PASS the-three-texts-and-the-fixtures-name-the-same-limits
   texts_case FAIL a-text-that-drops-a-limit-is-refused bracket-glob
   listed=$(awk -v l="$limits" 'BEGIN { n = split(l, w, " "); for (i = 1; i <= n; i++) out = out (i > 1 ? ", " : "") w[i]; print n " named limits of --help: " out "." }') || exit 2
