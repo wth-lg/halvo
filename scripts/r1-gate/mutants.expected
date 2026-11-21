@@ -156,6 +156,7 @@ probe-open-follows-a-link
 database-open-takes-a-uri
 store-db-mode-not-narrowed
 empty-log-removed-by-a-refused-open
+open-reads-an-empty-log-as-no-log
 size-counts-links
 create-clears-by-name
 moved-store-directory-not-refused
