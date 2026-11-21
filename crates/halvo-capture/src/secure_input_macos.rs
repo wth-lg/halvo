@@ -187,10 +187,174 @@ impl super::seal::Sealed for SystemProbe {}
 
 impl super::SecureInputProbe for SystemProbe {
     fn read(&self) -> super::SecureInputReading {
-        match reading_under((self.session)(), || secure_input_on((self.byte)())) {
-            Reading::On => super::SecureInputReading::Active,
-            Reading::Off => super::SecureInputReading::Inactive,
-            Reading::Unknown => super::SecureInputReading::Unknown,
+        probe_reading(reading_under((self.session)(), || {
+            secure_input_on((self.byte)())
+        }))
+    }
+}
+
+fn probe_reading(reading: Reading) -> super::SecureInputReading {
+    match reading {
+        Reading::On => super::SecureInputReading::Active,
+        Reading::Off => super::SecureInputReading::Inactive,
+        Reading::Unknown => super::SecureInputReading::Unknown,
+    }
+}
+
+struct EventReading(Reading);
+
+impl super::seal::Sealed for EventReading {}
+
+impl super::SecureInputProbe for EventReading {
+    fn read(&self) -> super::SecureInputReading {
+        probe_reading(self.0)
+    }
+}
+
+struct Arrived<T> {
+    cleared: Result<super::KeystrokeClearance, super::Withheld>,
+    arrival: hold::Monotonic,
+    key: T,
+}
+
+/// A key that the hold released, with its clearance: the clearance of its
+/// arrival, whose age has grown by the time that the key was held. Only
+/// [`KeyQueue`] makes one, so a macOS keystroke has no clearance but the one
+/// of its release.
+pub struct Released<T> {
+    clearance: super::KeystrokeClearance,
+    key: T,
+}
+
+impl<T> Released<T> {
+    pub fn into_parts(self) -> (super::KeystrokeClearance, T) {
+        (self.clearance, self.key)
+    }
+}
+
+/// What [`KeyQueue::admit`] did with a key: the hold's admission, and whether
+/// the check found the key late.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Admitted {
+    pub admission: hold::Admission,
+    pub late: bool,
+}
+
+/// The queue of held keys: the hold's queue, each key with the answer of
+/// [`super::check`] for the reading of its own event and its age at the
+/// arrival. A released key carries that clearance with the hold added to its
+/// age; a key that the check refused is never released.
+pub struct KeyQueue<T> {
+    keys: hold::HeldKeys<Arrived<T>>,
+}
+
+impl<T> KeyQueue<T> {
+    pub fn new(bounds: hold::Bounds) -> Self {
+        Self {
+            keys: hold::HeldKeys::new(bounds),
+        }
+    }
+
+    /// The bytes of one slot of the queue, its heap aside.
+    pub fn slot_bytes() -> usize {
+        hold::slot_bytes::<Arrived<T>>()
+    }
+
+    pub fn bounds(&self) -> hold::Bounds {
+        self.keys.bounds()
+    }
+
+    pub fn previous(&self) -> Option<hold::Monotonic> {
+        self.keys.previous()
+    }
+
+    pub fn len(&self) -> usize {
+        self.keys.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.keys.is_empty()
+    }
+
+    pub fn drop_all(&mut self) -> usize {
+        self.keys.drop_all()
+    }
+
+    pub fn late_reading(
+        &mut self,
+        at: hold::Stamps,
+        timing: hold::Timing,
+    ) -> hold::Step<Released<T>> {
+        let step = self.keys.late_reading(at, timing);
+        self.released(step, at)
+    }
+
+    pub fn noticed(&mut self, at: hold::Stamps) -> hold::Step<Released<T>> {
+        let step = self.keys.noticed(at);
+        self.released(step, at)
+    }
+
+    /// Admits a key that arrived at `arrival` under `reading`, the reading of
+    /// its own event, with its timing at that reading and `age`, its age at the
+    /// callback, which the check judges.
+    pub fn admit(
+        &mut self,
+        reading: Reading,
+        timing: hold::Timing,
+        arrival: hold::Monotonic,
+        age: Option<std::time::Duration>,
+        key: T,
+    ) -> Admitted {
+        let cleared = super::check(&EventReading(reading), age);
+        let late = cleared.as_ref().err() == Some(&super::Withheld::Late);
+        let admission = self.keys.admit(
+            reading,
+            timing,
+            arrival,
+            Arrived {
+                cleared,
+                arrival,
+                key,
+            },
+        );
+        Admitted { admission, late }
+    }
+
+    /// Takes one reading, as [`hold::HeldKeys::reading`] does.
+    pub fn reading(&mut self, reading: Reading, at: hold::Stamps) -> hold::Step<Released<T>> {
+        let step = self.keys.reading(reading, at);
+        self.released(step, at)
+    }
+
+    fn released(
+        &mut self,
+        step: hold::Step<Arrived<T>>,
+        at: hold::Stamps,
+    ) -> hold::Step<Released<T>> {
+        match step {
+            hold::Step::Released(arrived) => match arrived.cleared {
+                Ok(clearance) => {
+                    let held = std::time::Duration::from_nanos(
+                        at.after.nanos().saturating_sub(arrived.arrival.nanos()),
+                    );
+                    hold::Step::Released(Released {
+                        clearance: super::KeystrokeClearance::issue(
+                            clearance.key_age().map(|age| age + held),
+                        ),
+                        key: arrived.key,
+                    })
+                }
+                Err(withheld) => hold::Step::Dropped {
+                    keys: self.keys.drop_all() + 1,
+                    cause: match withheld {
+                        super::Withheld::Active => hold::Cause::On,
+                        super::Withheld::Unknown => hold::Cause::Unknown,
+                        super::Withheld::Late => hold::Cause::LateKey,
+                    },
+                },
+            },
+            hold::Step::Dropped { keys, cause } => hold::Step::Dropped { keys, cause },
+            hold::Step::Waiting => hold::Step::Waiting,
         }
     }
 }
@@ -2618,5 +2782,134 @@ mod tests {
             "during the hold: (predicate, session)"
         );
         assert_eq!(after.0, after.1, "after the hold: (predicate, session)");
+    }
+}
+
+#[cfg(test)]
+mod key_queue_tests {
+    use super::*;
+
+    fn stamps(before_ms: u64, after_ms: u64) -> hold::Stamps {
+        hold::Stamps {
+            before: hold::Monotonic::from_nanos(before_ms * 1_000_000),
+            after: hold::Monotonic::from_nanos(after_ms * 1_000_000),
+        }
+    }
+
+    fn queue() -> KeyQueue<u8> {
+        KeyQueue::new(hold::Bounds {
+            hold: std::time::Duration::from_millis(100),
+            ..hold::Bounds::PRODUCT
+        })
+    }
+
+    #[test]
+    fn a_released_key_carries_the_clearance_of_its_arrival_with_the_hold_added_to_its_age() {
+        let mut keys = queue();
+        assert!(matches!(
+            keys.reading(Reading::Off, stamps(1_000, 1_000)),
+            hold::Step::Waiting
+        ));
+        let lag = hold::Timing::InTime {
+            lag: std::time::Duration::from_millis(20),
+        };
+        let admitted = keys.admit(
+            Reading::Off,
+            lag,
+            hold::Monotonic::from_nanos(1_000_000_000),
+            Some(std::time::Duration::from_millis(20)),
+            7,
+        );
+        assert_eq!(
+            admitted,
+            Admitted {
+                admission: hold::Admission::Held,
+                late: false
+            }
+        );
+        let mut at = 1_000;
+        let released = loop {
+            at += 10;
+            match keys.reading(Reading::Off, stamps(at, at + 1)) {
+                hold::Step::Released(released) => break released,
+                hold::Step::Waiting => {}
+                hold::Step::Dropped { keys, cause } => panic!("{keys} dropped for {cause:?}"),
+            }
+        };
+        let (clearance, key) = released.into_parts();
+        assert_eq!(key, 7);
+        assert_eq!(
+            clearance.key_age(),
+            Some(std::time::Duration::from_millis(20 + (at + 1 - 1_000))),
+            "the age at the arrival and the hold to the time after the releasing read"
+        );
+    }
+
+    #[test]
+    fn a_key_that_the_check_found_late_is_counted_late_and_never_released() {
+        let mut keys = queue();
+        assert!(matches!(
+            keys.reading(Reading::Off, stamps(1_000, 1_000)),
+            hold::Step::Waiting
+        ));
+        let admitted = keys.admit(
+            Reading::Off,
+            hold::Timing::InTime {
+                lag: std::time::Duration::from_millis(20),
+            },
+            hold::Monotonic::from_nanos(1_000_000_000),
+            Some(std::time::Duration::from_millis(251)),
+            7,
+        );
+        assert!(admitted.late);
+        let mut at = 1_000;
+        let step = loop {
+            at += 10;
+            match keys.reading(Reading::Off, stamps(at, at + 1)) {
+                hold::Step::Waiting => {}
+                other => break other,
+            }
+        };
+        assert!(matches!(
+            step,
+            hold::Step::Dropped {
+                keys: 1,
+                cause: hold::Cause::LateKey
+            }
+        ));
+        assert!(keys.is_empty());
+    }
+
+    #[test]
+    fn a_key_read_on_or_unknown_gets_no_clearance_and_is_not_late() {
+        for (reading, admission) in [
+            (Reading::On, hold::Admission::Suppressed { dropped: 0 }),
+            (
+                Reading::Unknown,
+                hold::Admission::Withheld {
+                    cause: hold::Cause::Unknown,
+                    dropped: 0,
+                },
+            ),
+        ] {
+            let mut keys = queue();
+            let admitted = keys.admit(
+                reading,
+                hold::Timing::InTime {
+                    lag: std::time::Duration::from_millis(5),
+                },
+                hold::Monotonic::from_nanos(1_000_000_000),
+                Some(std::time::Duration::from_millis(5)),
+                7,
+            );
+            assert_eq!(
+                admitted,
+                Admitted {
+                    admission,
+                    late: false
+                }
+            );
+            assert!(keys.is_empty());
+        }
     }
 }

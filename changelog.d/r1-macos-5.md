@@ -1,0 +1,1 @@
+- Changed: (capture run, macos-5) A Mac build notes no typing: the public constant TYPING_ON_MAC of the macOS input source, false until the owner answers item I-83 point 2, keeps every key type out of the event tap's mask, a start asks no grant for key events while it is off, and the stall seam's source keeps typing on.
