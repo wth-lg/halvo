@@ -378,7 +378,7 @@ unsafe extern "system" fn front_proc(
 
 #[cfg(target_os = "windows")]
 fn emit_front_title(front: HWND, time: u32, why: TitleWhy) {
-    if front.0.is_null() {
+    if front.0.is_null() || super::reading_at_stop() {
         return;
     }
     let read = read_window_title(front);

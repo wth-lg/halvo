@@ -1456,6 +1456,9 @@ fn decode_raw_input(bytes: &[u8]) -> Option<RawInputPacket> {
 
 #[cfg(target_os = "windows")]
 fn emit_from_raw(packet: RawInputPacket, tick: u32) {
+    if super::reading_at_stop() {
+        return;
+    }
     #[cfg(feature = "test-seam")]
     seam::wait_while_the_pumps_are_held();
     INPUT_CTX.with(|cell| {
@@ -1897,6 +1900,9 @@ fn run_raw_input(
 
 #[cfg(target_os = "windows")]
 unsafe extern "system" fn gate_poll(_hwnd: HWND, _msg: u32, _id: usize, _time: u32) {
+    if super::reading_at_stop() {
+        return;
+    }
     let pointer = INPUT_CTX.with(|cell| {
         cell.borrow()
             .as_ref()

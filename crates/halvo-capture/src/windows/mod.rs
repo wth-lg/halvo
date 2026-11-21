@@ -864,7 +864,20 @@ pub(crate) fn pump_messages(signal: &StopSignal) {
             break;
         }
     }
+    READING_AT_STOP.with(|reading| reading.set(true));
     read_at_stop(STOP_READ_LIMIT);
+    READING_AT_STOP.with(|reading| reading.set(false));
+}
+
+thread_local! {
+    static READING_AT_STOP: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether this pump thread is reading its queue after a stop was asked: the
+/// queue is emptied, and no message read then becomes a record, since nothing
+/// is written after a person has stopped the capture.
+pub(crate) fn reading_at_stop() -> bool {
+    READING_AT_STOP.with(std::cell::Cell::get)
 }
 
 fn read_at_stop(limit: usize) {

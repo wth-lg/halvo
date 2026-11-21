@@ -274,6 +274,9 @@ unsafe extern "system" fn foreground_poll(_hwnd: HWND, _msg: u32, _id: usize, ti
 
 #[cfg(target_os = "windows")]
 fn on_foreground_window(hwnd: HWND, time: u32) {
+    if super::reading_at_stop() {
+        return;
+    }
     FOREGROUND_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
             let change = state
