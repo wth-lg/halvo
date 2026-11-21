@@ -1394,3 +1394,46 @@ fn u24q_an_unknown_entry_shows_only_the_fields_that_the_reader_took_whole_whatev
     assert!(!serde_json::to_string(e).unwrap().contains("City Power"));
     assert!(!serde_json::to_string(&c).unwrap().contains("Zq7"));
 }
+
+/// The kept `amount`, `instrument` and `origin` of `payment()`, each of which the reader takes.
+fn paid_rest() -> Vec<Kept> {
+    payment().kept[1..].to_vec()
+}
+
+/// A payment to `payee` with the rest of `payment()`'s kept fields.
+fn paid_to(payee: &str) -> Vec<Kept> {
+    let mut kept = vec![one_kept("payee", payee)];
+    kept.extend(paid_rest());
+    kept
+}
+
+/// RD-126 item 10, the verify step's M4: every effect of a run whose last state is unknown gets
+/// its own entry, in its place among the run's other entries, each with its own fields.
+#[test]
+fn u24q_every_unknown_effect_of_a_run_gets_its_own_entry_in_its_place() {
+    let mut h = history(2, Outcome::EffectUnknown);
+    h.run.unknown = 4;
+    h.effects = vec![
+        unknown(Class::Send, vec![one_kept("to", "Ann Lee")]),
+        payment(),
+        unknown(Class::Payment, paid_to("Gas Co")),
+        unknown(Class::Send, vec![one_kept("to", "Bo Chan")]),
+        unknown(Class::Read, vec![one_kept("source", "Inbox")]),
+    ];
+    let c = card(&facts(State::Card).remove(0), "N", &[h], &Limits::PRODUCT).unwrap();
+    assert_eq!(
+        keys(&c, 0),
+        [
+            "run.effect.send.unknown",
+            "run.effect.payment",
+            "run.effect.payment.unknown",
+            "run.effect.send.unknown",
+            "run.effect.unknown"
+        ]
+    );
+    let e = &c.runs[0].effects;
+    assert_eq!(shown(&e[0]), [pair("To", "Ann Lee")]);
+    assert_eq!(shown(&e[2])[0], pair("Pay to", "Gas Co"));
+    assert_eq!(shown(&e[3]), [pair("To", "Bo Chan")]);
+    assert!(e[4].fields().is_empty());
+}
