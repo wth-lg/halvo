@@ -7,7 +7,7 @@ publish = false
 
 [features]
 secure-enclave = []
-r2 = ["halvo-control/r2"]
+r2 = ["halvo-control/r2", "dep:halvo-seam", "dep:halvo-schema"]
 stall-seam = []
 test-seam = []
 
@@ -20,6 +20,8 @@ zeroize = { version = "1", features = ["derive"] }
 halvo-sqlcipher = { path = "../halvo-sqlcipher" }
 halvo-control = { path = "../halvo-control" }
 halvo-redact = { path = "../halvo-redact" }
+halvo-schema = { path = "../halvo-schema", optional = true }
+halvo-seam = { path = "../halvo-seam", optional = true }
 chacha20poly1305 = { version = "0.11", features = ["zeroize"] }
 aead = { version = "0.6", features = ["alloc"] }
 aead-stream = { version = "0.6", features = ["alloc"] }

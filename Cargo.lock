@@ -1626,6 +1626,8 @@ dependencies = [
  "halvo-capture",
  "halvo-control",
  "halvo-redact",
+ "halvo-schema",
+ "halvo-seam",
  "halvo-sqlcipher",
  "libc",
  "objc2",
