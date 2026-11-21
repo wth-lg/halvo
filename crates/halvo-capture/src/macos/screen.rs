@@ -603,7 +603,9 @@ struct ScreenStream(Retained<SCStream>);
 // drops it; the handler of a rebuild's read hands it a new filter only while
 // the source's thread waits for that handler (`read_on`). Retain and release
 // are atomic. What does not hold as a proof: neither objc2, SCStream.h nor the
-// framework's Swift interface marks the class as safe to send between threads.
+// framework's Swift interface marks the class as safe to send between threads,
+// and that the framework ties the stream to no delivery queue is assumed: no
+// document says so.
 // So the stream is the one object of ScreenCaptureKit that crosses a thread:
 // the named limit RR-macos-sources-20.
 unsafe impl Send for ScreenStream {}
@@ -1181,8 +1183,11 @@ impl ContentRead for SystemContent {
         // SAFETY: the handler has the completion signature
         // `void (^)(SCShareableContent *, NSError *)`. ScreenCaptureKit calls it
         // on a queue of its own, and what it calls is Send, which no class of
-        // ScreenCaptureKit is: the content and every object made from it stay
-        // on that queue.
+        // ScreenCaptureKit is but the stream through `ScreenStream`: the
+        // content and every object made from it but the stream stay on that
+        // queue, and the stream crosses to the source's thread, with the filter
+        // and the configuration that it retains (by reading): the named limit
+        // RR-macos-sources-20.
         unsafe { SCShareableContent::getShareableContentWithCompletionHandler(&block) };
     }
 
