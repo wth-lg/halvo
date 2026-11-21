@@ -2654,12 +2654,15 @@ where
             let held = open
                 .as_ref()
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
-            let line = roster::status_of(
+            let mut line = roster::status_of(
                 *facts,
                 &self.limits,
                 held.map(|h| h.confirmation().state()),
                 board.record_stuck(&facts.agent, &self.limits),
             );
+            if board.setup_owed(&facts.agent) && line.status() == Status::AllSet {
+                line = crate::types::StatusLine::NeedsYou(ItemKind::Setup);
+            }
             let Ok(mut row) = roster::row(*facts, line, name) else {
                 continue;
             };

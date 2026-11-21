@@ -1435,6 +1435,7 @@ where
     let Some(listed) = listed else {
         return report;
     };
+    setups_owed(cx, board, &listed);
     recover_aside(cx, board, &listed);
     pay_owed(cx, board);
     for m in &board.members {
@@ -1511,7 +1512,35 @@ where
         && facts.doing == Doing::Idle(None)
         && holds(facts).contains(&Hold::Setup)
     {
+        let agent = facts.agent.clone();
         let _ = raise_own_item(cx, board, i, Raised::Setup, OwnItemKind::Setup, None);
+        let held = matches!(
+            &board.members[i].facts.doing,
+            Doing::Idle(Some(own)) if own.kind == OwnItemKind::Setup
+        );
+        board.owe_setup(&agent, !held);
+    }
+}
+
+fn setups_owed<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>, listed: &[WorkflowId])
+where
+    P: Owner + Rng,
+    C: ConfigView,
+{
+    for i in 0..board.members.len() {
+        let agent = board.members[i].facts.agent.clone();
+        if !board.setup_owed(&agent) {
+            continue;
+        }
+        if board.record_stuck(&agent, cx.limits)
+            || !holds(&board.members[i].facts).contains(&Hold::Setup)
+        {
+            board.owe_setup(&agent, false);
+            continue;
+        }
+        let workflow = board.members[i].facts.workflow.id.clone();
+        let full = listed.contains(&workflow) && !board.workflow_dismissed(&workflow);
+        setup_again(cx, board, i, full);
     }
 }
 

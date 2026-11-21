@@ -155,6 +155,7 @@ pub struct Board<C> {
     dismissed: Vec<WorkflowId>,
     queue_held: bool,
     kept_on: Vec<AgentId>,
+    setup_owed: Vec<AgentId>,
 }
 
 impl<C> Board<C> {
@@ -186,6 +187,21 @@ impl<C> Board<C> {
             dismissed: Vec::new(),
             queue_held: false,
             kept_on: Vec::new(),
+            setup_owed: Vec::new(),
+        }
+    }
+
+    /// Whether a raise of the agent's `setup` that the life's first creation move or the tick of
+    /// its recovery made was not stored, so that each later tick makes it again until the owner
+    /// stores it or the agent's record is stuck (I5.8; ruling RD-155 (2)).
+    pub fn setup_owed(&self, agent: &AgentId) -> bool {
+        self.setup_owed.contains(agent)
+    }
+
+    pub(crate) fn owe_setup(&mut self, agent: &AgentId, owed: bool) {
+        self.setup_owed.retain(|a| a != agent);
+        if owed {
+            self.setup_owed.push(agent.clone());
         }
     }
 
