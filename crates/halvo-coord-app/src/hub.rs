@@ -30,7 +30,8 @@ pub enum Reply {
     Closed,
     /// `{"error":"<cause>"}`.
     Error(Cause),
-    /// A refused control of a row, with the sentence that the page shows beside the control.
+    /// A refused control of a row whose sentence says more than its cause
+    /// (`Refusal::SwitchNotSaved`); a refusal with the sentence of its cause alone is `Error`.
     Refused(halvo_coord::types::Refusal),
 }
 
@@ -386,10 +387,11 @@ where
                 .into(),
             "agents_control" => {
                 match agent().and_then(|a| Ok((a, Action::parse(args.text("action"))?))) {
-                    Ok((a, action)) => self
-                        .coord
-                        .control_reply(&a, action)
-                        .map_or_else(Reply::Refused, |()| Reply::Ok),
+                    Ok((a, action)) => match self.coord.control_reply(&a, action) {
+                        Ok(()) => Reply::Ok,
+                        Err(halvo_coord::types::Refusal::Cause(cause)) => Reply::Error(cause),
+                        Err(refusal) => Reply::Refused(refusal),
+                    },
                     Err(cause) => Reply::Error(cause),
                 }
             }
