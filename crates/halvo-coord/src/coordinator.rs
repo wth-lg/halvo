@@ -2475,10 +2475,11 @@ where
         st.refused_on.retain(|(a, _)| a != agent);
         let out = self.control_in(&mut st, agent, action);
         if off && out.is_ok() {
-            // Every owed `paused` before a freed body (ruling RD-160 (2)); a switch-off that waits
-            // for a read of the clock sends its own with the rest of it (ruling RD-133 1).
-            let unstamped = st.offs.contains(agent);
-            if let (Some(board), false) = (st.board.as_mut(), unstamped) {
+            // Every owed `paused` before a freed body, where a set-up keeps one (ruling RD-160
+            // (2)); a switch-off that waits for a read of the clock sends its own with the rest
+            // of it (ruling RD-133 1).
+            let freed = !st.offs.contains(agent) && st.setups.iter().any(|s| s.kept().is_some());
+            if let (Some(board), true) = (st.board.as_mut(), freed) {
                 schedule::pause_owed(&self.ports, board);
             }
             self.setups_freed(&mut st, agent);
