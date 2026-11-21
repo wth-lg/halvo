@@ -28,6 +28,9 @@ halvo-test-dir = { path = "../halvo-test-dir" }
 [target.'cfg(unix)'.dev-dependencies]
 libc = "0.2"
 
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Pipes"] }
+
 [[bin]]
 name = "agent-gate"
 path = "src/bin/agent-gate.rs"

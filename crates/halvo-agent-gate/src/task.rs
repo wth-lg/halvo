@@ -13,11 +13,11 @@
 //!
 //! With `--link product` (unit U9.4) the command makes no gate host and no store. It reaches the product's owner
 //! through U9.2's link: `StreamLink` over `ClientEnds` over the call `owner_stream` of a client of its own, on the
-//! control socket of the data directory `DIR`, or of the product's own data directory without `--data-dir`. So the
+//! control channel of the data directory `DIR`, or of the product's own data directory without `--data-dir`. So the
 //! command is the second lawful client of the stream beside the app, with an end of its own. The workflow `ID` is an
 //! approved workflow of the category `spreadsheet_fill` that the owner's store holds: no request of the stream
-//! makes or reads a workflow, since a stream admits the roles `runner` and `coordinator` alone. On Windows this build
-//! has no connector of the control channel yet, so the call answers `unsupported`.
+//! makes or reads a workflow, since a stream admits the roles `runner` and `coordinator` alone. The client's connector
+//! is `ctl_connector`: the control socket of the data directory on macOS, its named pipe on Windows.
 //!
 //! The play (A1.2): the command makes a directory of its own under the system's temporary directory
 //! (`std::env::temp_dir`), copies the corpus workbook `tools/r3-trials/sheet/corpus/formulas.xlsx` there as the
@@ -466,19 +466,20 @@ fn on_owner(
 }
 
 /// The product link of `--link product`: `StreamLink` over `ClientEnds` over the call `owner_stream` of a client of
-/// the command's own, on the control socket of the data directory.
-#[cfg(target_os = "macos")]
+/// the command's own, on the control channel of the data directory: its socket on macOS, its named pipe on Windows,
+/// by `ctl_connector`, the connector of `ctl`.
+#[cfg(any(target_os = "macos", windows))]
 mod product {
     use std::path::Path;
 
     use halvo_agent_client::link::product::ClientEnds;
     use halvo_agent_client::link::{Ends, StreamLink};
-    use halvo_control::client::{system_connector, Client};
+    use halvo_control::client::{ctl_connector, Client};
     use halvo_control::paths::DataDir;
 
     use super::{usage, Refused};
 
-    /// The link to the owner behind the control socket of `data_dir`, or of the product's own data directory.
+    /// The link to the owner behind the control channel of `data_dir`, or of the product's own data directory.
     pub(super) fn link(data_dir: Option<&Path>) -> Result<StreamLink<impl Ends>, Refused> {
         let data_dir = match data_dir {
             Some(dir) => DataDir::from_flag(dir).map_err(|_| {
@@ -488,30 +489,11 @@ mod product {
                 .map_err(|_| usage("the product's data directory cannot be named"))?,
         };
         let client = Client::new(
-            system_connector(&data_dir)
-                .map_err(|_| usage("the control socket of the data directory cannot be named"))?,
+            ctl_connector(&data_dir)
+                .map_err(|_| usage("the control channel of the data directory cannot be named"))?,
         );
         Ok(StreamLink::new(ClientEnds::new(move || {
             client.owner_stream()
-        })))
-    }
-}
-
-/// The product link of `--link product` on Windows: this build has no connector of the control channel there, so
-/// the call answers `unsupported` and the link gets no end.
-#[cfg(windows)]
-mod product {
-    use std::path::Path;
-
-    use halvo_agent_client::link::product::ClientEnds;
-    use halvo_agent_client::link::{Ends, StreamLink};
-    use halvo_control::client::ClientError;
-
-    use super::Refused;
-
-    pub(super) fn link(_data_dir: Option<&Path>) -> Result<StreamLink<impl Ends>, Refused> {
-        Ok(StreamLink::new(ClientEnds::new(|| {
-            Err(ClientError::Unsupported)
         })))
     }
 }

@@ -2,16 +2,15 @@
 //! the command makes no gate host and reaches the product's owner through U9.2's link, `StreamLink` over `ClientEnds`
 //! over the call `owner_stream` of a client of its own, and its line holds `store=owner`.
 //!
-//! Each test starts on ends of its own: a stand-in of the capture service's server on a control socket under a data
-//! directory of the test, and in the first test the owner's binary behind that server. The test ends and waits for
-//! every child that it starts.
-#![cfg(target_os = "macos")]
+//! Each test starts on ends of its own: a stand-in of the capture service's server on the control channel of a data
+//! directory of the test (its socket on macOS, its named pipe on Windows), and in the first test the owner's binary
+//! behind that server. The test ends and waits for every child that it starts. The first test runs on both systems,
+//! the second on macOS alone.
+#![cfg(any(target_os = "macos", windows))]
 
 mod common;
 
 use std::io::{PipeReader, PipeWriter, Write};
-use std::os::unix::fs::DirBuilderExt;
-use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
@@ -22,11 +21,15 @@ use common::Guarded;
 use halvo_agent_client::link::product::ClientEnds;
 use halvo_agent_client::link::StreamLink;
 use halvo_agent_client::OwnerLink;
-use halvo_control::client::{system_connector, Client};
-use halvo_control::paths::{socket_path, DataDir, SystemAccount};
-use halvo_control::proto::{decode_request, encode_reply, unknown_answer, Decoded};
-use halvo_control::r2::{dispatch_unknown, mark_request, send_with_end, OwnerChannel};
-use halvo_control::wire::{self, REPLY_MAX_BYTES, REQUEST_MAX_BYTES};
+use halvo_control::client::{ctl_connector, Client};
+use halvo_control::paths::DataDir;
+use halvo_control::proto::{decode_request, Decoded};
+#[cfg(target_os = "macos")]
+use halvo_control::proto::{encode_reply, unknown_answer};
+use halvo_control::r2::{dispatch_unknown, OwnerChannel};
+#[cfg(target_os = "macos")]
+use halvo_control::r2::{mark_request, send_with_end};
+use halvo_control::wire::{self, REQUEST_MAX_BYTES};
 use halvo_schema::executable::body::{
     CoordinatorCall, CoordinatorReply, ListCheckpoints, ListedCheckpoint,
 };
@@ -127,8 +130,10 @@ fn is_report(frame: &[u8]) -> bool {
 /// Starts the owner's binary `binary` on `dir` with the key on standard input, with a starter's channel on which an
 /// end of a stream travels (one socket pair, whose one end and a copy of it by `dup` are the owner's two ends, as
 /// owner.rs of halvo-owner has it) and a worker's channel of two pipes.
+#[cfg(target_os = "macos")]
 fn start_owner(binary: &Path, dir: &Path) -> Owner {
     use std::os::fd::{AsRawFd, OwnedFd};
+    use std::os::unix::net::UnixStream;
     use std::os::unix::process::CommandExt;
     let (owner_end, test_end) = UnixStream::pair().expect("a socket pair");
     let copy = |end: &UnixStream| OwnedFd::from(end.try_clone().expect("a copy of an end"));
@@ -172,6 +177,56 @@ fn start_owner(binary: &Path, dir: &Path) -> Owner {
             Ok(())
         });
     }
+    let mut child = cmd.spawn().expect("the owner starts");
+    drop((owner_reads, owner_writes, worker_reads, worker_writes));
+    let mut stdin = child.stdin.take().expect("the owner's standard input");
+    stdin.write_all(&KEY).expect("the key");
+    drop(stdin);
+    Owner {
+        child,
+        requests,
+        frames: frames(replies),
+        worker,
+        worker_frames: frames(worker_replies),
+    }
+}
+
+/// Starts the owner as the macOS form does, with the owner's ends of its channels made inheritable and named by their
+/// handle values, as owner.rs of halvo-owner has it: on Windows the frame `stream` names the two handles of an end, so
+/// the starter's channel is two pipes.
+#[cfg(windows)]
+fn start_owner(binary: &Path, dir: &Path) -> Owner {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::{SetHandleInformation, HANDLE_FLAG_INHERIT};
+    let (owner_reads, requests) = std::io::pipe().expect("a pipe");
+    let (replies, owner_writes) = std::io::pipe().expect("a pipe");
+    let (worker_reads, worker) = std::io::pipe().expect("a pipe");
+    let (worker_replies, worker_writes) = std::io::pipe().expect("a pipe");
+    let ends = [
+        owner_reads.as_raw_handle(),
+        owner_writes.as_raw_handle(),
+        worker_reads.as_raw_handle(),
+        worker_writes.as_raw_handle(),
+    ];
+    for handle in ends {
+        // SAFETY: the handle is an open end that this process owns; the call sets its inherit flag alone.
+        let set = unsafe { SetHandleInformation(handle, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT) };
+        assert_ne!(set, 0, "{}", std::io::Error::last_os_error());
+    }
+    let mut cmd = Command::new(binary);
+    cmd.arg(format!("--data-dir={}", dir.display()))
+        .arg("--first-live=1")
+        .arg(format!(
+            "--channel={},{}",
+            ends[0] as usize, ends[1] as usize
+        ))
+        .arg(format!(
+            "--worker={},{}",
+            ends[2] as usize, ends[3] as usize
+        ))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
     let mut child = cmd.spawn().expect("the owner starts");
     drop((owner_reads, owner_writes, worker_reads, worker_writes));
     let mut stdin = child.stdin.take().expect("the owner's standard input");
@@ -296,6 +351,7 @@ fn approved_workflow(owner: &mut Owner) -> WorkflowId {
 struct Starter<'a>(&'a mut Owner);
 
 impl OwnerChannel for Starter<'_> {
+    #[cfg(target_os = "macos")]
     fn send_stream(
         &mut self,
         frame: &[u8],
@@ -303,6 +359,18 @@ impl OwnerChannel for Starter<'_> {
     ) -> std::io::Result<()> {
         use std::os::fd::AsFd;
         send_with_end(self.0.requests.as_fd(), frame, end)
+    }
+
+    #[cfg(windows)]
+    fn owner_process(&self) -> std::os::windows::io::BorrowedHandle<'_> {
+        use std::os::windows::io::AsHandle;
+        self.0.child.as_handle()
+    }
+
+    #[cfg(windows)]
+    fn send_stream(&mut self, frame: &[u8]) -> std::io::Result<()> {
+        write_frame(&mut self.0.requests, frame, CLIENT_FRAME_MAX)
+            .map_err(|_| std::io::Error::other("the frame stream is not written"))
     }
 
     fn answer(&mut self, within: Duration) -> std::io::Result<Option<Vec<u8>>> {
@@ -326,42 +394,176 @@ enum Answer<'a> {
     Dispatch(&'a mut Owner),
     /// As the capture service's server answers a request that it does not serve: `mark_request` finds no mark in it,
     /// and the server writes the answer to an unknown request.
+    #[cfg(target_os = "macos")]
     Unknown,
 }
 
+/// The control socket of a stand-in server on macOS: a listener that polls.
+#[cfg(target_os = "macos")]
+type Listener = std::os::unix::net::UnixListener;
+
 /// The data directory of a stand-in server, with its control socket where the product's client looks for it.
-fn control_dir(parent: &Path) -> (PathBuf, UnixListener) {
+#[cfg(target_os = "macos")]
+fn control_dir(parent: &Path) -> (PathBuf, Listener) {
+    use std::os::unix::fs::DirBuilderExt;
     let dir = dir_in(parent, "product");
     let data_dir = DataDir::from_flag(&dir).expect("a data directory");
-    let socket = socket_path(&data_dir, &SystemAccount).expect("a socket path");
+    let connector = ctl_connector(&data_dir).expect("a connector");
     std::fs::DirBuilder::new()
         .recursive(true)
         .mode(0o700)
-        .create(socket.parent().expect("the socket's directory"))
+        .create(connector.socket().parent().expect("the socket's directory"))
         .expect("the socket's directory");
-    let listener = UnixListener::bind(&socket).expect("the control socket");
+    let listener = Listener::bind(connector.socket()).expect("the control socket");
     listener
         .set_nonblocking(true)
         .expect("a listener that polls");
     (dir, listener)
 }
 
-/// Serves each connection on `listener` until `stop` holds, one request on each, as the capture service's server
-/// reads it, and returns how many requests `owner_stream` it answered.
-fn serve(listener: &UnixListener, mut answer: Answer<'_>, stop: &AtomicBool) -> usize {
-    let mut served = 0;
+/// The next connection to the control socket, or none once `stop` holds.
+#[cfg(target_os = "macos")]
+fn accept(listener: &Listener, stop: &AtomicBool) -> Option<std::os::unix::net::UnixStream> {
     while !stop.load(Ordering::Relaxed) {
-        let connection = match listener.accept() {
-            Ok((connection, _)) => connection,
+        match listener.accept() {
+            Ok((connection, _)) => {
+                connection
+                    .set_nonblocking(false)
+                    .expect("a blocking connection");
+                return Some(connection);
+            }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 std::thread::sleep(Duration::from_millis(10));
-                continue;
             }
             Err(e) => panic!("the stand-in server accepts no connection: {e}"),
-        };
-        connection
-            .set_nonblocking(false)
-            .expect("a blocking connection");
+        }
+    }
+    None
+}
+
+/// A server that polls needs no wake.
+#[cfg(target_os = "macos")]
+fn wake(_listener: &Listener) {}
+
+/// The named pipe of a stand-in server on Windows: its name, and the instance that waits for the next client. A new
+/// instance waits from the moment a client takes the one before, so a client always finds one.
+#[cfg(windows)]
+struct Listener {
+    name: String,
+    waiting: std::sync::Mutex<Option<std::fs::File>>,
+}
+
+/// A new instance of the pipe `name`, synchronous, refusing remote clients; `first` makes it fail where another
+/// process holds the name.
+#[cfg(windows)]
+fn pipe_instance(name: &str, first: bool) -> std::fs::File {
+    use std::os::windows::ffi::OsStrExt;
+    use std::os::windows::io::FromRawHandle;
+    use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX,
+    };
+    use windows_sys::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE,
+        PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+    };
+    let wide: Vec<u16> = std::ffi::OsStr::new(name)
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+    let first = if first {
+        FILE_FLAG_FIRST_PIPE_INSTANCE
+    } else {
+        0
+    };
+    // SAFETY: the name is a wide string with its NUL that lives through the call; with no security attributes the
+    // handle is not inheritable.
+    let pipe = unsafe {
+        CreateNamedPipeW(
+            wide.as_ptr(),
+            PIPE_ACCESS_DUPLEX | first,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            PIPE_UNLIMITED_INSTANCES,
+            65_536,
+            65_536,
+            0,
+            std::ptr::null(),
+        )
+    };
+    assert_ne!(
+        pipe,
+        INVALID_HANDLE_VALUE,
+        "{}",
+        std::io::Error::last_os_error()
+    );
+    // SAFETY: the handle is new and open, and nothing else owns it.
+    unsafe { std::fs::File::from_raw_handle(pipe) }
+}
+
+/// The data directory of a stand-in server, with the first instance of its named pipe under the name that
+/// `ctl_connector` gives the product's client.
+#[cfg(windows)]
+fn control_dir(parent: &Path) -> (PathBuf, Listener) {
+    let dir = dir_in(parent, "product");
+    let data_dir = DataDir::from_flag(&dir).expect("a data directory");
+    let name = ctl_connector(&data_dir)
+        .expect("a connector")
+        .name()
+        .to_owned();
+    let first = pipe_instance(&name, true);
+    let listener = Listener {
+        name,
+        waiting: std::sync::Mutex::new(Some(first)),
+    };
+    (dir, listener)
+}
+
+/// The next connected instance of the pipe, or none once `stop` holds.
+#[cfg(windows)]
+fn accept(listener: &Listener, stop: &AtomicBool) -> Option<std::fs::File> {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::ERROR_PIPE_CONNECTED;
+    use windows_sys::Win32::System::Pipes::ConnectNamedPipe;
+    if stop.load(Ordering::Relaxed) {
+        return None;
+    }
+    let pipe = listener
+        .waiting
+        .lock()
+        .expect("the waiting instance")
+        .take()
+        .expect("an instance waits");
+    // SAFETY: the handle is an open synchronous instance of a pipe that this process made, and no overlapped
+    // structure is passed: the call waits for a client.
+    let connected = unsafe { ConnectNamedPipe(pipe.as_raw_handle(), std::ptr::null_mut()) };
+    let error = std::io::Error::last_os_error();
+    *listener.waiting.lock().expect("the waiting instance") =
+        Some(pipe_instance(&listener.name, false));
+    if stop.load(Ordering::Relaxed) {
+        return None;
+    }
+    let pipe_connected = i32::try_from(ERROR_PIPE_CONNECTED).expect("an error code");
+    assert!(
+        connected != 0 || error.raw_os_error() == Some(pipe_connected),
+        "the stand-in server connects no client: {error}"
+    );
+    Some(pipe)
+}
+
+/// Wakes a server that waits for a client: the test opens the pipe as a client once.
+#[cfg(windows)]
+fn wake(listener: &Listener) {
+    let _ = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&listener.name);
+}
+
+/// Serves each connection on `listener` until `stop` holds, one request on each, as the capture service's server
+/// reads it, and returns how many requests `owner_stream` it answered.
+fn serve(listener: &Listener, mut answer: Answer<'_>, stop: &AtomicBool) -> usize {
+    let mut served = 0;
+    while let Some(connection) = accept(listener, stop) {
         let frame = wire::read_frame(&mut &connection, REQUEST_MAX_BYTES).expect("a request");
         let Ok(Decoded::Unknown(request)) = decode_request(&frame) else {
             panic!("the request is no body of version 2");
@@ -369,15 +571,21 @@ fn serve(listener: &UnixListener, mut answer: Answer<'_>, stop: &AtomicBool) -> 
         assert_eq!(request.op(), Some("owner_stream"));
         match &mut answer {
             Answer::Dispatch(owner) => {
+                #[cfg(target_os = "macos")]
+                let connection = &connection;
+                #[cfg(windows)]
+                let connection = std::os::windows::io::AsHandle::as_handle(&connection);
                 assert!(
-                    dispatch_unknown(&request, &connection, &mut Starter(owner)),
+                    dispatch_unknown(&request, connection, &mut Starter(owner)),
                     "dispatch_unknown wrote no reply"
                 );
             }
+            #[cfg(target_os = "macos")]
             Answer::Unknown => {
                 assert!(mark_request(&request).is_none(), "owner_stream is no mark");
                 let reply = encode_reply(&unknown_answer(&request));
-                wire::write_frame(&mut &connection, &reply, REPLY_MAX_BYTES).expect("the answer");
+                wire::write_frame(&mut &connection, &reply, wire::REPLY_MAX_BYTES)
+                    .expect("the answer");
             }
         }
         served += 1;
@@ -385,27 +593,24 @@ fn serve(listener: &UnixListener, mut answer: Answer<'_>, stop: &AtomicBool) -> 
     served
 }
 
-/// Sets its flag when it is dropped, also when a panic unwinds past it.
-struct StopOnDrop<'a>(&'a AtomicBool);
+/// Sets its flag and wakes the server when it is dropped, also when a panic unwinds past it.
+struct StopOnDrop<'a>(&'a AtomicBool, &'a Listener);
 
 impl Drop for StopOnDrop<'_> {
     fn drop(&mut self) {
         self.0.store(true, Ordering::Relaxed);
+        wake(self.1);
     }
 }
 
 /// Runs `play` while a thread of the test serves `listener`, then stops that thread, also when `play` panics: what
 /// `play` returned and how many requests `owner_stream` the server answered.
-fn with_server<T>(
-    listener: &UnixListener,
-    answer: Answer<'_>,
-    play: impl FnOnce() -> T,
-) -> (T, usize) {
+fn with_server<T>(listener: &Listener, answer: Answer<'_>, play: impl FnOnce() -> T) -> (T, usize) {
     let stop = AtomicBool::new(false);
     std::thread::scope(|scope| {
         let server = scope.spawn(|| serve(listener, answer, &stop));
         let played = {
-            let _stop = StopOnDrop(&stop);
+            let _stop = StopOnDrop(&stop, listener);
             play()
         };
         (played, server.join().expect("the stand-in server"))
@@ -435,7 +640,7 @@ fn fill_over_product<'a>(workflow: &'a str, data_dir: &'a str) -> [&'a str; 12] 
 /// says whether the run's record is stored (`ended`).
 fn listed_checkpoints(data_dir: &Path) -> Vec<ListedCheckpoint> {
     let data_dir = DataDir::from_flag(data_dir).expect("a data directory");
-    let client = Client::new(system_connector(&data_dir).expect("a connector"));
+    let client = Client::new(ctl_connector(&data_dir).expect("a connector"));
     let link = StreamLink::new(ClientEnds::new(move || client.owner_stream()));
     let id = request_id();
     let call = CoordinatorCall::ListCheckpoints(ListCheckpoints {
@@ -519,7 +724,8 @@ fn a_fill_over_the_product_link_reaches_the_owner_and_prints_store_owner() {
 
 /// U9.4 sentence 2: against a server that answers `owner_stream` as an unknown request, as the capture service's
 /// server does, the command prints no line with `result=completed`: it refuses with `usage`, prints no line on
-/// standard output, and exits 2.
+/// standard output, and exits 2. On macOS alone, the system of the capture service's server on main.
+#[cfg(target_os = "macos")]
 #[test]
 fn a_server_that_does_not_serve_owner_stream_gives_no_completed_line() {
     let root = scratch("link-product-unknown");
