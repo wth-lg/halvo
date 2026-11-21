@@ -456,7 +456,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ),
     (
         "run.effect.local_edit.partial",
-        "It changed this file, but Halvo shows only the details it could read.",
+        "It changed a file, but Halvo shows only the details it could read.",
     ),
     ("run.effect.payment.not_done", "This payment was not made."),
     ("run.effect.purchase.not_done", "This order was not placed."),
