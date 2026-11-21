@@ -631,6 +631,22 @@ mod tests {
                 told(Browser::Edge, "Seite - Microsoft\u{200B} Edge"),
                 PrivateWindow::Unknown,
             ),
+            (
+                "edge-german-inprivate-as-printed",
+                told(
+                    Browser::Edge,
+                    "Neuer InPrivate-Tab - [InPrivate] \u{2013} Microsoft\u{200B} Edge",
+                ),
+                PrivateWindow::Private,
+            ),
+            (
+                "edge-japanese-inprivate-as-printed",
+                told(
+                    Browser::Edge,
+                    "\u{65B0}\u{3057}\u{3044} InPrivate \u{30BF}\u{30D6} - [InPrivate] - Microsoft\u{200B} Edge",
+                ),
+                PrivateWindow::Private,
+            ),
         ];
         let wrong: Vec<&str> = cases
             .iter()
