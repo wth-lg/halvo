@@ -100,11 +100,12 @@ fn the_files_are_those_of_i8_3() {
         "unknown_item",
         "unknown_agent",
         "malformed",
+        "overlap",
     ] {
         want.insert(format!("reply-error-{c}.json"));
     }
     assert_eq!(State::ALL.len(), 22);
-    assert_eq!(want.len(), 39);
+    assert_eq!(want.len(), 40);
     assert_eq!(names(Path::new(TRACKED)), want);
     for command in LIST {
         for stem in command.replies {

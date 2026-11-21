@@ -321,6 +321,8 @@ fn expected_keys() -> BTreeSet<String> {
         "item.setup.overlap",
         "item.setup.overlap_more",
         "item.setup.overlap_unread",
+        "refused.overlap_named",
+        "refused.overlap_more",
     ] {
         k.insert(key.to_owned());
     }
@@ -451,7 +453,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 315);
+    assert_eq!(seen.len(), 318);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -500,7 +502,12 @@ fn placeholders_are_the_ones_that_the_contract_names() {
         want.insert(key.into(), vec!["name"]);
     }
     want.insert("ask.delete.next".into(), vec!["day"]);
-    for key in ["item.setup.overlap", "item.setup.overlap_more"] {
+    for key in [
+        "item.setup.overlap",
+        "item.setup.overlap_more",
+        "refused.overlap_named",
+        "refused.overlap_more",
+    ] {
         want.insert(key.into(), vec!["name", "senders"]);
     }
     for (key, text) in KEYS {

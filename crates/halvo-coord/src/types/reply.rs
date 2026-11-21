@@ -1147,6 +1147,17 @@ impl Overlapping {
         ])
     }
 
+    /// The sentence beside a Switch on that the owner refused with `overlap` (I3.5 (f)): the
+    /// sentence of `refused.overlap_named`, of `refused.overlap_more` where further agents share
+    /// senders, or of `refused.overlap`, the sentence of the cause, which names nobody.
+    pub fn refused(&self) -> Result<String, Cause> {
+        self.say([
+            "refused.overlap_named",
+            "refused.overlap_more",
+            "refused.overlap",
+        ])
+    }
+
     /// The sentence of the first key of `keys` for one named agent, of the second where further
     /// agents share senders, with `{name}` and `{senders}`, the senders joined by a comma; of
     /// the third for nobody.
@@ -1167,7 +1178,7 @@ impl Overlapping {
 
 /// A refused control of a row (I8.1 `agents_control`) as its reply writes it: `error`, the
 /// cause, and `text`, the sentence that the page shows beside the control (RD-161 R1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Refusal {
     /// Any refusal: the sentence of `refused.<cause>`.
     Cause(Cause),
@@ -1176,21 +1187,28 @@ pub enum Refusal {
     /// which says both halves, that the task is stopped and that the agent is still on
     /// (RD-155 (1); term (5) of RD-161 R1).
     SwitchNotSaved(Cause),
+    /// A Switch on whose state the owner refused with `overlap`, the cause `overlap`, with what
+    /// the read that followed gave to say: the sentence of `Overlapping::refused`, which names
+    /// the other agent and the shared senders where the read named them, and is the sentence of
+    /// `refused.overlap` where it did not answer (ruling RD-161 R4, WAY A; I3.5 (f)).
+    Overlap(Overlapping),
 }
 
 impl Refusal {
     /// The cause.
-    pub fn cause(self) -> Cause {
+    pub fn cause(&self) -> Cause {
         match self {
-            Refusal::Cause(cause) | Refusal::SwitchNotSaved(cause) => cause,
+            Refusal::Cause(cause) | Refusal::SwitchNotSaved(cause) => *cause,
+            Refusal::Overlap(_) => Cause::Overlap,
         }
     }
 
     /// `text`: the sentence of its words key.
-    pub fn text(self) -> Result<String, Cause> {
+    pub fn text(&self) -> Result<String, Cause> {
         match self {
-            Refusal::Cause(cause) => ErrorReply { error: cause }.text(),
+            Refusal::Cause(cause) => ErrorReply { error: *cause }.text(),
             Refusal::SwitchNotSaved(_) => words::text("refused.switch_not_saved", &[]),
+            Refusal::Overlap(say) => say.refused(),
         }
     }
 }

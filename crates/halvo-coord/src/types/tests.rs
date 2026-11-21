@@ -199,7 +199,7 @@ fn closed_lists_have_the_contract_names_in_order() {
     let names = |all: &[&str]| all.join(",");
     assert_eq!(
         names(&Cause::ALL.iter().map(|c| c.name()).collect::<Vec<_>>()),
-        "stale,presenter,early,hold,state,budget,queue_full,busy,no_service,unknown_item,unknown_agent,malformed"
+        "stale,presenter,early,hold,state,budget,queue_full,busy,no_service,unknown_item,unknown_agent,malformed,overlap"
     );
     assert_eq!(
         names(&Status::ALL.iter().map(|c| c.name()).collect::<Vec<_>>()),

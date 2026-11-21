@@ -942,3 +942,62 @@ fn u312_a_a_switch_off_that_could_not_be_saved_answers_both_halves_beside_its_ca
     );
     assert_ne!(row.line, sentence, "one fact, one place");
 }
+
+/// r4 U3.13, the second sentence (RD-161 R4, WAY A; I3.5 (f)): through the app's real wiring, a
+/// Switch on whose `active` the owner refuses with `overlap` answers the thirteenth cause,
+/// `overlap`, and not `no_service`, the cause of a lost call, with the sentence beside the
+/// control that names the other agent and the senders that its read gave; where the read did not
+/// answer, the sentence of `refused.overlap`, which names nobody.
+#[test]
+fn u313_a_switch_on_refused_with_overlap_answers_overlap_with_the_sentence_of_its_read() {
+    let hub = Hub::new(
+        support::sharing_held(),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    Core::tick(&*hub);
+    let (_app, main, _other) = app(hub.clone());
+    let switch_on = || -> Value {
+        let reply = invoke(
+            &main,
+            "agents_control",
+            json!({"agent": support::asking().to_string(), "action": "switch_on"}),
+        );
+        serde_json::from_str(&reply.unwrap()).unwrap()
+    };
+    let name = hub
+        .coordinator()
+        .snapshot()
+        .rows
+        .iter()
+        .find(|r| r.agent == support::other())
+        .map(|r| r.name.clone())
+        .expect("the row of the other agent");
+    let reply = switch_on();
+    assert_eq!(reply["error"], "overlap", "{reply}");
+    let text = reply["text"].as_str().unwrap_or_default().to_owned();
+    assert!(
+        text.contains(&name) && text.contains(support::ANN),
+        "{text}"
+    );
+    assert_eq!(
+        Ok(text),
+        halvo_coord::words::text(
+            "refused.overlap_named",
+            &[("name", &name), ("senders", support::ANN)]
+        )
+    );
+    hub.coordinator()
+        .ports()
+        .inner()
+        .with(|p| p.refuse(Method::Overlaps, PortError::Busy));
+    assert_eq!(
+        switch_on(),
+        json!({
+            "error": "overlap",
+            "text": halvo_coord::words::text("refused.overlap", &[]).unwrap()
+        }),
+        "the read did not answer"
+    );
+}

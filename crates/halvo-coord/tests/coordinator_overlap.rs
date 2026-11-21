@@ -447,7 +447,7 @@ fn a_switch_on_refused_with_overlap_holds_the_names_that_its_read_gave() {
     c.tick();
     assert_eq!(
         c.control(&asking(), Action::SwitchOn),
-        Err(Cause::NoService)
+        Err(Cause::Overlap)
     );
     assert_eq!(
         c.switch_on_overlap(&asking()),
@@ -465,7 +465,7 @@ fn a_switch_on_refused_with_overlap_whose_read_did_not_answer_holds_the_half_tha
     c.ports().ports.refuse(Method::Overlaps, PortError::Busy);
     assert_eq!(
         c.control(&asking(), Action::SwitchOn),
-        Err(Cause::NoService)
+        Err(Cause::Overlap)
     );
     assert_eq!(
         c.switch_on_overlap(&asking()),

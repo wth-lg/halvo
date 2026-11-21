@@ -712,6 +712,18 @@ pub const KEYS: &[(&str, &str)] = &[
         "Something went wrong inside Halvo, so nothing happened. Try again.",
     ),
     (
+        "refused.overlap",
+        "Another of your agents already answers mail from some of the same people on this mailbox, and Halvo cannot show which one right now. A message that one agent answered can still look unread to the other, so this agent stays off. Switch the other agent off or delete it, then switch this one on.",
+    ),
+    (
+        "refused.overlap_named",
+        "“{name}” already answers mail from {senders} on this mailbox, and a message that one agent answered can still look unread to the other, so this agent stays off. Switch “{name}” off or delete it, then switch this one on.",
+    ),
+    (
+        "refused.overlap_more",
+        "“{name}” already answers mail from {senders} on this mailbox, and other agents answer some of these people too. A message that one agent answered can still look unread to another, so this agent stays off. Switch those agents off or delete them, then switch this one on.",
+    ),
+    (
         "refused.switch_not_saved",
         "Halvo is stopping the task but could not switch this agent off. It may start again: press Switch off again.",
     ),
