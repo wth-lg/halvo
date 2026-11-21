@@ -317,3 +317,67 @@ fn rd64_a_delete_of_a_stuck_record_stops_the_run_as_stop_does_and_is_sent_when_i
     assert_eq!(deletes(&c), [flow(0)]);
     assert!(row(&c.snapshot(), 0).is_none());
 }
+
+#[test]
+fn a_delete_whose_run_a_tick_kills_after_the_grace_meets_the_owners_answer_at_that_tick() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let _run = start(&c, 0);
+    assert_eq!(c.delete(&agent(0)), Ok(()));
+    c.ports().ports.refuse(Method::Delete, PortError::Busy);
+    let grace = Limits::PRODUCT.cancel_grace_s * 1_000;
+    c.ports().ports.set_clock(T0 + grace + 1_000, DAY);
+    c.tick();
+    assert_eq!(c.live(), 0, "the tick killed the run after its grace");
+    assert!(
+        deletes(&c).is_empty(),
+        "the owner answered busy, so nothing is deleted"
+    );
+    assert_eq!(
+        row(&c.snapshot(), 0).map(|r| r.line.clone()),
+        Some(text("line.working.deleting")),
+        "the intent stays for the next move"
+    );
+    c.ports().ports.clear_refusals();
+    c.ports().ports.set_clock(T0 + grace + 2_000, DAY);
+    c.tick();
+    assert_eq!(
+        deletes(&c),
+        [flow(0)],
+        "the next tick meets the owner, not the default"
+    );
+    assert!(row(&c.snapshot(), 0).is_none());
+}
+
+/// The named limit of the guard (the coordinator's word of 2026-11-21, its point (4)): a start
+/// whose acknowledgement was lost and that this life has not read makes the owner refuse the
+/// delete with `state`; the yes changes nothing and the row reads as before, with Delete.
+#[test]
+fn a_delete_that_a_lost_start_blocks_answers_state_and_the_row_reads_as_before() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let before = c.snapshot();
+    let mine = row(&before, 0).cloned().unwrap();
+    {
+        let mut events = c.ports().ports.events.borrow_mut();
+        let seq = events.iter().filter(|e| e.agent == agent(0)).count() as u32 + 1;
+        let lost = halvo_coord::types::Event {
+            workflow: flow(0),
+            agent: agent(0),
+            seq: std::num::NonZeroU32::new(seq).unwrap(),
+            day: DAY,
+            at: i64::try_from(T0).unwrap() * 1_000_000,
+            what: What::RunStarted {
+                run: RunId::parse(&format!("{:032x}", 0x5151)).unwrap(),
+                trigger: halvo_coord::types::Trigger::Person,
+                slot: None,
+            },
+        };
+        events.push(lost);
+    }
+    assert_eq!(c.delete(&agent(0)), Err(Cause::State));
+    assert!(deletes(&c).is_empty());
+    let after = c.snapshot();
+    let r = row(&after, 0).unwrap();
+    assert_eq!(r.line, mine.line, "the row reads as before");
+    assert_eq!(r.status, mine.status);
+    assert_eq!(r.controls, mine.controls, "Delete stands on the row again");
+}
