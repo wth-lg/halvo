@@ -220,6 +220,7 @@ pub const KEYS: &[(&str, &str)] = &[
     ("name.with_site", "{category} on {site}"),
     ("control.run_now", "Start now"),
     ("control.stop", "Stop"),
+    ("control.take_back", "Cancel this start"),
     ("control.switch_off", "Switch off"),
     ("control.switch_on", "Switch on"),
     ("control.delete", "Delete"),

@@ -169,7 +169,14 @@ fn expected_keys() -> BTreeSet<String> {
     for c in Category::ALL {
         k.insert(format!("category.{}", c.name()));
     }
-    for c in ["run_now", "stop", "switch_off", "switch_on", "delete"] {
+    for c in [
+        "run_now",
+        "stop",
+        "take_back",
+        "switch_off",
+        "switch_on",
+        "delete",
+    ] {
         k.insert(format!("control.{c}"));
     }
     let choices = [
@@ -292,7 +299,7 @@ fn the_table_holds_every_key_of_the_families_of_i1_1_once_and_no_other() {
         missing.is_empty() && extra.is_empty(),
         "missing {missing:?}, extra {extra:?}"
     );
-    assert_eq!(seen.len(), 253);
+    assert_eq!(seen.len(), 254);
 }
 
 fn placeholders(text: &str) -> BTreeSet<String> {
@@ -484,6 +491,27 @@ fn u24r_the_three_texts_stand_word_for_word() {
         let words = t(key, &[("count", "3")]).split_whitespace().count();
         assert!(words <= 20, "{key}: {words} words");
     }
+}
+
+/// The control that takes a queued start back says that this one start is gone and promises no
+/// later start, and it shares no text with another control or with a choice of an item (U2.4e;
+/// rulings RD-54 (h), RD-55 (b), and RD-149's note of 2026-11-20T20:02:32Z).
+#[test]
+fn u24e_the_take_back_stands_word_for_word_and_apart_from_every_other_control_and_choice() {
+    let take_back = words::text("control.take_back", &[]).unwrap();
+    assert_eq!(take_back, "Cancel this start");
+    let others: Vec<&str> = KEYS
+        .iter()
+        .filter(|(k, _)| {
+            (k.starts_with("control.") || k.starts_with("choice.")) && *k != "control.take_back"
+        })
+        .map(|(_, t)| *t)
+        .collect();
+    assert!(others.len() > 10, "{others:?}");
+    assert!(
+        others.iter().all(|t| !t.eq_ignore_ascii_case(&take_back)),
+        "{others:?}"
+    );
 }
 
 const WORDS_OF_AN_END: [&str; 41] = [
