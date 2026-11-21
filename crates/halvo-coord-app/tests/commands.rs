@@ -717,3 +717,93 @@ fn the_day_of_an_instant_on_another_day_than_the_clocks_is_the_day_of_that_insta
         assert_eq!(clock.today(), Ok(day + 3), "{who}: today follows now");
     }
 }
+
+/// The sentence that names `other` with the shared sender, as the core holds it for the page.
+fn names_other() -> Option<halvo_coord::ports::Shared> {
+    Some(halvo_coord::ports::Shared::Named(
+        halvo_coord::ports::Overlaps {
+            entries: vec![halvo_coord::ports::Overlap {
+                workflow: support::other_flow(),
+                agent: support::other(),
+                senders: vec![support::ANN.to_owned()],
+            }],
+            more: false,
+        },
+    ))
+}
+
+fn overlap_reads(hub: &Hub<support::Shared>) -> usize {
+    hub.coordinator()
+        .ports()
+        .inner()
+        .with(|p| p.overlap_reads.borrow().len())
+}
+
+/// The coordinator's row of 2026-11-21T07:03:55Z (round RD-160 of U2.4g), through the app's
+/// real wiring, `Hub` over `Wired`: a set-up answer that the owner refuses with `overlap` asks
+/// the owner's read `list_overlaps`, and the item holds the sentence that names the other agent
+/// with the shared sender (I3.5 (a) to (c)).
+#[test]
+fn through_the_app_a_set_up_answer_refused_with_overlap_names_the_agent_that_shares_the_sender() {
+    let hub = Hub::new(
+        support::sharing_set_up(),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    Core::tick(&*hub);
+    let (_app, main, _other) = app(hub.clone());
+    let setup = hub
+        .coordinator()
+        .snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == halvo_coord::types::ItemKind::Setup)
+        .map(|i| (i.item().clone(), i.step()))
+        .expect("the set-up item of the asking agent");
+    let reads = overlap_reads(&hub);
+    let reply = invoke(
+        &main,
+        "agents_setup_typed",
+        json!({"item": setup.0.to_string(), "step": setup.1, "param": "reply_senders", "text": support::ANN}),
+    );
+    println!("setup_typed answered: {reply:?}");
+    assert_eq!(overlap_reads(&hub), reads + 1, "the read reached the owner");
+    assert_eq!(hub.coordinator().setup_overlap(&setup.0), names_other());
+}
+
+/// The same row: through the app's real wiring, a Switch on and then a Start now of an agent
+/// held by `failures`, whose `active` the owner refuses with `overlap`, each ask the owner's read
+/// once, and the core holds the sentence that names the other agent with the shared sender
+/// (I3.5 (f), RD-160 (3)).
+#[test]
+fn through_the_app_a_switch_on_and_a_start_refused_with_overlap_name_the_agent_that_shares_the_sender(
+) {
+    let hub = Hub::new(
+        support::sharing_held(),
+        Limits::PRODUCT,
+        Counts::default().sink(),
+        Dialogs::default().boxed(),
+    );
+    Core::tick(&*hub);
+    let (_app, main, _other) = app(hub.clone());
+    for action in ["switch_on", "run_now"] {
+        let reads = overlap_reads(&hub);
+        let reply = invoke(
+            &main,
+            "agents_control",
+            json!({"agent": support::asking().to_string(), "action": action}),
+        );
+        println!("{action} answered: {reply:?}");
+        assert_eq!(
+            overlap_reads(&hub),
+            reads + 1,
+            "{action}: the read reached the owner"
+        );
+        assert_eq!(
+            hub.coordinator().switch_on_overlap(&support::asking()),
+            names_other(),
+            "{action}"
+        );
+    }
+}
