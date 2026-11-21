@@ -54,6 +54,13 @@ pub enum Move {
         /// The agent.
         agent: AgentId,
     },
+    /// The control `take_back` of a waiting row (ruling RD-54 (h)): the agent's queued start
+    /// leaves the queue and nothing else changes; a run of the agent that started in the meantime
+    /// goes on, as after a Stop from a page that is behind (ruling RD-52 (d)).
+    TakeBack {
+        /// The agent.
+        agent: AgentId,
+    },
     /// The end of a live run by its runner: the outcome of its last frame, or none when the
     /// runner was gone with no last frame (I5.6).
     End {
@@ -123,7 +130,8 @@ pub struct Report {
     /// For a creation, the agents that it created.
     pub created: Vec<AgentId>,
     /// For a tick, the agents of the workflows that are gone whose queued start or open item it
-    /// dropped; for a skip, the agent whose queued start it dropped (ruling RD-102 item 2).
+    /// dropped; for a skip or a take-back, the agent whose queued start it dropped (rulings
+    /// RD-102 item 2, RD-54 (h)).
     pub dropped: Vec<AgentId>,
     /// Whether the move was refused because no read of the clock answered, before any of its
     /// work (ruling RD-133 1).
@@ -619,19 +627,29 @@ fn own(doing: &Doing, kind: OwnItemKind) -> Option<ItemId> {
     }
 }
 
-/// The queued start of the agent of member `i`, whose card the person skipped, leaves the queue
-/// in the same move with nothing stored, also where the skip is answered `stale` because the
-/// owner stored the start's answer with a lost acknowledgement (ruling RD-102 item 2): the agent
-/// whose start it dropped, or none.
-fn drop_skipped_start<C>(board: &mut Board<C>, i: usize) -> Vec<AgentId> {
+/// The queued start of the agent of member `i` leaves the queue in the same move with nothing
+/// stored, and the agent keeps its open item: at a Skip of its card, also where the skip is
+/// answered `stale` because the owner stored the start's answer with a lost acknowledgement
+/// (ruling RD-102 item 2), the agent keeping an open item that the skip's own read brought
+/// (pr-review-36 N1), and at its take-back (ruling RD-54 (h)): the agent whose start it dropped,
+/// or none.
+fn drop_start<C>(board: &mut Board<C>, i: usize) -> Vec<AgentId> {
+    if leave_queue(board, i) {
+        vec![board.members[i].facts.agent.clone()]
+    } else {
+        Vec::new()
+    }
+}
+
+fn leave_queue<C>(board: &mut Board<C>, i: usize) -> bool {
     let agent = board.members[i].facts.agent.clone();
     if !board.queue.remove(&agent) {
-        return Vec::new();
+        return false;
     }
-    if let Doing::Queued(_) = board.members[i].facts.doing {
-        board.members[i].facts.doing = Doing::Idle(None);
+    if let Doing::Queued(item) = &board.members[i].facts.doing {
+        board.members[i].facts.doing = Doing::Idle(item.clone());
     }
-    vec![agent]
+    true
 }
 
 fn without_item(doing: &Doing) -> Doing {
@@ -1832,7 +1850,9 @@ where
         | Move::SwitchOn { agent }
         | Move::SwitchOff { agent }
         | Move::Off { agent } => agent.clone(),
-        Move::Tick | Move::End { .. } | Move::Create | Move::Owed => return refused(Cause::State),
+        Move::Tick | Move::End { .. } | Move::Create | Move::Owed | Move::TakeBack { .. } => {
+            return refused(Cause::State)
+        }
     };
     let Some(i) = board.index(&agent) else {
         return refused(Cause::UnknownAgent);
@@ -1888,14 +1908,14 @@ where
             let (day, at) = (cx.move_stamp.day(), cx.move_stamp.at());
             match log_or_reread_once(cx, board, i, whats, day, at, Some(&pressed)) {
                 Ok(Stored::RedecidedFails(c)) => Report {
-                    dropped: drop_skipped_start(board, i),
+                    dropped: drop_start(board, i),
                     ..refused(c)
                 },
                 Ok(_) => {
                     let doing = without_item(&board.members[i].facts.doing);
                     board.members[i].facts.doing = doing;
                     Report {
-                        dropped: drop_skipped_start(board, i),
+                        dropped: drop_start(board, i),
                         ..Report::default()
                     }
                 }
@@ -2001,7 +2021,9 @@ where
             }
             off_rest(cx, board, i, halt)
         }
-        Move::Tick | Move::End { .. } | Move::Create | Move::Owed => refused(Cause::State),
+        Move::Tick | Move::End { .. } | Move::Create | Move::Owed | Move::TakeBack { .. } => {
+            refused(Cause::State)
+        }
     }
 }
 
@@ -2027,11 +2049,7 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
 ) -> Report {
     let agent = board.members[i].facts.agent.clone();
     let mut report = Report::default();
-    if board.queue.remove(&agent) {
-        if let Doing::Queued(item) = &board.members[i].facts.doing {
-            board.members[i].facts.doing = Doing::Idle(item.clone());
-        }
-    }
+    leave_queue(board, i);
     let live = board
         .runs
         .iter()
@@ -2109,6 +2127,12 @@ fn off_rest<P: Owner + Runs, C: ConfigView>(
 /// `overlap` the read `Owner::overlaps` follows, whose answer `Report::shared` carries (rulings
 /// RD-67 1.3 (a), 3.2 (f)). A start by the person that ends the hold `failures` with no hold `off`
 /// reads the owner's events and then sends its state first in the same way.
+///
+/// The take-back (ruling RD-54 (h)) reads no port, the clock included, and stores and sends
+/// nothing: it takes the agent's queued start out of the queue, the agent keeping its open item,
+/// and answers ok also where no start of the agent waits, a live run among them, which goes on
+/// (ruling RD-52 (d)). No hold stands after it, so a later tick raises `ready` or starts the
+/// agent again where I5.3 asks for it (ruling RD-55 (b)).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,
@@ -2135,6 +2159,15 @@ where
     P: Owner + Runs + Analysis + Clock + Rng,
     P::Config: ConfigView + Clone,
 {
+    if let Move::TakeBack { agent } = &mv {
+        let Some(i) = board.index(agent) else {
+            return refused(Cause::UnknownAgent);
+        };
+        return Report {
+            dropped: drop_start(board, i),
+            ..Report::default()
+        };
+    }
     let stamp = match Stamp::read(ports) {
         Ok(stamp) => stamp,
         Err(e) => {

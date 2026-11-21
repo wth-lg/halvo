@@ -202,6 +202,28 @@ fn index<C>(board: &Board<C>, agent: &AgentId) -> Option<usize> {
     board.members.iter().position(|m| &m.facts.agent == agent)
 }
 
+fn set_aside<C>(board: &mut Board<C>, agent: &AgentId) -> Option<Vec<schedule::Waiting>> {
+    let order = board.queue.entries().to_vec();
+    board.queue.remove(agent).then_some(order)
+}
+
+fn put_back<C>(board: &mut Board<C>, agent: &AgentId, order: &[schedule::Waiting]) {
+    let now = board.queue.entries().to_vec();
+    for w in &now {
+        board.queue.remove(&w.agent);
+    }
+    let kept = |w: &&schedule::Waiting| &w.agent == agent || now.iter().any(|n| n.agent == w.agent);
+    for w in order.iter().filter(kept) {
+        board.queue.push(w.clone());
+    }
+    for w in now
+        .iter()
+        .filter(|n| !order.iter().any(|o| o.agent == n.agent))
+    {
+        board.queue.push(w.clone());
+    }
+}
+
 /// Whether the owner has acknowledged the `paused` of `agent`, the task that the person switched
 /// off, for the kept body that its switch-off freed (I3.5 (e); ruling RD-160 (2)): its workflow is
 /// listed `paused`, has left the list or is the stand-in of a dismissed one, or the board holds
@@ -433,6 +455,55 @@ where
             self.publish(&mut st);
         }
         st
+    }
+
+    fn enter_control(&self, agent: &AgentId, action: Action) -> Entered<'_, P> {
+        let mut st = Entered {
+            st: self.state.lock().unwrap_or_else(PoisonError::into_inner),
+            ports: &self.ports,
+            entry: Entry::Move,
+            unwinding: std::thread::panicking(),
+        };
+        let tick = st.mark.tick;
+        if let Some(board) = st.board.as_mut() {
+            board.hold_queue(tick);
+        }
+        let aside = if Self::takes_its_start_away(&st, agent, action) {
+            st.board.as_mut().and_then(|board| set_aside(board, agent))
+        } else {
+            None
+        };
+        let taken = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.take_up(&mut st);
+        }));
+        if let (Some(order), Some(board)) = (aside, st.board.as_mut()) {
+            put_back(board, agent, &order);
+        }
+        if let Err(unwind) = taken {
+            std::panic::resume_unwind(unwind);
+        }
+        let held = st.mark.tick;
+        if let Some(board) = st.board.as_mut() {
+            board.hold_queue(held);
+        }
+        if st.mark.unpublished {
+            self.publish(&mut st);
+        }
+        st
+    }
+
+    fn takes_its_start_away(st: &State<Cfg<P>>, agent: &AgentId, action: Action) -> bool {
+        let named = st
+            .board
+            .as_ref()
+            .is_some_and(|board| index(board, agent).is_some_and(|i| !Self::gone(st, board, i)));
+        let off = st.offs.contains(agent) || st.held_off.contains(agent);
+        named
+            && match action {
+                Action::TakeBack | Action::Stop => true,
+                Action::SwitchOff => !off,
+                Action::RunNow | Action::SwitchOn => false,
+            }
     }
 
     fn lock(&self) -> Entered<'_, P> {
@@ -2465,16 +2536,29 @@ where
     }
 
     /// A control of a row (I8.1 `agents_control`). Every control of an agent whose workflow a
-    /// tick saw gone, or whose setup body the owner ended, is answered `unknown_agent` at once
-    /// with nothing stored (I5.7, rulings IG-33, IG-36); after the first
+    /// tick saw gone, or whose setup body the owner ended, is answered `unknown_agent`, and the
+    /// control itself stores nothing; the take-up that the call makes first, below, can still
+    /// store and send before that answer (I5.7, rulings IG-33, IG-36); after the first
     /// step of the quit every start is `state`; while the mark of a tick that did not return
     /// stands, `run_now` and `switch_on` are `no_service` (ruling RD-80 4.5). The person's
     /// `stop` lapses the open item of a
     /// waiting run with `cancelled` and stops the run in one command, for every kind of item,
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
-    /// switch-off control lapses that item in the same way before its own move.
+    /// switch-off control lapses that item in the same way before its own move. Like every move,
+    /// the call first takes up what an earlier stop, switch-off or runner's end left waiting for
+    /// a read of the clock, which can read the clock, store and send for agents and their runs,
+    /// the named agent among them where its own earlier switch-off waited for the clock; for
+    /// `take_back`, `switch_off` and `stop`, after the refusals above, the named agent's
+    /// start that waits in the queue is set aside during that take-up and put back in its place
+    /// after it, so that no end that the take-up makes starts the agent that the control names
+    /// (RD-149, verifier-59 issue 1). The take-back's own move then takes that start out of the
+    /// queue and keeps the agent's open item; it reads no port and no clock, stores and sends
+    /// nothing, adds no hold and leaves every hold that stood, and it answers success also where
+    /// no start of the agent waits, a run that started before the call going on (rulings RD-54
+    /// (h), RD-52 (d)). The call ends, as every control does, by publishing the state, which
+    /// tells the page and the tray when it changed.
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
-        let mut st = self.enter(Entry::Move);
+        let mut st = self.enter_control(agent, action);
         let before = Self::agents_held_off(&st);
         let off = matches!(action, Action::SwitchOff);
         st.refused_on.retain(|(a, _)| a != agent);
@@ -2528,6 +2612,12 @@ where
                 },
             ),
             Action::Stop => self.stop_in(st, i),
+            Action::TakeBack => self.schedule(
+                st,
+                Move::TakeBack {
+                    agent: agent.clone(),
+                },
+            ),
         }
     }
 
@@ -2840,7 +2930,13 @@ where
                 held.map(|h| h.confirmation().state()),
                 board.record_stuck(&facts.agent, &self.limits),
             );
-            let Ok(row) = roster::row(*facts, line, name) else {
+            let waiting = board
+                .queue
+                .entries()
+                .iter()
+                .find(|w| w.agent == facts.agent)
+                .map(|w| w.trigger);
+            let Ok(row) = roster::row(*facts, line, name, waiting, &self.limits) else {
                 continue;
             };
             let item = match (&open, line.status()) {
