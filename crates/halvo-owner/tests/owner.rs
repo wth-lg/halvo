@@ -1086,10 +1086,11 @@ fn the_report_of_a_commit_ends_with_its_position() {
 }
 
 /// The ruling on a malformed row of `meta`: an owner commits a batch whose three summaries make one workflow, and the
-/// test then writes a store id that is no store id into the row of `meta` through a connection of its own with the
-/// owner's key. A second owner over that directory stays up: its first report holds `position` null, it answers the
-/// read of the workflows with the one workflow, it exits 0 at the end of its channel, and its standard error holds one
-/// line for the row and no value of it.
+/// test then makes the row of `meta` malformed through a connection of its own with the owner's key, in two forms one
+/// after the other: a store id that is no store id, then a store text that is not UTF-8 (the byte FF, the form of
+/// verifier-67). Over each form an owner stays up: its first report holds `position` null, it answers the read of the
+/// workflows with the one workflow, it exits 0 at the end of its channel, and its standard error holds one line for
+/// the row and no value of it.
 #[test]
 fn a_malformed_meta_row_keeps_the_owner_up() {
     let scratch = Scratch::new("owner-position-malformed");
@@ -1113,38 +1114,45 @@ fn a_malformed_meta_row_keeps_the_owner_up() {
     first.close();
     assert_eq!(first.exit_code(WAIT), Some(exit::END));
 
-    let planted = "no-store-id-424242";
     halvo_sqlcipher::initialize().unwrap();
-    let conn = Connection::open(scratch.0.join("derived").join("derived.db")).unwrap();
     let hex: String = KEY.iter().map(|b| format!("{b:02x}")).collect();
-    conn.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))
-        .unwrap();
-    let changed = conn
-        .execute(
-            "UPDATE meta SET store = ?1, seg = 424243, idx = 424244 WHERE one = 1",
-            [planted],
-        )
-        .unwrap();
-    assert_eq!(changed, 1);
-    drop(conn);
+    for plant in [
+        "UPDATE meta SET store = 'no-store-id-424242', seg = 424243, idx = 424244 WHERE one = 1",
+        "UPDATE meta SET store = CAST(x'ff' AS TEXT) WHERE one = 1",
+    ] {
+        let conn = Connection::open(scratch.0.join("derived").join("derived.db")).unwrap();
+        conn.execute_batch(&format!("PRAGMA key = \"x'{hex}'\";"))
+            .unwrap();
+        assert_eq!(conn.execute(plant, []).unwrap(), 1, "{plant}");
+        drop(conn);
 
-    let mut second = start_with(pipes(), &scratch.0, KEY, 1, false, &[], Stdio::piped());
-    let mut stderr = second.child.stderr.take().unwrap();
-    let (opened, text) = second
-        .report_where(Mono::now() + WAIT, |_| true)
-        .expect("the owner over a malformed row of meta reports its open");
-    assert_eq!(opened.get("position"), Some(&Value::Null), "{text}");
-    second.send(&read_workflows());
-    assert_eq!(workflows(second.reply()), found);
-    second.close();
-    assert_eq!(second.exit_code(WAIT), Some(exit::END));
-    let mut said = String::new();
-    stderr.read_to_string(&mut said).unwrap();
-    let lines: Vec<&str> = said.lines().collect();
-    assert_eq!(lines.len(), 1, "{said}");
-    assert!(lines[0].contains("table meta is malformed"), "{said}");
-    for value in [planted, "424243", "424244"] {
-        assert!(!said.contains(value), "{said}");
+        let mut owner = start_with(pipes(), &scratch.0, KEY, 1, false, &[], Stdio::piped());
+        let mut stderr = owner.child.stderr.take().unwrap();
+        let (opened, text) = owner
+            .report_where(Mono::now() + WAIT, |_| true)
+            .unwrap_or_else(|| panic!("after {plant} the owner reports no open"));
+        assert_eq!(
+            opened.get("position"),
+            Some(&Value::Null),
+            "{plant}: {text}"
+        );
+        owner.send(&read_workflows());
+        assert_eq!(workflows(owner.reply()), found, "{plant}");
+        owner.close();
+        assert_eq!(owner.exit_code(WAIT), Some(exit::END), "{plant}");
+        let mut said = Vec::new();
+        stderr.read_to_end(&mut said).unwrap();
+        assert!(!said.contains(&0xff), "{plant}: {said:?}");
+        let said = String::from_utf8(said).unwrap();
+        let lines: Vec<&str> = said.lines().collect();
+        assert_eq!(lines.len(), 1, "{plant}: {said}");
+        assert!(
+            lines[0].contains("table meta is malformed"),
+            "{plant}: {said}"
+        );
+        for value in ["no-store-id-424242", "424243", "424244"] {
+            assert!(!said.contains(value), "{plant}: {said}");
+        }
     }
 }
 

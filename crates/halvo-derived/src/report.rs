@@ -28,9 +28,9 @@ pub enum PositionState {
     Unbound,
     /// The store id and the position of the last committed batch.
     Committed(CommittedPosition),
-    /// A row that no write of the store leaves: a store id that is no store id, a position that is not two whole
-    /// numbers from 0 to 2^63 - 1, one of the store id and the position without the other, or no row at all. A batch
-    /// meets the same row at its commit as before.
+    /// A row that no write of the store leaves: a store column that is not text, not UTF-8 or no store id, a position
+    /// that is not two whole numbers from 0 to 2^63 - 1, one of the store id and the position without the other, or
+    /// no row at all. A batch meets the same row at its commit as before.
     Malformed,
 }
 
