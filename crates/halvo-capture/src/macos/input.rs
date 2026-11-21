@@ -1555,7 +1555,7 @@ fn on_pointer(ctx: &TapContext, kind: Kind, event: &TapEvent) {
     }
     match kind {
         Kind::Click(button) => {
-            let front = ctx.foreground.get();
+            let front = ctx.foreground.read_now();
             if let Some(keep) = ctx.keep::<floor_kind::Pointer>(front.as_ref()) {
                 ctx.sink
                     .emit_event(FloorEvent::click(keep, button, event_age(event), ctx.clock));
