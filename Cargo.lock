@@ -1586,6 +1586,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "halvo-analysis"
+version = "0.0.0"
+dependencies = [
+ "getrandom 0.3.4",
+ "halvo-identify",
+ "halvo-owner",
+ "halvo-sample",
+ "halvo-schema-core",
+ "halvo-seam",
+ "halvo-test-dir",
+ "libc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "halvo-cap"
 version = "0.0.0"
 dependencies = [
