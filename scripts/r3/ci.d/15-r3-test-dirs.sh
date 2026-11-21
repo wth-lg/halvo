@@ -26,7 +26,6 @@ account/crates/halvo-secrets/tests/walk.rs 1 account run
 account/crates/halvo-secrets/tests/wipe.rs 1 account run
 crates/halvo-agent-client/src/marks.rs 1 agent-setup run, U4.3
 crates/halvo-capture/tests/source_rules.rs 1 capture run, store-4
-crates/halvo-coord/tests/fixtures_same.rs 1 interface run
 crates/halvo-route-gate/tests/cli_commands.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-route-gate/tests/import_golden.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
 crates/halvo-route-gate/tests/import_rules.rs 1 routing run; exclusive create retried on a pid-and-counter name; kept as it stood on 2026-11-15
@@ -49,13 +48,12 @@ tools/r3-trials/web/src/checks.rs 1 agent-setup run, P0 trials
 tools/r3-trials/web/src/start.rs 2 agent-setup run, P0 trials
 tools/r3-trials/web/tests/org.rs 4 agent-setup run, P0 trials
 tools/r3-trials/web/tests/signals.rs 2 agent-setup run, P0 trials
-tools/r4-trials/app/tests/pages.rs 1 interface run
 EOF
 }
 
-pinned_rows=35
-pinned_places=47
-pinned_paths=2644232165
+pinned_rows=33
+pinned_places=45
+pinned_paths=3913687370
 
 program='
 function code(s) {

@@ -103,7 +103,7 @@ fn a_stored_run_ended_with_defer_values_is_read_and_counted_by_the_seq_rule() {
         (r#""yes""#, "4294967295"),
     ] {
         let newer = run_ended_row(1, "completed", Some((launch, ticks)));
-        let mut host = stand_in(vec![newer.clone()], None);
+        let mut host = stand_in(vec![(1, newer.clone())], None);
         assert_eq!(read_back(&mut host), (vec![newer.clone()], 1), "{newer}");
         assert_eq!(
             coordinator(&mut host, &log(&[row(1, TODAY)])),
@@ -118,7 +118,7 @@ fn a_stored_run_ended_with_defer_values_is_read_and_counted_by_the_seq_rule() {
 fn a_stored_run_ended_with_one_defer_key_null_sets_its_workflow_aside() {
     for defers in [(r#""yes""#, "null"), ("null", "2")] {
         let unread = run_ended_row(1, "completed", Some(defers));
-        let mut host = stand_in(vec![unread.clone()], None);
+        let mut host = stand_in(vec![(1, unread.clone())], None);
         assert_eq!(
             coordinator(&mut host, &history(None)),
             Err(ErrorName::Store),

@@ -325,8 +325,11 @@ mod sys {
         // child that a start made, and every other wait in the crate names its own child (std's
         // `Child::wait` and `try_wait` call waitpid with that child's number); nothing waits for
         // any child (waitpid with -1, wait), the crate sets no SIGCHLD disposition (SIG_IGN would
-        // let the system reap it), and tokio is built without its process feature (Cargo.toml),
-        // so no runtime reaps beside it.
+        // let the system reap it), and tokio, whose process feature chromiumoxide 0.9.1 turns on
+        // (its manifest's tokio features), waits only for a child that tokio::process started,
+        // through std's `try_wait` on that child; no code of this crate names tokio::process or
+        // chromiumoxide's async_process, and clippy.toml refuses tokio::process's starts,
+        // `Browser::launch` and `BrowserConfig`, so no runtime reaps beside it.
         unsafe { libc::kill(child.pid as libc::pid_t, libc::SIGKILL) };
     }
 
