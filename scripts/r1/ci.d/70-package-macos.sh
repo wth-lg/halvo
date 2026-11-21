@@ -62,6 +62,18 @@ bundle_defect() {
     value=$(plutil -extract "$key" raw -o - "$plist") || { printf 'plutil could not read the %s of Info.plist\n' "$key"; return 1; }
     [ "$value" = "$version" ] || { printf 'the %s of Info.plist is not what 61-version.sh --print prints\n' "$key"; return 1; }
   done
+  helpers=$*
+  set -- "$app/Contents/MacOS/halvo"
+  for helper in $helpers; do
+    set -- "$@" "$app/Contents/MacOS/$helper"
+  done
+  read_output=$(sh scripts/r1/ci.d/62-build.sh --files "$@")
+  status=$?
+  printf '%s\n' "$read_output" | grep -v -E '^(PASS|FAIL) 62-build' >&2
+  [ "$status" -eq 0 ] && return 0
+  cause=$(printf '%s\n' "$read_output" | sed -n 's/^FAIL 62-build (\(.*\))$/\1/p')
+  printf '62-build --files: %s\n' "${cause:-exit $status}"
+  return 1
 }
 
 measure() {
