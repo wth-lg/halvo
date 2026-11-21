@@ -74,6 +74,11 @@ each_judge_reads_a_round_not_driven_by_its_rule_on_a_table twelve
 the_fixture_and_the_test_read_one_table_of_verbs_and_each_reply_time_names_its_clock twelve
 the_verdict_of_a_short_on_time_at_the_products_constants_holds_each_rule_on_a_table twelve
 a_round_lost_to_a_late_marker_reads_by_its_rule_on_a_table twelve
+a_notice_lost_in_the_first_round_costs_that_round_alone twelve
+a_late_notice_of_an_earlier_round_is_dropped_and_each_round_reads_its_own twelve
+a_notice_wait_drops_a_late_command_reply_and_keeps_the_lines_of_other_waits twelve
+a_phase_whose_every_notice_is_lost_still_never_passes twelve
+one_lost_notice_reads_one_round_not_driven_under_the_rules_of_a_lost_round twelve
 EOF
 }
 
@@ -118,6 +123,11 @@ hold_bound_in_a_release_build E0599
 held_key_printed E0277
 tap_event_printed E0277
 seam_in_a_release_build E0599
+hold_plan_after_in_a_release_build E0599
+take_in_a_release_build E0425
+hold_with_in_a_release_build E0425
+secure_input_hold_in_a_release_build E0425
+carbon_release_in_a_release_build E0425
 EOF
 }
 
@@ -1027,16 +1037,17 @@ write_stubs() {
 #!/bin/sh
 spec() { grep -q "^$1\$" "$STUB_SPEC"; }
 case $* in
-  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build_twin" --cfg halvo_proof="held_key_printed_twin" --cfg halvo_proof="tap_event_printed_twin" --cfg halvo_proof="seam_in_a_release_build_twin"')
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build_twin" --cfg halvo_proof="held_key_printed_twin" --cfg halvo_proof="tap_event_printed_twin" --cfg halvo_proof="seam_in_a_release_build_twin" --cfg halvo_proof="hold_plan_after_in_a_release_build_twin" --cfg halvo_proof="take_in_a_release_build_twin" --cfg halvo_proof="hold_with_in_a_release_build_twin" --cfg halvo_proof="secure_input_hold_in_a_release_build_twin" --cfg halvo_proof="carbon_release_in_a_release_build_twin"')
     spec twins-fail && exit 101
     exit 0
     ;;
-  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build" --cfg halvo_proof="held_key_printed" --cfg halvo_proof="tap_event_printed" --cfg halvo_proof="seam_in_a_release_build"')
+  'rustc --locked -p halvo-capture --lib --profile check --message-format short -- -C debug-assertions=off --cfg halvo_proof="hold_bound_in_a_release_build" --cfg halvo_proof="held_key_printed" --cfg halvo_proof="tap_event_printed" --cfg halvo_proof="seam_in_a_release_build" --cfg halvo_proof="hold_plan_after_in_a_release_build" --cfg halvo_proof="take_in_a_release_build" --cfg halvo_proof="hold_with_in_a_release_build" --cfg halvo_proof="secure_input_hold_in_a_release_build" --cfg halvo_proof="carbon_release_in_a_release_build"')
     spec proofs-build && exit 0
     spec proof-other-code && { printf 'error[E0308]: mismatched types\nerror[E0277]: no Debug\n'; exit 101; }
-    spec proof-one-e0277 && { printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\n'; exit 101; }
+    spec proof-one-e0277 && { printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\nerror[E0599]: no variant named `After`\nerror[E0425]: cannot find function `hold_secure_input`\nerror[E0425]: cannot find function `hold_with`\nerror[E0425]: cannot find type `SecureInputHold`\nerror[E0425]: cannot find function `disable_secure_event_input`\n'; exit 101; }
     spec proof-one-e0599 && { printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\n'; exit 101; }
-    printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0277]: `TapEvent` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\n'
+    spec proof-one-e0425 && { printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0277]: `TapEvent` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\nerror[E0599]: no variant named `After`\nerror[E0425]: cannot find function `hold_secure_input`\n'; exit 101; }
+    printf 'error[E0599]: no function named `with_hold_bound`\nerror[E0277]: `HeldKey` does not implement `Debug`\nerror[E0277]: `TapEvent` does not implement `Debug`\nerror[E0599]: no function named `with_seam`\nerror[E0599]: no variant named `After`\nerror[E0425]: cannot find function `hold_secure_input`\nerror[E0425]: cannot find function `hold_with`\nerror[E0425]: cannot find type `SecureInputHold`\nerror[E0425]: cannot find function `disable_secure_event_input`\n'
     exit 101
     ;;
   'rustc --locked -p halvo-capture --lib --profile check --message-format short --features stall-seam -- -C debug-assertions=off --cfg halvo_proof="seam_in_a_release_build_twin" --cfg halvo_proof="drop_counts_in_a_release_build_twin"')
@@ -1395,8 +1406,9 @@ late-rule-phase_two'
   check twins-fail FAIL 'the twins of the proofs did not build' 'twins-fail'
   check proofs-build FAIL 'the proofs built' 'proofs-build'
   check proof-fails-with-another-code FAIL 'did not fail with E0599' 'proof-other-code'
-  check one-error-for-two-proofs FAIL '(1 errors E0599 for 2 proofs)' 'proof-one-e0599'
+  check one-error-for-two-proofs FAIL '(1 errors E0599 for 3 proofs)' 'proof-one-e0599'
   check one-debug-error-for-two-proofs FAIL '(1 errors E0277 for 2 proofs)' 'proof-one-e0277'
+  check one-hold-error-for-four-proofs FAIL '(1 errors E0425 for 4 proofs)' 'proof-one-e0425'
   check seam-twin-fails FAIL 'the twin of the seam proof did not build with the feature stall-seam' 'seam-twin-fails'
   check seam-proof-builds FAIL 'the seam proof built with the feature stall-seam' 'seam-proof-builds'
   check seam-proof-other-code FAIL 'the seam proof with the feature stall-seam did not fail with E0599' 'seam-proof-other-code'
