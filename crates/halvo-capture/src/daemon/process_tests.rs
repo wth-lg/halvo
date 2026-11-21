@@ -1610,6 +1610,8 @@ const LIFE: &str = "HALVO_LIFE";
 const LIFE_CHILD: &str = "daemon::process_tests::life_child";
 const FIRST_LIFE: &str = "first";
 const SECOND_LIFE: &str = "second";
+const ENDING_LIFE: &str = "ending";
+const STOP_HELD_AT_MOST: Duration = Duration::from_millis(5_000);
 
 fn begun(marks: &Path) -> usize {
     std::fs::read_to_string(marks.join("begun")).map_or(0, |text| text.lines().count())
@@ -1628,7 +1630,18 @@ fn life_child() {
     let marks = PathBuf::from(marks);
     let life = life.to_string_lossy().into_owned();
     let unstopped = life == FIRST_LIFE;
+    let held_open = life == ENDING_LIFE;
     let factory = super::sources::tests::Factory::adjusting(move |source| {
+        if held_open && source.name == super::SourceName::Screen {
+            let (stopping, answered) = (marks.join("stopping"), marks.join("answered"));
+            source.on_stop = Some(Box::new(move |_: &crate::source::SourceContext| {
+                std::fs::write(&stopping, b"").unwrap();
+                let started = Instant::now();
+                while !answered.exists() && started.elapsed() < STOP_HELD_AT_MOST {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            }));
+        }
         if source.name != super::SourceName::Foreground {
             return;
         }
@@ -1684,7 +1697,7 @@ fn life(dir: &Path, marks: &Path, life: &str) -> Service {
     )
 }
 
-fn running_dir() -> (PathBuf, PathBuf) {
+fn running_dir(screen: bool) -> (PathBuf, PathBuf) {
     use super::state::Desired;
     let root = kept_dir("life-tests-");
     let dir = root.join("data");
@@ -1699,7 +1712,12 @@ fn running_dir() -> (PathBuf, PathBuf) {
         StateDir::open(&dir).unwrap(),
         Box::new(TestWrite::default()),
     )
-    .update(|state| state.desired = Desired::Running)
+    .update(|state| {
+        state.desired = Desired::Running;
+        state
+            .switches
+            .set(crate::floor::Switch::ScreenActivity, screen);
+    })
     .unwrap();
     (dir, marks)
 }
@@ -1757,7 +1775,7 @@ fn holds(haystack: &[u8], needle: &[u8]) -> bool {
 #[test]
 fn a_delete_goes_on_past_a_source_that_does_not_stop_and_the_life_ends_with_5() {
     use halvo_control::proto::{Capture, Reply, Request, StoreState};
-    let (dir, marks) = running_dir();
+    let (dir, marks) = running_dir(false);
     let mut first = life(&dir, &marks, FIRST_LIFE);
     wait_until(READY_WITHIN, "the first life's source began", || {
         begun(&marks) == 1
@@ -1816,4 +1834,36 @@ fn a_delete_goes_on_past_a_source_that_does_not_stop_and_the_life_ends_with_5() 
         || begun(&marks) == 2,
     );
     assert_eq!(terminate(second), Some(0));
+}
+
+#[test]
+fn a_pause_in_an_ending_life_is_answered_and_the_next_start_reads_paused() {
+    use halvo_control::proto::{Reply, Request};
+    let (dir, marks) = running_dir(true);
+    let mut ending = life(&dir, &marks, ENDING_LIFE);
+    wait_until(READY_WITHIN, "the source began", || begun(&marks) == 1);
+    let pid = libc::pid_t::try_from(ending.0.id()).unwrap();
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    wait_until(
+        Duration::from_secs(30),
+        "the shutdown entry asked the source to stop",
+        || marks.join("stopping").exists(),
+    );
+    let paused = ask(&dir, &Request::Pause);
+    std::fs::write(marks.join("answered"), b"").unwrap();
+    let status = ended_within(&mut ending, Duration::from_secs(60));
+    assert!(
+        matches!(&paused, Ok(Reply::CaptureChanged(status)) if status.fields().desired == halvo_control::model::CaptureState::Paused),
+        "{paused:?}"
+    );
+    assert_eq!(status, Some(halvo_control::exit::CLEAN));
+    let state = StateFile::open(
+        StateDir::open(&dir).unwrap(),
+        Box::new(TestWrite::default()),
+    );
+    assert_eq!(
+        state.state().desired,
+        super::state::Desired::Paused,
+        "the state file as the next start reads it"
+    );
 }

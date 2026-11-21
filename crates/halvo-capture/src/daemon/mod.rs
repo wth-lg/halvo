@@ -2276,7 +2276,12 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
     .with_ending(ending)
     .with_state(state)
     .with_marker(Box::new(supervisor::MarkerFile::new(dir.run_marker())))
-    .with_hold(run_marker::held(dir));
+    .with_hold(run_marker::held(dir))
+    .with_life(listening.admitting().ending_life());
+    listening
+        .admitting()
+        .ending_life()
+        .serve_from(supervisor.shared_state(), facts);
     if let Some(lifeline) = parts.lifeline {
         supervisor = supervisor.with_parent(Box::new(lifeline));
     }
@@ -2487,6 +2492,8 @@ pub(crate) fn serve_held_on<F: supervisor::SystemSources, L: main_loop::MainLoop
         };
         delete_written = answer_the_delete(&mut deleted, Some(made)).or(delete_written);
     }
+    listening.admitting().end_the_life();
+    answer_the_queue(&listening);
     answer_the_delete(&mut deleted, None);
     #[cfg(feature = "r2")]
     listening.admitting().hold_owner(None);
@@ -2650,6 +2657,27 @@ fn serve_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
 const WRITTEN_WAIT: Duration = Duration::from_millis(2_500);
 
 #[cfg(target_os = "macos")]
+fn answer_the_queue(listening: &server::unix::Listening) {
+    let life = listening.admitting().ending_life();
+    while let Some(asked) = listening.next() {
+        let admission = halvo_control::proto::admission(
+            &asked.request,
+            halvo_control::proto::PERMISSION_FORM,
+            false,
+            halvo_control::proto::Life::Ending,
+        );
+        let reply = match (life.answer(admission, &asked.request), admission) {
+            (Some(reply), _) => reply,
+            (None, halvo_control::proto::Admission::Ending) => halvo_control::proto::Reply::Error(
+                halvo_control::proto::ErrorReply::busy_of_an_ending_life(),
+            ),
+            (None, _) => continue,
+        };
+        let _ = asked.answer(reply);
+    }
+}
+
+#[cfg(target_os = "macos")]
 enum DeleteAsked {
     Answered,
     Reopen,
@@ -2784,7 +2812,7 @@ fn delete_on_request<F: supervisor::SystemSources, L: main_loop::MainLoop>(
                 state::StateHealth::Corrupt | state::StateHealth::NewerVersion(_)
             );
             if whole && unloaded {
-                if let Some(Err(error)) = supervisor.state_mut().map(state::StateFile::reset) {
+                if let Some(Err(error)) = supervisor.with_state_file(state::StateFile::reset) {
                     let _ = writeln!(
                         err,
                         "halvo-capture: state_file=write_failed: the defaults were not written over daemon-state.json after the delete: {}",
@@ -2944,7 +2972,7 @@ fn cap_set_reply<F: supervisor::SystemSources, L: main_loop::MainLoop>(
     store: &HeldStore,
 ) -> halvo_control::proto::Reply {
     use halvo_control::proto::{CapSet, ErrorCode, ErrorReply, Reply};
-    let Some((written, bound)) = supervisor.state_mut().map(|state| set_cap(state, cap)) else {
+    let Some((written, bound)) = supervisor.with_state_file(|state| set_cap(state, cap)) else {
         return Reply::Error(ErrorReply::new(
             ErrorCode::Internal,
             "the capture service holds no state file",

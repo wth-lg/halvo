@@ -5,7 +5,7 @@
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use halvo_control::exit;
@@ -25,7 +25,7 @@ use super::slot::Slot;
 use super::sources::{
     is_a_stop, past_bound, stop_bound, stop_order, RunningSources, SourceFactory,
 };
-use super::state::{Desired, StateError, StateFile};
+use super::state::{Desired, SharedStateFile, StateError, StateFile};
 use super::{DaemonError, RunSources, Waits};
 use crate::source::{
     CaptureError, HealthReason, SourceContext, SourceCounters, SourceState, StopCause,
@@ -446,7 +446,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     unstopped_in_life: Vec<(SourceName, CaptureError)>,
     owner_gone_stops: Option<Vec<(SourceName, Result<(), CaptureError>)>>,
     entry_status: Option<i32>,
-    state: Option<StateFile>,
+    state: Option<SharedStateFile>,
     served: Option<(SourceContext, Vec<SourceName>)>,
     slot: Slot,
     lease: Lease,
@@ -455,6 +455,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     parent: Option<Box<dyn ParentWatch>>,
     held_paused: bool,
     held: bool,
+    life: Option<Arc<super::server::EndingLife>>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -497,14 +498,41 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             parent: None,
             held_paused: false,
             held: false,
+            life: None,
         }
     }
 
     /// The state file that the supervisor holds: it records there each
     /// permission that its probe reads as granted.
     pub fn with_state(mut self, state: StateFile) -> Supervisor<F, L> {
-        self.state = Some(state);
+        self.state = Some(Arc::new(Mutex::new(state)));
         self
+    }
+
+    /// The life that the server shares (ruling PL-17): the supervisor marks
+    /// it ending at the first answer that is not a stop in a stop for capture
+    /// off and at the start of the shutdown entry, and publishes there the
+    /// parts of the status from which a connection of an ending life answers.
+    pub fn with_life(mut self, life: Arc<super::server::EndingLife>) -> Supervisor<F, L> {
+        self.life = Some(life);
+        self
+    }
+
+    /// The state file as the server's ending life shares it.
+    pub fn shared_state(&self) -> Option<SharedStateFile> {
+        self.state.clone()
+    }
+
+    fn state_file(&self) -> Option<MutexGuard<'_, StateFile>> {
+        self.state
+            .as_ref()
+            .map(|state| state.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    fn end_the_life(&self) {
+        if let Some(life) = &self.life {
+            life.end_the_life();
+        }
     }
 
     /// The probe runner whose answers the supervisor reads.
@@ -567,16 +595,17 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// check, if one did.
     #[cfg(target_os = "macos")]
     pub(crate) fn status_parts(&self, obstructed: Option<Duration>) -> super::server::StatusParts {
-        let state = self.state.as_ref().map(StateFile::state);
+        let desired = self.desired();
+        let file = self.state_file();
+        let state = file.as_deref().map(StateFile::state);
         super::server::StatusParts {
             board: self.board.clone(),
-            desired: self.desired(),
+            desired,
             lease: self.lease.reading(self.main_loop.now()),
             slot: self.slot.clone(),
             obstructed,
-            health: self
-                .state
-                .as_ref()
+            health: file
+                .as_deref()
                 .map_or(super::state::StateHealth::Ok, StateFile::health),
             cap: state.map_or(
                 super::state::Cap::Known(halvo_control::model::StorageCap::DEFAULT),
@@ -607,9 +636,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         reply: &mut dyn FnMut(&Board),
     ) -> Option<Result<(), StateError>> {
         let written = self
-            .state
-            .as_mut()
-            .map(|state| state.update(|state| state.desired = desired));
+            .state_file()
+            .map(|mut state| state.update(|state| state.desired = desired));
         match desired {
             Desired::Paused => self.held_paused = !matches!(written, Some(Ok(()))),
             Desired::Running => {
@@ -634,11 +662,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         written
     }
 
-    /// The state file that the supervisor holds, for a write of a client's
-    /// request.
+    /// `write` on the state file that the supervisor holds, for a write of a
+    /// client's request.
     #[cfg(target_os = "macos")]
-    pub(crate) fn state_mut(&mut self) -> Option<&mut StateFile> {
-        self.state.as_mut()
+    pub(crate) fn with_state_file<T>(
+        &mut self,
+        write: impl FnOnce(&mut StateFile) -> T,
+    ) -> Option<T> {
+        self.state_file().map(|mut state| write(&mut state))
     }
 
     #[cfg(target_os = "macos")]
@@ -646,7 +677,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         &mut self,
         change: impl FnOnce(&mut super::state::DaemonState),
     ) -> Option<Result<(), StateError>> {
-        self.state.as_mut().map(|state| state.update(change))
+        self.state_file().map(|mut state| state.update(change))
     }
 
     pub fn factory(&self) -> &F {
@@ -812,8 +843,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if self.held_paused {
             return Desired::Paused;
         }
-        self.state
-            .as_ref()
+        self.state_file()
             .map_or(Desired::Paused, |state| state.state().desired)
     }
 
@@ -1092,8 +1122,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 }
             }
         }
-        if let Some(state) = self.state.as_mut() {
-            match state.record_granted(&granted) {
+        let recorded = self
+            .state_file()
+            .map(|mut state| state.record_granted(&granted));
+        if let Some(recorded) = recorded {
+            match recorded {
                 Err(StateError::NotWritten { kind, .. }) => {
                     let _ = writeln!(
                         self.err,
@@ -1221,6 +1254,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 self.arm_unstopped(*name, &answer);
                 self.answered_unstopped(*name, &answer);
                 self.pausing = true;
+                self.end_the_life();
                 unstopped = true;
                 break;
             }
@@ -1610,6 +1644,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             return None;
         }
         self.entered = true;
+        self.end_the_life();
         let asked_before = self.pausing;
         let started = self.main_loop.now();
         let found = self.arm_found();
@@ -1698,6 +1733,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             self.board.capture_of(&self.wanted)
         };
         self.board.figures = self.factory.figures();
+        #[cfg(target_os = "macos")]
+        if let Some(life) = &self.life {
+            life.publish(self.status_parts(None));
+        }
     }
 }
 
