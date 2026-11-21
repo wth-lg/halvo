@@ -1722,6 +1722,10 @@ case $STUB_CHECK:${2:-} in
   git-config:generate)
     git config --local r6.egress.planted generate || exit 97
     ;;
+  attributes:generate)
+    attributes=$(git rev-parse --git-path info/attributes) || exit 97
+    mkdir -p "${attributes%/*}" && printf 'r6-planted r6=1\n' >"$attributes" || exit 97
+    ;;
   widen:generate) printf '127.0.0.1:47391\n' >>scripts/r6/egress/gate.txt ;;
   widen:probe) printf '[fixed]\n[agent]\n' >scripts/r6/egress/gate.txt ;;
   change-copy:generate) printf '127.0.0.1:47391\n' >>"$list" ;;
@@ -2052,6 +2056,7 @@ control-leaves-a-file-in-the-checkout
 last-entry-leaves-a-file-in-the-checkout
 shared-stand-ins-first-input
 shared-stand-ins-second-input
+run-writes-info-attributes
 EOF
 }
 
@@ -2992,6 +2997,8 @@ EOF
   case_run canary-requires-a-windows-entry-in-the-windows-job FAIL check 'egress canary profile=dev missing=clippy::disallowed_methods:51'
   canary_case canary-match-splits-a-place-with-a-space PASS 'egress canary profile=dev entries=1 found=1 exit=101' 'missing=' \
     "clippy::disallowed_types 1 2$nl" "finding clippy::disallowed_types src/lib.rs 1 2$nl"
+  canary_case canary-match-strips-leading-spaces PASS 'egress canary profile=dev entries=1 found=1 exit=101' 'missing=' \
+    "  unsafe_code 1$nl" "finding unsafe_code src/lib.rs 1$nl"
   canary_case canary-match-reads-the-whole-line FAIL 'egress canary profile=dev missing=clippy::disallowed_types:1' 'found=1' \
     "clippy::disallowed_types 1$nl" "finding clippy::disallowed_types src/lib.rs 12$nl"
   canary_case canary-match-reads-text-not-a-pattern FAIL 'egress canary profile=dev missing=clippy::disallowed.types[1]:3' 'found=1' \
@@ -3122,6 +3129,13 @@ EOF
   STUB_CHECK=git-config
   case_run run-changes-git-configuration FAIL check "egress run=generate: a wrapped run changed git's configuration"
   git -C "$work/repo" config --local --unset r6.egress.planted >/dev/null 2>&1
+  if [ "$host_job" = macos ] && case_wanted run-writes-info-attributes; then
+    attributes_tree=$(write_repo "$work/repo-attributes" '') || self_failed "setup at line $LINENO"
+    case_repo=$work/repo-attributes
+    case_tree=$attributes_tree
+  fi
+  STUB_CHECK=attributes
+  case_run run-writes-info-attributes FAIL check "egress run=generate: a wrapped run changed git's configuration"
   STUB_BUILD_TOUCH=$work/repo/docs/r2/trials/egress.md
   case_run build-changes-a-tracked-file FAIL check 'tree changed=before-calls M docs/r2/trials/egress.md'
   git -C "$work/repo" checkout -q -- docs/r2/trials/egress.md 2>/dev/null || self_failed "setup at line $LINENO"
@@ -3242,10 +3256,14 @@ sysroot_asks() {
       asks=$((asks + 1))
     done <"$work/sysroot-asks.txt"
   fi
-  if [ "$asks" -le 1 ]; then
+  want_asks=0
+  if [ "$host_job" = windows ] && case_named import-listing-printed; then
+    want_asks=1
+  fi
+  if [ "$asks" -eq "$want_asks" ]; then
     printf 'case %s/sysroot-asked-once want=PASS got=PASS\n' "$name"
   else
-    printf 'case %s/sysroot-asked-once want=PASS got=asked-%s-times\n' "$name" "$asks"
+    printf 'case %s/sysroot-asked-once want=PASS got=asked-%s-times-of-%s\n' "$name" "$asks" "$want_asks"
     wrong="$wrong sysroot-asked-once"
   fi
 }
