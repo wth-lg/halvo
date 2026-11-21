@@ -66,10 +66,14 @@
 //! the starter's channel before the reply to the request that made it, and once more before it exits:
 //!
 //! ```text
-//! {"report":{"revisions":{"workflow":<n>,..},"counts":{"window":<n>,"bounded":<n>,"kept":<n>},"disk_bytes":<n>,"expiry":<instant>|null}}
+//! {"report":{"revisions":{"workflow":<n>,..},"counts":{"window":<n>,"bounded":<n>,"kept":<n>},"disk_bytes":<n>,"expiry":<instant>|null,"position":{"store":"<store id>","seg":<n>,"idx":<n>}|null}}
 //! ```
 //!
-//! `revisions` holds the families in the order of the registry. At every periodic check the owner calls
+//! `revisions` holds the families in the order of the registry. `position` is the store id that the database is bound
+//! to and the position up to which batches are committed, from the store's own table `meta`, or null while the
+//! database is bound to no store: the report before the first request holds what an earlier owner committed over the
+//! same directory, and the report of a committed batch its store id and commit position. A batch at or before the
+//! committed position commits nothing and makes no report. At every periodic check the owner calls
 //! `Store::expire` with no request, and writes the report of that call only when it removed a row.
 //!
 //! # How the owner ends
@@ -106,7 +110,9 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender};
 use std::time::{Duration, Instant as Mono, SystemTime, UNIX_EPOCH};
 
-use halvo_derived::{Clock, Counts, DbKey, Error, IdSource, OpenError, Report, Store};
+use halvo_derived::{
+    Clock, CommittedPosition, Counts, DbKey, Error, IdSource, OpenError, Report, Store,
+};
 use halvo_schema_core::ids::StoreId;
 use halvo_schema_core::kinds::{self, KindEntry};
 use halvo_schema_core::record::{Episode, Instant, Ordinal};
@@ -877,12 +883,25 @@ struct Body<'a>(&'a Report);
 
 impl Serialize for Body<'_> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut body = serializer.serialize_struct("report", 4)?;
+        let mut body = serializer.serialize_struct("report", 5)?;
         body.serialize_field("revisions", &Revisions(&self.0.revisions))?;
         body.serialize_field("counts", &CountsOf(&self.0.counts))?;
         body.serialize_field("disk_bytes", &self.0.disk_bytes)?;
         body.serialize_field("expiry", &self.0.expiry.map(|at| at.0))?;
+        body.serialize_field("position", &self.0.position.as_ref().map(PositionOf))?;
         body.end()
+    }
+}
+
+struct PositionOf<'a>(&'a CommittedPosition);
+
+impl Serialize for PositionOf<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut position = serializer.serialize_struct("position", 3)?;
+        position.serialize_field("store", self.0.store.as_str())?;
+        position.serialize_field("seg", &self.0.position.seg)?;
+        position.serialize_field("idx", &self.0.position.idx)?;
+        position.end()
     }
 }
 

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Once};
 use std::time::Duration;
 
-use halvo_schema_core::ids::Position;
+use halvo_schema_core::ids::{Position, StoreId};
 use halvo_schema_core::kinds::{self, KindEntry, RetentionClass};
 use halvo_schema_core::record::Instant;
 use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags, Params, Row};
@@ -15,7 +15,7 @@ use halvo_sqlcipher::rusqlite::{self, Connection, ErrorCode, OpenFlags, Params, 
 use crate::error::{db_fault, io_fault, Fault, OpenError, StoredFault};
 use crate::handler::DayFault;
 use crate::host::{Clock, DbKey, IdSource, ReportSink};
-use crate::report::{Counts, Report};
+use crate::report::{CommittedPosition, Counts, Report};
 use crate::sql::{self, Sql};
 
 pub(crate) const PAGE_CACHE_KIB: i64 = 4096;
@@ -694,9 +694,10 @@ impl Db {
         Ok(())
     }
 
-    /// The four values of the owner's report: the revision of every family of the entries in their order, the count
-    /// of rows per retention class, the bytes on disk of the database with its log and its shared-memory file, and
-    /// the next expiry deadline.
+    /// The five values of the owner's report: the revision of every family of the entries in their order, the count
+    /// of rows per retention class, the bytes on disk of the database with its log and its shared-memory file, the
+    /// next expiry deadline, and the store id with the committed position from the one row of `meta`, none unless that
+    /// row holds both.
     pub(crate) fn report(&self) -> Result<Report, Fault> {
         let mut revisions = Vec::new();
         for family in &self.families {
@@ -736,11 +737,22 @@ impl Db {
             .into_iter()
             .flatten()
             .min();
+        let position = match self.meta()? {
+            Meta {
+                store: Some(store),
+                position: Some(position),
+            } => Some(CommittedPosition {
+                store: StoreId::parse(&store).map_err(|_| Fault::Row)?,
+                position,
+            }),
+            _ => None,
+        };
         Ok(Report {
             revisions,
             counts,
             disk_bytes,
             expiry,
+            position,
         })
     }
 

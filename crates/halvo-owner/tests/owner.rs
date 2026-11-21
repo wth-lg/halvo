@@ -782,8 +782,13 @@ fn read_evidence(workflow: &WorkflowId) -> Vec<u8> {
     .unwrap()
 }
 
+/// The store id that `analysis_write` names.
+fn analysis_store() -> String {
+    "1".repeat(32)
+}
+
 fn analysis_write(episodes: Vec<Episode>, commit: Position) -> Vec<u8> {
-    let store = StoreId::parse(&"1".repeat(32)).unwrap();
+    let store = StoreId::parse(&analysis_store()).unwrap();
     let mut write = AnalysisWrite::new(&AnalysisRole::claim(), request_id(), store);
     for episode in episodes {
         write.push(episode).unwrap();
@@ -985,6 +990,76 @@ fn the_owner_reports_each_commit_expires_by_itself_and_reports_before_it_exits()
     }
     let last = last.expect("no last report after the end of the channel");
     assert_eq!(last["counts"]["window"], 0);
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+}
+
+/// Ruling 1 of the position: the first report of an owner over an empty directory ends with `position` null.
+#[test]
+fn a_new_store_reports_no_position() {
+    let scratch = Scratch::new("owner-position-new");
+    let mut owner = start(&scratch.0, KEY, 1, false, &[]);
+    let (opened, text) = owner
+        .report_where(Mono::now() + WAIT, |_| true)
+        .expect("the owner reports its open");
+    assert_eq!(opened.get("position"), Some(&Value::Null), "{text}");
+    assert!(text.ends_with(r#","position":null}}"#), "{text}");
+    owner.close();
+    assert_eq!(owner.exit_code(WAIT), Some(exit::END));
+}
+
+/// Ruling 2 of the position: the report that an owner writes before its first request holds the store id and the
+/// position that an earlier owner committed over the same directory.
+#[test]
+fn a_second_owner_reports_the_position_at_its_start() {
+    let scratch = Scratch::new("owner-position-start");
+    let mut first = start(&scratch.0, KEY, 1, true, &[]);
+    first.write(&analysis_write(
+        vec![episode(1, two_days_ago(), FAR)],
+        Position { seg: 2, idx: 0 },
+    ));
+    assert!(matches!(
+        first.worker_reply().outcome,
+        Ok(ReplyResult::Null)
+    ));
+    first.close();
+    assert_eq!(first.exit_code(WAIT), Some(exit::END));
+
+    let mut second = start(&scratch.0, KEY, 1, false, &[]);
+    let (opened, text) = second
+        .report_where(Mono::now() + WAIT, |_| true)
+        .expect("the second owner reports its open");
+    assert_eq!(
+        opened.get("position"),
+        Some(&serde_json::json!({"store": analysis_store(), "seg": 2, "idx": 0})),
+        "{text}"
+    );
+    second.close();
+    assert_eq!(second.exit_code(WAIT), Some(exit::END));
+}
+
+/// Ruling 3 of the position: the report of a committed batch ends with the store id of that batch and its commit
+/// position.
+#[test]
+fn the_report_of_a_commit_ends_with_its_position() {
+    let scratch = Scratch::new("owner-position-commit");
+    let mut owner = start(&scratch.0, KEY, 1, true, &[]);
+    owner.write(&analysis_write(
+        vec![episode(1, two_days_ago(), FAR)],
+        Position { seg: 2, idx: 0 },
+    ));
+    assert!(matches!(
+        owner.worker_reply().outcome,
+        Ok(ReplyResult::Null)
+    ));
+    let (_, text) = owner
+        .report_where(Mono::now() + WAIT, |r| r["counts"]["window"] == 1)
+        .expect("no report shows the committed window row");
+    let tail = format!(
+        r#","position":{{"store":"{}","seg":2,"idx":0}}}}}}"#,
+        analysis_store()
+    );
+    assert!(text.ends_with(&tail), "{text}");
+    owner.close();
     assert_eq!(owner.exit_code(WAIT), Some(exit::END));
 }
 

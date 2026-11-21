@@ -75,8 +75,9 @@
 //! the other steps' records stand, and the store reports the refusal to its host in `CommitOutcome::steps`, in the
 //! place of that step, as a `Refusal` that names the index of the record and the rule; the analysis write that led to
 //! it is no less committed. After each committed transaction the store hands the sink of its host a `Report`: the
-//! revision of every family, the count per retention class, the bytes on disk and the next expiry deadline. A call
-//! that returns a fault after its transaction committed leaves that transaction in place.
+//! revision of every family, the count per retention class, the bytes on disk, the next expiry deadline and the
+//! committed position with its store id. A call that returns a fault after its transaction committed leaves that
+//! transaction in place.
 //!
 //! # What a host and a later unit must know
 //!
@@ -137,7 +138,7 @@ pub use guard::{DeleteGuard, GuardAnswer, HeldAhead};
 pub use handler::{Cause, Committed, DayFault, Handler, HandlerCx, Refusal, Takes};
 pub use host::{Clock, DbKey, Host, IdSource, ReportSink};
 pub use read::ReadHandle;
-pub use report::{Counts, Report};
+pub use report::{CommittedPosition, Counts, Report};
 pub use state::{HeldRefusal, MoveTo};
 pub use typed::Rows;
 
