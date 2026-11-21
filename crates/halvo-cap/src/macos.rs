@@ -170,6 +170,8 @@ struct Running {
 pub(crate) struct Started {
     /// None for a program that could not be started, and once the wait has taken it.
     running: Option<Running>,
+    /// The system's error number of a start that failed.
+    refused: Option<i32>,
     limit: Limit,
     start: UnixNanos,
     ending: Arc<Ending>,
@@ -282,9 +284,10 @@ fn begin(mut command: Command, limit: Limit) -> Result<Started, CapError> {
     drop(command);
     let mut child = match spawned {
         Ok(child) => child,
-        Err(_) => {
+        Err(error) => {
             return Ok(Started {
                 running: None,
+                refused: error.raw_os_error(),
                 limit,
                 start,
                 ending: Arc::new(Ending::of(None)),
@@ -305,6 +308,7 @@ fn begin(mut command: Command, limit: Limit) -> Result<Started, CapError> {
             ended,
             begun,
         }),
+        refused: None,
         limit,
         start,
         ending,
@@ -314,6 +318,10 @@ fn begin(mut command: Command, limit: Limit) -> Result<Started, CapError> {
 impl Started {
     pub(crate) fn pid(&self) -> Option<u32> {
         self.running.as_ref().map(|running| running.child.id())
+    }
+
+    pub(crate) fn start_error(&self) -> Option<i32> {
+        self.refused
     }
 
     pub(crate) fn ending(&self) -> Arc<Ending> {

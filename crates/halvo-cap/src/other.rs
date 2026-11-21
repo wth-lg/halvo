@@ -32,6 +32,10 @@ impl Started {
         None
     }
 
+    pub(crate) fn start_error(&self) -> Option<i32> {
+        None
+    }
+
     pub(crate) fn ending(&self) -> Arc<Ending> {
         Arc::new(Ending)
     }

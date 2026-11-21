@@ -385,6 +385,8 @@ struct Running {
 pub(crate) struct Started {
     /// None for a program that could not be started, and once the wait has taken it.
     running: Option<Running>,
+    /// The system's error number of a start that failed.
+    refused: Option<i32>,
     mode: Mode,
     start: UnixNanos,
     ending: Arc<Ending>,
@@ -616,9 +618,10 @@ pub(crate) fn start(spec: EndsSpec, limit: Limit) -> Result<Started, CapError> {
     drop(spec);
     let (process, thread, pid) = match created {
         Ok(created) => created,
-        Err(_) => {
+        Err(error) => {
             return Ok(Started {
                 running: None,
+                refused: error.raw_os_error(),
                 mode,
                 start,
                 ending: Arc::new(Ending::of(None)),
@@ -642,6 +645,7 @@ pub(crate) fn start(spec: EndsSpec, limit: Limit) -> Result<Started, CapError> {
             process,
             pid,
         }),
+        refused: None,
         mode,
         start,
         ending: Arc::new(Ending::of(Some(job))),
@@ -651,6 +655,10 @@ pub(crate) fn start(spec: EndsSpec, limit: Limit) -> Result<Started, CapError> {
 impl Started {
     pub(crate) fn pid(&self) -> Option<u32> {
         self.running.as_ref().map(|running| running.pid)
+    }
+
+    pub(crate) fn start_error(&self) -> Option<i32> {
+        self.refused
     }
 
     pub(crate) fn ending(&self) -> Arc<Ending> {

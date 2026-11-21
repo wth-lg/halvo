@@ -497,7 +497,7 @@ impl WorkerSlot {
         let Some(pid) = started.pid() else {
             return Err(StartFault {
                 what: "worker",
-                code: None,
+                code: started.start_error(),
             });
         };
         let ender = started.ender();

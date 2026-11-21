@@ -139,6 +139,15 @@ struct Rig {
     _one: MutexGuard<'static, ()>,
 }
 
+impl Drop for Rig {
+    /// A test that fails prints what its slot wrote.
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            eprintln!("the slot wrote: {:?}", self.lines.text());
+        }
+    }
+}
+
 impl Rig {
     /// A slot whose read channel the cursor serves.
     fn new(name: &str) -> Rig {

@@ -326,6 +326,12 @@ impl Started {
         self.0.pid()
     }
 
+    /// The system's error number for a program that could not be started, where the system
+    /// gave one; none for a child that was started.
+    pub fn start_error(&self) -> Option<i32> {
+        self.0.start_error()
+    }
+
     /// The call that ends this child, for another thread than the one that waits.
     pub fn ender(&self) -> Ender {
         Ender(self.0.ending())
