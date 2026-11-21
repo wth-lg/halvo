@@ -2619,6 +2619,8 @@ where
     /// `records_dropped` where the board took off a record of the agent in this life. An agent
     /// that has no row, whose workflow a tick saw gone or whose setup body the owner ended, is
     /// `unknown_agent`, as for every control.
+    /// A run that this life's `Runs::reap` answered `alive` and that a record of the store names
+    /// takes its line from that record's end, as its row does (`Board::ended_after_reap`).
     pub fn card(&self, agent: &AgentId) -> Result<Card, Cause> {
         let st = self.lock();
         let board = st
@@ -2637,7 +2639,14 @@ where
             .ports
             .agent_history(&facts.workflow.id, agent, self.limits.history_runs)
             .map_err(|e| cause_of(&e))?;
-        let mut card = roster::card(facts, &name, &history, &self.limits)?;
+        let records: Vec<_> = history.iter().map(|h| h.run.clone()).collect();
+        let after = board.ended_after_reap(facts, &records);
+        let mut card = roster::card(
+            after.as_ref().unwrap_or(facts),
+            &name,
+            &history,
+            &self.limits,
+        )?;
         let count = board.dropped(agent).map_or(0, |(n, _, _)| n);
         if let Some(line) = roster::dropped_line(count)? {
             card.lines.insert(0, line);
@@ -2715,6 +2724,12 @@ where
             .iter()
             .map(|m| &m.facts)
             .filter(|f| board.gone.contains(&f.workflow.id) && matches!(f.doing, Doing::Live(_)))
+            .chain(board.members.iter().map(|m| &m.facts).filter(|f| {
+                board.gone.contains(&f.workflow.id)
+                    && !matches!(f.doing, Doing::Live(_))
+                    && board.alive_at_reap(&f.agent).is_some()
+            }))
+            .chain(board.kept_gone())
             .collect();
         shown.extend(still.iter().copied());
         shown.sort_by(|a, b| a.agent.cmp(&b.agent));
@@ -2732,7 +2747,9 @@ where
                 let stuck = board
                     .runs
                     .iter()
-                    .any(|r| r.agent == facts.agent && r.kill_refused);
+                    .any(|r| r.agent == facts.agent && r.kill_refused)
+                    || board.alive_at_reap(&facts.agent).is_some()
+                    || board.kept_gone().iter().any(|f| f.agent == facts.agent);
                 if let Ok(row) = roster::gone_row(*facts, stuck, System::HOST, name) {
                     placed.push((Placed { row, raised: None }, None));
                 }
@@ -2742,12 +2759,24 @@ where
             let held = open
                 .as_ref()
                 .and_then(|o| st.held.iter().find(|h| h.item() == &o.item));
-            let line = roster::status_of(
-                *facts,
+            let mut after = board.ended_after_reap(facts, &facts.runs);
+            if let Some(read) = after.as_mut() {
+                if Self::ready_only_by_interrupted(facts, read) {
+                    read.doing = Doing::Idle(None);
+                }
+            }
+            let line = match roster::status_of(
+                after.as_ref().unwrap_or(*facts),
                 &self.limits,
                 held.map(|h| h.confirmation().state()),
                 board.record_stuck(&facts.agent, &self.limits),
-            );
+            ) {
+                line @ crate::types::StatusLine::Record => line,
+                _ if board.alive_at_reap(&facts.agent).is_some() => {
+                    crate::types::StatusLine::KillStuck(System::HOST)
+                }
+                line => line,
+            };
             let waiting = board
                 .queue
                 .entries()
@@ -2806,6 +2835,27 @@ where
             None
         };
         (rows.into_iter().map(|p| p.row).collect(), items, note)
+    }
+
+    /// Whether the open `ready` item of `facts` is the stored raise of a run that a record of the
+    /// store names `completed` or `nothing_to_do` (`Board::raise_of_a_finished_run`, with `read`,
+    /// the facts with the ends that the row reads, from `Board::ended_after_reap`) while no new
+    /// slot has opened for it or while a hold of the agent stands (`schedule::holds` of `facts`).
+    /// Under any hold the stored item stays hidden, at a new slot too, whatever came first. A new
+    /// slot has opened when the agent's current slot is open by `slot_open` on `read`, where that
+    /// run's own end serves the slot in which it started; at such a slot with no hold standing,
+    /// the item stands for the ask of I5.3 for the next run. A named difference: where the slot
+    /// opened first and a hold came after, the ordinary way keeps its ready card under the hold,
+    /// and this rule hides the item until the hold ends. Such an item is not shown, not counted
+    /// and not given to a page, so that a task that the record names finished is never offered as
+    /// if it had not run while it is hidden. The rule asks no tick. Nothing is stored, and the item
+    /// stays open until a start of the person or the next life's recovery ends it (RD-156 (1),
+    /// RD-162 (1), RD-165).
+    fn ready_only_by_interrupted(facts: &Facts<Cfg<P>>, read: &Facts<Cfg<P>>) -> bool {
+        let new_slot = schedule::current_slot(&read.workflow, read.today)
+            .is_some_and(|s| schedule::slot_open(read, s));
+        Board::raise_of_a_finished_run(facts, read)
+            && (!new_slot || !schedule::holds(facts).is_empty())
     }
 
     fn item_of(
