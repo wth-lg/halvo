@@ -1,7 +1,8 @@
 // The app's page under the app's own policy: the csp of src-tauri/tauri.conf.json, sent as the
 // page's Content-Security-Policy header, in the headless browser of tools/r4-page. A person sees
-// the needs view and the agents view with their own styles: the status region .hn-say of the
-// needs view is hidden from sight, and a state dot of the agents view has its size.
+// the needs view, the agents view and the question of confirm.js with their own styles: the
+// status region .hn-say of the needs view is hidden from sight, a state dot of the agents view has
+// its size, and the question that the delete control of a row opens has its border and buttons.
 // Run: R4_PAGE_BROWSERS=<the fetched browsers> node ui/tests/page/policy.test.mjs
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
@@ -54,7 +55,9 @@ const build = installed();
 const pw = await import(pathToFileURL(build.pkg).href);
 const browser = await pw[build.browser].launch({ headless: true, executablePath: build.exe });
 let failed = 0;
+let ran = 0;
 const result = (name, ok, detail) => {
+  ran++;
   if (!ok) failed++;
   console.log('policy test=' + name + ' ' + (ok ? 'ok' : 'fail') + ' detail=' + JSON.stringify(detail));
 };
@@ -77,9 +80,17 @@ try {
   });
   result('hn-say-hidden', seen.say.position === 'absolute' && seen.say.width <= 1 && seen.say.height <= 1, seen.say);
   result('state-dot-size', seen.dot.width >= 10 && seen.dot.height >= 10, seen.dot);
+  await page.click('button[data-act="delete"]');
+  await page.waitForSelector('dialog.hc-dialog[open]');
+  const asked = await page.evaluate(() => {
+    const dialog = document.querySelector('dialog.hc-dialog[open]');
+    const button = dialog.querySelector('.hc-button');
+    return { border: getComputedStyle(dialog).borderTopWidth, minHeight: button ? getComputedStyle(button).minHeight : null };
+  });
+  result('question-styles', asked.border === '2px' && asked.minHeight === '44px', asked);
 } finally {
   await browser.close();
   server.close();
 }
-console.log('policy tests: 2, failed: ' + failed + ', browser: ' + build.browser);
-process.exitCode = failed === 0 ? 0 : 1;
+console.log('policy tests: ' + ran + ', failed: ' + failed + ', browser: ' + build.browser);
+process.exitCode = failed === 0 && ran === 3 ? 0 : 1;
