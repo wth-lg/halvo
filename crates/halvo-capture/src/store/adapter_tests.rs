@@ -189,3 +189,22 @@ fn no_key_and_nothing_is_made_without_the_stores_root() {
         ]
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn an_ask_through_a_linked_data_directory_makes_the_key() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("data");
+    std::fs::create_dir(&target).unwrap();
+    let linked = root.path().join("linked");
+    std::os::unix::fs::symlink(&target, &linked).unwrap();
+    let _held = a_store(&linked);
+
+    let first = DataDirStore::at(&linked).derived_store_key().unwrap();
+
+    let file = target.join("derived").join("master.key");
+    assert!(std::fs::symlink_metadata(&file).unwrap().is_file());
+    assert_eq!(fields(&file)["namespace"], "derived");
+    let again = DataDirStore::at(&linked).derived_store_key().unwrap();
+    assert_eq!(again.expose(), first.expose());
+}

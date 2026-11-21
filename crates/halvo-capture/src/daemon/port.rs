@@ -395,7 +395,9 @@ pub enum DerivedKeyFault {
     /// No root exists, or the root file is empty or all zero.
     #[error("the capture store's root is missing")]
     RootMissing,
-    /// The root file has a wrong length or is no regular file.
+    /// The root file has a wrong length or is no regular file, a link or
+    /// another kind of entry stands at the roots directory's name, or the
+    /// wrap or the unwrap failed in a way that no other variant names.
     #[error("the capture store's root is damaged")]
     RootCorrupt,
     /// The root cannot be read by this user or build.

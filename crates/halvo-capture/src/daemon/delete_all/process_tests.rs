@@ -311,6 +311,31 @@ fn a_delete_ends_the_derived_key_and_a_new_store_makes_a_new_one() {
 }
 
 #[test]
+fn the_offline_delete_in_a_linked_data_directory_answers_0() {
+    let root = kept_dir("delete-all-linked-");
+    let target = root.join("data");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let linked = root.join("linked");
+    std::os::unix::fs::symlink(&target, &linked).unwrap();
+    a_store_with_a_segment(&linked);
+    let table = rows();
+    let how = Offline {
+        rows: &table,
+        select: custody_policy::of_this_build,
+        hands: &SystemHands,
+    };
+
+    let (status, out, err) = offline_run(&linked, &how);
+
+    assert_eq!(status, 0, "out: {out} err: {err}");
+    assert!(!target.join("store/store.key").exists());
+    assert!(segment_files(&target).is_empty());
+    assert!(root_files(&target).is_empty(), "{:?}", root_files(&target));
+    assert!(!target.join(super::INTENT_FILE).exists());
+}
+
+#[test]
 fn every_state_on_disk_is_deleted_by_the_offline_caller() {
     fn maintenance_alone(recorded: Option<Custody>) -> Selection {
         match recorded {

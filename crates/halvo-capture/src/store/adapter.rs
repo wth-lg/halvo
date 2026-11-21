@@ -303,15 +303,18 @@ impl StoreHost for DataDirStore {
 impl DataDirStore {
     /// Flushes the folder `folder` of the data directory to the drive
     /// through the store's durable-write helper, whose directory flush makes
-    /// no call on Windows.
+    /// no call on Windows. A link at the data directory's own name is
+    /// followed, and none at the folder's.
     pub fn sync_folder(&self, folder: &Path) -> io::Result<()> {
-        Dir::open(&self.path().join(folder))?.sync()
+        Dir::open(&resolved_data_dir(self.path())?.join(folder))?.sync()
     }
 
     /// Removes the file `name` of the data directory, when it stands, and
-    /// flushes the data directory to the drive.
+    /// flushes the data directory to the drive. A link at the data
+    /// directory's own name is followed.
     pub fn remove_durably(&self, name: &str) -> io::Result<()> {
-        durable::remove_durably(&OsFs, &Dir::open(self.path())?, OsStr::new(name))
+        let dir = Dir::open(&resolved_data_dir(self.path())?)?;
+        durable::remove_durably(&OsFs, &dir, OsStr::new(name))
     }
 
     /// Destroys the key file at `file`, a path inside the data directory,
@@ -525,7 +528,7 @@ fn standing_derived_key(
 
 fn publish_derived(data_dir: &Path, file: &Path, key_file: &KeyFile) -> super::StoreResult<()> {
     let io_fault = |e: io::Error| StoreError::Io(e.kind());
-    let dir = Dir::open(data_dir).map_err(io_fault)?;
+    let dir = Dir::open(&resolved_data_dir(data_dir).map_err(io_fault)?).map_err(io_fault)?;
     dir.create_dir(OsStr::new("derived")).map_err(io_fault)?;
     dir.sync().map_err(io_fault)?;
     let mut tag = [0u8; 16];
@@ -554,5 +557,12 @@ fn derived_fault(fault: OpenFault) -> DerivedKeyFault {
         OpenFault::CustodyKind => DerivedKeyFault::CustodyKind,
         OpenFault::OlderStore => DerivedKeyFault::OlderStore,
         OpenFault::NewerStore => DerivedKeyFault::NewerStore,
+    }
+}
+
+fn resolved_data_dir(data_dir: &Path) -> io::Result<std::path::PathBuf> {
+    match std::fs::symlink_metadata(data_dir) {
+        Ok(entry) if entry.file_type().is_symlink() => std::fs::canonicalize(data_dir),
+        _ => Ok(data_dir.to_path_buf()),
     }
 }
