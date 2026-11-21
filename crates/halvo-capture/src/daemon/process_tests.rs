@@ -161,6 +161,60 @@ fn names(dir: &Path) -> Vec<String> {
     names
 }
 
+fn store_open(dir: &Path, service: &mut Service) {
+    let store = dir.join("store");
+    let started = Instant::now();
+    loop {
+        if let Some(status) = service.0.try_wait().unwrap() {
+            panic!("the service run ended before its store opened: {status}");
+        }
+        let marked = std::fs::read_to_string(dir.join("daemon-state.json"))
+            .is_ok_and(|text| text.contains("\"store_made\":true"));
+        if marked
+            && store.join("store.key").exists()
+            && !store.join("create.pending").exists()
+            && instance_lock::read(&data_dir(&store)).is_ok_and(|read| read == LockRead::Held)
+        {
+            return;
+        }
+        assert!(
+            started.elapsed() < READY_WITHIN,
+            "the service run never opened a store under its data directory"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+type StoreBytes = Vec<(PathBuf, Option<Vec<u8>>)>;
+
+fn store_bytes(dir: &Path) -> StoreBytes {
+    let store = dir.join("store");
+    let mut found: StoreBytes = ["store.key", "store.db", "store.db-wal"]
+        .into_iter()
+        .map(|name| (PathBuf::from(name), std::fs::read(store.join(name)).ok()))
+        .collect();
+    let mut walk = vec![store.join("segments")];
+    while let Some(at) = walk.pop() {
+        let Ok(entries) = std::fs::read_dir(&at) else {
+            continue;
+        };
+        for entry in entries {
+            let path = entry.unwrap().path();
+            let name = path.strip_prefix(&store).unwrap().to_path_buf();
+            if path.is_dir() {
+                found.push((name, None));
+                walk.push(path);
+            } else {
+                found.push((name, Some(std::fs::read(&path).unwrap())));
+            }
+        }
+    }
+    found.sort();
+    found
+}
+
+const MADE: [&str; 3] = ["daemon-state.json", "roots", "store"];
+
 fn second_start(dir: &Path) -> (Option<i32>, Duration) {
     let started = Instant::now();
     let status = service(dir).0.wait().unwrap();
@@ -172,6 +226,7 @@ fn a_second_service_run_exits_0_within_2_s_and_changes_nothing_in_the_directory(
     let dir = kept_dir("service-tests-");
     let mut first = service(&dir);
     ready(&dir, &mut first);
+    store_open(&dir, &mut first);
     let before = listing(&dir);
     let (status, took) = second_start(&dir);
     assert_eq!(status, Some(0));
@@ -179,11 +234,373 @@ fn a_second_service_run_exits_0_within_2_s_and_changes_nothing_in_the_directory(
     assert_eq!(listing(&dir), before);
     assert!(first.0.try_wait().unwrap().is_none(), "the first run ended");
     assert_eq!(terminate(first), Some(0));
-    assert_eq!(names(&dir), vec!["daemon-state.json".to_owned()]);
+    assert_eq!(names(&dir), MADE);
     assert_eq!(
         instance_lock::read(&data_dir(&dir)).unwrap(),
         LockRead::Free
     );
+}
+
+const TIMED: &str = "HALVO_DAEMON_TIMED_STORE_DIR";
+const TIMED_RUNNER: &str = "daemon::process_tests::timed_run_for_parent";
+
+struct WaitsForTheSignal(super::scripted::ScriptedRun);
+
+impl super::RunSources for WaitsForTheSignal {
+    fn start(
+        &mut self,
+        ctx: &crate::source::SourceContext,
+        wanted: &[super::SourceName],
+        hold_after: Option<Duration>,
+    ) -> Vec<super::FailedSource> {
+        self.0.start(ctx, wanted, hold_after)
+    }
+
+    fn wait(&mut self, window: Duration, stop: &AtomicBool) -> bool {
+        let started = Instant::now();
+        let _ = self.0.wait(Duration::ZERO, stop);
+        while !stop.load(Ordering::SeqCst) && started.elapsed() < window {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        stop.load(Ordering::SeqCst)
+    }
+
+    fn stop(&mut self) -> Vec<super::FailedSource> {
+        self.0.stop()
+    }
+
+    fn figures(&self) -> super::SourceCounters {
+        self.0.figures()
+    }
+
+    fn hold_refusal(&self) -> Option<super::DaemonError> {
+        self.0.hold_refusal()
+    }
+}
+
+#[test]
+fn timed_run_for_parent() {
+    use super::model_store::foreground_now;
+    use super::scripted::{ScriptedRun, ScriptedSource};
+    let Some(dir) = std::env::var_os(TIMED) else {
+        return;
+    };
+    signal::prepare().unwrap();
+    let run = super::TimedRun {
+        window: Duration::from_secs(60),
+        secure_input: super::SecureInput::DoNotHold,
+        switches: super::SwitchFlags(Vec::new()),
+        store_dir: PathBuf::from(dir),
+    };
+    let mut sources = WaitsForTheSignal(ScriptedRun::new(vec![(
+        super::SourceName::Foreground,
+        ScriptedSource::emitting(vec![foreground_now(), foreground_now()]),
+    )]));
+    let scratch = super::scratch_store(&run).unwrap();
+    let answer = super::run_timed(
+        &run,
+        &mut sources,
+        scratch.store,
+        super::maintenance::SystemClocks::new(),
+        signal::flag(),
+        super::SETTLE_BOUND,
+    );
+    let outcome = super::end_of_a_scratch_run(answer, scratch.root).unwrap();
+    let status = super::outcome_answer(&outcome, &mut std::io::stdout(), &mut std::io::stderr());
+    std::process::exit(status);
+}
+
+#[test]
+fn a_signalled_timed_run_prints_its_report_and_leaves_no_root_of_its_scratch_store() {
+    use std::io::Read;
+    let dir = kept_dir("timed-tests-");
+    let mut child = Service(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", TIMED_RUNNER, "--test-threads=1"])
+            .env(TIMED, &dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap(),
+    );
+    let started = Instant::now();
+    while !(dir.join("store.key").exists() && names(&dir.join("roots")).len() == 1) {
+        if let Some(status) = child.0.try_wait().unwrap() {
+            panic!("the timed run ended before its store was made: {status}");
+        }
+        assert!(
+            started.elapsed() < READY_WITHIN,
+            "the timed run made no scratch store"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    std::thread::sleep(Duration::from_millis(500));
+    let mut out = child.0.stdout.take().unwrap();
+    assert_eq!(
+        terminate(child),
+        Some(halvo_control::exit::TIMED_RUN_INTERRUPTED)
+    );
+    let mut report = String::new();
+    out.read_to_string(&mut report).unwrap();
+    assert!(
+        report.lines().any(|line| line == "segments_written=1"),
+        "{report}"
+    );
+    assert!(
+        report.lines().any(|line| line == "events_persisted=2"),
+        "{report}"
+    );
+    assert!(
+        dir.join("store.key").exists(),
+        "the run removed its store's files"
+    );
+    assert_eq!(
+        names(&dir.join("roots")),
+        Vec::<String>::new(),
+        "a root of the scratch store stays"
+    );
+}
+
+const KEYLESS_LINE: &str = "halvo-capture: store=unavailable store_error=obstructed: store.key is missing while the store's database or segments stand; no store was made over them";
+
+fn tree_bytes(root: &Path) -> StoreBytes {
+    let mut found = Vec::new();
+    let mut walk = vec![root.to_path_buf()];
+    while let Some(at) = walk.pop() {
+        for entry in std::fs::read_dir(&at).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.strip_prefix(root).unwrap().to_path_buf();
+            if path.is_dir() {
+                found.push((name, None));
+                walk.push(path);
+            } else {
+                found.push((name, Some(std::fs::read(&path).unwrap())));
+            }
+        }
+    }
+    found.sort();
+    found
+}
+
+const MADE_AGAIN_LINE: &str = "halvo-capture: a first create of the store that never published its key file stood unfinished; the store was made again";
+
+fn run_until(dir: &Path, done: impl Fn(&[String]) -> bool) -> Vec<String> {
+    use std::io::BufRead;
+    let mut run = Service(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", SERVER, "--test-threads=1"])
+            .env(SERVE, dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let (lines, read) = std::sync::mpsc::channel();
+    let err = run.0.stderr.take().unwrap();
+    let reader = std::thread::spawn(move || {
+        for line in std::io::BufReader::new(err).lines() {
+            let Ok(line) = line else { return };
+            let _ = lines.send(line);
+        }
+    });
+    let started = Instant::now();
+    let mut seen = Vec::new();
+    while !done(&seen) {
+        assert!(
+            run.0.try_wait().unwrap().is_none(),
+            "the run ended: {seen:?}"
+        );
+        assert!(
+            started.elapsed() < READY_WITHIN,
+            "the run never got there: {seen:?}"
+        );
+        seen.extend(read.recv_timeout(Duration::from_millis(10)));
+    }
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(terminate(run), Some(0));
+    reader.join().unwrap();
+    seen.extend(read.try_iter());
+    seen
+}
+
+#[test]
+fn a_start_with_no_key_file_beside_a_standing_store_makes_nothing_and_says_why() {
+    use super::custody_policy::Custody;
+    use super::port::{
+        CaptureStore, DataDirStore, EntryKind, KindEntry, Opened, SegmentId, SegmentWrite,
+        StoreHost,
+    };
+    let dir = kept_dir("service-tests-");
+    let Opened::ReadWrite { mut store, .. } = DataDirStore::at(&dir).create(Custody::RootFile)
+    else {
+        panic!("the first life made no store");
+    };
+    let id = SegmentId::mint().unwrap();
+    let entries = [KindEntry {
+        kind: EntryKind::of(crate::event::Modality::ForegroundApp),
+        events: 1,
+        bytes: 3,
+    }];
+    let day = halvo_control::model::UtcDay::from_days_since_epoch(20_000).unwrap();
+    let at = 20_000 * 86_400 * 1_000_000_000_i64;
+    store
+        .write_batch(SegmentWrite::new(&id, day, at, at, &entries, b"{}\n"))
+        .unwrap();
+    drop(store);
+    let store_dir = dir.join("store");
+    std::fs::remove_file(store_dir.join("store.key")).unwrap();
+    assert!(
+        !dir.join("daemon-state.json").exists(),
+        "the first life marked its store"
+    );
+    let database = std::fs::read(store_dir.join("store.db")).unwrap();
+    let segments = tree_bytes(&store_dir.join("segments"));
+    assert!(
+        segments.iter().any(|(_, bytes)| bytes.is_some()),
+        "no segment stands"
+    );
+    let roots = names(&dir.join("roots"));
+    let seen = run_until(&dir, |seen| {
+        seen.iter().any(|line| line == KEYLESS_LINE) || store_dir.join("store.key").exists()
+    });
+    assert!(
+        !store_dir.join("store.key").exists(),
+        "a new store was made over the standing one"
+    );
+    assert!(
+        std::fs::read(store_dir.join("store.db")).unwrap() == database,
+        "the standing database changed"
+    );
+    assert!(
+        tree_bytes(&store_dir.join("segments")) == segments,
+        "the standing segments changed"
+    );
+    assert_eq!(names(&dir.join("roots")), roots, "a new root was made");
+    assert_eq!(
+        seen.iter().filter(|line| *line == KEYLESS_LINE).count(),
+        1,
+        "{seen:?}"
+    );
+
+    let cut = kept_dir("service-tests-");
+    let Opened::ReadWrite { store, .. } = DataDirStore::at(&cut).create(Custody::RootFile) else {
+        panic!("the cut life made no store");
+    };
+    drop(store);
+    let cut_store = cut.join("store");
+    let root = names(&cut.join("roots")).remove(0);
+    let root_id = root.strip_suffix(".root").unwrap();
+    std::fs::write(
+        cut_store.join("create.pending"),
+        format!("{{\"custody_kind\":\"dev_fallback\",\"root_id\":\"{root_id}\"}}"),
+    )
+    .unwrap();
+    std::fs::remove_file(cut_store.join("store.key")).unwrap();
+    assert!(cut_store.join("store.db").exists() && !cut_store.join("segments").exists());
+    let seen = run_until(&cut, |seen| {
+        seen.iter().any(|line| line == MADE_AGAIN_LINE) && cut_store.join("store.key").exists()
+    });
+    assert!(cut_store.join("store.key").exists(), "no store was made");
+    assert!(
+        !cut_store.join("create.pending").exists(),
+        "the marker stays"
+    );
+    assert_eq!(
+        seen.iter().filter(|line| *line == MADE_AGAIN_LINE).count(),
+        1,
+        "{seen:?}"
+    );
+    assert!(!seen.iter().any(|line| line == KEYLESS_LINE), "{seen:?}");
+}
+
+const DIR_SHUT_LINE: &str = "halvo-capture: store=unavailable store_error=obstructed: the data directory failed its check; no store was made or opened in it";
+
+#[test]
+fn a_data_directory_that_fails_its_check_gets_no_store_and_no_root() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = kept_dir("service-tests-");
+    let folder = root.join("open-folder");
+    std::fs::create_dir(&folder).unwrap();
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let linked = root.join("data");
+    std::os::unix::fs::symlink(&folder, &linked).unwrap();
+    let started = Instant::now();
+    let seen = run_until(&linked, |_| {
+        started.elapsed() > Duration::from_millis(2_500)
+            || folder.join("store").exists()
+            || folder.join("roots").exists()
+    });
+    assert!(
+        seen.iter().any(
+            |line| line == "halvo-capture: data_dir=obstructed cause=linked_and_open_to_others"
+        ),
+        "{seen:?}"
+    );
+    assert!(!folder.join("store").exists(), "a store was made: {seen:?}");
+    assert!(!folder.join("roots").exists(), "a root was made: {seen:?}");
+    assert_eq!(
+        seen.iter().filter(|line| *line == DIR_SHUT_LINE).count(),
+        1,
+        "{seen:?}"
+    );
+}
+
+#[test]
+fn a_second_service_run_changes_no_byte_of_the_store_that_the_first_holds() {
+    let dir = kept_dir("service-tests-");
+    let mut first = service(&dir);
+    store_open(&dir, &mut first);
+    let before = store_bytes(&dir);
+    assert!(
+        before[..2].iter().all(|(_, bytes)| bytes.is_some()),
+        "no store.key or no store.db stands"
+    );
+    let (status, took) = second_start(&dir);
+    assert_eq!(status, Some(0));
+    assert!(took < SECOND_START_WITHIN, "the second start took {took:?}");
+    assert!(
+        store_bytes(&dir) == before,
+        "the second start changed a byte of the store"
+    );
+    assert!(first.0.try_wait().unwrap().is_none(), "the first run ended");
+    assert_eq!(terminate(first), Some(0));
+}
+
+#[test]
+fn a_sigterm_to_a_service_run_with_an_open_store_exits_0_in_the_budget_and_the_store_opens_again() {
+    let dir = kept_dir("service-tests-");
+    let mut first = service(&dir);
+    store_open(&dir, &mut first);
+    let key = std::fs::read(dir.join("store").join("store.key")).unwrap();
+    let roots = names(&dir.join("roots"));
+    assert_eq!(roots.len(), 1, "{roots:?}");
+    let signalled = Instant::now();
+    let status = terminate(first);
+    let took = signalled.elapsed();
+    assert_eq!(status, Some(0));
+    assert!(
+        took < Duration::from_millis(super::supervisor::SHUTDOWN_BUDGET_MS),
+        "the run ended {took:?} after SIGTERM"
+    );
+    assert_eq!(
+        instance_lock::read(&data_dir(&dir.join("store"))).unwrap(),
+        LockRead::Free,
+        "the store stays held after the run ended"
+    );
+    let mut again = service(&dir);
+    store_open(&dir, &mut again);
+    assert!(
+        std::fs::read(dir.join("store").join("store.key")).unwrap() == key,
+        "the next start made a second key file"
+    );
+    assert_eq!(
+        names(&dir.join("roots")),
+        roots,
+        "the next start made a second root"
+    );
+    assert_eq!(terminate(again), Some(0));
 }
 
 #[test]
@@ -197,13 +614,20 @@ fn a_service_run_without_a_state_file_writes_the_defaults_after_the_lock() {
     drop(held);
     let mut run = service(&dir);
     ready(&dir, &mut run);
+    store_open(&dir, &mut run);
+    assert_eq!(terminate(run), Some(0));
     let loaded = StateFile::open(
         StateDir::open(&dir).unwrap(),
         Box::new(TestWrite::default()),
     );
-    assert_eq!(loaded.state(), &DaemonState::default());
-    assert_eq!(terminate(run), Some(0));
-    assert_eq!(names(&dir), vec!["daemon-state.json".to_owned()]);
+    assert_eq!(
+        loaded.state(),
+        &DaemonState {
+            store_made: true,
+            ..DaemonState::default()
+        }
+    );
+    assert_eq!(names(&dir), MADE);
 }
 
 #[test]

@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 use std::io;
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
@@ -20,6 +20,9 @@ use super::port::{ByteBound, CaptureStore, EntryKind, MaintFault, WriteFault, PA
 use crate::floor::exclude::FloorHandle;
 use crate::floor::record;
 use crate::sink::{Barrier, Received, SinkWriter};
+
+mod commands;
+pub mod open;
 
 /// The slots of the sink's queue that the owner drains.
 pub const QUEUE_SLOTS: usize = 1_024;
@@ -486,49 +489,6 @@ impl<S: CaptureStore, C: Clocks> Owner<S, C> {
         }
     }
 
-    fn handle_commands(&mut self) {
-        loop {
-            match self.commands.try_recv() {
-                Ok(asked) => {
-                    let answer = self.handle(asked.command);
-                    let _ = asked.reply.send(answer);
-                }
-                Err(TryRecvError::Empty) => return,
-                Err(TryRecvError::Disconnected) => {
-                    if !self.stopping {
-                        self.settle();
-                        self.stopping = true;
-                    }
-                    return;
-                }
-            }
-            if self.stopping {
-                return;
-            }
-        }
-    }
-
-    fn handle(&mut self, command: Command) -> Answer {
-        match command {
-            Command::OpenPause => Answer::Paused(self.gate.open_pause(&self.writer)),
-            Command::ClosePause => {
-                if let Some(received) = self.inbox.take() {
-                    self.take(received);
-                }
-                while let Ok(received) = self.writer.try_recv() {
-                    self.take(received);
-                }
-                Answer::Resumed(self.gate.close_pause(&self.writer))
-            }
-            Command::Settle => Answer::Settled(self.settle()),
-            Command::Shutdown => {
-                let snapshot = self.settle();
-                self.stopping = true;
-                Answer::ShutDown(snapshot)
-            }
-        }
-    }
-
     fn settle(&mut self) -> Snapshot {
         if self.frozen {
             let now = self.clocks.now();
@@ -986,6 +946,12 @@ mod tests {
     use crate::event::Modality;
     use crate::floor::{Switch, Switches};
     use crate::sink;
+    use halvo_control::proto::{StoreErrorKind, StoreState};
+
+    use super::open::{try_open, CreateRule, Held, Opener};
+    use crate::daemon::custody_policy::{self, Custody, Selection};
+    use crate::daemon::port::{Access, OpenFault, Opened, Probe, StoreHost, StoreId};
+    use crate::daemon::slot::Slot;
 
     fn resumed(harness: &mut Harness) -> Barrier {
         match harness.ask(Command::ClosePause) {
@@ -1706,33 +1672,6 @@ mod tests {
                 ..
             }
         )));
-    }
-
-    #[test]
-    fn an_owner_over_the_discard_port_flushes_its_batch() {
-        let (sink, writer) = sink::channel(64);
-        let (mut owner, handle, _reports) = Owner::open(OwnerParts {
-            writer,
-            store: crate::daemon::discard_port::DiscardPort::new(std::path::PathBuf::from(env!(
-                "CARGO_MANIFEST_DIR"
-            ))),
-            clocks: ManualClocks::at(noon()),
-            floor: open_floor(),
-            cap: StorageCap::DEFAULT,
-            shred_chunk: SHRED_CHUNK,
-        });
-        let ask = |owner: &mut Owner<_, _>, command| {
-            let pending = handle.ask(command).unwrap();
-            owner.pass(Duration::ZERO);
-            pending.try_answer().unwrap()
-        };
-        ask(&mut owner, Command::ClosePause);
-        assert_eq!(sink.emit_event(foreground_now()), sink::Emitted::Queued);
-        let Answer::Settled(snapshot) = ask(&mut owner, Command::Settle) else {
-            panic!("no settle answer");
-        };
-        assert_eq!(snapshot.events_persisted, 1);
-        assert_eq!(snapshot.segments_written, 1);
     }
 
     #[test]
@@ -2599,7 +2538,7 @@ mod tests {
             let (sink, writer) = sink::channel(QUEUE_SLOTS);
             let thread = spawn(OwnerParts {
                 writer,
-                store: crate::daemon::discard_port::DiscardPort::new(std::env::temp_dir()),
+                store: KeepsNothing(0),
                 clocks: crate::daemon::maintenance::SystemClocks::new(),
                 floor: open_floor(),
                 cap: StorageCap::DEFAULT,
@@ -3705,5 +3644,283 @@ mod tests {
         let (mut harness, _) = stopped_by(WriteFault::Db(19));
         kept_then_already_written(&mut harness);
         the_count_starts_again(&mut harness, "in the hold");
+    }
+
+    #[cfg(target_os = "macos")]
+    mod keeps_nothing {
+        use std::io;
+        use std::time::SystemTime;
+
+        use crate::daemon::port::{
+            ByteBound, CaptureStore, MaintFault, MaintainStore, Ordinal, Pass, SegmentWrite, Usage,
+            WriteFault, Written,
+        };
+
+        pub(super) struct KeepsNothing(pub(super) u64);
+
+        impl MaintainStore for KeepsNothing {
+            fn expire_due(&mut self, _now: SystemTime, _max: usize) -> Result<Pass, MaintFault> {
+                Ok(Pass::default())
+            }
+
+            fn evict_to(&mut self, _bound: ByteBound, _max: usize) -> Result<Pass, MaintFault> {
+                Ok(Pass::default())
+            }
+
+            fn usage(&mut self) -> Result<Usage, MaintFault> {
+                Ok(Usage::default())
+            }
+        }
+
+        impl CaptureStore for KeepsNothing {
+            fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+                self.0 += 1;
+                Ok(Written {
+                    ordinal: Ordinal::new(self.0),
+                    logical_bytes: write.payload().len() as u64,
+                    disk_bytes: 0,
+                })
+            }
+
+            fn volume_free_bytes(&self) -> io::Result<u64> {
+                Ok(u64::MAX)
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    use keeps_nothing::KeepsNothing;
+
+    #[derive(Clone)]
+    struct ModelHost {
+        probe: Probe,
+        opens: Result<(), OpenFault>,
+        creates: Result<(), OpenFault>,
+        calls: Arc<Mutex<Vec<&'static str>>>,
+    }
+
+    const HOST_ID: StoreId = StoreId::from_bytes([7; 16]);
+
+    impl ModelHost {
+        fn new(probe: Probe, opens: Result<(), OpenFault>) -> ModelHost {
+            ModelHost {
+                probe,
+                opens,
+                creates: Ok(()),
+                calls: Arc::default(),
+            }
+        }
+
+        fn calls(&self) -> Vec<&'static str> {
+            self.calls.lock().unwrap().clone()
+        }
+
+        fn handle(&self, answer: Result<(), OpenFault>, access: Access) -> Opened {
+            match (answer, access) {
+                (Err(fault), _) => Opened::Fault {
+                    fault,
+                    id: Some(HOST_ID),
+                },
+                (Ok(()), Access::ReadWrite) => Opened::ReadWrite {
+                    store: Box::new(ModelStore::new()),
+                    id: HOST_ID,
+                },
+                (Ok(()), Access::MaintenanceOnly) => Opened::MaintenanceOnly {
+                    store: Box::new(ModelStore::new()),
+                    id: HOST_ID,
+                },
+            }
+        }
+    }
+
+    impl StoreHost for ModelHost {
+        fn probe(&self) -> Probe {
+            self.calls.lock().unwrap().push("probe");
+            self.probe
+        }
+
+        fn open(&self, access: Access) -> Opened {
+            self.calls.lock().unwrap().push("open");
+            self.handle(self.opens, access)
+        }
+
+        fn create(&self, _custody: Custody) -> Opened {
+            self.calls.lock().unwrap().push("create");
+            self.handle(self.creates, Access::ReadWrite)
+        }
+    }
+
+    const STANDS: Probe = Probe::KeyFile {
+        custody: Custody::RootFile,
+        id: HOST_ID,
+    };
+
+    fn root_file_build(recorded: Option<Custody>) -> Selection {
+        custody_policy::select(false, custody_policy::System::Macos, recorded)
+    }
+
+    fn row(fault: OpenFault) -> (StoreState, StoreErrorKind, bool) {
+        use OpenFault as F;
+        use StoreErrorKind as K;
+        use StoreState as S;
+        match fault {
+            F::Locked => (S::Unavailable, K::Locked, true),
+            F::Io => (S::Unavailable, K::Io, true),
+            F::NoSpace => (S::Unavailable, K::NoSpace, true),
+            F::Obstructed => (S::Unavailable, K::Obstructed, true),
+            F::CustodyLocked => (S::Unavailable, K::CustodyLocked, true),
+            F::RootDenied => (S::Unavailable, K::RootDenied, false),
+            F::IoNotRetried => (S::Unavailable, K::Io, false),
+            F::RootMissing => (S::Sealed, K::RootMissing, false),
+            F::RootCorrupt => (S::Sealed, K::RootCorrupt, false),
+            F::WrapAuth => (S::Sealed, K::WrapAuth, false),
+            F::KeyFile => (S::Sealed, K::KeyFile, false),
+            F::CustodyKind => (S::Sealed, K::CustodyKind, false),
+            F::Database => (S::Sealed, K::Database, false),
+            F::OlderStore => (S::UnsupportedVersion, K::Older, false),
+            F::NewerStore => (S::UnsupportedVersion, K::Newer, false),
+        }
+    }
+
+    const FAULTS: [OpenFault; 15] = [
+        OpenFault::Locked,
+        OpenFault::Io,
+        OpenFault::NoSpace,
+        OpenFault::Obstructed,
+        OpenFault::CustodyLocked,
+        OpenFault::RootDenied,
+        OpenFault::IoNotRetried,
+        OpenFault::RootMissing,
+        OpenFault::RootCorrupt,
+        OpenFault::WrapAuth,
+        OpenFault::KeyFile,
+        OpenFault::CustodyKind,
+        OpenFault::Database,
+        OpenFault::OlderStore,
+        OpenFault::NewerStore,
+    ];
+
+    #[test]
+    fn every_open_fault_has_a_slot_and_the_owner_stays_up() {
+        let retry = Duration::from_secs(1);
+        for fault in FAULTS {
+            let (state, cause, timer) = row(fault);
+            for probe in [true, false] {
+                let host = if probe {
+                    ModelHost::new(
+                        Probe::Fault {
+                            fault,
+                            id: Some(HOST_ID),
+                        },
+                        Ok(()),
+                    )
+                } else {
+                    ModelHost::new(STANDS, Err(fault))
+                };
+                let (slot, held) = try_open(&host, root_file_build, CreateRule::FirstRun, retry);
+                assert!(held.is_none(), "{fault:?}");
+                assert_eq!(slot.state(), state, "{fault:?}");
+                assert_eq!(slot.cause(), Some(cause), "{fault:?}");
+                assert!(slot.state().takes(slot.cause()), "{fault:?}");
+                assert_eq!(slot.retry_in(), timer.then_some(retry), "{fault:?}");
+                assert!(!slot.is_open(), "{fault:?}");
+                let calls = host.calls();
+                assert!(
+                    !calls.contains(&"create"),
+                    "{fault:?} created over a store: {calls:?}"
+                );
+                assert_eq!(
+                    calls,
+                    if probe {
+                        vec!["probe"]
+                    } else {
+                        vec!["probe", "open"]
+                    }
+                );
+            }
+        }
+        let (open, held) = try_open(
+            &ModelHost::new(STANDS, Ok(())),
+            root_file_build,
+            CreateRule::FirstRun,
+            retry,
+        );
+        assert_eq!(open, Slot::Open { id: HOST_ID });
+        assert!(open.is_open() && matches!(held, Some(Held::Capture { .. })));
+
+        let retried = ModelHost::new(STANDS, Err(OpenFault::Io));
+        let sealed = ModelHost::new(STANDS, Err(OpenFault::Database));
+        let openers = [retried.clone(), sealed.clone()].map(|host| {
+            Opener::start(Box::new(host), root_file_build, CreateRule::FirstRun).unwrap()
+        });
+        std::thread::sleep(RETRY_FIRST + Duration::from_millis(500));
+        for opener in &openers {
+            assert!(opener.is_running(), "the open ended on a fault");
+            assert!(opener.take().is_none());
+        }
+        assert_eq!(openers[0].slot().cause(), Some(StoreErrorKind::Io));
+        assert!(openers[0].tries() >= 2, "an io fault was not tried again");
+        assert_eq!(openers[1].slot().cause(), Some(StoreErrorKind::Database));
+        assert_eq!(openers[1].tries(), 1, "a sealed store was tried again");
+        assert_eq!(sealed.calls(), ["probe", "open"]);
+        for opener in &openers {
+            opener.stop();
+        }
+        let stopped = std::time::Instant::now();
+        while openers.iter().any(Opener::is_running) {
+            assert!(
+                stopped.elapsed() < Duration::from_secs(2),
+                "the open did not stop"
+            );
+            std::thread::sleep(POLL);
+        }
+    }
+
+    #[test]
+    fn a_life_that_made_a_store_and_finds_no_key_file_creates_nothing_and_reads_obstructed() {
+        use crate::daemon::state::StateHealth;
+        assert_eq!(CreateRule::of(StateHealth::Ok, false), CreateRule::FirstRun);
+        assert_eq!(CreateRule::of(StateHealth::Ok, true), CreateRule::StoreMade);
+        assert_eq!(
+            CreateRule::of(StateHealth::WriteFailed(std::io::ErrorKind::Other), false),
+            CreateRule::FirstRun
+        );
+        assert_eq!(
+            CreateRule::of(StateHealth::Corrupt, false),
+            CreateRule::StateNotLoaded
+        );
+        assert_eq!(
+            CreateRule::of(StateHealth::NewerVersion(2), false),
+            CreateRule::StateNotLoaded
+        );
+        let retry = Duration::from_secs(1);
+        for rule in [CreateRule::StoreMade, CreateRule::StateNotLoaded] {
+            let host = ModelHost::new(Probe::NoKeyFile, Ok(()));
+            let (slot, held) = try_open(&host, root_file_build, rule, retry);
+            assert!(held.is_none(), "{rule:?}");
+            assert_eq!(
+                slot,
+                Slot::Unavailable {
+                    cause: StoreErrorKind::Obstructed,
+                    id: None,
+                    retry_in: Some(retry),
+                },
+                "{rule:?}"
+            );
+            assert_eq!(host.calls(), ["probe"], "{rule:?} made a store");
+        }
+        let mut failing = ModelHost::new(Probe::NoKeyFile, Ok(()));
+        failing.creates = Err(OpenFault::Io);
+        let (slot, held) = try_open(&failing, root_file_build, CreateRule::FirstRun, retry);
+        assert!(
+            held.is_none(),
+            "a failed create handed a store, so the mark would be set"
+        );
+        assert_eq!(slot.cause(), Some(StoreErrorKind::Io));
+        let first = ModelHost::new(Probe::NoKeyFile, Ok(()));
+        let (slot, held) = try_open(&first, root_file_build, CreateRule::FirstRun, retry);
+        assert_eq!(slot, Slot::Open { id: HOST_ID });
+        assert!(matches!(held, Some(Held::Capture { .. })));
+        assert_eq!(first.calls(), ["probe", "create"]);
     }
 }

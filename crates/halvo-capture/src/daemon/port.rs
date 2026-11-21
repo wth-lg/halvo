@@ -3,11 +3,13 @@
 
 use std::fmt;
 use std::io;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use halvo_control::model::{StorageCap, UtcDay};
 use uuid::{Builder, Uuid, Variant};
 
+use super::custody_policy::Custody;
 use crate::event::Modality;
 
 /// The most bytes of one segment payload.
@@ -94,37 +96,19 @@ pub struct KindEntry {
 
 /// One batch as the store takes it, all or nothing. The record count is the
 /// sum of the counts of `entries`. It has no row, span or id per record and no
-/// text field: captured text is only in `payload`. Its fields are private and
-/// its one constructor is visible inside `daemon` alone, so no code outside
+/// text field: captured text is only in `payload`. Its fields and its one
+/// constructor are visible inside `daemon` alone, so no code outside
 /// the daemon can fill one: a store reads it.
 pub struct SegmentWrite<'a> {
-    segment_id: &'a SegmentId,
-    day: UtcDay,
-    first_capture: i64,
-    last_capture: i64,
-    entries: &'a [KindEntry],
-    payload: &'a [u8],
+    pub(super) segment_id: &'a SegmentId,
+    pub(super) day: UtcDay,
+    pub(super) first_capture: i64,
+    pub(super) last_capture: i64,
+    pub(super) entries: &'a [KindEntry],
+    pub(super) payload: &'a [u8],
 }
 
 impl<'a> SegmentWrite<'a> {
-    pub(super) fn new(
-        segment_id: &'a SegmentId,
-        day: UtcDay,
-        first_capture: i64,
-        last_capture: i64,
-        entries: &'a [KindEntry],
-        payload: &'a [u8],
-    ) -> SegmentWrite<'a> {
-        SegmentWrite {
-            segment_id,
-            day,
-            first_capture,
-            last_capture,
-            entries,
-            payload,
-        }
-    }
-
     pub fn segment_id(&self) -> &'a SegmentId {
         self.segment_id
     }
@@ -279,6 +263,243 @@ pub trait CaptureStore: MaintainStore {
     fn volume_free_bytes(&self) -> io::Result<u64>;
 }
 
+impl<S: MaintainStore + ?Sized> MaintainStore for Box<S> {
+    fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> Result<Pass, MaintFault> {
+        (**self).expire_due(now, max_segments)
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault> {
+        (**self).evict_to(bound, max_segments)
+    }
+
+    fn usage(&mut self) -> Result<Usage, MaintFault> {
+        (**self).usage()
+    }
+}
+
+impl<S: CaptureStore + ?Sized> CaptureStore for Box<S> {
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        (**self).write_batch(write)
+    }
+
+    fn volume_free_bytes(&self) -> io::Result<u64> {
+        (**self).volume_free_bytes()
+    }
+}
+
+/// The id of a store: the root id that its key file records, printed as 32
+/// lower-case hex digits.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StoreId([u8; 16]);
+
+impl StoreId {
+    pub const fn from_bytes(bytes: [u8; 16]) -> StoreId {
+        StoreId(bytes)
+    }
+
+    pub const fn as_bytes(&self) -> &[u8; 16] {
+        &self.0
+    }
+}
+
+impl fmt::Display for StoreId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.iter().try_for_each(|byte| write!(f, "{byte:02x}"))
+    }
+}
+
+impl fmt::Debug for StoreId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "StoreId({self})")
+    }
+}
+
+/// Why a host handed no handle: the rows of contracts.md C11.3 that are no
+/// handle, each read from the store's own variant and never from a text or a
+/// bare code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenFault {
+    /// Another process holds the writer lock or the database.
+    Locked,
+    /// An I/O fault that can clear, also a code of the database that the
+    /// store's table reads as io.
+    Io,
+    /// The volume is full.
+    NoSpace,
+    /// At one of the store's names stands something that is not the store's
+    /// own entry, or the store directory does not stand at its name.
+    Obstructed,
+    /// A custody state that can clear.
+    CustodyLocked,
+    /// The root cannot be read by this user or build.
+    RootDenied,
+    /// An I/O fault that no timer clears: a volume that refuses a hard link at
+    /// a create, or a Windows path of which a part ends in a dot or a space.
+    IoNotRetried,
+    /// No root exists, or the root file is empty or all zero.
+    RootMissing,
+    /// The root file has a wrong length or is no regular file.
+    RootCorrupt,
+    /// The wrapped store key does not open under the root.
+    WrapAuth,
+    /// store.key is empty, zeroed or does not parse, or holds a key of
+    /// another label.
+    KeyFile,
+    /// The key file records a custody kind that this build does not open.
+    CustodyKind,
+    /// store.db is missing or empty, does not open under the key, or is
+    /// damaged.
+    Database,
+    /// A store of a format before the one that this build reads.
+    OlderStore,
+    /// A store of a format after the one that this build reads.
+    NewerStore,
+}
+
+/// Which handle an open asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Access {
+    ReadWrite,
+    MaintenanceOnly,
+}
+
+/// What stands in a store directory, read without unlocking anything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Probe {
+    /// No key file stands at store.key, or no store directory at its name, and
+    /// no database and no segments stand either.
+    NoKeyFile,
+    /// No key file stands at store.key, while the store's database or its
+    /// segments stand: a store that lost its key file, over which nothing is
+    /// made.
+    KeylessStore,
+    /// No key file stands at store.key and no segments stand, while the
+    /// store's own marker create.pending does: a first create that was cut
+    /// before it published its key file, which a create finishes.
+    UnfinishedCreate,
+    /// A key file that records `custody`, of the store `id`.
+    KeyFile { custody: Custody, id: StoreId },
+    /// What stands at store.key cannot be read as a key file.
+    Fault {
+        fault: OpenFault,
+        id: Option<StoreId>,
+    },
+}
+
+/// What an open or a create hands the owner.
+pub enum Opened {
+    ReadWrite {
+        store: Box<dyn CaptureStore + Send>,
+        id: StoreId,
+    },
+    MaintenanceOnly {
+        store: Box<dyn MaintainStore + Send>,
+        id: StoreId,
+    },
+    Fault {
+        fault: OpenFault,
+        id: Option<StoreId>,
+    },
+}
+
+/// The host half of the port (contracts.md C11.2): a store directory that
+/// can be probed, opened and created.
+pub trait StoreHost: Send {
+    /// What is on disk, without unlocking.
+    fn probe(&self) -> Probe;
+
+    /// Opens the store that stands, for `access`; it never makes a database.
+    fn open(&self, access: Access) -> Opened;
+
+    /// Makes a store under `custody` where no key file stands. Where one
+    /// stands, it opens that store read-write in its place.
+    fn create(&self, custody: Custody) -> Opened;
+}
+
+/// The store of a data directory: its store directory `store` and its roots
+/// directory `roots`, side by side in it (contracts.md C3.5). The adapter of
+/// the store module makes it a [`StoreHost`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataDirStore {
+    data_dir: PathBuf,
+}
+
+impl DataDirStore {
+    pub fn at(data_dir: &Path) -> DataDirStore {
+        DataDirStore {
+            data_dir: data_dir.to_path_buf(),
+        }
+    }
+
+    pub fn store_dir(&self) -> PathBuf {
+        self.data_dir.join("store")
+    }
+
+    pub fn roots(&self) -> PathBuf {
+        self.data_dir.join("roots")
+    }
+}
+
+/// The store directory of a scratch run (contracts.md C4): the store in the
+/// directory itself and its roots in `roots` inside it. The adapter of the
+/// store module gives it its calls: the measures of `--verify-store` and
+/// `--verify-deletion`, the delete tail of `--delete-all --store-dir` and
+/// the create of a timed run's store.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScratchDir {
+    dir: PathBuf,
+}
+
+impl ScratchDir {
+    pub fn at(dir: &Path) -> ScratchDir {
+        ScratchDir {
+            dir: dir.to_path_buf(),
+        }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.dir
+    }
+
+    pub fn roots(&self) -> PathBuf {
+        self.dir.join("roots")
+    }
+}
+
+/// A store made in a scratch directory and the guard of its root. The store
+/// closes when it is dropped; the guard destroys the root at
+/// [`RootGuard::finish`] or, when it is dropped unfinished, after a panic
+/// among them, in its drop.
+pub struct ScratchStore {
+    pub store: Box<dyn CaptureStore + Send>,
+    pub root: RootGuard,
+}
+
+/// What destroys a scratch store's root.
+type DestroyRoot = Box<dyn FnOnce() -> io::Result<()> + Send>;
+
+/// The guard of a scratch store's root, held from right after the create.
+pub struct RootGuard(Option<DestroyRoot>);
+
+impl RootGuard {
+    pub fn new(destroy: DestroyRoot) -> RootGuard {
+        RootGuard(Some(destroy))
+    }
+
+    /// Destroys the root now and answers whether that worked.
+    pub fn finish(mut self) -> io::Result<()> {
+        self.0.take().map_or(Ok(()), |destroy| destroy())
+    }
+}
+
+impl Drop for RootGuard {
+    fn drop(&mut self) {
+        if let Some(destroy) = self.0.take() {
+            let _ = destroy();
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use std::time::{Duration, UNIX_EPOCH};
@@ -362,5 +583,45 @@ pub(crate) mod tests {
         assert!(!WriteFault::Db(5).is_no_space());
         assert!(!WriteFault::Io(io::ErrorKind::Other).is_no_space());
         assert!(!WriteFault::Refused.is_no_space());
+    }
+
+    #[test]
+    fn a_second_write_of_one_segment_id_answers_already_written_with_the_first_ordinal() {
+        let dir = tempfile::Builder::new()
+            .prefix("adapter-tests-")
+            .tempdir()
+            .unwrap()
+            .keep();
+        let made = ScratchDir::at(&dir).create().unwrap();
+        let mut store = made.store;
+        let day = UtcDay::from_days_since_epoch(20_000).unwrap();
+        let at = 20_000 * 86_400 * 1_000_000_000_i64;
+        let entries = [KindEntry {
+            kind: EntryKind::of(Modality::Keystroke),
+            events: 2,
+            bytes: 6,
+        }];
+        let id = SegmentId::mint().unwrap();
+        let write = |id| SegmentWrite::new(id, day, at, at + 1, &entries, b"{}\n{}\n");
+        let first = store.write_batch(write(&id)).unwrap();
+        assert_eq!(first.logical_bytes, 6);
+        assert!(first.disk_bytes > 0);
+        assert_eq!(
+            store.write_batch(write(&id)),
+            Err(WriteFault::AlreadyWritten {
+                ordinal: first.ordinal
+            })
+        );
+        let other = SegmentId::mint().unwrap();
+        let next = store.write_batch(write(&other)).unwrap();
+        assert!(next.ordinal > first.ordinal);
+        assert_eq!(
+            store.write_batch(write(&id)),
+            Err(WriteFault::AlreadyWritten {
+                ordinal: first.ordinal
+            })
+        );
+        drop(store);
+        made.root.finish().unwrap();
     }
 }

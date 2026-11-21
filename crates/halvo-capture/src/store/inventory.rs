@@ -10,6 +10,13 @@ impl EncryptedStore {
     /// of the live segments; no query groups segments or records. A rollup row
     /// at 0 stays in the table and is left out here. A sealed store lists
     /// nothing.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "no caller outside the store's tests until daemon-3e's adapter reads the inventory"
+        )
+    )]
     pub fn inventory(&self) -> StoreResult<Vec<InventoryRow>> {
         let db = match self.db() {
             Ok(db) => db,
