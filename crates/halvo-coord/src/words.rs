@@ -145,7 +145,7 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.all_set.tried_today",
         "It has started as often as it may today, so it waits until tomorrow.",
     ),
-    ("line.all_set.new", "It has not done its task yet."),
+    ("line.all_set.new", "It has not done its task yet, or not for a long time."),
     ("line.all_set.done", "Last time, it finished its task."),
     ("line.all_set.nothing", "Last time, it found nothing to do."),
     (

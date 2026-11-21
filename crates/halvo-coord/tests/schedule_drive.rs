@@ -4446,3 +4446,30 @@ fn rd73_a_hold_of_this_life_stands_past_its_day_until_paused_is_acknowledged() {
         StatusLine::Kept
     );
 }
+
+/// RD-73 1.3: an agent that did its task before and whose rows have all left by their age reads
+/// `line.all_set.new`, whose sentence is true for it as for a new agent: in a long life after
+/// one move that reads the day, and in the new life that `recover` builds from the same ports.
+#[test]
+fn rd73_the_row_of_an_agent_whose_rows_have_left_says_not_yet_or_not_for_a_long_time() {
+    use halvo_coord::roster::{row, status_of};
+    use halvo_coord::types::StatusLine;
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    let before = status_of(w.facts(0), &w.limits, None, false);
+    assert_eq!(before, StatusLine::Done, "it did its task before");
+    days_on(&w, 94);
+    w.go(Move::Create);
+    let new = halvo_coord::run::recover(&w.ports, &w.limits)
+        .unwrap()
+        .board;
+    for (life, board) in [("long", &w.board), ("new", &new)] {
+        let f = &board.members[0].facts;
+        let shown = row(f, status_of(f, &w.limits, None, false), "x", None, &w.limits);
+        assert_eq!(
+            shown.unwrap().line,
+            "It has not done its task yet, or not for a long time.",
+            "the {life} life"
+        );
+    }
+}
