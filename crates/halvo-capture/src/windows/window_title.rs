@@ -60,7 +60,9 @@ pub(crate) fn told_private(
 
 /// The site of the browser window of process `_pid`: the site reader point of
 /// contracts.md C18 item 3, where a later run registers its reader; R1 reads no
-/// site.
+/// site. The point is keyed by the process id alone, and one browser process
+/// holds both normal and private windows, so a reader registered under the
+/// feature `r2` must tell the window itself.
 pub(crate) fn site_of(_pid: u32) -> Option<Site> {
     #[cfg(feature = "r2")]
     if let Some(address) = crate::daemon::r2::site_reader(_pid) {
@@ -782,7 +784,7 @@ mod tests {
                     None,
                 )
             }
-            .expect("a window of the class STATIC");
+            .expect("a window of the class HalvoTitleReadTest");
             let mut text = title.to_vec();
             text.push(0);
             // SAFETY: `text` is a NUL-terminated wide string that outlives the

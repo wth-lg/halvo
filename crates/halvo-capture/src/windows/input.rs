@@ -1338,9 +1338,9 @@ impl RawInputSource {
         }
     }
 
-    /// A pointer source. Each event belongs to the process of the window in
-    /// front when the source reads it; the cell of the foreground source is
-    /// not read.
+    /// A pointer source. Each event belongs to the process of the top-level
+    /// window under the pointer when the source reads it; the cell of the
+    /// foreground source is not read.
     pub fn pointer(_last_app: Arc<Mutex<Option<String>>>) -> Self {
         Self::new(RawDevice::Pointer)
     }
