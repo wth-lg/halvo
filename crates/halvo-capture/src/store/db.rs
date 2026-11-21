@@ -1344,6 +1344,7 @@ pub(in crate::store) struct Instants {
 }
 
 impl Instants {
+    #[cfg_attr(not(test), expect(dead_code, reason = "only the old write calls it, which has no caller outside the store's tests until core-3 deletes it"))]
     fn at(nanos: i64) -> Instants {
         Instants {
             day: UtcDay::of_instant(nanos),
@@ -2335,7 +2336,7 @@ impl RootKeeping {
 
 /// The encrypted store: the SQLCipher database, the per-segment files
 /// under `dir`, and the one store key in the clear only in memory.
-pub struct EncryptedStore {
+pub(in crate::store) struct EncryptedStore {
     dir: Dir,
     retention: Duration,
     custody: Box<dyn KeyCustody + Send>,
@@ -2898,6 +2899,7 @@ impl EncryptedStore {
 
     /// The legacy write of [`SegmentStore::write_segment`]: a random id, no
     /// totals, both instants the write instant.
+    #[cfg_attr(not(test), expect(dead_code, reason = "no caller outside the store's tests: the adapter writes through write_batch, and core-3 deletes this call"))]
     fn write_untallied(&mut self, bytes: &mut dyn Read) -> StoreResult<(SegmentRef, SegmentKeyId)> {
         let segment_id = random_segment_id()?;
         let instants = Instants::at(crate::event::unix_nanos(SystemTime::now()));
@@ -2945,6 +2947,7 @@ impl EncryptedStore {
 
     /// What the reconcile of the open that made this handle did; zero for a
     /// handle from `create`.
+    #[cfg_attr(not(test), expect(dead_code, reason = "no caller outside the store's tests until daemon-3e shows the open's reconcile counts"))]
     pub fn reconciled(&self) -> Reconciled {
         self.reconciled
     }
@@ -3494,7 +3497,7 @@ pub(in crate::store) mod test_support {
     use crate::store::roots::RootGuard;
     use crate::store::DEFAULT_RETENTION;
 
-    pub(crate) struct TestStore {
+    pub(in crate::store) struct TestStore {
         store: EncryptedStore,
         _root: RootGuard,
     }
@@ -3512,7 +3515,7 @@ pub(in crate::store) mod test_support {
         }
     }
 
-    pub(crate) fn make_store(dir: &Path) -> TestStore {
+    pub(in crate::store) fn make_store(dir: &Path) -> TestStore {
         let root = RootGuard::fresh();
         let custody = crate::store::roots::custody(root.id());
         TestStore {

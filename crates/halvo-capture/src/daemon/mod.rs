@@ -1676,6 +1676,11 @@ pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
     }
 }
 
+/// The writer of the state file through the store's durable-write helper
+/// (contracts.md C3.7). The adapter of the store module gives it its
+/// constructor.
+pub struct DurableState;
+
 /// Runs `--service-run` on `dir` (contracts.md C3.2) on the process main
 /// thread's run loop until SIGINT or SIGTERM, writing the state file through
 /// `writer`, and answers its exit status: 0 after a clean stop or when another

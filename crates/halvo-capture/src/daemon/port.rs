@@ -449,6 +449,66 @@ impl DataDirStore {
     }
 }
 
+/// The store directory of a scratch run (contracts.md C4): the store in the
+/// directory itself and its roots in `roots` inside it. The adapter of the
+/// store module gives it its calls: the measures of `--verify-store` and
+/// `--verify-deletion`, the delete tail of `--delete-all --store-dir` and
+/// the create of a timed run's store.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScratchDir {
+    dir: PathBuf,
+}
+
+impl ScratchDir {
+    pub fn at(dir: &Path) -> ScratchDir {
+        ScratchDir {
+            dir: dir.to_path_buf(),
+        }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.dir
+    }
+
+    pub fn roots(&self) -> PathBuf {
+        self.dir.join("roots")
+    }
+}
+
+/// A store made in a scratch directory and the guard of its root. The store
+/// closes when it is dropped; the guard destroys the root at
+/// [`RootGuard::finish`] or, when it is dropped unfinished, after a panic
+/// among them, in its drop.
+pub struct ScratchStore {
+    pub store: Box<dyn CaptureStore + Send>,
+    pub root: RootGuard,
+}
+
+/// What destroys a scratch store's root.
+type DestroyRoot = Box<dyn FnOnce() -> io::Result<()> + Send>;
+
+/// The guard of a scratch store's root, held from right after the create.
+pub struct RootGuard(Option<DestroyRoot>);
+
+impl RootGuard {
+    pub fn new(destroy: DestroyRoot) -> RootGuard {
+        RootGuard(Some(destroy))
+    }
+
+    /// Destroys the root now and answers whether that worked.
+    pub fn finish(mut self) -> io::Result<()> {
+        self.0.take().map_or(Ok(()), |destroy| destroy())
+    }
+}
+
+impl Drop for RootGuard {
+    fn drop(&mut self) {
+        if let Some(destroy) = self.0.take() {
+            let _ = destroy();
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use std::time::{Duration, UNIX_EPOCH};
