@@ -368,17 +368,41 @@ run_canary() {
   wanted=0
   found=0
   refers=0
-  while IFS=' ' read -r code at; do
-    wanted=$((wanted + 1))
-    if grep -q -x -F -e "finding $code src/lib.rs $at" "$work/canary-read.txt"; then
-      found=$((found + 1))
-    else
-      [ "$((wanted - found))" -gt 5 ] || printf 'egress canary profile=%s missing=%s:%s\n' "$1" "$code" "$at"
-    fi
-  done <"$canary/expected.txt"
-  if grep -q -x -F -e refer "$work/canary-read.txt"; then
-    refers=1
-  fi
+  LC_ALL=C awk -v profile="$1" -v read="$work/canary-read.txt" '
+    BEGIN {
+      while ((getline line < read) > 0) seen[line] = 1
+      close(read)
+    }
+    {
+      line = $0
+      sub(/^ +/, "", line)
+      code = line
+      at = ""
+      k = index(line, " ")
+      if (k > 0) {
+        code = substr(line, 1, k - 1)
+        at = substr(line, k + 1)
+        sub(/^ +/, "", at)
+        sub(/ +$/, "", at)
+      }
+      wanted++
+      if (("finding " code " src/lib.rs " at) in seen) found++
+      else if (wanted - found <= 5) printf "egress canary profile=%s missing=%s:%s\n", profile, code, at
+    }
+    END { printf "counts %d %d %d\n", wanted, found, ("refer" in seen) ? 1 : 0 }
+  ' "$canary/expected.txt" >"$work/canary-match.txt"
+  while IFS= read -r line; do
+    case $line in
+      'counts '*)
+        rest=${line#counts }
+        wanted=${rest%% *}
+        rest=${rest#* }
+        found=${rest%% *}
+        refers=${rest#* }
+        ;;
+      *) printf '%s\n' "$line" ;;
+    esac
+  done <"$work/canary-match.txt"
   printf 'egress canary profile=%s entries=%s found=%s exit=%s\n' "$1" "$wanted" "$found" "$canary_exit"
   if [ "$found" -ne "$wanted" ] || [ "$wanted" -eq 0 ] || [ "$refers" -ne 0 ]; then
     printf 'egress canary: the forbid run let the canary through\n'
