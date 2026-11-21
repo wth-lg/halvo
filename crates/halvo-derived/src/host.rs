@@ -2,6 +2,7 @@ use std::fmt;
 
 use halvo_schema_core::record::{Instant, RecurrenceStep};
 
+use crate::guard::GuardEntry;
 use crate::handler::{HandlerEntry, StepEntry};
 use crate::report::Report;
 
@@ -53,12 +54,14 @@ impl Drop for DbKey {
     }
 }
 
-/// What a host supplies to the store: its clock and its recurrence step, which every host puts first.
+/// What a host supplies to the store: its clock and its recurrence step, which every host puts first, and after
+/// them the steps, the handlers and the delete guards of its runs and the sink of the report.
 pub struct Host {
     pub(crate) clock: Box<dyn Clock>,
     pub(crate) recurrence: Box<dyn RecurrenceStep>,
     pub(crate) steps: Vec<StepEntry>,
     pub(crate) handlers: Vec<HandlerEntry>,
+    pub(crate) guards: Vec<GuardEntry>,
     pub(crate) report: Option<ReportSink>,
 }
 
@@ -74,6 +77,7 @@ impl Host {
             recurrence,
             steps: Vec::new(),
             handlers: Vec::new(),
+            guards: Vec::new(),
             report: None,
         }
     }

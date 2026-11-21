@@ -37,4 +37,6 @@ pub trait ConfigView {
     fn playbook(&self) -> Option<u32>;
     /// `rev`.
     fn rev(&self) -> u32;
+    /// `category`.
+    fn category(&self) -> super::Category;
 }
