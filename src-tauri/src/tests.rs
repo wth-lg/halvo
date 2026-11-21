@@ -1662,9 +1662,7 @@ fn the_tray_shows_the_count_of_agents_that_need_the_person_as_attention_of_gives
         let attention = halvo_coord_app::Attention::of(count);
         let shown = tray::with_attention(handle, &view);
         assert_eq!(shown.variant, attention.variant, "{count}");
-        let tooltip = attention
-            .tooltip
-            .unwrap_or_else(|| own.tooltip.to_string());
+        let tooltip = attention.tooltip.unwrap_or_else(|| own.tooltip.to_string());
         assert_eq!(shown.tooltip, tooltip, "{count}");
         let title = if count > 0 && cfg!(target_os = "macos") {
             format!("{} {count}", own.title)
@@ -1846,7 +1844,10 @@ fn the_app_calls_the_hooks_of_its_core_from_its_poller_and_its_window() {
     let heard = tray_rs[show..]
         .find("window.eval(crate::app::WINDOW_SHOWN)")
         .expect("show_main_window tells the page");
-    assert!(shown < heard, "Core::shown comes before the page hears of the show");
+    assert!(
+        shown < heard,
+        "Core::shown comes before the page hears of the show"
+    );
     app::hide_on_close(&main_window(&test.app).as_ref().window());
     assert_eq!(core.names().last(), Some(&"hidden"));
     let without_window = Recorder::new(&[]);

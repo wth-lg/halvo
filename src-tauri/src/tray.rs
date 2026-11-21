@@ -233,9 +233,9 @@ pub struct Marked {
 /// the tray's own title with the count after it, never the count alone, because the title says
 /// whether Halvo captures; at zero the tray's own title, tooltip and icon.
 pub fn with_attention<R: Runtime>(app: &AppHandle<R>, view: &StatusView) -> Marked {
-    let count = app
-        .try_state::<Needs>()
-        .map_or(0, |needs| *needs.0.lock().unwrap_or_else(PoisonError::into_inner));
+    let count = app.try_state::<Needs>().map_or(0, |needs| {
+        *needs.0.lock().unwrap_or_else(PoisonError::into_inner)
+    });
     let own = shown(app, view);
     let attention = Attention::of(count);
     Marked {
@@ -243,9 +243,7 @@ pub fn with_attention<R: Runtime>(app: &AppHandle<R>, view: &StatusView) -> Mark
             Some(count) => format!("{} {count}", own.title),
             None => own.title.to_string(),
         },
-        tooltip: attention
-            .tooltip
-            .unwrap_or_else(|| own.tooltip.to_string()),
+        tooltip: attention.tooltip.unwrap_or_else(|| own.tooltip.to_string()),
         variant: attention.variant,
     }
 }

@@ -8,7 +8,7 @@ use std::time::Duration;
 use halvo_coord_app::{Agents, Core};
 use tauri::webview::PageLoadEvent;
 use tauri::{
-    AppHandle, Builder, Context, Manager, Runtime, Url, WebviewUrl, Window, WebviewWindowBuilder,
+    AppHandle, Builder, Context, Manager, Runtime, Url, WebviewUrl, WebviewWindowBuilder, Window,
     WindowEvent,
 };
 
