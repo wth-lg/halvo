@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -49,6 +39,16 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Scratch pkg-config booleans (prints two words, never fails)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if command -v pkg-config >/dev/null 2>&1; then on_path=true; else on_path=false; fi
+          if [ "$on_path" = true ] && pkg-config --exists sqlcipher >/dev/null 2>&1; then finds=true; else finds=false; fi
+          echo "scratch-pkg-config on_path=$on_path"
+          echo "scratch-pkg-config finds_sqlcipher=$finds"
+          exit 0
       - name: Changelog
         shell: bash
         run: |
@@ -89,14 +89,47 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 55-sqlcipher-unmended 23-licences 30-mutants 20-app-links-no-store 19-control-links-no-store 30-core-boundary-proofs 39-store-no-analyze 30-formal-covered 30-store-ignore-reason 25-store-peak-rss 31-store-full-volume
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 55-sqlcipher-unmended 23-licences 30-mutants 20-app-links-no-store 19-control-links-no-store 30-core-boundary-proofs 39-store-no-analyze 30-formal-covered 30-store-ignore-reason 25-store-peak-rss 31-store-full-volume
+      - name: Loop (added-tests, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test -p halvo-capture --lib --locked -- --exact store::hardening_tests::an_open_beside_a_write_ahead_log_of_another_page_size_is_refused_and_changes_no_byte store::hardening_tests::a_page_read_from_a_log_of_smaller_pages_holds_no_byte_that_the_log_did_not_write store::hardening_tests::a_page_cache_of_stale_bytes_for_parent store::hardening_tests::the_open_sets_the_library_log_level_to_none_before_it_sends_the_key store::hardening_tests::a_refused_open_with_a_wrong_key_leaves_the_library_log_level_at_none store::hardening_tests::a_wrong_key_open_for_parent >"$RUNNER_TEMP/round.txt" 2>&1; cat "$RUNNER_TEMP/round.txt"; grep -q '^test result: ok. 6 passed; 0 failed' "$RUNNER_TEMP/round.txt" ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop added-tests: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: Scratch rows of the database crate and formal-secure-delete-off, 7 rows, each to its end by name
+        if: always()
+        shell: bash
+        run: |
+          start=$(date +%s); last=$start; seen=" "; n=0
+          sh scripts/r1-gate/mutation-test.sh --only os-entropy-hook-missing --only rebuilt-page-gap-not-zeroed --only edited-page-gap-not-zeroed --only page-gap-check-reads-past-the-page --only page-gap-chain-walk-unbounded --only page-gap-plant-past-the-image-unguarded --only formal-secure-delete-off 2>&1 | while IFS= read -r line; do
+            printf '%s\n' "$line"
+            case $line in
+              "PASS mutation:"*|"FAIL mutation:"*)
+                name=${line#* mutation:}; name=${name%% *}
+                case "$seen" in
+                  *" $name "*) ;;
+                  *)
+                    now=$(date +%s); n=$((n + 1))
+                    echo "scratch-row-seconds $name $((now - last)) row=$n of 7 since_start=$((now - start))"
+                    last=$now; seen="$seen$name "
+                    ;;
+                esac
+                ;;
+            esac
+          done
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -123,6 +156,16 @@ jobs:
       - name: Prerequisites
         shell: bash
         run: sh scripts/prerequisites.sh
+      - name: Scratch pkg-config booleans (prints two words, never fails)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if command -v pkg-config >/dev/null 2>&1; then on_path=true; else on_path=false; fi
+          if [ "$on_path" = true ] && pkg-config --exists sqlcipher >/dev/null 2>&1; then finds=true; else finds=false; fi
+          echo "scratch-pkg-config on_path=$on_path"
+          echo "scratch-pkg-config finds_sqlcipher=$finds"
+          exit 0
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           prefix-key: ${{ github.event_name == 'schedule' && 'v0-rust-cold' || 'v0-rust' }}
@@ -134,14 +177,42 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 55-sqlcipher-unmended 20-app-links-no-store 19-control-links-no-store 30-core-boundary-proofs 39-store-no-analyze 30-formal-covered 30-store-ignore-reason 50-derived
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 55-sqlcipher-unmended 20-app-links-no-store 19-control-links-no-store 30-core-boundary-proofs 39-store-no-analyze 30-formal-covered 30-store-ignore-reason 50-derived
+      - name: Loop (added-tests, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( cargo test -p halvo-capture --lib --locked -- --exact store::hardening_tests::an_open_beside_a_write_ahead_log_of_another_page_size_is_refused_and_changes_no_byte store::hardening_tests::a_page_read_from_a_log_of_smaller_pages_holds_no_byte_that_the_log_did_not_write store::hardening_tests::a_page_cache_of_stale_bytes_for_parent store::hardening_tests::the_open_sets_the_library_log_level_to_none_before_it_sends_the_key store::hardening_tests::a_refused_open_with_a_wrong_key_leaves_the_library_log_level_at_none store::hardening_tests::a_wrong_key_open_for_parent >"$RUNNER_TEMP/round.txt" 2>&1; cat "$RUNNER_TEMP/round.txt"; grep -q '^test result: ok. 6 passed; 0 failed' "$RUNNER_TEMP/round.txt" ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop added-tests: passed $pass of 200"
+          [ "$pass" -eq 200 ]
+      - name: Scratch checks 50 and 52 with the stale win-3 ledger allowed by its words
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          sh scripts/ci/run-ci-d.sh windows 50-windows-functional 52-windows-browser >"$RUNNER_TEMP/w5052.txt" 2>&1
+          code=$?
+          cat "$RUNNER_TEMP/w5052.txt"
+          allowed='^FAIL (50-windows-functional|52-windows-browser) \(the measured run [0-9]+ ran on another crates/halvo-sqlcipher than the head.s '
+          fails=$(grep -c '^FAIL' "$RUNNER_TEMP/w5052.txt")
+          kept=$(grep -E -c "$allowed" "$RUNNER_TEMP/w5052.txt")
+          other=$((fails - kept))
+          totals=$(grep -E -c '^WF total=[0-9]+ pass=[0-9]+ known_defect=[0-9]+ long_form_only=[0-9]+ fail=0 ' "$RUNNER_TEMP/w5052.txt")
+          grep -n '^FAIL' "$RUNNER_TEMP/w5052.txt" | sed 's/^/scratch-allowed-or-not: /'
+          echo "scratch-5052 driver_exit=$code fail_lines=$fails allowed_stale_ledger_lines=$kept other_fail_lines=$other wf_total_lines_with_fail_0=$totals"
+          [ "$other" -eq 0 ] && [ "$kept" -ge 2 ] && [ "$totals" -ge 2 ]
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
