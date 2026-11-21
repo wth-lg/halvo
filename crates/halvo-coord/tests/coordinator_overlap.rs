@@ -729,3 +729,73 @@ fn a_switch_off_under_a_failing_clock_sends_the_kept_body_after_the_paused_at_a_
     assert_eq!(setup_item(&c), None);
     assert_eq!(c.setup_overlap(&item), None);
 }
+
+/// `ports_on` with the asking agent held by the hold `failures` instead of `off` (I5.4): listed
+/// `paused` with a stored `hold_set` of the cause `failures`, so that a Start now ends that hold
+/// and sends `active` first, beside b0 listed `active` with the same sender.
+fn ports_failures() -> Ports<Config> {
+    let p = ports_on();
+    p.log(&[halvo_coord::types::Event {
+        workflow: asking_flow(),
+        agent: asking(),
+        seq: std::num::NonZeroU32::new(1).unwrap(),
+        day: DAY - 1,
+        at: 0,
+        what: What::HoldSet {
+            cause: halvo_coord::types::HoldSetCause::Failures,
+        },
+    }])
+    .unwrap();
+    p
+}
+
+/// Ruling RD-160 (3), from the verify step: a Start now that the owner refuses with `overlap`
+/// holds the read as a Switch on does, and a move of the person on that agent that the owner
+/// does not refuse so takes it away; a move on another agent leaves it.
+#[test]
+fn a_start_refused_with_overlap_holds_the_read_and_a_start_that_goes_clears_it() {
+    let c = Coordinator::new(both(ports_failures()), Limits::PRODUCT);
+    c.tick();
+    let reads = c.ports().ports.overlap_reads.borrow().len();
+    let m = mark(&c);
+    assert_eq!(c.control(&asking(), Action::RunNow), Err(Cause::NoService));
+    assert_eq!(writes(&c, m), ["set_state 01 active refused"]);
+    assert_eq!(
+        c.ports().ports.overlap_reads.borrow().len(),
+        reads + 1,
+        "one read"
+    );
+    let b0 = Some(named(&[(other(0), other_flow(0), ANN)], false));
+    assert_eq!(c.switch_on_overlap(&asking()), b0);
+    assert_eq!(c.control(&other(0), Action::SwitchOff), Ok(()));
+    assert_eq!(
+        listed_state(&c, &other_flow(0)),
+        Some(WorkflowState::Paused)
+    );
+    assert_eq!(c.switch_on_overlap(&asking()), b0, "a move on b0 leaves it");
+    assert_eq!(c.control(&asking(), Action::RunNow), Ok(()));
+    assert_eq!(
+        listed_state(&c, &asking_flow()),
+        Some(WorkflowState::Active)
+    );
+    assert_eq!(c.switch_on_overlap(&asking()), None);
+}
+
+/// Ruling RD-160 (3), a move of the person on the agent that sends no state: a Stop of the agent
+/// with no live run, which the owner does not refuse, takes away the read that a refused Start
+/// now held.
+#[test]
+fn a_stop_that_sends_no_state_takes_the_read_of_a_refused_start_away() {
+    let c = Coordinator::new(both(ports_failures()), Limits::PRODUCT);
+    c.tick();
+    assert_eq!(c.control(&asking(), Action::RunNow), Err(Cause::NoService));
+    assert!(c.switch_on_overlap(&asking()).is_some());
+    let m = mark(&c);
+    assert_eq!(c.control(&asking(), Action::Stop), Ok(()));
+    assert_eq!(
+        writes(&c, m),
+        Vec::<String>::new(),
+        "the stop sends no state"
+    );
+    assert_eq!(c.switch_on_overlap(&asking()), None);
+}

@@ -1282,3 +1282,67 @@ fn c_with_the_paused_of_a_refused_active_acknowledged_the_tick_starts_nothing() 
     assert_eq!(stored(&p, 0), before);
     assert_eq!(listed(&p, 0), PAUSED);
 }
+
+/// Ruling RD-160 (3), at the schedule: a Start now that ends `failures` and whose `active` the
+/// owner refuses with `overlap` asks the read `Owner::overlaps` once, as a switch-on does, and
+/// the report of the move carries what it gave; a read that does not answer is carried as the
+/// half of the sentence that is known (I3.5 (f)). Nothing is stored and the hold stands.
+#[test]
+fn b_a_start_that_ends_failures_refused_with_overlap_asks_one_read_and_its_report_carries_it() {
+    use halvo_coord::ports::{Overlap, Overlaps, Shared};
+    let state = || {
+        ports(&[
+            (
+                PAUSED,
+                ACCOUNT,
+                &["ann@people.test"],
+                &[HoldSetCause::Failures],
+            ),
+            (ACTIVE, ACCOUNT, &["ann@people.test"], &[]),
+        ])
+    };
+    for (form, read, held) in [
+        (
+            "read answers",
+            None,
+            Shared::Named(Overlaps {
+                entries: vec![Overlap {
+                    workflow: flow(1),
+                    agent: agent(1),
+                    senders: vec!["ann@people.test".to_owned()],
+                }],
+                more: false,
+            }),
+        ),
+        (
+            "read busy",
+            Some(PortError::Busy),
+            Shared::Unread { again: true },
+        ),
+    ] {
+        let p = state();
+        let mut board = life(&p);
+        let before = stored(&p, 0);
+        fresh(&p);
+        if let Some(e) = read {
+            p.refuse(Method::Overlaps, e);
+        }
+        let reads = p.overlap_reads.borrow().len();
+        let r = go(&p, &mut board, start(0));
+        assert_eq!(
+            r.answer,
+            Err(halvo_coord::types::Cause::NoService),
+            "{form}"
+        );
+        assert_eq!(writes(&p), ["set_state a0 active refused"], "{form}");
+        assert_eq!(
+            p.overlap_reads.borrow()[reads..].to_vec(),
+            vec![(agent(0), None)],
+            "{form}: one read"
+        );
+        assert_eq!(r.shared, Some(held), "{form}");
+        assert_eq!(stored(&p, 0), before, "{form}");
+        assert_eq!(holds_of(&board, 0), vec![FAILURES], "{form}");
+        assert_eq!(listed(&p, 0), PAUSED, "{form}");
+    }
+}
