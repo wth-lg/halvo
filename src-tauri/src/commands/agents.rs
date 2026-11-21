@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use halvo_coord::items::ConfirmAnswer;
 use halvo_coord::types::commands::LIST;
-use halvo_coord::types::{Cause, ItemId, Snapshot};
+use halvo_coord::types::{AgentId, Cause, ItemId, RunId, Snapshot};
 use halvo_coord::words;
 use halvo_coord_app::{Agents, Core, Reply};
 use serde_json::Value;
@@ -81,7 +81,9 @@ impl Core for NoService {
 
     fn tick(&self) {}
 
-    fn quit(&self, _budget: Option<Duration>) {}
+    fn quit(&self, _budget: Option<Duration>) -> Vec<(AgentId, RunId)> {
+        Vec::new()
+    }
 
     fn on_screen(&self, _item: &ItemId) {}
 

@@ -1769,7 +1769,10 @@ impl halvo_coord_app::Core for Recorder {
         assert!(!self.panics.contains(&n), "tick {n} of the stand-in panics");
     }
 
-    fn quit(&self, budget: Option<Duration>) {
+    fn quit(
+        &self,
+        budget: Option<Duration>,
+    ) -> Vec<(halvo_coord::types::AgentId, halvo_coord::types::RunId)> {
         self.record(if budget.is_none() {
             "quit"
         } else {
@@ -1783,6 +1786,7 @@ impl halvo_coord_app::Core for Recorder {
         if let Some(release) = hold {
             let _ = release.recv();
         }
+        Vec::new()
     }
 
     fn on_screen(&self, _item: &halvo_coord::types::ItemId) {
