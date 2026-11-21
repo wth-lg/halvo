@@ -319,6 +319,11 @@ fn the_offline_delete_in_a_linked_data_directory_answers_0() {
     let linked = root.join("linked");
     std::os::unix::fs::symlink(&target, &linked).unwrap();
     a_store_with_a_segment(&linked);
+    std::fs::write(
+        target.join("daemon-state.json"),
+        b"{\"version\":1,\"desired\":\"paused\",\"store_made\":true}",
+    )
+    .unwrap();
     let table = rows();
     let how = Offline {
         rows: &table,
@@ -328,7 +333,21 @@ fn the_offline_delete_in_a_linked_data_directory_answers_0() {
 
     let (status, out, err) = offline_run(&linked, &how);
 
-    assert_eq!(status, 0, "out: {out} err: {err}");
+    let state: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(target.join("daemon-state.json")).unwrap()).unwrap();
+    let host = DataDirStore::at(&linked);
+    let start = at_start(&linked, &rows(), &SystemHands, &host, &|| {});
+    assert_eq!(
+        (
+            status,
+            out.contains(" intent=written"),
+            state["store_made"].as_bool().unwrap_or(false),
+            start,
+            host.probe()
+        ),
+        (0, true, false, AtStart::NoIntent, Probe::NoKeyFile),
+        "out: {out} err: {err}"
+    );
     assert!(!target.join("store/store.key").exists());
     assert!(segment_files(&target).is_empty());
     assert!(root_files(&target).is_empty(), "{:?}", root_files(&target));

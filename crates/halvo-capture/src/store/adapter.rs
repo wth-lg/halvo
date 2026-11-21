@@ -495,6 +495,12 @@ impl DataDirStore {
             Err(e) => Err(derived_fault(open_fault(&e))),
         }
     }
+
+    /// The data directory itself: where its own name is a link, the
+    /// directory that the link leads to, else the name as it is.
+    pub fn resolved_path(&self) -> io::Result<std::path::PathBuf> {
+        resolved_data_dir(self.path())
+    }
 }
 
 fn standing_derived_key(

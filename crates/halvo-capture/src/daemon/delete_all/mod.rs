@@ -578,7 +578,7 @@ fn write_intent(dir: &Path, rows: &[Row], probe: Probe) -> io::Result<()> {
         "entries": entries,
     });
     DurableState::writer().write_whole(
-        &StateDir::open(dir)?,
+        &StateDir::open(&DataDirStore::at(dir).resolved_path()?)?,
         std::ffi::OsStr::new(INTENT_FILE),
         intent.to_string().as_bytes(),
     )
@@ -591,7 +591,7 @@ fn clear_the_mark(dir: &Path) -> Option<String> {
     if !stands(&dir.join(STATE_FILE)) {
         return None;
     }
-    let folder = StateDir::open(dir).ok()?;
+    let folder = StateDir::open(&DataDirStore::at(dir).resolved_path().ok()?).ok()?;
     let mut state = StateFile::open(folder, DurableState::writer());
     if state.health() != StateHealth::Ok || !state.state().store_made {
         return None;
