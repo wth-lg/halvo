@@ -30,6 +30,8 @@ pub mod configs;
 mod host;
 pub mod privacy;
 pub mod seed;
+mod standin;
+pub mod task;
 
 #[cfg(test)]
 mod tests;

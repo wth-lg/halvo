@@ -8,6 +8,11 @@
 //! `agent_delete_all`, in that order (A14.4; `halvo_agent_gate::privacy`). Exit 0 when no line is `miss`, 1 when one
 //! is, and 2 for a refusal: `usage`, or `store` when the play cannot run (the store does not open under `DIR`, or it
 //! refuses a step of the play). The store stays under `DIR`.
+//!
+//! `agent-gate task fill --mode replay --seed N [--link host] [--browser PATH]` plays the task `fill` with the runner
+//! through the gate host and prints the one line of A14.5 with `store=memory` (`halvo_agent_gate::task`). Exit 0
+//! when the line has `marks=start,end`, `fixture=ok` and `result=completed`, 1 when it has not, and 2 for a
+//! refusal: `usage`, for every other form of A14.5 and for a play that cannot run, or `fixture`.
 
 use std::ffi::OsString;
 use std::io::Write;
@@ -16,9 +21,9 @@ use std::process::ExitCode;
 
 use halvo_agent_gate::configs::configs;
 use halvo_agent_gate::privacy::{self, Outcome};
-use halvo_agent_gate::GateHost;
+use halvo_agent_gate::{task, GateHost};
 
-const USAGE: &str = "agent-gate configs | agent-gate privacy --data-dir DIR";
+const USAGE: &str = "agent-gate configs | agent-gate privacy --data-dir DIR | agent-gate task fill --mode replay --seed N [--link host] [--browser PATH]";
 
 fn refuse(cause: &str, detail: &str) -> ExitCode {
     eprintln!("REFUSED {cause}: {detail}");
@@ -55,6 +60,13 @@ fn run_privacy(data_dir: &Path) -> ExitCode {
     }
 }
 
+fn run_task(args: &[OsString]) -> ExitCode {
+    match task::parse(args).and_then(|fill| task::play(&fill)) {
+        Ok(line) => write_out(&line.render(), line.pass()),
+        Err(refused) => refuse(refused.cause.as_str(), &refused.detail),
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
     match args.as_slice() {
@@ -62,6 +74,7 @@ fn main() -> ExitCode {
         [command, flag, dir] if command == "privacy" && flag == "--data-dir" => {
             run_privacy(Path::new(dir))
         }
+        [command, rest @ ..] if command == "task" => run_task(rest),
         _ => refuse("usage", USAGE),
     }
 }
