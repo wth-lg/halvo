@@ -66,6 +66,9 @@ allow	element_get_animations	13.1	typeof Element.prototype.getAnimations === 'fu
 allow	animation_play_state	13.1	'playState' in Animation.prototype
 # https://developer.mozilla.org/docs/Web/API/CSSAnimation/animationName, Safari 13.1 of 2020-03-24
 allow	css_animation_name	13.1	typeof CSSAnimation === 'function' && 'animationName' in CSSAnimation.prototype
+# U3.9 wrote this allow line for the press record that confirm.js keeps for each pointer, read on 2026-11-21 from @mdn/browser-compat-data 8.1.8.
+# https://developer.mozilla.org/docs/Web/API/PointerEvent/pointerId, Safari 13 of 2019-09-19
+allow	pointer_event_pointer_id	13	'pointerId' in PointerEvent.prototype
 # U0.3 wrote the allow lines below for each web API that the two views call and that had no line, and for some of the CSS that they use: with the lines above,
 # 12 of the 47 CSS properties that the views' style strings set have an allow line, and 35 have none (rulings RD-27 (b), RD-30 (6));
 # and the deny lines after them for the features that reached Safari after the floor and that a view could use.

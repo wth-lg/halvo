@@ -2711,39 +2711,71 @@ async function shownReports(origin, dir) {
 }
 
 /** RD-80 5.4 with 2.2, 2.4 and 2.6: from each show the two controls of a page confirmation take no
- * pointer press that begins inside the hold, also when it is released after the hold; a press
- * after the hold acts, and so does a key inside it. The pointer is driven by raw events, and the
- * time of the hold moves only through its own animation. */
+ * pointer press that begins inside the hold, also when it is released after the hold and when a
+ * second pointer goes down and up meanwhile; a press after the hold acts on each, and so does a
+ * key inside it. The first pointer is driven by raw events, the second by events of pointer id 2
+ * that the test dispatches, and the time of the hold moves only through its own animation. */
 async function guard(origin, dir) {
   const faults = [];
   const item = withId(stateFile(dir, 'needs_confirm_page').snapshot.items[0], 'a'.repeat(32));
-  const control = (h) => h.page.locator(sel(item.choices[0].choice, item.item));
-  const holds = (h) => control(h).evaluate((b) => b.getAnimations().some((a) => a.playState === 'running'));
-  const answers = (h) => h.page.evaluate(() => window.r4calls.filter((c) => c.call === 'agents_answer').length);
+  const [reject, allow] = item.choices.map((c) => c.choice);
+  const control = (h, act) => h.page.locator(sel(act, item.item));
+  const holds = (h, act) => control(h, act).evaluate((b) => b.getAnimations().some((a) => a.playState === 'running'));
+  const answers = (h) => h.page.evaluate(() => window.r4calls.filter((c) => c.call === 'agents_answer').map((c) => c.args.choice).join(',') || '-');
+  const ended = (h) => h.page.evaluate(() => document.querySelectorAll('dialog[open] [data-act]').forEach((b) => b.getAnimations().forEach((a) => a.finish())));
+  const over = async (h, act) => {
+    await control(h, act).scrollIntoViewIfNeeded();
+    const box = await control(h, act).boundingBox();
+    await h.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  };
+  const secondPointer = (h) =>
+    h.page.evaluate(() => {
+      const text = document.querySelector('dialog[open] .hn-text');
+      for (const type of ['pointerdown', 'pointerup']) text.dispatchEvent(new PointerEvent(type, { pointerId: 2, pointerType: 'pen', isPrimary: false, bubbles: true, composed: true }));
+    });
   const h = await standIn(origin, snap(1, [item]), true);
+  const expect = async (want, tag) => {
+    const got = await answers(h);
+    if (got !== want) faults.push(tag + '=' + got);
+  };
   try {
     await paint(h);
-    if (!(await holds(h))) faults.push('no_hold_at_the_show');
-    await control(h).scrollIntoViewIfNeeded();
-    const box = await control(h).boundingBox();
-    await h.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    if (!(await holds(h, reject)) || !(await holds(h, allow))) faults.push('no_hold_at_the_show');
+    await over(h, reject);
     await h.page.mouse.down();
-    await control(h).evaluate((b) => b.getAnimations().forEach((a) => a.finish()));
+    await ended(h);
     await h.page.mouse.up();
     await paint(h);
-    if ((await answers(h)) !== 0) faults.push('a_press_begun_in_the_hold_acts=' + (await answers(h)));
+    await expect('-', 'reject_begun_in_the_hold');
     await h.page.evaluate(() => window.r4answers.push({ error: 'early' }));
     await h.page.mouse.down();
     await h.page.mouse.up();
     await paint(h);
-    if ((await answers(h)) !== 1) faults.push('a_press_after_the_hold=' + (await answers(h)));
+    await expect(reject, 'reject_after_the_hold');
+    if ((await control(h, allow).count()) !== 1) throw new Error('not shown again');
+    if (!(await holds(h, allow))) faults.push('no_hold_at_the_second_show');
+    await over(h, allow);
+    await h.page.mouse.down();
+    await h.page.mouse.up();
     await paint(h);
-    if ((await control(h).count()) !== 1) throw new Error('not shown again');
-    if (!(await holds(h))) faults.push('no_hold_at_the_later_show');
-    await control(h).focus();
+    await expect(reject, 'allow_begun_in_the_hold');
+    await h.page.mouse.down();
+    await secondPointer(h);
+    await ended(h);
+    await h.page.mouse.up();
+    await paint(h);
+    await expect(reject, 'allow_begun_in_the_hold_with_a_second_pointer');
+    await h.page.evaluate(() => window.r4answers.push({ error: 'early' }));
+    await h.page.mouse.down();
+    await h.page.mouse.up();
+    await paint(h);
+    await expect(reject + ',' + allow, 'allow_after_the_hold');
+    if ((await control(h, allow).count()) !== 1) throw new Error('not shown again');
+    if (!(await holds(h, allow))) faults.push('no_hold_at_the_third_show');
+    await control(h, allow).focus();
     await h.page.keyboard.press('Enter');
     await paint(h);
-    if ((await answers(h)) !== 2) faults.push('a_key_in_the_hold=' + (await answers(h)));
+    await expect(reject + ',' + allow + ',' + allow, 'a_key_in_the_hold');
   } catch (err) {
     faults.push('throws_' + String((err && err.message) || err).split('\n')[0].replace(/\s+/g, '_'));
   } finally {

@@ -31,6 +31,7 @@
   ["element_get_animations", function () { return (typeof Element.prototype.getAnimations === 'function'); }],
   ["animation_play_state", function () { return ('playState' in Animation.prototype); }],
   ["css_animation_name", function () { return (typeof CSSAnimation === 'function' && 'animationName' in CSSAnimation.prototype); }],
+  ["pointer_event_pointer_id", function () { return ('pointerId' in PointerEvent.prototype); }],
   ["click_event", function () { return ('onclick' in window); }],
   ["input_event", function () { return ('oninput' in window); }],
   ["scroll_top", function () { return ('scrollTop' in Element.prototype); }],

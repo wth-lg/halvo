@@ -1,7 +1,7 @@
 (function () {
   let tick = 0;
   let press = null;
-  let pointer = null;
+  const pointers = new Map();
   let raising = false;
   const keys = new Map();
   let shown = null;
@@ -31,11 +31,14 @@
       keys.delete(event.key);
       press = { target: event.target, repeat: false, at: down ? down.at : null, from: down ? down.target : null, raise: false, held: false, end: true };
     } else if (type === 'pointerdown') {
-      pointer = { at: tick, target: event.target, raise: raising, held: holding(event.target) };
+      const pointer = { at: tick, target: event.target, raise: raising, held: holding(event.target) };
+      pointers.set(event.pointerId, pointer);
       raising = false;
       press = { target: event.target, repeat: false, at: tick, from: event.target, raise: pointer.raise, held: pointer.held, end: false };
     } else {
-      press = { target: event.target, repeat: false, at: pointer ? pointer.at : null, from: pointer ? pointer.target : null, raise: pointer ? pointer.raise : false, held: pointer ? pointer.held : false, end: true };
+      const down = pointers.get(event.pointerId) || null;
+      pointers.delete(event.pointerId);
+      press = { target: event.target, repeat: false, at: down ? down.at : null, from: down ? down.target : null, raise: down ? down.raise : false, held: down ? down.held : false, end: true };
     }
   }
 
