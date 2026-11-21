@@ -38,6 +38,9 @@ pub enum Expect {
 }
 
 /// What [`remove`] did, in the terms of the list's row: [`Removal::state`] is the row's state.
+/// A `left` answer also says which of two names holds the bytes that the call left:
+/// [`Removal::Left`] the copy's own name ([`checkpoint_name`]), [`Removal::LeftAside`] the name
+/// that the call moves the copy to before it removes it ([`removing_name`] of the copy's name).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Removal {
     /// Every check held and the copy is removed: `gone`.
@@ -45,8 +48,16 @@ pub enum Removal {
     /// No file stood in the copy's place, or a directory on the way below the folder is
     /// absent: `gone`. An absent folder is never this answer but [`Undecided::Folder`].
     Absent,
-    /// A check missed and the file is left: `left` with the reason.
+    /// A check missed and the bytes lie under the copy's own name, where the call left the
+    /// file, or moved it back from the removing name; or the call never reached the copy:
+    /// `left` with the reason.
     Left(Left),
+    /// A check missed and the bytes lie under the removing name, where no application opens
+    /// them: `left` with the reason. It answers an entry under that name that the call neither
+    /// removed nor moved back while the copy's own name holds no entry, the entry that stopped
+    /// being the moved copy before the removal (the reason `name`), and a moved copy that the
+    /// system refused to put back under its own name.
+    LeftAside(Left),
 }
 
 impl Removal {
@@ -54,7 +65,7 @@ impl Removal {
     pub fn state(self) -> &'static str {
         match self {
             Removal::Removed | Removal::Absent => "gone",
-            Removal::Left(_) => "left",
+            Removal::Left(_) | Removal::LeftAside(_) => "left",
         }
     }
 }
@@ -78,7 +89,8 @@ pub enum Left {
     /// though the system answered for it, as a file system that folds case does for a name in
     /// another case; or a part of the path holds a colon, which on Windows names a stream; or,
     /// between the move aside and the removal, the entry under the removing name stopped being
-    /// the file that the call moved there, which then stays, and the call removes nothing.
+    /// the file that the call moved there, which then stays, and the call removes nothing
+    /// ([`Removal::LeftAside`]).
     Name,
     /// `unreadable`: the copy or its directory cannot be read, or the row's length is over the
     /// bound of a file ([`FILE_MAX`]), which the call never reads past.
@@ -143,18 +155,26 @@ enum Leftover {
 /// ([`Expect::Planned`]). It then moves the copy aside under [`removing_name`], one name for
 /// each checkpoint, checks that the moved entry is the file that it read with the same SHA-256,
 /// and removes it; when that check misses or the removal fails, it puts the file back under its
-/// own name. Right before the removal it reads the entry under the removing name again, and
-/// removes it only while it is the file that the call moved there, compared by
-/// [`crate::same_file`]; otherwise it answers `left` with the reason `name` and removes
-/// nothing. A limit of A11.3 stays: a second party that, inside one call, gives the moved copy
-/// another name in the folder between the move aside and the removal, a hard link at the
-/// copy's own name among them, keeps that name and its bytes while the call answers `gone`,
-/// because the call removes only the name that it moved the copy to. Before it looks at the
-/// copy, it deals with what a call killed between the move
-/// aside and the removal left under that name: a file that passes every check of the copy
-/// goes, and so does a second name of the copy itself; any other entry stays, and when the
-/// copy's own name then holds no entry, the answer is that entry's reason as `left`, so that no
-/// answer is `gone` while the bytes lie in the folder. A copy that is absent counts as
+/// own name, and when the system refuses that after a check that missed, the answer is
+/// [`Removal::LeftAside`] with `changed`. Right before the removal it reads the entry under the
+/// removing name again, and removes it only while it is the file that the call moved there,
+/// compared by [`crate::same_file`]; otherwise it answers [`Removal::LeftAside`] with the
+/// reason `name` and removes nothing. A limit of A11.3 stays: a second party that, inside one
+/// call, gives the moved copy another name in the folder between the move aside and the
+/// removal, a hard link at the copy's own name among them, keeps that name and its bytes while
+/// the call answers `gone`, because the call removes only the name that it moved the copy to.
+/// Before it looks at the copy, it deals with what a call killed between the move aside and
+/// the removal left under that name: a file that passes every check of the copy goes, and so
+/// does a second name of the copy itself. A regular file whose own name that is and whose
+/// bytes are not what the row expects, as after the person changed the workbook of a planned
+/// row, is moved back under the copy's own name by a rename that replaces no entry, so that
+/// the person's way back lies again where an application opens it, and the answer is
+/// [`Removal::Left`] with `changed`; when an entry stands at the copy's name, the file stays.
+/// Any other entry stays, a link, a directory and an entry that cannot be read among them, and
+/// so does the file that the pass cannot remove ([`Undecided::Remove`]); when the copy's own
+/// name then holds no entry, the answer is that entry's reason as [`Removal::LeftAside`], so
+/// that no answer is `gone` while the bytes lie in the folder, and every `left` answer says
+/// which of the two names holds them. A copy that is absent counts as
 /// removed, and so does a directory on the way that is absent; a folder that is absent, as
 /// while its volume is not mounted, is [`Undecided::Folder`]. Every other miss leaves the file
 /// and answers its reason, which is never a run's failure. It removes no checkpoint of a run
@@ -246,14 +266,40 @@ fn leftover(
         }
         Ok(_) => stays(at, name, Ok(Removal::Left(Left::Changed))),
         Err(Removal::Absent) => Ok(Leftover::Clear),
+        Err(Removal::Left(Left::Changed)) => back(at, name, moved),
         Err(answer) => stays(at, name, Ok(answer)),
     }
 }
 
+/// Moves a leftover whose bytes are not what the row expects back under the copy's own name, by
+/// a rename that replaces no entry: the pass then answers `left` with `changed` at that name.
+/// When an entry stands at the copy's name the leftover stays and the pass goes on to that
+/// entry; when the leftover is gone the pass goes on; when the system refuses the rename, the
+/// leftover stays and the answer names the removing name.
+fn back(at: &Dir, name: &OsStr, moved: &OsStr) -> Result<Leftover, Pass> {
+    match at.rename_new(moved, name) {
+        Ok(()) => Err(Ok(Removal::Left(Left::Changed))),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Leftover::Clear),
+        Err(_) => stays(at, name, Ok(Removal::Left(Left::Changed))),
+    }
+}
+
+/// The answer for an entry under the removing name that the pass neither removed nor moved
+/// back: when the copy's own name holds no entry, the bytes lie under the removing name and the
+/// pass answers the entry's reason as [`Removal::LeftAside`] (an [`Undecided`] answer as it
+/// is); otherwise the pass goes on to the entry at the copy's name.
 fn stays(at: &Dir, name: &OsStr, answer: Pass) -> Result<Leftover, Pass> {
     match opened(at, name) {
-        Err(Removal::Absent) => Err(answer),
+        Err(Removal::Absent) => Err(answer.map(aside_answer)),
         _ => Ok(Leftover::Clear),
+    }
+}
+
+/// A `left` answer for bytes that lie under the removing name.
+fn aside_answer(answer: Removal) -> Removal {
+    match answer {
+        Removal::Left(why) => Removal::LeftAside(why),
+        answer => answer,
     }
 }
 
@@ -384,13 +430,17 @@ fn aside(
         same_file(seen, &now) && digest::read(&file, FILE_MAX).is_ok_and(|read| read == held)
     });
     if !still {
-        put_back(at, moved, name);
-        return Ok(Removal::Left(Left::Changed));
+        let left = if put_back(at, moved, name) {
+            Removal::Left
+        } else {
+            Removal::LeftAside
+        };
+        return Ok(left(Left::Changed));
     }
     #[cfg(test)]
     crate::seam::reach(crate::seam::Moment::Aside);
     if !opened(at, moved).is_ok_and(|(_, _, now)| same_file(seen, &now)) {
-        return Ok(Removal::Left(Left::Name));
+        return Ok(Removal::LeftAside(Left::Name));
     }
     match at.unlink(moved) {
         Ok(()) => Ok(Removal::Removed),
@@ -403,11 +453,14 @@ fn aside(
 
 /// Puts the moved file back under its own name: a second name and then the removal of the
 /// moved one, or, where the system makes no second name, a rename that replaces no entry.
-fn put_back(at: &Dir, moved: &OsStr, name: &OsStr) {
+/// Answers whether the file lies under its own name again: `false` when the system refused
+/// both, and the file stays under the removing name.
+fn put_back(at: &Dir, moved: &OsStr, name: &OsStr) -> bool {
     if at.link(moved, name).is_ok() {
         let _ = at.unlink(moved);
+        true
     } else {
-        let _ = at.rename_new(moved, name);
+        at.rename_new(moved, name).is_ok()
     }
 }
 
@@ -690,14 +743,14 @@ mod tests {
     fn a_file_of_other_bytes_renamed_onto_the_removing_name_after_the_move_aside_stays() {
         let theirs = b"a file of another party";
         let (got, kept, names) = renamed_onto_the_removing_name(theirs);
-        assert_eq!(got, Ok(Removal::Left(Left::Name)), "{names:?}");
+        assert_eq!(got, Ok(Removal::LeftAside(Left::Name)), "{names:?}");
         assert_eq!(kept.as_deref(), Some(&theirs[..]), "{names:?}");
     }
 
     #[test]
     fn a_file_of_the_rows_bytes_renamed_onto_the_removing_name_after_the_move_aside_stays() {
         let (got, kept, names) = renamed_onto_the_removing_name(COPY);
-        assert_eq!(got, Ok(Removal::Left(Left::Name)), "{names:?}");
+        assert_eq!(got, Ok(Removal::LeftAside(Left::Name)), "{names:?}");
         assert_eq!(kept.as_deref(), Some(COPY), "{names:?}");
     }
 }
