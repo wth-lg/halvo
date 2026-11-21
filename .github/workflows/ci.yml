@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,77 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 38-app-engine-routes
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 38-app-engine-routes
+      - name: Forced form 1 of 38-app-engine-routes (an address that the runner does not have)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          job=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
+          temp=$RUNNER_TEMP
+          if command -v cygpath > /dev/null 2>&1; then temp=$(cygpath -u "$temp"); fi
+          base=05e6c22e1683fad39f087ce42b5bed2c7a44d732
+          git show "$base:scripts/r1/ci.d/38-app-engine-routes.sh" > "$temp/base-38.sh"
+          echo "forced form 1 ($job): the base's script read from $base: exit $?"
+          for side in base head; do
+            script=scripts/r1/ci.d/38-app-engine-routes.sh
+            if [ "$side" = base ]; then script=$temp/base-38.sh; fi
+            HALVO_MEASURE_TEST_IP=203.0.113.38 CI_D_JOB=$job sh "$script" "$job" > "$temp/forced1-$side.txt" 2>&1
+            echo "forced form 1 ($job), $side: exit $?"
+            grep -E '^38-app-engine-routes (image|steps|listeners|interface|measure listeners|measure row: s(03|18|20) |measured)|^(PASS|FAIL) 38-app-engine-routes' "$temp/forced1-$side.txt" | cut -c1-700
+            n=$(grep -c interface "$temp/forced1-$side.txt")
+            echo "forced form 1 ($job), $side: lines that hold the word interface: $n"
+            for t in "$temp"/38-app-engine-routes.*/target; do
+              if [ -d "$t" ]; then cargo clean --target-dir "$t" > /dev/null 2>&1; fi
+            done
+          done
+          exit 0
+      - name: Forced form 2 of 38-app-engine-routes (the address read at the start is gone at the first binds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          base=05e6c22e1683fad39f087ce42b5bed2c7a44d732
+          git show "$base:scripts/r1/ci.d/38-app-engine-routes.sh" > "$RUNNER_TEMP/base-38.sh"
+          echo "forced form 2: the base's script read from $base: exit $?"
+          x=203.0.113.39
+          iface=$(route -n get 192.0.2.1 | awk '/interface:/ {print $2}')
+          echo "forced form 2: the interface of the route towards 192.0.2.1: $iface"
+          real_py=$(command -v python3)
+          real_cargo=$(command -v cargo)
+          for side in base head; do
+            script=scripts/r1/ci.d/38-app-engine-routes.sh
+            if [ "$side" = base ]; then script=$RUNNER_TEMP/base-38.sh; fi
+            f=$RUNNER_TEMP/forced2-$side
+            mkdir -p "$f/bin"
+            echo "$x" > "$f/report"
+            echo 0 > "$f/builds"
+            printf '#!/bin/sh\nif [ -f "%s/report" ]; then HALVO_MEASURE_TEST_IP=$(cat "%s/report"); export HALVO_MEASURE_TEST_IP; fi\nexec "%s" "$@"\n' "$f" "$f" "$real_py" > "$f/bin/python3"
+            printf '#!/bin/sh\nn=$(($(cat "%s/builds") + 1))\necho "$n" > "%s/builds"\nif [ "$n" = 1 ]; then sudo ifconfig %s -alias %s; mv "%s/report" "%s/report.gone"; fi\nif [ "$n" = 2 ]; then sudo ifconfig %s alias %s netmask 255.255.255.255; fi\nexec "%s" "$@"\n' "$f" "$f" "$iface" "$x" "$f" "$f" "$iface" "$x" "$real_cargo" > "$f/bin/cargo"
+            chmod +x "$f/bin/python3" "$f/bin/cargo"
+            sudo ifconfig "$iface" alias "$x" netmask 255.255.255.255
+            n=$(ifconfig "$iface" | grep -c "inet $x ")
+            echo "forced form 2, $side: $x on $iface before the check: $n"
+            PATH="$f/bin:$PATH" CI_D_JOB=macos sh "$script" macos > "$f.txt" 2>&1
+            code=$?
+            builds=$(cat "$f/builds")
+            echo "forced form 2, $side: exit $code, builds $builds"
+            grep -E '^38-app-engine-routes (image|steps|listeners|interface|measure listeners|measure row: s(03|18) |measured)|^(PASS|FAIL) 38-app-engine-routes' "$f.txt" | cut -c1-700
+            sudo ifconfig "$iface" -alias "$x"
+            n=$(ifconfig "$iface" | grep -c "inet $x ")
+            echo "forced form 2, $side: $x on $iface after the check: $n"
+            for t in "$RUNNER_TEMP"/38-app-engine-routes.*/target; do
+              if [ -d "$t" ]; then cargo clean --target-dir "$t" > /dev/null 2>&1; fi
+            done
+          done
+          exit 0
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -115,7 +168,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
+          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -134,14 +187,38 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 38-app-engine-routes
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 38-app-engine-routes
+      - name: Forced form 1 of 38-app-engine-routes (an address that the runner does not have)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          job=$(echo "$RUNNER_OS" | tr '[:upper:]' '[:lower:]')
+          temp=$RUNNER_TEMP
+          if command -v cygpath > /dev/null 2>&1; then temp=$(cygpath -u "$temp"); fi
+          base=05e6c22e1683fad39f087ce42b5bed2c7a44d732
+          git show "$base:scripts/r1/ci.d/38-app-engine-routes.sh" > "$temp/base-38.sh"
+          echo "forced form 1 ($job): the base's script read from $base: exit $?"
+          for side in base head; do
+            script=scripts/r1/ci.d/38-app-engine-routes.sh
+            if [ "$side" = base ]; then script=$temp/base-38.sh; fi
+            HALVO_MEASURE_TEST_IP=203.0.113.38 CI_D_JOB=$job sh "$script" "$job" > "$temp/forced1-$side.txt" 2>&1
+            echo "forced form 1 ($job), $side: exit $?"
+            grep -E '^38-app-engine-routes (image|steps|listeners|interface|measure listeners|measure row: s(03|18|20) |measured)|^(PASS|FAIL) 38-app-engine-routes' "$temp/forced1-$side.txt" | cut -c1-700
+            n=$(grep -c interface "$temp/forced1-$side.txt")
+            echo "forced form 1 ($job), $side: lines that hold the word interface: $n"
+            for t in "$temp"/38-app-engine-routes.*/target; do
+              if [ -d "$t" ]; then cargo clean --target-dir "$t" > /dev/null 2>&1; fi
+            done
+          done
+          exit 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
