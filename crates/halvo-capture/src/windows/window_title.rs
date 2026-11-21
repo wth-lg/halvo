@@ -26,7 +26,7 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::Accessibility::{UnhookWinEvent, HWINEVENTHOOK};
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetWindowTextW, InternalGetWindowText, CHILDID_SELF,
+    GetClassNameW, GetForegroundWindow, GetWindowTextW, InternalGetWindowText, CHILDID_SELF,
     EVENT_OBJECT_NAMECHANGE, EVENT_SYSTEM_FOREGROUND, OBJID_WINDOW,
 };
 
@@ -91,10 +91,23 @@ pub(crate) fn title_event(
 }
 
 /// Whether the window in front is the ghost that the system shows for a hung
-/// window, by its class name and the file name of its process.
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) fn is_ghost_of_a_hung_window(_class: &str, _process_file: Option<&str>) -> bool {
-    false
+/// window, by its class name and the file name of its process: the class
+/// `Ghost`, or a window of `dwm.exe`, ignoring ASCII case. Such a window may
+/// carry the caption of a private window or of a listed app, so its title is
+/// dropped as the title of a private window.
+pub(crate) fn is_ghost_of_a_hung_window(class: &str, process_file: Option<&str>) -> bool {
+    let owner = process_file.map(|path| path.rsplit(['/', '\\']).next().unwrap_or(path));
+    class.eq_ignore_ascii_case("Ghost")
+        || owner.is_some_and(|file| file.eq_ignore_ascii_case("dwm.exe"))
+}
+
+#[cfg(target_os = "windows")]
+fn class_of(window: HWND) -> String {
+    let mut buf = [0u16; 256];
+    // SAFETY: `buf` is a live buffer whose length the call takes from the
+    // slice; a handle that is no longer a window gives 0.
+    let len = unsafe { GetClassNameW(window, &mut buf) };
+    String::from_utf16_lossy(&buf[..usize::try_from(len).unwrap_or(0)])
 }
 
 #[cfg(target_os = "windows")]
@@ -320,9 +333,13 @@ fn emit_front_title(front: HWND, time: u32, why: TitleWhy) {
                 return;
             }
             let app = resolve_front(front).unwrap_or_default();
-            let window = told_private(Browser::of(app.path.as_deref()), &read, || {
-                CHROME_QUERY.with(|query| query.borrow_mut().ask(front))
-            });
+            let window = if is_ghost_of_a_hung_window(&class_of(front), app.path.as_deref()) {
+                PrivateWindow::Private
+            } else {
+                told_private(Browser::of(app.path.as_deref()), &read, || {
+                    CHROME_QUERY.with(|query| query.borrow_mut().ask(front))
+                })
+            };
             let made = title_event(
                 &state.floor,
                 state.gate.as_deref(),
