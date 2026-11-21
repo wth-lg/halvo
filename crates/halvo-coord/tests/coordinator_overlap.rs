@@ -844,3 +844,27 @@ fn a_tick_read_with_no_entry_takes_the_sentence_away_also_when_the_body_gets_bus
     assert_eq!(setup_item(&c), None);
     assert_eq!(c.setup_overlap(&item), None);
 }
+
+/// Ruling RD-160 (2) owes the `paused` before a freed body alone: a switch-off of the person
+/// while no set-up keeps a body sends its own `paused` and no `paused` that another agent owes,
+/// which the next tick sends, as before the round.
+#[test]
+fn a_switch_off_while_no_set_up_keeps_a_body_sends_no_paused_of_another_agent_in_its_move() {
+    let (c, _item) = coordinator(ports(&[ANN, "zed@people.test"]));
+    c.ports().paused_busy.set(1);
+    assert_eq!(c.control(&other(1), Action::SwitchOff), Ok(()));
+    assert_eq!(
+        c.ports().refused_paused.borrow().clone(),
+        ["set_state b1 paused busy"]
+    );
+    assert_eq!(
+        listed_state(&c, &other_flow(1)),
+        Some(WorkflowState::Active)
+    );
+    let m = mark(&c);
+    assert_eq!(c.control(&other(0), Action::SwitchOff), Ok(()));
+    assert_eq!(writes(&c, m), ["set_state b0 paused"]);
+    let m2 = mark(&c);
+    c.tick();
+    assert_eq!(writes(&c, m2), ["set_state b1 paused"]);
+}
