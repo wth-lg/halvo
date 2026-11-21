@@ -1039,3 +1039,218 @@ fn c_no_active_goes_under_the_mark_also_for_a_workflow_that_left_the_list() {
     go(&p, &mut board, tick());
     assert_eq!(states(&p), Vec::<String>::new());
 }
+
+/// The memory ports behind an owner whose answer to `set_state` `paused` the test chooses: the
+/// call does not reach the owner and answers `busy`, or it reaches the owner, which sets
+/// `paused`, and its reply is lost (`no_service`). Every other call goes to the memory ports.
+struct PausedLost<'a> {
+    p: &'a Ports<Config>,
+    form: &'static str,
+}
+
+impl Owner for PausedLost<'_> {
+    type Config = Config;
+    fn log(&self, events: &[Event]) -> Result<(), PortError> {
+        self.p.log(events)
+    }
+    fn history(&self, agent: &AgentId, after: u32) -> Result<(Vec<Event>, u32), PortError> {
+        self.p.history(agent, after)
+    }
+    fn workflows(&self) -> Result<Vec<Workflow>, PortError> {
+        self.p.workflows()
+    }
+    fn agents(&self) -> Result<Vec<Agent<Config>>, PortError> {
+        self.p.agents()
+    }
+    fn send(&self, body: &Body) -> Result<halvo_coord::types::Reply, PortError> {
+        let paused = matches!(
+            body,
+            Body::SetState {
+                state: AgentState::Paused,
+                ..
+            }
+        );
+        match (paused, self.form) {
+            (true, "busy") => Err(PortError::Busy),
+            (true, "reply lost") => self.p.send(body).and(Err(PortError::NoService)),
+            _ => self.p.send(body),
+        }
+    }
+    fn replies(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        run: &halvo_coord::types::RunId,
+    ) -> Result<Vec<halvo_coord::types::ReplyRow>, PortError> {
+        self.p.replies(workflow, agent, run)
+    }
+    fn overlaps(
+        &self,
+        workflow: &WorkflowId,
+        agent: &AgentId,
+        slots: Option<&[Slot]>,
+    ) -> Result<halvo_coord::ports::Overlaps, PortError> {
+        self.p.overlaps(workflow, agent, slots)
+    }
+}
+
+impl halvo_coord::ports::Runs for PausedLost<'_> {
+    fn start(&self, spec: &halvo_coord::types::RunSpec) -> Result<(), PortError> {
+        self.p.start(spec)
+    }
+    fn answer_confirm(
+        &self,
+        run: &halvo_coord::types::RunId,
+        answers: &[halvo_coord::types::Answer],
+        record: &mut dyn FnMut(&halvo_coord::types::Decision) -> Result<(), PortError>,
+    ) -> Result<(), PortError> {
+        self.p.answer_confirm(run, answers, record)
+    }
+    fn answer_handback(
+        &self,
+        run: &halvo_coord::types::RunId,
+        result: halvo_coord::types::HandbackResult,
+    ) -> Result<(), PortError> {
+        self.p.answer_handback(run, result)
+    }
+    fn answer_bind(
+        &self,
+        run: &halvo_coord::types::RunId,
+        result: halvo_coord::types::BindResult,
+    ) -> Result<(), PortError> {
+        self.p.answer_bind(run, result)
+    }
+    fn cancel(&self, run: &halvo_coord::types::RunId) -> Result<(), PortError> {
+        self.p.cancel(run)
+    }
+    fn kill(&self, run: &halvo_coord::types::RunId) -> Result<(), PortError> {
+        self.p.kill(run)
+    }
+    fn reap(
+        &self,
+    ) -> Result<Vec<(halvo_coord::types::RunId, halvo_coord::ports::Reaped)>, PortError> {
+        self.p.reap()
+    }
+}
+
+impl halvo_coord::ports::Analysis for PausedLost<'_> {
+    fn defer(&self, until: u64) -> Result<(), PortError> {
+        self.p.defer(until)
+    }
+}
+
+impl halvo_coord::ports::Clock for PausedLost<'_> {
+    fn now(&self) -> Result<u64, PortError> {
+        self.p.now()
+    }
+    fn day(&self, at: u64) -> Result<u32, PortError> {
+        self.p.day(at)
+    }
+}
+
+impl halvo_coord::ports::Rng for PausedLost<'_> {
+    fn bytes16(&self) -> Result<[u8; 16], PortError> {
+        self.p.bytes16()
+    }
+}
+
+/// The store state of ruling RD-67 4.7, with agent 0 on a schedule whose slot is due today and
+/// one completed run, so that a tick would start it and a Start now would reach the owner.
+fn due_beside_a_sharing_agent() -> Ports<Config> {
+    let p = ports(&[
+        (APPROVED, ACCOUNT, &["ann@people.test"], &[]),
+        (ACTIVE, ACCOUNT, &["ann@people.test"], &[]),
+    ]);
+    if let Workflow::Full(f) = &mut p.workflows.borrow_mut()[0] {
+        f.trigger = WorkflowTrigger::Schedule;
+        f.period = NonZeroU32::new(2);
+    }
+    let run = halvo_coord::types::RunId::parse(&format!("{:032x}", 0x900)).unwrap();
+    p.agents.borrow_mut()[0].last = Some(halvo_coord::types::PastRun {
+        run: run.clone(),
+        day: DAY - 2,
+        outcome: halvo_coord::types::Outcome::Completed,
+        unknown: 0,
+    });
+    let e = |seq: u32, what: What| Event {
+        workflow: flow(0),
+        agent: agent(0),
+        seq: NonZeroU32::new(seq).unwrap(),
+        day: DAY - 2,
+        at: 0,
+        what,
+    };
+    p.log(&[
+        e(
+            1,
+            What::RunStarted {
+                run: run.clone(),
+                trigger: halvo_coord::types::Trigger::Person,
+                slot: None,
+            },
+        ),
+        e(
+            2,
+            What::RunEnded {
+                run,
+                cause: halvo_coord::types::RunEnd::Completed,
+                defers: None,
+            },
+        ),
+    ])
+    .unwrap();
+    p.calls.borrow_mut().clear();
+    p.tried.borrow_mut().clear();
+    p
+}
+
+/// Ruling RD-160 (1), from the verify step's row V1: after the tick's `active` is refused with
+/// `overlap` and its `paused` gets no acknowledgement, in both forms (`busy`, and a reply lost
+/// after the owner set `paused`), the agent stands as off while that `paused` is owed: the tick
+/// starts nothing and raises nothing, the row reads `line.off.kept` with the controls of the
+/// hold `off`, and three Starts now each answer `hold` and store nothing, so that no run is
+/// stored as failed and no hold `failures` is set.
+#[test]
+fn c_a_paused_with_no_acknowledgement_after_a_refused_active_holds_every_start() {
+    use halvo_coord::types::{Cause, Control, StatusLine};
+    for form in ["busy", "reply lost"] {
+        let p = due_beside_a_sharing_agent();
+        let mut board = life(&p);
+        let before = stored(&p, 0);
+        let t = PausedLost { p: &p, form };
+        for k in 0..3 {
+            let r = halvo_coord::schedule::drive(&t, &mut board, &L, tick());
+            assert!(r.started.is_empty(), "{form} tick {k}: {:?}", r.started);
+            assert!(r.raised.is_empty(), "{form} tick {k}: {:?}", r.raised);
+            assert_eq!(
+                stored(&p, 0),
+                before,
+                "{form} tick {k}: no run_started, no run_ended"
+            );
+            assert_eq!(line_of(&board, 0), StatusLine::Kept, "{form} tick {k}");
+            assert_eq!(
+                halvo_coord::roster::controls(&board.members[0].facts),
+                vec![Control::SwitchOn, Control::Delete],
+                "{form} tick {k}"
+            );
+        }
+        for k in 0..3 {
+            let r = halvo_coord::schedule::drive(&t, &mut board, &L, start(0));
+            assert_eq!(r.answer, Err(Cause::Hold), "{form} start {k}");
+            assert_eq!(stored(&p, 0), before, "{form} start {k}: nothing stored");
+            assert!(!holds_of(&board, 0).contains(&FAILURES), "{form} start {k}");
+        }
+        assert!(!stored(&p, 0).contains(&"hold_set"), "{form}");
+    }
+}
+
+#[test]
+fn c_with_the_paused_of_a_refused_active_acknowledged_the_tick_starts_nothing() {
+    let p = due_beside_a_sharing_agent();
+    let mut board = life(&p);
+    let before = stored(&p, 0);
+    let r = go(&p, &mut board, tick());
+    assert!(r.started.is_empty(), "{:?}", r.started);
+    assert_eq!(stored(&p, 0), before);
+    assert_eq!(listed(&p, 0), PAUSED);
+}
