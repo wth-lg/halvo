@@ -12445,3 +12445,120 @@ fn u24v_10_a_page_press_on_a_handback_while_the_record_is_stuck_sends_nothing() 
         |call| matches!(call, Call::AnswerHandback(..)),
     );
 }
+
+fn u24v_last_raised(c: &Coordinator<Both>) -> Option<ItemId> {
+    c.ports()
+        .ports
+        .tried
+        .borrow()
+        .iter()
+        .rev()
+        .find_map(|t| match &t.call {
+            Call::Log(events) => events.iter().rev().find_map(|e| match &e.what {
+                What::ItemRaised { item, .. } => Some(item.clone()),
+                _ => None,
+            }),
+            _ => None,
+        })
+}
+
+#[test]
+fn u24v_11_native_an_ask_that_names_another_agent_than_its_runs_is_withdrawn_by_its_runs_row() {
+    let mut got = Vec::new();
+    let mut want = Vec::new();
+    for other in [1usize, 7] {
+        let case = format!("the ask of agent 0's run names agent {other}");
+        let limits = Limits {
+            max_live_runs: 2,
+            ..Limits::PRODUCT
+        };
+        let c = coordinator(&[MANUAL, MANUAL], limits);
+        let run0 = start(&c, 0);
+        c.ports()
+            .ports
+            .refuse_record(is_item_raise, refused_name("store"));
+        assert_eq!(
+            c.on_run(&run0, ask_confirm_native_signature(&run0, other)),
+            Ok(()),
+            "{case}: the core takes the ask"
+        );
+        let item = u24v_last_raised(&c).unwrap();
+        u24v_tick(&c, 1);
+        u24v_tick(&c, 2);
+        c.on_screen(&item);
+        u24v_tick(&c, 3);
+        let stuck = c.record_stuck(&agent(0));
+        let row = row_line(&c.snapshot(), 0) == text("line.problem.record");
+        let present = c.present(&item);
+        let card = c.native_card(&item).map(|_| ());
+        c.ports().ports.clear_refusals();
+        let row_at_press = row_line(&c.snapshot(), 0) == text("line.problem.record");
+        let m = mark(&c);
+        let pressed = c.answer_native(&item, ConfirmAnswer::Allow);
+        let allowed = u24v_sent(&c, m, "AllowOnce");
+        got.push((
+            case.clone(),
+            stuck,
+            row,
+            present,
+            card,
+            row_at_press,
+            pressed,
+            allowed,
+        ));
+        want.push((
+            case,
+            true,
+            true,
+            Err(Cause::NoService),
+            Err(Cause::NoService),
+            true,
+            Err(Cause::NoService),
+            0,
+        ));
+    }
+    assert_eq!(
+        got, want,
+        "(case, record_stuck of the run's agent, its row reads line.problem.record, present, native_card, the row at the press, the Allow of the dialog, AllowOnce sent to the run)"
+    );
+}
+
+#[test]
+fn u24v_12_page_an_ask_that_names_another_agent_than_its_runs_is_refused_by_its_runs_row() {
+    let mut got = Vec::new();
+    let mut want = Vec::new();
+    for other in [1usize, 7] {
+        let case = format!("the ask of agent 0's run names agent {other}");
+        let limits = Limits {
+            max_live_runs: 2,
+            ..Limits::PRODUCT
+        };
+        let c = coordinator(&[MANUAL, MANUAL], limits);
+        let run0 = start(&c, 0);
+        c.ports()
+            .ports
+            .refuse_record(is_item_raise, refused_name("store"));
+        assert_eq!(
+            c.on_run(&run0, ask_confirm(&run0, other)),
+            Ok(()),
+            "{case}: the core takes the ask"
+        );
+        let item = u24v_last_raised(&c).unwrap();
+        u24v_tick(&c, 1);
+        u24v_tick(&c, 2);
+        let shown = c.shown_on_page(&item, 0);
+        u24v_tick(&c, 3);
+        let stuck = c.record_stuck(&agent(0));
+        c.ports().ports.clear_refusals();
+        let row_at_press = row_line(&c.snapshot(), 0) == text("line.problem.record");
+        let m = mark(&c);
+        let pressed = c.answer(&item, Choice::Allow, None, 0);
+        let allowed = u24v_sent(&c, m, "AllowOnce");
+        got.push((case.clone(), shown, stuck, row_at_press, pressed, allowed));
+        want.push((case, Ok(()), true, true, Err(Cause::NoService), 0));
+    }
+    assert_eq!(
+        got, want,
+        "(case, agents_shown, record_stuck of the run's agent, its row reads line.problem.record at the press, the Allow of the page, AllowOnce sent to the run)"
+    );
+}
