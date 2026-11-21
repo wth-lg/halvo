@@ -1346,3 +1346,26 @@ fn b_a_start_that_ends_failures_refused_with_overlap_asks_one_read_and_its_repor
         assert_eq!(listed(&p, 0), PAUSED, "{form}");
     }
 }
+
+/// Ruling RD-160 (1): the mark owes no `paused` to the stand-in of a dismissed workflow, which
+/// is no entry of the owner's list that `set_state` could reach (I5.8).
+#[test]
+fn c_no_paused_goes_under_the_mark_for_the_stand_in_of_a_dismissed_workflow() {
+    let p = ports(&[
+        (APPROVED, ACCOUNT, &["ann@people.test"], &[]),
+        (ACTIVE, ACCOUNT, &["ann@people.test"], &[]),
+    ]);
+    let mut board = life(&p);
+    go(&p, &mut board, tick());
+    assert!(board.active_refused(&agent(0)));
+    board.members[0].facts.workflow.state = APPROVED;
+    p.workflows.borrow_mut()[0] = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+        id: flow(0),
+        category: Category::Email,
+        site: None,
+    });
+    fresh(&p);
+    go(&p, &mut board, tick());
+    assert!(board.members[0].facts.stand_in);
+    assert_eq!(states(&p), Vec::<String>::new());
+}

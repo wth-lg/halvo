@@ -868,3 +868,56 @@ fn a_switch_off_while_no_set_up_keeps_a_body_sends_no_paused_of_another_agent_in
     c.tick();
     assert_eq!(writes(&c, m2), ["set_state b1 paused"]);
 }
+
+/// Ruling RD-160 (2): a waiting body stays while the tick's `paused` of the task switched off
+/// gets `busy` too, and goes at the tick that brings that `paused`.
+#[test]
+fn a_waiting_body_stays_while_the_ticks_paused_gets_busy_too() {
+    let (c, item) = coordinator(ports(&[ANN]));
+    answer(&c, &item, ANN).unwrap();
+    c.ports().paused_busy.set(3);
+    assert_eq!(c.control(&other(0), Action::SwitchOff), Ok(()));
+    let m = mark(&c);
+    c.tick();
+    assert_eq!(
+        writes(&c, m),
+        Vec::<String>::new(),
+        "no body while b0 is listed active"
+    );
+    assert_eq!(setup_item(&c), Some(item.clone()));
+    let m2 = mark(&c);
+    c.tick();
+    assert_eq!(
+        writes(&c, m2),
+        [
+            "set_state b0 paused",
+            "set_bindings ann@people.test",
+            "set_state 01 active"
+        ]
+    );
+    assert_eq!(setup_item(&c), None);
+}
+
+/// Ruling RD-160 (2): a waiting body goes at the first tick at which the workflow of the task
+/// switched off stands dismissed in the owner's list, whose stand-in is live no more.
+#[test]
+fn a_waiting_body_goes_when_the_switched_off_task_is_dismissed() {
+    let (c, item) = coordinator(ports(&[ANN]));
+    answer(&c, &item, ANN).unwrap();
+    c.ports().paused_busy.set(u32::MAX);
+    assert_eq!(c.control(&other(0), Action::SwitchOff), Ok(()));
+    assert_eq!(setup_item(&c), Some(item.clone()));
+    for w in c.ports().ports.workflows.borrow_mut().iter_mut() {
+        if w.id() == &other_flow(0) {
+            *w = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                id: other_flow(0),
+                category: Category::Email,
+                site: None,
+            });
+        }
+    }
+    let m = mark(&c);
+    c.tick();
+    assert_eq!(bindings_sent(&c, m), ["set_bindings ann@people.test"]);
+    assert_eq!(setup_item(&c), None);
+}
