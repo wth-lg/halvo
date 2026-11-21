@@ -1515,8 +1515,10 @@ mod tests {
             .store
             .fail_every_write(Some(WriteFault::Io(io::ErrorKind::Other)));
         resumed(&mut harness);
+        // With the feature r2 a title above 1,020 bytes is stored empty.
+        let title_bytes = if cfg!(feature = "r2") { 1020 } else { 1024 };
         for _ in 0..1500 {
-            harness.emit(title_of(1024, 1024));
+            harness.emit(title_of(1024, title_bytes));
             harness.pass();
         }
         let snapshot = harness.owner.snapshot();

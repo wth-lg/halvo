@@ -442,6 +442,10 @@ mod tests {
         TextField::Site,
     ];
 
+    /// The longest title that is stored whole: the cap of the text entry, and
+    /// with the feature r2 the longest title that its filter masks.
+    const TITLE_BYTES: usize = if cfg!(feature = "r2") { 1020 } else { 1024 };
+
     #[test]
     fn no_registered_filter_returns_the_input_bytes() {
         let none = TextFilters::empty();
@@ -465,7 +469,7 @@ mod tests {
         let caps = [
             (TextField::BundleId, 1024),
             (TextField::ExecutablePath, 1024),
-            (TextField::Title, 1024),
+            (TextField::Title, TITLE_BYTES),
             (TextField::Site, 253),
         ];
         for (field, cap) in caps {
@@ -479,7 +483,7 @@ mod tests {
             if cfg!(feature = "r2") && field == TextField::Title {
                 assert_eq!(text, "", "a title above 1,020 bytes was not stored empty");
                 let short = "x".repeat(cap);
-                assert_eq!(StoredText::filtered(field, &short, &r1).as_ref(), "");
+                assert_eq!(StoredText::filtered(field, &short, &r1).as_ref(), short);
                 continue;
             }
             assert!(text.len() <= cap, "{field:?} kept {} bytes", text.len());
@@ -549,7 +553,7 @@ mod tests {
         let owner_block = harness.owner.payload_block();
         assert_eq!(owner_block.1, 1_048_576);
         for _ in 0..1200 {
-            harness.emit(title_of(1024, 1024));
+            harness.emit(title_of(1024, TITLE_BYTES));
             harness.pass();
         }
         assert!(harness.store.batches().len() >= 2);
@@ -622,17 +626,10 @@ mod tests {
         let mut harness = Harness::new();
         harness.ask(Command::ClosePause);
         for _ in 0..511 {
-            harness.emit(title_of(1024, 1024));
+            harness.emit(title_of(1024, TITLE_BYTES));
             harness.pass();
         }
         let batches = harness.store.batches();
-        if cfg!(feature = "r2") {
-            assert!(
-                batches.is_empty(),
-                "a title above 1,020 bytes is stored empty, so 511 records stay under the byte budget"
-            );
-            return;
-        }
         assert!(
             !batches.is_empty(),
             "no flush before the 512-event threshold"
