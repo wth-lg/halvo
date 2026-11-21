@@ -16,6 +16,7 @@ interface FRow {
   stat: string;
   started: string;
   termProof?: boolean;
+  killProof?: boolean;
 }
 
 const ROOT = process.cwd();
@@ -59,7 +60,7 @@ const world: Processes = {
   kill: (pid, signal) => {
     events.push(`${signal} ${pid}`);
     if (pid < 0 && !rows.some((row) => row.pgid === -pid)) throw new Error("ESRCH");
-    rows = rows.filter((row) => row.pgid !== -pid || (signal === "SIGTERM" && row.termProof === true));
+    rows = rows.filter((row) => row.pgid !== -pid || (signal === "SIGTERM" && row.termProof === true) || row.killProof === true);
   },
   exit: () => {},
   on: (event, listener) => {
@@ -373,3 +374,34 @@ test("startGroup's errors of a failed start name no directory of the checkout an
     "the command holds a NUL byte": { code: "ERR_INVALID_ARG_VALUE", pathOfTheCheckout: false },
   });
 });
+
+test("after an ending that rejects, the owner's handlers send no signal to the group's id unless its leader leads, and leave the group and its mark", async () => {
+  const cases: Record<string, unknown> = {};
+  const want: Record<string, unknown> = {};
+  for (const by of ["a read of ps fails inside the wait", "a member is left after KILL"]) {
+    fresh();
+    const a = startGroup("server", [], { stdio: ["ignore", "ignore", "ignore"] });
+    nextPid += 1;
+    const member = nextPid;
+    const afterKill = by === "a member is left after KILL";
+    rows.push({ pid: member, pgid: a.pid, stat: afterKill ? "D" : "S", started: LATER, termProof: true, killProof: afterKill });
+    const ending = endGroup(a);
+    if (!afterKill) failReads = 1;
+    const thrown = await ending.then(
+      () => "no error",
+      (error: Error) => error.message,
+    );
+    rows = rows.filter((row) => row.pgid !== a.pid);
+    nextPid += 1;
+    rows.push({ pid: nextPid, pgid: a.pid, stat: "S", started: OTHER });
+    events = [];
+    fire("exit");
+    cases[by] = { thrown, signalsAtExit: groupSignals(a.pid), markLeft: marksIn().includes(`group-${a.pid}.json`) };
+    want[by] = {
+      thrown: afterKill ? `process group ${a.pid} (started ${LATER}) still has members ${member}` : "ps was stopped",
+      signalsAtExit: [],
+      markLeft: true,
+    };
+  }
+  expect(cases).toEqual(want);
+}, 20_000);
