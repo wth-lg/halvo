@@ -95,7 +95,12 @@ fn copy_reads(copy: &Path, roots_dir: &Path, root_id: RootId, segment: Uuid) -> 
 }
 
 fn public_reads(store_dir: &Path, roots: &Path, segment: Uuid) -> String {
-    match EncryptedStore::open(store_dir, roots, DEFAULT_RETENTION) {
+    match EncryptedStore::open(
+        store_dir,
+        roots,
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    ) {
         Ok(store) => {
             let mut out = Vec::new();
             match store.read_segment(segment, &mut out) {
@@ -151,7 +156,13 @@ fn p2_a_resumed_delete_all_keeps_the_root_of_a_store_made_at_its_old_name() {
     let dir = tempfile::tempdir().unwrap();
     let store_dir = store_with_its_roots_inside(dir.path());
     let roots = store_dir.join("roots");
-    let mut first = EncryptedStore::open(&store_dir, &roots, DEFAULT_RETENTION).unwrap();
+    let mut first = EncryptedStore::open(
+        &store_dir,
+        &roots,
+        DEFAULT_RETENTION,
+        crate::store::OpenFor::Write,
+    )
+    .unwrap();
     set_mode(&store_dir.join("segments"), 0o500);
     let stopped = first.delete_all();
     println!("ST45 P2-A first call {}", report_line(&stopped));
@@ -1085,7 +1096,13 @@ fn p3_f_the_witness_is_no_entry_that_cannot_be_the_roots_own_file() {
         let store_dir = store_with_its_roots_inside(dir.path());
         let first_id = KeyFile::read(&store_dir).unwrap().root_id;
         let roots = store_dir.join("roots");
-        let mut first = EncryptedStore::open(&store_dir, &roots, DEFAULT_RETENTION).unwrap();
+        let mut first = EncryptedStore::open(
+            &store_dir,
+            &roots,
+            DEFAULT_RETENTION,
+            crate::store::OpenFor::Write,
+        )
+        .unwrap();
         let moved = dir.path().join("moved-away");
         std::fs::rename(&store_dir, &moved).unwrap();
         let second_id = RootId::fresh().unwrap();

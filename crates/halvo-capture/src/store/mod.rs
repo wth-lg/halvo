@@ -162,12 +162,16 @@ pub enum WriteFault {
     Db(i32),
     /// The handle refuses writes because a delete-all began on it.
     Sealed,
+    /// The handle was opened for maintenance alone ([`OpenFor::Maintenance`])
+    /// and refuses every batch; a retry on it answers the same.
+    MaintenanceOnly,
 }
 
 impl From<StoreError> for WriteFault {
     fn from(e: StoreError) -> WriteFault {
         match e {
             StoreError::Sealed => WriteFault::Sealed,
+            StoreError::MaintenanceOnly => WriteFault::MaintenanceOnly,
             StoreError::Io(kind) => WriteFault::Io(kind),
             StoreError::Db(code) => WriteFault::Db(code),
             StoreError::Seal => WriteFault::Db(0),
@@ -198,7 +202,7 @@ pub struct InventoryRow {
 pub struct Reconciled {
     pub files_removed: u64,
     pub rows_shredded: u64,
-    /// A step failed; the next open or expiry pass does what it left.
+    /// A step failed; the next open does what it left.
     pub owed: bool,
 }
 
@@ -236,10 +240,14 @@ pub(in crate::store) trait SegmentStore {
 /// its retention bound, so its ciphertext becomes unrecoverable.
 pub(in crate::store) trait SegmentExpiry {
     /// Crypto-shred every segment past its retention bound. When a shred's
-    /// commit changed a row and the look after the commit or the checkpoint
-    /// after it then fails, the pass answers that failure and reports no
-    /// shred, the handle answers the same to every later call that reads or
-    /// writes the database, and a later open or pass finishes the shred.
+    /// commit changed a row and the look after the commit then fails, the
+    /// pass answers that failure and reports no shred, the handle answers
+    /// the same to every later call that reads or writes the database, and a
+    /// later open finishes the shred. When the checkpoint after the commit
+    /// fails, and fails again after the removal of the chunk's files, the
+    /// pass answers that failure, the handle answers it to every later call
+    /// that reads or writes the database but an expiry or eviction call, and
+    /// such a later call, or a later open, finishes the checkpoint.
     fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport>;
 
     /// Crypto-shred everything and destroy the store key (delete-all), in the
@@ -250,6 +258,38 @@ pub(in crate::store) trait SegmentExpiry {
     /// work); otherwise [`StoreError::DeleteIncomplete`] with the report, after
     /// every step ran. A second call on the same handle resumes.
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport>;
+}
+
+/// The caller's access decision for [`db::EncryptedStore::open`]. `Write`
+/// gives a handle that stores batches. `Maintenance` gives a handle that
+/// expires, evicts, lists and deletes as a `Write` handle does and refuses
+/// every batch with [`WriteFault::MaintenanceOnly`]. The store decides
+/// nothing by the build profile or by a feature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenFor {
+    Write,
+    Maintenance,
+}
+
+/// What one expiry or eviction call did: the ordinals of the segments that it
+/// shredded, in ascending order, whether more segments are due, and whether
+/// the store still owes work that a call left undone.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Pass {
+    pub shredded: Vec<Ordinal>,
+    pub more_due: bool,
+    pub owed: bool,
+}
+
+/// The store's two byte totals. `disk_bytes` is what the files take on the
+/// volume: the allocated size of each live segment's file, the live pages of
+/// the database (its pages less its free pages, times the page size) and the
+/// bytes of its log. `logical_bytes` is the payload bytes of the live
+/// segments. The cap compares `disk_bytes`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Usage {
+    pub disk_bytes: u64,
+    pub logical_bytes: u64,
 }
 
 /// The result of a crypto-shred pass.
@@ -492,6 +532,9 @@ pub(in crate::store) enum StoreError {
         )
     )]
     NotImplemented(&'static str),
+    /// The handle was opened for maintenance alone and refuses every write.
+    #[error("the store was opened for maintenance alone and takes no write")]
+    MaintenanceOnly,
 }
 
 pub(in crate::store) type StoreResult<T> = Result<T, StoreError>;

@@ -115,6 +115,11 @@ pub(crate) fn roots_for_store(dir: &Path) -> PathBuf {
     }
 }
 
-pub(in crate::store) fn open(dir: &Path, retention: Duration) -> StoreResult<EncryptedStore> {
-    EncryptedStore::open(dir, &roots_for_store(dir), retention)
+pub(crate) fn open(dir: &Path, retention: Duration) -> StoreResult<EncryptedStore> {
+    EncryptedStore::open(
+        dir,
+        &roots_for_store(dir),
+        retention,
+        crate::store::OpenFor::Write,
+    )
 }
