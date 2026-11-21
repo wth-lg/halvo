@@ -596,5 +596,50 @@ mod tests {
             assert_eq!((status, err.as_str()), (0, ""));
             assert_eq!(names(&real), vec!["daemon-state.json".to_owned()]);
         }
+
+        struct SearchBack(PathBuf);
+
+        impl Drop for SearchBack {
+            fn drop(&mut self) {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o700));
+            }
+        }
+
+        #[test]
+        fn the_state_file_is_read_and_written_through_its_folders_descriptor_when_the_folder_above_cannot_be_searched(
+        ) {
+            use std::os::unix::fs::PermissionsExt;
+            let root = kept_dir("state-file-tests-");
+            let above = root.join("above");
+            let data = above.join("data");
+            std::fs::create_dir_all(&data).unwrap();
+            let mut first = StateFile::open(
+                StateDir::open(&data).unwrap(),
+                Box::new(DurableStateWrite::new()),
+            );
+            first
+                .update(|state| state.desired = Desired::Running)
+                .unwrap();
+            drop(first);
+            let folder = StateDir::open(&data).unwrap();
+            let back = SearchBack(above.clone());
+            std::fs::set_permissions(&above, std::fs::Permissions::from_mode(0o000)).unwrap();
+            assert!(
+                std::fs::metadata(&data).is_err(),
+                "the folder above the state folder still lets its name be walked, so the case is not made here"
+            );
+            let mut state = StateFile::open(folder, Box::new(DurableStateWrite::new()));
+            let loaded = (state.health(), state.state().desired);
+            let written = state.update(|state| state.desired = Desired::Paused);
+            drop(back);
+            assert_eq!(loaded, (StateHealth::Ok, Desired::Running));
+            assert!(written.is_ok(), "{written:?}");
+            assert!(
+                file_text(&data).contains("\"desired\":\"paused\""),
+                "{}",
+                file_text(&data)
+            );
+        }
     }
 }
