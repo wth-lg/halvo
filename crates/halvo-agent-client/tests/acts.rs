@@ -301,26 +301,40 @@ fn a_confirmer_that_answers_for_another_count_of_effects_gets_every_effect_rejec
     rig.sup.kill(&run).unwrap();
 }
 
-/// U4.7, CP-226 item 1 reading (b): each answer of `Confirmer::answers` names its effect by id. The answers of two
-/// effects that come back in the other order are each applied to their own effect, and a set of answers that names
-/// an effect that the request does not ask for rejects both effects; the runner gets the decision that `issued` saw.
+/// U4.7, CP-226 item 1 reading (b), contracts.md A6.6: each answer of `Confirmer::answers` names its effect by id,
+/// and the library releases a decision only when the ids match the asked effects in their order. The answers of two
+/// effects in the asked order are applied each to its effect; the same answers in the other order, and a set of
+/// answers that names an effect that the request does not ask for, reject both effects; the runner gets the decision
+/// that `issued` saw.
 #[test]
-fn answers_in_the_other_order_go_each_to_the_effect_of_their_id_and_a_wrong_id_rejects_every_effect(
+fn answers_in_the_asked_order_go_each_to_their_effect_and_another_order_or_a_wrong_id_rejects_every_effect(
 ) {
     let rig = Rig::new("confirm-by-id");
     let (first, second) = (effect_id(0x61), effect_id(0x62));
+    let asked = vec![
+        (first.clone(), Answer::AllowOnce),
+        (second.clone(), Answer::RejectOnce),
+    ];
+    let other_order = asked.iter().rev().cloned().collect();
     rig.people.answers.lock().unwrap().extend([
-        vec![
-            (second.clone(), Answer::RejectOnce),
-            (first.clone(), Answer::AllowOnce),
-        ],
+        asked,
+        other_order,
         vec![
             (first.clone(), Answer::AllowOnce),
             (effect_id(0x63), Answer::AllowOnce),
         ],
     ]);
     let ask = confirm_two(&first, &second);
-    let script = rig.script(&["hello", &ask, "log reordered", &ask, "log wrong-id", "idle"]);
+    let script = rig.script(&[
+        "hello",
+        &ask,
+        "log asked-order",
+        &ask,
+        "log other-order",
+        &ask,
+        "log wrong-id",
+        "idle",
+    ]);
     let spec = rig.spec(&script);
     let run = spec.run.clone();
     rig.sup.start(spec).unwrap();
@@ -335,14 +349,16 @@ fn answers_in_the_other_order_go_each_to_the_effect_of_their_id_and_a_wrong_id_r
                 .collect()
         })
         .collect();
+    let rejected = vec![
+        (first.clone(), Answer::RejectOnce),
+        (second.clone(), Answer::RejectOnce),
+    ];
     assert_eq!(
         applied,
         [
-            vec![
-                (first.clone(), Answer::AllowOnce),
-                (second.clone(), Answer::RejectOnce)
-            ],
-            vec![(first, Answer::RejectOnce), (second, Answer::RejectOnce)],
+            vec![(first, Answer::AllowOnce), (second, Answer::RejectOnce)],
+            rejected.clone(),
+            rejected,
         ]
     );
     let sent: Vec<String> = issued

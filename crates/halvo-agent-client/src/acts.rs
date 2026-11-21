@@ -86,25 +86,18 @@ fn mint() -> Option<ApprovalId> {
     sys::random16().ok().map(ApprovalId::from_random)
 }
 
-/// The answers of the `Confirmer` in the order of the request's effects, each effect with the one answer that names
-/// its id; none when an effect has no answer, when an id is named twice, or when an answer names an effect that the
-/// request does not ask for, and the library then rejects every effect (contracts.md A6.6, ruling CP-226 item 1,
-/// reading (b)). The request names each effect once (`ConfirmRequest`'s rule), so as many answers as effects, each
-/// effect named by exactly one of them, leaves no answer of another id.
-fn by_effect(request: &ConfirmRequest, answers: &[(EffectId, Answer)]) -> Option<Vec<Answer>> {
+/// The answers of the `Confirmer`, released only when their ids match the request's effects in their order; none on
+/// a mismatch (an id of another effect, an answer missing or one too many, another order), and the library then
+/// rejects every effect of the request (contracts.md A6.6, ruling CP-226 item 1, reading (b)).
+fn in_order(request: &ConfirmRequest, answers: &[(EffectId, Answer)]) -> Option<Vec<Answer>> {
     if answers.len() != request.effects.len() {
         return None;
     }
     request
         .effects
         .iter()
-        .map(|asked| {
-            let mut named = answers.iter().filter(|(id, _)| *id == asked.effect);
-            match (named.next(), named.next()) {
-                (Some((_, answer)), None) => Some(*answer),
-                _ => None,
-            }
-        })
+        .zip(answers)
+        .map(|(asked, (id, answer))| (*id == asked.effect).then_some(*answer))
         .collect()
 }
 
@@ -134,7 +127,7 @@ impl Running<'_> {
         let confirmer = &self.inner.parts.confirmer;
         let rejected = vec![Answer::RejectOnce; request.effects.len()];
         let answers = confirmer.answers(&spec.run, request);
-        let answers = by_effect(request, &answers).unwrap_or_else(|| rejected.clone());
+        let answers = in_order(request, &answers).unwrap_or_else(|| rejected.clone());
         let Some(first) = decision(request, &answers) else {
             return Flow::Lost;
         };

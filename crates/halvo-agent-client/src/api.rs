@@ -151,10 +151,10 @@ pub struct IssueRefused;
 
 /// The confirmation of a run's effects.
 pub trait Confirmer: Send + Sync {
-    /// One answer per effect of the request, each with the id of the effect that it names, in any order. The library
-    /// applies each answer to the effect of its id alone. An effect of the request with no answer, an id named twice,
-    /// or an id of an effect that the request does not ask for makes it reject every effect of the request
-    /// (contracts.md A6.6, the coordinator's ruling CP-226 item 1, reading (b)).
+    /// One answer per effect of the request, in its order, each with the id of the effect that it names. The library
+    /// releases a decision only when the ids match the request's effects in their order; an id of another effect, an
+    /// answer missing or one too many, or another order makes it reject every effect of the request (contracts.md
+    /// A6.6, the coordinator's ruling CP-226 item 1, reading (b)).
     fn answers(&self, run: &RunId, request: &ConfirmRequest) -> Vec<(EffectId, Answer)>;
     /// Records the decision before the runner gets it; an error makes the library reject every effect.
     fn issued(&self, run: &RunId, decision: &ConfirmDecision) -> Result<(), IssueRefused>;
