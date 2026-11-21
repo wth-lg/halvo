@@ -210,9 +210,9 @@ the next state must be `state`. Then keep `state` and the move's `bound`, and ad
 when the move is a `rebind` with the answer `ok`. No key holds the count: it is the number
 of the trace's earlier accepted rebinds. The file holds the model's cause (A5.6).
 
-Until U1.8 (b), `effect_step` has no move `not_made` and the schema no such state (the
-coordinator's ruling CP-144). An ignored test, `not_made_has_no_stand_in_left`, fails until
-(b) gives them, and (b) takes its ignore away.
+Since U1.8 (b), `effect_step` has the move `not_made` and the schema the state (the
+coordinator's ruling CP-144), and the test `not_made_has_no_stand_in_left` holds that the
+crate keeps no stand-in for them.
 
 `Step` compares the class of a `rebind` with the effect's, a digest and an effect id only
 for equality, and the count only in `x.reb >= Limit`; it reads the effect's class only for
