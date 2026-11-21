@@ -618,6 +618,34 @@ mod tests {
     }
 
     #[test]
+    fn no_firefox_title_is_kept_normal_or_private_in_any_language() {
+        let never = || -> Option<bool> { panic!("the query ran for a window that is not Chrome") };
+        let cases = [
+            ("english-normal", "PAGE \u{2014} Mozilla Firefox"),
+            (
+                "english-private",
+                "PAGE \u{2014} Mozilla Firefox Private Browsing",
+            ),
+            ("french-normal", "Accueil \u{2014} Mozilla Firefox"),
+            (
+                "french-private",
+                "PAGE \u{2014} Navigation priv\u{E9}e de Mozilla Firefox",
+            ),
+        ];
+        let kept: Vec<&str> = cases
+            .iter()
+            .filter(|(_, title)| {
+                private_window(Browser::Firefox, title, never) != PrivateWindow::Private
+            })
+            .map(|(case, _)| *case)
+            .collect();
+        assert!(
+            kept.is_empty(),
+            "Firefox titles told as not private: {kept:?}"
+        );
+    }
+
+    #[test]
     fn a_firefox_or_edge_title_is_kept_only_with_the_bare_brand_ending() {
         let told = |browser, title: &str| private_window(browser, title, || None);
         let cases = [
