@@ -404,6 +404,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     slot: Slot,
     lease: Lease,
     capturing: bool,
+    pausing: bool,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -442,6 +443,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             slot: Slot::Opening,
             lease: Lease::NONE,
             capturing: false,
+            pausing: false,
         }
     }
 
@@ -1004,6 +1006,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             if !is_a_stop(&answer) {
                 self.arm_unstopped(*name, &answer);
                 self.answered_unstopped(*name, &answer);
+                self.pausing = true;
                 unstopped = true;
                 break;
             }
@@ -1158,8 +1161,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if kind == StopKind::LostGrant {
             self.barrier(owner);
         }
+        self.pausing = true;
         self.publish();
-        self.board.capture = Capture::Stopped;
         reply(&self.board);
         let first = owner.snapshot();
         self.write_record(kind, false, &first);
@@ -1444,7 +1447,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             let state = state.clone();
             self.board.set_source(name, &state, unstopped);
         }
-        self.board.capture = if self.no_indicator() {
+        self.board.capture = if self.pausing {
+            Capture::Pausing
+        } else if self.no_indicator() {
             Capture::NoIndicator
         } else if self.stopped_for_drain {
             Capture::Stopped
@@ -3579,7 +3584,7 @@ mod tests {
             after_start,
             [
                 "stop input",
-                "reply capture=Stopped",
+                "reply capture=Pausing",
                 "record first",
                 "stop input",
                 "stop foreground",

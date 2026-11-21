@@ -1,15 +1,16 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use halvo_control::paths::STATE_FILE;
 use halvo_control::proto::{Platform, SourceName};
-use halvo_control::INDICATOR_LEASE_MS;
+use halvo_control::{exit, INDICATOR_LEASE_MS};
 
 use super::Lease;
 use crate::daemon::board::Capture;
 use crate::daemon::counters::Snapshot;
-use crate::daemon::main_loop::{MainLoop, TICK};
+use crate::daemon::main_loop::{EndCall, MainLoop, TICK};
 use crate::daemon::model_store::{foreground_now, open_floor, Harness};
 use crate::daemon::owner::{Answer, Command, OwnerGone, Pending};
 use crate::daemon::port::StoreId;
@@ -18,8 +19,8 @@ use crate::daemon::sources::tests::Factory;
 use crate::daemon::sources::{starting, RunKind};
 use crate::daemon::state::tests::TestWrite;
 use crate::daemon::state::{Desired, StateDir, StateFile};
-use crate::daemon::supervisor::{OwnerLink, ReportLog, Supervisor, RESTART_MAX};
-use crate::source::SourceContext;
+use crate::daemon::supervisor::{Ending, OwnerLink, ReportLog, Supervisor, RESTART_MAX};
+use crate::source::{CaptureError, SourceContext};
 
 struct TestLoop {
     now: Rc<Cell<Duration>>,
@@ -74,6 +75,10 @@ struct Fixture {
 
 impl Fixture {
     fn new(desired: Desired, factory: Factory) -> Fixture {
+        Fixture::ending_by(desired, factory, None)
+    }
+
+    fn ending_by(desired: Desired, factory: Factory, ending: Option<Arc<dyn EndCall>>) -> Fixture {
         let dir = tempfile::tempdir().unwrap();
         let mut state = StateFile::open(
             StateDir::open(dir.path()).unwrap(),
@@ -95,6 +100,9 @@ impl Fixture {
         let mut supervisor = Supervisor::new(Platform::Macos, factory, main_loop)
             .with_err(Box::new(std::io::sink()))
             .with_state(state);
+        if let Some(ending) = ending {
+            supervisor = supervisor.with_ending(ending);
+        }
         supervisor.serve_sources(ctx, wanted.clone());
         Fixture {
             supervisor,
@@ -269,4 +277,60 @@ fn a_lapsed_lease_stops_every_source_and_leaves_the_state_file_byte_identical() 
     }
     f.emit(1);
     assert_eq!(f.stored(), 3, "the event after the renewal was not stored");
+}
+
+#[derive(Clone, Default)]
+struct Ended(Arc<Mutex<Vec<i32>>>);
+
+impl EndCall for Ended {
+    fn end(&self, status: i32) {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(status);
+    }
+}
+
+#[test]
+fn a_lapse_whose_stop_does_not_stop_ends_with_5_and_reads_pausing() {
+    let ended = Ended::default();
+    let mut f = Fixture::ending_by(
+        Desired::Running,
+        Factory::adjusting(|source| {
+            if source.name == SourceName::Input {
+                source.stop = Err(CaptureError::Timeout {
+                    stage: "scripted_stop",
+                    ms: 1_000,
+                });
+            }
+        }),
+        Some(Arc::new(ended.clone())),
+    );
+    assert!(f.wanted.contains(&SourceName::Input), "{:?}", f.wanted);
+    f.set_slot(open());
+    let claimed = f.now.get();
+    f.claim();
+    assert_eq!(f.begins(SourceName::Input), 1);
+    let before = f.state_bytes();
+    f.now
+        .set(claimed + Duration::from_millis(INDICATOR_LEASE_MS));
+    let mut replies = Vec::new();
+    let answer = f
+        .supervisor
+        .follow_the_run_condition(Some(&f.link), &mut |board| replies.push(board.capture));
+    assert_eq!(answer, Some(Ending::SourceNotStopped));
+    assert_eq!(
+        *ended.0.lock().unwrap_or_else(PoisonError::into_inner),
+        [exit::SOURCE_NOT_STOPPED]
+    );
+    assert_eq!(replies, [Capture::Pausing]);
+    assert_eq!(f.supervisor.board().capture, Capture::Pausing);
+    for _ in 0..3 {
+        f.later(TICK);
+        assert_eq!(f.supervisor.board().capture, Capture::Pausing);
+    }
+    assert!(
+        f.state_bytes() == before,
+        "the lapse changed the state file"
+    );
 }
