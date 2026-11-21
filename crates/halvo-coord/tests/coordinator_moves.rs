@@ -12289,6 +12289,33 @@ fn u24s_r1_a_later_switch_off_that_is_saved_ends_the_line_of_the_one_that_was_no
     assert_ne!(line, text("line.working.switch_not_saved"));
 }
 
+#[test]
+fn u24s_r1_a_card_after_the_switch_off_that_could_not_be_saved_has_its_own_line() {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
+    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
+    c.ports().ports.store_end(
+        &agent(0),
+        PastRun {
+            run: run.clone(),
+            day: DAY,
+            outcome: Outcome::EffectUnknown,
+            unknown: 1,
+        },
+    );
+    c.tick();
+    let row = u24s_r1_row(&c);
+    assert_eq!(
+        (row.status, row.line),
+        (Status::NeedsYou, text("line.needs_you.check")),
+        "the card's line, not the line of the switch, while a card waits"
+    );
+}
+
 fn u24s_r4_setup_raise(e: &halvo_coord::types::Event) -> bool {
     matches!(
         e.what,
@@ -12402,6 +12429,29 @@ fn u24s_i58_an_owed_setup_raise_ends_where_the_hold_setup_has_ended() {
         "the bindings came by another way: the hold setup has ended, and so has the debt"
     );
     assert_eq!(u24s_r4_open_setups(&life), 0);
+    let ready = life
+        .snapshot()
+        .items
+        .iter()
+        .find(|i| i.kind() == ItemKind::Ready)
+        .map(|i| i.item().clone());
+    if let Some(ready) = ready {
+        assert_eq!(
+            life.answer(
+                &ready,
+                Choice::Skip,
+                None,
+                shown_step_mark_or_zero(&life, &ready)
+            ),
+            Ok(())
+        );
+        life.tick();
+    }
+    assert_ne!(
+        u24s_r4_status(&life, &made),
+        (Status::NeedsYou, text("line.needs_you.setup")),
+        "with no item open the row is not made needs you by a debt that has ended"
+    );
     assert_eq!(
         setups_raised(&life),
         raised,
