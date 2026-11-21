@@ -121,6 +121,7 @@ struct State<C> {
     ended: Vec<(RunId, Option<crate::types::Outcome>)>,
     marked: Vec<RunId>,
     held_off: Vec<AgentId>,
+    refused_on: Vec<(AgentId, crate::ports::Shared)>,
 }
 
 /// What a move or a tick that did not return left (rulings RD-80 3.4, 4.1, 4.2): `unpublished`
@@ -199,6 +200,22 @@ fn answered(report: &Report) -> Result<(), Cause> {
 
 fn index<C>(board: &Board<C>, agent: &AgentId) -> Option<usize> {
     board.members.iter().position(|m| &m.facts.agent == agent)
+}
+
+/// Whether the owner has acknowledged the `paused` of `agent`, the task that the person switched
+/// off, for the kept body that its switch-off freed (I3.5 (e); ruling RD-160 (2)): its workflow is
+/// listed `paused`, has left the list or is the stand-in of a dismissed one, or the board holds
+/// no member of it.
+fn off_paused<C>(board: &Board<C>, agent: &AgentId) -> bool {
+    match index(board, agent) {
+        None => true,
+        Some(i) => {
+            let facts = &board.members[i].facts;
+            facts.stand_in
+                || facts.workflow.state == crate::types::WorkflowState::Paused
+                || board.gone.contains(&facts.workflow.id)
+        }
+    }
 }
 
 /// The items ledger of the agent of member `i`, which takes the owner's events that the board
@@ -373,6 +390,7 @@ where
                 ended: Vec::new(),
                 marked: Vec::new(),
                 held_off: Vec::new(),
+                refused_on: Vec::new(),
             }),
             last_read: AtomicU64::new(NO_READ),
             reads: AtomicU64::new(0),
@@ -857,6 +875,7 @@ where
             }
         }
         self.open_setups(st);
+        self.tick_waited_setups(st);
         self.tick_setups(st);
         self.tick_confirms(st);
         self.tick_binds(st);
@@ -921,6 +940,13 @@ where
 
     /// Takes what a move of the setup `k` answered; whether the setup stays.
     fn setup_done(&self, st: &mut State<Cfg<P>>, k: usize, done: Result<SetupDone, Cause>) -> bool {
+        if matches!(done, Ok(SetupDone::Overlap)) {
+            let again = self.overlap_once_more(st, k);
+            return self.setup_done(st, k, again);
+        }
+        if matches!(done, Ok(SetupDone::ActiveOverlap)) {
+            self.active_overlap(st, k);
+        }
         let agent = st.setups[k].agent().clone();
         let stays = matches!(
             done,
@@ -945,6 +971,107 @@ where
             st.forgotten.push(agent);
         }
         false
+    }
+
+    /// What follows a first refusal `overlap` of the body of the setup `k` (I3.5 (b); ruling
+    /// RD-67 3.2 (b)): every `paused` that the board owes, then the body once more; the answer of
+    /// that send, which is never `Overlap`.
+    fn overlap_once_more(&self, st: &mut State<Cfg<P>>, k: usize) -> Result<SetupDone, Cause> {
+        let State {
+            board,
+            ledgers,
+            setups,
+            ..
+        } = &mut *st;
+        let board = board.as_mut().ok_or(Cause::State)?;
+        schedule::pause_owed(&self.ports, board);
+        let i = index(board, setups[k].agent()).ok_or(Cause::State)?;
+        let l = ledger(ledgers, board, i);
+        let facts = &board.members[i].facts;
+        items::again_setup(&self.ports, l, &self.limits, &mut setups[k], facts)
+    }
+
+    /// The `active` that the rule of `active` sent after the acknowledged body of the setup `k`
+    /// was refused with `overlap`: its agent is marked for the life and gets `paused` (ruling
+    /// RD-67 4.3).
+    fn active_overlap(&self, st: &mut State<Cfg<P>>, k: usize) {
+        let agent = st.setups[k].agent().clone();
+        if let Some(board) = st.board.as_mut() {
+            if let Some(i) = index(board, &agent) {
+                schedule::refused_active(&self.ports, board, i);
+            }
+        }
+    }
+
+    /// After a switch-off of the agent `off` that the person made, the kept body of each setup
+    /// whose sentence names that agent, or names nobody, goes once more (I3.5 (e); ruling RD-67
+    /// 3.2 (e)), in this move where the owner has acknowledged the `paused` of `off`, else at the
+    /// first tick that finds it acknowledged (`tick_waited_setups`; ruling RD-160 (2)).
+    fn setups_freed(&self, st: &mut State<Cfg<P>>, off: &AgentId) {
+        let paused = st.board.as_ref().is_some_and(|b| off_paused(b, off));
+        let mut k = 0;
+        while k < st.setups.len() {
+            let State {
+                board,
+                ledgers,
+                setups,
+                ..
+            } = &mut *st;
+            let done = match board.as_mut() {
+                Some(board) => match index(board, setups[k].agent()) {
+                    Some(i) => {
+                        let l = ledger(ledgers, board, i);
+                        let facts = &board.members[i].facts;
+                        items::freed_setup(
+                            &self.ports,
+                            l,
+                            &self.limits,
+                            &mut setups[k],
+                            facts,
+                            off,
+                            paused,
+                        )
+                    }
+                    None => Err(Cause::State),
+                },
+                None => return,
+            };
+            if self.setup_done(st, k, done) {
+                k += 1;
+            }
+        }
+    }
+
+    /// At a tick, the kept body of each setup that waits for the `paused` of the task that the
+    /// person switched off goes once more, as `again_setup` sends it, once the owner has
+    /// acknowledged that `paused` (`off_paused`); a setup that still waits sends nothing (I3.5
+    /// (e); ruling RD-160 (2)).
+    fn tick_waited_setups(&self, st: &mut State<Cfg<P>>) {
+        let mut k = 0;
+        while k < st.setups.len() {
+            let State {
+                board,
+                ledgers,
+                setups,
+                ..
+            } = &mut *st;
+            let Some(board) = board.as_mut() else { return };
+            if !setups[k].waits().is_some_and(|off| off_paused(board, off)) {
+                k += 1;
+                continue;
+            }
+            let done = match index(board, setups[k].agent()) {
+                Some(i) => {
+                    let l = ledger(ledgers, board, i);
+                    let facts = &board.members[i].facts;
+                    items::again_setup(&self.ports, l, &self.limits, &mut setups[k], facts)
+                }
+                None => Err(Cause::State),
+            };
+            if self.setup_done(st, k, done) {
+                k += 1;
+            }
+        }
     }
 
     fn tick_confirms(&self, st: &mut State<Cfg<P>>) {
@@ -1356,10 +1483,18 @@ where
             ledgers,
             ..
         } = st;
+        let start = match &act {
+            Act::Start { agent } => Some(agent.clone()),
+            _ => None,
+        };
         let board = board.as_mut().ok_or(Cause::State)?;
         share_lasts(board, ledgers);
         let done: Done = run::drive(&self.ports, board, table, &self.limits, act);
         self.noted(done.report.read);
+        if let (Some(agent), Some(shared)) = (start, done.report.shared.clone()) {
+            st.refused_on.retain(|(a, _)| a != &agent);
+            st.refused_on.push((agent, shared));
+        }
         answered(&done.report)
     }
 
@@ -2248,12 +2383,47 @@ where
     }
 
     fn schedule(&self, st: &mut State<Cfg<P>>, mv: Move) -> Result<(), Cause> {
+        let on = match &mv {
+            Move::SwitchOn { agent } => Some(agent.clone()),
+            _ => None,
+        };
         let State { board, ledgers, .. } = st;
         let board = board.as_mut().ok_or(Cause::NoService)?;
         share_lasts(board, ledgers);
         let report = schedule::drive(&self.ports, board, &self.limits, mv);
         self.noted(report.read);
+        if let Some(agent) = on {
+            st.refused_on.retain(|(a, _)| a != &agent);
+            if let Some(shared) = report.shared.clone() {
+                st.refused_on.push((agent, shared));
+            }
+        }
         answered(&report)
+    }
+
+    /// What the open setup item `item` holds to show of the newest refusal `overlap` of its
+    /// body: the entries of the read that followed it, or that the read did not answer; none
+    /// otherwise (I3.5 (c), (d); ruling RD-67 3.2). The sentence's words are U2.4d's.
+    pub fn setup_overlap(&self, item: &ItemId) -> Option<crate::ports::Shared> {
+        let st = self.lock();
+        st.setups
+            .iter()
+            .find(|s| s.item() == item)
+            .and_then(|s| s.shared().cloned())
+    }
+
+    /// What the newest switch-on or start by the person of `agent` holds to show where the owner
+    /// refused its state with `overlap`: the entries of the read that followed, or the half of the
+    /// sentence that is known where that read did not answer; none after a later control of the
+    /// person on that agent that the owner did not refuse so, such as a switch-on or a Start now
+    /// that goes, a switch-off or a stop (I3.5 (c), (f); rulings RD-67 3.2 (f), 4.3, RD-160 (3)).
+    /// It keeps its name for the page that reads it.
+    pub fn switch_on_overlap(&self, agent: &AgentId) -> Option<crate::ports::Shared> {
+        let st = self.lock();
+        st.refused_on
+            .iter()
+            .find(|(a, _)| a == agent)
+            .map(|(_, s)| s.clone())
     }
 
     /// A start by the person, `run_now` or the `start` of a `ready` item: `state` after the first
@@ -2306,7 +2476,19 @@ where
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);
+        let off = matches!(action, Action::SwitchOff);
+        st.refused_on.retain(|(a, _)| a != agent);
         let out = self.control_in(&mut st, agent, action);
+        if off && out.is_ok() {
+            // Every owed `paused` before a freed body, where a set-up keeps one (ruling RD-160
+            // (2)); a switch-off that waits for a read of the clock sends its own with the rest
+            // of it (ruling RD-133 1).
+            let freed = !st.offs.contains(agent) && st.setups.iter().any(|s| s.kept().is_some());
+            if let (Some(board), true) = (st.board.as_mut(), freed) {
+                schedule::pause_owed(&self.ports, board);
+            }
+            self.setups_freed(&mut st, agent);
+        }
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.publish(&mut st);
         out
