@@ -12703,3 +12703,82 @@ fn an_open_with_the_log_level_warn_for_parent() {
     )
     .unwrap();
 }
+
+const SECOND: i64 = 1_000_000_000;
+const DAY_SECONDS: i64 = 86_400;
+const NOW_SECONDS: i64 = 1_800_000_000;
+
+fn at_second(seconds: i64) -> std::time::SystemTime {
+    std::time::UNIX_EPOCH + Duration::from_secs(seconds as u64)
+}
+
+fn window_seconds() -> i64 {
+    DEFAULT_RETENTION.as_secs() as i64
+}
+
+fn batch_first_captured_at(
+    store: &mut EncryptedStore,
+    first_capture: i64,
+    payload: &[u8],
+) -> (Uuid, super::Ordinal) {
+    let id = super::db::random_segment_id().unwrap();
+    let written = store
+        .write_batch(super::SegmentWrite {
+            segment_id: &id,
+            day: super::UtcDay::of_instant(first_capture),
+            first_capture,
+            last_capture: first_capture,
+            kinds: &[super::KindTotal {
+                kind: "keystroke",
+                events: 1,
+                bytes: payload.len() as u64,
+            }],
+            payload,
+        })
+        .unwrap();
+    (id, written.ordinal)
+}
+
+fn reads_sealed(store: &EncryptedStore, id: Uuid) -> bool {
+    matches!(
+        store.read_segment(id, &mut Vec::new()),
+        Err(StoreError::Sealed)
+    )
+}
+
+#[test]
+fn one_expiry_call_shreds_at_most_its_limit_and_names_the_ordinals() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let edge = NOW_SECONDS - window_seconds();
+    let segments: Vec<(Uuid, super::Ordinal)> = [
+        (edge - DAY_SECONDS) * SECOND,
+        (edge - 2 * DAY_SECONDS) * SECOND,
+        edge * SECOND + SECOND - 1,
+        (edge + 1) * SECOND,
+    ]
+    .into_iter()
+    .map(|first| batch_first_captured_at(&mut store, first, b"a segment of the chunk test"))
+    .collect();
+
+    let pass = store.expire_due(at_second(NOW_SECONDS), 2).unwrap();
+
+    assert_eq!(
+        pass.shredded,
+        vec![segments[0].1, segments[1].1],
+        "one call of a limit of 2 over three due segments returned {pass:?}"
+    );
+    assert!(
+        pass.more_due,
+        "the segment at the edge after flooring is due, so more are due: {pass:?}"
+    );
+    for (id, _) in &segments[..2] {
+        assert!(reads_sealed(&store, *id), "a shredded segment still reads");
+    }
+    for (id, _) in &segments[2..] {
+        assert!(
+            store.read_segment(*id, &mut Vec::new()).is_ok(),
+            "a segment that the call did not shred no longer reads"
+        );
+    }
+}

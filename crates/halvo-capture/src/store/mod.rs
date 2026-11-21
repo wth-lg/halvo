@@ -236,6 +236,16 @@ pub trait SegmentExpiry {
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport>;
 }
 
+/// What one expiry or eviction call did: the ordinals of the segments that it
+/// shredded, in ascending order, whether more segments are due, and whether
+/// the store still owes work that a call left undone.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Pass {
+    pub shredded: Vec<Ordinal>,
+    pub more_due: bool,
+    pub owed: bool,
+}
+
 /// The result of a crypto-shred pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ShredReport {

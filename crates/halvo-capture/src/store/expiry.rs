@@ -1,16 +1,20 @@
 //! Window-expiry crypto-shred.
 
 use std::collections::HashSet;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use halvo_sqlcipher::rusqlite::{self, Connection, OptionalExtension};
 use uuid::Uuid;
 
-use super::db::{db_error, unix_secs_now, EncryptedStore};
+use super::db::{db_error, EncryptedStore};
 use super::segment;
-use super::{DeleteReport, Reconciled, SegmentExpiry, ShredReport, StoreError, StoreResult};
+use super::{
+    DeleteReport, Ordinal, Pass, Reconciled, SegmentExpiry, ShredReport, StoreError, StoreResult,
+};
 
 const STORE_KEY_COUNT: u64 = 1;
+
+const LEGACY_CHUNK: usize = 64;
 
 const NANOS_PER_SECOND: i64 = 1_000_000_000;
 
@@ -39,7 +43,7 @@ pub fn expiry_instant(first_capture: i64, retention: Duration) -> i64 {
         .saturating_add(i64::try_from(retention.as_secs()).unwrap_or(i64::MAX))
 }
 
-fn due_before(now_secs: u64, retention: Duration) -> i64 {
+fn due_before(now_secs: i64, retention: Duration) -> i64 {
     let bound =
         (i128::from(now_secs) - i128::from(retention.as_secs()) + 1) * i128::from(NANOS_PER_SECOND);
     bound.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
@@ -97,27 +101,71 @@ impl EncryptedStore {
         .collect()
     }
 
-    fn due_segments(&self, now_secs: u64) -> StoreResult<Vec<Uuid>> {
+    fn due_chunk(
+        &self,
+        now_secs: i64,
+        max_segments: usize,
+    ) -> StoreResult<(Vec<(Uuid, Ordinal)>, bool)> {
         let conn = self.db()?.connection();
         let mut due = conn
             .prepare(
-                "SELECT segment_id, first_capture FROM segment_keys \
-                 WHERE wrapped_key IS NOT NULL AND first_capture < ?1",
+                "SELECT segment_id, id, first_capture FROM segment_keys \
+                 WHERE wrapped_key IS NOT NULL AND first_capture < ?1 \
+                 ORDER BY first_capture, id LIMIT ?2",
             )
             .map_err(db_error)?;
+        let limit = i64::try_from(max_segments)
+            .unwrap_or(i64::MAX)
+            .saturating_add(1);
         let rows = due
-            .query_map([due_before(now_secs, self.retention())], |r| {
-                Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
-            })
+            .query_map(
+                rusqlite::params![due_before(now_secs, self.retention()), limit],
+                |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, i64>(1)?,
+                        r.get::<_, i64>(2)?,
+                    ))
+                },
+            )
             .map_err(db_error)?;
-        let mut ids = Vec::new();
+        let mut chunk = Vec::new();
         for row in rows {
-            let (id, first) = row.map_err(db_error)?;
-            if expiry_instant(first, self.retention()) <= now_secs as i64 {
-                ids.push(parse_segment_id(&id)?);
+            let (id, ordinal, first) = row.map_err(db_error)?;
+            if expiry_instant(first, self.retention()) <= now_secs {
+                chunk.push((parse_segment_id(&id)?, Ordinal::of_row(ordinal)));
             }
         }
-        Ok(ids)
+        let more_due = chunk.len() > max_segments;
+        chunk.truncate(max_segments);
+        Ok((chunk, more_due))
+    }
+
+    fn shred_chunk(&mut self, chunk: &[(Uuid, Ordinal)]) -> StoreResult<Vec<Ordinal>> {
+        let ids: Vec<Uuid> = chunk.iter().map(|(id, _)| *id).collect();
+        self.destroy_segment_keys(&ids)?;
+        self.remove_keyless_files()?;
+        let mut shredded: Vec<Ordinal> = chunk.iter().map(|(_, ordinal)| *ordinal).collect();
+        shredded.sort_unstable();
+        Ok(shredded)
+    }
+
+    /// One expiry chunk at the caller's wall-clock `now`; the store reads no
+    /// clock. It shreds at most `max_segments` live segments whose first
+    /// capture, floored to whole seconds, plus this handle's window is at or
+    /// before `now`, the oldest first capture first, in one transaction that
+    /// clears each key in place and takes its totals out of the rollup. It
+    /// returns their ordinals in ascending order and whether more segments
+    /// are due.
+    pub fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> StoreResult<Pass> {
+        let now_secs = crate::event::unix_nanos(now).div_euclid(NANOS_PER_SECOND);
+        let (chunk, more_due) = self.due_chunk(now_secs, max_segments)?;
+        let shredded = self.shred_chunk(&chunk)?;
+        Ok(Pass {
+            shredded,
+            more_due,
+            owed: false,
+        })
     }
 
     pub(in crate::store) fn destroy_segment_keys(&self, ids: &[Uuid]) -> StoreResult<u64> {
@@ -152,12 +200,6 @@ impl EncryptedStore {
                 not_store_files: swept.not_store_files,
             }),
         }
-    }
-
-    fn shred_segments(&mut self, ids: &[Uuid]) -> StoreResult<u64> {
-        self.destroy_segment_keys(ids)?;
-        self.remove_keyless_files()?;
-        Ok(ids.len() as u64)
     }
 
     /// The open-time reconcile: the shred in place, as an expiry shreds, of
@@ -255,12 +297,18 @@ impl EncryptedStore {
 
 impl SegmentExpiry for EncryptedStore {
     fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport> {
-        let ids = self.due_segments(unix_secs_now())?;
-        let segments_shredded = self.shred_segments(&ids)?;
-        Ok(ShredReport {
-            segments_shredded,
-            keys_destroyed: segments_shredded,
-        })
+        let now = SystemTime::now();
+        let mut segments_shredded = 0;
+        loop {
+            let pass = self.expire_due(now, LEGACY_CHUNK)?;
+            segments_shredded += pass.shredded.len() as u64;
+            if !pass.more_due {
+                return Ok(ShredReport {
+                    segments_shredded,
+                    keys_destroyed: segments_shredded,
+                });
+            }
+        }
     }
 
     fn crypto_shred_all(&mut self) -> StoreResult<ShredReport> {

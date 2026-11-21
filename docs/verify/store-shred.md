@@ -2026,8 +2026,8 @@ set, and the root's own volume name answers the root.
   tests the first of these states for a removal that fails.
 - Code that check 1 calls in every case and that no row fails through. A
   change there can fail the check, and no row shows it: in `expiry.rs`
-  `live_segments`, `due_segments` with `expiry_instant`, `reconcile`,
-  which every open runs, `remove_keyless_files`, `shred_segments`,
+  `live_segments`, `due_chunk` with `expiry_instant`, `reconcile`,
+  which every open runs, `remove_keyless_files`, `shred_chunk`,
   `crypto_shred_expired`, and `crypto_shred_all`, which counts what
   `delete_all` reports; in `db.rs`
   `Db::ordinal_of`, `Db::look_after_the_first_commit`, `refusal_of`,
