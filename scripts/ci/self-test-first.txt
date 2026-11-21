@@ -3,8 +3,6 @@
 10-r7-account
 50-windows-functional
 30-r5-formal
-20-r3-policy
 26-r7-pnpm-step
 30-r4-formal
 30-r3-formal
-50-r6-spend

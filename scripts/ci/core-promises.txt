@@ -89,7 +89,6 @@ billing check 21-r7-backend-test gate macos job, which alone has the check, 72 s
 billing check 24-r7-wall gate
 billing check 27-r7-metering-self gate
 billing check 28-r7-helper-s6 scheduled it reads the build that 10-r7-account makes and fails without it; 35 s in the macos job, 14 s in the windows job
-billing check 50-r6-spend scheduled 56 s in the macos job, 38 s in the windows job; 12-test runs the fast test targets of the same two crates
 billing check 55-r6-formal scheduled 108 s in the macos job
 billing check 10-r7-account scheduled 55 s in the macos job, 38 s in the windows job
 billing check 20-r7-stub scheduled 83 s in the macos job, 58 s in the windows job
