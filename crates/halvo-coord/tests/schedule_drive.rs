@@ -4374,3 +4374,45 @@ fn rd73_a_clock_set_forward_and_back_brings_the_first_days_events_back() {
     assert_eq!(w.facts(0).events, events);
     assert_eq!(w.facts(0).runs, runs);
 }
+
+/// RD-73 2.3 (c): a hold `off` that stands by this life's events is not ended by the day's read
+/// while the owner's list does not show `paused`: the move sends `paused` first, and the hold
+/// stands until that is acknowledged; then the read is taken and the row shows `off.kept`.
+#[test]
+fn rd73_a_hold_of_this_life_stands_past_its_day_until_paused_is_acknowledged() {
+    use halvo_coord::roster::status_of;
+    use halvo_coord::schedule::held_by_events;
+    use halvo_coord::types::StatusLine;
+    let mut w = world(&[AUTO]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    w.ports.refuse(Method::Send, PortError::NoService);
+    w.go(Move::SwitchOff { agent: agent(0) });
+    assert_ne!(w.facts(0).workflow.state, WorkflowState::Paused);
+    let paused = |w: &World, from: usize| -> Vec<bool> {
+        w.ports.tried.borrow()[from..]
+            .iter()
+            .filter(|t| {
+                matches!(
+                    &t.call,
+                    Call::Send(Body::SetState {
+                        state: AgentState::Paused,
+                        ..
+                    })
+                )
+            })
+            .map(|t| t.refused.is_none())
+            .collect()
+    };
+    days_on(&w, 94);
+    let from = w.ports.tried.borrow().len();
+    w.go(Move::Create);
+    assert_eq!(paused(&w, from), vec![false], "paused goes before the read");
+    assert!(held_by_events(w.facts(0)), "the hold stands without an answer");
+    assert_eq!(status_of(w.facts(0), &w.limits, None, false), StatusLine::Off);
+    w.ports.clear_refusals();
+    let from = w.ports.tried.borrow().len();
+    w.go(Move::Owed);
+    assert_eq!(paused(&w, from), vec![true]);
+    assert!(!held_by_events(w.facts(0)), "the read is taken after the answer");
+    assert_eq!(status_of(w.facts(0), &w.limits, None, false), StatusLine::Kept);
+}

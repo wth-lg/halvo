@@ -1,7 +1,7 @@
 use super::{
-    clean, current_slot, holds, kept_off, slot_open, start_step, switch_on_state, tick_plan,
-    tick_step, wants_active, wants_paused, Around, Ask, Board, Dying, Go, Hold, LiveRun, Member,
-    Owed, Owing, StartStep, Stop, Verdict, Waiting,
+    clean, current_slot, held_by_events, holds, kept_off, slot_open, start_step, switch_on_state,
+    tick_plan, tick_step, wants_active, wants_paused, Around, Ask, Board, Dying, Go, Hold, LiveRun,
+    Member, Owed, Owing, StartStep, Stop, Verdict, Waiting,
 };
 use crate::items::drive::{alone, class_of, Alone, Class};
 use crate::ports::{Analysis, Clock, Owner, PortError, Rng, Runs, Shared, Stamp};
@@ -1509,8 +1509,9 @@ fn raise_own_item<P: Owner + Rng, C: ConfigView>(
 /// differs from the board's day, the move first reads each agent's events again from the owner,
 /// from the start, as recovery does, before its own reads of the list and the agents, and the
 /// facts take what the read gives, so that an idle agent's facts are those that a new life would
-/// build on that day (ruling RD-73 2.1, 2.2). An agent whose read did not answer keeps its facts
-/// and is read again at the next move that reads the day.
+/// build on that day (ruling RD-73 2.1, 2.2). An agent whose read did not answer, or whose hold
+/// waits for `paused` (`waits_for_paused`, RD-73 2.3 (c)), keeps its facts and is read again at
+/// the next move that reads the day.
 fn read_day<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>)
 where
     P: Owner<Config = C>,
@@ -1563,6 +1564,9 @@ fn read_again<P, C>(
     let Ok(last) = resync(cx.ports, agent, &mut events) else {
         return;
     };
+    if waits_for_paused(cx, board, i, &events) {
+        return;
+    }
     let member = &mut board.members[i];
     member.facts.events = events;
     member.facts.runs.clear();
@@ -1572,6 +1576,30 @@ fn read_again<P, C>(
     crate::run::read_replies(cx.ports, &mut member.facts);
     board.set_last(i, last);
     board.read_again_taken(agent);
+}
+
+/// Whether the day's read of the agent of member `i`, whose events are `events`, waits (ruling
+/// RD-73 2.3 (c)): a hold `off` or `failures` stands by this life's events, and the read would
+/// leave neither of them standing nor the derived `off`, because the owner's list does not show
+/// `paused`. The move then sends `paused` first, whose acknowledgement it writes into the facts
+/// (RD-67 1.3 (a), (b)), and the read waits while that is not acknowledged, so that the hold
+/// stands in this life.
+fn waits_for_paused<P: Owner, C: Clone>(
+    cx: &MoveContext<'_, P>,
+    board: &mut Board<C>,
+    i: usize,
+    events: &[Event],
+) -> bool {
+    let facts = &board.members[i].facts;
+    if !held_by_events(facts) {
+        return false;
+    }
+    let mut read = facts.clone();
+    read.events = events.to_vec();
+    if read.stand_in || held_by_events(&read) || kept_off(&read) {
+        return false;
+    }
+    send_state(cx, &mut board.members[i].facts, AgentState::Paused).is_err()
 }
 
 fn tick<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>) -> Report
