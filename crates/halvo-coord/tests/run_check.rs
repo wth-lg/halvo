@@ -3535,3 +3535,70 @@ fn u24s_f3_02_an_acknowledged_check_raise_ends_the_count() {
         "a tick of which the check's store was acknowledged and nothing refused ends the count"
     );
 }
+
+fn u24s_open_checks_of_the_owner(w: &World, n: usize) -> usize {
+    let events = w.ports.events.borrow();
+    let closed = |item: &ItemId| {
+        events.iter().any(|c| match &c.what {
+            What::ItemAnswered { item: i, .. } | What::ItemLapsed { item: i, .. } => i == item,
+            _ => false,
+        })
+    };
+    events
+        .iter()
+        .filter(|e| e.agent == agent(n))
+        .filter(|e| match &e.what {
+            What::ItemRaised {
+                item,
+                raised: Raised::Check(None),
+            } => !closed(item),
+            _ => false,
+        })
+        .count()
+}
+
+fn u24s_raise_at_1(e: &Event) -> bool {
+    e.seq.get() == 1 && matches!(e.what, What::ItemRaised { .. })
+}
+
+fn u24s_raise_at_3(e: &Event) -> bool {
+    e.seq.get() == 3 && matches!(e.what, What::ItemRaised { .. })
+}
+
+#[test]
+fn u24s_a_check_whose_acknowledgement_was_lost_after_the_stored_last_fell_is_not_raised_again() {
+    for (kept, lost_at) in [
+        (0, u24s_raise_at_1 as fn(&Event) -> bool),
+        (2, u24s_raise_at_3),
+    ] {
+        let mut w = u24s_check_due(halvo_coord::types::Limits::PRODUCT);
+        w.ports
+            .events
+            .borrow_mut()
+            .retain(|e| e.agent != agent(0) || e.seq.get() <= kept);
+        let from = w.ports.tried.borrow().len();
+        w.ports.refuse_record(lost_at, PortError::NoService);
+        w.act(Act::Tick);
+        w.ports.clear_refusals();
+        let lost: Vec<Vec<Event>> = w.ports.tried.borrow()[from..]
+            .iter()
+            .filter_map(|t| match (&t.call, &t.refused) {
+                (Call::Log(events), Some(PortError::NoService)) => Some(events.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            lost.len(),
+            1,
+            "last {kept}: one body got no acknowledgement"
+        );
+        w.ports.events.borrow_mut().extend(lost[0].clone());
+        w.act(Act::Tick);
+        assert_eq!(
+            u24s_open_checks_of_the_owner(&w, 0),
+            1,
+            "last {kept}: I7.2, after the read the agent's open items are those that the owner's events hold"
+        );
+        assert!(holds_check_item(&w, 0), "last {kept}: the board holds it");
+    }
+}
