@@ -453,11 +453,13 @@ impl DataDirStore {
     /// The key of the derived store. Its wrap lies in derived/master.key,
     /// made under the root that store/store.key names with the label
     /// `derived`, so the delete that destroys the capture store's root ends
-    /// this key too. The call makes 32 random
+    /// this key too. Where no key file stands, the call makes 32 random
     /// bytes, wraps them, makes the folder derived/ and publishes the key
-    /// file create-only by a hard link from a temporary name of its own. It
-    /// opens no database, takes no lock, never replaces or removes a key
-    /// file, and makes nothing before its wrap answers.
+    /// file create-only by a hard link from a temporary name of its own;
+    /// where one stands, and where another ask won that link, it unwraps
+    /// that file, so every ask answers the same key. It opens no database,
+    /// takes no lock, never replaces or removes a key file, and makes
+    /// nothing before its wrap answers.
     pub fn derived_store_key(&self) -> Result<StoreKey, DerivedKeyFault> {
         let roots_dir = self.roots();
         let store = KeyFile::at(&self.store_dir().join("store.key"))
@@ -466,6 +468,9 @@ impl DataDirStore {
         let custody = custody_for(&store.locator(&roots_dir)).map_err(|e| root_fault(&e))?;
         let roots = RootsHandle::open(&roots_dir).map_err(|e| root_fault(&e))?;
         let file = self.path().join("derived").join("master.key");
+        if let Some(key) = standing_derived_key(&file, &store, custody.as_ref(), &roots)? {
+            return Ok(key);
+        }
         let key = StoreKey::random().map_err(|e| root_fault(&e))?;
         let (wrapped, _) = custody
             .wrap_store_key_in(&roots, &key, DERIVED_LABEL)
@@ -473,9 +478,42 @@ impl DataDirStore {
         let key_file = KeyFile::new(custody.as_ref(), DERIVED_LABEL, &wrapped);
         match publish_derived(self.path(), &file, &key_file) {
             Ok(()) => Ok(key),
+            Err(StoreError::AlreadyExists) => {
+                standing_derived_key(&file, &store, custody.as_ref(), &roots)?
+                    .ok_or(DerivedKeyFault::Io)
+            }
             Err(e) => Err(derived_fault(open_fault(&e))),
         }
     }
+}
+
+fn standing_derived_key(
+    file: &Path,
+    store: &KeyFile,
+    custody: &dyn KeyCustody,
+    roots: &RootsHandle,
+) -> Result<Option<StoreKey>, DerivedKeyFault> {
+    let derived = match KeyFile::at(file).and_then(|place| place.read(DERIVED_LABEL)) {
+        Ok(derived) => derived,
+        Err(StoreError::Sealed | StoreError::Io(io::ErrorKind::NotFound)) => return Ok(None),
+        Err(
+            StoreError::KeyFileUnparseable
+            | StoreError::KeyFileOfAnotherLabel
+            | StoreError::NewerStore { .. }
+            | StoreError::OlderStore { .. },
+        ) => return Err(DerivedKeyFault::DerivedKeyFile),
+        Err(e) => return Err(derived_fault(open_fault(&e))),
+    };
+    if derived.custody_kind != store.custody_kind || derived.root_id != store.root_id {
+        return Err(DerivedKeyFault::AnotherRoot);
+    }
+    let wrapped = derived
+        .wrapped_store_key()
+        .map_err(|_| DerivedKeyFault::DerivedKeyFile)?;
+    custody
+        .unwrap_store_key_in(roots, &wrapped, DERIVED_LABEL)
+        .map(|(key, _)| Some(key))
+        .map_err(|e| root_fault(&e))
 }
 
 fn publish_derived(data_dir: &Path, file: &Path, key_file: &KeyFile) -> super::StoreResult<()> {

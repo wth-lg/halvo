@@ -6,7 +6,7 @@ use base64::Engine;
 
 use crate::custody::{custody_for, CustodyKind, CustodyLocator, KeyLabel, RootId, WrappedKey};
 use crate::daemon::custody_policy::{Custody, System};
-use crate::daemon::port::{DataDirStore, Opened, StoreHost};
+use crate::daemon::port::{DataDirStore, DerivedKeyFault, Opened, StoreHost};
 
 fn derived() -> KeyLabel {
     KeyLabel::new("derived").unwrap()
@@ -30,6 +30,14 @@ fn a_store(dir: &Path) -> Opened {
 
 fn fields(file: &Path) -> serde_json::Value {
     serde_json::from_slice(&std::fs::read(file).unwrap()).unwrap()
+}
+
+fn with_field(file: &Path, name: &str, value: &str) -> Vec<u8> {
+    let mut changed = fields(file);
+    changed[name] = value.into();
+    let bytes = serde_json::to_vec_pretty(&changed).unwrap();
+    std::fs::write(file, &bytes).unwrap();
+    bytes
 }
 
 #[test]
@@ -78,4 +86,41 @@ fn the_first_ask_makes_the_derived_key_under_the_stores_root() {
         key.expose()
     );
     assert!(custody.unwrap_store_key(&wrapped, KeyLabel::STORE).is_err());
+}
+
+#[test]
+fn a_later_ask_answers_the_same_key_and_refuses_another_namespace() {
+    let dir = tempfile::tempdir().unwrap();
+    let _held = a_store(dir.path());
+    let first = DataDirStore::at(dir.path()).derived_store_key().unwrap();
+    let file = dir.path().join("derived").join("master.key");
+    let written = std::fs::read(&file).unwrap();
+
+    let again = DataDirStore::at(dir.path()).derived_store_key().unwrap();
+
+    assert_eq!(again.expose(), first.expose());
+    assert_eq!(std::fs::read(&file).unwrap(), written);
+
+    let relabelled = with_field(&file, "namespace", "store");
+
+    let fault = DataDirStore::at(dir.path()).derived_store_key().err();
+
+    assert_eq!(fault, Some(DerivedKeyFault::DerivedKeyFile));
+    assert_eq!(std::fs::read(&file).unwrap(), relabelled);
+    let wrapped_text = fields(&file)["wrapped_key"].as_str().unwrap().to_owned();
+    let fault = fault.unwrap();
+    for shown in [fault.to_string(), format!("{fault:?}")] {
+        for run in first.expose().windows(4) {
+            let lower: String = run.iter().map(|byte| format!("{byte:02x}")).collect();
+            let listed = format!("{}, {}, {}, {}", run[0], run[1], run[2], run[3]);
+            assert!(!shown.to_lowercase().contains(&lower), "{shown}");
+            assert!(!shown.contains(&listed), "{shown}");
+        }
+        for run in wrapped_text.as_bytes().windows(8) {
+            assert!(
+                !shown.as_bytes().windows(8).any(|seen| seen == run),
+                "{shown}"
+            );
+        }
+    }
 }
