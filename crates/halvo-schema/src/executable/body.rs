@@ -12,8 +12,8 @@ use super::config::AgentConfig;
 use super::frame::FRAME_JSON_MAX;
 use super::json::{self, each_once, from_json, list, object_type, opt};
 use super::names::{
-    ActionClass, AgentState, CheckpointState, EffectState, LeftReason, ListedState, MarkState,
-    Mode, Way, YesNo,
+    ActionClass, AgentState, Cause, CheckpointState, EffectState, LeftReason, ListedState,
+    MarkState, Mode, Way, YesNo,
 };
 use super::record::{
     checkpoint_copy, origins_and_slots, part_of, slot_names_once, AgentCheckpoint, AgentEffect,
@@ -747,6 +747,7 @@ op_enum! {
         MarkCheckpoint(MarkCheckpoint) = "mark_checkpoint",
         ListOverlaps(ListOverlaps) = "list_overlaps",
         ListAgents(ListAgents) = "list_agents",
+        AgentHistory(AgentHistory) = "agent_history",
     }
 }
 
@@ -815,6 +816,18 @@ object_type! {
         pub workflow: Null = "workflow" => from_json,
         pub agent: Null = "agent" => from_json,
         pub after: Option<AgentId> = "after" => opt(json::agent_id),
+    }
+    rules(_b) { Ok(()) }
+}
+
+object_type! {
+    /// `agent_history`: the agent's last `runs` runs that have a stored record, newest first, each with the effects
+    /// of its run (the interface run's I6.1).
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct AgentHistory [op = "agent_history"] {
+        pub workflow: WorkflowId = "workflow" => json::workflow_id,
+        pub agent: AgentId = "agent" => json::agent_id,
+        pub runs: u32 = "runs" => from_json,
     }
     rules(_b) { Ok(()) }
 }
@@ -1017,6 +1030,135 @@ object_type! {
 }
 
 object_type! {
+    /// The checkpoint of a `local_edit` effect in the reply of `agent_history`: the state of the newest
+    /// `agent_checkpoint` row of the effect's run for the workbook of its kept `file`, the instant of that row and
+    /// the copy's file name as that row holds it. A newest row `planned` gives no checkpoint, since no copy was made,
+    /// so the state `planned` is refused.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct PastCheckpoint {
+        pub state: CheckpointState = "state" => from_json,
+        pub at: Instant = "at" => json::instant,
+        pub name: OwnText = "name" => from_json,
+    }
+    rules(c) {
+        if c.state == CheckpointState::Planned {
+            return Err(Refusal::malformed("PastCheckpoint", "planned").at("state"));
+        }
+        Ok(())
+    }
+}
+
+/// One effect of a run in the reply of `agent_history`, as its last row holds it: the effect id, the digest of that
+/// row, the class, the state, the cause of that row or null, and the kept fields of the class. An effect of the class
+/// `local_edit` also holds the key `checkpoint`, its checkpoint or null; an effect of another class holds no such
+/// key, and its `checkpoint` is none.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PastEffect {
+    pub effect: EffectId,
+    pub digest: Digest,
+    pub class: ActionClass,
+    pub state: EffectState,
+    pub cause: Option<Cause>,
+    pub kept: Vec<KeptField>,
+    pub checkpoint: Option<PastCheckpoint>,
+}
+
+impl PastEffect {
+    const KEYS: &'static [&'static str] = &[
+        "effect",
+        "digest",
+        "class",
+        "state",
+        "cause",
+        "kept",
+        "checkpoint",
+    ];
+
+    /// The keys of an effect of the class: all seven for `local_edit`, the first six for any other.
+    fn keys(class: ActionClass) -> &'static [&'static str] {
+        if class == ActionClass::LocalEdit {
+            Self::KEYS
+        } else {
+            &Self::KEYS[..6]
+        }
+    }
+
+    /// Checks the kept fields against the class, and that a checkpoint stands on a `local_edit` effect alone.
+    pub fn rules(&self) -> Result<(), Refusal> {
+        check_kept(self.class, &self.kept).map_err(|r| r.at("kept"))?;
+        if self.class != ActionClass::LocalEdit && self.checkpoint.is_some() {
+            return Err(Refusal::malformed("PastEffect", "checkpoint_of_class").at("checkpoint"));
+        }
+        Ok(())
+    }
+
+    pub(in crate::executable) fn from_raw(raw: &RawValue) -> Result<Self, Refusal> {
+        let obj = json::object("PastEffect", raw)?;
+        let class: ActionClass = obj.read("class", from_json)?;
+        obj.exactly(Self::keys(class))?;
+        let value = PastEffect {
+            effect: obj.read("effect", from_json)?,
+            digest: obj.read("digest", from_json)?,
+            class,
+            state: obj.read("state", from_json)?,
+            cause: obj.read("cause", opt(from_json))?,
+            kept: obj.read("kept", list(KeptField::from_raw))?,
+            checkpoint: if class == ActionClass::LocalEdit {
+                obj.read("checkpoint", opt(PastCheckpoint::from_raw))?
+            } else {
+                None
+            },
+        };
+        value.rules()?;
+        Ok(value)
+    }
+}
+
+impl Serialize for PastEffect {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        self.rules().map_err(json::ser_err)?;
+        let keys = Self::keys(self.class);
+        let mut map = serializer.serialize_map(Some(keys.len()))?;
+        map.serialize_entry("effect", &self.effect)?;
+        map.serialize_entry("digest", &self.digest)?;
+        map.serialize_entry("class", &self.class)?;
+        map.serialize_entry("state", &self.state)?;
+        map.serialize_entry("cause", &self.cause)?;
+        map.serialize_entry("kept", &self.kept)?;
+        if keys.len() == Self::KEYS.len() {
+            map.serialize_entry("checkpoint", &self.checkpoint)?;
+        }
+        map.end()
+    }
+}
+
+object_type! {
+    /// One run in the reply of `agent_history`: its stored record and the effects of the run, each as its last row
+    /// holds it.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct HistoryRun {
+        pub run: AgentRun = "run" => AgentRun::from_raw,
+        pub effects: Vec<PastEffect> = "effects" => list(PastEffect::from_raw),
+    }
+    rules(_r) { Ok(()) }
+}
+
+object_type! {
+    /// The reply of `agent_history`: the agent's runs that have a stored record, at most the count asked for, newest
+    /// first. Its bound, `CHECKPOINTS_REPLY_MAX`, counts the bytes given to `parse` and to `CoordinatorReply::parse`,
+    /// and the compact text that the writer writes, as for every reply of a coordinator body, so that no reply passes
+    /// `REPLY_MAX` with its envelope: a reply that would not fit is refused whole and never written cut.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct HistoryReply {
+        pub runs: Vec<HistoryRun> = "runs" => list(HistoryRun::from_raw),
+    }
+    rules(_r) { Ok(()) }
+    max_len(CHECKPOINTS_REPLY_MAX)
+    arrives(CHECKPOINTS_REPLY_MAX, "reply_bytes")
+}
+
+object_type! {
     /// The reply of `create_agent`, `set_bindings` and `add_origin`: the revision stored, or for an `add_origin`
     /// that stored nothing the newest.
     #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1056,13 +1198,14 @@ reply_enum! {
         Stored(Stored) = "stored",
         Overlaps(OverlapsReply) = "overlaps",
         Agents(AgentsReply) = "agents",
+        History(HistoryReply) = "runs",
     }
 }
 
 impl CoordinatorReply {
     /// Whether the reply has the form that the body's call answers with: `create_agent` is answered by the
-    /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints` and `list_agents` by
-    /// their lists, `mark_checkpoint` by `stored` 0 or 1, and `list_overlaps` by its list only as
+    /// revision 1 alone, `set_bindings` and `add_origin` by any revision, `list_checkpoints`, `list_agents` and
+    /// `agent_history` by their lists, `mark_checkpoint` by `stored` 0 or 1, and `list_overlaps` by its list only as
     /// `OverlapsReply::answers` says.
     pub fn answers(&self, call: &CoordinatorCall) -> bool {
         match (self, call) {
@@ -1078,6 +1221,7 @@ impl CoordinatorReply {
             | (CoordinatorReply::State(_), CoordinatorCall::SetState(_))
             | (CoordinatorReply::Checkpoints(_), CoordinatorCall::ListCheckpoints(_))
             | (CoordinatorReply::Agents(_), CoordinatorCall::ListAgents(_))
+            | (CoordinatorReply::History(_), CoordinatorCall::AgentHistory(_))
             | (
                 CoordinatorReply::Accepted(_),
                 CoordinatorCall::StartRun(_) | CoordinatorCall::EndRun(_),
