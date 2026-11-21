@@ -2652,9 +2652,8 @@ where
     /// drops it where `Runs::start` failed. While a
     /// kill of a tick or of the second step holds the coordinator's lock the list is the one from
     /// before that move: a run whose kill returned earlier in that move stays named until the
-    /// move returns. A run that the move holding the lock has started is not in the list until
-    /// that move returns, a named limit of U4.6. This read takes no lock that a port call holds,
-    /// so it answers while a kill holds the coordinator's lock.
+    /// move returns. This read takes no lock that a port call holds, so it answers while a kill
+    /// holds the coordinator's lock.
     pub fn not_stopped(&self) -> Vec<(AgentId, RunId)> {
         self.unstopped
             .lock()
