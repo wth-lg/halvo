@@ -1,6 +1,6 @@
 //! The runner's link to the connect adapters (A11.2) against the variants fixture server: the reads of mail and
-//! calendar, the drafts of replies, the rows of answered messages (A7.4 `agent_reply`) and the keys of the run's
-//! list in the record of `finish`.
+//! calendar, the drafts of replies, the rows of answered messages (A7.4 `agent_reply`), the keys of the run's
+//! list in the record of `finish`, and the sends of replies, which the tests' build alone links.
 
 mod support;
 
@@ -10,15 +10,23 @@ use halvo_connect::{
     reply_senders, Calendar, Graph, Mail, ReplyRule, Route, RunDay, Token as ConnectToken,
 };
 use halvo_schema::executable::day::day_of;
-use halvo_schema::executable::names::{LogEvent, YesNo};
-use halvo_schema::executable::{AgentRun, Cause, Outcome, ReplyState};
+use halvo_schema::executable::frame::Cancel;
+use halvo_schema::executable::names::{AllowedClass, Answer, Autonomy, LogEvent, YesNo};
+use halvo_schema::executable::{
+    AgentRun, Cause, EffectState, FromRunner, Outcome, ReplyState, ToRunner,
+};
 use halvo_schema::record::Instant;
 
 use support::connect::{
-    asked, cleanup_agent, keys_null, replies, reply_agent, reply_row, serve_run, serve_run_then,
-    Fixture, ReplyStore, ACCOUNT, SENDERS, TOKEN,
+    asked, bound_to, cleanup_agent, decision, effect_rows, is_reply_row, keys_null, replies,
+    reply_agent, reply_row, reply_rows_of, secret, serve_run, serve_run_holding, serve_run_then,
+    start_row, Fixture, ReplyStore, ACCOUNT, SENDERS, TOKEN,
 };
-use support::{is_op, now_nanos, offset_of_another_day, Act, Seen};
+use support::{is_effect, is_op, load_with, now_nanos, offset_of_another_day, set_slot, Act, Seen};
+
+/// The two senders of seed 1 as its list spells them.
+const ADA: &str = "ada.vell@people.agent.test";
+const BO: &str = "bo.tarrin@people.agent.test";
 
 /// The log lines of a run, each as its event, its step and its cause.
 fn lines(seen: &Seen) -> Vec<(LogEvent, Option<u32>, Option<Cause>)> {
@@ -134,7 +142,11 @@ fn an_answered_message_is_not_selected_again() {
             (Some(other_task), Some(held_earlier)),
             "{case}"
         );
-        assert_eq!(seen.done(), Some(Outcome::Failed), "{case}: the send step");
+        assert_eq!(
+            seen.done(),
+            Some(Outcome::Declined),
+            "{case}: the send step's card answered reject_once"
+        );
     }
 }
 
@@ -441,4 +453,336 @@ fn a_clean_up_stores_its_calendar_counts() {
         (record.organized, record.held_recipient, record.cut),
         (None, Some(0), Some(YesNo::No))
     );
+}
+
+/// The `drafted` row of the first draft step of a message, whose draft every later row of the reply keeps.
+fn first_draft(seen: &Seen, message: &str) -> String {
+    let rows = reply_rows_of(seen, message);
+    assert_eq!(
+        rows.first()
+            .map(|(seq, state, _, effect)| (*seq, *state, *effect)),
+        Some((1, ReplyState::Drafted, None)),
+        "{message}: the drafted row of the draft step"
+    );
+    rows[0].2.clone().expect("a draft")
+}
+
+/// A5.1, A7.4 `agent_reply`: the runner stores the `begun` row of a reply and holds its answer before the
+/// effect's `begin` row; while the store does not answer it, no `begin` row is sent and no request of a send
+/// reaches the fixture.
+#[test]
+fn no_byte_of_a_send_leaves_before_the_begun_row_is_answered() {
+    let fixture = Fixture::start();
+    fixture.reset(1, &[]);
+    let sup = reply_agent(92, &fixture, ACCOUNT, SENDERS);
+    let mut store = ReplyStore::default();
+    let seen = serve_run_holding(
+        &sup,
+        TOKEN,
+        start(),
+        &mut store,
+        |frame| {
+            matches!(frame, FromRunner::Confirm(_)).then(|| decision(frame, |_| Answer::AllowOnce))
+        },
+        |frame| is_reply_row(frame, ReplyState::Begun),
+    );
+    let draft = first_draft(&seen, "s1-msg-01");
+    assert_eq!(
+        reply_rows_of(&seen, "s1-msg-01"),
+        [
+            (1, ReplyState::Drafted, Some(draft.clone()), None),
+            (2, ReplyState::Begun, Some(draft), Some(0))
+        ],
+        "the begun row of the first reply was sent and not answered"
+    );
+    assert_eq!(
+        effect_rows(&seen),
+        [
+            (0, EffectState::Held, None),
+            (1, EffectState::Held, None),
+            (0, EffectState::Approved, None),
+            (1, EffectState::Approved, None)
+        ],
+        "no begin row"
+    );
+    assert!(fixture.sent().is_empty(), "no mail left");
+    assert_eq!(
+        fixture.requests().1,
+        4,
+        "two createReply and two PATCH, and no request of a send"
+    );
+}
+
+/// A5.1, A9.3, A6.3: a reply leaves after `allow_once` and not after `reject_once`, and the card and the bound
+/// `to` hold the sender as the list spelled it, not as the slot `reply_senders` spells it.
+#[test]
+fn a_reply_leaves_after_allow_once_and_not_after_reject_once() {
+    let fixture = Fixture::start();
+    fixture.reset(1, &[]);
+    let senders = "ADA.VELL@People.Agent.Test,bo.tarrin@people.agent.test";
+    let sup = reply_agent(93, &fixture, ACCOUNT, senders);
+    let mut store = ReplyStore::default();
+    let mut shown = Vec::new();
+    let seen = serve_run_then(&sup, TOKEN, start(), &mut store, |frame| {
+        let FromRunner::Confirm(c) = frame else {
+            return None;
+        };
+        shown = c
+            .request
+            .effects
+            .iter()
+            .map(|e| bound_to(&e.bound))
+            .collect();
+        Some(decision(frame, |e| {
+            if bound_to(&e.bound) == ADA {
+                Answer::AllowOnce
+            } else {
+                Answer::RejectOnce
+            }
+        }))
+    });
+    assert_eq!(
+        shown,
+        [ADA, BO],
+        "one card, each `to` as the list spelled it"
+    );
+    assert_eq!(
+        effect_rows(&seen),
+        [
+            (0, EffectState::Held, None),
+            (1, EffectState::Held, None),
+            (1, EffectState::Rejected, None),
+            (0, EffectState::Approved, None),
+            (0, EffectState::Releasing, None),
+            (0, EffectState::Committed, None)
+        ]
+    );
+    assert_eq!(
+        fixture.sent(),
+        [(ADA.to_owned(), "s1-msg-01".to_owned())],
+        "the allowed reply alone left, to the sender as the list spelled it"
+    );
+    let draft = first_draft(&seen, "s1-msg-01");
+    assert_eq!(
+        reply_rows_of(&seen, "s1-msg-01"),
+        [
+            (1, ReplyState::Drafted, Some(draft.clone()), None),
+            (2, ReplyState::Begun, Some(draft.clone()), Some(0)),
+            (3, ReplyState::Committed, Some(draft), Some(0))
+        ]
+    );
+    let other = first_draft(&seen, "s1-msg-02");
+    assert_eq!(
+        reply_rows_of(&seen, "s1-msg-02"),
+        [(1, ReplyState::Drafted, Some(other), None)],
+        "the rejected reply stays drafted"
+    );
+    assert_eq!(seen.done(), Some(Outcome::Declined));
+}
+
+/// A5.1, the coordinator's ruling of 2026-11-21T20:16:11Z point (3): a send whose effect the policy clears does not
+/// leave without an `approved` row whose digest the runner reads again; the runner sends no `begin`, ends the
+/// effect, and the run ends `refused` with the cause `approval`.
+#[test]
+fn a_cleared_send_does_not_leave_without_an_approved_row() {
+    let fixture = Fixture::start();
+    fixture.reset(1, &[]);
+    let mut sup = reply_agent(94, &fixture, ACCOUNT, SENDERS);
+    sup.config.autonomy = Autonomy::Unattended;
+    sup.config.allow = vec![AllowedClass::Send];
+    sup.config.caps.untrusted = YesNo::No;
+    let mut store = ReplyStore::default();
+    let seen = serve_run(&sup, TOKEN, start(), &mut store);
+    assert_eq!(
+        effect_rows(&seen),
+        [
+            (0, EffectState::Cleared, None),
+            (1, EffectState::Cleared, None),
+            (0, EffectState::Rejected, Some(Cause::Ended))
+        ],
+        "both cleared, the first ended, no begin row"
+    );
+    assert!(!seen.tags().contains(&"confirm"), "no card");
+    assert_eq!(
+        replies(&seen)
+            .iter()
+            .map(|(m, _, state, _)| (m.as_str(), *state))
+            .collect::<Vec<_>>(),
+        [
+            ("s1-msg-01", ReplyState::Drafted),
+            ("s1-msg-02", ReplyState::Drafted)
+        ],
+        "no begun row"
+    );
+    assert!(fixture.sent().is_empty(), "no mail left");
+    assert_eq!(fixture.requests().1, 4, "no request of a send");
+    assert_eq!(seen.done(), Some(Outcome::Refused));
+    assert_eq!(
+        lines(&seen).last(),
+        Some(&(LogEvent::Stopped, None, Some(Cause::Approval)))
+    );
+}
+
+/// A5.2, A7.4 `agent_reply`, the coordinator's ruling CP-226 item 8 (log line 12190): a send that was not made goes
+/// back to `drafted` with the same draft and that effect, for each cause that a send can meet: `not_sent` (a
+/// `cancel` read under the lock before the act), `throttled` (429), after which the run goes on and the second
+/// approved reply of the call leaves, and `unauthorized` (401), which also stores `step_failed` with
+/// `unauthorized` and ends the run `failed` with `adapter`, as on a read.
+#[test]
+fn a_send_that_was_not_made_goes_back_to_drafted_with_its_draft() {
+    let fixture = Fixture::start();
+    let sup = reply_agent(95, &fixture, ACCOUNT, SENDERS);
+    for cause in [Cause::NotSent, Cause::Throttled, Cause::Unauthorized] {
+        fixture.reset(1, &[]);
+        let mut store = ReplyStore::default();
+        let (mut secrets, mut begins) = (0, 0);
+        let seen = serve_run_then(&sup, TOKEN, start(), &mut store, |frame| {
+            if matches!(frame, FromRunner::Secret(_)) {
+                secrets += 1;
+                let send_step = secrets == 3;
+                return (cause == Cause::Unauthorized && send_step)
+                    .then(|| secret("not-the-fixture-token"));
+            }
+            if matches!(frame, FromRunner::Confirm(_)) {
+                return Some(decision(frame, |_| Answer::AllowOnce));
+            }
+            if !is_effect(frame, EffectState::Releasing) {
+                return None;
+            }
+            begins += 1;
+            match (cause, begins) {
+                (Cause::NotSent, 1) => Some(Act::Then(
+                    ToRunner::Cancel(Cancel {}),
+                    Box::new(Act::Answer),
+                )),
+                (Cause::Throttled, 1) => {
+                    fixture.throttle(1);
+                    None
+                }
+                _ => None,
+            }
+        });
+        let first: Vec<_> = effect_rows(&seen)
+            .into_iter()
+            .filter(|(at, _, _)| *at == 0)
+            .map(|(_, state, row_cause)| (state, row_cause))
+            .collect();
+        assert_eq!(
+            first,
+            [
+                (EffectState::Held, None),
+                (EffectState::Approved, None),
+                (EffectState::Releasing, None),
+                (EffectState::NotMade, Some(cause))
+            ],
+            "{cause:?}"
+        );
+        let draft = first_draft(&seen, "s1-msg-01");
+        assert_eq!(
+            reply_rows_of(&seen, "s1-msg-01"),
+            [
+                (1, ReplyState::Drafted, Some(draft.clone()), None),
+                (2, ReplyState::Begun, Some(draft.clone()), Some(0)),
+                (3, ReplyState::Drafted, Some(draft), Some(0))
+            ],
+            "{cause:?}: back to drafted with the same draft and that effect"
+        );
+        let second = reply_rows_of(&seen, "s1-msg-02");
+        let last = lines(&seen).last().cloned();
+        match cause {
+            Cause::NotSent => {
+                assert!(fixture.sent().is_empty(), "{cause:?}: no mail left");
+                assert_eq!(second.len(), 1, "{cause:?}: the second reply stays drafted");
+                assert_eq!(seen.done(), Some(Outcome::Declined), "{cause:?}");
+                assert_eq!(last, Some((LogEvent::Stopped, None, Some(Cause::Declined))));
+            }
+            Cause::Throttled => {
+                assert_eq!(
+                    fixture.sent(),
+                    [(BO.to_owned(), "s1-msg-02".to_owned())],
+                    "{cause:?}: the second approved reply of the call left after the first was not made"
+                );
+                assert_eq!(
+                    second
+                        .iter()
+                        .map(|(_, state, _, effect)| (*state, *effect))
+                        .collect::<Vec<_>>(),
+                    [
+                        (ReplyState::Drafted, None),
+                        (ReplyState::Begun, Some(1)),
+                        (ReplyState::Committed, Some(1))
+                    ],
+                    "{cause:?}"
+                );
+                assert_eq!(seen.done(), Some(Outcome::Failed), "{cause:?}");
+                assert_eq!(last, Some((LogEvent::Stopped, None, Some(Cause::Adapter))));
+            }
+            _ => {
+                assert!(fixture.sent().is_empty(), "{cause:?}: no mail left");
+                assert_eq!(fixture.requests().2, 1, "{cause:?}: one answer 401");
+                assert_eq!(second.len(), 1, "{cause:?}: the second reply stays drafted");
+                let lines = lines(&seen);
+                assert_eq!(
+                    lines[lines.len() - 2..],
+                    [
+                        (LogEvent::StepFailed, Some(3), Some(Cause::Unauthorized)),
+                        (LogEvent::Stopped, None, Some(Cause::Adapter))
+                    ],
+                    "{cause:?}: the sign of a 401 on a read"
+                );
+                assert_eq!(seen.done(), Some(Outcome::Failed), "{cause:?}");
+            }
+        }
+    }
+}
+
+/// A5.1, A6.5: a sender taken off `reply_senders` while the effect is `held`, then Allow: at the load before its
+/// `begin` the reply rule no longer selects the message, so the effect is ended (`rejected` with `ended`), the
+/// send step's log gets `stopped` with `not_selected`, no `begun` row and no `begin` row follow, the reply row
+/// stays `drafted`, and the run goes on with the other reply that the person allowed.
+#[test]
+fn a_sender_taken_off_the_list_while_held_ends_the_effect_and_keeps_the_draft() {
+    let fixture = Fixture::start();
+    fixture.reset(1, &[]);
+    let sup = reply_agent(96, &fixture, ACCOUNT, SENDERS);
+    let at = start();
+    let mut store = ReplyStore::default();
+    let mut held = false;
+    let seen = serve_run_then(&sup, TOKEN, at, &mut store, |frame| {
+        if matches!(frame, FromRunner::Confirm(_)) {
+            held = true;
+            return Some(decision(frame, |_| Answer::AllowOnce));
+        }
+        (held && is_op(frame, "load")).then(|| {
+            load_with(&sup, frame, |l| {
+                l.start = at.map(|at| start_row(&sup, at));
+                set_slot(l, "reply_senders", BO);
+            })
+        })
+    });
+    assert_eq!(
+        effect_rows(&seen),
+        [
+            (0, EffectState::Held, None),
+            (1, EffectState::Held, None),
+            (0, EffectState::Approved, None),
+            (1, EffectState::Approved, None),
+            (0, EffectState::Rejected, Some(Cause::Ended)),
+            (1, EffectState::Releasing, None),
+            (1, EffectState::Committed, None)
+        ],
+        "the first ended with no begin row, the second let through"
+    );
+    let draft = first_draft(&seen, "s1-msg-01");
+    assert_eq!(
+        reply_rows_of(&seen, "s1-msg-01"),
+        [(1, ReplyState::Drafted, Some(draft), None)],
+        "no begun row: the reply stays drafted"
+    );
+    assert!(
+        lines(&seen).contains(&(LogEvent::Stopped, Some(3), Some(Cause::NotSelected))),
+        "the send step's stopped row with not_selected"
+    );
+    assert_eq!(fixture.sent(), [(BO.to_owned(), "s1-msg-02".to_owned())]);
+    assert_eq!(seen.done(), Some(Outcome::Completed));
 }

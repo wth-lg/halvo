@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
+use std::num::NonZeroU32;
 
-use halvo_connect::NotMade;
+use halvo_connect::{reply_senders, same_address, NotMade};
 use halvo_policy::{admit, decide, digest, Checkpoint, Decision, EffectMove, Facts, LIMITS};
 use halvo_schema::executable::body::LoadReply;
 use halvo_schema::executable::frame::{Confirm, ConfirmEffect, ConfirmReply, ConfirmRequest};
@@ -9,9 +10,10 @@ use halvo_schema::executable::record::Slot;
 use halvo_schema::executable::text::V1;
 use halvo_schema::executable::WebOrigin;
 use halvo_schema::executable::{
-    ActionClass, AgentConfig, Bound, Cause, EffectState, FromRunner, Outcome, ToRunner,
+    ActionClass, AgentConfig, Bound, Cause, EffectState, FromRunner, Outcome, ReplyState, ToRunner,
 };
 
+use crate::connect::slot;
 use crate::link::Broken;
 use crate::run::{Runner, Stop};
 
@@ -43,6 +45,43 @@ pub(crate) trait Paused {
     /// kind carries, or answers `changed` when a bound slot of the class changed whose value its request does not
     /// carry (the coordinator's correction of CP-157 E1).
     fn renew(self: Box<Self>, slots: &[Slot]) -> Result<Box<dyn Paused>, Cause>;
+    /// The reply that the request sends, for the request of `mail_send` alone: the runner tests its message against
+    /// the reply rule before each `begin` and writes its rows of A7.4 `agent_reply`.
+    fn reply(&self) -> Option<&Reply> {
+        None
+    }
+}
+
+/// The reply that a request of `mail_send` sends (A5.1, A7.4 `agent_reply`): the send step's number, the provider's
+/// ids of the message and of its draft, the message's sender as the run's own `mail_list` gave it, and the account
+/// address under which that list selected the message, the joined text of the slot `account_address`.
+#[derive(Clone)]
+pub(crate) struct Reply {
+    pub(crate) step: NonZeroU32,
+    pub(crate) message: String,
+    pub(crate) draft: String,
+    pub(crate) sender: String,
+    pub(crate) account: String,
+}
+
+impl Reply {
+    /// Whether the reply rule still selects the message with the two slots of `loaded` (A5.1, CP-143 (3)): its
+    /// sender stands in `reply_senders` as that load's reader reads it, and the account address under which it was
+    /// selected is `account_address`, each held by the one function `same_address`. A slot that the reader refuses,
+    /// a slot that the load does not hold and null bindings list nobody.
+    fn selected_by(&self, loaded: &LoadReply) -> bool {
+        let senders = slot(loaded, "reply_senders").and_then(|text| reply_senders(&text).ok());
+        let account = slot(loaded, "account_address");
+        senders.is_some_and(|senders| senders.holds(&self.sender))
+            && account.is_some_and(|account| same_address(&account, &self.account))
+    }
+}
+
+/// Whether a request of the class `class` always asks in this release: the class `send`, of `mail_send` (A5.1,
+/// the coordinator's ruling of 2026-11-21T20:16:11Z, log line 11974, point (3)). The runner lets no such request
+/// through without an `approved` row whose digest it has read again, whatever the policy clears.
+fn always_asks(class: ActionClass) -> bool {
+    class == ActionClass::Send
 }
 
 /// The facts of A9.3 that a request maker gives: no maker can name an origin of the bindings or a new origin.
@@ -172,6 +211,12 @@ struct Open {
 enum Through {
     /// The request left and its reply was read as made, so the effect is `committed`.
     Left,
+    /// The request left and its reply was read as not made, with the cause `not_sent` or `throttled`: the effect is
+    /// `not_made`, and the next effect of the call is let through (A6.5; the coordinator's ruling CP-226 item 8).
+    NotMade,
+    /// The reply rule no longer selects the message of a send at the load before its `begin`: the effect is ended,
+    /// and the run goes on with its other effects (A5.1, A6.5).
+    NotSelected,
     /// A `reject_once` on a later card for the effect ended it, and that effect alone.
     Rejected,
     /// A later load gives `confirm` for the `cleared` effect: the effect and that load, boxed for its size, for the
@@ -188,7 +233,11 @@ impl Runner {
     /// ends them. For each effect in turn a load precedes
     /// the `begin`: a `decide` on it that gives `refuse` ends the effect; one that gives `confirm` for a `cleared`
     /// effect ends it and every other effect that is still `cleared`, proposes them again from that load and asks
-    /// for them in one confirmation request (CP-143 (4) (iv)); one that gives `run` changes nothing for an
+    /// for them in one confirmation request (CP-143 (4) (iv)), and an effect of that batch for which the load gives
+    /// `refuse` is ended as above, with no new proposal, and the run ends `refused` (the coordinator's ruling of
+    /// 2026-11-21T22:03:07Z, log line 12316 (1)); the real table gives no such batch today, because in one load it
+    /// gives `refuse` beside a class that asks only for `local_edit`, which `Checkpoint::No` refuses at its first
+    /// `propose`, so the arm keeps the count true for a later table; one that gives `run` changes nothing for an
     /// `approved` effect. The bound values are read again while the request is paused, and when their digest is not
     /// the row's an `approved` effect takes a `rebind` after `admit`, its request is failed and made again, and the
     /// person is asked again with the new values, at most `LIMITS.rebinds` times, then the effect is ended and the
@@ -201,9 +250,17 @@ impl Runner {
     /// the values read again; the request is let through once under the lock of the link, where a held `cancel`
     /// lets nothing through, makes the move `not_made` with the cause `not_sent` and ends the run `declined`, and
     /// `commit` is stored only after its reply. A reply that the maker reads as not made makes the move `not_made`
-    /// with the cause of its case, and the run ends `failed` with the cause `adapter`. A request with no reply, or
-    /// with an answer read as neither made nor not made, leaves its effect `releasing`, and the run ends
-    /// `effect_unknown`.
+    /// with the cause of its case; after `not_sent` or `throttled` the next effect of the call is let through, each
+    /// behind its own rows, and the run ends `failed` with the cause `adapter` after the call; `unauthorized` ends
+    /// it so at once (CP-226 item 8). A request with no reply, or with an answer read as neither made nor not made,
+    /// leaves its effect `releasing`, and the run ends `effect_unknown`.
+    ///
+    /// A request of a class that always asks in this release (`always_asks`) goes to its `begin` only from an
+    /// `approved` row whose digest the runner has read again; a `cleared` one is ended and the run ends `refused`
+    /// with the cause `approval`. For a request of `mail_send` the reply rule is tested again on the load before
+    /// each `begin`, and a message that it no longer selects ends its effect, with the send step's `stopped` row and
+    /// the cause `not_selected`, while the run goes on (A5.1); its reply row `begun` is stored and answered before the
+    /// `begin` row, and after the reply the row `committed`, or `drafted` with the same draft after `not_made`.
     ///
     /// A `reject_once` ends its effect `rejected`, and that effect alone, whatever a later load gives, on the first
     /// card, on the card of a batch of case (iv) and on a later card for one effect; its paused request is failed and
@@ -238,13 +295,18 @@ impl Runner {
         self.ask_held(open.iter())?;
         let mut renewed = 0;
         let mut declined = false;
+        let mut not_made = false;
         while let Some(one) = open.pop_front() {
             if self.effects[one.at].state == EffectState::Rejected {
                 declined = true;
                 continue;
             }
             let (first, again) = match self.let_through(one, &mut renewed)? {
-                Through::Left => continue,
+                Through::Left | Through::NotSelected => continue,
+                Through::NotMade => {
+                    not_made = true;
+                    continue;
+                }
                 Through::Rejected => {
                     declined = true;
                     continue;
@@ -264,6 +326,11 @@ impl Runner {
             renewed += 1;
             let mut asked = Vec::new();
             for o in batch {
+                let class = o.request.class();
+                if decide(&again.config, class, Checkpoint::No).decision() == Decision::Refuse {
+                    self.advance(o.at, EffectMove::End)?;
+                    return Err(refused(&again.config));
+                }
                 let made = made_again(o.request, &again);
                 let (request, bound) = self.or_ended(o.at, made)?;
                 let checked = self.check().and_then(|()| self.within_wall());
@@ -284,7 +351,25 @@ impl Runner {
         if declined {
             return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)));
         }
+        if not_made {
+            return Err(failed(Cause::Adapter));
+        }
         Ok(())
+    }
+
+    /// The row `state` of A7.4 `agent_reply` for the reply that the request of the effect at `at` sends, with its
+    /// draft and that effect, stored and answered before this returns; nothing for a request that sends no reply.
+    fn reply_moved(
+        &mut self,
+        at: usize,
+        reply: Option<&Reply>,
+        state: ReplyState,
+    ) -> Result<(), Stop> {
+        let Some(reply) = reply else {
+            return Ok(());
+        };
+        let effect = self.effects[at].id().clone();
+        self.reply_row(&reply.message, state, Some(&reply.draft), Some(&effect))
     }
 
     /// Asks the person about the effects of `open` that are `held`, together in one confirmation request.
@@ -326,6 +411,12 @@ impl Runner {
                 self.advance(one.at, EffectMove::End)?;
                 return Err(refused(&again.config));
             }
+            if let Some(reply) = one.request.reply().filter(|r| !r.selected_by(&again)) {
+                let step = reply.step;
+                self.advance(one.at, EffectMove::End)?;
+                self.log(LogEvent::Stopped, Some(step), Some(Cause::NotSelected))?;
+                return Ok(Through::NotSelected);
+            }
             if decision == Decision::Confirm && self.effects[one.at].state == EffectState::Cleared {
                 return Ok(Through::Batch(one, Box::new(again)));
             }
@@ -355,6 +446,12 @@ impl Runner {
             }
             let read = digest(&now).map_err(|_| failed(Cause::StepFailed))?;
             if &read == self.effects[one.at].digest() {
+                if always_asks(class) && self.effects[one.at].state != EffectState::Approved {
+                    self.advance(one.at, EffectMove::End)?;
+                    return Err(Stop::End(Outcome::Refused, Some(Cause::Approval)));
+                }
+                let reply = one.request.reply().cloned();
+                self.reply_moved(one.at, reply.as_ref(), ReplyState::Begun)?;
                 self.advance(one.at, EffectMove::Begin { digest: read })?;
                 let request = one.request;
                 let Some(left) = self.link.settle(|| request.release())? else {
@@ -362,15 +459,25 @@ impl Runner {
                         cause: Cause::NotSent,
                     };
                     self.advance(one.at, not_sent)?;
+                    self.reply_moved(one.at, reply.as_ref(), ReplyState::Drafted)?;
                     return Err(Stop::End(Outcome::Declined, Some(Cause::Declined)));
                 };
                 return match left.reply() {
-                    Replied::Made => self
-                        .advance(one.at, EffectMove::Commit)
-                        .map(|_| Through::Left),
+                    Replied::Made => {
+                        self.advance(one.at, EffectMove::Commit)?;
+                        self.reply_moved(one.at, reply.as_ref(), ReplyState::Committed)?;
+                        Ok(Through::Left)
+                    }
                     Replied::NotMade(case) => {
                         let cause = not_made_cause(case);
                         self.advance(one.at, EffectMove::NotMade { cause })?;
+                        self.reply_moved(one.at, reply.as_ref(), ReplyState::Drafted)?;
+                        if case != NotMade::Unauthorized {
+                            return Ok(Through::NotMade);
+                        }
+                        if let Some(reply) = &reply {
+                            self.log(LogEvent::StepFailed, Some(reply.step), Some(cause))?;
+                        }
                         Err(failed(Cause::Adapter))
                     }
                     Replied::Answered | Replied::NoReply => {

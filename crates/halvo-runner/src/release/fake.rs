@@ -2,6 +2,7 @@
 //! counts what it lets leave; no fixture runs. Beside them, the tests of the day that each row of a run carries,
 //! through the seam of the wall clock, for the confirm path and for a whole fill run in this thread.
 
+use std::cell::Cell;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -37,6 +38,10 @@ struct Fake {
     fixed_reads: Vec<Bound>,
     no_reply: bool,
     not_made: Option<NotMade>,
+    /// A bound object of another class that the request reports, class and values, once the facts of its first
+    /// `propose` have been read: a maker whose class changes, for the one test of a batch's `refuse`.
+    turns_to: Option<Bound>,
+    proposed: Cell<bool>,
 }
 
 struct Answers;
@@ -68,6 +73,9 @@ impl Left for Unmade {
 
 impl Paused for Fake {
     fn class(&self) -> ActionClass {
+        if let Some(turned) = self.turns_to.as_ref().filter(|_| self.proposed.get()) {
+            return turned.class();
+        }
         if let Some(fixed) = self.fixed.as_ref().or(self.fixed_reads.first()) {
             return fixed.class();
         }
@@ -79,6 +87,9 @@ impl Paused for Fake {
     }
 
     fn bound(&mut self, slots: &[Slot]) -> Result<Bound, Cause> {
+        if let Some(turned) = self.turns_to.as_ref().filter(|_| self.proposed.get()) {
+            return Ok(turned.clone());
+        }
         if let Some(fixed) = &self.fixed {
             return Ok(fixed.clone());
         }
@@ -119,6 +130,7 @@ impl Paused for Fake {
     }
 
     fn facts(&self) -> MakerFacts {
+        self.proposed.set(true);
         if self.submit || self.fixed.is_some() || !self.fixed_reads.is_empty() {
             return MakerFacts {
                 request_origin: Some(form_origin()),
@@ -718,6 +730,78 @@ fn the_times_that_one_step_proposes_again_are_at_most_two() {
     assert_eq!(
         stopped(&record),
         Some((LogEvent::Stopped, Some(Cause::Changed)))
+    );
+}
+
+/// The coordinator's ruling of 2026-11-21T22:03:07Z (log line 12316 (1)): an effect of a batch of case (iv) for which
+/// the later load gives `refuse` is ended as `let_through` ends one, with the cause `ended` and no new proposal, so
+/// that the count of what was allowed and not done holds it, and the run ends `refused`. Through the real table no
+/// input reaches that arm: `decide_row` gives `confirm` for one class and `refuse` for another in one load only for
+/// `local_edit`, which the runner's `Checkpoint::No` refuses at its first `propose`, so no batch holds it. The second
+/// request here therefore reports `delete` until its first `propose` and `local_edit` after it; the turned arm keeps
+/// the count true for a table that later gives such a pair.
+#[test]
+fn a_batch_effect_that_a_later_load_refuses_is_ended_and_not_proposed_again() {
+    let released = Arc::new(AtomicU32::new(0));
+    let file = |name, value: &str| BoundField {
+        name,
+        from: Source::Slot,
+        origin: None,
+        value: OwnValue::new(value),
+    };
+    let edit = Bound::new(
+        ActionClass::LocalEdit,
+        vec![
+            file(FieldName::File, "/f.xlsx"),
+            file(FieldName::Range, "B2:D6"),
+        ],
+    )
+    .expect("a bound object");
+    let first = Fake {
+        reads: vec![delete("a", Source::Extract)],
+        released: Arc::clone(&released),
+        ..Fake::default()
+    };
+    let second = Fake {
+        reads: vec![delete("b", Source::Extract)],
+        released: Arc::clone(&released),
+        turns_to: Some(edit),
+        ..Fake::default()
+    };
+    let plan = Plan {
+        runs_at: Some(|load| load == 1),
+        ..Plan::plain()
+    };
+    let record = run_many_path(
+        Category::CalendarCleanup,
+        (Vec::new(), Vec::new()),
+        vec![Box::new(first), Box::new(second)],
+        plan,
+    );
+    assert_eq!(released.load(Ordering::SeqCst), 0, "nothing left");
+    let effects = record.effects();
+    let second = effects[1].effect.clone();
+    assert_eq!(
+        effects
+            .iter()
+            .filter(|e| e.effect == second)
+            .map(|e| (e.state, e.cause))
+            .collect::<Vec<_>>(),
+        [
+            (EffectState::Cleared, None),
+            (EffectState::Rejected, Some(Cause::Ended))
+        ],
+        "the refused effect of the batch is ended"
+    );
+    assert_eq!(
+        effects.last().map(|e| (&e.effect, e.state, e.cause)),
+        Some((&second, EffectState::Rejected, Some(Cause::Ended))),
+        "and no row follows it: no new proposal"
+    );
+    assert_eq!(record.done(), Some(Outcome::Refused));
+    assert_eq!(
+        stopped(&record),
+        Some((LogEvent::Stopped, Some(Cause::Checkpoint)))
     );
 }
 
