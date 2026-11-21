@@ -25,6 +25,7 @@ const SQLITE_SWITCHES: &[(&str, Option<&str>)] = &[
     ("SQLCIPHER_CRYPTO_LIBTOMCRYPT", None),
     ("SQLITE_EXTRA_INIT", Some("halvo_sqlcipher_extra_init")),
     ("SQLITE_EXTRA_SHUTDOWN", Some("sqlcipher_extra_shutdown")),
+    ("SQLCIPHER_LOG_LEVEL_DEFAULT", Some("SQLCIPHER_LOG_NONE")),
     ("SQLITE_TEMP_STORE", Some("2")),
     ("SQLITE_THREADSAFE", Some("1")),
     ("SQLITE_DEFAULT_FOREIGN_KEYS", Some("1")),
