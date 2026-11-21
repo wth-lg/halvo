@@ -2084,6 +2084,10 @@ part_seconds() {
     forbid "$work/part-canary" --manifest-path "$canary/Cargo.toml" --lib --bins
   ) >/dev/null 2>&1
   for part in stand-in-start forbid-stub wrapped-call list-checks import-listing env-rules canary-match; do
+    if [ "$part" = list-checks ]; then
+      steps_part
+      continue
+    fi
     reps=10
     case $part in
       env-rules) reps=2 ;;
@@ -2104,10 +2108,6 @@ part_seconds() {
         wrapped-call)
           (cd "$work/repo" && STUB_COMMANDS=probe \
             sh scripts/egress/check.sh scripts/r6/egress/gate.txt -- "$work/route-gate" probe --rounds 1 >/dev/null 2>&1) ;;
-        list-checks)
-          (cd "$work/repo" && cp scripts/r6/egress/gate.txt "$work/part-list.txt" && cmp -s "$work/part-list.txt" scripts/r6/egress/gate.txt &&
-            cmp -s scripts/r6/egress/gate.txt "$work/part-list.txt" &&
-            git -c core.fsmonitor=false diff --no-renames --name-status "$good_tree" -- >/dev/null 2>&1) ;;
         import-listing)
           (PATH=$work/bin:$PATH rustc --print sysroot >/dev/null 2>&1) ;;
         env-rules)
@@ -2132,6 +2132,53 @@ part_seconds() {
     printf 'part-seconds %s %s for %s calls\n' "$part" "$((ended - started))" "$reps"
   done
   case_job=
+}
+
+call_steps() {
+  list_copy
+  before_numbers=$(egress_numbers)
+  list_after part >/dev/null 2>&1
+  before_numbers=
+  log_holds
+}
+
+steps_part() {
+  (
+    case_environment
+    cd "$work/repo" || exit 1
+    tree=$good_tree
+    calls=0
+    changed=no
+    state_before_calls >/dev/null 2>&1
+    log=target/egress/1/denied.log
+    count=0
+    started=$(date +%s) || started=0
+    i=0
+    while [ "$i" -lt 10 ]; do
+      call_steps
+      i=$((i + 1))
+    done
+    ended=$(date +%s) || ended=$started
+    printf 'part-seconds list-checks %s for 10 calls\n' "$((ended - started))"
+    mkdir -p "$work/count-bin" || exit 1
+    for program in awk cat cmp cp find git grep head ls mkdir sed sort tail tr wc xargs; do
+      real=$(command -v "$program") || continue
+      # shellcheck disable=SC2016
+      printf '#!/bin/sh\nprintf '\''%s\\n'\'' >>"$R6_COUNT_FILE"\nexec '\''%s'\'' "$@"\n' "$program" "$real" \
+        >"$work/count-bin/$program" || exit 1
+    done
+    chmod +x "$work"/count-bin/* || exit 1
+    : >"$work/count.txt" || exit 1
+    PATH=$work/count-bin:$PATH
+    R6_COUNT_FILE=$work/count.txt
+    export PATH R6_COUNT_FILE
+    call_steps
+    programs=0
+    while IFS= read -r line; do
+      programs=$((programs + 1))
+    done <"$work/count.txt"
+    printf 'part-programs list-checks %s for 1 call\n' "$programs"
+  )
 }
 
 marker_absent() {
