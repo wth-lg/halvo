@@ -1904,6 +1904,65 @@ pub(crate) mod tests {
         assert!(!dir.join("q").exists());
     }
 
+    /// U2.6b round 4 (CP-242): the start refuses a profile directory whose name ends in a sign of
+    /// white space, U+0020 or U+00A0, with the cause `start` and a detail in plain words, before
+    /// it makes a directory or starts a process: after the refusal neither the profile nor its
+    /// temporary directory is there and the failure counts no process, and with the temporary
+    /// path already taken, which `session::make_dirs` refuses with another detail, the detail is
+    /// the same, so the name is read before the disk. A name that ends in no such sign starts as
+    /// before: it gets past the refusal to the start of the browser's program (`browser_start`
+    /// for a program that is not there) and, on macOS, a stand-in starts and is stopped.
+    #[tokio::test]
+    async fn u26b_the_start_refuses_a_profile_whose_name_ends_in_white_space() {
+        let dir = crate::child::scratch("white-end");
+        let relay = crate::relay::Relay::start(crate::relay::Names::Fixture)
+            .await
+            .unwrap();
+        let start = |profile: &Path| {
+            let opts = options_with(nowhere("chrome"), profile.to_path_buf(), relay.handle());
+            async move {
+                Executor::start(&opts)
+                    .await
+                    .err()
+                    .map(|f| (f.cause, f.detail, f.left_before, f.left_unmarked))
+            }
+        };
+        let refused = Some((
+            "start",
+            "profile path ends in white space".to_string(),
+            0,
+            0,
+        ));
+        let mut seen = Vec::new();
+        for end in [' ', '\u{a0}'] {
+            let profile = dir.join(format!("p{end}"));
+            let temp = session::temp_of(&profile).unwrap();
+            let first = start(&profile).await;
+            let made = profile.exists() || temp.exists();
+            std::fs::create_dir(&temp).unwrap();
+            let taken = start(&profile).await;
+            seen.push((end, first, made, taken, profile.exists()));
+        }
+        let want = |end| (end, refused.clone(), false, refused.clone(), false);
+        assert_eq!(seen, vec![want(' '), want('\u{a0}')]);
+        let plain = dir.join("p");
+        assert_eq!(start(&plain).await.map(|f| f.0), Some("browser_start"));
+        assert!(!plain.exists());
+        #[cfg(target_os = "macos")]
+        {
+            let since_us = own_start_us();
+            let stand_in = crate::standin::bundle(&dir);
+            let browser = crate::standin::launcher(stand_in.binary.parent().unwrap(), "browser");
+            let ex = Executor::start(&options_with(browser, plain.clone(), relay.handle()))
+                .await
+                .expect("the stand-in starts");
+            let stopped = ex.stop_and_remove().await;
+            let left = named_within(&plain, since_us, Duration::from_secs(2)).await;
+            assert!(stopped.removed);
+            assert!(left.is_empty(), "{left:?}");
+        }
+    }
+
     /// The review of 85b6d770 (finder a, cases 1 and 2; finder b, case 1): the command line is the
     /// executor's alone, in a closed list, so no flag of a caller names a port or a route beside
     /// the relay, and the relay's proxy is the one value of its switches.
