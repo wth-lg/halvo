@@ -11,7 +11,7 @@ use halvo_coord::run::{Act, StopBy};
 use halvo_coord::schedule::{Answer, Stop};
 use halvo_coord::types::{
     Action, AgentId, Body, Doing, HandbackAsk, HandbackReason, Limits, Live, Outcome, RunEnd,
-    RunEvent, RunId, What,
+    RunEvent, RunId, StatusLine, System, What,
 };
 use halvo_coord::{words, Coordinator};
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -259,7 +259,7 @@ fn u46_a_refused_kill_leaves_its_run_named_and_kills_that_succeed_name_none() {
 }
 
 #[test]
-fn u46_limit_the_next_life_shows_a_run_that_outlived_quit_as_if_nothing_ran() {
+fn u46_the_next_life_shows_a_run_that_outlived_quit_with_the_line_of_a_stuck_kill() {
     let c = coord::coordinator(&[coord::MANUAL], Limits::PRODUCT);
     let run = run_now(&c, 0);
     c.quit_stop();
@@ -287,13 +287,12 @@ fn u46_limit_the_next_life_shows_a_run_that_outlived_quit_as_if_nothing_ran() {
         })
         .collect();
     assert_eq!(ended, [RunEnd::Interrupted]);
+    let stuck = StatusLine::KillStuck(System::HOST);
     assert_eq!(
-        row.line,
-        words::text("line.waiting_turn.store", &[]).unwrap(),
-        "a named limit of U4.6: the next life ends the run that outlived Quit as interrupted, \
-         keeps reap's answer alive for an agent set aside alone (run/recover.rs, recover; \
-         schedule/board.rs, set_aside) and its row says that Halvo wraps up the task and the \
-         person needs to do nothing, with no word that the task may have run on after Quit"
+        (row.status, row.line),
+        (stuck.status(), words::text(&stuck.key(), &[]).unwrap()),
+        "the next life ends the run that outlived Quit as interrupted, and the row of U4.6b \
+         says that its task may still run, in the line of a stuck kill of this system"
     );
 }
 
