@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
+use halvo_control::client::ClientError;
 use halvo_control::model::{CaptureState, StorageCap, StoreId};
 use halvo_control::onboarding::{OnboardingState, Permission, RequestOutcome};
 use halvo_control::paths::DataDir;
@@ -8,7 +9,7 @@ use halvo_control::proto::{reaches_the_end, CaptureChange, DaemonStatus, StateFi
 use tauri::ipc::Invoke;
 use tauri::{Runtime, State};
 
-use super::control::{control_of, Control};
+use super::control::{control_of, Control, Made};
 use super::names::{Names, CAPTURE};
 use super::Registration;
 use crate::poller::{self, Views};
@@ -117,24 +118,64 @@ pub async fn set_capture_state(
     capture: CaptureState,
 ) -> Result<CaptureSet, ActionError> {
     let made = state.control.places().make();
-    let call = made.number();
     let control = Arc::clone(&state.control);
     let change = match capture {
         CaptureState::Paused => CaptureChange::Pause,
         CaptureState::Running => CaptureChange::Resume,
     };
-    let (answer, next_number_at_answer) = off_the_main_thread(move || {
-        let answer = match change {
-            CaptureChange::Pause => control.pause(made),
-            CaptureChange::Resume => control.resume(made),
-        };
-        (answer, control.places().next_number())
+    let (answer, call, next_number_at_answer) = off_the_main_thread(move || {
+        let (answer, call) = press(control.as_ref(), made, change);
+        (answer, call, control.places().next_number())
     })
     .await?;
-    let reached = answer.as_ref().is_ok_and(|status| holds(change, status));
-    poller::take_command_answer(&state.views, call, next_number_at_answer, &answer);
+    let set = capture_set(&state.views, call, next_number_at_answer, change, answer);
     draw_off_the_main_thread(&state.views).await;
-    let view = command_view(answer)?;
+    set
+}
+
+/// What a person's press of Pause or Resume sends, from the page's command and from the tray's
+/// toggle: the request of `change` in the place `made`. Answers its answer with the number of
+/// the call that it answers.
+pub fn press(
+    control: &dyn Control,
+    made: Made,
+    change: CaptureChange,
+) -> (Result<DaemonStatus, ClientError>, u64) {
+    let call = made.number();
+    let answer = match change {
+        CaptureChange::Pause => control.pause(made),
+        CaptureChange::Resume => control.resume(made),
+    };
+    (answer, call)
+}
+
+/// Sorts the answer of a press of Pause or Resume, for the page's command and for the tray's
+/// toggle: it reached its end only where `holds` reads its status. The hold ends at a Resume
+/// that reached its end, and at no other place (contracts.md C14 item 4).
+pub fn sort_change_answer(
+    views: &Views,
+    change: CaptureChange,
+    answer: &Result<DaemonStatus, ClientError>,
+) -> bool {
+    let reached = answer.as_ref().is_ok_and(|status| holds(change, status));
+    if change == CaptureChange::Resume && reached {
+        views.hold().release();
+    }
+    reached
+}
+
+/// The answer of `set_capture_state` to the page: the view of the answer with the app's hold,
+/// and whether the change reached its end; an error where the view gives none.
+pub fn capture_set(
+    views: &Views,
+    call: u64,
+    next_number_at_answer: u64,
+    change: CaptureChange,
+    answer: Result<DaemonStatus, ClientError>,
+) -> Result<CaptureSet, ActionError> {
+    let reached = sort_change_answer(views, change, &answer);
+    poller::take_command_answer(views, call, next_number_at_answer, &answer);
+    let view = views.marked(command_view(answer)?);
     Ok(CaptureSet { view, reached })
 }
 
@@ -256,7 +297,7 @@ pub async fn set_storage_cap(
                 .take_mutation(call, next_number_at_answer, &set.status);
             draw_off_the_main_thread(&state.views).await;
             Ok(CapSetView {
-                view: StatusView::of(&set.status),
+                view: state.views.marked(StatusView::of(&set.status)),
                 evicting: Some(set.evicting),
             })
         }
@@ -266,10 +307,12 @@ pub async fn set_storage_cap(
             poller::take_command_answer(&state.views, call, next_number_at_answer, &answer);
             draw_off_the_main_thread(&state.views).await;
             Ok(CapSetView {
-                view: command_view(answer).map_err(|error| OutcomeError {
-                    error,
-                    outcome_not_known: !nothing_changed,
-                })?,
+                view: state
+                    .views
+                    .marked(command_view(answer).map_err(|error| OutcomeError {
+                        error,
+                        outcome_not_known: !nothing_changed,
+                    })?),
                 evicting: None,
             })
         }

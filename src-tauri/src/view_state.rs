@@ -8,6 +8,7 @@ use halvo_control::proto::{
 };
 use halvo_control::texts::{texts, Texts};
 use serde::{Deserialize, Serialize};
+use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -113,6 +114,7 @@ pub struct RunningView {
     pub screen_filter_excludes_app: Option<bool>,
     pub texts: Texts,
     pub ext: Vec<Section>,
+    pub hold: Option<HoldView>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,6 +123,104 @@ pub struct NoStatusView {
     pub platform: Platform,
     pub window: ObservationWindow,
     pub last_exit: Option<i32>,
+    pub hold: Option<HoldView>,
+}
+
+/// Why the app holds capture off: a child of the app ended itself with status 5, because a
+/// source did not stop (contracts.md C14 item 4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HoldCause {
+    SourceNotStopped,
+}
+
+/// The press that ends the hold: Resume while the app starts its children, Start after the
+/// third end with 5 in a row, when no further child starts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Press {
+    Resume,
+    Start,
+}
+
+/// What a view says of the app's hold.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct HoldView {
+    pub cause: HoldCause,
+    pub press: Press,
+}
+
+#[derive(Debug, Default)]
+struct HoldState {
+    held: bool,
+    no_more_child: bool,
+}
+
+/// The app's hold on capture after a child of the app ended itself with status 5 (contracts.md
+/// C14 item 4), and beside it what the supervisor of the children tells the view. An end with 5
+/// sets the hold, and only a Resume of a person's press that reached its end clears it, by
+/// [`Hold::release`].
+#[derive(Debug, Default)]
+pub struct Hold {
+    state: Mutex<HoldState>,
+    changed: Condvar,
+}
+
+impl Hold {
+    fn state(&self) -> MutexGuard<'_, HoldState> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Whether the hold stands.
+    pub fn stands(&self) -> bool {
+        self.state().held
+    }
+
+    /// The hold as a view says it, none while it does not stand.
+    pub fn view(&self) -> Option<HoldView> {
+        let state = self.state();
+        state.held.then_some(HoldView {
+            cause: HoldCause::SourceNotStopped,
+            press: if state.no_more_child {
+                Press::Start
+            } else {
+                Press::Resume
+            },
+        })
+    }
+
+    /// `view` with the hold.
+    pub fn mark(&self, view: StatusView) -> StatusView {
+        let hold = self.view();
+        match view {
+            StatusView::Running(mut view) => {
+                view.hold = hold;
+                StatusView::Running(view)
+            }
+            StatusView::NoStatus(mut view) => {
+                view.hold = hold;
+                StatusView::NoStatus(view)
+            }
+        }
+    }
+
+    /// Ends the hold: called only for a Resume of a person's press that reached its end.
+    pub fn release(&self) {
+        self.state().held = false;
+        self.changed.notify_all();
+    }
+
+    /// The child of the moment ended, with its exit status where it has one; an end with 5
+    /// sets the hold.
+    #[cfg(any(target_os = "macos", test))]
+    pub fn child_ended(&self, status: Option<i32>) {
+        let mut state = self.state();
+        if status == Some(halvo_control::exit::SOURCE_NOT_STOPPED) {
+            state.held = true;
+        }
+        drop(state);
+        self.changed.notify_all();
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -133,6 +233,7 @@ pub enum StatusView {
 struct WireView<'a> {
     service: Service,
     last_exit: Option<i32>,
+    hold: Option<HoldView>,
     platform: Platform,
     desired: Option<CaptureState>,
     capture: Option<Capture>,
@@ -160,6 +261,7 @@ impl Serialize for StatusView {
             StatusView::Running(view) => WireView {
                 service: Service::Running,
                 last_exit: None,
+                hold: view.hold,
                 platform: view.platform,
                 desired: Some(view.desired),
                 capture: Some(view.capture),
@@ -183,6 +285,7 @@ impl Serialize for StatusView {
             StatusView::NoStatus(view) => WireView {
                 service: view.service.word(),
                 last_exit: view.last_exit,
+                hold: view.hold,
                 platform: view.platform,
                 desired: None,
                 capture: None,
@@ -223,11 +326,20 @@ impl StatusView {
             platform,
             window: ObservationWindow::r1(),
             last_exit: None,
+            hold: None,
         })
     }
 
     pub fn without_status(service: NoStatusService) -> Self {
         StatusView::no_status(service, APP_PLATFORM)
+    }
+
+    /// The app's hold as this view says it.
+    pub fn hold(&self) -> Option<HoldView> {
+        match self {
+            StatusView::Running(view) => view.hold,
+            StatusView::NoStatus(view) => view.hold,
+        }
     }
 
     #[cfg(test)]
@@ -300,6 +412,7 @@ impl StatusView {
             screen_filter_excludes_app: f.screen_filter_excludes_app,
             texts: texts(status),
             ext: f.ext.clone(),
+            hold: None,
         }))
     }
 }
