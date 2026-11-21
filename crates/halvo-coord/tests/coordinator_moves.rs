@@ -12320,6 +12320,25 @@ fn u24t_rd135_a_read_that_no_longer_names_the_entry_keeps_the_fields_of_the_entr
 }
 
 #[test]
+fn u24t_rd135_a_failed_read_shows_the_fields_of_the_newest_read_that_named_the_entry() {
+    let (c, _) = u24t_check_card_with_a_kept_field();
+    c.ports().ports.agents.borrow_mut()[0].unknown[0].kept[0].value = vec!["Bo Li".into()];
+    c.ports().ports.set_clock(T0 + 6_000, DAY);
+    c.tick();
+    let answered = u24t_check_fields(&c);
+    c.ports().ports.refuse(Method::Agents, PortError::NoService);
+    c.ports().ports.set_clock(T0 + 7_000, DAY);
+    c.tick();
+    c.ports().ports.clear_refusals();
+    let bo = Some(vec![vec!["Bo Li".to_string()]]);
+    assert_eq!(
+        (answered, u24t_check_fields(&c)),
+        (bo.clone(), bo),
+        "(the fields after a read that names the entry anew, after a read that failed)"
+    );
+}
+
+#[test]
 fn u24t_rd135_the_kept_fields_go_with_the_card_and_a_new_card_takes_its_own() {
     let (c, run) = u24t_check_card_with_a_kept_field();
     let item = item_of_agent(&c, 0);
