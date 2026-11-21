@@ -1,0 +1,2 @@
+- Added: In the agents view, a press that Halvo refuses says why beside the control that was pressed, and a card whose past tasks could not be shown says so with a Try again control.
+- Changed: A refused command now answers the sentence of its cause together with the cause, and a busy history read is no longer an error of agents_card.
