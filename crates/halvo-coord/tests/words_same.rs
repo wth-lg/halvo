@@ -306,7 +306,7 @@ const U34_TEXTS: [(&str, &str); 27] = [
     ),
     (
         "ask.delete.sign_in",
-        "It also removes the sign-in it kept on this computer, and its schedule.",
+        "It also removes its schedule and what it kept on this computer to sign in.",
     ),
     (
         "ask.delete.records",
