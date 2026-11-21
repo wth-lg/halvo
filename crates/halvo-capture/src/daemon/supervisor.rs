@@ -508,7 +508,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// What a status of a service run reads of this supervisor, with the
     /// time left before the next check of a data directory that failed its
     /// check, if one did.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn status_parts(&self, obstructed: Option<Duration>) -> super::server::StatusParts {
         let state = self.state.as_ref().map(StateFile::state);
         super::server::StatusParts {
@@ -540,7 +540,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// succeeded. `reply` gets the Board of an end routine, as
     /// [`Self::follow_the_run_condition`] gives it. The answer is the write's,
     /// `None` with no state file.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn set_desired(
         &mut self,
         desired: Desired,
@@ -568,12 +568,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
 
     /// The state file that the supervisor holds, for a write of a client's
     /// request.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn state_mut(&mut self) -> Option<&mut StateFile> {
         self.state.as_mut()
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn update_state(
         &mut self,
         change: impl FnOnce(&mut super::state::DaemonState),
@@ -634,7 +634,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     }
 
     /// The slot of the store as the supervisor holds it.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn slot(&self) -> &Slot {
         &self.slot
     }
@@ -650,7 +650,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Board of an end routine, as [`Self::follow_the_run_condition`] gives
     /// it, when the stop that the slot asks for meets a source that does not
     /// stop.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn set_slot_answering(
         &mut self,
         slot: Slot,
@@ -668,7 +668,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// Status with `indicator: true` asks (contracts.md C14 item 3), and reads
     /// the run condition at once, so that a claim with desired running and
     /// the store open starts the sources.
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", all(windows, debug_assertions)))]
     pub(crate) fn renew_lease(&mut self, owner: Option<&dyn OwnerLink>) {
         self.lease = Lease::renewed_at(self.main_loop.now());
         self.read_the_condition(owner);

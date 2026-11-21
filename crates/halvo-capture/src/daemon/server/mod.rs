@@ -8,6 +8,11 @@ pub mod unix;
 #[cfg(windows)]
 pub mod windows;
 
+#[cfg(target_os = "macos")]
+pub use unix::Listening;
+#[cfg(windows)]
+pub use windows::Listening;
+
 use std::io::{ErrorKind, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};

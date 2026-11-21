@@ -4,7 +4,9 @@
 //! that ends in order. It holds the process id of its life alone.
 
 use std::io::{self, Read, Write};
+#[cfg(target_os = "macos")]
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+use std::path::Path;
 
 use halvo_control::paths::DataDir;
 use halvo_control::proto::LastStop;
@@ -48,16 +50,12 @@ pub fn end(dir: &DataDir) -> io::Result<()> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error),
     }
-    std::fs::File::open(dir.run_dir())?.sync_all()
+    sync_folder(&dir.run_dir())
 }
 
 fn write(dir: &DataDir) -> io::Result<()> {
     let run = dir.run_dir();
-    std::fs::DirBuilder::new()
-        .recursive(true)
-        .mode(0o700)
-        .create(&run)?;
-    std::fs::set_permissions(&run, std::fs::Permissions::from_mode(0o700))?;
+    make_own_folder(&run)?;
     let path = dir.run_marker();
     let mut name = path.file_name().unwrap_or_default().to_os_string();
     name.push(".new");
@@ -67,5 +65,29 @@ fn write(dir: &DataDir) -> io::Result<()> {
     file.sync_all()?;
     drop(file);
     std::fs::rename(&next, &path)?;
-    std::fs::File::open(&run)?.sync_all()
+    sync_folder(&run)
+}
+
+#[cfg(target_os = "macos")]
+fn make_own_folder(run: &Path) -> io::Result<()> {
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(run)?;
+    std::fs::set_permissions(run, std::fs::Permissions::from_mode(0o700))
+}
+
+#[cfg(windows)]
+fn make_own_folder(run: &Path) -> io::Result<()> {
+    std::fs::create_dir_all(run)
+}
+
+#[cfg(target_os = "macos")]
+fn sync_folder(folder: &Path) -> io::Result<()> {
+    std::fs::File::open(folder)?.sync_all()
+}
+
+#[cfg(windows)]
+fn sync_folder(_folder: &Path) -> io::Result<()> {
+    Ok(())
 }
