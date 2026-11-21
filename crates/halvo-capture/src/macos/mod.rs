@@ -108,14 +108,16 @@ mod timed {
         if let Ok(dir) = children::own_dir() {
             supervisor = supervisor.with_probe(Box::new(ChildProbe::new(dir, "halvo-capture")));
         }
-        crate::daemon::run_timed(
+        let scratch = crate::daemon::scratch_store(run)?;
+        let answer = crate::daemon::run_timed(
             run,
             &mut supervisor,
-            crate::daemon::discard_port::DiscardPort::new(run.store_dir.clone()),
+            scratch.store,
             crate::daemon::maintenance::SystemClocks::new(),
             crate::daemon::signal::flag(),
             crate::daemon::SETTLE_BOUND,
-        )
+        );
+        crate::daemon::end_of_a_scratch_run(answer, scratch.root)
     }
 
     struct NoSources;

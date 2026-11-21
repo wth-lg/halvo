@@ -481,6 +481,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         &self.board
     }
 
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    pub(crate) fn update_state(
+        &mut self,
+        change: impl FnOnce(&mut super::state::DaemonState),
+    ) -> Option<Result<(), StateError>> {
+        self.state.as_mut().map(|state| state.update(change))
+    }
+
     pub fn factory(&self) -> &F {
         &self.factory
     }
