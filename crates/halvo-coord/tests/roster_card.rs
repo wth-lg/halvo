@@ -1823,3 +1823,112 @@ fn u24q_a_kept_value_of_no_byte_never_stands_under_any_name_of_any_class() {
         differ.len()
     );
 }
+
+/// The verifier's findings 3 and 4 (d10, h47, h01): a name that the row keeps more than once never
+/// stands, whatever its values (one of no byte among them), in every class and for every count, on
+/// the entry of a refused committed effect and on the unknown entry, and the card holds no byte of
+/// its values. Every case whose entry differs is named.
+#[test]
+fn u24q_a_name_kept_more_than_once_never_stands_in_any_class_or_count() {
+    let cases = [
+        (
+            "payee twice, a value of no byte and then one that reads",
+            Class::Payment,
+            vec![
+                kept_pieces("payee", &[]),
+                one_kept("payee", "zq4 Power"),
+                one_kept("amount", "42.10 USD"),
+            ],
+            vec![pair("Amount", "42.10 USD")],
+            "zq4",
+        ),
+        (
+            "payee twice, a value that reads and then one of no byte",
+            Class::Payment,
+            vec![
+                one_kept("payee", "zq4 Power"),
+                one_kept("amount", "42.10 USD"),
+                kept_pieces("payee", &[""]),
+            ],
+            vec![pair("Amount", "42.10 USD")],
+            "zq4",
+        ),
+        (
+            "to twice in a send",
+            Class::Send,
+            vec![
+                one_kept("to", "zq8 Lee"),
+                one_kept("to", "zq8 Lee"),
+                one_kept("note", "x"),
+            ],
+            vec![],
+            "zq8",
+        ),
+        (
+            "document twice in a sign, beside a party",
+            Class::Sign,
+            vec![
+                one_kept("document", "zq9 one"),
+                one_kept("party", "Bo Chan"),
+                one_kept("document", "zq9 two"),
+            ],
+            vec![pair("Who else signs", "Bo Chan")],
+            "zq9",
+        ),
+        (
+            "payee three times with equal values, beside an amount",
+            Class::Payment,
+            vec![
+                one_kept("payee", "zq3 Power"),
+                one_kept("amount", "42.10 USD"),
+                one_kept("payee", "zq3 Power"),
+                one_kept("payee", "zq3 Power"),
+            ],
+            vec![pair("Amount", "42.10 USD")],
+            "zq3",
+        ),
+        (
+            "document three times with three values, beside a party",
+            Class::Sign,
+            vec![
+                one_kept("document", "zq3a"),
+                one_kept("document", "zq3b"),
+                one_kept("document", "zq3c"),
+                one_kept("party", "Bo Chan"),
+            ],
+            vec![pair("Who else signs", "Bo Chan")],
+            "zq3",
+        ),
+    ];
+    let mut differ = Vec::new();
+    for (case, class, kept, fields, hidden) in cases {
+        let refused = if fields.is_empty() {
+            "unshown"
+        } else {
+            "partial"
+        };
+        for (effect, key) in [
+            (
+                committed(class, kept.clone()),
+                format!("run.effect.{}.{refused}", class.name()),
+            ),
+            (
+                unknown(class, kept.clone()),
+                format!("run.effect.{}.unknown", class.name()),
+            ),
+        ] {
+            let c = beside_a_good_run(effect);
+            let e = &c.runs[0].effects[1];
+            let all = serde_json::to_string(&c).unwrap();
+            let got = (e.key(), shown(e), all.contains(hidden));
+            if got != (key.clone(), fields.clone(), false) {
+                differ.push(format!("{case}, as {key}: {got:?}"));
+            }
+        }
+    }
+    assert!(
+        differ.is_empty(),
+        "{} cases differ: {differ:?}",
+        differ.len()
+    );
+}
