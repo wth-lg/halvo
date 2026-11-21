@@ -204,6 +204,15 @@ pub enum StateError {
     /// loss.
     #[error("the state file {} holds the change and memory took it, but the flush of its folder failed: {kind}", .file.display())]
     NotFlushed { file: PathBuf, kind: io::ErrorKind },
+    /// The write failed with `kind`, and the file could not be read after it
+    /// (`read`), so it may hold the change or the state of before; memory
+    /// took desired paused.
+    #[error("the state file {} could not be read after the failed write ({read}), so it may hold the change or the state of before: {kind}", .file.display())]
+    MayHoldTheChange {
+        file: PathBuf,
+        kind: io::ErrorKind,
+        read: io::ErrorKind,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -239,7 +248,9 @@ impl StateFile {
     pub fn open(dir: StateDir, writer: Box<dyn StateWrite>) -> StateFile {
         let (state, loaded, missing) = match read(&dir) {
             Found::Missing => (DaemonState::default(), Loaded::Readable, true),
-            Found::Unloadable => (DaemonState::default(), Loaded::Corrupt, false),
+            Found::Unloadable | Found::CannotRead(_) => {
+                (DaemonState::default(), Loaded::Corrupt, false)
+            }
             Found::Bytes(bytes) => match parse(&bytes) {
                 Ok(state) => (state, Loaded::Readable, false),
                 Err(loaded) => (DaemonState::default(), loaded, false),
@@ -278,11 +289,14 @@ impl StateFile {
     /// when the change leaves the state as it was. A file that did not load is
     /// never written: the call answers [`StateError::LeftAsItIs`]. After a
     /// failed write the file is read again, and memory takes what the next
-    /// start would read: the change, when the file holds it, answered
-    /// [`StateError::NotFlushed`]; the state of before, or another state that
-    /// loads, answered [`StateError::NotWritten`]; and desired paused with the
-    /// other fields kept when the file does not load, answered
-    /// [`StateError::NotWritten`].
+    /// start would read: the state of before, answered
+    /// [`StateError::NotWritten`]; the change, when the file holds it and it
+    /// differs from the state of before, answered [`StateError::NotFlushed`];
+    /// another state that loads, answered [`StateError::NotWritten`]; desired
+    /// paused with the other fields kept when the file is missing or does not
+    /// load, answered [`StateError::NotWritten`]; and desired paused with the
+    /// other fields kept when the file could not be read, answered
+    /// [`StateError::MayHoldTheChange`].
     pub fn update(&mut self, change: impl FnOnce(&mut DaemonState)) -> Result<(), StateError> {
         if self.loaded != Loaded::Readable {
             return Err(StateError::LeftAsItIs {
@@ -303,15 +317,22 @@ impl StateFile {
                 self.last_write = Some(kind);
                 let file = self.dir.file_for_words();
                 match reread(&self.dir) {
-                    Some(on_disk) if on_disk == next => {
+                    Reread::Loads(on_disk) if on_disk == self.state => {
+                        Err(StateError::NotWritten { file, kind })
+                    }
+                    Reread::Loads(on_disk) if on_disk == next => {
                         self.state = next;
                         Err(StateError::NotFlushed { file, kind })
                     }
-                    Some(on_disk) => {
+                    Reread::Loads(on_disk) => {
                         self.state = on_disk;
                         Err(StateError::NotWritten { file, kind })
                     }
-                    None => {
+                    Reread::CannotRead(read) => {
+                        self.state.desired = Desired::Paused;
+                        Err(StateError::MayHoldTheChange { file, kind, read })
+                    }
+                    Reread::DoesNotLoad | Reread::Missing => {
                         self.state.desired = Desired::Paused;
                         Err(StateError::NotWritten { file, kind })
                     }
@@ -351,13 +372,23 @@ impl StateFile {
 enum Found {
     Missing,
     Unloadable,
+    CannotRead(io::ErrorKind),
     Bytes(Vec<u8>),
 }
 
-fn reread(dir: &StateDir) -> Option<DaemonState> {
+enum Reread {
+    Loads(DaemonState),
+    DoesNotLoad,
+    Missing,
+    CannotRead(io::ErrorKind),
+}
+
+fn reread(dir: &StateDir) -> Reread {
     match read(dir) {
-        Found::Bytes(bytes) => parse(&bytes).ok(),
-        Found::Missing | Found::Unloadable => None,
+        Found::Bytes(bytes) => parse(&bytes).map_or(Reread::DoesNotLoad, Reread::Loads),
+        Found::Unloadable => Reread::DoesNotLoad,
+        Found::Missing => Reread::Missing,
+        Found::CannotRead(kind) => Reread::CannotRead(kind),
     }
 }
 
@@ -365,16 +396,30 @@ fn read(dir: &StateDir) -> Found {
     let file = match open_without_following(dir) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Found::Missing,
-        Err(_) => return Found::Unloadable,
+        Err(error) if is_a_link(&error) => return Found::Unloadable,
+        Err(error) => return Found::CannotRead(error.kind()),
     };
-    if !file.metadata().is_ok_and(|meta| meta.is_file()) {
-        return Found::Unloadable;
+    match file.metadata() {
+        Ok(meta) if meta.is_file() => {}
+        Ok(_) => return Found::Unloadable,
+        Err(error) => return Found::CannotRead(error.kind()),
     }
     let mut bytes = Vec::new();
     match file.take(STATE_FILE_MAX_BYTES + 1).read_to_end(&mut bytes) {
         Ok(read) if read as u64 <= STATE_FILE_MAX_BYTES => Found::Bytes(bytes),
-        Ok(_) | Err(_) => Found::Unloadable,
+        Ok(_) => Found::Unloadable,
+        Err(error) => Found::CannotRead(error.kind()),
     }
+}
+
+#[cfg(target_os = "macos")]
+fn is_a_link(error: &io::Error) -> bool {
+    error.raw_os_error() == Some(libc::ELOOP)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_a_link(error: &io::Error) -> bool {
+    error.kind() == io::ErrorKind::InvalidInput
 }
 
 #[cfg(target_os = "macos")]
@@ -1037,6 +1082,157 @@ pub(crate) mod tests {
         assert_eq!(
             (next.health(), next.state().desired),
             (StateHealth::Corrupt, Desired::Paused)
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) struct ModeBack(pub(crate) PathBuf);
+
+    #[cfg(target_os = "macos")]
+    impl Drop for ModeBack {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o600));
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) struct WrittenThenUnreadable;
+
+    #[cfg(target_os = "macos")]
+    impl StateWrite for WrittenThenUnreadable {
+        fn write_whole(&self, dir: &StateDir, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+            use std::os::unix::fs::PermissionsExt;
+            let mut temp = name.to_os_string();
+            temp.push(".test-new");
+            put(dir, &temp, name, bytes)?;
+            std::fs::set_permissions(dir.file_for_words(), std::fs::Permissions::from_mode(0o000))?;
+            Err(io::Error::from(io::ErrorKind::StorageFull))
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) fn a_plain_open_is_refused_by_mode_000(path: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+        let _back = ModeBack(path.to_path_buf());
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let refused = std::fs::File::open(path).map(drop);
+        assert_eq!(
+            refused.as_ref().map_err(io::Error::kind),
+            Err(io::ErrorKind::PermissionDenied),
+            "the mode 000 does not keep this user out of the state file, so the case of a read that cannot be made is not made here: {refused:?}"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_failed_write_whose_file_cannot_be_read_again_is_answered_as_one_that_may_hold_the_change()
+    {
+        let dir = test_dir();
+        drop(open(dir.path(), &TestWrite::default()));
+        a_plain_open_is_refused_by_mode_000(&file_of(dir.path()));
+        let back = ModeBack(file_of(dir.path()));
+        let mut file = StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(WrittenThenUnreadable),
+        );
+        let answer = file.update(|state| state.desired = Desired::Running);
+        let words = answer
+            .as_ref()
+            .err()
+            .map(ToString::to_string)
+            .unwrap_or_default();
+        assert!(words.contains("may hold the change"), "{answer:?}");
+        assert_eq!(file.state().desired, Desired::Paused);
+        assert_eq!(
+            file.health(),
+            StateHealth::WriteFailed(io::ErrorKind::StorageFull)
+        );
+        drop(back);
+        let next = open(dir.path(), &TestWrite::default());
+        assert_eq!(
+            (next.health(), next.state().desired),
+            (StateHealth::Ok, Desired::Running)
+        );
+    }
+
+    #[cfg(windows)]
+    struct WrittenThenHeld(Arc<std::sync::Mutex<Option<std::fs::File>>>);
+
+    #[cfg(windows)]
+    impl StateWrite for WrittenThenHeld {
+        fn write_whole(&self, dir: &StateDir, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+            use std::os::windows::fs::OpenOptionsExt;
+            let mut temp = name.to_os_string();
+            temp.push(".test-new");
+            put(dir, &temp, name, bytes)?;
+            let held = std::fs::OpenOptions::new()
+                .read(true)
+                .share_mode(0)
+                .open(dir.path().join(name))?;
+            *self
+                .0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(held);
+            Err(io::Error::from(io::ErrorKind::StorageFull))
+        }
+    }
+
+    #[cfg(windows)]
+    struct HandleBack(Arc<std::sync::Mutex<Option<std::fs::File>>>);
+
+    #[cfg(windows)]
+    impl Drop for HandleBack {
+        fn drop(&mut self) {
+            self.0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take();
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_failed_write_whose_file_cannot_be_read_again_is_answered_as_one_that_may_hold_the_change()
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        let dir = test_dir();
+        drop(open(dir.path(), &TestWrite::default()));
+        let path = file_of(dir.path());
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&path)
+            .unwrap();
+        let refused = std::fs::File::open(&path).map(drop);
+        drop(held);
+        assert!(
+            refused.is_err(),
+            "a handle with no sharing does not keep a plain open of the state file out here, so the case of a read that cannot be made is not made"
+        );
+        let handle = Arc::new(std::sync::Mutex::new(None));
+        let back = HandleBack(handle.clone());
+        let mut file = StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(WrittenThenHeld(handle)),
+        );
+        let answer = file.update(|state| state.desired = Desired::Running);
+        let words = answer
+            .as_ref()
+            .err()
+            .map(ToString::to_string)
+            .unwrap_or_default();
+        assert!(words.contains("may hold the change"), "{answer:?}");
+        assert_eq!(file.state().desired, Desired::Paused);
+        assert_eq!(
+            file.health(),
+            StateHealth::WriteFailed(io::ErrorKind::StorageFull)
+        );
+        drop(back);
+        let next = open(dir.path(), &TestWrite::default());
+        assert_eq!(
+            (next.health(), next.state().desired),
+            (StateHealth::Ok, Desired::Running)
         );
     }
 }

@@ -776,6 +776,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                         "halvo-capture: the state file holds the grant, but the flush of its folder failed: {kind}"
                     );
                 }
+                Err(StateError::MayHoldTheChange { kind, .. }) => {
+                    let _ = writeln!(
+                        self.err,
+                        "halvo-capture: the state file may hold the grant, but it could not be read after its write failed: {kind}"
+                    );
+                }
                 Ok(()) | Err(StateError::LeftAsItIs { .. }) => {}
             }
         }
@@ -2463,6 +2469,51 @@ mod tests {
         );
         assert!(
             !g.out.text().contains(g_dir.path().to_str().unwrap()),
+            "{}",
+            g.out.text()
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_grant_whose_record_cannot_be_read_again_after_its_write_failed_is_named_by_a_line_with_its_kind(
+    ) {
+        use crate::daemon::state::tests::{
+            a_plain_open_is_refused_by_mode_000, ModeBack, TestWrite, WrittenThenUnreadable,
+        };
+        use crate::daemon::state::{StateDir, StateFile};
+        let (g, answers, _) = probed(fixture(Factory::new()));
+        let dir = crate::daemon::state::tests::test_dir();
+        drop(StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(TestWrite::default()),
+        ));
+        a_plain_open_is_refused_by_mode_000(&dir.path().join("daemon-state.json"));
+        let back = ModeBack(dir.path().join("daemon-state.json"));
+        let state = StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(WrittenThenUnreadable),
+        );
+        let mut g = g;
+        g.supervisor = g.supervisor.with_state(state);
+        answers
+            .borrow_mut()
+            .push_back(input_monitoring(GrantState::Granted));
+        g.start(&two());
+        assert_eq!(g.tick(), None);
+        drop(back);
+        assert_eq!(once_granted(dir.path()), vec![Permission::InputMonitoring]);
+        let line = format!(
+            "halvo-capture: the state file may hold the grant, but it could not be read after its write failed: {}",
+            std::io::ErrorKind::StorageFull
+        );
+        assert!(
+            g.out.text().lines().any(|said| said == line),
+            "{}",
+            g.out.text()
+        );
+        assert!(
+            !g.out.text().contains(dir.path().to_str().unwrap()),
             "{}",
             g.out.text()
         );
