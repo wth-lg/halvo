@@ -262,6 +262,11 @@ pub struct StateFile {
     writer: Box<dyn StateWrite>,
 }
 
+/// The state file of a service run as its supervisor and the connections of
+/// a life that is ending share it (ruling PL-17 (d)): [`StateFile::update`]
+/// stays its one writer, and the lock lets one write in at a time.
+pub type SharedStateFile = std::sync::Arc<std::sync::Mutex<StateFile>>;
+
 impl StateFile {
     /// Loads the state file of `dir`, the folder of a data directory that the
     /// caller holds by its instance lock. A file that loads gives its state, and a missing

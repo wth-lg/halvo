@@ -5,7 +5,7 @@
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use halvo_control::exit;
@@ -25,7 +25,7 @@ use super::slot::Slot;
 use super::sources::{
     is_a_stop, past_bound, stop_bound, stop_order, RunningSources, SourceFactory,
 };
-use super::state::{Desired, StateError, StateFile};
+use super::state::{Desired, SharedStateFile, StateError, StateFile};
 use super::{DaemonError, RunSources, Waits};
 use crate::source::{
     CaptureError, HealthReason, SourceContext, SourceCounters, SourceState, StopCause,
@@ -277,25 +277,54 @@ pub enum CaptureOff {
     /// A source did not stop and the end routine made the ending call with
     /// this status.
     Ended(i32),
+    /// A delete's stop met a source that did not stop: the life is ending,
+    /// the watchdog is armed for the delete's tail, and the delete goes on
+    /// in this life (ruling PL-3 part (3) item 5).
+    GoesOn,
+}
+
+/// The delete's deadline of a client (contracts.md C2.1), which also bounds
+/// the start of SHUTDOWN_BUDGET_MS after a delete that met a source that did
+/// not stop (contracts.md C2.1, C14 item 6).
+pub const DELETE_WAIT: Duration = halvo_control::client::Deadlines::V1.delete_all;
+
+/// The owner's figures that a record holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Figures {
+    pub events_persisted: u64,
+    pub events_lost: u64,
+    pub events_pending: u64,
+}
+
+impl Figures {
+    pub fn of(snapshot: &Snapshot) -> Figures {
+        Figures {
+            events_persisted: snapshot.events_persisted,
+            events_lost: snapshot.events_lost,
+            events_pending: snapshot.events_pending,
+        }
+    }
 }
 
 /// The record of a life that a source which did not stop ended (ruling PL-3
 /// part (3), steps 4 and 7): the kind of stop, the sources that did not stop
 /// with their reason, and the owner's figures, first as they stood at the
 /// first answer that was not a stop and then as the final settle left them.
-/// A source that answered anything but a stop once in the life stays named
-/// in both records, whatever a later ask answered, with the error of that
-/// answer, its stage and its code (ruling DM-25 N6); the line keeps the
-/// reason token alone, whose form waits on daemon-3e's mapping.
+/// The last record of a delete holds no figure, because every figure of
+/// before its barrier counts what the delete removed (item 5). A source that
+/// answered anything but a stop once in the life stays named in both
+/// records, whatever a later ask answered, with the error of that answer,
+/// its stage and its code (ruling DM-25 N6); the line keeps the reason token
+/// alone, whose form waits on daemon-3e's mapping. Every such record is the
+/// hold of part (5): a life that reads one in its run marker starts no
+/// source until a Resume.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EndRecord {
     pub kind: StopKind,
     pub final_figures: bool,
     pub not_stopped: Vec<(SourceName, String)>,
     pub errors: Vec<(SourceName, CaptureError)>,
-    pub events_persisted: u64,
-    pub events_lost: u64,
-    pub events_pending: u64,
+    pub figures: Option<Figures>,
 }
 
 impl EndRecord {
@@ -306,14 +335,17 @@ impl EndRecord {
             .iter()
             .map(|(name, reason)| format!("{}:{reason}", name.as_str()))
             .collect();
+        let figures = self.figures.map_or_else(String::new, |figures| {
+            format!(
+                " events_persisted={} events_lost={} events_pending={}",
+                figures.events_persisted, figures.events_lost, figures.events_pending
+            )
+        });
         format!(
-            "last_stop=source_not_stopped kind={} final={} not_stopped={} events_persisted={} events_lost={} events_pending={}\n",
+            "last_stop=source_not_stopped kind={} final={} not_stopped={}{figures}\n",
             self.kind.as_str(),
             if self.final_figures { "yes" } else { "no" },
             not_stopped.join(","),
-            self.events_persisted,
-            self.events_lost,
-            self.events_pending
         )
     }
 }
@@ -321,10 +353,17 @@ impl EndRecord {
 /// Where the end routine writes its record: the run marker of a service run.
 pub trait Marker {
     fn write(&mut self, record: &EndRecord) -> std::io::Result<()>;
+
+    /// Lifts the hold that a record stands for, as a Resume does (ruling
+    /// PL-3 part (5)).
+    fn clear_hold(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// The run marker as a file, rewritten whole by a write to a file beside it,
-/// a sync and a rename, and a sync of the directory.
+/// a sync and a rename, and a sync of the directory; the clear of the hold
+/// writes the marker of the running life again, with no record and no hold.
 pub struct MarkerFile {
     path: std::path::PathBuf,
 }
@@ -333,15 +372,13 @@ impl MarkerFile {
     pub fn new(path: std::path::PathBuf) -> MarkerFile {
         MarkerFile { path }
     }
-}
 
-impl Marker for MarkerFile {
-    fn write(&mut self, record: &EndRecord) -> std::io::Result<()> {
+    fn replace(&self, bytes: &[u8]) -> std::io::Result<()> {
         let mut name = self.path.file_name().unwrap_or_default().to_os_string();
         name.push(".new");
         let next = self.path.with_file_name(name);
         let mut file = std::fs::File::create(&next)?;
-        file.write_all(record.text().as_bytes())?;
+        file.write_all(bytes)?;
         file.sync_all()?;
         drop(file);
         std::fs::rename(&next, &self.path)?;
@@ -350,6 +387,16 @@ impl Marker for MarkerFile {
             std::fs::File::open(dir)?.sync_all()?;
         }
         Ok(())
+    }
+}
+
+impl Marker for MarkerFile {
+    fn write(&mut self, record: &EndRecord) -> std::io::Result<()> {
+        self.replace(record.text().as_bytes())
+    }
+
+    fn clear_hold(&mut self) -> std::io::Result<()> {
+        self.replace(format!("pid={}\n", std::process::id()).as_bytes())
     }
 }
 
@@ -399,7 +446,7 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     unstopped_in_life: Vec<(SourceName, CaptureError)>,
     owner_gone_stops: Option<Vec<(SourceName, Result<(), CaptureError>)>>,
     entry_status: Option<i32>,
-    state: Option<StateFile>,
+    state: Option<SharedStateFile>,
     served: Option<(SourceContext, Vec<SourceName>)>,
     slot: Slot,
     lease: Lease,
@@ -407,6 +454,8 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     pausing: bool,
     parent: Option<Box<dyn ParentWatch>>,
     held_paused: bool,
+    held: bool,
+    life: Option<Arc<super::server::EndingLife>>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -448,14 +497,42 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             pausing: false,
             parent: None,
             held_paused: false,
+            held: false,
+            life: None,
         }
     }
 
     /// The state file that the supervisor holds: it records there each
     /// permission that its probe reads as granted.
     pub fn with_state(mut self, state: StateFile) -> Supervisor<F, L> {
-        self.state = Some(state);
+        self.state = Some(Arc::new(Mutex::new(state)));
         self
+    }
+
+    /// The life that the server shares (ruling PL-17): the supervisor marks
+    /// it ending at the first answer that is not a stop in a stop for capture
+    /// off and at the start of the shutdown entry, and publishes there the
+    /// parts of the status from which a connection of an ending life answers.
+    pub fn with_life(mut self, life: Arc<super::server::EndingLife>) -> Supervisor<F, L> {
+        self.life = Some(life);
+        self
+    }
+
+    /// The state file as the server's ending life shares it.
+    pub fn shared_state(&self) -> Option<SharedStateFile> {
+        self.state.clone()
+    }
+
+    fn state_file(&self) -> Option<MutexGuard<'_, StateFile>> {
+        self.state
+            .as_ref()
+            .map(|state| state.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    fn end_the_life(&self) {
+        if let Some(life) = &self.life {
+            life.end_the_life();
+        }
     }
 
     /// The probe runner whose answers the supervisor reads.
@@ -486,6 +563,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self
     }
 
+    /// The hold of ruling PL-3 part (5), as the start read it in the run
+    /// marker: while it stands no source begins, whatever the state file and
+    /// the lease say, until a Resume lifts it.
+    pub fn with_hold(mut self, held: bool) -> Supervisor<F, L> {
+        self.held = held;
+        self
+    }
+
     /// The status that the watchdog is armed with, if it is.
     pub fn watchdog_armed(&self) -> Option<i32> {
         self.watchdog.as_ref().and_then(Watchdog::armed)
@@ -510,16 +595,17 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// check, if one did.
     #[cfg(target_os = "macos")]
     pub(crate) fn status_parts(&self, obstructed: Option<Duration>) -> super::server::StatusParts {
-        let state = self.state.as_ref().map(StateFile::state);
+        let desired = self.desired();
+        let file = self.state_file();
+        let state = file.as_deref().map(StateFile::state);
         super::server::StatusParts {
             board: self.board.clone(),
-            desired: self.desired(),
+            desired,
             lease: self.lease.reading(self.main_loop.now()),
             slot: self.slot.clone(),
             obstructed,
-            health: self
-                .state
-                .as_ref()
+            health: file
+                .as_deref()
                 .map_or(super::state::StateHealth::Ok, StateFile::health),
             cap: state.map_or(
                 super::state::Cap::Known(halvo_control::model::StorageCap::DEFAULT),
@@ -529,6 +615,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             once_granted: state
                 .map_or_else(Vec::new, |state| state.permissions_once_granted.clone()),
             asked: state.map_or_else(Vec::new, |state| state.permissions_asked.clone()),
+            held: self.held,
         }
     }
 
@@ -537,7 +624,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// at once, so that a Pause stops the sources and a Resume with a fresh
     /// lease starts them. A Pause whose write fails still holds capture off
     /// in this life; a Resume lets that hold go only once its own write
-    /// succeeded. `reply` gets the Board of an end routine, as
+    /// succeeded, and lifts the hold of a record in the run marker only once
+    /// the marker's clear succeeded too. `reply` gets the Board of an end routine, as
     /// [`Self::follow_the_run_condition`] gives it. The answer is the write's,
     /// `None` with no state file.
     #[cfg(target_os = "macos")]
@@ -548,14 +636,22 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         reply: &mut dyn FnMut(&Board),
     ) -> Option<Result<(), StateError>> {
         let written = self
-            .state
-            .as_mut()
-            .map(|state| state.update(|state| state.desired = desired));
+            .state_file()
+            .map(|mut state| state.update(|state| state.desired = desired));
         match desired {
             Desired::Paused => self.held_paused = !matches!(written, Some(Ok(()))),
             Desired::Running => {
                 if matches!(written, Some(Ok(()))) {
                     self.held_paused = false;
+                    if self.held
+                        && self
+                            .marker
+                            .as_mut()
+                            .map_or(Ok(()), |marker| marker.clear_hold())
+                            .is_ok()
+                    {
+                        self.held = false;
+                    }
                 }
             }
         }
@@ -566,11 +662,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         written
     }
 
-    /// The state file that the supervisor holds, for a write of a client's
-    /// request.
+    /// `write` on the state file that the supervisor holds, for a write of a
+    /// client's request.
     #[cfg(target_os = "macos")]
-    pub(crate) fn state_mut(&mut self) -> Option<&mut StateFile> {
-        self.state.as_mut()
+    pub(crate) fn with_state_file<T>(
+        &mut self,
+        write: impl FnOnce(&mut StateFile) -> T,
+    ) -> Option<T> {
+        self.state_file().map(|mut state| write(&mut state))
     }
 
     #[cfg(target_os = "macos")]
@@ -578,7 +677,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         &mut self,
         change: impl FnOnce(&mut super::state::DaemonState),
     ) -> Option<Result<(), StateError>> {
-        self.state.as_mut().map(|state| state.update(change))
+        self.state_file().map(|mut state| state.update(change))
     }
 
     pub fn factory(&self) -> &F {
@@ -708,16 +807,18 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         reply: &mut dyn FnMut(&Board),
     ) -> Option<Ending> {
         let owner = owner?;
-        if self.entered || self.served.is_none() {
+        if self.entered || self.pausing || self.served.is_none() {
             return None;
         }
         let now = self.main_loop.now();
         let desired = self.desired();
-        let holds = lease::holds(desired, &self.slot, self.lease, now);
+        let holds = !self.held && lease::holds(desired, &self.slot, self.lease, now);
         if holds && !self.capturing {
             self.start_for_the_condition(owner);
         } else if !holds && self.capturing {
-            let kind = if !self.lease.is_fresh(now) {
+            let kind = if matches!(self.slot, Slot::Deleting) {
+                StopKind::DeleteAll
+            } else if !self.lease.is_fresh(now) {
                 StopKind::Lapse
             } else if desired != Desired::Running {
                 StopKind::Pause
@@ -731,6 +832,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                     self.wanted.clear();
                     self.publish();
                 }
+                CaptureOff::GoesOn => {}
                 CaptureOff::Ended(_) => return Some(Ending::SourceNotStopped),
             }
         }
@@ -741,8 +843,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if self.held_paused {
             return Desired::Paused;
         }
-        self.state
-            .as_ref()
+        self.state_file()
             .map_or(Desired::Paused, |state| state.state().desired)
     }
 
@@ -761,7 +862,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if !matches!(resumed, Some(Answer::Resumed(_))) {
             return;
         }
-        if !lease::holds(self.desired(), &self.slot, self.lease, self.main_loop.now()) {
+        if self.held || !lease::holds(self.desired(), &self.slot, self.lease, self.main_loop.now())
+        {
             self.barrier(owner);
             return;
         }
@@ -812,7 +914,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             }
             self.follow_the_drain(now);
         }
-        if !self.stopped_for_drain {
+        if !self.stopped_for_drain && !self.pausing {
             self.restart_due(now);
         }
         if let Some(ending) = self.read_permissions(now, owner) {
@@ -832,7 +934,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 }
             }
             self.backoff.clear();
-        } else if !stops && self.stopped_for_drain {
+        } else if !stops && self.stopped_for_drain && !self.pausing {
             self.stopped_for_drain = false;
             self.start_wanted(now);
         }
@@ -1022,8 +1124,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 }
             }
         }
-        if let Some(state) = self.state.as_mut() {
-            match state.record_granted(&granted) {
+        let recorded = self
+            .state_file()
+            .map(|mut state| state.record_granted(&granted));
+        if let Some(recorded) = recorded {
+            match recorded {
                 Err(StateError::NotWritten { kind, .. }) => {
                     let _ = writeln!(
                         self.err,
@@ -1117,16 +1222,24 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// written and the ending call is made with status 5 (ruling PL-3 parts (2)
     /// to (4)). The settles are cut to what is left before the deadline, and
     /// the watchdog ends the process with 5 only when the routine has not. It
-    /// runs once: a second trigger answers `None`.
+    /// runs once: a second trigger answers `None`. A delete's stop ends no
+    /// process at that answer: `reply` gets the Board, the watchdog is armed
+    /// with 5 for [`DELETE_WAIT`] after the stop began plus
+    /// SHUTDOWN_BUDGET_MS, in place of the arm that the stop made, and the
+    /// answer is [`CaptureOff::GoesOn`], after which no stop for capture off
+    /// runs and the run condition starts nothing in the life (ruling PL-3
+    /// part (3) item 5; contracts.md C2.1, the last sentence of its
+    /// deadlines).
     pub fn stop_for_capture_off(
         &mut self,
         owner: &dyn OwnerLink,
         kind: StopKind,
         reply: &mut dyn FnMut(&Board),
     ) -> Option<CaptureOff> {
-        if self.entered {
+        if self.entered || self.pausing {
             return None;
         }
+        let began = self.main_loop.now();
         if kind != StopKind::LostGrant {
             self.barrier(owner);
         }
@@ -1143,6 +1256,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 self.arm_unstopped(*name, &answer);
                 self.answered_unstopped(*name, &answer);
                 self.pausing = true;
+                self.end_the_life();
                 unstopped = true;
                 break;
             }
@@ -1151,6 +1265,16 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if !unstopped {
             self.put_back(found);
             return Some(CaptureOff::Stopped);
+        }
+        if kind == StopKind::DeleteAll {
+            self.put_back(found);
+            let spent = self.main_loop.now().saturating_sub(began);
+            self.arm_until(
+                DELETE_WAIT.saturating_sub(spent) + Duration::from_millis(SHUTDOWN_BUDGET_MS),
+                exit::SOURCE_NOT_STOPPED,
+            );
+            reply(&self.board);
+            return Some(CaptureOff::GoesOn);
         }
         Some(self.end_after_unstopped(owner, kind, reply))
     }
@@ -1301,7 +1425,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         self.publish();
         reply(&self.board);
         let first = owner.snapshot();
-        self.write_record(kind, false, &first);
+        self.write_record(kind, false, Some(Figures::of(&first)));
         if let Ok(pending) = owner.ask(Command::Settle) {
             let _ = self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE));
         }
@@ -1313,14 +1437,24 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             Some(Answer::Settled(snapshot)) => snapshot,
             _ => owner.snapshot(),
         };
-        self.write_record(kind, true, &settled);
+        self.write_record(kind, true, Some(Figures::of(&settled)));
         if let Some(end_call) = &self.end_call {
             end_call.end(exit::SOURCE_NOT_STOPPED);
         }
         CaptureOff::Ended(exit::SOURCE_NOT_STOPPED)
     }
 
-    fn write_record(&mut self, kind: StopKind, final_figures: bool, snapshot: &Snapshot) {
+    /// A record of a delete whose stop met a source that did not stop (ruling
+    /// PL-3 part (3) item 5): with `figures`, the first, after the intent,
+    /// with the owner's figures as they stood at its close; with none, the
+    /// last, after step 5, which holds no count, time or id of before the
+    /// barrier. `final_figures` says which one it is.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn record_the_delete(&mut self, figures: Option<&Snapshot>, final_figures: bool) {
+        self.write_record(StopKind::DeleteAll, final_figures, figures.map(Figures::of));
+    }
+
+    fn write_record(&mut self, kind: StopKind, final_figures: bool, figures: Option<Figures>) {
         let not_stopped = self
             .unstopped_in_life
             .iter()
@@ -1340,9 +1474,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             final_figures,
             not_stopped,
             errors: self.unstopped_in_life.clone(),
-            events_persisted: snapshot.events_persisted,
-            events_lost: snapshot.events_lost,
-            events_pending: snapshot.events_pending,
+            figures,
         };
         if let Some(marker) = self.marker.as_mut() {
             let _ = marker.write(&record);
@@ -1497,7 +1629,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// once more when its stop bound fits before the deadline, the last
     /// settle follows, each cut to what is left before
     /// the deadline, and the entry makes the ending call with 5 and answers
-    /// 5 (ruling DM-25 N1 (c)). Otherwise the arm that the entry found is put
+    /// 5 (ruling DM-25 N1 (c)); after a delete's stop that met a source that
+    /// did not stop, the entry's own pass is the second ask, no third
+    /// follows, and the entry ends with 5 whatever it answers (ruling PL-3
+    /// part (2)). Otherwise the arm that the entry found is put
     /// back, and with an owner the status is 1 when the drain still fails at
     /// the last settle, when the last settle gets no answer or when the life
     /// lost events between the two settles, else `status`; with no owner it
@@ -1511,6 +1646,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             return None;
         }
         self.entered = true;
+        self.end_the_life();
+        let asked_before = self.pausing;
         let started = self.main_loop.now();
         let found = self.arm_found();
         let in_play = self.held(stop_order(self.platform));
@@ -1526,12 +1663,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             _ => None,
         };
         let stops = self.stop_every_source();
-        let unstopped = stops.iter().any(|(_, answer)| !is_a_stop(answer));
+        let unstopped = asked_before || stops.iter().any(|(_, answer)| !is_a_stop(answer));
         if unstopped {
             if let Some(Ok(pending)) = owner.map(|owner| owner.ask(Command::Settle)) {
                 let _ = self.answer_within(&pending, self.before_the_deadline(FIRST_SETTLE));
             }
-            let _ = self.stop_sources(true);
+            if !asked_before {
+                let _ = self.stop_sources(true);
+            }
         }
         let last = owner
             .and_then(|owner| owner.ask(Command::Settle).ok())
@@ -1596,6 +1735,10 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             self.board.capture_of(&self.wanted)
         };
         self.board.figures = self.factory.figures();
+        #[cfg(target_os = "macos")]
+        if let Some(life) = &self.life {
+            life.publish(self.status_parts(None));
+        }
     }
 }
 
@@ -3744,7 +3887,12 @@ mod tests {
         assert_eq!(records[0].not_stopped[0].0, SourceName::Input);
         assert!(!records[0].final_figures);
         assert!(records[1].final_figures);
-        assert_eq!(records[1].events_persisted, 3, "{:?}", records[1]);
+        assert_eq!(
+            records[1].figures.map(|figures| figures.events_persisted),
+            Some(3),
+            "{:?}",
+            records[1]
+        );
         assert!(f.now.get() - started < Duration::from_millis(SHUTDOWN_BUDGET_MS));
         let mut f = f;
         let link = f.link.take().unwrap();
@@ -4055,14 +4203,19 @@ mod tests {
             final_figures: false,
             not_stopped: vec![(SourceName::Input, "timeout".to_owned())],
             errors: Vec::new(),
-            events_persisted: 0,
-            events_lost: 0,
-            events_pending: 2,
+            figures: Some(Figures {
+                events_persisted: 0,
+                events_lost: 0,
+                events_pending: 2,
+            }),
         };
         marker.write(&record).unwrap();
         record.final_figures = true;
-        record.events_persisted = 2;
-        record.events_pending = 0;
+        record.figures = Some(Figures {
+            events_persisted: 2,
+            events_lost: 0,
+            events_pending: 0,
+        });
         marker.write(&record).unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
         assert_eq!(
