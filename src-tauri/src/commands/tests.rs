@@ -202,20 +202,6 @@ fn a_call_that_is_made_and_dropped_before_it_enters_leaves_the_line() {
     release_all(&held, calls);
 }
 
-#[test]
-fn the_ledger_line_of_the_unit_states_the_bytes_of_the_replies_in_flight() {
-    let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../docs/baseline/ledger.d/app-2.txt");
-    let text = std::fs::read_to_string(&file).expect("the ledger file of app-2 exists");
-    let lines: Vec<&str> = text.lines().collect();
-    assert_eq!(
-        lines,
-        [format!(
-            "ledger process=app name=client_replies bytes={REPLY_BYTES_IN_FLIGHT} kind=by-construction source=commands::tests::a_fifth_call_waits_until_one_returns"
-        )]
-    );
-}
-
 #[derive(Debug, Clone, Default)]
 struct Timeouts(Arc<Mutex<Vec<Duration>>>);
 

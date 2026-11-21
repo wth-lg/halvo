@@ -2,8 +2,8 @@
   "edits": [
     {
       "file": "test/billing/servers.ts",
-      "find": "spawn(`${ROOT}.tools/stripe-mock/stripe-mock`,",
-      "replace": "spawn(`${ROOT}.tools/stripe-mock/no-such-binary`,"
+      "find": "startGroup(`${ROOT}.tools/stripe-mock/stripe-mock`,",
+      "replace": "startGroup(`${ROOT}.tools/stripe-mock/no-such-binary`,"
     }
   ],
   "args": [

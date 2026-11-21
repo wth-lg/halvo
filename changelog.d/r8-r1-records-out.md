@@ -1,0 +1,1 @@
+- Removed: check 15-gate-self-test with its record docs/baseline/r1-gate-main.txt, the runner, the README and twelve checks of scripts/r1-gate that only it called, the ledger docs/baseline/ledger.d, and the ledger check, the long form and the form --rules of the stall checks 51-macos-stall and 50-windows-functional, whose short forms stay
