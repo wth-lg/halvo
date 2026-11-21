@@ -1890,6 +1890,7 @@ fallback_cases() {
   t stop-children-ends-a-wrapper-s-children-by-pkill-when-no-child-id-is-known PASS pkill_fallback_named
   t stop-children-reaches-pkill-after-the-wrapper-has-its-child-when-its-fork-comes-late PASS pkill_fallback_late_fork
   t the-start-of-the-wrapper-gives-up-when-the-wrapper-ends-before-it-has-a-child PASS pkill_fallback_wrapper_gone
+  t the-late-fork-case-refuses-a-stop-before-the-fork-beside-a-right-stop PASS pkill_fallback_early_stop
   fallback_want=NO-INPUT
   [ "${GITHUB_ACTIONS:-}" != true ] || fallback_want=PASS
   t stop-children-ends-a-wrapper-s-child-by-the-real-pkill-on-the-hosted-job "$fallback_want" pkill_fallback_real
@@ -1927,7 +1928,12 @@ start_wrapper_with_its_child() {
 }
 
 pkill_fallback_late_fork() {
-  fallback_dir=$gate_scratch/pkill-late-fork
+  late_fork_fixture
+  late_fork_meet start_wrapper_with_its_child
+}
+
+late_fork_fixture() {
+  fallback_dir=$gate_scratch/pkill-late-fork${1:+-$1}
   mkdir -p "$fallback_dir/bin"
   mkfifo "$fallback_dir/bin/fork"
   fallback_pgrep=$(command -v pgrep)
@@ -1953,15 +1959,45 @@ if mkdir "${0%/*}/forked" 2> /dev/null; then printf 'go\n' > "${0%/*}/fork"; fi
 exit 0
 STUB
   chmod +x "$fallback_dir/bin/sh" "$fallback_dir/bin/pgrep" "$fallback_dir/bin/pkill"
+}
+
+late_fork_meet() {
   PATH=$fallback_dir/bin:$PATH
-  start_wrapper_with_its_child 2 || return 1
+  "$1" 2 || return 1
   stop_children
   fallback_events=$(tr '\n' ';' < "$fallback_dir/bin/events")
   fallback_started=$(cat "$fallback_dir/bin/wrapper")
-  case $fallback_events in
-    "pgrep 0;"*"pgrep 1;pkill -TERM -P $fallback_started;") return 0 ;;
+  fallback_reads=${fallback_events%"pgrep 1;pkill -TERM -P $fallback_started;"}
+  if [ "$fallback_reads" = "$fallback_events" ] || [ -z "$fallback_reads" ] || [ -n "$(printf '%s' "$fallback_reads" | sed 's/pgrep 0;//g')" ]; then
+    printf 'events: %s\n' "$fallback_events"
+    return 1
+  fi
+}
+
+late_fork_answer() {
+  ( late_fork_meet "$1" ) > "$fallback_dir/answer" 2>&1
+  late_fork_status=$?
+  late_fork_said=$(cat "$fallback_dir/answer")
+  late_fork_started=$(cat "$fallback_dir/bin/wrapper" 2> /dev/null)
+}
+
+pkill_fallback_early_stop() {
+  late_fork_fixture early-stop
+  cat > "$fallback_dir/bin/pgrep" <<STUB
+#!/bin/sh
+"$fallback_pgrep" "\$@" > "\${0%/*}/pgrep.out"
+s=\$?
+cat "\${0%/*}/pgrep.out"
+printf 'pgrep %s\n' "\$(wc -l < "\${0%/*}/pgrep.out" | tr -d ' ')" >> "\${0%/*}/events"
+if [ "\$s" != 0 ]; then "\${0%/*}/pkill" -TERM -P "\$2"; fi
+if mkdir "\${0%/*}/forked" 2> /dev/null; then printf 'go\n' > "\${0%/*}/fork"; fi
+exit "\$s"
+STUB
+  late_fork_answer start_wrapper_with_its_child
+  case $late_fork_status:$late_fork_said in
+    "1:events: pgrep 0;pkill -TERM -P $late_fork_started;"*"pgrep 1;pkill -TERM -P $late_fork_started;") return 0 ;;
   esac
-  printf 'events: %s\n' "$fallback_events"
+  printf 'the late-fork case answered %s: %s\n' "$late_fork_status" "$late_fork_said"
   return 1
 }
 
