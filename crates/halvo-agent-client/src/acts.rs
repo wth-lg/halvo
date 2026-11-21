@@ -10,7 +10,7 @@ use halvo_schema::executable::frame::{
     HandbackRequest, HandbackResult, ToRunner,
 };
 use halvo_schema::executable::names::{Answer, HandbackOutcome, HandbackReason, Way, YesNo};
-use halvo_schema::executable::text::{ApprovalId, WebOrigin, V1};
+use halvo_schema::executable::text::{ApprovalId, EffectId, WebOrigin, V1};
 use halvo_schema::RequestId;
 
 use crate::api::{CallError, OriginAnswer};
@@ -86,6 +86,21 @@ fn mint() -> Option<ApprovalId> {
     sys::random16().ok().map(ApprovalId::from_random)
 }
 
+/// The answers of the `Confirmer`, released only when their ids match the request's effects in their order; none on
+/// a mismatch (an id of another effect, an answer missing or one too many, another order), and the library then
+/// rejects every effect of the request (contracts.md A6.6, ruling CP-226 item 1, reading (b)).
+fn in_order(request: &ConfirmRequest, answers: &[(EffectId, Answer)]) -> Option<Vec<Answer>> {
+    if answers.len() != request.effects.len() {
+        return None;
+    }
+    request
+        .effects
+        .iter()
+        .zip(answers)
+        .map(|(asked, (id, answer))| (*id == asked.effect).then_some(*answer))
+        .collect()
+}
+
 fn decision(request: &ConfirmRequest, answers: &[Answer]) -> Option<ConfirmDecision> {
     let approvals = request
         .effects
@@ -112,11 +127,7 @@ impl Running<'_> {
         let confirmer = &self.inner.parts.confirmer;
         let rejected = vec![Answer::RejectOnce; request.effects.len()];
         let answers = confirmer.answers(&spec.run, request);
-        let answers = if answers.len() == request.effects.len() {
-            answers
-        } else {
-            rejected.clone()
-        };
+        let answers = in_order(request, &answers).unwrap_or_else(|| rejected.clone());
         let Some(first) = decision(request, &answers) else {
             return Flow::Lost;
         };
