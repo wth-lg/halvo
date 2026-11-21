@@ -1,4 +1,5 @@
-//! The code that only Windows builds: the error mode, the inherited handles and the local date.
+//! The code that only Windows builds: the error mode, the inherited handles, the two handles of an end of a stream
+//! and the local date.
 
 use std::fs::File;
 use std::io;
@@ -7,6 +8,7 @@ use std::os::windows::io::{FromRawHandle, RawHandle};
 use windows_sys::Win32::Foundation::{
     SetHandleInformation, FILETIME, HANDLE, HANDLE_FLAG_INHERIT, SYSTEMTIME,
 };
+use windows_sys::Win32::Storage::FileSystem::{GetFileType, FILE_TYPE_PIPE};
 use windows_sys::Win32::System::Diagnostics::Debug::{
     SetErrorMode, SEM_FAILCRITICALERRORS, SEM_NOGPFAULTERRORBOX, SEM_NOOPENFILEERRORBOX,
     THREAD_ERROR_MODE,
@@ -31,8 +33,8 @@ pub(crate) fn crash_reports_off() -> io::Result<()> {
     Ok(())
 }
 
-/// Takes the inherited handle `raw` as the owner's own and stops passing it on to a child. It refuses a value that
-/// is no open handle of this process.
+/// Takes the handle `raw`, which the starter let the owner inherit or made in the owner's process, as the owner's own
+/// and stops passing it on to a child. It refuses a value that is no open handle of this process.
 pub(crate) fn adopt(raw: u64) -> io::Result<File> {
     let value = usize::try_from(raw)
         .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "not a handle value"))?;
@@ -42,10 +44,43 @@ pub(crate) fn adopt(raw: u64) -> io::Result<File> {
     if unsafe { SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0) } == 0 {
         return Err(io::Error::last_os_error());
     }
-    // SAFETY: the starter gave this process the handle for the owner, `Args::parse` refuses two ends of one value, and
-    // nothing else in this process owns it, so it is wrapped once.
+    // SAFETY: the starter gave this process the handle for the owner, `Args::parse` refuses two ends of one value and
+    // `stream_end` two values that are one, and nothing else in this process owns it, so it is wrapped once.
     Ok(unsafe { File::from_raw_handle(handle as RawHandle) })
 }
+
+/// The read end of the starter's channel as its reader thread holds it. On Windows nothing comes beside the bytes of
+/// a channel: a frame `stream` names its two handles by their values.
+pub(crate) fn starter_end(end: File) -> File {
+    end
+}
+
+/// Takes `raw` as the owner's own where it names a pipe, and touches no value that names anything else or nothing.
+fn pipe(raw: u64) -> Option<File> {
+    let value = usize::try_from(raw).ok()?;
+    // SAFETY: GetFileType takes a handle value; on a value that is no open handle it answers that the type is
+    // unknown and changes nothing.
+    if unsafe { GetFileType(value as HANDLE) } != FILE_TYPE_PIPE {
+        return None;
+    }
+    adopt(raw).ok()
+}
+
+/// The end of a stream that a frame `stream` names: the handle on which the reader thread reads, then the handle on
+/// which the owner writes. A frame that names no values, two values that are one and a value that names no pipe give
+/// none; a value that names a pipe is then closed, and no other value is touched.
+pub(crate) fn stream_end(handles: Option<(u64, u64)>, _came: Vec<File>) -> Option<(File, File)> {
+    let (reads, writes) = handles?;
+    let one = reads == writes;
+    let reads = pipe(reads);
+    let writes = if one { None } else { pipe(writes) };
+    reads.zip(writes)
+}
+
+/// Ends the reader thread of a stream where the system can. Nothing wakes a read of an anonymous pipe that blocks,
+/// so on Windows the handle that reads stays open, with the place of its stream, until the far end closes the handle
+/// on which it writes.
+pub(crate) fn shut(_end: &File) {}
 
 /// The seconds from 1601-01-01 to 1970-01-01.
 const FILETIME_EPOCH_S: i64 = 11_644_473_600;
