@@ -98,7 +98,9 @@ impl ProcessTable for SystemTable {
 /// creation is later than its child's is a reused id: the real parent is gone
 /// and the walk ends outside the tree. A process that runs and cannot be opened
 /// ends the walk outside the tree too, since a process under the root runs as
-/// the root's user and opens; a process that is gone has an unknown parent.
+/// the root's user and opens; a process that has ended, which a handle may
+/// still open, ends it outside the tree as well, and a process that is gone, or
+/// a snapshot that cannot be taken, gives an unknown parent.
 /// Each answer is kept for the process as long as the process keeps its
 /// creation time.
 pub struct ProcessLineage<T = SystemTable> {
@@ -130,7 +132,7 @@ impl<T: ProcessTable> ProcessLineage<T> {
     fn read(&self, pid: u32, created: u64) -> Parent {
         match self.table.listing(pid) {
             Listing::NoSnapshot => Parent::Unknown,
-            Listing::NotListed => Parent::Unknown,
+            Listing::NotListed => Parent::None,
             Listing::Parent(parent) if parent == 0 || parent == pid => Parent::None,
             Listing::Parent(parent) => match self.table.created(parent) {
                 Some(parent_created) if parent_created <= created => {
