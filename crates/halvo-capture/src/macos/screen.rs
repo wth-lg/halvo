@@ -4985,6 +4985,24 @@ mod tests {
         assert_eq!(locked(&seen.made_on).len(), 1, "the streams made");
     }
 
+    #[test]
+    fn a_failed_read_lets_go_of_the_output_made_before_it() {
+        for answer in [Answer::Code(-3801), Answer::Never] {
+            let (stream, _seen) = StreamStandIn::starting();
+            let reader = ReaderStandIn::new(answer, stream, &[7], SHORT_WAIT);
+            let trial = open_stand_in(&reader, LONG_WAIT);
+            let error = trial.error();
+            assert!(error.is_some(), "the read did not fail");
+            reader.answer_late();
+            reader.join();
+            assert_eq!(
+                Arc::strong_count(&trial.facts),
+                1,
+                "{error:?}: the holders of the facts once the late handler has run"
+            );
+        }
+    }
+
     fn probe_code(error: &CaptureError) -> String {
         match error {
             CaptureError::Os { code, .. } => code.to_string(),
