@@ -63,6 +63,7 @@ windows = { version = "0.62", features = [
     "Win32_Graphics_Gdi",
     "Win32_Security_Cryptography",
     "Win32_System_Com",
+    "Win32_System_Diagnostics_ToolHelp",
     "Win32_System_LibraryLoader",
     "Win32_System_Ole",
     "Win32_System_Threading",
@@ -71,7 +72,10 @@ windows = { version = "0.62", features = [
     "Win32_UI_Input",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
+    "ApplicationModel",
     "Foundation",
+    "Foundation_Collections",
+    "Management_Deployment",
 ] }
 windows-capture = "2"
 winreg = "0.56"

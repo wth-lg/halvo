@@ -376,6 +376,36 @@ fn a_drafted_row_after_begun_is_refused_unless_its_effect_s_newest_row_is_not_ma
         reply(1, 1, 3, "m2", Some("d2"), Some(3), "drafted"),
     );
     assert_eq!(newest(&store, 1, "m1").map(|r| r.seq.get()), Some(2));
+    put(
+        &mut store,
+        row(
+            1,
+            1,
+            4,
+            "not_made",
+            "send",
+            1,
+            Some(1),
+            Some("unauthorized"),
+        ),
+    )
+    .expect("not_made");
+    refused(
+        &mut store,
+        reply(1, 1, 3, "m1", Some("d1"), Some(2), "drafted"),
+    );
+    ok(
+        &mut store,
+        reply(1, 1, 3, "m1", Some("d1"), Some(1), "drafted"),
+    );
+    ok(
+        &mut store,
+        reply(1, 1, 4, "m1", Some("d1"), Some(2), "begun"),
+    );
+    assert_eq!(
+        newest(&store, 1, "m1").map(|r| (r.seq.get(), r.state.as_str())),
+        Some((4, "begun"))
+    );
 }
 
 #[test]

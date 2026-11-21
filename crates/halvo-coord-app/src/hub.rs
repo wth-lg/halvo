@@ -339,6 +339,7 @@ where
                     self.coord.control(&a, action)
                 })
                 .into(),
+            "agents_delete" => agent().and_then(|a| self.coord.delete(&a)).into(),
             _ => return None,
         })
     }

@@ -206,7 +206,10 @@ fn seamed_with(
 ) -> (InputSource, DropCounts) {
     let drops = DropCounts::new();
     let source = InputSource::with_seam(
-        ForegroundReader::nothing_in_front(),
+        ForegroundReader::fixed_front(
+            &std::env::var(FIXTURE).unwrap_or_default(),
+            FRONT.load(Ordering::SeqCst),
+        ),
         InputCounters::new(),
         HoldPlan::Never,
         StallSeam {
@@ -1009,11 +1012,11 @@ impl Recorder {
                 while !stop.load(Ordering::SeqCst) {
                     match writer.recv_timeout(Duration::from_millis(50)) {
                         Ok(received) => {
-                            let event = received.event();
-                            if event.modality == Modality::Keystroke {
+                            let received_at = SystemTime::now();
+                            if received.event().modality == Modality::Keystroke {
                                 keys.lock()
                                     .unwrap_or_else(PoisonError::into_inner)
-                                    .push(event.captured_at.wall_clock);
+                                    .push(received_at);
                             }
                         }
                         Err(RecvTimeoutError::Timeout) => {}
