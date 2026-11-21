@@ -13473,3 +13473,33 @@ fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_ends_the_line_of_the_on
     );
     assert_ne!(line, text("line.working.switch_not_saved"));
 }
+
+/// Ruling RD-168 (the verifier's finding 2): an owed setup raise does not make the row say that
+/// the agent needs answers while the list shows its workflow dismissed, where no tick makes it.
+#[test]
+fn u24s_rd168_an_owed_setup_raise_does_not_say_needs_you_while_the_list_shows_its_workflow_dismissed(
+) {
+    let (life, made, _, flow) = u24s_aside_with_setup();
+    life.ports()
+        .ports
+        .refuse_record(u24s_r4_setup_raise, PortError::NoService);
+    life.tick();
+    let owed = (Status::NeedsYou, text("line.needs_you.setup"));
+    assert_eq!(u24s_r4_status(&life, &made), owed, "the raise is owed");
+    life.ports().ports.clear_refusals();
+    for w in life.ports().ports.workflows.borrow_mut().iter_mut() {
+        if w.id() == &flow {
+            *w = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                id: flow.clone(),
+                category: Category::UtilityBillPayment,
+                site: None,
+            });
+        }
+    }
+    life.tick();
+    assert_ne!(
+        u24s_r4_status(&life, &made),
+        owed,
+        "no tick makes the raise for a dismissed workflow, so the row does not say that it does"
+    );
+}
