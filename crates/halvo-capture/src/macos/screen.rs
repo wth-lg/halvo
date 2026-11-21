@@ -5101,6 +5101,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn an_answered_rebuild_releases_the_lent_clone_on_the_callers_thread() {
+        let (tracked, seen) = StreamStandIn::starting();
+        let (parts_stream, parts_seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, parts_stream, &[7], LONG_WAIT);
+        let facts: Arc<StreamFacts> = Arc::default();
+        let rebuilt = refilter_on(&reader, &tracked, 7, &selection_under(None), &facts);
+        reader.join();
+        assert_eq!(rebuilt, Ok((7, true)), "the rebuild's answer");
+        assert_eq!(
+            locked(&parts_seen.updated_on).len(),
+            1,
+            "the new filters asked"
+        );
+        let dropped_on = locked(&seen.stream_dropped_on).clone();
+        let on_the_readers_thread = dropped_on
+            .iter()
+            .filter(|name| name.as_str() == READER_THREAD)
+            .count();
+        assert_eq!(
+            (dropped_on.len(), on_the_readers_thread),
+            (1, 0),
+            "the releases of the lent clone, and those on the reader's thread: {dropped_on:?}"
+        );
+    }
+
     fn probe_code(error: &CaptureError) -> String {
         match error {
             CaptureError::Os { code, .. } => code.to_string(),
