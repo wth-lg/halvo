@@ -4915,6 +4915,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_start_whose_filter_lacks_the_app_writes_that_fact() {
+        let (stream, _seen) = StreamStandIn::starting();
+        let mut reader = ReaderStandIn::new(Answer::Content, stream, &[5, 7, 9], LONG_WAIT);
+        reader.parts.lists_app = false;
+        let trial = open_stand_in(&reader, LONG_WAIT);
+        assert!(
+            trial.answer.is_ok(),
+            "the start answered {:?}",
+            trial.error()
+        );
+        assert_eq!(trial.facts.lists_app(), Some(false), "the start's fact");
+        assert_eq!(trial.facts.listed(), vec![41, 42], "the pids of the filter");
+    }
+
+    #[test]
+    fn a_rebuild_whose_filter_lists_the_app_answers_that_it_lists_it() {
+        let (stream, _seen) = StreamStandIn::starting();
+        let reader = ReaderStandIn::new(Answer::Content, stream.clone(), &[3, 5, 7], LONG_WAIT);
+        let facts = Arc::default();
+        let rebuilt = refilter_on(&reader, &stream, 5, &selection_under(None), &facts);
+        reader.join();
+        assert_eq!(rebuilt, Ok((5, true)), "the rebuild's answer");
+        assert_eq!(facts.lists_app(), Some(true), "the rebuild's fact");
+    }
+
     fn probe_code(error: &CaptureError) -> String {
         match error {
             CaptureError::Os { code, .. } => code.to_string(),
