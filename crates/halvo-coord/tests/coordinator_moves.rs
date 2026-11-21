@@ -12100,3 +12100,53 @@ fn u24s_rd126_17_a_raise_closes_an_open_same_kind_item_of_another_run_whatever_i
         );
     }
 }
+
+fn u24s_r1_dismissed_live() -> (Coordinator<Both>, RunId) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    let flow = workflow_of(&c, &agent(0));
+    for w in c.ports().ports.workflows.borrow_mut().iter_mut() {
+        if w.id() == &flow {
+            *w = Workflow::Dismissed(halvo_coord::types::DismissedWorkflow {
+                id: flow.clone(),
+                category: Category::CalendarCleanup,
+                site: None,
+            });
+        }
+    }
+    c.ports()
+        .ports
+        .agents
+        .borrow_mut()
+        .retain(|a| a.agent != agent(0));
+    c.tick();
+    (c, run)
+}
+
+fn u24s_r1_cancels(c: &Coordinator<Both>, from: usize, run: &RunId) -> usize {
+    calls_since(c, from)
+        .iter()
+        .filter(|call| matches!(call, Call::Cancel(r) if r == run))
+        .count()
+}
+
+fn u24s_r1_row(c: &Coordinator<Both>) -> halvo_coord::types::Row {
+    c.snapshot()
+        .rows
+        .into_iter()
+        .find(|r| r.agent == agent(0))
+        .unwrap()
+}
+
+fn u24s_r1_controls(row: &halvo_coord::types::Row) -> Vec<halvo_coord::types::Control> {
+    row.controls.iter().map(|t| t.control).collect()
+}
+
+#[test]
+fn u24s_r2_under_class_b_the_stop_of_the_row_stops_the_run() {
+    let (c, run) = u24s_r1_dismissed_live();
+    let m = mark(&c);
+    assert_eq!(c.control(&agent(0), Action::Stop), Ok(()));
+    assert_eq!(u24s_r1_cancels(&c, m, &run), 1, "Runs::cancel once");
+    assert_eq!(u24s_r1_row(&c).line, text("line.working.stopping"));
+}
