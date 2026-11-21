@@ -2928,6 +2928,10 @@ help_sentences() {
     'the check takes the commands from the binary'"'"'s own printing and tries no other word on the built binary; what holds the printing to the dispatch is one test of the crate, the_printing_names_exactly_the_commands_that_the_dispatch_runs, which calls dispatch in-process; a commit whose main or whose handler runs a word outside the table passes the check, a diff shows it, and the landing'"'"'s readers hold it' \
     'prints the names of its commands from the one table that dispatches them, one per line in the table'"'"'s order, so that a name that it does not print is a command that route-gate does not dispatch' \
     'and the second list has no entry; the count line prints cannot=0' \
+    'the check runs the built route-gate under the egress check as "route-gate commands", a wrapped call like every other' \
+    'The printing: after the control, in the macos job and in the windows job, the check runs' \
+    'printing that does not exit 0 fails the check by' \
+    'A printed command on neither list fails the check, and so does a list entry that the printing does not name' \
     'A file written under target/, or inside a directory that held no tracked file before the first call, is not seen there' \
     'the control holds against an egress check that wraps nothing; an egress check changed in the same commit can pass it, and scripts/egress/ is held by its own run'"'"'s checks and by the landing'"'"'s readers'; do
     if ! grep -q -i -F -e "$sentence" "$work/help-line.txt"; then
