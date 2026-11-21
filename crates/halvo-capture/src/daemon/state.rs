@@ -1039,4 +1039,155 @@ pub(crate) mod tests {
             (StateHealth::Corrupt, Desired::Paused)
         );
     }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) struct ModeBack(pub(crate) PathBuf);
+
+    #[cfg(target_os = "macos")]
+    impl Drop for ModeBack {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&self.0, std::fs::Permissions::from_mode(0o600));
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) struct WrittenThenUnreadable;
+
+    #[cfg(target_os = "macos")]
+    impl StateWrite for WrittenThenUnreadable {
+        fn write_whole(&self, dir: &StateDir, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+            use std::os::unix::fs::PermissionsExt;
+            let mut temp = name.to_os_string();
+            temp.push(".test-new");
+            put(dir, &temp, name, bytes)?;
+            std::fs::set_permissions(dir.file_for_words(), std::fs::Permissions::from_mode(0o000))?;
+            Err(io::Error::from(io::ErrorKind::StorageFull))
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) fn a_plain_open_is_refused_by_mode_000(path: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+        let _back = ModeBack(path.to_path_buf());
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let refused = std::fs::File::open(path).map(drop);
+        assert_eq!(
+            refused.as_ref().map_err(io::Error::kind),
+            Err(io::ErrorKind::PermissionDenied),
+            "the mode 000 does not keep this user out of the state file, so the case of a read that cannot be made is not made here: {refused:?}"
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_failed_write_whose_file_cannot_be_read_again_is_answered_as_one_that_may_hold_the_change()
+    {
+        let dir = test_dir();
+        drop(open(dir.path(), &TestWrite::default()));
+        a_plain_open_is_refused_by_mode_000(&file_of(dir.path()));
+        let back = ModeBack(file_of(dir.path()));
+        let mut file = StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(WrittenThenUnreadable),
+        );
+        let answer = file.update(|state| state.desired = Desired::Running);
+        let words = answer
+            .as_ref()
+            .err()
+            .map(ToString::to_string)
+            .unwrap_or_default();
+        assert!(words.contains("may hold the change"), "{answer:?}");
+        assert_eq!(file.state().desired, Desired::Paused);
+        assert_eq!(
+            file.health(),
+            StateHealth::WriteFailed(io::ErrorKind::StorageFull)
+        );
+        drop(back);
+        let next = open(dir.path(), &TestWrite::default());
+        assert_eq!(
+            (next.health(), next.state().desired),
+            (StateHealth::Ok, Desired::Running)
+        );
+    }
+
+    #[cfg(windows)]
+    struct WrittenThenHeld(Arc<std::sync::Mutex<Option<std::fs::File>>>);
+
+    #[cfg(windows)]
+    impl StateWrite for WrittenThenHeld {
+        fn write_whole(&self, dir: &StateDir, name: &OsStr, bytes: &[u8]) -> io::Result<()> {
+            use std::os::windows::fs::OpenOptionsExt;
+            let mut temp = name.to_os_string();
+            temp.push(".test-new");
+            put(dir, &temp, name, bytes)?;
+            let held = std::fs::OpenOptions::new()
+                .read(true)
+                .share_mode(0)
+                .open(dir.path().join(name))?;
+            *self
+                .0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(held);
+            Err(io::Error::from(io::ErrorKind::StorageFull))
+        }
+    }
+
+    #[cfg(windows)]
+    struct HandleBack(Arc<std::sync::Mutex<Option<std::fs::File>>>);
+
+    #[cfg(windows)]
+    impl Drop for HandleBack {
+        fn drop(&mut self) {
+            self.0
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take();
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn a_failed_write_whose_file_cannot_be_read_again_is_answered_as_one_that_may_hold_the_change()
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        let dir = test_dir();
+        drop(open(dir.path(), &TestWrite::default()));
+        let path = file_of(dir.path());
+        let held = std::fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&path)
+            .unwrap();
+        let refused = std::fs::File::open(&path).map(drop);
+        drop(held);
+        assert!(
+            refused.is_err(),
+            "a handle with no sharing does not keep a plain open of the state file out here, so the case of a read that cannot be made is not made"
+        );
+        let handle = Arc::new(std::sync::Mutex::new(None));
+        let back = HandleBack(handle.clone());
+        let mut file = StateFile::open(
+            StateDir::open(dir.path()).unwrap(),
+            Box::new(WrittenThenHeld(handle)),
+        );
+        let answer = file.update(|state| state.desired = Desired::Running);
+        let words = answer
+            .as_ref()
+            .err()
+            .map(ToString::to_string)
+            .unwrap_or_default();
+        assert!(words.contains("may hold the change"), "{answer:?}");
+        assert_eq!(file.state().desired, Desired::Paused);
+        assert_eq!(
+            file.health(),
+            StateHealth::WriteFailed(io::ErrorKind::StorageFull)
+        );
+        drop(back);
+        let next = open(dir.path(), &TestWrite::default());
+        assert_eq!(
+            (next.health(), next.state().desired),
+            (StateHealth::Ok, Desired::Running)
+        );
+    }
 }
