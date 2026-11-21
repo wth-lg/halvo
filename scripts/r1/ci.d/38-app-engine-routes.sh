@@ -150,7 +150,7 @@ helper_cases() {
   rejected=$((rejected + right))
   bad=$(sed -n 's/^case [^ /]*\/\([^ ]*\) .* wrong$/\1/p' "$work/helper-cases.txt" | paste -s -d ' ' -)
   [ -z "$bad" ] || wrong="$wrong $bad"
-  if [ "$code" != 0 ] || [ "$right" != 6 ]; then wrong="$wrong helper-cases"; fi
+  if [ "$code" != 0 ] || [ "$right" != 7 ]; then wrong="$wrong helper-cases"; fi
   shown=$(verdict "$work/helper/judged.txt" macos)
   got=green
   [ "$shown" = "FAIL $name (s03-ip:open-or-unread s18-ip:open-or-unread)" ] && got=red
@@ -205,6 +205,7 @@ WIN_LINES = ["Ethernet adapter Ethernet fe80::5%6 10.1.0.4", "Ethernet adapter v
 held = {"127.0.0.1", "::1", "10.0.0.5"}
 route = ["10.0.0.5"]
 reads = []
+refused = {}
 
 
 class MadeUpSocket:
@@ -215,6 +216,8 @@ class MadeUpSocket:
         pass
 
     def bind(self, address):
+        if address[1] in refused:
+            raise OSError(*refused[address[1]])
         if address[0] not in held:
             raise OSError(49, "Can't assign requested address")
 
@@ -291,6 +294,20 @@ def taken_binds_tell_the_address_alone():
     return "asked-alone" if lines == ["asked 203.0.113.9"] else f"lines-{len(lines)}"
 
 
+def one_refused_bind_is_told_with_the_interfaces():
+    with open(os.path.join(directory, "plan.json"), encoding="utf-8") as f:
+        port = json.load(f)["dns_port"]
+    held.add("203.0.113.9")
+    refused[port] = (48, "Address already in use")
+    try:
+        lines = listen("one-refusal-steps")
+    finally:
+        held.discard("203.0.113.9")
+        del refused[port]
+    want = [f"resolver port {port}: [Errno 48] Address already in use", "asked 203.0.113.9"] + [f"interface {line}" for line in MAC_LINES]
+    return "told" if lines == want else f"lines-{len(lines)}"
+
+
 def windows_interfaces_are_read():
     measure.interface_text = lambda: WIN_TEXT
     try:
@@ -364,6 +381,7 @@ def case(label, want, run):
 
 case("refused-binds-written-and-told", "told", refused_binds_are_written_and_told)
 case("taken-binds-tell-the-address-alone", "asked-alone", taken_binds_tell_the_address_alone)
+case("one-refused-bind-told-with-the-interfaces", "told", one_refused_bind_is_told_with_the_interfaces)
 case("windows-interfaces-read", "read", windows_interfaces_are_read)
 case("unread-interfaces-told", "told", an_unread_list_is_told)
 case("unbound-listener-reads-not-measured", "not-measured", an_unbound_listener_reads_not_measured)
