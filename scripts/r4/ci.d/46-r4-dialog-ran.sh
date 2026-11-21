@@ -332,6 +332,17 @@ FAIL 46-r4-dialog-ran (' macos
   STUB_EXIT=101
   check macos-the-lines-of-a-start-that-ended-in-the-log FAIL "dialog_hosted start ended before its first case: its own lines, from line 2 to line 3 of dialog-targets.txt
   dialog_hosted start: brought its own panel" macos
+  output inconclusive-lines "$mac_dialog" 'guard_hosted inconclusive: the app did not become active within 20 s; active=false key_window=false asks=21'
+  STUB_EXIT=101
+  check macos-the-lines-of-an-inconclusive-start-in-the-log FAIL "guard_hosted start ended before its first case: its own lines, from line 2 to line 2 of dialog-targets.txt
+  guard_hosted inconclusive: the app did not become active within 20 s" macos
+  output slipped-then-failed "$mac_dialog" 'guard_hosted case macos allow_click_at_300ms_and_250ms_after_it SLIPPED: the schedule slipped: the press ran 541 ms after the press before it, and arm_ms is 500; not a pass and not a miss' \
+    'guard_hosted reading macos allow_click_after_the_hold: reports=1 active_at_report=true visible_at_report=true answer=reject' \
+    'guard_hosted case macos allow_click_after_the_hold FAIL: macos allow_click_after_the_hold: the answer was reject, not allow' \
+    'guard_hosted end: cases ran 7 of 7, failed 1, schedule slipped 1, helped 0, moments at a press 0, retries 0, reports before visible 0'
+  STUB_EXIT=101
+  absent='  guard_hosted case macos allow_click_at_300ms_and_250ms_after_it SLIPPED'
+  check macos-a-failed-case-after-a-slipped-one-prints-its-own-lines-alone FAIL "guard_hosted failed case macos allow_click_after_the_hold: its own lines, from line 3 to line 4 of dialog-targets.txt" macos
   output tail "$mac_dialog, FAIL: not every case ran" "$mac_guard"
   check macos-own-line-with-a-tail FAIL 'not "dialog_hosted end: cases ran 4 of 4, failed 0"' macos
   output helped "$mac_dialog" 'guard_hosted end: cases ran 7 of 7, failed 0, schedule slipped 0, helped 1, moments at a press 0, retries 0'
