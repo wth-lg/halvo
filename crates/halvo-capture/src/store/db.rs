@@ -1626,6 +1626,8 @@ impl Db {
         conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, log_was_there)
             .map_err(db_error)?;
         conn.busy_timeout(Duration::ZERO).map_err(db_error)?;
+        conn.execute_batch("PRAGMA cipher_log_level = NONE;")
+            .map_err(db_error)?;
         conn.execute_batch(&key_pragma(key)).map_err(db_error)?;
         conn.execute_batch("PRAGMA locking_mode = EXCLUSIVE;")
             .map_err(db_error)?;
@@ -1644,8 +1646,7 @@ impl Db {
              PRAGMA foreign_keys = ON;\n\
              PRAGMA synchronous = FULL;\n\
              PRAGMA fullfsync = ON;\n\
-             PRAGMA checkpoint_fullfsync = ON;\n\
-             PRAGMA cipher_log_level = NONE;",
+             PRAGMA checkpoint_fullfsync = ON;",
         )
         .map_err(db_error)?;
         #[cfg(test)]

@@ -12282,3 +12282,171 @@ fn a_page_cache_of_stale_bytes_for_parent() {
     .unwrap();
 }
 
+mod sent_statements {
+    use std::cell::Cell;
+    use std::ffi::{c_char, c_int, c_uint, c_void, CStr};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Mutex, Once};
+
+    use halvo_sqlcipher::rusqlite::ffi;
+
+    thread_local! {
+        static RECORDING: Cell<bool> = const { Cell::new(false) };
+    }
+    static CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
+    static SENT: Mutex<Vec<(usize, String)>> = Mutex::new(Vec::new());
+
+    unsafe extern "C" fn sent(
+        _: c_uint,
+        connection: *mut c_void,
+        _: *mut c_void,
+        sql: *mut c_void,
+    ) -> c_int {
+        let text = unsafe { CStr::from_ptr(sql.cast::<c_char>()) }.to_string_lossy();
+        let mut words = text
+            .split(|c: char| c.is_whitespace() || c == '=' || c == ';')
+            .filter(|word| !word.is_empty());
+        let name = match words.next() {
+            Some(first) if first.eq_ignore_ascii_case("PRAGMA") => {
+                format!("PRAGMA {}", words.next().unwrap_or_default())
+            }
+            first => first.unwrap_or_default().to_string(),
+        };
+        SENT.lock().unwrap().push((connection as usize, name));
+        0
+    }
+
+    unsafe extern "C" fn opened(
+        db: *mut ffi::sqlite3,
+        _: *mut *mut c_char,
+        _: *const ffi::sqlite3_api_routines,
+    ) -> c_int {
+        if RECORDING.with(Cell::get) {
+            let connection = CONNECTIONS.fetch_add(1, Ordering::SeqCst) + 1;
+            unsafe {
+                ffi::sqlite3_trace_v2(
+                    db,
+                    ffi::SQLITE_TRACE_STMT,
+                    Some(sent),
+                    connection as *mut c_void,
+                )
+            };
+        }
+        ffi::SQLITE_OK
+    }
+
+    pub(super) fn record(act: impl FnOnce()) -> Vec<(usize, String)> {
+        static REGISTERED: Once = Once::new();
+        REGISTERED.call_once(|| {
+            assert_eq!(
+                unsafe { ffi::sqlite3_auto_extension(Some(opened)) },
+                ffi::SQLITE_OK
+            );
+        });
+        let from = SENT.lock().unwrap().len();
+        RECORDING.with(|recording| recording.set(true));
+        act();
+        RECORDING.with(|recording| recording.set(false));
+        SENT.lock().unwrap()[from..].to_vec()
+    }
+}
+
+#[test]
+fn the_open_sets_the_library_log_level_to_none_before_it_sends_the_key() {
+    let dir = tempfile::tempdir().unwrap();
+    let store_dir = super::durable::Dir::open(dir.path()).unwrap();
+    let sent = sent_statements::record(|| {
+        drop(super::db::Db::open(&store_dir, &[7u8; 32]).unwrap());
+        drop(super::db::Db::open_existing(&store_dir, &[7u8; 32]).unwrap());
+    });
+    let keyed: std::collections::BTreeSet<usize> = sent
+        .iter()
+        .filter(|(_, name)| name == "PRAGMA key")
+        .map(|(connection, _)| *connection)
+        .collect();
+    assert_eq!(
+        keyed.len(),
+        2,
+        "a create and an open sent the key on {keyed:?}: {sent:?}"
+    );
+    for connection in keyed {
+        let names: Vec<&str> = sent
+            .iter()
+            .filter(|(of, _)| *of == connection)
+            .map(|(_, name)| name.as_str())
+            .collect();
+        let level = names
+            .iter()
+            .position(|name| *name == "PRAGMA cipher_log_level");
+        let key = names.iter().position(|name| *name == "PRAGMA key");
+        assert!(
+            matches!((level, key), (Some(level), Some(key)) if level < key),
+            "the open sent these statements in this order: {names:?}"
+        );
+    }
+}
+
+#[test]
+fn a_refused_open_with_a_wrong_key_leaves_the_library_log_level_at_none() {
+    let (dir, out) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    drop(super::db::Db::open(&super::durable::Dir::open(dir.path()).unwrap(), &[7u8; 32]).unwrap());
+    let levels = out.path().join("levels");
+    let child = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "store::hardening_tests::a_wrong_key_open_for_parent",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env("HALVO_TEST_WRONG_KEY_DIR", dir.path())
+        .env("HALVO_TEST_WRONG_KEY_OUT", &levels)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap();
+    let library_lines = String::from_utf8_lossy(&child.stderr)
+        .lines()
+        .filter(|line| line.contains(" CORE "))
+        .count();
+    let text = std::fs::read_to_string(&levels)
+        .unwrap_or_else(|_| format!("the child wrote nothing and exited {}", child.status));
+    assert_eq!(
+        (text.as_str(), library_lines),
+        ("before=WARN answer=DatabaseUnreadable after=NONE", 0),
+        "a first open of a process with a wrong key"
+    );
+}
+
+#[test]
+fn a_wrong_key_open_for_parent() {
+    let (Some(dir), Some(out)) = (
+        std::env::var_os("HALVO_TEST_WRONG_KEY_DIR"),
+        std::env::var_os("HALVO_TEST_WRONG_KEY_OUT"),
+    ) else {
+        println!("a_wrong_key_open_for_parent: HALVO_TEST_WRONG_KEY_DIR is not set, so no parent asked for an open");
+        return;
+    };
+    let level = || -> String {
+        Connection::open_in_memory()
+            .unwrap()
+            .query_row("PRAGMA cipher_log_level", [], |r| r.get(0))
+            .unwrap()
+    };
+    halvo_sqlcipher::initialize().unwrap();
+    let before = level();
+    let answer = super::db::Db::open_existing(
+        &super::durable::Dir::open(Path::new(&dir)).unwrap(),
+        &[8u8; 32],
+    )
+    .map(drop)
+    .map_err(|e| format!("{e:?}"));
+    let after = level();
+    std::fs::write(
+        out,
+        format!(
+            "before={before} answer={} after={after}",
+            answer.err().unwrap_or_else(|| "Ok".to_string())
+        ),
+    )
+    .unwrap();
+}
