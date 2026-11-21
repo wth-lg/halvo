@@ -2,7 +2,6 @@ use halvo_schema::executable::names::Cause;
 use halvo_schema::executable::EffectState;
 
 #[test]
-#[ignore = "U1.8 (b) gives the schema the state not_made and its four causes, gives effect_step the move, removes the module not_made and the stop of formal_traces and step_traces, and takes this ignore away (the coordinator's ruling CP-144 (2))"]
 fn not_made_has_no_stand_in_left() {
     assert!(
         EffectState::parse("not_made").is_ok(),

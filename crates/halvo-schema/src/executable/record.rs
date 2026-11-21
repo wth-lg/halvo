@@ -206,8 +206,9 @@ object_type! {
     /// One state of one effect, kind `agent_effect`. Its class makes an effect; `kept` holds the kept fields of the
     /// class in their order, an amount of at most 32 bytes and an address of at most 320; `fields` is the number of
     /// the bound fields of the class. A `held`, `cleared` or `refused` row holds no approval and an `approved` row
-    /// one; a row with the cause `ended` is `rejected`; no row holds the cause `unauthorized`, `not_selected` or
-    /// `no_start`.
+    /// one; a row with the cause `ended` is `rejected`, and one with `reproposed` is `rejected` with no approval; a
+    /// `not_made` row holds the cause `not_sent`, `not_replaced`, `unauthorized` or `throttled`, and no other row
+    /// holds one of the four; no row holds `not_selected` or `no_start`.
     #[derive(Clone, Debug, PartialEq, Eq)]
     pub struct AgentEffect {
         pub v: V1 = "v" => from_json,
@@ -247,10 +248,15 @@ object_type! {
         if e.cause == Some(Cause::Ended) && e.state != EffectState::Rejected {
             return fail("cause", "ended_not_rejected");
         }
-        if matches!(
+        let not_made = matches!(
             e.cause,
-            Some(Cause::Unauthorized | Cause::NotSelected | Cause::NoStart)
-        ) {
+            Some(Cause::NotSent | Cause::NotReplaced | Cause::Unauthorized | Cause::Throttled)
+        );
+        let reproposed = e.cause == Some(Cause::Reproposed);
+        if not_made != (e.state == EffectState::NotMade)
+            || matches!(e.cause, Some(Cause::NotSelected | Cause::NoStart))
+            || (reproposed && (e.state != EffectState::Rejected || e.approval.is_some()))
+        {
             return fail("cause", "cause_of_state");
         }
         Ok(())
