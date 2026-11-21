@@ -161,6 +161,60 @@ fn names(dir: &Path) -> Vec<String> {
     names
 }
 
+fn store_open(dir: &Path, service: &mut Service) {
+    let store = dir.join("store");
+    let started = Instant::now();
+    loop {
+        if let Some(status) = service.0.try_wait().unwrap() {
+            panic!("the service run ended before its store opened: {status}");
+        }
+        let marked = std::fs::read_to_string(dir.join("daemon-state.json"))
+            .is_ok_and(|text| text.contains("\"store_made\":true"));
+        if marked
+            && store.join("store.key").exists()
+            && !store.join("create.pending").exists()
+            && instance_lock::read(&data_dir(&store)).is_ok_and(|read| read == LockRead::Held)
+        {
+            return;
+        }
+        assert!(
+            started.elapsed() < READY_WITHIN,
+            "the service run never opened a store under its data directory"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+type StoreBytes = Vec<(PathBuf, Option<Vec<u8>>)>;
+
+fn store_bytes(dir: &Path) -> StoreBytes {
+    let store = dir.join("store");
+    let mut found: StoreBytes = ["store.key", "store.db", "store.db-wal"]
+        .into_iter()
+        .map(|name| (PathBuf::from(name), std::fs::read(store.join(name)).ok()))
+        .collect();
+    let mut walk = vec![store.join("segments")];
+    while let Some(at) = walk.pop() {
+        let Ok(entries) = std::fs::read_dir(&at) else {
+            continue;
+        };
+        for entry in entries {
+            let path = entry.unwrap().path();
+            let name = path.strip_prefix(&store).unwrap().to_path_buf();
+            if path.is_dir() {
+                found.push((name, None));
+                walk.push(path);
+            } else {
+                found.push((name, Some(std::fs::read(&path).unwrap())));
+            }
+        }
+    }
+    found.sort();
+    found
+}
+
+const MADE: [&str; 3] = ["daemon-state.json", "roots", "store"];
+
 fn second_start(dir: &Path) -> (Option<i32>, Duration) {
     let started = Instant::now();
     let status = service(dir).0.wait().unwrap();
@@ -172,6 +226,7 @@ fn a_second_service_run_exits_0_within_2_s_and_changes_nothing_in_the_directory(
     let dir = kept_dir("service-tests-");
     let mut first = service(&dir);
     ready(&dir, &mut first);
+    store_open(&dir, &mut first);
     let before = listing(&dir);
     let (status, took) = second_start(&dir);
     assert_eq!(status, Some(0));
@@ -179,11 +234,32 @@ fn a_second_service_run_exits_0_within_2_s_and_changes_nothing_in_the_directory(
     assert_eq!(listing(&dir), before);
     assert!(first.0.try_wait().unwrap().is_none(), "the first run ended");
     assert_eq!(terminate(first), Some(0));
-    assert_eq!(names(&dir), vec!["daemon-state.json".to_owned()]);
+    assert_eq!(names(&dir), MADE);
     assert_eq!(
         instance_lock::read(&data_dir(&dir)).unwrap(),
         LockRead::Free
     );
+}
+
+#[test]
+fn a_second_service_run_changes_no_byte_of_the_store_that_the_first_holds() {
+    let dir = kept_dir("service-tests-");
+    let mut first = service(&dir);
+    store_open(&dir, &mut first);
+    let before = store_bytes(&dir);
+    assert!(
+        before[..2].iter().all(|(_, bytes)| bytes.is_some()),
+        "no store.key or no store.db stands"
+    );
+    let (status, took) = second_start(&dir);
+    assert_eq!(status, Some(0));
+    assert!(took < SECOND_START_WITHIN, "the second start took {took:?}");
+    assert!(
+        store_bytes(&dir) == before,
+        "the second start changed a byte of the store"
+    );
+    assert!(first.0.try_wait().unwrap().is_none(), "the first run ended");
+    assert_eq!(terminate(first), Some(0));
 }
 
 #[test]
@@ -197,13 +273,20 @@ fn a_service_run_without_a_state_file_writes_the_defaults_after_the_lock() {
     drop(held);
     let mut run = service(&dir);
     ready(&dir, &mut run);
+    store_open(&dir, &mut run);
+    assert_eq!(terminate(run), Some(0));
     let loaded = StateFile::open(
         StateDir::open(&dir).unwrap(),
         Box::new(TestWrite::default()),
     );
-    assert_eq!(loaded.state(), &DaemonState::default());
-    assert_eq!(terminate(run), Some(0));
-    assert_eq!(names(&dir), vec!["daemon-state.json".to_owned()]);
+    assert_eq!(
+        loaded.state(),
+        &DaemonState {
+            store_made: true,
+            ..DaemonState::default()
+        }
+    );
+    assert_eq!(names(&dir), MADE);
 }
 
 #[test]

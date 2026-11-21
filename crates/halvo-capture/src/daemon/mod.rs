@@ -1685,8 +1685,11 @@ pub struct DurableState;
 /// thread's run loop until SIGINT or SIGTERM, writing the state file through
 /// `writer`, and answers its exit status: 0 after a clean stop or when another
 /// process holds the data directory, 1 when the directory cannot be used.
-/// This cut opens no store, starts no source and binds no socket. On Windows
-/// it answers that the service run is not built yet (win-5) with status 1.
+/// After the instance lock and the state file, the owner opens the store
+/// under the data directory through the adapter, and creates it on a first
+/// run; a SIGTERM closes it. This cut starts no source and binds no socket.
+/// On Windows it answers that the service run is not built yet (win-5) with
+/// status 1.
 #[cfg(debug_assertions)]
 pub fn service_run(dir: &halvo_control::paths::DataDir, writer: Box<dyn state::StateWrite>) -> i32 {
     use std::io::Write as _;
@@ -1814,6 +1817,12 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
     if let Some(line) = state_line(state.health()) {
         let _ = writeln!(err, "{line}");
     }
+    let rule = owner::open::CreateRule::of(state.health(), state.state().store_made);
+    let held_cap = match state.state().storage_cap {
+        state::Cap::Known(cap) => cap,
+        state::Cap::OutOfRange(_) => halvo_control::model::StorageCap::DEFAULT,
+    };
+    let switches = state.state().switches;
     if let Err(error) = lock.exclude_from_backup() {
         let _ = writeln!(
             err,
@@ -1825,18 +1834,134 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         supervisor::Supervisor::new(halvo_control::proto::Platform::Macos, NoSources, main_loop)
             .with_ending(ending)
             .with_state(state);
+    let opener = if stop.load(std::sync::atomic::Ordering::SeqCst) {
+        None
+    } else {
+        match owner::open::Opener::start(
+            Box::new(port::DataDirStore::at(dir.path())),
+            custody_policy::of_this_build,
+            rule,
+        ) {
+            Ok(opener) => Some(opener),
+            Err(error) => {
+                let _ = writeln!(
+                    err,
+                    "halvo-capture: store=unavailable the open did not start: {}",
+                    error.kind()
+                );
+                None
+            }
+        }
+    };
+    let mut store = HeldStore::None;
     let mut status = halvo_control::exit::CLEAN;
-    while !supervisor.wait_on(SERVICE_WAIT, stop, None) {
+    loop {
+        let opening = matches!(store, HeldStore::None)
+            && opener.as_ref().is_some_and(owner::open::Opener::is_running);
+        let window = if opening { owner::POLL } else { SERVICE_WAIT };
+        if supervisor.wait_on(window, stop, store.link()) {
+            break;
+        }
         if RunSources::restart_asked(&supervisor) {
             status = halvo_control::exit::RESTART;
             break;
         }
+        let Some(held) = opener.as_ref().and_then(owner::open::Opener::take) else {
+            continue;
+        };
+        if rule != owner::open::CreateRule::StoreMade {
+            mark_the_store_made(&mut supervisor, err);
+        }
+        store = match held {
+            owner::open::Held::Capture { store, .. } => {
+                match capture_owner(store, held_cap, switches) {
+                    Ok(owner) => HeldStore::Capture(owner),
+                    Err(error) => {
+                        let _ = writeln!(
+                            err,
+                            "halvo-capture: the store owner did not start: {}",
+                            error.kind()
+                        );
+                        HeldStore::None
+                    }
+                }
+            }
+            owner::open::Held::Maintenance { store, .. } => HeldStore::Maintenance { _store: store },
+        };
+    }
+    if let Some(opener) = &opener {
+        opener.stop();
     }
     let status = supervisor
-        .shutdown_entry(None, status)
+        .shutdown_entry(store.link(), status)
         .map_or(status, |outcome| outcome.status);
+    drop(store);
     drop(lock);
     status
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+enum HeldStore {
+    None,
+    Capture(CaptureOwner),
+    Maintenance {
+        _store: Box<dyn port::MaintainStore + Send>,
+    },
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl HeldStore {
+    fn link(&self) -> Option<&dyn supervisor::OwnerLink> {
+        match self {
+            HeldStore::Capture(owner) => Some(&owner.watched),
+            HeldStore::None | HeldStore::Maintenance { .. } => None,
+        }
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+struct CaptureOwner {
+    watched: supervisor::Watched,
+    _sink: crate::sink::SinkHandle,
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn capture_owner(
+    store: Box<dyn port::CaptureStore + Send>,
+    cap: halvo_control::model::StorageCap,
+    switches: crate::floor::Switches,
+) -> std::io::Result<CaptureOwner> {
+    use crate::floor::exclude::{FloorHandle, NoLineage};
+    let (sink, writer) = crate::sink::channel(owner::QUEUE_SLOTS);
+    let thread = owner::spawn(owner::OwnerParts {
+        writer,
+        store,
+        clocks: maintenance::SystemClocks::new(),
+        floor: FloorHandle::new(None, std::sync::Arc::new(NoLineage), switches),
+        cap,
+        shred_chunk: maintenance::SHRED_CHUNK,
+    })?;
+    Ok(CaptureOwner {
+        watched: supervisor::Watched::new(thread, Box::new(std::io::stderr())),
+        _sink: sink,
+    })
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn mark_the_store_made<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    supervisor: &mut supervisor::Supervisor<F, L>,
+    err: &mut dyn std::io::Write,
+) {
+    use state::StateError;
+    let kind = match supervisor.update_state(|state| state.store_made = true) {
+        None | Some(Ok(())) | Some(Err(StateError::LeftAsItIs { .. })) => return,
+        Some(Err(
+            StateError::NotWritten { kind, .. }
+            | StateError::NotFlushed { kind, .. }
+            | StateError::MayHoldTheChange { kind, .. },
+        )) => kind,
+    };
+    let _ = writeln!(err, "halvo-capture: state_file=write_failed error={kind}");
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]
