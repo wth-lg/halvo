@@ -1,5 +1,7 @@
 use crate::ports::{Clock, Owner, PortError, Rng, Stamp};
-use crate::schedule::{holds, owed_of_kind, owed_ready, read_back, seq_refusal, Board, Hold};
+use crate::schedule::{
+    holds, item_closed, owed_of_kind, owed_ready, read_back, seq_refusal, Board, Hold,
+};
 use crate::types::{
     hex, AgentId, Category, Cleared, ConfigView, Doing, Event, Facts, ItemId, ItemKind, Lapsed,
     Limits, OtherLapse, OwnItem, OwnItemKind, Raised, Replies, What,
@@ -106,11 +108,12 @@ where
         let Ok(Ok(item)) = ports.bytes16().map(|b| ItemId::parse(&hex(b))) else {
             continue;
         };
+        let from = board.stored_last(i);
         let events = check_raise_body(board, i, &item, stamp);
         let logged = match log_body(ports, board, i, events) {
             Ok(()) => Retried::Logged,
             Err(e) if seq_refusal(&e) => {
-                retry_after_read_back(ports, limits, stamp, board, i, gone, &item)
+                retry_after_read_back(ports, limits, stamp, board, i, (gone, from), &item)
             }
             Err(_) => Retried::Nothing,
         };
@@ -186,13 +189,48 @@ fn check_raise_body<C>(board: &Board<C>, i: usize, item: &ItemId, stamp: Stamp) 
         .collect()
 }
 
+fn read_after<P: Owner, C>(
+    ports: &P,
+    board: &mut Board<C>,
+    i: usize,
+    from: u32,
+) -> Result<(), PortError> {
+    let agent = board.members[i].facts.agent.clone();
+    let (rows, _) = ports.history(&agent, from)?;
+    let open = rows.iter().rev().find_map(|e| match &e.what {
+        What::ItemRaised {
+            item,
+            raised: Raised::Check(None),
+        } if !item_closed(&rows, item) => Some(item.clone()),
+        _ => None,
+    });
+    let Some(item) = open else {
+        return Ok(());
+    };
+    let last = board.stored_last(i);
+    let facts = &mut board.members[i].facts;
+    let new: Vec<Event> = rows
+        .into_iter()
+        .filter(|e| !facts.events.contains(e))
+        .collect();
+    facts.events.extend(new);
+    if let Doing::Idle(_) = facts.doing {
+        facts.doing = Doing::Idle(Some(OwnItem {
+            item,
+            kind: OwnItemKind::Check,
+        }));
+    }
+    board.set_last(i, last);
+    Ok(())
+}
+
 fn retry_after_read_back<P, C>(
     ports: &P,
     limits: &Limits,
     stamp: Stamp,
     board: &mut Board<C>,
     i: usize,
-    gone: bool,
+    (gone, from): (bool, u32),
     item: &ItemId,
 ) -> Retried
 where
@@ -200,6 +238,14 @@ where
     C: ConfigView,
 {
     if read_back(ports, limits, stamp, board, i).is_err() {
+        return Retried::Nothing;
+    }
+    let newest = board.members[i]
+        .facts
+        .events
+        .last()
+        .map_or(0, |e| e.seq.get());
+    if board.stored_last(i) < newest && read_after(ports, board, i, from).is_err() {
         return Retried::Nothing;
     }
     let doing = &board.members[i].facts.doing;
