@@ -18,14 +18,14 @@ use windows::Win32::Storage::FileSystem::{
     CreateFileW, ReadFile, WriteFile, FILE_FLAG_OVERLAPPED, FILE_SHARE_NONE, OPEN_EXISTING,
     SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
 };
-use windows::Win32::System::Pipes::WaitNamedPipeW;
+use windows::Win32::System::Pipes::{GetNamedPipeServerProcessId, WaitNamedPipeW};
 use windows::Win32::System::Threading::{
     CreateEventW, GetCurrentProcess, OpenProcess, OpenProcessToken, WaitForSingleObject, INFINITE,
     PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
 
-use crate::client::{ClientError, Connector, Transport};
+use crate::client::{ClientError, Connector, PeerRejection, Transport};
 use crate::paths::DataDir;
 
 fn code(error: &windows::core::Error) -> u32 {
@@ -231,10 +231,25 @@ impl AsHandle for PipeStream {
 /// The connector of the named pipe of a data directory for the user of this process
 /// (contracts.md C15.1, C15.3, C15.5). It opens the pipe with identification-level impersonation
 /// alone, waits for a busy pipe inside the request's deadline, and answers
-/// [`ClientError::Unreachable`] with the pipe's name when no pipe of that name stands.
+/// [`ClientError::Unreachable`] with the pipe's name when no pipe of that name stands. Before it
+/// hands the stream over, it reads the server's process id from the pipe and requires the token
+/// user of that process to be its own; otherwise it answers
+/// [`PeerRejection::ServerOfAnotherUser`] and no byte of the request is written.
 #[derive(Debug, Clone)]
 pub struct PipeConnector {
     name: String,
+    own: String,
+    user_of: fn(u32) -> io::Result<String>,
+}
+
+/// Whether a client whose own user has the SID string `own` sends to a server whose token user
+/// has the SID string `server`: only when the two are one (contracts.md C15.3).
+pub fn check_server(server: &str, own: &str) -> Result<(), PeerRejection> {
+    if server == own {
+        Ok(())
+    } else {
+        Err(PeerRejection::ServerOfAnotherUser)
+    }
 }
 
 impl PipeConnector {
@@ -244,7 +259,15 @@ impl PipeConnector {
         let own = current_user().map_err(ClientError::Io)?;
         Ok(PipeConnector {
             name: crate::paths::pipe_name(&own, data_dir),
+            own,
+            user_of: user_of_process,
         })
+    }
+
+    #[cfg(test)]
+    fn reading_users_as(mut self, user_of: fn(u32) -> io::Result<String>) -> Self {
+        self.user_of = user_of;
+        self
     }
 
     /// The name of the pipe.
@@ -253,6 +276,12 @@ impl PipeConnector {
     }
 
     fn checked(&self, pipe: OwnedHandle) -> Result<PipeStream, ClientError> {
+        let mut pid = 0u32;
+        // SAFETY: the pipe is open and `pid` is a live local.
+        unsafe { GetNamedPipeServerProcessId(HANDLE(pipe.as_raw_handle()), &mut pid) }
+            .map_err(|error| ClientError::Io(os_error(error)))?;
+        let server = (self.user_of)(pid).map_err(ClientError::Io)?;
+        check_server(&server, &self.own).map_err(ClientError::PeerRejected)?;
         PipeStream::from_overlapped(pipe).map_err(ClientError::Io)
     }
 }
@@ -305,5 +334,71 @@ impl Connector for PipeConnector {
             // SAFETY: `name` ends in a NUL and outlives the call; no other pointer is passed.
             let _ = unsafe { WaitNamedPipeW(PCWSTR(name.as_ptr()), wait_millis(Some(left))) };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::Client;
+    use windows::Win32::Storage::FileSystem::PIPE_ACCESS_DUPLEX;
+    use windows::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
+    };
+
+    const ANOTHER_USER: &str = "S-1-5-21-1000000001-1000000002-1000000003-1001";
+
+    fn server_end(name: &str) -> PipeStream {
+        let name: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+        // SAFETY: `name` ends in a NUL and outlives the call; no attributes are passed.
+        let pipe = unsafe {
+            CreateNamedPipeW(
+                PCWSTR(name.as_ptr()),
+                PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+                PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+                1,
+                4_096,
+                4_096,
+                0,
+                None,
+            )
+        };
+        assert!(!pipe.is_invalid(), "{}", io::Error::last_os_error());
+        // SAFETY: `pipe` is a new handle that nothing else owns or closes.
+        let pipe = unsafe { OwnedHandle::from_raw_handle(pipe.0) };
+        PipeStream::from_overlapped(pipe).unwrap()
+    }
+
+    #[test]
+    fn the_pipe_client_refuses_a_server_of_another_user() {
+        let own = current_user().unwrap();
+        assert_eq!(check_server(&own, &own), Ok(()));
+        assert_eq!(
+            check_server(ANOTHER_USER, &own),
+            Err(PeerRejection::ServerOfAnotherUser)
+        );
+        let root = tempfile::tempdir().unwrap();
+        let connector = PipeConnector::for_data_dir(&DataDir::from_flag(root.path()).unwrap())
+            .unwrap()
+            .reading_users_as(|_| Ok(ANOTHER_USER.to_owned()));
+        let mut server = server_end(connector.name());
+        let refused = Client::new(connector).status();
+        assert!(
+            matches!(
+                refused,
+                Err(ClientError::PeerRejected(
+                    PeerRejection::ServerOfAnotherUser
+                ))
+            ),
+            "{refused:?}"
+        );
+        server.set_timeout(Duration::from_secs(5)).unwrap();
+        let mut written = Vec::new();
+        let read = server.read_to_end(&mut written);
+        assert!(
+            written.is_empty(),
+            "the client wrote {} bytes to a server of another user ({read:?})",
+            written.len()
+        );
     }
 }
