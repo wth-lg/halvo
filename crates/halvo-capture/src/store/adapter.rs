@@ -351,7 +351,7 @@ impl DataDirStore {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos", debug_assertions))]
 impl DataDirStore {
     /// The plaintext of every segment that the store of this data directory
     /// recorded, the oldest first capture first, or `None` for a segment that
