@@ -130,6 +130,11 @@ The limits that stay:
 8. the forbid list and its canary come from one table of this script: a commit that changes
    60-r6-egress.sh can take an entry out of the list and its canary line together, and only the
    readers of that guarded script see it.
+9. the check takes the commands from the binary's own printing and tries no other word on the built
+   binary; what holds the printing to the dispatch is one test of the crate,
+   the_printing_names_exactly_the_commands_that_the_dispatch_runs, which calls dispatch in-process; a
+   commit whose main or whose handler runs a word outside the table passes the check, a diff shows
+   it, and the landing's readers hold it.
 With --self-test, R6_EGRESS_CASES, a list of case names, runs those cases alone, for a mutant runner;
 a list that names no case fails the self-test. On a Windows host the self-test runs the cases of its
 Windows list alone: one case for each rule of the generic code, by the table rule_cases, and every
@@ -2893,6 +2898,7 @@ help_sentences() {
     'what a process did after the command ended, in the egress check' \
     'the egress check'"'"'s writes under target/egress/' \
     'the forbid list and its canary come from one table of this script: a commit that changes 60-r6-egress.sh can take an entry out of the list and its canary line together, and only the readers of that guarded script see it' \
+    'the check takes the commands from the binary'"'"'s own printing and tries no other word on the built binary; what holds the printing to the dispatch is one test of the crate, the_printing_names_exactly_the_commands_that_the_dispatch_runs, which calls dispatch in-process; a commit whose main or whose handler runs a word outside the table passes the check, a diff shows it, and the landing'"'"'s readers hold it' \
     'prints the names of its commands from the one table that dispatches them, one per line in the table'"'"'s order, so that a name that it does not print is a command that route-gate does not dispatch' \
     'and the second list has no entry; the count line prints cannot=0' \
     'A file written under target/, or inside a directory that held no tracked file before the first call, is not seen there' \
