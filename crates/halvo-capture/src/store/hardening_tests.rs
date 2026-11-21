@@ -912,7 +912,7 @@ fn the_keyless_sweep_does_not_follow_a_shard_that_links_out_of_the_store() {
         &segment::segments_root(store.dir()).join(shard),
     );
 
-    let pass = store.crypto_shred_expired();
+    let pass = store.remove_keyless_files();
 
     assert_eq!(
         files_in(outside.path()),
@@ -1162,7 +1162,7 @@ fn the_keyless_sweep_does_not_follow_a_directory_link_inside_a_shard() {
         .to_path_buf();
     link_dir(outside.path(), &shard.join(keyless_name()));
 
-    let pass = store.crypto_shred_expired();
+    let pass = store.remove_keyless_files();
 
     assert_eq!(
         files_in(outside.path()),
@@ -1189,7 +1189,7 @@ fn the_keyless_sweep_leaves_the_store_files_when_a_shard_links_to_the_store_dire
         &segment::segments_root(dir.path()).join(another_shard_than(live.segment_id)),
     );
 
-    let pass = store.crypto_shred_expired();
+    let pass = store.remove_keyless_files();
     drop(store);
 
     let left: Vec<bool> = ["store.key", "store.db"]
@@ -1246,7 +1246,7 @@ fn the_keyless_sweep_removes_nothing_through_a_segments_directory_that_is_a_link
     link_dir(target.path(), &segments);
     let before = files_under(target.path()).len();
 
-    let pass = store.crypto_shred_expired();
+    let pass = store.remove_keyless_files();
     drop(store);
     let reopened = open_over_file_root(&store_dir, &roots_dir, root_id).map(drop);
 
@@ -1992,14 +1992,15 @@ fn a_segment_read_hands_its_sink_at_most_one_chunk_at_a_time() {
 }
 
 #[test]
-fn keyless_segment_files_and_stray_temp_files_are_removed_by_the_next_pass() {
+fn keyless_segment_files_and_stray_temp_files_are_removed_by_the_next_open() {
     let dir = tempfile::tempdir().unwrap();
-    let mut store = super::db::test_support::make_store(dir.path());
+    let (store_dir, roots_dir, root_id, _) = file_root_store(dir.path());
+    let mut store = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
     let (seg_ref, _) = store
         .write_segment(&mut Cursor::new(b"soon orphaned"))
         .unwrap();
     let (live, _) = store.write_segment(&mut Cursor::new(b"live")).unwrap();
-    let orphan = segment_path(dir.path(), seg_ref.segment_id);
+    let orphan = segment_path(&store_dir, seg_ref.segment_id);
     store
         .db()
         .unwrap()
@@ -2011,22 +2012,23 @@ fn keyless_segment_files_and_stray_temp_files_are_removed_by_the_next_pass() {
         .unwrap();
     let stray = orphan.with_extension("seg.tmp");
     std::fs::write(&stray, b"half-written").unwrap();
-    let unknown = segment_path(dir.path(), Uuid::now_v7());
+    let unknown = segment_path(&store_dir, Uuid::now_v7());
     std::fs::create_dir_all(unknown.parent().unwrap()).unwrap();
     std::fs::write(&unknown, b"no key row at all").unwrap();
 
-    store.crypto_shred_expired().unwrap();
+    drop(store);
+    let _reopened = open_over_file_root(&store_dir, &roots_dir, root_id).unwrap();
 
     assert!(
         !orphan.exists(),
-        "the shred pass left a keyless segment file"
+        "the next open left a keyless segment file"
     );
-    assert!(!stray.exists(), "the shred pass left a temp file");
+    assert!(!stray.exists(), "the next open left a temp file");
     assert!(
         !unknown.exists(),
-        "the shred pass left a file with no key row"
+        "the next open left a file with no key row"
     );
-    assert!(segment_path(dir.path(), live.segment_id).exists());
+    assert!(segment_path(&store_dir, live.segment_id).exists());
 }
 
 #[test]
@@ -12781,4 +12783,115 @@ fn one_expiry_call_shreds_at_most_its_limit_and_names_the_ordinals() {
             "a segment that the call did not shred no longer reads"
         );
     }
+}
+
+struct ShardUnreadable {
+    shard: PathBuf,
+}
+
+impl ShardUnreadable {
+    fn refuse(&self, path: &Path) -> io::Result<()> {
+        if path == self.shard {
+            return Err(io::Error::from(io::ErrorKind::PermissionDenied));
+        }
+        Ok(())
+    }
+}
+
+impl super::durable::DurableFs for ShardUnreadable {
+    fn create_new(
+        &self,
+        dir: &super::durable::Dir,
+        name: &std::ffi::OsStr,
+    ) -> io::Result<std::fs::File> {
+        super::durable::OsFs.create_new(dir, name)
+    }
+
+    fn sync_file(
+        &self,
+        file: &std::fs::File,
+        dir: &super::durable::Dir,
+        name: &std::ffi::OsStr,
+    ) -> io::Result<()> {
+        super::durable::OsFs.sync_file(file, dir, name)
+    }
+
+    fn rename(
+        &self,
+        dir: &super::durable::Dir,
+        from: &std::ffi::OsStr,
+        to: &std::ffi::OsStr,
+    ) -> io::Result<()> {
+        super::durable::OsFs.rename(dir, from, to)
+    }
+
+    fn remove_file(&self, dir: &super::durable::Dir, name: &std::ffi::OsStr) -> io::Result<()> {
+        super::durable::OsFs.remove_file(dir, name)
+    }
+
+    fn sync_dir(&self, dir: &super::durable::Dir) -> io::Result<()> {
+        super::durable::OsFs.sync_dir(dir)
+    }
+
+    fn entries(&self, dir: &super::durable::Dir) -> io::Result<Vec<super::durable::Entry>> {
+        self.refuse(dir.path())?;
+        super::durable::OsFs.entries(dir)
+    }
+
+    fn open_dir(
+        &self,
+        dir: &super::durable::Dir,
+        name: &std::ffi::OsStr,
+    ) -> io::Result<super::durable::Dir> {
+        self.refuse(&dir.path().join(name))?;
+        super::durable::OsFs.open_dir(dir, name)
+    }
+}
+
+#[test]
+fn a_shred_reads_no_directory_but_its_own_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let due = (NOW_SECONDS - window_seconds() - DAY_SECONDS) * SECOND;
+    let (expired, ordinal) =
+        batch_first_captured_at(&mut store, due, b"the one segment that expires");
+    let own_shard = segment_path(dir.path(), expired)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let kept = loop {
+        let (id, _) = batch_first_captured_at(
+            &mut store,
+            NOW_SECONDS * SECOND,
+            b"a live segment in another shard",
+        );
+        if segment_path(dir.path(), id).parent() != Some(own_shard.as_path()) {
+            break id;
+        }
+    };
+    let foreign = segment_path(dir.path(), kept)
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    store.use_fs(Arc::new(ShardUnreadable { shard: foreign }));
+
+    let pass = store.expire_due(at_second(NOW_SECONDS), 64);
+
+    assert_eq!(
+        pass.as_ref().map(|pass| pass.shredded.clone()).ok(),
+        Some(vec![ordinal]),
+        "a shred of one segment beside an unreadable shard answered {pass:?}"
+    );
+    assert!(
+        reads_sealed(&store, expired),
+        "the shredded segment still reads"
+    );
+    assert!(
+        !segment_path(dir.path(), expired).exists(),
+        "the shred left its own file"
+    );
+    assert!(
+        store.read_segment(kept, &mut Vec::new()).is_ok(),
+        "the segment in the unreadable shard no longer reads"
+    );
 }

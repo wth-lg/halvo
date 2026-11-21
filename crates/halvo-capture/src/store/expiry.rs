@@ -141,10 +141,20 @@ impl EncryptedStore {
         Ok((chunk, more_due))
     }
 
+    fn remove_shredded_files(&self, ids: &[Uuid]) -> StoreResult<()> {
+        let mut first_failure = None;
+        for id in ids {
+            if let Err(e) = segment::remove_shredded_file(self.handle(), self.fs(), *id) {
+                first_failure.get_or_insert(e);
+            }
+        }
+        first_failure.map_or(Ok(()), Err)
+    }
+
     fn shred_chunk(&mut self, chunk: &[(Uuid, Ordinal)]) -> StoreResult<Vec<Ordinal>> {
         let ids: Vec<Uuid> = chunk.iter().map(|(id, _)| *id).collect();
         self.destroy_segment_keys(&ids)?;
-        self.remove_keyless_files()?;
+        self.remove_shredded_files(&ids)?;
         let mut shredded: Vec<Ordinal> = chunk.iter().map(|(_, ordinal)| *ordinal).collect();
         shredded.sort_unstable();
         Ok(shredded)
