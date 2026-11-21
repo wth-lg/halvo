@@ -463,7 +463,7 @@ fn refusal_setup_owed() {
 /// The labels of the fields of a setup's page item, each with whether its value is empty and its
 /// source.
 fn lines_of(s: &Setup) -> Vec<(String, bool, &'static str)> {
-    s.page_item("Filling a spreadsheet", &LIMITS)
+    s.page_item("Filling a spreadsheet", |_| None, &LIMITS)
         .unwrap()
         .fields()
         .iter()
@@ -512,7 +512,7 @@ fn refusal_setup_refused() {
         );
         assert!(s.not_taken());
         assert_eq!(lines_of(&s), vec![(line.clone(), true, "halvo")], "{n}");
-        let item = s.page_item("Filling a spreadsheet", &LIMITS).unwrap();
+        let item = s.page_item("Filling a spreadsheet", |_| None, &LIMITS).unwrap();
         assert_eq!(
             item.params().len(),
             4,
@@ -957,7 +957,7 @@ fn senders_setup() -> Setup {
 
 /// The item as the page gets it, as JSON.
 fn page(setup: &Setup) -> serde_json::Value {
-    serde_json::to_value(setup.page_item("Mail", &LIMITS).unwrap()).unwrap()
+    serde_json::to_value(setup.page_item("Mail", |_| None, &LIMITS).unwrap()).unwrap()
 }
 
 /// RD-81 9.1 and 9.2, step one (U2.4n): the typed name `Anna Berg`, which the reader of senders

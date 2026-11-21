@@ -2763,6 +2763,14 @@ where
         })
     }
 
+    /// The name of the row of `agent` among `listed`, the agents of the rows with their names.
+    fn row_name(listed: &[(&AgentId, &str)], agent: &AgentId) -> Option<String> {
+        listed
+            .iter()
+            .find(|(a, _)| *a == agent)
+            .map(|(_, name)| (*name).to_owned())
+    }
+
     /// Whether the board marks the agent kept on after a switch-off that could not be saved
     /// (`Board::kept_on`), while the owner's list does not show its workflow dismissed.
     fn still_on(st: &State<Cfg<P>>, agent: &AgentId) -> bool {
@@ -3499,6 +3507,11 @@ where
                 .flatten();
             return (Vec::new(), Vec::new(), note);
         };
+        let listed: Vec<(&AgentId, &str)> = shown
+            .iter()
+            .map(|f| &f.agent)
+            .zip(names.iter().map(String::as_str))
+            .collect();
         let mut placed: Vec<(Placed, Option<Item>)> = Vec::new();
         for (facts, name) in shown.iter().zip(&names) {
             if still.iter().any(|f| f.agent == facts.agent) {
@@ -3604,7 +3617,7 @@ where
             }
             let item = match (&open, line.status()) {
                 (Some(o), Status::NeedsYou) if !quit_line => {
-                    self.item_of(st, facts, held, o.kind, &o.item, name)
+                    self.item_of(st, facts, held, (o.kind, &o.item), name, &listed)
                 }
                 _ => None,
             };
@@ -3676,14 +3689,17 @@ where
             && (!new_slot || !schedule::holds(facts).is_empty())
     }
 
+    /// The open item `item` of the kind `kind` of the agent of `facts`, whose row has the name
+    /// `name`, as the page gets it; `listed` holds the name of every row, which the sentence of a
+    /// set-up refused with `overlap` reads for the other agent (I3.5 (c)).
     fn item_of(
         &self,
         st: &State<Cfg<P>>,
         facts: &Facts<Cfg<P>>,
         held: Option<&Held>,
-        kind: ItemKind,
-        item: &ItemId,
+        (kind, item): (ItemKind, &ItemId),
         name: &str,
+        listed: &[(&AgentId, &str)],
     ) -> Option<Item> {
         let agent = &facts.agent;
         let plain = |p: Plain| compose_plain(item, agent, p, name).ok();
@@ -3708,7 +3724,7 @@ where
                 .setups
                 .iter()
                 .find(|s| s.item() == item)
-                .and_then(|s| s.page_item(name, &self.limits).ok()),
+                .and_then(|s| s.page_item(name, |a| Self::row_name(listed, a), &self.limits).ok()),
             ItemKind::Check => {
                 let kept = st
                     .checks

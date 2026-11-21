@@ -1,7 +1,7 @@
 use super::{AgentId, CandidateFrom, Cause, Choice, Class, Control, FieldFrom, ItemId, ItemKind};
 use super::{HistoryRead, Kept, LineKey, Origin, Param, Presenter, Status, WorkflowId, YesNo};
 use crate::items::{field_from, kept_source};
-use crate::ports::Refused;
+use crate::ports::{Refused, Shared};
 use crate::words;
 use serde::Serialize;
 
@@ -1093,6 +1093,75 @@ impl ErrorReply {
 impl Serialize for ErrorReply {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         Refusal::Cause(self.error).serialize(s)
+    }
+}
+
+/// What the sentence of a refusal `overlap` says (I3.5 (c), (f)), from what the core holds of the
+/// read that followed the newest refusal: the other agent by the name of its row, with the
+/// senders that both agents would read, where the read named an agent that the list shows; and
+/// nobody where the read did not answer or named no agent that the list shows. The sentence is
+/// composed when the item or the reply is written; nothing is stored for it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Overlapping {
+    /// The read named this agent of the list with these senders.
+    Named {
+        /// The name of the other agent's row (I2.3).
+        name: String,
+        /// The senders that both agents would read, in the spelling of the asking agent's list.
+        senders: Vec<String>,
+        /// Whether further agents share senders: the read named more than one agent, or says
+        /// that more agents share senders than it names.
+        more: bool,
+    },
+    /// The read did not answer, or named no agent that the list shows: the sentence names
+    /// nobody and says only what the refusal proves.
+    Unread,
+}
+
+impl Overlapping {
+    /// What `shared` gives to say, with the name of an agent's row from `name_of`: the first
+    /// entry of the read whose agent has a row; `Unread` where none has one or where the read did
+    /// not answer.
+    pub fn of(shared: &Shared, name_of: impl Fn(&AgentId) -> Option<String>) -> Overlapping {
+        let Shared::Named(read) = shared else {
+            return Overlapping::Unread;
+        };
+        read.entries
+            .iter()
+            .find_map(|e| name_of(&e.agent).map(|name| (name, e)))
+            .map_or(Overlapping::Unread, |(name, e)| Overlapping::Named {
+                name,
+                senders: e.senders.clone(),
+                more: read.more || read.entries.len() > 1,
+            })
+    }
+
+    /// The line of a set-up item, in the place of `item.setup.not_taken`: the sentence of
+    /// `item.setup.overlap`, of `item.setup.overlap_more` where further agents share senders, or
+    /// of `item.setup.overlap_unread`.
+    pub fn setup_line(&self) -> Result<String, Cause> {
+        self.say([
+            "item.setup.overlap",
+            "item.setup.overlap_more",
+            "item.setup.overlap_unread",
+        ])
+    }
+
+    /// The sentence of the first key of `keys` for one named agent, of the second where further
+    /// agents share senders, with `{name}` and `{senders}`, the senders joined by a comma; of
+    /// the third for nobody.
+    fn say(&self, [one, more, nobody]: [&str; 3]) -> Result<String, Cause> {
+        match self {
+            Overlapping::Named {
+                name,
+                senders,
+                more: further,
+            } => words::text(
+                if *further { more } else { one },
+                &[("name", name), ("senders", &senders.join(", "))],
+            ),
+            Overlapping::Unread => words::text(nobody, &[]),
+        }
     }
 }
 

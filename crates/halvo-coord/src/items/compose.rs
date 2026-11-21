@@ -199,8 +199,14 @@ fn confirm_choice(
 
 /// A line of an item set by Halvo with no value: the sentence of `key` as its label.
 fn halvo_line(key: &str) -> Result<Field, Cause> {
+    halvo_said(say(key)?)
+}
+
+/// A line of Halvo whose label is `label`, a sentence that the core composed, with no value and
+/// `from` `halvo` (I3.4).
+fn halvo_said(label: String) -> Result<Field, Cause> {
     Ok(Field {
-        label: say(key)?,
+        label,
         value: Vec::new(),
         from: FieldFrom::Halvo,
         from_text: say(&format!("from.{}", FieldFrom::Halvo.name()))?,
@@ -624,6 +630,25 @@ pub fn compose_setup(
     not_taken: bool,
     limits: &Limits,
 ) -> Result<Item, Cause> {
+    let line = if not_taken {
+        Some(say("item.setup.not_taken")?)
+    } else {
+        None
+    };
+    setup_with_line(item, agent, name, params, line, limits)
+}
+
+/// `compose_setup` whose one field, where `line` holds a sentence that the core composed, is the
+/// line of Halvo with that sentence as its label: the line `item.setup.not_taken`, or the
+/// sentence of a refusal `overlap` in its place (I3.5 (c)).
+pub(crate) fn setup_with_line(
+    item: &ItemId,
+    agent: &AgentId,
+    name: &str,
+    params: &[SetupParam],
+    line: Option<String>,
+    limits: &Limits,
+) -> Result<Item, Cause> {
     if params.len() > limits.setup_params as usize {
         return Err(Cause::Malformed);
     }
@@ -660,11 +685,7 @@ pub fn compose_setup(
             refused: None,
         });
     }
-    let line = if not_taken {
-        Some(halvo_line("item.setup.not_taken")?)
-    } else {
-        None
-    };
+    let line = line.map(halvo_said).transpose()?;
     Item::setup(
         item.clone(),
         agent.clone(),
