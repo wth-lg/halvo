@@ -13696,7 +13696,7 @@ fn u24s_r2_under_class_b_the_stop_of_the_row_stops_the_run() {
 }
 
 #[test]
-fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_and_shows_the_agent_on(
+fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_answer_says_both_halves_and_the_row_shows_the_agent_on(
 ) {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
@@ -13704,7 +13704,13 @@ fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_a
         .ports
         .refuse_record(u24s_r1_hold_set, refused_name("no_workflow"));
     let m = mark(&c);
-    let _ = c.control(&agent(0), Action::SwitchOff);
+    assert_eq!(
+        c.control_reply(&agent(0), Action::SwitchOff),
+        Err(halvo_coord::types::Refusal::SwitchNotSaved(
+            Cause::NoService
+        )),
+        "the answer at the press says both halves (term (5) of RD-161 R1)"
+    );
     assert_eq!(
         u24s_r1_cancels(&c, m, &run),
         1,
@@ -13716,11 +13722,6 @@ fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_a
         }
         let row = u24s_r1_row(&c);
         assert_eq!(row.status, Status::Working, "tick {tick}");
-        assert_eq!(
-            row.line,
-            text("line.working.switch_not_saved"),
-            "tick {tick}: while the run is stopping the line says both halves"
-        );
         assert!(
             u24s_r1_controls(&row).contains(&halvo_coord::types::Control::SwitchOff),
             "tick {tick}: the switch shows on: {:?}",
@@ -13733,11 +13734,6 @@ fn u24s_r1_after_a_switch_off_that_could_not_be_saved_the_row_says_both_halves_a
             c.tick();
         }
         let row = u24s_r1_row(&c);
-        assert_eq!(
-            row.line,
-            text("line.all_set.switch_not_saved"),
-            "tick {tick}: after the end the line says that the task was stopped and the switch could not be saved"
-        );
         assert!(
             u24s_r1_controls(&row).contains(&halvo_coord::types::Control::SwitchOff),
             "tick {tick}: the switch shows on: {:?}",
@@ -13777,7 +13773,7 @@ fn u24s_r1_hold_set(e: &halvo_coord::types::Event) -> bool {
 }
 
 #[test]
-fn u24s_r1_the_line_of_a_switch_off_that_could_not_be_saved_ends_when_a_later_run_starts() {
+fn u24s_r1_a_later_run_starts_after_a_switch_off_that_could_not_be_saved() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
     c.ports()
@@ -13795,23 +13791,12 @@ fn u24s_r1_the_line_of_a_switch_off_that_could_not_be_saved_ends_when_a_later_ru
         },
     );
     c.tick();
-    assert_eq!(
-        u24s_r1_row(&c).line,
-        text("line.all_set.switch_not_saved"),
-        "the line stands after the end, read from state"
-    );
     let next = start(&c, 0);
-    assert_ne!(next, run);
-    assert_ne!(
-        u24s_r1_row(&c).line,
-        text("line.working.switch_not_saved"),
-        "a later run of the agent ends the line"
-    );
-    assert_ne!(u24s_r1_row(&c).line, text("line.all_set.switch_not_saved"));
+    assert_ne!(next, run, "the agent is still on: a later run starts");
 }
 
 #[test]
-fn u24s_r1_a_later_switch_off_that_is_saved_ends_the_line_of_the_one_that_was_not() {
+fn u24s_r1_a_later_switch_off_that_is_saved_shows_the_agent_off() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
     c.ports()
@@ -13828,13 +13813,6 @@ fn u24s_r1_a_later_switch_off_that_is_saved_ends_the_line_of_the_one_that_was_no
         "the switch is saved now, so the row shows the agent off"
     );
     assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
-    let line = u24s_r1_row(&c).line;
-    assert_ne!(
-        line,
-        text("line.all_set.switch_not_saved"),
-        "after a saved switch the row no longer says that a switch could not be saved"
-    );
-    assert_ne!(line, text("line.working.switch_not_saved"));
 }
 
 #[test]
@@ -14201,7 +14179,7 @@ fn u24s_r7_a_set_aside_agent_with_an_unknown_outcome_gets_the_setup_card_then_th
 /// the line of the switch-off that could not be saved; after a Switch on the row does not say it
 /// again.
 #[test]
-fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_ends_the_line_of_the_one_that_was_not() {
+fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_shows_the_agent_off() {
     let c = coordinator(&[MANUAL], Limits::PRODUCT);
     let run = start(&c, 0);
     c.ports()
@@ -14219,7 +14197,6 @@ fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_ends_the_line_of_the_on
         },
     );
     c.tick();
-    assert_eq!(u24s_r1_row(&c).line, text("line.all_set.switch_not_saved"));
     c.ports().ports.clear_refusals();
     c.ports().loss.set(Some(support::Loss::Reply));
     c.ports().next_history_fails.set(true);
@@ -14232,13 +14209,6 @@ fn u24s_rd168_a_later_switch_off_that_a_read_shows_saved_ends_the_line_of_the_on
         "the read of the Start now brings the saved hold"
     );
     assert_eq!(c.control(&agent(0), Action::SwitchOn), Ok(()));
-    let line = u24s_r1_row(&c).line;
-    assert_ne!(
-        line,
-        text("line.all_set.switch_not_saved"),
-        "the switch-off was saved and the person switched the agent on again"
-    );
-    assert_ne!(line, text("line.working.switch_not_saved"));
 }
 
 /// Ruling RD-168 (the verifier's finding 2): an owed setup raise does not make the row say that
@@ -14272,21 +14242,16 @@ fn u24s_rd168_an_owed_setup_raise_does_not_say_needs_you_while_the_list_shows_it
 }
 
 /// Ruling RD-168 (the verifier's finding 1): while the list shows the agent's workflow dismissed,
-/// where neither half of the line can come true, the row does not say that the switch-off could
-/// not be saved.
+/// where neither half of the sentence can come true, the answer at the press does not say that
+/// the switch-off could not be saved (the row said it until term (5) of RD-161 R1).
 #[test]
-fn u24s_rd168_the_line_of_a_switch_off_that_could_not_be_saved_does_not_show_while_its_workflow_is_dismissed(
-) {
-    let (c, run) = u24s_r1_dismissed_live();
-    let _ = c.control(&agent(0), Action::SwitchOff);
-    let stopping = u24s_r1_row(&c).line;
-    assert_eq!(c.on_run(&run, RunEvent::Ended(None)), Ok(()));
-    c.tick();
-    let ended = u24s_r1_row(&c).line;
-    for line in [stopping, ended] {
-        assert_ne!(line, text("line.working.switch_not_saved"));
-        assert_ne!(line, text("line.all_set.switch_not_saved"));
-    }
+fn u24s_rd168_the_answer_of_a_switch_off_does_not_say_both_halves_while_its_workflow_is_dismissed()
+{
+    let (c, _run) = u24s_r1_dismissed_live();
+    assert!(!matches!(
+        c.control_reply(&agent(0), Action::SwitchOff),
+        Err(halvo_coord::types::Refusal::SwitchNotSaved(_))
+    ));
 }
 
 thread_local! {

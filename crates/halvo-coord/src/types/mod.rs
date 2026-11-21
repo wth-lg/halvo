@@ -41,7 +41,7 @@ pub use names::{
 pub use reply::{Ask, AskAct, AskControl, AskEffect, AskKind};
 pub use reply::{
     BusyHistory, Candidate, Card, CardEffect, CardLine, CardRun, ChoiceText, ClosedReply,
-    ControlText, ErrorReply, Field, Item, OkReply, ParamEntry, Row, Snapshot, Unread,
+    ControlText, ErrorReply, Field, Item, OkReply, ParamEntry, Refusal, Row, Snapshot, Unread,
 };
 pub use run::{
     Answer, AskedEffect, BindAsk, BoundField, ConfirmAsk, Decision, DecisionEntry, HandbackAsk,

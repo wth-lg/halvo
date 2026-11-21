@@ -2716,16 +2716,31 @@ where
     /// tells the page and the tray when it changed.
     /// A switch-off
     /// whose `hold_set` the owner refuses with a name of class B stops the agent's live run as
-    /// the stop does, stores no hold and answers the store's cause; the agent stays on, and its
-    /// row says both, that the task was stopped and that the switch-off could not be saved, until
-    /// a later run of it starts or a later switch-off of it is stored (ruling RD-155 (1)), while
-    /// the owner's list does not show its workflow dismissed (ruling RD-168).
+    /// the stop does, stores no hold and answers the store's cause; the agent stays on, and the
+    /// answer of `control_reply` says both, that the task was stopped and that the switch-off
+    /// could not be saved (ruling RD-155 (1); term (5) of RD-161 R1).
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
+        self.control_reply(agent, action)
+            .map_err(crate::types::Refusal::cause)
+    }
+
+    /// `control`, with its refusal as the reply of `agents_control` writes it: a switch-off whose
+    /// `hold_set` the owner refused under class B after it stopped the agent's live run is
+    /// `Refusal::SwitchNotSaved`, whose sentence the page shows beside the control, while the
+    /// owner's list does not show the agent's workflow dismissed (ruling RD-168); every other
+    /// refusal is its cause alone.
+    pub fn control_reply(
+        &self,
+        agent: &AgentId,
+        action: Action,
+    ) -> Result<(), crate::types::Refusal> {
         let mut st = self.enter_control(agent, Some(action));
         let before = Self::agents_held_off(&st);
         let off = matches!(action, Action::SwitchOff);
         st.refused_on.retain(|(a, _)| a != agent);
+        let kept = Self::still_on(&st, agent);
         let out = self.control_in(&mut st, agent, action);
+        let stopped = off && out.is_err() && !kept && Self::still_on(&st, agent);
         if off && out.is_ok() {
             // Every owed `paused` before a freed body, where a set-up keeps one (ruling RD-160
             // (2)); a switch-off that waits for a read of the clock sends its own with the rest
@@ -2739,7 +2754,24 @@ where
         self.finish_switch_offs_after_reads(&mut st, &before);
         self.deletes_due(&mut st);
         self.publish(&mut st);
-        out
+        out.map_err(|cause| {
+            if stopped {
+                crate::types::Refusal::SwitchNotSaved(cause)
+            } else {
+                crate::types::Refusal::Cause(cause)
+            }
+        })
+    }
+
+    /// Whether the board marks the agent kept on after a switch-off that could not be saved
+    /// (`Board::kept_on`), while the owner's list does not show its workflow dismissed.
+    fn still_on(st: &State<Cfg<P>>, agent: &AgentId) -> bool {
+        st.board.as_ref().is_some_and(|board| {
+            board.kept_on(agent)
+                && board.members.iter().any(|m| {
+                    &m.facts.agent == agent && !board.workflow_dismissed(&m.facts.workflow.id)
+                })
+        })
     }
 
     /// The person's yes to the question of a row's Delete (I8.1 `agents_delete`; ruling RD-19
@@ -3567,22 +3599,6 @@ where
             // questions could not be shown yet (U3.12 (B); RD-155 (2), way B).
             if owed && !st.deleting.iter().any(|d| d.agent == facts.agent) {
                 if let Ok(text) = words::text("line.needs_you.setup_owed", &[]) {
-                    row.line = text;
-                }
-            }
-            if board.kept_on(&facts.agent)
-                && !board.workflow_dismissed(&facts.workflow.id)
-                && matches!(
-                    row.status,
-                    Status::Working | Status::WaitingTurn | Status::AllSet
-                )
-            {
-                let key = if board.runs.iter().any(|r| r.agent == facts.agent) {
-                    "line.working.switch_not_saved"
-                } else {
-                    "line.all_set.switch_not_saved"
-                };
-                if let Ok(text) = words::text(key, &[]) {
                     row.line = text;
                 }
             }

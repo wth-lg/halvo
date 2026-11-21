@@ -30,6 +30,8 @@ pub enum Reply {
     Closed,
     /// `{"error":"<cause>"}`.
     Error(Cause),
+    /// A refused control of a row, with the sentence that the page shows beside the control.
+    Refused(halvo_coord::types::Refusal),
 }
 
 impl Serialize for Reply {
@@ -40,6 +42,7 @@ impl Serialize for Reply {
             Reply::Ok => OkReply.serialize(s),
             Reply::Closed => ClosedReply { closed: YesNo::Yes }.serialize(s),
             Reply::Error(cause) => ErrorReply { error: *cause }.serialize(s),
+            Reply::Refused(refusal) => refusal.serialize(s),
         }
     }
 }
@@ -381,12 +384,15 @@ where
                     self.coord.shown_on_page(&i, step)
                 })
                 .into(),
-            "agents_control" => agent()
-                .and_then(|a| {
-                    let action = Action::parse(args.text("action"))?;
-                    self.coord.control(&a, action)
-                })
-                .into(),
+            "agents_control" => {
+                match agent().and_then(|a| Ok((a, Action::parse(args.text("action"))?))) {
+                    Ok((a, action)) => self
+                        .coord
+                        .control_reply(&a, action)
+                        .map_or_else(Reply::Refused, |()| Reply::Ok),
+                    Err(cause) => Reply::Error(cause),
+                }
+            }
             "agents_delete" => agent().and_then(|a| self.coord.delete(&a)).into(),
             _ => return None,
         })

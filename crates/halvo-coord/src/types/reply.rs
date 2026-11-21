@@ -1092,12 +1092,48 @@ impl ErrorReply {
 
 impl Serialize for ErrorReply {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        Refusal::Cause(self.error).serialize(s)
+    }
+}
+
+/// A refused control of a row (I8.1 `agents_control`) as its reply writes it: `error`, the
+/// cause, and `text`, the sentence that the page shows beside the control (RD-161 R1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Refusal {
+    /// Any refusal: the sentence of `refused.<cause>`.
+    Cause(Cause),
+    /// A Switch off that stopped the agent's live run while the owner refused to store its hold
+    /// under class B, with the cause of that refusal: the sentence of `refused.switch_not_saved`,
+    /// which says both halves, that the task is stopped and that the agent is still on
+    /// (RD-155 (1); term (5) of RD-161 R1).
+    SwitchNotSaved(Cause),
+}
+
+impl Refusal {
+    /// The cause.
+    pub fn cause(self) -> Cause {
+        match self {
+            Refusal::Cause(cause) | Refusal::SwitchNotSaved(cause) => cause,
+        }
+    }
+
+    /// `text`: the sentence of its words key.
+    pub fn text(self) -> Result<String, Cause> {
+        match self {
+            Refusal::Cause(cause) => ErrorReply { error: cause }.text(),
+            Refusal::SwitchNotSaved(_) => words::text("refused.switch_not_saved", &[]),
+        }
+    }
+}
+
+impl Serialize for Refusal {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         use serde::ser::{Error, SerializeStruct};
         let text = self
             .text()
-            .map_err(|_| S::Error::custom("a cause with no sentence"))?;
+            .map_err(|_| S::Error::custom("a refusal with no sentence"))?;
         let mut reply = s.serialize_struct("ErrorReply", 2)?;
-        reply.serialize_field("error", &self.error)?;
+        reply.serialize_field("error", &self.cause())?;
         reply.serialize_field("text", &text)?;
         reply.end()
     }

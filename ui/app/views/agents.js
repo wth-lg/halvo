@@ -77,7 +77,7 @@
     });
   }
 
-  function answer(agent, act, text) {
+  function answer(agent, act, text, rereads) {
     var row = null;
     if (snapshot !== null) {
       snapshot.rows.forEach(function (r) {
@@ -93,15 +93,15 @@
       say.add([text]);
       said = status.firstChild;
     }
-    answers.push({ agent: agent, act: act, line: row.line, text: text, said: said });
+    answers.push({ agent: agent, act: act, line: rereads ? null : row.line, text: text, said: said });
     render();
   }
 
-  function press(row, act, name, args) {
+  function press(row, act, name, args, rereads) {
     var drawn = turn;
     if (drop(row.agent)) render();
     return send(row.agent, name, args).then(function (reply) {
-      if (drawn === turn && reply && typeof reply.error === 'string' && isText(reply.text) && reply.text !== '') answer(row.agent, act, reply.text);
+      if (drawn === turn && reply && typeof reply.error === 'string' && isText(reply.text) && reply.text !== '') answer(row.agent, act, reply.text, rereads);
       return reply;
     });
   }
@@ -170,7 +170,7 @@
         ask(row);
         return;
       }
-      press(row, c.control, 'agents_control', { agent: row.agent, action: c.control }).then(reread);
+      press(row, c.control, 'agents_control', { agent: row.agent, action: c.control }, true).then(reread);
     });
     return b;
   }
@@ -357,7 +357,7 @@
     asking += 1;
     var mine = asking;
     var asked = turn;
-    press(row, act, 'agents_card', { agent: row.agent }).then(function (reply) {
+    press(row, act, 'agents_card', { agent: row.agent }, false).then(function (reply) {
       if (mine !== asking || asked !== turn || !isCard(reply, row.agent)) return;
       card = reply;
       again = reply.history === 'busy' ? { agent: row.agent, left: CARD_TRIES } : null;
@@ -473,9 +473,13 @@
     snapshot = reply;
     busy = {};
     keep(function (a) {
-      return reply.rows.some(function (r) {
-        return r.agent === a.agent && r.line === a.line;
+      var row = null;
+      reply.rows.forEach(function (r) {
+        if (r.agent === a.agent) row = r;
       });
+      if (row === null) return false;
+      if (a.line === null) a.line = row.line;
+      return row.line === a.line;
     });
     if (question !== null) {
       var asked = question;

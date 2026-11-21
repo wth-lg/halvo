@@ -1536,7 +1536,7 @@ if (want('ten')) {
 
   await test('a_refused_press_answer_stands_through_a_state_that_keeps_its_row_and_goes_at_each_end', async () => {
     const line = [words['line.all_set.done'], words['line.all_set.new']].find((l) => typeof l === 'string' && l !== A.line);
-    const changed = { ...ten, seq: 3, rows: ten.rows.map((r) => (r.agent === A.agent ? { ...r, line } : r)) };
+    const changed = { ...ten, seq: 4, rows: ten.rows.map((r) => (r.agent === A.agent ? { ...r, line } : r)) };
     const syncCall = { ...callOf(C, 'run_now'), reply: { ok: 'yes' } };
     const replies = [
       { state: ten },
@@ -1545,6 +1545,8 @@ if (want('ten')) {
       { state: { ...ten, seq: 2 } },
       { ...callOf(A, 'switch_off'), reply: { ok: 'yes' } },
       refused('busy'),
+      syncCall,
+      { state: { ...ten, seq: 3 } },
       syncCall,
       { state: changed },
       refused('busy'),
@@ -1564,6 +1566,8 @@ if (want('ten')) {
       await press(h, 'run_now', A.agent);
       seen.before_line = await answerOf(h, 'run_now');
       await sync(h);
+      seen.after_reread = await answerOf(h, 'run_now');
+      await sync(h);
       seen.line = await answerOf(h, 'run_now');
       await press(h, 'run_now', A.agent);
       seen.before_drawn = await answerOf(h, 'run_now');
@@ -1575,7 +1579,8 @@ if (want('ten')) {
     const sentence = words['refused.busy'];
     const stands = (s) => typeof sentence === 'string' && s.text === sentence && s.beside && same(s.said, [[sentence]]);
     const gone = (s) => s.text === null && same(s.said, [[]]);
-    const ok = typeof line === 'string' && stands(seen.kept) && gone(seen.pressed) && stands(seen.before_line) && gone(seen.line) && stands(seen.before_drawn) && gone(seen.drawn);
+    const ok =
+      typeof line === 'string' && stands(seen.kept) && gone(seen.pressed) && stands(seen.before_line) && stands(seen.after_reread) && gone(seen.line) && stands(seen.before_drawn) && gone(seen.drawn);
     return [ok, seen];
   });
 }
