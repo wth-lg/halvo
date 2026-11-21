@@ -29,6 +29,9 @@ const AX_ERROR_ATTRIBUTE_UNSUPPORTED: i32 = -25205;
 
 pub const TITLE_READ_CAP_UNITS: usize = 1024;
 
+/// The UTF-16 units at the end of a title that the private-window rule reads.
+pub const TITLE_ENDING_UNITS: usize = 64;
+
 pub const TITLE_READ_DEADLINE: Duration = crate::macos::foreground::FOREGROUND_POLL;
 
 const HEAD_READ_UNITS: usize = TITLE_READ_CAP_UNITS + 1;
@@ -36,13 +39,16 @@ const HEAD_READ_UNITS: usize = TITLE_READ_CAP_UNITS + 1;
 const _: () = assert!(crate::floor::text::TEXT_MAX_BYTES <= TITLE_READ_CAP_UNITS);
 
 /// The bounded read of a window title: at most one UTF-16 unit more than
-/// [`TITLE_READ_CAP_UNITS`] from its start, with an unpaired surrogate read as
-/// U+FFFD. A unit takes at least one byte, so the floor's text entry, which
-/// keeps at most [`TITLE_READ_CAP_UNITS`] bytes, cuts every title longer than
-/// the cap and records the cut. It prints a placeholder.
+/// [`TITLE_READ_CAP_UNITS`] from its start and at most [`TITLE_ENDING_UNITS`]
+/// from its end, each with an unpaired surrogate read as U+FFFD. A unit takes
+/// at least one byte, so the floor's text entry, which keeps at most
+/// [`TITLE_READ_CAP_UNITS`] bytes, cuts every title longer than the cap and
+/// records the cut. It prints a placeholder.
 #[derive(Clone, PartialEq, Eq)]
 pub struct TitleText {
     text: String,
+    ending: String,
+    private_words: Option<&'static str>,
 }
 
 impl TitleText {
@@ -54,11 +60,34 @@ impl TitleText {
         self.text
     }
 
+    pub fn ending(&self) -> &str {
+        &self.ending
+    }
+
+    /// The same title, read from a window of a browser whose private window
+    /// ends its title with `words`.
+    pub(crate) fn of_a_browser_ending_private_with(self, words: &'static str) -> Self {
+        Self {
+            private_words: Some(words),
+            ..self
+        }
+    }
+
+    /// Whether the title ends with the words that its browser puts at the end
+    /// of a private window's title.
+    pub(crate) fn is_private(&self) -> bool {
+        self.private_words
+            .is_some_and(|words| self.ending.ends_with(words))
+    }
+
     #[cfg(test)]
     pub(crate) fn for_test(text: &str) -> Self {
         let units: Vec<u16> = text.encode_utf16().collect();
+        let start = units.len().saturating_sub(TITLE_ENDING_UNITS);
         Self {
             text: lossy(&units[..units.len().min(HEAD_READ_UNITS)]),
+            ending: lossy(&units[start..]),
+            private_words: None,
         }
     }
 }
@@ -113,8 +142,25 @@ fn bounded_title(text: &CFString) -> TitleText {
     // SAFETY: `string` is a live CFString that `text` holds.
     let total = usize::try_from(unsafe { CFStringGetLength(string) }).unwrap_or(0);
     let head = units_of(string, 0, total.min(HEAD_READ_UNITS));
-    TitleText { text: lossy(&head) }
+    let start = total.saturating_sub(TITLE_ENDING_UNITS);
+    TitleText {
+        text: lossy(&head),
+        ending: lossy(&units_of(string, start, total - start)),
+        private_words: None,
+    }
 }
+
+/// The localization whose words for a private window [`ENGLISH_ENDINGS`]
+/// holds: the US-English one.
+pub(crate) const ENGLISH: &str = "en";
+
+/// Chrome, Edge and Safari, each matched whole, with the words that end the
+/// title of its private window in the localization [`ENGLISH`].
+pub(crate) const ENGLISH_ENDINGS: [(&str, &str); 3] = [
+    ("com.google.Chrome", "(Incognito)"),
+    ("com.microsoft.edgemac", "(InPrivate)"),
+    ("com.apple.Safari", ", Private Browsing"),
+];
 
 const BROWSER_BUNDLE_IDS: [&str; 30] = [
     "com.google.Chrome",
@@ -149,14 +195,50 @@ const BROWSER_BUNDLE_IDS: [&str; 30] = [
     "de.iron.Iron",
 ];
 
+/// What the closed list of browsers says of an app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Listed {
+    /// One of [`ENGLISH_ENDINGS`], matched whole: the browser and its words.
+    Ending(&'static str, &'static str),
+    /// Named by a full id of the list: a browser whatever the system lists.
+    Browser,
+    /// Under a whole domain of the list alone: a browser unless the system's
+    /// list was read and does not name it.
+    Domain,
+    /// Not on the list.
+    Other,
+}
+
+pub(crate) fn listed(bundle_id: &str) -> Listed {
+    if let Some(&(browser, words)) = ENGLISH_ENDINGS
+        .iter()
+        .find(|(browser, _)| bundle_id.eq_ignore_ascii_case(browser))
+    {
+        return Listed::Ending(browser, words);
+    }
+    let mut domain = false;
+    for entry in BROWSER_BUNDLE_IDS {
+        let named = bundle_id
+            .get(..entry.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(entry));
+        match (named, entry.ends_with('.')) {
+            (true, false) => return Listed::Browser,
+            (true, true) => domain = true,
+            (false, _) => {}
+        }
+    }
+    if domain {
+        Listed::Domain
+    } else {
+        Listed::Other
+    }
+}
+
+/// `Private` for an app that a full id of the closed list names, other than
+/// the three of [`ENGLISH_ENDINGS`]: its titles are not read, whatever the
+/// system says. Every other app's titles are left to the title rules.
 pub(crate) fn window_privacy(bundle_id: Option<&str>) -> PrivateWindow {
-    let browser = bundle_id.is_some_and(|id| {
-        BROWSER_BUNDLE_IDS.iter().any(|browser| {
-            id.get(..browser.len())
-                .is_some_and(|head| head.eq_ignore_ascii_case(browser))
-        })
-    });
-    if browser {
+    if bundle_id.is_some_and(|id| listed(id) == Listed::Browser) {
         PrivateWindow::Private
     } else {
         PrivateWindow::Unknown
@@ -395,22 +477,15 @@ mod tests {
     #[test]
     fn each_browser_of_the_closed_list_reads_private_and_no_other_app_does() {
         for browser in [
-            "com.google.Chrome",
             "com.google.Chrome.canary",
-            "com.microsoft.edgemac",
             "com.microsoft.edgemac.Dev",
-            "org.mozilla.firefox",
-            "org.mozilla.nightly",
-            "com.apple.Safari",
             "com.apple.SafariTechnologyPreview",
             "com.brave.Browser.beta",
             "company.thebrowser.Browser",
             "com.operasoftware.OperaGX",
             "com.vivaldi.Vivaldi",
-            "org.torproject.torbrowser",
             "com.duckduckgo.macos.browser",
             "com.kagi.kagimacOS",
-            "org.chromium.Chromium",
         ] {
             assert_eq!(
                 window_privacy(Some(browser)),
