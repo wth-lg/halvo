@@ -283,33 +283,6 @@ fn index<C>(board: &Board<C>, agent: &AgentId) -> Option<usize> {
     board.members.iter().position(|m| &m.facts.agent == agent)
 }
 
-/// The runs of an earlier life that the board keeps, each with its agent (rulings RD-151 (c),
-/// RD-150): for each member the run that `Board::alive_at_reap` names, and for each agent of a
-/// gone workflow that recovery kept for its row (`Board::kept_gone`) its newest run for which
-/// this life's `Runs::reap` answered `alive` and that the store's record does not name; a run
-/// whose kill this life's library answered Ok (`killed`) is left out.
-fn kept_runs<C>(board: &Board<C>, killed: &[RunId]) -> Vec<(AgentId, RunId)> {
-    let members = board.members.iter().filter_map(|m| {
-        board
-            .alive_at_reap(&m.facts.agent)
-            .map(|run| (m.facts.agent.clone(), run.clone()))
-    });
-    let gone = board.kept_gone().iter().filter_map(|f| {
-        f.events.iter().rev().find_map(|e| match &e.what {
-            crate::types::What::RunStarted { run, .. }
-                if board.answered_alive(run) && !f.runs.iter().any(|r| &r.run == run) =>
-            {
-                Some((f.agent.clone(), run.clone()))
-            }
-            _ => None,
-        })
-    });
-    members
-        .chain(gone)
-        .filter(|(_, run)| !killed.contains(run))
-        .collect()
-}
-
 fn set_aside<C>(board: &mut Board<C>, agent: &AgentId) -> Option<Vec<schedule::Waiting>> {
     let order = board.queue.entries().to_vec();
     board.queue.remove(agent).then_some(order)
@@ -3127,15 +3100,11 @@ where
             self.flush_ledgers(board, ledgers);
         }
         let _ = self.act(&mut st, Act::KillAll);
-        let kept = st
+        let killed = st
             .board
             .as_ref()
-            .map_or_else(Vec::new, |b| kept_runs(b, &st.killed_kept));
-        for (_, run) in kept {
-            if Runs::kill(&self.ports, &run).is_ok() {
-                st.killed_kept.push(run);
-            }
-        }
+            .map_or_else(Vec::new, |b| run::kill_kept(&self.ports, b, &st.killed_kept));
+        st.killed_kept.extend(killed);
         self.publish(&mut st);
     }
 
@@ -3172,58 +3141,13 @@ where
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
-        let Some(stamp) = crate::ports::Stamp::read(&self.ports)
-            .ok()
-            .or_else(|| self.last_stamp())
-        else {
-            return;
-        };
-        let mut agents: Vec<&AgentId> = Vec::new();
-        for (agent, _) in &fresh {
-            if !agents.contains(&agent) {
-                agents.push(agent);
-            }
-        }
-        for agent in agents {
-            let Some((_, workflow)) = flows.iter().find(|(a, _)| a == agent) else {
-                continue;
-            };
-            let runs: Vec<&RunId> = fresh
-                .iter()
-                .filter(|(a, _)| a == agent)
-                .map(|(_, run)| run)
-                .collect();
-            for _ in 0..2 {
-                let Ok((_, last)) = self.ports.history(agent, u32::MAX) else {
-                    break;
-                };
-                let events: Vec<crate::types::Event> = runs
-                    .iter()
-                    .zip(0u32..)
-                    .map(|(run, k)| crate::types::Event {
-                        workflow: workflow.clone(),
-                        agent: agent.clone(),
-                        seq: std::num::NonZeroU32::MIN.saturating_add(last.saturating_add(k)),
-                        day: stamp.day(),
-                        at: stamp.at(),
-                        what: crate::types::What::RunNotStopped {
-                            run: (*run).clone(),
-                        },
-                    })
-                    .collect();
-                match self.ports.log(&events) {
-                    Ok(()) => {
-                        self.written
-                            .lock()
-                            .unwrap_or_else(PoisonError::into_inner)
-                            .extend(runs.iter().map(|run| (agent.clone(), (*run).clone())));
-                        break;
-                    }
-                    Err(e) if schedule::seq_refusal(&e) => {}
-                    Err(_) => break,
-                }
-            }
-        }
+        let acknowledged = run::write_not_stopped(&self.ports, &fresh, &flows, || {
+            self.last_stamp()
+        });
+        self.written
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(acknowledged);
     }
 
     /// The count of live runs as the last publish found them, for which the app's quit hook
@@ -3453,7 +3377,7 @@ where
                 }
             }
             named.sort_by_key(|(rank, _, _)| *rank);
-            *listed = kept_runs(b, &st.killed_kept)
+            *listed = run::kept_runs(b, &st.killed_kept)
                 .into_iter()
                 .chain(named.into_iter().map(|(_, agent, run)| (agent, run)))
                 .collect();

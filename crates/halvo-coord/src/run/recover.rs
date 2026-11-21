@@ -211,6 +211,111 @@ fn started_at(events: &[Event], run: &RunId) -> i64 {
         .unwrap_or(i64::MAX)
 }
 
+/// The runs of an earlier life that the board keeps, each with its agent (rulings RD-151 (c),
+/// RD-150): for each member the run that `Board::alive_at_reap` names, and for each agent of a
+/// gone workflow that recovery kept for its row (`Board::kept_gone`) its newest run for which
+/// this life's `Runs::reap` answered `alive` and that the store's record does not name; a run
+/// in `killed`, whose kill this life's library answered Ok, is left out.
+pub(crate) fn kept_runs<C>(board: &Board<C>, killed: &[RunId]) -> Vec<(AgentId, RunId)> {
+    let members = board.members.iter().filter_map(|m| {
+        board
+            .alive_at_reap(&m.facts.agent)
+            .map(|run| (m.facts.agent.clone(), run.clone()))
+    });
+    let gone = board.kept_gone().iter().filter_map(|f| {
+        f.events.iter().rev().find_map(|e| match &e.what {
+            What::RunStarted { run, .. }
+                if board.answered_alive(run) && !f.runs.iter().any(|r| &r.run == run) =>
+            {
+                Some((f.agent.clone(), run.clone()))
+            }
+            _ => None,
+        })
+    });
+    members
+        .chain(gone)
+        .filter(|(_, run)| !killed.contains(run))
+        .collect()
+}
+
+/// Sends `Runs::kill` for each run that `kept_runs` names, so that the Quit that the row of such
+/// a run names reaches it (ruling RD-151 (c)), and answers the runs whose kill the library
+/// answered Ok; any other answer, such as the `unknown_run` of a library that never started the
+/// run, leaves the run out of the answer.
+pub(crate) fn kill_kept<P: Runs, C>(ports: &P, board: &Board<C>, killed: &[RunId]) -> Vec<RunId> {
+    kept_runs(board, killed)
+        .into_iter()
+        .filter_map(|(_, run)| ports.kill(&run).is_ok().then_some(run))
+        .collect()
+}
+
+/// Writes the list of the runs that did not stop (ruling RD-150): for each run of `listed`
+/// whose agent `flows` pairs with a workflow, one `run_not_stopped` event in that agent's ledger
+/// of the owner, where the next life's recovery reads it (`roster::not_stopped_in`). The rows of
+/// one agent go in one body, numbered after the owner's stored last, which this call reads
+/// (`Owner::history`), and stamped by one read of the clock, or by `fallback` where that read
+/// fails; with neither, nothing is written. A refusal `seq` reads the stored last once more and
+/// sends once more; any other failure writes nothing for that agent. It answers the pairs whose
+/// rows the owner acknowledged.
+pub(crate) fn write_not_stopped<P: Owner + Clock>(
+    ports: &P,
+    listed: &[(AgentId, RunId)],
+    flows: &[(AgentId, crate::types::WorkflowId)],
+    fallback: impl FnOnce() -> Option<Stamp>,
+) -> Vec<(AgentId, RunId)> {
+    let mut acknowledged = Vec::new();
+    if listed.is_empty() {
+        return acknowledged;
+    }
+    let Some(stamp) = Stamp::read(ports).ok().or_else(fallback) else {
+        return acknowledged;
+    };
+    let mut agents: Vec<&AgentId> = Vec::new();
+    for (agent, _) in listed {
+        if !agents.contains(&agent) {
+            agents.push(agent);
+        }
+    }
+    for agent in agents {
+        let Some((_, workflow)) = flows.iter().find(|(a, _)| a == agent) else {
+            continue;
+        };
+        let runs: Vec<&RunId> = listed
+            .iter()
+            .filter(|(a, _)| a == agent)
+            .map(|(_, run)| run)
+            .collect();
+        for _ in 0..2 {
+            let Ok((_, last)) = ports.history(agent, u32::MAX) else {
+                break;
+            };
+            let events: Vec<Event> = runs
+                .iter()
+                .zip(0u32..)
+                .map(|(run, k)| Event {
+                    workflow: workflow.clone(),
+                    agent: agent.clone(),
+                    seq: NonZeroU32::MIN.saturating_add(last.saturating_add(k)),
+                    day: stamp.day(),
+                    at: stamp.at(),
+                    what: What::RunNotStopped {
+                        run: (*run).clone(),
+                    },
+                })
+                .collect();
+            match ports.log(&events) {
+                Ok(()) => {
+                    acknowledged.extend(runs.iter().map(|run| (agent.clone(), (*run).clone())));
+                    break;
+                }
+                Err(e) if seq_refusal(&e) => {}
+                Err(_) => break,
+            }
+        }
+    }
+    acknowledged
+}
+
 struct Found<C> {
     agent: Agent<C>,
     workflow: FullWorkflow,
