@@ -421,8 +421,9 @@ impl<C> Board<C> {
         self.stuck_of(agent).gone = true;
     }
 
-    /// Takes a refusal of a write of the agent by its class, the same for every sender (I7.2,
-    /// rulings RD-64 2.5, RD-123, RD-125 (1), RD-126 item 9): class B counts nothing toward the
+    /// Takes a refusal of a write of the agent, or of the read that follows a write's first
+    /// `seq`, by its class, the same for every sender (I5.7, I7.2, rulings RD-64 2.5, RD-123,
+    /// RD-125 (1), RD-126 item 9, RD-155 (4)): class B counts nothing toward the
     /// stuck line and marks nothing for the life, but for a body that holds the start's
     /// `run_started` (`start`), which stops the tick's start for the life (`start_gone`); a
     /// refusal that cannot pass in this life (`lasts_the_life`) counts and marks the agent for the

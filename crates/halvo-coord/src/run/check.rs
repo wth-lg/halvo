@@ -77,9 +77,13 @@ where
 /// the read and logged once more while `check_due` holds (rulings XB-31, RD-34 (b), RD-5).
 /// The check is a sender of the agent's record as the other three are: the board takes each
 /// acknowledged body as a store of the agent and each refusal by its class, a second `seq` after
-/// the read among them (I5.7, I7.2, rulings RD-64 2.5, RD-126 item 9), so that a check that the
-/// owner keeps refusing shows the line of a stuck record. A refusal that comes after the count
-/// of a tick counts at the next tick's count, as a move of the person does.
+/// the read among them, and so a refusal by name of that read itself (I5.7, I7.2, rulings RD-64
+/// 2.5, RD-126 item 9, RD-155 (4)), so that a check that the owner keeps refusing shows the line
+/// of a stuck record. Where that read leaves the stored last below the newest `seq` of the
+/// agent's events, the move reads the owner's rows after the number from which its body was
+/// numbered, and an open check among them is the agent's, so that no second raise is stored
+/// (ruling RD-12 (b)). A refusal that comes after the count of a tick counts at the next tick's
+/// count, as a move of the person does, also at a tick whose read of the owner's list fails.
 /// The agents that hold the item `check` so, in ascending agent id.
 pub(super) fn raise_checks<P, C>(
     ports: &P,

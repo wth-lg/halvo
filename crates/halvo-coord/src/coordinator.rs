@@ -2304,7 +2304,11 @@ where
     /// `stop` lapses the open item of a
     /// waiting run with `cancelled` and stops the run in one command, for every kind of item,
     /// and answers success for an agent whose run is stopping or not live (ruling RD-6); the
-    /// switch-off control lapses that item in the same way before its own move.
+    /// switch-off control lapses that item in the same way before its own move. A switch-off
+    /// whose `hold_set` the owner refuses with a name of class B stops the agent's live run as
+    /// the stop does, stores no hold and answers the store's cause; the agent stays on, and its
+    /// row says both, that the task was stopped and that the switch-off could not be saved, until
+    /// a later run of it starts (ruling RD-155 (1)).
     pub fn control(&self, agent: &AgentId, action: Action) -> Result<(), Cause> {
         let mut st = self.enter(Entry::Move);
         let before = Self::agents_held_off(&st);

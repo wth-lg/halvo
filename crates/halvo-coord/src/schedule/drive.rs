@@ -1238,7 +1238,8 @@ fn store_record_shows_ended<C>(board: &Board<C>, agent: &AgentId, run: &RunId) -
 /// then raises the agent's `setup` again as the life's first creation move does (`setup_again`,
 /// I5.8): where its workflow is in the list of the tick, `listed`, and not dismissed, its hold
 /// `setup` stands and it holds no open item, the raise lapsing an earlier life's `setup` item that
-/// recovery owes in its own body (ruling RD-122; the inbox of 2026-11-17T08:19:17Z (f)).
+/// recovery owes in its own body (ruling RD-122; the inbox of 2026-11-17T08:19:17Z (f)). A raise
+/// that the owner does not store is owed, as at the first creation move (ruling RD-155 (2)).
 fn recover_aside<P: Owner + Rng, C: ConfigView>(
     cx: &MoveContext<'_, P>,
     board: &mut Board<C>,
@@ -1493,7 +1494,9 @@ where
 /// The new life's raise of `setup` for every agent of the list whose hold `setup` stands and that
 /// holds no open item, one whose item recovery lapsed with `app_ended` among them (I5.8, K7). No
 /// run is live and the queue is empty before the life's first creation move, so that an agent
-/// with no open item is `idle`.
+/// with no open item is `idle`. A raise that the owner does not store is owed
+/// (`Board::setup_owed`): each later tick makes it again until the owner stores it or the
+/// agent's record is stuck (ruling RD-155 (2)).
 fn setups_again<P, C>(cx: &MoveContext<'_, P>, board: &mut Board<C>, list: &[Workflow])
 where
     P: Owner + Rng,
@@ -2043,7 +2046,10 @@ fn stop_live<P: Owner + Runs, C: ConfigView>(
 /// where one stands it reads the owner's events first and goes on with no second `hold_set`
 /// while the hold stands, stores `hold_set` as a new press where the hold has ended, and answers
 /// the read's cause where the read fails. The switch-on takes a read that shows its holds ended
-/// as its store in the same way.
+/// as its store in the same way. Where the owner refuses the `hold_set` with a name of class B
+/// and a live run of the agent stands that a stop can reach, the switch-off stops that run as
+/// the person's stop does, sends no `set_state`, stores no hold and answers the store's cause,
+/// and the board marks the agent kept on (`Board::kept_on`; ruling RD-155 (1)).
 pub fn drive<P>(
     ports: &P,
     board: &mut Board<P::Config>,
