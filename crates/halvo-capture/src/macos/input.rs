@@ -557,8 +557,9 @@ impl Folds {
 
 /// Typing on a Mac: whether a source that the product builds asks its tap for
 /// key events. Off until the owner answers item I-83 point 2, so a Mac build
-/// notes no typing. `InputSource::start_events` is its one reader.
-const TYPING_ON_MAC: bool = false;
+/// notes no typing. In this crate `InputSource::start_events` is its one
+/// reader; the app reads it as `halvo_capture::macos::input::TYPING_ON_MAC`.
+pub const TYPING_ON_MAC: bool = false;
 
 /// The event types of a tap: a key type only while `typing` and key_class are
 /// both on, a pointer type only while pointer_class is on.
