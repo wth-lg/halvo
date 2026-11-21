@@ -1,6 +1,6 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: Clippy with clippy::disallowed_methods forbidden passes over the library, binary and example targets of halvo-coord, halvo-coord-app and halvo-coord-store with all their features, and clippy with that lint forced to warn and the methods of scripts/r4/linked-disallowed-methods.txt, given through CLIPPY_CONF_DIR, finds none of them called in the library target of a crate that the app links or in the app's binary, as the app builds them and as cargo's JSON names the targets, but the two named limits, each keyed by its file, its pair of findings and the text between them, open with its one argument in halvo-control and sw_vers -productVersion in halvo-capture, both in both jobs, and the macos job runs those two passes alone; in the windows job the code of the three crates outside tests/ names no cfg but test, feature, target_os, windows, unix, any, all and not, holds no dollar sign in a cfg predicate and no rustc-cfg line, the three committed clippy.toml files stand byte for byte with no other clippy configuration in or below the three, at the root or in crates/, no package lies inside them, no cargo configuration is tracked in them, at the root or in crates/, and neither CLIPPY_CONF_DIR nor a flags variable with an allow flag, cap-lints or a cfg flag is set; a normal build of the workspace resolves tauri with neither unstable nor test; the crates that the app links and the three crates hold no start of a child in the named spellings that the check reads, counted call by call, but the two named limits, each as its committed statement; every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile and changes no tracked file, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed; it does not hold a name that a macro pastes, a name inside a string (link_name, dlsym), code that a build script writes, a start through a library that is not yet a dependency, a call into another crate's function that starts a child, the code of other runs' crates that the three call and the app does not link, a wrapper variable (RUSTC_WRAPPER, RUSTC_WORKSPACE_WRAPPER), code of a crate that the app links that no clippy run of the job compiles, a build script or a proc-macro crate that the app links, or, in a crate that the app links, a start in a spelling other than the methods of the list through include!, behind a test attribute on a closure parameter or a generic parameter, or through a type alias or an import alias declared in another file.
+# rule: Clippy with clippy::disallowed_methods forbidden passes over the library, binary and example targets of halvo-coord, halvo-coord-app and halvo-coord-store with all their features, and clippy with that lint forced to warn and the methods of scripts/r4/linked-disallowed-methods.txt, given through CLIPPY_CONF_DIR, finds none of them called in the library target of a crate that the app links or in the app's binary, as the app builds them and as cargo's JSON names the targets, but the two named limits, each keyed by its file, its pair of findings and the text between them, open with its one argument in halvo-control and sw_vers -productVersion in halvo-capture, both in both jobs, and the macos job runs those two passes alone; in the windows job the code of the three crates outside tests/ names no cfg but test, feature, target_os, windows, unix, any, all and not, holds no dollar sign in a cfg predicate and no rustc-cfg line, the three committed clippy.toml files stand byte for byte with no other clippy configuration in or below the three, at the root or in crates/, no package lies inside them, no cargo configuration is tracked in them, at the root or in crates/, and neither CLIPPY_CONF_DIR nor a flags variable with an allow flag, cap-lints or a cfg flag is set; a normal build of the workspace resolves tauri with neither unstable nor test; the crates that the app links and the three crates hold no start of a child in the named spellings that the check reads, counted call by call, but the two named limits, each as its committed statement; every test of halvo-coord, and of halvo-coord-app once that crate is in the tree, passes with the committed lockfile and changes no tracked file, and every refusal test of I3.6, I4.8 and I5.11 that the crates hold ran and passed; it does not hold a name that a macro pastes, a name inside a string (link_name, dlsym), code that a build script writes, a start through a library that is not yet a dependency, a call into another crate's function that starts a child, the code of other runs' crates that the three call and the app does not link, a wrapper variable (RUSTC_WRAPPER, RUSTC_WORKSPACE_WRAPPER), a start in a test target of the three crates, which no pass reads, code of a crate that the app links that no clippy run of the job compiles, a build script or a proc-macro crate that the app links, or, in a crate that the app links, a start in a spelling other than the methods of the list through include!, behind a test attribute on a closure parameter or a generic parameter, or through a type alias or an import alias declared in another file.
 set -u
 name=20-r4-core
 
@@ -55,6 +55,8 @@ Named limits, which the check does not hold:
 - a call into another crate's function that starts a child;
 - the code of other runs' crates that the three call and the app does not link;
 - a wrapper variable (RUSTC_WRAPPER, RUSTC_WORKSPACE_WRAPPER);
+- a start in a test target of halvo-coord, halvo-coord-app or halvo-coord-store: no pass reads
+  their test targets, and the review reads each test file that a unit adds for a start;
 - in a crate that the app links, code that no clippy run of the job compiles (a cfg that names
   clippy or debug_assertions, a cfg that a macro pastes or a build script sets, a feature that the
   app does not turn on, another system), and a build script or a proc-macro crate: the compiler
@@ -1399,6 +1401,10 @@ EOF
   real_tree r2
   put "$work/r2/crates/halvo-control/src/lib.rs" 'pub mod onboarding;\npub fn f() {}\n'
   put "$work/r2/crates/halvo-control/src/onboarding.rs" 'pub fn open(url: &str) -> std::io::Result<bool> {\n    let status = std::process::Command::new("/usr/bin/open")\n        .arg(url)\n        .status()?;\n    Ok(status.success())\n}\n'
+  put "$work/r2/crates/halvo-coord/Cargo.toml" '[package]\nname = "halvo-coord"\nversion = "0.0.0"\nedition = "2021"\n'
+  lint_config >"$work/r2/crates/halvo-coord/clippy.toml" || exit 2
+  put "$work/r2/crates/halvo-coord/src/lib.rs" 'pub fn c() {}\n'
+  put "$work/r2/crates/halvo-coord/tests/start.rs" '#[test]\nfn t() {\n    let _ = std::process::Command::new("x").status();\n}\n'
   put "$work/r2/crates/halvo-agent-client/Cargo.toml" '[package]\nname = "halvo-agent-client"\nversion = "0.0.0"\nedition = "2021"\n'
   put "$work/r2/crates/halvo-agent-client/src/lib.rs" 'pub fn a() {}\n'
   put "$work/r2/crates/halvo-agent-client/src/bin/peer.rs" 'fn main() {\n    let _ = std::process::Command::new("peer").spawn();\n}\n'
@@ -1406,6 +1412,7 @@ EOF
   check the-compiler-passes-the-open-limit-and-an-unlinked-binary PASS 'linked crates=2 targets=2 findings=2 limits=1 other=0 skipped=0' run_real r2
   batch=$out
   seen the-open-limit-matches-the-real-findings 'start limit crates/halvo-control/src/onboarding.rs:2'
+  seen named-limit-a-start-in-a-test-target-of-the-three-crates-passes 'allow clippy with the lint forbidden: exit=0'
   STUB_CLIPPY_EXIT=101
   STUB_CLIPPY_TEXT='    Checking halvo-coord v0.0.0 (/fixture/abs/crates/halvo-coord)\nerror: use of a disallowed method \0140std::process::Command::new\0140\n --> crates/halvo-coord/src/lib.rs:3:13\nerror: could not compile \0140halvo-coord\0140 (lib) due to 1 previous error\n'
   check macos-job-forbid-run-fails FAIL " --> crates/halvo-coord/src/lib.rs:3:13" run_mac app
@@ -1420,8 +1427,11 @@ EOF
     finish
   fi
   batch=$(sh "$here/$name.sh" --help 2>&1)
+  seen the-help-names-a-start-in-a-test-target 'a start in a test target of halvo-coord, halvo-coord-app or halvo-coord-store'
   seen the-help-names-code-that-no-clippy-run-compiles 'code that no clippy run of the job compiles'
   seen the-help-names-other-spellings-through-include-and-aliases 'a start in a spelling other than the methods of the list through'
+  batch=$(grep '^# rule: ' "$here/$name.sh")
+  seen the-rule-names-a-start-in-a-test-target 'a start in a test target of the three crates, which no pass reads'
   check text-rules-pass-their-controls PASS 'allow crates=2 files=' run_one
   batch=$out
   seen the-windows-job-runs-the-compiler-pass 'linked crates=2 targets=3 findings=0 limits=0 other=0 skipped=0'
