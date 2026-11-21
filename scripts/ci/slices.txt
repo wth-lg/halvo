@@ -23,6 +23,7 @@ mon windows check 10-r7-account
 tue macos tests B
 tue windows tests B
 
+wed macos tests E
 wed macos check 51-macos-stall
 wed macos check 30-core-boundary-proofs
 wed macos check 55-r6-formal
@@ -77,7 +78,6 @@ sat macos tests D
 sat macos check 10-r7-account
 sat windows check 32-app-check-page
 sat windows check 38-app-engine-routes
-sat windows check 10-egress
 sat windows check 20-r6-gateway
 sat windows check 80-r6-absent
 sat windows tests D
@@ -86,3 +86,4 @@ sun macos check 62-build
 sun macos tests C
 sun windows check 62-build
 sun windows check 60-r6-egress
+sun windows check 10-egress
