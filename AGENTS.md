@@ -5,6 +5,8 @@ background get work done through AI agents. This repository holds the Tauri 2 ap
 `src-tauri/`, the capture crate in `crates/`, and the scripts and CI workflow that
 build, check and release them.
 
+On a push and on a pull request CI runs the merge gate, the checks that `scripts/ci/merge-gate.txt` names for each job, in a run that ends in under 20 minutes; every other check and every self-test of the table runs on Sundays and in a run by hand, and `scripts/ci/README.md` says how a check or a test enters or leaves the merge gate.
+
 ## Rules
 
 The rule table of this repository is below, and `CLAUDE.md` imports this file.
