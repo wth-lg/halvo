@@ -1078,7 +1078,8 @@ where
                     candidates: candidates(*p, &f.workflow),
                 })
                 .collect();
-            if let Ok(setup) = Setup::new(
+            if let Ok(setup) = items::open_setup(
+                &self.ports,
                 open.item.clone(),
                 f.workflow.id.clone(),
                 f.agent.clone(),

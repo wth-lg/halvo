@@ -5,16 +5,16 @@
 
 use super::{choices, compose_bind, compose_confirm, confirm_step, handback_kind, handback_result};
 use super::{setup_step, ConfirmAnswer, ConfirmMove, ConfirmState, Confirmation};
-use super::{Setup, SetupBody, SetupInput, SetupMove, SetupState};
+use super::{Setup, SetupBody, SetupInput, SetupMove, SetupParam, SetupState};
 use crate::guard::Table;
 use crate::ports::{Clock, Owner, PortError, Reading, Rng, Runs, Senders, Shared, Stamp};
 use crate::schedule::wants_active;
 use crate::types::{
-    hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Cause, CheckAnswer,
-    Choice, Cleared, ConfigView, ConfirmAsk, DecisionEntry, DoneAnswer, Event, Facts, HandbackAsk,
-    HandbackResult, Item, ItemId, ItemKind, LapseCause, Lapsed, Limits, LinkAnswer, OtherLapse,
-    OwnItem, OwnItemKind, Param, Presenter, Raised, RunId, RunItem, RunItemKind, SetupAnswer,
-    SignInAnswer, What, WorkflowId,
+    hex, AgentId, AgentState, Answered, BindAnswer, BindAsk, BindResult, Body, Category, Cause,
+    CheckAnswer, Choice, Cleared, ConfigView, ConfirmAsk, DecisionEntry, DoneAnswer, Event, Facts,
+    HandbackAsk, HandbackResult, Item, ItemId, ItemKind, LapseCause, Lapsed, Limits, LinkAnswer,
+    OtherLapse, OwnItem, OwnItemKind, Param, Presenter, Raised, RunId, RunItem, RunItemKind,
+    SetupAnswer, SignInAnswer, What, WorkflowId,
 };
 use serde::Serialize;
 use std::num::NonZeroU32;
@@ -2275,6 +2275,45 @@ pub fn freed_setup<P: Owner + Clock, C: ConfigView + Clone>(
     } else {
         Ok(SetupDone::Open)
     }
+}
+
+/// Opens the setup item `item` of the agent `agent` of `workflow`, of the category `category`,
+/// that asks `params` (I3.5; ruling RD-81 9.2): a value offered for `reply_senders` that the
+/// reader of senders refuses is not offered, so that a parameter left with no offered value
+/// takes a typed line and no card keeps a choice that can only fail; then `Setup::new`. A reader
+/// that did not answer is `busy` or `no_service`, and nothing is opened.
+pub fn open_setup<P: Senders>(
+    ports: &P,
+    item: ItemId,
+    workflow: WorkflowId,
+    agent: AgentId,
+    category: Category,
+    params: Vec<SetupParam>,
+) -> Result<Setup, Cause> {
+    let mut asked = Vec::with_capacity(params.len());
+    for p in params {
+        let mut candidates = Vec::with_capacity(p.candidates.len());
+        for (value, from) in p.candidates {
+            if offers(ports, p.param, &value)? {
+                candidates.push((value, from));
+            }
+        }
+        asked.push(SetupParam {
+            param: p.param,
+            candidates,
+        });
+    }
+    Setup::new(item, workflow, agent, category, asked)
+}
+
+/// Whether the set-up may offer `value` for `param`: for `reply_senders` only where the reader
+/// of senders takes the value's text, its pieces joined.
+fn offers<P: Senders>(ports: &P, param: Param, value: &[String]) -> Result<bool, Cause> {
+    if param != Param::ReplySenders {
+        return Ok(true);
+    }
+    let read = ports.read(&value.concat()).map_err(|e| cause_of(&e))?;
+    Ok(read == Reading::Taken)
 }
 
 /// The person's answer to a setup item (I3.5), with the facts and the ledger of its agent:

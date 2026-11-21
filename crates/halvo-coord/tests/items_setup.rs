@@ -1,7 +1,7 @@
 #[path = "items_support.rs"]
 mod support;
 
-use halvo_coord::items::drive::{answer_setup, tick_setup, Ledger, SetupDone};
+use halvo_coord::items::drive::{answer_setup, open_setup, tick_setup, Ledger, SetupDone};
 use halvo_coord::items::{
     params, raise_step, setup_step, Raise, Setup, SetupInput, SetupMove, SetupParam, SetupState,
     Source,
@@ -1042,6 +1042,56 @@ fn a_typed_list_that_the_reader_takes_is_stored_byte_for_byte_as_typed() {
         .collect();
     assert_eq!(sent.len(), 1);
     assert_eq!(slots_of(&sent[0]), vec![slot("reply_senders", &[list])]);
+}
+
+/// RD-81 9.2 (U2.4n): an offered sender that the reader refuses is not offered, and a parameter
+/// left with no offered sender takes a typed line, so that no card keeps a choice that can only
+/// fail.
+#[test]
+fn an_offered_sender_that_the_reader_refuses_is_not_offered() {
+    let f = facts(Category::Email, "graph_mail", WorkflowState::Approved);
+    let p = ports(&f);
+    p.senders.borrow_mut().extend([
+        (
+            "bob at people.test".to_owned(),
+            Refused::NotAnAddress(entry(1)),
+        ),
+        (
+            "ännchen@people.test".to_owned(),
+            Refused::NotAscii(entry(1)),
+        ),
+    ]);
+    let open = |values: &[&str]| {
+        let senders = SetupParam {
+            param: Param::ReplySenders,
+            candidates: values
+                .iter()
+                .map(|v| (values_of(v), CandidateFrom::Records))
+                .collect(),
+        };
+        open_setup(
+            &p,
+            item_id(1),
+            flow(),
+            agent(),
+            Category::Email,
+            vec![senders],
+        )
+        .unwrap()
+    };
+    let one = open(&["ann@people.test", "bob at people.test"]);
+    assert_eq!(
+        one.params()[0].candidates,
+        vec![(values_of("ann@people.test"), CandidateFrom::Records)]
+    );
+    assert_eq!(page(&one)["params"][0]["typed"], "no");
+    let none = open(&["ännchen@people.test", "bob at people.test"]);
+    assert!(none.params()[0].candidates.is_empty());
+    assert_eq!(page(&none)["params"][0]["typed"], "yes");
+}
+
+fn values_of(value: &str) -> Vec<String> {
+    vec![value.to_owned()]
 }
 
 fn past(n: u32, outcome: Outcome) -> PastRun {
