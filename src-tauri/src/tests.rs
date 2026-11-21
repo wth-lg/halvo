@@ -592,6 +592,13 @@ const UNIT_PERMISSIONS: [&str; 10] = [
     "core:app:allow-version",
 ];
 
+const WORKFLOWS_PERMISSIONS: [&str; 4] = [
+    "allow-workflows",
+    "allow-approve-workflow",
+    "allow-dismiss-workflow",
+    "allow-delete-workflow",
+];
+
 fn permission_names(permissions: &Value) -> BTreeSet<String> {
     permissions
         .as_array()
@@ -641,8 +648,8 @@ fn the_built_context_holds_the_capability_file_and_no_other_capability() {
         .collect();
     assert_eq!(
         identifiers,
-        ["capture"],
-        "the build holds the capabilities {identifiers:?} beside capture"
+        ["capture", "workflows"],
+        "the build holds the capabilities {identifiers:?} beside capture and workflows"
     );
     let capture = &built["capture"];
     assert_eq!(capture["windows"], serde_json::json!(["main"]), "{capture}");
@@ -690,7 +697,7 @@ fn is_refused(reply: &Result<Value, Value>) -> bool {
 #[test]
 fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin_alone() {
     let commands = manifest_commands();
-    assert_eq!(commands.len(), 174, "commands of the generated manifests");
+    assert_eq!(commands.len(), 178, "commands of the generated manifests");
     let test = test_app(scratch_dir("every-command"));
     let main = main_window(&test.app);
     let other = WebviewWindowBuilder::new(
@@ -760,7 +767,7 @@ fn widening(labels: &[&str], identifier: &str) -> String {
     serde_json::json!({
         "identifier": identifier,
         "windows": labels,
-        "permissions": UNIT_PERMISSIONS,
+        "permissions": UNIT_PERMISSIONS.iter().chain(&WORKFLOWS_PERMISSIONS).collect::<Vec<_>>(),
     })
     .to_string()
 }

@@ -5,6 +5,7 @@
 pub mod capture;
 pub mod control;
 pub mod names;
+pub mod workflows;
 
 #[cfg(test)]
 mod tests;
@@ -35,10 +36,16 @@ impl<R: Runtime> Module<R> {
 }
 
 pub fn table<R: Runtime>() -> Vec<Module<R>> {
-    vec![Module {
-        registration: &capture::Capture,
-        handler: capture::handler::<R>,
-    }]
+    vec![
+        Module {
+            registration: &capture::Capture,
+            handler: capture::handler::<R>,
+        },
+        Module {
+            registration: &workflows::Workflows,
+            handler: workflows::handler::<R>,
+        },
+    ]
 }
 
 /// The answer to a call of a module's command that does not come from the

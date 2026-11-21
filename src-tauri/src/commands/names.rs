@@ -29,4 +29,16 @@ pub const CAPTURE: Names = Names {
     ],
 };
 
-pub const MODULES: &[&Names] = &[&CAPTURE];
+pub const WORKFLOWS: Names = Names {
+    #[cfg(test)]
+    module: "workflows",
+    commands: &[
+        "workflows",
+        "approve_workflow",
+        "dismiss_workflow",
+        "delete_workflow",
+    ],
+    reads: &[],
+};
+
+pub const MODULES: &[&Names] = &[&CAPTURE, &WORKFLOWS];

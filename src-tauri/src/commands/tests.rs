@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use halvo_control::client::{ClientError, Connector, NoTransport};
 
 use super::control::{Control, Gated, MAX_CALLS_IN_FLIGHT, REPLY_BYTES_IN_FLIGHT};
+use super::workflows::{proposals, Listed};
 
 const STEP_TIMEOUT: Duration = Duration::from_secs(20);
 const ABSENT_STEP_WAIT: Duration = Duration::from_millis(300);
@@ -255,4 +256,33 @@ fn the_client_gets_only_what_is_left_of_the_deadline_after_the_wait() {
         "the connect got {:?} of a 2 s deadline whose call was made {AGED:?} earlier",
         seen[0]
     );
+}
+
+fn hex(byte: u8) -> String {
+    format!("{byte:02x}").repeat(16)
+}
+
+fn listed(id: u8, proposed: bool, category: &str, first_summary: u8, count: u8) -> Listed {
+    Listed {
+        id: hex(id),
+        proposed,
+        category: category.to_string(),
+        app: None,
+        site: None,
+        summaries: (first_summary..first_summary + count).map(hex).collect(),
+    }
+}
+
+#[test]
+fn the_list_holds_at_most_four_proposed_workflows_in_the_ruled_order() {
+    let six = [
+        listed(0x11, true, "tenant_rent", 0xe0, 2),
+        listed(0x22, true, "shop_order", 0x30, 3),
+        listed(0x33, false, "utility_bill_payment", 0x40, 9),
+        listed(0x44, true, "tenant_rent", 0xb0, 2),
+        listed(0x55, true, "email", 0x50, 5),
+        listed(0x66, true, "utility_bill_payment", 0x60, 3),
+    ];
+    let ids: Vec<String> = proposals(&six).iter().map(|w| w.id.clone()).collect();
+    assert_eq!(ids, [hex(0x55), hex(0x66), hex(0x22), hex(0x44)]);
 }
