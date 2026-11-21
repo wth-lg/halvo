@@ -1722,6 +1722,11 @@ case $STUB_CHECK:${2:-} in
   git-config:generate)
     git config --local r6.egress.planted generate || exit 97
     ;;
+  in-place:generate)
+    tr o O <docs/r2/trials/egress.md >docs/r2/trials/egress.md.new &&
+      touch -r docs/r2/trials/egress.md docs/r2/trials/egress.md.new &&
+      mv docs/r2/trials/egress.md.new docs/r2/trials/egress.md || exit 97
+    ;;
   attributes:generate)
     attributes=$(git rev-parse --git-path info/attributes) || exit 97
     mkdir -p "${attributes%/*}" && printf 'r6-planted r6=1\n' >"$attributes" || exit 97
@@ -2057,6 +2062,7 @@ last-entry-leaves-a-file-in-the-checkout
 shared-stand-ins-first-input
 shared-stand-ins-second-input
 run-writes-info-attributes
+run-rewrites-a-tracked-file-in-place
 EOF
 }
 
@@ -2891,6 +2897,7 @@ EOF
   env_case env-rules-reads-a-mixed-case-wrapper-name FAIL "rule env ${w_rustc}_Wrapper is set" '' "${w_rustc}_Wrapper=/x"
   env_case env-rules-skips-a-flags-name-with-one-more-sign PASS 'holds=yes' "rule env ${v_flags}X" "${v_flags}X=-Aunsafe_code"
   env_case env-rules-skips-a-wrapper-name-with-one-more-sign PASS 'holds=yes' "rule env ${w_rustc}_WRAPPERX" "${w_rustc}_WRAPPERX=/x"
+  env_case env-rules-skips-a-wrapper-name-with-one-sign-less PASS 'holds=yes' "rule env ${w_rustc}_WRAPPE" "${w_rustc}_WRAPPE=/x"
   case_repo=$work/repo-cfg
   case_tree=$cfg_tree
   case_run rule-cfg-target-os FAIL check 'rule cfg crates/halvo-route-gate/src/net.rs:1 target_os'
@@ -3136,6 +3143,9 @@ EOF
   fi
   STUB_CHECK=attributes
   case_run run-writes-info-attributes FAIL check "egress run=generate: a wrapped run changed git's configuration"
+  STUB_CHECK=in-place
+  case_run run-rewrites-a-tracked-file-in-place FAIL check 'tree changed=after M docs/r2/trials/egress.md' 'tree changed=after kind'
+  git -C "$work/repo" checkout -q -- docs/r2/trials/egress.md 2>/dev/null || self_failed "setup at line $LINENO"
   STUB_BUILD_TOUCH=$work/repo/docs/r2/trials/egress.md
   case_run build-changes-a-tracked-file FAIL check 'tree changed=before-calls M docs/r2/trials/egress.md'
   git -C "$work/repo" checkout -q -- docs/r2/trials/egress.md 2>/dev/null || self_failed "setup at line $LINENO"
