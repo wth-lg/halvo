@@ -22,11 +22,21 @@
 //!
 //! # The batch
 //!
-//! The worker reads until the newest record, until the batch holds 2,000,000 records, or until the first record
-//! whose local day, by the system's time zone, is not that of the batch's first record, whichever comes first. The
-//! position of the first record that it did not take is the batch's commit position. The episode step gets the
-//! offset of local time from UTC at the batch's first record. The worker draws one summary id from the system's
-//! random bytes for each episode that the step returns.
+//! The worker reads until the newest record, until the batch holds 16,384 records that a record follows, or until
+//! the first record whose local day, by the system's time zone, is not that of the batch's first record, whichever
+//! comes first. A batch that reaches the 16,384 records ends before its last pause, the last of its records whose
+//! instant lies more than 331 s after that of every record before it: the 300 s past which the episode step
+//! continues no episode and the 31 s that it moves a late keystroke or click back, together. With no pause it
+//! keeps them all. The position of the first record that it did not take is the batch's commit position, and the
+//! next start reads from that record on, so a day above the bound takes several starts and holds back no later
+//! day. The episode step closes every episode at the end of its call: a batch that ends at the bound with no pause
+//! can make two episodes of one, and of an agent's run that it divides, the records after the cut are read as the
+//! person's. A keystroke or click that the store placed after the first record of a batch and that the episode
+//! step orders before it has no title record before it in its call and is dropped, at this cut as at the cut of a
+//! day.
+//!
+//! The episode step gets the offset of local time from UTC at the batch's first record. The worker draws one
+//! summary id from the system's random bytes for each episode that the step returns.
 //!
 //! It sends the episodes as one batch (`send::Sender::batch`): one or more writes of at most 65,500 bytes, the last
 //! alone with the commit position. A worker that ends before that write leaves nothing in the store. A batch that
