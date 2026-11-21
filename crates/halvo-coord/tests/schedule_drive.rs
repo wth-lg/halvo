@@ -4276,3 +4276,60 @@ fn u24s_a_schedule_log_whose_read_after_a_first_seq_is_refused_by_name_counts() 
         );
     }
 }
+
+/// The days for which the store keeps a row of `coord_event` (I7.1), which the memory owner keeps
+/// here; the crate's code knows no such number (ruling RD-73 2.2, 2.4).
+const KEPT_DAYS: u32 = 93;
+const DAY_MS: u64 = 86_400_000;
+
+/// Sets the memory clock `days` whole days after `T0`, in the zone of `T0`.
+fn days_on(w: &World, days: u64) {
+    w.ports.set_now(T0 + days * DAY_MS);
+}
+
+/// RD-73 2.1 and 2.2 (I5.1, I5.9): the memory clock moves 94 days in one life, and one move that
+/// is neither a start nor an end, the creation move, reads the day. Each agent's facts are then,
+/// field by field, those of the board that `recover` builds from the same ports: the rows that
+/// passed their day are left out and the rows within it stay.
+#[test]
+fn rd73_a_move_after_94_days_in_one_life_holds_the_board_that_recovery_builds() {
+    use halvo_coord::roster::{row, status_of};
+    let mut w = world(&[AUTO, person()]);
+    w.ports.keep_rows_for(KEPT_DAYS);
+    for days in [0, 50] {
+        days_on(&w, days);
+        let tick = w.tick();
+        assert_eq!(tick.raised, vec![agent(1)], "day {days}");
+        let run = ok_run(&tick.started[0].clone().into_report());
+        w.end(&run, Some(Outcome::Completed));
+        let skip = w.go(Move::Skip { agent: agent(1) });
+        assert_eq!(skip.answer, Ok(Answer::Ok), "day {days}");
+    }
+    days_on(&w, 94);
+    w.go(Move::Create);
+    let new = halvo_coord::run::recover(&w.ports, &w.limits).unwrap().board;
+    assert_eq!(w.board.day, new.day);
+    assert_eq!(w.board.members.len(), new.members.len());
+    let line = |board: &Board<Config>, f: &Facts<Config>| {
+        let stuck = board.record_stuck(&f.agent, &w.limits);
+        row(f, status_of(f, &w.limits, None, stuck), "x", None, &w.limits)
+    };
+    for (i, (long, fresh)) in w.board.members.iter().zip(&new.members).enumerate() {
+        let (a, b) = (&long.facts, &fresh.facts);
+        assert_eq!(a.agent, b.agent);
+        assert_eq!(a.events, b.events, "the events of {i}");
+        assert_eq!(a.runs, b.runs, "the newest run record of {i}");
+        assert_eq!(a.store_ended, b.store_ended, "store_ended of {i}");
+        assert_eq!(
+            w.board.stored_last(i),
+            new.stored_last(i),
+            "the stored last of {i}"
+        );
+        assert_eq!(holds(a), holds(b), "the holds of {i}");
+        assert_eq!(line(&w.board, a), line(&new, b), "the row of {i}");
+        let tick = |f: &Facts<Config>| tick_step(f, true, &w.limits);
+        assert_eq!(tick(a), tick(b), "the tick's answer for {i}");
+        assert_eq!(long, fresh, "every other field of {i}");
+    }
+    assert_eq!(count(&w.facts(0).events, "run_started"), 1, "the rows of day 50");
+}
