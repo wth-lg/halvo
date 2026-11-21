@@ -416,6 +416,19 @@ fn no_owner_starts_before_the_first_read() {
     assert!(rig.dir().join("derived").join("owner.pid").is_file());
 }
 
+/// Rule 6, the figure: the caller's `first_live`, the number that the owner slot hands the owner as `--first-live`,
+/// answers exactly the lowest live ordinal that the cell holds: 41 after a read that names 41, and 57 after a newer
+/// read of the same store that names 57.
+#[test]
+fn first_live_is_the_cell_s_lowest_live_ordinal() {
+    let rig = Rig::new("caller-first-live");
+    let store = capture();
+    cell().keep(store.clone(), Position { seg: 90, idx: 0 }, Some(41));
+    assert_eq!(rig.caller.first_live(), 41);
+    cell().keep(store, Position { seg: 91, idx: 0 }, Some(57));
+    assert_eq!(rig.caller.first_live(), 57);
+}
+
 /// Rule 7: the read channel is served by the fixture transport of halvo-seam over a store with no record, and the
 /// cell holds that store's id and watermark. The first yes names no committed position, so the worker reads from
 /// the zero position, takes no record and commits the watermark; the owner's report frame names that position and
