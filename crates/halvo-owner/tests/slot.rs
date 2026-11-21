@@ -8,7 +8,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use halvo_capture::custody::StoreKey;
-use halvo_capture::daemon::r2::owner_slot::{Caller, OwnerSlot, Place};
+use halvo_capture::daemon::owner_pid::Owner;
+use halvo_capture::daemon::r2::owner_slot::{
+    Caller, Distrust, Holder, OwnerSlot, Place, ProcessTable,
+};
 use halvo_control::proto::ErrorCode;
 use halvo_schema_core::ids::RequestId;
 use halvo_schema_core::request::{decode_reply, ErrorName, InterfaceRead, InterfaceRole};
@@ -113,15 +116,51 @@ impl Caller for Daemon {
     fn report(&self, _: &[u8]) {}
 }
 
-/// A slot over `scratch` that starts the built owner.
-fn slot(scratch: &Scratch, daemon: &Arc<Daemon>, idle_ms: Option<u32>) -> OwnerSlot {
+/// The place of a slot over `scratch` that starts the built owner.
+fn place(scratch: &Scratch, idle_ms: Option<u32>) -> Place {
     let program = Path::new(env!("CARGO_BIN_EXE_halvo-owner"));
-    let place = Place {
+    Place {
         program_dir: program.parent().unwrap().to_path_buf(),
         data_dir: scratch.0.clone(),
         idle_ms,
-    };
-    OwnerSlot::new(place, Arc::clone(daemon) as Arc<dyn Caller>)
+    }
+}
+
+/// A slot over `scratch` that starts the built owner.
+fn slot(scratch: &Scratch, daemon: &Arc<Daemon>, idle_ms: Option<u32>) -> OwnerSlot {
+    OwnerSlot::new(
+        place(scratch, idle_ms),
+        Arc::clone(daemon) as Arc<dyn Caller>,
+    )
+}
+
+/// The pid that a stand-in table answers for: no process of this Mac's table is read for it.
+const STAND_IN_PID: u32 = 4_000_002;
+
+/// A process table of the test that reads no start time and answers one holder for every pid; it ends no orphan.
+struct StandIn(Holder);
+
+impl ProcessTable for StandIn {
+    fn start_time(&self, _: u32) -> Option<u64> {
+        None
+    }
+
+    fn holder(&self, _: u32) -> Holder {
+        self.0
+    }
+
+    fn end(&self, owner: Owner) -> bool {
+        panic!("the stand-in table was asked to end {owner:?}")
+    }
+}
+
+/// A slot over `scratch` whose take-over reads the stand-in table that answers `holder`.
+fn slot_over_stand_in(scratch: &Scratch, daemon: &Arc<Daemon>, holder: Holder) -> OwnerSlot {
+    OwnerSlot::with_table(
+        place(scratch, None),
+        Arc::clone(daemon) as Arc<dyn Caller>,
+        &StandIn(holder),
+    )
 }
 
 /// The pid and the start time of a line `pid=<n> started=<n>` with its end of line.
@@ -241,7 +280,7 @@ fn the_next_owner_starts_after_the_reap() {
 }
 
 /// Writes a pid file of `text` with `mode`, in a folder derived of mode 0700, as an earlier daemon would have left it.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn leave_pid_file(scratch: &Scratch, text: &str, mode: u32) {
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
     fs::DirBuilder::new()
@@ -251,6 +290,14 @@ fn leave_pid_file(scratch: &Scratch, text: &str, mode: u32) {
         .unwrap();
     fs::write(scratch.pid_file(), text).unwrap();
     fs::set_permissions(scratch.pid_file(), fs::Permissions::from_mode(mode)).unwrap();
+}
+
+/// Writes a pid file of `text` in a folder derived, as an earlier daemon would have left it; a system without modes
+/// takes none.
+#[cfg(not(unix))]
+fn leave_pid_file(scratch: &Scratch, text: &str, _: u32) {
+    fs::create_dir_all(scratch.0.join("derived")).unwrap();
+    fs::write(scratch.pid_file(), text).unwrap();
 }
 
 /// A child of the test that lives until it is ended, with its pid and start time; a thread of the test reaps it and
@@ -313,7 +360,6 @@ fn an_orphan_is_ended_by_both() {
 #[test]
 fn a_pid_file_of_a_wider_mode_is_trusted_for_nothing() {
     use halvo_capture::daemon::owner_pid::start_time_of;
-    use halvo_capture::daemon::r2::owner_slot::Distrust;
     let scratch = Scratch::new("slot-wider-mode");
     let daemon = Daemon::new(&scratch, KEY);
     let (pid, started, status) = sleeper();
@@ -333,36 +379,58 @@ fn a_pid_file_of_a_wider_mode_is_trusted_for_nothing() {
     status.recv_timeout(Duration::from_secs(30)).unwrap();
 }
 
-/// Ruling 5 (b): a line that names a process of another user, whose start time does not read here, is no match:
-/// nothing is signalled, the file stays, and no owner starts.
-#[cfg(target_os = "macos")]
+/// Ruling 5 (b), through a stand-in table: a line that names a process of this user whose start time cannot be read
+/// is no match: nothing is signalled, the file stays, and no owner starts.
 #[test]
 fn a_start_time_that_cannot_be_read_is_no_match() {
-    use halvo_capture::daemon::owner_pid::start_time_of;
-    use halvo_capture::daemon::r2::owner_slot::Distrust;
-    let other = (2..100_000)
-        .find(|pid: &libc::pid_t| {
-            // SAFETY: kill with the signal 0 sends nothing.
-            let found = unsafe { libc::kill(*pid, 0) };
-            found == -1 && std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
-        })
-        .expect("no process of another user runs");
-    let other = u32::try_from(other).unwrap();
-    assert_eq!(start_time_of(other), None, "the start time reads here");
     let scratch = Scratch::new("slot-unread-start");
     let daemon = Daemon::new(&scratch, KEY);
-    let text = format!("pid={other} started=1\n");
+    let text = format!("pid={STAND_IN_PID} started=1\n");
     leave_pid_file(&scratch, &text, 0o600);
-    let mut slot = slot(&scratch, &daemon, None);
+    let mut slot = slot_over_stand_in(&scratch, &daemon, Holder::ThisUser);
     assert_eq!(
         slot.distrust(),
-        Some(Distrust::StartTimeUnread { pid: other })
+        Some(Distrust::StartTimeUnread { pid: STAND_IN_PID })
     );
     assert_eq!(fs::read_to_string(scratch.pid_file()).unwrap(), text);
     let refused = slot.relay(&read_workflows()).unwrap_err();
     assert_eq!(refused.code(), ErrorCode::StoreUnavailable, "{refused:?}");
     assert_eq!(slot.pid(), None);
     assert!(daemon.seen().is_empty(), "a key was asked for");
+}
+
+/// The coordinator's turn of ruling 5 (B2), through a stand-in table: a pid that a process of another user holds
+/// names no owner of this user: the file is removed, nothing is signalled, and the first call starts the owner.
+#[test]
+fn a_stale_pid_of_another_users_process_is_removed_and_the_owner_starts() {
+    let scratch = Scratch::new("slot-stale-pid");
+    let daemon = Daemon::new(&scratch, KEY);
+    leave_pid_file(&scratch, &format!("pid={STAND_IN_PID} started=1\n"), 0o600);
+    let mut slot = slot_over_stand_in(&scratch, &daemon, Holder::OtherUser);
+    assert_eq!(slot.distrust(), None);
+    assert!(!scratch.pid_file().exists(), "the stale file stays");
+    let reply = decode_reply(&slot.relay(&read_workflows()).unwrap()).unwrap();
+    assert!(reply.outcome.is_ok(), "{:?}", reply.outcome);
+    let text = fs::read_to_string(scratch.pid_file()).unwrap();
+    assert_eq!(Some(line_of(&text).0), slot.pid());
+}
+
+/// The coordinator's turn of ruling 5 (B1): an empty pid file of mode 0600, as a daemon's death between the file's
+/// making and its write leaves it, names no process: it is removed, and after the first call the file holds the new
+/// owner's line and the call has its reply.
+#[test]
+fn a_pid_file_with_no_whole_line_is_removed_and_the_owner_starts() {
+    let scratch = Scratch::new("slot-no-whole-line");
+    let daemon = Daemon::new(&scratch, KEY);
+    leave_pid_file(&scratch, "", 0o600);
+    let mut slot = slot(&scratch, &daemon, None);
+    assert_eq!(slot.distrust(), None);
+    assert!(!scratch.pid_file().exists(), "the empty file stays");
+    let reply = decode_reply(&slot.relay(&read_workflows()).unwrap()).unwrap();
+    assert!(reply.outcome.is_ok(), "{:?}", reply.outcome);
+    let text = fs::read_to_string(scratch.pid_file()).unwrap();
+    assert_eq!(text.lines().count(), 1, "{text:?}");
+    assert_eq!(Some(line_of(&text).0), slot.pid());
 }
 
 /// Ruling 6: a request above 4,096 bytes is invalid_argument and starts nothing, the delete of everything answers

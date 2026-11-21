@@ -17,7 +17,7 @@ use windows_sys::Win32::System::Threading::{
     PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
 };
 
-use super::{Owner, ORPHAN_TERM_WAIT};
+use super::{Holder, Owner, ORPHAN_TERM_WAIT};
 
 /// The slot's end of the channel on which it writes, and the end that its reader thread reads.
 pub(super) type Writes = PipeWriter;
@@ -121,13 +121,18 @@ pub(super) fn creation_time(pid: u32) -> Option<u64> {
     Process::open(pid, PROCESS_QUERY_LIMITED_INFORMATION)?.created()
 }
 
-/// Whether a process of `pid` exists, also one that this process may not open.
-pub(super) fn exists(pid: u32) -> bool {
+/// Who holds `pid`: a process that this process may open counts as this user's, one whose open is refused as another
+/// user's.
+pub(super) fn holder(pid: u32) -> Holder {
     if Process::open(pid, PROCESS_QUERY_LIMITED_INFORMATION).is_some() {
-        return true;
+        return Holder::ThisUser;
     }
     // SAFETY: GetLastError reads the error of this thread's last call, the OpenProcess above.
-    unsafe { GetLastError() == ERROR_ACCESS_DENIED }
+    if unsafe { GetLastError() } == ERROR_ACCESS_DENIED {
+        Holder::OtherUser
+    } else {
+        Holder::Nobody
+    }
 }
 
 /// Ends the orphan `owner` by `TerminateProcess` on the handle whose creation time was read right before. True when
@@ -135,7 +140,7 @@ pub(super) fn exists(pid: u32) -> bool {
 pub(super) fn end(owner: Owner) -> bool {
     let access = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | PROCESS_SYNCHRONIZE;
     let Some(process) = Process::open(owner.pid, access) else {
-        return !exists(owner.pid);
+        return holder(owner.pid) == Holder::Nobody;
     };
     if process.created() != Some(owner.started) {
         return true;

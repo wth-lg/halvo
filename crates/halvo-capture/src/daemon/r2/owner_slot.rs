@@ -5,19 +5,24 @@
 //!   (`children::beside`): `halvo-owner --data-dir=<absolute dir> --first-live=<n> --channel=<r>,<w>`. The child holds
 //!   its standard streams and the two ends of its channel, and no other descriptor of the daemon.
 //! - After the start and before it asks the caller for the key, the slot writes `derived/owner.pid`, one line
-//!   `pid=<n> started=<microseconds since the epoch>`, made with mode 0600 in `derived/` of mode 0700. The start time
-//!   is the delete walk's reading (`owner_pid::start_time_of`), and where that answers none, on Windows, the
-//!   creation time of the process. A file that cannot be written ends the child, and no key is asked for.
+//!   `pid=<n> started=<microseconds since the epoch>`: under a temporary name in `derived/`, made new with mode
+//!   0600, and then renamed into place, so that the slot never leaves a pid file without its whole line. `derived/`
+//!   has mode 0700. The start time is the delete walk's reading (`owner_pid::start_time_of`), and where that answers
+//!   none, on Windows, the creation time of the process. A file that cannot be written ends the child, and no key is
+//!   asked for.
 //! - The key goes as its 32 bytes on the owner's standard input, which the slot then closes; the slot holds it no
 //!   longer than that write and no key between two starts. An owner that ends, after a refused key (exit 65 or 77)
 //!   or for any cause, is reaped and its pid file removed before a call starts the next, and the call that finds the
 //!   end answers `store_unavailable`. At most one owner lives.
 //! - When the slot is made it reads a `derived/owner.pid` that an earlier daemon left. A file of another user or of a
-//!   mode wider than 0600, a file that does not hold the line, and a process of that pid whose start time cannot be
-//!   read are trusted for nothing: no signal, no unlink, and the slot starts no owner ([`OwnerSlot::distrust`] names
-//!   the cause). A process of that pid and start time is ended, its start time read once more right before the
-//!   signal (SIGTERM, after 5 s SIGKILL; on Windows `TerminateProcess`), and the file removed. Where no process has
-//!   the pid, or its start time differs, the file is removed and nothing is signalled.
+//!   mode wider than 0600, a whole line that is not the slot's line, and a process of this user with that pid whose
+//!   start time cannot be read are trusted for nothing: no signal, no unlink, and the slot starts no owner
+//!   ([`OwnerSlot::distrust`] names the cause). A process of that pid and start time is ended, its start time read
+//!   once more right before the signal (SIGTERM, after 5 s SIGKILL; on Windows `TerminateProcess`), and the file
+//!   removed. A file that holds no whole line (empty or cut) names no process, and a pid that a process of another
+//!   user holds names no owner of this user: such a file is removed, as where no process has the pid or its start
+//!   time differs, and nothing is signalled. What keeps each removal safe is the store's own lock: an owner that
+//!   still lives holds it, and a second owner fails at its open.
 //! - [`OwnerSlot::relay`] writes one request frame and returns the owner's next frame that is no report; each report
 //!   goes to [`Caller::report`]. [`OwnerSlot::turn`] gives the owner's channel to `dispatch_unknown`.
 //! - [`OwnerSlot::stop`], and the drop of the slot, close the channel, wait 2 s for the owner's exit, then kill it,
@@ -105,9 +110,10 @@ pub struct Place {
 pub enum Distrust {
     /// The file is no regular file, or it belongs to another user or has a mode wider than 0600.
     NotPrivate,
-    /// The file cannot be read, or it does not hold one line `pid=<n> started=<n>` of a pid above 1.
+    /// The file cannot be read, or it holds a whole line that is not one line `pid=<n> started=<n>` of a pid
+    /// above 1.
     Unreadable,
-    /// A process has the pid that the file names, and its start time cannot be read.
+    /// A process of this user has the pid that the file names, and its start time cannot be read.
     StartTimeUnread { pid: u32 },
     /// The process of the pid and the start time that the file names did not end.
     NotEnded { pid: u32 },
@@ -121,7 +127,7 @@ impl Distrust {
             }
             Distrust::Unreadable => "derived/owner.pid cannot be read or does not hold its line",
             Distrust::StartTimeUnread { .. } => {
-                "the start time of the process that derived/owner.pid names cannot be read"
+                "the start time of the process of this user that derived/owner.pid names cannot be read"
             }
             Distrust::NotEnded { .. } => "the process that derived/owner.pid names did not end",
         }
@@ -141,6 +147,49 @@ impl fmt::Display for Distrust {
     }
 }
 
+/// Who holds a pid in the system's process table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Holder {
+    /// No process has the pid.
+    Nobody,
+    /// A process of this user (macOS: `kill` with the signal 0 succeeds; Windows: the process opens).
+    ThisUser,
+    /// A process that this user may not reach (macOS: EPERM; Windows: the open is refused).
+    OtherUser,
+}
+
+/// What the slot reads of the process table, and how it ends an orphan, when it takes over a pid file that an
+/// earlier daemon left. The daemon's is [`SystemTable`]; a test gives a stand-in.
+pub trait ProcessTable {
+    /// The start time of `pid` in microseconds since the epoch, or none where it cannot be read.
+    fn start_time(&self, pid: u32) -> Option<u64>;
+
+    /// Who holds `pid`.
+    fn holder(&self, pid: u32) -> Holder;
+
+    /// Ends the orphan `owner`, its start time read once more right before each signal: true when no process of
+    /// that pid and start time runs after the call.
+    fn end(&self, owner: Owner) -> bool;
+}
+
+/// The system's process table.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SystemTable;
+
+impl ProcessTable for SystemTable {
+    fn start_time(&self, pid: u32) -> Option<u64> {
+        start_time(pid)
+    }
+
+    fn holder(&self, pid: u32) -> Holder {
+        sys::holder(pid)
+    }
+
+    fn end(&self, owner: Owner) -> bool {
+        sys::end(owner)
+    }
+}
+
 /// The one owner of the derived store that the daemon starts, with its pid file.
 pub struct OwnerSlot {
     program: PathBuf,
@@ -156,9 +205,19 @@ pub struct OwnerSlot {
 impl OwnerSlot {
     /// Makes the slot over `place` and reads the pid file that an earlier daemon left. No owner starts here.
     pub fn new(place: Place, caller: Arc<dyn Caller>) -> OwnerSlot {
+        OwnerSlot::with_table(place, caller, &SystemTable)
+    }
+
+    /// Makes the slot as [`OwnerSlot::new`] does, with `table` as the process table that the take-over of an earlier
+    /// pid file reads. The starts of the slot read the system's.
+    pub fn with_table(
+        place: Place,
+        caller: Arc<dyn Caller>,
+        table: &dyn ProcessTable,
+    ) -> OwnerSlot {
         let data_dir = std::path::absolute(&place.data_dir).unwrap_or(place.data_dir);
         let pid_file = data_dir.join(PID_FILE);
-        let distrust = take_over(&pid_file);
+        let distrust = take_over(&pid_file, table);
         OwnerSlot {
             program: beside(&place.program_dir, PROGRAM),
             derived: data_dir.join(DERIVED.name()),
@@ -460,9 +519,9 @@ fn start_time(pid: u32) -> Option<u64> {
     start_time_of(pid).or_else(|| sys::creation_time(pid))
 }
 
-/// Reads the pid file that an earlier daemon left (ruling 5 of the unit): the cause when it is trusted for nothing,
-/// none when no file stands or after the file was removed.
-fn take_over(pid_file: &Path) -> Option<Distrust> {
+/// Reads the pid file that an earlier daemon left (ruling 5 of the unit, as the coordinator turned it at 17:52:26Z):
+/// the cause when it is trusted for nothing, none when no file stands or after the file was removed.
+fn take_over(pid_file: &Path, table: &dyn ProcessTable) -> Option<Distrust> {
     let meta = match fs::symlink_metadata(pid_file) {
         Ok(meta) => meta,
         Err(error) if error.kind() == ErrorKind::NotFound => return None,
@@ -471,39 +530,56 @@ fn take_over(pid_file: &Path) -> Option<Distrust> {
     if !meta.is_file() || !sys::private(&meta) {
         return Some(Distrust::NotPrivate);
     }
-    let owner: Owner = match owner_of(pid_file) {
-        Ok(Some(owner)) => owner,
-        Ok(None) => return None,
+    let whole = match fs::read(pid_file) {
+        Ok(bytes) => bytes.ends_with(b"\n"),
+        Err(error) if error.kind() == ErrorKind::NotFound => return None,
         Err(_) => return Some(Distrust::Unreadable),
     };
-    match start_time(owner.pid) {
-        Some(started) if started == owner.started => {
-            if !sys::end(owner) {
-                return Some(Distrust::NotEnded { pid: owner.pid });
+    if whole {
+        let owner: Owner = match owner_of(pid_file) {
+            Ok(Some(owner)) => owner,
+            Ok(None) => return None,
+            Err(_) => return Some(Distrust::Unreadable),
+        };
+        match table.start_time(owner.pid) {
+            Some(started) if started == owner.started => {
+                if !table.end(owner) {
+                    return Some(Distrust::NotEnded { pid: owner.pid });
+                }
+            }
+            Some(_) => {}
+            None => {
+                if table.holder(owner.pid) == Holder::ThisUser {
+                    return Some(Distrust::StartTimeUnread { pid: owner.pid });
+                }
             }
         }
-        Some(_) => {}
-        None if sys::exists(owner.pid) => {
-            return Some(Distrust::StartTimeUnread { pid: owner.pid })
-        }
-        None => {}
     }
     let _ = fs::remove_file(pid_file);
     None
 }
 
-/// Writes the pid file: a new file, made private, with the one line. A file that this call made and could not write
-/// whole is removed.
+/// Writes the pid file: the one line into a new file of the temporary name beside it, made private and synced, and
+/// then renamed into place, so that no pid file without its whole line ever stands at the name. A temporary file that
+/// an earlier start left is removed first; a pid file that stands is never written over.
 fn write_pid_file(path: &Path, line: &str) -> io::Result<()> {
-    let mut file: File = sys::create_private(path)?;
-    let written = file
-        .write_all(line.as_bytes())
-        .and_then(|()| file.sync_all());
-    if written.is_err() {
-        drop(file);
-        let _ = fs::remove_file(path);
+    if fs::symlink_metadata(path).is_ok() {
+        return Err(ErrorKind::AlreadyExists.into());
     }
-    written
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".new");
+    let new = path.with_file_name(name);
+    let _ = fs::remove_file(&new);
+    let mut file: File = sys::create_private(&new)?;
+    let placed = file
+        .write_all(line.as_bytes())
+        .and_then(|()| file.sync_all())
+        .and_then(|()| fs::rename(&new, path));
+    if placed.is_err() {
+        drop(file);
+        let _ = fs::remove_file(&new);
+    }
+    placed
 }
 
 /// Waits `wait` for the child's exit, then kills it, and reaps it.

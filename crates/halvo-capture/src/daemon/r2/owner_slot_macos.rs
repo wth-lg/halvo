@@ -13,7 +13,7 @@ use std::path::Path;
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
-use super::{start_time, Owner, ORPHAN_TERM_WAIT, POLL, REPLY_WAIT};
+use super::{start_time, Holder, Owner, ORPHAN_TERM_WAIT, POLL, REPLY_WAIT};
 
 /// How long an orphan has to end after SIGKILL before the slot gives up on it.
 const ORPHAN_KILL_WAIT: Duration = Duration::from_secs(1);
@@ -119,14 +119,20 @@ pub(super) fn creation_time(_pid: u32) -> Option<u64> {
     None
 }
 
-/// Whether a process of `pid` exists, of this user or of another.
-pub(super) fn exists(pid: u32) -> bool {
+/// Who holds `pid`: `kill` with the signal 0 succeeds for a process of this user and answers EPERM for one of
+/// another user.
+pub(super) fn holder(pid: u32) -> Holder {
     let Ok(pid) = libc::pid_t::try_from(pid) else {
-        return false;
+        return Holder::Nobody;
     };
     // SAFETY: kill with the signal 0 sends nothing; it checks the pid and touches no memory.
-    let found = unsafe { libc::kill(pid, 0) };
-    found == 0 || io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+    if unsafe { libc::kill(pid, 0) } == 0 {
+        return Holder::ThisUser;
+    }
+    match io::Error::last_os_error().raw_os_error() {
+        Some(libc::EPERM) => Holder::OtherUser,
+        _ => Holder::Nobody,
+    }
 }
 
 fn gone_within(owner: Owner, wait: Duration) -> bool {
