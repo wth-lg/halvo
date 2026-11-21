@@ -1,0 +1,1 @@
+- Added: The supervisor library removes the backup copy that an agent's edit leaves beside a workbook once it may go (superseded, 30 days old, or no replace in its run), never one whose edit is unknown, and marks each copy gone or left in the list of checkpoints.
