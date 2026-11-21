@@ -622,6 +622,13 @@ const UNIT_PERMISSIONS: [&str; 10] = [
     "core:app:allow-version",
 ];
 
+const WORKFLOWS_PERMISSIONS: [&str; 4] = [
+    "allow-workflows",
+    "allow-approve-workflow",
+    "allow-dismiss-workflow",
+    "allow-delete-workflow",
+];
+
 fn permission_names(permissions: &Value) -> BTreeSet<String> {
     permissions
         .as_array()
@@ -671,8 +678,8 @@ fn the_built_context_holds_the_capability_file_and_no_other_capability() {
         .collect();
     assert_eq!(
         identifiers,
-        ["agents", "capture"],
-        "the build holds the capabilities {identifiers:?} beside agents and capture"
+        ["agents", "capture", "workflows"],
+        "the build holds the capabilities {identifiers:?} beside agents, capture and workflows"
     );
     let agents = &built["agents"];
     assert_eq!(agents["windows"], serde_json::json!(["main"]), "{agents}");
@@ -724,7 +731,7 @@ fn is_refused(reply: &Result<Value, Value>) -> bool {
 #[test]
 fn every_command_of_the_manifests_answers_from_the_window_main_at_the_app_origin_alone() {
     let commands = manifest_commands();
-    assert_eq!(commands.len(), 183, "commands of the generated manifests");
+    assert_eq!(commands.len(), 187, "commands of the generated manifests");
     let test = test_app(scratch_dir("every-command"));
     let main = main_window(&test.app);
     let other = WebviewWindowBuilder::new(
@@ -800,6 +807,7 @@ fn widening(labels: &[&str], identifier: &str) -> String {
             .chain(permission_names(
                 &read_json(&src_tauri().join("capabilities/agents.json"))["permissions"],
             ))
+            .chain(WORKFLOWS_PERMISSIONS.iter().map(|p| p.to_string()))
             .collect::<Vec<String>>(),
     })
     .to_string()

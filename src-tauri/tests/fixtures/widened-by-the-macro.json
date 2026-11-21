@@ -23,6 +23,10 @@
     "allow-agents-control",
     "allow-agents-shown",
     "allow-agents-delete",
+    "allow-workflows",
+    "allow-approve-workflow",
+    "allow-dismiss-workflow",
+    "allow-delete-workflow",
     "core:app:allow-version"
   ]
 }

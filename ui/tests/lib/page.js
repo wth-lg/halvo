@@ -70,6 +70,7 @@ function defaultReplies() {
     inventory: () => fixture("inventory-empty"),
     onboarding_state: () => fixture("onboarding_state-none"),
     last_delete: () => fixture("last_delete-none"),
+    workflows: () => ({ state: "not_running" }),
     "plugin:app|version": () => "0.0.0",
   };
 }

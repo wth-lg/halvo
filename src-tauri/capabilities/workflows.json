@@ -1,0 +1,13 @@
+{
+  "identifier": "workflows",
+  "description": "The commands of the proposals list and of the stored workflows, for the window main of the app's own origin.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "allow-workflows",
+    "allow-approve-workflow",
+    "allow-dismiss-workflow",
+    "allow-delete-workflow"
+  ]
+}

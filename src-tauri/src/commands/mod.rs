@@ -6,6 +6,7 @@ pub mod agents;
 pub mod capture;
 pub mod control;
 pub mod names;
+pub mod workflows;
 
 #[cfg(test)]
 mod tests;
@@ -44,6 +45,10 @@ pub fn table<R: Runtime>() -> Vec<Module<R>> {
         Module {
             registration: &agents::Module,
             handler: agents::handler::<R>,
+        },
+        Module {
+            registration: &workflows::Workflows,
+            handler: workflows::handler::<R>,
         },
     ]
 }
