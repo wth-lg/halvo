@@ -112,11 +112,18 @@ fn later(
                 .any(|r| r.approval.is_some() && r.approval == row.approval),
         },
         (EffectState::Rejected, Some(Cause::Ended)) => EffectMove::End,
+        (EffectState::Rejected, Some(Cause::Reproposed)) => {
+            if last.state != EffectState::Cleared {
+                return Err(Own::Effect.into());
+            }
+            EffectMove::End
+        }
         (EffectState::Rejected, _) => EffectMove::Reject,
         (EffectState::Releasing, _) => EffectMove::Begin {
             digest: row.digest.clone(),
         },
         (EffectState::Committed, _) => EffectMove::Commit,
+        (EffectState::NotMade, Some(cause)) => EffectMove::NotMade { cause },
         (
             EffectState::Refused
             | EffectState::Cleared
@@ -127,8 +134,10 @@ fn later(
             return Err(Own::Effect.into());
         }
     };
-    if matches!(row.state, EffectState::Releasing | EffectState::Committed)
-        && row.approval.as_ref() != last_approval(mine)
+    if matches!(
+        row.state,
+        EffectState::Releasing | EffectState::Committed | EffectState::NotMade
+    ) && row.approval.as_ref() != last_approval(mine)
     {
         return Err(Own::Effect.into());
     }

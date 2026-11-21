@@ -219,7 +219,7 @@ fn runner_at(w: &mut World, at: u32, body: Value) -> Result<RunnerReply, Refused
 }
 
 fn steps_of(reply: RunnerReply) -> Vec<Value> {
-    let RunnerReply::Steps(StepsReply { steps }) = reply else {
+    let RunnerReply::Steps(StepsReply { steps, .. }) = reply else {
         panic!("a steps reply: {reply:?}");
     };
     steps

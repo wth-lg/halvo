@@ -119,7 +119,7 @@ impl LearnHandlers {
         b: &LoadSteps,
     ) -> Result<RunnerReply, Refused> {
         let reply = agent::runner(host, body)?;
-        let RunnerReply::Steps(StepsReply { mut steps }) = reply else {
+        let RunnerReply::Steps(StepsReply { agent, mut steps }) = reply else {
             return Ok(reply);
         };
         let Some(workflow) = self
@@ -128,18 +128,18 @@ impl LearnHandlers {
             .filter(|f| f.agent == b.agent && f.loaded == Some(b.number))
             .map(|f| f.workflow.clone())
         else {
-            return Ok(RunnerReply::Steps(StepsReply { steps }));
+            return Ok(RunnerReply::Steps(StepsReply { agent, steps }));
         };
         if let Read::Stopped = rows::runs(host, &workflow) {
             self.facts.remove(&b.run);
-            return Ok(RunnerReply::Steps(StepsReply { steps }));
+            return Ok(RunnerReply::Steps(StepsReply { agent, steps }));
         }
         let newest = match self.newest_of(host, &b.agent, &b.run) {
             Ok(newest) => newest,
             Err(name) => {
                 self.drop_run(&b.run);
                 self.leave(Err(name.into()));
-                return Ok(RunnerReply::Steps(StepsReply { steps }));
+                return Ok(RunnerReply::Steps(StepsReply { agent, steps }));
             }
         };
         let edits = match Edits::read(host, &workflow) {
@@ -147,7 +147,7 @@ impl LearnHandlers {
             _ => None,
         };
         let Some(facts) = self.facts.get_mut(&b.run) else {
-            return Ok(RunnerReply::Steps(StepsReply { steps }));
+            return Ok(RunnerReply::Steps(StepsReply { agent, steps }));
         };
         for step in &mut steps {
             let mut carried = None;
@@ -172,6 +172,6 @@ impl LearnHandlers {
             };
             facts.served.insert(step.n, served);
         }
-        Ok(RunnerReply::Steps(StepsReply { steps }))
+        Ok(RunnerReply::Steps(StepsReply { agent, steps }))
     }
 }

@@ -5,10 +5,12 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use common::{wait_until, Rig};
-use halvo_agent_client::{CallError, Forced, ForcedPath, OriginAnswer, RunEnd};
+use halvo_agent_client::{CallError, Forced, ForcedPath, ListFailed, OriginAnswer, RunEnd};
+use halvo_schema::executable::body::CheckpointsReply;
 use halvo_schema::executable::frame::HandbackResult;
 use halvo_schema::executable::names::{Answer, HandbackOutcome, HandbackReason, Outcome};
 use halvo_schema::executable::text::{EffectId, Name, RunId, V1};
+use halvo_schema::request::REPLY_MAX;
 
 const SHORT: Duration = Duration::from_secs(10);
 
@@ -1444,4 +1446,66 @@ fn a_confirm_after_a_done_account_link_and_its_reply_is_answered_and_the_run_end
     assert_eq!(rig.people.issued.lock().unwrap().len(), 1);
     assert_eq!(end.outcome, Some(Outcome::Completed), "{}", script.log());
     assert_eq!(end.forced, None, "{}", script.log());
+}
+
+/// A page of the list of checkpoints with one checkpoint, `made`, of the run `run`, and `next`.
+fn page(run: &RunId, next: Option<&RunId>) -> String {
+    let (run, sha) = (run.as_str(), "b".repeat(64));
+    let next = next.map_or_else(|| "null".to_owned(), |r| format!("\"{}\"", r.as_str()));
+    format!(
+        r#"{{"checkpoints":[{{"workflow":"30303030303030303030303030303030","agent":"40404040404040404040404040404040","run":"{run}","folder":["/data/books"],"workbook":["/data/books/rent.xlsx"],"copy":["rent.halvo-checkpoint-{run}.xlsx"],"state":"made","sha256":"{sha}","bytes":18432,"at":1794339000000000001,"ended":"yes","effect":"committed","superseded":"no"}}],"next":{next}}}"#
+    )
+}
+
+fn parsed(page: &str) -> CheckpointsReply {
+    CheckpointsReply::parse(page.as_bytes()).unwrap()
+}
+
+#[test]
+fn the_list_of_checkpoints_is_read_a_page_at_a_time_by_after_and_next() {
+    let rig = Rig::new("list-of-checkpoints");
+    let (first, second) = (common::run_id(), common::run_id());
+    let (one, two) = (page(&first, Some(&first)), page(&second, None));
+    *rig.store.pages.lock().unwrap() =
+        vec![(None, one.clone()), (Some(first.clone()), two.clone())];
+    let read = rig.sup.checkpoints(None);
+    assert_eq!(read, Ok(parsed(&one)));
+    let next = read.unwrap().next;
+    assert_eq!(next.as_ref(), Some(&first));
+    assert_eq!(rig.sup.checkpoints(next), Ok(parsed(&two)));
+    let asked: Vec<String> = rig
+        .store
+        .bodies()
+        .into_iter()
+        .filter(|b| b.contains("list_checkpoints"))
+        .collect();
+    let body = |after: &str| {
+        format!(r#"{{"op":"list_checkpoints","workflow":null,"agent":null,"after":{after}}}"#)
+    };
+    assert_eq!(asked.len(), 2, "{asked:?}");
+    assert!(asked[0].contains(&body("null")), "{}", asked[0]);
+    let after = format!("\"{}\"", first.as_str());
+    assert!(asked[1].contains(&body(&after)), "{}", asked[1]);
+}
+
+#[test]
+fn a_list_reply_that_white_space_takes_past_reply_max_gives_no_page() {
+    let rig = Rig::new("list-reply-past-max");
+    let value = page(&common::run_id(), None);
+    // The 53 bytes of the envelope beside a request id: `{"v":1,"id":"`, the id's 32 signs, `","ok":` and `}`. A
+    // reply of `REPLY_MAX` bytes gives the page and one of a byte more does not, so both cases hold that count.
+    let padded = |len: usize| format!("{}{value}", " ".repeat(len - 53 - value.len()));
+    let answer = |text: String| *rig.store.pages.lock().unwrap() = vec![(None, text)];
+    answer(padded(REPLY_MAX + 1));
+    assert_eq!(rig.sup.checkpoints(None), Err(ListFailed));
+    answer(padded(REPLY_MAX));
+    assert_eq!(rig.sup.checkpoints(None), Ok(parsed(&value)));
+    for (name, lever) in [
+        ("wrong_id_coord", &rig.store.wrong_id_coord),
+        ("wrong_form_coord", &rig.store.wrong_form_coord),
+        ("fail_all", &rig.store.fail_all),
+    ] {
+        lever.store(1, Ordering::SeqCst);
+        assert_eq!(rig.sup.checkpoints(None), Err(ListFailed), "{name}");
+    }
 }

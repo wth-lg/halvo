@@ -668,3 +668,130 @@ fn a_row_equal_to_the_last_row_but_for_day_and_at_is_a_repeat() {
         ]
     );
 }
+
+#[test]
+fn a_not_made_row_is_stored_after_releasing_alone() {
+    let cases = [
+        ("not_sent", "payment", true, "unauthorized"),
+        ("not_replaced", "local_edit", false, "not_sent"),
+        ("unauthorized", "delete", true, "not_replaced"),
+        ("throttled", "send", false, "not_replaced"),
+    ];
+    for (cause, class, approved, other) in cases {
+        let mut store = match class {
+            "payment" => payment(),
+            "local_edit" => store_with("spreadsheet_fill"),
+            _ => unattended_sender(),
+        };
+        let approval = approved.then_some(1);
+        let not_made =
+            |seq, approval, cause| row(1, 1, seq, "not_made", class, 1, approval, Some(cause));
+        let mut seq = 1;
+        if approved {
+            ok(&mut store, row(1, 1, 1, "held", class, 1, None, None));
+            refused(&mut store, not_made(2, None, cause));
+            ok(
+                &mut store,
+                row(1, 1, 2, "approved", class, 1, Some(1), None),
+            );
+            seq = 2;
+        } else {
+            ok(&mut store, row(1, 1, 1, "cleared", class, 1, None, None));
+        }
+        refused(&mut store, not_made(seq + 1, approval, cause));
+        ok(
+            &mut store,
+            row(1, 1, seq + 1, "releasing", class, 1, approval, None),
+        );
+        let other_approvals = if approved {
+            vec![None, Some(2)]
+        } else {
+            vec![Some(1)]
+        };
+        for wrong in other_approvals {
+            refused(&mut store, not_made(seq + 2, wrong, cause));
+        }
+        refused(&mut store, not_made(seq + 2, approval, other));
+        ok(&mut store, not_made(seq + 2, approval, cause));
+        refused(&mut store, not_made(seq + 3, approval, cause));
+        refused(
+            &mut store,
+            row(1, 1, seq + 3, "committed", class, 1, approval, None),
+        );
+        let last = last_of(&store, &effect(1));
+        assert_eq!(
+            (last.seq.get(), last.state, last.cause.map(|c| c.as_str())),
+            (seq + 2, EffectState::NotMade, Some(cause)),
+            "{cause}"
+        );
+    }
+}
+
+#[test]
+fn a_run_s_end_never_makes_not_made() {
+    let mut store = unattended_sender();
+    start(&mut store, 2);
+    for (r, e) in [(1, 1), (2, 3)] {
+        ok(&mut store, row(r, e, 1, "cleared", "send", 1, None, None));
+        ok(&mut store, row(r, e, 2, "releasing", "send", 1, None, None));
+        ok(
+            &mut store,
+            row(r, e, 3, "not_made", "send", 1, None, Some("not_sent")),
+        );
+    }
+    assert_eq!(
+        finish(&mut store, run_record(1, Some("replay"), "completed")),
+        Err(declared("effect"))
+    );
+    for (r, e) in [(1, 2), (2, 4)] {
+        ok(&mut store, row(r, e, 1, "cleared", "send", 1, None, None));
+        ok(&mut store, row(r, e, 2, "releasing", "send", 1, None, None));
+    }
+    let mut failed = run_record(1, Some("replay"), "failed");
+    failed["unknown"] = json!(1);
+    assert_eq!(finish(&mut store, failed), Ok(stored(1)));
+    assert_eq!(end_run(&mut store, 2), Ok(accepted()));
+    for (e, last) in [
+        (1, EffectState::NotMade),
+        (2, EffectState::Unknown),
+        (3, EffectState::NotMade),
+        (4, EffectState::Unknown),
+    ] {
+        assert_eq!(
+            rows_of(&store, e),
+            [
+                (1, EffectState::Cleared),
+                (2, EffectState::Releasing),
+                (3, last)
+            ],
+            "effect {e}"
+        );
+    }
+}
+
+#[test]
+fn a_reproposed_row_is_taken_after_cleared_alone() {
+    let mut store = unattended_sender();
+    let reproposed = |e, seq, class| row(1, e, seq, "rejected", class, 1, None, Some("reproposed"));
+    ok(&mut store, row(1, 1, 1, "cleared", "send", 1, None, None));
+    ok(&mut store, row(1, 2, 1, "held", "delete", 1, None, None));
+    ok(&mut store, row(1, 3, 1, "held", "delete", 1, None, None));
+    ok(
+        &mut store,
+        row(1, 3, 2, "approved", "delete", 1, Some(1), None),
+    );
+    refused(&mut store, reproposed(2, 2, "delete"));
+    refused(&mut store, reproposed(3, 3, "delete"));
+    ok(&mut store, reproposed(1, 2, "send"));
+    refused(&mut store, reproposed(1, 3, "send"));
+    assert_eq!(rows_of(&store, 2), [(1, EffectState::Held)]);
+    assert_eq!(
+        rows_of(&store, 3),
+        [(1, EffectState::Held), (2, EffectState::Approved)]
+    );
+    let last = last_of(&store, &effect(1));
+    assert_eq!(
+        (last.seq.get(), last.state, last.cause.map(|c| c.as_str())),
+        (2, EffectState::Rejected, Some("reproposed"))
+    );
+}
