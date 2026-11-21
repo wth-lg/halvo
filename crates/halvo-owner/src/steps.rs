@@ -1,6 +1,7 @@
 //! The host's step list (contracts C25.5 and C25.7): the steps, the handlers and the delete guards of the owner's host,
 //! in their order. The owner builds its host from `list` alone, so a later run links its step, its handlers and its
-//! delete guards by adding lines to `list`; the adapter of the agent-setup run's handlers is the module `agent`.
+//! delete guards by adding lines to `list`; the adapter of the agent-setup run's handlers is the module `agent`, and
+//! that of the learning run's handlers and step the module `learn`.
 
 use std::rc::Rc;
 
@@ -8,14 +9,17 @@ use halvo_derived::{Clock, DeleteGuard, Handler, Host, Takes};
 use halvo_identify::Proposer;
 use halvo_schema_core::record::{Instant, RecurrenceStep, WriterStep};
 
-use crate::agent;
+use crate::{agent, learn};
 
 /// One line of the list after its recurrence step, with the family that it names.
-enum Line {
+pub(crate) enum Line {
     Step(&'static str, Box<dyn WriterStep>),
     Handler(&'static str, Takes, Box<dyn Handler>),
     /// A handler that reads the host's clock, made by `StepList::host` with the clock that the store reads.
     Clocked(&'static str, Takes, fn(Rc<dyn Clock>) -> Box<dyn Handler>),
+    /// Lines that share what one call makes for them with the host's clock, made by `StepList::host` and added in
+    /// the order in which the call returns them.
+    Group(fn(Rc<dyn Clock>) -> Vec<Line>),
     Guard(&'static str, DeleteGuard),
 }
 
@@ -73,6 +77,12 @@ impl StepList {
         self
     }
 
+    /// Adds the lines that `make` returns with the host's clock when the host is built, in their order.
+    fn group(mut self, make: fn(Rc<dyn Clock>) -> Vec<Line>) -> StepList {
+        self.lines.push(Line::Group(make));
+        self
+    }
+
     /// Adds a delete guard behind the guards added before it (`Host::delete_guard`).
     pub fn delete_guard(mut self, family: &'static str, guard: DeleteGuard) -> StepList {
         self.lines.push(Line::Guard(family, guard));
@@ -83,19 +93,25 @@ impl StepList {
     /// store and every handler made with the clock read this one clock.
     pub fn host(self, clock: Box<dyn Clock>) -> Host {
         let clock: Rc<dyn Clock> = Rc::from(clock);
-        let mut host = Host::new(Box::new(Shared(Rc::clone(&clock))), self.recurrence);
-        for line in self.lines {
-            host = match line {
-                Line::Step(family, step) => host.step(family, step),
-                Line::Handler(family, takes, handler) => host.handler(family, takes, handler),
-                Line::Clocked(family, takes, make) => {
-                    host.handler(family, takes, make(Rc::clone(&clock)))
-                }
-                Line::Guard(family, guard) => host.delete_guard(family, guard),
-            };
-        }
-        host
+        let host = Host::new(Box::new(Shared(Rc::clone(&clock))), self.recurrence);
+        add(host, self.lines, &clock)
     }
+}
+
+/// The host with each of `lines` added after what it holds, in their order, a group's lines in its place.
+fn add(mut host: Host, lines: Vec<Line>, clock: &Rc<dyn Clock>) -> Host {
+    for line in lines {
+        host = match line {
+            Line::Step(family, step) => host.step(family, step),
+            Line::Handler(family, takes, handler) => host.handler(family, takes, handler),
+            Line::Clocked(family, takes, make) => {
+                host.handler(family, takes, make(Rc::clone(clock)))
+            }
+            Line::Group(make) => add(host, make(Rc::clone(clock)), clock),
+            Line::Guard(family, guard) => host.delete_guard(family, guard),
+        };
+    }
+    host
 }
 
 /// The list of the workflow run: the recurrence step `Proposer` of halvo-identify, which every host of that run puts
@@ -107,10 +123,12 @@ fn proposer_only() -> StepList {
     }
 }
 
-/// The step list of the owner. It names halvo-identify's recurrence step `Proposer`, and after it the two handlers
-/// of the agent-setup run's family `agent`: the handler of every `runner` request and the handler of the
-/// `coordinator_write` bodies of the nine `op` names of `CoordinatorCall`. A later run adds its lines here, in their
-/// order, a handler in front before the handler behind it:
+/// The step list of the owner. It names halvo-identify's recurrence step `Proposer`; after it the learning run's
+/// lines (`learn::lines`): its step `LearnStep`, and `LearnHandlers` in front of the handlers of every `runner` request
+/// and of the `coordinator_write` bodies of `learn::OPS`; and then the two handlers of the agent-setup run's family
+/// `agent`: the handler of every `runner` request and the handler of the `coordinator_write` bodies of the nine `op`
+/// names of `CoordinatorCall`. A later run adds its lines here, in their order, a handler in front before the handler
+/// behind it:
 ///
 /// ```text
 /// proposer_only()
@@ -120,6 +138,7 @@ fn proposer_only() -> StepList {
 /// ```
 pub fn list() -> StepList {
     proposer_only()
+        .group(learn::lines)
         .clocked(agent::FAMILY, Takes::Runner, agent::runner)
         .clocked(
             agent::FAMILY,
@@ -349,12 +368,15 @@ mod tests {
 
     type Held = Rc<RefCell<Vec<(&'static str, Value)>>>;
 
-    /// A delete guard of the family `agent` that writes the rows of `agent_config` and `agent_start` under the
-    /// workflow into `held` and holds the delete.
-    fn reader(held: &Held) -> DeleteGuard {
+    /// The kinds of the family `agent` that `Owner::open` reads at a delete.
+    const AGENT_KINDS: &[&str] = &["agent_config", "agent_start"];
+
+    /// A delete guard that writes the rows of `kinds`, of its own family, under the workflow into `held` and holds
+    /// the delete.
+    fn reader(held: &Held, kinds: &'static [&'static str]) -> DeleteGuard {
         let held = Rc::clone(held);
         Box::new(move |_, rows, _| {
-            for kind in ["agent_config", "agent_start"] {
+            for &kind in kinds {
                 rows.for_each(kind, &mut |row| {
                     held.borrow_mut()
                         .push((kind, serde_json::from_str(row).unwrap()));
@@ -375,9 +397,18 @@ mod tests {
 
     impl Owner {
         fn open(scratch: &Scratch) -> Owner {
+            Owner::open_reading(scratch, "agent", AGENT_KINDS)
+        }
+
+        /// The owner's store as `open` makes it, whose `reader` reads the rows of `kinds` of the family `family`.
+        fn open_reading(
+            scratch: &Scratch,
+            family: &'static str,
+            kinds: &'static [&'static str],
+        ) -> Owner {
             let held = Held::default();
             let host = list()
-                .delete_guard("agent", reader(&held))
+                .delete_guard(family, reader(&held, kinds))
                 .host(Box::new(Noon));
             let entries: Vec<_> = kinds::registry().collect();
             let mut store = Store::open(
@@ -538,5 +569,155 @@ mod tests {
         };
         assert_eq!(start["day"], DAY);
         assert_eq!(start["at"], Noon.now().0);
+    }
+
+    const RUN_2: &str = "50000000000000000000000000000002";
+
+    /// A web step of the compiled playbook: step 1 navigates to the slot `start`, every later step clicks the button
+    /// named `name` by its role.
+    fn step(n: u32, name: &str, locators: &[&str]) -> Value {
+        if n == 1 {
+            return serde_json::json!({
+                "v": 1, "n": 1, "kind": "web", "verb": "navigate", "target": null,
+                "args": [{"name": "url", "from": "slot", "value": null, "key": "start"}],
+                "pre": [], "post": [], "effect": "none", "class": "read",
+            });
+        }
+        let locators: Vec<Value> = locators
+            .iter()
+            .map(|name| serde_json::json!({"by": "role", "value": "button", "name": name}))
+            .collect();
+        serde_json::json!({
+            "v": 1, "n": n, "kind": "web", "verb": "click",
+            "target": {"desc": format!("button {name}"), "frame": [], "credential": "no", "locators": locators},
+            "args": [], "pre": [], "post": [], "effect": "none", "class": "prepare",
+        })
+    }
+
+    fn compiled() -> Value {
+        Value::Array(vec![
+            step(1, "", &[]),
+            step(2, "Pay", &["Pay"]),
+            step(3, "Next", &["Next"]),
+        ])
+    }
+
+    impl Owner {
+        /// The runner body of `op` for the run, with the agent, the run and `more`.
+        fn runner(&mut self, op: &str, run: &str, more: &str) -> String {
+            let body = format!(r#"{{"op":"{op}","agent":"{AGENT}","run":"{run}"{more}}}"#);
+            let reply = self.send("runner", &body);
+            assert!(reply.is_ok(), "{op}: {reply:?}");
+            reply.unwrap()
+        }
+
+        /// `finish` of the run in the mode with the outcome `completed`, its record naming `playbook`.
+        fn finish(&mut self, run: &str, mode: &str, playbook: &str) -> String {
+            let record = serde_json::json!({
+                "v": 1, "workflow": self.workflow.as_str(), "agent": AGENT, "run": run, "day": DAY,
+                "mode": mode, "outcome": "completed", "playbook": serde_json::from_str::<Value>(playbook).unwrap(),
+                "steps": 3, "prompts": 0, "handbacks": 0, "confirmations": 0, "effects": 0, "unknown": 0,
+                "model_calls": 0, "tokens_in": 0, "tokens_out": 0, "wall_s": 9, "model": null,
+                "before_start": null, "cut": null, "no_key": null, "not_to_account": null,
+                "incomplete": null, "reply_to_other": null, "more_pages": null, "held_recipient": null,
+                "organized": null, "other_task": null, "held_earlier": null, "earlier_page": null,
+            });
+            self.runner("finish", run, &format!(r#","record":{record}"#))
+        }
+
+        /// The agent, then a compile run that stores the playbook under number 1 and finishes, and the agent active.
+        fn compile(&mut self) {
+            assert_eq!(
+                self.coordinator("create_agent", "").as_deref(),
+                Ok(r#"{"rev":1}"#)
+            );
+            let start = format!(r#","run":"{RUN}","mode":"compile""#);
+            assert_eq!(
+                self.coordinator("start_run", &start).as_deref(),
+                Ok(r#"{"ok":"yes"}"#)
+            );
+            self.runner("load", RUN, "");
+            let put = format!(r#","number":1,"steps":{}"#, compiled());
+            assert_eq!(self.runner("put_playbook", RUN, &put), r#"{"stored":3}"#);
+            self.finish(RUN, "compile", "1");
+            let active = self.coordinator("set_state", r#","state":"active""#);
+            assert!(active.is_ok(), "{active:?}");
+        }
+
+        /// The reply of `list_refinements` for the workflow and the agent.
+        fn refinements(&mut self) -> Result<String, Error> {
+            self.coordinator("list_refinements", "")
+        }
+    }
+
+    /// U8.1 sentence 3 (L11.5): a run through the owner's step list keeps its run record, the `learn_run` rows of
+    /// rev 1 at its start and rev 2 at its finish, and the agent's routine row with its mark in the owner's store.
+    #[test]
+    fn a_run_through_the_owner_keeps_its_run_record_and_routine_mark() {
+        let scratch = Scratch::new("owner-learn-run");
+        let mut owner = Owner::open_reading(&scratch, "learn", &["learn_run", "learn_routine"]);
+        owner.compile();
+
+        let rows = owner.rows();
+        let runs: Vec<&Value> = rows
+            .iter()
+            .filter(|(kind, row)| *kind == "learn_run" && row["run"] == RUN)
+            .map(|(_, row)| row)
+            .collect();
+        let revs: Vec<&Value> = runs.iter().map(|row| &row["rev"]).collect();
+        assert_eq!(revs, [1, 2], "{runs:?}");
+        assert_eq!(runs[1]["state"], "verified");
+        assert_eq!(runs[1]["day"], DAY);
+        let routines: Vec<&Value> = rows
+            .iter()
+            .filter(|(kind, _)| *kind == "learn_routine")
+            .map(|(_, row)| row)
+            .collect();
+        assert_eq!(routines.len(), 1, "{routines:?}");
+        assert_eq!(routines[0]["agent"], AGENT);
+        assert_eq!(routines[0]["workflow"], owner.workflow.as_str());
+        assert_eq!(routines[0]["mark"], "none");
+    }
+
+    /// U8.1 sentence 4 (L2.2): `list_refinements` through the owner answers the learned list: empty while nothing
+    /// proposes, and after a replay run whose proposal for step 2 was taken, the one edit that it learned.
+    #[test]
+    fn list_refinements_through_the_owner_answers_the_learned_list() {
+        let scratch = Scratch::new("owner-learn-list");
+        let mut owner = Owner::open(&scratch);
+        owner.compile();
+        assert_eq!(owner.refinements().as_deref(), Ok(r#"{"refinements":[]}"#));
+
+        let start = format!(r#","run":"{RUN_2}","mode":"replay""#);
+        assert_eq!(
+            owner.coordinator("start_run", &start).as_deref(),
+            Ok(r#"{"ok":"yes"}"#)
+        );
+        owner.runner("load", RUN_2, "");
+        let served = owner.runner("load_steps", RUN_2, r#","number":1,"from":1"#);
+        let served: Value = serde_json::from_str(&served).unwrap();
+        assert_eq!(served["steps"], compiled());
+        let proposed = Value::Array(vec![
+            step(1, "", &[]),
+            step(2, "Pay now", &["A", "Pay"]),
+            step(3, "Next", &["Next"]),
+        ]);
+        let put = format!(r#","number":1,"steps":{proposed}"#);
+        assert_eq!(owner.runner("put_playbook", RUN_2, &put), r#"{"stored":1}"#);
+        let line = |seq: u32, event: &str| {
+            serde_json::json!({
+                "v": 1, "workflow": owner.workflow.as_str(), "agent": AGENT, "run": RUN_2, "seq": seq,
+                "day": DAY, "at": Noon.now().0, "event": event, "step": 2, "cause": null, "model": null,
+                "ms": null, "tokens_in": null, "tokens_out": null,
+            })
+        };
+        let records = Value::Array(vec![line(2, "recovered"), line(3, "step_ok")]);
+        owner.runner("log", RUN_2, &format!(r#","records":{records}"#));
+        owner.finish(RUN_2, "replay", "null");
+
+        assert_eq!(
+            owner.refinements().as_deref(),
+            Ok(format!(r#"{{"refinements":[{{"day":{DAY},"what":"target_learned"}}]}}"#).as_str())
+        );
     }
 }

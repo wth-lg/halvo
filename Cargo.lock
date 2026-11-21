@@ -1797,6 +1797,7 @@ dependencies = [
  "halvo-control",
  "halvo-derived",
  "halvo-identify",
+ "halvo-learn-store",
  "halvo-schema",
  "halvo-schema-core",
  "halvo-seam",
