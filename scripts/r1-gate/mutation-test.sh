@@ -1893,6 +1893,8 @@ fallback_cases() {
   t the-late-fork-case-refuses-a-stop-before-the-fork-beside-a-right-stop PASS pkill_fallback_early_stop
   t the-late-fork-case-refuses-a-start-that-hands-on-no-id-of-the-child-that-pgrep-read PASS pkill_fallback_id_lost
   t the-late-fork-case-refuses-a-fork-that-no-named-pipe-holds PASS pkill_fallback_no_hold
+  t the-late-fork-case-stops-nothing-when-its-wrapper-ends-before-it-has-a-child PASS pkill_fallback_start_fails
+  t the-late-fork-case-refuses-a-stop-before-any-read-and-ends PASS pkill_fallback_stop_first
   fallback_want=NO-INPUT
   [ "${GITHUB_ACTIONS:-}" != true ] || fallback_want=PASS
   t stop-children-ends-a-wrapper-s-child-by-the-real-pkill-on-the-hosted-job "$fallback_want" pkill_fallback_real
@@ -2035,6 +2037,36 @@ pkill_fallback_no_hold() {
   : > "$fallback_dir/bin/fork"
   late_fork_answer start_wrapper_with_its_child
   [ "$late_fork_status:$late_fork_said" = '1:the fork is held by no named pipe' ] && return 0
+  printf 'the late-fork case answered %s: %s\n' "$late_fork_status" "$late_fork_said"
+  return 1
+}
+
+pkill_fallback_start_fails() {
+  late_fork_fixture start-fails
+  cat > "$fallback_dir/bin/sh" <<'STUB'
+#!/bin/sh
+printf '%s\n' "$$" > "${0%/*}/wrapper"
+read -r go < "${0%/*}/fork"
+exit 0
+STUB
+  late_fork_answer start_wrapper_with_its_child
+  if [ "$late_fork_status:$late_fork_said" = '1:the wrapper ended before it had a child' ] && ! grep -q '^pkill' "$fallback_dir/bin/events"; then return 0; fi
+  printf 'the late-fork case answered %s: %s; events: %s\n' "$late_fork_status" "$late_fork_said" "$(tr '\n' ';' < "$fallback_dir/bin/events")"
+  return 1
+}
+
+start_wrapper_and_read_nothing() {
+  sh -c "sleep $1 & wait" &
+  child_wrapper=$!
+  child_pid=''
+  fallback_wrapper=$child_wrapper
+  fallback_child=''
+}
+
+pkill_fallback_stop_first() {
+  late_fork_fixture stop-first
+  late_fork_answer start_wrapper_and_read_nothing
+  [ "$late_fork_status:$late_fork_said" = "1:events: pkill -TERM -P $late_fork_started;" ] && return 0
   printf 'the late-fork case answered %s: %s\n' "$late_fork_status" "$late_fork_said"
   return 1
 }
