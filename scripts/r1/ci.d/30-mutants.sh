@@ -1,8 +1,8 @@
 #!/bin/sh
 # jobs: macos
-# rule: On every pull request and push each row of a mutants.rows file that a run would apply here still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a file named build.rs or on a path with a part named halvo-sqlcipher, sh -n, cc, perl or swiftc for the others), except a row on code that the macOS build does not compile; a push to main also builds and runs mutants in the sorted order of the row names rotated to start at the first-parent commit count of main times the stride, modulo the row count, prints within how many pushes every row starts while each push runs at least the stride's number of rows and, after a push that ran fewer, how many rows of its turn were not started, starts no row after budget_s seconds, prints how many rows ran, how many of those it built a mutant for (built mutation:<name>, printed only when the build compiled the mutated file, read from the build's dep-info for a cargo row; a row that fails before its build, or whose mutant does not build, is not built) and, apart, how many no compile of the build read (not-compiled mutation:<name>), and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
+# rule: In every CI run each row of a mutants.rows file that a run would apply here still applies and its mutant compiles (cargo check for a cargo row, cargo build for a row on a file named build.rs or on a path with a part named halvo-sqlcipher, sh -n, cc, perl or swiftc for the others), except a row on code that the macOS build does not compile; a run of this check at refs/heads/main by the event push, schedule or workflow_dispatch (since the merge gate, the Sunday run of the whole table and a run by hand on main; the lines below still call such a run a push) also builds and runs mutants in the sorted order of the row names rotated to start at the first-parent commit count of main times the stride, modulo the row count, prints within how many pushes every row starts while each push runs at least the stride's number of rows and, after a push that ran fewer, how many rows of its turn were not started, starts no row after budget_s seconds, prints how many rows ran, how many of those it built a mutant for (built mutation:<name>, printed only when the build compiled the mutated file, read from the build's dep-info for a cargo row; a row that fails before its build, or whose mutant does not build, is not built) and, apart, how many no compile of the build read (not-compiled mutation:<name>), and fails when a row that ran is not caught; the whole list is built and run against its verdicts only in a full run on the measuring Mac.
 # lane: alone
-# limit: 1900
+# limit: 2800
 set -u
 name=30-mutants
 budget_s=240
@@ -120,9 +120,9 @@ measure() {
   grep -q -e '--apply-only' scripts/r1-gate/mutation-test.sh ||
     fail "scripts/r1-gate/mutation-test.sh takes no --apply-only"
   run_rows 'mutation-test.sh --apply-only' --apply-only
-  if [ "${GITHUB_EVENT_NAME:-}" = push ] && [ "${GITHUB_REF:-}" = refs/heads/main ]; then
-    budget_run
-  fi
+  case ${GITHUB_EVENT_NAME:-}:${GITHUB_REF:-} in
+    push:refs/heads/main | schedule:refs/heads/main | workflow_dispatch:refs/heads/main) budget_run ;;
+  esac
   printf 'PASS %s\n' "$name"
 }
 

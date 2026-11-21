@@ -6,9 +6,13 @@ pub mod barrier;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod batch;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub mod board;
+pub mod children;
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod counters;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod discard_port;
+pub mod main_loop;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod maintenance;
 #[cfg(test)]
@@ -17,6 +21,7 @@ mod model_store;
 pub mod owner;
 #[cfg(test)]
 mod owner_props;
+pub mod permissions;
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub mod port;
 #[rustfmt::skip]
@@ -25,14 +30,19 @@ mod report;
 #[cfg(test)]
 mod scripted;
 pub mod signal;
+pub mod sources;
 #[cfg(test)]
 mod stop_tests;
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub mod supervisor;
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use halvo_control::onboarding::Permission;
 use halvo_control::paths::{AccountLookup, PathError};
+pub use halvo_control::proto::SourceName;
 
 use crate::floor::{Switch, Switches};
 use crate::source::{SourceContext, SourceCounters};
@@ -88,6 +98,8 @@ pub fn stop_bound(settle_bound: Duration) -> Duration {
 
 /// The text that a refused command line prints after its reason.
 pub const USAGE: &str = "usage: halvo-capture --version
+       halvo-capture --probe-permissions [PERMISSION]...
+       halvo-capture --request-permission PERMISSION
        halvo-capture --timed-run SECONDS --store-dir DIR [--hold-secure-input] [--switch NAME=on|off]...
        halvo-capture --verify-store --store-dir DIR --marker MARKER
        halvo-capture --verify-deletion --store-dir DIR
@@ -98,6 +110,15 @@ pub const USAGE: &str = "usage: halvo-capture --version
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Mode {
     Version,
+    /// `--probe-permissions [P...]`: one line for each permission named, a
+    /// check of no other (contracts.md C3.6).
+    ProbePermissions(Vec<Permission>),
+    /// `--request-permission P` (contracts.md C3.6).
+    RequestPermission(Permission),
+    /// `--self-check run-loop`: the wait of the timed run with no source,
+    /// while a second thread queues a block on the main run loop.
+    #[cfg(debug_assertions)]
+    SelfCheckRunLoop,
     #[cfg(debug_assertions)]
     TimedRun(TimedRun),
     #[cfg(debug_assertions)]
@@ -201,14 +222,33 @@ pub fn usage_answer<R: Clone + Into<Refusal>>(refused: &R, err: &mut dyn std::io
 }
 
 /// The binary's answer to a timed run's outcome: the report on `out`, the
-/// loss line on `err`, and the run's status. A report that cannot be written,
+/// loss line on `err`, and the run's status; a run that let a source go ends
+/// here by [`finish_run`] with that status. A report that cannot be written,
 /// as into a pipe whose reader is gone, gives exit 1 with a line, and the
-/// loss line still follows it.
+/// loss line still follows it. A run whose hold the system refused answers
+/// the refusal's line as the binary's error arm writes it, no report and
+/// status 1, and it too ends by [`finish_run`] when it let a source go.
 pub fn outcome_answer(
     outcome: &RunOutcome,
     out: &mut dyn std::io::Write,
     err: &mut dyn std::io::Write,
 ) -> i32 {
+    answer_with(outcome, out, err, process_ending())
+}
+
+/// [`outcome_answer`] with the ending `ending`.
+fn answer_with(
+    outcome: &RunOutcome,
+    out: &mut dyn std::io::Write,
+    err: &mut dyn std::io::Write,
+    ending: &dyn main_loop::EndCall,
+) -> i32 {
+    if let Some(refusal) = &outcome.refusal {
+        let _ = writeln!(err, "halvo-capture: {refusal}");
+        let _ = err.flush();
+        finish_run(outcome, halvo_control::exit::ERROR, ending, err);
+        return halvo_control::exit::ERROR;
+    }
     let printed = out
         .write_all(outcome.report.render().as_bytes())
         .and_then(|()| out.flush());
@@ -218,9 +258,25 @@ pub fn outcome_answer(
     if let Some(loss) = &outcome.loss {
         let _ = writeln!(err, "{loss}");
     }
-    match printed {
+    let status = match printed {
         Ok(()) => outcome.status,
         Err(_) => halvo_control::exit::ERROR,
+    };
+    finish_run(outcome, status, ending, err);
+    status
+}
+
+/// The ending that [`outcome_answer`] makes for a run that let a source go:
+/// the product's in a build of the crate, and in the crate's own tests one
+/// that panics, so that no test of this crate ends its own process.
+fn process_ending() -> &'static dyn main_loop::EndCall {
+    #[cfg(not(test))]
+    {
+        &main_loop::ExitNow
+    }
+    #[cfg(test)]
+    {
+        &main_loop::tests::PanicInTests
     }
 }
 
@@ -526,6 +582,13 @@ pub fn parse(
     let _ = account;
     match args.first().map(String::as_str) {
         Some("--version") if args.len() == 1 => Ok(Mode::Version),
+        Some("--probe-permissions") => Ok(Mode::ProbePermissions(permissions_of(&args[1..])?)),
+        Some("--request-permission") => match permissions_of(&args[1..])?[..] {
+            [permission] => Ok(Mode::RequestPermission(permission)),
+            _ => Err(Usage("--request-permission takes one PERMISSION").into()),
+        },
+        #[cfg(debug_assertions)]
+        Some("--self-check") if args[1..] == ["run-loop"] => Ok(Mode::SelfCheckRunLoop),
         #[cfg(debug_assertions)]
         Some("--timed-run") => gate::timed_run(&args[1..], account),
         #[cfg(debug_assertions)]
@@ -555,6 +618,16 @@ pub fn parse(
         }
         _ => Err(Usage("no mode of this build").into()),
     }
+}
+
+fn permissions_of(names: &[String]) -> Result<Vec<Permission>, Usage> {
+    names
+        .iter()
+        .map(|name| {
+            name.parse::<Permission>()
+                .map_err(|_| Usage("no permission has that name"))
+        })
+        .collect()
 }
 
 #[cfg(debug_assertions)]
@@ -736,52 +809,22 @@ mod gate {
     }
 }
 
-/// A source of a timed run, by the name that its `failed_source=` line takes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SourceName {
-    Foreground,
-    Screen,
-    Input,
-}
-
-impl SourceName {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            SourceName::Foreground => "foreground",
-            SourceName::Screen => "screen",
-            SourceName::Input => "input",
-        }
-    }
-}
-
 /// The `failed_source=` entry of a source's answer to its stop at the run's
-/// end: none for `Ok` and for `ThreadEnded`, an entry for every other answer
-/// (contracts.md C4 item 7).
+/// end: none for `Ok`, an entry for every other answer (contracts.md C4 item
+/// 7). `ThreadEnded` is a stop for the stop sequence and the end routine,
+/// and it is named here: the source had died before its stop (ruling DM-25
+/// N5).
 pub fn stop_failure(
     name: SourceName,
     answer: Result<(), crate::source::CaptureError>,
 ) -> Option<FailedSource> {
     match answer {
-        Ok(()) | Err(crate::source::CaptureError::ThreadEnded) => None,
+        Ok(()) => None,
         Err(error) => Some(FailedSource {
             name: name.as_str(),
             error: error.to_string(),
         }),
     }
-}
-
-/// The sources that a run with `switches` starts: the foreground source, the
-/// screen source only while `screen_activity` is on, and the input source
-/// only while `key_class` or `pointer_class` is on.
-pub fn sources_for(switches: Switches) -> Vec<SourceName> {
-    let mut sources = vec![SourceName::Foreground];
-    if switches.is_on(Switch::ScreenActivity) {
-        sources.push(SourceName::Screen);
-    }
-    if switches.is_on(Switch::KeyClass) || switches.is_on(Switch::PointerClass) {
-        sources.push(SourceName::Input);
-    }
-    sources
 }
 
 /// The sources of one timed run on one system.
@@ -808,6 +851,148 @@ pub trait RunSources {
 
     /// The system's refusal of the hold of secure input, when there was one.
     fn hold_refusal(&self) -> Option<DaemonError>;
+
+    /// Waits as [`RunSources::wait`] does while the supervisor reads `owner`.
+    #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+    fn supervise(
+        &mut self,
+        window: Duration,
+        stop: &std::sync::atomic::AtomicBool,
+        owner: &dyn supervisor::OwnerLink,
+    ) -> bool {
+        let _ = owner;
+        self.wait(window, stop)
+    }
+
+    /// Whether a permission granted after the start asks the run to end with
+    /// status 4.
+    fn restart_asked(&self) -> bool {
+        false
+    }
+
+    /// The clock and the waits of the stop path, when the sources keep their
+    /// own: the supervisor's main loop. `None` gives the real clock.
+    #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+    fn waits(&mut self) -> Option<&mut dyn Waits> {
+        None
+    }
+
+    /// Arms the watchdog of the run, if the sources keep one, to end the
+    /// process with `status` once SHUTDOWN_BUDGET_MS has passed; when it is
+    /// armed already, the earlier deadline stays and `status` replaces the
+    /// armed one.
+    fn arm_watchdog(&mut self, status: i32) {
+        let _ = status;
+    }
+
+    /// Takes back the arm of the run's watchdog, if the sources keep one.
+    fn disarm_watchdog(&mut self) {}
+
+    /// The sources whose stop answered neither Ok nor ThreadEnded and that
+    /// are let go without a wait.
+    fn let_go(&self) -> Vec<SourceName> {
+        Vec::new()
+    }
+}
+
+/// The end of a timed run in which a source did not stop: the line that says
+/// so on `err`, then the ending call with `status`, so that the answer of a
+/// run that let a source go does not return from `main` (ruling PL-3 part
+/// (4)). A run whose sources all stopped ends nothing here. A run that
+/// returns Err never reaches it: the binary's error arm returns from `main`
+/// with any source let go still held, and the watchdog, armed with 1 for
+/// such a source, ends the process only should that return not come first.
+pub fn finish_run(
+    outcome: &RunOutcome,
+    status: i32,
+    ending: &dyn main_loop::EndCall,
+    err: &mut dyn std::io::Write,
+) {
+    if outcome.let_go.is_empty() {
+        return;
+    }
+    let _ = writeln!(
+        err,
+        "halvo-capture: the source{} {} did not stop; the process ends without waiting for it",
+        if outcome.let_go.len() == 1 { "" } else { "s" },
+        outcome.let_go.join(", ")
+    );
+    let _ = err.flush();
+    ending.end(status);
+}
+
+/// The clock and the waits of a timed run's stop path.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub trait Waits {
+    /// The time since a fixed start.
+    fn clock(&self) -> Duration;
+
+    /// The answer of `pending` if it comes within `bound`.
+    fn wait_answer(&mut self, pending: &owner::Pending, bound: Duration) -> Option<owner::Answer>;
+
+    /// Lets `wait` pass.
+    fn pause_for(&mut self, wait: Duration);
+}
+
+/// The process's own clock and blocking waits.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub struct RealWaits;
+
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+impl Waits for RealWaits {
+    fn clock(&self) -> Duration {
+        static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        START.get_or_init(std::time::Instant::now).elapsed()
+    }
+
+    fn wait_answer(&mut self, pending: &owner::Pending, bound: Duration) -> Option<owner::Answer> {
+        pending.wait_for(bound)
+    }
+
+    fn pause_for(&mut self, wait: Duration) {
+        std::thread::sleep(wait);
+    }
+}
+
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn waits_of<'a, P: RunSources>(sources: &'a mut P, real: &'a mut RealWaits) -> &'a mut dyn Waits {
+    match sources.waits() {
+        Some(waits) => waits,
+        None => real,
+    }
+}
+
+/// The margin by which a timed run's stop path ends before its watchdog's
+/// deadline, SHUTDOWN_BUDGET_MS (18,000 ms) after the end of the window: the
+/// settle and the Shutdown are cut to 17,000 ms, and the margin is the time
+/// that `run_timed` has to join the owner, build its answer and take the arm
+/// back, or carry the run's own status in it, before the watchdog's call
+/// (ruling DM-25 N2). The deadline stays at 18,000 ms, under STOP_WAIT_MS;
+/// the gate's kill of a timed child comes at its seconds plus
+/// child_deadline_extra_s (25 s, docs/baseline/r1-gate-bounds.txt), counted
+/// from the child's start, so the margin moves no end past it.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub const STOP_PATH_MARGIN_MS: u64 = 1_000;
+
+/// What is left of the stop path's budget, SHUTDOWN_BUDGET_MS less
+/// [`STOP_PATH_MARGIN_MS`] from `start`.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn left_of(start: Duration, waits: &dyn Waits) -> Duration {
+    (start + Duration::from_millis(supervisor::SHUTDOWN_BUDGET_MS - STOP_PATH_MARGIN_MS))
+        .saturating_sub(waits.clock())
+}
+
+impl TimedRun {
+    /// The run kind of this timed run for the source set: whether its flags
+    /// set `key_class` on.
+    pub fn kind(&self) -> sources::RunKind {
+        sources::RunKind::Timed {
+            key_class_flag: self
+                .switches
+                .set_by_flags()
+                .contains(&(Switch::KeyClass, true)),
+        }
+    }
 }
 
 /// Runs one timed run on the owner: the owner over `store` resumes, the
@@ -815,10 +1000,48 @@ pub trait RunSources {
 /// in the window (at most [`DRAIN_BOUND`]), the owner pauses, the sources stop
 /// and the owner settles.
 /// The named waits of the stop path take their bounds from
-/// `StopBounds::of(settle_bound)`, and an owner that gives no answer is not
-/// joined.
+/// `StopBounds::of(settle_bound)`; the settle and the Shutdown, which follow
+/// the sources' stops, are cut to what is left of SHUTDOWN_BUDGET_MS counted
+/// from the end of the window, so that the waits and the stops together end
+/// inside it (the drain wait and the pause begin with 16 s or more left),
+/// [`STOP_PATH_MARGIN_MS`] before the watchdog's deadline. An owner that
+/// gives no answer is not joined.
+///
+/// The watchdog is armed at the end of the window with 4 for a grant
+/// restart, 2 after a signal, else 3. When the run returns with no source
+/// let go, the arm is taken back, so that no ending call follows the run's
+/// own answer (ruling DM-25 N2). When a source is let go, the arm stays at
+/// its deadline and carries the run's own status (1 for an error): between
+/// the return and `finish_run`'s line and ending call, that arm alone guards
+/// the run, through the drop of the sources, the report and the loss line.
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 pub fn run_timed<P, S, C>(
+    run: &TimedRun,
+    sources: &mut P,
+    store: S,
+    clocks: C,
+    stop: &std::sync::atomic::AtomicBool,
+    settle_bound: Duration,
+) -> Result<RunOutcome, DaemonError>
+where
+    P: RunSources,
+    S: port::CaptureStore + Send + 'static,
+    C: maintenance::Clocks + 'static,
+{
+    let answer = run_timed_steps(run, sources, store, clocks, stop, settle_bound);
+    if sources.let_go().is_empty() {
+        sources.disarm_watchdog();
+    } else {
+        sources.arm_watchdog(match &answer {
+            Ok(outcome) => outcome.status,
+            Err(_) => halvo_control::exit::ERROR,
+        });
+    }
+    answer
+}
+
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn run_timed_steps<P, S, C>(
     run: &TimedRun,
     sources: &mut P,
     store: S,
@@ -835,6 +1058,7 @@ where
 
     use halvo_control::exit;
     use halvo_control::model::StorageCap;
+    use halvo_control::proto::Platform;
 
     use crate::floor::exclude::{FloorHandle, NoLineage};
     use owner::{Answer, Command, OwnerParts};
@@ -843,15 +1067,18 @@ where
     let switches = run.switches.applied();
     let floor = FloorHandle::new(None, Arc::new(NoLineage), switches);
     let (handle, writer) = crate::sink::channel(owner::QUEUE_SLOTS);
-    let owner = owner::spawn(OwnerParts {
-        writer,
-        store,
-        clocks,
-        floor: floor.clone(),
-        cap: StorageCap::DEFAULT,
-        shred_chunk: maintenance::SHRED_CHUNK,
-    })
-    .map_err(|error| DaemonError::Store(error.to_string()))?;
+    let owner = supervisor::Watched::new(
+        owner::spawn(OwnerParts {
+            writer,
+            store,
+            clocks,
+            floor: floor.clone(),
+            cap: StorageCap::DEFAULT,
+            shred_chunk: maintenance::SHRED_CHUNK,
+        })
+        .map_err(|error| DaemonError::Store(error.to_string()))?,
+        Box::new(std::io::stderr()),
+    );
     if !matches!(
         owner.handle.call(Command::ClosePause),
         Ok(Answer::Resumed(_))
@@ -859,26 +1086,42 @@ where
         return Err(DaemonError::DrainPanicked);
     }
     let ctx = SourceContext::with_floor(handle.clone(), floor);
-    let mut failed = sources.start(&ctx, &sources_for(switches), run.hold_after());
+    let wanted = sources::starting(Platform::Macos, run.kind(), switches);
+    let mut failed = sources.start(&ctx, &wanted, run.hold_after());
     drop(ctx);
-    let signalled = sources.wait(run.window, stop);
+    let signalled = sources.supervise(run.window, stop, &owner);
+    sources.arm_watchdog(if sources.restart_asked() {
+        exit::RESTART
+    } else if signalled || stop.load(std::sync::atomic::Ordering::SeqCst) {
+        exit::TIMED_RUN_INTERRUPTED
+    } else {
+        exit::TIMED_RUN_SOURCE_FAILED
+    });
+    let mut real = RealWaits;
+    let started = waits_of(sources, &mut real).clock();
     let counts = handle.counts();
     let emitted: u64 = crate::event::Modality::ALL
         .into_iter()
         .map(|kind| counts.of(kind).accepted)
         .sum();
-    let drained_by = std::time::Instant::now() + bounds.drain;
-    while owner.snapshot().events_received() < emitted && std::time::Instant::now() < drained_by {
-        std::thread::sleep(Duration::from_millis(5));
+    let waits = waits_of(sources, &mut real);
+    let drained_by = waits.clock() + bounds.drain;
+    while owner.snapshot().events_received() < emitted
+        && waits.clock() < drained_by
+        && supervisor::OwnerLink::is_running(&owner)
+    {
+        waits.pause_for(Duration::from_millis(5));
     }
-    let paused = answer_within(&owner.handle, Command::OpenPause, bounds.pause);
+    let before = owner.snapshot();
+    let paused = answer_within(waits, &owner.handle, Command::OpenPause, bounds.pause);
     failed.extend(sources.stop());
     let sink_counts = handle.counts();
     drop(handle);
-    let before = owner.snapshot();
     let last = match paused {
         Some(Answer::Paused(_)) => {
-            settle_within(&owner.handle, bounds.settle).ok_or(LossCause::SettleUnanswered)
+            let waits = waits_of(sources, &mut real);
+            let bound = bounds.settle.min(left_of(started, waits));
+            settle_within(waits, &owner.handle, bound).ok_or(LossCause::SettleUnanswered)
         }
         _ => Err(LossCause::PauseUnanswered),
     };
@@ -889,21 +1132,35 @@ where
             Err(_) => owner.snapshot(),
         };
         let reports: Vec<owner::Report> = owner.reports.try_iter().collect();
-        return Err(
-            match stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports) {
-                Some(loss) => DaemonError::RefusedWithLoss {
-                    refusal: Box::new(refusal),
-                    loss,
-                },
-                None => refusal,
+        let loss = if last.is_err() && !supervisor::OwnerLink::is_running(&owner) {
+            Some(owner_ended(&settled, &sink_counts))
+        } else {
+            stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports)
+        };
+        let refusal = match loss.clone() {
+            Some(loss) => DaemonError::RefusedWithLoss {
+                refusal: Box::new(refusal),
+                loss,
             },
-        );
+            None => refusal,
+        };
+        return Ok(RunOutcome {
+            report: report_of(&settled, &sink_counts, &figures, failed, run.secure_input),
+            status: exit::ERROR,
+            loss,
+            let_go: let_go_of(sources),
+            refusal: Some(refusal.to_string()),
+        });
     }
     let last = match last {
-        Ok(_) => match answer_within(&owner.handle, Command::Shutdown, bounds.shutdown) {
-            Some(Answer::ShutDown(snapshot)) => Ok(snapshot),
-            _ => Err(LossCause::ShutdownUnanswered),
-        },
+        Ok(_) => {
+            let waits = waits_of(sources, &mut real);
+            let bound = bounds.shutdown.min(left_of(started, waits));
+            match answer_within(waits, &owner.handle, Command::Shutdown, bound) {
+                Some(Answer::ShutDown(snapshot)) => Ok(snapshot),
+                _ => Err(LossCause::ShutdownUnanswered),
+            }
+        }
         Err(cause) => Err(cause),
     };
     let reports: Vec<owner::Report> = owner.reports.try_iter().collect();
@@ -911,10 +1168,15 @@ where
         Ok(snapshot) => snapshot,
         Err(_) => owner.snapshot(),
     };
+    let owner_alive = supervisor::OwnerLink::is_running(&owner);
     if last.is_ok() {
         owner.join().map_err(|_| DaemonError::DrainPanicked)?;
     }
-    let loss = stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports);
+    let loss = if last.is_err() && !owner_alive {
+        Some(owner_ended(&settled, &sink_counts))
+    } else {
+        stop_loss(last.map(|_| ()), &settled, &before, &sink_counts, &reports)
+    };
     let failing = match loss.as_ref().map(|loss| loss.cause) {
         Some(Some(_)) => true,
         Some(None) | None => false,
@@ -922,6 +1184,8 @@ where
     let signalled = signalled || stop.load(std::sync::atomic::Ordering::SeqCst);
     let status = if failing {
         exit::ERROR
+    } else if sources.restart_asked() {
+        exit::RESTART
     } else if signalled {
         exit::TIMED_RUN_INTERRUPTED
     } else if !failed.is_empty() {
@@ -933,16 +1197,48 @@ where
         report: report_of(&settled, &sink_counts, &figures, failed, run.secure_input),
         status,
         loss,
+        let_go: let_go_of(sources),
+        refusal: None,
     })
+}
+
+/// The names of the sources that `sources` let go.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn let_go_of<P: RunSources>(sources: &P) -> Vec<&'static str> {
+    sources
+        .let_go()
+        .into_iter()
+        .map(SourceName::as_str)
+        .collect()
+}
+
+/// The loss line of a run whose owner thread ended before it answered the
+/// stop: the events that the sink accepted and no write stored (contracts.md
+/// C3.2).
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+fn owner_ended(settled: &counters::Snapshot, sink: &crate::sink::SinkCounts) -> Loss {
+    let accepted: u64 = crate::event::Modality::ALL
+        .into_iter()
+        .map(|kind| sink.of(kind).accepted)
+        .sum();
+    Loss {
+        cause: Some(LossCause::OwnerEnded),
+        line: format!(
+            "halvo-capture: owner ended; events accepted and not persisted={}",
+            accepted.saturating_sub(settled.events_persisted)
+        ),
+    }
 }
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
 fn answer_within(
+    waits: &mut dyn Waits,
     handle: &owner::OwnerHandle,
     command: owner::Command,
     bound: Duration,
 ) -> Option<owner::Answer> {
-    handle.ask(command).ok()?.wait_for(bound)
+    let pending = handle.ask(command).ok()?;
+    waits.wait_answer(&pending, bound)
 }
 
 #[cfg(any(test, all(target_os = "macos", debug_assertions)))]
@@ -950,23 +1246,27 @@ fn answer_within(
 /// last snapshot that an ask got: a later ask that is not answered in time
 /// leaves the one before it, and only a settle whose every ask went
 /// unanswered gives `None` (ruling DM-14).
-fn settle_within(handle: &owner::OwnerHandle, bound: Duration) -> Option<counters::Snapshot> {
-    let started = std::time::Instant::now();
+fn settle_within(
+    waits: &mut dyn Waits,
+    handle: &owner::OwnerHandle,
+    bound: Duration,
+) -> Option<counters::Snapshot> {
+    let started = waits.clock();
     let mut last = None;
     loop {
         let Ok(pending) = handle.ask(owner::Command::Settle) else {
             return last;
         };
-        let left = bound.saturating_sub(started.elapsed());
-        let Some(owner::Answer::Settled(snapshot)) = pending.wait_for(left) else {
+        let left = bound.saturating_sub(waits.clock().saturating_sub(started));
+        let Some(owner::Answer::Settled(snapshot)) = waits.wait_answer(&pending, left) else {
             return last;
         };
-        let left = bound.saturating_sub(started.elapsed());
+        let left = bound.saturating_sub(waits.clock().saturating_sub(started));
         if snapshot.events_pending == 0 || left < 2 * owner::POLL {
             return Some(snapshot);
         }
         last = Some(snapshot);
-        std::thread::sleep(owner::POLL);
+        waits.pause_for(owner::POLL);
     }
 }
 
@@ -1072,6 +1372,73 @@ fn report_of(
     }
 }
 
+/// The report of a timed run from what the Board holds: its owner snapshot,
+/// the counters of the process and the failed sources.
+#[cfg(any(test, all(target_os = "macos", debug_assertions)))]
+pub fn report_of_board(
+    board: &board::Board,
+    sink: &crate::sink::SinkCounts,
+    secure_input: SecureInput,
+) -> TimedRunReport {
+    let snapshot = board
+        .snapshot
+        .unwrap_or_else(|| counters::Counters::default().snapshot(0, false));
+    report_of(
+        &snapshot,
+        sink,
+        &board.figures,
+        board.failed_sources(),
+        secure_input,
+    )
+}
+
+/// The answer of `--probe-permissions`: its lines on `out`, nothing on a
+/// system without a probe, and status 0.
+pub fn probe_answer(permissions: &[Permission], out: &mut dyn std::io::Write) -> i32 {
+    let text = permissions::system_probe()
+        .map(|probe| permissions::probe_lines(&*probe, permissions))
+        .unwrap_or_default();
+    write_or_error(out, &text)
+}
+
+/// The answer of `--request-permission P`: its line on `out` and status 0.
+pub fn request_answer(permission: Permission, out: &mut dyn std::io::Write) -> i32 {
+    let text = permissions::system_probe()
+        .map(|probe| permissions::request_line(&*probe, permission))
+        .unwrap_or_default();
+    write_or_error(out, &text)
+}
+
+fn write_or_error(out: &mut dyn std::io::Write, text: &str) -> i32 {
+    match out.write_all(text.as_bytes()).and_then(|()| out.flush()) {
+        Ok(()) => halvo_control::exit::CLEAN,
+        Err(_) => halvo_control::exit::ERROR,
+    }
+}
+
+/// Runs the self-check of the main run loop and prints its line on `out`.
+#[cfg(debug_assertions)]
+pub fn self_check_run_loop(out: &mut dyn std::io::Write) -> i32 {
+    #[cfg(target_os = "macos")]
+    {
+        match crate::macos::self_check_run_loop() {
+            Ok(ran_after) => {
+                let (line, status) = main_loop::self_check_answer(ran_after);
+                match writeln!(out, "{line}") {
+                    Ok(()) => status,
+                    Err(_) => halvo_control::exit::ERROR,
+                }
+            }
+            Err(_) => halvo_control::exit::ERROR,
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = out;
+        halvo_control::exit::ERROR
+    }
+}
+
 /// Runs the gate's timed run on this system.
 #[cfg(debug_assertions)]
 pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
@@ -1085,6 +1452,8 @@ pub fn timed_run(run: &TimedRun) -> Result<RunOutcome, DaemonError> {
             report,
             status: halvo_control::exit::CLEAN,
             loss: None,
+            let_go: Vec::new(),
+            refusal: None,
         })
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -1112,6 +1481,8 @@ pub enum DaemonError {
     },
     #[error("the store owner panicked")]
     DrainPanicked,
+    #[error("the timed run is entered on the process main thread")]
+    NotMainThread,
 }
 
 #[cfg(test)]
@@ -1194,6 +1565,95 @@ mod tests {
         let mut line = vec!["--timed-run"];
         line.extend_from_slice(rest);
         parse(args(&line), &dirs.account)
+    }
+
+    #[test]
+    fn the_permission_modes_parse_in_every_build() {
+        let dirs = dirs();
+        let parsed = |line: &[&str]| parse(args(line), &dirs.account);
+        assert_eq!(
+            parsed(&["--probe-permissions"]),
+            Ok(Mode::ProbePermissions(Vec::new()))
+        );
+        assert_eq!(
+            parsed(&[
+                "--probe-permissions",
+                "screen_and_system_audio_recording",
+                "input_monitoring"
+            ]),
+            Ok(Mode::ProbePermissions(vec![
+                Permission::ScreenAndSystemAudioRecording,
+                Permission::InputMonitoring
+            ]))
+        );
+        assert_eq!(
+            parsed(&["--request-permission", "accessibility"]),
+            Ok(Mode::RequestPermission(Permission::Accessibility))
+        );
+        for line in [
+            &["--probe-permissions", "camera"][..],
+            &["--request-permission"][..],
+            &["--request-permission", "input_monitoring", "accessibility"][..],
+            &["--request-permission", "microphone"][..],
+        ] {
+            let refused = parsed(line).unwrap_err();
+            assert_eq!(
+                usage_answer(&refused, &mut Vec::new()),
+                halvo_control::exit::USAGE,
+                "{line:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_kind_of_a_timed_run_holds_whether_its_flags_set_key_class_on() {
+        let run = |flags: Vec<(Switch, bool)>| TimedRun {
+            window: Duration::from_secs(1),
+            secure_input: SecureInput::DoNotHold,
+            switches: SwitchFlags(flags),
+            store_dir: PathBuf::from("/"),
+        };
+        let flagged = |on| sources::RunKind::Timed { key_class_flag: on };
+        assert_eq!(run(Vec::new()).kind(), flagged(false));
+        assert_eq!(run(vec![(Switch::KeyClass, true)]).kind(), flagged(true));
+        assert_eq!(run(vec![(Switch::KeyClass, false)]).kind(), flagged(false));
+        assert_eq!(
+            run(vec![(Switch::ScreenActivity, true)]).kind(),
+            flagged(false)
+        );
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn the_self_check_takes_run_loop_and_nothing_else() {
+        let dirs = dirs();
+        let parsed = |line: &[&str]| parse(args(line), &dirs.account);
+        assert_eq!(
+            parsed(&["--self-check", "run-loop"]),
+            Ok(Mode::SelfCheckRunLoop)
+        );
+        assert!(parsed(&["--self-check"]).is_err());
+        assert!(parsed(&["--self-check", "run-loop", "again"]).is_err());
+        assert!(parsed(&["--self-check", "other"]).is_err());
+    }
+
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    #[test]
+    fn timed_run_refuses_a_thread_that_is_not_the_main_one() {
+        let dir = test_dir();
+        let run = TimedRun {
+            window: Duration::from_secs(1),
+            secure_input: SecureInput::DoNotHold,
+            switches: SwitchFlags::default(),
+            store_dir: dir.path().to_path_buf(),
+        };
+        let answer = std::thread::spawn(move || timed_run(&run).map(|outcome| outcome.status))
+            .join()
+            .unwrap();
+        assert!(
+            matches!(answer, Err(DaemonError::NotMainThread)),
+            "{answer:?}"
+        );
     }
 
     #[cfg(debug_assertions)]
@@ -2403,10 +2863,20 @@ mod tests {
             &stop,
             Duration::from_millis(300),
         );
-        assert!(matches!(
-            ended,
-            Err(DaemonError::SecureInputRefused(-25291))
-        ));
+        // Ruling DM-25 N4: the refusal is carried in the outcome, and the
+        // binary's answer to it is its line and status 1 with no report.
+        let outcome = ended.unwrap();
+        assert_eq!(
+            outcome.refusal,
+            Some(DaemonError::SecureInputRefused(-25291).to_string())
+        );
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        assert_eq!(outcome_answer(&outcome, &mut out, &mut err), 1);
+        assert!(out.is_empty());
+        assert_eq!(
+            String::from_utf8(err).unwrap(),
+            "halvo-capture: the system refused the secure-input hold (status -25291)\n"
+        );
     }
 
     #[test]
@@ -2628,7 +3098,15 @@ mod tests {
 
     #[test]
     fn the_sources_of_a_run_leave_out_what_the_switches_turn_off() {
-        let with = |flags: &[(Switch, bool)]| sources_for(SwitchFlags(flags.to_vec()).applied());
+        let with = |flags: &[(Switch, bool)]| {
+            sources::starting(
+                halvo_control::proto::Platform::Macos,
+                sources::RunKind::Timed {
+                    key_class_flag: false,
+                },
+                SwitchFlags(flags.to_vec()).applied(),
+            )
+        };
         let (f, s, i) = (
             SourceName::Foreground,
             SourceName::Screen,
@@ -2663,10 +3141,20 @@ mod tests {
         );
         assert_eq!(outcome.status, exit::TIMED_RUN_SOURCE_FAILED);
         let text = outcome.report.render();
-        assert_eq!(line_of(&text, "failed_sources="), "failed_sources=1");
-        assert_eq!(
-            line_of(&text, "failed_source="),
-            format!("failed_source=screen: {timeout}")
+        // Ruling DM-25 N5: a stop that answers ThreadEnded is a stop, and
+        // its source, which died before the stop, is named in the list.
+        assert_eq!(line_of(&text, "failed_sources="), "failed_sources=2");
+        assert!(
+            text.contains(&format!("\nfailed_source=screen: {timeout}\n")),
+            "{text}"
+        );
+        assert!(
+            text.contains(&format!(
+                "\nfailed_source={}: {}\n",
+                scripted.sources[2].0.as_str(),
+                CaptureError::ThreadEnded
+            )),
+            "{text}"
         );
     }
 

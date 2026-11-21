@@ -1,11 +1,22 @@
 //! The web executor of A11.1: the agent's browser driven over a pipe by the one process that
 //! started it, through a relay that reaches only the person's bound sites.
+//!
+//! A named limit, held by no row and no promise (CP-186 N9): what each start leaves outside the
+//! run's profile on macOS. In every reading of the crash row in run 43484944398, the start with no
+//! crash among them, a start of Chrome left four files of 4,196 bytes in all, two in the account's
+//! cache of `com.google.Chrome.helper` and two links in the system's temporary directory, and a
+//! start of Edge four files of 4,923 bytes; after a crash the singleton directory stays in the
+//! system's temporary directory. The stop removes the profile and the temporary directory
+//! that its start made and nothing else (A11.1), so nothing in this crate removes those files, and
+//! no text of this run says who does. On Windows the same readings left none.
 
 pub mod cdp;
 pub mod checks;
 #[cfg(test)]
 mod child;
 pub mod crash_row;
+#[cfg(test)]
+mod fence_manifest;
 pub mod guard;
 pub mod peer;
 pub mod pipe;
@@ -68,8 +79,11 @@ pub const PRODUCT_FLAGS: [&str; 16] = [
 ///   the product's earlier means alone wrote its dump to the account's Crashpad directory. No place
 ///   in the browser's source or documentation is named for it: the four cells of run 43484944398,
 ///   with their controls, stand in that place's stead for Chrome 156 and 157 and Edge 156 and for
-///   no other version, and the crash row is run again when a browser's major version changes
-///   (CP-165 (2) (d), CP-186 N3).
+///   no other version (`crash_row::LAST_READ`). Running the crash row again when a browser's
+///   major version changes is the rule of CP-165 (2) (d), and who runs it is the planner's line of
+///   CP-186 N3: the row `crash_major` of web-rows, when someone runs it, reads `miss` with
+///   `cause=new_major` at a major that `LAST_READ` does not hold (`crash_row::read_at`), and it
+///   runs in no job of main's workflow.
 ///
 /// The crash row's control starts without them (`cdp::CrashMeans::Without`).
 pub const CRASH_MEANS: [&str; 2] = [
@@ -79,7 +93,9 @@ pub const CRASH_MEANS: [&str; 2] = [
 
 /// The further candidates of the crash row (CP-167 E2), a closed list, each added after the
 /// product's means by `cdp::CrashMeans::Candidate`; each switch name stands in the browser's own
-/// binary, and what each does is what the row records.
+/// binary, and what each does is what the row records. Behind the fence: a build without the
+/// feature `test-fence`, which is no test build, has no candidate (CP-186 N8).
+#[cfg(any(test, feature = "test-fence"))]
 pub const CRASH_CANDIDATES: [(&str, &[&str]); 3] = [
     (
         "system_port",
@@ -88,6 +104,26 @@ pub const CRASH_CANDIDATES: [(&str, &[&str]); 3] = [
     ("dumps_dir", &["--crash-dumps-dir={profile}/Crashpad"]),
     ("no_reporter", &["--disable-crash-reporter"]),
 ];
+
+/// The fence's marker (CP-186 N8, in the form of the capture run's W3-8 (b) (3)): a byte string
+/// that stands in a build with the feature `test-fence` and in no build without it, so that a
+/// check can read a built file for it (`fence/shipped.mjs`). The feature stands behind the crash
+/// row's two means (`cdp::CrashMeans::Without`, `cdp::CrashMeans::Candidate`), its forced crash
+/// (`cdp::Executor::crash`), `relay::Names::Fixture`, `CRASH_CANDIDATES` and the programs
+/// `web-probe`, `web-rows` and `web-standin`; the crate's dev-dependency on itself turns it on for
+/// its own tests, and no other manifest names it. Every path that reaches one of those means
+/// reads the marker, and each of the three programs reads it at its start, so that a built file
+/// that links them holds it; `CRASH_CANDIDATES` is a constant and reads none: a program that
+/// names it alone holds its flags and no marker.
+#[cfg(feature = "test-fence")]
+pub static FENCE_MARKER: [u8; 39] = *b"halvo-web:test-fence:this-build-has-it!";
+
+/// Reads the fence's marker, so that a build that links the caller holds it; each program behind
+/// the fence calls it at its start.
+#[cfg(feature = "test-fence")]
+pub fn fence_marker() {
+    std::hint::black_box(&FENCE_MARKER);
+}
 
 /// The policy of A4.2 that the executor adds to every document and worker script.
 pub const WS_POLICY: &str = "connect-src http: https: data: blob:";
@@ -111,4 +147,218 @@ pub fn extract_amount(text: &str) -> Option<u64> {
     let whole: u64 = whole.parse().ok()?;
     let cents: u64 = cents.parse().ok()?;
     whole.checked_mul(100)?.checked_add(cents)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::{Path, PathBuf};
+
+    const FENCE: &str = r#"#[cfg(any(test, feature = "test-fence"))]"#;
+
+    /// CP-186 N8: the fence is on in this test target from its start: the crate's dev-dependency
+    /// on itself gives its own tests the feature `test-fence`.
+    #[test]
+    fn the_fence_is_on_in_this_test_target() {
+        assert!(
+            std::hint::black_box(cfg!(feature = "test-fence")),
+            "the fence is off in the library's test target"
+        );
+    }
+
+    /// CP-186 N8: every test target of the crate other than the library's own (`test_targets`: the
+    /// programs of src/bin, tests, examples and benches) holds the test
+    /// `the_fence_is_on_in_this_test_target`, each
+    /// program of src/bin needs the feature, and the manifest gives the crate's own tests the
+    /// feature through its dev-dependency on itself, so that no test target loses the fence's
+    /// means unseen.
+    #[test]
+    fn every_test_target_holds_the_test_that_its_fence_is_on() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let targets = test_targets(root);
+        assert!(targets.len() >= 2, "{targets:?}");
+        let missing = without_the_fence_test(&targets);
+        assert!(
+            missing.is_empty(),
+            "test targets without the test: {missing:?}"
+        );
+        let manifest = std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest");
+        assert!(
+            manifest.contains(r#"halvo-web = { path = ".", features = ["test-fence"] }"#),
+            "the manifest does not give the crate's own tests the feature test-fence"
+        );
+        let bins = manifest.matches("[[bin]]").count();
+        let fenced = manifest
+            .matches(r#"required-features = ["test-fence"]"#)
+            .count();
+        assert_eq!(
+            (bins, fenced),
+            (3, 3),
+            "each program needs the feature test-fence"
+        );
+    }
+
+    /// The test targets of the crate below `root` other than the library's own, as cargo finds
+    /// them: each `.rs` file of src/bin, tests, examples and benches, and the `main.rs` of each
+    /// directory directly below one of them.
+    fn test_targets(root: &Path) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        for dir in ["src/bin", "tests", "examples", "benches"] {
+            let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let main = path.join("main.rs");
+                    if main.is_file() {
+                        out.push(main);
+                    }
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+        out.sort();
+        out
+    }
+
+    /// Of `targets`, those whose text holds no fence-state test.
+    fn without_the_fence_test(targets: &[PathBuf]) -> Vec<PathBuf> {
+        targets
+            .iter()
+            .filter(|p| {
+                !std::fs::read_to_string(p)
+                    .unwrap_or_default()
+                    .contains("fn the_fence_is_on_in_this_test_target()")
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// U2.6 round 1, R5, failing first: the reader of test targets takes, as cargo does, the `.rs`
+    /// files of src/bin, tests, examples and benches and the `main.rs` of a directory below each,
+    /// and names each one of them that holds no fence-state test; a module beside a `main.rs` is
+    /// no target.
+    #[test]
+    fn r5_a_target_in_a_directory_of_tests_examples_or_benches_is_read() {
+        let dir = crate::child::scratch("fence-targets");
+        let with = "#[test]\nfn the_fence_is_on_in_this_test_target() {}\n";
+        for (path, text) in [
+            ("src/bin/a.rs", with),
+            ("src/bin/b/main.rs", ""),
+            ("tests/c.rs", with),
+            ("tests/d/main.rs", ""),
+            ("tests/d/helper.rs", ""),
+            ("examples/e.rs", ""),
+            ("benches/f/main.rs", ""),
+        ] {
+            let p = dir.join(path);
+            std::fs::create_dir_all(p.parent().expect("a directory")).expect("a directory");
+            std::fs::write(&p, text).expect("a file");
+        }
+        let missing: Vec<String> = without_the_fence_test(&test_targets(&dir))
+            .iter()
+            .map(|p| {
+                p.strip_prefix(&dir)
+                    .expect("below the directory")
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+            .collect();
+        assert_eq!(
+            missing,
+            vec![
+                "benches/f/main.rs",
+                "examples/e.rs",
+                "src/bin/b/main.rs",
+                "tests/d/main.rs"
+            ]
+        );
+    }
+
+    /// Whether the line that stands directly above the first line of `text` that begins with
+    /// `item` (leading spaces aside) is the fence's attribute.
+    fn fenced(text: &str, item: &str) -> bool {
+        let lines: Vec<&str> = text.lines().map(str::trim).collect();
+        lines
+            .iter()
+            .position(|l| l.starts_with(item))
+            .is_some_and(|i| i > 0 && lines[i - 1] == FENCE)
+    }
+
+    /// CP-186 N8: the crash means' two row-only entries, `Names::Fixture` and the closed list of
+    /// the crash row's candidates stand behind the fence: in a build without the feature, which
+    /// is no test build, none of them exists.
+    #[test]
+    fn the_row_only_means_stand_behind_the_fence() {
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let read = |f: &str| std::fs::read_to_string(src.join(f)).expect("a source file");
+        let (cdp, relay, lib) = (read("cdp.rs"), read("relay.rs"), read("lib.rs"));
+        for (text, item) in [
+            (&cdp, "Without,"),
+            (&cdp, "Candidate(usize),"),
+            (&relay, "Fixture,"),
+            (&lib, "pub const CRASH_CANDIDATES"),
+            (&cdp, "pub async fn crash("),
+        ] {
+            assert!(fenced(text, item), "{item} stands outside the fence");
+        }
+        assert!(!fenced("#[test]\nWithout,", "Without,"));
+        assert!(fenced(&format!("x\n  {FENCE}\n  Without,"), "Without,"));
+    }
+
+    /// The manifests under `dir`, at any depth, but in a directory whose name begins with a dot or
+    /// is `target` or `node_modules`.
+    fn manifests(dir: &Path, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if path.is_dir() {
+                if !(name.starts_with('.') || name == "target" || name == "node_modules") {
+                    manifests(&path, out);
+                }
+            } else if name == "Cargo.toml" {
+                out.push(path);
+            }
+        }
+    }
+
+    /// CP-186 N8, with the capture run's W3-8 (b) (2): no manifest of the repository but the
+    /// crate's own turns halvo-web's feature `test-fence` on, and the crate's own `default` does
+    /// not, so that no build for a person turns the fence's means on through a manifest. Each
+    /// manifest is read as cargo decodes it (`fence_manifest::naming_the_fence`, U2.6 round 1,
+    /// R3); the forms that it reads and its cases stand in that module.
+    #[test]
+    fn no_other_manifest_names_the_fence() {
+        let own = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let root = own.ancestors().nth(2).expect("the repository");
+        let mut found = Vec::new();
+        manifests(root, &mut found);
+        assert!(found.len() > 10, "{found:?}");
+        let files: Vec<(PathBuf, String)> = found
+            .into_iter()
+            .map(|m| {
+                let text = std::fs::read_to_string(&m).expect("a manifest");
+                (m, text)
+            })
+            .collect();
+        let naming = crate::fence_manifest::naming_the_fence(&files, &own.join("Cargo.toml"));
+        assert!(naming.is_empty(), "{naming:?}");
+    }
+
+    /// CP-186 N8, with W3-8 (b) (3): a build with the feature holds the fence's marker, the byte
+    /// string that the check of the shipped files reads for: this test's own program holds it.
+    #[cfg(feature = "test-fence")]
+    #[test]
+    fn the_test_build_holds_the_marker() {
+        let exe = std::fs::read(std::env::current_exe().expect("this program")).expect("read");
+        let marker = &super::FENCE_MARKER[..];
+        assert!(
+            exe.windows(marker.len()).any(|w| w == marker),
+            "the test build lacks the marker"
+        );
+    }
 }

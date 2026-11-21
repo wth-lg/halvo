@@ -12,7 +12,9 @@
 //! target makes its app finish launching and become the active app, as the app is when a person
 //! asks for the dialog, waits at its start until the app reads active, as guard_hosted does
 //! (ruling RD-107, ruling RD-113 item 2), and otherwise runs no case and ends with its
-//! inconclusive line, and brings an alert that has not reported itself to the front once a
+//! inconclusive line, asks for its first show only after the sign that the test runtime's run
+//! loop runs, and otherwise, after 10 s, runs no case and fails by its own line (ruling RD-146
+//! (4)), and brings an alert that has not reported itself to the front once a
 //! second, with a line that says what was active before it; and on
 //! Windows a dialog that has not reported itself in 3 s is brought to the foreground once, with
 //! a line that says so.
@@ -1217,11 +1219,36 @@ mod cases {
         }
     }
 
+    /// Runs the cases on a thread of their own while the test runtime's run loop runs on the main
+    /// thread, the thread's first show after the sign that the run loop runs, as guard_hosted
+    /// does (ruling RD-146 (4)); with no sign within `RUN_LOOP_BOUND` it prints its line, runs no
+    /// case and ends as failed. The setting `LATE` holds the run call back after the thread has
+    /// started: the forced form of the race.
     pub fn run(card: Card) {
         activate();
+        let late =
+            match super::activation::late(std::env::var_os(super::activation::LATE).as_deref()) {
+                Ok(late) => late,
+                Err(line) => {
+                    println!("dialog_hosted {line}");
+                    std::process::exit(1);
+                }
+            };
         let app = tauri::test::mock_app();
         let handle = app.handle().clone();
+        let (ready, runs) = std::sync::mpsc::channel::<()>();
         std::thread::spawn(move || {
+            let start = Instant::now();
+            let begun = super::activation::run_loop(
+                |bound| runs.recv_timeout(bound).is_ok(),
+                || start.elapsed(),
+                super::activation::RUN_LOOP_BOUND,
+            );
+            let (line, go) = super::activation::begun("dialog_hosted", begun);
+            println!("{line}");
+            if !go {
+                std::process::exit(1);
+            }
             let dialog = System::new(handle);
             if std::env::var_os(TEXT_SIZE).is_some() {
                 let (name, card) = bound_cases().swap_remove(0);
@@ -1348,7 +1375,18 @@ mod cases {
             text_size_try();
             end(&verdicts, CASES.len(), bounds_failed + ink_failed);
         });
-        app.run(|_, _| {});
+        if let Some(late) = late {
+            println!(
+                "dialog_hosted forced form: the main thread holds its run call back {} ms",
+                late.as_millis()
+            );
+            std::thread::sleep(late);
+        }
+        app.run(move |_, event| {
+            if let tauri::RunEvent::Ready = event {
+                let _ = ready.send(());
+            }
+        });
     }
 }
 

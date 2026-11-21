@@ -9,7 +9,7 @@ use crate::types::{
     Answered, Card, CardEffect, CardLine, CardRun, Cause, Cleared, ConfigView, Control,
     ControlText, Doing, EffectAnswer, Event, Facts, FullWorkflow, HoldSetCause, ItemId, ItemKind,
     Limits, LineKey, LivePhase, PastEffect, PastRun, Permission, Raised, Row, RunEnd, RunHistory,
-    RunId, Runtime, StatusLine, Tier, What,
+    RunId, Runtime, StatusLine, System, Tier, What,
 };
 use crate::words;
 
@@ -214,9 +214,14 @@ pub fn controls<C: ConfigView>(facts: &Facts<C>) -> Vec<Control> {
     out
 }
 
-/// The row of an agent as the page gets it (I2.5), with its status line and its name.
+/// The row of an agent as the page gets it (I2.5), with its status line and its name. The row
+/// of `problem.record` offers Stop where a run is live, the delete, and no other control (I1.3;
+/// ruling RD-64 1.5, 1.7).
 pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Result<Row, Cause> {
     let status = line.status();
+    let offered = controls(facts)
+        .into_iter()
+        .filter(|c| line != StatusLine::Record || matches!(c, Control::Stop | Control::Delete));
     Ok(Row {
         agent: facts.agent.clone(),
         workflow: facts.workflow.id.clone(),
@@ -230,8 +235,7 @@ pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Res
             &[],
         )?,
         next: next_slot(&facts.workflow, facts.today).map(words::day),
-        controls: controls(facts)
-            .into_iter()
+        controls: offered
             .map(|control| {
                 text(&format!("control.{}", control.name()), &[])
                     .map(|text| ControlText { control, text })
@@ -241,11 +245,17 @@ pub fn row<C: ConfigView>(facts: &Facts<C>, line: StatusLine, name: &str) -> Res
 }
 
 /// The row of an agent whose workflow a tick saw gone while its run lives (I5.7, ruling RD-54
-/// (g)): `working.stopping`, or `working.kill_stuck` where `stuck`, the run having outlived a
-/// kill that was refused, no control and no next day, since a gone workflow has no slot.
-pub fn gone_row<C: ConfigView>(facts: &Facts<C>, stuck: bool, name: &str) -> Result<Row, Cause> {
+/// (g)): `working.stopping`, or the `working.kill_stuck` line of `system` where `stuck`, the run
+/// having outlived a kill that was refused, no control and no next day, since a gone workflow
+/// has no slot.
+pub fn gone_row<C: ConfigView>(
+    facts: &Facts<C>,
+    stuck: bool,
+    system: System,
+    name: &str,
+) -> Result<Row, Cause> {
     let line = if stuck {
-        StatusLine::KillStuck
+        StatusLine::KillStuck(system)
     } else {
         StatusLine::Stopping
     };
@@ -404,6 +414,19 @@ pub fn card<C: ConfigView>(
             .map(|h| card_run(&facts.events, h))
             .collect::<Result<_, _>>()?,
     })
+}
+
+/// The card's line of the agent's records taken off since Halvo opened, `card.records_dropped`
+/// with `{count}` (ruling RD-64 2.6), or none where `count` is 0.
+pub fn dropped_line(count: u32) -> Result<Option<CardLine>, Cause> {
+    if count == 0 {
+        return Ok(None);
+    }
+    let text = text("card.records_dropped", &[("count", &count.to_string())])?;
+    Ok(Some(CardLine {
+        key: LineKey::RecordsDropped,
+        text,
+    }))
 }
 
 /// When the agent's open item was raised, the instant of its `item_raised` event, which orders

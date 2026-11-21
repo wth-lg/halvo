@@ -11,14 +11,16 @@ measured earlier run=44183190050 note=the_long_form_of_macos-2c_before_ruling_MA
 measured earlier run=44224150113 note=the_long_form_of_macos-2c_before_the_mend_of_check_51_in_land-58
 measured earlier run=44634472236 note=the_long_form_of_land-58_before_notice-clock
 measured earlier run=44686261051 note=the_long_form_of_notice-clock_before_the_length_case
-measured run=44702182766 form=long result=pass gap_ms=210 mended_rounds_held=122 phases_not_driven=0 commit=4580730d728aa52b54eb8d0ac27919c3fe4ed581 scratch=db132e8175e4c3f1e0488cf8eb8c536ac570325f figures=ms_total=20,pass=18,known_fault=2,fail=0,notdriven=1,notkept=2,rounds_counted=340,rounds_not_driven=0,phases_not_driven=0;seconds_51=1948;short_form_seconds=unread;form_a_2000ms:rounds=124,counted=124,recorded_rounds=1,cases=A:1,S:123;form_a_150ms:rounds=40,counted=40,recorded_rounds=0;whole_burst_machine:rounds=5,counted=4,recorded_rounds=0,cases=A:1,S:4;whole_pace:rounds=5,counted=5,recorded_rounds=0;mended_click_loop:62_counted,passed;every_wait_of_each_mended_phase_held:3_of_3;short_on_time_at_200ms:20_of_20_held,notice_drops=20;products_constants:notkept;lag_phase:10_of_10_held;plain_field_notice:3_of_3;come_to_front:3_of_3;loop_ma31_new_tests:unread;rows_ma31:unread;on_outside=0_in_330_round_lines;notices=0;unclocked=0;measure:spacing_max_us=100817,load1=9.19
-measured blob path=crates/halvo-capture/src/macos/input.rs id=84c984a0a4846cd93449e2ba37f5ccb8670387ba
-measured blob path=crates/halvo-capture/src/secure_input_macos.rs id=0d9a8f91f7731f1778849a47c5fff9642fafd9f7
+measured earlier run=44702182766 note=the_long_form_of_notice-clock_before_macos-2e
+measured earlier run=44718863268 note=the_long_form_of_macos-2e_before_macos-3
+measured run=44794440622 form=long result=pass gap_ms=210 mended_rounds_held=122 phases_not_driven=0 commit=953f558d391010c412839f37e07422591aa43995 scratch=da5866455585b1610743d666fa025fd6c6a3edc2 figures=ms_total=20,pass=18,known_fault=2,fail=0,notdriven=1,notkept=2,rounds_counted=340,rounds_not_driven=0,phases_not_driven=0,rounds_lost_to_the_late_rule=0;seconds_51=1903;short_form_seconds=unread;lost_by_phase=into:0@150:0+300:0+600:0+850:0+2000:0,click:0@150:0+300:0+600:0+850:0+2000:0,focus_move:0@150:0+300:0+600:0+850:0+2000:0,up:0@150:0+300:0+600:0+850:0+2000:0,loop:0@2000:0,d1:0@1500:0;form_a_2000ms:unread;form_a_150ms:unread;whole_burst_machine:rounds=5,counted=4,recorded_rounds=0,from_the_round_lines;whole_pace:rounds=5,counted=5,recorded_rounds=0,from_the_round_lines;mended_click_loop:62_counted,passed;every_wait_of_each_mended_phase_held:4_of_4_phases_held_a_round_at_each_of_their_waits;notices=0;unclocked=0;measure:spacing_max_us=100750,load1=3.35
+measured blob path=crates/halvo-capture/src/macos/input.rs id=718e871323789676db003cf17b59719ec9496afd
+measured blob path=crates/halvo-capture/src/secure_input_macos.rs id=b1f887fcac10a7751c2ae043ea87d05e74828200
 measured blob path=crates/halvo-capture/src/secure_input_macos_hold.rs id=9677ccafa0b2ace0911578ba94176907bc3ee528
-measured blob path=crates/halvo-capture/tests/macos_stall_fixture.rs id=6ab4b343fdd058417c4b1bec2ba210dbd78d24f2
+measured blob path=crates/halvo-capture/tests/macos_stall_fixture.rs id=601c182986fe2937a5ff191957cf66e9bdc78fda
 measured blob path=crates/halvo-capture/tests/macos_stall_fixture/fixture.m id=d6e1b31e2eafd523ca970b2b90c4a8b6144ffd19
-measured blob path=crates/halvo-capture/src/macos/secure_input_byte.rs id=50764beea87ebdca5d7440076a6658425cff3a31
+measured blob path=crates/halvo-capture/src/macos/secure_input_byte.rs id=e12aa79fba9404fb075088d5be78ff108aa16e2d
 measured blob path=crates/halvo-capture/src/macos/run_loop.rs id=4d7121e40423a676e4f783cbcd93d12474c629b4
-measured blob path=scripts/r1/ci.d/51-macos-stall.sh id=f4798259cc45d1587dc45a29c3ff8d80424c53f3
+measured blob path=scripts/r1/ci.d/51-macos-stall.sh id=40f08cd4080173e47aca2e279dbf2f06ccbeb709
 measured seam path=crates/halvo-capture/Cargo.toml table=[features] text=stall-seam = []
 measured seam path=crates/halvo-capture/Cargo.toml table=[dev-dependencies] text=halvo-capture = { path = ".", features = ["stall-seam"] }

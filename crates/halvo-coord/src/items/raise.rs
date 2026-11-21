@@ -184,7 +184,11 @@ fn answered_check<C>(facts: &Facts<C>, run: &RunId) -> Option<CheckAnswer> {
 /// is answered from that answer; a request after the run raised `items_per_run` items ends the
 /// run with `budget`. A source of the coordinator's own is refused with `state` while the agent
 /// has an open item or a live run, and a `setup` raises nothing when the newest bindings hold
-/// every parameter of the category.
+/// every parameter of the category. `Coordinator::on_run` declines a second step or a handback
+/// `account_link` whose origin is `http` outside 127.0.0.0/8 only where this function gives
+/// `Run` or `End(Budget)`: after its state rule and its kind rule, and before its budget rule,
+/// so that such a request while an item of the run is open ends the run with `kind` and is
+/// never declined quietly (I1.4, ruling RD-116 R2).
 pub fn raise_step<C>(facts: &Facts<C>, source: Source<'_>, limits: &Limits) -> Raise {
     use crate::types::Cause;
     let own = match source {

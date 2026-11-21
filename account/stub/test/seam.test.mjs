@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { once } from "node:events";
 import { Duplex } from "node:stream";
 import { join } from "node:path";
 import { serve, readVendored } from "../src/stub.mjs";
@@ -43,24 +44,41 @@ function setUp(idleMs) {
 
 const subscription = (app) => app.handle({ method: "GET", target: "/v1/subscription", headers: appHeaders(), body: Buffer.alloc(0) }).result;
 
-test("L4 after its idle close, with an answer still unflushed, the stand-in reads no request: no line, no state, the bytes in the raw file alone", async () => {
-  const { dir, record, app, socket, flush } = setUp(100);
+test("L4 after its idle close, with an answer still unflushed, the stand-in reads no request: no line, no state, the bytes in the raw file alone", async (t) => {
+  const idleMs = 100;
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"] });
+  const { dir, record, app, socket, flush } = setUp(idleMs);
+  t.after(() => record.close());
+  const pushAndRead = (bytes) => {
+    const read = once(socket, "data");
+    socket.push(bytes);
+    return read;
+  };
   const first = Buffer.from("GET /v1/done HTTP/1.1\r\nhost: a\r\n\r\n");
-  socket.push(first);
-  await pause(400);
+  await pushAndRead(first);
+  t.mock.timers.tick(idleMs);
   assert.deepEqual(kinds(dir), [200, "idle-close"], "the idle close came");
   assert.equal(socket.destroyed, false, "the connection is still open with its answer unflushed");
   assert.equal(socket.writableFinished, false);
+  assert.ok(socket.writableLength > 0, "the answer still has bytes waiting to be flushed");
   const checkout = request("POST", "/v1/checkout", [...appHeaders(), ...json], CAP);
-  socket.push(checkout);
-  await pause(100);
+  await pushAndRead(checkout);
+  t.mock.timers.tick(idleMs * 4);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(socket.destroyed, false, "the unflushed connection stayed open");
+  assert.equal(socket.writableFinished, false, "the answer is still unfinished");
+  assert.ok(socket.writableLength > 0, "the answer stayed buffered until flush");
   assert.deepEqual(kinds(dir), [200, "idle-close"], "no line for the request after the end");
   assert.equal(subscription(app), "no-such-account", "the checkout changed no state");
   assert.deepEqual(readFileSync(join(dir, "connection-000001.raw")), Buffer.concat([first, checkout]));
+  const finished = once(socket, "finish");
   flush();
-  for (let waited = 0; waited < 2000 && !socket.destroyed; waited += 20) await pause(20);
+  await finished;
+  assert.equal(socket.destroyed, false, "the connection waits after the answer finishes");
+  t.mock.timers.tick(idleMs);
   assert.equal(socket.destroyed, true);
-  record.close();
+  assert.deepEqual(kinds(dir), [200, "idle-close"], "no further record at close");
+  assert.equal(subscription(app), "no-such-account", "the checkout still changed no state at close");
 });
 
 test("L7 (b) at the stop, a peer that has ended its side with answers unwritten gets forced-close", async () => {

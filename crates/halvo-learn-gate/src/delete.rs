@@ -1,11 +1,15 @@
+use std::path::Path;
+
 use halvo_schema::executable::names::LocatorBy;
 use halvo_schema::executable::step::Target;
 use halvo_schema::WorkflowId;
 
 use crate::case::{Case, Form, Kind, Occurrence, Step, Verb};
-use crate::cli::{Flags, Refusal, Report, StoreName};
+use crate::cli::{Cause, Flags, Refusal, Report, StoreName};
+use crate::derived::{process_key, DerivedHost};
+use crate::host::{GateHost, PlayHost};
 use crate::page::{Control, Role};
-use crate::store::{Family, MemoryStore};
+use crate::store::MemoryStore;
 use crate::stub::{play_all, Arm, Play};
 
 /// The markers of contracts.md L11.4: each seeded workflow's learned labels hold its marker.
@@ -88,44 +92,99 @@ pub fn seed(cases: &[Case; 2]) -> Result<(Play<'_>, String), String> {
     Ok((second, first_workflow))
 }
 
+/// The play of the second seeded workflow on the derived store under `data_dir`, opened with a key that this
+/// process makes, which holds both seeded workflows, each made by the test proposer and an approval, with its
+/// agent, its compile and its learned edits (L10.1, L10.4), and the id of the first workflow as the store gave it.
+pub fn seed_derived<'c>(
+    cases: &'c [Case; 2],
+    data_dir: &Path,
+) -> Result<(Play<'c, DerivedHost>, String), String> {
+    let host = DerivedHost::new(
+        data_dir.to_path_buf(),
+        process_key(),
+        cases[0].occurrences[0].day,
+    );
+    let mut first = Play::with_host(&cases[0], Arm::Admit, 1, host);
+    play_all(&mut first, false)?;
+    let first_workflow = first.workflow().to_owned();
+    let mut second = Play::with_host(&cases[1], Arm::Admit, 2, first.host);
+    play_all(&mut second, false)?;
+    Ok((second, first_workflow))
+}
+
 /// The rows of the family `learn` that name a workflow, each as (kind, bytes), in byte order.
-fn rows_naming(store: &MemoryStore, workflow: &str) -> Vec<(&'static str, String)> {
-    let mut rows: Vec<(&'static str, String)> = store
-        .rows(Family::Learn)
-        .all()
-        .filter(|(_, json)| {
-            serde_json::from_str::<serde_json::Value>(json).is_ok_and(|v| v["workflow"] == workflow)
-        })
-        .map(|(kind, json)| (kind, json.to_owned()))
-        .collect();
+fn rows_naming<H: PlayHost>(
+    host: &mut H,
+    workflow: &str,
+) -> Result<Vec<(&'static str, String)>, String> {
+    let mut rows = Vec::new();
+    for entry in halvo_schema::learning::KINDS {
+        for json in host.learn_rows(entry.name)? {
+            if serde_json::from_str::<serde_json::Value>(&json)
+                .is_ok_and(|v| v["workflow"] == workflow)
+            {
+                rows.push((entry.name, json));
+            }
+        }
+    }
     rows.sort();
-    rows
+    Ok(rows)
 }
 
 /// A cascade of the store: deletes a workflow with the rows that name it and answers whether it was stored.
 pub type Cascade<'a> = &'a mut dyn FnMut(&mut MemoryStore, &WorkflowId) -> bool;
 
-/// The line of `delete --what workflow` with the cascade given, and whether it reads `result=ok` (L10.4; the
-/// coordinator's ruling LM-54 E5). After the seed's last request, with no open and no request until the counts
-/// after the cascade, it counts the rows of the family `learn` that name the first workflow (by the id that its
-/// play made) and keeps those of the second, each by kind and bytes; it calls the cascade; then `rows_left`
-/// counts the first workflow's rows and `other_rows` the second's, and `other_served` is yes when the first
-/// locator served to the second agent is a role locator whose name is the second marker exactly, the name of
-/// its `active` edit. `result=ok` needs all of: rows of the first workflow before the cascade, a cascade that
-/// answered that the workflow was stored, `rows_left` 0, the second workflow's rows the same rows as before by
-/// kind and bytes and more than none, and `other_served` yes. The line counts no row of the family `agent` on
-/// either side and does not read the workflow record; on the memory store it calls the store's cascade and
-/// sends no decision.
+/// The line of `delete --what workflow` on the memory store with the cascade given, and whether it reads
+/// `result=ok` (L10.4; the coordinator's ruling LM-54 E5): `line_after` on the play of `seed`, whose cascade calls
+/// the given one on the memory store and sends no decision.
 pub fn workflow_line(cascade: Cascade<'_>) -> Result<(String, bool), String> {
     let cases = seed_cases();
-    let (mut play, first) = seed(&cases)?;
-    let id = WorkflowId::parse(&first).map_err(|_| "the first workflow's id".to_owned())?;
+    let (play, first) = seed(&cases)?;
+    line_after(
+        StoreName::Memory,
+        play,
+        &first,
+        &mut |host: &mut GateHost, id| Ok(cascade(&mut host.store, id)),
+    )
+}
+
+/// The line of `delete --what workflow` on the derived store under `data_dir`, and whether it reads `result=ok`
+/// (L10.4): `line_after` on the play of `seed_derived`, whose cascade is the decision `delete` of the first
+/// workflow, the store's own (W-C3.10, contracts.md L5.1).
+pub fn derived_workflow_line(data_dir: &Path) -> Result<(String, bool), String> {
+    let cases = seed_cases();
+    let (play, first) = seed_derived(&cases, data_dir)?;
+    line_after(
+        StoreName::Derived,
+        play,
+        &first,
+        &mut |host: &mut DerivedHost, id| host.delete_workflow(id),
+    )
+}
+
+/// The line of `delete --what workflow` after a seed whose second play is `play` and whose first workflow is
+/// `first`, with the cascade given. After the seed's last request, with no open and no request until the counts
+/// after the cascade but the reads of the rows, it counts the rows of the family `learn` that name the first
+/// workflow (by the id that its play made) and keeps those of the second, each by kind and bytes; it calls the
+/// cascade; then `rows_left` counts the first workflow's rows and `other_rows` the second's, and `other_served` is
+/// yes when the first locator served to the second agent is a role locator whose name is the second marker
+/// exactly, the name of its `active` edit. `result=ok` needs all of: rows of the first workflow before the
+/// cascade, a cascade that answered that the workflow was stored, `rows_left` 0, the second workflow's rows the
+/// same rows as before by kind and bytes and more than none, and `other_served` yes. The line counts no row of the
+/// family `agent` on either side and does not read the workflow record.
+pub fn line_after<H: PlayHost>(
+    store: StoreName,
+    mut play: Play<'_, H>,
+    first: &str,
+    cascade: &mut dyn FnMut(&mut H, &WorkflowId) -> Result<bool, String>,
+) -> Result<(String, bool), String> {
+    let id = WorkflowId::parse(first).map_err(|_| "the first workflow's id".to_owned())?;
     let second = play.workflow().to_owned();
-    let before = rows_naming(&play.host.store, &first).len();
-    let kept = rows_naming(&play.host.store, &second);
-    let stored = cascade(&mut play.host.store, &id);
-    let rows_left = rows_naming(&play.host.store, &first).len();
-    let after = rows_naming(&play.host.store, &second);
+    let before = rows_naming(&mut play.host, first)?.len();
+    let kept = rows_naming(&mut play.host, &second)?;
+    let stored = cascade(&mut play.host, &id)?;
+    let rows_left = rows_naming(&mut play.host, first)?.len();
+    let after = rows_naming(&mut play.host, &second)?;
     let other_rows = after.len();
     let served = play.served_now()?;
     let learned = served.first().and_then(|step| match &step.target {
@@ -138,20 +197,23 @@ pub fn workflow_line(cascade: Cascade<'_>) -> Result<(String, bool), String> {
     let ok =
         before > 0 && stored && rows_left == 0 && after == kept && other_rows > 0 && other_served;
     let line = format!(
-        "delete what=workflow store=memory rows_left={rows_left} other_rows={other_rows} other_served={} result={}",
+        "delete what=workflow store={} rows_left={rows_left} other_rows={other_rows} other_served={} result={}",
+        store.as_str(),
         if other_served { "yes" } else { "no" },
         if ok { "ok" } else { "miss" }
     );
     Ok((line, ok))
 }
 
-/// `learn-gate delete --what workflow|all --data-dir DIR [--store memory|derived]` (L10.4).
+/// `learn-gate delete --what workflow|all --data-dir DIR [--store memory|derived]` (L10.4). `--what all` reads
+/// `not-run` on either store while `halvo-capture --delete-all --data-dir DIR` is not built (RC2), and touches
+/// nothing; `--what workflow` on the derived store seeds the store under DIR, which stays there.
 pub fn run(args: &[String]) -> Result<Report, Refusal> {
     let mut flags = Flags::new(args);
     let what = flags
         .value("--what")?
         .ok_or_else(|| Refusal::usage("delete takes --what workflow|all"))?;
-    flags
+    let data_dir = flags
         .value("--data-dir")?
         .ok_or_else(|| Refusal::usage("delete takes --data-dir DIR"))?;
     let store = flags.value("--store")?.map(StoreName::parse).transpose()?;
@@ -159,15 +221,21 @@ pub fn run(args: &[String]) -> Result<Report, Refusal> {
     if what != "workflow" && what != "all" {
         return Err(Refusal::usage("--what takes workflow or all"));
     }
-    store.unwrap_or(StoreName::Memory).memory_only()?;
+    let store = store.unwrap_or(StoreName::Memory);
     if what == "all" {
         return Ok(Report {
-            lines: vec!["delete what=all store=memory exit=- files_left=- result=not-run".into()],
+            lines: vec![format!(
+                "delete what=all store={} exit=- files_left=- result=not-run",
+                store.as_str()
+            )],
             ok: true,
         });
     }
-    let (line, ok) = workflow_line(&mut |store, id| store.delete_workflow(id))
-        .map_err(|detail| Refusal::new(crate::cli::Cause::Store, detail))?;
+    let (line, ok) = match store {
+        StoreName::Memory => workflow_line(&mut |store, id| store.delete_workflow(id)),
+        StoreName::Derived => derived_workflow_line(Path::new(data_dir)),
+    }
+    .map_err(|detail| Refusal::new(Cause::Store, detail))?;
     Ok(Report {
         lines: vec![line],
         ok,
