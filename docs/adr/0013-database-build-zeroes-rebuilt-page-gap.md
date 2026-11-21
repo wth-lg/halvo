@@ -80,7 +80,7 @@ two functions, rebuildPage and editPage, and in one added function.
   of the source is not read. The sha256 reads sqlcipher.c alone: the headers
   that the same file includes, the other sources of sqlcipher-src, a forced
   include and the compiler's own headers are not hashed. tomcrypt.h is
-  included at line 115040, after the whole of btree.c, so a patched header
+  included at line 115059, after the whole of btree.c, so a patched header
   cannot change the page code's text; a blanket redefinition is the limit
   above. Cargo.lock pins the crate's archive, not an edited registry copy.
 
@@ -161,14 +161,14 @@ in the draws of the tests", with the limits below.
   only while the store is open, and the draws close a store after a
   truncating checkpoint, which leaves nothing for the close to write.
 - A copy of a table by `INSERT INTO b SELECT * FROM a` takes the transfer path
-  (sqlite3BtreeTransferRow, lines 83309 and 83341, which write the payload
+  (sqlite3BtreeTransferRow, lines 82843 and 82875, which write the payload
   into the new cell and its overflow pages). VACUUM attaches an empty file
-  name (line 167703), which in this build is a temporary database held in
+  name (line 168423), which in this build is a temporary database held in
   memory (SQLITE_TEMP_STORE is 2, and the stores set temp_store to MEMORY),
-  with the main database's secure delete (lines 131727 and 131728); it copies
-  each table into it by `INSERT ... SELECT` (line 167806), so line 83341 writes
+  with the main database's secure delete (lines 131965 and 131966); it copies
+  each table into it by `INSERT ... SELECT` (line 168526), so line 82875 writes
   into that database in memory, and then writes its pages into the file by
-  sqlite3BtreeCopyFile (line 167871). The database in memory is freed when
+  sqlite3BtreeCopyFile (line 168591). The database in memory is freed when
   VACUUM ends and leaves no file of its own; the file then holds the pages
   that it built. The tests page_gap::rewrites draw both, each with a control
   with secure delete off, and search every file after each and after each
@@ -259,7 +259,7 @@ in the draws of the tests", with the limits below.
   then loses the same rows by its own code (seen by run); pageInsertArray
   (lines 80858 to 80860) and defragmentPage (line 74818) lose them too (by
   reading). The integrity check refuses such a page by name: a cell below the
-  content start at line 84530 (`Offset ... out of range`), such a freeblock at
+  content start at line 84086 (`Offset ... out of range`), such a freeblock at
   line 75218. The test
   `page_gap::malformed::on_a_leaf_whose_content_start_lies_above_live_cells_the_integrity_check_refuses_it_and_deletes_lose_those_cells`
   pins what this build does on such a page, beside what the integrity check
