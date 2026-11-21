@@ -194,7 +194,13 @@ the record against the last commit that changed another file of
 `scripts/r1-gate` or the bounds file. So a change of the list alone needs no
 new record, and a record is made again only for a change of such a file: a
 record made at a later commit whose tree differs outside `docs/baseline/` and
-the list reads stale. Under `--strict` a
+the list reads stale. The list merges by git's union (`.gitattributes`), so two
+branches that each add names at its end join in a clone without a conflict.
+The union keeps the lines of both sides: a name that one side deletes beside a
+line that the other side adds comes back, and `--strict` then names it; a name
+that both sides add at two places stands twice, with or without the union, and
+`scripts/r1/ci.d/15-gate-self-test.sh` fails on every name that stands twice.
+Under `--strict` a
 FAIL line comes for each name that no row file holds or retires, for each such
 required row whose name the list lacks, with the row file named, and for a
 missing `mutants.expected`. The count line of every run gives both numbers.
