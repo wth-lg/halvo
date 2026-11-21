@@ -366,8 +366,17 @@ pub enum Access {
 /// What stands in a store directory, read without unlocking anything.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Probe {
-    /// No key file stands at store.key, or no store directory at its name.
+    /// No key file stands at store.key, or no store directory at its name, and
+    /// no database and no segments stand either.
     NoKeyFile,
+    /// No key file stands at store.key, while the store's database or its
+    /// segments stand: a store that lost its key file, over which nothing is
+    /// made.
+    KeylessStore,
+    /// No key file stands at store.key and no segments stand, while the
+    /// store's own marker create.pending does: a first create that was cut
+    /// before it published its key file, which a create finishes.
+    UnfinishedCreate,
     /// A key file that records `custody`, of the store `id`.
     KeyFile { custody: Custody, id: StoreId },
     /// What stands at store.key cannot be read as a key file.

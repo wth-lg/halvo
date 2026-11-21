@@ -362,6 +362,159 @@ fn a_signalled_timed_run_prints_its_report_and_leaves_no_root_of_its_scratch_sto
     );
 }
 
+const KEYLESS_LINE: &str = "halvo-capture: store=unavailable store_error=obstructed: store.key is missing while the store's database or segments stand; no store was made over them";
+
+fn tree_bytes(root: &Path) -> StoreBytes {
+    let mut found = Vec::new();
+    let mut walk = vec![root.to_path_buf()];
+    while let Some(at) = walk.pop() {
+        for entry in std::fs::read_dir(&at).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.strip_prefix(root).unwrap().to_path_buf();
+            if path.is_dir() {
+                found.push((name, None));
+                walk.push(path);
+            } else {
+                found.push((name, Some(std::fs::read(&path).unwrap())));
+            }
+        }
+    }
+    found.sort();
+    found
+}
+
+const MADE_AGAIN_LINE: &str = "halvo-capture: a first create of the store that never published its key file stood unfinished; the store was made again";
+
+fn run_until(dir: &Path, done: impl Fn(&[String]) -> bool) -> Vec<String> {
+    use std::io::BufRead;
+    let mut run = Service(
+        Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", SERVER, "--test-threads=1"])
+            .env(SERVE, dir)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let (lines, read) = std::sync::mpsc::channel();
+    let err = run.0.stderr.take().unwrap();
+    let reader = std::thread::spawn(move || {
+        for line in std::io::BufReader::new(err).lines() {
+            let Ok(line) = line else { return };
+            let _ = lines.send(line);
+        }
+    });
+    let started = Instant::now();
+    let mut seen = Vec::new();
+    while !done(&seen) {
+        assert!(
+            run.0.try_wait().unwrap().is_none(),
+            "the run ended: {seen:?}"
+        );
+        assert!(
+            started.elapsed() < READY_WITHIN,
+            "the run never got there: {seen:?}"
+        );
+        seen.extend(read.recv_timeout(Duration::from_millis(10)));
+    }
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(terminate(run), Some(0));
+    reader.join().unwrap();
+    seen.extend(read.try_iter());
+    seen
+}
+
+#[test]
+fn a_start_with_no_key_file_beside_a_standing_store_makes_nothing_and_says_why() {
+    use super::custody_policy::Custody;
+    use super::port::{
+        CaptureStore, DataDirStore, EntryKind, KindEntry, Opened, SegmentId, SegmentWrite,
+        StoreHost,
+    };
+    let dir = kept_dir("service-tests-");
+    let Opened::ReadWrite { mut store, .. } = DataDirStore::at(&dir).create(Custody::RootFile)
+    else {
+        panic!("the first life made no store");
+    };
+    let id = SegmentId::mint().unwrap();
+    let entries = [KindEntry {
+        kind: EntryKind::of(crate::event::Modality::ForegroundApp),
+        events: 1,
+        bytes: 3,
+    }];
+    let day = halvo_control::model::UtcDay::from_days_since_epoch(20_000).unwrap();
+    let at = 20_000 * 86_400 * 1_000_000_000_i64;
+    store
+        .write_batch(SegmentWrite::new(&id, day, at, at, &entries, b"{}\n"))
+        .unwrap();
+    drop(store);
+    let store_dir = dir.join("store");
+    std::fs::remove_file(store_dir.join("store.key")).unwrap();
+    assert!(
+        !dir.join("daemon-state.json").exists(),
+        "the first life marked its store"
+    );
+    let database = std::fs::read(store_dir.join("store.db")).unwrap();
+    let segments = tree_bytes(&store_dir.join("segments"));
+    assert!(
+        segments.iter().any(|(_, bytes)| bytes.is_some()),
+        "no segment stands"
+    );
+    let roots = names(&dir.join("roots"));
+    let seen = run_until(&dir, |seen| {
+        seen.iter().any(|line| line == KEYLESS_LINE) || store_dir.join("store.key").exists()
+    });
+    assert!(
+        !store_dir.join("store.key").exists(),
+        "a new store was made over the standing one"
+    );
+    assert!(
+        std::fs::read(store_dir.join("store.db")).unwrap() == database,
+        "the standing database changed"
+    );
+    assert!(
+        tree_bytes(&store_dir.join("segments")) == segments,
+        "the standing segments changed"
+    );
+    assert_eq!(names(&dir.join("roots")), roots, "a new root was made");
+    assert_eq!(
+        seen.iter().filter(|line| *line == KEYLESS_LINE).count(),
+        1,
+        "{seen:?}"
+    );
+
+    let cut = kept_dir("service-tests-");
+    let Opened::ReadWrite { store, .. } = DataDirStore::at(&cut).create(Custody::RootFile) else {
+        panic!("the cut life made no store");
+    };
+    drop(store);
+    let cut_store = cut.join("store");
+    let root = names(&cut.join("roots")).remove(0);
+    let root_id = root.strip_suffix(".root").unwrap();
+    std::fs::write(
+        cut_store.join("create.pending"),
+        format!("{{\"custody_kind\":\"dev_fallback\",\"root_id\":\"{root_id}\"}}"),
+    )
+    .unwrap();
+    std::fs::remove_file(cut_store.join("store.key")).unwrap();
+    assert!(cut_store.join("store.db").exists() && !cut_store.join("segments").exists());
+    let seen = run_until(&cut, |seen| {
+        seen.iter().any(|line| line == MADE_AGAIN_LINE) && cut_store.join("store.key").exists()
+    });
+    assert!(cut_store.join("store.key").exists(), "no store was made");
+    assert!(
+        !cut_store.join("create.pending").exists(),
+        "the marker stays"
+    );
+    assert_eq!(
+        seen.iter().filter(|line| *line == MADE_AGAIN_LINE).count(),
+        1,
+        "{seen:?}"
+    );
+    assert!(!seen.iter().any(|line| line == KEYLESS_LINE), "{seen:?}");
+}
+
 #[test]
 fn a_second_service_run_changes_no_byte_of_the_store_that_the_first_holds() {
     let dir = kept_dir("service-tests-");

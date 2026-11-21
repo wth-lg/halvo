@@ -172,8 +172,18 @@ fn probe_at(store_dir: &Path) -> Probe {
             custody: custody_of(key_file.custody_kind),
             id: store_id(key_file.root_id),
         },
-        Err(StoreError::Sealed) => Probe::NoKeyFile,
-        Err(StoreError::Io(io::ErrorKind::NotFound)) => Probe::NoKeyFile,
+        Err(StoreError::Sealed | StoreError::Io(io::ErrorKind::NotFound)) => {
+            let stands = |name: &str| std::fs::symlink_metadata(store_dir.join(name)).is_ok();
+            match (
+                stands("create.pending"),
+                stands("segments"),
+                stands("store.db"),
+            ) {
+                (true, false, _) => Probe::UnfinishedCreate,
+                (_, true, _) | (false, false, true) => Probe::KeylessStore,
+                (false, false, false) => Probe::NoKeyFile,
+            }
+        }
         Err(e) => Probe::Fault {
             fault: open_fault(&e),
             id: None,
@@ -184,7 +194,9 @@ fn probe_at(store_dir: &Path) -> Probe {
 fn key_id(store_dir: &Path) -> Option<StoreId> {
     match probe_at(store_dir) {
         Probe::KeyFile { id, .. } => Some(id),
-        Probe::NoKeyFile | Probe::Fault { .. } => None,
+        Probe::NoKeyFile | Probe::KeylessStore | Probe::UnfinishedCreate | Probe::Fault { .. } => {
+            None
+        }
     }
 }
 

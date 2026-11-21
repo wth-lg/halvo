@@ -58,26 +58,81 @@ pub enum Held {
     },
 }
 
+/// What a try where no key file stands says in one line of the service run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Note {
+    /// No key file stands while the store's database or its segments do, so
+    /// no store is made over them.
+    KeylessStoreStands,
+    /// A first create that the end of a process cut before it published its
+    /// key file was made again.
+    UnfinishedCreateMadeAgain,
+}
+
+impl Note {
+    /// The line of the note; it holds no path.
+    pub const fn line(self) -> &'static str {
+        match self {
+            Note::KeylessStoreStands => {
+                "halvo-capture: store=unavailable store_error=obstructed: store.key is missing while the store's database or segments stand; no store was made over them"
+            }
+            Note::UnfinishedCreateMadeAgain => {
+                "halvo-capture: a first create of the store that never published its key file stood unfinished; the store was made again"
+            }
+        }
+    }
+}
+
 /// One try of the open on `host` under the custody policy `select`, with
 /// `rule` for a missing key file and `retry` as the wait of a slot that a
 /// timer tries again: the slot that the try reads, and the handle when the
-/// store opened. Where no key file stands, only a first run creates; over a
-/// key file that stands nothing is created, so a sealed store is never wiped.
+/// store opened. Only a first run creates: no key file, no database and no
+/// segments stand, and the mark `store_made` is not set. Over a key file, a
+/// database or segments that stand nothing is created, so a sealed store is
+/// never wiped.
 pub fn try_open(
     host: &dyn StoreHost,
     select: fn(Option<Custody>) -> Selection,
     rule: CreateRule,
     retry: Duration,
 ) -> (Slot, Option<Held>) {
+    let (slot, held, _) = try_open_and_say(host, select, rule, retry);
+    (slot, held)
+}
+
+/// [`try_open`], and the note of a try where no key file stands.
+pub fn try_open_and_say(
+    host: &dyn StoreHost,
+    select: fn(Option<Custody>) -> Selection,
+    rule: CreateRule,
+    retry: Duration,
+) -> (Slot, Option<Held>, Option<Note>) {
+    let mut note = None;
     let opened = match host.probe() {
-        Probe::Fault { fault, id } => return (Slot::of_fault(fault, id, retry), None),
-        Probe::NoKeyFile if rule != CreateRule::FirstRun => {
-            return (Slot::of_fault(OpenFault::Obstructed, None, retry), None)
+        Probe::Fault { fault, id } => return (Slot::of_fault(fault, id, retry), None, None),
+        Probe::KeylessStore => {
+            return (
+                Slot::of_fault(OpenFault::Obstructed, None, retry),
+                None,
+                Some(Note::KeylessStoreStands),
+            )
         }
-        Probe::NoKeyFile => match select(None) {
-            Selection::Create(Some(custody)) => host.create(custody),
+        Probe::NoKeyFile | Probe::UnfinishedCreate if rule != CreateRule::FirstRun => {
+            return (
+                Slot::of_fault(OpenFault::Obstructed, None, retry),
+                None,
+                None,
+            )
+        }
+        probe @ (Probe::NoKeyFile | Probe::UnfinishedCreate) => match select(None) {
+            Selection::Create(Some(custody)) => {
+                if probe == Probe::UnfinishedCreate {
+                    note = Some(Note::UnfinishedCreateMadeAgain);
+                }
+                host.create(custody)
+            }
             Selection::Create(None) | Selection::Open(_) => {
-                return (Slot::Maintenance { id: None }, None)
+                return (Slot::Maintenance { id: None }, None, None)
             }
         },
         Probe::KeyFile { custody, id } => match select(Some(custody)) {
@@ -87,17 +142,21 @@ pub fn try_open(
                 return (
                     Slot::of_fault(OpenFault::CustodyKind, Some(id), retry),
                     None,
+                    None,
                 )
             }
         },
     };
     match opened {
-        Opened::ReadWrite { store, id } => (Slot::Open { id }, Some(Held::Capture { store, id })),
+        Opened::ReadWrite { store, id } => {
+            (Slot::Open { id }, Some(Held::Capture { store, id }), note)
+        }
         Opened::MaintenanceOnly { store, id } => (
             Slot::Maintenance { id: Some(id) },
             Some(Held::Maintenance { store, id }),
+            None,
         ),
-        Opened::Fault { fault, id } => (Slot::of_fault(fault, id, retry), None),
+        Opened::Fault { fault, id } => (Slot::of_fault(fault, id, retry), None, None),
     }
 }
 
@@ -110,6 +169,7 @@ pub struct Opener {
     slot: Arc<Mutex<Slot>>,
     tries: Arc<AtomicU64>,
     held: Receiver<Held>,
+    said: Receiver<Note>,
     stop: Arc<AtomicBool>,
     thread: JoinHandle<()>,
 }
@@ -125,6 +185,7 @@ impl Opener {
         let tries = Arc::new(AtomicU64::new(0));
         let stop = Arc::new(AtomicBool::new(false));
         let (handed, held) = mpsc::channel();
+        let (says, said) = mpsc::channel();
         let thread = thread::Builder::new()
             .name("halvo-store-open".to_owned())
             .spawn({
@@ -133,8 +194,14 @@ impl Opener {
                 let stop = stop.clone();
                 move || {
                     let mut retry = RETRY_FIRST;
+                    let mut told = Vec::new();
                     loop {
-                        let (now, opened) = try_open(host.as_ref(), select, rule, retry);
+                        let (now, opened, note) =
+                            try_open_and_say(host.as_ref(), select, rule, retry);
+                        if let Some(why) = note.filter(|why| !told.contains(why)) {
+                            told.push(why);
+                            let _ = says.send(why);
+                        }
                         let wait = now.retry_in();
                         *slot.lock().unwrap_or_else(PoisonError::into_inner) = now;
                         tries.fetch_add(1, Ordering::SeqCst);
@@ -153,6 +220,7 @@ impl Opener {
             slot,
             tries,
             held,
+            said,
             stop,
             thread,
         })
@@ -174,6 +242,11 @@ impl Opener {
     /// The handle of an open that succeeded, once.
     pub fn take(&self) -> Option<Held> {
         self.held.try_recv().ok()
+    }
+
+    /// Why a try made nothing, once for each cause in the life of the tries.
+    pub fn take_note(&self) -> Option<Note> {
+        self.said.try_recv().ok()
     }
 
     /// Whether the tries go on.

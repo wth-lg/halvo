@@ -1909,11 +1909,20 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         }
     };
     let mut store = HeldStore::None;
+    let mut mark = if rule == owner::open::CreateRule::StoreMade {
+        Mark::Settled
+    } else {
+        Mark::NotYet
+    };
     let mut status = halvo_control::exit::CLEAN;
     loop {
         let opening = matches!(store, HeldStore::None)
             && opener.as_ref().is_some_and(owner::open::Opener::is_running);
-        let window = if opening { owner::POLL } else { SERVICE_WAIT };
+        let window = match (opening, mark) {
+            (true, _) => owner::POLL,
+            (false, Mark::Pending { .. }) => MARK_RETRY,
+            (false, Mark::NotYet | Mark::Settled) => SERVICE_WAIT,
+        };
         if supervisor.wait_on(window, stop, store.link()) {
             break;
         }
@@ -1921,12 +1930,12 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
             status = halvo_control::exit::RESTART;
             break;
         }
+        say_the_notes(opener.as_ref(), err);
+        mark = mark_the_store_made(mark, &mut supervisor, err);
         let Some(held) = opener.as_ref().and_then(owner::open::Opener::take) else {
             continue;
         };
-        if rule != owner::open::CreateRule::StoreMade {
-            mark_the_store_made(&mut supervisor, err);
-        }
+        mark = mark_the_store_made(mark.at_the_answer(), &mut supervisor, err);
         store = match held {
             owner::open::Held::Capture { store, .. } => {
                 match capture_owner(store, held_cap, switches) {
@@ -1949,7 +1958,12 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
     if let Some(opener) = &opener {
         opener.stop();
         opener.wait_for_its_call(CLOSE_WAIT);
+        say_the_notes(Some(opener), err);
+        if opener.take().is_some() {
+            mark = mark.at_the_answer();
+        }
     }
+    mark_the_store_made(mark, &mut supervisor, err);
     let status = supervisor
         .shutdown_entry(store.link(), status)
         .map_or(status, |outcome| outcome.status);
@@ -2029,20 +2043,55 @@ fn capture_owner(
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]
+const MARK_RETRY: Duration = Duration::from_secs(1);
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mark {
+    NotYet,
+    Pending { said: bool },
+    Settled,
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl Mark {
+    fn at_the_answer(self) -> Mark {
+        match self {
+            Mark::NotYet => Mark::Pending { said: false },
+            Mark::Pending { .. } | Mark::Settled => self,
+        }
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn say_the_notes(opener: Option<&owner::open::Opener>, err: &mut dyn std::io::Write) {
+    while let Some(note) = opener.and_then(owner::open::Opener::take_note) {
+        let _ = writeln!(err, "{}", note.line());
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
 fn mark_the_store_made<F: supervisor::SystemSources, L: main_loop::MainLoop>(
+    mark: Mark,
     supervisor: &mut supervisor::Supervisor<F, L>,
     err: &mut dyn std::io::Write,
-) {
+) -> Mark {
     use state::StateError;
+    let Mark::Pending { said } = mark else {
+        return mark;
+    };
     let kind = match supervisor.update_state(|state| state.store_made = true) {
-        None | Some(Ok(())) | Some(Err(StateError::LeftAsItIs { .. })) => return,
+        None | Some(Ok(())) | Some(Err(StateError::LeftAsItIs { .. })) => return Mark::Settled,
         Some(Err(
             StateError::NotWritten { kind, .. }
             | StateError::NotFlushed { kind, .. }
             | StateError::MayHoldTheChange { kind, .. },
         )) => kind,
     };
-    let _ = writeln!(err, "halvo-capture: state_file=write_failed error={kind}");
+    if !said {
+        let _ = writeln!(err, "halvo-capture: state_file=write_failed error={kind}");
+    }
+    Mark::Pending { said: true }
 }
 
 #[cfg(all(target_os = "macos", debug_assertions))]
