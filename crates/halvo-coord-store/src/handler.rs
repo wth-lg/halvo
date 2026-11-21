@@ -98,7 +98,7 @@ pub fn delete_guard(
 /// 1. Any request that is not a `coordinator_write` is `role`, whatever its body.
 /// 2. A body that `CoordLog::parse` and `CoordHistory::parse` both refuse, as read from the bytes of the body as
 ///    they arrived, is `malformed`; so is a body whose `op` is neither of `OPS`.
-/// 3. `no_workflow` for a workflow that is not stored.
+/// 3. `store` for a fault of the host's read of the workflow, and `no_workflow` for a workflow that is not stored.
 /// 4. `binding` unless the stored workflow's agent is the body's agent.
 /// 5. `coord_log` alone: `malformed` for a record whose `at` is below 0 (CP-122 (b)), and then `malformed` for a
 ///    record whose `day` is not the local day of its `at` by the store's clock. This tie is the handler's alone;
@@ -138,7 +138,10 @@ pub fn coordinator(host: &mut dyn Host, request: &RawRequest) -> Result<CoordRep
 }
 
 fn bound(host: &dyn Host, workflow: &WorkflowId, agent: &AgentId) -> Result<(), ErrorName> {
-    let item = host.workflow(workflow).ok_or(ErrorName::NoWorkflow)?;
+    let item = host
+        .workflow(workflow)
+        .map_err(|_| ErrorName::Store)?
+        .ok_or(ErrorName::NoWorkflow)?;
     match item.workflow {
         Workflow::Full(w) if w.agent.as_ref() == Some(agent) => Ok(()),
         _ => Err(declared("binding")),
@@ -172,11 +175,11 @@ fn stored_of(
     Ok(out)
 }
 
-fn commit_error(refused: CommitRefused) -> ErrorName {
+pub(crate) fn commit_error(refused: CommitRefused) -> ErrorName {
     match refused {
         CommitRefused::Day(_) | CommitRefused::Record => ErrorName::Malformed,
         CommitRefused::Workflow => ErrorName::NoWorkflow,
-        CommitRefused::Kind | CommitRefused::OwnFromStep => ErrorName::Store,
+        CommitRefused::Kind | CommitRefused::OwnFromStep | CommitRefused::Fault => ErrorName::Store,
     }
 }
 

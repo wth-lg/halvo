@@ -9,7 +9,7 @@ use halvo_schema::{
 };
 use serde_json::{Map, Value};
 
-use crate::host::{Clock, CommitRefused, DayFault, HeldRefused, Host};
+use crate::host::{Clock, CommitRefused, DayFault, HeldRefused, Host, StoreFault};
 
 const AHEAD_DAYS: i64 = 2;
 const FAMILY: &str = "coord";
@@ -242,12 +242,12 @@ impl Host for MemoryStore {
         }
     }
 
-    fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
-        self.workflows.get(id).map(|w| WorkflowItem {
+    fn workflow(&self, id: &WorkflowId) -> Result<Option<WorkflowItem>, StoreFault> {
+        Ok(self.workflows.get(id).map(|w| WorkflowItem {
             workflow: w.clone(),
             summaries: Vec::new(),
             hint: None,
-        })
+        }))
     }
 
     fn clock(&self) -> &dyn Clock {

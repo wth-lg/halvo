@@ -3,7 +3,9 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use halvo_coord_store::{Clock, CommitRefused, CoordReply, HeldRefused, Host, MemoryStore};
+use halvo_coord_store::{
+    Clock, CommitRefused, CoordReply, HeldRefused, Host, MemoryStore, StoreFault,
+};
 use halvo_schema::coordinator::body::Stored;
 use halvo_schema::coordinator::record::CoordEvent;
 use halvo_schema::request::decode;
@@ -110,11 +112,13 @@ pub fn store() -> MemoryStore {
 
 /// A host over a store whose keyed read hands out, after the store's own rows, each extra row held under the
 /// workflow of its number, as rows that another build stored, whose commit answers the refusal where one is given,
-/// and whose fifth call answers `held` where it is given; it keeps the kind and the workflow of each fifth call.
+/// whose read of a workflow faults where `workflow_fault` is set, and whose fifth call answers `held` where it is
+/// given; it keeps the kind and the workflow of each fifth call.
 pub struct StandIn {
     pub store: MemoryStore,
     pub extra: Vec<(u32, String)>,
     pub refusal: Option<CommitRefused>,
+    pub workflow_fault: bool,
     pub held: Option<Result<bool, HeldRefused>>,
     pub asks: RefCell<Vec<(String, String)>>,
 }
@@ -146,7 +150,10 @@ impl Host for StandIn {
         }
     }
 
-    fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem> {
+    fn workflow(&self, id: &WorkflowId) -> Result<Option<WorkflowItem>, StoreFault> {
+        if self.workflow_fault {
+            return Err(StoreFault);
+        }
         Host::workflow(&self.store, id)
     }
 
@@ -161,6 +168,7 @@ pub fn stand_in(extra: Vec<(u32, String)>, refusal: Option<CommitRefused>) -> St
         store: store(),
         extra,
         refusal,
+        workflow_fault: false,
         held: None,
         asks: RefCell::default(),
     }

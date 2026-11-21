@@ -21,6 +21,7 @@ fn each_refusal_of_the_commit_has_its_error_name() {
         (CommitRefused::Workflow, ErrorName::NoWorkflow),
         (CommitRefused::Kind, ErrorName::Store),
         (CommitRefused::OwnFromStep, ErrorName::Store),
+        (CommitRefused::Fault, ErrorName::Store),
     ] {
         let mut host = stand_in(Vec::new(), Some(refusal));
         assert_eq!(
@@ -30,6 +31,22 @@ fn each_refusal_of_the_commit_has_its_error_name() {
         );
         assert!(rows(&host.store).is_empty(), "{refusal:?}");
     }
+}
+
+#[test]
+fn a_faulted_read_of_the_workflow_is_store_and_never_no_workflow() {
+    let mut host = stand_in(vec![(1, row(1, TODAY))], None);
+    host.workflow_fault = true;
+    assert_eq!(
+        coordinator(&mut host, &log(&[row(2, TODAY)])),
+        Err(ErrorName::Store)
+    );
+    assert_eq!(
+        coordinator(&mut host, &history(None)),
+        Err(ErrorName::Store)
+    );
+    assert!(rows(&host.store).is_empty());
+    assert!(host.asks.take().is_empty());
 }
 
 #[test]
@@ -63,6 +80,7 @@ fn one_unreadable_row_of_another_agent_is_store_for_every_agent() {
         store: readable,
         extra: vec![(2, theirs)],
         refusal: None,
+        workflow_fault: false,
         held: None,
         asks: Default::default(),
     };

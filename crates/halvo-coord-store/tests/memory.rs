@@ -210,10 +210,11 @@ fn expiry_keeps_a_row_two_days_ahead_of_the_clock() {
 #[test]
 fn the_store_reads_the_workflow_it_holds() {
     let store = store();
-    let item = Host::workflow(&store, &halvo_schema::WorkflowId::parse(&wf(1)).unwrap())
+    let item = Host::workflow(&store, &wid(1))
+        .expect("no fault")
         .expect("workflow 1");
     assert_eq!(item.workflow, workflow(1, Some(1)));
-    assert!(Host::workflow(&store, &halvo_schema::WorkflowId::parse(&wf(3)).unwrap()).is_none());
+    assert!(Host::workflow(&store, &wid(3)).expect("no fault").is_none());
     assert_eq!(
         Host::clock(&store).day(halvo_schema::Instant(noon(TODAY))),
         TODAY

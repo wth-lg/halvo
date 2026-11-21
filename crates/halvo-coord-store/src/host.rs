@@ -32,7 +32,14 @@ pub enum CommitRefused {
     Workflow,
     /// The record is of a bounded kind and the store will not keep its day.
     Day(DayFault),
+    /// A fault of the store, or a commit that stored fewer records than its list held.
+    Fault,
 }
+
+/// A fault of the store while it read for the handler: no answer about the request, which the handler answers with
+/// `store` and never as an absent row or workflow. It holds no value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StoreFault;
 
 /// Why the fifth call of `Host` gave neither yes nor no: the names of `HeldRefusal` of halvo-derived, which the store
 /// gives and its stand-in gives alike (the workflow run's ruling S-59 (a) 3 and its request of 2026-11-13 17:42Z,
@@ -71,8 +78,9 @@ pub trait Host {
     /// answer: halvo-derived keeps it for the request and answers the request with it.
     fn rows_under(&self, kind: &str, workflow: &WorkflowId, visit: &mut dyn FnMut(&str));
 
-    /// The item of the read `workflows` for one stored workflow, or none where it is not stored (W-C2.10).
-    fn workflow(&self, id: &WorkflowId) -> Option<WorkflowItem>;
+    /// The item of the read `workflows` for one stored workflow, or none where it is not stored (W-C2.10), or the
+    /// fault of the read.
+    fn workflow(&self, id: &WorkflowId) -> Result<Option<WorkflowItem>, StoreFault>;
 
     /// The store's clock.
     fn clock(&self) -> &dyn Clock;
