@@ -6,7 +6,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-rusqlite = { version = "0.41", features = ["sqlcipher"] }
+rusqlite = { version = "0.42", features = ["sqlcipher"] }
 
 [dev-dependencies]
 halvo-test-dir = { path = "../halvo-test-dir" }
@@ -14,4 +14,4 @@ memchr = "2"
 
 [build-dependencies]
 cc = { version = "1", features = ["parallel"] }
-sqlcipher-src = "=419.0.6"
+sqlcipher-src = "=420.0.0"

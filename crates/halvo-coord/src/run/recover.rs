@@ -245,9 +245,18 @@ impl<C> Found<C> {
 /// them is logged once more (ruling XB-31). A body that the owner does not acknowledge, with its
 /// `run_ended` and its `item_lapsed` entries, and an `end_run` that it does not acknowledge, are
 /// owed on the board, which the schedule's tick sends again (XB-32). The board takes the facts so read, with the day of the clock, an idle agent
-/// with no item, an empty queue and no live run; then recovery raises the item `check` where
+/// with no item, an empty queue and no live run, and keeps the runs for which `reap` answered
+/// `alive` (`Board::alive_at_reap`; ruling RD-147 (5)(i)); then recovery raises the item `check` where
 /// `check_due` holds, since it read the store's records, and that raise lapses with the cause
 /// `check` each `ready` item whose `app_ended` lapse is owed (ruling RD-96).
+/// Where `reap` answered `alive` for a run, recovery also reads the history of each agent whose
+/// workflow the list lacks: `Busy` and `NoService` fail the recovery, as for a listed agent;
+/// `no_workflow` leaves the agent out; any other refusal keeps it aside for
+/// `Board::reread_gone`; and where a run of it is one that `reap` answered `alive` and that no
+/// record of the store names, whatever newer run another writer added, the board keeps its row
+/// (`Board::keep_gone`; rulings RD-150, RD-156 (2)).
+/// A runner that ended before this life's `reap`, as one does within `LINK_END` (20 s) of the
+/// link's close, is answered `gone`, and its run gets no line (a named limit, RD-150).
 pub fn recover<P>(ports: &P, limits: &Limits) -> Result<Life<P::Config>, Cause>
 where
     P: Owner + Runs + Analysis + Clock + Rng,
@@ -261,8 +270,16 @@ where
     let mut found: Vec<Found<P::Config>> = Vec::new();
     let mut aside: Vec<AgentId> = Vec::new();
     let mut unread: Vec<AgentId> = Vec::new();
+    let mut kept: Vec<Facts<P::Config>> = Vec::new();
+    let mut gone_aside: Vec<Agent<P::Config>> = Vec::new();
     for agent in agents {
         let Some(listed) = workflows.iter().find(|w| w.id() == &agent.workflow) else {
+            match Board::gone_facts(ports, agent.clone(), &reaped, day) {
+                Ok(read) => kept.extend(read),
+                Err(PortError::Refused(name)) if name.as_str() == "no_workflow" => {}
+                Err(PortError::Refused(_)) => gone_aside.push(agent),
+                Err(e) => return Err(cause(&e)),
+            }
             continue;
         };
         let workflow = full_or_paused_manual(listed, &agent.agent, day);
@@ -412,6 +429,14 @@ where
         }
     }
     board.owed = owed;
+    board.keep_alive(&reaped);
+    board.note_records();
+    for facts in kept {
+        board.keep_gone(facts);
+    }
+    for agent in gone_aside {
+        board.set_gone_aside(agent, reaped.clone());
+    }
     for agent in &aside {
         board.set_aside(agent, reaped.clone());
     }
