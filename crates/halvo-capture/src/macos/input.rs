@@ -8379,6 +8379,62 @@ mod tests {
     }
 
 
+    struct GrantlessMaker(Arc<AtomicUsize>);
+
+    impl TapMaker for GrantlessMaker {
+        type Tap = ();
+        type Enabled = ();
+
+        fn make<F>(self, _settings: TapSettings, _callback: F) -> Result<(), ()>
+        where
+            F: Fn(CGEventTapProxy, CGEventType, &CGEvent) -> CallbackResult + Send + 'static,
+        {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn listen_denied() -> bool {
+            true
+        }
+
+        fn enable(_tap: (), _port: TapPort) -> Result<(), CaptureError> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_start_with_key_class_off_goes_on_to_the_maker_while_the_grant_for_key_events_is_refused(
+    ) {
+        let (handle, _writer) = sink::channel(4);
+        let made = Arc::new(AtomicUsize::new(0));
+        let mut source = source_switched(switches_with(false, true));
+        let begun = source.begin_with(handle, GrantlessMaker(made.clone()), || {});
+        assert_eq!(
+            begun,
+            Ok(Started::Running),
+            "with key_class off the grant for key events is not asked"
+        );
+        assert_eq!(made.load(Ordering::SeqCst), 1, "the maker was asked for the tap");
+        assert_eq!(source.shutdown(), Ok(()));
+    }
+
+    #[test]
+    fn a_refused_start_after_a_keyless_refusal_reads_the_reason_permission() {
+        let (handle, _writer) = sink::channel(4);
+        let made = Arc::new(AtomicUsize::new(0));
+        let mut source = source_switched(switches_with(true, true));
+        source.keys_missing.store(true, Ordering::SeqCst);
+        let begun = source.begin_with(handle, DeniedMaker(made.clone()), || {});
+        assert_eq!(begun, Err(CaptureError::PermissionDenied(Modality::Keystroke)));
+        assert_eq!(made.load(Ordering::SeqCst), 0, "no tap was asked for");
+        let reason = match source.health().state {
+            SourceState::Failed { reason, .. } => Some(reason),
+            _ => None,
+        };
+        assert_eq!(reason, Some(HealthReason::Permission));
+    }
+
+
     #[test]
     fn each_type_of_the_table_has_its_class() {
         use TapClass::{
