@@ -74,6 +74,9 @@ pub enum Command {
     Shutdown,
     /// Answer the rows of the store's per-day rollup as they stand.
     Inventory,
+    /// Evict to this bound from now on, or evict nothing with none: the bound
+    /// of a cap that a client set.
+    SetBound(Option<ByteBound>),
     /// A mark request of a client for the edge of an agent run: the marks'
     /// handler takes it on this owner and answers whether the record was
     /// stored.
@@ -89,6 +92,7 @@ pub enum Answer {
     Settled(Snapshot),
     ShutDown(Snapshot),
     Inventory(Result<Vec<halvo_control::model::InventoryRow>, MaintFault>),
+    BoundSet,
     #[cfg(feature = "r2")]
     Marked(bool),
 }

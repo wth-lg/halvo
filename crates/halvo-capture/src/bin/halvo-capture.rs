@@ -55,17 +55,17 @@ fn main() -> ExitCode {
             &mut std::io::stdout().lock(),
             &mut std::io::stderr(),
         )),
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, target_os = "macos"))]
         Ok(Mode::ServiceRun { data_dir }) => status(daemon::service_run(
             &data_dir,
             daemon::DurableState::writer(),
         )),
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, target_os = "macos"))]
         Ok(Mode::LifelineServiceRun { data_dir }) => status(daemon::lifeline_service_run(
             &data_dir,
             daemon::DurableState::writer(),
         )),
-        #[cfg(all(target_os = "macos", debug_assertions))]
+        #[cfg(target_os = "macos")]
         Ok(Mode::DeleteAllOfADataDir { data_dir }) => status(daemon::delete_all::offline(
             &data_dir,
             &mut std::io::stdout().lock(),
@@ -73,7 +73,7 @@ fn main() -> ExitCode {
         )),
         #[cfg(all(not(target_os = "macos"), debug_assertions))]
         Ok(Mode::DeleteAllOfADataDir { .. }) => status(exit::USAGE),
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, target_os = "macos"))]
         Ok(Mode::Ctl(ctl)) => status(daemon::ctl(
             &ctl,
             &mut std::io::stdout().lock(),

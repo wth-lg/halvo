@@ -1293,6 +1293,204 @@ fn a_maintenance_only_store_expires_and_takes_no_batch() {
     );
 }
 
+struct Above<S> {
+    store: S,
+    evictions: Arc<Mutex<Vec<ByteBound>>>,
+}
+
+const ABOVE: u64 = StorageCap::DEFAULT.bytes();
+
+impl<S: MaintainStore> MaintainStore for Above<S> {
+    fn expire_due(&mut self, now: SystemTime, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.store.expire_due(now, max_segments)
+    }
+
+    fn evict_to(&mut self, bound: ByteBound, max_segments: usize) -> Result<Pass, MaintFault> {
+        self.evictions.lock().unwrap().push(bound);
+        self.store.evict_to(
+            ByteBound::raw(bound.bytes().saturating_sub(ABOVE)),
+            max_segments,
+        )
+    }
+
+    fn usage(&mut self) -> Result<Usage, MaintFault> {
+        self.store.usage().map(|usage| Usage {
+            disk_bytes: usage.disk_bytes + ABOVE,
+            logical_bytes: usage.logical_bytes,
+        })
+    }
+}
+
+impl<S: CaptureStore> CaptureStore for Above<S> {
+    fn write_batch(&mut self, write: SegmentWrite<'_>) -> Result<Written, WriteFault> {
+        self.store.write_batch(write)
+    }
+
+    fn volume_free_bytes(&self) -> io::Result<u64> {
+        self.store.volume_free_bytes()
+    }
+}
+
+#[test]
+fn a_state_file_that_does_not_load_gives_no_bound_until_a_valid_cap_is_set() {
+    let old = vec![b'o'; 256 * 1024];
+    let clocks = ManualClocks::at(noon());
+    let unloaded = b"{\"storage_cap_bytes\":".to_vec();
+    let out_of_range =
+        format!("{{\"storage_cap_bytes\":{}}}", StorageCap::MAX.bytes() + 1).into_bytes();
+    for (stored, loads) in [(unloaded, false), (out_of_range, true)] {
+        let dir = kept_dir("cap-tests-");
+        let mut store = made_store(&dir);
+        for hours in (1..=4).rev() {
+            segment_at(&mut *store, noon() - hours * 3600 * SECOND, &old);
+        }
+        let file = dir.join(halvo_control::paths::STATE_FILE);
+        std::fs::write(&file, &stored).unwrap();
+        let mut state =
+            StateFile::open(StateDir::open(&dir).unwrap(), super::DurableState::writer());
+        assert!(
+            !matches!(state.state().storage_cap, Cap::Known(_)),
+            "loads={loads}: the cap reads {:?}, a known cap",
+            state.state().storage_cap
+        );
+        let bound = super::cap_bound(state.state().storage_cap);
+        assert_eq!(bound, None, "loads={loads}: the state file gave a bound");
+        let evictions = Arc::new(Mutex::new(Vec::new()));
+        let above = Above {
+            store,
+            evictions: evictions.clone(),
+        };
+        let (mut owner, handle, sink) = owner_over(above, &clocks, bound);
+        flushed_once(&mut owner, &handle, &sink);
+        let disk = owner.snapshot().disk_bytes.unwrap();
+        assert!(
+            disk > ABOVE,
+            "the stand-in store stands at {disk}, not above the default cap"
+        );
+        assert_eq!(
+            *evictions.lock().unwrap(),
+            [],
+            "loads={loads}: a life with no bound ran an eviction"
+        );
+
+        let cap = StorageCap::from_bytes(disk - 1).unwrap();
+        let (written, bound) = super::set_cap(&mut state, cap);
+        let answer = super::cap_set_answer(&written, cap, Some(disk));
+        if loads {
+            assert!(
+                matches!(answer, Ok(true)),
+                "a set-cap below the store's bytes answered {answer:?}, not evicting yes"
+            );
+            assert_eq!(bound, Some(ByteBound::of_cap(cap)));
+        } else {
+            let code = answer.map_err(|refused| halvo_control::proto::Reply::Error(refused).code());
+            assert_eq!(
+                code,
+                Err(Some(halvo_control::proto::ErrorCode::StateFile)),
+                "a set-cap on a state file that does not load did not answer state_file"
+            );
+            assert_eq!(
+                bound, None,
+                "a set-cap on a state file that does not load gave a bound"
+            );
+            assert_eq!(
+                std::fs::read(&file).unwrap(),
+                stored,
+                "a set-cap wrote into a state file that does not load"
+            );
+            assert!(!matches!(state.state().storage_cap, Cap::Known(_)));
+        }
+        assert!(matches!(
+            asked(&mut owner, &handle, super::owner::Command::SetBound(bound)),
+            Answer::BoundSet
+        ));
+        for _ in 0..2 {
+            assert!(owner.pass(Duration::ZERO), "the owner stopped");
+        }
+        let after = owner.snapshot().disk_bytes;
+        drop(owner);
+        let read = DataDirStore::at(&dir).read_back();
+        assert_eq!(read.len(), 5, "the flush stored no segment");
+        if loads {
+            assert_eq!(
+                evictions.lock().unwrap().first(),
+                Some(&ByteBound::of_cap(cap)),
+                "the pass after the set-cap did not evict to the new bound"
+            );
+            assert!(
+                read[0].is_none() && read[1..].iter().all(Option::is_some),
+                "the pass after the set-cap did not evict the oldest segment alone"
+            );
+            assert!(
+                after.is_some_and(|disk| disk <= cap.bytes()),
+                "the disk total after the set-cap is {after:?}, over the cap {cap:?}"
+            );
+        } else {
+            assert_eq!(
+                *evictions.lock().unwrap(),
+                [],
+                "a life whose state file does not load ran an eviction after a set-cap"
+            );
+            assert!(
+                read.iter().all(Option::is_some),
+                "a segment was shredded in a life whose state file does not load"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_wait_with_no_window_reads_the_stop_flag_and_serves_a_queued_request() {
+    let dir = kept_dir("wait-tests-");
+    let listening = super::server::unix::Listening::bind(&data_dir(&dir)).unwrap();
+    let facts = super::server::RunFacts {
+        started_at: halvo_control::model::UtcSecond::from_unix_seconds(0).unwrap(),
+        parent: halvo_control::proto::Parent::None,
+        last_stop: halvo_control::proto::LastStop::None,
+        rss_peak_bytes: 0,
+    };
+    let serving = super::Serving {
+        listening: &listening,
+        facts: &facts,
+        obstructed: None,
+    };
+    let mut supervisor = super::supervisor::Supervisor::new(
+        halvo_control::proto::Platform::Macos,
+        super::NoSources,
+        SleepLoop(Instant::now()),
+    );
+    let stop = AtomicBool::new(true);
+    let none = super::HeldStore::None;
+    assert!(
+        matches!(
+            super::wait_serving(&mut supervisor, &serving, Duration::ZERO, &stop, &none),
+            super::Waited::Ended
+        ),
+        "a wait with no window did not read the stop flag"
+    );
+
+    stop.store(false, Ordering::SeqCst);
+    let asking = {
+        let dir = data_dir(&dir);
+        std::thread::spawn(move || {
+            halvo_control::client::system_connector(&dir).and_then(|connector| {
+                halvo_control::client::Client::new(connector)
+                    .send(&halvo_control::proto::Request::Status { indicator: false })
+            })
+        })
+    };
+    let end = Instant::now() + Duration::from_secs(5);
+    while !asking.is_finished() && Instant::now() < end {
+        let _ = super::wait_serving(&mut supervisor, &serving, Duration::ZERO, &stop, &none);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let answer = asking.join().unwrap();
+    assert!(
+        matches!(answer, Ok(halvo_control::proto::Reply::Status(_))),
+        "a request queued behind waits with no window was not served: {answer:?}"
+    );
+}
+
 struct PanicsAtWrite {
     inner: Box<dyn super::port::CaptureStore + Send>,
     died: Arc<std::sync::Mutex<Option<Instant>>>,

@@ -39,9 +39,9 @@ pub const READ_DEADLINE: Duration = Duration::from_secs(2);
 pub const REPLY_WRITE_DEADLINE: Duration = Duration::from_millis(2_000);
 
 /// The longest that a connection waits for the service run's loop to answer
-/// the request that it handed over: STOP_WAIT_MS, the longest deadline of a
-/// client of this build's requests.
-pub const ANSWER_WAIT: Duration = Duration::from_millis(halvo_control::STOP_WAIT_MS);
+/// the request that it handed over: the deadline of `delete_all`, the longest
+/// deadline of a client of this build's requests.
+pub const ANSWER_WAIT: Duration = halvo_control::client::Deadlines::V1.delete_all;
 
 /// Whether the server serves a peer whose effective user id is `peer`, in a
 /// daemon whose own effective user id is `own`: only when the two are one.
@@ -77,7 +77,7 @@ impl Admitting {
         self.ending.store(true, Ordering::SeqCst);
     }
 
-    fn life(&self) -> Life {
+    pub(crate) fn life(&self) -> Life {
         if self.ending.load(Ordering::SeqCst) {
             Life::Ending
         } else {
@@ -278,6 +278,8 @@ fn served_by_this_build(request: &Request) -> bool {
             | Request::Pause
             | Request::Resume
             | Request::Stop
+            | Request::DeleteAll { .. }
+            | Request::SetStorageCap { .. }
     )
 }
 
@@ -442,7 +444,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         store_logical_bytes: None,
         cap_bytes: match parts.cap {
             StateCap::Known(cap) => proto::Cap::Known(cap),
-            StateCap::OutOfRange(_) => proto::Cap::Unknown,
+            StateCap::OutOfRange(_) | StateCap::Unread => proto::Cap::Unknown,
         },
         drain: if failing {
             Health::Failing
