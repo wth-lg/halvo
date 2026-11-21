@@ -12344,3 +12344,104 @@ fn u24v_8_the_card_of_a_page_confirmation_keeps_its_cause_while_the_record_is_st
         "(present, native_card) of a page confirmation while the record is stuck: its own cause first"
     );
 }
+
+fn u24v_run_raised_while_its_raise_is_refused(
+    ask: fn(&RunId, usize) -> RunEvent,
+) -> (Coordinator<Both>, ItemId, u32) {
+    let c = coordinator(&[MANUAL], Limits::PRODUCT);
+    let run = start(&c, 0);
+    c.ports()
+        .ports
+        .refuse_record(is_item_raise, refused_name("store"));
+    assert_eq!(c.on_run(&run, ask(&run, 0)), Ok(()));
+    let (item, kind) = open_item(&c);
+    assert_eq!(kind, ItemKind::SignIn);
+    let step = shown_step_mark_or_zero(&c, &item);
+    for k in 1..=3u64 {
+        u24v_tick(&c, k);
+    }
+    assert!(c.record_stuck(&agent(0)));
+    assert_eq!(row_line(&c.snapshot(), 0), text("line.problem.record"));
+    (c, item, step)
+}
+
+fn u24v_sign_in_handback(run: &RunId, n: usize) -> RunEvent {
+    handback(run, n, HandbackReason::SignIn)
+}
+
+fn u24v_page_press_on_a_run_item_while_stuck(
+    ask: fn(&RunId, usize) -> RunEvent,
+    choices: [Choice; 2],
+    answered: fn(&Call) -> bool,
+) {
+    let mut got = Vec::new();
+    let mut want = Vec::new();
+    for takes_rows_again in [false, true] {
+        for choice in choices {
+            let case = format!("the store takes rows again: {takes_rows_again}, {choice:?}");
+            let (c, item, step) = u24v_run_raised_while_its_raise_is_refused(ask);
+            if takes_rows_again {
+                c.ports().ports.clear_refusals();
+            }
+            let (m, before) = (mark(&c), events(&c));
+            let pressed = c.answer(&item, choice, None, step);
+            got.push((
+                case.clone(),
+                pressed,
+                calls_since(&c, m),
+                events(&c) == before,
+                c.live(),
+            ));
+            want.push((case.clone(), Err(Cause::NoService), Vec::new(), true, 1));
+            c.ports().ports.clear_refusals();
+            u24v_tick(&c, 4);
+            let again: Vec<ItemId> = c
+                .snapshot()
+                .items
+                .iter()
+                .map(|i| i.item().clone())
+                .collect();
+            let m = mark(&c);
+            let first = c.answer(&item, choice, None, step);
+            let second = c.answer(&item, choice, None, step);
+            let sent = calls_since(&c, m)
+                .iter()
+                .filter(|call| answered(call))
+                .count();
+            got.push((
+                format!("{case}, after the record saves"),
+                first,
+                Vec::new(),
+                again == [item.clone()] && second.is_err(),
+                sent,
+            ));
+            want.push((
+                format!("{case}, after the record saves"),
+                Ok(()),
+                Vec::new(),
+                true,
+                1,
+            ));
+        }
+    }
+    assert_eq!(
+        got, want,
+        "(case, the press, its port calls, nothing stored or the same item again and a second press refused, live runs or the answers sent to the run)"
+    );
+}
+
+#[test]
+fn u24v_9_a_page_press_on_a_second_step_while_the_record_is_stuck_sends_nothing() {
+    u24v_page_press_on_a_run_item_while_stuck(bind, [Choice::Allow, Choice::Decline], |call| {
+        matches!(call, Call::AnswerBind(..))
+    });
+}
+
+#[test]
+fn u24v_10_a_page_press_on_a_handback_while_the_record_is_stuck_sends_nothing() {
+    u24v_page_press_on_a_run_item_while_stuck(
+        u24v_sign_in_handback,
+        [Choice::Done, Choice::Decline],
+        |call| matches!(call, Call::AnswerHandback(..)),
+    );
+}
