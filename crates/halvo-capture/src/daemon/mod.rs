@@ -1854,9 +1854,13 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
     ending: std::sync::Arc<dyn main_loop::EndCall>,
     err: &mut dyn std::io::Write,
 ) -> i32 {
-    if let Err(fault) = lock.check(dir) {
-        let _ = writeln!(err, "{}", obstructed_line(fault));
-    }
+    let mut dir_shut = match lock.check(dir) {
+        Ok(_) => None,
+        Err(fault) => {
+            let _ = writeln!(err, "{}", obstructed_line(fault));
+            Some(DirShut::first())
+        }
+    };
     let folder = match lock.state_dir() {
         Ok(folder) => folder,
         Err(error) => {
@@ -1889,24 +1893,13 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         supervisor::Supervisor::new(halvo_control::proto::Platform::Macos, NoSources, main_loop)
             .with_ending(ending)
             .with_state(state);
-    let opener = if stop.load(std::sync::atomic::Ordering::SeqCst) {
+    if dir_shut.is_some() {
+        let _ = writeln!(err, "{DIR_SHUT_LINE}");
+    }
+    let mut opener = if stop.load(std::sync::atomic::Ordering::SeqCst) || dir_shut.is_some() {
         None
     } else {
-        match owner::open::Opener::start(
-            Box::new(port::DataDirStore::at(dir.path())),
-            custody_policy::of_this_build,
-            rule,
-        ) {
-            Ok(opener) => Some(opener),
-            Err(error) => {
-                let _ = writeln!(
-                    err,
-                    "halvo-capture: store=unavailable the open did not start: {}",
-                    error.kind()
-                );
-                None
-            }
-        }
+        start_the_opener(dir, rule, err)
     };
     let mut store = HeldStore::None;
     let mut mark = if rule == owner::open::CreateRule::StoreMade {
@@ -1918,10 +1911,11 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
     loop {
         let opening = matches!(store, HeldStore::None)
             && opener.as_ref().is_some_and(owner::open::Opener::is_running);
-        let window = match (opening, mark) {
-            (true, _) => owner::POLL,
-            (false, Mark::Pending { .. }) => MARK_RETRY,
-            (false, Mark::NotYet | Mark::Settled) => SERVICE_WAIT,
+        let window = match (dir_shut, opening, mark) {
+            (Some(shut), _, _) => shut.left().clamp(owner::POLL, SERVICE_WAIT),
+            (None, true, _) => owner::POLL,
+            (None, false, Mark::Pending { .. }) => MARK_RETRY,
+            (None, false, Mark::NotYet | Mark::Settled) => SERVICE_WAIT,
         };
         if supervisor.wait_on(window, stop, store.link()) {
             break;
@@ -1929,6 +1923,18 @@ pub(crate) fn serve_held<L: main_loop::MainLoop>(
         if RunSources::restart_asked(&supervisor) {
             status = halvo_control::exit::RESTART;
             break;
+        }
+        if let Some(shut) = dir_shut {
+            if shut.left().is_zero() {
+                dir_shut = match lock.check(dir) {
+                    Ok(_) => {
+                        opener = start_the_opener(dir, rule, err);
+                        None
+                    }
+                    Err(_) => Some(shut.again()),
+                };
+            }
+            continue;
         }
         say_the_notes(opener.as_ref(), err);
         mark = mark_the_store_made(mark, &mut supervisor, err);
@@ -2044,6 +2050,62 @@ fn capture_owner(
 
 #[cfg(all(target_os = "macos", debug_assertions))]
 const MARK_RETRY: Duration = Duration::from_secs(1);
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+const DIR_SHUT_LINE: &str = "halvo-capture: store=unavailable store_error=obstructed: the data directory failed its check; no store was made or opened in it";
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+#[derive(Debug, Clone, Copy)]
+struct DirShut {
+    next: std::time::Instant,
+    delay: Duration,
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+impl DirShut {
+    fn first() -> DirShut {
+        DirShut {
+            next: std::time::Instant::now() + owner::RETRY_FIRST,
+            delay: owner::RETRY_FIRST,
+        }
+    }
+
+    fn again(self) -> DirShut {
+        let delay = (self.delay * 2).min(owner::RETRY_MAX);
+        DirShut {
+            next: std::time::Instant::now() + delay,
+            delay,
+        }
+    }
+
+    fn left(self) -> Duration {
+        self.next
+            .saturating_duration_since(std::time::Instant::now())
+    }
+}
+
+#[cfg(all(target_os = "macos", debug_assertions))]
+fn start_the_opener(
+    dir: &halvo_control::paths::DataDir,
+    rule: owner::open::CreateRule,
+    err: &mut dyn std::io::Write,
+) -> Option<owner::open::Opener> {
+    match owner::open::Opener::start(
+        Box::new(port::DataDirStore::at(dir.path())),
+        custody_policy::of_this_build,
+        rule,
+    ) {
+        Ok(opener) => Some(opener),
+        Err(error) => {
+            let _ = writeln!(
+                err,
+                "halvo-capture: store=unavailable the open did not start: {}",
+                error.kind()
+            );
+            None
+        }
+    }
+}
 
 #[cfg(all(target_os = "macos", debug_assertions))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

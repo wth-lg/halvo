@@ -515,6 +515,38 @@ fn a_start_with_no_key_file_beside_a_standing_store_makes_nothing_and_says_why()
     assert!(!seen.iter().any(|line| line == KEYLESS_LINE), "{seen:?}");
 }
 
+const DIR_SHUT_LINE: &str = "halvo-capture: store=unavailable store_error=obstructed: the data directory failed its check; no store was made or opened in it";
+
+#[test]
+fn a_data_directory_that_fails_its_check_gets_no_store_and_no_root() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = kept_dir("service-tests-");
+    let folder = root.join("open-folder");
+    std::fs::create_dir(&folder).unwrap();
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let linked = root.join("data");
+    std::os::unix::fs::symlink(&folder, &linked).unwrap();
+    let started = Instant::now();
+    let seen = run_until(&linked, |_| {
+        started.elapsed() > Duration::from_millis(2_500)
+            || folder.join("store").exists()
+            || folder.join("roots").exists()
+    });
+    assert!(
+        seen.iter().any(
+            |line| line == "halvo-capture: data_dir=obstructed cause=linked_and_open_to_others"
+        ),
+        "{seen:?}"
+    );
+    assert!(!folder.join("store").exists(), "a store was made: {seen:?}");
+    assert!(!folder.join("roots").exists(), "a root was made: {seen:?}");
+    assert_eq!(
+        seen.iter().filter(|line| *line == DIR_SHUT_LINE).count(),
+        1,
+        "{seen:?}"
+    );
+}
+
 #[test]
 fn a_second_service_run_changes_no_byte_of_the_store_that_the_first_holds() {
     let dir = kept_dir("service-tests-");
