@@ -92,7 +92,7 @@ impl LearnHandlers {
         else {
             return Ok(reply);
         };
-        let mode = start.mode;
+        let (mode, row, workflow) = (start.mode, start.row, start.workflow.clone());
         match self.facts.get_mut(&b.run) {
             Some(facts) => {
                 for value in slot_values(loaded, mode) {
@@ -101,13 +101,18 @@ impl LearnHandlers {
                     }
                 }
             }
-            None => {
-                let readable = matches!(rows::runs(host, &start.workflow), Read::Rows(_));
-                if start.row && readable {
+            None => match rows::runs(host, &workflow) {
+                Read::Rows(_) if row => {
                     let facts = RunFacts::new(&b.agent, loaded, mode);
                     self.facts.insert(b.run.clone(), facts);
                 }
-            }
+                Read::Rows(_) => {}
+                Read::Stopped => {
+                    if let Some(start) = self.starts.get_mut(&b.run) {
+                        start.row = false;
+                    }
+                }
+            },
         }
         Ok(reply)
     }
