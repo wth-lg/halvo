@@ -575,6 +575,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     /// desired running in the state file, the slot Open and the lease fresh.
     /// When it holds and the sources do not run, the owner closes its pause,
     /// a barrier waited for at most [`BARRIER_WAIT`], and the sources start.
+    /// When it fails while they run, the stop for capture off runs, of the
+    /// kind Lapse when the lease is not fresh; it writes no state, and
+    /// `reply` gets the Board of an end routine. After a stop the sources
+    /// are held by no restart rule until the condition holds again. `Some`
+    /// when a source did not stop and the end routine made the ending call.
     /// A run with no served sources, an entry begun or no owner reads
     /// nothing.
     pub fn follow_the_run_condition(
@@ -582,20 +587,47 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         owner: Option<&dyn OwnerLink>,
         reply: &mut dyn FnMut(&Board),
     ) -> Option<Ending> {
-        let _ = reply;
         let owner = owner?;
         if self.entered || self.served.is_none() {
             return None;
         }
-        let desired = self
-            .state
-            .as_ref()
-            .map_or(Desired::Paused, |state| state.state().desired);
-        let holds = lease::holds(desired, &self.slot, self.lease, self.main_loop.now());
+        let now = self.main_loop.now();
+        let desired = self.desired();
+        let holds = lease::holds(desired, &self.slot, self.lease, now);
         if holds && !self.capturing {
             self.start_for_the_condition(owner);
+        } else if !holds && self.capturing {
+            let kind = if !self.lease.is_fresh(now) {
+                StopKind::Lapse
+            } else if desired != Desired::Running {
+                StopKind::Pause
+            } else {
+                StopKind::DeleteAll
+            };
+            match self.stop_for_capture_off(owner, kind, reply)? {
+                CaptureOff::Stopped => {
+                    self.capturing = false;
+                    self.ctx = None;
+                    self.wanted.clear();
+                    self.publish();
+                }
+                CaptureOff::Ended(_) => return Some(Ending::SourceNotStopped),
+            }
         }
         None
+    }
+
+    fn desired(&self) -> Desired {
+        self.state
+            .as_ref()
+            .map_or(Desired::Paused, |state| state.state().desired)
+    }
+
+    fn no_indicator(&self) -> bool {
+        self.served.is_some()
+            && !self.capturing
+            && self.desired() == Desired::Running
+            && !self.lease.is_fresh(self.main_loop.now())
     }
 
     fn start_for_the_condition(&mut self, owner: &dyn OwnerLink) {
@@ -1412,7 +1444,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             let state = state.clone();
             self.board.set_source(name, &state, unstopped);
         }
-        self.board.capture = if self.stopped_for_drain {
+        self.board.capture = if self.no_indicator() {
+            Capture::NoIndicator
+        } else if self.stopped_for_drain {
             Capture::Stopped
         } else {
             self.board.capture_of(&self.wanted)

@@ -25,6 +25,9 @@ pub enum Capture {
     Faulted,
     /// The supervisor stopped the sources while the drain fails.
     Stopped,
+    /// Desired is running and the lease lapsed or was never claimed: no
+    /// source runs (contracts.md C14 item 3).
+    NoIndicator,
 }
 
 /// The drain as the supervisor reads it: failing by the owner's last report,

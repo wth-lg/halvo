@@ -2,20 +2,23 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
+use halvo_control::paths::STATE_FILE;
 use halvo_control::proto::{Platform, SourceName};
+use halvo_control::INDICATOR_LEASE_MS;
 
 use super::Lease;
+use crate::daemon::board::Capture;
 use crate::daemon::counters::Snapshot;
 use crate::daemon::main_loop::{MainLoop, TICK};
-use crate::daemon::model_store::{open_floor, Harness};
-use crate::daemon::owner::{Command, OwnerGone, Pending};
+use crate::daemon::model_store::{foreground_now, open_floor, Harness};
+use crate::daemon::owner::{Answer, Command, OwnerGone, Pending};
 use crate::daemon::port::StoreId;
 use crate::daemon::slot::Slot;
 use crate::daemon::sources::tests::Factory;
 use crate::daemon::sources::{starting, RunKind};
 use crate::daemon::state::tests::TestWrite;
 use crate::daemon::state::{Desired, StateDir, StateFile};
-use crate::daemon::supervisor::{OwnerLink, ReportLog, Supervisor};
+use crate::daemon::supervisor::{OwnerLink, ReportLog, Supervisor, RESTART_MAX};
 use crate::source::SourceContext;
 
 struct TestLoop {
@@ -66,7 +69,7 @@ struct Fixture {
     now: Rc<Cell<Duration>>,
     link: Link,
     wanted: Vec<SourceName>,
-    _dir: tempfile::TempDir,
+    dir: tempfile::TempDir,
 }
 
 impl Fixture {
@@ -101,7 +104,7 @@ impl Fixture {
                 log: ReportLog::new(reports, Box::new(std::io::sink())),
             },
             wanted,
-            _dir: dir,
+            dir,
         }
     }
 
@@ -130,6 +133,31 @@ impl Fixture {
             .calls
             .of(&format!("begin {}", name.as_str()))
             .len()
+    }
+
+    fn stops(&self, name: SourceName) -> usize {
+        self.supervisor
+            .factory()
+            .calls
+            .of(&format!("stop {}", name.as_str()))
+            .len()
+    }
+
+    fn emit(&self, count: usize) {
+        for _ in 0..count {
+            self.link.harness.borrow().emit(foreground_now());
+        }
+    }
+
+    fn stored(&self) -> usize {
+        let mut harness = self.link.harness.borrow_mut();
+        let settled = harness.ask(Command::Settle);
+        assert!(matches!(settled, Answer::Settled(_)), "{settled:?}");
+        harness.store.records().len()
+    }
+
+    fn state_bytes(&self) -> Vec<u8> {
+        std::fs::read(self.dir.path().join(STATE_FILE)).unwrap()
     }
 }
 
@@ -183,4 +211,62 @@ fn no_source_starts_unless_the_run_condition_holds() {
         assert_eq!(factory.input_plan(), HoldPlan::Never);
         assert!(!factory.holds_secure_input());
     }
+}
+
+#[test]
+fn a_lapsed_lease_stops_every_source_and_leaves_the_state_file_byte_identical() {
+    let mut f = Fixture::new(
+        Desired::Running,
+        Factory::adjusting(|source| {
+            source.on_stop = Some(Box::new(|ctx: &SourceContext| {
+                let _ = ctx.sink().emit_event(foreground_now());
+            }));
+        }),
+    );
+    f.set_slot(open());
+    let claimed = f.now.get();
+    f.claim();
+    let deadline = claimed + Duration::from_millis(INDICATOR_LEASE_MS);
+    for name in f.wanted.clone() {
+        assert_eq!(f.begins(name), 1, "begins of {name:?}");
+    }
+    f.emit(2);
+    assert_eq!(f.stored(), 2);
+    let before = f.state_bytes();
+    let stopped_at = loop {
+        let at = f.now.get() + TICK;
+        f.later(TICK);
+        if f.wanted.iter().all(|name| f.stops(*name) == 1) {
+            break at;
+        }
+        assert!(
+            at < deadline + 10 * TICK,
+            "no source stopped by {at:?} after a claim at {claimed:?}"
+        );
+    };
+    assert!(
+        stopped_at <= deadline + TICK,
+        "the sources stopped at {stopped_at:?}, the lease ended at {deadline:?}"
+    );
+    f.emit(3);
+    assert_eq!(
+        f.stored(),
+        2,
+        "a record received at or after the lapse barrier was stored"
+    );
+    assert!(
+        f.state_bytes() == before,
+        "the lapse changed the state file"
+    );
+    assert_eq!(f.supervisor.board().capture, Capture::NoIndicator);
+    f.later(RESTART_MAX);
+    for name in f.wanted.clone() {
+        assert_eq!(f.begins(name), 1, "a restart of {name:?} while lapsed");
+    }
+    f.claim();
+    for name in f.wanted.clone() {
+        assert_eq!(f.begins(name), 2, "begins of {name:?} after the renewal");
+    }
+    f.emit(1);
+    assert_eq!(f.stored(), 3, "the event after the renewal was not stored");
 }
