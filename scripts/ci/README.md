@@ -62,6 +62,39 @@ Three tracked lists hold the merge gate:
 - `scripts/ci/slow-tests.txt` names what 12-test skips in the merge gate. The driver sets `CI_D_MERGE_GATE=1` for the scripts of this form and takes the variable out of the environment in every other form, so the whole table always runs every test. With the variable set, 12-test runs `cargo test` in two calls: the unit tests of the packages that the list does not name with `units`, and the test targets that it names neither one by one with `target` nor by their package with `targets`; each call skips the tests whose name holds a part that the list names with `test`, and a third call runs the doc-tests unless the list holds the line `doc-tests`. It prints one line that names the list and the counts, `form: the merge gate; scripts/ci/slow-tests.txt names what this run skips: ...`, and writes `target/ci-artifacts/12-test/line-seconds.txt`, each line of the test run after the whole seconds since the run began, from which the slow tests of a run can be read.
 - `scripts/ci/core-promises.txt` names the checks and the tests that hold one of the four core promises (the secure-input guarantee, the key and the deletion of the store, what the capture takes, a billing amount), each with its place: `gate` or `scheduled`, and for `scheduled` the reason. No check reads that list; a change of the other two lists updates it by hand.
 
+The seconds of each check as a check of the merge gate, from its `seconds` line: the macos column is the push run 44895970784, and the windows column the push run 44895943466, whose runner had an Intel Xeon Platinum 8370C, the slowest processor that a windows job of this repository has drawn. The macos job took 851 s there and the windows job 989 s, from the start of the job to its end; a job spends 110 to 150 s before the step `ci.d merge gate` on its checkout, its tools and its Rust cache, and the windows job about 110 s after it on the clone with `core.autocrlf=true` and on the lockfile step. After those two runs the windows list lost 20-app-links-no-store, which took 44 s there, and `scripts/ci/slow-tests.txt` gained three `test` lines, so the windows column holds neither.
+
+| Check | macos job, s | windows job, s |
+|---|---|---|
+| 10-format | 9 | 11 |
+| 11-clippy | 51 | 87 |
+| 12-test | 302 | 496 |
+| 17-workflow-lint | 6 | - |
+| 18-hook-scan | 4 | - |
+| 19-control-links-no-store | 1 | 0 |
+| 20-app-links-no-store | 2 | - |
+| 21-tree-bans | 2 | 9 |
+| 23-daemon-port-only | 1 | 2 |
+| 23-licences | 2 | - |
+| 30-formal-covered | 1 | 3 |
+| 31-app-page-layout | 12 | - |
+| 39-store-no-analyze | 1 | 0 |
+| 55-sqlcipher-unmended | 1 | 0 |
+| 62-build | 68 | - |
+| 10-egress | 33 | - |
+| 22-redact | 4 | 7 |
+| 60-r5-privacy | 14 | 29 |
+| 40-r6-policy | 12 | 14 |
+| 60-r6-egress | 69 | - |
+| 80-r6-absent | 20 | - |
+| 21-r7-backend-test | 72 | - |
+| 24-r7-wall | 27 | 12 |
+| 25-r7-backend-licenses | 1 | - |
+| 27-r7-metering-self | 4 | 4 |
+| sum of the lines | 719 | 674 |
+
+12-test took 302 s in the macos job (two builds of 68 s and 65 s, and 123 s for the unit tests of halvo-capture) and 496 s in the windows job (builds of 185 s and 87 s, and 159 s for those unit tests). In its first form, which kept every test target under about 6 s and every unit test of halvo-capture, it took 749 s and 1,029 s in the push run 44893237714, whose jobs took 1,257 s and 1,661 s. What left the merge gate for it: the test targets of 18 packages, 7 more test targets and the unit tests of 6 packages by name, 8 slow groups of the unit tests of halvo-capture, and the doc-tests. A check leaves a job of the merge gate when the job has no room for it: 62-build, 60-r6-egress, 10-egress, 80-r6-absent and 20-app-links-no-store run in the macos job alone, and 28-r7-helper-s6 runs in neither, because it reads the build that 10-r7-account makes.
+
 No own case of the driver runs the form `--merge-gate`, and no fixture of 12-test's self-test runs its form of the merge gate: each hosted run of a push or a pull request is their proof.
 
 A job of the merge gate has the limit `ci_gate_job_timeout_min` of `docs/baseline/r1-gate-bounds.txt`, and a job of every other event the limit `ci_job_timeout_min`; each job's `timeout-minutes` line holds both, and the workflow lint compares the line with the two keys.

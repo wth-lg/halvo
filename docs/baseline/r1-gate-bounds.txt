@@ -50,7 +50,11 @@ ci_job_timeout_min=180
 # gate, so that a job on a slow runner or with a cold build cache still ends
 # green and saves its cache. The rule that a run ends in under 20 minutes is
 # held by the measure of the run's wall, not by this limit. The workflow lint
-# compares each job's timeout line with both keys.
+# compares each job's timeout line with both keys. 45: the slowest green job
+# sample is the windows job of the push run 44895943466, 989 s on a runner with
+# an Intel Xeon Platinum 8370C; twice that is 1,978 s, above 30 minutes and
+# under 45. The macos job of that run took 787 s, and the macos job of the
+# push run 44895970784, with the macos list as it stands, 851 s.
 ci_gate_job_timeout_min=45
 # child_deadline_extra_s: the screen source's start waits of 10 s and 5 s and
 # its stop wait of 5 s, plus 5 s. Every measured child gets its duration plus
