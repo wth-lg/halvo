@@ -2675,7 +2675,6 @@ where
                     row.status,
                     Status::Working | Status::WaitingTurn | Status::AllSet
                 )
-                && !matches!(line, crate::types::StatusLine::KillStuck(_))
             {
                 let key = if board.runs.iter().any(|r| r.agent == facts.agent) {
                     "line.working.switch_not_saved"
