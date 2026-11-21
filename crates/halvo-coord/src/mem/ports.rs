@@ -213,7 +213,8 @@ pub struct Tried {
 /// (A-A7.2). `history` answers at most 64 events for one call. `replies` refuses as
 /// `agent_history` does and answers the rows of the field `replies` that name its run; each call
 /// stands in `reply_reads`. `Senders::read` refuses a text that `senders` holds with the
-/// refusal beside it and takes every other text (ruling RD-81 9.1).
+/// refusal beside it and takes every other text (ruling RD-81 9.1); each text that it reads
+/// stands in `sender_reads`.
 /// `Runs::answer_confirm` refuses answers that make no `Decision` (none, or two for one
 /// effect) with `malformed`, before it mints an id or calls `record`.
 /// `Owner::delete` refuses a workflow that is not in `workflows` with `no_workflow`, and one
@@ -245,6 +246,8 @@ pub struct Ports<C> {
     pub deletes: RefCell<Vec<WorkflowId>>,
     /// The texts that `Senders::read` refuses, each with its refusal; it takes every other text.
     pub senders: RefCell<Vec<(String, Refused)>>,
+    /// The text of each call of `Senders::read`, in order.
+    pub sender_reads: RefCell<Vec<String>>,
     now: Cell<u64>,
     zone: Cell<i64>,
     step: Cell<u64>,
@@ -285,6 +288,7 @@ impl<C> Ports<C> {
             overlap_reads: RefCell::new(Vec::new()),
             deletes: RefCell::new(Vec::new()),
             senders: RefCell::new(Vec::new()),
+            sender_reads: RefCell::new(Vec::new()),
             now: Cell::new(now),
             zone: Cell::new(zone_of(now, today)),
             step: Cell::new(0),
@@ -1237,6 +1241,7 @@ impl<C> Page for Ports<C> {
 
 impl<C> Senders for Ports<C> {
     fn read(&self, text: &str) -> Result<Reading, PortError> {
+        self.sender_reads.borrow_mut().push(text.to_owned());
         let rows = self.senders.borrow();
         Ok(rows
             .iter()

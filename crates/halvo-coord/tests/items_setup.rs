@@ -1015,6 +1015,35 @@ fn a_typed_list_with_one_refused_entry_is_refused_whole_with_that_entrys_number(
     assert_eq!(setup.given(Param::ReplySenders), None);
 }
 
+/// RD-81 9.1 (U2.4n): the reader decides and never rewrites: a typed list that it takes
+/// completes the body, and the slot holds the text byte for byte as typed, with its blanks, its
+/// tab and its capitals.
+#[test]
+fn a_typed_list_that_the_reader_takes_is_stored_byte_for_byte_as_typed() {
+    let f = facts(Category::Email, "graph_mail", WorkflowState::Approved);
+    let p = ports(&f);
+    let list = " ann@people.test,Bob@People.TEST ,\tcy@people.test";
+    let mut setup = senders_setup();
+    let typed = SetupInput::Typed {
+        param: Param::ReplySenders,
+        text: list,
+    };
+    let answer = answer_setup(&p, &mut ledger(), &LIMITS, &mut setup, &f, typed);
+    assert!(matches!(answer, Ok(SetupDone::Closed { .. })), "{answer:?}");
+    assert_eq!(*p.sender_reads.borrow(), vec![list.to_owned()]);
+    let sent: Vec<Body> = p
+        .calls
+        .borrow()
+        .iter()
+        .filter_map(|t| match &t.call {
+            Call::Send(b @ Body::SetBindings { .. }) => Some(b.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(slots_of(&sent[0]), vec![slot("reply_senders", &[list])]);
+}
+
 fn past(n: u32, outcome: Outcome) -> PastRun {
     PastRun {
         run: RunId::parse(&format!("{n:032x}")).unwrap(),
