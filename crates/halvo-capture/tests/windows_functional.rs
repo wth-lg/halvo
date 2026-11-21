@@ -18,8 +18,6 @@ use stamp_phases::{period_ms, phase_of, Phase, TICK_PERIOD_FALLBACK_MS};
 use halvo_capture::event::{CaptureStreamEvent, Modality};
 use halvo_capture::floor::exclude::{FloorHandle, Lineage, NoLineage, Parent, ProcessId};
 use halvo_capture::floor::payload::{Button, FoldClass, KeyClass};
-use halvo_capture::floor::record::{decode, encode, DecodedPayload, DecodedRecord};
-use halvo_capture::floor::text::{TextField, TextFilterPoint};
 use halvo_capture::floor::{Switch, Switches};
 use halvo_capture::secure_input::windows::PasswordGate;
 use halvo_capture::sink::{channel, SinkHandle, SinkWriter};
@@ -682,12 +680,14 @@ fn move_pointer(moves: u32) -> u32 {
     accepted
 }
 
-/// One event as the test reads it: the sink's event, its app filled from the
-/// decoded record of a floor value, and that record.
+/// One event as the test reads it: the sink's event, with the app and the
+/// title's length of a floor value filled from the seam's view of it, and the
+/// view. The view names an app or a title only by the names that this test
+/// gives it.
 #[derive(Clone)]
 struct Seen {
     event: CaptureStreamEvent,
-    record: Option<DecodedRecord>,
+    view: Option<seam::FloorView>,
 }
 
 impl std::ops::Deref for Seen {
@@ -698,36 +698,49 @@ impl std::ops::Deref for Seen {
     }
 }
 
-struct Plain;
-
-impl TextFilterPoint for Plain {
-    type Stored = String;
-
-    fn filter(&self, _field: TextField, text: &str) -> String {
-        text.to_string()
-    }
+/// The app file names that the tests compare an event's app with.
+fn app_names() -> Vec<String> {
+    vec![
+        CHILD_EXE_NAME.to_string(),
+        own_exe_file(),
+        "ApplicationFrameHost.exe".to_string(),
+        "SystemSettings.exe".to_string(),
+    ]
 }
 
-fn seen(received: halvo_capture::sink::Received) -> Seen {
+/// The titles that the tests compare a title event with by its length.
+fn known_titles() -> Vec<String> {
+    let mut titles: Vec<String> = (0..8).map(child_title).collect();
+    titles.push(FIXED_TITLE.to_string());
+    titles.extend(["f".repeat(30), "b".repeat(50), "h".repeat(60)]);
+    for prefix in [PASSWORD_EDIT_TITLE, PLAIN_TITLE] {
+        titles.extend((0..3).map(|step| format!("{prefix}-{step}")));
+    }
+    titles
+}
+
+fn seen(received: halvo_capture::sink::Received, apps: &[String], titles: &[String]) -> Seen {
     let mut event = received.event().clone();
-    let record = received.into_floor().ok().and_then(|floor| {
-        let line = encode(&floor, &Plain).ok()?;
-        decode(line.as_str()).ok()
-    });
-    if let Some(record) = &record {
-        event.foreground_app = record.app().unwrap_or_default().to_string();
-        if let DecodedPayload::WindowTitle { text, .. } = record.payload() {
-            event.segment_ref.byte_len = text.as_str().len() as u64;
+    let apps: Vec<&str> = apps.iter().map(String::as_str).collect();
+    let titles_ref: Vec<&str> = titles.iter().map(String::as_str).collect();
+    let view = received
+        .into_floor()
+        .ok()
+        .map(|floor| seam::view(floor.event(), &apps, &titles_ref));
+    if let Some(view) = &view {
+        event.foreground_app = match view.app {
+            seam::AppSeen::Unknown => String::new(),
+            seam::AppSeen::Named(index) => apps[index].to_string(),
+            seam::AppSeen::Other => "other.exe".to_string(),
+        };
+        if let Some(seam::TitleSeen {
+            among: Some(index), ..
+        }) = view.title
+        {
+            event.segment_ref.byte_len = titles[index].len() as u64;
         }
     }
-    Seen { event, record }
-}
-
-fn payloads(events: &[Seen]) -> Vec<DecodedPayload> {
-    events
-        .iter()
-        .filter_map(|e| e.record.as_ref().map(|record| record.payload().clone()))
-        .collect()
+    Seen { event, view }
 }
 
 struct Events(mpsc::Receiver<Seen>);
@@ -765,12 +778,14 @@ fn sink_closed() -> ! {
 
 fn forward(writer: SinkWriter) -> Events {
     let (tx, rx) = mpsc::channel();
+    let apps = app_names();
+    let titles = known_titles();
     std::thread::Builder::new()
         .name("tf-sink-forward".to_string())
         .spawn(move || loop {
             match writer.recv_timeout(Duration::from_secs(60)) {
                 Ok(received) => {
-                    if tx.send(seen(received)).is_err() {
+                    if tx.send(seen(received, &apps, &titles)).is_err() {
                         break;
                     }
                 }
@@ -1362,7 +1377,7 @@ fn child_root(secs: u64) {
     );
 }
 
-const SECRET_TITLE: &str = "halvo-verify-secret-title";
+const PASSWORD_EDIT_TITLE: &str = "halvo-verify-title-in-a-password-edit";
 const PLAIN_TITLE: &str = "halvo-verify-plain-title";
 
 /// A window with a password edit and a plain edit: three title changes while
@@ -1384,7 +1399,7 @@ fn child_password_title() {
     pump_answering(Duration::from_millis(300));
     let (foreground, method) = window.activate();
     let mut phases = Vec::new();
-    for (edit, prefix) in [(password, SECRET_TITLE), (plain, PLAIN_TITLE)] {
+    for (edit, prefix) in [(password, PASSWORD_EDIT_TITLE), (plain, PLAIN_TITLE)] {
         let focused = focus_on(edit);
         pump_answering(Duration::from_millis(800));
         for step in 0..3 {
@@ -1735,7 +1750,7 @@ fn c2_screen_source_delivers_a_frame() {
         );
         assert!(!frames.is_empty(), "no frame of the desktop in 15 seconds");
         assert!(
-            frames.iter().all(|e| e.record.is_some()),
+            frames.iter().all(|e| e.view.is_some()),
             "a frame event is no record of the floor"
         );
     });
@@ -3462,11 +3477,8 @@ fn capture_times_follow_the_input_order() {
         key_times.sort();
         let scrolls: Vec<(u64, SystemTime)> = events
             .iter()
-            .filter_map(|e| match e.record.as_ref().map(DecodedRecord::payload) {
-                Some(DecodedPayload::Fold {
-                    class: FoldClass::Scroll,
-                    count,
-                }) => Some((*count, e.captured_at.wall_clock)),
+            .filter_map(|e| match e.view.and_then(|view| view.fold) {
+                Some((FoldClass::Scroll, count)) => Some((count, e.captured_at.wall_clock)),
                 _ => None,
             })
             .collect();
@@ -5721,29 +5733,31 @@ fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
             RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
         let start = keyboard.begin(SourceContext::new(sink.clone()));
         let _ = events.drain_for(Duration::from_secs(1));
-        let presses: [&[VIRTUAL_KEY]; 6] = [
+        let presses: [&[VIRTUAL_KEY]; 5] = [
             &[VIRTUAL_KEY(0x41)],
             &[VIRTUAL_KEY(0x08)],
             &[VIRTUAL_KEY(0x25)],
-            &[VIRTUAL_KEY(0x0D)],
             &[VIRTUAL_KEY(0x11), VIRTUAL_KEY(0x41)],
-            &[VIRTUAL_KEY(0x09)],
+            &[VIRTUAL_KEY(0x0D)],
         ];
         let mut accepted = 0;
         for keys in presses {
             accepted += key_press(keys);
         }
-        let seen = events.drain_for(Duration::from_secs(2));
-        let still_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
+        let mut seen = events.drain_for(Duration::from_secs(2));
         let _ = stop_counted(&mut keyboard, "keyboard");
+        let mut second = RawInputSource::keyboard(Arc::new(Mutex::new(None)), PasswordGate::new());
+        let second_start = second.begin(SourceContext::new(sink.clone()));
+        let _ = events.drain_for(Duration::from_millis(500));
+        accepted += key_press(&[VIRTUAL_KEY(0x09)]);
+        seen.extend(events.drain_for(Duration::from_secs(2)));
+        let still_in_front = class_of_window(foreground_window()) == "HalvoVerifyHoldFirst";
+        let _ = stop_counted(&mut second, "keyboard");
         let _ = child.wait();
         child.print_output();
-        let classes: Vec<KeyClass> = payloads(&seen)
-            .into_iter()
-            .filter_map(|payload| match payload {
-                DecodedPayload::Keystroke(class) => Some(class),
-                _ => None,
-            })
+        let classes: Vec<KeyClass> = seen
+            .iter()
+            .filter_map(|e| e.view.and_then(|view| view.key_class))
             .collect();
         let each: Vec<String> = KeyClass::ALL
             .iter()
@@ -5765,7 +5779,10 @@ fn one_key_of_each_class_gives_one_keystroke_record_of_each_class() {
                 each.join(" ")
             ),
         );
-        assert!(start.is_ok(), "the keyboard source must start");
+        assert!(
+            start.is_ok() && second_start.is_ok(),
+            "the keyboard sources must start"
+        );
         assert!(
             held_in_front && still_in_front,
             "INCONCLUSIVE: the child's window with its plain edit was not in front"
@@ -5921,6 +5938,7 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
         let mut walked = ProcessId::new(outside_pid);
         let mut walk_steps = 0;
         let mut walk_end = "steps";
+        let mut last_opened = false;
         for _ in 0..64 {
             if walked.get() == root.id() {
                 walk_end = "root";
@@ -5939,6 +5957,18 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
                     walk_end = "unknown";
                     break;
                 }
+            }
+        }
+        // SAFETY: OpenProcess takes plain values; a handle that it gives is
+        // closed at once.
+        unsafe {
+            use windows::Win32::System::Threading::{
+                OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+            };
+            if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, walked.get())
+            {
+                last_opened = true;
+                let _ = windows::Win32::Foundation::CloseHandle(handle);
             }
         }
         drop(fields);
@@ -5974,6 +6004,7 @@ fn a_window_under_the_exclusion_root_gives_no_event_and_another_window_does() {
                  events_in_the_tree={} exclusion_tree_drops={tree_drops} \
                  unknown_lineage_drops={unknown_lineage_drops} other_drops={other_drops} \
                  outside_walk_steps={walk_steps} outside_walk_end={walk_end} \
+                 outside_walk_last_process_opened={last_opened} \
                  outside_keys={outside_keys} outside_moves={outside_moves} events_outside={} \
                  keystroke_events_outside={} pointer_events_outside={}",
                 starts.iter().all(Result::is_ok),
@@ -6031,30 +6062,31 @@ fn mouse(flags: MOUSE_EVENT_FLAGS, dx: i32, data: i32) -> INPUT {
 }
 
 fn folds(events: &[Seen], wanted: FoldClass) -> Vec<u64> {
-    payloads(events)
-        .into_iter()
-        .filter_map(|payload| match payload {
-            DecodedPayload::Fold { class, count } if class == wanted => Some(count),
+    events
+        .iter()
+        .filter_map(|e| match e.view.and_then(|view| view.fold) {
+            Some((class, count)) if class == wanted => Some(count),
             _ => None,
         })
         .collect()
 }
 
 fn clicks(events: &[Seen]) -> Vec<Button> {
-    payloads(events)
-        .into_iter()
-        .filter_map(|payload| match payload {
-            DecodedPayload::Click(button) => Some(button),
-            _ => None,
-        })
+    events
+        .iter()
+        .filter_map(|e| e.view.and_then(|view| view.click))
         .collect()
 }
 
 fn titles_with(events: &[Seen], prefix: &str) -> usize {
-    payloads(events)
+    let titles = known_titles();
+    events
         .iter()
-        .filter(|payload| {
-            matches!(payload, DecodedPayload::WindowTitle { text, .. } if text.as_str().starts_with(prefix))
+        .filter(|e| {
+            e.view
+                .and_then(|view| view.title)
+                .and_then(|title| title.among)
+                .is_some_and(|index| titles[index].starts_with(prefix))
         })
         .count()
 }
@@ -6084,7 +6116,7 @@ fn a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event() {
         let _ = stop_counted(&mut title, "window_title");
         let _ = stop_counted(&mut keyboard, "keyboard");
         child.print_output();
-        let secret = titles_with(&seen, SECRET_TITLE);
+        let secret = titles_with(&seen, PASSWORD_EDIT_TITLE);
         let plain = titles_with(&seen, PLAIN_TITLE);
         let drops = title.drops();
         say(

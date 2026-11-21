@@ -708,6 +708,20 @@ mod tests {
             WatchOutcome::Changed,
             "a change made before the second wait was missed"
         );
+        assert_eq!(
+            watcher
+                .wait(Some(Duration::from_millis(300)))
+                .expect("a third wait"),
+            WatchOutcome::TimedOut,
+            "a wait woke with no change after it"
+        );
+        scratch.write("C", "Halvo Watch Probe C");
+        assert_eq!(
+            watcher
+                .wait(Some(Duration::from_secs(5)))
+                .expect("a fourth wait"),
+            WatchOutcome::Changed
+        );
     }
 
     #[cfg(target_os = "windows")]

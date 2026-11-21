@@ -900,6 +900,71 @@ pub mod seam {
         )
     }
 
+    /// The app of a floor value as a test reads it: which of the test's own
+    /// names its executable's file name equals, never the string.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub enum AppSeen {
+        /// The value names no app.
+        #[default]
+        Unknown,
+        /// The index of the first name that it equals.
+        Named(usize),
+        /// It equals none of the names.
+        Other,
+    }
+
+    /// A title as a test reads it: its reason, whether the entry cut it, and
+    /// which of the test's own titles it equals, never the text.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct TitleSeen {
+        pub app_change: bool,
+        pub cut: bool,
+        pub among: Option<usize>,
+    }
+
+    /// What a test reads of a floor value: the plain values of its payload and
+    /// the indices of the names that its strings equal.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub struct FloorView {
+        pub app: AppSeen,
+        pub key_class: Option<KeyClass>,
+        pub click: Option<crate::floor::payload::Button>,
+        pub fold: Option<(crate::floor::payload::FoldClass, u64)>,
+        pub title: Option<TitleSeen>,
+    }
+
+    /// The view of `event` against the test's app file names and titles.
+    pub fn view(event: &crate::event::FloorEvent, apps: &[&str], titles: &[&str]) -> FloorView {
+        use crate::floor::payload::{Observation, TitleWhy};
+        let app = event.app();
+        let mut view = FloorView {
+            app: if app.is_unknown() {
+                AppSeen::Unknown
+            } else {
+                apps.iter()
+                    .position(|name| app.is_listed(&[], &[name]))
+                    .map_or(AppSeen::Other, AppSeen::Named)
+            },
+            ..FloorView::default()
+        };
+        match event.observation() {
+            Observation::Keystroke(class) => view.key_class = Some(*class),
+            Observation::Click(button) => view.click = Some(*button),
+            Observation::Fold(fold) => view.fold = Some((fold.class(), fold.count().get())),
+            Observation::WindowTitle(title) => {
+                view.title = Some(TitleSeen {
+                    app_change: title.why == TitleWhy::AppChange,
+                    cut: title.text.was_cut(),
+                    among: titles
+                        .iter()
+                        .position(|wanted| title.text.names_one_of(&[wanted], false)),
+                });
+            }
+            Observation::ForegroundApp | Observation::ScreenFrame => {}
+        }
+        view
+    }
+
     static PUMPS: Mutex<()> = Mutex::new(());
 
     /// Holds the pump of every raw-input source of the process before it
