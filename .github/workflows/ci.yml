@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -30,18 +32,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -89,14 +79,14 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 16-shell-lint 21-tree-bans 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs 30-mutants
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; processors: %s\n' "$(sysctl -n machdep.cpu.brand_string)" "$(sysctl -n hw.ncpu)"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 16-shell-lint 21-tree-bans 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs 30-mutants
       - name: Lockfile unchanged
         shell: bash
         run: |
@@ -134,14 +124,208 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 50-windows-functional 52-windows-browser 53-windows-prints 21-tree-bans 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
       - name: Processor
         shell: bash
         run: |
           printf 'processor: %s; identifier: %s; processors: %s\n' "$(powershell -NoProfile -Command '(Get-CimInstance Win32_Processor | Select-Object -First 1).Name' 2>/dev/null | tr -d '\r' || printf unknown)" "${PROCESSOR_IDENTIFIER:-unknown}" "${NUMBER_OF_PROCESSORS:-unknown}"
       - name: ci.d
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 50-windows-functional 52-windows-browser 53-windows-prints 21-tree-bans 22-daemon-no-dead-allow 23-daemon-port-only 30-core-boundary-proofs
+      - name: win-4 loops of the unit's tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set +e
+          cat >"$RUNNER_TEMP/w4-loops.sh" <<'W4_EOF'
+          #!/bin/bash
+          # win-4's loop step: the unit's in-crate tests 200 rounds in one cargo call a round; its functional tests that open no window
+          # 200 rounds, the others 20 rounds, each test in its own process. A round passes when its result lines read every test passed. Prints counts alone.
+          set +e
+          cd "${GITHUB_WORKSPACE:-.}" || exit 0
+          cargo=${W4_CARGO:-cargo}
+          export RUST_TEST_THREADS=4
+          lib="windows::apps::tests::an_entry_that_names_a_parent_is_dropped
+          windows::apps::tests::the_scan_and_the_watch_read_one_list_with_no_per_user_mirror
+          windows::apps::tests::a_scan_with_no_key_that_opens_fails
+          windows::apps::tests::a_watch_armed_before_the_key_exists_wakes_when_it_is_made
+          windows::apps::tests::a_change_made_between_two_waits_wakes_the_second
+          windows::apps::tests::the_stop_event_ends_a_wait_and_nothing_to_watch_has_its_own_outcome
+          windows::apps::tests::the_keys_are_closed_when_the_scan_and_the_watch_end
+          windows::exclusion::tests::the_lineage_over_a_process_table_places_each_process_in_or_out_of_the_tree
+          windows::exclusion::tests::the_lineage_keeps_a_parent_while_the_process_keeps_its_creation_time
+          windows::exclusion::tests::the_system_lineage_reads_this_process_under_its_parent
+          windows::exclusion::tests::a_title_of_a_private_window_is_told_by_its_ending_alone
+          windows::exclusion::tests::a_chrome_window_is_kept_only_when_the_query_tells_it_as_not_private
+          windows::input::tests::one_raw_sample_with_movement_a_button_and_a_wheel_turn_gives_all_three
+          windows::input::tests::movement_while_a_button_is_held_is_a_drag_until_the_button_goes_up
+          windows::input::tests::one_key_of_each_class_maps_to_each_class_once
+          windows::input::tests::the_folds_close_an_interval_after_1000_ms_and_take_a_handed_back_count
+          windows::input::tests::a_raw_input_source_whose_switch_is_off_answers_off_and_installs_nothing
+          windows::screen::tests::a_frame_with_no_changed_region_is_idle_where_the_system_reports_regions
+          windows::screen::tests::the_screen_source_with_the_default_switches_answers_off_and_delivers_no_frame
+          windows::tests::the_content_probe_of_a_gate_reads_its_field_state
+          windows::tests::one_event_of_each_kind_reaches_the_model_store_in_the_shape_of_c13
+          windows::tests::a_gone_writer_counts_the_queued_events
+          windows::tests::a_listed_app_in_front_drops_every_kind_and_counts_each_drop
+          windows::tests::a_push_does_not_wait_for_a_full_sink
+          windows::tests::the_age_of_an_event_is_read_across_the_wrap_of_the_tick_count
+          windows::window_title::tests::the_site_reader_point_gives_no_site_in_r1
+          windows::window_title::tests::a_title_leaves_no_event_while_the_gate_reads_password_and_one_while_it_reads_unknown
+          windows::window_title::tests::a_title_source_whose_switch_is_off_answers_off"
+          fast="c5_three_probe_entries_against_what_windows_lists
+          c5_watch_armed_while_the_per_user_key_is_absent
+          x16_packaged_apps_and_the_inventory"
+          tf="x13_frames_on_a_static_screen
+          one_key_of_each_class_gives_one_keystroke_record_of_each_class
+          pointer_events_fold_into_one_record_for_each_class_and_interval
+          a_window_under_the_exclusion_root_gives_no_event_and_another_window_does
+          a_title_change_while_a_password_edit_has_the_focus_gives_no_title_event
+          capture_times_follow_the_input_order"
+          lib_count=$(printf '%s\n' "$lib" | grep -c .)
+          want="test result: ok. $lib_count passed"
+          # shellcheck disable=SC2086
+          "$cargo" test -p halvo-capture --lib --no-run >/dev/null 2>&1
+          "$cargo" test -p halvo-capture --test windows_functional --no-run >/dev/null 2>&1
+          pass=0
+          for round in $(seq 1 200); do
+            # shellcheck disable=SC2046
+            out=$("$cargo" test -p halvo-capture --lib -- --exact $(printf '%s ' $lib) 2>&1)
+            if printf '%s\n' "$out" | grep -q "^$want;"; then
+              pass=$((pass + 1))
+            else
+              echo "loop win4-lib round=$round failed:"
+              printf '%s\n' "$out" | grep -E '^test .*FAILED|^test result|panicked at' | head -6
+            fi
+          done
+          echo "loop win4-lib: passed $pass of 200 (tests_a_round=$lib_count)"
+          pass=0
+          for round in $(seq 1 200); do
+            ok=1
+            for name in $fast; do
+              out=$("$cargo" test -p halvo-capture --test windows_functional -- --exact "$name" --ignored 2>&1)
+              if ! printf '%s\n' "$out" | grep -q '^test result: ok. 1 passed;'; then
+                ok=0
+                echo "loop win4-functional-fast round=$round test=$name failed"
+                printf '%s\n' "$out" | grep -E '^test result|panicked at' | head -3
+              fi
+            done
+            [ "$ok" = 1 ] && pass=$((pass + 1))
+          done
+          echo "loop win4-functional-fast: passed $pass of 200 (tests_a_round=$(printf '%s\n' "$fast" | grep -c .))"
+          pass=0
+          for round in $(seq 1 20); do
+            ok=1
+            for name in $tf; do
+              out=$("$cargo" test -p halvo-capture --test windows_functional -- --exact "$name" --ignored 2>&1)
+              if ! printf '%s\n' "$out" | grep -q '^test result: ok. 1 passed;'; then
+                ok=0
+                echo "loop win4-functional round=$round test=$name failed"
+                printf '%s\n' "$out" | grep -E '^test result|panicked at' | head -3
+              fi
+            done
+            [ "$ok" = 1 ] && pass=$((pass + 1))
+          done
+          echo "loop win4-functional: passed $pass of 20 (tests_a_round=$(printf '%s\n' "$tf" | grep -c .))"
+          exit 0
+          W4_EOF
+          bash "$RUNNER_TEMP/w4-loops.sh" | tee "$RUNNER_TEMP/w4-loops.log"
+          grep -q '^loop win4-lib: passed 200 of 200 ' "$RUNNER_TEMP/w4-loops.log" && grep -q '^loop win4-functional-fast: passed 200 of 200 ' "$RUNNER_TEMP/w4-loops.log" && grep -q '^loop win4-functional: passed 20 of 20 ' "$RUNNER_TEMP/w4-loops.log"
+      - name: win-4 one-rule changes at the head
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        env:
+          W4_PARTS: ''
+          W4_CHANGES: 'YzAxCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2FwcHMucnMJbGliCXdpbmRvd3M6OmFwcHM6OnRlc3RzOjphbl9lbnRyeV90aGF0X25hbWVzX2FfcGFyZW50X2lzX2Ryb3BwZWQJcy9pZiByYXdcLmlzX3N5c3RlbV9jb21wb25lbnQgXHxcfCByYXdcLmhhc19wYXJlbnQgXHsvaWYgcmF3LmlzX3N5c3RlbV9jb21wb25lbnQgey8KYzAyCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2FwcHMucnMJbGliCXdpbmRvd3M6OmFwcHM6OnRlc3RzOjphX3NjYW5fd2l0aF9ub19rZXlfdGhhdF9vcGVuc19mYWlscwlzLyAgICBpZiBvcGVuZWQgPT0gMCBcey8gICAgaWYgb3BlbmVkID09IHVzaXplOjpNQVggey8KYzA0CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2FwcHMucnMJbGliCXdpbmRvd3M6OmFwcHM6OnRlc3RzOjp0aGVfc3RvcF9ldmVudF9lbmRzX2Ffd2FpdF9hbmRfbm90aGluZ190b193YXRjaF9oYXNfaXRzX293bl9vdXRjb21lCXMvKCAgICAgICAgaWYgd29rZSA9PSBXQUlUX09CSkVDVF8wIFx7XHI/XG4gICAgICAgICAgICByZXR1cm4gT2tcKFdhdGNoT3V0Y29tZTo6KVN0b3BwZWQvJHsxfUNoYW5nZWQvCmMwNQljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9hcHBzLnJzCWxpYgl3aW5kb3dzOjphcHBzOjp0ZXN0czo6dGhlX3N0b3BfZXZlbnRfZW5kc19hX3dhaXRfYW5kX25vdGhpbmdfdG9fd2F0Y2hfaGFzX2l0c19vd25fb3V0Y29tZQlzLyAgICAgICAgICAgIHJldHVybiBPa1woV2F0Y2hPdXRjb21lOjpOb3RoaW5nVG9XYXRjaFwpOy8gICAgICAgICAgICByZXR1cm4gT2soV2F0Y2hPdXRjb21lOjpUaW1lZE91dCk7LwpjMDYJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZXhjbHVzaW9uLnJzCWxpYgl3aW5kb3dzOjpleGNsdXNpb246OnRlc3RzOjp0aGVfbGluZWFnZV9vdmVyX2FfcHJvY2Vzc190YWJsZV9wbGFjZXNfZWFjaF9wcm9jZXNzX2luX29yX291dF9vZl90aGVfdHJlZQlzL1NvbWVcKHBhcmVudF9jcmVhdGVkXCkgaWYgcGFyZW50X2NyZWF0ZWQgPD0gY3JlYXRlZCA9Pi9Tb21lKF8pID0+LwpjMDcJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZXhjbHVzaW9uLnJzCWxpYgl3aW5kb3dzOjpleGNsdXNpb246OnRlc3RzOjp0aGVfbGluZWFnZV9rZWVwc19hX3BhcmVudF93aGlsZV90aGVfcHJvY2Vzc19rZWVwc19pdHNfY3JlYXRpb25fdGltZQlzLyAgICAgICAgICAgIGlmIFwqYXQgPT0gY3JlYXRlZCBcey8gICAgICAgICAgICBpZiAqYXQgIT0gY3JlYXRlZCB7LwpjMDgJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZXhjbHVzaW9uLnJzCWxpYgl3aW5kb3dzOjpleGNsdXNpb246OnRlc3RzOjp0aGVfbGluZWFnZV9rZWVwc19hX3BhcmVudF93aGlsZV90aGVfcHJvY2Vzc19rZWVwc19pdHNfY3JlYXRpb25fdGltZQlzLyAgICAgICAgaWYgcGFyZW50ICE9IFBhcmVudDo6VW5rbm93biBcey8gICAgICAgIGlmIGZhbHNlIHsvCmMwOQljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9leGNsdXNpb24ucnMJbGliCXdpbmRvd3M6OmV4Y2x1c2lvbjo6dGVzdHM6OmFfdGl0bGVfb2ZfYV9wcml2YXRlX3dpbmRvd19pc190b2xkX2J5X2l0c19lbmRpbmdfYWxvbmUJcy9cLnJlcGxhY2VcKCdcXHVcezIwMEJcfScsIFwiXCJcKS8ucmVwbGFjZSgnXFx1ezIwMEN9JywgXCJcIikvCmMxMAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9leGNsdXNpb24ucnMJbGliCXdpbmRvd3M6OmV4Y2x1c2lvbjo6dGVzdHM6OmFfdGl0bGVfb2ZfYV9wcml2YXRlX3dpbmRvd19pc190b2xkX2J5X2l0c19lbmRpbmdfYWxvbmUJcy90aXRsZVwudHJpbV9lbmRcKFwpXC5lbmRzX3dpdGhcKEZJUkVGT1hfUFJJVkFURV9FTkRJTkdcKS90aXRsZS5jb250YWlucyhcIlByaXZhdGUgQnJvd3NpbmdcIikvCmMxMQljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9leGNsdXNpb24ucnMJbGliCXdpbmRvd3M6OmV4Y2x1c2lvbjo6dGVzdHM6OmFfY2hyb21lX3dpbmRvd19pc19rZXB0X29ubHlfd2hlbl90aGVfcXVlcnlfdGVsbHNfaXRfYXNfbm90X3ByaXZhdGUJcy9Ccm93c2VyOjpDaHJvbWUgPT4gcXVlcnlcKFwpICE9IFNvbWVcKGZhbHNlXCksL0Jyb3dzZXI6OkNocm9tZSA9PiBxdWVyeSgpID09IFNvbWUodHJ1ZSksLwpjMTIJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZXhjbHVzaW9uLnJzCWxpYgl3aW5kb3dzOjpleGNsdXNpb246OnRlc3RzOjphX3RpdGxlX29mX2FfcHJpdmF0ZV93aW5kb3dfaXNfdG9sZF9ieV9pdHNfZW5kaW5nX2Fsb25lCXMvXC5maW5kXChcfFwoZmlsZSwgX1wpXHwgbmFtZVwuZXFfaWdub3JlX2FzY2lpX2Nhc2VcKGZpbGVcKVwpLy5maW5kKHwoZmlsZSwgXyl8IG5hbWUgPT0gKmZpbGUpLwpjMTMJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6bW92ZW1lbnRfd2hpbGVfYV9idXR0b25faXNfaGVsZF9pc19hX2RyYWdfdW50aWxfdGhlX2J1dHRvbl9nb2VzX3VwCXMvICAgIGxldCBtb3Rpb24gPSBtb3ZlZFwudGhlbl9zb21lXChpZiBcKmhlbGQgIT0gMCBcey8gICAgbGV0IG1vdGlvbiA9IG1vdmVkLnRoZW5fc29tZShpZiAqaGVsZCA9PSAwIHsvCmMxNAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9pbnB1dC5ycwlsaWIJd2luZG93czo6aW5wdXQ6OnRlc3RzOjptb3ZlbWVudF93aGlsZV9hX2J1dHRvbl9pc19oZWxkX2lzX2FfZHJhZ191bnRpbF90aGVfYnV0dG9uX2dvZXNfdXAJcy8gICAgICAgICAgICBcKmhlbGQgJj0gIVwoMSA8PCBpbmRleFwpO1xyP1xuLy8KYzE1CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2lucHV0LnJzCWxpYgl3aW5kb3dzOjppbnB1dDo6dGVzdHM6Om9uZV9yYXdfc2FtcGxlX3dpdGhfbW92ZW1lbnRfYV9idXR0b25fYW5kX2Ffd2hlZWxfdHVybl9naXZlc19hbGxfdGhyZWUJcy9jb25zdCBXSEVFTF9GTEFHUzogdTE2ID0gXChSSV9NT1VTRV9XSEVFTCBcfCBSSV9NT1VTRV9IV0hFRUxcKSBhcyB1MTY7L2NvbnN0IFdIRUVMX0ZMQUdTOiB1MTYgPSBSSV9NT1VTRV9XSEVFTCBhcyB1MTY7LwpjMTYJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6dGhlX2ZvbGRzX2Nsb3NlX2FuX2ludGVydmFsX2FmdGVyXzEwMDBfbXNfYW5kX3Rha2VfYV9oYW5kZWRfYmFja19jb3VudAlzL1NvbWVcKG9wZW5cKSBpZiBtc19zaW5jZVwob3Blblwuc2luY2UsIHRpY2tcKSA+PSBGT0xEX0lOVEVSVkFMX01TID0+L1NvbWUob3BlbikgaWYgbXNfc2luY2Uob3Blbi5zaW5jZSwgdGljaykgPiBGT0xEX0lOVEVSVkFMX01TICogMiA9Pi8KYzE3CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2lucHV0LnJzCWxpYgl3aW5kb3dzOjppbnB1dDo6dGVzdHM6OnRoZV9mb2xkc19jbG9zZV9hbl9pbnRlcnZhbF9hZnRlcl8xMDAwX21zX2FuZF90YWtlX2FfaGFuZGVkX2JhY2tfY291bnQJcy8gICAgICAgICAgICAgICAgb3BlblwuY291bnRcLmFkZFwoZm9sZFwuY291bnRcKFwpXCk7XHI/XG4vLwpjMzEJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6dGhlX2ZvbGRzX2Nsb3NlX2FuX2ludGVydmFsX2FmdGVyXzEwMDBfbXNfYW5kX3Rha2VfYV9oYW5kZWRfYmFja19jb3VudAlzLyAgICAgICAgICAgICAgICBpZiBtc19zaW5jZVwoc2luY2UsIG9wZW5cLnNpbmNlXCkgPiAwIFx7LyAgICAgICAgICAgICAgICBpZiBmYWxzZSB7LwpjMTgJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6dGhlX2ZvbGRzX2Nsb3NlX2FuX2ludGVydmFsX2FmdGVyXzEwMDBfbXNfYW5kX3Rha2VfYV9oYW5kZWRfYmFja19jb3VudAlzLyAgICAgICAgICAgICAgICBvcGVuXC5jb3VudFwuYWRkX29uZVwoXCk7XHI/XG4vLwpjMTkJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6YV9yYXdfaW5wdXRfc291cmNlX3dob3NlX3N3aXRjaF9pc19vZmZfYW5zd2Vyc19vZmZfYW5kX2luc3RhbGxzX25vdGhpbmcJcy8gICAgICAgIGlmICFmbG9vclwuaXNfb25cKHN3aXRjaFwpIFx7LyAgICAgICAgaWYgZmxvb3IuaXNfb24oc3dpdGNoKSAmJiBmYWxzZSB7LwpjMjAJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCWxpYgl3aW5kb3dzOjp0ZXN0czo6YV9saXN0ZWRfYXBwX2luX2Zyb250X2Ryb3BzX2V2ZXJ5X2tpbmRfYW5kX2NvdW50c19lYWNoX2Ryb3AJcy8gICAgICAgICAgICAgICAgc2VsZlwuZHJvcHNcLmNvdW50XChyZWFzb25cKTtccj9cbi8vCmMyMQljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJbGliCXdpbmRvd3M6OnRlc3RzOjphX2xpc3RlZF9hcHBfaW5fZnJvbnRfZHJvcHNfZXZlcnlfa2luZF9hbmRfY291bnRzX2VhY2hfZHJvcAlzL1wubWFwX29yX2Vsc2VcKEFwcElkZW50aXR5Ojp1bmtub3duLCBBcHBJZGVudGl0eTo6ZXhlY3V0YWJsZV9wYXRoXCk7Ly5tYXBfb3JfZWxzZShBcHBJZGVudGl0eTo6dW5rbm93biwgQXBwSWRlbnRpdHk6OmJ1bmRsZV9pZCk7LwpjMjIJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvbW9kLnJzCWxpYgl3aW5kb3dzOjp0ZXN0czo6dGhlX2FnZV9vZl9hbl9ldmVudF9pc19yZWFkX2Fjcm9zc190aGVfd3JhcF9vZl90aGVfdGlja19jb3VudAlzLyAgICAgICAgaWYgYWdlID4gaTMyOjpNQVggYXMgdTMyIFx7LyAgICAgICAgaWYgYWdlID4gMTAwIHsvCmMyMwljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJbGliCXdpbmRvd3M6OnRlc3RzOjphX2dvbmVfd3JpdGVyX2Nsb3Nlc190aGVfaGFuZF9vZmZfYW5kX2NvdW50c193aGF0X2l0X2hlbGQJcy9pZiBmb3J3YXJkX29uZVwoJnNoYXJlZFwuc2luaywgZXZlbnRcKSA9PSBFbWl0dGVkOjpSZWZ1c2VkIFx7L2lmIGZvcndhcmRfb25lKFwmc2hhcmVkLnNpbmssIGV2ZW50KSA9PSBFbWl0dGVkOjpEcm9wcGVkIHsvCmMyNAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9tb2QucnMJbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6YV9yYXdfaW5wdXRfc291cmNlX3dob3NlX3N3aXRjaF9pc19vZmZfYW5zd2Vyc19vZmZfYW5kX2luc3RhbGxzX25vdGhpbmcJcy8gICAgICAgICAgICBcKE5vbmUsIF9cKSBpZiBzZWxmXC5vZmYgPT4gU291cmNlU3RhdGU6Ok9mZixccj9cbi8vCmMyNQljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zY3JlZW4ucnMJbGliCXdpbmRvd3M6OnNjcmVlbjo6dGVzdHM6OnRoZV9zY3JlZW5fc291cmNlX3dpdGhfdGhlX2RlZmF1bHRfc3dpdGNoZXNfYW5zd2Vyc19vZmZfYW5kX2RlbGl2ZXJzX25vX2ZyYW1lCXMvICAgICAgICBzZWxmXC5vZmYgPSAhY3R4XC5mbG9vclwoXClcLnN3aXRjaGVzXChcKVwuaXNfb25cKFN3aXRjaDo6U2NyZWVuQWN0aXZpdHlcKTsvICAgICAgICBzZWxmLm9mZiA9ICFjdHguZmxvb3IoKS5zd2l0Y2hlcygpLmlzX29uKFN3aXRjaDo6U2NyZWVuQWN0aXZpdHkpICYmIGZhbHNlOy8KYzI2CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6YV9mcmFtZV93aXRoX25vX2NoYW5nZWRfcmVnaW9uX2lzX2lkbGVfd2hlcmVfdGhlX3N5c3RlbV9yZXBvcnRzX3JlZ2lvbnMJcy8gICAgICAgICAgICBSZWdpb25SZXBvcnQ6OlJlcG9ydGVkID0+IERpcnR5UmVnaW9uU2V0dGluZ3M6OlJlcG9ydE9ubHksLyAgICAgICAgICAgIFJlZ2lvblJlcG9ydDo6UmVwb3J0ZWQgPT4gRGlydHlSZWdpb25TZXR0aW5nczo6RGVmYXVsdCwvCmMyNwljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zY3JlZW4ucnMJbGliCXdpbmRvd3M6OnNjcmVlbjo6dGVzdHM6OnRoZV9zY3JlZW5fc291cmNlX3dpdGhfdGhlX2RlZmF1bHRfc3dpdGNoZXNfYW5zd2Vyc19vZmZfYW5kX2RlbGl2ZXJzX25vX2ZyYW1lCXMvICAgICAgICBpZiBzZWxmXC5vZmYgJiYgIXNlbGZcLmxpZmVcLmlzX2J1c3lcKFwpIFx7LyAgICAgICAgaWYgZmFsc2Ugey8KYzI4CWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3dpbmRvd190aXRsZS5ycwlsaWIJd2luZG93czo6d2luZG93X3RpdGxlOjp0ZXN0czo6YV90aXRsZV9sZWF2ZXNfbm9fZXZlbnRfd2hpbGVfdGhlX2dhdGVfcmVhZHNfcGFzc3dvcmRfYW5kX29uZV93aGlsZV9pdF9yZWFkc191bmtub3duCXMvICAgIGxldCBwcm9iZSA9IGdhdGVcLm1hcF9vcl9lbHNlXChQYXNzd29yZEZpZWxkUHJvYmU6OmRlZmF1bHQsIFBhc3N3b3JkR2F0ZTo6Y29udGVudF9wcm9iZVwpOy8gICAgbGV0IHByb2JlID0gUGFzc3dvcmRGaWVsZFByb2JlOjpkZWZhdWx0KCk7LwpjMjkJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3Mvd2luZG93X3RpdGxlLnJzCWxpYgl3aW5kb3dzOjp3aW5kb3dfdGl0bGU6OnRlc3RzOjphX3RpdGxlX3NvdXJjZV93aG9zZV9zd2l0Y2hfaXNfb2ZmX2Fuc3dlcnNfb2ZmCXMvICAgICAgICBpZiAhZmxvb3JcLmlzX29uXChTd2l0Y2g6OlRpdGxlVGV4dFwpIFx7LyAgICAgICAgaWYgZmxvb3IuaXNfb24oU3dpdGNoOjpUaXRsZVRleHQpICYmIGZhbHNlIHsvCmMzMAljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9zZWN1cmVfaW5wdXQucnMJbGliCXdpbmRvd3M6OnRlc3RzOjp0aGVfY29udGVudF9wcm9iZV9vZl9hX2dhdGVfcmVhZHNfaXRzX2ZpZWxkX3N0YXRlCXMvICAgICAgICAgICAgRmllbGRTdGF0ZTo6UGFzc3dvcmQgPT4gU2VjdXJlSW5wdXRSZWFkaW5nOjpBY3RpdmUsLyAgICAgICAgICAgIEZpZWxkU3RhdGU6OlBhc3N3b3JkID0+IFNlY3VyZUlucHV0UmVhZGluZzo6SW5hY3RpdmUsLwpyb3c6a2V5LW1hcHBlci1vbmUtY2xhc3MJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvaW5wdXQucnMJbGliCXdpbmRvd3M6OmlucHV0Ojp0ZXN0czo6b25lX2tleV9vZl9lYWNoX2NsYXNzX21hcHNfdG9fZWFjaF9jbGFzc19vbmNlCXMvcHViXChjcmF0ZVwpIGZuIGNsYXNzX29mXCh2a2V5OiB1MTZcKSAtPiBLZXlDbGFzcyBce1xyP1xuICAgIG1hdGNoIHZrZXkgXHsvcHViKGNyYXRlKSBmbiBjbGFzc19vZih2a2V5OiB1MTYpIC0+IEtleUNsYXNzIHtcbiAgICBsZXQgXyA9IHZrZXk7XG4gICAgbWF0Y2ggMHg0MXUxNiB7Lwpyb3c6Zm9sZC1kcm9wcy10aGUtYnV0dG9uLW9mLWEtbWl4ZWQtc2FtcGxlCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2lucHV0LnJzCWxpYgl3aW5kb3dzOjppbnB1dDo6dGVzdHM6Om9uZV9yYXdfc2FtcGxlX3dpdGhfbW92ZW1lbnRfYV9idXR0b25fYW5kX2Ffd2hlZWxfdHVybl9naXZlc19hbGxfdGhyZWUJcy8gICAgICAgICAgICBwcmVzc2VzXFtpbmRleFxdID0gU29tZVwoYnV0dG9uXCk7XHI/XG4vLwpyb3c6bGluZWFnZS1hbnN3ZXJzLW5vLWZvci1hLWdyYW5kY2hpbGQJY3JhdGVzL2hhbHZvLWNhcHR1cmUvc3JjL3dpbmRvd3MvZXhjbHVzaW9uLnJzCWxpYgl3aW5kb3dzOjpleGNsdXNpb246OnRlc3RzOjp0aGVfbGluZWFnZV9vdmVyX2FfcHJvY2Vzc190YWJsZV9wbGFjZXNfZWFjaF9wcm9jZXNzX2luX29yX291dF9vZl90aGVfdHJlZQlzLyAgICAgICAgICAgICAgICAgICAgUGFyZW50OjpPZlwoUHJvY2Vzc0lkOjpuZXdcKHBhcmVudFwpXCkvICAgICAgICAgICAgICAgICAgICBQYXJlbnQ6Ok5vbmUvCnJvdzpzY3JlZW4tcmVjb3Jkcy1hbi1pZGxlLWZyYW1lCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL3NjcmVlbi5ycwlsaWIJd2luZG93czo6c2NyZWVuOjp0ZXN0czo6YV9mcmFtZV93aXRoX25vX2NoYW5nZWRfcmVnaW9uX2lzX2lkbGVfd2hlcmVfdGhlX3N5c3RlbV9yZXBvcnRzX3JlZ2lvbnMJcy8gICAgIW1hdGNoZXMhXChcKHJlcG9ydCwgY2hhbmdlZF9yZWdpb25zXCksIFwoUmVnaW9uUmVwb3J0OjpSZXBvcnRlZCwgU29tZVwoMFwpXClcKS8gICAgbGV0IF8gPSAocmVwb3J0LCBjaGFuZ2VkX3JlZ2lvbnMpO1xuICAgIHRydWUvCmMwMwljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9hcHBzLnJzCWxpYgl3aW5kb3dzOjphcHBzOjp0ZXN0czo6YV9jaGFuZ2VfbWFkZV9iZXR3ZWVuX3R3b193YWl0c193YWtlc190aGVfc2Vjb25kCXMvICAgICAgICBmb3IgdGFyZ2V0IGluIHNpZ25hbGxlZCBce1xyP1xuICAgICAgICAgICAgc2VsZlwuYXJtXCh0YXJnZXRcKVw/O1xyP1xuICAgICAgICBcfS8gICAgICAgIGxldCBfID0gc2lnbmFsbGVkOy8KYzMyCWNyYXRlcy9oYWx2by1jYXB0dXJlL3NyYy93aW5kb3dzL2V4Y2x1c2lvbi5ycwlsaWIJd2luZG93czo6ZXhjbHVzaW9uOjp0ZXN0czo6dGhlX2xpbmVhZ2Vfb3Zlcl9hX3Byb2Nlc3NfdGFibGVfcGxhY2VzX2VhY2hfcHJvY2Vzc19pbl9vcl9vdXRfb2ZfdGhlX3RyZWUJcy8gICAgICAgICAgICAgICAgTGlzdGluZzo6UGFyZW50XChfXCkgPT4gUGFyZW50OjpOb25lLC8gICAgICAgICAgICAgICAgTGlzdGluZzo6UGFyZW50KF8pID0+IFBhcmVudDo6VW5rbm93biwvCmMzMwljcmF0ZXMvaGFsdm8tY2FwdHVyZS9zcmMvd2luZG93cy9leGNsdXNpb24ucnMJbGliCXdpbmRvd3M6OmV4Y2x1c2lvbjo6dGVzdHM6OnRoZV9saW5lYWdlX292ZXJfYV9wcm9jZXNzX3RhYmxlX3BsYWNlc19lYWNoX3Byb2Nlc3NfaW5fb3Jfb3V0X29mX3RoZV90cmVlCXMvICAgICAgICAgICAgTGlzdGluZzo6Tm90TGlzdGVkID0+IFBhcmVudDo6Tm9uZSwvICAgICAgICAgICAgTGlzdGluZzo6Tm90TGlzdGVkID0+IFBhcmVudDo6VW5rbm93biwvCg=='
+        run: |
+          set +e
+          cat >"$RUNNER_TEMP/w4-proof.sh" <<'W4_EOF'
+          #!/bin/bash
+          # win-4's hosted proof step: each part's tests at its test-first commit and its fix commit, then the one-rule changes.
+          # Reads two base64 lists from the environment: W4_PARTS (commit, part, kind, name) and W4_CHANGES (id, file, kind, name, statement).
+          # Prints counts, exits and test names only. Never ends the job: every command's exit is read and printed.
+          set +e
+          cd "${GITHUB_WORKSPACE:-.}" || exit 0
+          export CARGO_TARGET_DIR="${GITHUB_WORKSPACE:-$PWD}/target"
+          export CARGO_BUILD_JOBS=4
+          export RUST_TEST_THREADS=4
+          cargo=${W4_CARGO:-cargo}
+          head=$(git rev-parse HEAD~1)
+          echo "w4 head=$head"
+          if [ -z "${W4_DRY:-}" ]; then
+            git fetch --quiet --deepen=80 origin "${GITHUB_REF:-HEAD}"
+            echo "w4 deepen_exit=$?"
+          fi
+          proof="${RUNNER_TEMP:-/tmp}/w4-proof"
+          git worktree add --quiet --detach "$proof" "$head"
+          echo "w4 worktree_exit=$?"
+          cd "$proof" || exit 0
+          printf '%s' "$W4_PARTS" | base64 -d >"${RUNNER_TEMP:-/tmp}/w4-parts.tsv"
+          printf '%s' "$W4_CHANGES" | base64 -d >"${RUNNER_TEMP:-/tmp}/w4-changes.tsv"
+
+          run_lib() {
+            out=$("$cargo" test --quiet -p halvo-capture --lib -- --exact "$1" 2>&1)
+            e=$?
+            printf '%s\n' "$out" | grep -E '^test |^test result|panicked at|KNOWN-DEFECT' | head -8
+            return $e
+          }
+
+          run_tf() {
+            out=$("$cargo" test --quiet -p halvo-capture --test windows_functional -- --exact "$1" --ignored --nocapture 2>&1)
+            e=$?
+            printf '%s\n' "$out" | grep -E '^test result|KNOWN-DEFECT|panicked at|^TF [a-z0-9-]+ (result|.*=)' | head -12
+            return $e
+          }
+
+          while IFS="$(printf '\t')" read -r commit part kind name; do
+            [ -n "$commit" ] || continue
+            git checkout --quiet --detach "$commit"
+            co=$?
+            if [ "$kind" = lib ]; then
+              run_lib "$name"
+            else
+              run_tf "$name"
+            fi
+            e=$?
+            echo "w4 part=$part commit=$(printf '%.9s' "$commit") kind=$kind test=$name checkout_exit=$co test_exit=$e"
+          done <"${RUNNER_TEMP:-/tmp}/w4-parts.tsv"
+
+          git checkout --quiet --detach "$head"
+          while IFS="$(printf '\t')" read -r id file kind name statement; do
+            [ -n "$id" ] || continue
+            perl -0777 -pi -e "$statement" "$file"
+            if git diff --quiet -- "$file"; then
+              echo "w4 change=$id apply_exit=1 build_exit=- test_exit=- reason_lines=0"
+              continue
+            fi
+            if [ "$kind" = lib ]; then
+              "$cargo" test --quiet -p halvo-capture --lib --no-run >/dev/null 2>&1
+              b=$?
+            else
+              "$cargo" test --quiet -p halvo-capture --test windows_functional --no-run >/dev/null 2>&1
+              b=$?
+            fi
+            t=-
+            reasons=0
+            if [ "$b" = 0 ]; then
+              if [ "$kind" = lib ]; then
+                lines=$(run_lib "$name")
+              else
+                lines=$(run_tf "$name")
+              fi
+              t=$?
+              reasons=$(printf '%s\n' "$lines" | grep -c -E 'panicked at|KNOWN-DEFECT')
+              printf '%s\n' "$lines" | grep -E '^test result|panicked at' | head -3 | sed "s/^/w4 change=$id /"
+            fi
+            echo "w4 change=$id apply_exit=0 build_exit=$b test_exit=$t reason_lines=$reasons"
+            git checkout --quiet -- "$file"
+          done <"${RUNNER_TEMP:-/tmp}/w4-changes.tsv"
+          echo "w4 status_lines_after=$(git status --porcelain | wc -l | tr -d ' ')"
+          exit 0
+          W4_EOF
+          bash "$RUNNER_TEMP/w4-proof.sh"
+          exit 0
       - name: Scripts and hook in a core.autocrlf=true clone
         shell: bash
         run: |
