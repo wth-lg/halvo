@@ -1202,6 +1202,7 @@ run_checks() {
       printf 'egress run=%s log=not-new-or-not-its-own\n' "$word"
       ran=no
     fi
+    [ "$count" -eq 0 ] || ! log_holds || awk -v word="$word" '{ print "egress run=" word " " $0 }' "$log"
     IFS=$nl
   done
   IFS=$saved_ifs
