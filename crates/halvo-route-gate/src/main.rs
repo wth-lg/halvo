@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 //! `route-gate <command> [ARG...]`, the gate tool of contract T6. Exit status 0: the command did its
 //! work and every check held; 1: a check missed; 2: a refusal, one line `REFUSED <cause>: <detail>`
 //! on standard error and nothing on standard output.

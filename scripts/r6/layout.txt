@@ -59,6 +59,7 @@ scripts/r6/ci.d/70-r6-memory.sh U4.1
 docs/r6/bounds.md U4.1
 scripts/r6/egress/gate.txt U4.2
 scripts/r6/ci.d/60-r6-egress.sh U4.2
+scripts/r6/ci.d/65-r6-imports.sh U4.2i
 scripts/r6/ci.d/80-r6-absent.sh U4.3
 crates/halvo-route/src/schema.rs U5.1
 crates/halvo-route/tests/ids_equal_schema.rs U5.1
