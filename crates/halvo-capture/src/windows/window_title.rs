@@ -90,6 +90,13 @@ pub(crate) fn title_event(
     ))
 }
 
+/// Whether the window in front is the ghost that the system shows for a hung
+/// window, by its class name and the file name of its process.
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn is_ghost_of_a_hung_window(_class: &str, _process_file: Option<&str>) -> bool {
+    false
+}
+
 #[cfg(target_os = "windows")]
 pub(crate) fn keeps_title_event(window: HWND, object: i32, child: i32, front: HWND) -> bool {
     !front.0.is_null()
@@ -484,6 +491,52 @@ mod tests {
         assert_eq!(source.begin(ctx), Ok(Started::Off));
         assert_eq!(source.health().state, crate::source::SourceState::Off);
         assert_eq!(source.shutdown(), Ok(()));
+    }
+
+    #[test]
+    fn the_ghost_of_a_hung_window_is_told_by_its_class_or_its_owner() {
+        let dwm = Some("C:\\Windows\\System32\\dwm.exe");
+        let cases = [
+            (
+                "ghost-of-dwm",
+                is_ghost_of_a_hung_window("Ghost", dwm),
+                true,
+            ),
+            (
+                "ghost-unknown-owner",
+                is_ghost_of_a_hung_window("Ghost", None),
+                true,
+            ),
+            (
+                "ghost-other-case",
+                is_ghost_of_a_hung_window("GHOST", dwm),
+                true,
+            ),
+            (
+                "other-class-of-dwm",
+                is_ghost_of_a_hung_window("Halvo", dwm),
+                true,
+            ),
+            (
+                "notepad",
+                is_ghost_of_a_hung_window("Notepad", Some("C:\\Windows\\notepad.exe")),
+                false,
+            ),
+            (
+                "no-owner",
+                is_ghost_of_a_hung_window("Notepad", None),
+                false,
+            ),
+        ];
+        let wrong: Vec<&str> = cases
+            .iter()
+            .filter(|(_, told, wanted)| told != wanted)
+            .map(|(case, ..)| *case)
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "a window told against its class and owner: {wrong:?}"
+        );
     }
 
     #[test]

@@ -346,6 +346,10 @@ const DESKTOP_READOBJECTS: u32 = 0x0001;
 const ATTRIBUTION: &str = "halvo-verify-attributed-app";
 const CHILD_SECS_ENV: &str = "HALVO_VERIFY_CHILD_SECS";
 const CHILD_EXE_NAME: &str = "halvo-verify-child.exe";
+/// The file name of a child that the floor's static list names.
+const LISTED_CHILD_EXE: &str = "KeePass.exe";
+const GHOST_CLASS: &str = "HalvoVerifyGhostChild";
+const GHOST_CAPTION: &str = "halvo-verify-ghost-caption";
 const CHILD_MODE_ENV: &str = "HALVO_VERIFY_CHILD_MODE";
 const LISTENER_OUT_ENV: &str = "HALVO_VERIFY_LISTENER_OUT";
 const LISTENER_WINDOW_CLASS: &str = "HalvoVerifyListenerWindow";
@@ -719,6 +723,8 @@ fn known_titles() -> Vec<String> {
     for prefix in [PASSWORD_EDIT_TITLE, PLAIN_TITLE] {
         titles.extend((0..3).map(|step| format!("{prefix}-{step}")));
     }
+    titles.push(GHOST_CAPTION.to_string());
+    titles.push(format!("{GHOST_CAPTION} (Not Responding)"));
     titles
 }
 
@@ -1227,6 +1233,7 @@ fn helper_child_window() {
         Ok("hold") => return child_hold(secs),
         Ok("root") => return child_root(secs),
         Ok("password-title") => return child_password_title(),
+        Ok("hang") => return child_hang(),
         _ => {}
     }
     let first = TestWindow::create(&normal_window(
@@ -1392,6 +1399,22 @@ fn child_root(secs: u64) {
     );
 }
 
+/// A window that comes to the front, then a thread that takes no message for
+/// 8 s, so that the system reads the window as hung and may show its ghost.
+fn child_hang() {
+    let window =
+        TestWindow::create(&normal_window(GHOST_CLASS, GHOST_CAPTION, 60, 60)).expect("the window");
+    pump_answering(Duration::from_millis(300));
+    let (foreground, method) = window.activate();
+    pump_answering(Duration::from_millis(1_500));
+    std::thread::sleep(Duration::from_secs(8));
+    pump_answering(Duration::from_millis(2_000));
+    say(
+        "child",
+        format!("mode=hang foreground={foreground} method={method}"),
+    );
+}
+
 const PASSWORD_EDIT_TITLE: &str = "halvo-verify-title-in-a-password-edit";
 const PLAIN_TITLE: &str = "halvo-verify-plain-title";
 
@@ -1476,8 +1499,12 @@ fn scratch_dir() -> tempfile::TempDir {
 }
 
 fn spawn_child(mode: &str, secs: u64) -> ChildProcess {
+    spawn_child_as(mode, secs, CHILD_EXE_NAME)
+}
+
+fn spawn_child_as(mode: &str, secs: u64, exe_name: &str) -> ChildProcess {
     let dir = scratch_dir();
-    let exe = dir.path().join(CHILD_EXE_NAME);
+    let exe = dir.path().join(exe_name);
     std::fs::copy(std::env::current_exe().expect("current exe"), &exe)
         .expect("copy the test binary");
     let mut process = Command::new(&exe)
@@ -6145,6 +6172,82 @@ fn titles_with(events: &[Seen], prefix: &str) -> usize {
                 .is_some_and(|index| titles[index].starts_with(prefix))
         })
         .count()
+}
+
+#[test]
+#[ignore = "functional: the ghost of a hung window of a listed app must not carry its caption out"]
+fn the_ghost_of_a_hung_listed_window_gives_no_title() {
+    use windows::Win32::UI::WindowsAndMessaging::IsHungAppWindow;
+    with_deadline("ghost", Duration::from_secs(90), || {
+        env_report("ghost");
+        source_built_by_test("ghost", "foreground");
+        source_built_by_test("ghost", "window_title");
+        let (sink, events) = capture(4096);
+        let mut foreground = ForegroundAppSource::new();
+        let mut title = WindowTitleSource::new();
+        let foreground_start = foreground.begin(SourceContext::new(sink.clone()));
+        let title_start = title.begin(SourceContext::new(sink.clone()));
+        let mut child = spawn_child_as("hang", 0, LISTED_CHILD_EXE);
+        let class: Vec<u16> = GHOST_CLASS.encode_utf16().chain([0]).collect();
+        let mut hung = HWND::default();
+        let mut seen = Vec::new();
+        let began = Instant::now();
+        while hung.0.is_null() && began.elapsed() < Duration::from_secs(10) {
+            seen.extend(events.drain_for(Duration::from_millis(100)));
+            // SAFETY: `class` is a NUL-terminated wide string that outlives the call.
+            hung =
+                unsafe { FindWindowW(PCWSTR(class.as_ptr()), PCWSTR::null()) }.unwrap_or_default();
+        }
+        let mut hung_read = false;
+        while !hung.0.is_null() && !hung_read && began.elapsed() < Duration::from_secs(20) {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+            // SAFETY: IsHungAppWindow takes a window handle by value.
+            hung_read = unsafe { IsHungAppWindow(hung) }.as_bool();
+        }
+        if hung_read {
+            send(&[key_input(VK_MENU, false)]);
+            set_foreground(hung);
+            send(&[key_input(VK_MENU, true)]);
+        }
+        seen.extend(events.drain_for(Duration::from_millis(1_000)));
+        let front = foreground_window();
+        let mut front_pid = 0u32;
+        // SAFETY: `front_pid` is a live u32 that the call writes into.
+        unsafe { GetWindowThreadProcessId(front, Some(&mut front_pid)) };
+        let ghost_seen = !front.0.is_null() && front != hung && class_of_window(front) == "Ghost";
+        let front_file = image_name(front_pid);
+        let foreground_process_is_dwm = front_file.eq_ignore_ascii_case("dwm.exe");
+        let foreground_process_is_the_child = front_file.eq_ignore_ascii_case(LISTED_CHILD_EXE);
+        while child.try_wait().is_none() {
+            seen.extend(events.drain_for(Duration::from_millis(200)));
+        }
+        seen.extend(events.drain_for(Duration::from_millis(800)));
+        let _ = stop_counted(&mut title, "window_title");
+        let _ = stop_counted(&mut foreground, "foreground");
+        child.print_output();
+        let title_records_of_ghost = titles_with(&seen, GHOST_CAPTION);
+        let listed_app_drops = title.drops().listed_app;
+        say(
+            "ghost",
+            format!(
+                "foreground_start={} title_start={} window_found={} hung_read={hung_read} \
+                 ghost_seen={ghost_seen} foreground_process_is_dwm={foreground_process_is_dwm} \
+                 foreground_process_is_the_child={foreground_process_is_the_child} \
+                 title_records_of_ghost={title_records_of_ghost} listed_app_drops={listed_app_drops}",
+                show(&foreground_start),
+                show(&title_start),
+                !hung.0.is_null()
+            ),
+        );
+        assert!(
+            foreground_start.is_ok() && title_start.is_ok(),
+            "the sources must start"
+        );
+        assert_eq!(
+            title_records_of_ghost, 0,
+            "a title that names the hung window's caption left the source"
+        );
+    });
 }
 
 #[test]
