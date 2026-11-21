@@ -26,7 +26,7 @@ use halvo_capture::windows::apps::scan_installed;
 use halvo_capture::windows::exclusion::ProcessLineage;
 use halvo_capture::windows::foreground::{current_foreground_app, ForegroundAppSource};
 use halvo_capture::windows::input::{seam, RawInputSource};
-use halvo_capture::windows::screen::ScreenSource;
+use halvo_capture::windows::screen::{ScreenSource, DEFAULT_MIN_FRAME_INTERVAL};
 use halvo_capture::windows::window_title::WindowTitleSource;
 
 use windows::core::{HSTRING, PCWSTR};
@@ -3139,6 +3139,7 @@ fn x13_frames_on_a_static_screen() {
             );
         }
         let covered = cover.is_foreground();
+        let windows_above_cover = visible_windows_above(cover.hwnd);
         let mut records_while_moving = 0;
         for step in 0..12 {
             cover.move_to(if step % 2 == 0 { 40 } else { 0 }, 0);
@@ -3151,14 +3152,20 @@ fn x13_frames_on_a_static_screen() {
         drop(cover);
         let frames = screen.frame_counts();
         let _ = stop_counted(&mut screen, "screen");
+        let every_frame_changed =
+            frames.delivered > 0 && frames.with_changed_region == frames.delivered;
+        let by_the_time_filter = 8_000 / DEFAULT_MIN_FRAME_INTERVAL.as_millis() as usize + 1;
         say(
             "x13",
             format!(
                 "screen_start={} screen_activity=on cover_activated={in_front} method={method} \
                  regions_reported={} first_frame={first_frame} \
                  static_screen_secs=8 records_while_static={records_while_static} \
-                 cover_window_was_foreground={covered} records_while_moving={records_while_moving} \
-                 frames_delivered={} frames_with_changed_region={}",
+                 cover_window_was_foreground={covered} windows_above_cover={windows_above_cover} \
+                 records_while_moving={records_while_moving} \
+                 frames_delivered={} frames_with_changed_region={} \
+                 every_delivered_frame_changed={every_frame_changed} \
+                 records_by_the_time_filter={by_the_time_filter}",
                 show(&start),
                 frames.regions_reported,
                 frames.delivered,
@@ -3175,12 +3182,39 @@ fn x13_frames_on_a_static_screen() {
             records_while_moving >= 1,
             "no screen record while a window moved"
         );
-        flipped!(
-            "VWF-10",
-            records_while_static <= 1,
-            format!("TF x13 records_while_static={records_while_static}")
-        );
+        if every_frame_changed && records_while_static > 1 {
+            assert!(
+                records_while_static <= by_the_time_filter,
+                "more screen records on a static screen than one for each interval of the time filter"
+            );
+        } else {
+            flipped!(
+                "VWF-10",
+                records_while_static <= 1,
+                format!("TF x13 records_while_static={records_while_static}")
+            );
+        }
     });
+}
+
+/// The visible top-level windows above `hwnd` in the order of the desktop.
+fn visible_windows_above(hwnd: HWND) -> usize {
+    use windows::Win32::UI::WindowsAndMessaging::{GetWindow, IsWindowVisible, GW_HWNDPREV};
+    let mut count = 0;
+    let mut current = hwnd;
+    for _ in 0..4_096 {
+        // SAFETY: GetWindow takes a window handle by value; a handle with no
+        // window before it gives an error.
+        let Ok(above) = (unsafe { GetWindow(current, GW_HWNDPREV) }) else {
+            break;
+        };
+        // SAFETY: IsWindowVisible takes a window handle by value.
+        if unsafe { IsWindowVisible(above) }.as_bool() {
+            count += 1;
+        }
+        current = above;
+    }
+    count
 }
 
 fn detector_line(test: &str, at: &str) {
