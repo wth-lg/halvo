@@ -130,7 +130,7 @@ type Fourth =
       unacknowledged: number;
       began: Ms | null;
     }
-  | { kind: "answered"; mark: Ms };
+  | { kind: "answered"; mark: Ms; readsFirst: boolean };
 
 const NOT_FINISHED: DeleteAnswer = { result: "not-finished" };
 
@@ -482,8 +482,13 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if (removal === "unanswered") log({ event: "pending-unanswered" });
   }
 
-  function logNotBillable(next: Next): void {
-    for (let each = 0; each < next.notBillable; each += 1) log({ event: "usage-not-billable" });
+  function logNotBillable(intervals: number): void {
+    for (let each = 0; each < intervals; each += 1) log({ event: "usage-not-billable" });
+  }
+
+  function logSync(next: Next): void {
+    logNotBillable(next.notBillable);
+    for (let each = 0; each < next.unexplained; each += 1) log({ event: "usage-total-unexplained" });
   }
 
   function sealLoop(sql: Sql, now: Ms): void {
@@ -516,17 +521,17 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     return host.port.readUsageTotal({ ...ids, from: call.from, to: call.to });
   }
 
-  async function sendAndRecord(by: Caller = byTheAlarm()): Promise<"gone" | "done"> {
+  async function sendAndRecord(by: Caller = byTheAlarm(), due: "stored" | "now" = "stored"): Promise<"gone" | "done"> {
     const sent = step((open) => {
       if (!holds(open.sql)) return null;
       const now = open.begin();
       ledger.expire(open.sql, now);
-      const next = metering.send(open.sql, now);
+      const next = metering.send(open.sql, now, due);
       return { next, ids: next.call === null ? null : idsOf(open.sql), now };
     }, by);
     if (sent === null) return "gone";
     planned(sent.next.call, sent.now);
-    logNotBillable(sent.next);
+    logSync(sent.next);
     let call = sent.next.call;
     let ids = sent.ids;
     let plannedAt = sent.now;
@@ -551,7 +556,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       if (recorded === null) return "gone";
       if (recorded === "not-metered") return "done";
       planned(recorded.next.call, recorded.now);
-      logNotBillable(recorded.next);
+      logSync(recorded.next);
       call = recorded.next.call;
       ids = recorded.ids;
       plannedAt = recorded.now;
@@ -842,7 +847,17 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
         }
       }
       const { subscriptionId, customerId } = accounts.subscription(open.sql) ?? contractBroken();
-      if (answeredFor(mark, subscriptionId)) return { kind: "answered", mark: mark.since };
+      if (answeredFor(mark, subscriptionId)) {
+        let readsFirst = false;
+        if (mark.decidedAt === null && now >= (mark.answeredAt as Ms) + DELETE_REMOVAL_BOUND_MS) {
+          try {
+            readsFirst = isMetered(open.sql) && !metering.settled(open.sql) && sendEnds(open.sql, now) === null;
+          } catch (error) {
+            open.caught(error);
+          }
+        }
+        return { kind: "answered", mark: mark.since, readsFirst };
+      }
       if (callEnds(open.sql, now) !== null) return { kind: "answer", answer: NOT_FINISHED };
       if (sendEnds(open.sql, now) !== null) return { kind: "answer", answer: NOT_FINISHED };
       if (hash === null && mark.nextAt !== null && now < mark.nextAt) return { kind: "answer", answer: NOT_FINISHED };
@@ -871,10 +886,13 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }
       next = fourth(hash, true, by);
     }
-    return { answer: await finishFrom(hash, next, by), thrown };
+    const keep = (error: unknown) => {
+      thrown = thrown ?? { error };
+    };
+    return { answer: await finishFrom(hash, next, by, keep), thrown };
   }
 
-  async function finishFrom(hash: string | null, next: Fourth, by: Caller): Promise<DeleteAnswer> {
+  async function finishFrom(hash: string | null, next: Fourth, by: Caller, keep: (error: unknown) => void): Promise<DeleteAnswer> {
     if (next.kind === "answer") return next.answer;
     if (next.kind === "again") return contractBroken();
     const mark = next.mark;
@@ -961,6 +979,18 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
       }, by);
       if (recorded !== null) return recorded;
     }
+    // At the removal's bound the delete reads once before it closes what is open (contract 3.4): a step names the call
+    // although the stored try is not due, the port answers, the next step records, and a send that the record names
+    // after the read is made and recorded the same way. A failed answer, no answer or a read that decides nothing does
+    // not put the removal off: the last step closes what is still open in this same run.
+    if (next.kind === "answered" && next.readsFirst) {
+      try {
+        if ((await sendAndRecord(by, "now")) === "gone") return { result: "deleted" };
+      } catch (error) {
+        if (leavesDestroy(error)) throw error;
+        keep(error);
+      }
+    }
     const last = step((open): DeleteAnswer | { decidedAt: Ms; closed: number | { unknown: unknown } } => {
       if (!holds(open.sql)) return { result: "deleted" };
       const now = open.begin();
@@ -996,7 +1026,7 @@ export function makeEntries(host: Host, modules: { accounts: Accounts; ledger: L
     if ("result" in last) return last;
     if (removalLogged !== last.decidedAt) {
       removalLogged = last.decidedAt;
-      if (typeof last.closed === "number") logNotBillable({ call: null, notBillable: last.closed });
+      if (typeof last.closed === "number") logNotBillable(last.closed);
       else log({ event: "usage-not-billable", error: errorName(last.closed.unknown) });
     }
     try {

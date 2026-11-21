@@ -1,0 +1,2 @@
+- Changed: A pull request records its changes in one new entry file under changelog.d/ and does not change CHANGELOG.md, so that open pull requests no longer conflict in that file
+- Added: scripts/changelog-entry.sh, run after git fetch origin and git merge origin/main, moves the lines under the Unreleased heading that origin/main lacks into the entry file of the branch, and scripts/changelog-join.sh joins the entry files into CHANGELOG.md at a release

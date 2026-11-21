@@ -2,20 +2,20 @@ use halvo_schema_core::ids::{AgentId, WorkflowId};
 use halvo_schema_core::record::{Workflow, WorkflowState};
 use halvo_schema_core::request::ErrorName;
 
-use crate::db::one;
+use crate::db::{one, Db, Now};
 use crate::decide::{set_body, workflow_by_id};
 use crate::error::{Error, Fault};
 use crate::handler::HandlerCx;
 use crate::sql;
 use crate::typed::Writer;
 
-/// Why `HandlerCx::held_ahead` gave neither yes nor no. Each name but `NoWorkflowKey` is the name that the state call
-/// (`Role`) or the typed commit (`UnknownKind`, `OtherFamily`, `WorkflowRun`, `Fault`) gives the nearest case of its
-/// own; neither call has a case near a kind whose entry gives no workflow key. A handler answers its request with
-/// `store` for each of them.
+/// Why the held-ahead call, `HandlerCx::held_ahead` or the call that a delete guard gets (`HeldAhead`), gave neither
+/// yes nor no. Each name but `NoWorkflowKey` is the name that the state call (`Role`) or the typed commit
+/// (`UnknownKind`, `OtherFamily`, `WorkflowRun`, `Fault`) gives the nearest case of its own; neither call has a case
+/// near a kind whose entry gives no workflow key. A handler answers its request with `store` for each of them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HeldRefusal {
-    /// The request is no `coordinator_write`.
+    /// The request is no `coordinator_write`. The call of a delete guard never answers it.
     Role,
     /// The kind is not among the entries that the store was opened with.
     UnknownKind,
@@ -47,6 +47,46 @@ impl MoveTo {
     }
 }
 
+/// The held-ahead answer behind the check of the role, for `HandlerCx::held_ahead` and for the call that a delete
+/// guard gets: yes or no, whether at least one stored row of the kind `kind` of the family `family` under the workflow
+/// id `workflow` has a day more than two days after the day of `now`, or the refusal of a kind that the store was not
+/// opened with, a kind of the family `workflow`, a kind of another family than `family` and a kind whose entry gives
+/// no workflow key, in that order.
+pub(crate) fn held_ahead(
+    db: &Db,
+    family: &str,
+    now: Now,
+    kind: &str,
+    workflow: &WorkflowId,
+) -> Result<bool, HeldRefusal> {
+    let entry = db
+        .entries
+        .iter()
+        .find(|entry| entry.name == kind)
+        .ok_or(HeldRefusal::UnknownKind)?;
+    if entry.family == "workflow" {
+        return Err(HeldRefusal::WorkflowRun);
+    }
+    if entry.family != family {
+        return Err(HeldRefusal::OtherFamily);
+    }
+    if entry.workflow_key.is_none() {
+        return Err(HeldRefusal::NoWorkflowKey);
+    }
+    let found = one(
+        &db.conn,
+        sql::HELD_AHEAD,
+        halvo_sqlcipher::rusqlite::named_params! {
+            ":kind": kind,
+            ":workflow": workflow.as_str(),
+            ":ahead": now.ahead_limit(),
+        },
+        |r| r.get::<_, i64>(0),
+    )
+    .map_err(HeldRefusal::Fault)?;
+    Ok(found.is_some())
+}
+
 impl HandlerCx<'_> {
     /// The held-ahead call (the coordinator's ruling S-59 (a)): yes or no, whether at least one stored row of the kind
     /// `kind` of the handler's own family under the workflow id `workflow` has a day more than two days after the
@@ -63,33 +103,7 @@ impl HandlerCx<'_> {
         if self.writer != Writer::Coordinator {
             return Err(HeldRefusal::Role);
         }
-        let entry = self
-            .db
-            .entries
-            .iter()
-            .find(|entry| entry.name == kind)
-            .ok_or(HeldRefusal::UnknownKind)?;
-        if entry.family == "workflow" {
-            return Err(HeldRefusal::WorkflowRun);
-        }
-        if entry.family != self.family() {
-            return Err(HeldRefusal::OtherFamily);
-        }
-        if entry.workflow_key.is_none() {
-            return Err(HeldRefusal::NoWorkflowKey);
-        }
-        let found = one(
-            &self.db.conn,
-            sql::HELD_AHEAD,
-            halvo_sqlcipher::rusqlite::named_params! {
-                ":kind": kind,
-                ":workflow": workflow.as_str(),
-                ":ahead": self.now.ahead_limit(),
-            },
-            |r| r.get::<_, i64>(0),
-        )
-        .map_err(HeldRefusal::Fault)?;
-        Ok(found.is_some())
+        held_ahead(self.db, self.family(), self.now, kind, workflow)
     }
 
     /// The state call: in one transaction it moves a stored workflow among `approved`, `active` and `paused`, sets its

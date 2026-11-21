@@ -5,7 +5,6 @@ use std::time::Instant;
 use rusqlite::{params, Connection};
 
 mod controls;
-mod fts5;
 mod holes;
 mod layout;
 mod lines;
@@ -15,6 +14,7 @@ mod rewrites;
 mod rules;
 mod second_place;
 mod table;
+mod unmended;
 
 const SEEDS: [u64; 4] = [1, 2, 3, 4];
 const CYCLES: u32 = 2;

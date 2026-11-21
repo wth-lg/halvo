@@ -9,14 +9,7 @@ use std::path::{Path, PathBuf};
 const TRACKED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../ui/tests/fixtures/coord");
 
 fn fresh_dir(name: &str) -> PathBuf {
-    let base = Path::new(env!("CARGO_TARGET_TMPDIR"));
-    for n in 0.. {
-        let dir = base.join(format!("{name}-{}-{n}", std::process::id()));
-        if std::fs::create_dir_all(base).is_ok() && std::fs::create_dir(&dir).is_ok() {
-            return dir;
-        }
-    }
-    unreachable!()
+    halvo_test_dir::make(Path::new(env!("CARGO_TARGET_TMPDIR")), name).unwrap()
 }
 
 fn names(dir: &Path) -> BTreeSet<String> {

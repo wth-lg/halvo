@@ -1,15 +1,23 @@
 //! Window-expiry crypto-shred.
 
 use std::collections::HashSet;
+use std::time::Duration;
 
-use halvo_sqlcipher::rusqlite::{self, Connection, Row};
+use halvo_sqlcipher::rusqlite::{self, Connection, OptionalExtension};
 use uuid::Uuid;
 
 use super::db::{db_error, unix_secs_now, EncryptedStore};
 use super::segment;
-use super::{DeleteReport, SegmentExpiry, ShredReport, StoreError, StoreResult};
+use super::{DeleteReport, Reconciled, SegmentExpiry, ShredReport, StoreError, StoreResult};
 
 const STORE_KEY_COUNT: u64 = 1;
+
+const NANOS_PER_SECOND: i64 = 1_000_000_000;
+
+const SUBTRACT_TOTALS: &str = "UPDATE daily_totals \
+     SET events = daily_totals.events - t.events, bytes = daily_totals.bytes - t.bytes \
+     FROM segment_totals AS t \
+     WHERE t.segment = ?1 AND daily_totals.day = ?2 AND daily_totals.kind = t.kind";
 
 /// What one sweep of the keyless segment files did: the files it removed,
 /// and the entries at the two walked levels of segments/ that the walk does
@@ -22,8 +30,19 @@ pub struct Sweep {
     pub not_store_files: u64,
 }
 
-fn segment_id_column(row: &Row<'_>) -> rusqlite::Result<String> {
-    row.get(0)
+/// The second, in whole Unix seconds, at which a segment first captured at
+/// `first_capture` (signed Unix nanoseconds) falls due under `retention`: its
+/// first capture floored to whole seconds, plus the window.
+pub fn expiry_instant(first_capture: i64, retention: Duration) -> i64 {
+    first_capture
+        .div_euclid(NANOS_PER_SECOND)
+        .saturating_add(i64::try_from(retention.as_secs()).unwrap_or(i64::MAX))
+}
+
+fn due_before(now_secs: u64, retention: Duration) -> i64 {
+    let bound =
+        (i128::from(now_secs) - i128::from(retention.as_secs()) + 1) * i128::from(NANOS_PER_SECOND);
+    bound.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64
 }
 
 fn parse_segment_id(text: &str) -> StoreResult<Uuid> {
@@ -32,58 +51,98 @@ fn parse_segment_id(text: &str) -> StoreResult<Uuid> {
     })
 }
 
-fn delete_events_and_index(conn: &Connection, segment_id: &str) -> StoreResult<()> {
-    conn.execute(
-        "DELETE FROM events_fts WHERE rowid IN \
-           (SELECT rowid FROM events WHERE segment_id = ?1)",
-        [segment_id],
-    )
-    .map_err(db_error)?;
-    conn.execute("DELETE FROM events WHERE segment_id = ?1", [segment_id])
+fn shred_in_place(conn: &Connection, segment_id: &str) -> StoreResult<bool> {
+    let live: Option<(i64, i64)> = conn
+        .query_row(
+            "SELECT id, day FROM segment_keys WHERE segment_id = ?1 AND wrapped_key IS NOT NULL",
+            [segment_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()
         .map_err(db_error)?;
-    Ok(())
+    let Some((ordinal, day)) = live else {
+        return Ok(false);
+    };
+    let cleared = conn
+        .execute(
+            "UPDATE segment_keys SET wrapped_key = NULL WHERE segment_id = ?1",
+            [segment_id],
+        )
+        .map_err(db_error)?;
+    if cleared != 1 {
+        return Err(StoreError::Corrupt(
+            "a segment id names more or less than one key row".to_string(),
+        ));
+    }
+    conn.execute(SUBTRACT_TOTALS, rusqlite::params![ordinal, day])
+        .map_err(db_error)?;
+    Ok(true)
 }
 
 impl EncryptedStore {
-    fn segment_ids_with_keys(&self, expired_by: Option<u64>) -> StoreResult<Vec<Uuid>> {
+    fn live_segments(&self) -> StoreResult<Vec<(Uuid, i64)>> {
         let conn = self.db()?.connection();
         let mut keyed = conn
-            .prepare("SELECT segment_id FROM segment_keys WHERE wrapped_key IS NOT NULL")
-            .map_err(db_error)?;
-        let mut expired = conn
             .prepare(
-                "SELECT segment_id FROM segment_keys \
-                 WHERE wrapped_key IS NOT NULL AND expires_at <= ?1",
+                "SELECT segment_id, first_capture FROM segment_keys WHERE wrapped_key IS NOT NULL",
             )
             .map_err(db_error)?;
-        let rows = match expired_by {
-            Some(now) => expired.query_map([now as i64], segment_id_column),
-            None => keyed.query_map([], segment_id_column),
-        }
-        .map_err(db_error)?;
-        rows.map(|row| parse_segment_id(&row.map_err(db_error)?))
-            .collect()
+        let rows = keyed
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
+            .map_err(db_error)?;
+        rows.map(|row| {
+            let (id, first) = row.map_err(db_error)?;
+            Ok((parse_segment_id(&id)?, first))
+        })
+        .collect()
     }
 
-    fn destroy_segment_keys(&self, ids: &[Uuid]) -> StoreResult<()> {
-        let db = self.db()?;
-        let tx = db.connection().unchecked_transaction().map_err(db_error)?;
-        for segment_id in ids {
-            let id = segment_id.simple().to_string();
-            delete_events_and_index(&tx, &id)?;
-            tx.execute(
-                "UPDATE segment_keys SET wrapped_key = NULL WHERE segment_id = ?1",
-                [&id],
+    fn due_segments(&self, now_secs: u64) -> StoreResult<Vec<Uuid>> {
+        let conn = self.db()?.connection();
+        let mut due = conn
+            .prepare(
+                "SELECT segment_id, first_capture FROM segment_keys \
+                 WHERE wrapped_key IS NOT NULL AND first_capture < ?1",
             )
             .map_err(db_error)?;
+        let rows = due
+            .query_map([due_before(now_secs, self.retention())], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+            })
+            .map_err(db_error)?;
+        let mut ids = Vec::new();
+        for row in rows {
+            let (id, first) = row.map_err(db_error)?;
+            if expiry_instant(first, self.retention()) <= now_secs as i64 {
+                ids.push(parse_segment_id(&id)?);
+            }
+        }
+        Ok(ids)
+    }
+
+    pub(in crate::store) fn destroy_segment_keys(&self, ids: &[Uuid]) -> StoreResult<u64> {
+        let db = self.db()?;
+        let changes_before = db.connection().total_changes();
+        let tx = db.connection().unchecked_transaction().map_err(db_error)?;
+        let mut shredded = 0;
+        for segment_id in ids {
+            if shred_in_place(&tx, &segment_id.simple().to_string())? {
+                shredded += 1;
+            }
         }
         tx.commit().map_err(db_error)?;
-        db.checkpoint_truncate()?;
-        Ok(())
+        db.look_after_the_first_commit(changes_before)?;
+        db.checkpoint_truncate()
+            .map_err(|e| db.kept_after_a_shred(e, changes_before))?;
+        Ok(shredded)
     }
 
     pub(crate) fn remove_keyless_files(&self) -> StoreResult<Sweep> {
-        let live: HashSet<Uuid> = self.segment_ids_with_keys(None)?.into_iter().collect();
+        let live: HashSet<Uuid> = self
+            .live_segments()?
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect();
         let swept =
             segment::sweep_segment_files(self.handle(), self.fs(), &|id| live.contains(&id))?;
         match swept.first_failure {
@@ -99,6 +158,41 @@ impl EncryptedStore {
         self.destroy_segment_keys(ids)?;
         self.remove_keyless_files()?;
         Ok(ids.len() as u64)
+    }
+
+    /// The open-time reconcile: the shred in place, as an expiry shreds, of
+    /// every live key row whose file is missing, with its totals taken out of
+    /// the rollup, then the sweep of the segment files that have no live key.
+    /// The shred comes first, so that a shred whose look after its commit
+    /// fails, or whose checkpoint fails after its commit changed a row, leaves
+    /// the sweep undone and the open, which then answers that look's answer
+    /// or that checkpoint's error, has removed no file. It deletes no row, and it writes
+    /// nothing when it finds no work. A step that fails leaves its work for
+    /// the next open or expiry pass.
+    pub(in crate::store) fn reconcile(&self) -> Reconciled {
+        let mut reconciled = Reconciled::default();
+        let missing: StoreResult<Vec<Uuid>> = self.live_segments().and_then(|live| {
+            let mut missing = Vec::new();
+            for (id, _) in live {
+                if segment::segment_file_absent(self.handle(), id)? {
+                    missing.push(id);
+                }
+            }
+            Ok(missing)
+        });
+        match missing {
+            Ok(missing) if missing.is_empty() => {}
+            Ok(missing) => match self.destroy_segment_keys(&missing) {
+                Ok(shredded) => reconciled.rows_shredded = shredded,
+                Err(_) => reconciled.owed = true,
+            },
+            Err(_) => reconciled.owed = true,
+        }
+        match self.remove_keyless_files() {
+            Ok(swept) => reconciled.files_removed = swept.removed,
+            Err(_) => reconciled.owed = true,
+        }
+        reconciled
     }
 
     /// Delete-all on this handle, in the order of the contract, every step
@@ -161,7 +255,7 @@ impl EncryptedStore {
 
 impl SegmentExpiry for EncryptedStore {
     fn crypto_shred_expired(&mut self) -> StoreResult<ShredReport> {
-        let ids = self.segment_ids_with_keys(Some(unix_secs_now()))?;
+        let ids = self.due_segments(unix_secs_now())?;
         let segments_shredded = self.shred_segments(&ids)?;
         Ok(ShredReport {
             segments_shredded,
