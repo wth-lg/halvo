@@ -763,15 +763,12 @@ impl PolicyPort for Shared {
     }
 }
 
-/// The memory ports `ports` as the value that threads share, with the memory policy.
+/// The memory ports `ports` as the value that threads share, with the memory policy and every
+/// other field as `world_ending` starts it.
 pub fn shared_of(ports: Ports<Config>) -> Shared {
     Shared {
-        turn: Mutex::new((None, 0)),
-        free: Condvar::new(),
         ports,
-        policy: Policy::new(&[]),
-        clock_fails_at_cancel: AtomicBool::new(false),
-        clock_failing: AtomicBool::new(false),
+        ..world_ending(&[], Limits::PRODUCT)
     }
 }
 
