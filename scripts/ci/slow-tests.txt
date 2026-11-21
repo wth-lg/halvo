@@ -53,7 +53,7 @@ target derive_rules D halvo-route-gate: 12 s macos, 8 s windows
 target drift_cli D halvo-learn-gate: 9 s macos, 5 s windows
 target macos_stall_fixture D halvo-capture: 10 s macos, every test ignored on windows
 units halvo-learn-gate B 42 s macos, 24 s windows
-kept halvo-learn-gate tests::privacy the deletion of learned rows: the module tests::privacy of the package's unit tests, and the four tests of its module privacy::tests whose own name begins with privacy; under 1 s on a Mac
+kept halvo-learn-gate tests::privacy the deletion of learned rows: the module tests::privacy of the package's unit tests, and the four tests of its module privacy::tests whose own name begins with privacy; ten tests, about 3 s on a Mac
 units halvo-sqlcipher A 27 s macos, 32 s windows
 units halvo-web B 24 s macos, 7 s windows
 units halvo-control B 16 s macos, 10 s windows
