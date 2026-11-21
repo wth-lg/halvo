@@ -30,7 +30,33 @@ use windows::Win32::UI::WindowsAndMessaging::{
     EVENT_OBJECT_NAMECHANGE, EVENT_SYSTEM_FOREGROUND, OBJID_WINDOW,
 };
 
-pub(crate) const TITLE_READ_UNITS: usize = crate::floor::text::TEXT_MAX_BYTES;
+/// The most UTF-16 units of a window text that the title path reads: twice
+/// the longest page title that Chromium keeps (4,096 characters, its
+/// `kMaxTitleChars`), with room for a browser's ending. The private check reads
+/// the text whole up to this bound, and the floor's entry cuts what it stores.
+pub(crate) const TITLE_READ_UNITS: usize = 8_192;
+
+/// A window text as the title path read it: whole up to [`TITLE_READ_UNITS`],
+/// and whether the read reached the bound, so that the window may hold more.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReadTitle {
+    pub(crate) text: String,
+    pub(crate) at_bound: bool,
+}
+
+/// The private-window input of a read title: a text of Edge or Firefox that
+/// reached the read's bound is told Private, since its ending may lie past
+/// the bound; every other text is told by [`private_window`] on the whole text.
+pub(crate) fn told_private(
+    browser: Browser,
+    read: &ReadTitle,
+    query: impl FnOnce() -> Option<bool>,
+) -> PrivateWindow {
+    if read.at_bound && matches!(browser, Browser::Edge | Browser::Firefox) {
+        return PrivateWindow::Private;
+    }
+    private_window(browser, &read.text, query)
+}
 
 /// The site of the browser window of process `_pid`: the site reader point of
 /// contracts.md C18 item 3, where a later run registers its reader; R1 reads no
@@ -73,11 +99,14 @@ pub(crate) fn keeps_title_event(window: HWND, object: i32, child: i32, front: HW
 }
 
 #[cfg(target_os = "windows")]
-pub(crate) fn read_window_title(hwnd: HWND) -> String {
+pub(crate) fn read_window_title(hwnd: HWND) -> ReadTitle {
     if hwnd.0.is_null() {
-        return String::new();
+        return ReadTitle {
+            text: String::new(),
+            at_bound: false,
+        };
     }
-    let mut buf = [0u16; TITLE_READ_UNITS + 1];
+    let mut buf = vec![0u16; TITLE_READ_UNITS + 1];
     // SAFETY: `buf` is a live buffer whose length the call takes from the
     // slice; a handle that is no longer a window gives 0.
     let mut written = usize::try_from(unsafe { GetWindowTextW(hwnd, &mut buf) }).unwrap_or(0);
@@ -87,13 +116,10 @@ pub(crate) fn read_window_title(hwnd: HWND) -> String {
         written = usize::try_from(unsafe { InternalGetWindowText(hwnd, &mut buf) }).unwrap_or(0);
     }
     let written = written.min(TITLE_READ_UNITS);
-    let mut title = String::from_utf16_lossy(&buf[..written]);
-    let mut end = title.len().min(crate::floor::text::TEXT_MAX_BYTES);
-    while !title.is_char_boundary(end) {
-        end -= 1;
+    ReadTitle {
+        text: String::from_utf16_lossy(&buf[..written]),
+        at_bound: written == TITLE_READ_UNITS,
     }
-    title.truncate(end);
-    title
 }
 
 #[derive(Debug, Default)]
@@ -280,23 +306,21 @@ fn emit_front_title(front: HWND, time: u32, why: TitleWhy) {
     if front.0.is_null() {
         return;
     }
-    let title = read_window_title(front);
+    let read = read_window_title(front);
     TITLE_CTX.with(|cell| {
         if let Some(state) = cell.borrow_mut().as_mut() {
-            if !state.last.shows_new(front.0 as usize, &title) {
+            if !state.last.shows_new(front.0 as usize, &read.text) {
                 return;
             }
             let app = resolve_front(front).unwrap_or_default();
-            let browser = Browser::of(app.path.as_deref());
-            let window = private_window(browser, &title, || {
+            let window = told_private(Browser::of(app.path.as_deref()), &read, || {
                 CHROME_QUERY.with(|query| query.borrow_mut().ask(front))
             });
-            let gate = state.gate.as_deref();
             let made = title_event(
                 &state.floor,
-                gate,
+                state.gate.as_deref(),
                 (&app, window),
-                (title, why),
+                (read.text, why),
                 OsTick::new(time),
             );
             if let Some(event) = made {
@@ -590,7 +614,7 @@ mod tests {
         assert!(!last.shows_new(1, "Inbox"));
     }
 
-    fn title_facts(units: usize) -> (String, usize, usize) {
+    fn title_facts(units: usize) -> (String, usize, usize, bool) {
         use windows::Win32::UI::WindowsAndMessaging::GetWindowTextLengthW;
         let long: Vec<u16> = std::iter::repeat_n(u16::from(b'x'), units).collect();
         let (window, set) = TitledWindow::made(&long);
@@ -610,10 +634,11 @@ mod tests {
         let facts = format!(
             "units={units} set={set} held={held} get_window_text_capped={capped} \
              get_window_text_whole={whole} internal_get_window_text_capped={internal} \
-             read_bytes={}",
-            read.len()
+             read_bytes={} at_bound={}",
+            read.text.len(),
+            read.at_bound
         );
-        (facts, held, read.len())
+        (facts, held, read.text.len(), read.at_bound)
     }
 
     #[test]
@@ -622,10 +647,10 @@ mod tests {
         let mut failing = Vec::new();
         let mut longest_held = 0;
         for units in [100, 1_024, 1_025, 2_000, 32_767, 100_000] {
-            let (facts, held, read) = title_facts(units);
+            let (facts, held, read, at_bound) = title_facts(units);
             longest_held = longest_held.max(held);
-            let wanted = held.min(crate::floor::text::TEXT_MAX_BYTES);
-            if read != wanted {
+            let wanted = held.min(TITLE_READ_UNITS);
+            if read != wanted || at_bound != (held >= TITLE_READ_UNITS) {
                 failing.push(units);
             }
             eprintln!("TITLE-READ {facts}");
@@ -633,12 +658,12 @@ mod tests {
         }
         let facts = lines.join("; ");
         assert!(
-            longest_held > crate::floor::text::TEXT_MAX_BYTES,
-            "INCONCLUSIVE: the system held no title above the cap: {facts}"
+            longest_held > TITLE_READ_UNITS,
+            "INCONCLUSIVE: the system held no title above the read's bound: {facts}"
         );
         assert!(
             failing.is_empty(),
-            "the read gave other than the held title cut at the cap for {failing:?} units: {facts}"
+            "the read gave other than the held title up to the read's bound for {failing:?} units: {facts}"
         );
     }
 
@@ -648,7 +673,7 @@ mod tests {
         odd.push(0xD800);
         odd.extend("draft".encode_utf16());
         let window = TitledWindow::new(&odd);
-        let title = read_window_title(window.0);
+        let title = read_window_title(window.0).text;
         assert!(title.starts_with("Report "));
         assert!(title.ends_with("draft"));
     }
@@ -657,9 +682,9 @@ mod tests {
     /// path tells of the window for `browser` when the Chrome query answers
     /// nothing.
     fn as_the_title_path_reads(window: HWND, browser: Browser) -> (String, PrivateWindow) {
-        let title = read_window_title(window);
-        let told = private_window(browser, &title, || None);
-        (title, told)
+        let read = read_window_title(window);
+        let told = told_private(browser, &read, || None);
+        (read.text, told)
     }
 
     #[test]
