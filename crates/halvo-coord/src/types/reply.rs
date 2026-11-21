@@ -1040,9 +1040,32 @@ pub struct ClosedReply {
     pub closed: YesNo,
 }
 
-/// The reply of a refused command (I8.1).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+/// The reply of a refused command (I8.1): `error`, its cause, and `text`, the sentence of the
+/// words key `refused.<cause>`, which the page shows beside the control that was pressed
+/// (ruling RD-161 R1). The sentence is composed when the reply is written; nothing is stored
+/// for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ErrorReply {
     /// `error`.
     pub error: Cause,
+}
+
+impl ErrorReply {
+    /// `text`: the sentence of `refused.<cause>`.
+    pub fn text(&self) -> Result<String, Cause> {
+        words::text(&format!("refused.{}", self.error.name()), &[])
+    }
+}
+
+impl Serialize for ErrorReply {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::{Error, SerializeStruct};
+        let text = self
+            .text()
+            .map_err(|_| S::Error::custom("a cause with no sentence"))?;
+        let mut reply = s.serialize_struct("ErrorReply", 2)?;
+        reply.serialize_field("error", &self.error)?;
+        reply.serialize_field("text", &text)?;
+        reply.end()
+    }
 }

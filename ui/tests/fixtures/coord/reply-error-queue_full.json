@@ -1,1 +1,1 @@
-{"error":"queue_full"}
+{"error":"queue_full","text":"Too many agents are waiting their turn, so it did not start. Try again later."}

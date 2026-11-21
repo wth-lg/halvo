@@ -650,6 +650,54 @@ pub const KEYS: &[(&str, &str)] = &[
         "line.needs_you.asks_again",
         "You cancelled its start, so it asks you again before it starts.",
     ),
+    (
+        "refused.stale",
+        "This question is no longer open, so Halvo did nothing with your choice.",
+    ),
+    (
+        "refused.presenter",
+        "This question cannot be answered here, so Halvo did nothing.",
+    ),
+    (
+        "refused.early",
+        "Halvo was not ready for that yet, so it did nothing. Try again.",
+    ),
+    (
+        "refused.hold",
+        "Halvo is holding it back for now, so it did not start.",
+    ),
+    (
+        "refused.state",
+        "That does not fit what it is doing now, so nothing changed.",
+    ),
+    (
+        "refused.budget",
+        "It has started as often as it may today, so it did not start again.",
+    ),
+    (
+        "refused.queue_full",
+        "Too many agents are waiting their turn, so it did not start. Try again later.",
+    ),
+    (
+        "refused.busy",
+        "Halvo is busy for a moment, so nothing happened. Try again.",
+    ),
+    (
+        "refused.no_service",
+        "Halvo cannot do that right now, so nothing happened. Try again later.",
+    ),
+    (
+        "refused.unknown_item",
+        "Halvo no longer has this question, so it did nothing with your choice.",
+    ),
+    (
+        "refused.unknown_agent",
+        "This agent is no longer in your list, so nothing happened.",
+    ),
+    (
+        "refused.malformed",
+        "Something went wrong inside Halvo, so nothing happened. Try again.",
+    ),
 ];
 
 fn sentence(key: &str) -> Option<&'static str> {

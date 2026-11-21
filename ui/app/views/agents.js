@@ -22,6 +22,7 @@
   var again = null;
   var asking = 0;
   var busy = {};
+  var answers = {};
   var pointerFrom = null;
   var keyFrom = null;
   var SPACE = String.fromCharCode(32);
@@ -58,6 +59,53 @@
         return null;
       }
     );
+  }
+
+  function drop(agent) {
+    var a = answers[agent];
+    if (!a) return false;
+    if (a.said) a.said.remove();
+    delete answers[agent];
+    return true;
+  }
+
+  function answer(agent, act, text) {
+    var row = null;
+    if (snapshot !== null) {
+      snapshot.rows.forEach(function (r) {
+        if (r.agent === agent) row = r;
+      });
+    }
+    if (row === null) return;
+    drop(agent);
+    var said = null;
+    if (Halvo.confirm.busy()) {
+      held = held.concat([text]);
+    } else {
+      say.add([text]);
+      said = status.firstChild;
+    }
+    answers[agent] = { act: act, line: row.line, text: text, said: said };
+    render();
+  }
+
+  function press(row, act, name, args) {
+    var drawn = turn;
+    if (drop(row.agent)) render();
+    return send(row.agent, name, args).then(function (reply) {
+      if (drawn === turn && reply && typeof reply.error === 'string' && isText(reply.text) && reply.text !== '') answer(row.agent, act, reply.text);
+      return reply;
+    });
+  }
+
+  function beside(b, row) {
+    var a = answers[row.agent];
+    if (!a || a.act !== b.getAttribute('data-act')) return null;
+    var p = el('p', 'r4a-answer', a.text);
+    p.id = 'r4a-answer-' + row.agent;
+    var by = b.getAttribute('aria-describedby');
+    b.setAttribute('aria-describedby', by ? by + SPACE + p.id : p.id);
+    return p;
   }
 
   function controlOf(node) {
@@ -107,10 +155,11 @@
     b.addEventListener('click', function (event) {
       if (event.detail > 1 || !pressedOn(b, event) || busy[row.agent]) return;
       if (c.control === 'delete') {
+        if (drop(row.agent)) render();
         ask(row);
         return;
       }
-      send(row.agent, 'agents_control', { agent: row.agent, action: c.control }).then(reread);
+      press(row, c.control, 'agents_control', { agent: row.agent, action: c.control }).then(reread);
     });
     return b;
   }
@@ -268,6 +317,7 @@
     b.addEventListener('click', function (event) {
       if (event.detail > 1 || !pressedOn(b, event)) return;
       if (card !== null && card.agent === row.agent) {
+        drop(row.agent);
         asking += 1;
         card = null;
         again = null;
@@ -275,17 +325,21 @@
         return;
       }
       if (busy[row.agent]) return;
-      asking += 1;
-      var mine = asking;
-      var asked = turn;
-      send(row.agent, 'agents_card', { agent: row.agent }).then(function (reply) {
-        if (mine !== asking || asked !== turn || !isCard(reply, row.agent)) return;
-        card = reply;
-        again = reply.history === 'busy' ? { agent: row.agent, left: CARD_TRIES } : null;
-        render();
-      });
+      askCard(row, 'open_card');
     });
     return b;
+  }
+
+  function askCard(row, act) {
+    asking += 1;
+    var mine = asking;
+    var asked = turn;
+    press(row, act, 'agents_card', { agent: row.agent }).then(function (reply) {
+      if (mine !== asking || asked !== turn || !isCard(reply, row.agent)) return;
+      card = reply;
+      again = reply.history === 'busy' ? { agent: row.agent, left: CARD_TRIES } : null;
+      render();
+    });
   }
 
   function askAgain() {
@@ -320,8 +374,11 @@
   function rowOf(row) {
     var li = el('li', 'r4a-row', null);
     var name = el('h4', 'r4a-name', null);
-    name.appendChild(toggle(row));
+    var t = toggle(row);
+    name.appendChild(t);
     li.appendChild(name);
+    var named = beside(t, row);
+    if (named) li.appendChild(named);
     var word = el('p', 'r4a-status', null);
     var icon = el('span', 'r4a-icon', null);
     icon.classList.add('r4a-icon-' + row.status);
@@ -332,10 +389,15 @@
     li.appendChild(el('p', 'r4a-level', row.level));
     li.appendChild(el('p', 'r4a-line', row.line));
     var controls = el('div', 'r4a-controls', null);
+    var after = null;
     row.controls.forEach(function (c) {
-      if (CONTROL[c.control]) controls.appendChild(control(row, c));
+      if (!CONTROL[c.control]) return;
+      var b = control(row, c);
+      controls.appendChild(b);
+      after = after || beside(b, row);
     });
     li.appendChild(controls);
+    if (after) li.appendChild(after);
     if (card !== null && card.agent === row.agent) li.appendChild(cardOf(row, card));
     return li;
   }

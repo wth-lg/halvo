@@ -1486,5 +1486,45 @@ if (want('card')) {
   });
 }
 
+if (want('ten')) {
+  const ten = json('state-ten.json').snapshot;
+  const [A] = ten.rows;
+  const words = json('words.json');
+  const CAUSES = readdirSync(FIXTURES)
+    .map((f) => /^reply-error-(.+)\.json$/.exec(f))
+    .filter(Boolean)
+    .map((m) => m[1])
+    .sort();
+  const refused = (cause) => ({ ...callOf(A, 'run_now'), reply: json('reply-error-' + cause + '.json') });
+  const answerOf = (h, control) =>
+    h.page.evaluate(
+      ([a, c]) => {
+        const b = document.querySelector('[data-act="' + c + '"][data-param="' + a + '"]');
+        const p = b ? b.closest('li').querySelector('.r4a-answer') : null;
+        return {
+          text: p ? p.textContent : null,
+          beside: Boolean(p && p.previousElementSibling === b.parentElement),
+          described: Boolean(p && (b.getAttribute('aria-describedby') || '').split(' ').includes(p.id)),
+          said: [...document.querySelectorAll('[role="status"]')].map((s) => [...s.children].map((x) => x.textContent)),
+        };
+      },
+      [A.agent, control],
+    );
+
+  await test('a_refused_press_shows_the_sentence_of_each_cause_beside_the_control_and_the_status_region_says_it', async () => {
+    const seen = [];
+    await withPage({ origin, replies: [{ state: ten }, ...CAUSES.map(refused)], views: [CONFIRM, VIEW] }, async (h) => {
+      for (const cause of CAUSES) {
+        await press(h, 'run_now', A.agent);
+        seen.push({ cause, ...(await answerOf(h, 'run_now')) });
+      }
+    });
+    const ok =
+      CAUSES.length === 12 &&
+      seen.every((s) => typeof words['refused.' + s.cause] === 'string' && s.text === words['refused.' + s.cause] && s.beside && s.described && same(s.said, [[s.text]]));
+    return [ok, seen];
+  });
+}
+
 console.log('agents tests passed=' + passed + ' failed=' + failed + ' states=' + STATES.length);
 process.exit(failed === 0 ? 0 : 1);
