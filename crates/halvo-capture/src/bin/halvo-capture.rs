@@ -61,7 +61,10 @@ fn main() -> ExitCode {
             daemon::DurableState::writer(),
         )),
         #[cfg(debug_assertions)]
-        Ok(Mode::Lease) => status(exit::USAGE),
+        Ok(Mode::LifelineServiceRun { data_dir }) => status(daemon::lifeline_service_run(
+            &data_dir,
+            daemon::DurableState::writer(),
+        )),
         #[cfg(all(target_os = "macos", debug_assertions))]
         Ok(Mode::DeleteAllOfADataDir { data_dir }) => status(daemon::delete_all::offline(
             &data_dir,

@@ -14,16 +14,18 @@ use halvo_control::proto::{Platform, SourceName};
 
 use super::board::{Board, Capture, Drain};
 use super::counters::Snapshot;
+use super::lease::{self, Lease, ParentWatch};
 use super::main_loop::{self, EndCall, MainLoop, Watchdog};
 use super::owner::{
     Answer, Command, OwnerGone, OwnerHandle, OwnerPanicked, OwnerThread, Pending, Report,
 };
 use super::permissions::{ProbeRunner, Probed};
 use super::report::FailedSource;
+use super::slot::Slot;
 use super::sources::{
     is_a_stop, past_bound, stop_bound, stop_order, RunningSources, SourceFactory,
 };
-use super::state::{StateError, StateFile};
+use super::state::{Desired, StateError, StateFile};
 use super::{DaemonError, RunSources, Waits};
 use crate::source::{
     CaptureError, HealthReason, SourceContext, SourceCounters, SourceState, StopCause,
@@ -398,6 +400,12 @@ pub struct Supervisor<F: SystemSources, L: MainLoop> {
     owner_gone_stops: Option<Vec<(SourceName, Result<(), CaptureError>)>>,
     entry_status: Option<i32>,
     state: Option<StateFile>,
+    served: Option<(SourceContext, Vec<SourceName>)>,
+    slot: Slot,
+    lease: Lease,
+    capturing: bool,
+    pausing: bool,
+    parent: Option<Box<dyn ParentWatch>>,
 }
 
 impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
@@ -432,6 +440,12 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             owner_gone_stops: None,
             entry_status: None,
             state: None,
+            served: None,
+            slot: Slot::Opening,
+            lease: Lease::NONE,
+            capturing: false,
+            pausing: false,
+            parent: None,
         }
     }
 
@@ -453,6 +467,14 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     pub fn with_ending(mut self, end_call: Arc<dyn EndCall>) -> Supervisor<F, L> {
         self.watchdog = Some(Watchdog::start(end_call.clone()));
         self.end_call = Some(end_call);
+        self
+    }
+
+    /// The watch of a run started with `--lifeline`: a wait ends once it
+    /// reads ended, as it ends on the stop flag, so that the run goes on to
+    /// its one shutdown entry.
+    pub fn with_parent(mut self, parent: Box<dyn ParentWatch>) -> Supervisor<F, L> {
+        self.parent = Some(parent);
         self
     }
 
@@ -534,7 +556,125 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         failed
     }
 
+    /// The sources of a service run (contracts.md C3.2 step 10): those of
+    /// `wanted`, each begun with a clone of `ctx`, only while the run
+    /// condition holds.
+    pub fn serve_sources(&mut self, ctx: SourceContext, wanted: Vec<SourceName>) {
+        self.served = Some((ctx, wanted));
+    }
+
+    /// The slot of the store as the owner holds it now; the run condition is
+    /// read at once.
+    pub fn set_slot(&mut self, slot: Slot, owner: Option<&dyn OwnerLink>) {
+        self.slot = slot;
+        self.read_the_condition(owner);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_lease(&mut self, lease: Lease, owner: Option<&dyn OwnerLink>) {
+        self.lease = lease;
+        self.read_the_condition(owner);
+    }
+
+    fn read_the_condition(&mut self, owner: Option<&dyn OwnerLink>) {
+        if let Some(ending) = self.follow_the_run_condition(owner, &mut |_| {}) {
+            self.ending = Some(ending);
+        }
+        self.publish();
+    }
+
+    /// Reads the run condition of a service run (contracts.md C14 item 3):
+    /// desired running in the state file, the slot Open and the lease fresh.
+    /// When it holds and the sources do not run, the owner closes its pause,
+    /// a barrier waited for at most [`BARRIER_WAIT`], the condition is read
+    /// once more after the answer, and the sources start; a condition that
+    /// no longer holds begins none and draws the owner's pause again. While
+    /// the drain fails they are only marked wanted, and the drain's heal
+    /// begins them.
+    /// When it fails while they run, the stop for capture off runs, of the
+    /// kind Lapse when the lease is not fresh; it writes no state, and
+    /// `reply` gets the Board of an end routine. After a stop the sources
+    /// are held by no restart rule until the condition holds again. `Some`
+    /// when a source did not stop and the end routine made the ending call.
+    /// A run with no served sources, an entry begun or no owner reads
+    /// nothing.
+    pub fn follow_the_run_condition(
+        &mut self,
+        owner: Option<&dyn OwnerLink>,
+        reply: &mut dyn FnMut(&Board),
+    ) -> Option<Ending> {
+        let owner = owner?;
+        if self.entered || self.served.is_none() {
+            return None;
+        }
+        let now = self.main_loop.now();
+        let desired = self.desired();
+        let holds = lease::holds(desired, &self.slot, self.lease, now);
+        if holds && !self.capturing {
+            self.start_for_the_condition(owner);
+        } else if !holds && self.capturing {
+            let kind = if !self.lease.is_fresh(now) {
+                StopKind::Lapse
+            } else if desired != Desired::Running {
+                StopKind::Pause
+            } else {
+                StopKind::DeleteAll
+            };
+            match self.stop_for_capture_off(owner, kind, reply)? {
+                CaptureOff::Stopped => {
+                    self.capturing = false;
+                    self.ctx = None;
+                    self.wanted.clear();
+                    self.publish();
+                }
+                CaptureOff::Ended(_) => return Some(Ending::SourceNotStopped),
+            }
+        }
+        None
+    }
+
+    fn desired(&self) -> Desired {
+        self.state
+            .as_ref()
+            .map_or(Desired::Paused, |state| state.state().desired)
+    }
+
+    fn no_indicator(&self) -> bool {
+        self.served.is_some()
+            && !self.capturing
+            && self.desired() == Desired::Running
+            && !self.lease.is_fresh(self.main_loop.now())
+    }
+
+    fn start_for_the_condition(&mut self, owner: &dyn OwnerLink) {
+        let resumed = match owner.ask(Command::ClosePause) {
+            Ok(pending) => self.answer_within(&pending, BARRIER_WAIT),
+            Err(OwnerGone) => None,
+        };
+        if !matches!(resumed, Some(Answer::Resumed(_))) {
+            return;
+        }
+        if !lease::holds(self.desired(), &self.slot, self.lease, self.main_loop.now()) {
+            self.barrier(owner);
+            return;
+        }
+        let Some((ctx, wanted)) = self.served.clone() else {
+            return;
+        };
+        self.capturing = true;
+        if self.stopped_for_drain {
+            self.ctx = Some(ctx);
+            self.board.enabled = wanted.clone();
+            self.wanted = wanted;
+            self.publish();
+            return;
+        }
+        self.start_sources(&ctx, &wanted);
+    }
+
     /// One tick: the source health, the owner's reports and snapshot, the
+    /// run condition of a service run, read before the drain's heal and the
+    /// restarts so that neither begins a source in the tick of a lapse, the
     /// restarts that are due and the permission answers. `Some` when the run
     /// must end. The health is read first, so that a source that died in the
     /// slice of the owner's end or of a drain stop is named (ruling DM-25
@@ -558,6 +698,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
                 failing,
                 hold: snapshot.drain_hold,
             };
+            if let Some(ending) = self.follow_the_run_condition(Some(owner), &mut |_| {}) {
+                self.ending = Some(ending);
+            }
             self.follow_the_drain(now);
         }
         if !self.stopped_for_drain {
@@ -890,6 +1033,7 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             if !is_a_stop(&answer) {
                 self.arm_unstopped(*name, &answer);
                 self.answered_unstopped(*name, &answer);
+                self.pausing = true;
                 unstopped = true;
                 break;
             }
@@ -1044,8 +1188,8 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         if kind == StopKind::LostGrant {
             self.barrier(owner);
         }
+        self.pausing = true;
         self.publish();
-        self.board.capture = Capture::Stopped;
         reply(&self.board);
         let first = owner.snapshot();
         self.write_record(kind, false, &first);
@@ -1184,8 +1328,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
         answers
     }
 
-    /// Turns the main loop until `window` has passed, `stop` reads true or the
-    /// run must end; true when `stop` ended the wait.
+    /// Turns the main loop until `window` has passed, `stop` or the parent
+    /// watch reads true or the run must end; true when one of those two ended
+    /// the wait.
     pub fn wait_on(
         &mut self,
         window: Duration,
@@ -1194,7 +1339,9 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
     ) -> bool {
         let until = self.main_loop.now() + window;
         loop {
-            if stop.load(Ordering::SeqCst) {
+            if stop.load(Ordering::SeqCst)
+                || self.parent.as_ref().is_some_and(|parent| parent.ended())
+            {
                 if !self.stopped_for_drain {
                     self.read_health(self.main_loop.now());
                 }
@@ -1330,7 +1477,11 @@ impl<F: SystemSources, L: MainLoop> Supervisor<F, L> {
             let state = state.clone();
             self.board.set_source(name, &state, unstopped);
         }
-        self.board.capture = if self.stopped_for_drain {
+        self.board.capture = if self.pausing {
+            Capture::Pausing
+        } else if self.no_indicator() {
+            Capture::NoIndicator
+        } else if self.stopped_for_drain {
             Capture::Stopped
         } else {
             self.board.capture_of(&self.wanted)
@@ -3465,7 +3616,7 @@ mod tests {
             after_start,
             [
                 "stop input",
-                "reply capture=Stopped",
+                "reply capture=Pausing",
                 "record first",
                 "stop input",
                 "stop foreground",
