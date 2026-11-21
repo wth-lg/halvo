@@ -12999,3 +12999,40 @@ fn a_segment_stamped_in_the_future_is_shredded_within_one_window() {
     );
     assert!(reads_sealed(&store, ahead), "the segment still reads");
 }
+
+fn allocated_bytes_under(dir: &Path) -> u64 {
+    files_under(dir)
+        .iter()
+        .map(|path| {
+            let metadata = std::fs::metadata(path).unwrap();
+            #[cfg(unix)]
+            let allocated = {
+                use std::os::unix::fs::MetadataExt;
+                metadata.blocks() * 512
+            };
+            #[cfg(windows)]
+            let allocated = metadata.len().div_ceil(4096) * 4096;
+            allocated
+        })
+        .sum()
+}
+
+#[test]
+fn usage_reports_the_bytes_that_the_files_take_on_disk() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut store = super::db::test_support::make_store(dir.path());
+    let payload = vec![0x5a; 1_000];
+    for k in 0..50 {
+        batch_first_captured_at(&mut store, (NOW_SECONDS + k) * SECOND, &payload);
+    }
+    store.db().unwrap().checkpoint_truncate().unwrap();
+
+    let usage = store.usage().unwrap();
+    let on_disk = allocated_bytes_under(dir.path());
+
+    assert!(
+        usage.disk_bytes.abs_diff(on_disk) * 10 <= on_disk,
+        "the store reports {usage:?} against {on_disk} bytes allocated under its directory"
+    );
+    assert_eq!(usage.logical_bytes, 50 * 1_000, "{usage:?}");
+}

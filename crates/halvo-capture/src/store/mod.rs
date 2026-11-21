@@ -250,6 +250,17 @@ pub struct Pass {
     pub owed: bool,
 }
 
+/// The store's two byte totals. `disk_bytes` is what the files take on the
+/// volume: the allocated size of each live segment's file, the live pages of
+/// the database (its pages less its free pages, times the page size) and the
+/// bytes of its log. `logical_bytes` is the payload bytes of the live
+/// segments. The cap compares `disk_bytes`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Usage {
+    pub disk_bytes: u64,
+    pub logical_bytes: u64,
+}
+
 /// The result of a crypto-shred pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ShredReport {

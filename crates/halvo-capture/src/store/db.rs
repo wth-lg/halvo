@@ -2019,6 +2019,18 @@ impl Db {
         pragma_int(&self.conn, name)
     }
 
+    pub(in crate::store) fn live_page_bytes(&self) -> StoreResult<u64> {
+        let read = |name: &str| -> StoreResult<u64> {
+            pragma_number(&self.conn, name)
+                .map_err(db_error)?
+                .and_then(|n| u64::try_from(n).ok())
+                .ok_or_else(|| StoreError::Corrupt("a page count does not read".to_string()))
+        };
+        Ok(read("page_count")?
+            .saturating_sub(read("freelist_count")?)
+            .saturating_mul(read("page_size")?))
+    }
+
     pub(crate) fn cipher_provider(&self) -> StoreResult<String> {
         self.conn
             .query_row("PRAGMA cipher_provider", [], |r| r.get::<_, String>(0))
