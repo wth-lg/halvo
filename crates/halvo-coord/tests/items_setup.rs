@@ -994,6 +994,27 @@ fn a_typed_name_that_the_reader_refuses_at_entry_1_is_kept_nowhere_and_the_item_
     );
 }
 
+/// RD-81 9.1 (U2.4n): a typed list of three senders whose second entry the reader refuses is
+/// refused whole with that entry's number, and the set-up holds no value for the parameter.
+#[test]
+fn a_typed_list_with_one_refused_entry_is_refused_whole_with_that_entrys_number() {
+    let f = facts(Category::Email, "graph_mail", WorkflowState::Approved);
+    let p = ports(&f);
+    let list = "ann@people.test, bob at people.test, cy@people.test";
+    p.senders
+        .borrow_mut()
+        .push((list.to_owned(), Refused::NotAnAddress(entry(2))));
+    let mut setup = senders_setup();
+    let typed = SetupInput::Typed {
+        param: Param::ReplySenders,
+        text: list,
+    };
+    let answer = answer_setup(&p, &mut ledger(), &LIMITS, &mut setup, &f, typed);
+    assert_eq!(answer, Err(Cause::Malformed));
+    assert_eq!(page(&setup)["params"][0]["refused"]["entry"], 2);
+    assert_eq!(setup.given(Param::ReplySenders), None);
+}
+
 fn past(n: u32, outcome: Outcome) -> PastRun {
     PastRun {
         run: RunId::parse(&format!("{n:032x}")).unwrap(),
