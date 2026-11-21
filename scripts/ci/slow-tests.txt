@@ -1,0 +1,38 @@
+# What 12-test skips in the merge gate (sh scripts/ci/run-ci-d.sh <job> --merge-gate).
+# The whole table, in the Sunday run and in a run by hand, runs every test of the workspace.
+#
+# A line is one of three words, a blank, a name, and then a note:
+#   target <name>    every test target of that name, in whatever package has one
+#   units <package>  the unit tests of that package's library and binaries
+#   test <part>      every test whose name holds the part (cargo test -- --skip <part>)
+# The note names the package and the seconds that libtest printed for the target in the macos job
+# and in the windows job of the pull request run 44877874023. A target is here when it took about
+# 6 s or more in one of the two jobs.
+target later_file_builds halvo-schema: 61 s macos, 43 s windows
+target privacy halvo-derived: 52 s macos, 60 s windows
+target failed_start halvo-web: 33 s macos, 33 s windows
+target conformance halvo-seam: 30 s macos, 20 s windows
+target bounds halvo-sheet: 26 s macos, 16 s windows
+target formal_traces halvo-route: 15 s macos, 10 s windows; halvo-coord and halvo-learn hold a target of the same name, under 1 s each
+target acts halvo-agent-client: 16 s macos, 8 s windows
+target handles halvo-agent-client: 13 s macos, 10 s windows
+target start halvo-agent-client: 5 s macos, 13 s windows
+target locked_files halvo-schema: 12 s macos, 9 s windows
+target derive_rules halvo-route-gate: 12 s macos, 8 s windows
+target waiting halvo-coord-app: 11 s macos, 9 s windows
+target suite_controls halvo-seam: 11 s macos, 7 s windows
+target macos_stall_fixture halvo-capture: 10 s macos, every test ignored on windows
+target drift_cli halvo-learn-gate: 9 s macos, 5 s windows
+target replaced halvo-derived: 8 s macos, 7 s windows
+target run_end halvo-agent-client: 8 s macos, 8 s windows
+target fixture halvo-connect: 8 s macos, 8 s windows
+target reap halvo-agent-client: 6 s macos, 2 s windows
+target coordinator_moves halvo-coord: 6 s macos, 5 s windows
+target page_gap_check halvo-derived: 6 s macos, 4 s windows
+target quit halvo-coord-app: 6 s macos, 5 s windows
+units halvo-learn-gate 42 s macos, 24 s windows
+units halvo-sqlcipher 27 s macos, 32 s windows
+units halvo-web 24 s macos, 7 s windows
+units halvo-control 16 s macos, 10 s windows
+units halvo-route-gate 13 s macos, 9 s windows
+units halvo-learn-store 7 s macos, 5 s windows

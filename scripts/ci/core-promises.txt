@@ -1,0 +1,81 @@
+# The checks and the tests that hold one of the four core promises of Halvo, and where each runs.
+#
+# A line is: <promise> <kind> <name> <place> <clause>
+#   promise  secure-input     the secure-input guarantee
+#            store            the key and the deletion of the store
+#            capture          what the capture takes: private windows, listed apps, the screen
+#            billing          a billing amount
+#   kind     check   a script of the table, by its name
+#            target  a test target, as <package>/<target>
+#            units   unit tests, as <package> for all of them or <package>::<module path> for a group
+#   place    gate       the merge gate runs it, on every push and pull request (scripts/ci/merge-gate.txt;
+#                       for a test: 12-test runs it in the form of the merge gate)
+#            scheduled  the Sunday run of the whole table and a run by hand run it; the merge gate does not
+#   clause   for scheduled, the reason, with the seconds of the pull request run 44877874023 where
+#            they are the reason; for gate, the job when one job alone has the check or the group
+#
+# Nothing of this list is deleted. A line moves to scheduled only with its reason, and a check that
+# takes under about 60 s, or a test target under about 6 s, stays in the gate.
+# The list is made by reading check rules and test names; no check reads it.
+
+secure-input check 62-build gate the release build; in the macos job neither built executable imports the call that holds secure input
+secure-input check 12-test gate in the form of the merge gate; the macos job fails a hold test whose hold the system refuses
+secure-input units halvo-capture::secure_input gate the macos module in the macos job, the windows module in the windows job
+secure-input units halvo-capture::macos::input gate macos job
+secure-input units halvo-capture::macos::secure_input_byte gate macos job
+secure-input units halvo-capture::windows::input gate windows job
+secure-input units halvo-capture::daemon::stop_tests gate
+secure-input units halvo-capture::floor gate
+secure-input target halvo-capture/source_rules gate
+secure-input target halvo-capture/macos_stall_fixture scheduled 10 s in the macos job; its launch-path test alone runs in 12-test, and its phases belong to 51-macos-stall
+secure-input check 51-macos-stall scheduled 198 s in the macos job
+secure-input check 30-core-boundary-proofs scheduled 104 s in the macos job, 27 s in the windows job
+
+store units halvo-capture::store gate
+store units halvo-capture::custody gate
+store units halvo-sqlcipher scheduled 27 s in the macos job, 32 s in the windows job
+store target halvo-derived/crash_model gate
+store target halvo-learn-gate/delete_cli gate
+store target halvo/page_guard gate
+store target halvo-seam/conformance scheduled 30 s in the macos job, 20 s in the windows job
+store target halvo-seam/suite_controls scheduled 11 s in the macos job, 7 s in the windows job
+store target halvo-derived/privacy scheduled 52 s in the macos job, 60 s in the windows job
+store check 39-store-no-analyze gate
+store check 55-sqlcipher-unmended gate it builds only when the commit changes crates/halvo-sqlcipher, and then took 66 s and 77 s
+store check 19-control-links-no-store gate
+store check 20-app-links-no-store gate
+store check 23-daemon-port-only gate
+store check 30-formal-covered gate
+store check 31-app-page-layout gate macos job
+store check 60-r5-privacy gate
+store check 31-store-full-volume scheduled 127 s in the macos job
+store check 30-mutants scheduled 1,301 s in the macos job; its rotation of rows runs at refs/heads/main, in the Sunday run and in a run by hand
+store check 30-core-boundary-proofs scheduled 104 s in the macos job, 27 s in the windows job
+
+capture units halvo-capture::macos::foreground gate macos job
+capture units halvo-capture::macos::screen gate macos job
+capture units halvo-capture::macos::apps gate macos job
+capture units halvo-capture::macos::window_title gate macos job
+capture units halvo-capture::windows gate windows job; its modules apps, foreground, screen, tests and window_title
+capture units halvo-capture::floor::exclude gate
+capture units halvo-capture::consent gate
+capture check 22-redact gate
+capture check 50-windows-functional scheduled 627 s in the windows job
+capture check 52-windows-browser scheduled 442 s in the windows job
+capture check 51-macos-stall scheduled 198 s in the macos job
+
+billing target halvo-route/prices_rules gate
+billing target halvo-route/refusal_spend gate
+billing target halvo-route/formal_traces scheduled 15 s in the macos job, 10 s in the windows job
+billing units halvo-route-gate scheduled 13 s in the macos job, 9 s in the windows job
+billing check 40-r6-policy gate
+billing check 21-r7-backend-test gate macos job; the ledger and the metering tests of the backend
+billing check 24-r7-wall gate
+billing check 27-r7-metering-self gate
+billing check 28-r7-helper-s6 gate
+billing check 50-r6-spend scheduled 56 s in the macos job, 38 s in the windows job; 12-test runs the tests of the same two crates
+billing check 30-r6-table scheduled 52 s in the macos job, 85 s in the windows job
+billing check 55-r6-formal scheduled 86 s in the macos job
+billing check 10-r7-account scheduled 55 s in the macos job, 38 s in the windows job
+billing check 20-r7-stub scheduled 83 s in the macos job, 58 s in the windows job
+billing check 22-r7-backend-records scheduled it compares the records of docs/r7/gate, which a merge does not make
