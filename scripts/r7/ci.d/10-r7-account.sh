@@ -26,6 +26,7 @@ record-line-without-a-path backend-byte-schema.v1.json
 backend-byte-routes.v1.json backend-byte-samples.v1.json backend-byte-prompt-budget.json
 backend-without-a-file sum-of-65-digits sum-in-upper-case
 record-with-a-fifth-line fifth-line-without-newline config-source-replacement
+config-env-key-off-the-list
 config-patch-under-account config-name-in-another-case link-out-of-account escaped-path-key
 escaped-build-key path-outside-account git-source-in-lock crlf-line-ends licence-added-to-list
 licence-exception git-allowed unknown-git-warns extra-line-without-newline ban-with-wrappers
