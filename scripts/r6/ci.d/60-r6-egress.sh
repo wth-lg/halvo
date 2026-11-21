@@ -1,12 +1,11 @@
 #!/bin/sh
 # jobs: macos windows
-# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that a job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run in the dev and in the release profile whose list the script writes and whose canary proves it in the run, over a closed graph of packages; a cfg predicate may name test, unix, windows, any, all and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its parenthesis, in the tracked files of the three crate directories and in every file that a forbid run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro variable named like an allowed word or one split by a comment; for those spellings the dev and the release forbid runs hold what they compile, and the rule on the word clippy holds the one value that no forbid run has in common with a build; no attribute path comes from a macro variable and no flags or wrapper variable lifts a lint; once one of these holds has refused, the check builds and runs nothing of route-gate; and every command of the first list is run, and a run that is missing fails the check; each, run with its arguments under scripts/egress/check.sh with the commit's list behind a control of the wrap, exits 0 with denied=0, the asking runs wrapped in the macos job, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed; it holds no more than --help says.
+# rule: No code of halvo-route, halvo-route-gate or halvo-route-wire that a job compiles names a listed type or method of a process or a socket or uses unsafe code, by a clippy run in the dev and in the release profile whose list the script writes and whose canary proves it in the run, over a closed graph of packages; a cfg predicate may name test, unix, windows, any, all and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its parenthesis, in the tracked files of the three crate directories and in every file that a forbid run's dep-info names, in comments and strings too; it does not see a predicate brought by a macro variable named like an allowed word or one split by a comment; for those spellings the dev and the release forbid runs hold what they compile, and the rule on the word clippy holds the one value that no forbid run has in common with a build; no attribute path comes from a macro variable and no flags or wrapper variable lifts a lint; once one of these holds has refused, the check builds and runs nothing of route-gate; and every command of the first list is run, and a run that is missing fails the check; each, run with its arguments under scripts/egress/check.sh with the commit's list behind a control of the wrap, exits 0 with denied=0, the commands come from route-gate's printing of the one table that dispatches them, in both jobs, and a printed command on neither list fails, every file under scripts/r6/egress/ in the commit holds no entry line and the run leaves no tracked file changed and no untracked path outside target/ new or gone; it holds no more than --help says.
 # lane: alone
 set -u
 name=60-r6-egress
 list=scripts/r6/egress/gate.txt
 trial=docs/r2/trials/egress.md
-probe_word=--r6-egress-no-such-argument
 nl='
 '
 w_rust=RUST
@@ -41,13 +40,20 @@ on lints and a wrapper that silence the canary as they silence the crates. The e
 no cargo configuration file: the compiler flags keys of its build and target tables and its wrapper
 keys reach the forbid runs and the build alike.
 From the first wrapped call on, the check decides nothing from a file that a wrapped program can
-write: the run list with its arguments, the words to ask and their count, the list's blob id, the
-hashes of the tracked files and git's configuration are read into the shell before the control; the
-egress check's last line comes through a pipe; the found commands are held in the shell; and a
-command's --out directory is one of its own. Every command of the first list is run, and a run that is
-missing fails the check: checks must equal the number of entries of the first list that the asking
-found (every entry in the windows job), and each command whose run was not made and read is named by
-"egress run-missing=<word>".
+write: the run list with its arguments, the list's blob id, the hashes of the tracked files, git's
+configuration and the untracked paths of the checkout are read into the shell before the control,
+before any run of the built route-gate; the printed names of the commands are read into the shell
+once, right after the printing's own wrapped call, and from nowhere after it; the egress check's
+last line comes through a pipe; and a command's --out directory is one of its own, outside the
+checkout. After every wrapped call the check reads the
+tracked files, git's configuration and the untracked paths outside target/ again (git ls-files --others
+--directory, which names a directory that holds no tracked file by its name alone) and fails on any
+difference: an untracked path that is new by "a wrapped run left a new path: <path>", and one that is
+gone by "a wrapped run took away a path: <path>". A file written under target/, or inside a directory
+that held no tracked file before the first call, is not seen there.
+Every command of the first list is run, and a run that is missing fails the check: checks must equal
+the number of entries of the first list that the printing names, and each command whose run was not
+made and read is named by "egress run-missing=<word>".
 The closed graph: the path packages of cargo tree -e normal,build are the three crates, each at
 crates/<name> of the repository where the check runs, the linked
 third-party packages are itoa, memchr, serde, serde_core, serde_json and zmij, the build-time ones are
@@ -58,7 +64,7 @@ cargo call that compiles the three crates; a graph that refuses leaves the forbi
 check runs no build script or proc macro that the graph refused.
 Once the environment rules, the graph, a canary, a forbid run or a rule of text has refused, the
 check prints the findings, then "egress runs=not-made (a hold refused)", and fails: it builds no
-route-gate and runs no command of it, no asking and no run of the first list.
+route-gate and runs no command of it, no printing and no run of the first list.
 The rules for what no compiler pass reads, over every tracked file of the three crate directories and
 every file that a forbid run's dep-info names: a cfg predicate may name test, unix, windows, any, all
 and not, and a rule of text refuses any other name where the text cfg, cfg! or cfg_attr stands before its
@@ -75,46 +81,34 @@ arguments variable that holds an allow flag, a cap on lints, a cfg flag or a wor
 variable that is set; it reads a name without regard to letter case, as Windows does. Text in a
 comment or a string is read as code, so a doc comment that writes cfg(feature) is refused: write such
 text without the parenthesis after cfg.
-The asking: the asking asks each one-word string literal with no space, quote or backslash of the
-tracked files of the crates that route-gate links, outside tests/, benches/ and examples/; a command
-that it does not find, by any form, runs under no egress check, and the forbid run alone holds it, in
-code of the three crates. A word is a command when the binary does not answer "REFUSED usage: unknown
-command", with exit 2 and nothing on standard output, to it alone or to it with one argument that no
-command takes. In the macos job the whole asking runs in one call of scripts/egress/check.sh with
-the list, under one deadline (240 s, or R6_EGRESS_ASKING_SECONDS from 1 to 240). The asker asks the
-egress run's own loopback probe first and last, with a listener of its own on 127.0.0.1:47202, and the
-check counts at most two reports of that destination as the asking's own and every further one as a
-denial of an asked word; an asking that ends with fewer than two
-of them is a lost report, asked again up to three times, and then fails by the words "the asking's
-report was lost". It prints "egress asking denied=<n> probes=<n> tries=<n>", and its denied adds to
-denied. In the words of E-16: denied counts the reports that arrived, and a reach by an asked word is
-stopped by the mode whether or not its report arrives; on this Mac 3 of 20 wrapped askings over all
-words lost the report of a reach and 0 of 20 over one word, and on the hosted macos-15 runner 1 of 20
-over all words and 0 of 50 over one word (run 43680812402) (SG-64 item 4, round 3 of builder-26). The
-asking holds nothing that the forbid run does not. The asker reads its words before the first ask, keeps
-its record of the found words in its own memory and prints it to standard output, into a file under
-target/egress/ where the egress check lets no wrapped program write; the count of words that it asked
-must equal the count of words that it was given, or the check fails by "egress asking asked=<n> of <n>
-words". A literal on a line whose quotes do not pair, as with a raw string or a comment mark, may be
-missed. The windows job does not ask: there the egress check's rule
-names the wrapped program, so a reach by a child of a wrapped shell is logged and failed, not
-stopped; the forbid run holds the code that the windows job compiles, and every command of the first
-list runs.
+The printing: after the control, in the macos job and in the windows job, the check runs the built
+route-gate under the egress check as "route-gate commands", a wrapped call like every other, with its
+own line "egress printing mode=<mode> command=<n> denied=<n> exit=<n>", whose denied adds to denied;
+route-gate prints the names of its commands from the one table that dispatches them, one per line in
+the table's order, so that a name that it does not print is a command that route-gate does not
+dispatch; a printing that does not exit 0 fails the check by "egress printing exit=<n>".
 The two lists: the commands that the check runs under the egress check, each with its arguments,
-and the commands that it cannot run on files of the repository alone, each with its reason. A found
-command on neither list fails the check, and so does a list entry that is no command.
+and the commands that it cannot run on files of the repository alone, each with its reason. At this
+commit every command stands on the first list, import among them on the repository's two trial files
+of docs/r3/trials/ with its --out in the check's own directory, and the second list has no entry; the
+count line prints cannot=0. A printed command on neither list fails the check, and so does a list
+entry that the printing does not name. Every printed line counts as a name, an empty one and one
+that reads --found-- among them, and the check fails where the count of printed lines is not the
+count of the first list's commands plus the count of the second list's entries, by "egress
+commands=<n> is not run=<n> plus cannot=<n>".
 The control: before the first wrapped run, a listener on 127.0.0.1:47201 and one wrapped run of the
 egress run's loopback probe; a status of 0 with denied=0 is "the egress check let the control
 through". The control holds against an egress check that wraps nothing; an egress check changed in
 the same commit can pass it, and scripts/egress/ is held by its own run's checks and by the landing's
 readers. Every wrapped run must name a new log directory whose denied.log holds as many lines as its
-denied. A port of the control or of the asking that another process holds fails the check by
-"refused=port"; on a machine that other runs share, this is a false FAIL.
+denied. A port of the control that another process holds fails the check by "refused=port"; on a
+machine that other runs share, this is a false FAIL.
 The import listing: the check prints the count of the undefined or imported symbols of the dev
 route-gate binary that it built (nm -u on macOS, llvm-readobj --coff-imports on Windows where the
 runner has it, else one line that it has none) and keeps the listing under its artifacts directory;
 it is a measurement and refuses nothing.
-A signal INT, TERM or HUP stops the check's listeners and ends it with FAIL 60-r6-egress (signal).
+A signal INT, TERM or HUP stops the control's listener and ends the check with FAIL 60-r6-egress
+(signal).
 When a rule or a forbid run has refused before a later step fails to set up, the cause is check.
 Prints: egress checks=<n> denied=<n> entries=<n>, with checks the number of wrapped runs of the first
 list that were made and whose egress line was read; a job with none fails.
@@ -133,6 +127,14 @@ The limits that stay:
 7. the check and the egress check find their own programs through PATH, whose first directory a
    wrapped program can write; a program planted there runs in the check after the next call; a diff
    shows it and the landing's readers hold it.
+8. the forbid list and its canary come from one table of this script: a commit that changes
+   60-r6-egress.sh can take an entry out of the list and its canary line together, and only the
+   readers of that guarded script see it.
+9. the check takes the commands from the binary's own printing and tries no other word on the built
+   binary; what holds the printing to the dispatch is one test of the crate,
+   the_printing_names_exactly_the_commands_that_the_dispatch_runs, which calls dispatch in-process; a
+   commit whose main or whose handler runs a word outside the table passes the check, a diff shows
+   it, and the landing's readers hold it.
 With --self-test, R6_EGRESS_CASES, a list of case names, runs those cases alone, for a mutant runner;
 a list that names no case fails the self-test. On a Windows host the self-test runs the cases of its
 Windows list alone: one case for each rule of the generic code, by the table rule_cases, and every
@@ -147,17 +149,18 @@ EOF
 run_list() {
   cat <<'EOF'
 generate --seed 1 --out @/table.tsv
+import --driver docs/r3/trials/driver.md --cells docs/r3/trials/model-cells.md --date s1=2026-11-10 --date s2=2026-11-10 --out @/
 derive --table @/table.tsv --out @/policy.tsv
 score --table @/table.tsv --router product --policy @/policy.tsv
 self-test --tables 20 --seed 1
 spend-sim --seed 1
 probe --rounds 1000
+commands
 EOF
 }
 
 cannot_list() {
   cat <<'EOF'
-import its inputs are the agent-setup run's trial files, which reach the repository with U3.1
 EOF
 }
 
@@ -816,136 +819,6 @@ read_graph() {
   [ "$crates" -gt 0 ] || fail setup
 }
 
-read_candidates() {
-  : >"$work/grep.z"
-  while IFS=' ' read -r kind value; do
-    [ "$kind" = crate ] || continue
-    git -c core.quotePath=off grep -a -z -e '"' "$tree" -- "$value" >>"$work/grep.z" 2>"$work/grep.err"
-    case $? in
-      0 | 1) ;;
-      *) fail setup ;;
-    esac
-  done <"$work/graph.txt"
-  tr '\000' '\001' <"$work/grep.z" >"$work/grep.txt" || fail setup
-  awk '
-    {
-      cut = index($0, "\001")
-      if (cut == 0) next
-      path = substr($0, 1, cut - 1)
-      path = substr(path, index(path, ":") + 1)
-      if (path ~ /^crates\/[^\/]+\/(tests|benches|examples)\//) next
-      line = substr($0, cut + 1)
-      n = length(line)
-      i = 1
-      while (i <= n) {
-        c = substr(line, i, 1)
-        if (c == "\047" && substr(line, i + 2, 1) == "\047") {
-          i += 3
-          continue
-        }
-        if (c == "\047" && substr(line, i + 1, 1) == "\\" && substr(line, i + 3, 1) == "\047") {
-          i += 4
-          continue
-        }
-        if (c != "\"") {
-          i++
-          continue
-        }
-        word = ""
-        closed = 0
-        i++
-        while (i <= n) {
-          c = substr(line, i, 1)
-          if (c == "\\") {
-            word = word c substr(line, i + 1, 1)
-            i += 2
-            continue
-          }
-          if (c == "\"") {
-            closed = 1
-            i++
-            break
-          }
-          word = word c
-          i++
-        }
-        if (closed && word != "" && word !~ /[ "\\]/) print word
-      }
-    }
-  ' "$work/grep.txt" | sort -u >"$work/candidates.txt" || fail setup
-}
-
-asker_program() {
-  cat <<'EOF'
-#!/bin/sh
-exe=$1
-words=$2
-answers=$3
-seconds=$4
-probe=$5
-loopback=$6
-unknown='REFUSED usage: unknown command'
-nl='
-'
-all=$words
-found=
-sh "$loopback" loopback2 >/dev/null 2>&1 </dev/null
-mkdir -p "$answers/discover" || exit 2
-cd "$answers/discover" || exit 2
-(
-  waited=0
-  while [ "$waited" -lt "$seconds" ]; do
-    sleep 1
-    if ! kill -0 "$$" 2>/dev/null; then
-      if read -r child <"$answers/child"; then
-        kill "$child" 2>/dev/null
-      fi
-      exit 0
-    fi
-    waited=$((waited + 1))
-  done
-  : >"$answers/timeout"
-  if read -r child <"$answers/child"; then
-    kill "$child" 2>/dev/null
-  fi
-  kill "$$" 2>/dev/null
-) &
-watchdog=$!
-answers_unknown() {
-  "$exe" "$@" >"$answers/ask.out" 2>"$answers/ask.err" </dev/null &
-  printf '%s\n' "$!" >"$answers/child"
-  wait "$!"
-  code=$?
-  answer=
-  while IFS= read -r line || [ -n "$line" ]; do
-    answer=$answer$line$nl
-  done <"$answers/ask.err"
-  [ "$code" -eq 2 ] && [ ! -s "$answers/ask.out" ] && [ "$answer" = "$unknown$nl" ]
-}
-asked=0
-while IFS= read -r word; do
-  [ -n "$word" ] || continue
-  asked=$((asked + 1))
-  printf '%s\n' "$word" >"$answers/asking"
-  if ! answers_unknown "$word" || ! answers_unknown "$word" "$probe"; then
-    found=$found$word$nl
-  fi
-done <<WORDS
-$all
-WORDS
-sh "$loopback" loopback2 >/dev/null 2>&1 </dev/null
-kill "$watchdog" 2>/dev/null
-wait "$watchdog"
-printf 'asked %s\n' "$asked"
-while IFS= read -r word; do
-  [ -z "$word" ] || printf 'found %s\n' "$word"
-done <<FOUND
-$found
-FOUND
-exit 0
-EOF
-}
-
 list_copy() {
   calls=$((calls + 1))
   list_given=$work/list-$calls.txt
@@ -1016,6 +889,30 @@ tree_after() {
     printf "egress %s: a wrapped run changed git's configuration\n" "$1"
     changed=yes
   fi
+  untracked_now=$(untracked_view) || untracked_now=-
+  if [ "$untracked_now" != "$untracked_reference" ]; then
+    changed=yes
+    {
+      printf '%s\n' "$untracked_reference"
+      printf '%s\n' '--now--'
+      printf '%s\n' "$untracked_now"
+    } | awk -v who="$1" '
+      $0 == "--now--" { part = 1; next }
+      $0 == "" { next }
+      part == 0 { before[$0] = 1; next }
+      {
+        now[$0] = 1
+        if (!($0 in before) && shown++ < 5) printf "egress %s: a wrapped run left a new path: %s\n", who, $0
+      }
+      END { for (p in before) if (!(p in now) && gone++ < 5) printf "egress %s: a wrapped run took away a path: %s\n", who, p }
+    '
+  fi
+}
+
+untracked_view() {
+  untracked_listing=$(git -c core.fsmonitor=false -c core.untrackedCache=false -c core.quotePath=false \
+    ls-files --others --directory) || return 1
+  printf '%s\n' "$untracked_listing" | awk '$0 != "target/"'
 }
 
 wrapped_call() {
@@ -1152,20 +1049,43 @@ control() {
   printf 'egress control denied=%s log=%s\n' "${count:--}" "${log:--}"
 }
 
-asking_seconds() {
-  seconds=${R6_EGRESS_ASKING_SECONDS:-240}
-  case $seconds in
-    '' | 0* | *[!0-9]*) fail usage ;;
+printing() {
+  wrapped_call "$work/printing.out" "$exe" commands
+  found_commands=$(cat "$work/printing.out" && printf x) || found_commands=x
+  found_commands=${found_commands%x}
+  printf '%s' "$found_commands" >"$artifacts/printing.out" || fail setup
+  list_after printing
+  read_wrapped
+  case $wrapped in
+    refused)
+      refused_mode=yes
+      ran=no
+      printf 'egress printing refused=mode\n'
+      return
+      ;;
+    missing)
+      ran=no
+      printf 'egress printing line=missing exit=%s\n' "$code"
+      return
+      ;;
   esac
-  [ "$seconds" -le 240 ] || fail usage
+  denied=$((denied + count))
+  printf 'egress printing mode=%s command=%s denied=%s exit=%s\n' "$run_mode" "$status" "$count" "$code"
+  if [ "$status" != 0 ]; then
+    printf 'egress printing exit=%s (route-gate commands printed no names)\n' "$status"
+    fail check
+  fi
+  wrapped_holds "$code" || ran=no
+  if ! log_holds; then
+    printf 'egress printing log=not-new-or-not-its-own\n'
+    ran=no
+  fi
 }
 
 state_before_calls() {
   run_entries=$(run_list) || fail setup
   cannot_entries=$(cannot_list) || fail setup
   list_blob=$(git rev-parse --verify --quiet "$tree:$list") || fail setup
-  candidate_words=$(cat "$work/candidates.txt") || fail setup
-  candidate_count=$(printf '%s\n' "$candidate_words" | awk 'NF { n++ } END { print n + 0 }') || fail setup
   tracked_paths=$(git -c core.quotePath=false ls-tree -r "$tree" | awk -F '\t' '$1 ~ /^100/ { print $2 }') || fail setup
   tracked_all=$(git -c core.quotePath=false ls-tree -r "$tree" | awk -F '\t' '$1 ~ /^1[02]0/ { print $2 }') || fail setup
   list_text=$(git cat-file blob "$list_blob" && printf x) || fail setup
@@ -1180,83 +1100,7 @@ state_before_calls() {
   tracked_hashes=$(tree_hashes) || fail setup
   git_reference=$(git_view) || fail setup
   out_dir=$(mktemp -d "${TMPDIR:-/tmp}/$name-out.XXXXXX") || fail setup
-}
-
-discover() {
-  asked=0
-  if [ "$job" = windows ]; then
-    printf 'egress asking=not-run (in the windows job the egress check names the wrapped program alone, so a reach by a child of a wrapped shell is logged and failed, not stopped; the forbid run holds the code that windows compiles)\n'
-    return
-  fi
-  asker_text=$(asker_program) || fail setup
-  asking_seconds
-  if ! start_listener 47202 asking; then
-    found_commands=
-    return
-  fi
-  asking_listener=$listener
-  try=0
-  probes=0
-  while [ "$try" -lt 4 ]; do
-    try=$((try + 1))
-    answers=$work/answers-$try
-    mkdir -p "$answers" || fail setup
-    record=target/egress/r6-asking-$$-$try.out
-    mkdir -p target/egress || fail setup
-    wrapped_call "$record" sh -c "$asker_text" asker "$exe" "$candidate_words" "$answers" "$seconds" \
-      "$probe_word" "$repo_abs/scripts/egress/probe.sh"
-    list_after asking
-    read_wrapped
-    [ "$wrapped" = line ] || break
-    probes=0
-    if [ -f "$log" ] && [ ! -h "$log" ]; then
-      probes=$(grep -c 'dest=127\.0\.0\.1:47202 ' "$log") || probes=0
-    fi
-    [ "$probes" -le 2 ] || probes=2
-    [ "$status" = 0 ] && [ "$probes" -lt 2 ] || break
-  done
-  : >"$work/asking-stop"
-  wait "$asking_listener"
-  if [ -f "$answers/timeout" ]; then
-    IFS= read -r word <"$answers/asking" || word=-
-    printf 'egress asking timeout=%s word=%s\n' "$seconds" "$word"
-    ran=no
-  fi
-  case $wrapped in
-    refused)
-      refused_mode=yes
-      ran=no
-      printf 'egress asking refused=mode\n'
-      ;;
-    missing)
-      ran=no
-      printf 'egress asking line=missing exit=%s\n' "$code"
-      ;;
-    line)
-      reached=$((count - probes))
-      [ "$reached" -ge 0 ] || reached=0
-      denied=$((denied + reached))
-      printf 'egress asking denied=%s probes=%s tries=%s command=%s exit=%s\n' "$reached" "$probes" "$try" "$status" "$code"
-      wrapped_holds "$code" || ran=no
-      if ! log_holds; then
-        printf 'egress asking log=not-new-or-not-its-own\n'
-        ran=no
-      fi
-      if [ "$status" = 0 ] && [ "$probes" -lt 2 ]; then
-        printf "egress asking: the asking's report was lost in %s tries\n" "$try"
-        ran=no
-      fi
-      ;;
-  esac
-  record_text=$(cat "$record") || record_text=
-  printf '%s\n' "$record_text" >"$artifacts/asking-$try.out" || fail setup
-  found_commands=$(printf '%s\n' "$record_text" | sed -n 's/^found //p') || fail setup
-  asked=$(printf '%s\n' "$record_text" | sed -n 's/^asked //p') || fail setup
-  if [ "$asked" != "$candidate_count" ]; then
-    printf 'egress asking asked=%s of %s words\n' "${asked:--}" "$candidate_count"
-    asked=0
-    ran=no
-  fi
+  untracked_reference=$(untracked_view) || fail setup
 }
 
 compare_lists() {
@@ -1270,30 +1114,32 @@ compare_lists() {
     printf 'egress listed-twice=%s\n' "$word"
     matched=no
   done
-  if [ "$job" = windows ]; then
-    found_commands=$run_words
-    commands=-
-  else
-    commands=$(printf '%s\n' "$found_commands" | awk 'NF { n++ } END { print n + 0 }') || fail setup
-    mismatch=$({
-      printf '%s\n' "$listed"
-      printf '%s\n' '--found--'
-      printf '%s\n' "$found_commands"
-    } | awk '
-      $0 == "--found--" { part = 1; next }
-      $0 == "" { next }
-      part == 0 { listed[$0] = 1; next }
-      { found[$0] = 1 }
-      part == 1 && !($0 in listed) { print "egress on-neither-list=" $0 }
-      END { for (word in listed) if (!(word in found)) print "egress no-command=" word }
-    ') || fail setup
-    if [ -n "$mismatch" ]; then
-      printf '%s\n' "$mismatch"
-      matched=no
-    fi
+  commands=$(printf '%s' "$found_commands" | awk 'END { print NR }') || fail setup
+  mismatch=$({
+    printf '%s\n' "$listed" | awk 'NF { print "L " $0 }'
+    printf '%s' "$found_commands" | awk '{ print "P " $0 }'
+  } | awk '
+    substr($0, 1, 2) == "L " { listed[substr($0, 3)] = 1; next }
+    {
+      printed++
+      name = substr($0, 3)
+      found[name] = 1
+      if (name in listed) next
+      if (name == "") printf "egress on-neither-list= (an empty name, printed line %d)\n", printed
+      else print "egress on-neither-list=" name
+    }
+    END { for (word in listed) if (!(word in found)) print "egress no-command=" word }
+  ') || fail setup
+  if [ -n "$mismatch" ]; then
+    printf '%s\n' "$mismatch"
+    matched=no
   fi
   cannot=$(printf '%s\n' "$cannot_words" | awk 'NF { n++ } END { print n + 0 }') || fail setup
-  printf 'egress commands=%s asked=%s run=%s cannot=%s crates=%s\n' "$commands" "$asked" "$run_names" "$cannot" "$crates"
+  if [ "$commands" -ne $((run_names + cannot)) ]; then
+    printf 'egress commands=%s is not run=%s plus cannot=%s\n' "$commands" "$run_names" "$cannot"
+    matched=no
+  fi
+  printf 'egress commands=%s run=%s cannot=%s crates=%s\n' "$commands" "$run_names" "$cannot" "$crates"
   printf '%s\n' "$cannot_entries" | while IFS=' ' read -r word reason; do
     [ -z "$word" ] || printf 'egress cannot=%s reason=%s\n' "$word" "$reason"
   done
@@ -1393,11 +1239,8 @@ not_observed() {
 
 stopped() {
   trap '' INT TERM HUP
-  for who in control asking; do
-    : >"$work/$who-stop" 2>/dev/null
-  done
+  : >"$work/control-stop" 2>/dev/null
   [ -z "$listener" ] || wait "$listener" 2>/dev/null
-  [ -z "$asking_listener" ] || wait "$asking_listener" 2>/dev/null
   printf 'egress stopped by a signal\n'
   fail signal
 }
@@ -1407,9 +1250,7 @@ check() {
   artifacts=${CI_D_ARTIFACTS:-target/ci-artifacts/$name}
   [ -d "$artifacts" ] || mkdir -p "$artifacts" 2>/dev/null || fail setup
   work=$(mktemp -d "${TMPDIR:-/tmp}/$name.XXXXXX") || fail setup
-  mkdir -p "$work/discover" || fail setup
   listener=
-  asking_listener=
   trap stopped INT TERM HUP
   GIT_NO_REPLACE_OBJECTS=1
   export GIT_NO_REPLACE_OBJECTS
@@ -1418,7 +1259,6 @@ check() {
   platform_of
   job_of
   root_abs=$(absolute_dir .) || fail setup
-  repo_abs=$(pwd) || fail setup
   holds=yes
 
   tree=$(git rev-parse --verify --quiet 'HEAD^{tree}' 2>/dev/null) || fail setup
@@ -1471,10 +1311,9 @@ check() {
   ran=yes
   refused_mode=no
   read_graph
-  read_candidates
   state_before_calls
   control
-  discover
+  printing
   compare_lists
   run_checks
 
@@ -1658,64 +1497,37 @@ EOF
   cat >"$work/route-gate" <<'EOF' || self_failed "setup at line $LINENO"
 #!/bin/sh
 [ -z "$STUB_MARKER" ] || printf 'run %s\n' "$*" >>"$STUB_MARKER"
-if [ "$#" -eq 1 ] && [ "$1" = reachword ] && [ -n "$STUB_REACH" ]; then
-  printf 'reach\n' >>"$STUB_REACH"
-fi
-if [ "$#" -eq 1 ] && [ "$1" = hangword ] && [ -n "$STUB_HANG" ]; then
-  printf '%s\n' "$$" >"$STUB_HANG"
-  exec sleep 30
-fi
-if [ "$1" = forger ] && [ -n "$STUB_FORGER" ]; then
-  {
-    printf 'asked %s\n' "$STUB_FORGER"
-    for found in $STUB_COMMANDS; do
-      printf 'found %s\n' "$found"
-    done
-  } >../record.forged && mv ../record.forged ../record.out
-  exit 0
-fi
-if [ "$1" = eraser ] && [ "$STUB_ERASER" = killer ]; then
-  kill -9 "$PPID"
-  exit 0
-fi
-if [ "$1" = eraser ] && [ -n "$STUB_ERASER" ]; then
-  if [ -f ../commands.txt ]; then
-    awk '$0 != "eraser"' ../commands.txt >../commands.kept && mv ../commands.kept ../commands.txt
+if [ -n "$STUB_LEAVE" ] && [ "$1" = "$STUB_LEAVE" ]; then
+  if [ -n "$STUB_LEAVE_AT" ]; then
+    printf 'x\n' >>"$STUB_LEAVE_COUNT"
+    [ "$(awk 'END { print NR }' "$STUB_LEAVE_COUNT")" != "$STUB_LEAVE_AT" ] || printf 'x\n' >left-behind.txt
+  else
+    printf 'x\n' >left-behind.txt
   fi
+fi
+if [ "$#" -eq 1 ] && [ "$1" = commands ]; then
+  if [ -n "$STUB_PRINT_EXIT" ]; then
+    printf 'REFUSED usage: unknown command\n' >&2
+    exit "$STUB_PRINT_EXIT"
+  fi
+  if [ -n "$STUB_PRINT_FILTER" ]; then
+    trial=docs/r2/trials/egress.md
+    blob=$(git ls-files -s -- "$trial" | awk '{ print $2 }')
+    git config filter.r6same.clean "cat >/dev/null; git cat-file blob $blob"
+    attributes=$(git rev-parse --git-path info/attributes)
+    mkdir -p "${attributes%/*}"
+    printf '%s filter=r6same\n' "$trial" >"$attributes"
+    tr o O <"$trial" >"$trial.new" && mv "$trial.new" "$trial"
+  fi
+  for known in $STUB_COMMANDS; do
+    printf '%s\n' "$known"
+  done
+  [ -z "$STUB_PRINT_HIDDEN" ] || printf '%s\n' '--found--' ''
   exit 0
 fi
-if [ "$1" = argword ] && [ -n "$STUB_ARGONLY" ]; then
-  [ "$#" -ge 2 ] && exit 0
-fi
-for odd in $STUB_ODD; do
-  [ "$1" = "${odd%%:*}" ] || continue
-  case ${odd#*:} in
-    stdout)
-      printf 'x\n'
-      printf 'REFUSED usage: unknown command\n' >&2
-      exit 2
-      ;;
-    exit3)
-      printf 'REFUSED usage: unknown command\n' >&2
-      exit 3
-      ;;
-    text)
-      printf 'REFUSED usage: unknown commands\n' >&2
-      exit 2
-      ;;
-  esac
-done
-for bare in $STUB_BARE; do
-  if [ "$1" = "$bare" ] && [ "$#" -eq 1 ]; then
-    exit 0
-  fi
-done
 for known in $STUB_COMMANDS; do
   if [ "$1" = "$known" ]; then
-    if [ "${2:-}" = --r6-egress-no-such-argument ]; then
-      printf 'REFUSED usage: unknown argument --r6-egress-no-such-argument\n' >&2
-      exit 2
-    fi
+    [ "$1" != "$STUB_TAKE" ] || mv untracked-before.txt target/untracked-before.txt
     exit "$STUB_RUN_EXIT"
   fi
 done
@@ -1727,8 +1539,8 @@ EOF
 
 write_repo() {
   dir=$1
-  mkdir -p "$dir/scripts/r6/egress" "$dir/scripts/egress" "$dir/docs/r2/trials" "$dir/crates/halvo-route-gate/src" \
-    "$dir/crates/halvo-route-gate/tests" || self_failed "setup at line $LINENO"
+  mkdir -p "$dir/scripts/r6/egress" "$dir/scripts/egress" "$dir/docs/r2/trials" "$dir/crates/halvo-route-gate/src" ||
+    self_failed "setup at line $LINENO"
   printf '%s\n' '[fixed]' "$2" '[agent]' | awk 'NF' >"$dir/scripts/r6/egress/gate.txt" || self_failed "setup at line $LINENO"
   cat >"$dir/docs/r2/trials/egress.md" <<'EOF' || self_failed "setup at line $LINENO"
 cells: this-mac.sandbox
@@ -1739,19 +1551,7 @@ not-observed macos-15 sandbox path-2-macos-15: two
 not-observable windows-2025 wfp path-1-windows-2025: one
 not-observed windows-2025 wfp path-2-windows-2025: two
 EOF
-  cat >"$dir/crates/halvo-route-gate/src/main.rs" <<'EOF' || self_failed "setup at line $LINENO"
-fn main() {
-    let words = ["generate", "import", "derive", "score", "self-test", "spend-sim", "probe"];
-    let more = ["fetch", "other", "Upper", "--flag", "post_route", "push"];
-    let adjacent = words! {"see help","adjword"};
-    let odd = ["stdoutword", "exitword", "textword"];
-    let wrapped = ["reachword", "hangword", "argword", "eraser", "forger"];
-    let q = '"'; let w = "quoteword";
-}
-EOF
-  printf '// one byte that git takes for binary: \000\npub const W: &str = "nulword";\n' \
-    >"$dir/crates/halvo-route-gate/src/zerobyte.rs" || self_failed "setup at line $LINENO"
-  printf '%s\n' 'const WORD: &str = "testonly";' >"$dir/crates/halvo-route-gate/tests/t.rs" || self_failed "setup at line $LINENO"
+  printf '%s\n' 'fn main() {}' >"$dir/crates/halvo-route-gate/src/main.rs" || self_failed "setup at line $LINENO"
   cp "$work/rust-toolchain.toml" "$dir/rust-toolchain.toml" || self_failed "setup at line $LINENO"
   printf '[workspace]\nmembers = ["crates/*"]\n%s' "${3:-}" >"$dir/Cargo.toml" || self_failed "setup at line $LINENO"
   printf '[package]\nname = "halvo-route-gate"\n%s' "${4:-}" >"$dir/crates/halvo-route-gate/Cargo.toml" || self_failed "setup at line $LINENO"
@@ -1798,7 +1598,8 @@ if [ "$STUB_CHECK:${2:-}" = noline-derive:derive ]; then
   exit
 fi
 case $STUB_CHECK:${2:-} in
-  rewrite-record:generate | cut-run-list:generate)
+  rewrite-record:generate) printf 'generate\n' >"$CI_D_ARTIFACTS/printing.out" ;;
+  cut-run-list:generate)
     out=
     for arg in "$@"; do
       [ "$prev" != --out ] || out=$arg
@@ -1808,11 +1609,7 @@ case $STUB_CHECK:${2:-} in
     parent=${parent%/*}
     for checkdir in "$parent" "$parent"/60-r6-egress.*; do
       [ -d "$checkdir" ] || continue
-      if [ "$STUB_CHECK" = rewrite-record ]; then
-        printf 'generate\n' >"$checkdir/commands.txt"
-      else
-        : >"$checkdir/run-list.txt"
-      fi
+      : >"$checkdir/run-list.txt"
     done
     ;;
   replace-list:generate)
@@ -1840,30 +1637,13 @@ case $STUB_CHECK:${2:-} in
   widen:probe) printf '[fixed]\n[agent]\n' >scripts/r6/egress/gate.txt ;;
   change-copy:generate) printf '127.0.0.1:47391\n' >>"$list" ;;
 esac
-count_lines() {
-  counted=0
-  [ -n "$1" ] && [ -f "$1" ] || return 0
-  while IFS= read -r counted_line || [ -n "$counted_line" ]; do
-    counted=$((counted + 1))
-  done <"$1"
-}
-count_lines "$STUB_REACH"
-reached=$counted
-count_lines "$STUB_PROBE_LOG"
-probed=$counted
 "$@"
 code=$?
 [ "$empty" = no ] || code=9
-count_lines "$STUB_PROBE_LOG"
-probes=$((counted - probed))
-[ "$STUB_CHECK" != drop-probe ] || [ "$probes" -eq 0 ] || probes=$((probes - 1))
-[ "$STUB_CHECK" != extra-probe ] || [ "$probes" -eq 0 ] || probes=$((probes + 1))
 [ -z "$STUB_TOUCH" ] || printf 'x\n' >>"$STUB_TOUCH"
-count_lines "$STUB_REACH"
-denied=$((counted - reached))
+denied=0
 [ "$STUB_CHECK" != denied ] || denied=$((denied + 1))
 [ "$STUB_CHECK" != denied0 ] || denied=$((denied + 1))
-[ "$STUB_CHECK:$1" != asking-status3:sh ] || code=3
 if [ "$1 $2" = "sh scripts/egress/probe.sh" ]; then
   case $STUB_CONTROL in
     through) denied=0 ;;
@@ -1886,21 +1666,14 @@ lines=$denied
     printf '%s\n' 'denied at=- proto=tcp dest=127.0.0.1:9 pid=1 image=x'
     i=$((i + 1))
   done
-  i=0
-  while [ "$i" -lt "$probes" ]; do
-    printf '%s\n' 'denied at=- proto=tcp dest=127.0.0.1:47202 pid=1 image=egress-probe'
-    i=$((i + 1))
-  done
 } >"target/egress/$n/denied.log"
 if [ "$STUB_CHECK" = link-log ]; then
   mv "target/egress/$n/denied.log" "target/egress/$n/denied.real" && ln -s denied.real "target/egress/$n/denied.log"
 fi
-denied=$((denied + probes))
 case $STUB_CHECK:$1:$2 in
   reuse-log:*) n=1 ;;
   reuse-log-run:sh:*) ;;
   reuse-log-run:*) n=1 ;;
-  reuse-log-asking:sh:-c) n=1 ;;
   reuse-previous:sh:*) ;;
   reuse-previous:*) n=$((n - 1)) ;;
 esac
@@ -1920,6 +1693,7 @@ case $1 in
 #!/bin/sh
 [ "$1" = serve ] || exit 2
 [ "$STUB_CONTROL" != port ] || exit 3
+[ "$STUB_HELD_PORT" != "$2" ] || exit 3
 [ -z "$STUB_SPAWN_PIDS" ] || printf '%s\n' "$$" >>"$STUB_SPAWN_PIDS"
 : >"$4"
 waited=0
@@ -1934,21 +1708,8 @@ SPAWN
     exit 0
     ;;
   loopback)
+    [ -z "$STUB_CONTROL_LEAVE" ] || printf 'x\n' >left-behind.txt
     [ "$STUB_CONTROL" = through ] && exit 0
-    exit 1
-    ;;
-  loopback2)
-    case $STUB_PROBE in
-      lost) ;;
-      lost-once)
-        if [ -f "$STUB_PROBE_LOG.once" ]; then
-          printf 'probe\n' >>"$STUB_PROBE_LOG"
-        else
-          : >"$STUB_PROBE_LOG.once"
-        fi
-        ;;
-      *) printf 'probe\n' >>"$STUB_PROBE_LOG" ;;
-    esac
     exit 1
     ;;
 esac
@@ -1965,18 +1726,19 @@ EOF
 case_reset() {
   case_repo=$work/repo
   case_tree=$good_tree
-  STUB_COMMANDS='generate import derive score self-test spend-sim probe'
+  STUB_COMMANDS='generate import derive score self-test spend-sim probe commands'
   STUB_RUN_EXIT=0
-  STUB_REACH=
+  STUB_PRINT_EXIT=
   STUB_MARKER=
   STUB_BUILD_TOUCH=
-  STUB_FORGER=
-  STUB_ERASER=
-  STUB_PROBE=
-  STUB_HANG=
   STUB_CONTROL=
-  STUB_ODD=
-  STUB_BARE=
+  STUB_HELD_PORT=
+  STUB_LEAVE=
+  STUB_TAKE=
+  STUB_PRINT_FILTER=
+  STUB_PRINT_HIDDEN=
+  STUB_LEAVE_AT=
+  STUB_CONTROL_LEAVE=
   STUB_CHECK=pass
   STUB_TOUCH=
   STUB_FRESH=true
@@ -1993,7 +1755,6 @@ case_reset() {
   case_arg=
   case_env=
   case_self=
-  STUB_ARGONLY=
 }
 
 rule_cases() {
@@ -2035,7 +1796,13 @@ cause env-refused-then-a-stale-build
 signal-trap signal-stops-the-listeners
 windows-job pass
 windows-imports import-listing-printed
-windows-asking-line asking-not-run-in-the-windows-job
+printing-names printed-command-on-neither-list
+printing-every-line printed-name-that-the-list-rule-skips
+printing-entries entry-that-is-no-command
+printing-exit printing-that-does-not-exit-0
+printing-wrapped printing-leaves-a-file-in-the-checkout
+printing-state-first printing-rewrites-a-file-behind-a-clean-filter
+tree-new-path import-leaves-a-file-in-the-checkout
 checks-count job-with-no-run
 windows-sentence sentence-on-a-hosted-runner
 forbid-exit-status forbid-exit-without-a-finding
@@ -2097,7 +1864,13 @@ env-refused-then-a-stale-build
 signal-stops-the-listeners
 pass
 import-listing-printed
-asking-not-run-in-the-windows-job
+printed-command-on-neither-list
+printed-name-that-the-list-rule-skips
+entry-that-is-no-command
+printing-that-does-not-exit-0
+printing-leaves-a-file-in-the-checkout
+printing-rewrites-a-file-behind-a-clean-filter
+import-leaves-a-file-in-the-checkout
 job-with-no-run
 sentence-on-a-hosted-runner
 forbid-exit-without-a-finding
@@ -2126,28 +1899,14 @@ macos_cases() {
 run-swaps-a-tracked-file-for-a-link
 run-sets-an-exec-bit
 canary-refusal-in-release-ends-as-a-hold
-found-command-that-forges-the-record
-asker-that-skips-a-word
-egress-check-that-drops-a-probe-report
-third-report-at-the-probe-is-a-denial
 sentence
 commands
 third-party
 forbid-clean
-asking-wrapped
 control-denied
 control-report-lost-four-times
 control-port-in-use
 log-of-another-run
-asking-reaches-the-network-when-asked-bare
-asking-hangs-past-its-deadline
-asking-deadline-above-240
-asking-deadline-of-240
-found-command-that-erases-its-record
-asked-command-that-kills-the-asker
-asking-report-lost-four-times
-asking-report-lost-once-and-asked-again
-asking-status-read
 graph-closed
 rules-allowed-forms
 env-deny-flag
@@ -2185,27 +1944,19 @@ forbid-list-of-the-windows-job
 forbid-finding-outside-the-repository
 forbid-finding-with-exit-0
 forbid-child-code-is-no-finding
-command-on-neither-list
-command-with-an-underscore
-command-alone-without-arguments
-command-in-a-file-with-a-nul-byte
-command-behind-adjacent-literals
-command-in-a-non-rs-file-with-a-non-ascii-name
-command-after-a-quote-character
-command-only-with-an-argument
 repository-missing
 line-of-another-list
 log-of-another-run-of-the-gate-tool
 run-changes-its-copy-of-the-list
-log-of-another-asking
-answer-on-standard-output
-answer-with-exit-3
-answer-with-other-words
-entry-that-is-no-command
-word-of-tests-not-asked
 check-exits-3-with-a-clean-line
 forbid-finding-then-a-stale-build
 control-without-an-egress-line
+port-47202-held-by-another-process
+untracked-path-before-the-run
+import-takes-away-an-untracked-path
+derive-leaves-a-file-in-the-checkout
+control-leaves-a-file-in-the-checkout
+last-entry-leaves-a-file-in-the-checkout
 EOF
 }
 
@@ -2252,12 +2003,12 @@ case_run() {
   fi
   case_started=$(date +%s)
   PATH=$work/bin:$PATH CI_D_REPO=$case_repo CI_D_ARTIFACTS=$work/artifacts TMPDIR=$work/tmp \
-    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_BARE=$STUB_BARE STUB_ODD=$STUB_ODD STUB_REACH=$STUB_REACH STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_FORGER=$STUB_FORGER STUB_ERASER=$STUB_ERASER STUB_PROBE=$STUB_PROBE STUB_PROBE_LOG=$work/probe.log STUB_HANG=$STUB_HANG STUB_CONTROL=$STUB_CONTROL \
+    STUB_TREE=$case_tree STUB_EXE=$work/route-gate STUB_COMMANDS=$STUB_COMMANDS STUB_PRINT_EXIT=$STUB_PRINT_EXIT STUB_MARKER=$STUB_MARKER STUB_BUILD_TOUCH=$STUB_BUILD_TOUCH STUB_CONTROL=$STUB_CONTROL STUB_HELD_PORT=$STUB_HELD_PORT STUB_LEAVE=$STUB_LEAVE STUB_TAKE=$STUB_TAKE STUB_PRINT_FILTER=$STUB_PRINT_FILTER STUB_PRINT_HIDDEN=$STUB_PRINT_HIDDEN STUB_LEAVE_AT=$STUB_LEAVE_AT STUB_LEAVE_COUNT=$work/leave-count STUB_CONTROL_LEAVE=$STUB_CONTROL_LEAVE \
     STUB_RUN_EXIT=$STUB_RUN_EXIT STUB_CHECK=$STUB_CHECK STUB_TOUCH=$STUB_TOUCH STUB_FRESH=$STUB_FRESH \
     STUB_CLIPPY_JSON=$STUB_CLIPPY_JSON STUB_CLIPPY_EXIT=$STUB_CLIPPY_EXIT STUB_CANARY=$STUB_CANARY \
     STUB_CANARY_DROP=$STUB_CANARY_DROP STUB_CANARY_DROP_PROFILE=$STUB_CANARY_DROP_PROFILE \
     STUB_CLIPPY_RELEASE_JSON=$STUB_CLIPPY_RELEASE_JSON STUB_CLIPPY_RELEASE_EXIT=$STUB_CLIPPY_RELEASE_EXIT STUB_GRAPH=$STUB_GRAPH REAL_CARGO=$real_cargo CI_D_JOB=$case_job GITHUB_ACTIONS=$case_actions \
-    STUB_ARGONLY=$STUB_ARGONLY STUB_SPAWN_PIDS=$work/spawn.pids env ${case_env:+"$case_env"} sh "${case_self:-$self}" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
+    STUB_SPAWN_PIDS=$work/spawn.pids env ${case_env:+"$case_env"} sh "${case_self:-$self}" ${case_arg:+"$case_arg"} >"$work/case.txt" 2>&1 </dev/null
   code=$?
   out=
   while IFS= read -r line || [ -n "$line" ]; do
@@ -2277,6 +2028,11 @@ case_run() {
   if [ -n "${5:-}" ]; then
     case $out in
       *"$5"*) got=$got-with-the-other-text ;;
+    esac
+  fi
+  if [ -n "${6:-}" ]; then
+    case $out in
+      *"$6"*) got=$got-with-the-second-other-text ;;
     esac
   fi
   printf 'case %s/%s want=%s got=%s\n' "$name" "$1" "$2" "$got"
@@ -2315,7 +2071,7 @@ part_seconds() {
             sh "$work/bin/cargo" clippy --locked -p halvo-route -p halvo-route-gate -p halvo-route-wire --lib --bins \
             --message-format=json -- -F clippy::disallowed_types -F clippy::disallowed_methods -F unsafe_code >/dev/null 2>&1) ;;
         wrapped-call)
-          (cd "$work/repo" && STUB_COMMANDS=probe STUB_PROBE_LOG=$work/part-probe.log \
+          (cd "$work/repo" && STUB_COMMANDS=probe \
             sh scripts/egress/check.sh scripts/r6/egress/gate.txt -- "$work/route-gate" probe --rounds 1 >/dev/null 2>&1) ;;
         list-checks)
           (cd "$work/repo" && cp scripts/r6/egress/gate.txt "$work/part-list.txt" && cmp -s "$work/part-list.txt" scripts/r6/egress/gate.txt &&
@@ -2512,18 +2268,6 @@ check_forms() {
   [ "$got" = PASS ] || wrong="$wrong forms-control"
 }
 
-non_ascii_repo() {
-  write_repo "$1" '' >/dev/null || self_failed "setup at line $LINENO"
-  plain=$(printf 'pub const W: &str = "plainword";\n' | git -C "$1" hash-object -w --stdin) || self_failed "setup at line $LINENO"
-  printf '100644 %s\tcrates/halvo-route-gate/src/upl\303\251.txt\n' "$plain" | git -C "$1" update-index --index-info ||
-    self_failed "setup at line $LINENO"
-  printf 'crates/halvo-route-gate/src/upl\303\251.txt\n' | git -C "$1" update-index --skip-worktree --stdin ||
-    self_failed "setup at line $LINENO"
-  accented=$(printf 'upl\303\251.txt') || self_failed "setup at line $LINENO"
-  printf 'pub const W: &str = "plainword";\n' >"$1/crates/halvo-route-gate/src/$accented" 2>/dev/null || :
-  git -C "$1" write-tree 2>/dev/null || self_failed "setup at line $LINENO"
-}
-
 odd_repo() {
   write_repo "$1" '' >/dev/null || self_failed "setup at line $LINENO"
   case $2 in
@@ -2561,14 +2305,21 @@ self_test() {
   patch_tree=$(write_repo "$work/repo-patch" '' '[patch.crates-io]\n') || self_failed "setup at line $LINENO"
   features_tree=$(write_repo "$work/repo-features" '' '' '[features]\nnet = []\n') || self_failed "setup at line $LINENO"
   link_tree=$(odd_repo "$work/repo-link" link) || self_failed "setup at line $LINENO"
-  non_ascii_tree=$(non_ascii_repo "$work/repo-non-ascii") || self_failed "setup at line $LINENO"
   gitlink_tree=$(odd_repo "$work/repo-gitlink" gitlink) || self_failed "setup at line $LINENO"
-  awk '/^run_list\(\) \{/ { skip = 1 } skip && /^EOF$/ { skip = 0 } skip && /^[a-z-]+ / { next } { print }' "$self" \
+  leave_tree=$(write_repo "$work/repo-leave" '') || self_failed "setup at line $LINENO"
+  take_tree=$(write_repo "$work/repo-take" '') || self_failed "setup at line $LINENO"
+  print_leave_tree=$(write_repo "$work/repo-print-leave" '') || self_failed "setup at line $LINENO"
+  print_filter_tree=$(write_repo "$work/repo-print-filter" '') || self_failed "setup at line $LINENO"
+  leave_derive_tree=$(write_repo "$work/repo-leave-derive" '') || self_failed "setup at line $LINENO"
+  leave_control_tree=$(write_repo "$work/repo-leave-control" '') || self_failed "setup at line $LINENO"
+  leave_last_tree=$(write_repo "$work/repo-leave-last" '') || self_failed "setup at line $LINENO"
+  for dir in repo-leave repo-take; do
+    printf 'x\n' >"$work/$dir/untracked-before.txt" || self_failed "setup at line $LINENO"
+  done
+  awk '/^run_list\(\) \{/ { skip = 1 } skip && /^EOF$/ { skip = 0 } skip && /^[a-z-]+( |$)/ { next } { print }' "$self" \
     >"$work/norun.sh" || self_failed "setup at line $LINENO"
   awk '/^spend-sim --seed 1$/ { print "spend-sim"; next } { print }' "$self" >"$work/bare.sh" || self_failed "setup at line $LINENO"
-  awk '{ print } $0 == "  [ -n \"$word\" ] || continue" { print "  [ \"$word\" != quoteword ] || continue" }' "$self" >"$work/skip-word.sh" ||
-    self_failed "setup at line $LINENO"
-  awk '{ print } /^import its inputs/ { print "probe a second entry of the same name" }' "$self" >"$work/twice.sh" ||
+  awk '{ print } /^cannot_list\(\) \{$/ { getline; print; print "probe a second entry of the same name" }' "$self" >"$work/twice.sh" ||
     self_failed "setup at line $LINENO"
   cfg_tree=$(write_repo "$work/repo-cfg" '' '' '' crates/halvo-route-gate/src/net.rs \
     '#[cfg(target_os = "linux")]') || self_failed "setup at line $LINENO"
@@ -2688,7 +2439,13 @@ cause env-refused-then-a-stale-build
 signal-trap signal-stops-the-listeners
 windows-job pass
 windows-imports import-listing-printed
-windows-asking-line asking-not-run-in-the-windows-job
+printing-names printed-command-on-neither-list
+printing-every-line printed-name-that-the-list-rule-skips
+printing-entries entry-that-is-no-command
+printing-exit printing-that-does-not-exit-0
+printing-wrapped printing-leaves-a-file-in-the-checkout
+printing-state-first printing-rewrites-a-file-behind-a-clean-filter
+tree-new-path import-leaves-a-file-in-the-checkout
 checks-count job-with-no-run
 windows-sentence sentence-on-a-hosted-runner
 forbid-exit-status forbid-exit-without-a-finding
@@ -2765,16 +2522,15 @@ EOF
     fi
   fi
 
-  case_run pass PASS - "egress checks=6 denied=0 entries=0${nl}denied=0 proves that no process"
+  case_run pass PASS - "egress checks=8 denied=0 entries=0${nl}denied=0 proves that no process"
   part_seconds
   case_run import-listing-printed PASS - 'egress imports binary=dev reader=' 
   case_run sentence PASS - "while the command ran on $p; not verified: path-1-$p, path-2-$p, and what a process did after the command ended.${nl}A connection that the mode stops"
   case_actions=true
   case_run sentence-on-a-hosted-runner PASS - "while the command ran on $hosted; not verified: path-1-$hosted, path-2-$hosted, and what"
-  case_run commands PASS - 'egress commands=7 asked=25 run=6 cannot=1 crates=3'
+  case_run commands PASS - 'egress commands=8 run=8 cannot=0 crates=3'
   case_run third-party PASS - 'egress limit third-party crates=6 names=itoa,memchr,serde,serde_core,serde_json,zmij'
   case_run forbid-clean PASS - 'egress forbid profile=dev findings=0 exit=0'
-  case_run asking-wrapped PASS - 'egress asking denied=0 probes=2 tries=1 command=0 exit=1'
   case_run control-denied PASS - 'egress control denied=1 log=target/egress/'
   STUB_CONTROL=through
   case_run control-let-through FAIL check 'egress control: the egress check let the control through'
@@ -2786,47 +2542,47 @@ EOF
   case_run log-of-another-run FAIL check 'log=not-new-or-not-its-own'
   STUB_CHECK=short-log
   case_run log-with-another-count FAIL check 'log=not-new-or-not-its-own'
-  STUB_REACH=$work/reach.log
-  case_run asking-reaches-the-network-when-asked-bare FAIL denied 'egress asking denied=1 probes=2 tries=1 command=0 exit=1'
-  STUB_HANG=$work/hang.pid
-  case_env=R6_EGRESS_ASKING_SECONDS=2
-  case_run asking-hangs-past-its-deadline FAIL check 'egress asking timeout=2 word=hangword'
-  if [ "$host_job" = macos ] && case_wanted asking-hangs-past-its-deadline; then
-    hung=
-    [ ! -s "$work/hang.pid" ] || read -r hung <"$work/hang.pid"
-    if [ -z "$hung" ]; then
-      printf 'case %s/asking-hangs-past-its-deadline want=PASS got=no-hung-child\n' "$name"
-      wrong="$wrong hung-child"
-    elif kill -0 "$hung" 2>/dev/null; then
-      printf 'case %s/asking-hangs-past-its-deadline want=PASS got=hung-child-alive\n' "$name"
-      wrong="$wrong hung-child"
-      kill "$hung" 2>/dev/null
-    fi
-  fi
-  case_env=R6_EGRESS_ASKING_SECONDS=241
-  case_run asking-deadline-above-240 FAIL usage 'FAIL'
-  case_env=R6_EGRESS_ASKING_SECONDS=240
-  case_run asking-deadline-of-240 PASS - 'egress asking denied=0'
-  STUB_ERASER=erase
-  case_run found-command-that-erases-its-record FAIL check 'egress on-neither-list=eraser'
-  STUB_ERASER=killer
-  case_run asked-command-that-kills-the-asker FAIL check 'egress asking asked=- of 25 words'
-  STUB_FORGER=25
-  case_run found-command-that-forges-the-record FAIL check 'egress on-neither-list=forger'
-  case_self=$work/skip-word.sh
-  case_run asker-that-skips-a-word FAIL check 'egress asking asked=24 of 25 words'
-  STUB_CHECK=extra-probe
-  case_run third-report-at-the-probe-is-a-denial FAIL denied 'egress asking denied=1 probes=2 tries=1'
-  STUB_CHECK=drop-probe
-  case_run egress-check-that-drops-a-probe-report FAIL check "egress asking: the asking's report was lost in 4 tries"
-  STUB_PROBE=lost
-  case_run asking-report-lost-four-times FAIL check "egress asking: the asking's report was lost in 4 tries"
-  STUB_PROBE=lost-once
-  case_run asking-report-lost-once-and-asked-again PASS - 'egress asking denied=0 probes=2 tries=2 command=0 exit=1'
-  STUB_CHECK=asking-status3
-  case_run asking-status-read FAIL check 'egress asking denied=0 probes=2 tries=1 command=3 exit=1'
-  case_job=windows
-  case_run asking-not-run-in-the-windows-job PASS - 'egress asking=not-run (in the windows job'
+  STUB_HELD_PORT=47202
+  case_job=macos
+  case_run port-47202-held-by-another-process PASS - 'egress checks=8 denied=0 entries=0' 'egress asking'
+  STUB_COMMANDS="$STUB_COMMANDS export"
+  case_run printed-command-on-neither-list FAIL check 'egress on-neither-list=export'
+  STUB_PRINT_HIDDEN=1
+  case_run printed-name-that-the-list-rule-skips FAIL check "egress on-neither-list=--found--${nl}egress on-neither-list= (an empty name, printed line 10)${nl}egress commands=10 is not run=8 plus cannot=0"
+  STUB_PRINT_EXIT=2
+  case_run printing-that-does-not-exit-0 FAIL check 'egress printing exit=2 (route-gate commands printed no names)' 'egress run='
+  case_repo=$work/repo-print-leave
+  case_tree=$print_leave_tree
+  STUB_LEAVE=commands
+  case_run printing-leaves-a-file-in-the-checkout FAIL check 'egress printing: a wrapped run left a new path: left-behind.txt'
+  case_repo=$work/repo-print-filter
+  case_tree=$print_filter_tree
+  STUB_PRINT_FILTER=1
+  case_run printing-rewrites-a-file-behind-a-clean-filter FAIL check "tree changed=after M docs/r2/trials/egress.md${nl}egress printing: a wrapped run changed git's configuration"
+  case_repo=$work/repo-leave
+  case_tree=$leave_tree
+  STUB_LEAVE=import
+  case_run import-leaves-a-file-in-the-checkout FAIL check 'egress run=import: a wrapped run left a new path: left-behind.txt'
+  case_repo=$work/repo-leave
+  case_tree=$leave_tree
+  case_run untracked-path-before-the-run PASS - 'egress checks=8 denied=0 entries=0' 'a wrapped run left a new path'
+  case_repo=$work/repo-take
+  case_tree=$take_tree
+  STUB_TAKE=import
+  case_run import-takes-away-an-untracked-path FAIL check 'egress run=import: a wrapped run took away a path: untracked-before.txt'
+  case_repo=$work/repo-leave-derive
+  case_tree=$leave_derive_tree
+  STUB_LEAVE=derive
+  case_run derive-leaves-a-file-in-the-checkout FAIL check 'egress run=derive: a wrapped run left a new path: left-behind.txt'
+  case_repo=$work/repo-leave-control
+  case_tree=$leave_control_tree
+  STUB_CONTROL_LEAVE=1
+  case_run control-leaves-a-file-in-the-checkout FAIL check 'egress control: a wrapped run left a new path: left-behind.txt'
+  case_repo=$work/repo-leave-last
+  case_tree=$leave_last_tree
+  STUB_LEAVE=commands
+  STUB_LEAVE_AT=2
+  case_run last-entry-leaves-a-file-in-the-checkout FAIL check 'egress run=commands: a wrapped run left a new path: left-behind.txt'
   case_run graph-closed PASS - 'egress graph paths=3 linked=6 build=5 holds=yes'
   case_run rules-allowed-forms PASS - 'egress rules files='
   case_env="$v_flags=-Dwarnings"
@@ -2954,10 +2710,11 @@ EOF
   STUB_CANARY_DROP=m22
   case_run canary-requires-a-windows-entry-in-the-windows-job FAIL check 'egress canary profile=dev missing=clippy::disallowed_methods:51'
   case_job=windows
-  case_run windows-job-runs-every-command PASS - 'egress checks=6 denied=0 entries=0'
+  case_run windows-job-runs-every-command PASS - 'egress checks=8 denied=0 entries=0'
   case_job=windows
   case_self=$work/norun.sh
-  case_run job-with-no-run FAIL check 'egress checks=0: no command of the first list ran'
+  STUB_COMMANDS=
+  case_run job-with-no-run FAIL check 'egress checks=0: no command of the first list ran' 'egress no-command=' 'egress on-neither-list='
   case_job=windows
   case_run forbid-list-of-the-windows-job PASS - 'egress forbid profile=dev findings=0 exit=0'
   STUB_CLIPPY_JSON=$work/clippy-finding.json
@@ -2979,25 +2736,7 @@ EOF
   case_run forbid-list-entry-refers-to-nothing FAIL check 'egress forbid list-entry=refers-to-nothing'
   case_repo=$work/repo-entry
   case_tree=$entry_tree
-  case_run list-file-with-one-entry FAIL entries 'egress checks=6 denied=0 entries=1'
-  STUB_COMMANDS="$STUB_COMMANDS fetch"
-  case_run command-on-neither-list FAIL check 'egress on-neither-list=fetch'
-  STUB_COMMANDS="$STUB_COMMANDS post_route"
-  case_run command-with-an-underscore FAIL check 'egress on-neither-list=post_route'
-  STUB_BARE=push
-  case_run command-alone-without-arguments FAIL check 'egress on-neither-list=push'
-  STUB_COMMANDS="$STUB_COMMANDS nulword"
-  case_run command-in-a-file-with-a-nul-byte FAIL check 'egress on-neither-list=nulword'
-  STUB_COMMANDS="$STUB_COMMANDS adjword"
-  case_run command-behind-adjacent-literals FAIL check 'egress on-neither-list=adjword'
-  STUB_COMMANDS="$STUB_COMMANDS plainword"
-  case_repo=$work/repo-non-ascii
-  case_tree=$non_ascii_tree
-  case_run command-in-a-non-rs-file-with-a-non-ascii-name FAIL check 'egress on-neither-list=plainword'
-  STUB_COMMANDS="$STUB_COMMANDS quoteword"
-  case_run command-after-a-quote-character FAIL check 'egress on-neither-list=quoteword'
-  STUB_ARGONLY=1
-  case_run command-only-with-an-argument FAIL check 'egress on-neither-list=argword'
+  case_run list-file-with-one-entry FAIL entries 'egress checks=8 denied=0 entries=1'
   case_self=$work/bare.sh
   case_run entry-with-no-arguments PASS - 'egress run=spend-sim mode=sandbox command=0 denied=0 exit=0'
   case_self=$work/twice.sh
@@ -3008,40 +2747,28 @@ EOF
   case_run line-of-another-list FAIL check 'egress run=probe line=missing'
   case_repo=$work/repo-link
   case_tree=$link_tree
-  case_run list-directory-holds-a-link FAIL entries 'egress checks=6 denied=0 entries=1'
+  case_run list-directory-holds-a-link FAIL entries 'egress checks=8 denied=0 entries=1'
   case_repo=$work/repo-gitlink
   case_tree=$gitlink_tree
-  case_run list-directory-holds-a-submodule FAIL entries 'egress checks=6 denied=0 entries=1'
+  case_run list-directory-holds-a-submodule FAIL entries 'egress checks=8 denied=0 entries=1'
   STUB_CANARY=refer
   case_run canary-list-entry-refers-to-nothing FAIL check 'egress canary: the forbid run let the canary through'
   STUB_CHECK=reuse-log-run
   case_run log-of-another-run-of-the-gate-tool FAIL check 'egress run=generate log=not-new-or-not-its-own'
   STUB_CHECK=rewrite-record
-  case_run run-rewrites-the-record-of-found-commands PASS - 'egress checks=6 denied=0 entries=0'
+  case_run run-rewrites-the-record-of-found-commands PASS - 'egress checks=8 denied=0 entries=0'
   STUB_CHECK=cut-run-list
-  case_run run-cuts-the-run-list PASS - 'egress checks=6 denied=0 entries=0'
+  case_run run-cuts-the-run-list PASS - 'egress checks=8 denied=0 entries=0'
   STUB_CHECK=widen
   case_run run-widens-the-list-and-a-later-run-restores-it FAIL check 'egress run=generate: a wrapped run changed the list'
   STUB_CHECK=change-copy
   case_run run-changes-its-copy-of-the-list FAIL check 'egress run=generate: a wrapped run changed the list'
   STUB_CHECK=reuse-previous
   case_run log-of-the-run-before FAIL check 'egress run=generate log=not-new-or-not-its-own'
-  STUB_CHECK=reuse-log-asking
-  case_run log-of-another-asking FAIL check 'egress asking log=not-new-or-not-its-own'
-  STUB_ODD=stdoutword:stdout
-  case_run answer-on-standard-output FAIL check 'egress on-neither-list=stdoutword'
-  STUB_ODD=exitword:exit3
-  case_run answer-with-exit-3 FAIL check 'egress on-neither-list=exitword'
-  STUB_ODD=textword:text
-  case_run answer-with-other-words FAIL check 'egress on-neither-list=textword'
-  STUB_COMMANDS='generate import derive score self-test spend-sim'
+  STUB_COMMANDS='generate import derive score self-test spend-sim commands'
   case_run entry-that-is-no-command FAIL check 'egress no-command=probe'
-  STUB_COMMANDS='testonly generate import derive score self-test spend-sim probe'
-  case_run word-of-tests-not-asked PASS - 'egress commands=7 asked=25'
   STUB_CHECK=denied
-  all_denied=6
-  [ "$host_job" != macos ] || all_denied=7
-  case_run denied-in-each-run FAIL denied "egress checks=6 denied=$all_denied entries=0" 'denied=0 proves'
+  case_run denied-in-each-run FAIL denied 'egress checks=8 denied=9 entries=0' 'denied=0 proves'
   STUB_CHECK=denied0
   case_run check-exits-0-with-a-denial FAIL check 'egress run=probe mode=sandbox command=0 denied=1 exit=0'
   STUB_CHECK=denied
@@ -3088,7 +2815,7 @@ EOF
   fi
   STUB_CHECK=replace-list
   STUB_MARKER=$work/marker-replace
-  case_run run-plants-a-replace-ref-for-the-list PASS - 'egress checks=6 denied=0 entries=0'
+  case_run run-plants-a-replace-ref-for-the-list PASS - 'egress checks=8 denied=0 entries=0'
   marker_absent run-plants-a-replace-ref-for-the-list "$work/marker-replace.widened"
   listed=$(git -C "$work/repo" rev-parse "$good_tree:scripts/r6/egress/gate.txt") || self_failed "setup at line $LINENO"
   git -C "$work/repo" replace -d "$listed" >/dev/null 2>&1
@@ -3137,10 +2864,10 @@ EOF
   if [ "$host_job" = macos ] && case_wanted skipped-names-differ-from-the-macos-list; then
     awk '{ print } /^macos_cases\(\) \{/ { getline; print; print "macos-case-with-no-run" }' \
       "$self" >"$work/extra-macos.sh" || self_failed "setup at line $LINENO"
-    R6_EGRESS_SELFTEST_HOST=windows R6_EGRESS_CASES='macos-case-with-no-run asking-wrapped' \
+    R6_EGRESS_SELFTEST_HOST=windows R6_EGRESS_CASES='macos-case-with-no-run commands' \
       sh "$work/extra-macos.sh" --self-test >"$work/extra-macos.txt" 2>&1 </dev/null
     code=$?
-    if [ "$code" = 1 ] && grep -q -F -e 'asking-wrapped not-run:' "$work/extra-macos.txt" &&
+    if [ "$code" = 1 ] && grep -q -F -e 'commands not-run:' "$work/extra-macos.txt" &&
       grep -q -F -e 'macos-case-with-no-run want=PASS got=on-the-macos-list-and-neither-run-nor-skipped' "$work/extra-macos.txt"; then
       printf 'case %s/skipped-names-differ-from-the-macos-list want=FAIL got=FAIL\n' "$name"
       rejected=$((rejected + 1))
@@ -3197,7 +2924,15 @@ help_sentences() {
     'what the system does with a path that it opens over a network' \
     'what a process did after the command ended, in the egress check' \
     'the egress check'"'"'s writes under target/egress/' \
-    'the asking asks each one-word string literal with no space, quote or backslash of the tracked files of the crates that route-gate links, outside tests/, benches/ and examples/; a command that it does not find, by any form, runs under no egress check, and the forbid run alone holds it, in code of the three crates' \
+    'the forbid list and its canary come from one table of this script: a commit that changes 60-r6-egress.sh can take an entry out of the list and its canary line together, and only the readers of that guarded script see it' \
+    'the check takes the commands from the binary'"'"'s own printing and tries no other word on the built binary; what holds the printing to the dispatch is one test of the crate, the_printing_names_exactly_the_commands_that_the_dispatch_runs, which calls dispatch in-process; a commit whose main or whose handler runs a word outside the table passes the check, a diff shows it, and the landing'"'"'s readers hold it' \
+    'prints the names of its commands from the one table that dispatches them, one per line in the table'"'"'s order, so that a name that it does not print is a command that route-gate does not dispatch' \
+    'and the second list has no entry; the count line prints cannot=0' \
+    'the check runs the built route-gate under the egress check as "route-gate commands", a wrapped call like every other' \
+    'The printing: after the control, in the macos job and in the windows job, the check runs' \
+    'printing that does not exit 0 fails the check by' \
+    'A printed command on neither list fails the check, and so does a list entry that the printing does not name' \
+    'A file written under target/, or inside a directory that held no tracked file before the first call, is not seen there' \
     'the control holds against an egress check that wraps nothing; an egress check changed in the same commit can pass it, and scripts/egress/ is held by its own run'"'"'s checks and by the landing'"'"'s readers'; do
     if ! grep -q -i -F -e "$sentence" "$work/help-line.txt"; then
       printf 'case %s/help want=PASS got=without-a-sentence\n' "$name"
