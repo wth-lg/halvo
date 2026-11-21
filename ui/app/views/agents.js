@@ -285,7 +285,7 @@
       var read = button('read_card', row.agent, c.unread.again);
       read.addEventListener('click', function (event) {
         if (event.detail > 1 || !pressedOn(read, event) || busy[row.agent]) return;
-        ask(row, 'read_card');
+        askCard(row, 'read_card');
       });
       box.appendChild(read);
       var told = beside(read, row);
