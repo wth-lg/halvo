@@ -1869,7 +1869,7 @@ where
             .held
             .iter()
             .find(|h| h.item() == item)
-            .is_some_and(|h| self.withdrawn(&st, h))
+            .is_some_and(|h| self.withdrawn(&st, h.item()))
         {
             return Err(Cause::NoService);
         }
@@ -1886,10 +1886,11 @@ where
     }
 
     /// The answer of the native dialog of a confirmation (I4.5), whose item keeps its one step.
-    /// While the board holds the record of the item's agent stuck, a press of either control
-    /// answers `no_service` and is not taken: nothing of it is armed, stored or sent to the run,
-    /// and the item stays held with its own time, which `present` offers again once the record
-    /// can be saved (ruling RD-147 (5)(ii)).
+    /// While the board holds stuck the record of the agent whose row shows the item, the agent of
+    /// the run that raised it, a press of either control answers `no_service` and is not taken:
+    /// nothing of it is armed, stored or sent to the run, and the item stays held with its own
+    /// time, which `present` offers again once the record can be saved (rulings RD-147 (5)(ii),
+    /// RD-164).
     pub fn answer_native(&self, item: &ItemId, answer: ConfirmAnswer) -> Result<(), Cause> {
         let choice = match answer {
             ConfirmAnswer::Allow => Choice::Allow,
@@ -1904,7 +1905,7 @@ where
             .held
             .iter()
             .find(|h| h.item() == item)
-            .is_some_and(|h| self.withdrawn(&st, h))
+            .is_some_and(|h| self.withdrawn(&st, h.item()))
         {
             return Err(Cause::NoService);
         }
@@ -2182,8 +2183,9 @@ where
     }
 
     /// `agents_present` (I8.1): a confirmation whose presenter is native; `presenter` for the
-    /// page's; `no_service` for a native one while the board holds the record of its agent
-    /// stuck, so that nobody is asked to allow what Halvo cannot save (ruling RD-147 (5)(ii)).
+    /// page's; `no_service` for a native one while the board holds stuck the record of the agent
+    /// whose row shows it, the agent of the run that raised it, so that nobody is asked to allow
+    /// what Halvo cannot save (rulings RD-147 (5)(ii), RD-164).
     pub fn present(&self, item: &ItemId) -> Result<(), Cause> {
         let st = self.lock();
         let h = st
@@ -2192,7 +2194,7 @@ where
             .find(|h| h.item() == item)
             .ok_or(Cause::UnknownItem)?;
         match h.confirmation().presenter() {
-            Presenter::Native if self.withdrawn(&st, h) => Err(Cause::NoService),
+            Presenter::Native if self.withdrawn(&st, item) => Err(Cause::NoService),
             Presenter::Native => Ok(()),
             Presenter::Page => Err(Cause::Presenter),
         }
@@ -2202,8 +2204,9 @@ where
     /// RD-77 12.1): `items::native_card` of the confirmation that the coordinator holds for that
     /// id, read under the lock; it calls no port and stores nothing. `unknown_item` for an id that
     /// is no held confirmation, an item of another kind and no item among them, the causes of
-    /// `items::native_card` otherwise, and then `no_service` while the board holds the record of
-    /// the item's agent stuck (ruling RD-147 (5)(ii)).
+    /// `items::native_card` otherwise, and then `no_service` while the board holds stuck the
+    /// record of the agent whose row shows the item, the agent of the run that raised it (rulings
+    /// RD-147 (5)(ii), RD-164).
     pub fn native_card(&self, item: &ItemId) -> Result<NativeCard, Cause> {
         let st = self.lock();
         let h = st
@@ -2212,16 +2215,19 @@ where
             .find(|h| h.item() == item)
             .ok_or(Cause::UnknownItem)?;
         let card = native_card(h)?;
-        if self.withdrawn(&st, h) {
+        if self.withdrawn(&st, item) {
             return Err(Cause::NoService);
         }
         Ok(card)
     }
 
-    fn withdrawn(&self, st: &State<Cfg<P>>, h: &Held) -> bool {
-        st.board
-            .as_ref()
-            .is_some_and(|b| b.record_stuck(h.ask().agent(), &self.limits))
+    fn withdrawn(&self, st: &State<Cfg<P>>, item: &ItemId) -> bool {
+        st.board.as_ref().is_some_and(|b| {
+            b.members.iter().any(|m| {
+                matches!(&m.facts.doing, Doing::Live(Live::Waiting(open)) if &open.item == item)
+                    && b.record_stuck(&m.facts.agent, &self.limits)
+            })
+        })
     }
 
     /// The page's report that it opened the page confirmation `item` at the step mark `step`
