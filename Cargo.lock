@@ -1609,6 +1609,7 @@ dependencies = [
  "getrandom 0.2.17",
  "halvo-capture",
  "halvo-control",
+ "halvo-redact",
  "halvo-sqlcipher",
  "libc",
  "objc2",

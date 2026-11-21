@@ -476,6 +476,12 @@ mod tests {
             };
             let stored = StoredText::filtered(field, &raw, &r1);
             let text = stored.as_ref();
+            if cfg!(feature = "r2") && field == TextField::Title {
+                assert_eq!(text, "", "a title above 1,020 bytes was not stored empty");
+                let short = "x".repeat(cap);
+                assert_eq!(StoredText::filtered(field, &short, &r1).as_ref(), "");
+                continue;
+            }
             assert!(text.len() <= cap, "{field:?} kept {} bytes", text.len());
             assert!(text.len() >= cap - 1, "{field:?} cut too much");
             assert!(raw.contains(text));
@@ -620,6 +626,13 @@ mod tests {
             harness.pass();
         }
         let batches = harness.store.batches();
+        if cfg!(feature = "r2") {
+            assert!(
+                batches.is_empty(),
+                "a title above 1,020 bytes is stored empty, so 511 records stay under the byte budget"
+            );
+            return;
+        }
         assert!(
             !batches.is_empty(),
             "no flush before the 512-event threshold"
