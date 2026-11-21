@@ -11,3 +11,5 @@
 .hc-controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .hc-button{-webkit-appearance:none;appearance:none;min-width:44px;min-height:44px;padding:8px;border-width:2px;border-style:solid;border-color:#1a1a1a;border-radius:4px;background-color:#f2f2f2;color:#1a1a1a;font:inherit;overflow-wrap:anywhere}
 .hc-button:focus{outline-width:3px;outline-style:solid;outline-color:#0b57d0;outline-offset:2px}
+@keyframes hc-hold{from,to{border-style:dashed;background-color:#ffffff;color:#595959}}
+.hc-hold{animation-name:hc-hold;animation-duration:500ms;animation-iteration-count:1}

@@ -1,0 +1,2 @@
+- Added: Report each show of a page confirmation to the core by agents_shown, and hold its two controls against a pointer press that begins within arm_ms of each show, by one CSS animation that also draws their held look and whose running state is read for each pointer at its press
+- Changed: Keep an open page confirmation, with its focus and its hold, when a new state changes only its key armed

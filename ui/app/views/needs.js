@@ -318,8 +318,14 @@
     return began === b.getAttribute('data-act') + ':' + b.getAttribute('data-param');
   }
 
+  function asHeld(item) {
+    return JSON.stringify(item, function (key, value) {
+      return this === item && key === 'armed' ? undefined : value;
+    });
+  }
+
   function build(item, key) {
-    const card = { id: item.item, key: key, json: JSON.stringify(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
+    const card = { id: item.item, step: item.step, key: key, json: asHeld(item), li: el('li', 'hn-item', ''), dialog: null, handle: null, answers: [], gone: false, busy: false };
     const page = isPage(item);
     const box = page ? el('dialog', 'hn-dialog', '') : card.li;
     if (item.title) {
@@ -334,6 +340,7 @@
     box.appendChild(about);
     addParams(box, item, card.answers);
     const controls = el('div', 'hn-controls', '');
+    const buttons = [];
     item.choices.forEach(function (c) {
       const b = el('button', 'hn-button', c.text);
       b.type = 'button';
@@ -346,6 +353,7 @@
         answer(item, c, card, event);
       });
       controls.appendChild(b);
+      buttons.push(b);
     });
     box.appendChild(controls);
     if (page) {
@@ -353,6 +361,7 @@
       card.handle.again = function () {
         modal(card);
       };
+      card.handle.hold = buttons;
       card.dialog = box;
       card.li.appendChild(box);
     }
@@ -362,7 +371,11 @@
   function modal(card) {
     opened.add(card.id);
     empty();
-    Halvo.confirm.show(card.handle);
+    if (Halvo.confirm.show(card.handle)) report(card);
+  }
+
+  function report(card) {
+    if (shown) call('agents_shown', { item: card.id, step: card.step });
   }
 
   function drop(key) {
@@ -403,7 +416,7 @@
     });
     const now = new Map();
     items.forEach(function (item, i) {
-      now.set(keys[i], JSON.stringify(item));
+      now.set(keys[i], asHeld(item));
     });
     Array.from(cards.keys()).forEach(function (key) {
       if (now.get(key) !== cards.get(key).json) drop(key);
@@ -578,6 +591,9 @@
     show: function () {
       if (shown) return;
       shown = true;
+      cards.forEach(function (card) {
+        if (card.dialog && card.dialog.open) report(card);
+      });
       if (!region) {
         say = Halvo.confirm.region('hn-say');
         region = say.element;
