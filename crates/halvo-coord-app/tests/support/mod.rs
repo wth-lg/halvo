@@ -41,12 +41,27 @@ pub struct Shared {
     hook_at_clock: AtomicBool,
     hook_clock_go: AtomicBool,
     cancels: AtomicUsize,
+    start_gate: Mutex<Option<StartGate>>,
+    start_at_gate: AtomicBool,
+    start_gate_go: AtomicBool,
     recorder: Recorder,
 }
 
 /// The name of a thread on which a test calls `Core::quit`, which `Shared::gate_the_hooks_clock_read`
 /// reads.
 pub const QUIT_HOOK_THREAD: &str = "quit-hook";
+
+/// The port call of a start at which `Shared::hold_the_next_start_at` holds it, behind the
+/// start's first reading of the quit's mark.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartGate {
+    /// The store of the events that hold `run_started` (`Owner::log`).
+    StoreOfRunStarted,
+    /// The send of the body `start_run` (`Owner::send`).
+    SendOfStartRun,
+    /// `Runs::start`, before the memory ports record it.
+    RunsStart,
+}
 
 /// How long the recorder holds a kill before it answers `no_service`.
 #[derive(Clone, Copy, Debug)]
@@ -136,6 +151,11 @@ impl Shared {
         self.clock_fails_at_cancel.store(true, Ordering::SeqCst);
     }
 
+    /// From now on, `Clock::now` and `Clock::day` fail with `no_service`.
+    pub fn fail_the_clock_now(&self) {
+        self.clock_failing.store(true, Ordering::SeqCst);
+    }
+
     /// At the next `Runs::cancel` the clock is set back to `to`, once.
     pub fn step_clock_at_cancel(&self, to: u64) {
         *self
@@ -221,6 +241,45 @@ impl Shared {
     /// The kills that the recorder holds now.
     pub fn kills_holding(&self) -> usize {
         self.recorder.holding.load(Ordering::SeqCst)
+    }
+
+    /// The next call at `gate` says so (`start_at_its_gate`) and waits, before it takes the turn,
+    /// until `let_the_start_go`; one call holds, and the later ones answer at once.
+    pub fn hold_the_next_start_at(&self, gate: StartGate) {
+        *self
+            .start_gate
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(gate);
+    }
+
+    /// Whether a call waits at the gate of `hold_the_next_start_at`, read with no turn.
+    pub fn start_at_its_gate(&self) -> bool {
+        self.start_at_gate.load(Ordering::SeqCst)
+    }
+
+    /// Lets the call that waits at the gate go on.
+    pub fn let_the_start_go(&self) {
+        self.start_gate_go.store(true, Ordering::SeqCst);
+    }
+
+    fn start_gate(&self, here: StartGate) {
+        let held = {
+            let mut gate = self
+                .start_gate
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let held = *gate == Some(here);
+            if held {
+                *gate = None;
+            }
+            held
+        };
+        if held {
+            self.start_at_gate.store(true, Ordering::SeqCst);
+            while !self.start_gate_go.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        }
     }
 }
 
@@ -321,6 +380,9 @@ pub fn world_ending(ends: &[RunEnd], limits: Limits) -> Shared {
         hook_at_clock: AtomicBool::new(false),
         hook_clock_go: AtomicBool::new(false),
         cancels: AtomicUsize::new(0),
+        start_gate: Mutex::new(None),
+        start_at_gate: AtomicBool::new(false),
+        start_gate_go: AtomicBool::new(false),
         recorder: Recorder::default(),
     }
 }
@@ -522,6 +584,12 @@ impl Owner for Shared {
     type Config = Config;
 
     fn log(&self, events: &[Event]) -> Result<(), PortError> {
+        if events
+            .iter()
+            .any(|e| matches!(e.what, What::RunStarted { .. }))
+        {
+            self.start_gate(StartGate::StoreOfRunStarted);
+        }
         let _turn = self.enter();
         self.ports.log(events)
     }
@@ -542,6 +610,9 @@ impl Owner for Shared {
     }
 
     fn send(&self, body: &Body) -> Result<Reply, PortError> {
+        if matches!(body, Body::StartRun { .. }) {
+            self.start_gate(StartGate::SendOfStartRun);
+        }
         let _turn = self.enter();
         self.ports.send(body)
     }
@@ -569,6 +640,7 @@ impl Owner for Shared {
 
 impl Runs for Shared {
     fn start(&self, spec: &RunSpec) -> Result<(), PortError> {
+        self.start_gate(StartGate::RunsStart);
         let _turn = self.enter();
         self.ports.start(spec)
     }
