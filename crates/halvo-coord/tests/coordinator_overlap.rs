@@ -960,7 +960,11 @@ fn u313_a_set_up_refused_with_overlap_says_why_in_the_form_that_its_read_gives()
         "item.setup.overlap",
         &[("name", &name), ("senders", &senders)],
     );
-    assert_eq!(line(&c, &item), [named.clone()], "the read names one agent");
+    assert_eq!(
+        line(&c, &item),
+        std::slice::from_ref(&named),
+        "the read names one agent"
+    );
     let named = named.unwrap();
     assert!(
         named.contains(&name) && named.contains(ANN) && named.contains(BOB),
@@ -984,6 +988,10 @@ fn u313_a_set_up_refused_with_overlap_says_why_in_the_form_that_its_read_gives()
     answer(&c, &item, ANN).unwrap();
     let name = name_of(&c, &other(0));
     let unread = say("item.setup.overlap_unread", &[]);
-    assert_eq!(line(&c, &item), [unread.clone()], "the read did not answer");
+    assert_eq!(
+        line(&c, &item),
+        std::slice::from_ref(&unread),
+        "the read did not answer"
+    );
     assert!(!unread.unwrap().contains(&name), "it names nobody");
 }
