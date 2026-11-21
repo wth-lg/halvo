@@ -41,6 +41,7 @@ pub const AGENTS: Names = Names {
         "agents_present",
         "agents_control",
         "agents_shown",
+        "agents_delete",
     ],
     reads: &[],
 };

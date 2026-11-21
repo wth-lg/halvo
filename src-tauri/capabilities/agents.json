@@ -12,6 +12,7 @@
     "allow-agents-setup-typed",
     "allow-agents-present",
     "allow-agents-control",
-    "allow-agents-shown"
+    "allow-agents-shown",
+    "allow-agents-delete"
   ]
 }

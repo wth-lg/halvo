@@ -22,6 +22,7 @@
     "allow-agents-present",
     "allow-agents-control",
     "allow-agents-shown",
+    "allow-agents-delete",
     "core:app:allow-version"
   ]
 }
