@@ -12203,3 +12203,40 @@ fn u24t_a02_a_hold_behind_a_lost_reply_read_while_the_clock_fails_cancels_the_ru
         "(k, the row, cancels, ends): each row says what stands"
     );
 }
+
+#[test]
+fn u24t_t5_a_kept_end_whose_take_up_panics_before_the_run_leaves_is_kept_again_and_sends_no_kill() {
+    let limits = Limits {
+        max_live_runs: 2,
+        ..Limits::PRODUCT
+    };
+    let c = coordinator(&[MANUAL, MANUAL], limits);
+    let run0 = start(&c, 0);
+    let run1 = start(&c, 1);
+    c.ports().clock_fails.set(true);
+    c.ports().ports.end_runner(&run0);
+    let _ = c.on_run(&run0, RunEvent::Ended(Some(Outcome::Completed)));
+    c.ports().clock_fails.set(false);
+    let m = mark(&c);
+    c.ports().panics.set(Some("agents"));
+    let pressed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.control(&agent(1), Action::Stop)
+    }));
+    c.ports().panics.set(None);
+    let stop1 = cancels_of(&c, m, &run1);
+    c.ports()
+        .ports
+        .set_clock(T0 + 10_000 + Limits::PRODUCT.cancel_grace_s * 1000, DAY);
+    c.tick();
+    c.tick();
+    assert_eq!(
+        (
+            pressed.ok(),
+            stop1,
+            kills_of(&c, m, &run0),
+            run_ends_of(&c, &run0)
+        ),
+        (Some(Ok(())), 1, 0, vec![RunEnd::Completed]),
+        "(the other agent's Stop, its cancels, kills of the kept run, the kept run's ends): the kept end is kept again and made with the runner's outcome, with no kill"
+    );
+}
