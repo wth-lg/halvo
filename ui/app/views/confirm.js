@@ -87,7 +87,7 @@
   }
 
   function dress(box, labelledby, describedby, closed) {
-    const handle = { dialog: box, opened: 0, gone: false, closed: closed, before: null, again: null };
+    const handle = { dialog: box, opened: 0, gone: false, closed: closed, again: null };
     box.setAttribute('role', 'alertdialog');
     box.setAttribute('tabindex', '-1');
     box.autofocus = true;
@@ -112,7 +112,6 @@
 
   function show(handle) {
     if (shown !== null && shown !== handle && shown.dialog.open) return false;
-    if (handle.before === null) handle.before = document.activeElement;
     shown = handle;
     handle.opened = tick;
     handle.dialog.showModal();
@@ -212,8 +211,6 @@
     parent.appendChild(box);
     handle = dress(box, title.id, about.id, function () {
       box.remove();
-      const back = handle.before;
-      if (back && back.isConnected && !open()) back.focus();
       if (o.closed) o.closed();
     });
     show(handle);

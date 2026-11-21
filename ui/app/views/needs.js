@@ -597,7 +597,10 @@
       ['keydown', 'keyup', 'pointerdown', 'pointerup', 'pointercancel'].forEach(function (type) {
         window.addEventListener(type, input, true);
       });
-      Halvo.confirm.whenFree(openNext);
+      Halvo.confirm.whenFree(function () {
+        openNext();
+        release();
+      });
     },
     show: function () {
       if (shown) return;

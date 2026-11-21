@@ -1099,6 +1099,29 @@ if (want('ten')) {
     });
   });
 
+  await test('rule6_a_page_confirmation_that_left_while_it_waited_behind_the_question_is_not_said_and_the_needs_view_adds_again', async () => {
+    const page = json('state-needs_confirm_page.json').snapshot;
+    const stuck = json('state-needs_stuck.json').snapshot;
+    const join = (snap, seq) => ({ ...snap, seq, rows: [...ten.rows.filter((r) => !snap.rows.some((p) => p.agent === r.agent)), ...snap.rows] });
+    return withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
+      await boot(h, [NEEDS_SRC, AGENTS_SRC], ten, []);
+      await settleCalls(h);
+      await press(h, 'delete', A.agent);
+      await answerAll(h, 'agents_next', join(page, 2));
+      await settleCalls(h);
+      await answerAll(h, 'agents_next', join(stuck, 3));
+      await settleCalls(h);
+      await pressIn(h, 'reject');
+      await settleCalls(h);
+      const said = await h.page.evaluate(() => {
+        const s = document.querySelector('.hn-say');
+        return s ? [...s.children].map((p) => p.textContent) : null;
+      });
+      const want = [stuck.items[0].say_new];
+      return [same(said, want), { said, want }];
+    });
+  });
+
   await test('rg1_after_every_reply_of_agents_control_whatever_it_holds_the_view_reads_the_state_anew', async () =>
     withPage({ origin, state: 'empty', views: [CONFIRM] }, async (h) => {
       await boot(h, [AGENTS_SRC], ten, []);
