@@ -270,6 +270,15 @@ fn write_reply<S: Write>(stream: &mut S, reply: &Reply) {
 /// reports the value of halvo-control's sample status.
 pub const MAC_GUARD_BOUND_MS: u64 = 30_000;
 
+/// Whether this build records typing, as a Mac's status says it: the capture
+/// crate's one constant `TYPING_ON_MAC` on a Mac, and nothing elsewhere.
+#[cfg(target_os = "macos")]
+pub const TYPING: Option<bool> = Some(crate::macos::input::TYPING_ON_MAC);
+
+/// Whether this build records typing: no status of this system says it.
+#[cfg(not(target_os = "macos"))]
+pub const TYPING: Option<bool> = None;
+
 /// What a status reads of the life beside the supervisor: its start, whether a
 /// parent is watched, the reading of the run marker at its start and the peak
 /// of its resident memory.
@@ -381,6 +390,7 @@ pub fn status_of(parts: &StatusParts, facts: &RunFacts) -> Result<DaemonStatus, 
         late_events: figures.late_events > 0,
         max_lag_ms: figures.max_lag_ms,
         secure_input_keystrokes: Some(figures.secure_input_keystrokes > 0),
+        typing: TYPING,
         keys_withheld: figures.keys_withheld,
         title_read_errors: figures.title_read_errors,
         last_flush_at: snapshot.and_then(|snapshot| second_of(snapshot.last_flush_at)),

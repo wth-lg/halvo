@@ -1608,6 +1608,11 @@ pub struct StatusFields {
     /// stays in the debug timed run's report.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub secure_input_keystrokes: Option<bool>,
+    /// A Mac's alone: whether the build records typing, as the capture crate's one constant
+    /// `TYPING_ON_MAC` says. Optional, so that a status of a daemon that sends none still reads;
+    /// the protocol number does not move for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub typing: Option<bool>,
     /// Whether the keyboard source withheld a key, on both systems; never a count (RD-32).
     pub keys_withheld: bool,
     pub title_read_errors: u64,
@@ -1714,6 +1719,9 @@ fn check(f: &StatusFields) -> Result<(), StatusError> {
         Platform::Windows => {
             if f.secure_input_keystrokes.is_some() {
                 return fail("Windows reports no secure_input_keystrokes");
+            }
+            if f.typing.is_some() {
+                return fail("Windows reports no typing");
             }
             if !f.permissions.is_empty() {
                 return fail("Windows reports no permission");
