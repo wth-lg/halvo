@@ -72,6 +72,8 @@ impl StateDir {
     #[cfg(target_os = "macos")]
     pub fn of_folder(held: std::os::fd::BorrowedFd<'_>) -> io::Result<StateDir> {
         use std::os::fd::{AsRawFd, FromRawFd};
+        // SAFETY: `held` is a descriptor open for the call, the name is the NUL-terminated
+        // static ".", and without O_CREAT openat reads no mode argument.
         let fd = unsafe {
             libc::openat(
                 held.as_raw_fd(),
@@ -82,6 +84,8 @@ impl StateDir {
         if fd == -1 {
             return Err(io::Error::last_os_error());
         }
+        // SAFETY: `fd` is the descriptor that the openat above returned and checked, and
+        // nothing else owns it, so the OwnedFd becomes its one owner.
         Ok(StateDir {
             fd: unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) },
         })
@@ -105,6 +109,8 @@ impl StateDir {
         use std::os::fd::AsRawFd;
         use std::os::unix::ffi::OsStrExt;
         let mut buf = vec![0u8; libc::PATH_MAX as usize];
+        // SAFETY: F_GETPATH writes at most PATH_MAX bytes, which `buf` holds, and `self.fd`
+        // is a descriptor that this StateDir owns and keeps open across the call.
         if unsafe { libc::fcntl(self.fd.as_raw_fd(), libc::F_GETPATH, buf.as_mut_ptr()) } == -1 {
             return PathBuf::from(STATE_FILE);
         }
@@ -426,6 +432,8 @@ fn is_a_link(error: &io::Error) -> bool {
 fn open_without_following(dir: &StateDir) -> io::Result<std::fs::File> {
     use std::os::fd::{AsRawFd, FromRawFd};
     let name = std::ffi::CString::new(STATE_FILE)?;
+    // SAFETY: `dir.fd` is a descriptor that `dir` owns and keeps open for the call, `name` is
+    // NUL-terminated and outlives it, and without O_CREAT openat reads no mode argument.
     let fd = unsafe {
         libc::openat(
             dir.fd.as_raw_fd(),
@@ -436,6 +444,8 @@ fn open_without_following(dir: &StateDir) -> io::Result<std::fs::File> {
     if fd == -1 {
         return Err(io::Error::last_os_error());
     }
+    // SAFETY: `fd` is the descriptor that the openat above returned and checked, and nothing
+    // else owns it, so the File becomes its one owner.
     Ok(unsafe { std::fs::File::from_raw_fd(fd) })
 }
 
@@ -599,6 +609,8 @@ pub(crate) mod tests {
         let at = dir.descriptor().as_raw_fd();
         let temp = std::ffi::CString::new(temp.as_bytes())?;
         let name = std::ffi::CString::new(name.as_bytes())?;
+        // SAFETY: `at` is the descriptor that `dir` owns, open across the call; `temp` is
+        // NUL-terminated and outlives it, and O_CREAT reads the mode passed as an unsigned int.
         let fd = unsafe {
             libc::openat(
                 at,
@@ -610,7 +622,11 @@ pub(crate) mod tests {
         if fd == -1 {
             return Err(io::Error::last_os_error());
         }
+        // SAFETY: `fd` is the descriptor that the openat above returned and checked; the File
+        // becomes its one owner and closes it at the end of this statement.
         unsafe { std::fs::File::from_raw_fd(fd) }.write_all(bytes)?;
+        // SAFETY: `at` is open across the call, and `temp` and `name` are NUL-terminated
+        // strings that outlive it.
         if unsafe { libc::renameat(at, temp.as_ptr(), at, name.as_ptr()) } == -1 {
             return Err(io::Error::last_os_error());
         }
@@ -948,6 +964,7 @@ pub(crate) mod tests {
     fn fifo_at(path: &Path) {
         use std::os::unix::ffi::OsStrExt;
         let c = std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap();
+        // SAFETY: `c` is a NUL-terminated path that outlives the call.
         assert_eq!(unsafe { libc::mkfifo(c.as_ptr(), 0o600) }, 0);
     }
 

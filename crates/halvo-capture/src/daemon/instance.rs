@@ -72,6 +72,8 @@ mod macos {
         /// descriptor for the state file, so that every read and write of the
         /// state file reaches this folder wherever it is moved.
         pub fn state_dir(&self) -> io::Result<StateDir> {
+            // SAFETY: the lock owns this descriptor and keeps it open while `self` lives; the
+            // borrow is used only for the call to `of_folder` and does not outlive it.
             StateDir::of_folder(unsafe { std::os::fd::BorrowedFd::borrow_raw(self.0.as_raw_fd()) })
         }
 
