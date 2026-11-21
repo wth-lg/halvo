@@ -1,4 +1,6 @@
 name: ci
+# scratch: trimmed to one unit's checks; never merged
+# scratch: steps added by scratch-ci.py
 
 on:
   push:
@@ -34,19 +36,6 @@ jobs:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: sh scripts/ci-commit-messages.sh
-      - name: Self-tests that commit in throwaway repositories
-        if: github.event.schedule != '17 3 * * 3'
-        shell: bash
-        env:
-          GIT_AUTHOR_NAME: Halvo CI
-          GIT_AUTHOR_EMAIL: ci@halvo.invalid
-          GIT_COMMITTER_NAME: Halvo CI
-          GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: |
-          sh scripts/check-commit-messages.sh --self-test-two-paths
-          sh scripts/check-commit-messages.sh --self-test-pre-push
-          sh scripts/ci-commit-messages.sh --self-test
-          sh scripts/merge-pr.sh --self-test
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -98,7 +87,7 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh macos --self-test
+        run: sh scripts/ci/run-ci-d.sh macos --self-test 65-r6-imports 60-r6-egress 10-r6-layout
       - name: Processor
         if: github.event.schedule != '17 3 * * 3'
         shell: bash
@@ -107,7 +96,19 @@ jobs:
       - name: ci.d
         if: github.event.schedule != '17 3 * * 3'
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh macos
+        run: sh scripts/ci/run-ci-d.sh macos 10-format 11-clippy 12-test 65-r6-imports 60-r6-egress 10-r6-layout
+      - name: Loop (imports-failing-first, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( R6_IMPORTS_CASES='macos-dev-imports-one-symbol-more windows-dev-imports-one-symbol-more macos-dev-canary-through macos-release-canary-through windows-dev-canary-through windows-release-canary-through macos-empty-listing windows-empty-listing windows-reader-missing' sh scripts/r6/ci.d/65-r6-imports.sh --self-test ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop imports-failing-first: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Long forms build
         if: github.event.schedule == '17 3 * * 3'
         shell: bash
@@ -158,7 +159,7 @@ jobs:
           GIT_AUTHOR_EMAIL: ci@halvo.invalid
           GIT_COMMITTER_NAME: Halvo CI
           GIT_COMMITTER_EMAIL: ci@halvo.invalid
-        run: sh scripts/ci/run-ci-d.sh windows --self-test
+        run: sh scripts/ci/run-ci-d.sh windows --self-test 65-r6-imports 60-r6-egress 10-r6-layout
       - name: Processor
         if: github.event.schedule != '17 3 * * 3'
         shell: bash
@@ -167,7 +168,19 @@ jobs:
       - name: ci.d
         if: github.event.schedule != '17 3 * * 3'
         shell: bash
-        run: sh scripts/ci/run-ci-d.sh windows
+        run: sh scripts/ci/run-ci-d.sh windows 10-format 11-clippy 12-test 65-r6-imports 60-r6-egress 10-r6-layout
+      - name: Loop (imports-failing-first, 200 rounds)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          pass=0; n=0
+          while [ "$n" -lt 200 ]; do
+            n=$((n + 1))
+            if ( R6_IMPORTS_CASES='macos-dev-imports-one-symbol-more windows-dev-imports-one-symbol-more macos-dev-canary-through macos-release-canary-through windows-dev-canary-through windows-release-canary-through macos-empty-listing windows-empty-listing windows-reader-missing' sh scripts/r6/ci.d/65-r6-imports.sh --self-test ) >"$RUNNER_TEMP/loop-$n.log" 2>&1; then pass=$((pass + 1)); else echo "round $n failed:"; tail -n 40 "$RUNNER_TEMP/loop-$n.log"; fi
+          done
+          echo "loop imports-failing-first: passed $pass of 200"
+          [ "$pass" -eq 200 ]
       - name: Long forms build
         if: github.event.schedule == '17 3 * * 3'
         shell: bash
