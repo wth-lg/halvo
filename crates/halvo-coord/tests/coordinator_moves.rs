@@ -12151,3 +12151,55 @@ fn u24t_c07c_a_stamped_switch_off_whose_store_answers_no_service_with_nothing_st
         "(the press, cancels in the move, cancels after a tick, hold_set rows, the row)"
     );
 }
+
+#[test]
+fn u24t_a02_a_hold_behind_a_lost_reply_read_while_the_clock_fails_cancels_the_run_or_the_row_does_not_read_off(
+) {
+    let mut seen = Vec::new();
+    let mut table = Vec::new();
+    let mut wanted = Vec::new();
+    for k in 0..10u32 {
+        let c = coordinator(&[MANUAL, MANUAL], Limits::PRODUCT);
+        let run = start(&c, 0);
+        let m = mark(&c);
+        c.ports().loss.set(Some(support::Loss::Unread));
+        let first = c.control(&agent(0), Action::SwitchOff);
+        c.ports().loss.set(None);
+        let stored = person_holds(&c, 0).len();
+        c.ports().fail_reads_after.set(Some(k));
+        let _ = c.on_run(&run, ask_confirm(&run, 0));
+        clock_answers(&c);
+        for _ in 0..3 {
+            c.tick();
+        }
+        after_the_grace(&c);
+        c.tick();
+        let line = row_line(&c.snapshot(), 0);
+        let off = line == text("line.off.person");
+        let cancels = cancels_of(&c, m, &run);
+        let ends = ends_of(&c, &run);
+        assert_eq!(
+            (first, stored),
+            (Err(Cause::NoService), 1),
+            "k={k}: the press behind the lost reply is answered no_service, and the owner holds the hold"
+        );
+        if off && !(cancels == 1 && ends == vec![RunEnd::Cancelled]) {
+            seen.push((k, line.clone(), cancels, ends.clone()));
+        }
+        let read_onto_the_board = k > 0;
+        table.push((k, line, cancels, ends));
+        wanted.push(if read_onto_the_board {
+            (k, text("line.off.person"), 1, vec![RunEnd::Cancelled])
+        } else {
+            (k, text("line.working.working"), 0, vec![])
+        });
+    }
+    assert!(
+        seen.is_empty(),
+        "the row reads switched off while the run was not cancelled and ended: {seen:?}"
+    );
+    assert_eq!(
+        table, wanted,
+        "(k, the row, cancels, ends): each row says what stands"
+    );
+}

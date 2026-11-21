@@ -1591,7 +1591,6 @@ where
     }
 
     fn switch_off(&self, st: &mut State<Cfg<P>>, i: usize, mv: Move) -> Result<(), Cause> {
-        let person = matches!(mv, Move::SwitchOff { .. });
         let State {
             board,
             table,
@@ -1622,14 +1621,16 @@ where
         };
         let report = schedule::drive_with(&self.ports, board, &self.limits, mv, Some(&mut halt));
         self.noted(report.read);
-        if person && report.unstamped {
+        if report.unstamped {
             return self.switch_off_unstamped(st, i);
         }
         waits.retain(|w| !report.stopped.contains(&w.run));
         answered(&report)
     }
 
-    /// The person's switch-off when no read of the clock answers (ruling RD-133 1): the
+    /// The person's switch-off when no read of the clock answers (ruling RD-133 1), and so the
+    /// rest of a switch-off that a move's own read of the owner's events showed beside a live run
+    /// (RD-52 (b) rule 3) when that move's `Move::Off` finds no read (adversary 3's a/02): the
     /// agent's live run is stopped on the guard's table and the board at once and its open item
     /// lapses with `cancelled`, `Runs::cancel` goes out in this move, and its queued start
     /// leaves the queue; the run's stop time, the rows and the rest of the switch-off wait for
